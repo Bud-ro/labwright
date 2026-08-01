@@ -161,6 +161,155 @@ GlobalHatchOffset deriveHatchOffset({
   return (x: bestX, y: bestY);
 }
 
+/// Derives a reference capture's [BdRenderStyle.wireCycleOffset] — the mod-4
+/// column shift the capture viewport's pan gives the patterned wire-stroke
+/// cycles ([kBdWireCyclePhase]; the same screen anchoring as the hatch
+/// lattice). Only the `x` component is meaningful: a row-parity pan flip is
+/// identical to a column shift of 2 (the cycles' row term is `2·(y & 1)`
+/// mod 4), so the candidate space is exactly the 4 column shifts. Scores
+/// every clean column of every horizontal patterned leg against the
+/// reference under each candidate. Braid legs are excluded: the
+/// error-cluster braid draws its own weave palette, and telling error from
+/// plain braid here would duplicate the painter's net resolution. Returns
+/// [kNoHatchOffset] unless one shift wins decisively (≥75% bit agreement
+/// and a strict margin), so a diagram without patterned wires keeps the
+/// neutral phase.
+GlobalHatchOffset deriveWireCycleOffset({
+  required BdScene scene,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) {
+  int refPixel(int rx, int ry) {
+    if (rx < 0 || ry < 0 || rx >= width || ry >= height) return -1;
+    final i = (ry * width + rx) * 4;
+    return (referenceRgba[i] << 16) |
+        (referenceRgba[i + 1] << 8) |
+        referenceRgba[i + 2];
+  }
+
+  final score = List.filled(4, 0);
+  var samples = 0;
+  for (final wire in scene.wires) {
+    final style = wire.signalType?.renderStyle;
+    if (style == ViWireRenderStyle.braid) continue;
+    final cycle = kBdWireStrokeCycles[style];
+    final stylePhase = kBdWireCyclePhase[style];
+    if (cycle == null || stylePhase == null || cycle.length != 4) continue;
+    final legs = <List<ViPoint>>[
+      if (wire.routePoints case final p? when p.length >= 2) p,
+      ...?wire.routeTree?.polylines,
+    ];
+    for (final leg in legs) {
+      for (var s = 0; s + 1 < leg.length; s++) {
+        final a = leg[s], b = leg[s + 1];
+        // VERTICAL string-family runs score the same global texture through
+        // their column masks (ink where `(x + 2·(y&1) + shift) mod 4 != 0`),
+        // so captures without long horizontal patterned runs still derive.
+        if (a.x == b.x && (a.y - b.y).abs() >= 14) {
+          final vlo = math.min(a.y, b.y) + 3, vhi = math.max(a.y, b.y) - 3;
+          int rxOf(num x) =>
+              ((x - raster.content.left) * registration.scale + registration.dx)
+                  .round();
+          int ryOf(num y) =>
+              ((y - raster.content.top) * registration.scale + registration.dy)
+                  .round();
+          final bands = switch (style) {
+            ViWireRenderStyle.zigzag => const [-1, 0],
+            ViWireRenderStyle.chainLink => const [-1, 0, 1],
+            _ => const [-2, -1, 0, 1],
+          };
+          final counts = <int, int>{};
+          for (var y = vlo; y <= vhi; y++) {
+            for (var bit = -2; bit <= 2; bit++) {
+              final c = refPixel(rxOf(a.x + bit), ryOf(y));
+              if (c != 0xffffff && c != -1) counts[c] = (counts[c] ?? 0) + 1;
+            }
+          }
+          if (counts.isEmpty) continue;
+          final ink =
+              (counts.entries.toList()
+                    ..sort((p, q) => q.value.compareTo(p.value)))
+                  .first
+                  .key;
+          for (var y = vlo; y <= vhi; y++) {
+            var clean = true;
+            for (var bit = -2; bit <= 2; bit++) {
+              final c = refPixel(rxOf(a.x + bit), ryOf(y));
+              if (c != 0xffffff && c != ink) clean = false;
+            }
+            if (!clean) continue;
+            samples += bands.length;
+            for (var cand = 0; cand < 4; cand++) {
+              for (final band in bands) {
+                final x = a.x + band;
+                final predicted = (x + ((y & 1) << 1) + cand) % 4 != 0;
+                final observed = refPixel(rxOf(x), ryOf(y)) == ink;
+                score[cand] += predicted == observed ? 1 : -1;
+              }
+            }
+          }
+          continue;
+        }
+        if (a.y != b.y || (a.x - b.x).abs() < 14) continue;
+        final lo = math.min(a.x, b.x) + 3, hi = math.max(a.x, b.x) - 3;
+        int rxOf(num x) =>
+            ((x - raster.content.left) * registration.scale + registration.dx)
+                .round();
+        int ryOf(num y) =>
+            ((y - raster.content.top) * registration.scale + registration.dy)
+                .round();
+        // The leg's ink colour: the modal non-white pixel over its band.
+        final counts = <int, int>{};
+        for (var x = lo; x <= hi; x++) {
+          for (var bit = -2; bit <= 2; bit++) {
+            final c = refPixel(rxOf(x), ryOf(a.y + bit));
+            if (c != 0xffffff && c != -1) counts[c] = (counts[c] ?? 0) + 1;
+          }
+        }
+        if (counts.isEmpty) continue;
+        final ink =
+            (counts.entries.toList()
+                  ..sort((p, q) => q.value.compareTo(p.value)))
+                .first
+                .key;
+        for (var x = lo; x <= hi; x++) {
+          // Columns carrying any third colour are overdrawn — skip them.
+          var clean = true;
+          for (var bit = -2; bit <= 2; bit++) {
+            final c = refPixel(rxOf(x), ryOf(a.y + bit));
+            if (c != 0xffffff && c != ink) clean = false;
+          }
+          if (!clean) continue;
+          samples += 5;
+          for (var px = 0; px < 4; px++) {
+            final mask = cycle[(x + ((a.y & 1) << 1) + stylePhase + px) % 4];
+            for (var bit = 0; bit < 5; bit++) {
+              final inked = refPixel(rxOf(x), ryOf(a.y + bit - 2)) == ink;
+              score[px] += inked == ((mask >> bit) & 1 != 0) ? 1 : -1;
+            }
+          }
+        }
+      }
+    }
+  }
+  if (samples == 0) return kNoHatchOffset;
+  var bestX = 0, best = -samples - 1, second = -samples - 1;
+  for (var px = 0; px < 4; px++) {
+    if (score[px] > best) {
+      second = best;
+      best = score[px];
+      bestX = px;
+    } else if (score[px] > second) {
+      second = score[px];
+    }
+  }
+  if (best < samples ~/ 2 || best == second) return kNoHatchOffset;
+  return (x: bestX, y: 0);
+}
+
 /// Rasterises [diagram]'s drawable objects to a [ui.Image] using the shared
 /// [BdDiagramPainter], off-screen (via a [ui.PictureRecorder], no widget tree).
 /// The whole content rectangle is fit within [maxDimension] on its longer side
@@ -177,6 +326,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   int margin = 40,
   Map<int, ViLegacyIcon> subViIcons = const {},
   Map<int, PrimIconArt> primIcons = const {},
+  Map<int, ui.Image> xnodeFacades = const {},
   List<ViWire>? wires,
   List<ViHeapObject>? drawable,
   BdScene? scene,
@@ -226,6 +376,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     origin: content.topLeft,
     subViIcons: subViIcons,
     primIcons: primIcons,
+    xnodeFacades: xnodeFacades,
     primIconsGrey: primIconsGreyLoaded(),
     // The reference renders have a plain white canvas; the interactive
     // view's alignment-dot grid would break byte-exact comparisons.
@@ -537,6 +688,8 @@ Future<BdOracleResult> compareToReference(
   int threshold = 16,
   double? lockScale,
   List<Rect> anchorRects = const [],
+  BdRegistration? knownRegistration,
+  Uint8List? knownReferenceEdges,
 }) async {
   final width = reference.width;
   final height = reference.height;
@@ -550,49 +703,59 @@ Future<BdOracleResult> compareToReference(
   // spike when the oracle first opened.
   final skipResample =
       lockScale == null && renderedWidth == width && renderedHeight == height;
-  final renderedOwnRgba = skipResample ? null : await _rgbaOf(rendered);
-  final reg = await Isolate.run(() {
-    // The reference's Sobel edge mask, computed once and shared by the
-    // translation refinement, the structural comparison, and (via the
-    // result) the placement metric — three consumers, one O(pixels) pass.
-    final referenceEdges = _sobelMask(
-      _luma(referenceRgba, width * height),
-      width,
-      height,
-      kBdEdgeThreshold,
-    );
-    BdRegistration? registration;
-    if (renderedOwnRgba != null) {
-      // Register the render onto the reference by aligning their drawn-ink
-      // bounding boxes (aspect-preserved scale + centre), so a correct
-      // render at a different crop/scale is credited instead of penalised.
-      // Null when either image has no ink to register on (the caller falls
-      // back to a centred letterbox).
-      final srcInk = inkBoundsOf(
-        renderedOwnRgba,
-        renderedWidth,
-        renderedHeight,
-      );
-      final dstInk = inkBoundsOf(referenceRgba, width, height);
-      if (srcInk != null && dstInk != null) {
-        registration = lockScale != null
-            ? _translationRegistration(
-                lockScale,
-                srcInk,
-                dstInk,
-                renderedOwnRgba,
-                renderedWidth,
-                renderedHeight,
-                referenceEdges,
+  // A caller re-comparing the SAME geometry (a lattice-rephased re-render
+  // registers where the original did — only pattern phases moved) passes the
+  // first result's registration and reference edge mask back in, and the
+  // whole search is skipped: re-deriving a known answer is pure waste.
+  final renderedOwnRgba = skipResample || knownRegistration != null
+      ? null
+      : await _rgbaOf(rendered);
+  final reg = knownRegistration != null && knownReferenceEdges != null
+      ? (referenceEdges: knownReferenceEdges, registration: knownRegistration)
+      : await Isolate.run(() {
+          // The reference's Sobel edge mask, computed once and shared by the
+          // translation refinement, the structural comparison, and (via the
+          // result) the placement metric — three consumers, one O(pixels) pass.
+          final referenceEdges =
+              knownReferenceEdges ??
+              _sobelMask(
+                _luma(referenceRgba, width * height),
                 width,
                 height,
-                anchorRects: anchorRects,
-              )
-            : _inkBoundsRegistration(srcInk, dstInk);
-      }
-    }
-    return (referenceEdges: referenceEdges, registration: registration);
-  });
+                kBdEdgeThreshold,
+              );
+          BdRegistration? registration = knownRegistration;
+          if (registration == null && renderedOwnRgba != null) {
+            // Register the render onto the reference by aligning their drawn-ink
+            // bounding boxes (aspect-preserved scale + centre), so a correct
+            // render at a different crop/scale is credited instead of penalised.
+            // Null when either image has no ink to register on (the caller falls
+            // back to a centred letterbox).
+            final srcInk = inkBoundsOf(
+              renderedOwnRgba,
+              renderedWidth,
+              renderedHeight,
+            );
+            final dstInk = inkBoundsOf(referenceRgba, width, height);
+            if (srcInk != null && dstInk != null) {
+              registration = lockScale != null
+                  ? _translationRegistration(
+                      lockScale,
+                      srcInk,
+                      dstInk,
+                      renderedOwnRgba,
+                      renderedWidth,
+                      renderedHeight,
+                      referenceEdges,
+                      width,
+                      height,
+                      anchorRects: anchorRects,
+                    )
+                  : _inkBoundsRegistration(srcInk, dstInk);
+            }
+          }
+          return (referenceEdges: referenceEdges, registration: registration);
+        });
   final referenceEdges = reg.referenceEdges;
   // Skip the resample when the render already matches the reference exactly, so
   // an identical pair diffs to a true zero (a same-size letterbox still applies
@@ -1072,6 +1235,22 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
+  // The stride-6 sweep only RANKS cells to seed peaks — a strided subset of
+  // the edge samples ranks them the same way at a fraction of the cost (the
+  // full sample set still scores every refinement and the exact snap). The
+  // subset is at most ~4k points, taken uniformly across the list.
+  final int coarseStep = 2 * math.max(1, (points.length ~/ 2) ~/ 4000);
+  int coarseHitsAt(double dx, double dy) {
+    var hits = 0;
+    for (var i = 0; i < points.length; i += coarseStep) {
+      final x = (points[i] + dx).round();
+      final y = (points[i + 1] + dy).round();
+      if (x < 0 || y < 0 || x >= width || y >= height) continue;
+      hits += nearEdges[y * width + x];
+    }
+    return hits;
+  }
+
   // Multi-start, multi-peak coarse-to-fine. A stride-6 sweep around each
   // start collects candidate cells; non-maximum suppression keeps the
   // strongest well-separated PEAKS (repetitive texture — hatched structure
@@ -1092,7 +1271,7 @@ BdRegistration _translationRegistration(
   for (final (sx, sy) in starts) {
     for (var oy = -searchRadius; oy <= searchRadius; oy += 6) {
       for (var ox = -searchRadius; ox <= searchRadius; ox += 6) {
-        cells.add((sx + ox, sy + oy, hitsAt(sx + ox, sy + oy)));
+        cells.add((sx + ox, sy + oy, coarseHitsAt(sx + ox, sy + oy)));
       }
     }
   }
@@ -1106,8 +1285,12 @@ BdRegistration _translationRegistration(
     if (farEnough) peaks.add(cell);
   }
   final candidates = <(double, double, int)>[];
-  for (final (px, py, ph) in peaks) {
-    var bestDx = px, bestDy = py, bestHits = ph;
+  for (final (px, py, _) in peaks) {
+    // Re-score the peak with the FULL sample set before refining: the coarse
+    // rank is subsampled, and mixing the two scales would let any full-set
+    // neighbour beat the peak by construction.
+    var bestDx = px, bestDy = py;
+    var bestHits = hitsAt(px, py);
     for (var oy = -5; oy <= 5; oy++) {
       for (var ox = -5; ox <= 5; ox++) {
         if (ox == 0 && oy == 0) continue;
@@ -1413,6 +1596,10 @@ class _BdOracleViewState extends State<BdOracleView>
     // initial, rephased, supersampled — reuses them.
     final scene = BdScene(diagram);
     final drawable = scene.drawable;
+    final snippetVi = bytes == null ? null : extractSnippetVi(bytes);
+    final facades = snippetVi == null
+        ? const <int, ui.Image>{}
+        : await loadXnodeFacades(snippetVi, diagram);
     Future<BdRaster?> render({
       required int maxDimension,
       double? scale,
@@ -1427,6 +1614,7 @@ class _BdOracleViewState extends State<BdOracleView>
       // dimensions, not just matched scale.
       margin: snippet ? 2 : 40,
       subViIcons: widget.subViIcons,
+      xnodeFacades: facades,
       scene: scene,
       style: style,
     );
@@ -1468,9 +1656,18 @@ class _BdOracleViewState extends State<BdOracleView>
       style = BdRenderStyle(
         hatchOffset: derive(errorStyle: false),
         errorHatchOffset: derive(errorStyle: true),
+        wireCycleOffset: deriveWireCycleOffset(
+          scene: scene,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: reference.image.width,
+          height: reference.image.height,
+        ),
       );
       if (style.hatchOffset != kNoHatchOffset ||
-          style.errorHatchOffset != kNoHatchOffset) {
+          style.errorHatchOffset != kNoHatchOffset ||
+          style.wireCycleOffset != kNoHatchOffset) {
         final rephased = await render(
           maxDimension: widget.maxDimension,
           scale: 1.0,
@@ -1481,15 +1678,14 @@ class _BdOracleViewState extends State<BdOracleView>
           result.fitted.dispose();
           result.diffImage.dispose();
           raster = rephased;
+          // Same geometry, rephased lattices: the first pass's registration
+          // and reference edge mask still hold — no second search.
           result = await compareToReference(
             raster.image,
             reference.image,
             lockScale: 1.0 / raster.scale,
-            anchorRects: bdStructureAnchorRects(
-              diagram,
-              raster,
-              drawable: drawable,
-            ),
+            knownRegistration: result.registration,
+            knownReferenceEdges: result.referenceEdges,
           );
         }
       }

@@ -25,8 +25,10 @@ import 'snapshot_check.dart';
 ///     route closes exactly (ships [ViWire.routePoints]) or how it fails.
 ///     Failures are never force-closed, so the miss buckets stay visible.
 ///  3. **Branching routes** — per 3+-endpoint extended table: decode/walk
-///     totality, leaf closure onto the anchored attach points, the
-///     fully-anchored split gating [ViWire.routeTree], and the
+///     totality, leaf closure onto the anchored attach points (destination
+///     candidates include the strip-column target,
+///     [kTerminalStripTargetLeftOffset]), the fully-anchored split gating
+///     [ViWire.routeTree], the reverse-solved tier (`extShippedRev`), and the
 ///     exact-attach-geometry subset (see [_extCensus]).
 ///  4. **Plain-node landings** — for wires walkable from one anchored end
 ///     whose far endpoint is a plain-node DCO (no attach geometry), the
@@ -111,23 +113,27 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
       final sAlt = altOf(w.endpointOids[0]);
       final tAlt = altOf(w.endpointOids[1]);
+      final tStrip = _stripTargetOf(d, w, 1);
       final points = w.routePoints;
       if (points != null) {
         bump('shipped');
-        // Tier split: both endpoints resolve = the proven closed polyline;
-        // exactly one resolves = the one-anchored walked polyline (forward
-        // from endpoint 0, or reverse from an endpoint-1 anchor on a straight
-        // route). See [ViWire.routePoints].
-        final walked = s == null || t == null;
+        // Tier split by the exposed fidelity and the standard-attach
+        // resolution: both standard endpoints = the historical closed tier;
+        // a closed ship with a missing standard end went through the
+        // DCO-child fallback candidates ([ViDiagram.dcoChildTerminalAttach]);
+        // a walked ship splits into the standard one-anchored walk (forward
+        // from endpoint 0 / reverse from endpoint 1) and the wide-row
+        // fallback-anchored walk (no standard attach at all).
+        final walked = w.routePointsFidelity == WireRouteFidelity.walked;
         if (!walked) {
-          bump('shippedClosed');
-        } else {
+          bump(s != null && t != null ? 'shippedClosed' : 'shippedClosedDcoChild');
+        } else if (s != null || t != null) {
           bump(s != null ? 'shippedWalkedFwd' : 'shippedWalkedRev');
+        } else {
+          bump('shippedWalkedDcoRow');
         }
-        // Law: the exposed fidelity tier matches the anchoring (closed iff both
-        // ends resolve, walked otherwise).
-        final wantFid = walked ? WireRouteFidelity.walked : WireRouteFidelity.closed;
-        if (w.routePointsFidelity != wantFid) bump('fidelityBad');
+        // Law: the fidelity tier is exposed for every ship.
+        if (w.routePointsFidelity == null) bump('fidelityBad');
         // A forward walk whose last decoded bend enters the far node ships the
         // polyline to that bend (pointCount-1 points) with an into-node closing
         // step; the length that would carry it to the node's connection is the
@@ -150,17 +156,29 @@ Map<String, int> _census(Uint8List bytes, String path) {
           );
         }
         // Law: a shipped polyline carries the stored point count (one fewer
-        // for a zero run) and touches its anchor(s) — both attach points when
-        // closed, else the sole resolved end (leading for a forward walk,
-        // trailing for a reverse walk).
+        // for a zero run) and touches its anchor(s) — both endpoint candidate
+        // sets when closed (standard attach/alt/strip points, else the
+        // DCO-child fallback candidates), else the sole anchored end (leading
+        // for a forward walk, trailing for a reverse walk; either end for the
+        // wide-row fallback walk).
         final lenOk = points.length == route.pointCount || points.length == route.pointCount - 1;
+        final fb0 = d.dcoChildTerminalAttach(w.endpointOids[0]);
+        final fb1 = d.dcoChildTerminalAttach(w.endpointOids[1]);
+        final sourceSet = {
+          if (s != null) ...{s, if (sAlt != null) sAlt} else ...?fb0?.candidates,
+        };
+        final targetSet = {
+          if (t != null) ...{t, if (tAlt != null) tAlt, if (tStrip != null) tStrip} else ...?fb1?.candidates,
+        };
         final bool anchorOk;
         if (!walked) {
-          anchorOk = (points.first == s || points.first == sAlt) && (points.last == t || points.last == tAlt);
+          anchorOk = sourceSet.contains(points.first) && targetSet.contains(points.last);
         } else if (s != null) {
           anchorOk = points.first == s;
-        } else {
+        } else if (t != null) {
           anchorOk = points.last == t;
+        } else {
+          anchorOk = sourceSet.contains(points.first) || targetSet.contains(points.last);
         }
         if (!lenOk || !anchorOk) bump('shippedBad');
       } else if (s == null && t == null) {
@@ -288,9 +306,48 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     bump('extFullAnchored');
     if (pops + 2 != eps) bump('extFullLeafMismatch');
   }
+  // Strip-column destination candidates (a route ends 8 px left of a width-8
+  // terminal-strip column's centre; see [kTerminalStripTargetLeftOffset]).
+  final strip = [for (var i = 0; i < eps; i++) _stripTargetOf(d, w, i)];
+  // Whether endpoint [i] closes onto an unmatched leaf in [pool] — on any of
+  // its destination candidates, strip column target first (mirrors the ship
+  // gate's arbitration order).
+  bool hitOf(List<ViPoint> pool, int i) =>
+      (strip[i] != null && pool.remove(strip[i])) ||
+      pool.remove(attach[i]) ||
+      (altAttach[i] != null && pool.remove(altAttach[i]));
 
   if (attach[0] == null) {
     bump('extEp0Unanchored');
+    // The reverse-solved tier: the tree's translation solved from resolved
+    // far endpoints, origin inside the head owner box (see [ViWire.routeTree]).
+    if ([for (var i = 1; i < eps; i++) attach[i]].any((p) => p != null)) bump('extRevAnchored');
+    final tree = w.routeTree;
+    if (tree != null) {
+      bump('extShipped');
+      bump('extShippedRev');
+      if (w.routeTreeFidelity != WireRouteFidelity.walked) bump('extFidelityBad');
+      // Corroboration the gate does NOT consume: after the resolved far
+      // endpoints claim their leaves, each unresolved (plain-node) endpoint
+      // should find a remaining leaf within 8 px of its own owner box.
+      final pool = List<ViPoint>.of(tree.leaves);
+      for (var i = 1; i < eps; i++) {
+        if (attach[i] != null) hitOf(pool, i);
+      }
+      for (var i = 1; i < eps; i++) {
+        if (attach[i] != null) continue;
+        bump('extRevPlainLeaf');
+        final box = w.endpointAnchors[i];
+        if (box == null) continue;
+        for (final leaf in pool) {
+          if (leaf.x >= box.left - 8 && leaf.x <= box.right + 8 && leaf.y >= box.top - 8 && leaf.y <= box.bottom + 8) {
+            bump('extRevPlainLeafInBox');
+            pool.remove(leaf);
+            break;
+          }
+        }
+      }
+    }
     return;
   }
   // Arbitrate the origin candidate exactly like the ship gate: the walk from
@@ -301,9 +358,8 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     final pool = List<ViPoint>.of(t.leaves);
     var n = 0;
     for (var i = 1; i < eps; i++) {
-      final p = attach[i];
-      if (p == null) continue;
-      if (pool.remove(p) || (altAttach[i] != null && pool.remove(altAttach[i]))) n++;
+      if (attach[i] == null) continue;
+      if (hitOf(pool, i)) n++;
     }
     return n;
   }
@@ -345,7 +401,7 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     final p = attach[i];
     if (p == null) continue;
     anchored++;
-    final hit = pool.remove(p) || (altAttach[i] != null && pool.remove(altAttach[i]));
+    final hit = hitOf(pool, i);
     if (hit) hits++;
     if (originExact && exact(i)) {
       bump('extEpExact');
@@ -377,6 +433,19 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
       bump('extFidelityBad');
     }
   }
+}
+
+/// The strip-column destination candidate of endpoint [i] — 8 px left of a
+/// width-8 [kNodeTerminalStripClasses] terminal's attach centre
+/// ([kTerminalStripTargetLeftOffset]) — or null for every other endpoint.
+/// Independent re-derivation of the ship gates' candidate.
+ViPoint? _stripTargetOf(ViDiagram d, ViWire w, int i) {
+  final rect = w.endpointAttachRects[i];
+  final p = d.wireAttachPoint(w.endpointOids[i]);
+  if (rect == null || p == null) return null;
+  if (rect.right - rect.left != kTerminalStripColumnWidth) return null;
+  if (!kNodeTerminalStripClasses.contains(d.endpointTerminal(w.endpointOids[i])?.kind)) return null;
+  return (x: p.x - kTerminalStripTargetLeftOffset, y: p.y);
 }
 
 /// The walked leaf nearest [p] (Manhattan) — for the exact-subset miss
@@ -561,7 +630,7 @@ void main() {
       0,
       reason: 'every shipped polyline carries the stored point count and touches its anchor',
     );
-    expect(C['fidelityBad'] ?? 0, 0, reason: 'routePointsFidelity matches the anchoring (closed vs walked)');
+    expect(C['fidelityBad'] ?? 0, 0, reason: 'every shipped polyline exposes a routePointsFidelity tier');
     expect(C['extFidelityBad'] ?? 0, 0, reason: 'routeTreeFidelity matches the anchoring (closed vs walked)');
     expect(C['bounded15Endpoints'] ?? 0, 0, reason: '0x15 node endpoints are bounds-less corpus-wide');
     expect(C['tables3Byte'] ?? 0, 0, reason: 'the grammar has no 3-byte table (u24 width unused)');
@@ -574,13 +643,19 @@ void main() {
     );
     expect(
       C['extShipped'] ?? 0,
-      (C['extShippedClosed'] ?? 0) + (C['extShippedWalked'] ?? 0),
-      reason: 'shipped branching trees partition into closed + walked tiers',
+      (C['extShippedClosed'] ?? 0) + (C['extShippedWalked'] ?? 0) + (C['extShippedRev'] ?? 0),
+      reason: 'shipped branching trees partition into closed + walked + reverse-solved tiers',
     );
     expect(
       C['shipped'] ?? 0,
-      (C['shippedClosed'] ?? 0) + (C['shippedWalkedFwd'] ?? 0) + (C['shippedWalkedRev'] ?? 0),
-      reason: 'shipped polylines partition into closed + walked (forward/reverse) tiers',
+      (C['shippedClosed'] ?? 0) +
+          (C['shippedClosedDcoChild'] ?? 0) +
+          (C['shippedWalkedFwd'] ?? 0) +
+          (C['shippedWalkedRev'] ?? 0) +
+          (C['shippedWalkedDcoRow'] ?? 0),
+      reason:
+          'shipped polylines partition into closed (standard + DCO-child '
+          'fallback) + walked (forward/reverse/wide-row) tiers',
     );
     // Junction-segment totals reconcile two ways (per-code sum == 41,304).
     final juncSum =

@@ -328,10 +328,9 @@ void main() {
       // (or its whole-pixel upscale), so exactness reduces to the stamp
       // itself: every opaque pixel of the art must appear in the raster
       // byte-for-byte at the grid-aligned stamp rect. Zero tolerance.
-      // Three stamps cover the three paths: a normal primitive (prim1608),
-      // a node in a DISABLED frame drawn with the grey-palette variant
-      // (prim1900, oid 3081), and a single-op class icon (class185,
-      // oid 3306).
+      // Two stamps cover the paths: a normal primitive (prim1608) and a
+      // node in a DISABLED frame drawn with the grey-palette variant
+      // (prim1900, oid 3081).
       final rasterPx = (await raster.image.toByteData())!.buffer.asUint8List();
       final refPx = (await reference.image.toByteData())!.buffer.asUint8List();
       // Our raster / LabVIEW's reference at ABSOLUTE diagram pixel (x,y): the
@@ -356,7 +355,6 @@ void main() {
       for (final (label, key, oid, art) in [
         ('prim1608', 1608, 894, icons[1608]!.base),
         ('prim1900 disabled', 1900, 3081, greyIcons[1900]!.base),
-        ('class185', -185, 3306, icons[-185]!.base),
       ]) {
         final b = bd.byId[oid]!.absBounds!;
         final stamp = primIconStampRect(
@@ -1067,12 +1065,33 @@ void main() {
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
         );
         final reg = result.registration;
+        // Patterned-junction pixels only compare at the capture's derived
+        // wire-cycle phase (screen-anchored patterns, see
+        // [BdRenderStyle.wireCycleOffset]).
+        final rephased = (await rasteriseBlockDiagram(
+          bd,
+          primIcons: icons,
+          scale: 1.0,
+          margin: 2,
+          wires: wires,
+          drawable: drawable,
+          style: BdRenderStyle(
+            wireCycleOffset: deriveWireCycleOffset(
+              scene: BdScene(bd, wires: wires, drawable: drawable),
+              raster: raster,
+              registration: reg,
+              referenceRgba: result.referenceRgba,
+              width: reference.image.width,
+              height: reference.image.height,
+            ),
+          ),
+        ))!;
         final refPx = (await reference.image.toByteData())!.buffer
             .asUint8List();
-        final rasterPx = (await raster.image.toByteData())!.buffer
+        final rasterPx = (await rephased.image.toByteData())!.buffer
             .asUint8List();
         final rw = reference.image.width;
-        final aw = raster.image.width, ah = raster.image.height;
+        final aw = rephased.image.width, ah = rephased.image.height;
 
         // Node/structure/text mask: any drawable box, inflated to cover chrome
         // borders and icon overhang.

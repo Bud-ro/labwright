@@ -12,9 +12,11 @@ import '../decode.dart';
 /// per-VI identity icon — there are only two distinct 20×20 images across all
 /// files (a generic checkmark and an X glyph), byte-identical across unrelated
 /// VIs. So this is best understood as "an embedded RGB glyph", not the VI's
-/// unique icon. (The classic `ICON`/`icl4`/`icl8` blocks are *not* these
-/// bitmaps either — they hold unrelated metadata: hashes/help-text/tables.)
-/// The real per-VI custom icon, if any, is not reliably recovered yet.
+/// unique icon. The real per-VI icon lives in the classic `ICON` (1-bit) /
+/// `icl4` / `icl8` (8-bit, 1024 B, corpus 7,583/7,583 at 32×32) blocks,
+/// decoded by `legacy_icon.dart`; a caller's file carries only its OWN icon
+/// (subVI call nodes' icons are NOT embedded — corpus-verified byte-search
+/// negative across every snippet with subVI nodes).
 class ViIcon {
   const ViIcon({required this.width, required this.height, required this.rgb});
 

@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'prim_terminal_catalog.dart';
 import 'terminal_bitmaps.dart';
 
 import 'images_view.dart';
@@ -39,6 +40,7 @@ class ViDiagramView extends StatefulWidget {
     this.isFrontPanel = false,
     this.viImages = const ViImages(),
     this.subViIconResolver,
+    this.sections = const [],
   });
 
   /// The diagrams to render (block-diagram or front-panel heap trees); the
@@ -79,6 +81,12 @@ class ViDiagramView extends StatefulWidget {
   final Future<Map<String, ViLegacyIcon>> Function(Set<String> wantedNames)?
   subViIconResolver;
 
+  /// The VI's decoded sections, used to recover XNode facade images (`DSIM`
+  /// PNGs stamped over `0x105` nodes — see [xnodeFacadesFromSections]). Only
+  /// meaningful for the block diagram; empty (the default) draws XNodes as
+  /// plain boxes.
+  final List<DecodedSection> sections;
+
   @override
   State<ViDiagramView> createState() => _ViDiagramViewState();
 }
@@ -115,6 +123,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   // [_resolveIcons]); empty until then, and when no loader is supplied.
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, PrimIconArt> _primIcons = const {};
+  Map<int, ui.Image> _xnodeFacades = const {};
 
   /// The diagram-derived render inputs, computed once (see [BdScene]).
   late final BdScene? _scene = switch (_diagram) {
@@ -124,6 +133,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   List<ViHeapObject> get _drawable => _scene?.drawable ?? const [];
   Rect get _content => _scene?.content ?? Rect.zero;
   late final Map<ViObjectKind, int> _counts = _computeCounts();
+
+  /// The control-flow outline, derived once — rebuilding it on every
+  /// selection tap / zoom re-anchor re-walked the whole object list.
+  late final _outline = computeBdOutline(_drawable);
 
   Map<ViObjectKind, int> _computeCounts() {
     final countsByKind = <ViObjectKind, int>{};
@@ -140,6 +153,17 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     loadPrimIcons().then((icons) {
       if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
     });
+    if (_diagram != null && widget.sections.isNotEmpty) {
+      xnodeFacadesFromSections(widget.sections, _diagram).then((facades) {
+        if (!mounted) {
+          for (final image in facades.values) {
+            image.dispose();
+          }
+          return;
+        }
+        if (facades.isNotEmpty) setState(() => _xnodeFacades = facades);
+      });
+    }
     if (_scene?.disabledOids.isNotEmpty ?? false) {
       ensurePrimIconsGrey().then((grey) {
         if (mounted && grey.isNotEmpty) setState(() {});
@@ -170,6 +194,9 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   @override
   void dispose() {
     _transform.dispose();
+    for (final image in _xnodeFacades.values) {
+      image.dispose();
+    }
     super.dispose();
   }
 
@@ -242,10 +269,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           ],
         ),
         const SizedBox(height: 8),
-        _BdOutline(
-          outline: computeBdOutline(_drawable),
-          linkedSubVis: widget.subViNames,
-        ),
+        _BdOutline(outline: _outline, linkedSubVis: widget.subViNames),
       ],
     ),
   );
@@ -306,6 +330,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               scene: _scene!,
                               origin: content.topLeft,
                               subViIcons: _subViIcons,
+                              xnodeFacades: _xnodeFacades,
                               primIcons: _primIcons,
                               primIconsGrey: primIconsGreyLoaded(),
                               iconFilterQuality: FilterQuality.low,
@@ -490,7 +515,11 @@ Color _objectColor(ViHeapObject object) =>
 /// reads like the original: orange = float, blue = int/enum, green-brown =
 /// path, yellow = call-library node. Unknown stays neutral (never guessed).
 Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
-  ViTypeKind.numericFloat => const Color(0xFFFF8000),
+  // Float orange is (255,102,0): the snippet corpus references contain
+  // 1,000 px of 0xFF6600 and ZERO of 0xFF8000 (exact-colour census over
+  // every reference PNG), and Excel_Read_XLSX's DBL wires/stubs all read
+  // 0xFF6600.
+  ViTypeKind.numericFloat => const Color(0xFFFF6600),
   // Integer/enum blue and string magenta are sampled from LabVIEW's own
   // snippet renders (terminal borders (0,0,255) and (255,0,255)); boolean
   // green (0,102,0) is sampled from crc8's boolean WIRE dots and selector
@@ -500,7 +529,9 @@ Color labviewTypeColor(ViTypeKind kind) => switch (kind) {
   ViTypeKind.enumRing => const Color(0xFF0000FF),
   ViTypeKind.string => const Color(0xFFFF00FF),
   ViTypeKind.boolean => const Color(0xFF006600),
-  ViTypeKind.path => const Color(0xFF669900),
+  // Path teal sampled from Excel_Read_XLSX's path-constant borders
+  // ((0,102,102) across both constants' 2px rings).
+  ViTypeKind.path => const Color(0xFF006666),
   ViTypeKind.clnNode => const Color(0xFFE8C547),
   // Cluster/array/refnum borders are not yet colour-sampled from a
   // reference; they keep the neutral grey rather than a guessed hue.
@@ -570,6 +601,101 @@ ViDataType? _dataTypeOfTypeKind(ViTypeKind kind) => switch (kind) {
   _ => null,
 };
 
+/// Whether a VCTP [ViDataType] is one of LabVIEW's numeric families
+/// (integer / float / complex / enum) for the cluster-tint rule.
+bool _isNumericDataType(ViDataType type) => switch (type) {
+  ViDataType.i8 ||
+  ViDataType.i16 ||
+  ViDataType.i32 ||
+  ViDataType.i64 ||
+  ViDataType.u8 ||
+  ViDataType.u16 ||
+  ViDataType.u32 ||
+  ViDataType.u64 ||
+  ViDataType.sgl ||
+  ViDataType.dbl ||
+  ViDataType.ext ||
+  ViDataType.complexSgl ||
+  ViDataType.complexDbl ||
+  ViDataType.complexExt ||
+  ViDataType.enumU8 ||
+  ViDataType.enumU16 ||
+  ViDataType.enumU32 => true,
+  _ => false,
+};
+
+/// The ERROR cluster's member fingerprint — exactly
+/// `[boolean, i32, string]` (status/code/source), the resolved members of
+/// every corpus `error in/out` terminal sampled. Error wires draw LabVIEW's
+/// dedicated dark-yellow braid palette instead of the member tint.
+bool _isErrorClusterMembers(List<ViType> members) =>
+    members.length == 3 &&
+    members[0].kind == ViDataType.boolean &&
+    members[1].kind == ViDataType.i32 &&
+    members[2].kind == ViDataType.string;
+
+/// A cluster's ink follows its member make-up: any non-numeric member draws
+/// the magenta family (Excel_Read_XLSX's `Worksheets` array-of-cluster wire,
+/// terminal and label, and its `StateData` shift-register wires —
+/// reference-measured); the ERROR cluster draws the braid's dark yellow;
+/// LabVIEW's all-numeric cluster brown has no reference pin yet, so that
+/// case keeps the neutral grey.
+Color _clusterTint(List<ViType> members) => _isErrorClusterMembers(members)
+    ? const Color(0xFF666600)
+    : members.any((m) => !_isNumericDataType(m.kind))
+    ? const Color(0xFFFF00FF)
+    : labviewTypeColor(ViTypeKind.cluster);
+
+/// The type colour of a terminal, resolving arrays to their ELEMENT ink and
+/// clusters to their member-make-up tint ([_clusterTint]) the way LabVIEW
+/// colours them; scalars fall through to [labviewTypeColor].
+Color bdTerminalTypeColor(ViHeapObject object) {
+  if (object.typeKind == ViTypeKind.array) {
+    final element = object.resolvedElementType;
+    if (element != null) {
+      if (element.kind == ViDataType.cluster &&
+          object.resolvedElementMembers.isNotEmpty) {
+        return _clusterTint(object.resolvedElementMembers);
+      }
+      return labviewTypeColor(_typeKindOfDataType(element.kind));
+    }
+  }
+  if (object.typeKind == ViTypeKind.cluster &&
+      object.resolvedMembers.isNotEmpty) {
+    return _clusterTint(object.resolvedMembers);
+  }
+  return labviewTypeColor(object.typeKind);
+}
+
+/// The coarse [ViTypeKind] a VCTP [ViDataType] colours as — the inverse of
+/// [_dataTypeOfTypeKind] widened over the numeric families. Feeds
+/// [labviewTypeColor] for element-typed ink (array rows / brackets).
+ViTypeKind _typeKindOfDataType(ViDataType type) => switch (type) {
+  ViDataType.i8 ||
+  ViDataType.i16 ||
+  ViDataType.i32 ||
+  ViDataType.i64 ||
+  ViDataType.u8 ||
+  ViDataType.u16 ||
+  ViDataType.u32 ||
+  ViDataType.u64 => ViTypeKind.numericInt,
+  ViDataType.sgl ||
+  ViDataType.dbl ||
+  ViDataType.ext ||
+  ViDataType.complexSgl ||
+  ViDataType.complexDbl ||
+  ViDataType.complexExt => ViTypeKind.numericFloat,
+  ViDataType.enumU8 ||
+  ViDataType.enumU16 ||
+  ViDataType.enumU32 => ViTypeKind.enumRing,
+  ViDataType.boolean => ViTypeKind.boolean,
+  ViDataType.string => ViTypeKind.string,
+  ViDataType.path => ViTypeKind.path,
+  ViDataType.cluster => ViTypeKind.cluster,
+  ViDataType.array => ViTypeKind.array,
+  _ => ViTypeKind.unknown,
+};
+
 /// LabVIEW's default structure colour (mid-grey). A frame carrying it has no
 /// user-chosen tint, so it draws in its standard chrome rather than washing
 /// this nominal value over the border.
@@ -621,6 +747,7 @@ class BdRenderStyle {
     this.booleanGreen = const Color(0xFF006600),
     this.hatchOffset = kNoHatchOffset,
     this.errorHatchOffset = kNoHatchOffset,
+    this.wireCycleOffset = kNoHatchOffset,
   });
 
   /// The while-loop band and error-stripe grey — corpus-dominant (119,119,119).
@@ -641,6 +768,12 @@ class BdRenderStyle {
   /// Phase of the error-stripe lattice ([kBdErrorHatch]) — independent of
   /// [hatchOffset] within one capture.
   final GlobalHatchOffset errorHatchOffset;
+
+  /// Phase of the patterned wire-stroke cycles ([kBdWireCyclePhase]): `x` is
+  /// the mod-4 column shift, `y` the row-parity flip, both from the capture
+  /// viewport's pan. Derived per reference by the oracle
+  /// (`deriveWireCycleOffset`); the viewer keeps (0,0).
+  final GlobalHatchOffset wireCycleOffset;
 }
 
 /// The uniform grey a disabled frame renders dark NEUTRAL chrome in — the
@@ -658,6 +791,14 @@ const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 /// control in its own stored LabVIEW colour instead of a generic category tint.
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
+
+/// The rendered fill for a free label's backing given its stored background
+/// colour. The stored default token `0xFFFFD7` renders as `0xFFFFCC`
+/// (98/98 visible corpus bubbles; none renders the raw stored value); a
+/// non-default stored colour renders verbatim (measured: `0x333333`).
+/// TODO: one corpus sample renders stored `0x7F7F7F` as `0x777777` —
+/// possibly nearest-palette snapping; needs more samples to decide.
+int bdLabelBackingRgb(int rgb) => rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
 
 /// The decoded **fill** colour for [object] when one was recovered: a control's
 /// interior [ViHeapObject.contentRgb] if present, else its
@@ -679,10 +820,10 @@ Color bdDimDisabled(Color color) =>
 /// repeating per-column 5-bit ink masks where bit `b` inks row
 /// `cross + (b - 2)` (bit 2 = the route row; higher bits are rows BELOW it,
 /// y growing downward). The cycle SHAPES are census measurements; the
-/// census canonicalises each cycle by rotation, so the absolute phase is
-/// NOT measured — the painter anchors a cycle at `column mod period`
-/// (TODO: census the phases). The dotted styles are not here: their
-/// measured checkerboard phase law is applied directly (see [_drawWires]).
+/// census canonicalises each cycle by rotation — the on-screen phase is
+/// measured separately ([kBdWireCyclePhase]). The dotted styles are not
+/// here: their measured checkerboard phase law is applied directly (see
+/// [_drawWires]).
 ///
 /// Only the solid styles ([ViWireRenderStyle.solid1px] / `solid2px` /
 /// `hollowDouble`) and the dotted pair have vertical treatments in the
@@ -697,6 +838,26 @@ const Map<ViWireRenderStyle, List<int>> kBdWireStrokeCycles = {
   ViWireRenderStyle.braidDense: [0x0a, 0x0e],
   ViWireRenderStyle.braidDenseWide: [0x0b, 0x0d],
   ViWireRenderStyle.weave: [0x02, 0x0a, 0x02, 0x0e, 0x08, 0x0a, 0x08, 0x0e],
+};
+
+/// The measured RELATIVE PHASE of each horizontal stroke cycle: LabVIEW
+/// indexes a cycle by `x + 2·(y & 1) + stylePhase + captureShift` — the
+/// pattern slides two columns between even and odd route rows, each style
+/// carries a fixed rotation relative to the others, and the whole family
+/// shifts by the capture viewport's pan (the same per-capture screen
+/// anchoring as the hatch lattice — [BdRenderStyle.wireCycleOffset], derived
+/// per reference by the oracle and (0,0) in the viewer). Phase census over
+/// every clean horizontal run of Excel_Read_XLSX's reference (39 legs, zero
+/// counterexamples, capture shift 1): zigzag legs measure absolute shift 3
+/// on odd rows / 1 on even rows, chainLink 1/3, braid 1 and braidWide 2 at
+/// even rows — rebased here so the zigzag entry is 0 (crc8's capture pins
+/// the zero shift). Styles absent keep phase 0 (TODO: census
+/// chainLinkWide/weave/dense phases when a clean reference run appears).
+const Map<ViWireRenderStyle, int> kBdWireCyclePhase = {
+  ViWireRenderStyle.zigzag: 0,
+  ViWireRenderStyle.chainLink: 2,
+  ViWireRenderStyle.braid: 0,
+  ViWireRenderStyle.braidWide: 1,
 };
 
 /// The cross-axis ink band of a stroke [style] around its route row/column,
@@ -989,6 +1150,20 @@ bool _isInlinedSubViControl(
     final parent = byId[parentOid];
     if (parent == null) break;
     if (parent.kind == 0x13 || parent.kind == 0x15) {
+      // A `0x13` holder carrying a DECODED constant value is a real diagram
+      // constant, visible caption or not — LabVIEW draws the constant box
+      // with its name beside it (crc8's `bytes` / `8-bits` feeders). Only a
+      // valueless const/struct wrapper marks a spliced subVI control. Gated
+      // to the numeric-int terminals whose box chrome is reference-measured;
+      // a named enum constant (FileReadOnly's `Read Only`) keeps the old
+      // exclusion until its ring chrome is measured (TODO).
+      if (parent.kind == 0x13 &&
+          o.typeKind == ViTypeKind.numericInt &&
+          (parent.constNumeric != null ||
+              parent.constBool != null ||
+              parent.constText != null)) {
+        return false;
+      }
       underConstOrStruct = true;
       break;
     }
@@ -1030,6 +1205,28 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
       final parent = byId[parentOid];
       if (parent == null) break;
       if (kControlTerminalCodes.contains(parent.kind)) return true;
+      parentOid = parent.parentOid;
+      depth++;
+    }
+  }
+  // ANYTHING nested inside a small bounded 0x53 CLUSTER container is the
+  // container's internal machinery: LabVIEW draws the cluster box as one
+  // unit — never the member shells, value windows, or labels
+  // (Excel_Read_XLSX's StateData box at (316,826) — the reference shows the
+  // single double-ringed box + glyph where the nested parts' own chrome
+  // would otherwise clash).
+  {
+    var parentOid = o.parentOid;
+    var depth = 0;
+    while (parentOid != null && depth < 8) {
+      final parent = byId[parentOid];
+      if (parent == null) break;
+      if (parent.kind == 0x53 &&
+          parent.absBounds != null &&
+          parent.absBounds!.width <= 40 &&
+          parent.absBounds!.height <= 24) {
+        return true;
+      }
       parentOid = parent.parentOid;
       depth++;
     }
@@ -1628,6 +1825,16 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// the bundle carries none.
 /// The primitive classes that ARE a single operation (no primResID record —
 /// the class code is the identity); their icons are keyed as `-code`.
+///
+/// No class-icon assets are bundled (see assets/prim_icons/MANIFEST.md);
+/// these nodes render as plain ringed plates. TODO(class-icons): re-extract
+/// per-arity art. Reference facts measured on Excel_Read_XLSX for that
+/// campaign: the 0x93 conversion node (oid 2714, 32x29) is a 0xFF444444
+/// ring around 0xFFFFCC cream with black conversion art in the upper half
+/// and its target-type text ("DBL") in the OUTPUT WIRE's datatype colour
+/// (0xFF6600 float orange there — the current class147 extraction had baked
+/// it grey); the 0x3a growable node's bottom-left cell shows TWO dotted
+/// boxes, not one empty box (review feedback on oid 3007's class58 art).
 const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0xb9};
 
 /// The detail-card row describing a primitive's decoded identity: the
@@ -1672,6 +1879,50 @@ int? primIconKeyOf(ViHeapObject object) =>
     object.primResId ??
     (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
 
+/// The PER-ARITY icon key for a class-identified prim: several single-op
+/// classes are growable stacked-terminal prims (0x3a/0x44 grow ~8px per
+/// terminal), so one class carries one art PER TERMINAL COUNT — the
+/// decoded identity, finer than the box size (0x44 renders t4 and t5 both
+/// at 32x35). Encoded collision-free below the plain negated class codes.
+/// Assets carry the arity in their name (`class58_t3.png`).
+int classVariantIconKey(int kind, int termCount) =>
+    -((kind << 8) | (termCount & 0xff)) - 0x100000;
+
+/// Resolves [object]'s prim icon: a primResID key directly; a class key
+/// first per terminal count ([classVariantIconKey], the `0x15` DCO
+/// children), then the legacy single-art class asset gated on an EXACT
+/// box-size match (class art varies per arity — Excel_Read_XLSX's 0x44 at
+/// 32x35 must not wear crc8's 32x27 art).
+PrimIconArt? primIconArtFor(
+  ViHeapObject object,
+  ViDiagram diagram,
+  Map<int, PrimIconArt> icons,
+) {
+  final key = primIconKeyOf(object);
+  if (key == null) return null;
+  if (key >= 0) return icons[key];
+  final terms = diagram
+      .children(object.oid)
+      .where((c) => c.kind == 0x15)
+      .length;
+  final variant = icons[classVariantIconKey(object.kind, terms)];
+  if (variant != null) {
+    final b = object.absBounds;
+    // The stamp is only exact when the art fills the box it was cut from.
+    if (b != null &&
+        variant.base.width == b.width &&
+        variant.base.height == b.height) {
+      return variant;
+    }
+  }
+  final legacy = icons[key];
+  final b = object.absBounds;
+  if (legacy == null || b == null) return legacy;
+  return legacy.base.width == b.width && legacy.base.height == b.height
+      ? legacy
+      : null;
+}
+
 /// Builtin prim terminal positions, keyed by (icon key, terminal index
 /// among the prim's `0x15` DCO children, box width, box height) with the
 /// offset relative to the prim box's top-left. LabVIEW measures a route's
@@ -1696,12 +1947,36 @@ int? primIconKeyOf(ViHeapObject object) =>
 ///  * prim 1142 t0: dy=16 corpus-unanimous (20 wires); dx not yet pinned.
 ///  * prim 1171 t0: dy=16 corpus-unanimous (8 wires); dx=20 corpus-pinned
 ///    (1 wire) and independently equal to the crc32 reference bend column.
+///  * prim 1900 t0: dy=16 corpus-unanimous (8 wires); dx=24 corpus-pinned
+///    (1 wire).
+///  * prims 1143 / 1814 / 1815 t0: dy=16 measured from the crc8 reference
+///    (the disabled LUT chain's seam ink sits on the row t+16 at every
+///    abutment); no corpus route pins them yet, dx unpinned.
+///  * prim 8083 t3 dx=28 / prim 1908 t0 dx=24: measured from the
+///    Excel_Read_XLSX reference bend columns of their slack wires (the
+///    walked route slides onto the terminal; the reference's vertical run
+///    pins the slide); the dy of both is corpus-unanimous in the census
+///    table and agrees with the same reference rows.
 /// Growable classes move terminals with the box, hence the size key.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
+  // Multiply's triangle: inputs at art rows top+5 / top+15 (art top =
+  // box.top+6), output mid-height — Excel_Read_XLSX rows 1146/1156 on the
+  // (1135,477) node.
+  (1052, 1, 32, 32): (dx: null, dy: 21),
+  (1052, 2, 32, 32): (dx: null, dy: 11),
   (1063, 0, 32, 32): (dx: 22, dy: 16),
+  // Random Number's output rides its dice-art middle row — Excel_Read_XLSX
+  // row 1146 on the (1131,443) node.
+  (1070, 0, 32, 32): (dx: null, dy: 15),
   (-0x44, 1, 32, 27): (dx: 24, dy: 22),
   (1142, 0, 32, 32): (dx: null, dy: 16),
+  (1143, 0, 32, 32): (dx: null, dy: 16),
   (1171, 0, 32, 32): (dx: 20, dy: 16),
+  (1814, 0, 32, 32): (dx: null, dy: 16),
+  (1815, 0, 32, 32): (dx: null, dy: 16),
+  (1900, 0, 32, 32): (dx: 24, dy: 16),
+  (1908, 0, 32, 32): (dx: 24, dy: 24),
+  (8083, 3, 32, 32): (dx: 28, dy: 4),
 };
 
 /// The catalogued builtin-terminal position of [endpointOid]'s prim
@@ -1728,13 +2003,10 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
     at++;
   }
   if (termIdx < 0) return null;
-  final offset =
-      _kBdPrimTerminals[(
-        key,
-        termIdx,
-        box.right - box.left,
-        box.bottom - box.top,
-      )];
+  // Reference-measured entries take precedence; the corpus-census table
+  // ([kBdPrimTerminalCensus]) supplies the long tail.
+  final sizedKey = (key, termIdx, box.right - box.left, box.bottom - box.top);
+  final offset = _kBdPrimTerminals[sizedKey] ?? kBdPrimTerminalCensus[sizedKey];
   if (offset == null) return null;
   return (
     x: offset.dx == null ? null : box.left + offset.dx!,
@@ -1765,20 +2037,28 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
     final match = RegExp(
-      r'assets/prim_icons/(prim|class)(\d+)(?:_[a-z0-9-]+)?\.png$',
+      r'assets/prim_icons/(prim|class)(\d+)(?:_t(\d+))?(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
     if (match == null) continue;
+    final sized = match.group(3) != null;
+    final statusKey =
+        '${match.group(1)}${match.group(2)}'
+        '${sized ? '_t${match.group(3)}' : ''}';
     // A rejected icon never stamps — the node falls back to the plate +
     // operator glyph until a better extraction or hand-drawn art lands.
-    if (kPrimIconStatus['${match.group(1)}${match.group(2)}'] ==
-        PrimIconStatus.rejected) {
+    if (kPrimIconStatus[statusKey] == PrimIconStatus.rejected) {
       continue;
     }
     final bytes = await rootBundle.load(asset);
     final image = await decodeImage(bytes.buffer.asUint8List());
     final id = match.group(1) == 'prim'
         ? int.parse(match.group(2)!)
-        : -int.parse(match.group(2)!);
+        : (sized
+              ? classVariantIconKey(
+                  int.parse(match.group(2)!),
+                  int.parse(match.group(3)!),
+                )
+              : -int.parse(match.group(2)!));
     // The alpha mask backs pixel-precise hit testing at LOGICAL resolution:
     // a stamped icon's transparent surround must not swallow clicks meant
     // for the wire or canvas behind it.
@@ -1877,6 +2157,70 @@ Future<ui.Image> decodeImage(Uint8List bytes) {
 }
 
 /// Builds a [ui.Image] from a raw RGBA buffer ([width]×[height]×4 bytes).
+/// XNode facade images: the k-th `0x105` object in heap order pairs with
+/// the k-th `DSIM` section, gated on exact geometry (corpus-verified — the
+/// per-snippet DSIM/0x105 counts and dimensions match, and the facades'
+/// error-code text matches the `C6 5D` configs under the same objects).
+/// A `DSIM` is a 46-byte geometry header followed by a PNG whose alpha is
+/// INVERTED (0 = opaque) with magenta (255,0,255) as a transparency key.
+Future<Map<int, ui.Image>> xnodeFacadesFromSections(
+  List<DecodedSection> sections,
+  ViDiagram diagram,
+) async {
+  final xnodes = [
+    for (final o in diagram.objects)
+      if (o.kind == 0x105 && o.absBounds != null) o,
+  ];
+  if (xnodes.isEmpty) return const {};
+  final dsims = [
+    for (final s in sections)
+      if (s.tag == 'DSIM') s,
+  ];
+  final out = <int, ui.Image>{};
+  for (var k = 0; k < xnodes.length && k < dsims.length; k++) {
+    final payload = dsims[k].bytes;
+    if (payload.length < 54) continue;
+    final png = decodePngEnvelope(payload, 46);
+    if (png == null || 46 + png.byteLength > payload.length) continue;
+    final b = xnodes[k].absBounds!;
+    if (png.width != b.right - b.left || png.height != b.bottom - b.top) {
+      continue;
+    }
+    final codec = await ui.instantiateImageCodec(
+      payload.sublist(46, 46 + png.byteLength),
+    );
+    final frame = await codec.getNextFrame();
+    final data = await frame.image.toByteData();
+    frame.image.dispose();
+    if (data == null) continue;
+    final px = Uint8List.fromList(data.buffer.asUint8List());
+    for (var i = 0; i < px.length; i += 4) {
+      final magenta = px[i] == 255 && px[i + 1] == 0 && px[i + 2] == 255;
+      px[i + 3] = magenta ? 0 : 255 - px[i + 3];
+    }
+    out[xnodes[k].oid] = await imageFromRgba(px, png.width, png.height);
+  }
+  return out;
+}
+
+/// [xnodeFacadesFromSections] over a raw VI: decodes the sections first
+/// (skipped entirely when the diagram has no `0x105` objects).
+Future<Map<int, ui.Image>> loadXnodeFacades(
+  Uint8List viBytes,
+  ViDiagram diagram,
+) async {
+  if (!diagram.objects.any((o) => o.kind == 0x105 && o.absBounds != null)) {
+    return const {};
+  }
+  List<DecodedSection> sections;
+  try {
+    sections = decodeSections(viBytes);
+  } catch (_) {
+    return const {};
+  }
+  return xnodeFacadesFromSections(sections, diagram);
+}
+
 Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
   final completer = Completer<ui.Image>();
   ui.decodeImageFromPixels(
@@ -1972,8 +2316,32 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   );
 }
 
+/// Resolves the LOADED icon id for [object]: a primResID directly; a
+/// class key by probing its per-arity variants ([classVariantIconKey])
+/// for one whose art matches the node box (variant art is always the full
+/// box rect), else the legacy plain class id gated on an exact box-size
+/// match. Same-size arities (0x44 t4/t5) alias here — harmless for masks
+/// and ink edges, which only read the fully-opaque rect; the STAMP path
+/// ([primIconArtFor]) resolves by the true terminal count.
+int? loadedPrimIconIdOf(ViHeapObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null || key >= 0) return key;
+  final b = object.absBounds;
+  if (b == null) return key;
+  for (var t = 0; t <= 15; t++) {
+    final id = classVariantIconKey(object.kind, t);
+    final m = _primIconMasks[id];
+    if (m != null && m.w == b.width && m.h == b.height) return id;
+  }
+  final legacy = _primIconMasks[key];
+  if (legacy != null && (legacy.w != b.width || legacy.h != b.height)) {
+    return null;
+  }
+  return key;
+}
+
 bool primIconHit(ViHeapObject object, double x, double y) {
-  final id = primIconKeyOf(object);
+  final id = loadedPrimIconIdOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   if (mask == null || _primIconsSync[id] == null) return true;
   final bounds = object.absBounds!;
@@ -2013,7 +2381,7 @@ int? primIconInkEdge(
   required int cross,
   required int sign,
 }) {
-  final id = primIconKeyOf(object);
+  final id = loadedPrimIconIdOf(object);
   final mask = id == null ? null : _primIconMasks[id];
   final b = object.absBounds;
   if (mask == null || b == null) return null;
@@ -2068,9 +2436,23 @@ Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 /// wire-colour-filled square under a 1 px [kBdTunnelBorder] ring), left /
 /// right shift registers `0x27`/`0x28` (2 px wire-colour border, cream
 /// fill, wire-colour down-/up-arrow glyph), selector terminal `0x2e`
-/// (1 px wire-colour border, cream fill, wire-colour `?` glyph). Other
-/// border-terminal kinds stay undrawn until reference-verified.
-const Set<int> kVerifiedBorderTerminalKinds = {0x22, 0x2d, 0x27, 0x28, 0x2e};
+/// (1 px wire-colour border, cream fill, wire-colour `?` glyph); flat-
+/// sequence border tunnels `0x2a`/`0xcb`, measured identical to the plain
+/// tunnel square (Excel_Read_XLSX: one 0x2a and three 0xcb rects all read
+/// the 1 px [kBdTunnelBorder] ring + solid wire-colour fill, punched
+/// through the film-strip band); disable-structure border tunnels `0xce`,
+/// same square (Excel_Read_XLSX oid 2228's path tunnel at (707,1043)).
+/// Other border-terminal kinds stay undrawn until reference-verified.
+const Set<int> kVerifiedBorderTerminalKinds = {
+  0x22,
+  0x2d,
+  0x27,
+  0x28,
+  0x2e,
+  0x2a,
+  0xcb,
+  0xce,
+};
 
 /// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
 /// (cream interior with a wire-colour ring — LabVIEW's use-default look)
@@ -2082,16 +2464,25 @@ const Set<int> kVerifiedBorderTerminalKinds = {0x22, 0x2d, 0x27, 0x28, 0x2e};
 /// look is decoded (TODO).
 const int kTunnelHollowFlag = 0x1000000;
 
+/// Tunnel-object flag bits whose BOTH-set form marks the tunnel that draws
+/// the wire-fill square with a 3×3 WHITE centre carrying a wire-colour
+/// centre dot (Excel_Read_XLSX's `Worksheets` case output tunnels at
+/// (1721,905) and (1833,905): their `0x2d` terminals read 0x300801 where the
+/// plain solid film tunnel reads 0x801). Measured on one VI — the two bits
+/// never split there, so they are gated together (TODO: corpus-census which
+/// bit carries the style, and the black-chevron tunnel variant beside it).
+const int kTunnelCentreDotFlags = 0x300000;
+
 /// Per decoded attach rect, its resolving terminal's class code, hollow
 /// bit, and whether the terminal sits inside a disable structure's
 /// displayed Disabled frame ([bdDisabledObjectOids] — its chrome then draws
 /// through [dimDisabledFrameRgb]) — for the border-terminal chrome pass
 /// (only [kVerifiedBorderTerminalKinds] draw).
-Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
-  ViDiagram diagram,
-) {
+Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>
+bdBorderTerminalKinds(ViDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
-  final out = <HeapRect, ({int kind, bool hollow, bool disabled})>{};
+  final out =
+      <HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>{};
   for (final wire in bdVisibleWires(diagram)) {
     for (var e = 0; e < wire.endpointOids.length; e++) {
       final attach = e < wire.endpointAttachRects.length
@@ -2104,6 +2495,9 @@ Map<HeapRect, ({int kind, bool hollow, bool disabled})> bdBorderTerminalKinds(
         out[attach] = (
           kind: terminal.kind,
           hollow: ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0,
+          centreDot:
+              ((terminal.objFlags ?? 0) & kTunnelCentreDotFlags) ==
+              kTunnelCentreDotFlags,
           disabled: disabledOids.contains(terminal.oid),
         );
       }
@@ -2201,7 +2595,10 @@ class BdScene {
 
   /// Attach rect → terminal class for reference-verified border-terminal
   /// chrome ([bdBorderTerminalKinds]).
-  late final Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  late final Map<
+    HeapRect,
+    ({int kind, bool hollow, bool centreDot, bool disabled})
+  >
   borderTerminalKinds = bdBorderTerminalKinds(diagram);
 
   /// Per structure oid, its modeled terminals ([bdStructureTerminals]).
@@ -2217,6 +2614,13 @@ class BdScene {
   late final Rect content = drawable.isEmpty
       ? Rect.zero
       : bdContentRect(drawable, includeWires: false);
+
+  /// Scale-independent text layouts, cached for the painter across repaints
+  /// and zoom re-anchors (the canvas itself is scaled, so a layout never
+  /// depends on [BdDiagramPainter.canvasScale]). Laying out hundreds of
+  /// labels per frame dominated interactive paint time. Keyed by the text +
+  /// full style + wrap width.
+  final Map<String, TextPainter> textLayoutCache = {};
 }
 
 class BdDiagramPainter extends CustomPainter {
@@ -2224,6 +2628,7 @@ class BdDiagramPainter extends CustomPainter {
     required this.scene,
     required this.origin,
     this.subViIcons = const {},
+    this.xnodeFacades = const {},
     this.primIcons = const {},
     this.primIconsGrey = const {},
     this.iconFilterQuality = FilterQuality.none,
@@ -2235,13 +2640,46 @@ class BdDiagramPainter extends CustomPainter {
   /// The diagram-derived render inputs (paint order, wires, chrome indexes).
   final BdScene scene;
 
+  /// A laid-out [TextPainter] from the scene's scale-independent layout
+  /// cache ([BdScene.textLayoutCache]) — label text re-lays-out only when
+  /// its content, style, or wrap width changes, not on every repaint or
+  /// zoom re-anchor.
+  TextPainter _layoutText(
+    String text, {
+    required Color color,
+    required double fontSize,
+    FontWeight fontWeight = FontWeight.w400,
+    FontStyle? fontStyle,
+    int? maxLines,
+    String? ellipsis,
+    double maxWidth = double.infinity,
+  }) => scene.textLayoutCache.putIfAbsent(
+    '$text|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|'
+    '$maxLines|$ellipsis|$maxWidth',
+    () => TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          color: color,
+          fontSize: fontSize,
+          fontWeight: fontWeight,
+          fontStyle: fontStyle,
+          fontFamily: 'Roboto',
+        ),
+      ),
+      maxLines: maxLines,
+      ellipsis: ellipsis,
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: maxWidth),
+  );
+
   final Offset origin;
 
   List<ViHeapObject> get objects => scene.ordered;
   List<ViWire> get wires => scene.wires;
   Set<int> get disabledOids => scene.disabledOids;
   Set<int> get errorCaseOids => scene.errorCaseOids;
-  Map<HeapRect, ({int kind, bool hollow, bool disabled})>
+  Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>
   get borderTerminalKinds => scene.borderTerminalKinds;
   Map<int, List<({HeapRect box, int bmp})>> get structureTerminals =>
       scene.structureTerminals;
@@ -2253,6 +2691,10 @@ class BdDiagramPainter extends CustomPainter {
   /// real icon on its plate; a node without one keeps the neutral
   /// connector-pane plate (the icon is never guessed).
   final Map<int, ViLegacyIcon> subViIcons;
+
+  /// XNode facade images decoded from the VI's `DSIM` sections
+  /// ([loadXnodeFacades] in bd_oracle.dart), keyed by the `0x105` oid.
+  final Map<int, ui.Image> xnodeFacades;
 
   /// Bundled primitive icon art keyed by primResID (see [loadPrimIcons]);
   /// stamped at natural size on primitive plates. A node without an entry
@@ -2275,6 +2717,40 @@ class BdDiagramPainter extends CustomPainter {
     rect.right - origin.dx,
     rect.bottom - origin.dy,
   );
+
+  /// Whether every pixel of the axis-aligned polyline [points] lies under
+  /// some box in [cover] (canvas coords; a box covers `[left, right-1] ×
+  /// [top, bottom-1]`, its drawn extent). Interval-merges the covering
+  /// boxes along each run, bridging a 1 px seam between ABUTTING boxes (a
+  /// stacked prim chain's divider row carries no wire ink either —
+  /// measured on the crc32 LUT stack); any wider gap is visible ink and
+  /// reads false.
+  static bool _polylineUnderNodes(List<Offset> points, List<Rect> cover) {
+    for (var j = 1; j < points.length; j++) {
+      final a = points[j - 1], b = points[j];
+      final horizontal = a.dy == b.dy;
+      final lo = horizontal ? math.min(a.dx, b.dx) : math.min(a.dy, b.dy);
+      final hi = horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy);
+      var at = lo;
+      var progressed = true;
+      while (at <= hi && progressed) {
+        progressed = false;
+        for (final r in cover) {
+          final crossOk = horizontal
+              ? (a.dy >= r.top && a.dy < r.bottom)
+              : (a.dx >= r.left && a.dx < r.right);
+          if (!crossOk) continue;
+          final (s, e) = horizontal ? (r.left, r.right) : (r.top, r.bottom);
+          if (s <= at + 1 && e > at) {
+            at = e;
+            progressed = true;
+          }
+        }
+      }
+      if (at <= hi) return false;
+    }
+    return points.isNotEmpty;
+  }
 
   /// [color] through the measured disabled-frame palette transform when the
   /// object [oid] sits under a disabled displayed frame ([disabledOids]),
@@ -2402,7 +2878,13 @@ class BdDiagramPainter extends CustomPainter {
         if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
     };
     final tunnelSquares =
-        <(Rect, ({int kind, bool hollow, bool disabled}), Color)>[];
+        <
+          (
+            Rect,
+            ({int kind, bool hollow, bool centreDot, bool disabled}),
+            Color,
+          )
+        >[];
     // Rects owned by the reference-verified border-terminal chrome pass
     // (shift registers, selectors, tunnels). A modeled structure terminal at
     // the same rect must not also draw: its anti-aliased ring strokes bleed
@@ -2413,6 +2895,17 @@ class BdDiagramPainter extends CustomPainter {
     };
     _drawWires(canvas, tunnelSquares: tunnelSquares);
     for (final object in structures) {
+      // A small 0x53 CLUSTER container is a single drawn box, not a frame —
+      // routed to the same chrome as the solids pass (and drawn HERE, after
+      // the wire pass: the reference covers a wire crossing the box's
+      // interior — Excel_Read_XLSX's braid under the (316,826) constant).
+      if (object.kind == 0x53) {
+        final rect = rectOf(object);
+        if (rect.width <= 40 && rect.height <= 24) {
+          _drawSmallClusterBox(canvas, object, rect);
+          continue;
+        }
+      }
       // Class-accurate structure chrome (no badge text — LabVIEW names a
       // construct by its border furniture, not a label). Loops get the thick
       // rounded grey band with the iteration / conditional corner terminals;
@@ -2443,6 +2936,7 @@ class BdDiagramPainter extends CustomPainter {
       // 0x52 without an index box keeps its generic frame (decorations_only
       // scores on one).
       if (object.kind == 0x52 && arrayShellOids.contains(object.oid)) {
+        _drawArrayConstantShell(canvas, object);
         continue;
       }
       switch (object.kind) {
@@ -2464,6 +2958,97 @@ class BdDiagramPainter extends CustomPainter {
             disabled: structDisabled,
             error: errorCaseOids.contains(object.oid),
           );
+          // Case-insensitive string match (objFlags bit 0x1000000): the
+          // magenta `A=a` badge on a white plate at the frame's bottom-left
+          // corner, over the hatch band. Reference-measured on
+          // Excel_Read_XLSX oid2480 (the corpus' one visible flagged case;
+          // its two other flagged cases sit in hidden frames).
+          if (((object.objFlags ?? 0) & 0x1000000) != 0) {
+            _drawCaseInsensitiveBadge(
+              canvas,
+              rect,
+              disabled: structDisabled,
+              oid: object.oid,
+            );
+          }
+        case 0xca: // Flat sequence: the film-strip border.
+          _drawFlatSequenceBorder(canvas, rect, object);
+        case 0x121: // A flat-sequence frame: the parent 0xca owns the strip
+          // chrome and the inter-frame dividers; the frame draws nothing.
+          break;
+        case 0xcd: // Diagram-disable structure. Displaying its Disabled
+          // frame: a single 1px grey rectangle (153,153,153), measured on
+          // crc8 — no double line, no tint. Displaying an ENABLED frame: a
+          // 3px (119,119,119) crosshatch band on the left/right/bottom
+          // edges (the case-hatch lattice, anchored to the structure's own
+          // rect with a +1 row phase) and a plain 1px black top row between
+          // the hatch corners — measured on Excel_Read_XLSX oid 2228.
+          final showsDisabled = scene.diagram
+              .children(object.oid)
+              .any(
+                (k) =>
+                    k.kind == 0x95 &&
+                    k.label?.trim().toLowerCase() == 'disabled',
+              );
+          if (showsDisabled) {
+            final grey = _solidNoAa(
+              _dimFor(object.oid, const Color(0xFF999999)),
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
+              grey,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+              grey,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
+              grey,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+              grey,
+            );
+          } else {
+            final black = _solidNoAa(_dimFor(object.oid, Colors.black));
+            final hatchPts = <double>[];
+            void hatchCell(double x, double y) {
+              final rx = (x - rect.left).round() & 3;
+              final ry = ((y - rect.top).round() + 1) & 3;
+              if (kBdStructureHatch[ry][rx] == '#') {
+                hatchPts
+                  ..add(x + 0.5)
+                  ..add(y + 0.5);
+              }
+            }
+
+            for (var y = rect.top; y < rect.bottom; y++) {
+              for (var k = 0; k < 3; k++) {
+                hatchCell(rect.left + k, y);
+                hatchCell(rect.right - 3 + k, y);
+              }
+            }
+            for (var y = rect.bottom - 3; y < rect.bottom; y++) {
+              for (var x = rect.left + 3; x < rect.right - 3; x++) {
+                hatchCell(x, y);
+              }
+            }
+            _drawCellPoints(
+              canvas,
+              hatchPts,
+              _dimFor(object.oid, const Color(0xFF777777)),
+            );
+            canvas.drawRect(
+              Rect.fromLTRB(
+                rect.left + 3,
+                rect.top,
+                rect.right - 3,
+                rect.top + 1,
+              ),
+              black,
+            );
+          }
         default:
           final frame =
               structColor ??
@@ -2531,45 +3116,74 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
 
+    final labelBackings = <(int, Rect, Color)>[];
     for (final object in solids) {
       final rect = rectOf(object);
       // Free-text label parts (control caption 0x0a, case selector 0x95) are
-      // drawn by LabVIEW as text, backed by a bordered fill only when the
-      // label has its own colour (a comment's yellow backing). So: a decoded
-      // background colour paints that backing; no colour paints no box (never
-      // guessed). The text pass below renders any recovered caption.
+      // drawn by LabVIEW as text; only a FREE label (one held by a `0x1b`
+      // free-label holder — a diagram comment) is backed by an opaque
+      // bordered fill. Owned labels (a control/constant's caption, parent
+      // `0x51`/`0x50`/…) are transparent even when a background colour was
+      // decoded — across the snippet corpus every backed label sits under a
+      // `0x1b` and no owned label shows a backing. The text pass below
+      // renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
         // The case selector's chrome already drew in the pre-chrome pass; its
         // value text draws in the text pass.
         if (object.kind == 0x95) continue;
         // A hidden label paints nothing — neither backing nor (below) text.
-        final backing = object.isLabelHidden
+        final free = scene.diagram.byId[object.parentOid ?? -1]?.kind == 0x1b;
+        final backing = object.isLabelHidden || !free || object.bgRgb == null
             ? null
-            : bdDecodedColor(object.bgRgb);
-        if (backing != null) {
-          canvas.drawRect(rect, Paint()..color = _dimFor(object.oid, backing));
-          canvas.drawRect(
-            rect,
-            Paint()
-              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.6)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
-          );
-        }
+            : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
+        // Free labels float ABOVE nodes in LabVIEW's z-order (a comment's
+        // backing covers an overlapping node icon), so the backing is
+        // deferred past this pass and painted after it.
+        if (backing != null) labelBackings.add((object.oid, rect, backing));
+        continue;
+      }
+      if (object.kind == 0x53 && rect.width <= 40 && rect.height <= 24) {
+        _drawSmallClusterBox(canvas, object, rect);
         continue;
       }
       switch (object.category) {
         case ViObjectKind.terminal:
+          // A named constant draws its box around the VALUE part only (the
+          // `0x9` child window): LabVIEW places the visible caption beside
+          // the box, inside the same terminal bounds (crc8's `bytes` /
+          // `8-bits` feeders). An unnamed constant's whole bounds ARE the
+          // value box (crc8's oid 3033).
+          var box = rect;
+          if (constValues[object.oid] != null) {
+            final kids =
+                scene.diagram.childrenByOid[object.oid] ??
+                const <ViHeapObject>[];
+            final named = kids.any(
+              (c) =>
+                  c.kind == 0x0a &&
+                  !c.isLabelHidden &&
+                  (c.label?.trim().isNotEmpty ?? false),
+            );
+            if (named) {
+              for (final c in kids) {
+                final b = c.absBounds;
+                if (c.kind == 0x9 && b != null && b.right > b.left) {
+                  box = _toCanvas(b);
+                  break;
+                }
+              }
+            }
+          }
           // A boolean constant's shell draws LabVIEW's exact T/F block — the
           // decoded [ViHeapObject.constBool] picks the bitmap.
           final constHolder = scene.diagram.byId[object.parentOid ?? -1];
           final boolValue = constHolder?.kind == 0x13
               ? constHolder!.constBool
               : null;
-          if (boolValue != null && rect.width == 16 && rect.height == 14) {
+          if (boolValue != null && box.width == 16 && box.height == 14) {
             _drawBoolConstant(
               canvas,
-              rect,
+              box,
               boolValue,
               disabled: disabledOids.contains(object.oid),
             );
@@ -2582,16 +3196,26 @@ class BdDiagramPainter extends CustomPainter {
               object.dataType ?? _dataTypeOfTypeKind(object.typeKind);
           if (artType != null &&
               object.isIndicator != null &&
-              rect.width == 32 &&
-              rect.height == 16) {
-            final art = bdTerminalArtFor(
-              artType,
-              indicator: object.isIndicator == true,
-            );
+              box.width == 32 &&
+              box.height == 16) {
+            // An array terminal draws the element-typed bracket art
+            // ([kBdArrayTerminalArt]); a scalar draws its own table entry.
+            final elementKind = artType == ViDataType.array
+                ? object.resolvedElementType?.kind
+                : null;
+            final art = elementKind != null
+                ? bdArrayTerminalArtFor(
+                    elementKind,
+                    indicator: object.isIndicator == true,
+                  )
+                : bdTerminalArtFor(
+                    artType,
+                    indicator: object.isIndicator == true,
+                  );
             if (art != null) {
               _drawTerminalArt(
                 canvas,
-                rect,
+                box,
                 art,
                 disabled: disabledOids.contains(object.oid),
               );
@@ -2626,17 +3250,143 @@ class BdDiagramPainter extends CustomPainter {
           // (its whole 160 px perimeter reads the plain dim-blue border) —
           // and shows its decoded literal centred instead of a type glyph.
           final constValue = constValues[object.oid];
-          canvas.drawRect(rect, Paint()..color = Colors.white);
-          canvas.drawRect(
-            rect.deflate(1),
-            Paint()
-              ..color = border
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 2.0,
-          );
-          if (constValue == null && rect.width > 10 && rect.height > 10) {
+          // An ARRAY constant's element box draws LabVIEW's measured chrome
+          // instead of the generic stroked frame: a crisp 3 px ring whose
+          // outer edge sits 1 px outside the part bounds on the left/top and
+          // ON the bounds' right/bottom edges (crc8's Polynomial + LUT
+          // arrays, byte-verified), value digits in the element colour.
+          final shellParent = scene.diagram.byId[object.parentOid ?? -1];
+          if (object.kind == 0x50 && shellParent?.kind == 0x52) {
+            var elementRight = -1 << 30;
+            for (final sib in scene.diagram.children(shellParent!.oid)) {
+              if (sib.kind == 0x50 && sib.absBounds != null) {
+                elementRight = math.max(elementRight, sib.absBounds!.right);
+              }
+            }
+            if (object.absBounds!.right != elementRight) {
+              // The INDEX box: its window, spinner boxes, and arrows are
+              // the array shell's furniture ([_drawArrayConstantShell]);
+              // the generic stroked frame would double them.
+              continue;
+            }
+            {
+              final ringFill = _solidNoAa(tint);
+              final outer = Rect.fromLTRB(
+                box.left - 1,
+                box.top - 1,
+                box.right + 1,
+                box.bottom + 1,
+              );
+              canvas.drawRect(outer, Paint()..color = Colors.white);
+              canvas.drawRect(
+                Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
+                ringFill,
+              );
+              canvas.drawRect(
+                Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
+                ringFill,
+              );
+              canvas.drawRect(
+                Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
+                ringFill,
+              );
+              canvas.drawRect(
+                Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
+                ringFill,
+              );
+              if (constValue != null) {
+                final tp = _layoutText(
+                  constValue,
+                  color: tint,
+                  fontSize: 10,
+                  maxLines: 1,
+                  ellipsis: '…',
+                  maxWidth: math.max(8, box.width - 6),
+                );
+                tp.paint(
+                  canvas,
+                  box.center - Offset(tp.width / 2, tp.height / 2),
+                );
+              }
+              continue;
+            }
+          }
+          // Indicators wear LabVIEW's thin 1px single border (measured on
+          // Excel_Read_XLSX's path and array indicator terminals; matches
+          // the art table's indicator rasters); controls keep the 2px
+          // double-border weight.
+          if (object.isIndicator == true) {
             canvas.drawRect(
-              rect.deflate(3.5),
+              box,
+              Paint()
+                ..color = border
+                ..isAntiAlias = false,
+            );
+            canvas.drawRect(
+              box.deflate(1),
+              Paint()
+                ..color = Colors.white
+                ..isAntiAlias = false,
+            );
+          } else {
+            canvas.drawRect(box, Paint()..color = Colors.white);
+            canvas.drawRect(
+              box.deflate(1),
+              Paint()
+                ..color = border
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 2.0,
+            );
+            // A STRING shell's LEFT border is 4 px (measured on
+            // Excel_Read_XLSX's `INIT` constant: rows read 4 border px on
+            // the left against 2 on the other three sides).
+            if (object.kind == 0x51 && box.width > 8) {
+              canvas.drawRect(
+                Rect.fromLTWH(box.left, box.top, 4, box.height),
+                _solidNoAa(border),
+              );
+            }
+            // A PATH shell carries the small path glyph inside its left
+            // border: two linked 4x4 squares in the border teal, the lower
+            // square 2 px right of the upper, anchored at (+3,+4) — measured
+            // on Excel_Read_XLSX's three path control shells (byte-identical
+            // at all three).
+            if (object.kind == 0x5b && box.width > 14 && box.height >= 17) {
+              const glyphRows = [
+                '####..',
+                '#..#..',
+                '#..#..',
+                '####..',
+                '...#..',
+                '...#..',
+                '..####',
+                '..#..#',
+                '..#..#',
+                '..####',
+              ];
+              final ink = _solidNoAa(border);
+              for (var r = 0; r < glyphRows.length; r++) {
+                for (var c = 0; c < glyphRows[r].length; c++) {
+                  if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+                  canvas.drawRect(
+                    Rect.fromLTWH(box.left + 3 + c, box.top + 4 + r, 1, 1),
+                    ink,
+                  );
+                }
+              }
+            }
+          }
+          // Any constant skips the inner ring — including one whose VALUE
+          // is not decoded (a `0x13` holder marks it): Excel_Read_XLSX's
+          // path constants read the plain 2px border in the reference,
+          // same as crc8's decoded oid 3033.
+          final isConstant = constValue != null || shellParent?.kind == 0x13;
+          if (object.isIndicator != true &&
+              !isConstant &&
+              box.width > 10 &&
+              box.height > 10) {
+            canvas.drawRect(
+              box.deflate(3.5),
               Paint()
                 ..color = border
                 ..style = PaintingStyle.stroke
@@ -2651,23 +3401,23 @@ class BdDiagramPainter extends CustomPainter {
           // The plate shading hugs the arrow region only, leaving the 1 px
           // whitespace gap beside the borders — same size both directions.
           if (object.isIndicator != null &&
-              rect.height >= 12 &&
-              rect.width >= 12) {
+              box.height >= 12 &&
+              box.width >= 12) {
             final indicator = object.isIndicator == true;
-            final cy = rect.center.dy;
+            final cy = box.center.dy;
             final double tipX;
             if (indicator) {
               // Wire enters at the left: base on the inner border.
-              tipX = rect.left + 7;
+              tipX = box.left + 7;
             } else {
               // Data leaves at the right: tip touching the outer border.
-              tipX = rect.right - 3;
+              tipX = box.right - 3;
             }
             final shade = Rect.fromLTRB(
-              indicator ? rect.left + 3 : rect.right - 10,
-              rect.top + 4,
-              indicator ? rect.left + 10 : rect.right - 3,
-              rect.bottom - 4,
+              indicator ? box.left + 3 : box.right - 10,
+              box.top + 4,
+              indicator ? box.left + 10 : box.right - 3,
+              box.bottom - 4,
             );
             canvas.drawRect(
               shade,
@@ -2691,45 +3441,40 @@ class BdDiagramPainter extends CustomPainter {
           // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
           // black through the disabled transform (the reference's disabled
           // digits read as the (153,153,153) dim of black).
-          if (constValue != null && rect.width >= 12 && rect.height >= 12) {
-            final tp = TextPainter(
-              text: TextSpan(
-                text: constValue,
-                style: TextStyle(
-                  color: _dimFor(object.oid, Colors.black),
-                  fontSize: 10,
-                  fontFamily: 'Roboto',
-                ),
-              ),
+          if (constValue != null && box.width >= 12 && box.height >= 12) {
+            final tp = _layoutText(
+              constValue,
+              color: _dimFor(object.oid, Colors.black),
+              fontSize: 10,
               maxLines: 1,
               ellipsis: '…',
-              textDirection: TextDirection.ltr,
-            )..layout(maxWidth: math.max(8, rect.width - 6));
-            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+              maxWidth: math.max(8, box.width - 6),
+            );
+            tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
           // as LabVIEW stamps on the terminal — sized to sit inside the
           // double border even on a 16 px terminal. A constant box shows
-          // its value instead, never the type.
-          final glyph = constValue != null || object.dataType == null
+          // its value instead, never the type: a decoded TEXT value on the
+          // `0x13` holder is drawn by its value-label part in the text pass
+          // (Excel's `INIT` / `sheet%d.xml`), so the glyph stays off those
+          // boxes too.
+          final glyph =
+              constValue != null ||
+                  object.dataType == null ||
+                  (shellParent?.kind == 0x13 && shellParent?.constText != null)
               ? null
               : dataTypeGlyph(object.dataType!);
           if (glyph != null &&
-              rect.width >= 6.0 * glyph.length + 10 &&
-              rect.height >= 13) {
-            final tp = TextPainter(
-              text: TextSpan(
-                text: glyph,
-                style: TextStyle(
-                  color: border,
-                  fontSize: 8.5,
-                  fontWeight: FontWeight.w700,
-                  fontFamily: 'Roboto',
-                ),
-              ),
-              textDirection: TextDirection.ltr,
-            )..layout();
-            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+              box.width >= 6.0 * glyph.length + 10 &&
+              box.height >= 13) {
+            final tp = _layoutText(
+              glyph,
+              color: border,
+              fontSize: 8.5,
+              fontWeight: FontWeight.w700,
+            );
+            tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: a verified primitive icon (the bundled
@@ -2741,13 +3486,215 @@ class BdDiagramPainter extends CustomPainter {
           // guessed. Everything gets the 1 px pure-black border LabVIEW
           // draws around node icons.
           final isSubVi = kSubViCallNodeCodes.contains(object.kind);
+          // An XNode facade is the node's own stored image — drawn verbatim
+          // at its bounds (the DSIM geometry matches them exactly).
+          final facade = xnodeFacades[object.oid];
+          if (facade != null) {
+            canvas.drawImageRect(
+              facade,
+              Rect.fromLTWH(
+                0,
+                0,
+                facade.width.toDouble(),
+                facade.height.toDouble(),
+              ),
+              rect,
+              Paint()..filterQuality = FilterQuality.none,
+            );
+            continue;
+          }
+          // A growable node (0x63): (68,68,68) ring, white field, and its
+          // `0x62` terminal strips laid out from their node-local termBounds
+          // (measured on Excel_Read_XLSX 3233 / 3179 / 2486):
+          // - FULL-HEIGHT cells are terminals: (255,255,204) fill with a 1px
+          //   black separator on the edge facing the node's interior; a LEFT
+          //   terminal cell carries the solid black input arrow, RIGHT
+          //   column cells the ridged output arrow.
+          // - Partial-height cells are text rows: the resolved data-space
+          //   name in the type colour (arrays by element), with 1px black
+          //   dividers at shared row boundaries.
+          // (objFlags bit 0x10000 marks the input-side flavour; both share
+          // the ring/field chrome.)
+          if (object.kind == 0x63) {
+            canvas.drawRect(
+              rect,
+              Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
+            );
+            canvas.drawRect(
+              rect.deflate(1),
+              Paint()..color = _dimFor(object.oid, Colors.white),
+            );
+            final rows = <HeapRect>[];
+            final rowTerms = <(ViHeapObject, HeapRect)>[];
+            final cells = <HeapRect>[];
+            final nodeH = object.absBounds!.bottom - object.absBounds!.top;
+            final nodeW = object.absBounds!.right - object.absBounds!.left;
+            for (final dco in scene.diagram.children(object.oid)) {
+              if (dco.kind != 0x15) continue;
+              for (final t in scene.diagram.children(dco.oid)) {
+                final tb = t.termBounds;
+                if (t.kind != 0x62 || tb == null) continue;
+                if (tb.height >= nodeH) {
+                  cells.add(tb);
+                } else {
+                  rows.add(tb);
+                  rowTerms.add((t, tb));
+                }
+              }
+            }
+            final black = Paint()
+              ..color = _dimFor(object.oid, Colors.black)
+              ..isAntiAlias = false;
+            final cream = Paint()
+              ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
+              ..isAntiAlias = false;
+            rows.sort((a, b) => a.top.compareTo(b.top));
+            // Interior dividers at shared row boundaries.
+            for (var i = 0; i + 1 < rows.length; i++) {
+              if (rows[i].bottom != rows[i + 1].top) continue;
+              canvas.drawRect(
+                Rect.fromLTWH(
+                  rect.left + rows[i].left + 1,
+                  rect.top + rows[i].bottom,
+                  (rows[i].right - rows[i].left - 2).toDouble(),
+                  1,
+                ),
+                black,
+              );
+            }
+            for (final cell in cells) {
+              final leftSide = cell.left < nodeW - cell.right;
+              if (leftSide) {
+                // Input terminal cell: cream to the interior separator, the
+                // solid black arrow pointing INTO the node (measured on
+                // 2486: a 6x3 shaft and a 4-column head, centred).
+                canvas.drawRect(
+                  Rect.fromLTRB(
+                    rect.left + 1,
+                    rect.top + 1,
+                    rect.left + cell.right,
+                    rect.bottom - 1,
+                  ),
+                  cream,
+                );
+                canvas.drawRect(
+                  Rect.fromLTWH(
+                    rect.left + cell.right,
+                    rect.top + 1,
+                    1,
+                    rect.height - 2,
+                  ),
+                  black,
+                );
+                final cy = rect.top + (nodeH ~/ 2);
+                canvas.drawRect(
+                  Rect.fromLTWH(rect.left + 1, cy - 1.0, 6, 3),
+                  black,
+                );
+                for (var i = 0; i < 4; i++) {
+                  canvas.drawRect(
+                    Rect.fromLTWH(
+                      rect.left + 7 + i,
+                      cy - 3.0 + i,
+                      1,
+                      (7 - 2 * i).toDouble(),
+                    ),
+                    black,
+                  );
+                }
+              } else {
+                // Output column: cream from the rows' right edge through the
+                // cell, separators at the rows' edge and the cell's left.
+                final rowsRight = rows.isEmpty ? cell.left : rows.first.right;
+                final top = rect.top + 1;
+                final h = rect.height - 2;
+                canvas.drawRect(
+                  Rect.fromLTRB(
+                    rect.left + rowsRight,
+                    top,
+                    rect.left + cell.right - 1,
+                    top + h,
+                  ),
+                  cream,
+                );
+                canvas.drawRect(
+                  Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
+                  black,
+                );
+                canvas.drawRect(
+                  Rect.fromLTWH(rect.left + cell.left - 1, top, 1, h),
+                  black,
+                );
+                // The ridged output arrow through the columns, centred on
+                // the node's middle row (measured on 3233; 3179 reads the
+                // same bitmap).
+                const arrowRows = [
+                  '...........#...',
+                  '.#####.....##..',
+                  '#.############.',
+                  '#.#############',
+                  '#.############.',
+                  '.#####.....##..',
+                  '...........#...',
+                ];
+                final cy = rect.top + (nodeH ~/ 2);
+                final x0 = rect.left + rowsRight;
+                for (var r = 0; r < arrowRows.length; r++) {
+                  final y = cy - 3 + r;
+                  final mask = arrowRows[r];
+                  for (var c = 0; c < mask.length; c++) {
+                    if (mask.codeUnitAt(c) != 0x23) continue;
+                    canvas.drawRect(
+                      Rect.fromLTWH(x0 + c.toDouble(), y.toDouble(), 1, 1),
+                      black,
+                    );
+                  }
+                }
+              }
+            }
+            // Row text: the terminal's resolved data-space name, centred,
+            // in the type colour (array rows colour by element).
+            for (final (term, tb) in rowTerms) {
+              final name = term.typeName?.trim();
+              if (name == null || name.isEmpty) continue;
+              final elementKind = term.typeKind == ViTypeKind.array
+                  ? term.resolvedElementType?.kind
+                  : null;
+              final rowColor = elementKind != null
+                  ? labviewTypeColor(_typeKindOfDataType(elementKind))
+                  : labviewTypeColor(term.typeKind);
+              final cell = Rect.fromLTRB(
+                rect.left + tb.left + 1,
+                rect.top + tb.top,
+                rect.left + tb.right - 1,
+                rect.top + tb.bottom,
+              );
+              final tp = _layoutText(
+                name,
+                color: _dimFor(object.oid, rowColor),
+                fontSize: 10.5,
+                maxLines: 1,
+                ellipsis: '…',
+                maxWidth: math.max(8, cell.width - 2),
+              );
+              tp.paint(
+                canvas,
+                Offset(
+                  cell.center.dx - tp.width / 2,
+                  cell.center.dy - tp.height / 2,
+                ),
+              );
+            }
+            continue;
+          }
           final icon = subViIcons[object.oid];
           final iconKey = primIconKeyOf(object);
           final disabled = disabledOids.contains(object.oid);
-          final primIcon = iconKey == null
-              ? null
-              : (disabled ? primIconsGrey[iconKey] : null) ??
-                    primIcons[iconKey];
+          final primIcon =
+              (disabled
+                  ? primIconArtFor(object, scene.diagram, primIconsGrey)
+                  : null) ??
+              primIconArtFor(object, scene.diagram, primIcons);
           if (primIcon != null) {
             // The harvested art carries its own borders and transparency —
             // no plate, backing, or extra frame around it. Exactness paths
@@ -2784,30 +3731,27 @@ class BdDiagramPainter extends CustomPainter {
               isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill,
             );
             canvas.drawRect(rect, Paint()..color = fill);
-            if (rect.width > 6 && rect.height > 6) {
-              canvas.drawLine(
-                rect.topLeft,
-                rect.topRight,
-                Paint()
-                  ..color = Colors.white.withValues(alpha: 0.85)
-                  ..strokeWidth = 1.0,
-              );
-              canvas.drawLine(
-                rect.topLeft,
-                rect.bottomLeft,
-                Paint()
-                  ..color = Colors.white.withValues(alpha: 0.85)
-                  ..strokeWidth = 1.0,
-              );
-            }
           }
           if (primIcon == null) {
+            // A node without icon art is a CLEAN crisp rectangle: 1 px black
+            // ring on the exact bounds, no anti-aliasing (the old half-pixel
+            // stroke read as a faint translucent outline).
+            final ring = _solidNoAa(_dimFor(object.oid, Colors.black));
             canvas.drawRect(
-              rect.deflate(0.5),
-              Paint()
-                ..color = _dimFor(object.oid, Colors.black)
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0,
+              Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
+              ring,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+              ring,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
+              ring,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+              ring,
             );
           }
           // A decoded primitive identity draws its operator glyph on the
@@ -2819,21 +3763,12 @@ class BdDiagramPainter extends CustomPainter {
               ? primOpGlyph(PrimOp.fromId(object.primResId!))
               : null;
           if (glyph != null && rect.width >= 14 && rect.height >= 12) {
-            final tp = TextPainter(
-              text: TextSpan(
-                text: glyph,
-                style: TextStyle(
-                  color: _dimFor(
-                    object.oid,
-                    Colors.black,
-                  ).withValues(alpha: 0.75),
-                  fontSize: glyph.length > 2 ? 8.0 : 12,
-                  fontFamily: 'Roboto',
-                ),
-              ),
+            final tp = _layoutText(
+              glyph,
+              color: _dimFor(object.oid, Colors.black).withValues(alpha: 0.75),
+              fontSize: glyph.length > 2 ? 8.0 : 12,
               maxLines: 1,
-              textDirection: TextDirection.ltr,
-            )..layout();
+            );
             tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
           }
         default:
@@ -2854,6 +3789,14 @@ class BdDiagramPainter extends CustomPainter {
               ..strokeWidth = 0.8,
           );
       }
+    }
+    // Free-label backings, above every node/icon they overlap: a 1px black
+    // border on the outermost pixel ring of the label bounds, filled with
+    // the decoded colour inside (reference-measured on Excel_Read_XLSX's
+    // comment). Caption text lands on top in the text pass below.
+    for (final (oid, rect, backing) in labelBackings) {
+      canvas.drawRect(rect, Paint()..color = _dimFor(oid, Colors.black));
+      canvas.drawRect(rect.deflate(1), Paint()..color = _dimFor(oid, backing));
     }
     // Wire landings on structure borders feed ONLY the structure-terminal
     // recolour above (the case selector [?] takes its wire's colour).
@@ -2880,10 +3823,26 @@ class BdDiagramPainter extends CustomPainter {
         if (object.isLabelHidden) continue;
         var text = object.label?.trim();
         if (text == null || text.isEmpty) {
-          // An owned label with no recovered caption shows its owner's
-          // resolved data-space name (the VCTP type name, e.g. `data in`) —
-          // the identifier LabVIEW displays in that label.
-          text = byOid[object.parentOid]?.typeName;
+          // An owned label with no recovered caption is the owner's VALUE
+          // display when a constant value decoded on the const holder above
+          // it (`0x13` → shell → label: Excel's `xl\workbook.xml` path and
+          // `INIT` string constants); otherwise it shows the owner's resolved
+          // data-space name (the VCTP type name, e.g. `data in`) — the
+          // identifier LabVIEW displays in that label.
+          final diagramById = scene.diagram.byId;
+          String? constValue;
+          var ancestorOid = object.parentOid;
+          for (var hop = 0; hop < 4 && ancestorOid != null; hop++) {
+            final ancestor = diagramById[ancestorOid];
+            if (ancestor == null) break;
+            final decoded = ancestor.constText?.trim();
+            if (decoded != null && decoded.isNotEmpty) {
+              constValue = decoded;
+              break;
+            }
+            ancestorOid = ancestor.parentOid;
+          }
+          text = constValue ?? byOid[object.parentOid]?.typeName;
         }
         if (text == null || text.isEmpty) continue;
         final rect0 = rectOf(object);
@@ -2893,23 +3852,18 @@ class BdDiagramPainter extends CustomPainter {
         // — and is centred like LabVIEW's.
         final selector = object.kind == 0x95;
         final rect = rect0;
-        final tp = TextPainter(
-          text: TextSpan(
-            text: text,
-            style: TextStyle(
-              color: _dimFor(
-                object.oid,
-                bdDecodedColor(object.fgRgb) ??
-                    Colors.black.withValues(alpha: 0.85),
-              ),
-              fontSize: selector ? 9.5 : 10.5,
-              fontFamily: 'Roboto',
-            ),
+        final tp = _layoutText(
+          text,
+          color: _dimFor(
+            object.oid,
+            bdDecodedColor(object.fgRgb) ??
+                Colors.black.withValues(alpha: 0.85),
           ),
+          fontSize: selector ? 9.5 : 10.5,
           maxLines: math.max(1, rect.height ~/ 12),
           ellipsis: '…',
-          textDirection: TextDirection.ltr,
-        )..layout(maxWidth: math.max(8, rect.width - (selector ? 1 : 4)));
+          maxWidth: math.max(8, rect.width - (selector ? 1 : 4)),
+        );
         tp.paint(
           canvas,
           selector
@@ -2949,20 +3903,14 @@ class BdDiagramPainter extends CustomPainter {
         object.oid,
         bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75),
       );
-      final tp = TextPainter(
-        text: TextSpan(
-          text: text,
-          style: TextStyle(
-            color: textColor,
-            fontSize: 10,
-            fontWeight: FontWeight.w400,
-            fontFamily: 'Roboto',
-          ),
-        ),
+      final tp = _layoutText(
+        text,
+        color: textColor,
+        fontSize: 10,
         maxLines: 1,
         ellipsis: '…',
-        textDirection: TextDirection.ltr,
-      )..layout(maxWidth: rect.width - 5);
+        maxWidth: rect.width - 5,
+      );
       tp.paint(canvas, rect.topLeft + const Offset(3, 1));
     }
   }
@@ -2994,7 +3942,9 @@ class BdDiagramPainter extends CustomPainter {
   /// frame draws through [bdDimDisabled].
   void _drawWires(
     Canvas canvas, {
-    List<(Rect, ({int kind, bool hollow, bool disabled}), Color)>?
+    List<
+      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
+    >?
     tunnelSquares,
   }) {
     if (wires.isEmpty) return;
@@ -3014,9 +3964,21 @@ class BdDiagramPainter extends CustomPainter {
     // Node box (canvas coords) → its object, so a wire's into-node closing run
     // can query the art's opaque EDGE on the exact arrival row.
     final iconNodeObjects = <Rect, ViHeapObject>{};
+    // Node-category boxes (canvas coords): the cover set for the
+    // fully-under-nodes withhold below (LabVIEW paints nodes OVER wires, so
+    // a polyline every pixel of which lies under node boxes has no visible
+    // ink — drawing it would ink pixels LabVIEW leaves to the node art;
+    // measured on the crc-family LUT chains, whose abutting conversion
+    // prims carry stored routes threaded entirely under the chain).
+    final nodeCoverRects = <Rect>[];
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
+      if (object.category == ViObjectKind.node &&
+          bounds.width > 0 &&
+          bounds.height > 0) {
+        nodeCoverRects.add(_toCanvas(bounds));
+      }
       final packed = _packRect(
         bounds.top,
         bounds.left,
@@ -3025,9 +3987,9 @@ class BdDiagramPainter extends CustomPainter {
       );
       if (object.category == ViObjectKind.terminal &&
           object.typeKind != ViTypeKind.unknown) {
-        typedTerminalColors[packed] = labviewTypeColor(object.typeKind);
+        typedTerminalColors[packed] = bdTerminalTypeColor(object);
       }
-      final iconKey = primIconKeyOf(object);
+      final iconKey = loadedPrimIconIdOf(object);
       if (iconKey != null) {
         final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);
@@ -3051,6 +4013,131 @@ class BdDiagramPainter extends CustomPainter {
         sourceOutputColors[packed] = labviewTypeColor(output);
       }
     }
+    // ---- Wire-NET colour resolution ----
+    // LabVIEW draws one dataflow wire as a chain of 0x17 signals joined end
+    // to end (through tunnels and junction stubs); every segment of the
+    // chain inks in the same type colour. The authoritative tint lives on
+    // whichever signal touches a resolved terminal — the others' endpoints
+    // are unbounded `0x1d`/`0x15` stubs — so signals are UNIONED into nets
+    // by shared route endpoints/junctions and each takes its net's
+    // best-resolved colour. Resolution tiers per signal (lowest wins):
+    //   0 typed endpoint-anchor rect ([typedTerminalColors]),
+    //   1 resolved endpoint OBJECT ([bdTerminalTypeColor] — carries the
+    //     cluster member tint the anchor map cannot),
+    //   2 a source primitive's documented output ([sourceOutputColors]),
+    //   3 the signal word's element family (the 89.9% estimate tier).
+    // The neutral grey means "unresolved" at every tier (nothing colours
+    // 0x8A8A8A legitimately) and never propagates.
+    const unresolvedGrey = Color(0xFF8A8A8A);
+    final netParent = <int, int>{
+      for (final w in wires) w.signalOid: w.signalOid,
+    };
+    int netFind(int a) {
+      var root = a;
+      while (netParent[root] != root) {
+        root = netParent[root]!;
+      }
+      var cursor = a;
+      while (netParent[cursor] != root) {
+        final next = netParent[cursor]!;
+        netParent[cursor] = root;
+        cursor = next;
+      }
+      return root;
+    }
+
+    void netUnion(int a, int b) => netParent[netFind(a)] = netFind(b);
+    final pointOwner = <int, int>{};
+    List<ViPoint> netPointsOf(ViWire wire) => [
+      for (final run in [
+        if (wire.routePoints case final p? when p.isNotEmpty) p,
+        ...?wire.routeTree?.polylines,
+      ]) ...[run.first, run.last],
+      ...?wire.routeTree?.junctions,
+    ];
+    for (final wire in wires) {
+      // Signals join a net where route endpoints/junctions coincide AND
+      // where they share a decoded attach rect (the two signals either
+      // side of one tunnel).
+      final keys = [
+        for (final p in netPointsOf(wire))
+          ((p.x + 0x8000) << 17) | (p.y + 0x8000),
+        for (final attach in wire.endpointAttachRects)
+          if (attach != null && attach.width > 0 && attach.height > 0)
+            _packRect(attach.top, attach.left, attach.bottom, attach.right),
+      ];
+      for (final key in keys) {
+        final owner = pointOwner[key];
+        if (owner == null) {
+          pointOwner[key] = wire.signalOid;
+        } else {
+          netUnion(wire.signalOid, owner);
+        }
+      }
+    }
+    final netBest = <int, (int, Color)>{};
+    final netError = <int, bool>{};
+    for (final wire in wires) {
+      final root = netFind(wire.signalOid);
+      void consider(int tier, Color? color) {
+        if (color == null || color == unresolvedGrey) return;
+        final best = netBest[root];
+        if (best == null || tier < best.$1) netBest[root] = (tier, color);
+      }
+
+      for (final anchor in wire.endpointAnchors) {
+        if (anchor == null) continue;
+        consider(
+          0,
+          typedTerminalColors[_packRect(
+            anchor.top,
+            anchor.left,
+            anchor.bottom,
+            anchor.right,
+          )],
+        );
+      }
+      for (final oid in wire.endpointOids) {
+        final endpoint = scene.diagram.byId[oid];
+        if (endpoint == null) continue;
+        if (_isErrorClusterMembers(endpoint.resolvedMembers)) {
+          netError[root] = true;
+        }
+        if (endpoint.resolvedMembers.isNotEmpty ||
+            endpoint.resolvedElementMembers.isNotEmpty ||
+            endpoint.typeKind != ViTypeKind.unknown) {
+          consider(1, bdTerminalTypeColor(endpoint));
+        }
+      }
+      final source = wire.endpointAnchors.firstWhere(
+        (a) => a != null,
+        orElse: () => null,
+      );
+      if (source != null) {
+        consider(
+          2,
+          sourceOutputColors[_packRect(
+            source.top,
+            source.left,
+            source.bottom,
+            source.right,
+          )],
+        );
+      }
+      final wordKind = wire.elementTypeKind;
+      if (wordKind != null && wordKind != ViTypeKind.unknown) {
+        // Refnum WIRES ink the same teal as paths — reference-measured on
+        // ProjectItems' six refnum runs (0x006666 against white, solid1px
+        // and solid2px alike). [labviewTypeColor] keeps refnum TERMINAL
+        // borders neutral: no reference has pinned those yet.
+        consider(
+          3,
+          wordKind == ViTypeKind.refnum
+              ? const Color(0xFF006666)
+              : labviewTypeColor(wordKind),
+        );
+      }
+    }
     // Segments already drawn by EARLIER wires (heap serialization order),
     // in integer pixel space — the crossing rule cuts later wires around
     // them.
@@ -3060,7 +4147,8 @@ class BdDiagramPainter extends CustomPainter {
       // chrome drawn at it (kind-specific, reference-verified only). A wire's
       // BODY comes from its decoded route ([ViWire.routePoints] /
       // [ViWire.routeTree]); an endpoint's owner box no longer routes a leg.
-      final tunnels = <(Rect, ({int kind, bool hollow, bool disabled}))>[];
+      final tunnels =
+          <(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>[];
       for (var e = 0; e < wire.endpointAnchors.length; e++) {
         final anchor = wire.endpointAnchors[e];
         if (anchor == null) continue;
@@ -3077,11 +4165,26 @@ class BdDiagramPainter extends CustomPainter {
         final info = borderTerminalKinds[attach];
         if (info != null) tunnels.add((attachRect, info));
       }
-      var color = bdWireColor(
-        wire,
-        typedTerminalColors,
-        sourceOutputColors: sourceOutputColors,
-      );
+      // The signal takes its NET's best-resolved colour (see the prepass
+      // above); an unresolved net keeps the neutral wire dark. The braid
+      // (depth-3 cluster) special case: an error net — or a braid net with
+      // no resolution at all (the corpus' unresolved braids are the error
+      // chains) — draws LabVIEW's dedicated dark-yellow error palette
+      // (olive flanks + yellow/black weave, measured on Excel_Read_XLSX;
+      // its tunnels fill the flank olive); a resolved non-error cluster
+      // braid draws the catalogued cycle in its member tint (Excel's pink
+      // `StateData` shift-register net; the census' braid runs are
+      // pink-dominant).
+      final netRoot = netFind(wire.signalOid);
+      var color = netBest[netRoot]?.$2 ?? kBdWireColor;
+      var errorBraid = false;
+      if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
+        errorBraid =
+            (netError[netRoot] ?? false) ||
+            netBest[netRoot] == null ||
+            color == const Color(0xFF666600);
+        if (errorBraid) color = const Color(0xFF666600);
+      }
       final wireDisabled = disabledOids.contains(wire.signalOid);
       if (wireDisabled) color = bdDimDisabled(color);
       // Chrome is collected whenever its position is decoded — even when
@@ -3105,6 +4208,12 @@ class BdDiagramPainter extends CustomPainter {
       final routeTree = wire.routeTree;
       final legs = <List<Offset>>[];
       final junctions = <Offset>[];
+      // Whether the straight-stub tier below may draw this wire: no decoded
+      // route shipped, OR the shipped polyline was withheld as fully covered
+      // by node boxes — its only visible ink is the seam between the
+      // adjacent nodes' ART, exactly what the stub tier draws from the ink
+      // edges (the crc8 disabled chain's abutment stubs).
+      var stubEligible = routeTree == null && routePoints == null;
       if (routeTree != null) {
         // A proven branching tree ([ViWire.routeTree]): every run drawn
         // exactly (origin-relative, no extension or clipping) and a branch
@@ -3259,8 +4368,23 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
         }
-        if (points.length >= 2) legs.add(points);
-      } else if (wire.route?.pointCount == 2 &&
+        // Withhold a polyline with NO visible box-level ink: every pixel
+        // under a node box ([nodeCoverRects]) is painted over by node
+        // art/chrome in LabVIEW's draw order (the crc-family LUT chains'
+        // abutting conversion prims store exactly such routes). A withheld
+        // 2-point wire falls through to the straight-stub tier, which draws
+        // the seam ink between the adjacent nodes' ART edges — the one part
+        // LabVIEW shows.
+        if (points.length >= 2) {
+          if (!_polylineUnderNodes(points, nodeCoverRects)) {
+            legs.add(points);
+          } else {
+            stubEligible = true;
+          }
+        }
+      }
+      if (stubEligible &&
+          wire.route?.pointCount == 2 &&
           wire.route?.direction != null &&
           wire.endpointOids.length == 2 &&
           wire.endpointAttachRects.length >= 2) {
@@ -3322,7 +4446,21 @@ class BdDiagramPainter extends CustomPainter {
               cross: cross,
               sign: lowSide ? -1 : 1,
             );
-            return edge == null ? null : (lowSide ? edge : edge - 1);
+            if (edge != null) return lowSide ? edge : edge - 1;
+            // A node drawn as a PLAIN BOX (no icon art resolved) covers its
+            // interior with the box chrome, so the wire's visible ink ends
+            // at the 1 px border — reference-measured on Excel_Read_XLSX's
+            // F → zip-node dotted stub (ink runs to box.left - 1). Gated on
+            // the arrival row lying inside the box.
+            final bounds = owner.absBounds;
+            if (bounds == null) return null;
+            final inSpan = horizontal
+                ? cross >= bounds.top && cross < bounds.bottom
+                : cross >= bounds.left && cross < bounds.right;
+            if (!inSpan) return null;
+            return horizontal
+                ? (lowSide ? bounds.right : bounds.left - 1)
+                : (lowSide ? bounds.bottom : bounds.top - 1);
           }
 
           final lo = visibleBound(lowEnd, lowSide: true);
@@ -3340,6 +4478,86 @@ class BdDiagramPainter extends CustomPainter {
                     ],
             );
           }
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.route?.pointCount == 3 &&
+          wire.route?.direction != null &&
+          wire.route!.segmentLengths.length == 1 &&
+          wire.endpointOids.length == 2 &&
+          wire.endpointAttachRects.length >= 2) {
+        // A 3-point route table anchored at ONE decoded attach rect, closing
+        // onto a CATALOGUED prim terminal: the stored segment is decoded
+        // geometry and the terminal position is reference-measured
+        // ([bdPrimTerminalOf]), so the whole polyline is determined — the
+        // parse layer withholds these because art-terminal positions are a
+        // renderer catalog. The walk's arrival coordinate must EQUAL the
+        // catalogued terminal's cross coordinate (never guessed); the leg is
+        // visible from the anchor rect's border to the far node's art ink
+        // edge on the arrival row/column (measured on Excel_Read_XLSX's
+        // numeric-constant → Multiply lower-input wire).
+        final route = wire.route!;
+        final dir = route.direction!;
+        for (final (tail, head) in [(0, 1), (1, 0)]) {
+          final attach = wire.endpointAttachRects[tail];
+          if (attach == null ||
+              attach.right <= attach.left ||
+              attach.bottom <= attach.top) {
+            continue;
+          }
+          if (wire.endpointAttachRects[head] != null) continue;
+          final terminal = bdPrimTerminalOf(
+            scene.diagram,
+            wire.endpointOids[head],
+          );
+          if (terminal == null) break;
+          final start = (
+            x: attach.left + (attach.right - attach.left) ~/ 2,
+            y: attach.top + (attach.bottom - attach.top) ~/ 2,
+          );
+          final bend = (
+            x: start.x + dir.dx * route.segmentLengths[0],
+            y: start.y + dir.dy * route.segmentLengths[0],
+          );
+          final closingHorizontal = dir.dx == 0;
+          final arrivalCross = closingHorizontal ? bend.y : bend.x;
+          final catalogued = closingHorizontal ? terminal.y : terminal.x;
+          if (catalogued == null || catalogued != arrivalCross) break;
+          final closingSign = route.jointSigns.isNotEmpty
+              ? route.jointSigns.last
+              : null;
+          final headObj = scene.diagram.byId[wire.endpointOids[head]];
+          final headOwner = headObj?.parentOid == null
+              ? null
+              : scene.diagram.byId[headObj!.parentOid!];
+          if (closingSign == null || headOwner == null) break;
+          final edge = primIconInkEdge(
+            headOwner,
+            horizontal: closingHorizontal,
+            cross: arrivalCross,
+            sign: closingSign,
+          );
+          if (edge == null) break;
+          final far = edge - closingSign;
+          // The first segment's visible ink starts just outside the anchor
+          // rect's border on the walk side.
+          final visStart = (
+            x: dir.dx == 0
+                ? start.x
+                : (dir.dx > 0 ? attach.right : attach.left - 1),
+            y: dir.dy == 0
+                ? start.y
+                : (dir.dy > 0 ? attach.bottom : attach.top - 1),
+          );
+          legs.add([
+            Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+            Offset(bend.x - origin.dx, bend.y - origin.dy),
+            closingHorizontal
+                ? Offset(far - origin.dx, bend.y - origin.dy)
+                : Offset(bend.x - origin.dx, far - origin.dy),
+          ]);
+          break;
         }
       }
       // A wire with NO decoded route (neither a proven [ViWire.routePoints]
@@ -3387,11 +4605,25 @@ class BdDiagramPainter extends CustomPainter {
           var hi = (horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy))
               .floor();
           final cross = (horizontal ? a.dy : a.dx).floor();
-          // Bend continuity for the 2 px solid stroke: at a shared vertex
-          // the segment also covers the perpendicular partner's ink band, so
-          // the corner fills its full 2x2 square (measured on crc8's routed
-          // 2 px elbows).
-          if (style == ViWireRenderStyle.solid2px) {
+          // Bend continuity: at a shared vertex the segment also covers the
+          // perpendicular partner's ink band, so the two bands fully overlap
+          // and the texture masks the whole corner square (measured on crc8's
+          // routed 2 px elbows and on Excel's string-family bend corners —
+          // e.g. the zigzag corner pixel at (1186,893) and the chainLink
+          // corner at (1077,970), both plain texture continuations). The
+          // braid is the one exception: its HORIZONTAL run owns the corner —
+          // flanks and core texture extend over the vertical's band — while
+          // the vertical run starts BELOW the horizontal band (the reference
+          // braid verticals begin at band+1 — Excel (1505,808)/(1513,808)).
+          if (const {
+                ViWireRenderStyle.solid1px,
+                ViWireRenderStyle.solid2px,
+                ViWireRenderStyle.dotted,
+                ViWireRenderStyle.zigzag,
+                ViWireRenderStyle.chainLink,
+                ViWireRenderStyle.chainLinkWide,
+              }.contains(style) ||
+              (style == ViWireRenderStyle.braid && horizontal)) {
             for (final neighbour in [
               if (j >= 2) leg[j - 2],
               if (j + 1 < leg.length) leg[j + 1],
@@ -3399,6 +4631,42 @@ class BdDiagramPainter extends CustomPainter {
               final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
               if (nCross + bandLo < lo) lo = nCross + bandLo;
               if (nCross + bandHi > hi) hi = nCross + bandHi;
+            }
+          }
+          if (style == ViWireRenderStyle.braid && !horizontal) {
+            for (final neighbour in [
+              if (j >= 2) leg[j - 2],
+              if (j + 1 < leg.length) leg[j + 1],
+            ]) {
+              final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
+              if ((nCross - lo).abs() <= 1) lo = nCross + 2;
+              if ((hi - nCross).abs() <= 1) hi = nCross - 2;
+            }
+          }
+          // A braid elbow's OUTER WALL is continuous: the cell where the
+          // vertical's far flank column (away from the horizontal run) meets
+          // the route row inks even where the core texture holes it — Excel
+          // (1512,808) inks (texture idx would hole it) while the mirrored
+          // near-side cell (1504,808) at the (1505,808) elbow stays a texture
+          // hole. Junction blobs own their measured art instead.
+          if (style == ViWireRenderStyle.braid && horizontal) {
+            for (final (vertex, other) in [
+              if (j >= 2) (a, b),
+              if (j + 1 < leg.length) (b, a),
+            ]) {
+              final bendX = vertex.dx.floor();
+              final farX = bendX - (other.dx > vertex.dx ? 1 : -1);
+              final isJunction = junctions.any(
+                (junction) =>
+                    junction.dx.floor() == bendX &&
+                    junction.dy.floor() == cross,
+              );
+              if (!isJunction) {
+                canvas.drawRect(
+                  Rect.fromLTWH(farX * 1.0, cross * 1.0, 1, 1),
+                  fill,
+                );
+              }
             }
           }
           // Crossing gaps (the measured rule, see wire_render.dart): where
@@ -3416,7 +4684,17 @@ class BdDiagramPainter extends CustomPainter {
               gaps.add((e.bandLo - 1, e.bandHi + 1));
             }
           }
-          _strokeSegment(canvas, fill, style, horizontal, lo, hi, cross, gaps);
+          _strokeSegment(
+            canvas,
+            fill,
+            style,
+            horizontal,
+            lo,
+            hi,
+            cross,
+            gaps,
+            errorBraid: errorBraid,
+          );
           mine.add((
             horizontal: horizontal,
             lo: lo,
@@ -3431,7 +4709,218 @@ class BdDiagramPainter extends CustomPainter {
       // terminal features, not crossing segments, so they are not recorded in
       // [drawn].
       for (final junction in junctions) {
-        _drawWireJunctionDot(canvas, junction, fill, bdWireStrokeBand(style));
+        var vertUp = false, vertDown = false;
+        for (final leg in legs) {
+          for (var k = 0; k + 1 < leg.length; k++) {
+            final a = leg[k], b = leg[k + 1];
+            if (a.dx != b.dx || a.dx != junction.dx) continue;
+            final atJunction = a.dy == junction.dy || b.dy == junction.dy;
+            if (!atJunction) continue;
+            if (math.min(a.dy, b.dy) < junction.dy) vertUp = true;
+            if (math.max(a.dy, b.dy) > junction.dy) vertDown = true;
+          }
+        }
+        _drawWireJunctionDot(
+          canvas,
+          junction,
+          fill,
+          bdWireStrokeBand(style),
+          style: style,
+          errorBraid: errorBraid,
+          vertUp: vertUp,
+          vertDown: vertDown,
+        );
+      }
+    }
+  }
+
+  /// A flat sequence's film-strip border (measured byte-for-byte on
+  /// Excel_Read_XLSX's sequence): 10 px top/bottom bands — 1 px black
+  /// outer edge, (221,221,221) grey, a 6-row sprocket strip of 6 px-wide
+  /// black-outlined WHITE holes on a 12 px period starting at left+9, grey,
+  /// 1 px black inner edge — 6 px side bands whose outer two columns weave
+  /// a 2×2 black/grey checker on absolute row pairs, and a 7 px
+  /// black/grey/black divider ending at each inter-frame boundary (the
+  /// cumulative 0x121 frame widths).
+  void _drawFlatSequenceBorder(Canvas canvas, Rect rect, ViHeapObject seq) {
+    final black = _dimFor(seq.oid, Colors.black);
+    final grey = _dimFor(seq.oid, const Color(0xFFDDDDDD));
+    final blackFill = _solidNoAa(black);
+    final greyFill = _solidNoAa(grey);
+    final whiteFill = _solidNoAa(Colors.white);
+    void px(Paint paint, double x, double y, [double w = 1, double h = 1]) {
+      canvas.drawRect(Rect.fromLTWH(x, y, w, h), paint);
+    }
+
+    final l = rect.left, t = rect.top, r = rect.right, b = rect.bottom;
+    final w = rect.width;
+    for (final top in [true, false]) {
+      final y0 = top ? t : b - 10;
+      // Row offsets within the band, outer edge first.
+      final rows = top
+          ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+          : [9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
+      px(blackFill, l, y0 + rows[0], w);
+      px(greyFill, l, y0 + rows[1], w);
+      px(greyFill, l, y0 + rows[8], w);
+      px(blackFill, l, y0 + rows[9], w);
+      for (final holeRow in [rows[2], rows[7]]) {
+        px(greyFill, l, y0 + holeRow, w);
+      }
+      for (final sideRow in [rows[3], rows[4], rows[5], rows[6]]) {
+        px(greyFill, l, y0 + sideRow, w);
+      }
+      for (var hx = 9.0; hx + 6 <= w; hx += 12) {
+        for (final holeRow in [rows[2], rows[7]]) {
+          px(blackFill, l + hx, y0 + holeRow, 6);
+        }
+        for (final sideRow in [rows[3], rows[4], rows[5], rows[6]]) {
+          px(blackFill, l + hx, y0 + sideRow);
+          px(whiteFill, l + hx + 1, y0 + sideRow, 4);
+          px(blackFill, l + hx + 5, y0 + sideRow);
+        }
+      }
+    }
+    // Side bands between the horizontal bands. The woven checker columns
+    // and the grey mid columns run the FULL height (t+1 .. b-1): through
+    // the corner rows and over the bands' inner border rows, so the
+    // corners join seamlessly and the border reads interrupted where the
+    // side band crosses it (reference-measured at all four corners). Only
+    // the 1px black edge columns stay between the inner borders.
+    final innerTop = t + 10, innerBottom = b - 10;
+    final sideH = innerBottom - innerTop;
+    if (sideH > 0) {
+      px(greyFill, l + 2, t + 1, 3, b - t - 2);
+      px(blackFill, l + 5, innerTop, 1, sideH);
+      px(blackFill, r - 6, innerTop, 1, sideH);
+      px(greyFill, r - 5, t + 1, 3, b - t - 2);
+      for (var y = t + 1; y < b - 1; y++) {
+        // Absolute-row pair parity: odd pair index reads grey-first on the
+        // outer column (measured phase).
+        final greyFirst = (((y + origin.dy).round() + 1) ~/ 2).isOdd;
+        px(greyFirst ? greyFill : blackFill, l, y.toDouble());
+        px(greyFirst ? blackFill : greyFill, l + 1, y.toDouble());
+        px(greyFirst ? blackFill : greyFill, r - 2, y.toDouble());
+        px(greyFirst ? greyFill : blackFill, r - 1, y.toDouble());
+      }
+      // Corner sprocket holes: the bands' hole run continues into every
+      // corner, clipped by the woven columns — a white sliver with its
+      // black border, stamped over the checker (byte-measured, all four
+      // corners of Excel_Read_XLSX's sequence).
+      for (final top in [true, false]) {
+        final holeTop = top ? t + 3 : b - 7;
+        final capTop = top ? t + 2 : b - 8;
+        px(whiteFill, l + 1, holeTop, 1, 4);
+        px(blackFill, l + 2, capTop, 1, 6);
+        px(blackFill, l + 1, capTop, 2);
+        px(blackFill, l + 1, capTop + 5, 2);
+        px(whiteFill, r - 4, holeTop, 3, 4);
+        px(blackFill, r - 5, capTop, 1, 6);
+        px(blackFill, r - 5, capTop, 4);
+        px(blackFill, r - 5, capTop + 5, 4);
+      }
+      // Inter-frame dividers at cumulative frame widths. The grey interior
+      // pokes 1px through each band's inner border row (the divider's
+      // black edges carry the border's line across — the visible seam).
+      var cum = 0.0;
+      final frames = scene.diagram
+          .children(seq.oid)
+          .where((c) => c.kind == 0x121 && c.absBounds != null)
+          .toList();
+      for (var i = 0; i + 1 < frames.length; i++) {
+        cum += frames[i].absBounds!.right - frames[i].absBounds!.left;
+        px(blackFill, l + cum - 6, innerTop, 1, sideH);
+        px(greyFill, l + cum - 5, innerTop - 1, 5, sideH + 2);
+        px(blackFill, l + cum, innerTop, 1, sideH);
+      }
+    }
+  }
+
+  /// An array constant's drawn furniture (measured on crc8's Polynomial
+  /// and U8-LUT arrays): a 1 px border in the ELEMENT type's colour at the
+  /// `0x52` shell bounds, at each bounded `0x9` wrap part (the sub-frames
+  /// around the index and element sides), and at the index `0x50`'s value
+  /// window and its two `0xb` spinner boxes. The element `0x50` keeps its
+  /// own constant-box chrome from the terminal pass.
+  void _drawArrayConstantShell(Canvas canvas, ViHeapObject shell) {
+    ViTypeKind elementType = ViTypeKind.unknown;
+    for (final c in scene.diagram.children(shell.oid)) {
+      if (c.kind == 0x50 && c.typeKind != ViTypeKind.unknown) {
+        elementType = c.typeKind;
+      }
+    }
+    final fill = _solidNoAa(_dimFor(shell.oid, labviewTypeColor(elementType)));
+    void border(HeapRect b) {
+      final l = (b.left - origin.dx).toDouble();
+      final t = (b.top - origin.dy).toDouble();
+      final w = (b.right - b.left).toDouble();
+      final h = (b.bottom - b.top).toDouble();
+      if (w <= 0 || h <= 0) return;
+      canvas.drawRect(Rect.fromLTWH(l, t, w, 1), fill);
+      canvas.drawRect(Rect.fromLTWH(l, t + h - 1, w, 1), fill);
+      canvas.drawRect(Rect.fromLTWH(l, t, 1, h), fill);
+      canvas.drawRect(Rect.fromLTWH(l + w - 1, t, 1, h), fill);
+    }
+
+    // The shell rect itself draws nothing — the visible outer frame is the
+    // pair of 0x9 wrap parts (index side + element side). The ELEMENT 0x50
+    // (rightmost bounded) draws its 3 px ring in the terminal pass; the
+    // INDEX 0x50 draws its spinner boxes and value window here.
+    var elementRight = -1 << 30;
+    for (final c in scene.diagram.children(shell.oid)) {
+      if (c.kind == 0x50 && c.absBounds != null) {
+        elementRight = math.max(elementRight, c.absBounds!.right);
+      }
+    }
+    final white = _solidNoAa(Colors.white);
+    // Wrap fills+borders first: the index/element furniture paints OVER
+    // the opaque wrap, whatever the heap child order.
+    for (final c in scene.diagram.children(shell.oid)) {
+      final b = c.absBounds;
+      if (c.kind == 0x9 && b != null) {
+        // The wrap is opaque: it masks the covered run of a wire that
+        // attaches under the array (the visible run starts at the wrap
+        // border, byte-verified on the Polynomial feed).
+        canvas.drawRect(
+          Rect.fromLTWH(
+            (b.left - origin.dx).toDouble(),
+            (b.top - origin.dy).toDouble(),
+            (b.right - b.left).toDouble(),
+            (b.bottom - b.top).toDouble(),
+          ),
+          white,
+        );
+        border(b);
+      }
+    }
+    for (final c in scene.diagram.children(shell.oid)) {
+      final b = c.absBounds;
+      if (c.kind == 0x50 && b != null && b.right != elementRight) {
+        for (final part in scene.diagram.children(c.oid)) {
+          final pb = part.absBounds;
+          if (pb == null) continue;
+          if (part.kind == 0xb || part.kind == 0x9) border(pb);
+          // The spinner's fat triangle (measured on crc8's Polynomial
+          // index): rows t+2..t+5 at widths 1/3/3/5 centred on l+3, the
+          // up box's tip on top and the down box's mirrored.
+          if (part.kind == 0xb) {
+            final up = pb.top == b.top;
+            final cx = (pb.left + 3 - origin.dx).toDouble();
+            for (var i = 0; i < 4; i++) {
+              final half = [0, 1, 1, 2][i];
+              final row = up ? pb.top + 2 + i : pb.bottom - 4 - i;
+              canvas.drawRect(
+                Rect.fromLTWH(
+                  cx - half,
+                  (row - origin.dy).toDouble(),
+                  2.0 * half + 1,
+                  1,
+                ),
+                fill,
+              );
+            }
+          }
+        }
       }
     }
   }
@@ -3451,20 +4940,123 @@ class BdDiagramPainter extends CustomPainter {
     Canvas canvas,
     Offset center,
     Paint fill,
-    (int, int) band,
-  ) {
+    (int, int) band, {
+    ViWireRenderStyle? style,
+    bool errorBraid = false,
+    bool vertUp = false,
+    bool vertDown = false,
+  }) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
+    // All pattern lattices anchor to ABSOLUTE diagram coordinates (the
+    // canvas origin is the interactive view's pan and must not slide them).
+    final ox = origin.dx.round(), oy = origin.dy.round();
     final (bandLo, bandHi) = band;
-    if (!(bandLo == -1 && bandHi == 0)) {
+    if (style == ViWireRenderStyle.braid) {
+      // Braid junctions, byte-measured on Excel_Read_XLSX (each from its
+      // one corpus junction — the vertical run joins from ABOVE for the
+      // error braid at (1768,1071) and leaves BELOW for the pink braid at
+      // (407,808); the mirrored topologies reuse the stamp flipped).
+      if (errorBraid) {
+        // The error wedge: weave-law colours through the 5-wide core
+        // (yellow where (x+y+1) mod 4 < 2), black transition rows toward
+        // the vertical, olive rim and taper away from it.
+        final olive = _solidNoAa(const Color(0xFF666600));
+        final yellow = _solidNoAa(const Color(0xFFFFFF00));
+        final black = _solidNoAa(Colors.black);
+        const rows = ['o###o', '###W#', 'WWWWW', 'WWWWW', 'o###o', '.ooo.'];
+        for (var r = 0; r < rows.length; r++) {
+          for (var c = 0; c < 5; c++) {
+            final ch = rows[r][c];
+            if (ch == '.') continue;
+            final x = (cx + ox - 2 + c).toInt(), y = (cy + oy - 2 + r).toInt();
+            final paint = ch == 'o'
+                ? olive
+                : ch == '#'
+                ? black
+                : ((x + y + 1) % 4 < 2 ? yellow : black);
+            canvas.drawRect(Rect.fromLTWH(cx - 2 + c, cy - 2 + r, 1, 1), paint);
+          }
+        }
+      } else {
+        // The pink-braid blob (measured at Excel's (407,808)): solid taper
+        // rows above and below; the weave row stays the wire's own
+        // lattice; the FLANK rows show the weave's hole classes
+        // ((x+y) mod 4 in {0,3}) within one column of the junction and
+        // fill solid outside it — every cell of the measured junction
+        // agrees with this lattice form.
+        final white = _solidNoAa(Colors.white);
+        const taper = [
+          '...###...',
+          '..#####..',
+          '#########',
+          '.........',
+          '#########',
+          '..#####..',
+          '...###...',
+        ];
+        for (var r = 0; r < taper.length; r++) {
+          final dy = r - 3;
+          for (var c = 0; c < 9; c++) {
+            if (taper[r][c] == '.') continue;
+            final dx = c - 4;
+            final x = (cx + ox + dx).toInt(), y = (cy + oy + dy).toInt();
+            final flank = dy == -1 || dy == 1;
+            final hole = flank && dx.abs() <= 1 && (x + y) % 4 % 3 == 0;
+            canvas.drawRect(
+              Rect.fromLTWH(cx + dx, cy + dy, 1, 1),
+              hole ? white : fill,
+            );
+          }
+        }
+      }
+      return;
+    }
+    // Whether a blob pixel is PUNCHED white by the wire's own global
+    // pattern lattice: the reference keeps the stroke lattice through the
+    // junction (measured on Excel's zigzag junctions — holes exactly at the
+    // cycle's no-ink column — and dotted junction dots).
+    final cycle = style == null ? null : kBdWireStrokeCycles[style];
+    final phaseBase = style == null ? null : kBdWireCyclePhase[style];
+    final capture = this.style.wireCycleOffset;
+    bool punched(int cxp, int cyp) {
+      final x = cxp + ox, y = cyp + oy;
+      if (style == ViWireRenderStyle.dotted ||
+          style == ViWireRenderStyle.dottedAlternating) {
+        return (x + y).isOdd;
+      }
+      if (cycle == null || phaseBase == null || cycle.length != 4) {
+        return false;
+      }
+      return (x + (((y + capture.y) & 1) << 1) + phaseBase + capture.x) % 4 ==
+          0;
+    }
+
+    // Blob geometry: the diamond hugging the stroke band (rows band±2,
+    // reach shrinking with distance) serves the solid 2 px thick wire
+    // (measured on crc8) AND the patterned (-1,0)-band styles, whose
+    // reference blobs read as the same diamond under their punch lattice
+    // (Excel's zigzag junctions). The 1 px styles keep the corner-clipped
+    // 5x5 disc (measured on Excel_Read_XLSX, Read VI Blocks, large,
+    // ProjectItems).
+    final diamond =
+        style == ViWireRenderStyle.solid2px ||
+        (bandLo == -1 && bandHi == 0 && cycle != null && cycle.length == 4);
+    if (!diamond) {
       for (var dy = -2; dy <= 2; dy++) {
         for (var dx = -2; dx <= 2; dx++) {
           if (dx.abs() == 2 && dy.abs() == 2) continue;
+          final x = (cx + dx).toInt(), y = (cy + dy).toInt();
+          if (style != ViWireRenderStyle.solid1px && punched(x, y)) continue;
           canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
         }
       }
       return;
     }
+    // The junction's vertical pair {route-1, route}: the EVEN column draws
+    // solid, the ODD column carries the vertical checker (see the vertical
+    // zigzag stroke law).
+    final oddCol = (cx.toInt() + ox).isOdd ? cx.toInt() : cx.toInt() - 1;
     for (var dy = bandLo - 2; dy <= bandHi + 2; dy++) {
       final outside = dy < bandLo
           ? bandLo - dy
@@ -3472,15 +5064,40 @@ class BdDiagramPainter extends CustomPainter {
           ? dy - bandHi
           : 0;
       final reach = 2 - outside;
-      canvas.drawRect(
-        Rect.fromLTWH(
-          cx + bandLo - reach,
-          cy + dy,
-          (bandHi - bandLo + 1 + 2 * reach).toDouble(),
-          1,
-        ),
-        fill,
-      );
+      final left = cx + bandLo - reach;
+      final width = bandHi - bandLo + 1 + 2 * reach;
+      if (style == ViWireRenderStyle.solid2px) {
+        canvas.drawRect(
+          Rect.fromLTWH(left, cy + dy, width.toDouble(), 1),
+          fill,
+        );
+        continue;
+      }
+      for (var i = 0; i < width; i++) {
+        final x = (left + i).toInt(), y = (cy + dy).toInt();
+        // Measured on all six Excel zigzag junctions (annotated diff-cell
+        // census, zero counterexamples):
+        //  * BAND rows hole the stroke lattice's no-ink column within the
+        //    4-wide window dx in [-2, +1] of the junction — exactly one
+        //    such column lands per row;
+        //  * the FIRST row beyond the band, on the side where the VERTICAL
+        //    RUN CONTINUES, obeys the vertical checker on the pair's odd
+        //    column;
+        //  * everything else (the outermost taper row, and the side with
+        //    no vertical) fills solid.
+        final dx = x - cx.toInt();
+        bool hole;
+        if (dy >= bandLo && dy <= bandHi) {
+          hole = dx >= -2 && dx <= 1 && punched(x, y);
+        } else if ((dy == bandLo - 1 && vertUp) ||
+            (dy == bandHi + 1 && vertDown)) {
+          hole = x == oddCol && (((oddCol + ox) ~/ 2) + y + oy).isOdd;
+        } else {
+          hole = false;
+        }
+        if (hole) continue;
+        canvas.drawRect(Rect.fromLTWH(left + i, cy + dy, 1, 1), fill);
+      }
     }
   }
 
@@ -3495,13 +5112,25 @@ class BdDiagramPainter extends CustomPainter {
     int lo,
     int hi,
     int cross,
-    List<(int, int)> gaps,
-  ) {
+    List<(int, int)> gaps, {
+    bool errorBraid = false,
+  }) {
     gaps.sort((x, y) => x.$1.compareTo(y.$1));
     var v = lo;
     for (final (gLo, gHi) in [...gaps, (hi + 1, hi + 1)]) {
       final end = math.min(hi, gLo - 1);
-      if (v <= end) _strokeRun(canvas, fill, style, horizontal, v, end, cross);
+      if (v <= end) {
+        _strokeRun(
+          canvas,
+          fill,
+          style,
+          horizontal,
+          v,
+          end,
+          cross,
+          errorBraid: errorBraid,
+        );
+      }
       if (gHi + 1 > v) v = gHi + 1;
     }
   }
@@ -3525,11 +5154,33 @@ class BdDiagramPainter extends CustomPainter {
     bool horizontal,
     int lo,
     int hi,
-    int cross,
-  ) {
+    int cross, {
+    bool errorBraid = false,
+  }) {
+    // ONE MODEL FOR EVERY PATTERNED STROKE: a wire is a colour + a band
+    // width + a GLOBAL TEXTURE that the band masks in. The texture anchors
+    // to ABSOLUTE diagram coordinates (plus the capture's screen shift for
+    // the string family), so runs, corners, and both orientations are the
+    // same texture under different masks — the measured per-orientation
+    // cycles, the vertical "compressed" forms and the bend behaviour all
+    // fall out of the masking with no per-style phase constants.
+    //
+    // Textures (both reference-measured; see kBdWireStrokeCycles' history):
+    //  * STRING family (zigzag / chainLink / chainLinkWide): hole where
+    //    `x` is odd and `(x ~/ 2) + y` is odd — a 4-period weave whose
+    //    2/3/4-row masks are exactly the measured cycles and whose 2/3-col
+    //    masks are the measured vertical forms.
+    //  * BRAID family (cluster braids): the diagonal 50% texture, ink
+    //    where `(x + y) mod 4` is 1 or 2, between solid band-edge rows;
+    //    the ERROR braid paints the texture's holes black and its ink
+    //    yellow between olive edges (same lattice, its own palette).
+    //  * DOTTED family: the `(x + y)`-even checkerboard (1-row mask; the
+    //    2-row mask is the measured alternating-dot form).
+    final ox = origin.dx.round(), oy = origin.dy.round();
+    final captureX = this.style.wireCycleOffset.x;
     Rect px(int along, int band) => horizontal
-        ? Rect.fromLTWH(along.toDouble(), band.toDouble(), 1, 1)
-        : Rect.fromLTWH(band.toDouble(), along.toDouble(), 1, 1);
+        ? Rect.fromLTWH(along.toDouble(), (cross + band).toDouble(), 1, 1)
+        : Rect.fromLTWH((cross + band).toDouble(), along.toDouble(), 1, 1);
     Rect span(int bandLo, int bandHi) => horizontal
         ? Rect.fromLTRB(
             lo.toDouble(),
@@ -3543,41 +5194,100 @@ class BdDiagramPainter extends CustomPainter {
             cross + bandHi + 1.0,
             hi + 1.0,
           );
+    // Absolute diagram coords of a band cell: `along` runs along the wire,
+    // `band` is the cross-axis offset from the route row/column.
+    (int, int) abs(int along, int band) {
+      final canvasX = horizontal ? along : cross + band;
+      final canvasY = horizontal ? cross + band : along;
+      return (canvasX + ox, canvasY + oy);
+    }
+
+    bool stringTextureInk(int x, int y) =>
+        (x + ((y & 1) << 1) + captureX) % 4 != 0;
+
+    bool braidTextureInk(int x, int y) {
+      final m = (x + y) % 4;
+      return m == 1 || m == 2;
+    }
+
     switch (style) {
       case ViWireRenderStyle.solid1px:
         canvas.drawRect(span(0, 0), fill);
       case ViWireRenderStyle.solid2px:
         canvas.drawRect(span(-1, 0), fill);
       case ViWireRenderStyle.hollowDouble:
-        // Period-1 and hence orientation-symmetric (see the catalogue).
         canvas.drawRect(span(-1, -1), fill);
         canvas.drawRect(span(1, 1), fill);
       case ViWireRenderStyle.dotted:
         for (var v = lo; v <= hi; v++) {
-          if ((v + cross).isEven) canvas.drawRect(px(v, cross), fill);
+          final (x, y) = abs(v, 0);
+          if ((x + y).isEven) canvas.drawRect(px(v, 0), fill);
         }
-      case ViWireRenderStyle.dottedAlternating when horizontal:
-        // Catalogued period-2 cycle: single dots alternating between the
-        // route row and the row above. The absolute phase is unmeasured;
-        // anchored so the route-row dot sits on even x+y, matching the
-        // dotted family's measured checkerboard (TODO: measure the phase).
+      case ViWireRenderStyle.dottedAlternating:
         for (var v = lo; v <= hi; v++) {
-          canvas.drawRect(px(v, (v + cross).isEven ? cross : cross - 1), fill);
+          for (final band in const [-1, 0]) {
+            final (x, y) = abs(v, band);
+            if ((x + y).isEven) canvas.drawRect(px(v, band), fill);
+          }
+        }
+      case ViWireRenderStyle.zigzag ||
+          ViWireRenderStyle.chainLink ||
+          ViWireRenderStyle.chainLinkWide:
+        final (bandLo, bandHi) = switch (style) {
+          ViWireRenderStyle.zigzag => (-1, 0),
+          ViWireRenderStyle.chainLink => (-1, 1),
+          _ => (-2, 1),
+        };
+        for (var v = lo; v <= hi; v++) {
+          for (var band = bandLo; band <= bandHi; band++) {
+            final (x, y) = abs(v, band);
+            if (stringTextureInk(x, y)) canvas.drawRect(px(v, band), fill);
+          }
+        }
+      case ViWireRenderStyle.braid when errorBraid:
+        final olive = _solidNoAa(const Color(0xFF666600));
+        final yellow = _solidNoAa(const Color(0xFFFFFF00));
+        final black = _solidNoAa(Colors.black);
+        canvas.drawRect(span(-1, -1), olive);
+        canvas.drawRect(span(1, 1), olive);
+        for (var v = lo; v <= hi; v++) {
+          final (x, y) = abs(v, 0);
+          canvas.drawRect(px(v, 0), braidTextureInk(x, y) ? black : yellow);
+        }
+      case ViWireRenderStyle.braid:
+        canvas.drawRect(span(-1, -1), fill);
+        canvas.drawRect(span(1, 1), fill);
+        for (var v = lo; v <= hi; v++) {
+          final (x, y) = abs(v, 0);
+          final ink = horizontal
+              ? (x + ((y & 1) << 1) + captureX) % 4 >= 2
+              : braidTextureInk(x, y);
+          if (ink) canvas.drawRect(px(v, 0), fill);
+        }
+      case ViWireRenderStyle.braidWide:
+        canvas.drawRect(span(-2, -2), fill);
+        canvas.drawRect(span(1, 1), fill);
+        for (var v = lo; v <= hi; v++) {
+          for (final band in const [-1, 0]) {
+            final (x, y) = abs(v, band);
+            if (braidTextureInk(x, y)) canvas.drawRect(px(v, band), fill);
+          }
         }
       default:
+        // The dense/weave cycles have no texture derivation yet — the
+        // catalogued horizontal cycles stand in, and vertical runs draw the
+        // honest 1 px line (TODO: measure and fold into the model).
         final cycle = horizontal ? kBdWireStrokeCycles[style] : null;
         if (cycle == null) {
-          // Vertical run of a patterned style: the vertical cycles are not
-          // yet measured, so the honest fallback is a plain 1 px line in
-          // the wire colour (TODO above).
           canvas.drawRect(span(0, 0), fill);
           return;
         }
         for (var v = lo; v <= hi; v++) {
-          final mask = cycle[v % cycle.length];
+          final (x, y) = abs(v, 0);
+          final mask = cycle[(x + ((y & 1) << 1) + 1) % cycle.length];
           for (var bit = 0; bit < 5; bit++) {
             if ((mask >> bit) & 1 != 0) {
-              canvas.drawRect(px(v, cross + bit - 2), fill);
+              canvas.drawRect(px(v, bit - 2), fill);
             }
           }
         }
@@ -3621,6 +5331,28 @@ class BdDiagramPainter extends CustomPainter {
     ..color = color
     ..isAntiAlias = false;
 
+  /// Paints a batch of 1x1 cells (given as pixel-CENTRE coordinates,
+  /// `x + 0.5, y + 0.5, …`) in ONE canvas call: width-1 square-cap points
+  /// rasterise to exactly the pixels a per-cell 1x1 drawRect fill covers,
+  /// without the per-cell engine call that made large structure bands the
+  /// most expensive draw of a frame.
+  static void _drawCellPoints(
+    Canvas canvas,
+    List<double> centres,
+    Color color,
+  ) {
+    if (centres.isEmpty) return;
+    canvas.drawRawPoints(
+      ui.PointMode.points,
+      Float32List.fromList(centres),
+      Paint()
+        ..color = color
+        ..isAntiAlias = false
+        ..strokeWidth = 1
+        ..strokeCap = StrokeCap.square,
+    );
+  }
+
   /// Stamps a `List<String>` bitmap at 1px per cell marked [on], with the
   /// bitmap's (0,0) cell at ([left], [top]) — the shared form of every
   /// reference-measured chrome glyph.
@@ -3643,7 +5375,7 @@ class BdDiagramPainter extends CustomPainter {
   void _drawBorderTerminalChrome(
     Canvas canvas,
     Rect t,
-    ({int kind, bool hollow, bool disabled}) info,
+    ({int kind, bool hollow, bool centreDot, bool disabled}) info,
     Color wireColor,
   ) {
     final kind = info.kind;
@@ -3653,7 +5385,7 @@ class BdDiagramPainter extends CustomPainter {
         : kBdTerminalFill;
     final noAa = _solidNoAa(wireColor);
     switch (kind) {
-      case 0x22 || 0x2d:
+      case 0x22 || 0x2d || 0x2a || 0xcb || 0xce:
         // Hollow ([kTunnelHollowFlag]): cream interior with a 5x5
         // wire-colour ring (open at the middle of its top/bottom edges),
         // read from crc8's reference at (520,276). Solid: wire-colour fill.
@@ -3665,6 +5397,18 @@ class BdDiagramPainter extends CustomPainter {
           }
         } else {
           canvas.drawRect(t, noAa);
+          // The centre-dot variant ([kTunnelCentreDotFlags]): a 3×3 white
+          // centre with a wire-colour dot, byte-measured on Excel's
+          // `Worksheets` case output tunnels.
+          if (info.centreDot && t.width >= 7 && t.height >= 7) {
+            final cx = t.left + (t.width - 3) / 2;
+            final cy = t.top + (t.height - 3) / 2;
+            canvas.drawRect(
+              Rect.fromLTWH(cx, cy, 3, 3),
+              _solidNoAa(Colors.white),
+            );
+            canvas.drawRect(Rect.fromLTWH(cx + 1, cy + 1, 1, 1), noAa);
+          }
         }
         canvas.drawRect(
           Rect.fromLTRB(
@@ -3792,28 +5536,49 @@ class BdDiagramPainter extends CustomPainter {
     final aw = _kWhileArrow.first.length, ah = _kWhileArrow.length;
     final ax0 = r - aw, ay0 = b - ah;
 
-    final path = Path();
-    void add(int x, int y) =>
-        path.addRect(Rect.fromLTWH(x.toDouble(), y.toDouble(), 1, 1));
+    final pts = <double>[];
+    void add(int x, int y) => pts
+      ..add(x + 0.5)
+      ..add(y + 0.5);
 
-    for (var y = t; y < b; y++) {
+    // Only band cells are visited — full rows inside the top/bottom bands,
+    // and just the left/right band columns of the middle rows — so the cost
+    // is O(perimeter x band), never O(area) (a diagram-sized loop made this
+    // the most expensive draw of the whole frame).
+    void cell(int x, int y) {
       final dt = y - t, db = b - 1 - y;
+      final dl = x - l, dr = r - 1 - x;
+      if (x >= ax0 && y >= ay0) return; // arrow owns this cell
+      bool grey1;
+      if (dt < band && dl < band) {
+        grey1 = _kWhileCornerTL[dt][dl] == '#';
+      } else if (dt < band && dr < band) {
+        grey1 = _kWhileCornerTR[dt][dr] == '#';
+      } else if (db < band && dl < band) {
+        grey1 = _kWhileCornerBL[db][dl] == '#';
+      } else {
+        grey1 = true; // straight run (bottom-right handled by the arrow)
+      }
+      if (grey1) add(x, y);
+    }
+
+    final bandBottom = math.max(b - band, t + band);
+    for (var y = t; y < math.min(t + band, b); y++) {
       for (var x = l; x < r; x++) {
-        final dl = x - l, dr = r - 1 - x;
-        final edge = dl < band || dr < band || dt < band || db < band;
-        if (!edge) continue;
-        if (x >= ax0 && y >= ay0) continue; // arrow owns this cell
-        bool grey1;
-        if (dt < band && dl < band) {
-          grey1 = _kWhileCornerTL[dt][dl] == '#';
-        } else if (dt < band && dr < band) {
-          grey1 = _kWhileCornerTR[dt][dr] == '#';
-        } else if (db < band && dl < band) {
-          grey1 = _kWhileCornerBL[db][dl] == '#';
-        } else {
-          grey1 = true; // straight run (bottom-right handled by the arrow)
-        }
-        if (grey1) add(x, y);
+        cell(x, y);
+      }
+    }
+    for (var y = bandBottom; y < b; y++) {
+      for (var x = l; x < r; x++) {
+        cell(x, y);
+      }
+    }
+    for (var y = t + band; y < bandBottom; y++) {
+      for (var x = l; x < math.min(l + band, r); x++) {
+        cell(x, y);
+      }
+      for (var x = math.max(r - band, l + band); x < r; x++) {
+        cell(x, y);
       }
     }
     // Stamp the arrow (its last row sits one pixel below the band bottom).
@@ -3822,7 +5587,7 @@ class BdDiagramPainter extends CustomPainter {
         if (_kWhileArrow[ry][rx] == '#') add(ax0 + rx, ay0 + ry);
       }
     }
-    canvas.drawPath(path, _solidNoAa(grey));
+    _drawCellPoints(canvas, pts, grey);
   }
 
   static const _kWhileBand = 6;
@@ -3922,38 +5687,101 @@ class BdDiagramPainter extends CustomPainter {
       Rect.fromLTWH((l + w - 1).toDouble(), t.toDouble(), 1, h.toDouble()),
       paint,
     );
-    // Hatch band, batched into ink/field paths. Iterate the perimeter ring
-    // (skip the interior columns of the middle rows).
+    // Hatch band, batched into ink/field paths. Only the perimeter ring's
+    // cells are visited — full rows inside the top/bottom bands, just the
+    // side-band columns of the middle rows — so the cost is
+    // O(perimeter x band), never O(area).
     final tile = error ? kBdErrorHatch : kBdStructureHatch;
     final offset = error ? style.errorHatchOffset : style.hatchOffset;
-    final band = Path();
-    final field = error ? Path() : null;
-    for (var j = 0; j < h; j++) {
-      final nearTopBottom = j <= kBdHatchBand || j >= h - 1 - kBdHatchBand;
+    final band = <double>[];
+    final field = error ? <double>[] : null;
+    void cell(int i, int j) {
+      final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
+      if (d < 1 || d > kBdHatchBand) return; // 0 = solid, >5 = interior
+      if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
+          '#') {
+        band
+          ..add(l + i + 0.5)
+          ..add(t + j + 0.5);
+      } else {
+        field
+          ?..add(l + i + 0.5)
+          ..add(t + j + 0.5);
+      }
+    }
+
+    final sideTop = math.min(kBdHatchBand + 1, h);
+    final sideBottom = math.max(h - 1 - kBdHatchBand, sideTop);
+    for (var j = 0; j < sideTop; j++) {
       for (var i = 0; i < w; i++) {
-        if (!nearTopBottom && i > kBdHatchBand && i < w - 1 - kBdHatchBand) {
-          continue; // interior — no border here
-        }
-        final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
-        if (d < 1 || d > kBdHatchBand) continue; // 0 = solid, >5 = interior
-        final cell = Rect.fromLTWH(
-          (l + i).toDouble(),
-          (t + j).toDouble(),
-          1,
-          1,
-        );
-        if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
-            '#') {
-          band.addRect(cell);
-        } else {
-          field?.addRect(cell);
-        }
+        cell(i, j);
+      }
+    }
+    for (var j = sideBottom; j < h; j++) {
+      for (var i = 0; i < w; i++) {
+        cell(i, j);
+      }
+    }
+    for (var j = sideTop; j < sideBottom; j++) {
+      for (var i = 0; i < math.min(kBdHatchBand + 1, w); i++) {
+        cell(i, j);
+      }
+      for (
+        var i = math.max(w - 1 - kBdHatchBand, kBdHatchBand + 1);
+        i < w;
+        i++
+      ) {
+        cell(i, j);
       }
     }
     if (field != null) {
-      canvas.drawPath(field, _solidNoAa(dim(style.errorCaseGreen)));
+      _drawCellPoints(canvas, field, dim(style.errorCaseGreen));
     }
-    canvas.drawPath(band, error ? _solidNoAa(dim(style.whileBandGrey)) : paint);
+    _drawCellPoints(
+      canvas,
+      band,
+      error ? dim(style.whileBandGrey) : dim(const Color(0xFF000000)),
+    );
+  }
+
+  /// The magenta `A=a` glyph rows of the case-insensitive badge, 1px cells at
+  /// (rect.left + 2 + col, rect.bottom - 9 + row). Measured pixel-for-pixel
+  /// on Excel_Read_XLSX's oid2480.
+  static const _kCaseInsensitiveGlyph = [
+    '.####.............',
+    '##..##............',
+    '##..##.......###..',
+    '######.####....##.',
+    '##..##.......####.',
+    '##..##.####.##.##.',
+    '##..##.......#####',
+  ];
+
+  /// The `A=a` case-insensitive-match badge at a case frame's bottom-left
+  /// corner: a white plate over the hatch band (21×9 px resting on the 1px
+  /// bottom border) carrying the magenta glyph.
+  void _drawCaseInsensitiveBadge(
+    Canvas canvas,
+    Rect rect, {
+    required bool disabled,
+    required int oid,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : _dimFor(oid, c);
+    canvas.drawRect(
+      Rect.fromLTWH(rect.left + 1, rect.bottom - 10, 21, 9),
+      _solidNoAa(dim(Colors.white)),
+    );
+    final ink = _solidNoAa(dim(const Color(0xFFFF00FF)));
+    for (var r = 0; r < _kCaseInsensitiveGlyph.length; r++) {
+      final mask = _kCaseInsensitiveGlyph[r];
+      for (var c = 0; c < mask.length; c++) {
+        if (mask.codeUnitAt(c) != 0x23) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + 2 + c, rect.bottom - 9 + r, 1, 1),
+          ink,
+        );
+      }
+    }
   }
 
   /// Side length (px) of the for-loop's dog-ear corner fold — fixed chrome,
@@ -4144,19 +5972,13 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
-    final tp = TextPainter(
-      text: TextSpan(
-        text: glyph,
-        style: TextStyle(
-          color: color,
-          fontSize: 11,
-          fontWeight: FontWeight.w700,
-          fontStyle: FontStyle.italic,
-          fontFamily: 'Roboto',
-        ),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout();
+    final tp = _layoutText(
+      glyph,
+      color: color,
+      fontSize: 11,
+      fontWeight: FontWeight.w700,
+      fontStyle: FontStyle.italic,
+    );
     tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
   }
 
@@ -4293,6 +6115,43 @@ class BdDiagramPainter extends CustomPainter {
   /// crisp pager/dropdown bitmaps. Measured on crc8's selectors; the value
   /// STRING itself is drawn by the text pass (it is anti-aliased text in the
   /// reference and outside the pixel-exact goal).
+  /// A small `0x53` CLUSTER container draws as ONE box: a double 1px ring in
+  /// the cluster's member tint around a white interior, with every nested
+  /// part scaffolding-suppressed (measured on Excel_Read_XLSX's StateData
+  /// box at (316,826)). A CONSTANT cluster (`0x13` holder parent) adds the
+  /// measured 13x5 interior glyph at (+5,+6) in the same tint; other shells'
+  /// interior art is not yet decoded (TODO).
+  void _drawSmallClusterBox(Canvas canvas, ViHeapObject object, Rect rect) {
+    final tint = _dimFor(
+      object.oid,
+      object.resolvedMembers.isNotEmpty
+          ? _clusterTint(object.resolvedMembers)
+          : labviewTypeColor(object.typeKind),
+    );
+    canvas.drawRect(rect, _solidNoAa(tint));
+    canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
+    canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
+    canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
+    if (scene.diagram.byId[object.parentOid ?? -1]?.kind != 0x13) return;
+    const glyphRows = [
+      '#####.###.###',
+      '#...#.#.#....',
+      '#####.#.#.###',
+      '......#.#.#.#',
+      '.###..###.###',
+    ];
+    final ink = _solidNoAa(tint);
+    for (var r = 0; r < glyphRows.length; r++) {
+      for (var c = 0; c < glyphRows[r].length; c++) {
+        if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + 5 + c, rect.top + 6 + r, 1, 1),
+          ink,
+        );
+      }
+    }
+  }
+
   void _drawCaseSelector(Canvas canvas, Rect rect) {
     final ink = _solidNoAa(Colors.black);
     final l = rect.left.roundToDouble(), t = rect.top.roundToDouble();
@@ -4340,6 +6199,7 @@ class BdDiagramPainter extends CustomPainter {
       // every diagram-derived input.
       !identical(old.scene, scene) ||
       !identical(old.subViIcons, subViIcons) ||
+      !identical(old.xnodeFacades, xnodeFacades) ||
       !identical(old.primIcons, primIcons) ||
       !identical(old.primIconsGrey, primIconsGrey) ||
       !identical(old.style, style) ||

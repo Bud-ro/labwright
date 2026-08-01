@@ -66,14 +66,55 @@ void main() {
         // catalog ([bdPrimTerminalOf]): each box covers the wire's bend
         // column and arrival runs beside the head prim.
         ('slack-271', 378, 481, 33, 17),
-        ('slack-686', 750, 304, 57, 17),
+        // slack-686's window starts BESIDE its head node (oid 641, a class68
+        // growable): no class-icon asset is bundled, so the node body itself
+        // is not reference-exact — the wire chrome beside it still is.
+        ('slack-686', 758, 304, 49, 17),
         // Straight 2-point stub runs between builtin terminals: the visible
         // gap between the two nodes' art ink (dotted boolean for 293).
         ('stub-293', 296, 473, 13, 15),
-        ('stub-1393', 578, 274, 15, 15),
-        ('stub-701', 715, 303, 17, 15),
+        // stub-1393/-701 arrive at class68 growable nodes (oids 1224/641):
+        // their windows stop at the node box — no class-icon asset is
+        // bundled, so the node bodies are not reference-exact.
+        ('stub-1393', 578, 274, 7, 15),
+        ('stub-701', 715, 303, 10, 15),
         ('stub-704', 686, 303, 11, 15),
-        ('stub-881', 895, 311, 17, 15),
+        // stub-881 likewise stops at oid 789's class68 box.
+        ('stub-881', 895, 311, 9, 15),
+        // Diagram-disable structure: a single 1px (153,153,153) rectangle
+        // (no double line, no tint) — pinned as four border strips.
+        ('disable-top', 184, 163, 239, 1),
+        ('disable-bottom', 184, 255, 239, 1),
+        ('disable-left', 184, 163, 1, 93),
+        ('disable-right', 422, 163, 1, 93),
+        // The disabled LUT chain's seam stubs: dimmed-blue ink on the row
+        // t+16 at every prim abutment (straight-stub tier + the chain's
+        // terminal-catalog entries).
+        ('disable-seams', 246, 222, 159, 5),
+        // Named numeric constants (`bytes` / `8-bits`, the loop-N feeders):
+        // the 2 px blue value box draws at the 0x9 part bounds; the border
+        // strips are pinned (the interior digit text is AA text).
+        ('bytes-box-top', 125, 374, 25, 2),
+        ('bytes-box-bottom', 125, 391, 25, 2),
+        ('bytes-box-left', 125, 374, 2, 19),
+        ('bytes-box-right', 147, 374, 2, 19),
+        ('8bits-box-top', 242, 432, 13, 2),
+        ('8bits-box-bottom', 242, 449, 13, 2),
+        ('8bits-box-left', 242, 432, 2, 19),
+        ('8bits-box-right', 253, 432, 2, 19),
+        // Array-constant furniture (Polynomial + U8 LUT): wrap frames,
+        // index spinner boxes/arrows, element 3 px ring — pinned as strips
+        // that exclude the AA value/index digit text.
+        ('array-poly-top', 75, 397, 76, 6),
+        ('array-poly-bottom', 75, 414, 76, 9),
+        ('array-poly-left', 75, 397, 11, 26),
+        ('array-poly-mid', 110, 397, 8, 26),
+        ('array-poly-right', 143, 397, 8, 26),
+        ('array-lut-top', 429, 166, 74, 6),
+        ('array-lut-bottom', 429, 183, 74, 9),
+        ('array-lut-left', 429, 166, 11, 26),
+        ('array-lut-mid', 464, 166, 7, 26),
+        ('array-lut-right', 496, 166, 8, 26),
       ],
       // The crc siblings' slack wires resolve through the same catalog
       // entries; each box covers the wire's bends and both arrivals.
@@ -85,6 +126,72 @@ void main() {
         ('slack-2615', 291, 702, 34, 11),
         ('slack-2396', 736, 523, 29, 15),
         ('slack-3742', 1000, 517, 29, 25),
+      ],
+      // The flat sequence's film-strip border (top/bottom sprocket bands,
+      // woven side columns, inter-frame divider) on clean stretches away
+      // from border tunnels.
+      'Excel_Read_XLSX.png': [
+        ('filmstrip-top', 1000, 851, 31, 10),
+        ('filmstrip-bottom', 1000, 1142, 31, 10),
+        ('filmstrip-left', 870, 950, 6, 23),
+        ('filmstrip-right', 1334, 966, 6, 8),
+        ('filmstrip-divider', 1249, 950, 7, 24),
+        // An XNode facade drawn verbatim from its DSIM image, including the
+        // braid (error-cluster) wire crossing under it.
+        ('xnode-facade', 636, 1068, 46, 30),
+        // The braid wire's measured three-colour band on a clean stretch.
+        ('braid', 500, 1069, 40, 5),
+        // The free-label comment's backing: 1px black border ring filled
+        // with the decoded background colour. Strips hug each border edge
+        // away from the comment's text and overlapping constants.
+        ('label-backing-top', 435, 826, 40, 3),
+        ('label-backing-bottom', 430, 915, 40, 3),
+        ('label-backing-left', 423, 850, 3, 20),
+        ('label-backing-right', 692, 850, 4, 20),
+        // The grown 0x63 node's plate ring (1px 0x444444 on white), on
+        // strips clear of its row text, dividers and terminal cells.
+        ('growable-top', 1404, 899, 60, 1),
+        ('growable-bottom', 1404, 967, 60, 1),
+        ('growable-left', 1397, 920, 1, 20),
+        ('growable-right', 1516, 920, 1, 20),
+        ('growable-field', 1404, 912, 40, 3),
+        // Path constants (0x5b under a 0x13 holder): plain 2px border, no
+        // inner ring; strips skirt the colored value text.
+        ('path-const-top', 770, 934, 40, 3),
+        ('path-const-bottom', 770, 949, 40, 4),
+        ('path-const2-top', 770, 968, 40, 3),
+        // Flat-sequence border tunnels (0x2a/0xcb): 1px ring + solid
+        // wire-colour fill punched through the film-strip band — the last
+        // one is the braid wire's olive-filled tunnel.
+        ('seq-tunnel-2a', 1331, 890, 9, 9),
+        ('seq-tunnel-cb-str', 1248, 890, 9, 9),
+        ('seq-tunnel-cb-int', 1248, 1041, 9, 9),
+        ('seq-tunnel-cb-err', 1248, 1125, 9, 9),
+        // Growable-node internals (white flavour): row dividers at the 0x62
+        // strip boundaries and the right terminal cells (black separator
+        // columns + cream fills); the yellow flavour's ring + field.
+        ('growable-div-1', 1398, 916, 60, 1),
+        ('growable-div-2', 1398, 933, 60, 1),
+        ('growable-div-3', 1398, 950, 60, 1),
+        ('growable-cells', 1500, 903, 17, 10),
+        ('growable-yellow-left', 423, 888, 2, 12),
+        // The path INDICATOR terminal draws its measured mirrored art.
+        ('path-indicator', 1852, 678, 32, 16),
+        // Film-strip corners (checker + clipped hole + interrupted inner
+        // border) and the divider junctions through the border rows.
+        ('strip-corner-tl', 870, 852, 6, 9),
+        ('strip-corner-tr', 1334, 852, 6, 9),
+        ('strip-corner-bl', 870, 1142, 6, 9),
+        ('strip-corner-br', 1334, 1142, 6, 9),
+        ('strip-div-top', 1244, 858, 16, 4),
+        ('strip-div-bot', 1244, 1140, 16, 4),
+        // The enabled-frame disable structure's grey crosshatch band
+        // (left/right/bottom) and plain black top row.
+        ('disable-left', 707, 1030, 3, 13),
+        ('disable-tunnel', 707, 1043, 9, 9),
+        ('disable-right', 848, 1030, 3, 16),
+        ('disable-bottom', 730, 1097, 24, 3),
+        ('disable-top', 770, 1008, 24, 1),
       ],
     };
     final pngs = snippetCorpusPngs().where(
@@ -105,6 +212,7 @@ void main() {
         final raster = (await rasteriseBlockDiagram(
           bd,
           primIcons: icons,
+          xnodeFacades: await loadXnodeFacades(extractSnippetVi(bytes)!, bd),
           scale: 1.0,
           margin: 2,
           scene: scene,

@@ -98,9 +98,13 @@ Map<String, int> _census(Uint8List png, String path) {
   // its overlay measures how faithfully THIS snippet registers. Below 90% (with
   // enough sampled pixels to trust) the registration is unreliable and the
   // whole snippet is discarded from the walked census.
+  // Standard-attach closures only: the DCO-child fallback tier's closures
+  // legitimately thread under node boxes (no visible ink), which would sink
+  // the control without measuring registration.
   var ctrlPx = 0, ctrlInk = 0;
   for (final w in bd.wires) {
     if (w.endpointOids.length != 2 || w.routePointsFidelity != WireRouteFidelity.closed) continue;
+    if (bd.wireAttachPoint(w.endpointOids[0]) == null || bd.wireAttachPoint(w.endpointOids[1]) == null) continue;
     if (!objectVisibleInRender(bd, w.signalOid)) continue;
     final (px, ink) = measure([w.routePoints!]);
     ctrlPx += px;
@@ -141,7 +145,23 @@ Map<String, int> _census(Uint8List png, String path) {
       final a0 = bd.wireAttachPoint(w.endpointOids[0]);
       final a1 = bd.wireAttachPoint(w.endpointOids[1]);
       final oneAnchored = (a0 == null) ^ (a1 == null);
+      if (w.routePointsFidelity == WireRouteFidelity.closed && (a0 == null || a1 == null)) {
+        // DCO-child fallback closures ([ViDiagram.dcoChildTerminalAttach]):
+        // zero-slack proven, but their runs legitimately thread under node
+        // boxes (a row cell's centre, a prim part's glyph half), so raw
+        // overlay is snapshot-tracked in its own bucket, outside the
+        // walked-tier gross-miss laws.
+        record('oa2_dcoclosed', [w.routePoints!]);
+        continue;
+      }
       if (w.routePointsFidelity == WireRouteFidelity.walked) {
+        if (a0 == null && a1 == null) {
+          // Wide-row fallback-anchored walks: the anchor is a row cell's
+          // centre inside the node body — measured apart for the same
+          // reason as the fallback closures above.
+          record('oa2_dcorow', [w.routePoints!]);
+          continue;
+        }
         if (w.routeHeadSlack != null) {
           // Head-slack tier: the head-side points carry an app-resolved
           // degree of freedom (terminal depth), so raw overlay is measured

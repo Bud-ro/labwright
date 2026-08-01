@@ -231,13 +231,13 @@ void main() {
 
   test('terminals keep LabVIEW datatype colors; unknown stays neutral', () {
     const rows = {
-      ViTypeKind.numericFloat: Color(0xFFFF8000),
+      ViTypeKind.numericFloat: Color(0xFFFF6600),
       // Sampled from LabVIEW's own snippet renders.
       ViTypeKind.numericInt: Color(0xFF0000FF),
       ViTypeKind.enumRing: Color(0xFF0000FF),
       ViTypeKind.string: Color(0xFFFF00FF),
       ViTypeKind.boolean: Color(0xFF006600),
-      ViTypeKind.path: Color(0xFF669900),
+      ViTypeKind.path: Color(0xFF006666),
       ViTypeKind.unknown: Color(0xFF8A8A8A),
     };
     rows.forEach((k, want) => expect(labviewTypeColor(k), want, reason: '$k'));
