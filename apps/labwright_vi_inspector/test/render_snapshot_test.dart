@@ -5,11 +5,12 @@ import 'dart:io';
 import 'dart:ui' as ui;
 
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+
+import 'util.dart';
 
 /// Renders real corpus VIs through [ViDiagramView] (BD + FP) to PNGs under
 /// `build/render_snapshots/` so fidelity can be *looked at*. Skips when the
@@ -65,18 +66,6 @@ List<String> _diverseSample(Directory corpus) {
   return picks;
 }
 
-/// Loads the SDK Roboto so snapshot text is legible (the test default renders
-/// every glyph as a solid box).
-Future<void> _loadRealFont() async {
-  final sdkFont = File(
-    '${Platform.environment['FLUTTER_ROOT'] ?? '/home/carson/develop/flutter'}/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
-  );
-  if (!sdkFont.existsSync()) return;
-  final loader = FontLoader('Roboto')
-    ..addFont(Future.value(sdkFont.readAsBytesSync().buffer.asByteData()));
-  await loader.load();
-}
-
 void main() {
   final corpus = _corpusDir();
   if (corpus == null) {
@@ -106,7 +95,7 @@ void main() {
           return ms;
         }
 
-        await _loadRealFont();
+        await loadRealTextFont();
         final fontMs = lap();
         final ViModel model;
         try {

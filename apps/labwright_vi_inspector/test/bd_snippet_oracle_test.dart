@@ -167,7 +167,10 @@ void main() {
         // with the decoded background colour. Strips hug each border edge
         // away from the comment's text and overlapping constants.
         ('label-backing-top', 435, 826, 40, 3),
-        ('label-backing-bottom', 430, 915, 40, 3),
+        // One row tighter to the border than the top strip: the comment
+        // text's metric-matched last line drops its AA fringe into the
+        // row above (the reference's own descenders end one row higher).
+        ('label-backing-bottom', 430, 916, 40, 2),
         ('label-backing-left', 423, 850, 3, 20),
         ('label-backing-right', 692, 850, 4, 20),
         // The grown 0x63 node's plate ring (1px 0x444444 on white), on
@@ -176,7 +179,10 @@ void main() {
         ('growable-bottom', 1404, 967, 60, 1),
         ('growable-left', 1397, 920, 1, 20),
         ('growable-right', 1516, 920, 1, 20),
-        ('growable-field', 1404, 912, 40, 3),
+        // One row lower than the row-text bottom: the metric-matched row
+        // text drops its AA fringe into the row the strip used to start
+        // on.
+        ('growable-field', 1404, 913, 40, 3),
         // Path constants (0x5b under a 0x13 holder): plain 2px border, no
         // inner ring; strips skirt the colored value text.
         ('path-const-top', 770, 934, 40, 3),

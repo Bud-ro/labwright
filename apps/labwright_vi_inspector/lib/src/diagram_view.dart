@@ -2863,7 +2863,36 @@ class BdScene {
   /// labels per frame dominated interactive paint time. Keyed by the text +
   /// full style + wrap width.
   final Map<String, TextPainter> textLayoutCache = {};
+
+  /// Every text run the last paint drew: its string, the canvas-space rect
+  /// of its laid-out box, and the style size it was set in. Rebuilt each
+  /// paint; the text-metric tests and accuracy probes read it to locate
+  /// text ink without re-deriving the painter's placement rules.
+  final List<({String text, Rect rect, double fontSize})> paintedText = [];
 }
+
+/// The block-diagram text size, in logical px per em, calibrated against
+/// the snippet references' own text ink (the Windows UI face as rasterised
+/// by the capturing machine; drawn here with the metric-compatible bundled
+/// Selawik). Measured on the Excel_Read_XLSX/MD5/crc8 references:
+///
+///  * cap height 9 px, x-height 6 px, descender 3 px — every text class
+///    (owned labels, free labels, comment blocks, case-selector values,
+///    array/constant digits) shows the same 9 px caps;
+///  * ink-bbox widths (lum<144, AA fringe cancelling between render and
+///    reference): "Reflect Output?" 75, "Reflect Input? (F)" 80,
+///    "U8 Bits Reversed LUT" 100, "Xor Out (0x00)" 71, "Truncate? (T)" 63,
+///    "Worksheets" 58, "CRC-8" 32, "No Error" 41.
+///
+/// Selawik at 12.0 em, zero tracking, matches width and position within
+/// ±2 px on all but two of the ~200 painted runs across the three VIs
+/// (30-glyph runs drift up to −4 px: the reference's per-glyph integer
+/// advances accumulate a fraction our fractional layout does not).
+const double kBdTextSize = 12.0;
+
+/// Multi-line pitch as a multiple of [kBdTextSize]: the references space
+/// comment-block baselines 14/15 px apart (mean 14.5).
+const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
@@ -2889,24 +2918,25 @@ class BdDiagramPainter extends CustomPainter {
   TextPainter _layoutText(
     String text, {
     required Color color,
-    required double fontSize,
+    double fontSize = kBdTextSize,
     FontWeight fontWeight = FontWeight.w400,
     FontStyle? fontStyle,
     int? maxLines,
     String? ellipsis,
     double maxWidth = double.infinity,
   }) => scene.textLayoutCache.putIfAbsent(
-    '$text|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|'
-    '$maxLines|$ellipsis|$maxWidth',
+    '$text|${color.toARGB32()}|$fontSize|$fontWeight|'
+    '$fontStyle|$maxLines|$ellipsis|$maxWidth',
     () => TextPainter(
       text: TextSpan(
         text: text,
         style: TextStyle(
           color: color,
           fontSize: fontSize,
+          height: kBdTextLineHeight,
           fontWeight: fontWeight,
           fontStyle: fontStyle,
-          fontFamily: 'Roboto',
+          fontFamily: 'Selawik',
         ),
       ),
       maxLines: maxLines,
@@ -2914,6 +2944,32 @@ class BdDiagramPainter extends CustomPainter {
       textDirection: TextDirection.ltr,
     )..layout(maxWidth: maxWidth),
   );
+
+  /// Paints [tp] at [at] and records the run's canvas rect on
+  /// [BdScene.paintedText] for text-metric tests and accuracy probes.
+  /// [clip] bounds overlong text the way LabVIEW crops a value display to
+  /// its box — a hard pixel clip, never an ellipsis (the references show
+  /// cut glyphs, not `…`).
+  void _paintText(
+    Canvas canvas,
+    TextPainter tp,
+    Offset at,
+    String text, {
+    Rect? clip,
+  }) {
+    if (clip != null) {
+      canvas
+        ..save()
+        ..clipRect(clip);
+    }
+    tp.paint(canvas, at);
+    if (clip != null) canvas.restore();
+    scene.paintedText.add((
+      text: text,
+      rect: clip == null ? at & tp.size : (at & tp.size).intersect(clip),
+      fontSize: tp.text?.style?.fontSize ?? 0,
+    ));
+  }
 
   final Offset origin;
 
@@ -3021,6 +3077,7 @@ class BdDiagramPainter extends CustomPainter {
 
   @override
   void paint(Canvas canvas, Size size) {
+    scene.paintedText.clear();
     // The layer rasterises at [canvasScale]; everything below draws in
     // logical diagram units under one canvas scale, so strokes, text, and
     // icons all render at the zoom's real resolution.
@@ -3644,6 +3701,7 @@ class BdDiagramPainter extends CustomPainter {
           // ([kBdRadixMarkerGlyphs]) at the constant's 0xb radix part, in
           // the type colour; decimal constants draw nothing there
           // (byte-measured on MD5's %08x initials and %08b feeders).
+          Offset? radixCorner;
           if (constValue != null) {
             final marker =
                 kBdRadixMarkerGlyphs[bdFormatConversion(
@@ -3660,6 +3718,7 @@ class BdDiagramPainter extends CustomPainter {
             if (marker != null && radixPart != null) {
               final (dx, dy, rows) = marker;
               final corner = _toCanvas(radixPart.absBounds!).topLeft;
+              radixCorner = corner;
               final ink = _solidNoAa(tint);
               for (var r = 0; r < rows.length; r++) {
                 for (var c = 0; c < rows[r].length; c++) {
@@ -3673,19 +3732,30 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
           // A constant's decoded literal, centred in its box the way
-          // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
-          // black through the disabled transform (the reference's disabled
-          // digits read as the (153,153,153) dim of black).
+          // LabVIEW shows the value (crc8's oid 3033 renders `256`); a
+          // radix-marked constant instead left-aligns its digits past the
+          // marker (MD5's %08x initials: digits at the radix corner + 9,
+          // the array-cell rule). Inked black through the disabled
+          // transform (the reference's disabled digits read as the
+          // (153,153,153) dim of black).
           if (constValue != null && box.width >= 12 && box.height >= 12) {
             final tp = _layoutText(
               constValue,
               color: _dimFor(object.oid, Colors.black),
-              fontSize: 10,
               maxLines: 1,
-              ellipsis: '…',
-              maxWidth: math.max(8, box.width - 6),
             );
-            tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
+            // A radix-marked constant's 2 px border stays clear of digit
+            // AA (MD5's s1 box: reference digits end 2 px short of the
+            // ring), hence the tighter clip.
+            _paintText(
+              canvas,
+              tp,
+              radixCorner == null
+                  ? box.center - Offset(tp.width / 2, tp.height / 2)
+                  : Offset(radixCorner.dx + 9, box.center.dy - tp.height / 2),
+              constValue,
+              clip: box.deflate(radixCorner == null ? 1 : 2),
+            );
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
           // as LabVIEW stamps on the terminal — sized to sit inside the
@@ -3709,7 +3779,12 @@ class BdDiagramPainter extends CustomPainter {
               fontSize: 8.5,
               fontWeight: FontWeight.w700,
             );
-            tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
+            _paintText(
+              canvas,
+              tp,
+              box.center - Offset(tp.width / 2, tp.height / 2),
+              glyph,
+            );
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: a verified primitive icon (the bundled
@@ -3907,17 +3982,17 @@ class BdDiagramPainter extends CustomPainter {
               final tp = _layoutText(
                 name,
                 color: _dimFor(object.oid, rowColor),
-                fontSize: 10.5,
                 maxLines: 1,
-                ellipsis: '…',
-                maxWidth: math.max(8, cell.width - 2),
               );
-              tp.paint(
+              _paintText(
                 canvas,
+                tp,
                 Offset(
                   cell.center.dx - tp.width / 2,
                   cell.center.dy - tp.height / 2,
                 ),
+                name,
+                clip: cell,
               );
             }
             continue;
@@ -4066,7 +4141,12 @@ class BdDiagramPainter extends CustomPainter {
               fontSize: glyph.length > 2 ? 8.0 : 12,
               maxLines: 1,
             );
-            tp.paint(canvas, rect.center - Offset(tp.width / 2, tp.height / 2));
+            _paintText(
+              canvas,
+              tp,
+              rect.center - Offset(tp.width / 2, tp.height / 2),
+              glyph,
+            );
           }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
@@ -4155,24 +4235,38 @@ class BdDiagramPainter extends CustomPainter {
         // reference's own leading space: MD5's " 3 " strip shows the glyph
         // at bounds.left+4, the space's width past a 1 px inset).
         final selector = object.kind == 0x95;
+        // A backed label (free comment / array-docked; the classes the
+        // backing pass fills) insets its text past the 1 px border+padding;
+        // an owned label's ink starts 1 px inside its bounds (reference-
+        // measured: crc8's owned labels at bounds.left+1, Excel's backed
+        // comment text at bounds.left+2).
+        final holderKind = scene.diagram.byId[object.parentOid ?? -1]?.kind;
+        final backed =
+            holderKind == 0x1b ||
+            (holderKind == 0x52 && ((object.objFlags ?? 0) & 0x800) == 0);
         final rect = rect0;
         final tp = _layoutText(
           text,
           color: _dimFor(
             object.oid,
-            bdDecodedColor(object.fgRgb) ??
-                Colors.black.withValues(alpha: 0.85),
+            bdDecodedColor(object.fgRgb) ?? Colors.black,
           ),
-          fontSize: selector ? 9.5 : 10.5,
-          maxLines: math.max(1, rect.height ~/ 12),
-          ellipsis: '…',
-          maxWidth: math.max(8, rect.width - (selector ? 1 : 4)),
+          // Label text is never truncated or auto-wrapped: LabVIEW sizes a
+          // label's bounds to its text (multi-line captions carry their own
+          // newlines), so the render lets the metric-matched layout run its
+          // full width rather than ellipsising a few px of slack.
+          maxLines: math.max(
+            1,
+            (rect.height / (kBdTextSize * kBdTextLineHeight)).round(),
+          ),
         );
-        tp.paint(
+        _paintText(
           canvas,
+          tp,
           selector
               ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
-              : rect0.topLeft + const Offset(2, 1),
+              : rect0.topLeft + Offset(backed ? 2 : 1, 1),
+          text,
         );
         continue;
       }
@@ -4202,17 +4296,16 @@ class BdDiagramPainter extends CustomPainter {
       // a neutral near-black.
       final textColor = _dimFor(
         object.oid,
-        bdDecodedColor(object.fgRgb) ?? Colors.black.withValues(alpha: 0.75),
+        bdDecodedColor(object.fgRgb) ?? Colors.black,
       );
-      final tp = _layoutText(
+      final tp = _layoutText(text, color: textColor, maxLines: 1);
+      _paintText(
+        canvas,
+        tp,
+        rect.topLeft + const Offset(3, 1),
         text,
-        color: textColor,
-        fontSize: 10,
-        maxLines: 1,
-        ellipsis: '…',
-        maxWidth: rect.width - 5,
+        clip: rect.deflate(1),
       );
-      tp.paint(canvas, rect.topLeft + const Offset(3, 1));
     }
   }
 
@@ -5790,15 +5883,16 @@ class BdDiagramPainter extends CustomPainter {
             final tp = _layoutText(
               '0',
               color: _dimFor(shell.oid, Colors.black),
-              fontSize: 10,
               maxLines: 1,
             );
-            tp.paint(
+            _paintText(
               canvas,
+              tp,
               Offset(
                 (pb.left + 2 - origin.dx).toDouble(),
                 (pb.top + pb.bottom) / 2 - origin.dy - tp.height / 2,
               ),
+              '0',
             );
           }
           // The spinner's fat triangle (measured on crc8's Polynomial
@@ -5985,22 +6079,20 @@ class BdDiagramPainter extends CustomPainter {
       shellOid,
       empty ? bdDimDisabled(Colors.black) : Colors.black,
     );
-    final tp = _layoutText(
-      text,
-      color: ink,
-      fontSize: 10,
-      maxLines: 1,
-      ellipsis: '…',
-      maxWidth: math.max(8, cell.width - 6),
-    );
+    final tp = _layoutText(text, color: ink, maxLines: 1);
     // Digits sit left-aligned after the radix zone (MD5: decimal digits at
-    // cell.left+4, hex digits at cell.left+9 past the marker).
-    tp.paint(
+    // cell.left+4, hex digits at cell.left+9 past the marker) with digit
+    // tops a row above the centred line box (MD5's hex cells: caps at
+    // cell.top+6 of the 19 px cell).
+    _paintText(
       canvas,
+      tp,
       Offset(
         cell.left + (marker != null ? 9 : 4),
-        cell.center.dy - tp.height / 2,
+        cell.center.dy - tp.height / 2 - 1,
       ),
+      text,
+      clip: cell,
     );
   }
 
@@ -7052,7 +7144,12 @@ class BdDiagramPainter extends CustomPainter {
       fontWeight: FontWeight.w700,
       fontStyle: FontStyle.italic,
     );
-    tp.paint(canvas, box.center - Offset(tp.width / 2, tp.height / 2));
+    _paintText(
+      canvas,
+      tp,
+      box.center - Offset(tp.width / 2, tp.height / 2),
+      glyph,
+    );
   }
 
   /// Draws a structure's modeled terminals at their frame-relative boxes,
