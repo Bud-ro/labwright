@@ -245,9 +245,10 @@ void main() {
   for (final (name, drawnFloor, missingPin) in const [
     ('Excel_Read_XLSX.png', 92, 0),
     // MD5's missing remainder sits inside the array-block value rects:
-    // cell-seam ink the block render does not yet draw, and the tunnel
-    // wire's covered run between a block's rect edge and its drawn frame.
-    ('MD5.png', 186, 97),
+    // cell-seam ink the block render does not yet draw. (The S-grid feed's
+    // run to the element wrap's frame and the index-terminal → Multiply
+    // covered-walk stub took this 97 -> 63 and drawn 186 -> 187.)
+    ('MD5.png', 187, 63),
   ]) {
     testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
       tester,
@@ -431,7 +432,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21906),
+        lessThanOrEqualTo(21872),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
@@ -439,7 +440,8 @@ void main() {
             'wires erased, full-box crops trimmed to their ink — took '
             'this 22,046 -> 22,035; the prim-origin/uncatalogued 3-point '
             'tiers, the container-face runs, and the Logical Shift '
-            'terminal row -> 21,906.)',
+            'terminal row -> 21,906; the array-shell wrap arrival face '
+            '-> 21,872.)',
       );
     });
   });
