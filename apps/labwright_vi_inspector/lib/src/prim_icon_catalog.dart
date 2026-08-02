@@ -10,6 +10,12 @@
 ///   are hand-finished (wires shaved, junk cleared) rather than raw pipeline
 ///   output, so the reproducibility contract keeps the committed asset
 ///   authoritative instead of byte-comparing it against a fresh extraction.
+/// - [PrimIconStatus.byteVerified] — MACHINE-verified only: the committed
+///   asset byte-matched LabVIEW's reference render at every checked corpus
+///   instance when it was extracted. Stamps, and (like verifiedHand) the
+///   committed asset stays authoritative against pipeline regeneration —
+///   but this is NOT a maintainer verdict; the maintainer upgrades it to
+///   verified/verifiedHand (or rejects) on eyeball.
 /// - [PrimIconStatus.unverified] — extracted but not yet reviewed; stamped
 ///   (that is how it gets reviewed in context) and labelled in the detail
 ///   card.
@@ -20,21 +26,27 @@
 /// The generator (`test/extract_prim_icons_test.dart`) rewrites the entry
 /// list when assets regenerate but PRESERVES the statuses recorded here;
 /// only new keys default to [PrimIconStatus.unverified].
-enum PrimIconStatus { verified, verifiedHand, unverified, rejected }
+enum PrimIconStatus {
+  verified,
+  verifiedHand,
+  byteVerified,
+  unverified,
+  rejected,
+}
 
 // GENERATED-ENTRIES-BEGIN (extract_prim_icons_test.dart rewrites this block;
 // statuses are preserved — edit them freely.)
 const Map<String, PrimIconStatus> kPrimIconStatus = {
-  'prim1050': PrimIconStatus.verifiedHand,
-  'prim1051': PrimIconStatus.verifiedHand,
+  'prim1050': PrimIconStatus.byteVerified,
+  'prim1051': PrimIconStatus.byteVerified,
   'prim1052': PrimIconStatus.verifiedHand,
-  'prim1056': PrimIconStatus.verifiedHand,
-  'prim1057': PrimIconStatus.verifiedHand,
-  'prim1058': PrimIconStatus.verifiedHand,
-  'prim1061': PrimIconStatus.verifiedHand,
+  'prim1056': PrimIconStatus.byteVerified,
+  'prim1057': PrimIconStatus.byteVerified,
+  'prim1058': PrimIconStatus.byteVerified,
+  'prim1061': PrimIconStatus.byteVerified,
   'prim1062': PrimIconStatus.verifiedHand,
   'prim1063': PrimIconStatus.verifiedHand,
-  'prim1064': PrimIconStatus.verifiedHand,
+  'prim1064': PrimIconStatus.byteVerified,
   'prim1069': PrimIconStatus.unverified,
   'prim1070': PrimIconStatus.verifiedHand,
   'prim1077': PrimIconStatus.unverified,
@@ -47,7 +59,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1108': PrimIconStatus.unverified,
   'prim1110': PrimIconStatus.unverified,
   'prim1112': PrimIconStatus.verifiedHand,
-  'prim1113': PrimIconStatus.verifiedHand,
+  'prim1113': PrimIconStatus.byteVerified,
   'prim1114': PrimIconStatus.unverified,
   'prim1116': PrimIconStatus.unverified,
   'prim1118': PrimIconStatus.unverified,
@@ -60,7 +72,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1143': PrimIconStatus.verifiedHand,
   'prim1145': PrimIconStatus.unverified,
   'prim1147': PrimIconStatus.unverified,
-  'prim1155': PrimIconStatus.verifiedHand,
+  'prim1155': PrimIconStatus.byteVerified,
   'prim1156': PrimIconStatus.unverified,
   'prim1162': PrimIconStatus.unverified,
   'prim1163': PrimIconStatus.unverified,
@@ -74,7 +86,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1184': PrimIconStatus.unverified,
   'prim1185': PrimIconStatus.unverified,
   'prim1188': PrimIconStatus.unverified,
-  'prim1189': PrimIconStatus.verifiedHand,
+  'prim1189': PrimIconStatus.byteVerified,
   'prim1213': PrimIconStatus.unverified,
   'prim1302': PrimIconStatus.unverified,
   'prim1303': PrimIconStatus.unverified,
@@ -84,7 +96,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1435': PrimIconStatus.verifiedHand,
   'prim1502': PrimIconStatus.unverified,
   'prim1503': PrimIconStatus.unverified,
-  'prim1516': PrimIconStatus.verifiedHand,
+  'prim1516': PrimIconStatus.byteVerified,
   'prim1534': PrimIconStatus.unverified,
   'prim1535': PrimIconStatus.unverified,
   'prim1537': PrimIconStatus.unverified,
@@ -95,7 +107,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1809': PrimIconStatus.unverified,
   'prim1814': PrimIconStatus.verifiedHand,
   'prim1815': PrimIconStatus.verifiedHand,
-  'prim1900': PrimIconStatus.verifiedHand,
+  'prim1900': PrimIconStatus.byteVerified,
   'prim1901': PrimIconStatus.unverified,
   'prim1904': PrimIconStatus.unverified,
   'prim1907': PrimIconStatus.unverified,

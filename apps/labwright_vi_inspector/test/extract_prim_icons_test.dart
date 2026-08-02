@@ -286,11 +286,12 @@ void main() {
         ).allMatches(catalogNow))
           m.group(1)!,
       };
-      // Hand-finished verified art: kept authoritative, never byte-compared
-      // (the pipeline cannot reproduce hand cleanup), never rewritten.
+      // Hand-finished or byte-verified art: kept authoritative, never
+      // byte-compared (the pipeline cannot reproduce hand cleanup or the
+      // targeted single-instance extractions), never rewritten.
       final handKeys = {
         for (final m in RegExp(
-          r"'([a-z0-9_]+)': PrimIconStatus\.verifiedHand,",
+          r"'([a-z0-9_]+)': PrimIconStatus\.(?:verifiedHand|byteVerified),",
         ).allMatches(catalogNow))
           m.group(1)!,
       };
