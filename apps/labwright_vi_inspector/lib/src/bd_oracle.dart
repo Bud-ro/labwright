@@ -33,11 +33,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'diagram_view.dart';
 import 'image_clipboard.dart';
+import 'oracle_gif.dart';
 
 /// A rasterised block diagram: the [image] plus the model-space [content]
 /// rectangle and the model-pixel → image-pixel [scale] it was drawn at (so a
@@ -1511,6 +1513,10 @@ class _BdOracleViewState extends State<BdOracleView>
     }
   }
 
+  /// True while a sweep-GIF export is encoding (the button disables so a
+  /// second press cannot start a parallel encode).
+  bool _exportingGif = false;
+
   /// Wipe mode: the registered render and the reference overlaid, split at a
   /// draggable divider (ours left, LabVIEW right).
   bool _wipe = false;
@@ -1802,6 +1808,17 @@ class _BdOracleViewState extends State<BdOracleView>
                       ),
                       label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
                     ),
+                    Builder(
+                      builder: (context) => TextButton.icon(
+                        onPressed: _exportingGif
+                            ? null
+                            : () => _exportSweepGif(context, result),
+                        icon: const Icon(Icons.gif_box_outlined, size: 16),
+                        label: Text(
+                          _exportingGif ? 'Encoding…' : 'Export sweep GIF',
+                        ),
+                      ),
+                    ),
                     if (_wipe) ...[
                       for (final zoom in const [0, 1, 2, 3])
                         Padding(
@@ -2089,6 +2106,58 @@ class _BdOracleViewState extends State<BdOracleView>
       ],
     ),
   );
+
+  /// Exports the registered pair as the orange-bar sweep GIF
+  /// ([encodeOracleSweepGif]): our render west of the bar, the reference east
+  /// — both from the 1:1 comparison pair, so they are pixel-aligned. The
+  /// encode runs off the UI isolate; the save destination comes from the OS
+  /// save dialog (matching the file-open flow), and a snackbar reports where
+  /// the file went.
+  Future<void> _exportSweepGif(
+    BuildContext context,
+    BdOracleResult result,
+  ) async {
+    setState(() => _exportingGif = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final width = result.reference.width;
+      final height = result.reference.height;
+      final fitted = (await result.fitted.toByteData())!.buffer.asUint8List();
+      final reference = result.referenceRgba;
+      final gif = await Isolate.run(
+        () => encodeOracleSweepGif(
+          leftRgba: fitted,
+          rightRgba: reference,
+          width: width,
+          height: height,
+        ),
+      );
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'Save render-vs-reference sweep GIF',
+        fileName: 'oracle-sweep.gif',
+        type: FileType.custom,
+        allowedExtensions: const ['gif'],
+        bytes: gif,
+      );
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            path == null
+                ? 'Sweep GIF export cancelled'
+                : 'Wrote sweep GIF '
+                      '(${(gif.length / (1 << 20)).toStringAsFixed(1)} MB) '
+                      'to $path',
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('Could not export sweep GIF: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingGif = false);
+    }
+  }
 
   /// Copies a pane's [image] to the system clipboard as a PNG. The oracle
   /// panes pass their [kOracleDisplaySupersample]x display image, so the copy
