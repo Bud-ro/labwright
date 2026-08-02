@@ -76,6 +76,39 @@ void main() {
     final t = decodeFontTable(b)!;
     expect((t.version, t.fontCount, t.nameTableOffset), (1, 2, 16));
     expect(t.names, ['Segoe UI', 'Tahoma']);
+    expect(t.entries, isEmpty, reason: 'name table at 16 != 8 + 2*16, so no record framing');
+    // Record-framed table: one 16-byte record [nameOff size flags style weight
+    // resolvedSize metricA metricB] then its Pascal name at the recorded offset.
+    final framed = u8([
+      0,
+      1,
+      0,
+      2,
+      0,
+      3,
+      0,
+      1,
+      0,
+      0,
+      0,
+      24,
+      0,
+      15,
+      4,
+      2,
+      3,
+      232,
+      0,
+      15,
+      0,
+      216,
+      0,
+      213,
+      ...pascal('Segoe UI'),
+    ]);
+    final e = decodeFontTable(framed)!.entries.single;
+    expect((e.nameOffset, e.size, e.flagsByte, e.styleFlags), (24, 15, 4, 2));
+    expect((e.weight, e.resolvedSize, e.metricA, e.metricB, e.name), (1000, 15, 216, 213, 'Segoe UI'));
     final bogus = Uint8List(12);
     ByteData.sublistView(bogus)
       ..setUint16(0, 1)
