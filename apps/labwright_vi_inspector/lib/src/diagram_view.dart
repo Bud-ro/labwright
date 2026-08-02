@@ -2894,6 +2894,15 @@ const double kBdTextSize = 12.0;
 /// comment-block baselines 14/15 px apart (mean 14.5).
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
+/// Per-glyph advance correction for DIGIT-ONLY value runs: the references
+/// space value digits on an integer 6 px pitch (MD5's `%08x`/`%08b`
+/// windows: 8-digit ink spans 48 px; crc8's `256` 18 px), where Selawik at
+/// 12 em advances digits 6.458 px (its letter advances match the reference
+/// within the calibration tolerance — MD5's `EFCDAB89` aligns both ends
+/// with zero spacing). Applied only when every glyph is a decimal digit;
+/// mixed runs keep the face's own advances.
+const double kBdDigitRunSpacing = 6.0 - 51.666 / 8;
+
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
     required this.scene,
@@ -2924,9 +2933,10 @@ class BdDiagramPainter extends CustomPainter {
     int? maxLines,
     String? ellipsis,
     double maxWidth = double.infinity,
+    double letterSpacing = 0,
   }) => scene.textLayoutCache.putIfAbsent(
     '$text|${color.toARGB32()}|$fontSize|$fontWeight|'
-    '$fontStyle|$maxLines|$ellipsis|$maxWidth',
+    '$fontStyle|$maxLines|$ellipsis|$maxWidth|$letterSpacing',
     () => TextPainter(
       text: TextSpan(
         text: text,
@@ -2936,6 +2946,7 @@ class BdDiagramPainter extends CustomPainter {
           height: kBdTextLineHeight,
           fontWeight: fontWeight,
           fontStyle: fontStyle,
+          letterSpacing: letterSpacing == 0 ? null : letterSpacing,
           fontFamily: 'Selawik',
         ),
       ),
@@ -3731,28 +3742,31 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
           }
-          // A constant's decoded literal, centred in its box the way
-          // LabVIEW shows the value (crc8's oid 3033 renders `256`); a
-          // radix-marked constant instead left-aligns its digits past the
-          // marker (MD5's %08x initials: digits at the radix corner + 9,
-          // the array-cell rule). Inked black through the disabled
-          // transform (the reference's disabled digits read as the
-          // (153,153,153) dim of black).
+          // A constant's decoded literal, RIGHT-aligned in its value
+          // window the way LabVIEW justifies numeric displays: the text
+          // advance ends 4 px inside the window's right edge. Measured on
+          // MD5's fixed-format windows, where the box is wider than the
+          // digits and the alignment shows: the `%08b` pair oids 516/540
+          // ("10000000"/"00000000") share one right edge with different
+          // left starts, and the `%08x` spinner constants (oid 811 family)
+          // end 4 px short of the window at every digit mix. A snug
+          // autosized box (crc8's `256`) reads the same under any anchor.
+          // Inked black through the disabled transform (the reference's
+          // disabled digits read as the (153,153,153) dim of black).
           if (constValue != null && box.width >= 12 && box.height >= 12) {
+            final digitsOnly = constValue.codeUnits.every(
+              (unit) => unit >= 0x30 && unit <= 0x39,
+            );
             final tp = _layoutText(
               constValue,
               color: _dimFor(object.oid, Colors.black),
               maxLines: 1,
+              letterSpacing: digitsOnly ? kBdDigitRunSpacing : 0,
             );
-            // A radix-marked constant's 2 px border stays clear of digit
-            // AA (MD5's s1 box: reference digits end 2 px short of the
-            // ring), hence the tighter clip.
             _paintText(
               canvas,
               tp,
-              radixCorner == null
-                  ? box.center - Offset(tp.width / 2, tp.height / 2)
-                  : Offset(radixCorner.dx + 9, box.center.dy - tp.height / 2),
+              Offset(box.right - 4 - tp.width, box.center.dy - tp.height / 2),
               constValue,
               clip: box.deflate(radixCorner == null ? 1 : 2),
             );

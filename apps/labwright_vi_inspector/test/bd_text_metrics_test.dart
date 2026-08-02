@@ -23,7 +23,11 @@ void main() {
       ('Excel Workbook (*.xlsx)', 373.0, 96.0, 122.2, 15.0),
       (' Default ', 655.0, 333.0, 44.9, 15.0),
       ('lvtemporary_%d', 386.0, 430.0, 85.5, 15.0),
-      ('1000000', 390.9, 490.0, 45.3, 15.0),
+      // Right-aligned value text on the 6 px digit pitch (the numeric-
+      // display law + [kBdDigitRunSpacing]): the layout box ends 4 px
+      // inside the value window; reference digit ink matches exactly
+      // (dLeft/dRight 0) where the centred anchor sat 1 px right.
+      ('1000000', 391.9, 490.0, 42.1, 15.0),
     ],
     'MD5.png': [
       ('D76AA478', 1422.0, 790.0, 56.2, 15.0),
@@ -37,7 +41,9 @@ void main() {
     'crc8.png': [
       ('Reflect Output?', 844.0, 88.0, 82.5, 15.0),
       (' True ', 870.0, 105.0, 30.1, 15.0),
-      ('256', 113.8, 230.0, 19.4, 15.0),
+      // Right-aligned value text (see the '1000000' note): reference ink
+      // matches exactly at this anchor (dLeft/dRight 0).
+      ('256', 114.0, 230.0, 18.0, 15.0),
       ('Create CRC-8 LUT', 170.0, 237.0, 94.4, 15.0),
       (
         'Uses Look Up Tables (LUTs)\n'
