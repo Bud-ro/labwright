@@ -8,6 +8,7 @@ import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'bd_text_font.dart';
 import 'prim_terminal_catalog.dart';
 import 'terminal_bitmaps.dart';
 
@@ -2861,21 +2862,19 @@ class BdScene {
   /// and zoom re-anchors (the canvas itself is scaled, so a layout never
   /// depends on [BdDiagramPainter.canvasScale]). Laying out hundreds of
   /// labels per frame dominated interactive paint time. Keyed by the text +
-  /// full style + wrap width.
-  final Map<String, TextPainter> textLayoutCache = {};
+  /// full style.
+  final Map<String, BdTextRun> textLayoutCache = {};
+
+  /// Per-glyph layout/paint slots backing [textLayoutCache] (see [BdGlyph]),
+  /// keyed by glyph + full style: a glyph's painters, integer advance, and
+  /// baseline are computed once and shared by every run that uses it.
+  final Map<String, BdGlyph> textGlyphCache = {};
 
   /// Every text run the last paint drew: its string, the canvas-space rect
   /// of its laid-out box, and the style size it was set in. Rebuilt each
   /// paint; the text-metric tests and accuracy probes read it to locate
   /// text ink without re-deriving the painter's placement rules.
   final List<({String text, Rect rect, double fontSize})> paintedText = [];
-
-  /// The ink-weight companion of each cached layout ([textLayoutCache]):
-  /// the same run at [kBdTextOverdrawAlpha], blitted under the full-
-  /// strength pass by the painter's `_paintText`. Built alongside the main
-  /// layout (identity-keyed), so overdraw costs one extra blit per run and
-  /// no extra per-frame layout.
-  final Map<TextPainter, TextPainter> textOverdraw = Map.identity();
 }
 
 /// The block-diagram text size, in logical px per em, calibrated against
@@ -2891,14 +2890,16 @@ class BdScene {
 ///    "U8 Bits Reversed LUT" 100, "Xor Out (0x00)" 71, "Truncate? (T)" 63,
 ///    "Worksheets" 58, "CRC-8" 32, "No Error" 41.
 ///
-/// Selawik at 12.0 em, zero tracking, matches width and position within
-/// ±2 px on all but two of the ~200 painted runs across the three VIs
-/// (30-glyph runs drift up to −4 px: the reference's per-glyph integer
-/// advances accumulate a fraction our fractional layout does not).
+/// Laid out at 12.0 em on the whole-pixel glyph lattice ([BdTextRun]:
+/// integer per-glyph advances, integer baseline), the run widths match the
+/// reference ink within ±1 px on all but a handful of the ~200 painted runs
+/// across the three VIs.
 const double kBdTextSize = 12.0;
 
-/// Multi-line pitch as a multiple of [kBdTextSize]: the references space
-/// comment-block baselines 14/15 px apart (mean 14.5).
+/// Line box height as a multiple of the em size: `ceil(fontSize * this)` is
+/// both the reported line-box height and the multi-line baseline pitch —
+/// 15 px at [kBdTextSize] (crc8's reference comment pens its three
+/// baselines at rows 103/118/133, 15 px apart).
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
 /// Ink-weight overdraw alpha: every text run re-draws itself once at this
@@ -2912,14 +2913,76 @@ const double kBdTextLineHeight = 14.5 / kBdTextSize;
 /// calibration VIs (Excel .325→.362, MD5 .435→.472, crc8 .442→.475).
 const double kBdTextOverdrawAlpha = 0.75;
 
-/// Per-glyph advance correction for DIGIT-ONLY value runs: the references
-/// space value digits on an integer 6 px pitch (MD5's `%08x`/`%08b`
-/// windows: 8-digit ink spans 48 px; crc8's `256` 18 px), where Selawik at
-/// 12 em advances digits 6.458 px (its letter advances match the reference
-/// within the calibration tolerance — MD5's `EFCDAB89` aligns both ends
-/// with zero spacing). Applied only when every glyph is a decimal digit;
-/// mixed runs keep the face's own advances.
-const double kBdDigitRunSpacing = 6.0 - 51.666 / 8;
+/// One cached glyph of the diagram text face at a full style+colour: the
+/// full-ink and [kBdTextOverdrawAlpha] companion painters, the pen advance
+/// snapped to whole pixels, and the painter's own (fractional) alphabetic
+/// baseline distance, used to land the glyph outline on an integer
+/// baseline row.
+///
+/// The capture rasterizer (classic GDI text output) pens each glyph a
+/// whole number of pixels after the last and sets every baseline on a
+/// whole pixel row; the face's fractional advances (Selawik digits
+/// 6.469 px, `e` 6.275 px) would otherwise accumulate a drift of several
+/// px over long runs (MD5's hex windows ran 2–4 px long; the references
+/// space value digits on an exact 6 px pitch).
+class BdGlyph {
+  BdGlyph({
+    required this.main,
+    required this.dim,
+    required this.advance,
+    required this.baseline,
+  });
+
+  /// The full-strength single-glyph painter.
+  final TextPainter main;
+
+  /// The ink-weight overdraw companion ([kBdTextOverdrawAlpha]).
+  final TextPainter dim;
+
+  /// The whole-pixel pen advance: the face's fractional advance rounded.
+  final int advance;
+
+  /// [main]'s alphabetic-baseline distance from its paint origin.
+  final double baseline;
+}
+
+/// A laid-out text run on the whole-pixel glyph lattice: every glyph pens
+/// at an integer x, every line's baseline on an integer row at the
+/// [kBdTextLineHeight] pitch, with the overdraw pass recorded under the
+/// full-strength pass at identical origins. The paint is recorded once
+/// into a picture, so a repaint costs one draw per run regardless of
+/// glyph count.
+class BdTextRun {
+  BdTextRun({
+    required this.width,
+    required this.height,
+    required this.fontSize,
+    required ui.Picture picture,
+  }) : _picture = picture;
+
+  /// The widest line's advance sum — an exact whole number of pixels.
+  final double width;
+
+  /// `lineHeight * lineCount` (the same 15 px line boxes the reference
+  /// pens at 12 em).
+  final double height;
+
+  /// The em size the run was set in (mirrored onto
+  /// [BdScene.paintedText]).
+  final double fontSize;
+
+  final ui.Picture _picture;
+
+  Size get size => Size(width, height);
+
+  void paint(Canvas canvas, Offset at) {
+    canvas
+      ..save()
+      ..translate(at.dx, at.dy)
+      ..drawPicture(_picture)
+      ..restore();
+  }
+}
 
 class BdDiagramPainter extends CustomPainter {
   BdDiagramPainter({
@@ -2938,75 +3001,126 @@ class BdDiagramPainter extends CustomPainter {
   /// The diagram-derived render inputs (paint order, wires, chrome indexes).
   final BdScene scene;
 
-  /// A laid-out [TextPainter] from the scene's scale-independent layout
-  /// cache ([BdScene.textLayoutCache]) — label text re-lays-out only when
-  /// its content, style, or wrap width changes, not on every repaint or
-  /// zoom re-anchor.
-  TextPainter _layoutText(
-    String text, {
-    required Color color,
-    double fontSize = kBdTextSize,
-    FontWeight fontWeight = FontWeight.w400,
+  /// One cached [BdGlyph] (see [BdScene.textGlyphCache]).
+  BdGlyph _glyph(
+    String glyph,
+    Color color,
+    double fontSize,
+    FontWeight fontWeight,
     FontStyle? fontStyle,
-    int? maxLines,
-    String? ellipsis,
-    double maxWidth = double.infinity,
-    double letterSpacing = 0,
-  }) => scene.textLayoutCache.putIfAbsent(
-    '$text|${color.toARGB32()}|$fontSize|$fontWeight|'
-    '$fontStyle|$maxLines|$ellipsis|$maxWidth|$letterSpacing',
+  ) => scene.textGlyphCache.putIfAbsent(
+    '$glyph|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|'
+    '$bdTextFontFamily',
     () {
       TextPainter build(Color inkColor) => TextPainter(
         text: TextSpan(
-          text: text,
+          text: glyph,
           style: TextStyle(
             color: inkColor,
             fontSize: fontSize,
             height: kBdTextLineHeight,
             fontWeight: fontWeight,
             fontStyle: fontStyle,
-            letterSpacing: letterSpacing == 0 ? null : letterSpacing,
-            fontFamily: 'Selawik',
+            fontFamily: bdTextFontFamily,
           ),
         ),
-        maxLines: maxLines,
-        ellipsis: ellipsis,
         textDirection: TextDirection.ltr,
-      )..layout(maxWidth: maxWidth);
+      )..layout();
       final main = build(color);
-      scene.textOverdraw[main] = build(
-        color.withValues(alpha: color.a * kBdTextOverdrawAlpha),
+      return BdGlyph(
+        main: main,
+        dim: build(color.withValues(alpha: color.a * kBdTextOverdrawAlpha)),
+        advance: main.width.round(),
+        baseline: main.computeDistanceToActualBaseline(TextBaseline.alphabetic),
       );
-      return main;
     },
   );
 
-  /// Paints [tp] at [at] and records the run's canvas rect on
-  /// [BdScene.paintedText] for text-metric tests and accuracy probes.
-  /// [clip] bounds overlong text the way LabVIEW crops a value display to
-  /// its box — a hard pixel clip, never an ellipsis (the references show
-  /// cut glyphs, not `…`).
+  /// A laid-out [BdTextRun] from the scene's scale-independent layout
+  /// cache ([BdScene.textLayoutCache]) — label text re-lays-out only when
+  /// its content or style changes, not on every repaint or zoom re-anchor.
+  /// Lines are the text's own newlines, truncated to [maxLines]; each
+  /// glyph pens at the integer advance sum, each line's baseline on the
+  /// integer row nearest the face's own (12 at 12 em).
+  BdTextRun _layoutText(
+    String text, {
+    required Color color,
+    double fontSize = kBdTextSize,
+    FontWeight fontWeight = FontWeight.w400,
+    FontStyle? fontStyle,
+    int? maxLines,
+  }) => scene.textLayoutCache.putIfAbsent(
+    '$text|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|$maxLines|'
+    '$bdTextFontFamily',
+    () {
+      final lineHeight = (fontSize * kBdTextLineHeight).ceilToDouble();
+      var lines = text.split('\n');
+      if (maxLines != null && lines.length > maxLines) {
+        lines = lines.sublist(0, maxLines);
+      }
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      var width = 0.0;
+      // The overdraw pass first ([kBdTextOverdrawAlpha]), the full-strength
+      // pass over it — identical integer origins by construction.
+      for (final dimPass in [true, false]) {
+        var lineTop = 0.0;
+        for (final line in lines) {
+          var x = 0.0;
+          for (final rune in line.runes) {
+            final g = _glyph(
+              String.fromCharCode(rune),
+              color,
+              fontSize,
+              fontWeight,
+              fontStyle,
+            );
+            final pen = Offset(
+              x,
+              lineTop + g.baseline.roundToDouble() - g.baseline,
+            );
+            (dimPass ? g.dim : g.main).paint(canvas, pen);
+            x += g.advance;
+          }
+          width = math.max(width, x);
+          lineTop += lineHeight;
+        }
+      }
+      return BdTextRun(
+        width: width,
+        height: lineHeight * lines.length,
+        fontSize: fontSize,
+        picture: recorder.endRecording(),
+      );
+    },
+  );
+
+  /// Paints [tp] at [at] — snapped to whole pixels: the references pen
+  /// every run at integer device coordinates, and a fractional anchor
+  /// would smear each glyph's AA and drop baseline fringes one row low —
+  /// and records the run's canvas rect on [BdScene.paintedText] for
+  /// text-metric tests and accuracy probes. [clip] bounds overlong text
+  /// the way LabVIEW crops a value display to its box — a hard pixel
+  /// clip, never an ellipsis (the references show cut glyphs, not `…`).
   void _paintText(
     Canvas canvas,
-    TextPainter tp,
+    BdTextRun tp,
     Offset at,
     String text, {
     Rect? clip,
   }) {
+    at = Offset(at.dx.roundToDouble(), at.dy.roundToDouble());
     if (clip != null) {
       canvas
         ..save()
         ..clipRect(clip);
     }
-    // The ink-weight overdraw pass (see [kBdTextOverdrawAlpha]) blits the
-    // run's dimmed companion under the full-strength pass.
-    scene.textOverdraw[tp]?.paint(canvas, at);
     tp.paint(canvas, at);
     if (clip != null) canvas.restore();
     scene.paintedText.add((
       text: text,
       rect: clip == null ? at & tp.size : (at & tp.size).intersect(clip),
-      fontSize: tp.text?.style?.fontSize ?? 0,
+      fontSize: tp.fontSize,
     ));
   }
 
@@ -3782,14 +3896,10 @@ class BdDiagramPainter extends CustomPainter {
           // Inked black through the disabled transform (the reference's
           // disabled digits read as the (153,153,153) dim of black).
           if (constValue != null && box.width >= 12 && box.height >= 12) {
-            final digitsOnly = constValue.codeUnits.every(
-              (unit) => unit >= 0x30 && unit <= 0x39,
-            );
             final tp = _layoutText(
               constValue,
               color: _dimFor(object.oid, Colors.black),
               maxLines: 1,
-              letterSpacing: digitsOnly ? kBdDigitRunSpacing : 0,
             );
             _paintText(
               canvas,

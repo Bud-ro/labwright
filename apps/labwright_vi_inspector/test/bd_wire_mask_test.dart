@@ -452,7 +452,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71148),
+        lessThanOrEqualTo(71151),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The into-icon arrival law — stop '
@@ -461,11 +461,16 @@ void main() {
             'junction first-beyond-row lattice took this 71,915 -> '
             '71,825; the indexing-tunnel ring law took it -> 71,475; '
             'handing glyph-fringe pixels inside painted text runs to the '
-            'text gauge -> 71,148.)',
+            'text gauge -> 71,148; the whole-pixel text boxes then '
+            'EXPOSED 3 net px the wider fractional boxes had masked — '
+            'the crc trio each draw one 0x0000ff px beside the '
+            '`bytes`/`8-bits` labels where the reference is white, a '
+            'pre-existing wire overrun, offset by a 9 px ClassChildren '
+            'improvement -> 71,151.)',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21802),
+        lessThanOrEqualTo(21805),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
@@ -475,7 +480,10 @@ void main() {
             'tiers, the container-face runs, and the Logical Shift '
             'terminal row -> 21,906; the array-shell wrap arrival face '
             '-> 21,872; the metric-matched text pass covering value-cell '
-            'ink -> 21,807; bold style-run labels -> 21,802.)',
+            'ink -> 21,807; bold style-run labels -> 21,802; the '
+            'whole-pixel text boxes exposed 3 reference px (Pages, '
+            'crc32_lookup_table) the wider fractional boxes had '
+            'masked -> 21,805.)',
       );
     });
   });
