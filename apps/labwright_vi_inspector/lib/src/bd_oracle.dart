@@ -2124,13 +2124,11 @@ class _BdOracleViewState extends State<BdOracleView>
       final height = result.reference.height;
       final fitted = (await result.fitted.toByteData())!.buffer.asUint8List();
       final reference = result.referenceRgba;
-      final gif = await Isolate.run(
-        () => encodeOracleSweepGif(
-          leftRgba: fitted,
-          rightRgba: reference,
-          width: width,
-          height: height,
-        ),
+      final gif = await encodeOracleSweepGifOffThread(
+        leftRgba: fitted,
+        rightRgba: reference,
+        width: width,
+        height: height,
       );
       final path = await FilePicker.saveFile(
         dialogTitle: 'Save render-vs-reference sweep GIF',

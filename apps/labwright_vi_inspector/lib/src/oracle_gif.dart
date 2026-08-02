@@ -16,9 +16,29 @@
 /// background isolate and in plain Dart tests.
 library;
 
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:image/image.dart' as img;
+
+/// [encodeOracleSweepGif] on a worker isolate. Lives at top level so the
+/// spawned closure's context holds ONLY these sendable parameters — inside a
+/// State method the enclosing scope's context chain rides along, and one
+/// unsendable local there (a ui.Image, a messenger) makes the whole closure
+/// unsendable at runtime.
+Future<Uint8List> encodeOracleSweepGifOffThread({
+  required Uint8List leftRgba,
+  required Uint8List rightRgba,
+  required int width,
+  required int height,
+}) => Isolate.run(
+  () => encodeOracleSweepGif(
+    leftRgba: leftRgba,
+    rightRgba: rightRgba,
+    width: width,
+    height: height,
+  ),
+);
 
 /// The sweep bar's colour — the same orange accent the interactive wipe
 /// divider draws (Material `orangeAccent`).

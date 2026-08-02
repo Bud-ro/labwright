@@ -28,6 +28,22 @@ int _pixel(img.Image frame, int x, int y) {
 }
 
 void main() {
+  test('off-thread encode crosses the isolate boundary', () async {
+    // The UI handler encodes via [encodeOracleSweepGifOffThread]; this
+    // exercises the ACTUAL isolate hop. A closure formed inside a scope
+    // holding any unsendable local (a ui.Image, a messenger) fails
+    // Isolate.run at SEND time — a pure-encoder test never catches that,
+    // so the send path itself is pinned here.
+    final gif = await encodeOracleSweepGifOffThread(
+      leftRgba: _flat(40, 12, 0xffffff),
+      rightRgba: _flat(40, 12, 0x0000ff),
+      width: 40,
+      height: 12,
+    );
+    final decoded = img.decodeGif(gif)!;
+    expect(decoded.numFrames, 2 * 24 - 2);
+  });
+
   test('sweep GIF frames composite left/bar/right exactly', () {
     const w = 40, h = 10, positions = 5;
     final gif = encodeOracleSweepGif(
