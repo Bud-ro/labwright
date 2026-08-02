@@ -194,6 +194,31 @@ class ViHeapObject {
   /// [decodeBdConstantValue] for the gate and census.
   bool? constBool;
 
+  /// A block-diagram constant's flattened `0x26C` value payload exactly as
+  /// stored (`bDConstDCO` `0x13`): the length-prefixed container payload
+  /// verbatim, or a scalar re-serialised big-endian at its stored width — or
+  /// null off the DCO / when the record is absent. Kept so the data-space
+  /// type resolution can finish decodes the type-independent gates of
+  /// [decodeBdConstantValue] decline (see [finishTypedConstDecode]).
+  Uint8List? constValueRaw;
+
+  /// Decoded element values of a block-diagram ARRAY constant, flattened in
+  /// storage order (row-major across [constArrayDims]) — or null when the
+  /// constant is not a resolved array of a fixed-width numeric element or
+  /// its payload fails the length law. See [finishTypedConstDecode].
+  List<num>? constArray;
+
+  /// The stored dimension sizes of [constArray] (`[rows, columns]` for a 2D
+  /// array), or null alongside it.
+  List<int>? constArrayDims;
+
+  /// The `%`-led printf-style display-format text of a numeric display part
+  /// ([HeapAttribute.formatStyle], raw `0x074`; e.g. `%.0f`, `%08x`) — or
+  /// null. Corpus (7,524 VIs): 32,440 records, every one printable
+  /// `%`-led text; 32,437 sit on the `0xe0` display window, 3 on `0x50`.
+  /// Drives a constant's radix rendering (530 hex-format records).
+  String? displayFormat;
+
   /// Decoded 24-bit `0xRRGGBB` **background** colour of this object
   /// ([HeapAttribute.backgroundColor], raw `0x028`, confirmed), or null when the
   /// object carries no such record. The colour belongs to the object that owns
@@ -1023,7 +1048,7 @@ const int kTerminalGlyphHiddenFlag = 0x800000;
 // recheck this gate if it is catalogued) and raw 0x222 is the stdNumInc f64,
 // which no capture acts on.
 const _objAttrIds = {
-  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, //
+  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, 0x74, //
 };
 
 /// The structure classes that stack multiple `0x1b` frames and display one —
@@ -3305,6 +3330,22 @@ int? _attrScalarBytes(HeapAttrWidth width) => switch (width) {
   _ => null,
 };
 
+/// An attribute record's value payload as flat bytes: the length-prefixed
+/// payload verbatim, or a scalar re-serialised big-endian at its stored
+/// width. Null for the zero-byte flag form and non-integer scalars.
+Uint8List? _attrFlatBytes(HeapAttr record) {
+  final raw = record.rawValueBytes;
+  if (raw != null) return raw;
+  final scalarBytes = _attrScalarBytes(record.width);
+  final value = record.asInt;
+  if (scalarBytes == null || scalarBytes == 0 || value == null) return null;
+  final out = Uint8List(scalarBytes);
+  for (var i = 0; i < scalarBytes; i++) {
+    out[i] = (value >> (8 * (scalarBytes - 1 - i))) & 0xff;
+  }
+  return out;
+}
+
 /// An integer scalar is certain only below this (2²³): a 4-byte scalar at or
 /// above it has a nonzero SGL exponent field, i.e. its bits also read as a
 /// **representable normal single** (≥ ~1.2e-38), so the integer reading is not
@@ -3583,6 +3624,17 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // trivially safe: no corpus constant carries a second record.
         if (attr.attribute == HeapAttribute.constValue && cur.kind == HeapObjectClass.bdConstDco.code) {
           constRecs[cur] ??= attr;
+          cur.constValueRaw ??= _attrFlatBytes(attr);
+        }
+        // The numeric display window's printf-style display format
+        // ([HeapAttribute.formatStyle], raw 0x074). Corpus: 32,440 records,
+        // every one printable '%'-led text (scalar widths carry the bytes
+        // magnitude-encoded big-endian, e.g. 0x25303878 = "%08x").
+        if (attr.attribute == HeapAttribute.formatStyle) {
+          final bytes = _attrFlatBytes(attr);
+          if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
+            cur.displayFormat ??= String.fromCharCodes(bytes);
+          }
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
@@ -4132,4 +4184,106 @@ void resolveDataSpaceTypes({
       object.typeName ??= dco.typeName;
     }
   }
+
+  // The resolved descriptor is the VI's own type declaration for a constant's
+  // flattened payload, so it settles the ambiguities the type-independent
+  // gates of [decodeBdConstantValue] decline.
+  for (final diagram in blockDiagrams) {
+    for (final object in diagram.objects) {
+      if (object.kind == HeapObjectClass.bdConstDco.code) {
+        finishTypedConstDecode(object);
+      }
+    }
+  }
+}
+
+/// Flat serialized byte size of a fixed-width numeric [ViDataType], or null
+/// for every other kind.
+int? _flatNumericSize(ViDataType kind) => switch (kind) {
+  ViDataType.i8 || ViDataType.u8 || ViDataType.enumU8 => 1,
+  ViDataType.i16 || ViDataType.u16 || ViDataType.enumU16 => 2,
+  ViDataType.i32 || ViDataType.u32 || ViDataType.enumU32 || ViDataType.sgl => 4,
+  ViDataType.i64 || ViDataType.u64 || ViDataType.dbl => 8,
+  _ => null,
+};
+
+/// One numeric element read big-endian from [flat] at [offset], typed by
+/// [kind]: signed integers two's-complement at full width, sgl/dbl IEEE-754,
+/// everything else unsigned. (An i64/u64 top-bit value lands in Dart's
+/// wrapped 64-bit int.)
+num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
+  if (kind == ViDataType.sgl) return ByteData.sublistView(flat).getFloat32(offset);
+  if (kind == ViDataType.dbl) return ByteData.sublistView(flat).getFloat64(offset);
+  var value = 0;
+  for (var i = 0; i < size; i++) {
+    value = (value << 8) | flat[offset + i];
+  }
+  final signed = kind == ViDataType.i8 || kind == ViDataType.i16 || kind == ViDataType.i32 || kind == ViDataType.i64;
+  return signed ? value.toSigned(8 * size) : value;
+}
+
+/// Finishes a BD constant's value decode with its **resolved data-space
+/// type** in hand ([ViHeapObject.resolvedType] over [constValueRaw]) —
+/// the second decode stage after [decodeBdConstantValue]'s type-independent
+/// gates, run by [resolveDataSpaceTypes]. Never overwrites a first-stage
+/// value; every gate declines rather than guessing. Corpus (7,524 VIs,
+/// resolved-type constants only):
+///
+///   * **numeric scalar** — a fixed-width numeric type whose scalar payload
+///     fits the type's width decodes as that type: unsigned/enum as stored,
+///     signed two's-complement at full width, `sgl` as its IEEE-754 bits
+///     (the SGL-alias and sign ambiguities of the first stage are settled by
+///     the descriptor). 5,211 of 5,730 integer-typed scalars fit (877 of
+///     them beyond the type-independent gates); the 519 stored WIDER than
+///     their type (e.g. a 3-byte scalar on a u16 type) are declined —
+///     TODO: their encoding is not yet decoded.
+///   * **array** — `[u32 × dimCount dims][elements big-endian]` for a
+///     resolved array of a fixed-width numeric element ([constArray] /
+///     [constArrayDims]): 205 payloads match the length law exactly and 322
+///     empty arrays (every dim 0) carry exactly one trailing zero pad byte;
+///     5 length mismatches and 2 dims-truncated payloads decline. Non-numeric
+///     element kinds (string/path/cluster/…, 1,107 constants) are not yet
+///     decoded (TODO).
+void finishTypedConstDecode(ViHeapObject object) {
+  final flat = object.constValueRaw;
+  final type = object.resolvedType;
+  if (flat == null || type == null) return;
+  final scalarSize = _flatNumericSize(type.kind);
+  if (scalarSize != null) {
+    if (object.constNumeric != null || flat.isEmpty || flat.length > scalarSize) {
+      return;
+    }
+    // A payload narrower than the type is the value's zero-extended
+    // magnitude; sgl/dbl and signed readings need the full width.
+    if (flat.length < scalarSize && (type.kind == ViDataType.sgl || type.kind == ViDataType.dbl)) {
+      return;
+    }
+    final size = flat.length;
+    final kind = size < scalarSize ? ViDataType.u64 : type.kind;
+    final value = _flatNumericAt(flat, 0, kind, size);
+    if (value is double && !value.isFinite) return;
+    object.constNumeric = value;
+    return;
+  }
+  if (type.kind != ViDataType.array || object.constArray != null) return;
+  final element = object.resolvedElementType;
+  final dimCount = type.dimCount;
+  if (element == null || dimCount == null || dimCount < 1 || dimCount > 8) {
+    return;
+  }
+  final elementSize = _flatNumericSize(element.kind);
+  if (elementSize == null || flat.length < 4 * dimCount) return;
+  final view = ByteData.sublistView(flat);
+  final dims = [for (var d = 0; d < dimCount; d++) view.getUint32(4 * d)];
+  var count = 1;
+  for (final dim in dims) {
+    count *= dim;
+  }
+  final expected = 4 * dimCount + count * elementSize;
+  final emptyPadded = count == 0 && flat.length == 4 * dimCount + 1 && flat.last == 0;
+  if (flat.length != expected && !emptyPadded) return;
+  object.constArrayDims = dims;
+  object.constArray = [
+    for (var i = 0; i < count; i++) _flatNumericAt(flat, 4 * dimCount + i * elementSize, element.kind, elementSize),
+  ];
 }

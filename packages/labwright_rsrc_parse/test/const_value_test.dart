@@ -111,6 +111,23 @@ void main() {
       expect(o.constBool ?? o.constNumeric, want, reason: 'crc8 oid $oid');
     });
 
+    // MD5.png: the resolved data-space type settles the first stage's
+    // SGL-alias/sign declines and decodes array payloads
+    // (finishTypedConstDecode); display-format text rides the 0xe0 window.
+    final md5 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/MD5.png');
+    final bdM = buildViModel(extractSnippetVi(md5.readAsBytesSync())!).blockDiagrams.single;
+    expect(bdM.byId[821]!.constNumeric, 0x67452301, reason: 's1 in');
+    expect(bdM.byId[796]!.constNumeric, 0xEFCDAB89, reason: 's2 in: leading byte >= 0x80, typed u32');
+    expect(bdM.byId[757]!.constNumeric, 0x10325476, reason: 's4 in: above the SGL-alias ceiling, typed u32');
+    expect(bdM.byId[4928]!.constArrayDims, [4, 16], reason: 'Indices 2D');
+    expect(bdM.byId[4928]!.constArray!.take(4), [0, 1, 2, 3]);
+    expect(bdM.byId[4969]!.constArrayDims, [64], reason: 'T 1D');
+    expect(bdM.byId[4969]!.constArray!.first, 0xD76AA478);
+    expect(bdM.byId[943]!.constArrayDims, [0], reason: 'empty array: dims + 1 zero pad byte');
+    expect(bdM.byId[943]!.constArray, isEmpty);
+    expect(bdM.byId[814]!.displayFormat, '%08x', reason: 's1 value window');
+    expect(bdM.byId[4996]!.displayFormat, '%x', reason: 'T element window');
+
     // A DFDS-bearing LV17 VI: ints, bools, strings, and declined ambiguity.
     final test5 = File(
       '${corpusViDir.path}/NEVSTOP-LAB_Communicable-State-Machine/'
