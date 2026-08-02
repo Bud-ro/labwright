@@ -431,6 +431,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         }
       }
     }
+    // A painted array grid cell is shell furniture, not an object of its
+    // own (the cells tile from the element prototype): a `0x9` wrap/window
+    // hit under a `0x52` array shell selects the array container itself,
+    // so clicking anywhere on the array lands somewhere useful.
+    if (hit != null && hit.kind == 0x9) {
+      final owner = _byId[hit.parentOid ?? -1];
+      if (owner != null && owner.kind == 0x52) hit = owner;
+    }
     setState(() {
       _selected = hit;
       _members = hit != null && hit.category == ViObjectKind.structure
@@ -3239,20 +3247,26 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in solids) {
       final rect = rectOf(object);
       // Free-text label parts (control caption 0x0a, case selector 0x95) are
-      // drawn by LabVIEW as text; only a FREE label (one held by a `0x1b`
-      // free-label holder — a diagram comment) is backed by an opaque
-      // bordered fill. Owned labels (a control/constant's caption, parent
-      // `0x51`/`0x50`/…) are transparent even when a background colour was
-      // decoded — across the snippet corpus every backed label sits under a
-      // `0x1b` and no owned label shows a backing. The text pass below
+      // drawn by LabVIEW as text; a backed label shows an opaque bordered
+      // fill. Two backed classes, censused across the snippet corpus's
+      // references (812 drawn `0x0a` labels): a FREE label (held by a
+      // `0x1b` free-label holder — a diagram comment) with a decoded
+      // background colour, and an ARRAY-DOCKED label (held by a `0x52`
+      // array shell) with a decoded background and without the
+      // value-window flag bit — MD5's `Indices`/`S`/`T` labels, 3/3 boxed,
+      // while every other owned label (no decoded background, the `0x800`
+      // value-window flag, or hidden) shows none. The text pass below
       // renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
         // The case selector's chrome already drew in the pre-chrome pass; its
         // value text draws in the text pass.
         if (object.kind == 0x95) continue;
         // A hidden label paints nothing — neither backing nor (below) text.
-        final free = scene.diagram.byId[object.parentOid ?? -1]?.kind == 0x1b;
-        final backing = object.isLabelHidden || !free || object.bgRgb == null
+        final holderKind = scene.diagram.byId[object.parentOid ?? -1]?.kind;
+        final backed =
+            holderKind == 0x1b ||
+            (holderKind == 0x52 && ((object.objFlags ?? 0) & 0x800) == 0);
+        final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
             : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
         // Free labels float ABOVE nodes in LabVIEW's z-order (a comment's
@@ -3924,7 +3938,12 @@ class BdDiagramPainter extends CustomPainter {
         // the case selector's value text is structure furniture and never
         // hides). Drawing hidden text would add ink the reference lacks.
         if (object.isLabelHidden) continue;
-        var text = object.label?.trim();
+        // The selector's stored value text keeps its own padding spaces
+        // (" 3 ", " 0, Default ") — LabVIEW's left inset — so it is not
+        // trimmed.
+        var text = object.kind == 0x95
+            ? (object.label?.trim().isEmpty ?? true ? null : object.label)
+            : object.label?.trim();
         if (text == null || text.isEmpty) {
           // An owned label with no recovered caption is the owner's VALUE
           // display when a constant value decoded on the const holder above
@@ -3952,7 +3971,9 @@ class BdDiagramPainter extends CustomPainter {
         if (rect0.width < 8 || rect0.height < 8) continue;
         // The case selector's value text fills its decoded label bounds — the
         // pager boxes and dropdown sit OUTSIDE them (see [_drawCaseSelector])
-        // — and is centred like LabVIEW's.
+        // — LEFT-justified like LabVIEW's (the recovered label carries the
+        // reference's own leading space: MD5's " 3 " strip shows the glyph
+        // at bounds.left+4, the space's width past a 1 px inset).
         final selector = object.kind == 0x95;
         final rect = rect0;
         final tp = _layoutText(
@@ -3970,10 +3991,7 @@ class BdDiagramPainter extends CustomPainter {
         tp.paint(
           canvas,
           selector
-              ? Offset(
-                  rect.center.dx - tp.width / 2,
-                  rect.center.dy - tp.height / 2,
-                )
+              ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
               : rect0.topLeft + const Offset(2, 1),
         );
         continue;
@@ -5371,10 +5389,11 @@ class BdDiagramPainter extends CustomPainter {
   ///
   ///  * a 1 px border in the ELEMENT type's colour + opaque white fill at
   ///    each OUTERMOST bounded `0x9` wrap part (the index-side and
-  ///    element-side frames). A `0x9` nested inside a sibling `0x9` (the
-  ///    element-grid window and its row/column overlay zones) draws
-  ///    nothing of its own — its edges are covered by the cell rings, and
-  ///    LabVIEW paints no line at the overlays' interior edges;
+  ///    element-side frames) — except one demoted to a grid window /
+  ///    overlay zone by containing a `0x50` without being its largest
+  ///    container. A `0x9` nested inside a sibling `0x9` draws nothing of
+  ///    its own — its edges are covered by the cell rings, and LabVIEW
+  ///    paints no line at the overlays' interior edges;
   ///  * the index `0x50`'s value window and its two `0xb` spinner boxes;
   ///  * the ELEMENT `0x50` tiled as a CELL GRID: the element's bounds give
   ///    the cell pitch, the smallest `0x9` containing it is the grid
@@ -5419,6 +5438,26 @@ class BdDiagramPainter extends CustomPainter {
     // is opaque: it masks the covered run of a wire that attaches under
     // the array (the visible run starts at the wrap border, byte-verified
     // on the Polynomial feed).
+    // The drawn wraps: the OUTERMOST 0x9s (not strictly contained in a
+    // sibling), except that a 0x9 which contains a 0x50 part draws only
+    // when it is that part's LARGEST container — a smaller container is a
+    // grid window / row-column overlay zone whose edges the cell rings
+    // cover (MD5's 1D grids hold an overlay zone straddling the element
+    // wrap's left wall: outermost, but not the element's largest
+    // container, and drawing it leaks a border corner below the index
+    // frame; crc8's index/element wraps overlap each other by a column and
+    // both still draw).
+    int largestContainerArea(HeapRect pb) {
+      var bestArea = -1;
+      for (final c in children) {
+        final b = c.absBounds;
+        if (c.kind != 0x9 || b == null || !contains(b, pb)) continue;
+        final area = b.width * b.height;
+        if (area > bestArea) bestArea = area;
+      }
+      return bestArea;
+    }
+
     for (final c in children) {
       final b = c.absBounds;
       if (c.kind != 0x9 || b == null) continue;
@@ -5431,6 +5470,14 @@ class BdDiagramPainter extends CustomPainter {
             !contains(b, other.absBounds!),
       );
       if (nested) continue;
+      final demoted = children.any(
+        (part) =>
+            part.kind == 0x50 &&
+            part.absBounds != null &&
+            contains(b, part.absBounds!) &&
+            b.width * b.height < largestContainerArea(part.absBounds!),
+      );
+      if (demoted) continue;
       canvas.drawRect(
         Rect.fromLTWH(
           (b.left - origin.dx).toDouble(),
@@ -5449,6 +5496,26 @@ class BdDiagramPainter extends CustomPainter {
           final pb = part.absBounds;
           if (pb == null) continue;
           if (part.kind == 0xb || part.kind == 0x9) border(pb);
+          // The index window shows the array's DISPLAYED index — the same
+          // base the cell grid below enumerates its values from (index 0),
+          // drawn in the cells' digit style at the window's text inset
+          // (MD5's small 1D array: the `0` at window.left+2, the cell
+          // digit rows).
+          if (part.kind == 0x9 && pb.width >= 10 && pb.height >= 12) {
+            final tp = _layoutText(
+              '0',
+              color: _dimFor(shell.oid, Colors.black),
+              fontSize: 10,
+              maxLines: 1,
+            );
+            tp.paint(
+              canvas,
+              Offset(
+                (pb.left + 2 - origin.dx).toDouble(),
+                (pb.top + pb.bottom) / 2 - origin.dy - tp.height / 2,
+              ),
+            );
+          }
           // The spinner's fat triangle (measured on crc8's Polynomial
           // index): rows t+2..t+5 at widths 1/3/3/5 centred on l+3, the
           // up box's tip on top and the down box's mirrored.
