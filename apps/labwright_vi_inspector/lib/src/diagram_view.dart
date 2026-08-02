@@ -2050,6 +2050,10 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   (1052, 2, 32, 32): (dx: null, dy: 11),
   (1056, 3, 32, 32): (dx: 10, dy: 10),
   (1063, 0, 32, 32): (dx: 22, dy: 16),
+  // Logical Shift's output rides the tag-art apex row — MD5's inter-prim
+  // gap ink at row box.top+16 (agreeing with the far conversion prim's
+  // dco-child candidate row on the same wire).
+  (1081, 0, 32, 32): (dx: null, dy: 16),
   // Random Number's output rides its dice-art middle row — Excel_Read_XLSX
   // row 1146 on the (1131,443) node.
   (1070, 0, 32, 32): (dx: null, dy: 15),
@@ -4735,16 +4739,30 @@ class BdDiagramPainter extends CustomPainter {
           wire.route!.segmentLengths.length == 1 &&
           wire.endpointOids.length == 2 &&
           wire.endpointAttachRects.length >= 2) {
-        // A 3-point route table anchored at ONE decoded attach rect, closing
-        // onto a CATALOGUED prim terminal: the stored segment is decoded
-        // geometry and the terminal position is reference-measured
-        // ([bdPrimTerminalOf]), so the whole polyline is determined — the
-        // parse layer withholds these because art-terminal positions are a
-        // renderer catalog. The walk's arrival coordinate must EQUAL the
-        // catalogued terminal's cross coordinate (never guessed); the leg is
-        // visible from the anchor rect's border to the far node's art ink
-        // edge on the arrival row/column (measured on Excel_Read_XLSX's
-        // numeric-constant → Multiply lower-input wire).
+        // A 3-point route table anchored at ONE decoded attach rect, with a
+        // plain prim DCO at the other end. Three decoded resolutions, tried
+        // in order (each gated on arrival equality or containment — never a
+        // guess):
+        //
+        //  1. ATTACH-ORIGIN onto a catalogued terminal: the walk starts at
+        //     the attach centre and its closing run's arrival coordinate
+        //     must EQUAL the far prim's catalogued cross coordinate
+        //     ([bdPrimTerminalOf]); visible from the anchor border to the
+        //     far node's art ink edge (measured on Excel_Read_XLSX's
+        //     numeric-constant → Multiply lower-input wire).
+        //  2. PRIM-ORIGIN onto the attach: the table is stored from the
+        //     prim's terminal instead — the catalogued coordinate walked
+        //     through the first segment must EQUAL the attach's centre
+        //     cross, and the closing sign must point from the prim's box
+        //     toward the attach; visible from the prim's art ink edge to
+        //     the attach border, the origin jog under the art (measured on
+        //     MD5's comparison prim → case-selector '?' wire).
+        //  3. ATTACH-ORIGIN with the far terminal uncatalogued but the
+        //     walked bend landing INSIDE the far node's box: the closing
+        //     run and terminal sit under the node, whose art overdraws the
+        //     covered interior — the first segment is decoded geometry and
+        //     its visible ink ends at the node's art edge (measured on
+        //     MD5's index-spinner → conversion prim wire).
         final route = wire.route!;
         final dir = route.direction!;
         for (final (tail, head) in [(0, 1), (1, 0)]) {
@@ -4759,7 +4777,17 @@ class BdDiagramPainter extends CustomPainter {
             scene.diagram,
             wire.endpointOids[head],
           );
-          if (terminal == null) break;
+          final headObj = scene.diagram.byId[wire.endpointOids[head]];
+          final headOwner = headObj?.parentOid == null
+              ? null
+              : scene.diagram.byId[headObj!.parentOid!];
+          final headBox = headOwner?.absBounds;
+          final closingSign = route.jointSigns.isNotEmpty
+              ? route.jointSigns.last
+              : null;
+          if (headOwner == null || headBox == null || closingSign == null) {
+            break;
+          }
           final start = (
             x: attach.left + (attach.right - attach.left) ~/ 2,
             y: attach.top + (attach.bottom - attach.top) ~/ 2,
@@ -4770,24 +4798,7 @@ class BdDiagramPainter extends CustomPainter {
           );
           final closingHorizontal = dir.dx == 0;
           final arrivalCross = closingHorizontal ? bend.y : bend.x;
-          final catalogued = closingHorizontal ? terminal.y : terminal.x;
-          if (catalogued == null || catalogued != arrivalCross) break;
-          final closingSign = route.jointSigns.isNotEmpty
-              ? route.jointSigns.last
-              : null;
-          final headObj = scene.diagram.byId[wire.endpointOids[head]];
-          final headOwner = headObj?.parentOid == null
-              ? null
-              : scene.diagram.byId[headObj!.parentOid!];
-          if (closingSign == null || headOwner == null) break;
-          final edge = primIconInkEdge(
-            headOwner,
-            horizontal: closingHorizontal,
-            cross: arrivalCross,
-            sign: closingSign,
-          );
-          if (edge == null) break;
-          final far = edge - closingSign;
+          final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
           // The first segment's visible ink starts just outside the anchor
           // rect's border on the walk side.
           final visStart = (
@@ -4798,13 +4809,80 @@ class BdDiagramPainter extends CustomPainter {
                 ? start.y
                 : (dir.dy > 0 ? attach.bottom : attach.top - 1),
           );
-          legs.add([
-            Offset(visStart.x - origin.dx, visStart.y - origin.dy),
-            Offset(bend.x - origin.dx, bend.y - origin.dy),
-            closingHorizontal
-                ? Offset(far - origin.dx, bend.y - origin.dy)
-                : Offset(bend.x - origin.dx, far - origin.dy),
-          ]);
+          if (catalogued != null && catalogued == arrivalCross) {
+            final edge = primIconInkEdge(
+              headOwner,
+              horizontal: closingHorizontal,
+              cross: arrivalCross,
+              sign: closingSign,
+            );
+            if (edge == null) break;
+            final far = edge - closingSign;
+            legs.add([
+              Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+              Offset(bend.x - origin.dx, bend.y - origin.dy),
+              closingHorizontal
+                  ? Offset(far - origin.dx, bend.y - origin.dy)
+                  : Offset(bend.x - origin.dx, far - origin.dy),
+            ]);
+            break;
+          }
+          // Prim-origin: the first segment departs the prim's terminal, so
+          // its axis coordinate is the catalogued one walked by the stored
+          // length; the closing run arrives at the attach.
+          final primCoord = dir.dx == 0 ? terminal?.y : terminal?.x;
+          if (primCoord != null) {
+            final closingCross =
+                primCoord + (dir.dx + dir.dy) * route.segmentLengths[0];
+            final attachCross = dir.dx == 0 ? start.y : start.x;
+            // The closing sign must carry the run OFF the prim's box toward
+            // the attach side.
+            final signToAttach = dir.dx == 0
+                ? (start.x >= headBox.right
+                      ? 1
+                      : start.x < headBox.left
+                      ? -1
+                      : 0)
+                : (start.y >= headBox.bottom
+                      ? 1
+                      : start.y < headBox.top
+                      ? -1
+                      : 0);
+            if (closingCross == attachCross && closingSign == signToAttach) {
+              final edge = primIconInkEdge(
+                headOwner,
+                horizontal: dir.dx == 0,
+                cross: closingCross,
+                sign: -closingSign,
+              );
+              if (edge == null) break;
+              final nearAttach = dir.dx == 0
+                  ? (closingSign > 0 ? attach.left - 1 : attach.right)
+                  : (closingSign > 0 ? attach.top - 1 : attach.bottom);
+              legs.add([
+                dir.dx == 0
+                    ? Offset(edge - origin.dx, closingCross - origin.dy)
+                    : Offset(closingCross - origin.dx, edge - origin.dy),
+                dir.dx == 0
+                    ? Offset(nearAttach - origin.dx, closingCross - origin.dy)
+                    : Offset(closingCross - origin.dx, nearAttach - origin.dy),
+              ]);
+              break;
+            }
+          }
+          // Uncatalogued far terminal: decoded first segment whose bend
+          // lands inside the far node's box.
+          if (terminal == null &&
+              bend.x > headBox.left &&
+              bend.x < headBox.right &&
+              bend.y > headBox.top &&
+              bend.y < headBox.bottom) {
+            legs.add([
+              Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+              Offset(bend.x - origin.dx, bend.y - origin.dy),
+            ]);
+            break;
+          }
           break;
         }
       }
@@ -4920,6 +4998,109 @@ class BdDiagramPainter extends CustomPainter {
                   : Offset(walkX - origin.dx, terminus - origin.dy),
             ]);
           }
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.route?.direction != null &&
+          wire.endpointOids.length == 2 &&
+          wire.endpointAttachRects.length >= 2) {
+        // CONTAINER-FACE run: one endpoint resolves an exact border-terminal
+        // attach (a tunnel-family rect; every catalogued kind fits 16 px),
+        // the other a large CONTAINER face (an array-block value rect, tens
+        // of px a side). The stored route closes onto the exact attach, so
+        // the closing run's cross coordinate is that attach's own — the
+        // container's centre is NOT its connection point. Ships when the
+        // cross lies within the container's span, the rects are disjoint
+        // along the closing axis, and the closing sign carries the run from
+        // the container to the attach; a longer table's interior bends jog
+        // on the container's side (its chrome covers them — the stored
+        // first segment must point INTO the container). Visible ink: the
+        // run between the container face and the attach border (measured
+        // on MD5's Indices-array ↔ loop-tunnel wires, both directions).
+        const exactMax = 16, containerMin = 17;
+        final route = wire.route!;
+        final dir = route.direction!;
+        final closingHorizontal = route.pointCount == 2
+            ? dir.isHorizontal
+            : (route.pointCount.isEven ? dir.isHorizontal : !dir.isHorizontal);
+        final closingSign = route.pointCount == 2
+            ? (dir.dx + dir.dy)
+            : (route.jointSigns.isEmpty ? 0 : route.jointSigns.last);
+        final dirTowardContainer =
+            route.pointCount == 2 ||
+            (dir.isHorizontal == closingHorizontal &&
+                (dir.dx + dir.dy) == -closingSign);
+        for (final (exactEnd, containerEnd) in [(0, 1), (1, 0)]) {
+          if (closingSign == 0 || !dirTowardContainer) break;
+          final exact = wire.endpointAttachRects[exactEnd];
+          final container = wire.endpointAttachRects[containerEnd];
+          if (exact == null || container == null) continue;
+          if (exact.width <= 0 ||
+              exact.width > exactMax ||
+              exact.height <= 0 ||
+              exact.height > exactMax) {
+            continue;
+          }
+          if (container.width < containerMin ||
+              container.height < containerMin) {
+            continue;
+          }
+          final wap = scene.diagram.wireAttachPoint(
+            wire.endpointOids[exactEnd],
+          );
+          if (wap == null) continue;
+          // Travel sign from the container face to the exact attach along
+          // the closing axis, from the rects' disjoint order.
+          final int toExact, cross, lo, hi;
+          if (closingHorizontal) {
+            cross = wap.y;
+            if (cross <= container.top || cross >= container.bottom) continue;
+            if (container.right <= exact.left) {
+              toExact = 1;
+              lo = container.right;
+              hi = exact.left - 1;
+            } else if (exact.right <= container.left) {
+              toExact = -1;
+              lo = exact.right;
+              hi = container.left - 1;
+            } else {
+              continue;
+            }
+          } else {
+            cross = wap.x;
+            if (cross <= container.left || cross >= container.right) continue;
+            if (container.bottom <= exact.top) {
+              toExact = 1;
+              lo = container.bottom;
+              hi = exact.top - 1;
+            } else if (exact.bottom <= container.top) {
+              toExact = -1;
+              lo = exact.bottom;
+              hi = container.top - 1;
+            } else {
+              continue;
+            }
+          }
+          // An n==2 table's sign runs endpoint 0 -> 1; a longer table's
+          // closing sign runs container -> exact (its origin jogs on the
+          // container side).
+          final wantSign = route.pointCount == 2
+              ? (exactEnd == 0 ? -toExact : toExact)
+              : toExact;
+          if (closingSign != wantSign || lo > hi) continue;
+          legs.add(
+            closingHorizontal
+                ? [
+                    Offset(lo - origin.dx, cross - origin.dy),
+                    Offset(hi - origin.dx, cross - origin.dy),
+                  ]
+                : [
+                    Offset(cross - origin.dx, lo - origin.dy),
+                    Offset(cross - origin.dx, hi - origin.dy),
+                  ],
+          );
+          break;
         }
       }
       // A wire with NO decoded route (neither a proven [ViWire.routePoints]

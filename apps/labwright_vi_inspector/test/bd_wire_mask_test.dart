@@ -244,9 +244,10 @@ void main() {
   // DOWNWARD (missing) / hold at zero (off), never loosen.
   for (final (name, drawnFloor, missingPin) in const [
     ('Excel_Read_XLSX.png', 92, 0),
-    // MD5's missing remainder is the 2D-array double-line wire style, not
-    // yet drawn.
-    ('MD5.png', 181, 138),
+    // MD5's missing remainder sits inside the array-block value rects:
+    // cell-seam ink the block render does not yet draw, and the tunnel
+    // wire's covered run between a block's rect edge and its drawn frame.
+    ('MD5.png', 186, 97),
   ]) {
     testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
       tester,
@@ -430,14 +431,15 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(22035),
+        lessThanOrEqualTo(21906),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
             '(The icon-asset repairs — foreign fragments lopped, baked '
             'wires erased, full-box crops trimmed to their ink — took '
-            'this 22,046 -> 22,035; MD5\'s 138 remainder is the 2D-array '
-            'double-line wire style, not yet drawn.)',
+            'this 22,046 -> 22,035; the prim-origin/uncatalogued 3-point '
+            'tiers, the container-face runs, and the Logical Shift '
+            'terminal row -> 21,906.)',
       );
     });
   });
