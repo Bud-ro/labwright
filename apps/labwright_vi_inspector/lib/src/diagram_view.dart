@@ -4280,6 +4280,12 @@ class BdDiagramPainter extends CustomPainter {
             (rect.height / (kBdTextSize * kBdTextLineHeight)).round(),
           ),
         );
+        // A selector's value text HARD-clips 4 px inside its label part's
+        // right bound — cut glyphs, no ellipsis (MD5's oid 6039 strip:
+        // ` 0, Default ` shows exactly ` 0, De`; the following `f` stem,
+        // which a bounds-edge clip would keep, is absent in the reference,
+        // pinning the clip edge to bounds.right-4/-5). A wide-enough strip
+        // (its sibling selectors) shows the whole run unchanged.
         _paintText(
           canvas,
           tp,
@@ -4287,6 +4293,9 @@ class BdDiagramPainter extends CustomPainter {
               ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
               : rect0.topLeft + Offset(backed ? 2 : 1, 1),
           text,
+          clip: selector
+              ? Rect.fromLTRB(rect.left, rect.top, rect.right - 4, rect.bottom)
+              : null,
         );
         continue;
       }
@@ -6100,16 +6109,17 @@ class BdDiagramPainter extends CustomPainter {
       empty ? bdDimDisabled(Colors.black) : Colors.black,
     );
     final tp = _layoutText(text, color: ink, maxLines: 1);
-    // Digits sit left-aligned after the radix zone (MD5: decimal digits at
-    // cell.left+4, hex digits at cell.left+9 past the marker) with digit
-    // tops a row above the centred line box (MD5's hex cells: caps at
-    // cell.top+6 of the 19 px cell).
+    // Digits sit left-aligned after the radix zone on the centred line box
+    // (MD5: decimal digits at cell.left+3, hex digits at cell.left+9 past
+    // the marker; cell-ink bboxes match the reference at dL/dT = 0 across
+    // the Indices/S/T grids — the earlier `-1` row nudge and `+4` decimal
+    // inset each sat one px up/right of the reference ink).
     _paintText(
       canvas,
       tp,
       Offset(
-        cell.left + (marker != null ? 9 : 4),
-        cell.center.dy - tp.height / 2 - 1,
+        cell.left + (marker != null ? 9 : 3),
+        cell.center.dy - tp.height / 2,
       ),
       text,
       clip: cell,

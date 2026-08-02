@@ -30,13 +30,19 @@ void main() {
       ('1000000', 391.9, 490.0, 42.1, 15.0),
     ],
     'MD5.png': [
-      ('D76AA478', 1422.0, 790.0, 56.2, 15.0),
+      // Array-cell text on the centred line box (the cell anchor law):
+      // cell ink bboxes match the reference at dT=0 where the old row
+      // nudge sat 1 px up.
+      ('D76AA478', 1422.0, 791.0, 56.2, 15.0),
       ('Message String', 137.0, 284.0, 81.3, 15.0),
       // Bold (tag-0x25 style run): the reference inks this heading 79 px
       // wide with the regular face's 9 px caps; Selawik Bold at 12 em lays
       // out 81.9 (ink within 2 px), where the regular face ran 6 px short.
       ('Calculate MD5', 985.0, 213.0, 81.9, 15.0),
-      (' 0, Default ', 1788.0, 386.0, 57.2, 15.0),
+      // Hard-clipped 4 px inside the 35 px selector-label bounds (the
+      // reference shows exactly ` 0, De`, no ellipsis) — the rect records
+      // the clipped extent.
+      (' 0, Default ', 1788.0, 386.0, 30.0, 15.0),
     ],
     'crc8.png': [
       ('Reflect Output?', 844.0, 88.0, 82.5, 15.0),
