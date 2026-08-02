@@ -184,9 +184,10 @@ class ViHeapObject {
   /// Decoded **numeric value** of a block-diagram constant (`bDConstDCO`
   /// `0x13`): an [int] for integer/enum payloads, a [double] for an 8-byte
   /// IEEE-754 payload — or null when the object is not a constant, carries no
-  /// `0x26C` value record, or the payload does not pass the type-independent
-  /// gates of [decodeBdConstantValue] (which owns the corpus census). Enum/ring
-  /// constants decode to their stored integer; the item labels ride [items].
+  /// `0x26C` value record, or neither tier of [decodeBdConstValues] (the
+  /// single decode pass: typed by the resolved data-space type first,
+  /// type-independent fallback second) lands a reading. Enum/ring constants
+  /// decode to their stored integer; the item labels ride [items].
   num? constNumeric;
 
   /// Decoded **boolean value** of a block-diagram constant (`bDConstDCO`
@@ -197,15 +198,23 @@ class ViHeapObject {
   /// A block-diagram constant's flattened `0x26C` value payload exactly as
   /// stored (`bDConstDCO` `0x13`): the length-prefixed container payload
   /// verbatim, or a scalar re-serialised big-endian at its stored width — or
-  /// null off the DCO / when the record is absent. Kept so the data-space
-  /// type resolution can finish decodes the type-independent gates of
-  /// [decodeBdConstantValue] decline (see [finishTypedConstDecode]).
+  /// null off the DCO / when the record is absent. Captured at heap-parse
+  /// time; all value interpretation happens later in [decodeBdConstValues],
+  /// after data-space type resolution.
   Uint8List? constValueRaw;
+
+  /// Whether the `0x26C` record stored [constValueRaw] at one of the scalar
+  /// magnitude widths (u8/u16/u24/rgb) rather than a length-prefixed
+  /// container/blob — a structural fact of the record encoding, captured at
+  /// heap-parse time because the type-free gates of [decodeBdConstantValue]
+  /// are width-form-scoped (booleans/integers ride scalars; the containered
+  /// zero and 8-byte f64 forms ride containers).
+  bool constValueScalar = false;
 
   /// Decoded element values of a block-diagram ARRAY constant, flattened in
   /// storage order (row-major across [constArrayDims]) — or null when the
   /// constant is not a resolved array of a fixed-width numeric element or
-  /// its payload fails the length law. See [finishTypedConstDecode].
+  /// its payload fails the length law. See [decodeBdConstValues].
   List<num>? constArray;
 
   /// The stored dimension sizes of [constArray] (`[rows, columns]` for a 2D
@@ -3415,12 +3424,13 @@ String? decodeFlatPathText(Uint8List? raw) {
   return segments.join(r'\');
 }
 
-/// Decodes the **value of a block-diagram constant** from its `0x26C`
-/// ([HeapAttribute.constValue]) [record] without resolving the constant's VCTP
-/// type — the payload is typed by the constant's value-carrier class
-/// [innerKind] (the `0x13` [HeapObjectClass.bdConstDco]'s first nested child)
-/// plus payload-shape gates, and every gate declines rather than guessing.
-/// Returns a [bool], [int], finite [double], or null (not decoded).
+/// The **type-independent FALLBACK tier** of [decodeBdConstValues]: decodes a
+/// BD constant's captured `0x26C` payload ([flat], stored at a [scalar]
+/// magnitude width or a length-prefixed container/blob) without a VCTP type —
+/// the payload is typed by the constant's value-carrier class [innerKind]
+/// (the `0x13` [HeapObjectClass.bdConstDco]'s first nested child) plus
+/// payload-shape gates, and every gate declines rather than guessing.
+/// Returns a [bool], [int], finite [double], [String], or null (not decoded).
 ///
 /// Corpus (7,524 VIs; 54,801 constants, each carrying exactly one value record
 /// — census on [HeapAttribute.constValue]); "ground truth" = decoded constants
@@ -3459,39 +3469,56 @@ String? decodeFlatPathText(Uint8List? raw) {
 /// wrappers) + 23 composite-slot byte-coincidences. The remaining 16,013
 /// constants (compound arrays/clusters/paths, 16/32-byte extendeds, ambiguous
 /// scalars and 8-byte payloads) are framed but not value-decoded.
-Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record, bool hasEnumItems = false}) {
-  final scalarBytes = _attrScalarBytes(record.width);
-  final v = record.asInt;
-  final raw = record.width == HeapAttrWidth.container ? record.rawValueBytes : null;
+Object? decodeBdConstantValue({
+  required int? innerKind,
+  required Uint8List? flat,
+  required bool scalar,
+  bool hasEnumItems = false,
+}) {
+  if (flat == null) return null;
+  final scalarBytes = scalar ? flat.length : null;
+  int? scalarValue;
+  if (scalar) {
+    var magnitude = 0;
+    for (final byte in flat) {
+      magnitude = (magnitude << 8) | byte;
+    }
+    scalarValue = magnitude;
+  }
+  // The length-prefixed payload (container or validated blob; a blob is
+  // printable-validated text, so the all-zero and 8-byte-f64 content gates
+  // below can never fire on one).
+  final raw = scalar ? null : flat;
   final carrier = innerKind == null ? HeapObjectClass.unknown : HeapObjectClass.fromCode(innerKind);
   switch (carrier) {
     case HeapObjectClass.pathControl:
-      return decodeFlatPathText(record.rawValueBytes);
+      return decodeFlatPathText(raw);
     case HeapObjectClass.stringOrArrayControl:
       // The 8-byte `[u32 strLen][ascii]` form: [decodeHeapAttr]'s u32-string
       // gate excludes length 8 (width-ambiguous with a stored f64 without the
       // carrier class in view), so the string carrier resolves it here. The
       // framing must be exact (strLen + 4 == payload) and fully printable —
       // Excel_Read_XLSX's `INIT` is the reference-render pin.
-      final u32String = record.rawValueBytes;
-      if (u32String != null && u32String.length == 8) {
-        final strLen = ByteData.sublistView(u32String).getUint32(0);
-        if (strLen == 4 && u32String.skip(4).every((b) => b >= 0x20 && b < 0x7f)) {
-          return String.fromCharCodes(u32String, 4);
+      if (raw != null && raw.length == 8) {
+        final strLen = ByteData.sublistView(raw).getUint32(0);
+        if (strLen == 4 && raw.skip(4).every((b) => b >= 0x20 && b < 0x7f)) {
+          return String.fromCharCodes(raw, 4);
         }
       }
       return null;
     case HeapObjectClass.booleanOrClusterControl:
-      if (scalarBytes != null && scalarBytes <= 2 && (v == 0 || v == 1)) return v == 1;
+      if (scalarBytes != null && scalarBytes <= 2 && (scalarValue == 0 || scalarValue == 1)) {
+        return scalarValue == 1;
+      }
       return null;
     case HeapObjectClass.enumRingControl when hasEnumItems:
     case HeapObjectClass.clusterShell when hasEnumItems:
     case HeapObjectClass.numericControl:
-      if (scalarBytes != null && v != null) {
-        if (v == 0 || scalarBytes == 0) return v;
-        final leading = (v >>> (8 * (scalarBytes - 1))) & 0xff;
-        if (leading >= 0x80 || v >= _intCertainCeil) return null;
-        return v;
+      if (scalarBytes != null && scalarValue != null) {
+        if (scalarValue == 0) return scalarValue;
+        final leading = (scalarValue >>> (8 * (scalarBytes - 1))) & 0xff;
+        if (leading >= 0x80 || scalarValue >= _intCertainCeil) return null;
+        return scalarValue;
       }
       if (carrier != HeapObjectClass.numericControl || raw == null) return null;
       if (_zeroPayloadLengths.contains(raw.length) && raw.every((byte) => byte == 0)) {
@@ -3499,9 +3526,11 @@ Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record
       }
       if (raw.length == 8) {
         // An all-zero 8-byte payload lands here as +0.0.
-        final d = ByteData.sublistView(raw).getFloat64(0);
-        if (!d.isFinite) return null;
-        if (d == 0 || (d.abs() >= _dblWindowFloor && d.abs() <= _dblWindowCeil)) return d;
+        final f64Reading = ByteData.sublistView(raw).getFloat64(0);
+        if (!f64Reading.isFinite) return null;
+        if (f64Reading == 0 || (f64Reading.abs() >= _dblWindowFloor && f64Reading.abs() <= _dblWindowCeil)) {
+          return f64Reading;
+        }
       }
       return null;
     default:
@@ -3520,7 +3549,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
   final formatPayloads = <ViHeapObject, List<int>>{};
-  final constRecs = <ViHeapObject, HeapAttr>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
   final liveParent = <ViHeapObject, ViHeapObject?>{};
@@ -3621,10 +3649,14 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
         // A BD constant's flattened value record scopes to the 0x13 DCO itself
         // (record census on [HeapAttribute.constValue]). First-wins is
-        // trivially safe: no corpus constant carries a second record.
-        if (attr.attribute == HeapAttribute.constValue && cur.kind == HeapObjectClass.bdConstDco.code) {
-          constRecs[cur] ??= attr;
-          cur.constValueRaw ??= _attrFlatBytes(attr);
+        // trivially safe: no corpus constant carries a second record. CAPTURE
+        // only — the value is interpreted later by [decodeBdConstValues],
+        // once data-space types have resolved.
+        if (attr.attribute == HeapAttribute.constValue &&
+            cur.kind == HeapObjectClass.bdConstDco.code &&
+            cur.constValueRaw == null) {
+          cur.constValueRaw = _attrFlatBytes(attr);
+          cur.constValueScalar = _attrScalarBytes(attr.width) != null;
         }
         // The numeric display window's printf-style display format
         // ([HeapAttribute.formatStyle], raw 0x074). Corpus: 32,440 records,
@@ -3816,40 +3848,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   }
 
   final nodeKids = _childrenByParentOid(objects);
-
-  // Decode BD constant values: the value carrier class is the constant DCO's
-  // first nested child (see [HeapObjectClass.bdConstDco]); enum items may sit
-  // on any descendant, so the item probe walks the whole subtree — but only
-  // for the enum-shaped carriers that consume it.
-  if (constRecs.isNotEmpty) {
-    // Depth-capped: the positional tree is stack-balanced, but oids are not
-    // guaranteed unique, so an oid-keyed descent must not trust acyclicity.
-    bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
-      if (o.items.isNotEmpty) return true;
-      if (depth >= 16) return false;
-      for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
-        if (subtreeHasItems(kid, depth + 1)) return true;
-      }
-      return false;
-    }
-
-    for (final entry in constRecs.entries) {
-      final object = entry.key;
-      final kids = nodeKids[object.oid];
-      if (kids == null || kids.isEmpty) continue;
-      final carrierKind = kids.first.kind;
-      final wantsItems =
-          carrierKind == HeapObjectClass.enumRingControl.code || carrierKind == HeapObjectClass.clusterShell.code;
-      final value = decodeBdConstantValue(
-        innerKind: carrierKind,
-        record: entry.value,
-        hasEnumItems: wantsItems && subtreeHasItems(object),
-      );
-      if (value is bool) object.constBool = value;
-      if (value is num) object.constNumeric = value;
-      if (value is String) object.constText ??= value;
-    }
-  }
 
   for (final object in objects) {
     if (object.category != ViObjectKind.unknown) continue;
@@ -4061,6 +4059,10 @@ final Map<int, bool Function(ViDataType)> _typeAnchors = {
 /// [ViHeapObject.typeKind] — the pool descriptor is the VI's own type
 /// declaration, where the `C4 74` format inference is a guess — so colour
 /// and glyph can never disagree.
+///
+/// Ends by running [decodeBdConstValues] over every diagram — the single
+/// BD-constant value decode pass, deliberately placed after type resolution
+/// so the typed tier has every resolvable type in hand.
 void resolveDataSpaceTypes({
   required List<ViType> pool,
   required List<int> table,
@@ -4101,6 +4103,26 @@ void resolveDataSpaceTypes({
     }
   }
 
+  _resolveTypeIndices(pool: pool, table: table, blockDiagrams: blockDiagrams, diagrams: diagrams, findDco: findDco);
+
+  // The single BD-constant value decode pass, now that every resolvable type
+  // is on its object. Runs unconditionally: on a VI whose base never
+  // calibrates nothing resolves and the pass is fallback-only.
+  for (final diagram in diagrams) {
+    decodeBdConstValues(diagram);
+  }
+}
+
+/// The table+base type resolution behind [resolveDataSpaceTypes] (see its
+/// doc for the calibration law); split out so the decode pass that follows
+/// it runs even when calibration declines.
+void _resolveTypeIndices({
+  required List<ViType> pool,
+  required List<int> table,
+  required List<ViDiagram> blockDiagrams,
+  required List<ViDiagram> diagrams,
+  required ViHeapObject? Function(ViDiagram own, int oid) findDco,
+}) {
   if (pool.isEmpty || table.isEmpty) return;
 
   ViType? resolve(int base, int index) {
@@ -4184,17 +4206,6 @@ void resolveDataSpaceTypes({
       object.typeName ??= dco.typeName;
     }
   }
-
-  // The resolved descriptor is the VI's own type declaration for a constant's
-  // flattened payload, so it settles the ambiguities the type-independent
-  // gates of [decodeBdConstantValue] decline.
-  for (final diagram in blockDiagrams) {
-    for (final object in diagram.objects) {
-      if (object.kind == HeapObjectClass.bdConstDco.code) {
-        finishTypedConstDecode(object);
-      }
-    }
-  }
 }
 
 /// Flat serialized byte size of a fixed-width numeric [ViDataType], or null
@@ -4222,20 +4233,18 @@ num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
   return signed ? value.toSigned(8 * size) : value;
 }
 
-/// Finishes a BD constant's value decode with its **resolved data-space
-/// type** in hand ([ViHeapObject.resolvedType] over [constValueRaw]) —
-/// the second decode stage after [decodeBdConstantValue]'s type-independent
-/// gates, run by [resolveDataSpaceTypes]. Never overwrites a first-stage
-/// value; every gate declines rather than guessing. Corpus (7,524 VIs,
-/// resolved-type constants only):
+/// The **TYPED tier** of [decodeBdConstValues]: decodes a BD constant's
+/// captured payload strictly by its **resolved data-space type**
+/// ([ViHeapObject.resolvedType] over [constValueRaw]). Every gate declines
+/// rather than guessing. Corpus (7,524 VIs, resolved-type constants only):
 ///
 ///   * **numeric scalar** — a fixed-width numeric type whose scalar payload
 ///     fits the type's width decodes as that type: unsigned/enum as stored,
 ///     signed two's-complement at full width, `sgl` as its IEEE-754 bits
-///     (the SGL-alias and sign ambiguities of the first stage are settled by
-///     the descriptor). 5,211 of 5,730 integer-typed scalars fit (877 of
-///     them beyond the type-independent gates); the 519 stored WIDER than
-///     their type (e.g. a 3-byte scalar on a u16 type) are declined —
+///     (the SGL-alias and sign ambiguities of the type-independent gates are
+///     settled by the descriptor). 5,211 of 5,730 integer-typed scalars fit
+///     (877 of them beyond the type-independent gates); the 519 stored WIDER
+///     than their type (e.g. a 3-byte scalar on a u16 type) are declined —
 ///     TODO: their encoding is not yet decoded.
 ///   * **array** — `[u32 × dimCount dims][elements big-endian]` for a
 ///     resolved array of a fixed-width numeric element ([constArray] /
@@ -4244,15 +4253,17 @@ num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
 ///     5 length mismatches and 2 dims-truncated payloads decline. Non-numeric
 ///     element kinds (string/path/cluster/…, 1,107 constants) are not yet
 ///     decoded (TODO).
-void finishTypedConstDecode(ViHeapObject object) {
+///
+/// Boolean, string and path types have no typed layout law here yet — their
+/// populations decode entirely through the fallback tier's carrier-class
+/// gates (whose corpus census they own).
+void _typedBdConstDecode(ViHeapObject object) {
   final flat = object.constValueRaw;
   final type = object.resolvedType;
   if (flat == null || type == null) return;
   final scalarSize = _flatNumericSize(type.kind);
   if (scalarSize != null) {
-    if (object.constNumeric != null || flat.isEmpty || flat.length > scalarSize) {
-      return;
-    }
+    if (flat.isEmpty || flat.length > scalarSize) return;
     // A payload narrower than the type is the value's zero-extended
     // magnitude; sgl/dbl and signed readings need the full width.
     if (flat.length < scalarSize && (type.kind == ViDataType.sgl || type.kind == ViDataType.dbl)) {
@@ -4265,7 +4276,7 @@ void finishTypedConstDecode(ViHeapObject object) {
     object.constNumeric = value;
     return;
   }
-  if (type.kind != ViDataType.array || object.constArray != null) return;
+  if (type.kind != ViDataType.array) return;
   final element = object.resolvedElementType;
   final dimCount = type.dimCount;
   if (element == null || dimCount == null || dimCount < 1 || dimCount > 8) {
@@ -4286,4 +4297,65 @@ void finishTypedConstDecode(ViHeapObject object) {
   object.constArray = [
     for (var i = 0; i < count; i++) _flatNumericAt(flat, 4 * dimCount + i * elementSize, element.kind, elementSize),
   ];
+}
+
+/// Decodes every BD constant's value in [diagram] — the single decode pass.
+/// The architecture: heap parse ([buildDiagram]) only CAPTURES the flattened
+/// `0x26C` payload ([ViHeapObject.constValueRaw] + its stored width form);
+/// [resolveDataSpaceTypes] then resolves each object's data-space type; this
+/// pass, run once after that, does all value interpretation. Two tiers, one
+/// precedence: the typed law first ([_typedBdConstDecode], strict by the
+/// resolved type), then the type-independent carrier-class rules
+/// ([decodeBdConstantValue]) for whatever the typed tier left undecoded —
+/// including constants whose type never resolved.
+///
+/// The fallback runs on a typed DECLINE too, not only on an unresolved type,
+/// because the corpus shows the constant-DCO type resolution mis-assigns for
+/// a minority — payload+carrier evidence contradicts the resolved kind (an
+/// 8-byte IEEE-754 payload on an i32-resolved constant; a `{0,1}` `0x4f`
+/// boolean payload on a string-resolved constant) — while the type-free
+/// gates still decode: corpus (7,524 VIs) 2,082 containered zeros, 88
+/// payloads wider than their resolved type, 24 narrower than their resolved
+/// float type, 2,404 numerics on resolved kinds with no typed layout law
+/// (typeDef/string/boolean/refnum/cluster/void/…), 600 booleans and 1,469
+/// texts on non-boolean/non-string-resolved constants. TODO: decode where
+/// those constants' `typeDescIndex` actually points. The tier ORDER is
+/// value-neutral on the whole corpus: everywhere both tiers land (4,347
+/// integer + 454 double constants) they agree exactly, so the typed tier
+/// never contradicts the carrier-class census and vice versa.
+void decodeBdConstValues(ViDiagram diagram) {
+  final nodeKids = _childrenByParentOid(diagram.objects);
+  // Depth-capped: the positional tree is stack-balanced, but oids are not
+  // guaranteed unique, so an oid-keyed descent must not trust acyclicity.
+  bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
+    if (o.items.isNotEmpty) return true;
+    if (depth >= 16) return false;
+    for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
+      if (subtreeHasItems(kid, depth + 1)) return true;
+    }
+    return false;
+  }
+
+  for (final object in diagram.objects) {
+    if (object.kind != HeapObjectClass.bdConstDco.code || object.constValueRaw == null) continue;
+    _typedBdConstDecode(object);
+    // The value carrier class is the constant DCO's first nested child (see
+    // [HeapObjectClass.bdConstDco]); enum items may sit on any descendant,
+    // so the item probe walks the whole subtree — but only for the
+    // enum-shaped carriers that consume it.
+    final kids = nodeKids[object.oid];
+    if (kids == null || kids.isEmpty) continue;
+    final carrierKind = kids.first.kind;
+    final wantsItems =
+        carrierKind == HeapObjectClass.enumRingControl.code || carrierKind == HeapObjectClass.clusterShell.code;
+    final value = decodeBdConstantValue(
+      innerKind: carrierKind,
+      flat: object.constValueRaw,
+      scalar: object.constValueScalar,
+      hasEnumItems: wantsItems && subtreeHasItems(object),
+    );
+    if (value is bool) object.constBool ??= value;
+    if (value is num) object.constNumeric ??= value;
+    if (value is String) object.constText ??= value;
+  }
 }

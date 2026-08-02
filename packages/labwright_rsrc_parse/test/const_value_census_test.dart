@@ -154,7 +154,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
     bump('constants', recs.length);
     bump('multiRecordConstants', recs.values.where((r) => r.count > 1).length);
 
+    // Decode with no VCTP types in play: this census pins the FALLBACK tier
+    // of decodeBdConstValues (the type-independent gates) on its own.
     final diagram = buildDiagram(body, sectionTag: d.tag);
+    decodeBdConstValues(diagram);
     for (final e in recs.entries) {
       final o = diagram.byId[e.key];
       if (o == null) continue;

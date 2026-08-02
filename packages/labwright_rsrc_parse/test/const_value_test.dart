@@ -36,7 +36,13 @@ List<int> constant(int oid, int inner, List<int> rec, {List<int> innerBody = con
   ...close(),
 ];
 
-ViDiagram dia(List<int> records) => buildDiagram(u8([0, 0, 0, records.length, ...records]));
+/// Build + decode with no VCTP types in play: exercises the fallback tier of
+/// [decodeBdConstValues] alone.
+ViDiagram dia(List<int> records) {
+  final d = buildDiagram(u8([0, 0, 0, records.length, ...records]));
+  decodeBdConstValues(d);
+  return d;
+}
 
 void main() {
   test('decodeBdConstantValue gates: accept and decline sides of each', () {
@@ -111,9 +117,9 @@ void main() {
       expect(o.constBool ?? o.constNumeric, want, reason: 'crc8 oid $oid');
     });
 
-    // MD5.png: the resolved data-space type settles the first stage's
-    // SGL-alias/sign declines and decodes array payloads
-    // (finishTypedConstDecode); display-format text rides the 0xe0 window.
+    // MD5.png: the typed tier of decodeBdConstValues settles the fallback
+    // gates' SGL-alias/sign declines and decodes array payloads;
+    // display-format text rides the 0xe0 window.
     final md5 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/MD5.png');
     final bdM = buildViModel(extractSnippetVi(md5.readAsBytesSync())!).blockDiagrams.single;
     expect(bdM.byId[821]!.constNumeric, 0x67452301, reason: 's1 in');
