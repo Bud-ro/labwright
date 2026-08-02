@@ -997,12 +997,78 @@ Map<int, String> bdConstValueTexts(ViDiagram diagram) {
     final parent = byId[object.parentOid ?? -1];
     final value = parent?.kind == 0x13 ? parent!.constNumeric : null;
     if (value == null) continue;
-    out[object.oid] = value is double && value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toString();
+    out[object.oid] = bdFormatConstValue(
+      value,
+      bdDisplayFormatOf(diagram, object.oid),
+    );
   }
   return out;
 }
+
+/// The decoded printf-style display format of [oid]'s value window — the
+/// `0xe0` display part's [ViHeapObject.displayFormat] — or null.
+String? bdDisplayFormatOf(ViDiagram diagram, int oid) {
+  for (final part in diagram.children(oid)) {
+    if (part.kind == 0xe0 && part.displayFormat != null) {
+      return part.displayFormat;
+    }
+  }
+  return null;
+}
+
+/// The conversion letter of a `%`-led printf-style display [format] (`x` for
+/// `%08x`, `f` for `%.0f`), or null when [format] is absent or unparsable.
+String? bdFormatConversion(String? format) => format == null
+    ? null
+    : RegExp(r'^%[-+ #0]*\d*(?:\.\d+)?([a-zA-Z])').firstMatch(format)?.group(1);
+
+/// The digit text a constant box displays for [value] under its decoded
+/// display [format] ([ViHeapObject.displayFormat]): the hex/octal/binary
+/// conversions render the rounded integer in that radix (hex uppercase,
+/// zero-padded to the format's field width under its `0` flag — MD5's `%08x`
+/// initials read `67452301`); everything else keeps the decimal literal (a
+/// whole-valued double without the trailing `.0`). The radix MARKER (the
+/// small `x`/`b` glyph LabVIEW puts before the digits) is separate chrome
+/// ([kBdRadixMarkerGlyphs]), not part of this text. A negative integer's
+/// radix rendering is width-dependent (two's complement at the stored type's
+/// width) and falls back to decimal until reference-measured (TODO).
+String bdFormatConstValue(num value, String? format) {
+  final match = format == null
+      ? null
+      : RegExp(r'^%([-+ #0]*)(\d*)(?:\.\d+)?([a-zA-Z])').firstMatch(format);
+  final radix = switch (match?.group(3)) {
+    'x' || 'X' => 16,
+    'o' => 8,
+    'b' || 'B' => 2,
+    _ => null,
+  };
+  final whole = value is double && value == value.roundToDouble()
+      ? value.toInt()
+      : value;
+  if (radix != null && whole is int && whole >= 0) {
+    var text = whole.toRadixString(radix).toUpperCase();
+    final width = int.tryParse(match!.group(2) ?? '') ?? 0;
+    if (match.group(1)!.contains('0') && text.length < width) {
+      text = text.padLeft(width, '0');
+    }
+    return text;
+  }
+  return whole.toString();
+}
+
+/// The measured radix-marker glyphs LabVIEW draws before a non-decimal
+/// constant's digits, inside the constant's `0xb` radix part: `#` rows at
+/// the glyph's offset from the part's top-left corner, inked in the type
+/// colour. Byte-measured on MD5's `%08x` initials (the 4×4 `x`) and its
+/// `%08b` feeders (the 4×6 `b`); both share the baseline at part top+9.
+/// The octal marker is not yet reference-measured, so `o` draws nothing
+/// (TODO).
+const Map<String, (int, int, List<String>)> kBdRadixMarkerGlyphs = {
+  'x': (1, 5, ['#..#', '.##.', '.##.', '#..#']),
+  'X': (1, 5, ['#..#', '.##.', '.##.', '#..#']),
+  'b': (1, 3, ['#...', '#...', '###.', '#..#', '#..#', '###.']),
+  'B': (1, 3, ['#...', '#...', '###.', '#..#', '#..#', '###.']),
+};
 
 /// Packs a rectangle's four `s16` edges into one int key for anchor↔terminal
 /// matching (each edge is offset into a non-negative 16-bit lane).
@@ -3282,59 +3348,11 @@ class BdDiagramPainter extends CustomPainter {
           // arrays, byte-verified), value digits in the element colour.
           final shellParent = scene.diagram.byId[object.parentOid ?? -1];
           if (object.kind == 0x50 && shellParent?.kind == 0x52) {
-            var elementRight = -1 << 30;
-            for (final sib in scene.diagram.children(shellParent!.oid)) {
-              if (sib.kind == 0x50 && sib.absBounds != null) {
-                elementRight = math.max(elementRight, sib.absBounds!.right);
-              }
-            }
-            if (object.absBounds!.right != elementRight) {
-              // The INDEX box: its window, spinner boxes, and arrows are
-              // the array shell's furniture ([_drawArrayConstantShell]);
-              // the generic stroked frame would double them.
-              continue;
-            }
-            {
-              final ringFill = _solidNoAa(tint);
-              final outer = Rect.fromLTRB(
-                box.left - 1,
-                box.top - 1,
-                box.right + 1,
-                box.bottom + 1,
-              );
-              canvas.drawRect(outer, Paint()..color = Colors.white);
-              canvas.drawRect(
-                Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
-                ringFill,
-              );
-              canvas.drawRect(
-                Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
-                ringFill,
-              );
-              canvas.drawRect(
-                Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
-                ringFill,
-              );
-              canvas.drawRect(
-                Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
-                ringFill,
-              );
-              if (constValue != null) {
-                final tp = _layoutText(
-                  constValue,
-                  color: tint,
-                  fontSize: 10,
-                  maxLines: 1,
-                  ellipsis: '…',
-                  maxWidth: math.max(8, box.width - 6),
-                );
-                tp.paint(
-                  canvas,
-                  box.center - Offset(tp.width / 2, tp.height / 2),
-                );
-              }
-              continue;
-            }
+            // Both the INDEX box (window, spinner boxes, arrows) and the
+            // ELEMENT cells (the grid of value boxes) are the array shell's
+            // furniture ([_drawArrayConstantShell]); the generic stroked
+            // frame would double them.
+            continue;
           }
           // Indicators wear LabVIEW's thin 1px single border (measured on
           // Excel_Read_XLSX's path and array indicator terminals; matches
@@ -3461,6 +3479,38 @@ class BdDiagramPainter extends CustomPainter {
                   Colors.black,
                 ).withValues(alpha: 0.87),
             );
+          }
+          // A non-decimal constant's radix marker: the measured pixel glyph
+          // ([kBdRadixMarkerGlyphs]) at the constant's 0xb radix part, in
+          // the type colour; decimal constants draw nothing there
+          // (byte-measured on MD5's %08x initials and %08b feeders).
+          if (constValue != null) {
+            final marker =
+                kBdRadixMarkerGlyphs[bdFormatConversion(
+                  bdDisplayFormatOf(scene.diagram, object.oid),
+                )];
+            final radixPart = marker == null
+                ? null
+                : scene.diagram
+                      .children(object.oid)
+                      .where(
+                        (part) => part.kind == 0xb && part.absBounds != null,
+                      )
+                      .firstOrNull;
+            if (marker != null && radixPart != null) {
+              final (dx, dy, rows) = marker;
+              final corner = _toCanvas(radixPart.absBounds!).topLeft;
+              final ink = _solidNoAa(tint);
+              for (var r = 0; r < rows.length; r++) {
+                for (var c = 0; c < rows[r].length; c++) {
+                  if (rows[r].codeUnitAt(c) != 0x23) continue;
+                  canvas.drawRect(
+                    Rect.fromLTWH(corner.dx + dx + c, corner.dy + dy + r, 1, 1),
+                    ink,
+                  );
+                }
+              }
+            }
           }
           // A constant's decoded literal, centred in its box the way
           // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
@@ -5084,20 +5134,36 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// An array constant's drawn furniture (measured on crc8's Polynomial
-  /// and U8-LUT arrays): a 1 px border in the ELEMENT type's colour at the
-  /// `0x52` shell bounds, at each bounded `0x9` wrap part (the sub-frames
-  /// around the index and element sides), and at the index `0x50`'s value
-  /// window and its two `0xb` spinner boxes. The element `0x50` keeps its
-  /// own constant-box chrome from the terminal pass.
+  /// An array constant's drawn furniture (measured on crc8's Polynomial /
+  /// U8-LUT arrays and MD5's Indices / S / T grids):
+  ///
+  ///  * a 1 px border in the ELEMENT type's colour + opaque white fill at
+  ///    each OUTERMOST bounded `0x9` wrap part (the index-side and
+  ///    element-side frames). A `0x9` nested inside a sibling `0x9` (the
+  ///    element-grid window and its row/column overlay zones) draws
+  ///    nothing of its own — its edges are covered by the cell rings, and
+  ///    LabVIEW paints no line at the overlays' interior edges;
+  ///  * the index `0x50`'s value window and its two `0xb` spinner boxes;
+  ///  * the ELEMENT `0x50` tiled as a CELL GRID: the element's bounds give
+  ///    the cell pitch, the smallest `0x9` containing it is the grid
+  ///    window, and every cell draws the measured constant-cell chrome
+  ///    ([_drawArrayCell]) — adjacent 3 px rings union into the observed
+  ///    4 px double walls. Cells beyond the decoded element count (an
+  ///    empty array's prototype) draw the dimmed style.
   void _drawArrayConstantShell(Canvas canvas, ViHeapObject shell) {
+    final children = scene.diagram.children(shell.oid).toList();
     ViTypeKind elementType = ViTypeKind.unknown;
-    for (final c in scene.diagram.children(shell.oid)) {
-      if (c.kind == 0x50 && c.typeKind != ViTypeKind.unknown) {
-        elementType = c.typeKind;
+    ViHeapObject? element;
+    for (final c in children) {
+      if (c.kind != 0x50) continue;
+      if (c.typeKind != ViTypeKind.unknown) elementType = c.typeKind;
+      if (c.absBounds != null &&
+          (element == null || c.absBounds!.right > element.absBounds!.right)) {
+        element = c;
       }
     }
-    final fill = _solidNoAa(_dimFor(shell.oid, labviewTypeColor(elementType)));
+    final tint = _dimFor(shell.oid, labviewTypeColor(elementType));
+    final fill = _solidNoAa(tint);
     void border(HeapRect b) {
       final l = (b.left - origin.dx).toDouble();
       final t = (b.top - origin.dy).toDouble();
@@ -5110,40 +5176,43 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(l + w - 1, t, 1, h), fill);
     }
 
-    // The shell rect itself draws nothing — the visible outer frame is the
-    // pair of 0x9 wrap parts (index side + element side). The ELEMENT 0x50
-    // (rightmost bounded) draws its 3 px ring in the terminal pass; the
-    // INDEX 0x50 draws its spinner boxes and value window here.
-    var elementRight = -1 << 30;
-    for (final c in scene.diagram.children(shell.oid)) {
-      if (c.kind == 0x50 && c.absBounds != null) {
-        elementRight = math.max(elementRight, c.absBounds!.right);
-      }
-    }
+    bool contains(HeapRect outer, HeapRect inner) =>
+        outer.left <= inner.left &&
+        outer.top <= inner.top &&
+        outer.right >= inner.right &&
+        outer.bottom >= inner.bottom;
     final white = _solidNoAa(Colors.white);
-    // Wrap fills+borders first: the index/element furniture paints OVER
-    // the opaque wrap, whatever the heap child order.
-    for (final c in scene.diagram.children(shell.oid)) {
+    // Outermost wrap fills+borders first: the index/element furniture
+    // paints OVER the opaque wrap, whatever the heap child order. The wrap
+    // is opaque: it masks the covered run of a wire that attaches under
+    // the array (the visible run starts at the wrap border, byte-verified
+    // on the Polynomial feed).
+    for (final c in children) {
       final b = c.absBounds;
-      if (c.kind == 0x9 && b != null) {
-        // The wrap is opaque: it masks the covered run of a wire that
-        // attaches under the array (the visible run starts at the wrap
-        // border, byte-verified on the Polynomial feed).
-        canvas.drawRect(
-          Rect.fromLTWH(
-            (b.left - origin.dx).toDouble(),
-            (b.top - origin.dy).toDouble(),
-            (b.right - b.left).toDouble(),
-            (b.bottom - b.top).toDouble(),
-          ),
-          white,
-        );
-        border(b);
-      }
+      if (c.kind != 0x9 || b == null) continue;
+      final nested = children.any(
+        (other) =>
+            other.kind == 0x9 &&
+            !identical(other, c) &&
+            other.absBounds != null &&
+            contains(other.absBounds!, b) &&
+            !contains(b, other.absBounds!),
+      );
+      if (nested) continue;
+      canvas.drawRect(
+        Rect.fromLTWH(
+          (b.left - origin.dx).toDouble(),
+          (b.top - origin.dy).toDouble(),
+          (b.right - b.left).toDouble(),
+          (b.bottom - b.top).toDouble(),
+        ),
+        white,
+      );
+      border(b);
     }
-    for (final c in scene.diagram.children(shell.oid)) {
+    for (final c in children) {
       final b = c.absBounds;
-      if (c.kind == 0x50 && b != null && b.right != elementRight) {
+      if (c.kind == 0x50 && b != null && !identical(c, element)) {
         for (final part in scene.diagram.children(c.oid)) {
           final pb = part.absBounds;
           if (pb == null) continue;
@@ -5171,6 +5240,184 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
+    if (element == null) return;
+    final cell = element.absBounds!;
+    final cellW = cell.width, cellH = cell.height;
+    if (cellW <= 0 || cellH <= 0) return;
+    // The grid window: the smallest 0x9 containing the element prototype
+    // (crc8's 1D arrays store it at exactly the prototype's rect — one
+    // cell; MD5's grids tile it 16x4 / 4x4 / 1x5).
+    HeapRect grid = cell;
+    var gridArea = 1 << 60;
+    for (final c in children) {
+      final b = c.absBounds;
+      if (c.kind != 0x9 || b == null || !contains(b, cell)) continue;
+      final area = b.width * b.height;
+      if (area < gridArea) {
+        grid = b;
+        gridArea = area;
+      }
+    }
+    final cols = math.max(1, grid.width ~/ cellW);
+    final rows = math.max(1, grid.height ~/ cellH);
+    final holder = scene.diagram.byId[shell.parentOid ?? -1];
+    final values = holder?.kind == 0x13 ? holder!.constArray : null;
+    final dims = holder?.kind == 0x13 ? holder!.constArrayDims : null;
+    final format = bdDisplayFormatOf(scene.diagram, element.oid);
+    final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
+    // The radix part's offset inside its cell, from the prototype's own
+    // 0xb child (MD5: +2,+3 in every array).
+    var radixDx = 2, radixDy = 3;
+    for (final part in scene.diagram.children(element.oid)) {
+      if (part.kind == 0xb && part.absBounds != null) {
+        radixDx = part.absBounds!.left - cell.left;
+        radixDy = part.absBounds!.top - cell.top;
+      }
+    }
+    for (var j = 0; j < rows; j++) {
+      for (var i = 0; i < cols; i++) {
+        // Storage order is row-major over the decoded dims; a 1D array is a
+        // single visible row or column, so its index is i + j either way.
+        final index = dims != null && dims.length >= 2
+            ? j * dims.last + i
+            : i + j;
+        final value =
+            values != null &&
+                index < values.length &&
+                (dims == null || dims.length < 2 || i < dims.last)
+            ? values[index]
+            : null;
+        _drawArrayCell(
+          canvas,
+          shellOid: shell.oid,
+          cell: Rect.fromLTWH(
+            (grid.left + i * cellW - origin.dx).toDouble(),
+            (grid.top + j * cellH - origin.dy).toDouble(),
+            cellW.toDouble(),
+            cellH.toDouble(),
+          ),
+          tint: tint,
+          value: value,
+          empty: values != null && value == null,
+          format: format,
+          marker: marker,
+          radixDx: radixDx,
+          radixDy: radixDy,
+        );
+      }
+    }
+  }
+
+  /// One array-constant element cell, byte-measured on crc8's arrays and
+  /// MD5's grids: a 3 px ring in the element colour whose outer edge sits
+  /// 1 px outside the cell rect on the left/top and ON its right/bottom
+  /// edges, white field, the value digits in AA black, and the radix-marker
+  /// glyph of a non-decimal display format at the cell's radix-part corner.
+  /// A cell PAST the decoded element count (an empty array's prototype)
+  /// dims the ring's inner 2 px and shows the dimmed default `0`
+  /// ([bdDimDisabled]; MD5's two empty arrays read the pure ring edge over
+  /// the (153,153,255) inner ring and a (153,153,153) digit).
+  void _drawArrayCell(
+    Canvas canvas, {
+    required int shellOid,
+    required Rect cell,
+    required Color tint,
+    required num? value,
+    required bool empty,
+    required String? format,
+    required (int, int, List<String>)? marker,
+    required int radixDx,
+    required int radixDy,
+  }) {
+    final outer = Rect.fromLTRB(
+      cell.left - 1,
+      cell.top - 1,
+      cell.right + 1,
+      cell.bottom + 1,
+    );
+    canvas.drawRect(outer, Paint()..color = Colors.white);
+    final ringFill = _solidNoAa(empty ? bdDimDisabled(tint) : tint);
+    canvas.drawRect(
+      Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
+      ringFill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
+      ringFill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
+      ringFill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
+      ringFill,
+    );
+    if (empty) {
+      // The outermost 1 px of the ring stays the pure element colour.
+      final pure = _solidNoAa(tint);
+      canvas.drawRect(
+        Rect.fromLTWH(outer.left, outer.top, outer.width, 1),
+        pure,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(outer.left, outer.bottom - 1, outer.width, 1),
+        pure,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(outer.left, outer.top, 1, outer.height),
+        pure,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(outer.right - 1, outer.top, 1, outer.height),
+        pure,
+      );
+    }
+    if (marker != null && (value != null || empty)) {
+      final (gx, gy, glyphRows) = marker;
+      final ink = _solidNoAa(empty ? bdDimDisabled(tint) : tint);
+      for (var r = 0; r < glyphRows.length; r++) {
+        for (var c = 0; c < glyphRows[r].length; c++) {
+          if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+          canvas.drawRect(
+            Rect.fromLTWH(
+              cell.left + radixDx + gx + c,
+              cell.top + radixDy + gy + r,
+              1,
+              1,
+            ),
+            ink,
+          );
+        }
+      }
+    }
+    final text = value != null
+        ? bdFormatConstValue(value, format)
+        : empty
+        ? '0'
+        : null;
+    if (text == null || cell.width < 10 || cell.height < 12) return;
+    final ink = _dimFor(
+      shellOid,
+      empty ? bdDimDisabled(Colors.black) : Colors.black,
+    );
+    final tp = _layoutText(
+      text,
+      color: ink,
+      fontSize: 10,
+      maxLines: 1,
+      ellipsis: '…',
+      maxWidth: math.max(8, cell.width - 6),
+    );
+    // Digits sit left-aligned after the radix zone (MD5: decimal digits at
+    // cell.left+4, hex digits at cell.left+9 past the marker).
+    tp.paint(
+      canvas,
+      Offset(
+        cell.left + (marker != null ? 9 : 4),
+        cell.center.dy - tp.height / 2,
+      ),
+    );
   }
 
   /// The branch-junction dot LabVIEW stamps where a wire forks, in the

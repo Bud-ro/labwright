@@ -388,7 +388,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(72110),
+        lessThanOrEqualTo(71915),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (Per-snippet trades inside the '
@@ -399,10 +399,14 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(39805),
+        lessThanOrEqualTo(22046),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
-            'misrouted budget; re-pin DOWNWARD as routing lands, never up',
+            'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
+            '(The array-constant cell grids + typed constant values took '
+            'this 39,805 -> 22,046; MD5 alone dropped 15,025 -> 138, its '
+            'remainder the 2D-array double-line wire style, not yet '
+            'drawn.)',
       );
     });
   });
