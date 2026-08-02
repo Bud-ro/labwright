@@ -4251,6 +4251,12 @@ class BdDiagramPainter extends CustomPainter {
             object.oid,
             bdDecodedColor(object.fgRgb) ?? Colors.black,
           ),
+          // The label's decoded face (its first style run — see
+          // [ViHeapObject.labelIsBold]): bold labels draw with the bundled
+          // Selawik Bold at the same 12 em (reference-measured: MD5's bold
+          // headings keep the regular face's 9 px caps and land within the
+          // stored label bounds only at the bold face's own advances).
+          fontWeight: object.labelIsBold ? FontWeight.w700 : FontWeight.w400,
           // Label text is never truncated or auto-wrapped: LabVIEW sizes a
           // label's bounds to its text (multi-line captions carry their own
           // newlines), so the render lets the metric-matched layout run its

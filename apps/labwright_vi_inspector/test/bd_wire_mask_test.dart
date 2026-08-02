@@ -465,7 +465,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21807),
+        lessThanOrEqualTo(21802),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
@@ -475,7 +475,7 @@ void main() {
             'tiers, the container-face runs, and the Logical Shift '
             'terminal row -> 21,906; the array-shell wrap arrival face '
             '-> 21,872; the metric-matched text pass covering value-cell '
-            'ink -> 21,807.)',
+            'ink -> 21,807; bold style-run labels -> 21,802.)',
       );
     });
   });
