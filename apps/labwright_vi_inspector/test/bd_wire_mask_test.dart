@@ -245,13 +245,12 @@ void main() {
   for (final (name, drawnFloor, offPin, missingPin) in const [
     ('Excel_Read_XLSX.png', 92, 0, 0),
     // MD5's missing remainder sits inside the array-block value rects:
-    // cell-seam ink the block render does not yet draw, and the tunnel
-    // wire's covered run between a block's rect edge and its drawn frame.
-    // The 3 off px are the wires' own ClearType fringe over prim1113's
-    // triangle edge — the blend pixels were removed from the icon asset on
-    // review (they are wire ink, not icon ink) and the wire pass does not
-    // yet composite arrival fringes. TODO(wire-fringe).
-    ('MD5.png', 186, 3, 97),
+    // cell-seam ink the block render does not yet draw. The 3 off px are
+    // the wires' own ClearType fringe over prim1113's triangle edge — the
+    // blend pixels were removed from the icon asset on review (they are
+    // wire ink, not icon ink) and the wire pass does not yet composite
+    // arrival fringes. TODO(wire-fringe).
+    ('MD5.png', 187, 3, 63),
   ]) {
     testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
       tester,
@@ -436,7 +435,7 @@ void main() {
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21906),
+        lessThanOrEqualTo(21872),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
@@ -444,7 +443,8 @@ void main() {
             'wires erased, full-box crops trimmed to their ink — took '
             'this 22,046 -> 22,035; the prim-origin/uncatalogued 3-point '
             'tiers, the container-face runs, and the Logical Shift '
-            'terminal row -> 21,906.)',
+            'terminal row -> 21,906; the array-shell wrap arrival face '
+            '-> 21,872.)',
       );
     });
   });
