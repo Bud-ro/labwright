@@ -16,9 +16,10 @@ import 'util.dart';
 ///    without a wire; the changed pixels are its visible ink and every one
 ///    must byte-equal the reference).
 ///  * The REFERENCE's ink must be covered: reference pixels of the wire-ink
-///    palette that we leave white — outside node/terminal/label boxes, whose
-///    art is the icon campaign — are MISSING wire ink (undrawn or misrouted
-///    wires), gauged without reference to what we chose to draw.
+///    palette that we leave white — outside node/terminal/label boxes (the
+///    icon campaign's art) and outside painted text runs (the text
+///    campaign's) — are MISSING wire ink (undrawn or misrouted wires),
+///    gauged without reference to what we chose to draw.
 ///
 /// The floors are exact-state pins, not aspirations: a change that makes a
 /// perfect wire imperfect, or uncovers reference ink, fails here. When a fix
@@ -49,7 +50,12 @@ const Set<int> kWireInkPalette = {
 };
 
 /// Reference wire-ink pixels that [ourPixel] leaves white, outside every
-/// node/terminal/label box of [scene] — the coverage gauge.
+/// node/terminal/label box of [scene] and outside the painter's own text
+/// runs ([BdScene.paintedText], grown 1 px) — the coverage gauge. Text
+/// rects are excluded because the reference's subpixel-AA glyph fringes
+/// rasterise to exact wire-palette colours (MD5's array-index digits ring
+/// their black cores with 0x660066/0x006666 columns): that ink belongs to
+/// the text layer, not to wire coverage.
 int missingWireInk({
   required BdScene scene,
   required BdRaster raster,
@@ -70,6 +76,7 @@ int missingWireInk({
       boxes.add(b);
     }
   }
+  final textRects = [for (final run in scene.paintedText) run.rect.inflate(1)];
   var missing = 0;
   for (var py = 0; py < height; py++) {
     for (var px = 0; px < width; px++) {
@@ -86,6 +93,14 @@ int missingWireInk({
             y <= b.bottom) {
           inBox = true;
           break;
+        }
+      }
+      if (!inBox) {
+        for (final r in textRects) {
+          if (r.contains(Offset(px.toDouble(), py.toDouble()))) {
+            inBox = true;
+            break;
+          }
         }
       }
       if (!inBox) missing++;
@@ -244,13 +259,11 @@ void main() {
   // DOWNWARD (missing) / hold at zero (off), never loosen.
   for (final (name, drawnFloor, offPin, missingPin) in const [
     ('Excel_Read_XLSX.png', 92, 0, 0),
-    // MD5's missing remainder sits inside the array-block value rects:
-    // cell-seam ink the block render does not yet draw. The 3 off px are
-    // the wires' own ClearType fringe over prim1113's triangle edge — the
-    // blend pixels were removed from the icon asset on review (they are
-    // wire ink, not icon ink) and the wire pass does not yet composite
-    // arrival fringes. TODO(wire-fringe).
-    ('MD5.png', 187, 3, 63),
+    // MD5's 3 off px are the wires' own ClearType fringe over prim1113's
+    // triangle edge — the blend pixels were removed from the icon asset on
+    // review (they are wire ink, not icon ink) and the wire pass does not
+    // yet composite arrival fringes. TODO(wire-fringe).
+    ('MD5.png', 187, 3, 0),
   ]) {
     testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
       tester,
@@ -378,13 +391,28 @@ void main() {
         }
 
         // The wire LAYER's own visible pixels (with-wires vs without) that
-        // miss the reference.
+        // miss the reference. Pixels inside the painter's own text runs
+        // (grown 1 px) are the text layer's: a glyph's AA blend shifts
+        // with the wire underneath it, so the with/without diff picks the
+        // glyph fringe up as "wire" ink there; its accuracy is the text
+        // campaign's gauge, not this ratchet's.
+        final textRects = [
+          for (final run in scene.paintedText) run.rect.inflate(1),
+        ];
+        bool inText(int x, int y) {
+          for (final r in textRects) {
+            if (r.contains(Offset(x.toDouble(), y.toDouble()))) return true;
+          }
+          return false;
+        }
+
         var off = 0;
         for (var y = 0; y < ih; y++) {
           for (var x = 0; x < iw; x++) {
             final ours = pixelOf(ourB, x, y);
             if (ours == pixelOf(woB, x, y)) continue;
-            if (ours != refPixel(x + reg.dx.round(), y + reg.dy.round())) {
+            if (ours != refPixel(x + reg.dx.round(), y + reg.dy.round()) &&
+                !inText(x, y)) {
               off++;
             }
           }
@@ -424,18 +452,20 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71478),
+        lessThanOrEqualTo(71148),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The into-icon arrival law — stop '
             'at the arrival line\'s opaque art edge, never overrun to the '
             'ink centre or against the closing direction — plus the '
             'junction first-beyond-row lattice took this 71,915 -> '
-            '71,825; the indexing-tunnel ring law took it -> 71,475.)',
+            '71,825; the indexing-tunnel ring law took it -> 71,475; '
+            'handing glyph-fringe pixels inside painted text runs to the '
+            'text gauge -> 71,148.)',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21872),
+        lessThanOrEqualTo(21807),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
@@ -444,7 +474,8 @@ void main() {
             'this 22,046 -> 22,035; the prim-origin/uncatalogued 3-point '
             'tiers, the container-face runs, and the Logical Shift '
             'terminal row -> 21,906; the array-shell wrap arrival face '
-            '-> 21,872.)',
+            '-> 21,872; the metric-matched text pass covering value-cell '
+            'ink -> 21,807.)',
       );
     });
   });
