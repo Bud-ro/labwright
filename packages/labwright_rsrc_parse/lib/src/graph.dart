@@ -184,15 +184,49 @@ class ViHeapObject {
   /// Decoded **numeric value** of a block-diagram constant (`bDConstDCO`
   /// `0x13`): an [int] for integer/enum payloads, a [double] for an 8-byte
   /// IEEE-754 payload — or null when the object is not a constant, carries no
-  /// `0x26C` value record, or the payload does not pass the type-independent
-  /// gates of [decodeBdConstantValue] (which owns the corpus census). Enum/ring
-  /// constants decode to their stored integer; the item labels ride [items].
+  /// `0x26C` value record, or neither tier of [decodeBdConstValues] (the
+  /// single decode pass: typed by the resolved data-space type first,
+  /// type-independent fallback second) lands a reading. Enum/ring constants
+  /// decode to their stored integer; the item labels ride [items].
   num? constNumeric;
 
   /// Decoded **boolean value** of a block-diagram constant (`bDConstDCO`
   /// `0x13` whose value carrier is a `0x4f` boolean control), or null. See
   /// [decodeBdConstantValue] for the gate and census.
   bool? constBool;
+
+  /// A block-diagram constant's flattened `0x26C` value payload exactly as
+  /// stored (`bDConstDCO` `0x13`): the length-prefixed container payload
+  /// verbatim, or a scalar re-serialised big-endian at its stored width — or
+  /// null off the DCO / when the record is absent. Captured at heap-parse
+  /// time; all value interpretation happens later in [decodeBdConstValues],
+  /// after data-space type resolution.
+  Uint8List? constValueRaw;
+
+  /// Whether the `0x26C` record stored [constValueRaw] at one of the scalar
+  /// magnitude widths (u8/u16/u24/rgb) rather than a length-prefixed
+  /// container/blob — a structural fact of the record encoding, captured at
+  /// heap-parse time because the type-free gates of [decodeBdConstantValue]
+  /// are width-form-scoped (booleans/integers ride scalars; the containered
+  /// zero and 8-byte f64 forms ride containers).
+  bool constValueScalar = false;
+
+  /// Decoded element values of a block-diagram ARRAY constant, flattened in
+  /// storage order (row-major across [constArrayDims]) — or null when the
+  /// constant is not a resolved array of a fixed-width numeric element or
+  /// its payload fails the length law. See [decodeBdConstValues].
+  List<num>? constArray;
+
+  /// The stored dimension sizes of [constArray] (`[rows, columns]` for a 2D
+  /// array), or null alongside it.
+  List<int>? constArrayDims;
+
+  /// The `%`-led printf-style display-format text of a numeric display part
+  /// ([HeapAttribute.formatStyle], raw `0x074`; e.g. `%.0f`, `%08x`) — or
+  /// null. Corpus (7,524 VIs): 32,440 records, every one printable
+  /// `%`-led text; 32,437 sit on the `0xe0` display window, 3 on `0x50`.
+  /// Drives a constant's radix rendering (530 hex-format records).
+  String? displayFormat;
 
   /// Decoded 24-bit `0xRRGGBB` **background** colour of this object
   /// ([HeapAttribute.backgroundColor], raw `0x028`, confirmed), or null when the
@@ -927,11 +961,10 @@ const int kRightShiftRegisterClass = 0x28;
 
 /// Heap object class ([ViHeapObject.kind]) of the **left shift-register
 /// terminal** — the input column on a loop's left edge (glyph
-/// [ViHeapObject.termBmp] 3). The corpus offers no x-testable routed walk from
-/// one yet (its routed sample is vertical-first, so its connection column is
-/// unobservable), so its own column offset is undecoded: its attach point stays
-/// the plain floored centre and a BENT walk anchored on it is withheld
-/// ([ViDiagram._routePointsFor]). TODO: revisit when an x-testable walk appears.
+/// [ViHeapObject.termBmp] 3). Its stored-route wire connection column sits
+/// [kShiftRegisterColumnRightOffset] px RIGHT of its attach-rect centre — the
+/// mirror of the right register's [kShiftRegisterColumnLeftOffset]: both
+/// registers connect one column toward the loop interior.
 const int kLeftShiftRegisterClass = 0x27;
 
 /// Pixels the right shift register's ([kRightShiftRegisterClass]) drawn wire
@@ -942,6 +975,18 @@ const int kLeftShiftRegisterClass = 0x27;
 /// exactly `centre.x - 4` (support >= 0.96; the plain centre column scores
 /// <= 0.03), pinned by `wire_one_anchored_oracle`.
 const int kShiftRegisterColumnLeftOffset = 4;
+
+/// Pixels the left shift register's ([kLeftShiftRegisterClass]) drawn wire
+/// connection column sits RIGHT of its attach-rect centre — the mirror of
+/// [kShiftRegisterColumnLeftOffset] (both registers connect one column toward
+/// the loop interior). Measured against LabVIEW's own render of the MD5
+/// snippet, whose nested loops carry eight branching routes anchored on
+/// left-register terminals (16x12 rects): every walk placed at `centre.x + 4`
+/// lands its bend columns and junction dots on the reference ink exactly, and
+/// four of the trees additionally close ZERO-SLACK onto both far endpoints'
+/// independently decoded attach points (which the plain centre misses by
+/// exactly 4 px, the contradiction that withheld them).
+const int kShiftRegisterColumnRightOffset = 4;
 
 /// Heap object classes ([ViHeapObject.kind]) of the **node terminal strips** —
 /// the termBounds-carrying rows and full-height columns an expandable node
@@ -1012,7 +1057,7 @@ const int kTerminalGlyphHiddenFlag = 0x800000;
 // recheck this gate if it is catalogued) and raw 0x222 is the stdNumInc f64,
 // which no capture acts on.
 const _objAttrIds = {
-  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, //
+  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, 0x74, //
 };
 
 /// The structure classes that stack multiple `0x1b` frames and display one —
@@ -1416,7 +1461,7 @@ class ViWire {
 
   /// The wire's **absolute stored route tree** in diagram coordinates — the
   /// branching Manhattan geometry LabVIEW saved, polyline runs plus
-  /// junction-dot points — or null when it is not shippable. Three tiers
+  /// junction-dot points — or null when it is not shippable. Four tiers
   /// (endpoint matching always tries each endpoint's destination candidates:
   /// the terminal-strip column target first, then the attach centre, then
   /// the array element centre — see [kTerminalStripTargetLeftOffset]):
@@ -1438,6 +1483,13 @@ class ViWire {
   ///    candidate translation closes every resolved endpoint AND lands the
   ///    implied origin inside the head endpoint's owner box
   ///    ([ViDiagram._reverseSolvedRouteTree]).
+  ///  * **DCO-child closed** (reported [WireRouteFidelity.closed]) —
+  ///    consulted only after the gates above declined, for an unanchored
+  ///    origin: endpoints with no standard attach substitute their
+  ///    [ViDiagram.dcoChildTerminalAttach] candidates and EVERY endpoint
+  ///    must close zero-slack onto a distinct leaf — the branching analog
+  ///    of [routePoints]' DCO-child closed tier
+  ///    ([ViDiagram._dcoChildRouteTree]).
   ///
   /// Nothing is force-closed: a contradiction or a leaf-count mismatch ships
   /// null and the census counts it. Computed lazily on first access (a
@@ -1453,26 +1505,26 @@ class ViWire {
   /// Corpus census (7,524 VIs; 35,968 extended tables on 3+-endpoint
   /// signals, pinned by `wire_route_census_test`): every table decodes and
   /// walks. Closure is gated by attach-point exactness, not the walk rule:
-  /// over the 18,233 anchored non-origin endpoints, 16,363 (89.74%) land
+  /// over the 18,233 anchored non-origin endpoints, 17,529 (96.14%) land
   /// exactly on a destination candidate (`extEpHit`); restricted to the
   /// **13,932 endpoints whose own AND origin
   /// attach geometry are exact** (structure-framed border rect via the real
   /// composing frame, or a `0x16` own-bounds box — NOT the approximate
   /// node-framed rects or the constant value-shell centres, whose attach
-  /// point is the drawn edge, not the box centre), **13,040 (93.60%) land
-  /// exactly**. Of the 892 exact-subset misses (`extEpExact` −
-  /// `extEpExactHit`), **767 (86%) land inside the endpoint's own attach
-  /// rect** (`extEpExactMissInRect`) — the walk reaches the right terminal,
-  /// off the floored-centre attach convention, the same off-centre miss class
-  /// as [routePoints] — leaving 125 (`extEpExactMissFar`, ~1% of the exact
-  /// set) genuinely far.
+  /// point is the drawn edge, not the box centre), **13,920 (99.91%) land
+  /// exactly** — the once-dominant in-rect miss class
+  /// (`extEpExactMissInRect`) emptied when the shift-register connection
+  /// columns were decoded ([kShiftRegisterColumnLeftOffset] /
+  /// [kShiftRegisterColumnRightOffset]), leaving 12 (`extEpExactMissFar`)
+  /// genuinely far.
   ///
-  /// Corpus-wide the closed tier ships **2,151** trees (`extShippedClosed`);
-  /// the walked tier adds **17,134** more (`extShippedWalked`) on the
-  /// origin-anchored signals with plain-node leaves, and the reverse-solved
-  /// tier **8,867** more (`extShippedRev`) on the origin-unanchored ones —
-  /// 28,152 of the 35,968 extended tables. The 7,816 unshipped remainder:
-  /// 6,008 origin-unanchored tables with NO resolved endpoint at all, plus
+  /// Corpus-wide the closed tier ships **2,421** trees (`extShippedClosed`);
+  /// the walked tier adds **17,755** more (`extShippedWalked`) on the
+  /// origin-anchored signals with plain-node leaves, the reverse-solved
+  /// tier **8,950** more (`extShippedRev`) on the origin-unanchored ones,
+  /// and the DCO-child closed tier **2,889** more (`extShippedDcoClosed`) —
+  /// 32,015 of the 35,968 extended tables. The 3,953 unshipped remainder:
+  /// origin-unanchored tables with no resolvable endpoint at all, plus
   /// the withheld contradictions/ambiguities on either side.
   ///
   /// Independent geometry check on well-registered snippets
@@ -1480,16 +1532,10 @@ class ViWire {
   /// whose CLOSED-tier control overlay falls below 90%): shipped **closed**
   /// trees overlay LabVIEW's own render at ~100% (also `wire_branch_oracle`,
   /// 99.96%); shipped **walked** trees (reverse-solved included) overlay at
-  /// **94.1%** (36,648/38,960 px, run pixels — the honest per-wire signal). A
-  /// small residue (`oab_ship_qlo`, 1 of 109 snippet trees) overlays below
-  /// 50%: junction-catalog drift on a
-  /// plain-node arm that no resolved leaf can close against — the same drift
-  /// the closed tier rejects via leaf closure but the walked tier cannot detect
-  /// at decode time (no structural signal isolates it; corroboration,
-  /// leaf-containment and junction-risk gates were each measured and do not
-  /// separate it). The tree is DECODED LabVIEW geometry, not fabricated, and
-  /// [routeTreeFidelity] flags it; a consumer needing proven geometry reads
-  /// that tier.
+  /// **99.5%** (39,464/39,671 px, run pixels — the honest per-wire signal),
+  /// with none below 50% (`oab_ship_qlo` = 0). The tree is DECODED LabVIEW
+  /// geometry, not fabricated, and [routeTreeFidelity] carries the tier; a
+  /// consumer needing closure-proven geometry reads that tier.
   late final ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _routeTreeResult = _routeTreeBuilder?.call();
   late final ViWireRouteTree? routeTree = _routeTree ?? _routeTreeResult?.tree;
 
@@ -1526,10 +1572,7 @@ class ViWire {
   ///    undecoded degree of freedom marked on [routeHeadSlack] — and only
   ///    when the derived closing run lands WITHIN the far box's span
   ///    (cross-axis containment) — a
-  ///    terminus beside the node is a drifted/stale route and is withheld. A
-  ///    LEFT shift-register anchor ([kLeftShiftRegisterClass]) with bends is
-  ///    withheld too (its column offset is undecoded); the RIGHT register
-  ///    ([kRightShiftRegisterClass]) ships, its offset decoded. The
+  ///    terminus beside the node is a drifted/stale route and is withheld. The
   ///    far end is snapped to the owner box edge, so the exact terminal pin
   ///    inside a multi-terminal node is not independently verified; the walked
   ///    PATH is what the oracle validates. When the last decoded bend already
@@ -1543,7 +1586,7 @@ class ViWire {
   ///    terminal-storage convention, where the `0x15` DCO parents its own
   ///    termBounds part). A zero-slack closure over the substituted pairs
   ///    ships as [WireRouteFidelity.closed] (`shippedClosedDcoChild`,
-  ///    104,931 corpus routes); a wide-row cell anchor with no standard far
+  ///    103,652 corpus routes); a wide-row cell anchor with no standard far
   ///    attach ships a one-anchored walk (`shippedWalkedDcoRow`, 2,705).
   ///    The standard attach rects/anchors the model exposes are untouched.
   ///
@@ -1555,22 +1598,22 @@ class ViWire {
   /// its anchor as an explicit trailing point. Read [routePointsFidelity] to
   /// tell the tiers apart.
   ///
-  /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): of the
-  /// two-endpoint signals whose BOTH endpoints resolve, **126,839 close
-  /// exactly** and ship closed. The one-anchored walked tier adds **69,402
-  /// forward + 47,641 reverse = 117,043** more (`shippedWalkedFwd` +
-  /// `shippedWalkedRev`); the reverse count includes **13,348 bent reverse
-  /// walks** shipped with [routeHeadSlack] marked, and the forward count
-  /// includes **7,035 into-node closes** (`shippedWalkedIntoNode`) whose
+  /// Corpus census (7,524 VIs; pinned by `wire_route_census_test`): the
+  /// standard closed tier ships **131,258** exact closures
+  /// (`shippedClosed`). The one-anchored walked tier adds **71,155
+  /// forward + 48,573 reverse = 119,728** more (`shippedWalkedFwd` +
+  /// `shippedWalkedRev`); the reverse count includes the bent reverse
+  /// walks shipped with [routeHeadSlack] marked, and the forward count
+  /// includes **7,630 into-node closes** (`shippedWalkedIntoNode`) whose
   /// last decoded bend enters the far node INTERIOR and whose truncated
   /// polyline the consumer completes along [routeClosingStep]. The rest of
   /// the single-anchor population (`oneAnchorUnshipped`) stay withheld:
-  /// coarse or left-shift-register-bent anchors, out-of-box termini,
+  /// coarse anchors, out-of-box termini,
   /// degenerate zero-segment into-node closes, and no-far-box. Independent
   /// quality check
   /// (`wire_one_anchored_oracle`, over the well-registered snippets its
   /// closed-tier registration control admits): shipped walked paths overlay
-  /// LabVIEW's snippet ink at **99.7%** (38,302/38,409 px) with **zero** shipped
+  /// LabVIEW's snippet ink at **99.7%** (39,763/39,870 px) with **zero** shipped
   /// wires below 50% overlay (`oa2_ship_qlo == 0`, a census law; the into-node
   /// ships are ALSO isolated as `oa2_into` with their own zero-gross-miss law,
   /// overlaying 100% — 2,568/2,568 px — on their own) — at the closed control's
@@ -2163,8 +2206,8 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// (above). Total on any decoded route.
 ///
 /// This is pure geometry: [ViWire.routePoints] applies the shipping gate
-/// (exact anchor, cross-axis containment, no left-shift-register bent
-/// anchor) and the reference-pixel validation (`wire_one_anchored_oracle`,
+/// (exact anchor, cross-axis containment) and the
+/// reference-pixel validation (`wire_one_anchored_oracle`,
 /// which pins the shipped-tier overlay and the worse withheld-walk
 /// overlay). Coarse anchors are computed here so the oracle can measure
 /// them, but are not shipped.
@@ -2422,7 +2465,9 @@ class ViDiagram {
       // Lazy: the walk + closure runs only when a consumer reads routeTree.
       routeTreeBuilder: branchRoute == null
           ? null
-          : () => _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]),
+          : () =>
+                _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]) ??
+                _dcoChildRouteTree(branchRoute, object.refs, attachPoints, altAttachPoints, stripTargets),
       signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
     );
   }
@@ -2445,14 +2490,10 @@ class ViDiagram {
   /// reverse walk carries the head's undecoded terminal depth on
   /// [ViWire.routeHeadSlack] — and only when the walk's cross-axis
   /// containment holds
-  /// (the terminus lands within the far box span). A LEFT shift-register anchor
-  /// ([kLeftShiftRegisterClass]) with bends is withheld: its drawn connection
-  /// column is one column off the resolved box centre by an offset the corpus
-  /// does not yet expose, which a bent walk carries onto its perpendicular runs,
-  /// missing the ink (census on `wire_one_anchored_oracle`). The RIGHT register
-  /// ([kRightShiftRegisterClass]) is not withheld — its column offset IS decoded
-  /// ([kShiftRegisterColumnLeftOffset]), so the anchor lands on the drawn
-  /// column and the bent walk overlays the ink.
+  /// (the terminus lands within the far box span). Both shift registers'
+  /// connection columns are decoded ([kShiftRegisterColumnLeftOffset] /
+  /// [kShiftRegisterColumnRightOffset]), so a bent walk anchored on either
+  /// register lands on the drawn column.
   ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack})? _routePointsFor(
     ViWireRoute route,
     List<int> refs,
@@ -2487,10 +2528,7 @@ class ViDiagram {
     } else {
       return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
     }
-    if (_exactAttach(refs[anchoredIndex]) &&
-        // Left shift-register anchor with bends: its undecoded column offset
-        // drifts the perpendicular runs off the ink (see above).
-        !(route.segmentLengths.isNotEmpty && _isLeftShiftRegisterTerminal(refs[anchoredIndex]))) {
+    if (_exactAttach(refs[anchoredIndex])) {
       final farBox = anchors[1 - anchoredIndex];
       if (farBox != null) {
         final walked = walkOneAnchoredRoute(
@@ -2594,14 +2632,6 @@ class ViDiagram {
             headSlack: walked.headSlack,
           );
   }
-
-  /// Whether [oid]'s attach terminal is a **left shift-register**
-  /// ([kLeftShiftRegisterClass]). Its wire connection sits one column off the
-  /// box centre by an offset the corpus does not yet expose, so a bent walk
-  /// anchored on it drifts and is withheld ([_routePointsFor]). The right
-  /// register's ([kRightShiftRegisterClass]) offset is decoded, so it is not
-  /// withheld.
-  bool _isLeftShiftRegisterTerminal(int oid) => endpointTerminal(oid)?.kind == kLeftShiftRegisterClass;
 
   /// Whether [oid]'s attach point is **exact**: it resolves a terminal whose
   /// real composing frame (the nearest bounded ancestor of the terminal's
@@ -2785,6 +2815,65 @@ class ViDiagram {
     }
     if (solved == null) return null;
     return (tree: walkWireBranchRoute(route, solved), fidelity: WireRouteFidelity.walked);
+  }
+
+  /// The **DCO-child closed** branching tier — the branching analog of the
+  /// two-endpoint [_dcoChildTierPoints] closed tier, consulted only after
+  /// [_shippableRouteTree] (and its reverse-solved gate) declined. Applies
+  /// only when the ORIGIN resolves no standard attach point: each origin
+  /// candidate from [dcoChildTerminalAttach] walks the stored tree, and the
+  /// tier ships — as [WireRouteFidelity.closed] — only when EVERY far
+  /// endpoint closes zero-slack onto a distinct walked leaf via one of its
+  /// destination candidates (the strip-column target, the standard/alternate
+  /// attach points, or its own [dcoChildTerminalAttach] candidates, in that
+  /// order). Nothing rides the walk: an endpoint with no candidate, or one
+  /// the walk misses, withholds the tree.
+  ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _dcoChildRouteTree(
+    ViWireBranchRoute route,
+    List<int> refs,
+    List<ViPoint?> attachPoints,
+    List<ViPoint?> altAttachPoints,
+    List<ViPoint?> stripTargets,
+  ) {
+    if (attachPoints.length < 3 || attachPoints[0] != null) return null;
+    final origins = dcoChildTerminalAttach(refs[0])?.candidates;
+    if (origins == null) return null;
+    for (final origin in origins) {
+      final tree = walkWireBranchRoute(route, origin);
+      final leaves = tree.leaves;
+      if (leaves.length != attachPoints.length - 1) continue;
+      final remaining = <ViPoint, int>{};
+      for (final leaf in leaves) {
+        remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
+      }
+      var closed = true;
+      for (var i = 1; i < attachPoints.length; i++) {
+        ViPoint? match;
+        for (final candidate in [
+          stripTargets[i],
+          attachPoints[i],
+          altAttachPoints[i],
+          ...?dcoChildTerminalAttach(refs[i])?.candidates,
+        ]) {
+          if (candidate != null && remaining.containsKey(candidate)) {
+            match = candidate;
+            break;
+          }
+        }
+        if (match == null) {
+          closed = false;
+          break;
+        }
+        final count = remaining[match]!;
+        if (count == 1) {
+          remaining.remove(match);
+        } else {
+          remaining[match] = count - 1;
+        }
+      }
+      if (closed) return (tree: tree, fidelity: WireRouteFidelity.closed);
+    }
+    return null;
   }
 
   /// Member oid → the oid of the **terminal object** that declares it in its
@@ -3056,7 +3145,7 @@ class ViDiagram {
   ///
   /// Corpus (7,524 VIs; pinned by `wire_route_census_test`): before this
   /// tier 139,907 two-endpoint tables shipped no route and 139,072 of them
-  /// resolve this fallback on at least one end; 104,931 close zero-slack
+  /// resolve this fallback on at least one end; 103,652 close zero-slack
   /// against it (`shippedClosedDcoChild`) and 2,705 more ship as wide-row
   /// anchored walks (`shippedWalkedDcoRow`). A part TALLER than one row can
   /// carry its centre off the true connection row (reference-read on a
@@ -3114,14 +3203,14 @@ class ViDiagram {
   /// are bounds-less corpus-wide (0 of 862,159 carry bounds, a pinned
   /// law), and a bounded one would not make its box an attach rect.
   ///
-  /// **Right shift register ([kRightShiftRegisterClass]) exception**: the
-  /// stored-route connection column sits [kShiftRegisterColumnLeftOffset] px
-  /// LEFT of the register rect's centre, so the resolved attach point subtracts
-  /// that offset from the floored-centre x. Only the x moves; the y stays the
-  /// floored centre (pinned by the vertical-first walk and by every crossing
-  /// row). See [kShiftRegisterColumnLeftOffset] for the render-oracle evidence.
-  /// The left register ([kLeftShiftRegisterClass]) keeps the plain centre — its
-  /// column offset is unobserved. The offset applies only to a resolved attach
+  /// **Shift-register ([kRightShiftRegisterClass] /
+  /// [kLeftShiftRegisterClass]) exception**: the stored-route connection
+  /// column sits one column toward the loop INTERIOR of the register rect's
+  /// centre — [kShiftRegisterColumnLeftOffset] px left for the right register,
+  /// [kShiftRegisterColumnRightOffset] px right for the left register. Only
+  /// the x moves; the y stays the floored centre (pinned by the vertical-first
+  /// walk and by every crossing row). See the two constants for the
+  /// render-oracle evidence. The offset applies only to a resolved attach
   /// rect (a terminal/constant bounds), never the own-bounds `0x16` fallback.
   ViPoint? _attachPointFrom(HeapRect? attachRect, int oid) {
     var rect = attachRect;
@@ -3133,8 +3222,13 @@ class ViDiagram {
       if (rect == null) return null;
     }
     var x = rect.left + (rect.right - rect.left) ~/ 2;
-    if (attachRect != null && endpointTerminal(oid)?.kind == kRightShiftRegisterClass) {
-      x -= kShiftRegisterColumnLeftOffset;
+    if (attachRect != null) {
+      final terminalKind = endpointTerminal(oid)?.kind;
+      if (terminalKind == kRightShiftRegisterClass) {
+        x -= kShiftRegisterColumnLeftOffset;
+      } else if (terminalKind == kLeftShiftRegisterClass) {
+        x += kShiftRegisterColumnRightOffset;
+      }
     }
     return (x: x, y: rect.top + (rect.bottom - rect.top) ~/ 2);
   }
@@ -3245,6 +3339,22 @@ int? _attrScalarBytes(HeapAttrWidth width) => switch (width) {
   _ => null,
 };
 
+/// An attribute record's value payload as flat bytes: the length-prefixed
+/// payload verbatim, or a scalar re-serialised big-endian at its stored
+/// width. Null for the zero-byte flag form and non-integer scalars.
+Uint8List? _attrFlatBytes(HeapAttr record) {
+  final raw = record.rawValueBytes;
+  if (raw != null) return raw;
+  final scalarBytes = _attrScalarBytes(record.width);
+  final value = record.asInt;
+  if (scalarBytes == null || scalarBytes == 0 || value == null) return null;
+  final out = Uint8List(scalarBytes);
+  for (var i = 0; i < scalarBytes; i++) {
+    out[i] = (value >> (8 * (scalarBytes - 1 - i))) & 0xff;
+  }
+  return out;
+}
+
 /// An integer scalar is certain only below this (2²³): a 4-byte scalar at or
 /// above it has a nonzero SGL exponent field, i.e. its bits also read as a
 /// **representable normal single** (≥ ~1.2e-38), so the integer reading is not
@@ -3314,12 +3424,13 @@ String? decodeFlatPathText(Uint8List? raw) {
   return segments.join(r'\');
 }
 
-/// Decodes the **value of a block-diagram constant** from its `0x26C`
-/// ([HeapAttribute.constValue]) [record] without resolving the constant's VCTP
-/// type — the payload is typed by the constant's value-carrier class
-/// [innerKind] (the `0x13` [HeapObjectClass.bdConstDco]'s first nested child)
-/// plus payload-shape gates, and every gate declines rather than guessing.
-/// Returns a [bool], [int], finite [double], or null (not decoded).
+/// The **type-independent FALLBACK tier** of [decodeBdConstValues]: decodes a
+/// BD constant's captured `0x26C` payload ([flat], stored at a [scalar]
+/// magnitude width or a length-prefixed container/blob) without a VCTP type —
+/// the payload is typed by the constant's value-carrier class [innerKind]
+/// (the `0x13` [HeapObjectClass.bdConstDco]'s first nested child) plus
+/// payload-shape gates, and every gate declines rather than guessing.
+/// Returns a [bool], [int], finite [double], [String], or null (not decoded).
 ///
 /// Corpus (7,524 VIs; 54,801 constants, each carrying exactly one value record
 /// — census on [HeapAttribute.constValue]); "ground truth" = decoded constants
@@ -3358,39 +3469,56 @@ String? decodeFlatPathText(Uint8List? raw) {
 /// wrappers) + 23 composite-slot byte-coincidences. The remaining 16,013
 /// constants (compound arrays/clusters/paths, 16/32-byte extendeds, ambiguous
 /// scalars and 8-byte payloads) are framed but not value-decoded.
-Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record, bool hasEnumItems = false}) {
-  final scalarBytes = _attrScalarBytes(record.width);
-  final v = record.asInt;
-  final raw = record.width == HeapAttrWidth.container ? record.rawValueBytes : null;
+Object? decodeBdConstantValue({
+  required int? innerKind,
+  required Uint8List? flat,
+  required bool scalar,
+  bool hasEnumItems = false,
+}) {
+  if (flat == null) return null;
+  final scalarBytes = scalar ? flat.length : null;
+  int? scalarValue;
+  if (scalar) {
+    var magnitude = 0;
+    for (final byte in flat) {
+      magnitude = (magnitude << 8) | byte;
+    }
+    scalarValue = magnitude;
+  }
+  // The length-prefixed payload (container or validated blob; a blob is
+  // printable-validated text, so the all-zero and 8-byte-f64 content gates
+  // below can never fire on one).
+  final raw = scalar ? null : flat;
   final carrier = innerKind == null ? HeapObjectClass.unknown : HeapObjectClass.fromCode(innerKind);
   switch (carrier) {
     case HeapObjectClass.pathControl:
-      return decodeFlatPathText(record.rawValueBytes);
+      return decodeFlatPathText(raw);
     case HeapObjectClass.stringOrArrayControl:
       // The 8-byte `[u32 strLen][ascii]` form: [decodeHeapAttr]'s u32-string
       // gate excludes length 8 (width-ambiguous with a stored f64 without the
       // carrier class in view), so the string carrier resolves it here. The
       // framing must be exact (strLen + 4 == payload) and fully printable —
       // Excel_Read_XLSX's `INIT` is the reference-render pin.
-      final u32String = record.rawValueBytes;
-      if (u32String != null && u32String.length == 8) {
-        final strLen = ByteData.sublistView(u32String).getUint32(0);
-        if (strLen == 4 && u32String.skip(4).every((b) => b >= 0x20 && b < 0x7f)) {
-          return String.fromCharCodes(u32String, 4);
+      if (raw != null && raw.length == 8) {
+        final strLen = ByteData.sublistView(raw).getUint32(0);
+        if (strLen == 4 && raw.skip(4).every((b) => b >= 0x20 && b < 0x7f)) {
+          return String.fromCharCodes(raw, 4);
         }
       }
       return null;
     case HeapObjectClass.booleanOrClusterControl:
-      if (scalarBytes != null && scalarBytes <= 2 && (v == 0 || v == 1)) return v == 1;
+      if (scalarBytes != null && scalarBytes <= 2 && (scalarValue == 0 || scalarValue == 1)) {
+        return scalarValue == 1;
+      }
       return null;
     case HeapObjectClass.enumRingControl when hasEnumItems:
     case HeapObjectClass.clusterShell when hasEnumItems:
     case HeapObjectClass.numericControl:
-      if (scalarBytes != null && v != null) {
-        if (v == 0 || scalarBytes == 0) return v;
-        final leading = (v >>> (8 * (scalarBytes - 1))) & 0xff;
-        if (leading >= 0x80 || v >= _intCertainCeil) return null;
-        return v;
+      if (scalarBytes != null && scalarValue != null) {
+        if (scalarValue == 0) return scalarValue;
+        final leading = (scalarValue >>> (8 * (scalarBytes - 1))) & 0xff;
+        if (leading >= 0x80 || scalarValue >= _intCertainCeil) return null;
+        return scalarValue;
       }
       if (carrier != HeapObjectClass.numericControl || raw == null) return null;
       if (_zeroPayloadLengths.contains(raw.length) && raw.every((byte) => byte == 0)) {
@@ -3398,9 +3526,11 @@ Object? decodeBdConstantValue({required int? innerKind, required HeapAttr record
       }
       if (raw.length == 8) {
         // An all-zero 8-byte payload lands here as +0.0.
-        final d = ByteData.sublistView(raw).getFloat64(0);
-        if (!d.isFinite) return null;
-        if (d == 0 || (d.abs() >= _dblWindowFloor && d.abs() <= _dblWindowCeil)) return d;
+        final f64Reading = ByteData.sublistView(raw).getFloat64(0);
+        if (!f64Reading.isFinite) return null;
+        if (f64Reading == 0 || (f64Reading.abs() >= _dblWindowFloor && f64Reading.abs() <= _dblWindowCeil)) {
+          return f64Reading;
+        }
       }
       return null;
     default:
@@ -3419,7 +3549,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
   final formatPayloads = <ViHeapObject, List<int>>{};
-  final constRecs = <ViHeapObject, HeapAttr>{};
   final absTop = <ViHeapObject, int>{};
   final absLeft = <ViHeapObject, int>{};
   final liveParent = <ViHeapObject, ViHeapObject?>{};
@@ -3520,9 +3649,24 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
         // A BD constant's flattened value record scopes to the 0x13 DCO itself
         // (record census on [HeapAttribute.constValue]). First-wins is
-        // trivially safe: no corpus constant carries a second record.
-        if (attr.attribute == HeapAttribute.constValue && cur.kind == HeapObjectClass.bdConstDco.code) {
-          constRecs[cur] ??= attr;
+        // trivially safe: no corpus constant carries a second record. CAPTURE
+        // only — the value is interpreted later by [decodeBdConstValues],
+        // once data-space types have resolved.
+        if (attr.attribute == HeapAttribute.constValue &&
+            cur.kind == HeapObjectClass.bdConstDco.code &&
+            cur.constValueRaw == null) {
+          cur.constValueRaw = _attrFlatBytes(attr);
+          cur.constValueScalar = _attrScalarBytes(attr.width) != null;
+        }
+        // The numeric display window's printf-style display format
+        // ([HeapAttribute.formatStyle], raw 0x074). Corpus: 32,440 records,
+        // every one printable '%'-led text (scalar widths carry the bytes
+        // magnitude-encoded big-endian, e.g. 0x25303878 = "%08x").
+        if (attr.attribute == HeapAttribute.formatStyle) {
+          final bytes = _attrFlatBytes(attr);
+          if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
+            cur.displayFormat ??= String.fromCharCodes(bytes);
+          }
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
@@ -3704,40 +3848,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   }
 
   final nodeKids = _childrenByParentOid(objects);
-
-  // Decode BD constant values: the value carrier class is the constant DCO's
-  // first nested child (see [HeapObjectClass.bdConstDco]); enum items may sit
-  // on any descendant, so the item probe walks the whole subtree — but only
-  // for the enum-shaped carriers that consume it.
-  if (constRecs.isNotEmpty) {
-    // Depth-capped: the positional tree is stack-balanced, but oids are not
-    // guaranteed unique, so an oid-keyed descent must not trust acyclicity.
-    bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
-      if (o.items.isNotEmpty) return true;
-      if (depth >= 16) return false;
-      for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
-        if (subtreeHasItems(kid, depth + 1)) return true;
-      }
-      return false;
-    }
-
-    for (final entry in constRecs.entries) {
-      final object = entry.key;
-      final kids = nodeKids[object.oid];
-      if (kids == null || kids.isEmpty) continue;
-      final carrierKind = kids.first.kind;
-      final wantsItems =
-          carrierKind == HeapObjectClass.enumRingControl.code || carrierKind == HeapObjectClass.clusterShell.code;
-      final value = decodeBdConstantValue(
-        innerKind: carrierKind,
-        record: entry.value,
-        hasEnumItems: wantsItems && subtreeHasItems(object),
-      );
-      if (value is bool) object.constBool = value;
-      if (value is num) object.constNumeric = value;
-      if (value is String) object.constText ??= value;
-    }
-  }
 
   for (final object in objects) {
     if (object.category != ViObjectKind.unknown) continue;
@@ -3949,6 +4059,10 @@ final Map<int, bool Function(ViDataType)> _typeAnchors = {
 /// [ViHeapObject.typeKind] — the pool descriptor is the VI's own type
 /// declaration, where the `C4 74` format inference is a guess — so colour
 /// and glyph can never disagree.
+///
+/// Ends by running [decodeBdConstValues] over every diagram — the single
+/// BD-constant value decode pass, deliberately placed after type resolution
+/// so the typed tier has every resolvable type in hand.
 void resolveDataSpaceTypes({
   required List<ViType> pool,
   required List<int> table,
@@ -3989,6 +4103,26 @@ void resolveDataSpaceTypes({
     }
   }
 
+  _resolveTypeIndices(pool: pool, table: table, blockDiagrams: blockDiagrams, diagrams: diagrams, findDco: findDco);
+
+  // The single BD-constant value decode pass, now that every resolvable type
+  // is on its object. Runs unconditionally: on a VI whose base never
+  // calibrates nothing resolves and the pass is fallback-only.
+  for (final diagram in diagrams) {
+    decodeBdConstValues(diagram);
+  }
+}
+
+/// The table+base type resolution behind [resolveDataSpaceTypes] (see its
+/// doc for the calibration law); split out so the decode pass that follows
+/// it runs even when calibration declines.
+void _resolveTypeIndices({
+  required List<ViType> pool,
+  required List<int> table,
+  required List<ViDiagram> blockDiagrams,
+  required List<ViDiagram> diagrams,
+  required ViHeapObject? Function(ViDiagram own, int oid) findDco,
+}) {
   if (pool.isEmpty || table.isEmpty) return;
 
   ViType? resolve(int base, int index) {
@@ -4071,5 +4205,157 @@ void resolveDataSpaceTypes({
       }
       object.typeName ??= dco.typeName;
     }
+  }
+}
+
+/// Flat serialized byte size of a fixed-width numeric [ViDataType], or null
+/// for every other kind.
+int? _flatNumericSize(ViDataType kind) => switch (kind) {
+  ViDataType.i8 || ViDataType.u8 || ViDataType.enumU8 => 1,
+  ViDataType.i16 || ViDataType.u16 || ViDataType.enumU16 => 2,
+  ViDataType.i32 || ViDataType.u32 || ViDataType.enumU32 || ViDataType.sgl => 4,
+  ViDataType.i64 || ViDataType.u64 || ViDataType.dbl => 8,
+  _ => null,
+};
+
+/// One numeric element read big-endian from [flat] at [offset], typed by
+/// [kind]: signed integers two's-complement at full width, sgl/dbl IEEE-754,
+/// everything else unsigned. (An i64/u64 top-bit value lands in Dart's
+/// wrapped 64-bit int.)
+num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
+  if (kind == ViDataType.sgl) return ByteData.sublistView(flat).getFloat32(offset);
+  if (kind == ViDataType.dbl) return ByteData.sublistView(flat).getFloat64(offset);
+  var value = 0;
+  for (var i = 0; i < size; i++) {
+    value = (value << 8) | flat[offset + i];
+  }
+  final signed = kind == ViDataType.i8 || kind == ViDataType.i16 || kind == ViDataType.i32 || kind == ViDataType.i64;
+  return signed ? value.toSigned(8 * size) : value;
+}
+
+/// The **TYPED tier** of [decodeBdConstValues]: decodes a BD constant's
+/// captured payload strictly by its **resolved data-space type**
+/// ([ViHeapObject.resolvedType] over [constValueRaw]). Every gate declines
+/// rather than guessing. Corpus (7,524 VIs, resolved-type constants only):
+///
+///   * **numeric scalar** — a fixed-width numeric type whose scalar payload
+///     fits the type's width decodes as that type: unsigned/enum as stored,
+///     signed two's-complement at full width, `sgl` as its IEEE-754 bits
+///     (the SGL-alias and sign ambiguities of the type-independent gates are
+///     settled by the descriptor). 5,211 of 5,730 integer-typed scalars fit
+///     (877 of them beyond the type-independent gates); the 519 stored WIDER
+///     than their type (e.g. a 3-byte scalar on a u16 type) are declined —
+///     TODO: their encoding is not yet decoded.
+///   * **array** — `[u32 × dimCount dims][elements big-endian]` for a
+///     resolved array of a fixed-width numeric element ([constArray] /
+///     [constArrayDims]): 205 payloads match the length law exactly and 322
+///     empty arrays (every dim 0) carry exactly one trailing zero pad byte;
+///     5 length mismatches and 2 dims-truncated payloads decline. Non-numeric
+///     element kinds (string/path/cluster/…, 1,107 constants) are not yet
+///     decoded (TODO).
+///
+/// Boolean, string and path types have no typed layout law here yet — their
+/// populations decode entirely through the fallback tier's carrier-class
+/// gates (whose corpus census they own).
+void _typedBdConstDecode(ViHeapObject object) {
+  final flat = object.constValueRaw;
+  final type = object.resolvedType;
+  if (flat == null || type == null) return;
+  final scalarSize = _flatNumericSize(type.kind);
+  if (scalarSize != null) {
+    if (flat.isEmpty || flat.length > scalarSize) return;
+    // A payload narrower than the type is the value's zero-extended
+    // magnitude; sgl/dbl and signed readings need the full width.
+    if (flat.length < scalarSize && (type.kind == ViDataType.sgl || type.kind == ViDataType.dbl)) {
+      return;
+    }
+    final size = flat.length;
+    final kind = size < scalarSize ? ViDataType.u64 : type.kind;
+    final value = _flatNumericAt(flat, 0, kind, size);
+    if (value is double && !value.isFinite) return;
+    object.constNumeric = value;
+    return;
+  }
+  if (type.kind != ViDataType.array) return;
+  final element = object.resolvedElementType;
+  final dimCount = type.dimCount;
+  if (element == null || dimCount == null || dimCount < 1 || dimCount > 8) {
+    return;
+  }
+  final elementSize = _flatNumericSize(element.kind);
+  if (elementSize == null || flat.length < 4 * dimCount) return;
+  final view = ByteData.sublistView(flat);
+  final dims = [for (var d = 0; d < dimCount; d++) view.getUint32(4 * d)];
+  var count = 1;
+  for (final dim in dims) {
+    count *= dim;
+  }
+  final expected = 4 * dimCount + count * elementSize;
+  final emptyPadded = count == 0 && flat.length == 4 * dimCount + 1 && flat.last == 0;
+  if (flat.length != expected && !emptyPadded) return;
+  object.constArrayDims = dims;
+  object.constArray = [
+    for (var i = 0; i < count; i++) _flatNumericAt(flat, 4 * dimCount + i * elementSize, element.kind, elementSize),
+  ];
+}
+
+/// Decodes every BD constant's value in [diagram] — the single decode pass.
+/// The architecture: heap parse ([buildDiagram]) only CAPTURES the flattened
+/// `0x26C` payload ([ViHeapObject.constValueRaw] + its stored width form);
+/// [resolveDataSpaceTypes] then resolves each object's data-space type; this
+/// pass, run once after that, does all value interpretation. Two tiers, one
+/// precedence: the typed law first ([_typedBdConstDecode], strict by the
+/// resolved type), then the type-independent carrier-class rules
+/// ([decodeBdConstantValue]) for whatever the typed tier left undecoded —
+/// including constants whose type never resolved.
+///
+/// The fallback runs on a typed DECLINE too, not only on an unresolved type,
+/// because the corpus shows the constant-DCO type resolution mis-assigns for
+/// a minority — payload+carrier evidence contradicts the resolved kind (an
+/// 8-byte IEEE-754 payload on an i32-resolved constant; a `{0,1}` `0x4f`
+/// boolean payload on a string-resolved constant) — while the type-free
+/// gates still decode: corpus (7,524 VIs) 2,082 containered zeros, 88
+/// payloads wider than their resolved type, 24 narrower than their resolved
+/// float type, 2,404 numerics on resolved kinds with no typed layout law
+/// (typeDef/string/boolean/refnum/cluster/void/…), 600 booleans and 1,469
+/// texts on non-boolean/non-string-resolved constants. TODO: decode where
+/// those constants' `typeDescIndex` actually points. The tier ORDER is
+/// value-neutral on the whole corpus: everywhere both tiers land (4,347
+/// integer + 454 double constants) they agree exactly, so the typed tier
+/// never contradicts the carrier-class census and vice versa.
+void decodeBdConstValues(ViDiagram diagram) {
+  final nodeKids = _childrenByParentOid(diagram.objects);
+  // Depth-capped: the positional tree is stack-balanced, but oids are not
+  // guaranteed unique, so an oid-keyed descent must not trust acyclicity.
+  bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
+    if (o.items.isNotEmpty) return true;
+    if (depth >= 16) return false;
+    for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
+      if (subtreeHasItems(kid, depth + 1)) return true;
+    }
+    return false;
+  }
+
+  for (final object in diagram.objects) {
+    if (object.kind != HeapObjectClass.bdConstDco.code || object.constValueRaw == null) continue;
+    _typedBdConstDecode(object);
+    // The value carrier class is the constant DCO's first nested child (see
+    // [HeapObjectClass.bdConstDco]); enum items may sit on any descendant,
+    // so the item probe walks the whole subtree — but only for the
+    // enum-shaped carriers that consume it.
+    final kids = nodeKids[object.oid];
+    if (kids == null || kids.isEmpty) continue;
+    final carrierKind = kids.first.kind;
+    final wantsItems =
+        carrierKind == HeapObjectClass.enumRingControl.code || carrierKind == HeapObjectClass.clusterShell.code;
+    final value = decodeBdConstantValue(
+      innerKind: carrierKind,
+      flat: object.constValueRaw,
+      scalar: object.constValueScalar,
+      hasEnumItems: wantsItems && subtreeHasItems(object),
+    );
+    if (value is bool) object.constBool ??= value;
+    if (value is num) object.constNumeric ??= value;
+    if (value is String) object.constText ??= value;
   }
 }

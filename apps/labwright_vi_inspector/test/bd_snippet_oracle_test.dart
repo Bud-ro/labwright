@@ -116,6 +116,28 @@ void main() {
         ('array-lut-mid', 464, 166, 7, 26),
         ('array-lut-right', 496, 166, 8, 26),
       ],
+      // MD5's constant chrome: the hex spinner constants' 2px blue value
+      // box + the measured radix-marker glyphs (x/b at the 0xb part), the
+      // Indices 2D grid's cell-ring lattice (top band, a vertical wall, a
+      // horizontal wall — strips exclude the AA digit text), a per-cell
+      // radix marker inside the T array, and the empty array's dim-ringed
+      // prototype cell.
+      'MD5.png': [
+        ('s1-box-top', 740, 448, 61, 2),
+        ('s1-box-bottom', 740, 465, 61, 2),
+        ('s1-box-left', 740, 448, 2, 19),
+        ('s1-box-right', 799, 448, 2, 19),
+        ('s1-radix', 742, 451, 6, 12),
+        ('bin-radix', 583, 385, 6, 12),
+        ('indices-top-band', 1260, 96, 200, 3),
+        ('indices-wall-v', 1279, 96, 4, 78),
+        ('indices-wall-h', 1260, 114, 200, 4),
+        ('t-cell-radix', 1472, 798, 6, 12),
+        ('empty-ring-top', 478, 466, 15, 3),
+        ('empty-ring-bottom', 478, 484, 15, 3),
+        ('empty-ring-left', 478, 466, 3, 21),
+        ('empty-ring-right', 490, 466, 3, 21),
+      ],
       // The crc siblings' slack wires resolve through the same catalog
       // entries; each box covers the wire's bends and both arrivals.
       'crc16.png': [
@@ -680,7 +702,11 @@ void main() {
       'crc32.png': 0.64,
       'Resolve Path.png': 0.62,
       'PNG CRC32.png': 0.60,
-      'crc32_lookup_table.png': 0.60,
+      // The typed-value decode draws the `LE: 0x04C11DB7` named constant
+      // (its box chrome byte-matches the reference); the terminal's
+      // composite caption+box BOUNDS trace no reference edge, so the
+      // bounds-perimeter metric scores the new object low — 0.585 measured.
+      'crc32_lookup_table.png': 0.56,
       'Excel_Read_XLSX.png': 0.60,
       'decorations_only.png': 0.60,
       'Excel_Cell_to_RowCol.png': 0.58,

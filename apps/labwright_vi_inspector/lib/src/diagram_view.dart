@@ -431,6 +431,20 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         }
       }
     }
+    // ARRAY GRID CELLS ARE PAINTED, NOT REAL: an array constant stores ONE
+    // element prototype (`0x50`) plus the index spinners — every other grid
+    // cell is furniture the shell painter tiles from that prototype,
+    // enumerating [ViHeapObject.constArray]. There is no heap object per
+    // cell to select, and the wrap/window `0x9` parts are scaffolding
+    // ([_isScaffolding]) outside the hit list, so a click on a painted cell
+    // lands on no real child at all. It still resolves usefully with no
+    // special case: the `0x52` shell itself is in the hit list and contains
+    // the point, so the smallest-area rule selects the array container —
+    // the object that actually owns the pixels — while clicks on the
+    // prototype or spinners keep selecting those real children. (The `0x13`
+    // const holder carrying the decoded values would be the other candidate,
+    // but it has no bounds — no selection outline could be drawn for it and
+    // the details card would show a bare record.)
     setState(() {
       _selected = hit;
       _members = hit != null && hit.category == ViObjectKind.structure
@@ -997,12 +1011,78 @@ Map<int, String> bdConstValueTexts(ViDiagram diagram) {
     final parent = byId[object.parentOid ?? -1];
     final value = parent?.kind == 0x13 ? parent!.constNumeric : null;
     if (value == null) continue;
-    out[object.oid] = value is double && value == value.roundToDouble()
-        ? value.toInt().toString()
-        : value.toString();
+    out[object.oid] = bdFormatConstValue(
+      value,
+      bdDisplayFormatOf(diagram, object.oid),
+    );
   }
   return out;
 }
+
+/// The decoded printf-style display format of [oid]'s value window — the
+/// `0xe0` display part's [ViHeapObject.displayFormat] — or null.
+String? bdDisplayFormatOf(ViDiagram diagram, int oid) {
+  for (final part in diagram.children(oid)) {
+    if (part.kind == 0xe0 && part.displayFormat != null) {
+      return part.displayFormat;
+    }
+  }
+  return null;
+}
+
+/// The conversion letter of a `%`-led printf-style display [format] (`x` for
+/// `%08x`, `f` for `%.0f`), or null when [format] is absent or unparsable.
+String? bdFormatConversion(String? format) => format == null
+    ? null
+    : RegExp(r'^%[-+ #0]*\d*(?:\.\d+)?([a-zA-Z])').firstMatch(format)?.group(1);
+
+/// The digit text a constant box displays for [value] under its decoded
+/// display [format] ([ViHeapObject.displayFormat]): the hex/octal/binary
+/// conversions render the rounded integer in that radix (hex uppercase,
+/// zero-padded to the format's field width under its `0` flag — MD5's `%08x`
+/// initials read `67452301`); everything else keeps the decimal literal (a
+/// whole-valued double without the trailing `.0`). The radix MARKER (the
+/// small `x`/`b` glyph LabVIEW puts before the digits) is separate chrome
+/// ([kBdRadixMarkerGlyphs]), not part of this text. A negative integer's
+/// radix rendering is width-dependent (two's complement at the stored type's
+/// width) and falls back to decimal until reference-measured (TODO).
+String bdFormatConstValue(num value, String? format) {
+  final match = format == null
+      ? null
+      : RegExp(r'^%([-+ #0]*)(\d*)(?:\.\d+)?([a-zA-Z])').firstMatch(format);
+  final radix = switch (match?.group(3)) {
+    'x' || 'X' => 16,
+    'o' => 8,
+    'b' || 'B' => 2,
+    _ => null,
+  };
+  final whole = value is double && value == value.roundToDouble()
+      ? value.toInt()
+      : value;
+  if (radix != null && whole is int && whole >= 0) {
+    var text = whole.toRadixString(radix).toUpperCase();
+    final width = int.tryParse(match!.group(2) ?? '') ?? 0;
+    if (match.group(1)!.contains('0') && text.length < width) {
+      text = text.padLeft(width, '0');
+    }
+    return text;
+  }
+  return whole.toString();
+}
+
+/// The measured radix-marker glyphs LabVIEW draws before a non-decimal
+/// constant's digits, inside the constant's `0xb` radix part: `#` rows at
+/// the glyph's offset from the part's top-left corner, inked in the type
+/// colour. Byte-measured on MD5's `%08x` initials (the 4×4 `x`) and its
+/// `%08b` feeders (the 4×6 `b`); both share the baseline at part top+9.
+/// The octal marker is not yet reference-measured, so `o` draws nothing
+/// (TODO).
+const Map<String, (int, int, List<String>)> kBdRadixMarkerGlyphs = {
+  'x': (1, 5, ['#..#', '.##.', '.##.', '#..#']),
+  'X': (1, 5, ['#..#', '.##.', '.##.', '#..#']),
+  'b': (1, 3, ['#...', '#...', '###.', '#..#', '#..#', '###.']),
+  'B': (1, 3, ['#...', '#...', '###.', '#..#', '#..#', '###.']),
+};
 
 /// Packs a rectangle's four `s16` edges into one int key for anchor↔terminal
 /// matching (each edge is offset into a non-negative 16-bit lane).
@@ -1770,6 +1850,65 @@ List<ViHeapObject> bdPaintOrder(
     [...drawable]
       ..sort((a, b) => _depthOf(a, byId).compareTo(_depthOf(b, byId)));
 
+/// The drawn wrap frames of an array-constant shell (`0x52` [shellOid]):
+/// the OUTERMOST bounded `0x9` parts (not strictly contained in a sibling
+/// `0x9`), except that a `0x9` which contains a `0x50` part draws only when
+/// it is that part's LARGEST container — a smaller container is a grid
+/// window / row-column overlay zone whose edges the cell rings cover (MD5's
+/// 1D grids hold an overlay zone straddling the element wrap's left wall:
+/// outermost, but not the element's largest container, and drawing it leaks
+/// a border corner below the index frame; crc8's index/element wraps
+/// overlap each other by a column and both still draw).
+///
+/// Shared by the shell painter (each wrap is an opaque white fill + 1 px
+/// border) and the wire container-face law: the wraps are the chrome a
+/// wire's visible run stops against — the shell's own box edge is not
+/// drawn ink.
+List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
+  final children = diagram.children(shellOid).toList();
+  bool contains(HeapRect outer, HeapRect inner) =>
+      outer.left <= inner.left &&
+      outer.top <= inner.top &&
+      outer.right >= inner.right &&
+      outer.bottom >= inner.bottom;
+  int largestContainerArea(HeapRect partBounds) {
+    var bestArea = -1;
+    for (final child in children) {
+      final bounds = child.absBounds;
+      if (child.kind != 0x9 ||
+          bounds == null ||
+          !contains(bounds, partBounds)) {
+        continue;
+      }
+      final area = bounds.width * bounds.height;
+      if (area > bestArea) bestArea = area;
+    }
+    return bestArea;
+  }
+
+  return [
+    for (final wrap in children)
+      if (wrap.kind == 0x9 && wrap.absBounds != null)
+        if (!children.any(
+              (other) =>
+                  other.kind == 0x9 &&
+                  !identical(other, wrap) &&
+                  other.absBounds != null &&
+                  contains(other.absBounds!, wrap.absBounds!) &&
+                  !contains(wrap.absBounds!, other.absBounds!),
+            ) &&
+            !children.any(
+              (part) =>
+                  part.kind == 0x50 &&
+                  part.absBounds != null &&
+                  contains(wrap.absBounds!, part.absBounds!) &&
+                  wrap.absBounds!.width * wrap.absBounds!.height <
+                      largestContainerArea(part.absBounds!),
+            ))
+          wrap.absBounds!,
+  ];
+}
+
 /// The content rectangle enclosing every object in [objects] (plus a fixed
 /// margin) — the canvas extent the view fits to and the oracle rasterises.
 /// [includeWires] is false for the view's zoom-to-fit (a misanchored wire run
@@ -1933,7 +2072,7 @@ PrimIconArt? primIconArtFor(
 /// Derivation: the corpus route census — a reverse walk with stored bends
 /// pins the origin's coordinate perpendicular to its closing axis, so
 /// wires of both closing parities assemble a terminal's full position
-/// (13,348 slack heads corpus-wide, every one a prim `0x15` DCO; the
+/// (every slack head corpus-wide is a prim `0x15` DCO; the
 /// `oa2_slack_head_dco` census law pins that identity). An axis stays null
 /// until pinned. Entries and their basis:
 ///  * prim 1063 t0: dy=16 corpus-unanimous; dx=22 measured once from the
@@ -1957,24 +2096,53 @@ PrimIconArt? primIconArtFor(
 ///    walked route slides onto the terminal; the reference's vertical run
 ///    pins the slide); the dy of both is corpus-unanimous in the census
 ///    table and agrees with the same reference rows.
+///  * MD5-reference entries (each pinned by a stored route whose bend
+///    column/row is visible ink, dy corpus-unanimous where the census has
+///    one): prim 1050 t0 dx=21 (bend column x=1418 = box.left + 21 + the
+///    stored 14); 1050 t1 dy=21 (riser tops at box.top + 21); 1082 t0
+///    (22, 16) (riser bottom row box.top + 16, bend column box.left + 22 +
+///    12); 1142 t0 dx=22 (bend column x=642); 1502 t0 (24, 15) (a branch
+///    trunk column x=345 = box.left + 24 + 13, its leaf rows pinning
+///    dy=15); 1056 t3 (10, 10) (that same ref-pinned trunk's walked leaf,
+///    corroborated by an independent arrival row box.top + 10); 1166 t2
+///    dx=26 (a slack wire's drawn column pins the slide at -5); 1900 t1
+///    dy=16 (an arrival seam's stroke rows); 1051 t2 (11, 11) / 1155 t1
+///    (10, 16) / 1156 t1 (10, 16) — the walked leaves of the branch route
+///    whose trunk column and leaf rows are the ref-pinned 1502-t0 ink
+///    (the stored edge lengths are exact, so a pinned origin pins every
+///    leaf).
 /// Growable classes move terminals with the box, hence the size key.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   // Multiply's triangle: inputs at art rows top+5 / top+15 (art top =
   // box.top+6), output mid-height — Excel_Read_XLSX rows 1146/1156 on the
   // (1135,477) node.
+  (1050, 0, 32, 32): (dx: 21, dy: 16),
+  (1050, 1, 32, 32): (dx: null, dy: 21),
+  (1051, 2, 32, 32): (dx: 11, dy: 11),
   (1052, 1, 32, 32): (dx: null, dy: 21),
   (1052, 2, 32, 32): (dx: null, dy: 11),
+  (1056, 3, 32, 32): (dx: 10, dy: 10),
   (1063, 0, 32, 32): (dx: 22, dy: 16),
+  // Logical Shift's output rides the tag-art apex row — MD5's inter-prim
+  // gap ink at row box.top+16 (agreeing with the far conversion prim's
+  // dco-child candidate row on the same wire).
+  (1081, 0, 32, 32): (dx: null, dy: 16),
   // Random Number's output rides its dice-art middle row — Excel_Read_XLSX
   // row 1146 on the (1131,443) node.
   (1070, 0, 32, 32): (dx: null, dy: 15),
+  (1082, 0, 32, 32): (dx: 22, dy: 16),
   (-0x44, 1, 32, 27): (dx: 24, dy: 22),
-  (1142, 0, 32, 32): (dx: null, dy: 16),
+  (1142, 0, 32, 32): (dx: 22, dy: 16),
   (1143, 0, 32, 32): (dx: null, dy: 16),
+  (1155, 1, 32, 32): (dx: 10, dy: 16),
+  (1156, 1, 32, 32): (dx: 10, dy: 16),
+  (1166, 2, 32, 32): (dx: 26, dy: 16),
   (1171, 0, 32, 32): (dx: 20, dy: 16),
+  (1502, 0, 32, 32): (dx: 24, dy: 15),
   (1814, 0, 32, 32): (dx: null, dy: 16),
   (1815, 0, 32, 32): (dx: null, dy: 16),
   (1900, 0, 32, 32): (dx: 24, dy: 16),
+  (1900, 1, 32, 32): (dx: null, dy: 16),
   (1908, 0, 32, 32): (dx: 24, dy: 24),
   (8083, 3, 32, 32): (dx: 28, dy: 4),
 };
@@ -2069,6 +2237,37 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
         alpha[i] = rgba.getUint8(i * 4 + 3);
       }
       _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
+      _primIconRgba[id] = Uint8List.fromList(
+        rgba.buffer.asUint8List(rgba.offsetInBytes, rgba.lengthInBytes),
+      );
+      // Plate corner-AA pixels: an opaque `dddddd` on the art's ink
+      // boundary (a transparent or outside 4-neighbour) is the rounded
+      // plate corner's anti-aliasing baked against the white canvas — see
+      // [_primIconCornerAa].
+      final corners = <int>{};
+      for (var y = 0; y < image.height; y++) {
+        for (var x = 0; x < image.width; x++) {
+          final artIndex = y * image.width + x;
+          if (alpha[artIndex] != 255) continue;
+          final byteIndex = artIndex * 4;
+          if (_primIconRgba[id]![byteIndex] != 0xdd ||
+              _primIconRgba[id]![byteIndex + 1] != 0xdd ||
+              _primIconRgba[id]![byteIndex + 2] != 0xdd) {
+            continue;
+          }
+          final onEdge =
+              x == 0 ||
+              y == 0 ||
+              x == image.width - 1 ||
+              y == image.height - 1 ||
+              alpha[artIndex - 1] == 0 ||
+              alpha[artIndex + 1] == 0 ||
+              alpha[artIndex - image.width] == 0 ||
+              alpha[artIndex + image.width] == 0;
+          if (onEdge) corners.add(artIndex);
+        }
+      }
+      if (corners.isNotEmpty) _primIconCornerAa[id] = corners;
       // The art-space ink (opaque-pixel) bounding box — the measured art
       // edge the wire fallback router anchors icon-stamped endpoints to.
       var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
@@ -2275,6 +2474,25 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
 
 final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
 
+/// Raw RGBA of each loaded icon (filled by [loadPrimIcons]) — the pixel
+/// source the plate corner-AA ladder reads when an overlap must restore the
+/// art a corner pixel yields to.
+final Map<int, Uint8List> _primIconRgba = {};
+
+/// Per icon, the art positions (`y * w + x`) of its plate CORNER-AA pixels:
+/// the `dddddd` blends baked where a prim plate's rounded outline corner
+/// anti-aliased against the white canvas (the triangle plates carry one at
+/// each left corner). These pixels are canvas artefacts, not opaque plate
+/// art — when prim boxes overlap they compose by the measured ladder in the
+/// icon stamping pass, not by plain source-over.
+final Map<int, Set<int>> _primIconCornerAa = {};
+
+/// The corner-AA ladder's second rung: the measured screen value where TWO
+/// plate corner-AA pixels coincide on bare canvas (MD5's stacked Adds, the
+/// 465/485 pair whose 20 px pitch lands one plate's bottom corner exactly on
+/// the next plate's top corner).
+const _kCornerAaRung2 = Color(0xFFAAAAAA);
+
 /// Art-space opaque-pixel bounding boxes of the loaded icons (filled by
 /// [loadPrimIcons] from the same alpha masks that back hit testing).
 final Map<int, ui.Rect> _primIconInkBounds = {};
@@ -2455,13 +2673,17 @@ const Set<int> kVerifiedBorderTerminalKinds = {
 };
 
 /// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
-/// (cream interior with a wire-colour ring — LabVIEW's use-default look)
-/// instead of the solid wire-colour fill. Corpus census over both snippet
-/// repos, classifying each 0x22/0x2d's reference interior: bit set → 71/72
-/// hollow; bit clear → 289/296 solid. The 8 outliers (7 cream-dominant
-/// without the bit — a bracket-style look whose trigger is not yet
-/// decoded — and 1 set-but-solid) are drawn by the flag until that third
-/// look is decoded (TODO).
+/// (cream interior with a wire-colour open ring — the same 5x5 art also
+/// reads as the array-index brackets) instead of the solid wire-colour
+/// fill. The ring has a SECOND trigger the flag does not carry: a tunnel
+/// whose two sides' signals resolve DIFFERENT array dimensionalities (an
+/// indexing tunnel — e.g. a 2D array outside, its 1D rows inside).
+/// Snippet-corpus census over every wired 9x9 `0x22`/`0x2d` tunnel (721
+/// terminal groups, 46 references): ring interior ⟺ this flag OR the
+/// resolved dims differ, zero counterexamples — the flag-set rings all
+/// index 0↔1 or carry an unresolved side, the flag-clear rings all index
+/// 1↔2 or 2↔3, and the four flag-set solid-looking outliers of the earlier
+/// flag-only census were dimmed rings under a disabled frame, not solids.
 const int kTunnelHollowFlag = 0x1000000;
 
 /// Tunnel-object flag bits whose BOTH-set form marks the tunnel that draws
@@ -2483,7 +2705,25 @@ bdBorderTerminalKinds(ViDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
   final out =
       <HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>{};
-  for (final wire in bdVisibleWires(diagram)) {
+  final wires = bdVisibleWires(diagram);
+  // Resolved array dimensionalities of the signals each terminal joins —
+  // an INDEXING tunnel (its sides resolve different dims) draws the hollow
+  // ring even without [kTunnelHollowFlag] (see the flag's census law).
+  final dimsByTerminal = <int, Set<int>>{};
+  for (final wire in wires) {
+    final dims = wire.signalType?.arrayDims;
+    if (dims == null) continue;
+    for (var e = 0; e < wire.endpointOids.length; e++) {
+      final attach = e < wire.endpointAttachRects.length
+          ? wire.endpointAttachRects[e]
+          : null;
+      if (attach == null) continue;
+      final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
+      if (terminal == null) continue;
+      dimsByTerminal.putIfAbsent(terminal.oid, () => {}).add(dims);
+    }
+  }
+  for (final wire in wires) {
     for (var e = 0; e < wire.endpointOids.length; e++) {
       final attach = e < wire.endpointAttachRects.length
           ? wire.endpointAttachRects[e]
@@ -2494,7 +2734,9 @@ bdBorderTerminalKinds(ViDiagram diagram) {
           kVerifiedBorderTerminalKinds.contains(terminal.kind)) {
         out[attach] = (
           kind: terminal.kind,
-          hollow: ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0,
+          hollow:
+              ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0 ||
+              (dimsByTerminal[terminal.oid]?.length ?? 0) > 1,
           centreDot:
               ((terminal.objFlags ?? 0) & kTunnelCentreDotFlags) ==
               kTunnelCentreDotFlags,
@@ -3117,23 +3359,32 @@ class BdDiagramPainter extends CustomPainter {
     }
 
     final labelBackings = <(int, Rect, Color)>[];
+    // Prim icon stamps already painted in THIS pass, in paint order — the
+    // lookup behind the plate corner-AA ladder (see the stamping branch).
+    final stampedPrimIcons = <({Rect dst, int id})>[];
     for (final object in solids) {
       final rect = rectOf(object);
       // Free-text label parts (control caption 0x0a, case selector 0x95) are
-      // drawn by LabVIEW as text; only a FREE label (one held by a `0x1b`
-      // free-label holder — a diagram comment) is backed by an opaque
-      // bordered fill. Owned labels (a control/constant's caption, parent
-      // `0x51`/`0x50`/…) are transparent even when a background colour was
-      // decoded — across the snippet corpus every backed label sits under a
-      // `0x1b` and no owned label shows a backing. The text pass below
+      // drawn by LabVIEW as text; a backed label shows an opaque bordered
+      // fill. Two backed classes, censused across the snippet corpus's
+      // references (812 drawn `0x0a` labels): a FREE label (held by a
+      // `0x1b` free-label holder — a diagram comment) with a decoded
+      // background colour, and an ARRAY-DOCKED label (held by a `0x52`
+      // array shell) with a decoded background and without the
+      // value-window flag bit — MD5's `Indices`/`S`/`T` labels, 3/3 boxed,
+      // while every other owned label (no decoded background, the `0x800`
+      // value-window flag, or hidden) shows none. The text pass below
       // renders any recovered caption.
       if (kBdTextLabelCodes.contains(object.kind)) {
         // The case selector's chrome already drew in the pre-chrome pass; its
         // value text draws in the text pass.
         if (object.kind == 0x95) continue;
         // A hidden label paints nothing — neither backing nor (below) text.
-        final free = scene.diagram.byId[object.parentOid ?? -1]?.kind == 0x1b;
-        final backing = object.isLabelHidden || !free || object.bgRgb == null
+        final holderKind = scene.diagram.byId[object.parentOid ?? -1]?.kind;
+        final backed =
+            holderKind == 0x1b ||
+            (holderKind == 0x52 && ((object.objFlags ?? 0) & 0x800) == 0);
+        final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
             : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
         // Free labels float ABOVE nodes in LabVIEW's z-order (a comment's
@@ -3257,59 +3508,11 @@ class BdDiagramPainter extends CustomPainter {
           // arrays, byte-verified), value digits in the element colour.
           final shellParent = scene.diagram.byId[object.parentOid ?? -1];
           if (object.kind == 0x50 && shellParent?.kind == 0x52) {
-            var elementRight = -1 << 30;
-            for (final sib in scene.diagram.children(shellParent!.oid)) {
-              if (sib.kind == 0x50 && sib.absBounds != null) {
-                elementRight = math.max(elementRight, sib.absBounds!.right);
-              }
-            }
-            if (object.absBounds!.right != elementRight) {
-              // The INDEX box: its window, spinner boxes, and arrows are
-              // the array shell's furniture ([_drawArrayConstantShell]);
-              // the generic stroked frame would double them.
-              continue;
-            }
-            {
-              final ringFill = _solidNoAa(tint);
-              final outer = Rect.fromLTRB(
-                box.left - 1,
-                box.top - 1,
-                box.right + 1,
-                box.bottom + 1,
-              );
-              canvas.drawRect(outer, Paint()..color = Colors.white);
-              canvas.drawRect(
-                Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
-                ringFill,
-              );
-              canvas.drawRect(
-                Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
-                ringFill,
-              );
-              canvas.drawRect(
-                Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
-                ringFill,
-              );
-              canvas.drawRect(
-                Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
-                ringFill,
-              );
-              if (constValue != null) {
-                final tp = _layoutText(
-                  constValue,
-                  color: tint,
-                  fontSize: 10,
-                  maxLines: 1,
-                  ellipsis: '…',
-                  maxWidth: math.max(8, box.width - 6),
-                );
-                tp.paint(
-                  canvas,
-                  box.center - Offset(tp.width / 2, tp.height / 2),
-                );
-              }
-              continue;
-            }
+            // Both the INDEX box (window, spinner boxes, arrows) and the
+            // ELEMENT cells (the grid of value boxes) are the array shell's
+            // furniture ([_drawArrayConstantShell]); the generic stroked
+            // frame would double them.
+            continue;
           }
           // Indicators wear LabVIEW's thin 1px single border (measured on
           // Excel_Read_XLSX's path and array indicator terminals; matches
@@ -3436,6 +3639,38 @@ class BdDiagramPainter extends CustomPainter {
                   Colors.black,
                 ).withValues(alpha: 0.87),
             );
+          }
+          // A non-decimal constant's radix marker: the measured pixel glyph
+          // ([kBdRadixMarkerGlyphs]) at the constant's 0xb radix part, in
+          // the type colour; decimal constants draw nothing there
+          // (byte-measured on MD5's %08x initials and %08b feeders).
+          if (constValue != null) {
+            final marker =
+                kBdRadixMarkerGlyphs[bdFormatConversion(
+                  bdDisplayFormatOf(scene.diagram, object.oid),
+                )];
+            final radixPart = marker == null
+                ? null
+                : scene.diagram
+                      .children(object.oid)
+                      .where(
+                        (part) => part.kind == 0xb && part.absBounds != null,
+                      )
+                      .firstOrNull;
+            if (marker != null && radixPart != null) {
+              final (dx, dy, rows) = marker;
+              final corner = _toCanvas(radixPart.absBounds!).topLeft;
+              final ink = _solidNoAa(tint);
+              for (var r = 0; r < rows.length; r++) {
+                for (var c = 0; c < rows[r].length; c++) {
+                  if (rows[r].codeUnitAt(c) != 0x23) continue;
+                  canvas.drawRect(
+                    Rect.fromLTWH(corner.dx + dx + c, corner.dy + dy + r, 1, 1),
+                    ink,
+                  );
+                }
+              }
+            }
           }
           // A constant's decoded literal, centred in its box the way
           // LabVIEW shows the value (crc8's oid 3033 renders `256`); inked
@@ -3723,6 +3958,68 @@ class BdDiagramPainter extends CustomPainter {
               dst,
               Paint()..filterQuality = filter,
             );
+            // Plate corner-AA ladder: a corner pixel ([_primIconCornerAa])
+            // is the plate outline's anti-aliasing baked against the WHITE
+            // canvas, not opaque art, so over an earlier stamp it composes
+            // by the measured reference ladder (MD5's stacked Adds, tops
+            // 446/465/485/504):
+            //  * over another stamp's OPAQUE art the corner deposits
+            //    NOTHING — the art beneath shows through byte-exactly;
+            //  * two corner pixels coinciding on bare canvas deepen the
+            //    blend one rung, `dddddd` -> `aaaaaa`;
+            //  * on bare canvas alone the baked `dddddd` stands.
+            // The compositor rule producing the second rung is not yet
+            // decoded — no pixel-local source-over/coverage model yields
+            // 255->221 and 221->170 from the same stamp (TODO: revisit
+            // when the corpus grows another corner-corner collision).
+            final ladderId = disabled ? null : loadedPrimIconIdOf(object);
+            final corners = ladderId == null
+                ? null
+                : _primIconCornerAa[ladderId];
+            for (final artIndex in corners ?? const <int>{}) {
+              final artWidth = primIcon.base.width;
+              final cornerX = dst.left + artIndex % artWidth;
+              final cornerY = dst.top + artIndex ~/ artWidth;
+              var beneathCorner = false;
+              Color? restore;
+              for (final prior in stampedPrimIcons.reversed) {
+                final localX = (cornerX - prior.dst.left).round();
+                final localY = (cornerY - prior.dst.top).round();
+                final mask = _primIconMasks[prior.id];
+                if (mask == null ||
+                    localX < 0 ||
+                    localY < 0 ||
+                    localX >= mask.w ||
+                    localY >= mask.h) {
+                  continue;
+                }
+                final priorIndex = localY * mask.w + localX;
+                if (mask.alpha[priorIndex] == 0) continue;
+                if (_primIconCornerAa[prior.id]?.contains(priorIndex) ??
+                    false) {
+                  beneathCorner = true;
+                  continue;
+                }
+                final rgba = _primIconRgba[prior.id]!;
+                restore = Color.fromARGB(
+                  0xff,
+                  rgba[priorIndex * 4],
+                  rgba[priorIndex * 4 + 1],
+                  rgba[priorIndex * 4 + 2],
+                );
+                break;
+              }
+              final rung = restore ?? (beneathCorner ? _kCornerAaRung2 : null);
+              if (rung != null) {
+                canvas.drawRect(
+                  Rect.fromLTWH(cornerX, cornerY, 1, 1),
+                  _solidNoAa(rung),
+                );
+              }
+            }
+            if (ladderId != null) {
+              stampedPrimIcons.add((dst: dst, id: ladderId));
+            }
           } else if (icon != null) {
             paintLegacyIcon(canvas, icon, rect);
           } else {
@@ -3821,7 +4118,12 @@ class BdDiagramPainter extends CustomPainter {
         // the case selector's value text is structure furniture and never
         // hides). Drawing hidden text would add ink the reference lacks.
         if (object.isLabelHidden) continue;
-        var text = object.label?.trim();
+        // The selector's stored value text keeps its own padding spaces
+        // (" 3 ", " 0, Default ") — LabVIEW's left inset — so it is not
+        // trimmed.
+        var text = object.kind == 0x95
+            ? (object.label?.trim().isEmpty ?? true ? null : object.label)
+            : object.label?.trim();
         if (text == null || text.isEmpty) {
           // An owned label with no recovered caption is the owner's VALUE
           // display when a constant value decoded on the const holder above
@@ -3849,7 +4151,9 @@ class BdDiagramPainter extends CustomPainter {
         if (rect0.width < 8 || rect0.height < 8) continue;
         // The case selector's value text fills its decoded label bounds — the
         // pager boxes and dropdown sit OUTSIDE them (see [_drawCaseSelector])
-        // — and is centred like LabVIEW's.
+        // — LEFT-justified like LabVIEW's (the recovered label carries the
+        // reference's own leading space: MD5's " 3 " strip shows the glyph
+        // at bounds.left+4, the space's width past a 1 px inset).
         final selector = object.kind == 0x95;
         final rect = rect0;
         final tp = _layoutText(
@@ -3867,10 +4171,7 @@ class BdDiagramPainter extends CustomPainter {
         tp.paint(
           canvas,
           selector
-              ? Offset(
-                  rect.center.dx - tp.width / 2,
-                  rect.center.dy - tp.height / 2,
-                )
+              ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
               : rect0.topLeft + const Offset(2, 1),
         );
         continue;
@@ -4295,8 +4596,53 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
           } else {
+            // A polyline closed onto a [ViDiagram.dcoChildTerminalAttach]
+            // candidate whose prim terminal is CATALOGUED at both axes
+            // ([bdPrimTerminalOf], reference-measured — it outranks the
+            // candidate convention) re-anchors: the whole polyline
+            // translates so that endpoint sits on the catalogued terminal
+            // (the stored segments are exact; only the anchor convention
+            // differed — measured on MD5, where every such wire's candidate
+            // anchor misses the reference ink the catalogued terminal
+            // lands on). Two catalogued ends demanding different
+            // translations contradict, and the wire is withheld.
+            Offset? reanchor;
+            var reanchorConflict = false;
+            if (wire.endpointOids.length == 2) {
+              for (final (e, p) in [(0, points.first), (1, points.last)]) {
+                final oid = wire.endpointOids[e];
+                if (scene.diagram.wireAttachPoint(oid) != null) continue;
+                final abs = (
+                  x: (p.dx + origin.dx).round(),
+                  y: (p.dy + origin.dy).round(),
+                );
+                final candidates = scene.diagram
+                    .dcoChildTerminalAttach(oid)
+                    ?.candidates;
+                if (candidates == null || !candidates.contains(abs)) continue;
+                final term = bdPrimTerminalOf(scene.diagram, oid);
+                if (term?.x == null || term?.y == null) continue;
+                final delta = Offset(
+                  (term!.x! - abs.x).toDouble(),
+                  (term.y! - abs.y).toDouble(),
+                );
+                if (delta == Offset.zero) continue;
+                if (reanchor == null) {
+                  reanchor = delta;
+                } else if (reanchor != delta) {
+                  reanchorConflict = true;
+                }
+              }
+            }
+            if (reanchorConflict) {
+              points.clear();
+            } else if (reanchor != null) {
+              for (var i = 0; i < points.length; i++) {
+                points[i] = points[i] + reanchor;
+              }
+            }
             final sourceBox = iconBox(0);
-            if (sourceBox != null) {
+            if (points.length >= 2 && sourceBox != null) {
               final c = (iconInkRects[sourceBox] ?? sourceBox).center;
               final p0 = points.first, p1 = points[1];
               points[0] = p0.dy == p1.dy
@@ -4322,6 +4668,7 @@ class BdDiagramPainter extends CustomPainter {
               // the row carries no masked art.
               final last = points.last;
               final farObj = iconNodeObjects[sinkBox];
+              final Offset target;
               if (closing.dx != 0) {
                 final edge = farObj == null
                     ? null
@@ -4331,13 +4678,11 @@ class BdDiagramPainter extends CustomPainter {
                         cross: (last.dy + origin.dy).round(),
                         sign: closing.dx,
                       );
-                points.add(
-                  Offset(
-                    edge != null
-                        ? edge - origin.dx
-                        : (closing.dx > 0 ? ink.left : ink.right - 1),
-                    last.dy,
-                  ),
+                target = Offset(
+                  edge != null
+                      ? edge - origin.dx
+                      : (closing.dx > 0 ? ink.left : ink.right - 1),
+                  last.dy,
                 );
               } else {
                 final edge = farObj == null
@@ -4348,23 +4693,64 @@ class BdDiagramPainter extends CustomPainter {
                         cross: (last.dx + origin.dx).round(),
                         sign: closing.dy,
                       );
-                points.add(
-                  Offset(
-                    last.dx,
-                    edge != null
-                        ? edge - origin.dy
-                        : (closing.dy > 0 ? ink.top : ink.bottom - 1),
-                  ),
+                target = Offset(
+                  last.dx,
+                  edge != null
+                      ? edge - origin.dy
+                      : (closing.dy > 0 ? ink.top : ink.bottom - 1),
                 );
               }
+              // The closing run steps FROM the bend IN the closing
+              // direction; an edge behind the bend means the run is
+              // entirely under opaque art (the bend already sits past the
+              // arrival edge) and adds no visible ink — extending to it
+              // would drag a stroke backwards across the art and out the
+              // far side (measured on MD5's Multiply lower input, where
+              // the up-closing run's opposite edge sat below the box art).
+              final along =
+                  (target.dx - last.dx) * closing.dx +
+                  (target.dy - last.dy) * closing.dy;
+              if (along > 0) points.add(target);
             } else {
-              // The closing run reached the box edge: run on under the art to
-              // the icon centre (the art masks the covered interior).
+              // The closing run reached the box edge: run on under the art
+              // to where it becomes OPAQUE on the arrival row/column
+              // ([primIconInkEdge], same law as the decoded-bend arrivals
+              // above) — never past it: the reference leaves the art's
+              // TRANSPARENT cells white, so overrunning to the icon centre
+              // paints ink LabVIEW never shows (measured on MD5's Select
+              // top/bottom inputs, whose triangle corners are transparent
+              // on the arrival rows). Falls back to the icon-ink centre
+              // when the arrival line carries no masked art.
               final c = ink.center;
               final pn = points.last, pm = points[points.length - 2];
-              points[points.length - 1] = pn.dy == pm.dy
-                  ? Offset(c.dx, pn.dy)
-                  : Offset(pn.dx, c.dy);
+              final farObj = iconNodeObjects[sinkBox];
+              if (pn.dy == pm.dy) {
+                final edge = farObj == null
+                    ? null
+                    : primIconInkEdge(
+                        farObj,
+                        horizontal: true,
+                        cross: (pn.dy + origin.dy).round(),
+                        sign: pn.dx >= pm.dx ? 1 : -1,
+                      );
+                points[points.length - 1] = Offset(
+                  edge != null ? edge - origin.dx : c.dx,
+                  pn.dy,
+                );
+              } else {
+                final edge = farObj == null
+                    ? null
+                    : primIconInkEdge(
+                        farObj,
+                        horizontal: false,
+                        cross: (pn.dx + origin.dx).round(),
+                        sign: pn.dy >= pm.dy ? 1 : -1,
+                      );
+                points[points.length - 1] = Offset(
+                  pn.dx,
+                  edge != null ? edge - origin.dy : c.dy,
+                );
+              }
             }
           }
         }
@@ -4382,8 +4768,72 @@ class BdDiagramPainter extends CustomPainter {
             stubEligible = true;
           }
         }
+      } else if (wire.branchRoute != null && wire.endpointOids.length >= 3) {
+        // A branching table whose ORIGIN is a catalogued prim terminal
+        // ([bdPrimTerminalOf], both axes) and no endpoint resolves a
+        // standard attach (the parse gates all declined): the stored tree
+        // is fully decoded off the catalogued origin, and it ships only
+        // when EVERY walked leaf lands exactly on its own endpoint's
+        // catalogued terminal or [ViDiagram.dcoChildTerminalAttach]
+        // candidate — zero-slack closure at every endpoint, never a guess.
+        // Leaves sit under their nodes' art, which overdraws the covered
+        // interior (the same law as every routeTree leaf).
+        final headTerminal = bdPrimTerminalOf(
+          scene.diagram,
+          wire.endpointOids[0],
+        );
+        if (headTerminal?.x != null && headTerminal?.y != null) {
+          final tree = walkWireBranchRoute(wire.branchRoute!, (
+            x: headTerminal!.x!,
+            y: headTerminal.y!,
+          ));
+          final leaves = tree.leaves;
+          var closed = leaves.length == wire.endpointOids.length - 1;
+          if (closed) {
+            final remaining = <ViPoint, int>{};
+            for (final leaf in leaves) {
+              remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
+            }
+            for (var e = 1; e < wire.endpointOids.length; e++) {
+              final oid = wire.endpointOids[e];
+              final term = bdPrimTerminalOf(scene.diagram, oid);
+              ViPoint? match;
+              for (final candidate in [
+                if (term?.x != null && term?.y != null)
+                  (x: term!.x!, y: term.y!),
+                ...?scene.diagram.dcoChildTerminalAttach(oid)?.candidates,
+              ]) {
+                if (remaining.containsKey(candidate)) {
+                  match = candidate;
+                  break;
+                }
+              }
+              if (match == null) {
+                closed = false;
+                break;
+              }
+              final count = remaining[match]!;
+              if (count == 1) {
+                remaining.remove(match);
+              } else {
+                remaining[match] = count - 1;
+              }
+            }
+          }
+          if (closed) {
+            for (final run in tree.polylines) {
+              legs.add([
+                for (final p in run) Offset(p.x - origin.dx, p.y - origin.dy),
+              ]);
+            }
+            for (final j in tree.junctions) {
+              junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
+            }
+          }
+        }
       }
       if (stubEligible &&
+          legs.isEmpty &&
           wire.route?.pointCount == 2 &&
           wire.route?.direction != null &&
           wire.endpointOids.length == 2 &&
@@ -4487,16 +4937,30 @@ class BdDiagramPainter extends CustomPainter {
           wire.route!.segmentLengths.length == 1 &&
           wire.endpointOids.length == 2 &&
           wire.endpointAttachRects.length >= 2) {
-        // A 3-point route table anchored at ONE decoded attach rect, closing
-        // onto a CATALOGUED prim terminal: the stored segment is decoded
-        // geometry and the terminal position is reference-measured
-        // ([bdPrimTerminalOf]), so the whole polyline is determined — the
-        // parse layer withholds these because art-terminal positions are a
-        // renderer catalog. The walk's arrival coordinate must EQUAL the
-        // catalogued terminal's cross coordinate (never guessed); the leg is
-        // visible from the anchor rect's border to the far node's art ink
-        // edge on the arrival row/column (measured on Excel_Read_XLSX's
-        // numeric-constant → Multiply lower-input wire).
+        // A 3-point route table anchored at ONE decoded attach rect, with a
+        // plain prim DCO at the other end. Three decoded resolutions, tried
+        // in order (each gated on arrival equality or containment — never a
+        // guess):
+        //
+        //  1. ATTACH-ORIGIN onto a catalogued terminal: the walk starts at
+        //     the attach centre and its closing run's arrival coordinate
+        //     must EQUAL the far prim's catalogued cross coordinate
+        //     ([bdPrimTerminalOf]); visible from the anchor border to the
+        //     far node's art ink edge (measured on Excel_Read_XLSX's
+        //     numeric-constant → Multiply lower-input wire).
+        //  2. PRIM-ORIGIN onto the attach: the table is stored from the
+        //     prim's terminal instead — the catalogued coordinate walked
+        //     through the first segment must EQUAL the attach's centre
+        //     cross, and the closing sign must point from the prim's box
+        //     toward the attach; visible from the prim's art ink edge to
+        //     the attach border, the origin jog under the art (measured on
+        //     MD5's comparison prim → case-selector '?' wire).
+        //  3. ATTACH-ORIGIN with the far terminal uncatalogued but the
+        //     walked bend landing INSIDE the far node's box: the closing
+        //     run and terminal sit under the node, whose art overdraws the
+        //     covered interior — the first segment is decoded geometry and
+        //     its visible ink ends at the node's art edge (measured on
+        //     MD5's index-spinner → conversion prim wire).
         final route = wire.route!;
         final dir = route.direction!;
         for (final (tail, head) in [(0, 1), (1, 0)]) {
@@ -4511,7 +4975,17 @@ class BdDiagramPainter extends CustomPainter {
             scene.diagram,
             wire.endpointOids[head],
           );
-          if (terminal == null) break;
+          final headObj = scene.diagram.byId[wire.endpointOids[head]];
+          final headOwner = headObj?.parentOid == null
+              ? null
+              : scene.diagram.byId[headObj!.parentOid!];
+          final headBox = headOwner?.absBounds;
+          final closingSign = route.jointSigns.isNotEmpty
+              ? route.jointSigns.last
+              : null;
+          if (headOwner == null || headBox == null || closingSign == null) {
+            break;
+          }
           final start = (
             x: attach.left + (attach.right - attach.left) ~/ 2,
             y: attach.top + (attach.bottom - attach.top) ~/ 2,
@@ -4522,24 +4996,7 @@ class BdDiagramPainter extends CustomPainter {
           );
           final closingHorizontal = dir.dx == 0;
           final arrivalCross = closingHorizontal ? bend.y : bend.x;
-          final catalogued = closingHorizontal ? terminal.y : terminal.x;
-          if (catalogued == null || catalogued != arrivalCross) break;
-          final closingSign = route.jointSigns.isNotEmpty
-              ? route.jointSigns.last
-              : null;
-          final headObj = scene.diagram.byId[wire.endpointOids[head]];
-          final headOwner = headObj?.parentOid == null
-              ? null
-              : scene.diagram.byId[headObj!.parentOid!];
-          if (closingSign == null || headOwner == null) break;
-          final edge = primIconInkEdge(
-            headOwner,
-            horizontal: closingHorizontal,
-            cross: arrivalCross,
-            sign: closingSign,
-          );
-          if (edge == null) break;
-          final far = edge - closingSign;
+          final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
           // The first segment's visible ink starts just outside the anchor
           // rect's border on the walk side.
           final visStart = (
@@ -4550,13 +5007,440 @@ class BdDiagramPainter extends CustomPainter {
                 ? start.y
                 : (dir.dy > 0 ? attach.bottom : attach.top - 1),
           );
-          legs.add([
-            Offset(visStart.x - origin.dx, visStart.y - origin.dy),
-            Offset(bend.x - origin.dx, bend.y - origin.dy),
+          if (catalogued != null && catalogued == arrivalCross) {
+            final edge = primIconInkEdge(
+              headOwner,
+              horizontal: closingHorizontal,
+              cross: arrivalCross,
+              sign: closingSign,
+            );
+            if (edge == null) break;
+            final far = edge - closingSign;
+            legs.add([
+              Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+              Offset(bend.x - origin.dx, bend.y - origin.dy),
+              closingHorizontal
+                  ? Offset(far - origin.dx, bend.y - origin.dy)
+                  : Offset(bend.x - origin.dx, far - origin.dy),
+            ]);
+            break;
+          }
+          // Prim-origin: the first segment departs the prim's terminal, so
+          // its axis coordinate is the catalogued one walked by the stored
+          // length; the closing run arrives at the attach.
+          final primCoord = dir.dx == 0 ? terminal?.y : terminal?.x;
+          if (primCoord != null) {
+            final closingCross =
+                primCoord + (dir.dx + dir.dy) * route.segmentLengths[0];
+            final attachCross = dir.dx == 0 ? start.y : start.x;
+            // The closing sign must carry the run OFF the prim's box toward
+            // the attach side.
+            final signToAttach = dir.dx == 0
+                ? (start.x >= headBox.right
+                      ? 1
+                      : start.x < headBox.left
+                      ? -1
+                      : 0)
+                : (start.y >= headBox.bottom
+                      ? 1
+                      : start.y < headBox.top
+                      ? -1
+                      : 0);
+            if (closingCross == attachCross && closingSign == signToAttach) {
+              final edge = primIconInkEdge(
+                headOwner,
+                horizontal: dir.dx == 0,
+                cross: closingCross,
+                sign: -closingSign,
+              );
+              if (edge == null) break;
+              final nearAttach = dir.dx == 0
+                  ? (closingSign > 0 ? attach.left - 1 : attach.right)
+                  : (closingSign > 0 ? attach.top - 1 : attach.bottom);
+              legs.add([
+                dir.dx == 0
+                    ? Offset(edge - origin.dx, closingCross - origin.dy)
+                    : Offset(closingCross - origin.dx, edge - origin.dy),
+                dir.dx == 0
+                    ? Offset(nearAttach - origin.dx, closingCross - origin.dy)
+                    : Offset(closingCross - origin.dx, nearAttach - origin.dy),
+              ]);
+              break;
+            }
+          }
+          // Uncatalogued far terminal: decoded first segment whose bend
+          // lands inside the far node's box.
+          if (terminal == null &&
+              bend.x > headBox.left &&
+              bend.x < headBox.right &&
+              bend.y > headBox.top &&
+              bend.y < headBox.bottom) {
+            legs.add([
+              Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+              Offset(bend.x - origin.dx, bend.y - origin.dy),
+            ]);
+            break;
+          }
+          break;
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.routePoints == null &&
+          (wire.route?.pointCount ?? 0) >= 3 &&
+          wire.route?.direction != null &&
+          wire.route!.segmentLengths.length == wire.route!.pointCount - 2 &&
+          wire.endpointOids.length == 2) {
+        // A full stored route departing a CATALOGUED prim terminal
+        // ([bdPrimTerminalOf], both axes pinned) with no decoded attach at
+        // that end: every stored segment is decoded geometry off the
+        // catalogued origin, and the implied closing run's arrival
+        // coordinate must EQUAL the far end's independently known cross
+        // coordinate — a decoded attach rect's centre row/column, the far
+        // prim's catalogued terminal, or its [dcoChildTerminalAttach]
+        // candidate — never a guess. The closing run ends at the far
+        // attach rect's border, or at the far node's art ink edge
+        // ([primIconInkEdge], plain box border when no art resolves); the
+        // origin sits under the head node's own art, which overdraws the
+        // covered interior (measured on MD5's arithmetic-chain wires).
+        final route = wire.route!;
+        final headTerminal = bdPrimTerminalOf(
+          scene.diagram,
+          wire.endpointOids[0],
+        );
+        final headAttach = wire.endpointAttachRects[0];
+        if (headTerminal?.x != null &&
+            headTerminal?.y != null &&
+            (headAttach == null ||
+                headAttach.right <= headAttach.left ||
+                headAttach.bottom <= headAttach.top)) {
+          final dir = route.direction!;
+          var horizontal = dir.isHorizontal;
+          var sign = dir.dx + dir.dy;
+          var walkX = headTerminal!.x!, walkY = headTerminal.y!;
+          final walk = <(int, int)>[(walkX, walkY)];
+          for (var k = 0; k < route.segmentLengths.length; k++) {
+            if (k > 0) sign = route.jointSigns[k - 1];
+            if (horizontal) {
+              walkX += route.segmentLengths[k] * sign;
+            } else {
+              walkY += route.segmentLengths[k] * sign;
+            }
+            walk.add((walkX, walkY));
+            horizontal = !horizontal;
+          }
+          final closingHorizontal = horizontal;
+          final closingSign = route.jointSigns.last;
+          final arrivalCross = closingHorizontal ? walkY : walkX;
+          int? terminus;
+          final farAttach = wire.endpointAttachRects[1];
+          if (farAttach != null &&
+              farAttach.right > farAttach.left &&
+              farAttach.bottom > farAttach.top) {
+            final cross = closingHorizontal
+                ? farAttach.top + (farAttach.bottom - farAttach.top) ~/ 2
+                : farAttach.left + (farAttach.right - farAttach.left) ~/ 2;
+            if (cross == arrivalCross) {
+              terminus = closingHorizontal
+                  ? (closingSign > 0 ? farAttach.left - 1 : farAttach.right)
+                  : (closingSign > 0 ? farAttach.top - 1 : farAttach.bottom);
+            }
+          } else {
+            final farTerminal = bdPrimTerminalOf(
+              scene.diagram,
+              wire.endpointOids[1],
+            );
+            var farCross = closingHorizontal ? farTerminal?.y : farTerminal?.x;
+            if (farCross == null) {
+              for (final c
+                  in scene.diagram
+                          .dcoChildTerminalAttach(wire.endpointOids[1])
+                          ?.candidates ??
+                      const <ViPoint>[]) {
+                final cross = closingHorizontal ? c.y : c.x;
+                if (cross == arrivalCross) {
+                  farCross = cross;
+                  break;
+                }
+              }
+            }
+            final farObj = scene.diagram.byId[wire.endpointOids[1]];
+            final farOwner = farObj?.parentOid == null
+                ? null
+                : scene.diagram.byId[farObj!.parentOid!];
+            final farBox = farOwner?.absBounds;
+            if (farCross == arrivalCross && farBox != null) {
+              final edge = primIconInkEdge(
+                farOwner!,
+                horizontal: closingHorizontal,
+                cross: arrivalCross,
+                sign: closingSign,
+              );
+              terminus = edge != null
+                  ? edge - closingSign
+                  : (closingSign > 0
+                        ? (closingHorizontal ? farBox.left : farBox.top) - 1
+                        : (closingHorizontal ? farBox.right : farBox.bottom));
+            }
+          }
+          // The closing run must extend beyond the last bend in its stored
+          // direction; a double-back means the resolved geometry is wrong.
+          if (terminus != null &&
+              (terminus - (closingHorizontal ? walkX : walkY)) * closingSign >=
+                  0) {
+            legs.add([
+              for (final (px, py) in walk)
+                Offset(px - origin.dx, py - origin.dy),
+              closingHorizontal
+                  ? Offset(terminus - origin.dx, walkY - origin.dy)
+                  : Offset(walkX - origin.dx, terminus - origin.dy),
+            ]);
+          }
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.routePoints == null &&
+          (wire.route?.pointCount ?? 0) >= 4 &&
+          wire.route?.direction != null &&
+          wire.route!.segmentLengths.length == wire.route!.pointCount - 2 &&
+          wire.endpointOids.length == 2 &&
+          wire.endpointAttachRects.length >= 2) {
+        // ATTACH-ORIGIN COVERED WALK: the full stored table departs a decoded
+        // attach rect toward a far prim with NO decoded attach, and every
+        // walked bend stays INSIDE that rect — the origin jogs under the
+        // terminal's own drawn chrome, so the only visible ink is the closing
+        // run's tail. Ships when the closing run's arrival coordinate EQUALS
+        // the far prim's catalogued terminal cross coordinate
+        // ([bdPrimTerminalOf]) and the run exits the rect toward the far
+        // node; visible from the attach rect's border to the far node's art
+        // ink edge ([primIconInkEdge], the into-icon arrival law). Measured
+        // on MD5's index-terminal → Multiply upper-input wire (the 4-point
+        // left/down/right jog under the 13x19 terminal box, closing on the
+        // catalogued input row).
+        final route = wire.route!;
+        for (final (tail, head) in [(0, 1), (1, 0)]) {
+          final attach = wire.endpointAttachRects[tail];
+          if (attach == null ||
+              attach.right <= attach.left ||
+              attach.bottom <= attach.top) {
+            continue;
+          }
+          if (wire.endpointAttachRects[head] != null) continue;
+          final dir = route.direction!;
+          var horizontal = dir.isHorizontal;
+          var sign = dir.dx + dir.dy;
+          var walkX = attach.left + (attach.right - attach.left) ~/ 2;
+          var walkY = attach.top + (attach.bottom - attach.top) ~/ 2;
+          var covered = true;
+          for (var k = 0; k < route.segmentLengths.length; k++) {
+            if (k > 0) sign = route.jointSigns[k - 1];
+            if (horizontal) {
+              walkX += route.segmentLengths[k] * sign;
+            } else {
+              walkY += route.segmentLengths[k] * sign;
+            }
+            covered =
+                covered &&
+                walkX >= attach.left &&
+                walkX < attach.right &&
+                walkY >= attach.top &&
+                walkY < attach.bottom;
+            horizontal = !horizontal;
+          }
+          if (!covered) break;
+          final closingHorizontal = horizontal;
+          final closingSign = route.jointSigns.last;
+          final arrivalCross = closingHorizontal ? walkY : walkX;
+          final terminal = bdPrimTerminalOf(
+            scene.diagram,
+            wire.endpointOids[head],
+          );
+          final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
+          if (catalogued == null || catalogued != arrivalCross) break;
+          final headObj = scene.diagram.byId[wire.endpointOids[head]];
+          final headOwner = headObj?.parentOid == null
+              ? null
+              : scene.diagram.byId[headObj!.parentOid!];
+          if (headOwner == null) break;
+          final edge = primIconInkEdge(
+            headOwner,
+            horizontal: closingHorizontal,
+            cross: arrivalCross,
+            sign: closingSign,
+          );
+          if (edge == null) break;
+          final terminus = edge - closingSign;
+          // Visible ink starts at the attach rect's border on the exit side;
+          // the run must truly leave the rect toward the far node.
+          final border = closingHorizontal
+              ? (closingSign > 0 ? attach.right : attach.left - 1)
+              : (closingSign > 0 ? attach.bottom : attach.top - 1);
+          if ((terminus - border) * closingSign < 0) break;
+          legs.add(
             closingHorizontal
-                ? Offset(far - origin.dx, bend.y - origin.dy)
-                : Offset(bend.x - origin.dx, far - origin.dy),
-          ]);
+                ? [
+                    Offset(border - origin.dx, arrivalCross - origin.dy),
+                    Offset(terminus - origin.dx, arrivalCross - origin.dy),
+                  ]
+                : [
+                    Offset(arrivalCross - origin.dx, border - origin.dy),
+                    Offset(arrivalCross - origin.dx, terminus - origin.dy),
+                  ],
+          );
+          break;
+        }
+      }
+      if (stubEligible &&
+          legs.isEmpty &&
+          wire.route?.direction != null &&
+          wire.endpointOids.length == 2 &&
+          wire.endpointAttachRects.length >= 2) {
+        // CONTAINER-FACE run: one endpoint resolves an exact border-terminal
+        // attach (a tunnel-family rect; every catalogued kind fits 16 px),
+        // the other a large CONTAINER face (an array-block value rect, tens
+        // of px a side). The stored route closes onto the exact attach, so
+        // the closing run's cross coordinate is that attach's own — the
+        // container's centre is NOT its connection point. Ships when the
+        // cross lies within the container's span, the rects are disjoint
+        // along the closing axis, and the closing sign carries the run from
+        // the container to the attach; a longer table's interior bends jog
+        // on the container's side (its chrome covers them — the stored
+        // first segment must point INTO the container). Visible ink: the
+        // run between the container face and the attach border (measured
+        // on MD5's Indices-array ↔ loop-tunnel wires, both directions).
+        const exactMax = 16, containerMin = 17;
+        final route = wire.route!;
+        final dir = route.direction!;
+        final closingHorizontal = route.pointCount == 2
+            ? dir.isHorizontal
+            : (route.pointCount.isEven ? dir.isHorizontal : !dir.isHorizontal);
+        final closingSign = route.pointCount == 2
+            ? (dir.dx + dir.dy)
+            : (route.jointSigns.isEmpty ? 0 : route.jointSigns.last);
+        final dirTowardContainer =
+            route.pointCount == 2 ||
+            (dir.isHorizontal == closingHorizontal &&
+                (dir.dx + dir.dy) == -closingSign);
+        for (final (exactEnd, containerEnd) in [(0, 1), (1, 0)]) {
+          if (closingSign == 0 || !dirTowardContainer) break;
+          final exact = wire.endpointAttachRects[exactEnd];
+          final container = wire.endpointAttachRects[containerEnd];
+          if (exact == null || container == null) continue;
+          if (exact.width <= 0 ||
+              exact.width > exactMax ||
+              exact.height <= 0 ||
+              exact.height > exactMax) {
+            continue;
+          }
+          if (container.width < containerMin ||
+              container.height < containerMin) {
+            continue;
+          }
+          final wap = scene.diagram.wireAttachPoint(
+            wire.endpointOids[exactEnd],
+          );
+          if (wap == null) continue;
+          // Travel sign from the container face to the exact attach along
+          // the closing axis, from the rects' disjoint order.
+          final int toExact, cross, lo, hi;
+          if (closingHorizontal) {
+            cross = wap.y;
+            if (cross <= container.top || cross >= container.bottom) continue;
+            if (container.right <= exact.left) {
+              toExact = 1;
+              lo = container.right;
+              hi = exact.left - 1;
+            } else if (exact.right <= container.left) {
+              toExact = -1;
+              lo = exact.right;
+              hi = container.left - 1;
+            } else {
+              continue;
+            }
+          } else {
+            cross = wap.x;
+            if (cross <= container.left || cross >= container.right) continue;
+            if (container.bottom <= exact.top) {
+              toExact = 1;
+              lo = container.bottom;
+              hi = exact.top - 1;
+            } else if (exact.bottom <= container.top) {
+              toExact = -1;
+              lo = exact.bottom;
+              hi = container.top - 1;
+            } else {
+              continue;
+            }
+          }
+          // An n==2 table's sign runs endpoint 0 -> 1; a longer table's
+          // closing sign runs container -> exact (its origin jogs on the
+          // container side).
+          final wantSign = route.pointCount == 2
+              ? (exactEnd == 0 ? -toExact : toExact)
+              : toExact;
+          if (closingSign != wantSign || lo > hi) continue;
+          // An ARRAY-SHELL container's box edge is NOT chrome: the shell
+          // draws only its wrap frames ([bdArrayShellWrapRects]) plus the
+          // index/label furniture, so the run's ink continues past the box
+          // edge until it TOUCHES the wrap spanning its cross coordinate
+          // (measured on MD5's S-grid feed — the shell's label band is bare
+          // canvas and the reference ink reaches the element wrap's frame).
+          // Containers that are not drawn array shells keep their box face.
+          var runLo = lo, runHi = hi;
+          for (final o in scene.drawable) {
+            final b = o.absBounds;
+            if (o.kind != 0x52 ||
+                b == null ||
+                b.left != container.left ||
+                b.top != container.top ||
+                b.right != container.right ||
+                b.bottom != container.bottom) {
+              continue;
+            }
+            // The nearest wrap face along the run (the first opaque chrome
+            // the ink meets travelling from the exact attach): the outermost
+            // candidate wins, so a nested frame never stops the run early.
+            int? face;
+            for (final wrap in bdArrayShellWrapRects(scene.diagram, o.oid)) {
+              final int wrapLo, wrapHi, wrapFace;
+              if (closingHorizontal) {
+                wrapLo = wrap.top;
+                wrapHi = wrap.bottom;
+                wrapFace = toExact == 1 ? wrap.right : wrap.left;
+              } else {
+                wrapLo = wrap.left;
+                wrapHi = wrap.right;
+                wrapFace = toExact == 1 ? wrap.bottom : wrap.top;
+              }
+              if (cross <= wrapLo || cross >= wrapHi) continue;
+              face = face == null
+                  ? wrapFace
+                  : (toExact == 1
+                        ? math.max(face, wrapFace)
+                        : math.min(face, wrapFace));
+            }
+            if (face != null) {
+              if (toExact == 1) {
+                runLo = face;
+              } else {
+                runHi = face - 1;
+              }
+            }
+            break;
+          }
+          if (runLo > runHi) continue;
+          legs.add(
+            closingHorizontal
+                ? [
+                    Offset(runLo - origin.dx, cross - origin.dy),
+                    Offset(runHi - origin.dx, cross - origin.dy),
+                  ]
+                : [
+                    Offset(cross - origin.dx, runLo - origin.dy),
+                    Offset(cross - origin.dx, runHi - origin.dy),
+                  ],
+          );
           break;
         }
       }
@@ -4709,17 +5593,6 @@ class BdDiagramPainter extends CustomPainter {
       // terminal features, not crossing segments, so they are not recorded in
       // [drawn].
       for (final junction in junctions) {
-        var vertUp = false, vertDown = false;
-        for (final leg in legs) {
-          for (var k = 0; k + 1 < leg.length; k++) {
-            final a = leg[k], b = leg[k + 1];
-            if (a.dx != b.dx || a.dx != junction.dx) continue;
-            final atJunction = a.dy == junction.dy || b.dy == junction.dy;
-            if (!atJunction) continue;
-            if (math.min(a.dy, b.dy) < junction.dy) vertUp = true;
-            if (math.max(a.dy, b.dy) > junction.dy) vertDown = true;
-          }
-        }
         _drawWireJunctionDot(
           canvas,
           junction,
@@ -4727,8 +5600,6 @@ class BdDiagramPainter extends CustomPainter {
           bdWireStrokeBand(style),
           style: style,
           errorBraid: errorBraid,
-          vertUp: vertUp,
-          vertDown: vertDown,
         );
       }
     }
@@ -4836,20 +5707,38 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// An array constant's drawn furniture (measured on crc8's Polynomial
-  /// and U8-LUT arrays): a 1 px border in the ELEMENT type's colour at the
-  /// `0x52` shell bounds, at each bounded `0x9` wrap part (the sub-frames
-  /// around the index and element sides), and at the index `0x50`'s value
-  /// window and its two `0xb` spinner boxes. The element `0x50` keeps its
-  /// own constant-box chrome from the terminal pass.
+  /// An array constant's drawn furniture (measured on crc8's Polynomial /
+  /// U8-LUT arrays and MD5's Indices / S / T grids). Wrap selection lives in
+  /// [bdArrayShellWrapRects], shared with the wire container-face law:
+  ///
+  ///  * a 1 px border in the ELEMENT type's colour + opaque white fill at
+  ///    each OUTERMOST bounded `0x9` wrap part (the index-side and
+  ///    element-side frames) — except one demoted to a grid window /
+  ///    overlay zone by containing a `0x50` without being its largest
+  ///    container. A `0x9` nested inside a sibling `0x9` draws nothing of
+  ///    its own — its edges are covered by the cell rings, and LabVIEW
+  ///    paints no line at the overlays' interior edges;
+  ///  * the index `0x50`'s value window and its two `0xb` spinner boxes;
+  ///  * the ELEMENT `0x50` tiled as a CELL GRID: the element's bounds give
+  ///    the cell pitch, the smallest `0x9` containing it is the grid
+  ///    window, and every cell draws the measured constant-cell chrome
+  ///    ([_drawArrayCell]) — adjacent 3 px rings union into the observed
+  ///    4 px double walls. Cells beyond the decoded element count (an
+  ///    empty array's prototype) draw the dimmed style.
   void _drawArrayConstantShell(Canvas canvas, ViHeapObject shell) {
+    final children = scene.diagram.children(shell.oid).toList();
     ViTypeKind elementType = ViTypeKind.unknown;
-    for (final c in scene.diagram.children(shell.oid)) {
-      if (c.kind == 0x50 && c.typeKind != ViTypeKind.unknown) {
-        elementType = c.typeKind;
+    ViHeapObject? element;
+    for (final c in children) {
+      if (c.kind != 0x50) continue;
+      if (c.typeKind != ViTypeKind.unknown) elementType = c.typeKind;
+      if (c.absBounds != null &&
+          (element == null || c.absBounds!.right > element.absBounds!.right)) {
+        element = c;
       }
     }
-    final fill = _solidNoAa(_dimFor(shell.oid, labviewTypeColor(elementType)));
+    final tint = _dimFor(shell.oid, labviewTypeColor(elementType));
+    final fill = _solidNoAa(tint);
     void border(HeapRect b) {
       final l = (b.left - origin.dx).toDouble();
       final t = (b.top - origin.dy).toDouble();
@@ -4862,44 +5751,56 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawRect(Rect.fromLTWH(l + w - 1, t, 1, h), fill);
     }
 
-    // The shell rect itself draws nothing — the visible outer frame is the
-    // pair of 0x9 wrap parts (index side + element side). The ELEMENT 0x50
-    // (rightmost bounded) draws its 3 px ring in the terminal pass; the
-    // INDEX 0x50 draws its spinner boxes and value window here.
-    var elementRight = -1 << 30;
-    for (final c in scene.diagram.children(shell.oid)) {
-      if (c.kind == 0x50 && c.absBounds != null) {
-        elementRight = math.max(elementRight, c.absBounds!.right);
-      }
-    }
+    bool contains(HeapRect outer, HeapRect inner) =>
+        outer.left <= inner.left &&
+        outer.top <= inner.top &&
+        outer.right >= inner.right &&
+        outer.bottom >= inner.bottom;
     final white = _solidNoAa(Colors.white);
-    // Wrap fills+borders first: the index/element furniture paints OVER
-    // the opaque wrap, whatever the heap child order.
-    for (final c in scene.diagram.children(shell.oid)) {
-      final b = c.absBounds;
-      if (c.kind == 0x9 && b != null) {
-        // The wrap is opaque: it masks the covered run of a wire that
-        // attaches under the array (the visible run starts at the wrap
-        // border, byte-verified on the Polynomial feed).
-        canvas.drawRect(
-          Rect.fromLTWH(
-            (b.left - origin.dx).toDouble(),
-            (b.top - origin.dy).toDouble(),
-            (b.right - b.left).toDouble(),
-            (b.bottom - b.top).toDouble(),
-          ),
-          white,
-        );
-        border(b);
-      }
+    // Outermost wrap fills+borders first: the index/element furniture
+    // paints OVER the opaque wrap, whatever the heap child order. The wrap
+    // is opaque: it masks the covered run of a wire that attaches under
+    // the array (the visible run starts at the wrap border, byte-verified
+    // on the Polynomial feed).
+    for (final b in bdArrayShellWrapRects(scene.diagram, shell.oid)) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          (b.left - origin.dx).toDouble(),
+          (b.top - origin.dy).toDouble(),
+          (b.right - b.left).toDouble(),
+          (b.bottom - b.top).toDouble(),
+        ),
+        white,
+      );
+      border(b);
     }
-    for (final c in scene.diagram.children(shell.oid)) {
+    for (final c in children) {
       final b = c.absBounds;
-      if (c.kind == 0x50 && b != null && b.right != elementRight) {
+      if (c.kind == 0x50 && b != null && !identical(c, element)) {
         for (final part in scene.diagram.children(c.oid)) {
           final pb = part.absBounds;
           if (pb == null) continue;
           if (part.kind == 0xb || part.kind == 0x9) border(pb);
+          // The index window shows the array's DISPLAYED index — the same
+          // base the cell grid below enumerates its values from (index 0),
+          // drawn in the cells' digit style at the window's text inset
+          // (MD5's small 1D array: the `0` at window.left+2, the cell
+          // digit rows).
+          if (part.kind == 0x9 && pb.width >= 10 && pb.height >= 12) {
+            final tp = _layoutText(
+              '0',
+              color: _dimFor(shell.oid, Colors.black),
+              fontSize: 10,
+              maxLines: 1,
+            );
+            tp.paint(
+              canvas,
+              Offset(
+                (pb.left + 2 - origin.dx).toDouble(),
+                (pb.top + pb.bottom) / 2 - origin.dy - tp.height / 2,
+              ),
+            );
+          }
           // The spinner's fat triangle (measured on crc8's Polynomial
           // index): rows t+2..t+5 at widths 1/3/3/5 centred on l+3, the
           // up box's tip on top and the down box's mirrored.
@@ -4923,6 +5824,184 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
+    if (element == null) return;
+    final cell = element.absBounds!;
+    final cellW = cell.width, cellH = cell.height;
+    if (cellW <= 0 || cellH <= 0) return;
+    // The grid window: the smallest 0x9 containing the element prototype
+    // (crc8's 1D arrays store it at exactly the prototype's rect — one
+    // cell; MD5's grids tile it 16x4 / 4x4 / 1x5).
+    HeapRect grid = cell;
+    var gridArea = 1 << 60;
+    for (final c in children) {
+      final b = c.absBounds;
+      if (c.kind != 0x9 || b == null || !contains(b, cell)) continue;
+      final area = b.width * b.height;
+      if (area < gridArea) {
+        grid = b;
+        gridArea = area;
+      }
+    }
+    final cols = math.max(1, grid.width ~/ cellW);
+    final rows = math.max(1, grid.height ~/ cellH);
+    final holder = scene.diagram.byId[shell.parentOid ?? -1];
+    final values = holder?.kind == 0x13 ? holder!.constArray : null;
+    final dims = holder?.kind == 0x13 ? holder!.constArrayDims : null;
+    final format = bdDisplayFormatOf(scene.diagram, element.oid);
+    final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
+    // The radix part's offset inside its cell, from the prototype's own
+    // 0xb child (MD5: +2,+3 in every array).
+    var radixDx = 2, radixDy = 3;
+    for (final part in scene.diagram.children(element.oid)) {
+      if (part.kind == 0xb && part.absBounds != null) {
+        radixDx = part.absBounds!.left - cell.left;
+        radixDy = part.absBounds!.top - cell.top;
+      }
+    }
+    for (var j = 0; j < rows; j++) {
+      for (var i = 0; i < cols; i++) {
+        // Storage order is row-major over the decoded dims; a 1D array is a
+        // single visible row or column, so its index is i + j either way.
+        final index = dims != null && dims.length >= 2
+            ? j * dims.last + i
+            : i + j;
+        final value =
+            values != null &&
+                index < values.length &&
+                (dims == null || dims.length < 2 || i < dims.last)
+            ? values[index]
+            : null;
+        _drawArrayCell(
+          canvas,
+          shellOid: shell.oid,
+          cell: Rect.fromLTWH(
+            (grid.left + i * cellW - origin.dx).toDouble(),
+            (grid.top + j * cellH - origin.dy).toDouble(),
+            cellW.toDouble(),
+            cellH.toDouble(),
+          ),
+          tint: tint,
+          value: value,
+          empty: values != null && value == null,
+          format: format,
+          marker: marker,
+          radixDx: radixDx,
+          radixDy: radixDy,
+        );
+      }
+    }
+  }
+
+  /// One array-constant element cell, byte-measured on crc8's arrays and
+  /// MD5's grids: a 3 px ring in the element colour whose outer edge sits
+  /// 1 px outside the cell rect on the left/top and ON its right/bottom
+  /// edges, white field, the value digits in AA black, and the radix-marker
+  /// glyph of a non-decimal display format at the cell's radix-part corner.
+  /// A cell PAST the decoded element count (an empty array's prototype)
+  /// dims the ring's inner 2 px and shows the dimmed default `0`
+  /// ([bdDimDisabled]; MD5's two empty arrays read the pure ring edge over
+  /// the (153,153,255) inner ring and a (153,153,153) digit).
+  void _drawArrayCell(
+    Canvas canvas, {
+    required int shellOid,
+    required Rect cell,
+    required Color tint,
+    required num? value,
+    required bool empty,
+    required String? format,
+    required (int, int, List<String>)? marker,
+    required int radixDx,
+    required int radixDy,
+  }) {
+    final outer = Rect.fromLTRB(
+      cell.left - 1,
+      cell.top - 1,
+      cell.right + 1,
+      cell.bottom + 1,
+    );
+    canvas.drawRect(outer, Paint()..color = Colors.white);
+    final ringFill = _solidNoAa(empty ? bdDimDisabled(tint) : tint);
+    canvas.drawRect(
+      Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
+      ringFill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
+      ringFill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
+      ringFill,
+    );
+    canvas.drawRect(
+      Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
+      ringFill,
+    );
+    if (empty) {
+      // The outermost 1 px of the ring stays the pure element colour.
+      final pure = _solidNoAa(tint);
+      canvas.drawRect(
+        Rect.fromLTWH(outer.left, outer.top, outer.width, 1),
+        pure,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(outer.left, outer.bottom - 1, outer.width, 1),
+        pure,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(outer.left, outer.top, 1, outer.height),
+        pure,
+      );
+      canvas.drawRect(
+        Rect.fromLTWH(outer.right - 1, outer.top, 1, outer.height),
+        pure,
+      );
+    }
+    if (marker != null && (value != null || empty)) {
+      final (gx, gy, glyphRows) = marker;
+      final ink = _solidNoAa(empty ? bdDimDisabled(tint) : tint);
+      for (var r = 0; r < glyphRows.length; r++) {
+        for (var c = 0; c < glyphRows[r].length; c++) {
+          if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+          canvas.drawRect(
+            Rect.fromLTWH(
+              cell.left + radixDx + gx + c,
+              cell.top + radixDy + gy + r,
+              1,
+              1,
+            ),
+            ink,
+          );
+        }
+      }
+    }
+    final text = value != null
+        ? bdFormatConstValue(value, format)
+        : empty
+        ? '0'
+        : null;
+    if (text == null || cell.width < 10 || cell.height < 12) return;
+    final ink = _dimFor(
+      shellOid,
+      empty ? bdDimDisabled(Colors.black) : Colors.black,
+    );
+    final tp = _layoutText(
+      text,
+      color: ink,
+      fontSize: 10,
+      maxLines: 1,
+      ellipsis: '…',
+      maxWidth: math.max(8, cell.width - 6),
+    );
+    // Digits sit left-aligned after the radix zone (MD5: decimal digits at
+    // cell.left+4, hex digits at cell.left+9 past the marker).
+    tp.paint(
+      canvas,
+      Offset(
+        cell.left + (marker != null ? 9 : 4),
+        cell.center.dy - tp.height / 2,
+      ),
+    );
   }
 
   /// The branch-junction dot LabVIEW stamps where a wire forks, in the
@@ -4943,8 +6022,6 @@ class BdDiagramPainter extends CustomPainter {
     (int, int) band, {
     ViWireRenderStyle? style,
     bool errorBraid = false,
-    bool vertUp = false,
-    bool vertDown = false,
   }) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
@@ -5053,10 +6130,6 @@ class BdDiagramPainter extends CustomPainter {
       }
       return;
     }
-    // The junction's vertical pair {route-1, route}: the EVEN column draws
-    // solid, the ODD column carries the vertical checker (see the vertical
-    // zigzag stroke law).
-    final oddCol = (cx.toInt() + ox).isOdd ? cx.toInt() : cx.toInt() - 1;
     for (var dy = bandLo - 2; dy <= bandHi + 2; dy++) {
       final outside = dy < bandLo
           ? bandLo - dy
@@ -5075,23 +6148,23 @@ class BdDiagramPainter extends CustomPainter {
       }
       for (var i = 0; i < width; i++) {
         final x = (left + i).toInt(), y = (cy + dy).toInt();
-        // Measured on all six Excel zigzag junctions (annotated diff-cell
-        // census, zero counterexamples):
+        // Measured on all six Excel zigzag junctions and MD5's three
+        // (annotated diff-cell census, zero counterexamples):
         //  * BAND rows hole the stroke lattice's no-ink column within the
         //    4-wide window dx in [-2, +1] of the junction — exactly one
         //    such column lands per row;
-        //  * the FIRST row beyond the band, on the side where the VERTICAL
-        //    RUN CONTINUES, obeys the vertical checker on the pair's odd
-        //    column;
-        //  * everything else (the outermost taper row, and the side with
-        //    no vertical) fills solid.
+        //  * the FIRST row beyond the band, on BOTH sides, keeps the
+        //    stroke lattice through the band columns — the vertical run's
+        //    texture where a run continues, the same lattice where none
+        //    does (MD5's junctions pin the no-run side);
+        //  * everything else (the outermost taper rows and the reach
+        //    columns) fills solid.
         final dx = x - cx.toInt();
         bool hole;
         if (dy >= bandLo && dy <= bandHi) {
           hole = dx >= -2 && dx <= 1 && punched(x, y);
-        } else if ((dy == bandLo - 1 && vertUp) ||
-            (dy == bandHi + 1 && vertDown)) {
-          hole = x == oddCol && (((oddCol + ox) ~/ 2) + y + oy).isOdd;
+        } else if (dy == bandLo - 1 || dy == bandHi + 1) {
+          hole = dx >= bandLo && dx <= bandHi && punched(x, y);
         } else {
           hole = false;
         }
