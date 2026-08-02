@@ -630,6 +630,19 @@ enum HeapAttribute {
   /// records; greys/white), but label-class u32/u24/u16 records carry
   /// text-mode words (0x814404/0x14404/0x4404 patterns — not colours).
   /// [heapDecodeTier] counts only the cosm-scoped u32 form as a colour.
+  ///
+  /// Label-word census (423,717 label-class `0x0a` records, full corpus):
+  /// one 32-bit word whose leading zero bytes drop with the stored width
+  /// (u16 `0x4404` / u24 `0x01_4404` / u32 `0x81_4404` share the constant
+  /// low core `0x4404`; case-selector `0x95` labels carry `0x4501`,
+  /// 17,085/17,094). Bits `0x080000` (6,325), `0x040000` (43) and `0x01`
+  /// (543) appear ONLY on caption-less parent-owned labels — never with a
+  /// caption string. Every low-nibble variant (`0x10`/`0x20` set) occurs
+  /// on labels the 46 snippet references render in the one default
+  /// face/size/weight, so none of the varying bits maps to a visible
+  /// size or style there, and the word does not track the FTAB font
+  /// tables (identical word sets appear beside 13/15/17 px tables).
+  /// Field meanings not decoded. // TODO(labwright)
   cosmColorB(0x021, HeapAttrKind.color, 'cosmColorB', AttrConfidence.inferred),
 
   /// Raw `0x02A` — **plot / graph colour** (u32 RGB; scope stdGraph `0x5E`
