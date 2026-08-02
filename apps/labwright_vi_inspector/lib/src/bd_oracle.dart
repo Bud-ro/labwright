@@ -1870,6 +1870,9 @@ class _BdOracleViewState extends State<BdOracleView>
                                     : data.displayRendered != null)
                                 ? kOracleDisplaySupersample
                                 : 1,
+                            base: result != null
+                                ? result.fitted
+                                : data.rendered,
                             copyImage: result != null
                                 ? (data.displayFitted ?? result.fitted)
                                 : (data.displayRendered ?? data.rendered),
@@ -1884,6 +1887,7 @@ class _BdOracleViewState extends State<BdOracleView>
                               supersample: data.displayReference != null
                                   ? kOracleDisplaySupersample
                                   : 1,
+                              base: result.reference,
                               copyImage:
                                   data.displayReference ?? result.reference,
                               copyLabel: 'Reference',
@@ -2065,6 +2069,7 @@ class _BdOracleViewState extends State<BdOracleView>
     String caption,
     ui.Image image, {
     int supersample = 1,
+    ui.Image? base,
     ui.Image? copyImage,
     String? copyLabel,
   }) => Padding(
@@ -2100,7 +2105,7 @@ class _BdOracleViewState extends State<BdOracleView>
         Expanded(
           child: ColoredBox(
             color: const Color(0xFF202020),
-            child: CrispImage(image, supersample: supersample),
+            child: CrispImage(image, supersample: supersample, base: base),
           ),
         ),
       ],
@@ -2363,11 +2368,20 @@ class CrispImage extends StatefulWidget {
   /// [boxDownscale] — the sole phase-free scales): n:1 nearest upscale, or
   /// 1:n via exact box-averaging, letterboxing the remainder. When the image
   /// is a supersample of the logical content, pass the factor so ratios
-  /// snap against LOGICAL pixels.
-  const CrispImage(this.image, {this.supersample = 1, super.key});
+  /// snap against LOGICAL pixels, and pass [base] — a supersampled image
+  /// has NO exact n:1 path of its own: nearest-drawing it at a non-multiple
+  /// of the supersample decimates (keeps 1 of [supersample]² samples), which
+  /// thins and frays AA text and sheds stray fringe rows under glyphs.
+  const CrispImage(this.image, {this.supersample = 1, this.base, super.key});
 
   final ui.Image image;
   final int supersample;
+
+  /// The 1:1 logical-resolution companion of a supersampled [image]: shown
+  /// nearest-upscaled at the integer n:1 ratios (bit-exact pixels, matching
+  /// the wipe comparator's integer zooms), while [image] serves the sub-1:1
+  /// box-average minification, where its extra samples are real detail.
+  final ui.Image? base;
 
   @override
   State<CrispImage> createState() => _CrispImageState();
@@ -2404,7 +2418,7 @@ class _CrispImageState extends State<CrispImage> {
         final n = fitPhys.floor();
         dispPhysW = logicalW * n;
         dispPhysH = logicalH * n;
-        shown = widget.image;
+        shown = widget.base ?? widget.image;
       } else {
         final k = boxDownscaleFactor(widget.image, widget.supersample, fitPhys);
         if (k != _boxK) {

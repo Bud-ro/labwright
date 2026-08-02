@@ -4,6 +4,7 @@ import 'dart:math' show max, min;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:flutter/widgets.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
@@ -1264,5 +1265,34 @@ void main() {
     // substantial run that the ink law above byte-verified against LabVIEW.
     expect(exposedWires, greaterThanOrEqualTo(2));
     expect(runPixels, greaterThan(2000));
+  });
+
+  testWidgets('CrispImage shows the 1:1 base, not the supersample, at n:1', (
+    tester,
+  ) async {
+    // A supersampled pane image has no exact n:1 path of its own: nearest
+    // at a non-multiple ratio decimates its AA (thin, frayed text). At
+    // integer ratios the pane must therefore show the 1:1 base image.
+    final base = await tester.runAsync(
+      () => _fromRgba(Uint8List(10 * 10 * 4)..fillRange(0, 400, 255), 10, 10),
+    );
+    final ss = await tester.runAsync(
+      () => _fromRgba(Uint8List(30 * 30 * 4)..fillRange(0, 3600, 255), 30, 30),
+    );
+    for (final size in const [Size(10, 10), Size(25, 25)]) {
+      await pumpBody(
+        tester,
+        Center(
+          child: SizedBox(
+            width: size.width,
+            height: size.height,
+            child: CrispImage(ss!, supersample: 3, base: base),
+          ),
+        ),
+        view: const Size(100, 100),
+      );
+      final raw = tester.widget<RawImage>(find.byType(RawImage));
+      expect(raw.image, same(base), reason: 'pane $size');
+    }
   });
 }
