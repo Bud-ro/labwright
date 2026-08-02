@@ -155,7 +155,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
 const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1050': (dx: 6, dy: 6), // x1
   'prim1051': (dx: 6, dy: 6), // x1
-  'prim1052': (dx: 0, dy: 0), // x1
+  'prim1052': (dx: 6, dy: 6), // x1
   'prim1056': (dx: 5, dy: 5), // x1
   'prim1057': (dx: 6, dy: 6), // x1
   'prim1058': (dx: 6, dy: 6), // x1
@@ -163,12 +163,12 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1062': (dx: 6, dy: 8), // x4
   'prim1063': (dx: 4, dy: 8), // x15
   'prim1064': (dx: 6, dy: 7), // x1
-  'prim1070': (dx: 0, dy: 0), // x1
+  'prim1070': (dx: 8, dy: 5), // x1
   'prim1077': (dx: 4, dy: 11), // x2
-  'prim1081': (dx: -6, dy: 3), // x1
+  'prim1081': (dx: 4, dy: 9), // x1
   'prim1082': (dx: -2, dy: 9), // x1
   'prim1110': (dx: 6, dy: 6), // x1
-  'prim1112': (dx: 0, dy: 0), // x1
+  'prim1112': (dx: 6, dy: 6), // x1
   'prim1113': (dx: 6, dy: 6), // x1
   'prim1120': (dx: 0, dy: 0), // x1
   'prim1127': (dx: 0, dy: 4), // x1
@@ -176,20 +176,20 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1143': (dx: 4, dy: 11), // x15
   'prim1155': (dx: 4, dy: 11), // x1
   'prim1156': (dx: 4, dy: 11), // x1
-  'prim1162': (dx: 0, dy: -5), // x3
-  'prim1163': (dx: 0, dy: -5), // x3
+  'prim1162': (dx: 0, dy: 0), // x3
+  'prim1163': (dx: 0, dy: 0), // x3
   'prim1166': (dx: 0, dy: 0), // x16
   'prim1171': (dx: -3, dy: 7), // x4
   'prim1180': (dx: 0, dy: 0), // x2
-  'prim1181': (dx: 0, dy: -5), // x3
+  'prim1181': (dx: 0, dy: 0), // x3
   'prim1185': (dx: 0, dy: 0), // x1
   'prim1189': (dx: 4, dy: 11), // x1
   'prim1302': (dx: 0, dy: 0), // x1
   'prim1419': (dx: 0, dy: 0), // x2
   'prim1420': (dx: 0, dy: 0), // x1
-  'prim1435': (dx: 0, dy: 0), // x1
+  'prim1435': (dx: 4, dy: 8), // x1
   'prim1502': (dx: 0, dy: 7), // x3
-  'prim1503': (dx: 0, dy: -5), // x1
+  'prim1503': (dx: 0, dy: 0), // x1
   'prim1516': (dx: 2, dy: 2), // x1
   'prim1534': (dx: 0, dy: 0), // x1
   'prim1535': (dx: 0, dy: 0), // x38

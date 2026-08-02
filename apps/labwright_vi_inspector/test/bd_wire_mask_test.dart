@@ -94,171 +94,203 @@ int missingWireInk({
   return missing;
 }
 
-void main() {
-  testWidgets('Excel per-wire masks: 92 of 92 drawn wires are byte-perfect', (
-    tester,
-  ) async {
-    final dir = repoDir(
-      'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
+/// The per-wire leave-one-out gauge over one snippet reference: renders the
+/// diagram, then re-renders without each wire in turn — the changed pixels
+/// are that wire's visible ink and every one is compared byte-for-byte to
+/// the registered reference — and finally measures the reference wire ink
+/// left uncovered ([missingWireInk]). Null when the corpus is not fetched.
+Future<({int drawn, int perfect, int off, int missing, String detail})?>
+perWireMaskGauge(WidgetTester tester, String pngName) async {
+  final dir = repoDir(
+    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
+  );
+  if (dir == null) return null;
+  final f = dir
+      .listSync(recursive: true)
+      .whereType<File>()
+      .firstWhere((x) => x.path.endsWith('/$pngName'));
+  final bytes = f.readAsBytesSync();
+  final viBytes = extractSnippetVi(bytes)!;
+  final bd = bestBlockDiagram(buildViModel(viBytes))!;
+  final scene = BdScene(bd);
+  await loadRealTextFont();
+  ({int drawn, int perfect, int off, int missing, String detail})? gauge;
+  await tester.runAsync(() async {
+    final icons = await loadPrimIcons();
+    final facades = await loadXnodeFacades(viBytes, bd);
+    final raster = (await rasteriseBlockDiagram(
+      bd,
+      primIcons: icons,
+      xnodeFacades: facades,
+      scale: 1.0,
+      margin: 2,
+      scene: scene,
+    ))!;
+    final reference = await decodeReferenceImage(bytes);
+    final result = await compareToReference(
+      raster.image,
+      reference.image,
+      lockScale: 1.0 / raster.scale,
+      anchorRects: bdStructureAnchorRects(bd, raster, drawable: scene.drawable),
     );
-    if (dir == null) {
-      markTestSkipped('corpus not fetched');
-      return;
+    // The capture's wire-cycle phase (screen-anchored patterns; see
+    // [BdRenderStyle.wireCycleOffset]) — derived exactly as the oracle
+    // does, then both renders below use it.
+    final wirePhase = deriveWireCycleOffset(
+      scene: scene,
+      raster: raster,
+      registration: result.registration,
+      referenceRgba: result.referenceRgba,
+      width: reference.image.width,
+      height: reference.image.height,
+    );
+    final style = BdRenderStyle(wireCycleOffset: wirePhase);
+    final rephased = (await rasteriseBlockDiagram(
+      bd,
+      primIcons: icons,
+      xnodeFacades: facades,
+      scale: 1.0,
+      margin: 2,
+      scene: scene,
+      style: style,
+    ))!;
+    final reg = result.registration;
+    final rw = reference.image.width;
+    final rh = reference.image.height;
+    final refB = result.referenceRgba;
+    final basePx = (await rephased.image.toByteData())!.buffer.asUint8List();
+    final iw = rephased.image.width, ih = rephased.image.height;
+
+    int refPixel(int rx, int ry) {
+      if (rx < 0 || ry < 0 || rx >= rw || ry >= rh) return -1;
+      final i = (ry * rw + rx) * 4;
+      return (refB[i] << 16) | (refB[i + 1] << 8) | refB[i + 2];
     }
-    final f = dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .firstWhere((x) => x.path.endsWith('/Excel_Read_XLSX.png'));
-    final bytes = f.readAsBytesSync();
-    final viBytes = extractSnippetVi(bytes)!;
-    final bd = bestBlockDiagram(buildViModel(viBytes))!;
-    final scene = BdScene(bd);
-    await loadRealTextFont();
-    await tester.runAsync(() async {
-      final icons = await loadPrimIcons();
-      final facades = await loadXnodeFacades(viBytes, bd);
-      final raster = (await rasteriseBlockDiagram(
+
+    int ourPixel(Uint8List px, int x, int y) {
+      final i = (y * iw + x) * 4;
+      return (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
+    }
+
+    final wires = scene.wires;
+    var drawn = 0, perfect = 0, totalOff = 0;
+    final imperfect = <String>[];
+    for (final wire in wires) {
+      final without = (await rasteriseBlockDiagram(
         bd,
         primIcons: icons,
         xnodeFacades: facades,
         scale: 1.0,
         margin: 2,
-        scene: scene,
-      ))!;
-      final reference = await decodeReferenceImage(bytes);
-      final result = await compareToReference(
-        raster.image,
-        reference.image,
-        lockScale: 1.0 / raster.scale,
-        anchorRects: bdStructureAnchorRects(
-          bd,
-          raster,
-          drawable: scene.drawable,
-        ),
-      );
-      // The capture's wire-cycle phase (screen-anchored patterns; see
-      // [BdRenderStyle.wireCycleOffset]) — derived exactly as the oracle
-      // does, then both renders below use it.
-      final wirePhase = deriveWireCycleOffset(
-        scene: scene,
-        raster: raster,
-        registration: result.registration,
-        referenceRgba: result.referenceRgba,
-        width: reference.image.width,
-        height: reference.image.height,
-      );
-      final style = BdRenderStyle(wireCycleOffset: wirePhase);
-      final rephased = (await rasteriseBlockDiagram(
-        bd,
-        primIcons: icons,
-        xnodeFacades: facades,
-        scale: 1.0,
-        margin: 2,
-        scene: scene,
+        wires: [
+          for (final w in wires)
+            if (w.signalOid != wire.signalOid) w,
+        ],
+        drawable: scene.drawable,
         style: style,
       ))!;
-      // ignore: avoid_print
-      print('derived wireCycleOffset=$wirePhase');
-      final reg = result.registration;
-      final rw = reference.image.width;
-      final rh = reference.image.height;
-      final refB = result.referenceRgba;
-      final basePx = (await rephased.image.toByteData())!.buffer.asUint8List();
-      final iw = rephased.image.width, ih = rephased.image.height;
-
-      int refPixel(int rx, int ry) {
-        if (rx < 0 || ry < 0 || rx >= rw || ry >= rh) return -1;
-        final i = (ry * rw + rx) * 4;
-        return (refB[i] << 16) | (refB[i + 1] << 8) | refB[i + 2];
-      }
-
-      int ourPixel(Uint8List px, int x, int y) {
-        final i = (y * iw + x) * 4;
-        return (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
-      }
-
-      final wires = scene.wires;
-      var drawn = 0, perfect = 0, totalOff = 0;
-      final imperfect = <String>[];
-      for (final wire in wires) {
-        final without = (await rasteriseBlockDiagram(
-          bd,
-          primIcons: icons,
-          xnodeFacades: facades,
-          scale: 1.0,
-          margin: 2,
-          wires: [
-            for (final w in wires)
-              if (w.signalOid != wire.signalOid) w,
-          ],
-          drawable: scene.drawable,
-          style: style,
-        ))!;
-        final woPx = (await without.image.toByteData())!.buffer.asUint8List();
-        var maskCount = 0, off = 0;
-        for (var y = 0; y < ih; y++) {
-          for (var x = 0; x < iw; x++) {
-            final ours = ourPixel(basePx, x, y);
-            if (ours == ourPixel(woPx, x, y)) continue;
-            maskCount++;
-            if (ours != refPixel(x + reg.dx.round(), y + reg.dy.round())) {
-              off++;
-            }
+      final woPx = (await without.image.toByteData())!.buffer.asUint8List();
+      var maskCount = 0, off = 0;
+      for (var y = 0; y < ih; y++) {
+        for (var x = 0; x < iw; x++) {
+          final ours = ourPixel(basePx, x, y);
+          if (ours == ourPixel(woPx, x, y)) continue;
+          maskCount++;
+          if (ours != refPixel(x + reg.dx.round(), y + reg.dy.round())) {
+            off++;
           }
         }
-        without.image.dispose();
-        if (maskCount == 0) continue;
-        drawn++;
-        if (off == 0) {
-          perfect++;
-        } else {
-          totalOff += off;
-          imperfect.add('sig=${wire.signalOid} off=$off');
-        }
+      }
+      without.image.dispose();
+      if (maskCount == 0) continue;
+      drawn++;
+      if (off == 0) {
+        perfect++;
+      } else {
+        totalOff += off;
+        imperfect.add('sig=${wire.signalOid} off=$off');
+      }
+    }
+    final missing = missingWireInk(
+      scene: scene,
+      raster: rephased,
+      refPixel: refPixel,
+      ourPixel: (x, y) => ourPixel(basePx, x, y),
+      width: iw,
+      height: ih,
+      dx: reg.dx.round(),
+      dy: reg.dy.round(),
+    );
+    gauge = (
+      drawn: drawn,
+      perfect: perfect,
+      off: totalOff,
+      missing: missing,
+      detail: 'wireCycleOffset=$wirePhase ${imperfect.join(" ")}',
+    );
+    raster.image.dispose();
+    rephased.image.dispose();
+    result.fitted.dispose();
+    result.diffImage.dispose();
+    reference.image.dispose();
+  });
+  return gauge;
+}
+
+void main() {
+  // Per-snippet exact-state pins: every drawn wire byte-perfect, zero
+  // off-reference wire-layer pixels, and the missing-ink pin. A change
+  // that moves a count must re-prove it against reference ink and re-pin
+  // DOWNWARD (missing) / hold at zero (off), never loosen.
+  for (final (name, drawnFloor, missingPin) in const [
+    ('Excel_Read_XLSX.png', 92, 0),
+    // MD5's missing remainder sits inside the array-block value rects:
+    // cell-seam ink the block render does not yet draw, and the tunnel
+    // wire's covered run between a block's rect edge and its drawn frame.
+    ('MD5.png', 186, 97),
+  ]) {
+    testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
+      tester,
+    ) async {
+      final gauge = await perWireMaskGauge(tester, name);
+      if (gauge == null) {
+        markTestSkipped('corpus not fetched');
+        return;
       }
       // ignore: avoid_print
       print(
-        'wire masks: drawn=$drawn perfect=$perfect offPx=$totalOff '
-        '${imperfect.join(" ")}',
+        '$name wire masks: drawn=${gauge.drawn} perfect=${gauge.perfect} '
+        'offPx=${gauge.off} missing=${gauge.missing} ${gauge.detail}',
       );
-      expect(drawn, greaterThanOrEqualTo(92), reason: 'drawn-wire floor');
       expect(
-        perfect,
-        greaterThanOrEqualTo(92),
+        gauge.drawn,
+        greaterThanOrEqualTo(drawnFloor),
+        reason: 'drawn-wire floor',
+      );
+      expect(
+        gauge.perfect,
+        equals(gauge.drawn),
         reason:
             'byte-perfect wire floor — a regression here un-fixes a wire '
             'that matched LabVIEW exactly',
       );
       expect(
-        totalOff,
+        gauge.off,
         lessThanOrEqualTo(0),
         reason:
-            'off-reference pixel ceiling over all wire masks — re-pin '
-            'DOWNWARD as decodes land, never up. (13 px of the budget are '
-            'the 0x53 cluster-shell interior art, drawn as a plain double '
-            'ring until its glyphs are decoded.)',
+            'off-reference pixel ceiling over all wire masks — false wire '
+            'ink the reference never shows; keep at zero',
       );
-      final missing = missingWireInk(
-        scene: scene,
-        raster: rephased,
-        refPixel: refPixel,
-        ourPixel: (x, y) => ourPixel(basePx, x, y),
-        width: iw,
-        height: ih,
-        dx: reg.dx.round(),
-        dy: reg.dy.round(),
-      );
-      // ignore: avoid_print
-      print('missing wire ink: $missing px');
       expect(
-        missing,
-        lessThanOrEqualTo(0),
+        gauge.missing,
+        lessThanOrEqualTo(missingPin),
         reason:
             'reference wire ink we leave white — every palette wire pixel '
-            'outside node boxes is covered; keep at zero',
+            'outside node boxes is covered; re-pin DOWNWARD as routing '
+            'lands, never up',
       );
     });
-  });
+  }
 
   testWidgets('corpus wire-layer ratchet: off-reference and missing ink', (
     tester,
@@ -388,25 +420,26 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71915),
+        lessThanOrEqualTo(71475),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
-            'DOWNWARD as decodes land. (Per-snippet trades inside the '
-            'net drop: the shift-register column decode and the '
-            'catalogued-terminal tiers draw hundreds of new wires; the '
-            'not-yet-perfect ones raise a few rows — ClassChildren, large '
-            '— against the missing-ink ceiling dropping 51,707 -> 39,805.)',
+            'DOWNWARD as decodes land. (The into-icon arrival law — stop '
+            'at the arrival line\'s opaque art edge, never overrun to the '
+            'ink centre or against the closing direction — plus the '
+            'junction first-beyond-row lattice took this 71,915 -> '
+            '71,825; the indexing-tunnel ring law took it -> 71,475.)',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(22046),
+        lessThanOrEqualTo(21906),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
-            '(The array-constant cell grids + typed constant values took '
-            'this 39,805 -> 22,046; MD5 alone dropped 15,025 -> 138, its '
-            'remainder the 2D-array double-line wire style, not yet '
-            'drawn.)',
+            '(The icon-asset repairs — foreign fragments lopped, baked '
+            'wires erased, full-box crops trimmed to their ink — took '
+            'this 22,046 -> 22,035; the prim-origin/uncatalogued 3-point '
+            'tiers, the container-face runs, and the Logical Shift '
+            'terminal row -> 21,906.)',
       );
     });
   });
