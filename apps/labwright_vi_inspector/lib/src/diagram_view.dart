@@ -2546,13 +2546,17 @@ const Set<int> kVerifiedBorderTerminalKinds = {
 };
 
 /// The terminal [ViHeapObject.objFlags] bit marking a HOLLOW tunnel square
-/// (cream interior with a wire-colour ring — LabVIEW's use-default look)
-/// instead of the solid wire-colour fill. Corpus census over both snippet
-/// repos, classifying each 0x22/0x2d's reference interior: bit set → 71/72
-/// hollow; bit clear → 289/296 solid. The 8 outliers (7 cream-dominant
-/// without the bit — a bracket-style look whose trigger is not yet
-/// decoded — and 1 set-but-solid) are drawn by the flag until that third
-/// look is decoded (TODO).
+/// (cream interior with a wire-colour open ring — the same 5x5 art also
+/// reads as the array-index brackets) instead of the solid wire-colour
+/// fill. The ring has a SECOND trigger the flag does not carry: a tunnel
+/// whose two sides' signals resolve DIFFERENT array dimensionalities (an
+/// indexing tunnel — e.g. a 2D array outside, its 1D rows inside).
+/// Snippet-corpus census over every wired 9x9 `0x22`/`0x2d` tunnel (721
+/// terminal groups, 46 references): ring interior ⟺ this flag OR the
+/// resolved dims differ, zero counterexamples — the flag-set rings all
+/// index 0↔1 or carry an unresolved side, the flag-clear rings all index
+/// 1↔2 or 2↔3, and the four flag-set solid-looking outliers of the earlier
+/// flag-only census were dimmed rings under a disabled frame, not solids.
 const int kTunnelHollowFlag = 0x1000000;
 
 /// Tunnel-object flag bits whose BOTH-set form marks the tunnel that draws
@@ -2574,7 +2578,25 @@ bdBorderTerminalKinds(ViDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
   final out =
       <HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>{};
-  for (final wire in bdVisibleWires(diagram)) {
+  final wires = bdVisibleWires(diagram);
+  // Resolved array dimensionalities of the signals each terminal joins —
+  // an INDEXING tunnel (its sides resolve different dims) draws the hollow
+  // ring even without [kTunnelHollowFlag] (see the flag's census law).
+  final dimsByTerminal = <int, Set<int>>{};
+  for (final wire in wires) {
+    final dims = wire.signalType?.arrayDims;
+    if (dims == null) continue;
+    for (var e = 0; e < wire.endpointOids.length; e++) {
+      final attach = e < wire.endpointAttachRects.length
+          ? wire.endpointAttachRects[e]
+          : null;
+      if (attach == null) continue;
+      final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
+      if (terminal == null) continue;
+      dimsByTerminal.putIfAbsent(terminal.oid, () => {}).add(dims);
+    }
+  }
+  for (final wire in wires) {
     for (var e = 0; e < wire.endpointOids.length; e++) {
       final attach = e < wire.endpointAttachRects.length
           ? wire.endpointAttachRects[e]
@@ -4442,6 +4464,7 @@ class BdDiagramPainter extends CustomPainter {
               // the row carries no masked art.
               final last = points.last;
               final farObj = iconNodeObjects[sinkBox];
+              final Offset target;
               if (closing.dx != 0) {
                 final edge = farObj == null
                     ? null
@@ -4451,13 +4474,11 @@ class BdDiagramPainter extends CustomPainter {
                         cross: (last.dy + origin.dy).round(),
                         sign: closing.dx,
                       );
-                points.add(
-                  Offset(
-                    edge != null
-                        ? edge - origin.dx
-                        : (closing.dx > 0 ? ink.left : ink.right - 1),
-                    last.dy,
-                  ),
+                target = Offset(
+                  edge != null
+                      ? edge - origin.dx
+                      : (closing.dx > 0 ? ink.left : ink.right - 1),
+                  last.dy,
                 );
               } else {
                 final edge = farObj == null
@@ -4468,23 +4489,64 @@ class BdDiagramPainter extends CustomPainter {
                         cross: (last.dx + origin.dx).round(),
                         sign: closing.dy,
                       );
-                points.add(
-                  Offset(
-                    last.dx,
-                    edge != null
-                        ? edge - origin.dy
-                        : (closing.dy > 0 ? ink.top : ink.bottom - 1),
-                  ),
+                target = Offset(
+                  last.dx,
+                  edge != null
+                      ? edge - origin.dy
+                      : (closing.dy > 0 ? ink.top : ink.bottom - 1),
                 );
               }
+              // The closing run steps FROM the bend IN the closing
+              // direction; an edge behind the bend means the run is
+              // entirely under opaque art (the bend already sits past the
+              // arrival edge) and adds no visible ink — extending to it
+              // would drag a stroke backwards across the art and out the
+              // far side (measured on MD5's Multiply lower input, where
+              // the up-closing run's opposite edge sat below the box art).
+              final along =
+                  (target.dx - last.dx) * closing.dx +
+                  (target.dy - last.dy) * closing.dy;
+              if (along > 0) points.add(target);
             } else {
-              // The closing run reached the box edge: run on under the art to
-              // the icon centre (the art masks the covered interior).
+              // The closing run reached the box edge: run on under the art
+              // to where it becomes OPAQUE on the arrival row/column
+              // ([primIconInkEdge], same law as the decoded-bend arrivals
+              // above) — never past it: the reference leaves the art's
+              // TRANSPARENT cells white, so overrunning to the icon centre
+              // paints ink LabVIEW never shows (measured on MD5's Select
+              // top/bottom inputs, whose triangle corners are transparent
+              // on the arrival rows). Falls back to the icon-ink centre
+              // when the arrival line carries no masked art.
               final c = ink.center;
               final pn = points.last, pm = points[points.length - 2];
-              points[points.length - 1] = pn.dy == pm.dy
-                  ? Offset(c.dx, pn.dy)
-                  : Offset(pn.dx, c.dy);
+              final farObj = iconNodeObjects[sinkBox];
+              if (pn.dy == pm.dy) {
+                final edge = farObj == null
+                    ? null
+                    : primIconInkEdge(
+                        farObj,
+                        horizontal: true,
+                        cross: (pn.dy + origin.dy).round(),
+                        sign: pn.dx >= pm.dx ? 1 : -1,
+                      );
+                points[points.length - 1] = Offset(
+                  edge != null ? edge - origin.dx : c.dx,
+                  pn.dy,
+                );
+              } else {
+                final edge = farObj == null
+                    ? null
+                    : primIconInkEdge(
+                        farObj,
+                        horizontal: false,
+                        cross: (pn.dx + origin.dx).round(),
+                        sign: pn.dy >= pm.dy ? 1 : -1,
+                      );
+                points[points.length - 1] = Offset(
+                  pn.dx,
+                  edge != null ? edge - origin.dy : c.dy,
+                );
+              }
             }
           }
         }
@@ -5007,17 +5069,6 @@ class BdDiagramPainter extends CustomPainter {
       // terminal features, not crossing segments, so they are not recorded in
       // [drawn].
       for (final junction in junctions) {
-        var vertUp = false, vertDown = false;
-        for (final leg in legs) {
-          for (var k = 0; k + 1 < leg.length; k++) {
-            final a = leg[k], b = leg[k + 1];
-            if (a.dx != b.dx || a.dx != junction.dx) continue;
-            final atJunction = a.dy == junction.dy || b.dy == junction.dy;
-            if (!atJunction) continue;
-            if (math.min(a.dy, b.dy) < junction.dy) vertUp = true;
-            if (math.max(a.dy, b.dy) > junction.dy) vertDown = true;
-          }
-        }
         _drawWireJunctionDot(
           canvas,
           junction,
@@ -5025,8 +5076,6 @@ class BdDiagramPainter extends CustomPainter {
           bdWireStrokeBand(style),
           style: style,
           errorBraid: errorBraid,
-          vertUp: vertUp,
-          vertDown: vertDown,
         );
       }
     }
@@ -5438,8 +5487,6 @@ class BdDiagramPainter extends CustomPainter {
     (int, int) band, {
     ViWireRenderStyle? style,
     bool errorBraid = false,
-    bool vertUp = false,
-    bool vertDown = false,
   }) {
     final cx = center.dx.floorToDouble();
     final cy = center.dy.floorToDouble();
@@ -5548,10 +5595,6 @@ class BdDiagramPainter extends CustomPainter {
       }
       return;
     }
-    // The junction's vertical pair {route-1, route}: the EVEN column draws
-    // solid, the ODD column carries the vertical checker (see the vertical
-    // zigzag stroke law).
-    final oddCol = (cx.toInt() + ox).isOdd ? cx.toInt() : cx.toInt() - 1;
     for (var dy = bandLo - 2; dy <= bandHi + 2; dy++) {
       final outside = dy < bandLo
           ? bandLo - dy
@@ -5570,23 +5613,23 @@ class BdDiagramPainter extends CustomPainter {
       }
       for (var i = 0; i < width; i++) {
         final x = (left + i).toInt(), y = (cy + dy).toInt();
-        // Measured on all six Excel zigzag junctions (annotated diff-cell
-        // census, zero counterexamples):
+        // Measured on all six Excel zigzag junctions and MD5's three
+        // (annotated diff-cell census, zero counterexamples):
         //  * BAND rows hole the stroke lattice's no-ink column within the
         //    4-wide window dx in [-2, +1] of the junction — exactly one
         //    such column lands per row;
-        //  * the FIRST row beyond the band, on the side where the VERTICAL
-        //    RUN CONTINUES, obeys the vertical checker on the pair's odd
-        //    column;
-        //  * everything else (the outermost taper row, and the side with
-        //    no vertical) fills solid.
+        //  * the FIRST row beyond the band, on BOTH sides, keeps the
+        //    stroke lattice through the band columns — the vertical run's
+        //    texture where a run continues, the same lattice where none
+        //    does (MD5's junctions pin the no-run side);
+        //  * everything else (the outermost taper rows and the reach
+        //    columns) fills solid.
         final dx = x - cx.toInt();
         bool hole;
         if (dy >= bandLo && dy <= bandHi) {
           hole = dx >= -2 && dx <= 1 && punched(x, y);
-        } else if ((dy == bandLo - 1 && vertUp) ||
-            (dy == bandHi + 1 && vertDown)) {
-          hole = x == oddCol && (((oddCol + ox) ~/ 2) + y + oy).isOdd;
+        } else if (dy == bandLo - 1 || dy == bandHi + 1) {
+          hole = dx >= bandLo && dx <= bandHi && punched(x, y);
         } else {
           hole = false;
         }
