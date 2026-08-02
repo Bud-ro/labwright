@@ -2607,7 +2607,9 @@ bdBorderTerminalKinds(ViDiagram diagram) {
           kVerifiedBorderTerminalKinds.contains(terminal.kind)) {
         out[attach] = (
           kind: terminal.kind,
-          hollow: ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0,
+          hollow:
+              ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0 ||
+              (dimsByTerminal[terminal.oid]?.length ?? 0) > 1,
           centreDot:
               ((terminal.objFlags ?? 0) & kTunnelCentreDotFlags) ==
               kTunnelCentreDotFlags,

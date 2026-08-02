@@ -419,14 +419,14 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71825),
+        lessThanOrEqualTo(71475),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The into-icon arrival law — stop '
             'at the arrival line\'s opaque art edge, never overrun to the '
             'ink centre or against the closing direction — plus the '
             'junction first-beyond-row lattice took this 71,915 -> '
-            '71,825.)',
+            '71,825; the indexing-tunnel ring law took it -> 71,475.)',
       );
       expect(
         totalMissing,
