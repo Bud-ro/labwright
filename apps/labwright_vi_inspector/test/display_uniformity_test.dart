@@ -944,26 +944,37 @@ void main() {
         return c[0] < 160 && c[1] < 160 && c[2] < 160;
       }
 
+      int mass(String rgb) {
+        final c = rgb.split(',').map(int.parse).toList();
+        return 255 - (c[0] * 299 + c[1] * 587 + c[2] * 114) ~/ 1000;
+      }
+
       final xorLabel = bd.byId[221]!;
       expect(xorLabel.label, 'XOR?');
       final xbox = xorLabel.absBounds!;
-      var xorInk = 0, xorRefInk = 0;
+      var xorInk = 0, xorMass = 0, xorRefMass = 0;
       for (var y = xbox.top; y < xbox.bottom; y++) {
         for (var x = xbox.left; x < xbox.right; x++) {
           if (isDark(oursAt(x, y))) xorInk++;
-          if (isDark(refAt(x, y))) xorRefInk++;
+          xorMass += mass(oursAt(x, y));
+          xorRefMass += mass(refAt(x, y));
         }
       }
       // ignore: avoid_print
-      print('XOR? caption ink: raster=$xorInk ref=$xorRefInk');
+      print('XOR? caption ink: dark=$xorInk mass=$xorMass ref=$xorRefMass');
       expect(
         xorInk,
         greaterThan(20),
         reason: 'the XOR? caption must render as text ink',
       );
+      // Luminance mass, not a dark-pixel count: at half logical scale the
+      // reference's hard-cored glyphs average lighter per pixel than the
+      // ink-weight-matched render's wider mid-alpha coverage (the same total
+      // ink in more sub-threshold pixels), so a threshold count diverges
+      // while the summed ink tracks.
       expect(
-        (xorInk - xorRefInk).abs(),
-        lessThan(25),
+        xorMass / xorRefMass,
+        closeTo(1.0, 0.25),
         reason: 'the XOR? ink mass must track the reference caption',
       );
 

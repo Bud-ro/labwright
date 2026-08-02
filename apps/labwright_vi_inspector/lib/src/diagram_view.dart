@@ -2869,6 +2869,13 @@ class BdScene {
   /// paint; the text-metric tests and accuracy probes read it to locate
   /// text ink without re-deriving the painter's placement rules.
   final List<({String text, Rect rect, double fontSize})> paintedText = [];
+
+  /// The ink-weight companion of each cached layout ([textLayoutCache]):
+  /// the same run at [kBdTextOverdrawAlpha], blitted under the full-
+  /// strength pass by the painter's `_paintText`. Built alongside the main
+  /// layout (identity-keyed), so overdraw costs one extra blit per run and
+  /// no extra per-frame layout.
+  final Map<TextPainter, TextPainter> textOverdraw = Map.identity();
 }
 
 /// The block-diagram text size, in logical px per em, calibrated against
@@ -2893,6 +2900,17 @@ const double kBdTextSize = 12.0;
 /// Multi-line pitch as a multiple of [kBdTextSize]: the references space
 /// comment-block baselines 14/15 px apart (mean 14.5).
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
+
+/// Ink-weight overdraw alpha: every text run re-draws itself once at this
+/// alpha under the full-strength pass (a zero-offset, zero-blur shadow in
+/// the run's style — one layout, one paint call), darkening each AA fringe
+/// pixel from coverage `a` to `1-(1-a)(1-0.75a)`. Calibrated against the
+/// three snippet references' own glyph ink: the plain rasterisation
+/// measures 0.78-0.81 of the reference's mean ink (the captures'
+/// gamma-corrected, stem-darkened text), a full double-paint 1.07-1.09;
+/// this alpha lands 1.00-1.02 and lifts thresholded text IoU on all three
+/// calibration VIs (Excel .325→.362, MD5 .435→.472, crc8 .442→.475).
+const double kBdTextOverdrawAlpha = 0.75;
 
 /// Per-glyph advance correction for DIGIT-ONLY value runs: the references
 /// space value digits on an integer 6 px pitch (MD5's `%08x`/`%08b`
@@ -2937,23 +2955,30 @@ class BdDiagramPainter extends CustomPainter {
   }) => scene.textLayoutCache.putIfAbsent(
     '$text|${color.toARGB32()}|$fontSize|$fontWeight|'
     '$fontStyle|$maxLines|$ellipsis|$maxWidth|$letterSpacing',
-    () => TextPainter(
-      text: TextSpan(
-        text: text,
-        style: TextStyle(
-          color: color,
-          fontSize: fontSize,
-          height: kBdTextLineHeight,
-          fontWeight: fontWeight,
-          fontStyle: fontStyle,
-          letterSpacing: letterSpacing == 0 ? null : letterSpacing,
-          fontFamily: 'Selawik',
+    () {
+      TextPainter build(Color inkColor) => TextPainter(
+        text: TextSpan(
+          text: text,
+          style: TextStyle(
+            color: inkColor,
+            fontSize: fontSize,
+            height: kBdTextLineHeight,
+            fontWeight: fontWeight,
+            fontStyle: fontStyle,
+            letterSpacing: letterSpacing == 0 ? null : letterSpacing,
+            fontFamily: 'Selawik',
+          ),
         ),
-      ),
-      maxLines: maxLines,
-      ellipsis: ellipsis,
-      textDirection: TextDirection.ltr,
-    )..layout(maxWidth: maxWidth),
+        maxLines: maxLines,
+        ellipsis: ellipsis,
+        textDirection: TextDirection.ltr,
+      )..layout(maxWidth: maxWidth);
+      final main = build(color);
+      scene.textOverdraw[main] = build(
+        color.withValues(alpha: color.a * kBdTextOverdrawAlpha),
+      );
+      return main;
+    },
   );
 
   /// Paints [tp] at [at] and records the run's canvas rect on
@@ -2973,6 +2998,9 @@ class BdDiagramPainter extends CustomPainter {
         ..save()
         ..clipRect(clip);
     }
+    // The ink-weight overdraw pass (see [kBdTextOverdrawAlpha]) blits the
+    // run's dimmed companion under the full-strength pass.
+    scene.textOverdraw[tp]?.paint(canvas, at);
     tp.paint(canvas, at);
     if (clip != null) canvas.restore();
     scene.paintedText.add((
