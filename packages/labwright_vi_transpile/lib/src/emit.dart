@@ -82,6 +82,17 @@ class _Names {
     var stem = _isLowerCamel(base) ? base : lvFieldName(base);
     if (stem.isEmpty) stem = 'value';
     if (stem.length < 3) stem = '${stem}Value';
+    return _unique(stem);
+  }
+
+  /// A fresh file-scope constant name derived from [base] — the `_k` prefix
+  /// the repo spells library-level constants with.
+  String takeFileConstant(String base) {
+    final stem = lvClassName(base);
+    return _unique('_k${stem.isEmpty ? 'Constant' : stem}');
+  }
+
+  String _unique(String stem) {
     if (_used.add(stem)) return stem;
     for (var index = 2; ; index++) {
       final candidate = '$stem$index';
@@ -104,6 +115,10 @@ class _Emitter {
   final Map<int, String> valueOf = <int, String>{};
   final Set<String> imports = <String>{};
   final Map<String, LvHelper> helpers = <String, LvHelper>{};
+
+  /// The file-scope declarations of the diagram's array constants, in the
+  /// order the lowering reached them.
+  final List<String> fileConstants = <String>[];
 
   Never refuse(LvRefusalKind kind, String detail, {int? oid}) =>
       throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
@@ -184,6 +199,11 @@ class _Emitter {
       file.writeln("import '$import';");
     }
     if (imports.isNotEmpty) file.writeln();
+    for (final declaration in fileConstants) {
+      file
+        ..writeln(declaration)
+        ..writeln();
+    }
     file
       ..writeln('$returnType $functionName(${parameters.isEmpty ? '' : '{${parameters.join(', ')}}'}) {')
       ..write(body)
@@ -297,40 +317,68 @@ class _Emitter {
       return;
     }
     final values = record.constArray;
-    if (values == null || type.dims != 1 || type.numeric == null) {
+    final dims = record.constArrayDims;
+    if (values == null || dims == null || dims.length != type.dims || type.numeric == null) {
       refuse(
         LvRefusalKind.constantValue,
         'diagram constant of ${type.dims}-D type ${type.dartType} carries no decoded value',
         oid: unit.oid,
       );
     }
-    imports.add('dart:typed_data');
-    final name = names.take(unit.label ?? 'constant');
-    body.writeln('final ${type.dartType} $name = ${_arrayLiteral(values, type)};');
-    valueOf[unit.port] = name;
+    valueOf[unit.port] = _hoistArrayConstant(unit, type, values, dims);
   }
 
-  /// A 1-D numeric array constant's initializer.
+  /// Declares an array constant at **file scope** and returns its name.
   ///
-  /// A byte array — the common case, and the one whose element-per-line
-  /// literal would run to hundreds of lines — is carried as a hex string that
-  /// [_bytesHelper] decodes; everything else is an explicit element list.
-  String _arrayLiteral(List<num> values, LvWireType type) {
-    if (type.numeric == LvNumericKind.u8 && values.every((value) => value >= 0 && value <= 255)) {
-      helpers[_bytesHelper.name] = _bytesHelper;
-      final digits = StringBuffer();
-      for (final value in values) {
-        digits.write(value.toInt().toRadixString(16).padLeft(2, '0'));
-      }
-      final text = digits.toString();
-      final chunks = <String>[
-        for (var start = 0; start < text.length; start += 64)
-          "'${text.substring(start, start + 64 > text.length ? text.length : start + 64)}'",
-      ];
-      return '${_bytesHelper.name}(${chunks.join(' ')})';
+  /// A diagram constant reads no parameter, so its value is the same on every
+  /// call: building it once at load rather than per invocation costs one
+  /// allocation for the whole program instead of one per call. Sharing the
+  /// single instance is safe because no lowering writes through an array it
+  /// was given — Replace Array Subset copies, and an auto-indexing output
+  /// tunnel builds a new list.
+  String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
+    imports.add('dart:typed_data');
+    final name = names.takeFileConstant(unit.label ?? 'constant');
+    final shape = dims.join(' × ');
+    final flat = _typedListLiteral(values, type);
+    final initializer = dims.length <= 1
+        ? flat
+        : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
+              'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
+    if (dims.length > 1) helpers[_arrayNdHelper.name] = _arrayNdHelper;
+    fileConstants.add(
+      '/// The block diagram\'s ${unit.label == null ? 'unnamed constant' : '"${unit.label}" constant'}: '
+      '$shape ${type.numeric!.glyph} elements.\n'
+      'final ${type.dartType} $name = $initializer;',
+    );
+    return name;
+  }
+
+  /// A numeric array constant's flat, row-major typed-list initializer. The
+  /// element list is `const`, so the decoded values live in the binary's
+  /// constant pool and the only run-time work is the one bulk copy into the
+  /// typed list.
+  ///
+  /// An all-zero constant is the typed list's own length constructor instead:
+  /// a `dart:typed_data` list is zero-filled on construction, so it is the
+  /// same value written without an element per line.
+  String _typedListLiteral(List<num> values, LvWireType type) {
+    final kind = type.numeric!;
+    if (values.isNotEmpty && values.every((value) => value == 0)) {
+      return '${type.elementListType}(${values.length})';
     }
-    final elements = [for (final value in values) _numberLiteral(value, type)].join(', ');
+    final elements = [for (final value in values) _elementLiteral(value, kind)].join(', ');
     return '${type.elementListType}.fromList(const <${type.element.dartType}>[$elements])';
+  }
+
+  /// One array element's literal: hexadecimal at the kind's full width for an
+  /// unsigned integer — the form a mask or lookup table is read in — and
+  /// decimal for a signed integer or a float.
+  static String _elementLiteral(num value, LvNumericKind kind) {
+    if (kind.isFloat) return value is int ? '$value.0' : '$value';
+    final integer = value is double ? value.toInt() : value as int;
+    if (kind.signed || integer < 0) return '$integer';
+    return '0x${integer.toRadixString(16).toUpperCase().padLeft(kind.bits ~/ 4, '0')}';
   }
 
   String? _scalarLiteral(ViHeapObject record, LvWireType type) {
@@ -746,15 +794,28 @@ class _Emitter {
   static bool _atomic(String expression) => RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(expression);
 }
 
-const LvHelper _bytesHelper = LvHelper('_lvBytes', '''
-/// The bytes a generated byte-array constant carries, two hexadecimal digits
-/// each — the compact form of a decoded array literal.
-Uint8List _lvBytes(String digits) {
-  final bytes = Uint8List(digits.length >> 1);
-  for (var index = 0; index < bytes.length; index++) {
-    bytes[index] = int.parse(digits.substring(index * 2, index * 2 + 2), radix: 16);
+const LvHelper _arrayNdHelper = LvHelper(LvRuntimeType.arrayNd, '''
+/// A LabVIEW multi-dimensional array: a flat, **row-major** typed buffer plus
+/// its dimension lengths. LabVIEW arrays are rectangular, so one buffer and a
+/// length vector is the exact shape — a list of rows would admit ragged
+/// shapes LabVIEW forbids and cost an indirection per row.
+class ${LvRuntimeType.arrayNd}<T extends List<Object?>> {
+  ${LvRuntimeType.arrayNd}(this.data, this.dims);
+
+  /// The elements, row-major: the last dimension varies fastest.
+  final T data;
+
+  /// The length of each dimension, outermost first.
+  final Uint32List dims;
+
+  /// The flat [data] offset of the element at [indices].
+  int offsetOf(List<int> indices) {
+    var offset = 0;
+    for (var axis = 0; axis < dims.length; axis++) {
+      offset = offset * dims[axis] + indices[axis];
+    }
+    return offset;
   }
-  return bytes;
 }''');
 
 const LvHelper _iterationCountHelper = LvHelper('_lvIterationCount', '''

@@ -43,7 +43,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'GenerateTree': 'wireType',
   'GetCurrentDirectory': 'wireType',
   'IconHeader': 'wireType',
-  'MD5': 'constantValue',
+  'MD5': 'primitive',
   'PNG CRC32': 'constantValue',
   'Page1': 'wireType',
   'Pages': 'wireType',
