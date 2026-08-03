@@ -223,9 +223,9 @@ const int kLvTypedefDepth = 8;
 /// way, giving the typedef's name to the cluster it wraps — so a typedef over
 /// a cluster is a cluster descriptor for the purpose of typing a wire. It is
 /// also the shape the `0x51` wire code names (the typedef'd / class-typed
-/// cluster family), and looking through it resolves 9 381 of the corpus's
+/// cluster family), and looking through it resolves 18 105 of the corpus's
 /// 133 106 cluster wires that the bare-cluster test alone leaves with no
-/// member shape, while contradicting that test on 24.
+/// member shape, while contradicting that test on 6.
 ViType? lvClusterBase(ViType? type) {
   for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
     if (type.kind == ViDataType.cluster) return type;
@@ -293,15 +293,24 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 ///
 /// It is still not read, and 1 939 wires are the reason: two decoded readings
 /// of one wire that map to DIFFERENT Dart types, with nothing decoded saying
-/// which is the wire's. They are not a naming artefact — among them are wires
-/// where one route reads a `point` of two `I16` and the other a `point` of two
-/// `DBL`. Restricting the part route by descriptor kind does not separate them
-/// either: a plain-cluster part against a plain-cluster endpoint agrees on
+/// which is the wire's. 1 874 of them agree on every member's own type code and
+/// differ in a LABEL (`clusType.kidLabelOnly`) — which is still a different
+/// generated class, since that is what a nominal type is named from — and 65
+/// differ in a member code outright (`clusType.kidShapeDiffers`), among them
+/// wires where one route reads a `point` of two `I16` and the other a `point`
+/// of two `DBL`. Restricting the part route by descriptor kind does not separate
+/// them either: a plain-cluster part against a plain-cluster endpoint agrees on
 /// 54 555 of 54 997 (99.2%) and a typedef part against a typedef endpoint on
 /// 13 553 of 14 983 (90.5%), so the typedef — the descriptor that carries an
 /// owning-library path and so a file identity — is the WORSE of the two, not
 /// the better. The route is measured ([kCorpusLoweringSweep]'s `clus.kid*` and
 /// `clusType.kid*`) and not read.
+///
+/// Nor does anything corroborate it where it would be read. The callee's
+/// connector pane is the one decoded route that reads a cluster wire from
+/// another file, and of the 38 236 wires the part route would newly type it
+/// resolves a descriptor on 5 645 (`clusType.kidChecked`) and is silent on
+/// 32 591 — before its own calibration, which [lvClusterWireType] holds.
 ///
 /// The per-VI base the heap's indices carry is **decoded** from the `DTHP`
 /// header (see `resolveDataSpaceTypes`), so the wires that resolve nothing are
@@ -339,26 +348,49 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 /// of the control each end is, `error in` against `error out` — and 1 216 of
 /// those name the same Dart type. Only 19 differ in a member at all.
 ///
-/// The **callee's connector pane** is not a second source. A call node's
-/// holders are its pane terminals in pane order (the binding the subVI
-/// contract already proves at 99.83%), so a cluster wire ending on one can be
-/// read against the callee VI's own terminal for that pane — but measured over
-/// the corpus that reading decides only 4 230 of the unresolved wires, and
-/// where both it and the endpoint route resolve exactly one shape it
-/// reproduces that shape 2 626 times against 3 651 disagreements — of which
-/// 3 608 are the descriptor NAME alone (`clus.paneNameOnly`): caller and
-/// callee spell the same members under different typedefs, and the name is
-/// what the emitted Dart type is. Two readings that name a wire differently
-/// more than half the time are not one route, so the pane side is measured
-/// ([kCorpusLoweringSweep]'s `clus.pane*`) and not read.
+/// The **callee's connector pane** is not the second source either, and it
+/// takes the Dart-type scoring to say why. A call node's holders are its pane
+/// terminals in pane order (the binding the subVI contract already proves at
+/// 99.83%), so a cluster wire ending on one can be read against the callee VI's
+/// own terminal for that pane — a different route in a different file, and the
+/// same route the refnum dimensionality is corroborated by ([lvRefnumWireDims]).
+/// Scored on the descriptor's SPELLING it reproduces the endpoint route 2 626
+/// times against 3 651 (41.8%, `clus.pane*`). Scored on the DART TYPE, which is
+/// the comparison the spelling gets wrong for the part route above, it agrees
+/// 5 777 times against 523 (91.7%, `clusType.pane*`). The lift is real and it is
+/// not enough:
+///
+/// * **It is not calibrated.** 523 contradictions of the reading the lowering
+///   already trusts is 8.3% — the rate at which the caller-side endpoint walk
+///   was refused as a refnum dimensionality source. 518 of them agree on every
+///   member's own type code and differ in a LABEL (`clusType.paneLabelOnly`);
+///   only 5 differ in a member code. That is not noise to be discounted, it is
+///   the shape of the question: a cluster crosses a connector pane on its
+///   member types, so caller and callee may label the same members differently,
+///   and a nominal class is named from exactly those labels. The pane states
+///   the callee terminal's name, which is not the caller wire's.
+/// * **Where it agrees it is not independent.** Read at the call node's own
+///   terminal — the endpoint the pane is reached through — the part route
+///   contradicts the pane on 39 of 12 252 wires (0.32%,
+///   `clusType.paneAtCall*`); read at any OTHER endpoint of the same wires, on
+///   372 of 4 677 (7.95%, `clusType.paneOffCall*`), the same rate the endpoint
+///   route scores. The caller's call node carries the callee's terminal
+///   descriptor, so on the only population the pane covers the two readings are
+///   one stored fact. What the pane does say away from the call node does not
+///   favour the part route: with the labels stripped it still differs from it in
+///   a member's own type code on 40 of those 4 677 wires (0.86%) against 5 of
+///   6 300 (0.08%) for the endpoint route.
+/// * **It reaches almost none of the question.** Of the 38 236 wires the part
+///   route would newly type, the pane resolves a descriptor on 5 645
+///   (`clusType.kidChecked`) and is silent on 32 591.
 ///
 /// The unresolved majority is the corpus's single largest lowering blocker.
-/// Of the 6 063 VIs whose own dataflow build refuses on `wireType`, the wire
-/// the refusal names is a cluster wire in 3 696, and 1 901 have no untyped wire
-/// of any other family at all. Within those 3 696 the sub-cause is measured
-/// (`wt.cause.*`): 3 549 name a wire whose endpoints resolve no cluster
-/// descriptor, 57 + 14 a cluster holding a review-list member (waveform `0x54`,
-/// picture `0x33`), 51 a wire whose ends resolve two different Dart types, and
+/// Of the 5 748 VIs whose own dataflow build refuses on `wireType`, the wire
+/// the refusal names is a cluster wire in 4 363, and 1 901 have no untyped wire
+/// of any other family at all. Within those 4 363 the sub-cause is measured
+/// (`wt.cause.*`): 4 197 name a wire whose endpoints resolve no cluster
+/// descriptor, 67 + 14 a cluster holding a review-list member (waveform `0x54`,
+/// picture `0x33`), 60 a wire whose ends resolve two different Dart types, and
 /// 25 a VI whose data space types nothing.
 ///
 /// Next is the refnum codes' array-depth base, which rides the reference class
