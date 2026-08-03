@@ -22,8 +22,8 @@ import 'snippets.dart';
 /// [LvRefusalKind] naming the decoded fact that is missing.
 ///
 /// The refusals concentrate in three places, and each names real work:
-/// `wireType` — cluster wires (their member types are not in the signal word)
-/// and the path / variant / refnum carriers a generated file does not declare;
+/// `wireType` — cluster wires whose endpoints resolve no member shape (see
+/// [kSnippetClusterWires]) and the wire codes with no pinned array-depth base;
 /// `primitive` — the review list below; `wireDirection` — the 1.3% of corpus
 /// signals whose endpoint flags do not resolve exactly one source.
 const Map<String, String> kSnippetLoweringOutcomes = {
@@ -51,7 +51,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'Read Library Version': 'wireType',
   'Read VI Blocks': 'wireType',
   'Resolve Library Path': 'wireType',
-  'Resolve Path': 'wireType',
+  'Resolve Path': 'primitive',
   'ReverseBitsVim': 'primitive',
   'Symbols1Bit': 'wireType',
   'Tokenize URL': 'constantValue',
@@ -104,6 +104,18 @@ const Map<String, int> kSnippetPrimReviewList = {
   'String Length (primResID 1502)': 10,
 };
 
+/// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
+/// types are not in its signal word, so they come from the data-space type an
+/// endpoint of the wire resolves ([lvClusterOfEndpoint]) — which is the only
+/// route there is, and covers a minority of wires. Pinned so the coverage
+/// cannot fall silently.
+const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClusterWires = (
+  signals: 729,
+  resolved: 337,
+  disagreeing: 13,
+  unresolved: 379,
+);
+
 /// The occurrence count at which a review-list entry is pinned individually;
 /// the tail below it is pinned only by [kReviewListTotals].
 const int kReviewListFloor = 10;
@@ -119,8 +131,8 @@ void main() {
     final measured = <String, String>{};
     for (final file in snippets) {
       final name = snippetName(file);
-      final diagram = snippetDiagram(name);
-      final result = emitLvFunction(diagram, functionName: 'lowered', sourceNote: name);
+      final vi = snippetVi(name);
+      final result = emitLvFunction(vi.diagram, functionName: 'lowered', sourceNote: name, pool: vi.pool);
       measured[name] = result.refusal?.kind.name ?? 'lowered';
       if (result.refusal == null) {
         expect(result.source, contains(' lowered('), reason: '$name emitted no function');
@@ -130,6 +142,22 @@ void main() {
     expect(
       measured.values.where((outcome) => outcome == 'lowered').length,
       kSnippetLoweringOutcomes.values.where((outcome) => outcome == 'lowered').length,
+    );
+  });
+
+  test('cluster wires resolve their member shape through their endpoints', () {
+    var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
+    for (final file in snippets) {
+      final vi = snippetVi(snippetName(file));
+      final measured = _clusterWires(vi.diagram, vi.pool);
+      signals += measured.signals;
+      resolved += measured.resolved;
+      disagreeing += measured.disagreeing;
+      unresolved += measured.unresolved;
+    }
+    expect(
+      (signals: signals, resolved: resolved, disagreeing: disagreeing, unresolved: unresolved),
+      kSnippetClusterWires,
     );
   });
 
@@ -156,6 +184,31 @@ void main() {
       reason: 'the review list grew or shrank; re-pin it against the measured corpus',
     );
   });
+}
+
+/// Every cluster-coded signal in [diagram], bucketed by whether its endpoints
+/// resolve one member shape, several, or none.
+({int signals, int resolved, int disagreeing, int unresolved}) _clusterWires(ViDiagram diagram, List<ViType> pool) {
+  var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
+  for (final wire in diagram.wires) {
+    final signal = wire.signalType;
+    if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
+    signals++;
+    final array = (signal.arrayDims ?? 0) > 0;
+    final shapes = {
+      for (final endpoint in wire.endpointOids)
+        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?)
+          '${cluster.name ?? ''}|${clusterFields(cluster, pool).map((m) => '${m.code}:${m.name ?? ''}').join(',')}',
+    };
+    if (shapes.isEmpty) {
+      unresolved++;
+    } else if (shapes.length == 1) {
+      resolved++;
+    } else {
+      disagreeing++;
+    }
+  }
+  return (signals: signals, resolved: resolved, disagreeing: disagreeing, unresolved: unresolved);
 }
 
 String _reviewKey(PrimOp? op, ViHeapObject object) {

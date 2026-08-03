@@ -70,11 +70,14 @@ LvWireType mapLvWireType(ViSignalType signal) {
   );
 }
 
-/// Element codes whose Dart representation the type model has decided but
-/// whose **carrier type a generated file does not declare** — every one is a
-/// runtime type a translation still needs ([LvRuntimeType]). A wire of one of
-/// these is unmapped here on purpose: naming a type nothing declares would
-/// emit code that does not compile.
+/// Element codes carried by a **runtime type** ([LvRuntimeType]) rather than
+/// by a Dart core type. The runtime declares each of them, so a wire of one of
+/// these is typed exactly as a numeric wire is.
+///
+/// The refnum codes are here too, but a refnum wire is refused before it
+/// reaches this map: its depth base rides the referenced inner type, so
+/// [ViSignalType.arrayDims] is null and the wire's array-ness is not decoded.
+/// The entry states the carrier a refnum wire would take once that base is.
 const Map<int, String> kLvWireRuntimeCarriers = {
   TypeCode.path: LvRuntimeType.path,
   TypeCode.variant: LvRuntimeType.variant,
@@ -85,6 +88,45 @@ const Map<int, String> kLvWireRuntimeCarriers = {
 /// The element codes of a **cluster** wire, in both the plain and the
 /// typedef/class form ([ViSignalType.clusterVariantCode]).
 const Set<int> kLvWireClusterCodes = {TypeCode.cluster, ViSignalType.clusterVariantCode};
+
+/// The cluster descriptor the wire endpoint [oid] resolves in [diagram], or
+/// null when neither it nor its owner carries one.
+///
+/// [array] selects which half of an endpoint's resolved type to read: the
+/// element descriptor of a resolved array for an array-of-cluster wire, and
+/// the type itself for a scalar cluster wire. The walk stops at the endpoint's
+/// owner — the corpus resolves nothing further up (a 1-, 2- and 6-parent walk
+/// return identical counts over all 133 106 cluster-coded signals).
+ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
+  var object = diagram.byId[oid];
+  for (var depth = 0; object != null && depth < 2; depth++) {
+    final type = array ? object.resolvedElementType : object.resolvedType;
+    if (type != null && type.kind == ViDataType.cluster) return type;
+    final parent = object.parentOid;
+    object = parent == null ? null : diagram.byId[parent];
+  }
+  return null;
+}
+
+/// The Dart type of a cluster wire whose element descriptor is [cluster],
+/// resolved against the VI's type [pool].
+///
+/// The signal word says only *cluster*; the member types come from the
+/// data-space type an endpoint of the wire resolves ([lvClusterOfEndpoint]).
+/// Corpus, over 133 106 cluster-coded signals in 7 524 VIs: 99 790 have no
+/// endpoint that resolves a cluster descriptor at all, 22 500 have exactly
+/// one, and 10 816 have two or more — of which 10 414 (96.3%) agree on the
+/// member shape and 402 disagree. The agreement where two ends can be
+/// compared is the evidence the route is sound; a wire whose ends disagree,
+/// and a wire no end resolves, are both refused rather than picked between.
+LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool) {
+  final element = mapLvType(cluster, pool);
+  final dims = signal.arrayDims ?? 0;
+  if (dims == 0 || !element.isMapped) {
+    return LvWireType._(dims: dims, element: element, value: element);
+  }
+  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.mapped(lvArrayDartType(element, dims)));
+}
 
 /// The Dart representation of a signal word's element type [code].
 ///
@@ -97,17 +139,13 @@ LvTypeMapping _mapSignalElement(int code) {
   }
   if (kLvWireClusterCodes.contains(code)) {
     return LvTypeMapping.unmapped(
-      'a cluster wire\'s member types are not in the signal word, so its Dart '
-      'record or class shape is not decided per-wire',
+      'a cluster wire\'s member types are not in the signal word, and no '
+      'endpoint of this wire resolves a cluster descriptor to take them from',
       unmappedCode: code,
     );
   }
   if (kLvWireRuntimeCarriers[code] case final carrier?) {
-    return LvTypeMapping.unmapped(
-      'the wire carries a $carrier, a runtime type a generated file does not '
-      'declare yet',
-      unmappedCode: code,
-    );
+    return LvTypeMapping.mapped(carrier, note: carrier == LvRuntimeType.refnum ? kRefnumSubtypeNote : null);
   }
   switch (code) {
     case TypeCode.boolean:

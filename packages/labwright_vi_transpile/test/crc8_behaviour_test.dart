@@ -151,10 +151,12 @@ void main() {
   });
 
   test('the checked-in generated source is exactly what the block diagram lowers to', () {
+    final vi = snippetVi('crc8');
     final result = emitLvFunction(
-      snippetDiagram('crc8'),
+      vi.diagram,
       functionName: 'crc8',
       sourceNote: 'crc8.vi',
+      pool: vi.pool,
     );
     expect(result.refusal, isNull, reason: 'crc8.vi must lower');
     expect(

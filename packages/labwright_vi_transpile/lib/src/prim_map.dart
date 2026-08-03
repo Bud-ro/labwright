@@ -15,8 +15,22 @@
 /// Everything else lands on the review list ([lvPrimUnmappedReason]) with what
 /// is missing, so a corpus sweep can size the gap instead of hiding it. That
 /// includes operations whose meaning is obvious but whose *operand order* is
-/// not decoded: `Subtract` needs to know which terminal is the minuend, and
-/// nothing in the file has been shown to say.
+/// not decoded: `Subtract` needs to know which terminal is the minuend.
+///
+/// The terminal role bits do not supply it. Corpus census of the input
+/// terminals' role bits, over every node of each operation in 7 524 VIs:
+///
+/// - `Subtract` — 1 172 nodes read `{0x0, 0x10000}` in heap order, 395 read
+///   `{0x10000, 0x0}`, and 64 carry `0x0` on BOTH inputs;
+/// - `Divide` — 247 of 516 carry `0x0` on both inputs, 228 read
+///   `{0x0, 0x10000}` and 39 the reverse;
+/// - `Greater?` — 231 of 237, and `Less?` 100 of 106, carry `0x0` on both.
+///
+/// So the bits distinguish nothing at all for most ordered nodes; where two
+/// codes do appear their heap order flips both ways; and `0x10000` appears on
+/// the commutative `Add` (910 nodes) and `Exclusive Or` (17) as well, so it is
+/// not an operand ordinal. Nothing here says which terminal is the left
+/// operand, and these operations stay refused.
 library;
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';

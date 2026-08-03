@@ -52,13 +52,16 @@ const int kLvEmitPageWidth = 120;
 /// lower.
 ///
 /// [sourceNote] is recorded in the file header so a reader can find the VI the
-/// code came from.
+/// code came from. [pool] is the VI's consolidated type pool, which a cluster
+/// wire's member types are resolved through; without it a cluster wire has no
+/// decided Dart shape.
 ({String? source, LvRefusal? refusal}) emitLvFunction(
   ViDiagram diagram, {
   required String functionName,
   String? sourceNote,
+  List<ViType> pool = const [],
 }) {
-  final built = buildLvDataflow(diagram);
+  final built = buildLvDataflow(diagram, pool: pool);
   if (built.refusal case final refusal?) return (source: null, refusal: refusal);
   try {
     final source = _Emitter(
@@ -186,6 +189,7 @@ class _Emitter {
 
   void _noteImportsFor(LvWireType type) {
     if (type.dims > 0 && type.numeric != null) imports.add('dart:typed_data');
+    if (lvTypeNeedsRuntime(type.dartType)) imports.add(kLvRuntimeImport);
   }
 
   // --- regions -----------------------------------------------------------
