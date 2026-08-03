@@ -145,6 +145,13 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `term.typeAgree` against `term.typeDisagree` compares the two VIs' wire
 /// types — neither is used to *derive* the binding, so both are independent
 /// checks on it.
+///
+/// The `cond.*` counters are the While-loop conditional terminal census
+/// ([LvTerminalRole.conditional]): one glyph selector on every drawn terminal
+/// (`cond.glyph192` = `cond` minus `cond.glyphNone`), and two flag bits that
+/// vary without changing anything LabVIEW draws. They size the refusal — a
+/// second glyph value appearing here is the evidence that would settle the
+/// polarity.
 const Map<String, int> kCorpusLoweringSweep = {
   'call': 1290,
   'call.calleeMissing': 159,
@@ -152,6 +159,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'call.paneMatched': 545,
   'call.paneWidthMismatch': 6,
   'call.unnamed': 13,
+  'cond': 2267,
+  'cond.dcoBit0': 382,
+  'cond.dcoBit12': 140,
+  'cond.glyph192': 1892,
+  'cond.glyphNone': 375,
   'exceptions.caseSelector': 60,
   'exceptions.constantValue': 66,
   'exceptions.lowered': 135,
@@ -248,6 +260,21 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     }
   }
 
+  // The While-loop conditional terminal census (see LvTerminalRole.conditional):
+  // what the file says about a terminal whose polarity decides the loop's exit
+  // test. Counted here so the refusal is backed by a number that moves the
+  // moment a second glyph or a discriminating flag appears in the corpus.
+  void censusConditionals(ViDiagram diagram) {
+    for (final object in diagram.objects) {
+      if (object.kind != LvTerminalRole.conditional.code) continue;
+      bump('cond');
+      bump('cond.glyph${object.termBmp ?? 'None'}');
+      final dcoFlags = diagram.terminalDco(object.oid)?.objFlags ?? 0;
+      if (dcoFlags & 0x1 != 0) bump('cond.dcoBit0');
+      if (dcoFlags & 0x1000 != 0) bump('cond.dcoBit12');
+    }
+  }
+
   void walk(LvDataflow flow, LvRegion region) {
     for (final unit in region.units) {
       if (unit is LvSubViUnit) bindCall(flow, unit);
@@ -263,6 +290,7 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     final unit = load(path, path.split(Platform.pathSeparator).last);
     if (unit == null) continue;
     bump('vi');
+    censusConditionals(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
     final sources = <String?>[];
     for (final mode in LvErrorMode.values) {

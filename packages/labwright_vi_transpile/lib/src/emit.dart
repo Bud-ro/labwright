@@ -761,8 +761,8 @@ class _FunctionEmitter {
         refuse(
           LvRefusalKind.structure,
           'a While loop\'s conditional terminal carries a stop-if-true / '
-          'continue-if-true polarity that is not decoded, so its exit test has '
-          'no meaning yet',
+          'continue-if-true polarity that no decoded field distinguishes '
+          '(see LvTerminalRole.conditional), so its exit test has no meaning',
           oid: unit.oid,
         );
     }
