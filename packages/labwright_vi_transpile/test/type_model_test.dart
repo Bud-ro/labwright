@@ -218,6 +218,30 @@ void main() {
     for (final mode in LvErrorMode.values) {
       expect(lvSignature(plain, mode).throwsLvError, isFalse);
     }
+
+    // The value an elided `error in` starts from, and an elided `error out`
+    // reads back, is the runtime's own cleared cluster.
+    expect(LvRuntimeType.clearedError, '${LvRuntimeType.error}.none');
+    expect(lvTypeNeedsRuntime(LvRuntimeType.clearedError), isTrue);
+  });
+
+  test('only a bare error cluster is the wire an error mode acts on', () {
+    // (member codes, array dimensions, is the error wire) — an array of error
+    // clusters is ordinary data and keeps its place in every signature.
+    final rows = <(List<int>, int, bool)>[
+      ([TypeCode.boolean, TypeCode.i32, TypeCode.string], 0, true),
+      ([TypeCode.boolean, TypeCode.i32, TypeCode.string], 1, false),
+      ([TypeCode.boolean, TypeCode.i32, TypeCode.i32], 0, false),
+    ];
+    for (final (codes, dims, expected) in rows) {
+      final types = poolOf([
+        for (var i = 0; i < codes.length; i++) scalar(codes[i], name: const ['status', 'code', 'source'][i]),
+        cluster([0, 1, 2], name: 'error out'),
+      ]);
+      final signal = ViSignalType(TypeCode.cluster | (3 + dims) << 8);
+      final wire = lvClusterWireType(signal, types.last, types);
+      expect(wire.isErrorCluster, expected, reason: '$codes ${dims}D');
+    }
   });
 
   test('connector-pane terminals resolve through the pool; a non-cluster pane yields none', () {
