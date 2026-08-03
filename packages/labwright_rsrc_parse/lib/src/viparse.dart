@@ -262,6 +262,11 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final (:countPos, :count) = _locateBlockList(u32, infoOffset);
 
   const descSize = 20;
+  // The final block-list entry's descriptor is stored in its 12-byte head form
+  // `[u32 0][u32 secRel][u32 0]` (the name-table header), so only those bytes
+  // are required to be present — its 20-byte tail runs past EOF in 32 corpus
+  // VIs, while all 7,523 have the 12.
+  const finalDescSize = 12;
   final descBase = countPos + 8;
   final sections = <ViSection>[];
   var entry = countPos + 4;
@@ -285,7 +290,7 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
     if (finalEntry && wantWord16 != 0xFFFFFFFF) continue;
     for (var sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
       final dpos = descBase + descRel + sectionIndex * descSize;
-      if (dpos + (finalEntry ? 8 : descSize) > bytes.length) break;
+      if (dpos + (finalEntry ? finalDescSize : descSize) > bytes.length) break;
       if (!finalEntry && view.getUint32(dpos + 16) != wantWord16) continue;
       final secRel = view.getUint32(dpos + 4);
       final pos = dataOffset + secRel;

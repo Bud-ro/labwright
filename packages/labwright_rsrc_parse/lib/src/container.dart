@@ -234,21 +234,42 @@ class ViBlockListEntry {
   }
 }
 
-/// The info area's **block list**: a `u32 count` followed by `count` contiguous
-/// 12-byte [ViBlockListEntry]s, beginning at `blockListRel`. The directory of
-/// every resource block in the VI. [serialize] reconstructs the
-/// `[blockListRel, blockListRel + 4 + count*12)` region byte-exact.
+/// The info area's **block list**: a `u32 count` followed by contiguous 12-byte
+/// [ViBlockListEntry]s, beginning at `blockListRel`. The directory of every
+/// resource block in the VI.
+///
+/// The stored count is **count minus one**: one further entry follows the
+/// counted run ([finalEntry]), so [allEntries] — not [entries] — is the VI's
+/// block directory. Corpus (7,523 RSRC-parseable VIs): every file carries that
+/// extra entry with a printable tag, `FTAB` 7,201 / `VITS` 322, owning exactly
+/// one section whose descriptor resolves to a real `[u32 len][payload]`,
+/// 7,523/7,523. [serialize] reconstructs the
+/// `[blockListRel, blockListRel + byteLength)` region byte-exact.
 class ViBlockList {
-  ViBlockList({required this.entries});
+  ViBlockList({required this.entries, this.finalEntry});
 
+  /// The entries covered by the stored `u32 count`.
   final List<ViBlockListEntry> entries;
 
+  /// The entry past the stored count, or null when the 12 bytes after the
+  /// counted run are out of range or carry a non-printable tag (no corpus VI:
+  /// [ViBlockList.parse] recovers it in all 7,523). Its section descriptor is
+  /// stored in 12-byte head form at the start of the name-table tail — see
+  /// [ViNameTable.header].
+  final ViBlockListEntry? finalEntry;
+
+  /// Every block-list entry: the counted run plus [finalEntry].
+  List<ViBlockListEntry> get allEntries => [...entries, if (finalEntry != null) finalEntry!];
+
+  /// The stored `u32 count` word (one less than [allEntries] length whenever a
+  /// [finalEntry] is present).
   int get count => entries.length;
 
-  /// Total serialized byte length (the `u32 count` + the entry array).
-  int get byteLength => 4 + entries.length * ViBlockListEntry.byteSize;
+  /// Total serialized byte length (the `u32 count` + the entry array, [finalEntry] included).
+  int get byteLength => 4 + (entries.length + (finalEntry == null ? 0 : 1)) * ViBlockListEntry.byteSize;
 
-  /// Parses the block list at [blockListRel] within [infoArea].
+  /// Parses the block list at [blockListRel] within [infoArea], including the
+  /// entry past the stored count.
   factory ViBlockList.parse(Uint8List infoArea, int blockListRel) {
     if (blockListRel + 4 > infoArea.length) throw ViFormatException('block list out of range');
     final view = ByteData.sublistView(infoArea);
@@ -256,21 +277,33 @@ class ViBlockList {
     if (count > _maxPlausibleBlockCount) throw ViFormatException('implausible block count $count');
     final end = blockListRel + 4 + count * ViBlockListEntry.byteSize;
     if (end > infoArea.length) throw ViFormatException('block list entries out of range');
+    final hasFinal = end + ViBlockListEntry.byteSize <= infoArea.length && _printableTagAt(infoArea, end);
     return ViBlockList(
       entries: [
         for (var i = 0; i < count; i++)
           ViBlockListEntry.parse(infoArea, blockListRel + 4 + i * ViBlockListEntry.byteSize),
       ],
+      finalEntry: hasFinal ? ViBlockListEntry.parse(infoArea, end) : null,
     );
   }
 
-  /// Re-emits `[u32 count][entries…]`, byte-identical to the parsed region.
+  /// Whether the four bytes at [at] are printable ASCII — the block-tag shape
+  /// that separates a real trailing entry from the name-table tail.
+  static bool _printableTagAt(Uint8List infoArea, int at) {
+    for (var i = at; i < at + 4; i++) {
+      if (infoArea[i] < 0x20 || infoArea[i] >= 0x7f) return false;
+    }
+    return true;
+  }
+
+  /// Re-emits `[u32 count][entries…][finalEntry]`, byte-identical to the parsed region.
   Uint8List serialize() {
     final out = Uint8List(byteLength);
     final view = ByteData.sublistView(out);
     view.setUint32(0, entries.length);
-    for (var i = 0; i < entries.length; i++) {
-      entries[i].writeInto(view, out, 4 + i * ViBlockListEntry.byteSize);
+    final all = allEntries;
+    for (var i = 0; i < all.length; i++) {
+      all[i].writeInto(view, out, 4 + i * ViBlockListEntry.byteSize);
     }
     return out;
   }
@@ -383,11 +416,13 @@ class ViSectionDescriptor {
 /// The trailing name is recovered as a typed field. [serialize] reconstructs the
 /// tail byte-exact.
 ///
-/// Corpus-probed (7583 VIs): [header] is exactly **12 bytes** in every VI —
-/// `[u32 @0 = 0][u32 @4 = a varying value][u32 @8 = 0]` (the only non-zero field
-/// is [headerValue]). Its size does NOT scale with the section `nameRef` indices
-/// (it stays 12 bytes even when the max index is 128), so this header is NOT the
-/// name table that `nameRef` points into — that table is still unlocated.
+/// Corpus-probed (7,523 RSRC-parseable VIs): [header] is exactly **12 bytes**
+/// in every VI — the final block-list entry's section descriptor in its stored
+/// head form `[u32 0][u32 secRel][u32 0]`, the only non-zero field being
+/// [headerValue] (see [header]). Its size does NOT scale with the section
+/// `nameRef` indices (it stays 12 bytes even when the max index is 128), so
+/// this tail is NOT the name table that `nameRef` points into — that table is
+/// still unlocated.
 class ViNameTable {
   ViNameTable({required this.header, required this.trailingNameRecord});
 
@@ -403,7 +438,9 @@ class ViNameTable {
   /// The final block-list entry's section `secRel` (`u32 @4` of the canonical
   /// 12-byte [header]), or null when [header] is not that form. Remapped like
   /// every other descriptor `secRel` when sections shift
-  /// ([ViInfoArea.withRemappedSecRels] via [withHeaderValue]).
+  /// ([ViInfoArea.withRemappedSecRels] via [withHeaderValue]) — through
+  /// [ViInfoArea.finalEntrySecRel], which first proves the header IS that
+  /// descriptor by its address.
   int? get headerValue => header.length == 12 ? ByteData.sublistView(header).getUint32(4) : null;
 
   /// A copy with [headerValue] replaced by [secRel] (canonical 12-byte header
@@ -476,98 +513,61 @@ class ViNameTable {
           .toBytes();
 }
 
-/// The 20-byte record between the counted block list and the first section
-/// descriptor — DECODED: its first 12 bytes are the block list's **final
-/// entry**. The stored block count is count-1, so the list carries one
-/// entry past the stored count (corpus: 7,569/7,569 files end with a valid
-/// extra entry) — a `FTAB` font table (7,247 corpus VIs) or `VITS` (322) —
-/// which `readViSections` returns as a section. The old reading ("a marker
-/// naming the alternate of the FTAB/VITS pair") inverted cause and effect:
-/// the tag looked like it was "never one of the VI's own blocks" only
-/// because a count-exact reader dropped that block. Fields:
-///   * [marker] `@0` — the final entry's 4-char block tag (`FTAB`/`VITS`).
-///   * [word1] `@4` — the entry's section count minus one (`0`: one section).
-///   * [word2] `@8` — the entry's descriptor offset (relative to the
-///     descriptor-table base), resolving to a real section descriptor.
-///   * [word3] `@12` / [flags] `@16` — the 8 bytes between the block list and
-///     the descriptor table. [word3] is `0` in every corpus VI; [flags] is
-///     exactly `0xFFFFFFFF` **iff** the VI carries embedded `LIBN`/`VINS`
-///     sections, else `0` (perfect correlation, 0 counterexamples; see
-///     [hasEmbeddedSections] and `readEmbeddedSections`). Field meaning
-///     beyond that correlation not decoded. // TODO(labwright)
-/// Every byte is a typed field so [serialize] reconstructs it byte-exact.
+/// The 8 bytes between the block list and the first section descriptor. The
+/// 20-byte span once read here starts with the block list's final entry, which
+/// is modeled where it belongs ([ViBlockList.finalEntry]); these are the two
+/// words after it.
+///   * [word0] `@0` — `0` in every corpus VI. // TODO(labwright): identify.
+///   * [flags] `@4` — exactly `0xFFFFFFFF` **iff** the VI carries embedded
+///     `LIBN`/`VINS` sections, else `0` (perfect correlation, 0
+///     counterexamples; see [hasEmbeddedSections] and `readEmbeddedSections`).
+///     Field meaning beyond that correlation not decoded. // TODO(labwright)
+/// Both words are typed fields so [serialize] reconstructs the record byte-exact.
 class ViInfoPreGap {
-  ViInfoPreGap({
-    required this.marker,
-    required this.word1,
-    required this.word2,
-    required this.word3,
-    required this.flags,
-  });
+  ViInfoPreGap({required this.word0, required this.flags});
 
-  /// `u32 @0` — the final block-list entry's 4-char tag (`FTAB` or `VITS`).
-  final int marker;
+  /// `u32 @0` — `0` across the corpus. // TODO(labwright): identify.
+  final int word0;
 
-  /// `u32 @4` — the final entry's section count minus one (`0` corpus-wide).
-  final int word1;
-
-  /// `u32 @8` — the final entry's descriptor offset (descriptor-table base
-  /// relative).
-  final int word2;
-
-  /// `u32 @12` — first of the 8 bytes preceding the descriptor table; `0`
-  /// across the corpus. // TODO(labwright): identify.
-  final int word3;
-
-  /// `u32 @16` — `0xFFFFFFFF` iff the VI has embedded `LIBN`/`VINS` sections, else `0`.
+  /// `u32 @4` — `0xFFFFFFFF` iff the VI has embedded `LIBN`/`VINS` sections, else `0`.
   final int flags;
 
-  /// [marker] rendered as its 4 ASCII bytes (e.g. `FTAB`, `VITS`).
-  String get markerTag {
-    final markerBytes = [(marker >> 24) & 0xff, (marker >> 16) & 0xff, (marker >> 8) & 0xff, marker & 0xff];
-    return String.fromCharCodes([for (final byte in markerBytes) (byte >= 0x20 && byte < 0x7f) ? byte : 0x2e]);
-  }
+  /// The record's fixed size in bytes.
+  static const int byteSize = 8;
 
   /// Whether [flags] marks this VI as carrying embedded LIBN/VINS sections.
   bool get hasEmbeddedSections => flags == 0xFFFFFFFF;
 
-  /// Parses the 20-byte record (five big-endian `u32`s) at the start of [b].
+  /// Parses the 8-byte record (two big-endian `u32`s) at the start of [bytes].
   factory ViInfoPreGap.parse(Uint8List bytes) {
-    if (bytes.length < 20) throw ViFormatException('preGap record too short (${bytes.length})');
+    if (bytes.length < byteSize) throw ViFormatException('preGap record too short (${bytes.length})');
     final view = ByteData.sublistView(bytes);
-    return ViInfoPreGap(
-      marker: view.getUint32(0),
-      word1: view.getUint32(4),
-      word2: view.getUint32(8),
-      word3: view.getUint32(12),
-      flags: view.getUint32(16),
-    );
+    return ViInfoPreGap(word0: view.getUint32(0), flags: view.getUint32(4));
   }
 
-  /// Re-emits the 20 bytes (five `u32`s), byte-identical to the parsed record.
+  /// Re-emits the 8 bytes (two `u32`s), byte-identical to the parsed record.
   Uint8List serialize() {
-    final out = Uint8List(20);
+    final out = Uint8List(byteSize);
     ByteData.sublistView(out)
-      ..setUint32(0, marker)
-      ..setUint32(4, word1)
-      ..setUint32(8, word2)
-      ..setUint32(12, word3)
-      ..setUint32(16, flags);
+      ..setUint32(0, word0)
+      ..setUint32(4, flags);
     return out;
   }
 }
 
 /// The info area composed as typed regions: the [subheader] (dup header +
-/// `blockListRel`), the [blockList] (resource-block directory), the 20-byte
-/// [preGap] record, the [descriptors] table (contiguous 20-byte records), and the
-/// as-yet raw [nameTable] tail (name table + trailing Pascal VI name).
-/// [serialize] reconstructs the whole info area byte-exact.
+/// `blockListRel`), the [blockList] (resource-block directory, final entry
+/// included), the 8-byte [preGap] record, the [descriptors] table (contiguous
+/// 20-byte records), and the [nameTable] tail (the final entry's descriptor
+/// head + trailing Pascal VI name). [serialize] reconstructs the whole info
+/// area byte-exact.
 ///
-/// Corpus-validated: after the block list comes a fixed 20-byte slot, then a
+/// Corpus-validated: after the block list comes a fixed 8-byte slot, then a
 /// gapless run of `(descMax-descMin)/20` descriptor records, then the name
-/// table — true for 100% of 7583 VIs. If a (hypothetical) file doesn't fit that
-/// shape, [ViInfoArea.parse] falls back to keeping the whole remainder in
-/// [nameTable] (descriptors empty) so serialization stays byte-exact regardless.
+/// table — true for 100% of the 7,523 RSRC-parseable corpus VIs. If a
+/// (hypothetical) file doesn't fit that shape, [ViInfoArea.parse] falls back to
+/// keeping the whole remainder in [nameTable] (descriptors empty) so
+/// serialization stays byte-exact regardless.
 class ViInfoArea {
   ViInfoArea({
     required this.subheader,
@@ -580,7 +580,7 @@ class ViInfoArea {
   final ViInfoSubheader subheader;
   final ViBlockList blockList;
 
-  /// The 20-byte [ViInfoPreGap] record between the block list and the first
+  /// The 8-byte [ViInfoPreGap] record between the block list and the first
   /// descriptor (`null` in the raw-fallback case).
   final ViInfoPreGap? preGap;
 
@@ -602,9 +602,11 @@ class ViInfoArea {
 
   Uint8List _descriptorBytes() => Uint8List.fromList([for (final descriptor in descriptors) ...descriptor.serialize()]);
 
-  /// Scans the block list's descriptor references and, if they form the canonical
-  /// gapless run (in bounds, starting right after the 20-byte preGap, a whole
-  /// number of records), returns its `[start, end)` span; else null (raw fallback).
+  /// Scans the counted block-list entries' descriptor references and, if they
+  /// form the canonical gapless run (in bounds, starting right after the 8-byte
+  /// preGap, a whole number of records), returns its `[start, end)` span; else
+  /// null (raw fallback). [ViBlockList.finalEntry] is excluded: its descriptor
+  /// is stored in head form after the run, as the name-table header.
   static ({int start, int end})? _cleanDescriptorRun(
     Uint8List infoArea,
     ViBlockList blockList,
@@ -622,7 +624,9 @@ class ViInfoArea {
         if (dpos + ViSectionDescriptor.byteSize > maxEnd) maxEnd = dpos + ViSectionDescriptor.byteSize;
       }
     }
-    if (maxEnd > minStart && minStart == restStart + 20 && (maxEnd - minStart) % ViSectionDescriptor.byteSize == 0) {
+    if (maxEnd > minStart &&
+        minStart == restStart + ViInfoPreGap.byteSize &&
+        (maxEnd - minStart) % ViSectionDescriptor.byteSize == 0) {
       return (start: minStart, end: maxEnd);
     }
     return null;
@@ -641,7 +645,7 @@ class ViInfoArea {
       return ViInfoArea(
         subheader: subheader,
         blockList: blockList,
-        preGap: ViInfoPreGap.parse(Uint8List.fromList(infoArea.sublist(restStart, restStart + 20))),
+        preGap: ViInfoPreGap.parse(Uint8List.fromList(infoArea.sublist(restStart, restStart + ViInfoPreGap.byteSize))),
         descriptors: [
           for (var i = 0; i < total; i++)
             ViSectionDescriptor.parse(infoArea, run.start + i * ViSectionDescriptor.byteSize),
@@ -661,17 +665,58 @@ class ViInfoArea {
     );
   }
 
+  /// Offset within the info area of the name-table tail: the byte after the
+  /// descriptor run. Null in the raw-fallback case (no typed run to end).
+  int? get nameTableStart => preGap == null
+      ? null
+      : subheader.blockListRel +
+            blockList.byteLength +
+            ViInfoPreGap.byteSize +
+            descriptors.length * ViSectionDescriptor.byteSize;
+
+  /// The `secRel` of [ViBlockList.finalEntry]'s section, read from the
+  /// name-table header — but only when that header is **proven** to be the
+  /// entry's descriptor head: the entry's descriptor address
+  /// (`blockListRel + 8 + descRel`) must land exactly on [nameTableStart], and
+  /// the header must have the canonical 12-byte form. Null otherwise, which
+  /// makes [withRemappedSecRels] refuse rather than leave the entry's section
+  /// pointer stale. Corpus: the address lands on the name table in 7,523/7,523
+  /// RSRC-parseable VIs, all with a 12-byte header.
+  int? get finalEntrySecRel {
+    final entry = blockList.finalEntry;
+    final start = nameTableStart;
+    if (entry == null || start == null) return null;
+    if (subheader.blockListRel + 8 + entry.descRel != start) return null;
+    return nameTable.headerValue;
+  }
+
   /// Returns a copy in which every VI-own descriptor ([ViSectionDescriptor.word16]
   /// `== commonWord16`) whose `secRel` is a key of [newSecRelByOld] is rebound to
-  /// the mapped value. LIBN/VINS descriptors (`word16 == 0`) and secRels absent
-  /// from the map are left unchanged. An identity map returns equivalent
-  /// descriptors, so an unmodified model re-serializes byte-for-byte.
+  /// the mapped value, plus the final block-list entry's `secRel` in the
+  /// name-table header ([finalEntrySecRel]). LIBN/VINS descriptors
+  /// (`word16 == 0`) and secRels absent from the map are left unchanged. An
+  /// identity map returns equivalent descriptors, so an unmodified model
+  /// re-serializes byte-for-byte.
+  ///
+  /// Throws [ViFormatException] when a section whose position actually CHANGES
+  /// is carried by no descriptor and is not [finalEntrySecRel]: nothing in the
+  /// info area would follow it, so writing the file would leave a stale pointer
+  /// behind. Refusing keeps the failure visible instead of emitting a
+  /// coherent-looking, desynced VI. (Entries that map to themselves need no
+  /// fixup, so an identity map never refuses — the byte-exact round-trip of an
+  /// unmodified model holds whatever shape the info area has.)
   ViInfoArea withRemappedSecRels(Map<int, int> newSecRelByOld) {
     if (newSecRelByOld.isEmpty) return this;
     // The final block-list entry's descriptor head lives at the start of the
     // name-table tail (see [ViNameTable.header]); its secRel shifts with the
     // rest.
-    final finalSecRel = nameTable.headerValue;
+    final finalSecRel = finalEntrySecRel;
+    final accounted = {for (final descriptor in descriptors) descriptor.secRel, if (finalSecRel != null) finalSecRel};
+    for (final MapEntry(key: oldSecRel, value: newSecRel) in newSecRelByOld.entries) {
+      if (newSecRel != oldSecRel && !accounted.contains(oldSecRel)) {
+        throw ViFormatException('section at $oldSecRel moved to $newSecRel but no descriptor accounts for it');
+      }
+    }
     return ViInfoArea(
       subheader: subheader,
       blockList: blockList,

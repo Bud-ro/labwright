@@ -122,6 +122,28 @@ void main() {
       expect(bl.serialize(), orderedEquals(region));
     });
 
+    test('recovers the entry past the stored count; skips a non-printable tag', () {
+      Uint8List infoWith(List<int> trailing) {
+        final region = u8([
+          0, 0, 0, 1, //
+          ...'LVSR'.codeUnits, 0, 0, 0, 0, 0, 0, 0, 0x10,
+          ...trailing,
+        ]);
+        return Uint8List(0x34 + region.length)..setRange(0x34, 0x34 + region.length, region);
+      }
+
+      final withFinal = ViBlockList.parse(infoWith([...'FTAB'.codeUnits, 0, 0, 0, 0, 0, 0, 0, 0x20]), 0x34);
+      expect((withFinal.count, withFinal.finalEntry?.tag, withFinal.finalEntry?.descRel), (1, 'FTAB', 0x20));
+      expect(withFinal.allEntries.map((e) => e.tag), ['LVSR', 'FTAB']);
+      expect(withFinal.byteLength, 4 + 2 * 12);
+      expect(withFinal.serialize().sublist(0, 4), orderedEquals([0, 0, 0, 1]), reason: 'stored count stays count-1');
+
+      // A name table (leading zero word), not an entry: no tag, no final entry.
+      final nameTable = ViBlockList.parse(infoWith(List.filled(12, 0)), 0x34);
+      expect((nameTable.finalEntry, nameTable.byteLength, nameTable.allEntries.length), (null, 4 + 12, 1));
+      expect(ViBlockList.parse(infoWith(const []), 0x34).finalEntry, isNull, reason: 'out of range');
+    });
+
     test('rejects an implausible count', () {
       final info = Uint8List(0x40);
       ByteData.sublistView(info).setUint32(0x34, 999999);
@@ -168,22 +190,15 @@ void main() {
   });
 
   group('ViInfoPreGap', () {
-    test('parses the FTAB/VITS marker + flags and serializes byte-exact', () {
-      final rec = Uint8List(20);
-      ByteData.sublistView(rec)
-        ..setUint32(0, 0x46544142)
-        ..setUint32(8, 1992)
-        ..setUint32(16, 0xFFFFFFFF);
-      final pg = ViInfoPreGap.parse(rec);
-      expect((pg.markerTag, pg.word1, pg.word2, pg.word3, pg.flags), ('FTAB', 0, 1992, 0, 0xFFFFFFFF));
-      expect(pg.hasEmbeddedSections, isTrue);
-      expect(pg.serialize(), orderedEquals(rec));
-
-      final vits = Uint8List(20);
-      ByteData.sublistView(vits).setUint32(0, 0x56495453);
-      final v = ViInfoPreGap.parse(vits);
-      expect((v.markerTag, v.hasEmbeddedSections), ('VITS', false));
-      expect(v.serialize(), orderedEquals(vits));
+    test('parses the two words after the final block-list entry and serializes byte-exact', () {
+      for (final (flags, embedded) in const [(0xFFFFFFFF, true), (0, false)]) {
+        final rec = Uint8List(ViInfoPreGap.byteSize);
+        ByteData.sublistView(rec).setUint32(4, flags);
+        final pg = ViInfoPreGap.parse(rec);
+        expect((pg.word0, pg.flags, pg.hasEmbeddedSections), (0, flags, embedded));
+        expect(pg.serialize(), orderedEquals(rec));
+      }
+      expect(() => ViInfoPreGap.parse(Uint8List(7)), throwsA(isA<ViFormatException>()));
     });
   });
 
@@ -245,6 +260,47 @@ void main() {
         () => ViExport.editSection(_container([1, 2, 3, 4], const []), secRel: 0, newPayload: u8([9])),
         throwsA(isA<ViFormatException>()),
       );
+    });
+
+    test('withRemappedSecRels rebinds descriptors + the final entry, and refuses an unaccounted move', () {
+      // Info area: subheader | count=1 | LVSR | FTAB (the entry past the count)
+      // | preGap | one descriptor | name table (the FTAB descriptor's head) | name.
+      const descBase = 0x3c, descAt = 0x58, nameTableAt = 0x6c;
+      Uint8List infoArea({required int finalDescRel}) {
+        final info = Uint8List(nameTableAt + 12 + 5);
+        _stampHeader(info);
+        ByteData.sublistView(info)
+          ..setUint32(0x2c, 0x34)
+          ..setUint32(0x30, nameTableAt + 12) // trailing-name offset
+          ..setUint32(0x34, 1) // stored count (one less than the entries present)
+          ..setUint32(0x38 + 8, descAt - descBase)
+          ..setUint32(0x44 + 8, finalDescRel)
+          ..setUint32(descAt + 4, 0x100) // descriptor secRel
+          ..setUint32(descAt + 16, ViSectionDescriptor.commonWord16)
+          ..setUint32(nameTableAt + 4, 0x200); // final entry's secRel
+        info
+          ..setRange(0x38, 0x3c, 'LVSR'.codeUnits)
+          ..setRange(0x44, 0x48, 'FTAB'.codeUnits)
+          ..setRange(nameTableAt + 12, info.length, pascal('A.vi'));
+        return info;
+      }
+
+      final area = ViInfoArea.parse(infoArea(finalDescRel: nameTableAt - descBase));
+      expect((area.nameTableStart, area.finalEntrySecRel), (nameTableAt, 0x200));
+      final moved = area.withRemappedSecRels({0x100: 0x140, 0x200: 0x240});
+      expect((moved.descriptors.single.secRel, moved.nameTable.headerValue), (0x140, 0x240));
+      expect(area.withRemappedSecRels({0x100: 0x100}).serialize(), orderedEquals(area.serialize()));
+      expect(
+        () => area.withRemappedSecRels({0x300: 0x340}),
+        throwsA(isA<ViFormatException>()),
+        reason: 'a section moved that no descriptor accounts for must refuse, not silently desync',
+      );
+
+      // The final entry's descriptor pointing anywhere but the name table is no
+      // proof that the name-table head is that descriptor: the remap refuses.
+      final unproven = ViInfoArea.parse(infoArea(finalDescRel: descAt - descBase));
+      expect(unproven.finalEntrySecRel, isNull);
+      expect(() => unproven.withRemappedSecRels({0x200: 0x240}), throwsA(isA<ViFormatException>()));
     });
 
     test('rebuildDataArea serializes sections as [u32 len][payload] and gaps verbatim', () {
