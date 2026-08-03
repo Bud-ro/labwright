@@ -16,8 +16,21 @@
 ///   the wire order a Modbus RTU frame carries and the operation this reader
 ///   reads that node as.
 ///
-/// Both references are written from the algorithms' public definitions rather
-/// than from the VIs, so neither side can drift alone.
+/// - `Calc CRC-16.vi` is the **table-driven** form of the same CRC-16/MODBUS,
+///   from a different repository, and it is the largest lowering the fetched
+///   corpus produces. It carries two 256-byte tables and two shift registers
+///   that cross over each iteration — the new register's low half comes from
+///   one table and the old high half, its high half from the other table — so
+///   the two tables, the crossover and the emitted byte order all have to be
+///   right at once to reach the published check value. Swapping the tables,
+///   dropping the crossover or reversing the output pair each moves it.
+///
+/// The two CRC-16 VIs are independent witnesses: one folds the polynomial bit
+/// at a time, the other reads a precomputed table, and both are compared with
+/// the same reference and the same published constant.
+///
+/// All references are written from the algorithms' public definitions rather
+/// than from the VIs, so no side can drift alone.
 library;
 
 import 'dart:convert';
@@ -29,6 +42,7 @@ import 'package:test/test.dart';
 
 import 'generated/lrc8.g.dart';
 import 'generated/modbus_crc16.g.dart';
+import 'generated/modbus_crc16_table.g.dart';
 import 'snippets.dart';
 
 /// CRC-16/MODBUS's defined check value: the CRC of the nine ASCII bytes
@@ -101,6 +115,31 @@ void main() {
     expect(modbusCrc16(data: Uint8List.fromList(latin1.encode('123456789'))), 0x374B);
   });
 
+  test('the code lowered from Calc CRC-16.vi is CRC-16/MODBUS in Modbus RTU wire order', () {
+    for (final message in messages()) {
+      final expected = modbusCrcReference(message);
+      expect(
+        calcCrc16(frameIn: message),
+        [expected & 0xFF, expected >> 8],
+        reason: '${message.length} bytes',
+      );
+    }
+    // A Modbus RTU frame carries the CRC low byte first, so the published
+    // check value 0x4B37 appears on the wire as these two bytes in this order.
+    expect(calcCrc16(frameIn: Uint8List.fromList(latin1.encode('123456789'))), [0x37, 0x4B]);
+  });
+
+  test('the two CRC-16 VIs agree, one folding bit at a time and one reading a table', () {
+    for (final message in messages()) {
+      final swapped = modbusCrc16(data: message);
+      expect(
+        calcCrc16(frameIn: message),
+        [swapped >> 8, swapped & 0xFF],
+        reason: '${message.length} bytes',
+      );
+    }
+  });
+
   test('the code lowered from Calc LRC-8.vi agrees with the reference byte for byte', () {
     for (final message in messages()) {
       expect(lrc8(frameIn: message), lrcReference(message), reason: '${message.length} bytes');
@@ -109,11 +148,12 @@ void main() {
 
   final corpus = corpusViDir();
   test(
-    'the checked-in generated sources are exactly what the two block diagrams lower to',
+    'the checked-in generated sources are exactly what the three block diagrams lower to',
     () {
       for (final (fileName, functionName, generated) in const [
         ('Calc LRC-8.vi', 'lrc8', 'lrc8.g.dart'),
         ('Calculate CRC.vi', 'modbusCrc16', 'modbus_crc16.g.dart'),
+        ('Calc CRC-16.vi', 'calcCrc16', 'modbus_crc16_table.g.dart'),
       ]) {
         final path = corpusViPaths(corpus!).firstWhere((path) => path.endsWith(fileName));
         final unit = LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);

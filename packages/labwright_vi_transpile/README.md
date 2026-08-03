@@ -388,6 +388,7 @@ the primitive's own name.
 | Case structure (`0x2c`) | `if`/`else` over a boolean selector, each output tunnel a `final` assigned in both branches |
 | Diagram Disable (`0xcd`) | the Enabled frame's region, inline |
 | While loop (`0x21`) | **refused** — the conditional terminal's stop-if-true / continue-if-true polarity is not decoded |
+| In Place Element (`0x14d`) | **refused** — see below |
 
 An auto-indexing tunnel is identified by flag `0x1000000`. Corpus, over 21,486
 loop tunnels whose two sides both resolve a dimensionality: all 6,584 flagged
@@ -405,6 +406,21 @@ displayed frame is index 1 labelled `True` 1,840 times, but index 0 labelled
 A For loop's **non-indexing output tunnel** is refused: it carries the last
 iteration's value, or the element type's default when the loop runs zero times,
 and that default is not decoded.
+
+The **In Place Element Structure** (`0x14d`) is common but is not the lever its
+frequency suggests, and `kCorpusInPlaceElement` is the measurement. 705 corpus
+VIs carry one, 904 in total — but a lowering refuses at the first thing it
+cannot read, and the structure is that first thing in only **27** of them.
+The other 678 are held up earlier, 482 by a single cause: a cluster wire whose
+member types no endpoint resolves. Modelling the structure's control flow would
+therefore move at most 0.36% of the corpus.
+
+Those 27 then split against it. 22 carry a border node from `0x150` / `0x14f` /
+`0x152`, whose element access is not recovered — the parser labels that family
+by tree position alone — so control flow is not what they are missing. The
+remaining 5 carry only `0x153`, the read/write pair that accesses a **data
+value reference**, which is the one border node whose role is decoded and which
+would need a reference model this package does not have.
 
 ### Primitives
 
@@ -467,28 +483,35 @@ disagrees.
 
 ### Outcomes
 
-Over the 46 tracked VI snippets: 4 lower (`crc8`, `basic`, and `VI Tree` /
-`decorations_only`, which have no dataflow) and 42 refuse. Refusals are pinned
-per VI and concentrate in cluster / path / variant wire types (27), undecoded
-primitives (7), constants whose value the heap decode did not recover (2),
-unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
-call whose callee is not supplied (1).
+Over the 46 tracked VI snippets: 8 lower (`MD5`, `PNG CRC32`,
+`crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, and `VI Tree` /
+`decorations_only`, which have no dataflow) and 38 refuse. Refusals are pinned
+per VI and concentrate in cluster / path / variant wire types (24), undecoded
+primitives (5), unresolved wire direction (3), constants whose value the heap
+decode did not recover (2), structures (2) and subVI calls whose callee is not
+supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 186 lower
-and the rest refuse, 6,263 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 229 lower
+and the rest refuse, 5,809 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for. The rest are pinned per kind in
-`kCorpusLoweringSweep`: 372 on a primitive, 221 on a subVI call, 172 on an
-unwired terminal, 98 on a structure, 87 on a wire's direction, 84 on a
-constant's value, 16 on a declaration that cannot be written.
+`kCorpusLoweringSweep`: 524 on a primitive, 322 on a subVI call, 234 on an
+unwired terminal, 111 on a structure, 107 on a wire's direction, 135 on a
+constant's value, 18 on a declaration that cannot be written.
 
-Those 186 lowerings are **54 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 54 into a
+Those 229 lowerings are **79 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 79 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 54 is the independent check that they
+kernel` of one entry point importing all 79 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
+
+Lowering is not the same as being *checked*, though, and the gap is what the
+behavioural tests close. Eight VIs are verified against a published vector
+rather than against this reader's own reading of them: `crc8.vi`,
+`crc32_lookup_table.vi`, `PNG CRC32.vi`, `Calculate CRC.vi`, `Calc CRC-16.vi`,
+`Calc LRC-8.vi`, `ReverseBitsVim.vi` and `MD5.vi`.
 
 ### crc8.vi, byte-exact
 
@@ -501,6 +524,32 @@ reference CRC-8 written from the public parameter model, over the ten
 catalogued CRC-8 algorithms × 261 messages: **2,610 comparisons, all exact**.
 The reference itself is anchored to the published check values, so neither side
 can drift alone.
+
+### CRC-32 and CRC-16, both halves of each
+
+Two algorithms are checked from both ends, so the table and the code that
+drives it are proven separately rather than as one round trip.
+
+- **CRC-32/ISO-HDLC.** `crc32_lookup_table.vi` *builds* the 256-entry table and
+  `PNG CRC32.vi` *consumes* one, and both land on the published check value
+  0xCBF43926 — the CRC of the nine ASCII bytes `123456789`. The consumer side
+  is the wider test: it has to get the 0xFFFFFFFF preset, the per-byte
+  `table[(register ^ byte) & 0xFF] ^ (register >>> 8)` fold and the final
+  complement all right at once, which exercises a U32 right shift, an Index
+  Array read against a constant table, a string auto-indexed into a byte loop,
+  and a `Select` whose two values are arrays.
+- **CRC-16/MODBUS.** `Calculate CRC.vi` folds the polynomial a bit at a time
+  and `Calc CRC-16.vi` — the largest lowering the fetched corpus produces —
+  reads two 256-byte tables through two shift registers that cross over each
+  iteration. Both reproduce the published check value 0x4B37, and they are
+  compared with each other as well as with a reference, so the table pair, the
+  crossover and the emitted byte order are each pinned.
+
+`PNG CRC32.vi` also shows what a faithful lowering looks like when the VI and
+the standard disagree. Its diagram routes an empty byte array to a one-element
+zero constant, so it digests a single zero byte where CRC-32 defines the empty
+message's value to be zero. The lowering reproduces the diagram, and the test
+states that deviation as the value it produces instead of excluding the input.
 
 ### MD5.vi, and hypotheses a published vector decides
 

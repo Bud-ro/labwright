@@ -88,6 +88,58 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'vi_lib_dependency': 'subViCall',
 };
 
+/// The heap class of an **In Place Element Structure** frame
+/// ([HeapObjectClass.bdInPlaceStructure]).
+const int kLvInPlaceElementClass = 0x14d;
+
+/// The In Place Element Structure's **border node** classes — the nodes drawn
+/// on its frame that name the element each access reaches.
+///
+/// Only [kLvDataValueRefBorderClass] is identified. The other three carry the
+/// family's poser reference and sit inside the structure like it does, but
+/// which element access each performs is not recovered, so the parser labels
+/// them by family alone ([ClassConfidence.kindOnly]).
+const Set<int> kLvInPlaceElementBorderClasses = {kLvDataValueRefBorderClass, 0x150, 0x14f, 0x152};
+
+/// The one In Place Element border node whose access IS decoded: the pair that
+/// reads and writes a **data value reference** ([HeapObjectClass.bdNode153]).
+const int kLvDataValueRefBorderClass = 0x153;
+
+/// How far the **In Place Element Structure** is from lowering, and what stands
+/// in the way — the measurement that sizes it as a coverage lever.
+///
+/// The structure is common: `ipe.vis` VIs carry `ipe.structures` of them, and
+/// the `ipe.border.*` counters are the border nodes inside. Containing one is
+/// not the same as being blocked by one, though, and the gap between the two is
+/// the whole point of this census. A lowering refuses at the FIRST thing it
+/// cannot read, so the VIs the structure actually gates are `ipe.blocked` —
+/// every other VI carrying one is already refused by something reached earlier,
+/// and modelling the structure would not move it.
+///
+/// `ipe.blocked` is 27 against `ipe.vis`'s 705, so 96.2% of the VIs that carry
+/// an In Place Element Structure are held up elsewhere — 482 of them by one
+/// cause, a cluster wire whose member types no endpoint resolves
+/// (`clus.why.noneNoCluster`, the corpus's largest single blocker).
+///
+/// The 27 split by whether the structure's own contents are decoded, and they
+/// split against it: `ipe.blocked.undecodedAccess` (22) carry a border node
+/// from [kLvInPlaceElementBorderClasses] whose element access is not recovered,
+/// leaving `ipe.blocked.identifiedOnly` (5) whose border nodes are all the
+/// data-value-reference pair. So the structure's ceiling as a lever is 27 VIs
+/// (0.36% of the corpus), and 22 of those need a border-node reading that does
+/// not exist yet rather than control flow.
+const Map<String, int> kCorpusInPlaceElement = {
+  'ipe.vis': 705,
+  'ipe.structures': 904,
+  'ipe.border.0x14f': 108,
+  'ipe.border.0x150': 406,
+  'ipe.border.0x152': 98,
+  'ipe.border.0x153': 1466,
+  'ipe.blocked': 27,
+  'ipe.blocked.identifiedOnly': 5,
+  'ipe.blocked.undecodedAccess': 22,
+};
+
 /// The **primitive review list**: every operation the snippet corpus uses that
 /// has no lowering rule and appears at least [kReviewListFloor] times, with its
 /// occurrence count. An entry keyed by class code is a node whose class is its
@@ -711,6 +763,37 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     }
   }
 
+  // The **In Place Element Structure** census (see [kCorpusInPlaceElement]):
+  // how far the structure is from a lowering, measured as the VIs it is the
+  // binding constraint on rather than as the VIs that contain one.
+  void censusInPlaceElement(ViDiagram diagram, LvRefusal? refusal) {
+    var structures = 0;
+    final border = <int>[];
+    for (final object in diagram.objects) {
+      if (object.kind == kLvInPlaceElementClass) structures++;
+      if (kLvInPlaceElementBorderClasses.contains(object.kind)) border.add(object.kind);
+    }
+    if (structures == 0) return;
+    bump('ipe.vis');
+    for (var i = 0; i < structures; i++) {
+      bump('ipe.structures');
+    }
+    for (final code in border) {
+      bump('ipe.border.0x${code.toRadixString(16)}');
+    }
+    final blocked =
+        refusal != null &&
+        refusal.kind == LvRefusalKind.structure &&
+        refusal.detail.contains('0x${kLvInPlaceElementClass.toRadixString(16)}');
+    if (!blocked) return;
+    bump('ipe.blocked');
+    bump(
+      border.every((code) => code == kLvDataValueRefBorderClass)
+          ? 'ipe.blocked.identifiedOnly'
+          : 'ipe.blocked.undecodedAccess',
+    );
+  }
+
   // The While-loop conditional terminal census (see LvTerminalRole.conditional):
   // what the file says about a terminal whose polarity decides the loop's exit
   // test. Counted here so the refusal is backed by a number that moves the
@@ -1265,6 +1348,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     censusIndexArrays(unit.diagram);
     censusRefnumWires(unit.diagram);
     final built = buildOf(unit);
+    censusInPlaceElement(unit.diagram, built.refusal);
     if (built.dataflow case final flow?) walk(flow, flow.root);
     if (built.refusal case final refusal? when refusal.kind == LvRefusalKind.wireType) {
       censusWireTypeRefusal(unit.diagram, refusal);
@@ -1425,7 +1509,17 @@ void main() {
       printOnFailure(
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
-      expect(measured, kCorpusLoweringSweep);
+      expect(measured, {...kCorpusLoweringSweep, ...kCorpusInPlaceElement});
+      // Called out on its own so a move in the In Place Element Structure's
+      // size as a lever names itself rather than arriving as one row of the
+      // sweep above.
+      expect(
+        {
+          for (final key in measured.keys)
+            if (key.startsWith('ipe.')) key: measured[key],
+        },
+        kCorpusInPlaceElement,
+      );
       // The two independent checks on the pane binding: neither is used to
       // derive it, so a disagreement would mean the contract is wrong.
       // Direction admits none; the four type exceptions are attributed in
