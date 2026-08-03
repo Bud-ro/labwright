@@ -512,9 +512,9 @@ bool _hazardous(LvWireType type, String operator) =>
     type.numeric?.hazards.any((hazard) => hazard.operators.contains(operator)) ?? false;
 
 /// `Not` — a boolean negation, or an integer's one's complement renormalized
-/// to its LabVIEW width. A float has no bitwise complement and is refused, as
-/// is a U64 operand's raw bit pattern only in the sense that `~` is exact on
-/// it (two's complement is sign-agnostic), so U64 needs no special case.
+/// to its LabVIEW width. A float has no bitwise complement and is refused. A
+/// U64 needs no special case: `~` is sign-agnostic, so it is exact on the raw
+/// bit pattern that carrier holds.
 List<String>? _not(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;

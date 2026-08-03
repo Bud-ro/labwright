@@ -94,9 +94,9 @@ const Map<int, String> kLvWireRuntimeCarriers = {
 /// typedef/class form ([ViSignalType.clusterVariantCode]).
 const Set<int> kLvWireClusterCodes = {TypeCode.cluster, ViSignalType.clusterVariantCode};
 
-/// How many typedef wrappers [lvClusterBase] looks through. LabVIEW nests a
-/// typedef inside a typedef, and the pool decodes each base inline, so the
-/// walk is bounded rather than open-ended.
+/// How many typedef wrappers [lvClusterBase] looks through. The pool decodes
+/// a typedef's base inline and admits a typedef of a typedef, so the walk is
+/// bounded rather than open-ended.
 const int kLvTypedefDepth = 8;
 
 /// The **cluster** [type] stands for: itself when it is one, and the base of a
