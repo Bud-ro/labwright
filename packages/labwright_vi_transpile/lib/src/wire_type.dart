@@ -148,6 +148,15 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 /// walk stops at the endpoint's owner: the corpus resolves nothing further up
 /// (a 1-, 2- and 6-parent walk return identical counts over all 133 106
 /// cluster-coded signals).
+///
+/// It stops there because there is nothing there to read. Across the 184 697
+/// endpoints of the 88 743 cluster wires no endpoint resolves, NOT ONE carries
+/// a type-descriptor index of its own ([ViHeapObject.typeDescIdx]) — a wire
+/// endpoint is a holder (`0x15`, 174 208) or an interface terminal (`0x16`,
+/// 10 489), and neither class stores one. Every type such an endpoint has is
+/// inherited from a paired panel DCO through its `dcoRef`, and 123 263 of them
+/// carry no `dcoRef` either. This is a missing decode of where the compiled
+/// data space types a wire, not a walk that gives up early.
 ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
   var object = diagram.byId[oid];
   for (var depth = 0; object != null && depth < 2; depth++) {
@@ -170,6 +179,20 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 /// can be compared is the evidence the route is sound; a wire whose ends
 /// disagree, and a wire no end resolves, are both refused rather than picked
 /// between.
+///
+/// The **callee's connector pane** is not a second source. A call node's
+/// holders are its pane terminals in pane order (the binding the subVI
+/// contract already proves at 99.83%), so a cluster wire ending on one can be
+/// read against the callee VI's own terminal for that pane — but measured over
+/// the corpus that reading decides only 1 960 of the 88 743 unresolved wires
+/// (2.2%), and where both it and the endpoint route resolve exactly one shape
+/// it reproduces that shape 338 times against 505 disagreements. Comparing
+/// member type codes alone lifts the agreement to 764/844, so most of the
+/// disagreement is the descriptor NAME: caller and callee spell the same
+/// members under different typedefs, and the name is what the emitted Dart
+/// type is. Two readings that name a wire differently 60% of the time are not
+/// one route, so the pane side is measured ([kCorpusLoweringSweep]'s
+/// `clus.pane*`) and not read.
 ///
 /// The unresolved majority is the corpus's single largest lowering blocker.
 /// Of the 6 804 VIs whose dataflow build refuses on `wireType`, the wire the

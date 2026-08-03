@@ -2950,7 +2950,8 @@ class BdDiagramPainter extends CustomPainter {
           final glyph =
               constValue != null ||
                   object.dataType == null ||
-                  (shellParent?.kind == 0x13 && shellParent?.constText != null)
+                  (shellParent?.kind == 0x13 &&
+                      bdDrawnConstText(shellParent) != null)
               ? null
               : dataTypeGlyph(object.dataType!);
           if (glyph != null &&
@@ -3391,8 +3392,8 @@ class BdDiagramPainter extends CustomPainter {
           for (var hop = 0; hop < 4 && ancestorOid != null; hop++) {
             final ancestor = diagramById[ancestorOid];
             if (ancestor == null) break;
-            final decoded = ancestor.constText?.trim();
-            if (decoded != null && decoded.isNotEmpty) {
+            final decoded = bdDrawnConstText(ancestor);
+            if (decoded != null) {
               constValue = decoded;
               break;
             }
@@ -3469,19 +3470,18 @@ class BdDiagramPainter extends CustomPainter {
       // construct name); a node's identity is carried by its icon plate (and
       // a separate free label), never by stamping its subVI-filename/function
       // label inside the icon box. A constant/terminal shows the recovered
-      // literal value ([ViHeapObject.constText]) when one exists — e.g. a
+      // literal value ([bdDrawnConstText]) when one exists — e.g. a
       // string constant's `"report.txt"` — falling back to its recovered
-      // label; a value that was not decoded renders no text (never guessed).
+      // label; a value that was not decoded, or whose drawn form its
+      // undecoded display mode governs, renders no text (never guessed).
       final String? text;
       if (object.category == ViObjectKind.structure ||
           object.category == ViObjectKind.node) {
         text = null;
       } else {
-        final literal = object.constText?.trim();
+        final literal = bdDrawnConstText(object);
         final label = object.label?.trim();
-        text = (literal != null && literal.isNotEmpty)
-            ? literal
-            : (label != null && label.isNotEmpty ? label : null);
+        text = literal ?? (label != null && label.isNotEmpty ? label : null);
       }
       if (text == null) continue;
       final rect = rectOf(object);

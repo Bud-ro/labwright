@@ -436,7 +436,7 @@
       "constCloseMissShell57": 17,
       "constCloseMissShell64": 52,
       "constEp": 54627,
-      "constEpValue": 42063,
+      "constEpValue": 42857,
       "constSig2ep": 51146,
       "constSigAtIdx0": 51146,
       "constSigCloseMiss": 294,
@@ -453,7 +453,17 @@
       "freeHiddenDcoParentd5": 320,
       "freeHiddenDcoParentd6": 2663,
       "freeHiddenDcoParented": 12,
-      "freeHiddenDcoParentfb": 4
+      "freeHiddenDcoParentfb": 4,
+      "strEmptyPad": 1171,
+      "strFits": 8493,
+      "strMultiLine": 852,
+      "strMultiLineShortBox": 410,
+      "strMultiLineTallBox": 442,
+      "strNeither": 149,
+      "strNonPrintable": 948,
+      "strPrintable": 7545,
+      "strScalarForm": 513,
+      "strTyped": 10326
     },
     "wire_branch_oracle": {
       "brc_reg_failed": 12,

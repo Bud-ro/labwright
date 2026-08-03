@@ -4741,22 +4741,33 @@ num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
 ///     5 length mismatches and 2 dims-truncated payloads decline. Non-numeric
 ///     element kinds (string/path/cluster/…, 1,107 constants) are not yet
 ///     decoded (TODO).
-///   * **empty string** — a string type whose payload is `[u32 0]` plus one
-///     trailing zero pad byte is the empty string, the same empty-with-pad
-///     form the array law above carries. The framing is the string half of
-///     the flat layout: of the 9,813 string-typed constants, 8,493 payloads
-///     read `[u32 length][length bytes]` exactly and a further 1,171 read
+///   * **string** — a string type's container payload is `[u32 length][length
+///     bytes]`, the string half of the flat layout, and the body is the
+///     constant's text ([ViHeapObject.constText], one code unit per stored
+///     byte). An empty one is `[u32 0]` plus a single trailing zero pad byte,
+///     the same empty-with-pad form the array law above carries. Corpus:
+///     of the 10,326 string-typed constants, 513 are stored at a scalar
+///     magnitude width (no container to frame) and of the remaining 9,813
+///     payloads 8,493 fit the length law exactly and 1,171 are
 ///     `[u32 0][00]` — every single padded one declaring length 0, with no
-///     odd-length counterexample — while 149 fit neither.
+///     odd-length counterexample — while 149 fit neither and decline.
 ///
-/// The NON-empty framing is not read here yet. It agrees with what the
-/// fallback tier already decodes on 7,545 of the 7,650 constants both reach,
-/// and the 105 it does not are places the fallback drops bytes the framing
-/// keeps (an embedded newline, a leading UTF-8 BOM); which of the two readings
-/// is the constant's own text is not settled, and 843 payloads whose framed
-/// body is non-printable would newly decode as text under it.
-/// // TODO(labwright): settle the non-empty string framing against a reference
-/// render and adopt it.
+/// The framing is byte-exact where the fallback tier's printable filter is
+/// lossy. Both reach 7,650 constants and agree on 7,545; on all 105 that
+/// differ the fallback text is EXACTLY the framed body with its
+/// non-printable bytes deleted (an embedded newline, a tab, a leading UTF-8
+/// BOM, a Latin-1 quote), never a different reading. LabVIEW's own renders
+/// settle which is the constant's text: `Config_Dump`'s three `[u32 1][0A]`
+/// constants draw a two-glyph `\n` escape in a 27×19 box — the file's own
+/// saved box geometry and the reference PNG agree — so the byte is real
+/// content the fallback dropped, and 104 of the 105 draw in a box at least
+/// two lines tall, which a single-line fallback reading cannot produce. The
+/// framing therefore decodes 843 further payloads the fallback declined, every
+/// one of them carrying a non-printable byte.
+///
+/// A constant's DISPLAY MODE (normal, `\`-codes, hex) is not decoded, so what
+/// LabVIEW draws for a non-printable byte is a separate question from what the
+/// constant stores; a renderer must not paint these bytes raw.
 ///
 /// Boolean and path types have no typed layout law here yet — their
 /// populations decode entirely through the fallback tier's carrier-class
@@ -4781,8 +4792,13 @@ void _typedBdConstDecode(ViHeapObject object) {
     return;
   }
   if (type.kind == ViDataType.string) {
-    if (object.constValueScalar || flat.length != 5 || flat.any((byte) => byte != 0)) return;
-    object.constText = '';
+    if (object.constValueScalar || flat.length < 4) return;
+    final declared = ByteData.sublistView(flat).getUint32(0);
+    if (4 + declared == flat.length) {
+      object.constText = String.fromCharCodes(flat, 4);
+    } else if (declared == 0 && flat.length == 5 && flat[4] == 0) {
+      object.constText = '';
+    }
     return;
   }
   if (type.kind != ViDataType.array) return;

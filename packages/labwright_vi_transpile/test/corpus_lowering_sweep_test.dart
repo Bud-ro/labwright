@@ -176,7 +176,12 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// supplies them, `clus.none` how often none does, and `clus.many` how often
 /// two ends disagree. `clus.viaTypedef` is the share only the typedef unwrap
 /// ([lvClusterBase]) reaches, and `clus.typedefContradicts` the wires where it
-/// adds a shape the bare-cluster reading disagrees with.
+/// adds a shape the bare-cluster reading disagrees with. The `clus.pane*`
+/// counters size the CALLEE side as a second source and are why it is not one:
+/// `clus.pane.none` is the unresolved wires it would newly decide,
+/// `clus.paneAgrees` against `clus.paneDisagrees` is how it reproduces the
+/// endpoint route where both speak, and `clus.epTypeIdx` — absent from the
+/// pin, so zero — is the structural reason the caller-side walk stops.
 ///
 /// The `ref.*` and `flag<n>.*` counters are the refnum-wire census. A refnum
 /// wire's array-depth base is the reference class's, not the type code's, so
@@ -203,6 +208,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'clus.many': 502,
   'clus.none': 88743,
   'clus.one': 43861,
+  'clus.pane.many': 1,
+  'clus.pane.none': 1960,
+  'clus.pane.one': 843,
+  'clus.paneAgrees': 338,
+  'clus.paneDisagrees': 505,
   'clus.typedefContradicts': 24,
   'clus.viaTypedef': 9381,
   'cond': 2267,
@@ -211,9 +221,9 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 2,
-  'exceptions.constantValue': 79,
+  'exceptions.constantValue': 77,
   'exceptions.lowered': 162,
-  'exceptions.primitive': 176,
+  'exceptions.primitive': 178,
   'exceptions.structure': 61,
   'exceptions.subViCall': 76,
   'exceptions.tunnelIndexing': 1,
@@ -246,9 +256,9 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 33,
   'term.wired': 350,
   'threaded.caseSelector': 2,
-  'threaded.constantValue': 79,
+  'threaded.constantValue': 77,
   'threaded.lowered': 162,
-  'threaded.primitive': 176,
+  'threaded.primitive': 178,
   'threaded.structure': 61,
   'threaded.subViCall': 76,
   'threaded.tunnelIndexing': 1,
@@ -352,13 +362,45 @@ const ({int vis, int sources}) kEmittedSources = (vis: 162, sources: 41);
   // resolves, and `clus.typedefContradicts` the wires where it adds a shape
   // the bare-cluster reading disagrees with — the two numbers that say whether
   // looking through a typedef is worth what it costs.
+  //
+  // The `clus.pane*` counters measure the CALLEE side as a second source: a
+  // call node's holders are its pane terminals in pane order, so a cluster
+  // wire ending on one can be read against the callee VI's own terminal for
+  // that pane. `clus.epTypeIdx` is the structural reason the caller-side walk
+  // stops where it does.
   void censusClusterWires(ViDiagram diagram, List<ViType> pool) {
+    final clusterEndpoints = <int>{
+      for (final wire in diagram.wires)
+        if (kLvWireClusterCodes.contains(wire.signalType?.typeCode)) ...wire.endpointOids,
+    };
+    if (clusterEndpoints.isEmpty) return;
+    // Per endpoint oid, the callee and pane index it is a pane terminal of —
+    // built only for the call nodes a cluster wire actually reaches, so the
+    // census does not load a callee it has no question for.
+    final paneOf = <int, (LvViUnit, int)>{};
+    for (final node in diagram.objects) {
+      if (!kSubViCallNodeCodes.contains(node.kind)) continue;
+      final name = node.label?.trim();
+      if (name == null) continue;
+      final lower = name.toLowerCase();
+      if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) continue;
+      final ports = [
+        for (final holder in diagram.children(node.oid))
+          if (holder.kind == kLvHolderCode) holder.oid,
+      ];
+      if (!ports.any(clusterEndpoints.contains)) continue;
+      final callee = resolve(name);
+      if (callee == null || ports.length != callee.paneMap.length || callee.paneMap.isEmpty) continue;
+      for (var pane = 0; pane < ports.length; pane++) {
+        paneOf[ports[pane]] = (callee, pane);
+      }
+    }
     for (final wire in diagram.wires) {
       final signal = wire.signalType;
       if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
       bump('clus');
       final array = (signal.arrayDims ?? 0) > 0;
-      final shapes = <String>{}, bare = <String>{};
+      final shapes = <String>{}, bare = <String>{}, viaPane = <String>{};
       for (final endpoint in wire.endpointOids) {
         final type = lvClusterOfEndpoint(diagram, endpoint, array: array);
         if (type == null) continue;
@@ -366,15 +408,30 @@ const ({int vis, int sources}) kEmittedSources = (vis: 162, sources: 41);
         shapes.add(shape);
         if (type.kind == ViDataType.cluster) bare.add(shape);
       }
-      bump(
-        'clus.${switch (shapes.length) {
-          0 => 'none',
-          1 => 'one',
-          _ => 'many',
-        }}',
-      );
+      for (final endpoint in wire.endpointOids) {
+        if (paneOf[endpoint] case (final callee, final pane)) {
+          final terminal = callee.paneTerminal(pane);
+          if (terminal == null) continue;
+          final type = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
+          if (type != null) viaPane.add(lvClusterShape(type, callee.pool));
+        }
+      }
+      final own = switch (shapes.length) {
+        0 => 'none',
+        1 => 'one',
+        _ => 'many',
+      };
+      bump('clus.$own');
       if (shapes.length == 1 && bare.isEmpty) bump('clus.viaTypedef');
       if (bare.length == 1 && shapes.length > 1) bump('clus.typedefContradicts');
+      if (viaPane.length == 1) bump('clus.pane.$own');
+      if (shapes.length == 1 && viaPane.length == 1) {
+        bump(shapes.single == viaPane.single ? 'clus.paneAgrees' : 'clus.paneDisagrees');
+      }
+      if (shapes.isNotEmpty) continue;
+      for (final endpoint in wire.endpointOids) {
+        if (diagram.byId[endpoint]?.typeDescIdx != null) bump('clus.epTypeIdx');
+      }
     }
   }
 

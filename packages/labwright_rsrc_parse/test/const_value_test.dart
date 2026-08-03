@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import '../tool/corpus_base.dart';
 import 'corpus_dirs.dart';
 import 'test_util.dart';
 
@@ -179,6 +180,56 @@ void main() {
         bd5.byId[1148]!.constNumeric,
         reason: 'decoded constant value byte-matches its data-space slot',
       );
+    }
+  });
+
+  test('string framing: the reference renders that settle a non-printable payload', () {
+    // LabVIEW sizes a string constant's box to the text it PAINTS and saves
+    // that box in the file, so the tracked snippet references — LabVIEW's own
+    // renders, with the source VI embedded — say how a non-printable payload
+    // reads.
+    //
+    // `Config_Escape` is an escape table: each character appears twice, once
+    // as the two-character source escape and once as the byte it denotes.
+    // LabVIEW gave every pair the SAME box, which only its `\`-codes display
+    // produces — and `"`, which that display does not escape, is the one
+    // narrower box. `Config_Dump`'s bare `0x0A` constants take the same 27 px
+    // box as `Config_Escape`'s literal `\n`, and the reference PNG paints a
+    // backslash and an `n` inside them. So the framed byte is the constant's
+    // own value; the fallback tier's printable filter, which decodes nothing
+    // at all here, drops real content.
+    const pins = <(String, int, String, int, int)>[
+      // snippet, constant oid, decoded value, box width, box height
+      ('Config_Escape', 307, r'\t', 24, 19),
+      ('Config_Escape', 2004, '\t', 24, 19),
+      ('Config_Escape', 347, r'\n', 27, 19),
+      ('Config_Escape', 1812, '\n', 27, 19),
+      ('Config_Escape', 379, r'\f', 24, 19),
+      ('Config_Escape', 1908, '\f', 24, 19),
+      ('Config_Escape', 411, r'\r', 24, 19),
+      ('Config_Escape', 1956, '\r', 24, 19),
+      ('Config_Escape', 475, r'\\', 25, 19),
+      ('Config_Escape', 1764, r'\', 25, 19),
+      ('Config_Escape', 443, r'\"', 25, 19),
+      ('Config_Escape', 1860, '"', 20, 19),
+      ('Config_Dump', 671, '\n', 27, 19),
+      ('Config_Dump', 712, '\n', 27, 19),
+      ('Config_Dump', 2448, '\n', 27, 19),
+      ('Config_Dump', 1575, '=', 17, 19),
+    ];
+    final diagrams = <String, ViDiagram>{};
+    for (final (snippet, oid, value, width, height) in pins) {
+      final diagram = diagrams[snippet] ??= buildViModel(
+        extractSnippetVi(File('${corpusBaseDir().path}/snippets/$snippet.png').readAsBytesSync())!,
+      ).blockDiagrams.single;
+      final constant = diagram.byId[oid]!;
+      expect(constant.constText, value, reason: '$snippet oid $oid value');
+      final box = diagram.children(oid).firstWhere((child) => child.absBounds != null).absBounds!;
+      expect((box.width, box.height), (width, height), reason: '$snippet oid $oid box');
+      // Only a printable value has a known drawn form: the display mode that
+      // paints `\n` for a newline is not decoded, so the renderer is told
+      // nothing for the byte payloads.
+      expect(bdDrawnConstText(constant), value.codeUnits.every((c) => c >= 0x20 && c < 0x7f) ? value : isNull);
     }
   });
 }

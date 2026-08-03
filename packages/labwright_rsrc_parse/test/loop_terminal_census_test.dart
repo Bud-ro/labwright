@@ -35,6 +35,12 @@ import 'snapshot_check.dart';
 ///     route ships a closed polyline from the shell's centre
 ///     ([ViWire.routePoints] — closure is the zero-slack proof of the
 ///     centre attach convention).
+///  4. **String-constant framing** — how a string-typed constant's payload
+///     fits the `[u32 length][length bytes]` law the typed tier of
+///     [decodeBdConstValues] reads, and how that reading compares with the
+///     heap-parse printable filter it supersedes. Needs the resolved
+///     data-space type, so it rides this full-model pass rather than the
+///     type-free `bd_const_values` census.
 Map<String, int> _census(Uint8List bytes, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -119,6 +125,41 @@ Map<String, int> _census(Uint8List bytes, String path) {
             : d.children(constant.oid).firstWhere((g) => g.absBounds != null, orElse: () => constant);
         bump('constCloseMissShell${(shell?.kind ?? -1).toRadixString(16)}');
       }
+    }
+
+    for (final o in d.objects) {
+      if (o.kind != HeapObjectClass.bdConstDco.code) continue;
+      final flat = o.constValueRaw;
+      if (flat == null || o.resolvedType?.kind != ViDataType.string) continue;
+      bump('strTyped');
+      if (o.constValueScalar) {
+        bump('strScalarForm');
+        continue;
+      }
+      if (flat.length < 4) {
+        bump('strNeither');
+        continue;
+      }
+      final declared = ByteData.sublistView(flat).getUint32(0);
+      if (declared == 0 && flat.length == 5 && flat[4] == 0) {
+        bump('strEmptyPad');
+        continue;
+      }
+      if (4 + declared != flat.length) {
+        bump('strNeither');
+        continue;
+      }
+      bump('strFits');
+      final text = o.constText;
+      if (text == null || text.isEmpty) continue;
+      bump(text.codeUnits.every((code) => code >= 0x20 && code < 0x7f) ? 'strPrintable' : 'strNonPrintable');
+      if (!text.contains('\n') && !text.contains('\r')) continue;
+      bump('strMultiLine');
+      final box = d.children(o.oid).firstWhere((g) => g.absBounds != null, orElse: () => o).absBounds;
+      // A one-line constant box is 19-21 px tall corpus-wide, so a box past
+      // two of those is text LabVIEW laid out over several lines — geometry
+      // no single-line reading of the payload can produce.
+      if (box != null) bump(box.height >= 42 ? 'strMultiLineTallBox' : 'strMultiLineShortBox');
     }
   }
   return c;

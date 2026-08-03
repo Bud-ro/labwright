@@ -101,6 +101,24 @@ Map<int, String> bdConstValueTexts(ViDiagram diagram) {
   return out;
 }
 
+/// The text a string constant's box DRAWS for its decoded value
+/// ([ViHeapObject.constText]), trimmed of surrounding whitespace — or null
+/// when the drawn form is not known.
+///
+/// The stored value is byte-exact, but a constant's DISPLAY MODE (normal,
+/// `\`-codes, hex) is not decoded and decides how LabVIEW paints a byte
+/// outside printable ASCII: `Config_Dump`'s `0x0A` constants draw the
+/// two-glyph `\n` escape in a 27×19 box, not a line break, while the same
+/// byte under the normal mode would break the line. A value carrying any such
+/// byte therefore has no known drawn form and renders no text, rather than
+/// painting the stored bytes as if they were glyphs.
+String? bdDrawnConstText(ViHeapObject? object) {
+  final text = object?.constText;
+  if (text == null || text.codeUnits.any((code) => code < 0x20 || code >= 0x7f)) return null;
+  final trimmed = text.trim();
+  return trimmed.isEmpty ? null : trimmed;
+}
+
 /// The decoded printf-style display format of [oid]'s value window — the
 /// `0xe0` display part's [ViHeapObject.displayFormat] — or null.
 String? bdDisplayFormatOf(ViDiagram diagram, int oid) {
