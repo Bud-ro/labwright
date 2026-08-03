@@ -1,0 +1,15 @@
+# Workspace-root test config.
+#
+# CI tests each package from its own directory (`cd packages/<p> && dart test`),
+# where that package's `dart_test.yaml` applies. Running the whole workspace
+# from the root instead (`dart test packages`) loads only THIS file, so the
+# per-package tag settings do not apply and corpus-tagged tests fall back to the
+# default 30 s timeout — which they exceed under full-suite contention. Mirror
+# the corpus timeout here so the root command and CI agree.
+tags:
+  corpus:
+    # Same scaled timeout the per-package configs declare; see
+    # packages/labwright_rsrc_parse/dart_test.yaml for the memory/contention
+    # model behind it.
+    timeout: 3x
+  hardware:
