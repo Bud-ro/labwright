@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'blocks/font_table.dart';
 import 'blocks/prim_ops.dart';
 import 'blocks/type_pool.dart';
 import 'heap.dart';
@@ -143,6 +144,24 @@ class ViHeapObject {
   /// Number of `C4 1F` terminal records attached.
   int termCount = 0;
 
+  /// The label's text **font runs** (from its tag-`0x25` run group — see
+  /// [HeapPropertyToken.textStyleRuns]): each run switches the face for
+  /// [label] from [start] (character offset) on to the `FTAB` font-table
+  /// entry [fontId] selects (`ViFontTable.entryForRunFontId`). Empty for
+  /// the default face. Heap order (starts ascending in the corpus). A run's
+  /// colour value (raw `0x029`) is not yet captured. // TODO(labwright)
+  List<({int start, int fontId})> textStyleRuns = const [];
+
+  /// The `FTAB` entry the FIRST font run resolves to (set by
+  /// `buildViModelFromDecoded` when the VI carries a font table) — the face
+  /// renderers apply to the whole label (multi-run labels are ~1% of
+  /// carriers; per-run face switching is not rendered yet). Null keeps the
+  /// default face.
+  ViFontEntry? labelFont;
+
+  /// Whether [labelFont] resolves to a bold (weight-1000) table entry.
+  bool get labelIsBold => labelFont?.isBold ?? false;
+
   /// Structural category (set during [buildDiagram]). See [ViObjectKind].
   ViObjectKind category = ViObjectKind.unknown;
 
@@ -220,6 +239,41 @@ class ViHeapObject {
   /// The stored dimension sizes of [constArray] (`[rows, columns]` for a 2D
   /// array), or null alongside it.
   List<int>? constArrayDims;
+
+  /// A label's (`0x0a`) raw `0x021` **text-mode word** (`0x814404`/`0x14404`
+  /// patterns — see [HeapAttribute.cosmColorB]), or null. Bits `0x30` are
+  /// the JUSTIFICATION field: `0x20` = centre — its 29 snippet-corpus
+  /// carriers are exactly the wide centred headings (crc8's ghost strip
+  /// inks at equal 20 px margins; Excel's `Get Worksheets`/`Parse Sheet`)
+  /// — while `0x10` (648 carriers) rides ordinary text-sized control
+  /// labels where justification is invisible; not pixel-pinned.
+  /// Bit `0x800000` widens the text pen's left inset ([labelTextInset]).
+  /// // TODO(labwright): pin 0x10 (right?) against a reference.
+  int? labelModeWord;
+
+  /// Whether the label's text centres in its bounds ([labelModeWord] bit
+  /// `0x20`).
+  bool get labelJustifyCenter => ((labelModeWord ?? 0) & 0x20) != 0;
+
+  /// The label text pen's inset from its LEFT bound, in px: 2 when
+  /// [labelModeWord] carries bit `0x800000`, else 1. Reference-measured
+  /// across the snippet corpus by registered ink-profile correlation:
+  /// every confidently-matched carrier's text starts at bounds.left+2
+  /// (Excel_Read_XLSX's terminal-name labels on `0x51`/`0x5b` holders,
+  /// comment blocks, MD5's panel-terminal labels) and every non-carrier
+  /// at bounds.left+1 (crc8's `0x2c`/`0x50`-held names, the crc trio's
+  /// `0x52`-docked array labels) — independent of the holder class.
+  int get labelTextInset => ((labelModeWord ?? 0) & 0x800000) != 0 ? 2 : 1;
+
+  /// The DISPLAYED element index of an array shell (`0x52`): the attr-`0x19`
+  /// value of the shell's tag-`0x15` group — what its index display shows
+  /// and which element its value window presents. Corpus: 11,972 of 12,179
+  /// shells carry the group (value 0 for 11,536); reference-validated where
+  /// nonzero (the crc trio's LUT arrays show index 255 and element
+  /// `array[255]`; GetCurrentDirectory shows 1023 and element 0). The
+  /// sibling tag-`0x16`/`0x17` groups carry the same attr shape (`0x16`
+  /// always 0; `0x17` small counts) — not decoded. // TODO(labwright)
+  int? arrayIndex;
 
   /// The `%`-led printf-style display-format text of a numeric display part
   /// ([HeapAttribute.formatStyle], raw `0x074`; e.g. `%.0f`, `%08x`) — or
@@ -3554,8 +3608,72 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   final liveParent = <ViHeapObject, ViHeapObject?>{};
   final length = body.length;
 
+  // Text font-run capture (the [HeapGroupTag.fontRunList] group inside a
+  // label object; see [HeapPropertyToken.textStyleRuns]): one
+  // [HeapGroupTag.fontRun] sub-group per run, whose narrow [FontRunAttr]
+  // records are the run's start offset and font id. Those two tags are
+  // consumed here (raw `0x028` inside the group is the font id, NOT
+  // [HeapAttribute.backgroundColor]); every other record in the group falls
+  // through to the generic handlers below.
+  ViHeapObject? styleRunOwner;
+  var styleRunGroupDepth = 0;
+  var styleRunStart = 0;
+  var styleRunFontId = 0;
+  var styleRunOpen = false;
+  var styleRuns = <({int start, int fontId})>[];
+
+  // Array-shell displayed-index capture (the [HeapGroupTag.arrayIndex] group
+  // on a `0x52` shell; see [ViHeapObject.arrayIndex]): the group's
+  // [HeapAttribute.arrayElemValue] record. The group is tracked by DEPTH, so
+  // a nested group's close does not end the capture early.
+  ViHeapObject? arrayIndexOwner;
+  var arrayIndexGroupDepth = 0;
+
   walkHeapObjects<ViHeapObject>(
     body,
+    onGroupOpen: (groupTag, cur) {
+      if (arrayIndexOwner != null) {
+        arrayIndexGroupDepth++;
+      } else if (groupTag == HeapGroupTag.arrayIndex.tag &&
+          cur != null &&
+          cur.kind == HeapObjectClass.caseOrSequence.code) {
+        arrayIndexOwner = cur;
+        arrayIndexGroupDepth = 1;
+      }
+      if (styleRunOwner == null) {
+        if (groupTag == HeapGroupTag.fontRunList.tag && cur != null) {
+          styleRunOwner = cur;
+          styleRunGroupDepth = 1;
+          styleRuns = [];
+        }
+        return;
+      }
+      styleRunGroupDepth++;
+      if (groupTag == HeapGroupTag.fontRun.tag && styleRunGroupDepth == 2) {
+        styleRunOpen = true;
+        styleRunStart = 0;
+        styleRunFontId = 0;
+      }
+    },
+    onGroupClose: (groupTag, cur) {
+      if (arrayIndexOwner != null && --arrayIndexGroupDepth == 0) {
+        arrayIndexOwner = null;
+      }
+      if (styleRunOwner == null) return;
+      styleRunGroupDepth--;
+      if (styleRunOpen && styleRunGroupDepth == 1) {
+        styleRuns.add((start: styleRunStart, fontId: styleRunFontId));
+        styleRunOpen = false;
+      }
+      if (styleRunGroupDepth == 0) {
+        // First-wins, like the other object captures: 11 corpus objects carry
+        // a second run group, each repeating the first group's runs exactly.
+        if (styleRuns.isNotEmpty && styleRunOwner!.textStyleRuns.isEmpty) {
+          styleRunOwner!.textStyleRuns = styleRuns;
+        }
+        styleRunOwner = null;
+      }
+    },
     onObjectOpen: (span, kind, oid, parent) {
       final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset);
       cur.parentOid = parent?.oid;
@@ -3570,6 +3688,31 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (cur == null) return;
       final offset = span.offset;
       final lead = span.lead;
+      // The scoped group captures consume ONLY the records they decode; the
+      // rest of the group's records (a font run's raw `0x029` colour value,
+      // 15,471 corpus records) fall through to the generic handlers.
+      if (arrayIndexOwner != null && identical(cur, arrayIndexOwner)) {
+        final attr = decodeHeapAttr(body, offset);
+        final value = attr?.asInt;
+        if (value != null && attr!.rawTag == HeapAttribute.arrayElemValue.raw) {
+          arrayIndexOwner!.arrayIndex = value;
+          return;
+        }
+      }
+      if (styleRunOpen && identical(cur, styleRunOwner)) {
+        final attr = decodeHeapAttr(body, offset);
+        final value = attr?.asInt;
+        if (value != null) {
+          if (attr!.rawTag == FontRunAttr.start.raw) {
+            styleRunStart = value;
+            return;
+          }
+          if (attr.rawTag == FontRunAttr.fontId.raw) {
+            styleRunFontId = value;
+            return;
+          }
+        }
+      }
       if (lead == kHeapRecordPrefix) {
         final rec = c4FrameAt(body, offset, sectionTag);
         if (rec == null) return;
@@ -3667,6 +3810,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
             cur.displayFormat ??= String.fromCharCodes(bytes);
           }
+        }
+        // The label text-mode word (raw 0x021 on the 0x0a label class; see
+        // [ViHeapObject.labelModeWord]) — justification bits ride it.
+        if (attr.attribute == HeapAttribute.cosmColorB && cur.kind == 0x0a) {
+          cur.labelModeWord ??= attr.asInt;
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;

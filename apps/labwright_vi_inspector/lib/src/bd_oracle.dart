@@ -33,11 +33,13 @@ import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
 
+import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'diagram_view.dart';
 import 'image_clipboard.dart';
+import 'oracle_gif.dart';
 
 /// A rasterised block diagram: the [image] plus the model-space [content]
 /// rectangle and the model-pixel → image-pixel [scale] it was drawn at (so a
@@ -335,14 +337,25 @@ Future<BdRaster?> rasteriseBlockDiagram(
   // wires defaults to the diagram's visible dataflow wires; pass `const []`
   // to rasterise the wire-free layout (measuring the before/after delta), or
   // a pre-built [scene] to reuse its cached analyses across renders.
-  scene ??= BdScene(diagram, wires: wires, drawable: drawable);
-  if (scene.drawable.isEmpty) return null;
+  // A scene built here is this call's alone and is released before returning
+  // (its text caches hold native pictures/painters); a caller-supplied scene
+  // outlives the call and stays the caller's to dispose.
+  final ownScene = scene == null;
+  final activeScene =
+      scene ?? BdScene(diagram, wires: wires, drawable: drawable);
+  if (activeScene.drawable.isEmpty) {
+    if (ownScene) activeScene.dispose();
+    return null;
+  }
   final content = bdContentRect(
-    scene.drawable,
+    activeScene.drawable,
     includeWires: false,
     margin: margin,
   );
-  if (content.width <= 0 || content.height <= 0) return null;
+  if (content.width <= 0 || content.height <= 0) {
+    if (ownScene) activeScene.dispose();
+    return null;
+  }
 
   final longSide = math.max(content.width, content.height);
   var pxScale =
@@ -356,7 +369,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
 
   // The raster must be exact on first paint, so a diagram holding a
   // disabled frame waits for the grey variants (built once, lazily).
-  if (scene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
+  if (activeScene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -372,7 +385,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   );
   canvas.scale(pxScale);
   BdDiagramPainter(
-    scene: scene,
+    scene: activeScene,
     origin: content.topLeft,
     subViIcons: subViIcons,
     primIcons: primIcons,
@@ -392,6 +405,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     );
   } finally {
     picture.dispose();
+    if (ownScene) activeScene.dispose();
   }
 }
 
@@ -1511,6 +1525,10 @@ class _BdOracleViewState extends State<BdOracleView>
     }
   }
 
+  /// True while a sweep-GIF export is encoding (the button disables so a
+  /// second press cannot start a parallel encode).
+  bool _exportingGif = false;
+
   /// Wipe mode: the registered render and the reference overlaid, split at a
   /// draggable divider (ours left, LabVIEW right).
   bool _wipe = false;
@@ -1624,9 +1642,13 @@ class _BdOracleViewState extends State<BdOracleView>
     );
     if (raster == null) {
       reference?.image.dispose();
+      scene.dispose();
       return const _OracleData();
     }
-    if (reference == null) return _OracleData(rendered: raster.image);
+    if (reference == null) {
+      scene.dispose();
+      return _OracleData(rendered: raster.image);
+    }
     var result = await compareToReference(
       raster.image,
       reference.image,
@@ -1720,6 +1742,9 @@ class _BdOracleViewState extends State<BdOracleView>
       );
       displayReference = await upscaleNearest(reference.image, ss);
     }
+    // The scene's text caches (recorded pictures, glyph painters) are done:
+    // every render this pipeline needed has been rasterised.
+    scene.dispose();
     return _OracleData(
       rendered: raster.image,
       result: result,
@@ -1802,6 +1827,15 @@ class _BdOracleViewState extends State<BdOracleView>
                       ),
                       label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
                     ),
+                    TextButton.icon(
+                      onPressed: _exportingGif
+                          ? null
+                          : () => _exportSweepGif(result),
+                      icon: const Icon(Icons.gif_box_outlined, size: 16),
+                      label: Text(
+                        _exportingGif ? 'Encoding…' : 'Export sweep GIF',
+                      ),
+                    ),
                     if (_wipe) ...[
                       for (final zoom in const [0, 1, 2, 3])
                         Padding(
@@ -1853,6 +1887,9 @@ class _BdOracleViewState extends State<BdOracleView>
                                     : data.displayRendered != null)
                                 ? kOracleDisplaySupersample
                                 : 1,
+                            base: result != null
+                                ? result.fitted
+                                : data.rendered,
                             copyImage: result != null
                                 ? (data.displayFitted ?? result.fitted)
                                 : (data.displayRendered ?? data.rendered),
@@ -1867,6 +1904,7 @@ class _BdOracleViewState extends State<BdOracleView>
                               supersample: data.displayReference != null
                                   ? kOracleDisplaySupersample
                                   : 1,
+                              base: result.reference,
                               copyImage:
                                   data.displayReference ?? result.reference,
                               copyLabel: 'Reference',
@@ -2048,6 +2086,7 @@ class _BdOracleViewState extends State<BdOracleView>
     String caption,
     ui.Image image, {
     int supersample = 1,
+    ui.Image? base,
     ui.Image? copyImage,
     String? copyLabel,
   }) => Padding(
@@ -2083,12 +2122,59 @@ class _BdOracleViewState extends State<BdOracleView>
         Expanded(
           child: ColoredBox(
             color: const Color(0xFF202020),
-            child: CrispImage(image, supersample: supersample),
+            child: CrispImage(image, supersample: supersample, base: base),
           ),
         ),
       ],
     ),
   );
+
+  /// Exports the registered pair as the orange-bar sweep GIF
+  /// ([encodeOracleSweepGif]): our render west of the bar, the reference east
+  /// — both from the 1:1 comparison pair, so they are pixel-aligned. The
+  /// encode runs off the UI isolate; the save destination comes from the OS
+  /// save dialog (matching the file-open flow), and a snackbar reports where
+  /// the file went.
+  Future<void> _exportSweepGif(BdOracleResult result) async {
+    setState(() => _exportingGif = true);
+    final messenger = ScaffoldMessenger.maybeOf(context);
+    try {
+      final width = result.reference.width;
+      final height = result.reference.height;
+      final fitted = (await result.fitted.toByteData())!.buffer.asUint8List();
+      final reference = result.referenceRgba;
+      final gif = await encodeOracleSweepGifOffThread(
+        leftRgba: fitted,
+        rightRgba: reference,
+        width: width,
+        height: height,
+      );
+      final path = await FilePicker.saveFile(
+        dialogTitle: 'Save render-vs-reference sweep GIF',
+        fileName: 'oracle-sweep.gif',
+        type: FileType.custom,
+        allowedExtensions: const ['gif'],
+        bytes: gif,
+      );
+      messenger?.showSnackBar(
+        SnackBar(
+          content: Text(
+            path == null
+                ? 'Sweep GIF export cancelled'
+                : 'Wrote sweep GIF '
+                      '(${(gif.length / (1 << 20)).toStringAsFixed(1)} MB) '
+                      'to $path',
+          ),
+        ),
+      );
+    } catch (e) {
+      messenger?.showSnackBar(
+        SnackBar(content: Text('Could not export sweep GIF: $e')),
+      );
+    } finally {
+      if (mounted) setState(() => _exportingGif = false);
+    }
+  }
 
   /// Copies a pane's [image] to the system clipboard as a PNG. The oracle
   /// panes pass their [kOracleDisplaySupersample]x display image, so the copy
@@ -2250,40 +2336,51 @@ int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
 Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   final data = (await src.toByteData())!;
   final sw = src.width, sh = src.height;
-  // A factor beyond a source dimension is clamped (every caller already
-  // clamps via [boxDownscaleFactor]); the floor below then keeps the block
-  // reads in bounds AND the output at least 1x1.
-  final blockK = math.min(k, math.min(sw, sh));
-  final dw = math.max(1, sw ~/ blockK), dh = math.max(1, sh ~/ blockK);
   final bytes = data.buffer.asUint8List();
   // The averaging is O(source pixels) on multi-megapixel supersampled
   // rasters — off the UI isolate so pane resizes don't jank.
-  final out = await Isolate.run(() {
-    final out = Uint8List(dw * dh * 4);
-    final n = blockK * blockK;
-    for (var y = 0; y < dh; y++) {
-      for (var x = 0; x < dw; x++) {
-        var r = 0, g = 0, b = 0, a = 0;
-        for (var sy = y * blockK; sy < y * blockK + blockK; sy++) {
-          var i = (sy * sw + x * blockK) * 4;
-          for (var sx = 0; sx < blockK; sx++) {
-            r += bytes[i];
-            g += bytes[i + 1];
-            b += bytes[i + 2];
-            a += bytes[i + 3];
-            i += 4;
-          }
+  final out = await Isolate.run(() => boxDownscaleRgba(bytes, sw, sh, k));
+  return imageFromRgba(out.rgba, out.width, out.height);
+}
+
+/// [boxDownscale] on plain bytes: the RGBA buffer [rgba] of a
+/// [width] x [height] image, averaged in [factor] x [factor] blocks, with
+/// the destination size it produced. A factor below 1 or beyond a source
+/// dimension is clamped, so the result always keeps at least one pixel per
+/// axis — an extreme squeeze must degrade to a tiny image, never a
+/// zero-dimension one. Remainder rows/columns past the last whole block are
+/// dropped.
+({Uint8List rgba, int width, int height}) boxDownscaleRgba(
+  Uint8List rgba,
+  int width,
+  int height,
+  int factor,
+) {
+  final blockK = math.max(1, math.min(factor, math.min(width, height)));
+  final dw = math.max(1, width ~/ blockK), dh = math.max(1, height ~/ blockK);
+  final out = Uint8List(dw * dh * 4);
+  final n = blockK * blockK;
+  for (var y = 0; y < dh; y++) {
+    for (var x = 0; x < dw; x++) {
+      var r = 0, g = 0, b = 0, a = 0;
+      for (var sy = y * blockK; sy < y * blockK + blockK; sy++) {
+        var i = (sy * width + x * blockK) * 4;
+        for (var sx = 0; sx < blockK; sx++) {
+          r += rgba[i];
+          g += rgba[i + 1];
+          b += rgba[i + 2];
+          a += rgba[i + 3];
+          i += 4;
         }
-        final j = (y * dw + x) * 4;
-        out[j] = r ~/ n;
-        out[j + 1] = g ~/ n;
-        out[j + 2] = b ~/ n;
-        out[j + 3] = a ~/ n;
       }
+      final j = (y * dw + x) * 4;
+      out[j] = r ~/ n;
+      out[j + 1] = g ~/ n;
+      out[j + 2] = b ~/ n;
+      out[j + 3] = a ~/ n;
     }
-    return out;
-  });
-  return imageFromRgba(out, dw, dh);
+  }
+  return (rgba: out, width: dw, height: dh);
 }
 
 /// Shows [image] crisp at any pane size: at native size or larger it draws
@@ -2296,11 +2393,20 @@ class CrispImage extends StatefulWidget {
   /// [boxDownscale] — the sole phase-free scales): n:1 nearest upscale, or
   /// 1:n via exact box-averaging, letterboxing the remainder. When the image
   /// is a supersample of the logical content, pass the factor so ratios
-  /// snap against LOGICAL pixels.
-  const CrispImage(this.image, {this.supersample = 1, super.key});
+  /// snap against LOGICAL pixels, and pass [base] — a supersampled image
+  /// has NO exact n:1 path of its own: nearest-drawing it at a non-multiple
+  /// of the supersample decimates (keeps 1 of [supersample]² samples), which
+  /// thins and frays AA text and sheds stray fringe rows under glyphs.
+  const CrispImage(this.image, {this.supersample = 1, this.base, super.key});
 
   final ui.Image image;
   final int supersample;
+
+  /// The 1:1 logical-resolution companion of a supersampled [image]: shown
+  /// nearest-upscaled at the integer n:1 ratios (bit-exact pixels, matching
+  /// the wipe comparator's integer zooms), while [image] serves the sub-1:1
+  /// box-average minification, where its extra samples are real detail.
+  final ui.Image? base;
 
   @override
   State<CrispImage> createState() => _CrispImageState();
@@ -2337,7 +2443,7 @@ class _CrispImageState extends State<CrispImage> {
         final n = fitPhys.floor();
         dispPhysW = logicalW * n;
         dispPhysH = logicalH * n;
-        shown = widget.image;
+        shown = widget.base ?? widget.image;
       } else {
         final k = boxDownscaleFactor(widget.image, widget.supersample, fitPhys);
         if (k != _boxK) {

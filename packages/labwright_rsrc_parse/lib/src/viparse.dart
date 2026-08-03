@@ -262,19 +262,37 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final (:countPos, :count) = _locateBlockList(u32, infoOffset);
 
   const descSize = 20;
+  // The final block-list entry's descriptor is stored in its 12-byte head form
+  // `[u32 0][u32 secRel][u32 0]` (the name-table header), so only those bytes
+  // are required to be present — its 20-byte tail runs past EOF in 32 corpus
+  // VIs, while all 7,523 have the 12.
+  const finalDescSize = 12;
   final descBase = countPos + 8;
   final sections = <ViSection>[];
   var entry = countPos + 4;
-  for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
+  // The stored block count is COUNT MINUS ONE: the list carries one final
+  // entry past the stored count. (pylabview's `blockinfo_count + 1` read was
+  // the lead; the corpus carries the law.) Probed over the 7,523
+  // RSRC-parseable corpus VIs: every file has a valid final entry (`FTAB`
+  // 7,201 / `VITS` 322) whose descriptor resolves to a real
+  // `[u32 len][bytes]` section, 7,523/7,523. The final entry's descriptor is
+  // only 12 bytes of stored meaning — its tail overlaps the trailing-name
+  // region (`@16` was never `0xFFFFFFFF` in the corpus) — so the word-16
+  // primary/embedded filter cannot be applied to it; corpus-wide the final
+  // entry is always a primary data section, so it is returned on the primary
+  // read and skipped on the embedded read.
+  for (var i = 0; i <= count && entry + 12 <= bytes.length; i++) {
+    final finalEntry = i == count;
     final tagText = tag(entry);
     final sectionCount = u32(entry + 4) + 1;
     final descRel = u32(entry + 8);
     entry += 12;
     if (!_printableTag(tagText)) continue;
+    if (finalEntry && wantWord16 != 0xFFFFFFFF) continue;
     for (var sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
       final dpos = descBase + descRel + sectionIndex * descSize;
-      if (dpos + descSize > bytes.length) break;
-      if (view.getUint32(dpos + 16) != wantWord16) continue;
+      if (dpos + (finalEntry ? finalDescSize : descSize) > bytes.length) break;
+      if (!finalEntry && view.getUint32(dpos + 16) != wantWord16) continue;
       final secRel = view.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
       if (pos + 4 > bytes.length) continue;
@@ -327,7 +345,9 @@ ViSummary parseVi(Uint8List bytes) {
   final blocks = <String>[];
   final seen = <String>{};
   var entry = countPos + 4;
-  for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
+  // The stored count is count-1; the list carries one final entry past it
+  // (see [_readSections]).
+  for (var i = 0; i <= count && entry + 12 <= bytes.length; i++) {
     final tagText = tag(entry);
     if (!_printableTag(tagText)) break;
     if (seen.add(tagText)) blocks.add(tagText);

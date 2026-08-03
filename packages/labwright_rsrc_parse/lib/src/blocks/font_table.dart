@@ -91,6 +91,26 @@ class ViFontEntry {
   /// The [size]/[weight] sentinel meaning "unset — inherit the predefined
   /// font's value".
   static const int sizeUnset = 0x8000;
+
+  /// The [weight] word value of a bold entry (`1000`; `0` plain, [sizeUnset]
+  /// unset-inherit).
+  static const int weightBold = 1000;
+
+  /// Whether this entry renders bold ([weight] == [weightBold]). Corpus
+  /// (7,523 `FTAB` tables, 38,655 entries): 1,720 bold — the only other
+  /// weight words are `0` (23,563 plain) and [sizeUnset] (13,372
+  /// inherit-the-predefined-font), so the word is a three-value field here,
+  /// not a graded weight scale. 1,333 of the bold entries also name a
+  /// predefined font ([isPredefinedRef]) — bold rides the reference.
+  bool get isBold => weight == weightBold;
+
+  /// Whether [name] is a predefined-font digit (`0` application / `1` system
+  /// / `2` dialog) rather than a real typeface name. Corpus (38,655 entries):
+  /// 14,705 predefined refs — `0` 9,524, `2` 3,135, `1` 2,046, no other digit
+  /// — and 23,950 typeface names, led by `Segoe UI` (17,105),
+  /// `Microsoft YaHei UI` (2,949), `Lucida Grande` (1,560), `Tahoma` (1,085),
+  /// `Arial` (675) and `Calibri` (425).
+  bool get isPredefinedRef => name.length == 1 && name.codeUnitAt(0) >= 0x30 && name.codeUnitAt(0) <= 0x32;
 }
 
 /// A decoded `FTAB` font table. Byte-exact when [nameTableComplete]: the fixed
@@ -150,6 +170,25 @@ class ViFontTable {
   /// (`nameTableOffset` in range and [fontCount] Pascal strings tile
   /// `[nameTableOffset..end)` exactly). Only then is [serialize] byte-exact.
   final bool nameTableComplete;
+
+  /// The entry a heap text run's font id (the raw-`0x028` u8 inside a
+  /// tag-`0x25` run group) selects: entry `[fontId + 3]`, past the three
+  /// leading predefined application/system/dialog slots every corpus table
+  /// opens with. Null when the id falls outside the table (the label then
+  /// keeps the default face).
+  ///
+  /// Pixel-validated against 8 snippet references where byte-identical run
+  /// records render differently per VI: MD5/Excel id 1 → a weight-1000
+  /// entry (their bold headings); fg/large/PNG-CRC32 id 1 → an
+  /// inherit-app-font entry (regular); crc32_lookup_table id 2 → a
+  /// 21 px weight-1000 entry (its large bold heading) while VI Tree's id 2
+  /// → an inherit entry (regular); Read VI Blocks id 3 → its
+  /// `Courier New` entry (the monospace table label); Page1/Pages id 0 →
+  /// entry [3] (default face).
+  ViFontEntry? entryForRunFontId(int fontId) {
+    final index = fontId + 3;
+    return index >= 0 && index < entries.length ? entries[index] : null;
+  }
 
   /// Re-emits the fixed header + record leaf + name-table region — the whole
   /// block. Byte-exact only when [nameTableComplete].

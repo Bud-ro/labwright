@@ -116,6 +116,12 @@ void main() {
       final o = bd.byId[oid]!;
       expect(o.constBool ?? o.constNumeric, want, reason: 'crc8 oid $oid');
     });
+    // Array-shell displayed indexes (tag-0x15 group value; the references
+    // show `255` in both LUT arrays' index windows and element
+    // `array[255]`).
+    expect(bd.byId[757]!.arrayIndex, 255, reason: 'LUT shell index');
+    expect(bd.byId[2369]!.arrayIndex, 255, reason: 'zero-LUT shell index');
+    expect(bd.byId[750]!.constArray![255], 255, reason: 'LUT[255]');
 
     // MD5.png: the typed tier of decodeBdConstValues settles the fallback
     // gates' SGL-alias/sign declines and decodes array payloads;

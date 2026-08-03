@@ -269,7 +269,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
       32 +
       4 +
       info.blockList.byteLength +
-      (info.preGap == null ? 0 : 20) +
+      (info.preGap == null ? 0 : ViInfoPreGap.byteSize) +
       20 * info.descriptors.length +
       info.nameTable.trailingNameRecord.length;
   var infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;

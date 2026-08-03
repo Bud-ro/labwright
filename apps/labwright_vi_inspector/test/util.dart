@@ -33,21 +33,30 @@ Future<void> pumpBody(
   await tester.pump();
 }
 
-/// Loads the Flutter SDK's Roboto into the test binding under the family the
-/// diagram painter uses, so canvas text rasterises with real glyphs. Without
-/// this every glyph is the test binding's Ahem block — solid squares that
-/// swamp the oracle's ink/edge masks and drag its registration. No-op when
-/// the SDK font cache isn't locatable (oracle scores are only asserted where
-/// the corpus is fetched, which implies a full checkout with an SDK).
+/// Loads the app's bundled Selawik faces into the test binding under the
+/// family the diagram painter uses, so canvas text rasterises with real
+/// glyphs. Without this every glyph is the test binding's Ahem block — solid
+/// squares that swamp the oracle's ink/edge masks and drag its registration.
+///
+/// Fails loudly when a face is missing: the paths are relative to the working
+/// directory, so a run started elsewhere would otherwise register nothing and
+/// every metric would silently read Ahem's widths.
 Future<void> loadRealTextFont() async {
-  final root = Platform.environment['FLUTTER_ROOT'];
-  if (root == null) return;
-  final file = File(
-    '$root/bin/cache/artifacts/material_fonts/Roboto-Regular.ttf',
+  final loader = FontLoader('Selawik');
+  var faces = 0;
+  for (final name in ['selawk.ttf', 'selawkb.ttf']) {
+    final file = File('assets/fonts/$name');
+    if (!file.existsSync()) continue;
+    loader.addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
+    faces++;
+  }
+  expect(
+    faces,
+    2,
+    reason:
+        'both bundled Selawik faces must be readable at assets/fonts — run '
+        'the tests from the app package root',
   );
-  if (!file.existsSync()) return;
-  final loader = FontLoader('Roboto')
-    ..addFont(Future.value(ByteData.sublistView(file.readAsBytesSync())));
   await loader.load();
 }
 

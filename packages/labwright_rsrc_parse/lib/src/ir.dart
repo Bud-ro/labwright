@@ -33,6 +33,7 @@ class ViModel {
     this.subViNames = const <String>[],
     this.types = const <ViType>[],
     this.connectorPaneTypeIndex,
+    this.fontTable,
   });
 
   /// LabVIEW version the VI was saved in (e.g. `10.0`), or null if not yet recovered.
@@ -95,6 +96,12 @@ class ViModel {
   /// terminals (a cluster's members are the terminals; in/out direction is not
   /// recovered). Corpus-confirmed in-range for CONP (see decodeConnectorPane).
   final int? connectorPaneTypeIndex;
+
+  /// The VI's decoded `FTAB` font table, or null when absent/undecodable.
+  /// Heap text runs' font ids resolve against it
+  /// ([ViFontTable.entryForRunFontId]); each diagram label's resolved entry
+  /// is also pre-bound onto [ViHeapObject.labelFont] at build time.
+  final ViFontTable? fontTable;
 
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
 
@@ -257,6 +264,19 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   ];
   final blockDiagrams = diagramsFor(const {'BDHb', 'BDHP', 'BDEx'});
   final frontPanelDiagrams = diagramsFor(const {'FPHb', 'FPHP', 'FPEx'});
+  // Bind each label's first font run to its FTAB entry (see
+  // [ViHeapObject.labelFont]); without a table every label keeps the
+  // default face.
+  final ftab = list.where((s) => s.tag == 'FTAB').map((s) => s.bytes).firstOrNull;
+  final fontTable = ftab == null ? null : decodeFontTable(ftab);
+  if (fontTable != null) {
+    for (final diagram in [...blockDiagrams, ...frontPanelDiagrams]) {
+      for (final object in diagram.objects) {
+        if (object.textStyleRuns.isEmpty) continue;
+        object.labelFont = fontTable.entryForRunFontId(object.textStyleRuns.first.fontId);
+      }
+    }
+  }
   // Pool and top-level table come from the same located VCTP section.
   final vctp = list.where((s) => s.tag == 'VCTP').map((s) => s.bytes).firstOrNull;
   final types = vctp == null ? const <ViType>[] : decodeTypePool(vctp);
@@ -269,6 +289,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   return ViModel(
     subViNames: subViNames,
     types: types,
+    fontTable: fontTable,
     connectorPaneTypeIndex: connectorPaneFromSections(sections)?.typeIndex,
     version: ver.version,
     title: ver.title,

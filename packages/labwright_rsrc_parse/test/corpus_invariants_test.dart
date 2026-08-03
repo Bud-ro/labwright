@@ -180,20 +180,28 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
   } catch (_) {}
 
   try {
-    final pg = ViContainer.parse(bytes).parsedInfoArea.preGap;
+    final ia = ViContainer.parse(bytes).parsedInfoArea;
+    final pg = ia.preGap;
+    final fe = ia.blockList.finalEntry;
     final hasEmbedded = readEmbeddedSections(bytes).isNotEmpty;
-    if (pg != null) {
+    if (pg != null && fe != null) {
       n('preGap.files');
-      if (pg.markerTag != 'FTAB' && pg.markerTag != 'VITS') bad('preGapMarker', pg.markerTag);
-      if (pg.word1 != 0 || pg.word3 != 0) bad('preGapZero', 'w1=${pg.word1} w3=${pg.word3}');
+      if (fe.tag != 'FTAB' && fe.tag != 'VITS') bad('preGapMarker', fe.tag);
+      if (fe.sectionCountMinus1 != 0 || pg.word0 != 0) {
+        bad('preGapZero', 'sections-1=${fe.sectionCountMinus1} w0=${pg.word0}');
+      }
       if (pg.hasEmbeddedSections != hasEmbedded || (pg.flags != 0xFFFFFFFF && pg.flags != 0)) {
         bad('preGapFlags', 'flags=0x${pg.flags.toRadixString(16)} embedded=$hasEmbedded');
       }
-      if (pg.markerTag == 'FTAB' || pg.markerTag == 'VITS') {
+      // The final entry's descriptor is stored in head form as the name-table
+      // header; the remap path only trusts it when the address proves it.
+      if (ia.finalEntrySecRel == null) bad('finalEntryDesc', 'final entry descriptor not at the name table');
+      if (fe.tag == 'FTAB' || fe.tag == 'VITS') {
         final blocks = parseVi(bytes).blocks.toSet();
         n('anti.checked');
-        if (blocks.contains(pg.markerTag)) bad('antiMarker', 'marker ${pg.markerTag} also a block');
-        if (blocks.contains(pg.markerTag == 'FTAB' ? 'VITS' : 'FTAB')) n('anti.opposite');
+        // The entry past the stored count (the count is count-1) must reach the
+        // block reader as a block.
+        if (!blocks.contains(fe.tag)) bad('finalEntry', 'final entry ${fe.tag} not read as a block');
       }
     }
   } catch (_) {}
@@ -447,11 +455,16 @@ void main() {
     expect(D('peel'), isEmpty, reason: 'descriptor peel mismatch');
   });
 
-  test('INFO-AREA: preGap is a typed FTAB/VITS record; flags == has-embedded-sections', () {
-    expect(D('preGapMarker'), isEmpty, reason: 'preGap marker not FTAB/VITS');
-    expect(D('preGapZero'), isEmpty, reason: 'preGap word1/word3 not zero');
+  test('INFO-AREA: the final block-list entry and its descriptor; flags == has-embedded-sections', () {
+    expect(D('preGapMarker'), isEmpty, reason: 'final block-list entry not FTAB/VITS');
+    expect(D('preGapZero'), isEmpty, reason: 'final entry section count / preGap word0 not zero');
     expect(D('preGapFlags'), isEmpty, reason: 'preGap flags != has-embedded-sections');
-    expect(cnt('bad:antiMarker'), 0, reason: 'preGap marker tag appeared as a block: ${D('antiMarker')}');
+    expect(cnt('bad:finalEntry'), 0, reason: 'final block-list entry not surfaced as a block: ${D('finalEntry')}');
+    expect(
+      cnt('bad:finalEntryDesc'),
+      0,
+      reason: 'final entry descriptor not at the name table: ${D('finalEntryDesc')}',
+    );
   });
 
   test('INFO-AREA: subheader reservedA == [0,0,0x20]; reservedB == trailing-name offset', () {
