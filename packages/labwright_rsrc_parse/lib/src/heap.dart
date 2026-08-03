@@ -602,11 +602,16 @@ enum HeapAttribute {
 
   /// Raw `0x028` — **background / fill colour** (u32 RGB with the flag byte;
   /// ~27% transparent, ~24% white; matches OF__bgColor = 9): on the part
-  /// classes (label/cosm/multiCosm…). The `u8` narrow form (162k records,
-  /// value 1/2 dominant) is a different field sharing the tag: the **font
-  /// id** of a text run — it appears only inside a label's tag-`0x25` run
-  /// group ([HeapPropertyToken.textStyleRuns], an `FTAB` font-table index)
-  /// — and is kept value-kind-only by [heapDecodeTier].
+  /// classes (label/cosm/multiCosm…). The `u8` narrow form is a different
+  /// field sharing the tag: the **font id** of a text run
+  /// ([HeapPropertyToken.textStyleRuns], an `FTAB` font-table index), kept
+  /// value-kind-only by [heapDecodeTier]. Corpus (7,569 files walked —
+  /// 7,523 VIs + the 46 snippet PNGs): 162,869 narrow records, of which
+  /// **161,398 (99.10%) sit inside a label's tag-`0x25` run group**. The
+  /// other 1,471 are all FPHb-only, all on class-`0x5e` objects, inside
+  /// tag-`0x19` (1,446) or tag-`0x21` (25) groups, values 0 (1,217) / 2
+  /// (209) / 1 (36) — a third reading of the tag.
+  // TODO(labwright): decode the class-0x5e narrow form.
   backgroundColor(0x028, HeapAttrKind.color, 'backgroundColor', AttrConfidence.confirmed),
 
   /// Raw `0x024` — **content / area colour** (u32 RGB; ~58% transparent,
@@ -1710,8 +1715,9 @@ enum HeapPropertyToken {
   /// `10 25` — **text font-run list** on the text-label classes: the group
   /// `10 25 01 fb <runCount>` opens one tag-`0x19` sub-group per run, each
   /// carrying narrow attribute records that override the default face for the
-  /// caption text from a start offset on (field names match pylabview's
-  /// `SL__fontRun` tags: fontofst / fontid / fontcolor):
+  /// caption text from a start offset on (pylabview's `SL__fontRun` tags —
+  /// fontofst / fontid / fontcolor — were the lead for the field split; the
+  /// corpus counts and the pixel checks below carry it):
   ///
   ///  * raw `0x027` u8 — the run's **start character offset** (absent = 0);
   ///  * raw `0x028` u8 — the run's **font id**: an index into the VI's
@@ -1727,7 +1733,8 @@ enum HeapPropertyToken {
   ///    `0xff0000`/`0x7f7f7f`, or `0x01`-flagged values like `0x100000c`);
   ///    field split not decoded. // TODO(labwright)
   ///
-  /// Corpus: 160,174 groups (7,569 heap-bearing files), scoped to the text
+  /// Corpus: 160,174 groups over the 7,569 files walked (7,523 VIs + the 46
+  /// snippet PNGs; 7,554 of them carry a heap), scoped to the text
   /// classes `0x0a`/`0x95`/`0x0d`/`0xe0`/`0x4b`/`0x4a`/`0x160` in BDHb+FPHb;
   /// font-id value histogram 0x1:109,741 / 0x2:32,554 / 0x3:9,282 /
   /// 0x4:4,681 / 0x5..0x9 minor — small per-VI font-table indexes.

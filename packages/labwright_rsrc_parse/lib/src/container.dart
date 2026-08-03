@@ -10,7 +10,8 @@ const _maxPlausibleBlockCount = 100000;
 /// fully-typed piece of the exporter: every one of the 32 bytes maps to a named
 /// field, so [serialize] reconstructs the header byte-for-byte (no opaque span).
 ///
-/// Layout (big-endian), corpus-validated across 7583 VIs as a symmetric
+/// Layout (big-endian), corpus-validated across the 7,523 RSRC-parseable VIs
+/// as a symmetric
 /// `(offset, size)` pair per region:
 ///   `[0:6]` magic `RSRC\r\n` · `u16 formatVersion @6` (always 3) ·
 ///   `[8:12]` fileType tag (`LVIN` VI / `LVCC` control) · `[12:16]` creator tag
@@ -140,7 +141,7 @@ class ViInfoSubheader {
   final ViHeader headerCopy;
 
   /// `[32:44]` — three `u32`s between the dup header and `blockListRel`.
-  /// Corpus-probed (7583 VIs): `[u32 0][u32 0][u32 0x20]` — the first two are
+  /// Corpus-probed (7,523 VIs): `[u32 0][u32 0][u32 0x20]` — the first two are
   /// always zero and the third is the constant `0x20` (=32). See [reservedAMarker].
   /// Kept raw (re-emitted exactly); the constant is not asserted in [parse].
   // TODO(labwright): identify the `0x20` marker's meaning (a fixed size/version?).
@@ -152,7 +153,7 @@ class ViInfoSubheader {
   /// `[0x30, blockListRel)` — a `u32` (4 bytes; `blockListRel` is `0x34`
   /// throughout the corpus). Corpus-probed: this is the **info-area-relative
   /// offset of the trailing VI-name record** (`[u8 len][name]` at EOF) — it
-  /// equals that offset in all 7583 VIs (it is the authoritative VI-name locator;
+  /// equals that offset in all 7,523 VIs (it is the authoritative VI-name locator;
   /// see [viNameOffset], used by [ViNameTable.parse]). Kept raw to stay byte-exact
   /// for any non-canonical `blockListRel`.
   final Uint8List reservedB;
@@ -312,7 +313,8 @@ class ViBlockList {
 /// One 20-byte info-area section descriptor. The info area holds a contiguous run
 /// of these after the block list; corpus-proven, **every** record is a real
 /// section referenced by a block-list entry (no "name-table rows" exist — all
-/// 281,313 records across 7583 VIs are referenced, and each carries a valid
+/// 278,653 records across the 7,523 RSRC-parseable VIs are referenced, and each
+/// carries a valid
 /// data-area `[u32 len][payload]`). Every byte is captured (the unclassified
 /// words as raw fields with TODOs) so [serialize] reconstructs it byte-exact.
 class ViSectionDescriptor {
@@ -324,7 +326,7 @@ class ViSectionDescriptor {
     required this.word16,
   });
 
-  /// `u32 @0` — **`0` in every one of the 281,313 corpus descriptors** (a
+  /// `u32 @0` — **`0` in every one of the 278,653 corpus descriptors** (a
   /// reserved/unused leading word). // TODO(labwright): confirm it is always reserved.
   final int word0;
 
@@ -339,7 +341,7 @@ class ViSectionDescriptor {
   final int word8;
 
   /// `u32 @12` — a **1-based index into a VI-wide name table** for the section
-  /// (`0` ⇒ unnamed; non-zero for ~25% of sections). Probed over all 7583 corpus
+  /// (`0` ⇒ unnamed; non-zero for ~25% of sections). Probed over all 7,523 corpus
   /// VIs: values are small (global max 360), and distinct sections SHARE an index
   /// (e.g. a type record and its data-space twin both reference the same name), so
   /// this is a *shared index*, not an inline byte offset. It is NOT an index into
@@ -749,7 +751,7 @@ class ViInfoArea {
 /// which is the strongest end-to-end proof that our container interpretation is
 /// complete (nothing is dropped or misread).
 ///
-/// Corpus-validated layout (7583/7583 files): the 32-byte header declares
+/// Corpus-validated layout (7,523/7,523 files): the 32-byte header declares
 /// `dataOffset` (@24) and `infoOffset` (@16); the file is exactly
 /// `[0, dataOffset) header` ++ `[dataOffset, infoOffset) data area` ++
 /// `[infoOffset, end) info area` — three ordered, contiguous, non-overlapping
@@ -1011,7 +1013,7 @@ abstract final class ViExport {
   /// header `dataSize@28`/`infoOffset@16`, and the shifted descriptor `secRel`s.
   ///
   /// A no-op edit (`newPayload` equal to the current payload) reproduces the
-  /// input byte-for-byte. Corpus-validated across 7583 VIs (no-op byte-exact;
+  /// input byte-for-byte. Corpus-validated across 7,523 VIs (no-op byte-exact;
   /// grow and shrink both re-parse with the target updated and all other sections
   /// byte-identical). Throws [ViFormatException] if [secRel] is not a section
   /// start in the data area, or if the data area does not cleanly decompose

@@ -270,11 +270,12 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final descBase = countPos + 8;
   final sections = <ViSection>[];
   var entry = countPos + 4;
-  // The stored block count is COUNT MINUS ONE (pylabview reads it as
-  // `blockinfo_count + 1` entries): the list carries one final entry past the
-  // stored count. Corpus-probed over 7,569 VIs: every file has a valid final
-  // entry (`FTAB` 7,247 / `VITS` 322) whose descriptor resolves to a real
-  // `[u32 len][bytes]` section, 7,569/7,569. The final entry's descriptor is
+  // The stored block count is COUNT MINUS ONE: the list carries one final
+  // entry past the stored count. (pylabview's `blockinfo_count + 1` read was
+  // the lead; the corpus carries the law.) Probed over the 7,523
+  // RSRC-parseable corpus VIs: every file has a valid final entry (`FTAB`
+  // 7,201 / `VITS` 322) whose descriptor resolves to a real
+  // `[u32 len][bytes]` section, 7,523/7,523. The final entry's descriptor is
   // only 12 bytes of stored meaning — its tail overlaps the trailing-name
   // region (`@16` was never `0xFFFFFFFF` in the corpus) — so the word-16
   // primary/embedded filter cannot be applied to it; corpus-wide the final
