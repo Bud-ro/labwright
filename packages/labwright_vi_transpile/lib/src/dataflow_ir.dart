@@ -27,6 +27,8 @@ library;
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'declare.dart';
+import 'type_map.dart';
 import 'wire_type.dart';
 
 /// The endpoint-holder ([ViHeapObject.objFlags]) bit marking the holder as a
@@ -189,6 +191,10 @@ enum LvRefusalKind {
 
   /// A signal's decoded type word has no Dart representation.
   wireType,
+
+  /// A wire carries a nominal type whose Dart declaration cannot be written
+  /// ([LvTypeDecl.undeclarable]).
+  typeDeclaration,
 
   /// A node's primitive identity is not decoded, or has no mapping.
   primitive,
@@ -576,19 +582,29 @@ class LvDataflow {
 
 /// [diagram] as dataflow, or an [LvRefusal] naming the decoded fact that is
 /// missing. Never throws for a malformed diagram.
-({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(ViDiagram diagram, {List<ViType> pool = const []}) {
+///
+/// [declarations] is the generated library's declaration registry, which the
+/// nominal types the diagram's wires carry are named through. A build with no
+/// registry gets one of its own, so a diagram lowered on its own is typed the
+/// same way.
+({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(
+  ViDiagram diagram, {
+  List<ViType> pool = const [],
+  LvDeclarations? declarations,
+}) {
   try {
-    return (dataflow: _Builder(diagram, pool).build(), refusal: null);
+    return (dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations()).build(), refusal: null);
   } on LvRefusedException catch (error) {
     return (dataflow: null, refusal: error.refusal);
   }
 }
 
 class _Builder {
-  _Builder(this.diagram, this.pool) : byId = diagram.byId, kids = diagram.childrenByOid;
+  _Builder(this.diagram, this.pool, this.declarations) : byId = diagram.byId, kids = diagram.childrenByOid;
 
   final ViDiagram diagram;
   final List<ViType> pool;
+  final LvDeclarations declarations;
   final Map<int, ViHeapObject> byId;
   final Map<int, List<ViHeapObject>> kids;
 
@@ -655,13 +671,14 @@ class _Builder {
       if (!type.isMapped) {
         refuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
       }
-      if (type.needsDeclaration) {
-        refuse(
-          LvRefusalKind.wireType,
-          'the wire\'s type spells ${type.dartType}, a nominal class no library '
-          'declares (see [LvTypeMapping.needsDeclaration])',
-          oid: wire.signalOid,
-        );
+      for (final declaration in lvDeclarationClosure(type.declarations)) {
+        if (declaration.undeclarable case final why?) {
+          refuse(
+            LvRefusalKind.typeDeclaration,
+            'the wire\'s type spells ${declaration.name}, and $why',
+            oid: wire.signalOid,
+          );
+        }
       }
       final sinks = [
         for (final oid in wire.endpointOids)
@@ -696,7 +713,7 @@ class _Builder {
         oid: wire.signalOid,
       );
     }
-    return lvClusterWireType(signal, resolved.first, pool);
+    return lvClusterWireType(signal, resolved.first, pool, declarations);
   }
 
   /// The nearest enclosing frame of [oid], or null.

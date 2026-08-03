@@ -34,9 +34,8 @@ class LvWireType {
   /// Whether the whole edge value has a decided Dart representation.
   bool get isMapped => value.isMapped;
 
-  /// Whether the edge's Dart type names a class no library declares
-  /// ([LvTypeMapping.needsDeclaration]).
-  bool get needsDeclaration => value.needsDeclaration || element.needsDeclaration;
+  /// The declarations the edge's Dart type names ([LvTypeMapping.declarations]).
+  List<LvTypeDecl> get declarations => value.declarations;
 
   /// The Dart type source of the whole edge value, or null when unmapped.
   String? get dartType => value.dartType;
@@ -222,16 +221,16 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 /// ([kCorpusLoweringSweep]'s `clus.pane*`) and not read.
 ///
 /// The unresolved majority is the corpus's single largest lowering blocker.
-/// Of the 6 481 VIs whose dataflow build refuses on `wireType`, the wire the
-/// refusal names is a cluster wire in 4 528, and 2 309 have no unmapped wire
-/// of any other family at all. The rest of that bucket is the refnum codes'
-/// array-depth base, which rides the reference class rather than the code
-/// (named first in 1 784 VIs, the sole family in 176 — the depth-1 law
-/// [kSignalMinScalarDepth] decides the other half of those wires), and the
-/// element codes with no Dart representation (measureData `0x54` 71, the
-/// uncatalogued `0xff` 37, packed string `0x33` 34, tag `0x37` 19).
-LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool) {
-  final element = mapLvType(cluster, pool);
+/// Of the 6 212 VIs whose own dataflow build refuses on `wireType`, the wire
+/// the refusal names is a cluster wire in 3 988, and 2 050 have no unmapped
+/// wire of any other family at all. Next is the refnum codes' array-depth base,
+/// which rides the reference class rather than the code (named first in 2 022
+/// VIs, the sole family in 759 — the depth-1 law [kSignalMinScalarDepth]
+/// decides the other half of those wires), and then the element codes with no
+/// Dart representation (the uncatalogued `0xff` 56, measureData `0x54` 75,
+/// packed string `0x33` 44, tag `0x37` 19).
+LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool, [LvDeclarations? declarations]) {
+  final element = mapLvType(cluster, pool, 0, declarations);
   final dims = signal.arrayDims ?? 0;
   if (dims == 0 || !element.isMapped) {
     return LvWireType._(dims: dims, element: element, value: element);
@@ -239,7 +238,7 @@ LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> p
   return LvWireType._(
     dims: dims,
     element: element,
-    value: LvTypeMapping.mapped(lvArrayDartType(element, dims), needsDeclaration: element.needsDeclaration),
+    value: LvTypeMapping.mapped(lvArrayDartType(element, dims), declarations: element.declarations),
   );
 }
 

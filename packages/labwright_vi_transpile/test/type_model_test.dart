@@ -156,6 +156,83 @@ void main() {
     expect(mapLvType(withExt[1], withExt).status, LvMapStatus.unmapped);
   });
 
+  test('a nominal type carries the declaration a library must write for it', () {
+    // A named cluster over a named enum: one class, one enum, the class's field
+    // typed by the enum, and the enum before the class that names it.
+    final types = poolOf([
+      enumeration(['Off', 'On'], name: 'Mode'),
+      scalar(TypeCode.dbl, name: 'volts'),
+      cluster([0, 1], name: 'Channel Setting'),
+    ]);
+    final mapping = mapLvType(types[2], types, 0, LvDeclarations());
+    expect(mapping.dartType, 'ChannelSetting');
+    expect(lvDeclarationClosure(mapping.declarations).map((d) => d.name), ['Mode', 'ChannelSetting']);
+    expect(lvDeclarationSource(lvDeclarationClosure(mapping.declarations).first), '''
+/// The LabVIEW enum `Mode`. A member's `index` is the
+/// value the wire carries: the descriptor states the item labels in order
+/// and no value of its own for any of them.
+enum Mode {
+/// `Off`
+off,
+/// `On`
+on
+}
+''');
+    expect(lvDeclarationSource(mapping.declarations.single), '''
+/// The LabVIEW cluster `Channel Setting`.
+class ChannelSetting {
+const ChannelSetting({required this.mode, required this.volts});
+
+/// `Mode`
+final Mode mode;
+
+final double volts;
+}
+''');
+  });
+
+  test('declaration naming: unnamed, inherited and colliding members all resolve', () {
+    // (member labels, field identifiers) — the naming policy's whole job on a
+    // generated class.
+    const rows = <(List<String?>, List<String>)>[
+      ([null, 'volts'], ['member', 'volts']),
+      (['a', 'A'], ['a', 'a2']),
+      (['hashCode', 'index'], ['hashCode2', 'index2']),
+      (['class', 'volts'], [r'$class', 'volts']),
+      (['8-bits'], ['lv8Bits']),
+    ];
+    for (final (labels, expected) in rows) {
+      expect(LvNaming.declarationFields(labels), expected, reason: '$labels');
+    }
+  });
+
+  test('declarations are keyed by structure, and a name is only the preferred spelling', () {
+    List<ViType> named(int code, String label) => poolOf([
+      scalar(code, name: 'x'),
+      cluster([0], name: label),
+    ]);
+    final registry = LvDeclarations();
+    // The same structure twice is one declaration under one name; a different
+    // structure wanting that name is suffixed rather than merged.
+    final first = named(TypeCode.dbl, 'Reading');
+    final again = named(TypeCode.dbl, 'Reading');
+    final other = named(TypeCode.i32, 'Reading');
+    expect(mapLvType(first[1], first, 0, registry).dartType, 'Reading');
+    expect(mapLvType(again[1], again, 0, registry).dartType, 'Reading');
+    expect(mapLvType(other[1], other, 0, registry).dartType, 'Reading2');
+    expect(registry.all.length, 2);
+    // A name the emitted file already spells is skipped the same way.
+    final shadow = named(TypeCode.dbl, 'String');
+    expect(mapLvType(shadow[1], shadow, 0, registry).dartType, 'String2');
+    expect(kLvReservedTypeNames, containsAll(<String>['String', 'Uint8List', LvRuntimeType.error]));
+
+    // An enum whose item labels did not decode has no declaration to write.
+    final blank = poolOf([enumeration(const [], name: 'Mode')]);
+    final mapping = mapLvType(blank.single, blank, 0, LvDeclarations());
+    expect(mapping.declarations.single.undeclarable, isNotNull);
+    expect(mapping.declarations.single.items, isEmpty);
+  });
+
   test('typedefs are nominal over a cluster or enum, transparent over a scalar', () {
     // (base descriptor, typedef name, Dart type)
     final rows = <(List<int>, String, String)>[
@@ -269,7 +346,7 @@ void main() {
       ('error out', 'ErrorOut', 'errorOut'),
       ('WPI_PWMDeadband.ctl', 'WpiPwmdeadbandCtl', 'wpiPwmdeadbandCtl'),
       ('8-bits', 'Lv8Bits', 'lv8Bits'),
-      ('class', 'Class', r'class$'),
+      ('class', 'Class', r'$class'),
       ('', '', ''),
       ('  ', '', ''),
     ];

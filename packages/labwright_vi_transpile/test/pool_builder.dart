@@ -25,6 +25,16 @@ List<int> cluster(List<int> members, {String? name}) => _descriptor([
   if (name != null) ...pascal(name),
 ]);
 
+/// An enum of [items] in ordinal order, optionally named.
+List<int> enumeration(List<String> items, {int code = TypeCode.enumU16, String? name}) => _descriptor([
+  0x40,
+  code,
+  items.length >> 8 & 0xff,
+  items.length & 0xff,
+  for (final item in items) ...pascal(item),
+  if (name != null) ...pascal(name),
+]);
+
 /// A [dimCount]-dimensional array of variable-length dimensions over the pool
 /// entry at [elementIndex].
 List<int> array(int elementIndex, int dimCount) => _descriptor([
