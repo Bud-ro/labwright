@@ -391,20 +391,28 @@ class ViSectionDescriptor {
 class ViNameTable {
   ViNameTable({required this.header, required this.trailingNameRecord});
 
-  /// Leading bytes of the tail before the trailing VI name. Canonically 12 bytes:
-  /// `[u32 0][u32 headerValue][u32 0]`. Kept as a raw span (no larger form is
-  /// known once the name is located via `viNameOffset`). See [headerValue].
-  // TODO(labwright): identify [headerValue]'s meaning (offset/size/signature?).
+  /// Leading bytes of the tail before the trailing VI name. Canonically 12
+  /// bytes — DECODED: the **final block-list entry's section descriptor**,
+  /// truncated to its stored head `[u32 0][u32 secRel][u32 0]` (the stored
+  /// block count is count-1, so the list's final entry — `FTAB`/`VITS` —
+  /// keeps its descriptor here, right after the counted descriptor run; its
+  /// section is the last in the data area, which is why [headerValue] always
+  /// points near the data area's end). See [headerValue].
   final Uint8List header;
 
-  /// The lone non-zero word of the canonical 12-byte [header] (`u32 @4`), or null
-  /// when [header] is not the canonical 12-byte form. Corpus-probed: it is a
-  /// **data-area-range value** — always `< dataSize` and typically ~120–160 below
-  /// it (pointing near the end of the data area). Meaning not yet decoded; RULED
-  /// OUT: it is not the trailing-name length/offset, the descriptor count, the
-  /// info/data/file size, nor any section's `secRel`.
-  // TODO(labwright): decode what near-end-of-data-area position/value this is.
+  /// The final block-list entry's section `secRel` (`u32 @4` of the canonical
+  /// 12-byte [header]), or null when [header] is not that form. Remapped like
+  /// every other descriptor `secRel` when sections shift
+  /// ([ViInfoArea.withRemappedSecRels] via [withHeaderValue]).
   int? get headerValue => header.length == 12 ? ByteData.sublistView(header).getUint32(4) : null;
+
+  /// A copy with [headerValue] replaced by [secRel] (canonical 12-byte header
+  /// only; the trailing name record is shared).
+  ViNameTable withHeaderValue(int secRel) {
+    final out = Uint8List.fromList(header);
+    ByteData.sublistView(out).setUint32(4, secRel);
+    return ViNameTable(header: out, trailingNameRecord: trailingNameRecord);
+  }
 
   /// The `[u8 len][name bytes]` Pascal record at EOF, or empty if no clean
   /// trailing name is present.
@@ -468,24 +476,26 @@ class ViNameTable {
           .toBytes();
 }
 
-/// The 20-byte record between the block list and the first section descriptor —
-/// **not** a gap. Corpus-probed (7583 VIs) as five big-endian `u32`s:
-///   * [marker] `@0` — a 4-char tag, `FTAB` (7261) or `VITS` (322). It names the
-///     ALTERNATE of the `FTAB`/`VITS` block pair: corpus-probed, the marker tag is
-///     NEVER one of the VI's own blocks (100%), and the VI carries the *opposite*
-///     tag as a block (a `VITS` marker ⇒ an `FTAB` block & no `VITS` block; an
-///     `FTAB` marker ⇒ a `VITS` block, ~99%). Likely a font/type-table FORMAT or
-///     version distinction. NOT an (uncounted) block-list entry — [word2] does not
-///     resolve to a real section descriptor. See [markerTag].
-///   * [word1] `@4` — `0` in every corpus VI.
-///   * [word2] `@8` — a varying info-area offset/size (always `< infoArea.length`).
-///   * [word3] `@12` — `0` in every corpus VI.
-///   * [flags] `@16` — exactly `0xFFFFFFFF` **iff** the VI carries embedded
-///     `LIBN`/`VINS` sections, else `0` (perfect correlation, 0 counterexamples;
-///     see [hasEmbeddedSections] and `readEmbeddedSections`).
+/// The 20-byte record between the counted block list and the first section
+/// descriptor — DECODED: its first 12 bytes are the block list's **final
+/// entry**. The stored block count is count-1 (pylabview reads
+/// `blockinfo_count + 1` entries), so the list carries one entry past the
+/// stored count — a `FTAB` font table (7,247 corpus VIs) or `VITS` (322) —
+/// which `readViSections` returns as a section. The old reading ("a marker
+/// naming the alternate of the FTAB/VITS pair") inverted cause and effect:
+/// the tag looked like it was "never one of the VI's own blocks" only
+/// because a count-exact reader dropped that block. Fields:
+///   * [marker] `@0` — the final entry's 4-char block tag (`FTAB`/`VITS`).
+///   * [word1] `@4` — the entry's section count minus one (`0`: one section).
+///   * [word2] `@8` — the entry's descriptor offset (relative to the
+///     descriptor-table base), resolving to a real section descriptor.
+///   * [word3] `@12` / [flags] `@16` — the 8 bytes between the block list and
+///     the descriptor table. [word3] is `0` in every corpus VI; [flags] is
+///     exactly `0xFFFFFFFF` **iff** the VI carries embedded `LIBN`/`VINS`
+///     sections, else `0` (perfect correlation, 0 counterexamples; see
+///     [hasEmbeddedSections] and `readEmbeddedSections`). Field meaning
+///     beyond that correlation not decoded. // TODO(labwright)
 /// Every byte is a typed field so [serialize] reconstructs it byte-exact.
-// TODO(labwright): decode WHY the marker is the alternate FTAB/VITS tag (font/type
-// table format/version?) and [word2]'s exact role.
 class ViInfoPreGap {
   ViInfoPreGap({
     required this.marker,
@@ -495,17 +505,18 @@ class ViInfoPreGap {
     required this.flags,
   });
 
-  /// `u32 @0` — a 4-char marker tag (`FTAB` or `VITS`), naming the alternate of the
-  /// FTAB/VITS block pair the VI carries (see the class doc). // TODO(labwright): why.
+  /// `u32 @0` — the final block-list entry's 4-char tag (`FTAB` or `VITS`).
   final int marker;
 
-  /// `u32 @4` — `0` across the corpus. // TODO(labwright): identify.
+  /// `u32 @4` — the final entry's section count minus one (`0` corpus-wide).
   final int word1;
 
-  /// `u32 @8` — a varying info-area offset/size (`< infoArea.length`). // TODO.
+  /// `u32 @8` — the final entry's descriptor offset (descriptor-table base
+  /// relative).
   final int word2;
 
-  /// `u32 @12` — `0` across the corpus. // TODO(labwright): identify.
+  /// `u32 @12` — first of the 8 bytes preceding the descriptor table; `0`
+  /// across the corpus. // TODO(labwright): identify.
   final int word3;
 
   /// `u32 @16` — `0xFFFFFFFF` iff the VI has embedded `LIBN`/`VINS` sections, else `0`.
@@ -657,6 +668,10 @@ class ViInfoArea {
   /// descriptors, so an unmodified model re-serializes byte-for-byte.
   ViInfoArea withRemappedSecRels(Map<int, int> newSecRelByOld) {
     if (newSecRelByOld.isEmpty) return this;
+    // The final block-list entry's descriptor head lives at the start of the
+    // name-table tail (see [ViNameTable.header]); its secRel shifts with the
+    // rest.
+    final finalSecRel = nameTable.headerValue;
     return ViInfoArea(
       subheader: subheader,
       blockList: blockList,
@@ -668,7 +683,9 @@ class ViInfoArea {
           else
             descriptor,
       ],
-      nameTable: nameTable,
+      nameTable: finalSecRel != null && newSecRelByOld.containsKey(finalSecRel)
+          ? nameTable.withHeaderValue(newSecRelByOld[finalSecRel]!)
+          : nameTable,
     );
   }
 

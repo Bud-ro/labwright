@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'blocks/font_table.dart';
 import 'blocks/prim_ops.dart';
 import 'blocks/type_pool.dart';
 import 'heap.dart';
@@ -143,18 +144,23 @@ class ViHeapObject {
   /// Number of `C4 1F` terminal records attached.
   int termCount = 0;
 
-  /// The label's text **style runs** (from its tag-`0x25` run group — see
-  /// [HeapPropertyToken.textStyleRuns]): each run overrides the default face
-  /// for [label] from [start] (character offset) on, with the face bits of
-  /// [style] catalogued in [HeapTextStyle]. Empty for the default face.
-  /// Heap order (starts ascending in the corpus). A run's colour/face value
-  /// (raw `0x029`) is not yet captured. // TODO(labwright)
-  List<({int start, int style})> textStyleRuns = const [];
+  /// The label's text **font runs** (from its tag-`0x25` run group — see
+  /// [HeapPropertyToken.textStyleRuns]): each run switches the face for
+  /// [label] from [start] (character offset) on to the `FTAB` font-table
+  /// entry [fontId] selects (`ViFontTable.entryForRunFontId`). Empty for
+  /// the default face. Heap order (starts ascending in the corpus). A run's
+  /// colour value (raw `0x029`) is not yet captured. // TODO(labwright)
+  List<({int start, int fontId})> textStyleRuns = const [];
 
-  /// Whether the caption's FIRST style run sets [HeapTextStyle.bold] — the
-  /// face renderers apply to the whole label (multi-run labels are ~1% of
-  /// carriers; per-run face switching is not rendered yet).
-  bool get labelIsBold => textStyleRuns.isNotEmpty && HeapTextStyle.bold.isSetIn(textStyleRuns.first.style);
+  /// The `FTAB` entry the FIRST font run resolves to (set by
+  /// `buildViModelFromDecoded` when the VI carries a font table) — the face
+  /// renderers apply to the whole label (multi-run labels are ~1% of
+  /// carriers; per-run face switching is not rendered yet). Null keeps the
+  /// default face.
+  ViFontEntry? labelFont;
+
+  /// Whether [labelFont] resolves to a bold (weight-1000) table entry.
+  bool get labelIsBold => labelFont?.isBold ?? false;
 
   /// Structural category (set during [buildDiagram]). See [ViObjectKind].
   ViObjectKind category = ViObjectKind.unknown;
@@ -3567,17 +3573,17 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   final liveParent = <ViHeapObject, ViHeapObject?>{};
   final length = body.length;
 
-  // Text style-run capture (the tag-`0x25` group inside a label object; see
+  // Text font-run capture (the tag-`0x25` group inside a label object; see
   // [HeapPropertyToken.textStyleRuns]): one tag-`0x19` sub-group per run,
-  // whose narrow `0x27`/`0x28` records are the run's start offset and face
-  // mask. The shared-tag records inside the group (`0x28` = style mask, not
+  // whose narrow `0x27`/`0x28` records are the run's start offset and font
+  // id. The shared-tag records inside the group (`0x28` = font id, not
   // backgroundColor) are routed here and never reach the object handlers.
   ViHeapObject? styleRunOwner;
   var styleRunGroupDepth = 0;
   var styleRunStart = 0;
-  var styleRunMask = 0;
+  var styleRunFontId = 0;
   var styleRunOpen = false;
-  var styleRuns = <({int start, int style})>[];
+  var styleRuns = <({int start, int fontId})>[];
 
   walkHeapObjects<ViHeapObject>(
     body,
@@ -3594,14 +3600,14 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (groupTag == 0x19 && styleRunGroupDepth == 2) {
         styleRunOpen = true;
         styleRunStart = 0;
-        styleRunMask = 0;
+        styleRunFontId = 0;
       }
     },
     onGroupClose: (groupTag, cur) {
       if (styleRunOwner == null) return;
       styleRunGroupDepth--;
       if (styleRunOpen && styleRunGroupDepth == 1) {
-        styleRuns.add((start: styleRunStart, style: styleRunMask));
+        styleRuns.add((start: styleRunStart, fontId: styleRunFontId));
         styleRunOpen = false;
       }
       if (styleRunGroupDepth == 0) {
@@ -3628,7 +3634,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         final value = attr?.asInt;
         if (attr != null && value != null) {
           if (attr.id == 0x27) styleRunStart = value;
-          if (attr.id == 0x28) styleRunMask = value;
+          if (attr.id == 0x28) styleRunFontId = value;
         }
         return;
       }

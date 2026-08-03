@@ -265,16 +265,28 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final descBase = countPos + 8;
   final sections = <ViSection>[];
   var entry = countPos + 4;
-  for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
+  // The stored block count is COUNT MINUS ONE (pylabview reads it as
+  // `blockinfo_count + 1` entries): the list carries one final entry past the
+  // stored count. Corpus-probed over 7,569 VIs: every file has a valid final
+  // entry (`FTAB` 7,247 / `VITS` 322) whose descriptor resolves to a real
+  // `[u32 len][bytes]` section, 7,569/7,569. The final entry's descriptor is
+  // only 12 bytes of stored meaning — its tail overlaps the trailing-name
+  // region (`@16` was never `0xFFFFFFFF` in the corpus) — so the word-16
+  // primary/embedded filter cannot be applied to it; corpus-wide the final
+  // entry is always a primary data section, so it is returned on the primary
+  // read and skipped on the embedded read.
+  for (var i = 0; i <= count && entry + 12 <= bytes.length; i++) {
+    final finalEntry = i == count;
     final tagText = tag(entry);
     final sectionCount = u32(entry + 4) + 1;
     final descRel = u32(entry + 8);
     entry += 12;
     if (!_printableTag(tagText)) continue;
+    if (finalEntry && wantWord16 != 0xFFFFFFFF) continue;
     for (var sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
       final dpos = descBase + descRel + sectionIndex * descSize;
-      if (dpos + descSize > bytes.length) break;
-      if (view.getUint32(dpos + 16) != wantWord16) continue;
+      if (dpos + (finalEntry ? 8 : descSize) > bytes.length) break;
+      if (!finalEntry && view.getUint32(dpos + 16) != wantWord16) continue;
       final secRel = view.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
       if (pos + 4 > bytes.length) continue;
@@ -327,7 +339,9 @@ ViSummary parseVi(Uint8List bytes) {
   final blocks = <String>[];
   final seen = <String>{};
   var entry = countPos + 4;
-  for (var i = 0; i < count && entry + 12 <= bytes.length; i++) {
+  // The stored count is count-1; the list carries one final entry past it
+  // (see [_readSections]).
+  for (var i = 0; i <= count && entry + 12 <= bytes.length; i++) {
     final tagText = tag(entry);
     if (!_printableTag(tagText)) break;
     if (seen.add(tagText)) blocks.add(tagText);

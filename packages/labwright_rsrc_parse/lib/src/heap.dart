@@ -603,10 +603,10 @@ enum HeapAttribute {
   /// Raw `0x028` — **background / fill colour** (u32 RGB with the flag byte;
   /// ~27% transparent, ~24% white; matches OF__bgColor = 9): on the part
   /// classes (label/cosm/multiCosm…). The `u8` narrow form (162k records,
-  /// value 1/2 dominant) is a different field sharing the tag: the **text
-  /// style mask** of a style run — it appears only inside a label's
-  /// tag-`0x25` run group ([HeapPropertyToken.textStyleRuns], bits in
-  /// [HeapTextStyle]) — and is kept value-kind-only by [heapDecodeTier].
+  /// value 1/2 dominant) is a different field sharing the tag: the **font
+  /// id** of a text run — it appears only inside a label's tag-`0x25` run
+  /// group ([HeapPropertyToken.textStyleRuns], an `FTAB` font-table index)
+  /// — and is kept value-kind-only by [heapDecodeTier].
   backgroundColor(0x028, HeapAttrKind.color, 'backgroundColor', AttrConfidence.confirmed),
 
   /// Raw `0x024` — **content / area colour** (u32 RGB; ~58% transparent,
@@ -645,8 +645,9 @@ enum HeapAttribute {
   /// size or style there, and the word does not track the FTAB font
   /// tables (identical word sets appear beside 13/15/17 px tables).
   /// Visible face changes (bold headings etc.) are carried elsewhere — by
-  /// the tag-`0x25` style-run list ([HeapPropertyToken.textStyleRuns]), not
-  /// by this word (MD5's bold/regular free labels share the same word set).
+  /// the tag-`0x25` font-run list ([HeapPropertyToken.textStyleRuns]
+  /// resolved through the `FTAB` font table), not by this word (MD5's
+  /// bold/regular free labels share the same word set).
   /// Field meanings not decoded. // TODO(labwright)
   cosmColorB(0x021, HeapAttrKind.color, 'cosmColorB', AttrConfidence.inferred),
 
@@ -1647,36 +1648,6 @@ enum PropTokenForm {
   selector,
 }
 
-/// Face bits of a text style-run's mask (the raw-`0x028` u8 record inside a
-/// tag-`0x25` run group — see [HeapPropertyToken.textStyleRuns]). Observed
-/// corpus values are 0x1..0x9: combinations of these four bits and nothing
-/// else. [bold] is pixel-confirmed against the snippet references (every
-/// visibly-bold label carries it); the other three follow the same classic
-/// face-bit order and the combination arithmetic, but no reference pixels
-/// pin them yet. // TODO(labwright): pixel-validate italic/underline/outline.
-enum HeapTextStyle {
-  /// Bit 0 — bold. 109,741 corpus runs; confirmed by reference stroke weight.
-  bold(0x01),
-
-  /// Bit 1 — italic (inferred). 32,554 corpus runs.
-  italic(0x02),
-
-  /// Bit 2 — underline (inferred). 4,681 corpus runs.
-  underline(0x04),
-
-  /// Bit 3 — outline (inferred; classic face-bit order). 283+229 corpus runs.
-  outline(0x08)
-  ;
-
-  const HeapTextStyle(this.mask);
-
-  /// The bit this face occupies in the run's style mask.
-  final int mask;
-
-  /// Whether [styleMask] carries this face bit.
-  bool isSetIn(int styleMask) => styleMask & mask != 0;
-}
-
 /// Catalog of the **hi-nibble 0/1 property tokens** — the `<op> <subop>` records
 /// (`op >> 4 ∈ {0,1}`, plus the `0x12` case-structure triples) that decorate an
 /// open heap object with a named property. These are framed by [recordSkip] /
@@ -1736,25 +1707,30 @@ enum HeapPropertyToken {
   /// entirely to tip-strip objects; co-occurs only with `C4 19` help text.
   tipStripEnabled(0x11, 0x18, PropTokenForm.taggedList, 'tipStripEnabled', AttrConfidence.inferred),
 
-  /// `10 25` — **text style-run list** on the text-label classes: the group
+  /// `10 25` — **text font-run list** on the text-label classes: the group
   /// `10 25 01 fb <runCount>` opens one tag-`0x19` sub-group per run, each
   /// carrying narrow attribute records that override the default face for the
-  /// caption text from a start offset on:
+  /// caption text from a start offset on (field names match pylabview's
+  /// `SL__fontRun` tags: fontofst / fontid / fontcolor):
   ///
   ///  * raw `0x027` u8 — the run's **start character offset** (absent = 0);
-  ///  * raw `0x028` u8 — the run's **style mask** ([HeapTextStyle]: bit 0
-  ///    bold, pixel-confirmed against the snippet references — see below);
+  ///  * raw `0x028` u8 — the run's **font id**: an index into the VI's
+  ///    `FTAB` font table at entry `fontId + 3` (past the three predefined
+  ///    application/system/dialog slots — see `ViFontTable.entryForRunFontId`).
+  ///    NOT a face bitmask: byte-identical runs render bold in one VI and
+  ///    regular in another, resolved solely by that VI's `FTAB` entry
+  ///    (pixel-validated on 8 snippet references — MD5's id 1 → a
+  ///    weight-1000 entry renders bold; fg's id 1 → an inherit-app-font
+  ///    entry renders regular; Read VI Blocks' id 3 → its `Courier New`
+  ///    entry renders monospace).
   ///  * raw `0x029` — a run **colour / face value** (plain RGB like
   ///    `0xff0000`/`0x7f7f7f`, or `0x01`-flagged values like `0x100000c`);
   ///    field split not decoded. // TODO(labwright)
   ///
   /// Corpus: 160,174 groups (7,569 heap-bearing files), scoped to the text
   /// classes `0x0a`/`0x95`/`0x0d`/`0xe0`/`0x4b`/`0x4a`/`0x160` in BDHb+FPHb;
-  /// style-mask value histogram 0x1:109,741 / 0x2:32,554 / 0x3:9,282 /
-  /// 0x4:4,681 / 0x5..0x9 minor — a face bitmask, not an enum. Pixel
-  /// validation (snippet references): every visibly-bold block-diagram label
-  /// carries a bit-0 run and no unflagged clean label measures bold (MD5's
-  /// four bold headings exactly match its four bit-0 carriers).
+  /// font-id value histogram 0x1:109,741 / 0x2:32,554 / 0x3:9,282 /
+  /// 0x4:4,681 / 0x5..0x9 minor — small per-VI font-table indexes.
   textStyleRuns(0x10, 0x25, PropTokenForm.taggedList, 'textStyleRuns', AttrConfidence.confirmed),
 
   /// `10 55` — **structure child reflist opener** (`FB`→u16): the header of the

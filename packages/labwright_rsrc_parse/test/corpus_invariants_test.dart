@@ -192,8 +192,9 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
       if (pg.markerTag == 'FTAB' || pg.markerTag == 'VITS') {
         final blocks = parseVi(bytes).blocks.toSet();
         n('anti.checked');
-        if (blocks.contains(pg.markerTag)) bad('antiMarker', 'marker ${pg.markerTag} also a block');
-        if (blocks.contains(pg.markerTag == 'FTAB' ? 'VITS' : 'FTAB')) n('anti.opposite');
+        // The record's tag is the block list's FINAL entry (the stored count
+        // is count-1), so the block reader must surface it as a block.
+        if (!blocks.contains(pg.markerTag)) bad('finalEntry', 'final entry ${pg.markerTag} not read as a block');
       }
     }
   } catch (_) {}
@@ -447,11 +448,11 @@ void main() {
     expect(D('peel'), isEmpty, reason: 'descriptor peel mismatch');
   });
 
-  test('INFO-AREA: preGap is a typed FTAB/VITS record; flags == has-embedded-sections', () {
-    expect(D('preGapMarker'), isEmpty, reason: 'preGap marker not FTAB/VITS');
+  test('INFO-AREA: preGap head is the final block-list entry; flags == has-embedded-sections', () {
+    expect(D('preGapMarker'), isEmpty, reason: 'final block-list entry not FTAB/VITS');
     expect(D('preGapZero'), isEmpty, reason: 'preGap word1/word3 not zero');
     expect(D('preGapFlags'), isEmpty, reason: 'preGap flags != has-embedded-sections');
-    expect(cnt('bad:antiMarker'), 0, reason: 'preGap marker tag appeared as a block: ${D('antiMarker')}');
+    expect(cnt('bad:finalEntry'), 0, reason: 'final block-list entry not surfaced as a block: ${D('finalEntry')}');
   });
 
   test('INFO-AREA: subheader reservedA == [0,0,0x20]; reservedB == trailing-name offset', () {
