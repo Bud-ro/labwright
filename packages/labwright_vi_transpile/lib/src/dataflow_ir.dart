@@ -199,7 +199,8 @@ enum LvRefusalKind {
   /// A structure class whose control flow is not modelled.
   structure,
 
-  /// A case structure whose frames' case values are not all decoded.
+  /// A Case structure carrying no selector range list, or one whose ranges
+  /// have no reading as a test over the selector's own type.
   caseSelector,
 
   /// An auto-indexing flag that contradicts the two sides' dimensionalities.
@@ -466,6 +467,9 @@ class LvStructUnit extends LvUnit {
     required this.frames,
     required this.displayedFrame,
     required this.displayedCase,
+    this.selectorRanges = const <ViSelectorRange>[],
+    this.selectorStrings = const <String>[],
+    this.defaultFrame = 0,
   });
 
   @override
@@ -484,9 +488,22 @@ class LvStructUnit extends LvUnit {
   final int displayedFrame;
 
   /// The displayed frame's case value, from the structure's `0x95` selector
-  /// label. Null when no label was recovered. It is the ONLY case value the
-  /// file states: the other frames' values are not stored on the structure.
+  /// label. Null when no label was recovered. It is the only case value the
+  /// file states in WORDS; the values themselves are in [selectorRanges].
   final String? displayedCase;
+
+  /// A Case structure's per-frame case values ([ViHeapObject.selectorRanges]),
+  /// in the file's own order. Empty for the structures that carry no range list
+  /// and for the other structure kinds.
+  final List<ViSelectorRange> selectorRanges;
+
+  /// The string pool [selectorRanges] indexes when the selector carries
+  /// strings, empty otherwise ([ViHeapObject.selectorStrings]).
+  final List<String> selectorStrings;
+
+  /// The index into [frames] of the frame a selector value no range names
+  /// reaches ([ViHeapObject.defaultFrameIndex], or the first frame).
+  final int defaultFrame;
 
   @override
   List<int> get inputPorts => [
@@ -864,6 +881,9 @@ class _Builder {
       frames: [for (final frame in frames) _region(frame)],
       displayedFrame: structure.visibleFrameIndex,
       displayedCase: label?.label?.trim(),
+      selectorRanges: structure.selectorRanges,
+      selectorStrings: structure.selectorStrings,
+      defaultFrame: structure.defaultFrameIndex ?? kViFirstFrameIsDefault,
     );
   }
 

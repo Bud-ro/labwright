@@ -36,6 +36,7 @@ const _sectionTests = [
   'test/aux_blocks_test.dart',
   'test/writer_scoreboard_test.dart',
   'test/signal_type_census_test.dart',
+  'test/selector_range_census_test.dart',
   'test/wire_route_census_test.dart',
   'test/wire_branch_oracle_test.dart',
   'test/wire_one_anchored_oracle_test.dart',

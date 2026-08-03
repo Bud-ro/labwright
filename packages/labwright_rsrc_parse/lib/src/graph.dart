@@ -71,6 +71,185 @@ enum ViTypeKind {
   unknown,
 }
 
+/// The heap class code of a **Case structure**
+/// ([HeapObjectClass.bdStructureFrame]) — the object whose selector ranges and
+/// string pool [buildDiagram] captures.
+const int kViCaseStructureCode = 0x2c;
+
+/// The [HeapAttribute.selectDefaultCase] value that means a Case structure has
+/// **no** Default frame, rather than naming one
+/// ([ViHeapObject.defaultFrameIndex]).
+const int kViNoDefaultFrame = 255;
+
+/// The frame a Case structure falls back to when it carries no
+/// [HeapAttribute.selectDefaultCase] record: LabVIEW leaves the record off
+/// exactly when the Default is the first frame.
+///
+/// Measured against the `, Default` suffix LabVIEW appends to the Default
+/// frame's own selector label: over the 15 101 corpus structures that carry a
+/// range list, the suffix is present exactly when the displayed frame is the
+/// one this rule names, 15 100 times against 1.
+const int kViFirstFrameIsDefault = 0;
+
+/// The group tags a Case structure's selector values ride: the two spellings of
+/// the range list, and the string pool the entries index.
+final Set<int> kViSelectorGroupTags = {
+  HeapGroupTag.selectorRangeList.tag,
+  HeapGroupTag.selectorRangeListAlt.tag,
+  HeapGroupTag.selectorStringPool.tag,
+};
+
+/// The heap class code of a structure's **frame** — one subdiagram. A Case
+/// structure's frames are its `0x1b` children in heap order, the index space
+/// [ViSelectorRange.frame] and [ViHeapObject.visibleFrameIndex] share.
+const int kViFrameCode = 0x1b;
+
+/// The heap class code of a Case structure's **selector label**
+/// ([HeapObjectClass.bdSelectorLabel]) — the row that spells the DISPLAYED
+/// frame's case value, and the only one of a structure's values the file states
+/// in words.
+const int kViSelectorLabelCode = 0x95;
+
+/// [value] as read at the record's stored [width], sign-extended: a selector
+/// range's ends are signed, so `..-1` stores its high end as the one-byte
+/// `0xff` and must read back as -1, not 255.
+int _signedAtWidth(int value, HeapAttrWidth width) => switch (width) {
+  HeapAttrWidth.u8 => value.toSigned(8),
+  HeapAttrWidth.u16 => value.toSigned(16),
+  HeapAttrWidth.u24 => value.toSigned(24),
+  HeapAttrWidth.rgb => value.toSigned(32),
+  _ => value,
+};
+
+/// One string of a Case structure's selector pool ([HeapGroupTag.selectorStringPool]).
+///
+/// The pool spells a value of up to four characters in the scalar attribute
+/// widths, where the stored magnitude IS the characters big-endian
+/// (`44 19 6e 6f` = `no`, `04 19` the empty string), and a longer one as
+/// `C4 19 <u8 length> <chars>`. Null for a record that frames as neither.
+/// [span] is the record's total byte length, so a length byte can never read
+/// past the record.
+String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
+  if (lead == kHeapRecordPrefix) {
+    if (offset + 3 > body.length) return null;
+    final count = body[offset + 2];
+    if (3 + count > span || offset + 3 + count > body.length) return null;
+    return String.fromCharCodes(body.sublist(offset + 3, offset + 3 + count));
+  }
+  final attr = decodeHeapAttr(body, offset);
+  final value = attr?.asInt;
+  if (value == null) return null;
+  final bytes = switch (attr!.width) {
+    HeapAttrWidth.u8 => 1,
+    HeapAttrWidth.u16 => 2,
+    HeapAttrWidth.u24 => 3,
+    HeapAttrWidth.rgb => 4,
+    _ => 0,
+  };
+  // A value shorter than the width it is stored at pads with leading nulls, so
+  // the empty string rides the one-byte zero and a three-character value can
+  // ride the four-byte width. The pad is not part of the value.
+  final chars = [for (var i = bytes - 1; i >= 0; i--) (value >> (8 * i)) & 0xff];
+  return String.fromCharCodes(chars.skipWhile((char) => char == 0));
+}
+
+/// How one end of a [ViSelectorRange] is stated. Only three values occur
+/// across the corpus's 38 603 entries, and they occur in five combinations.
+enum ViSelectorBound {
+  /// `0` — the entry names a **single value**: both ends carry it and
+  /// [ViSelectorRange.low] equals [ViSelectorRange.high]. 36 678 entries, and
+  /// the only shape a boolean or a plain `case 3:` frame takes.
+  single(0),
+
+  /// `1` — the end is the stored word, **inclusive**. Paired with another
+  /// [single]-free end it spells LabVIEW's `lo..hi` (684 entries), and paired
+  /// with [unbounded] one side of a half-open range.
+  inclusive(1),
+
+  /// `3` — the end is **open**: the stored word is the signed 32-bit extreme
+  /// rather than a selector value (`0x7fffffff` high, `0x80000000` low), which
+  /// is how `lo..` (254 entries) and `..hi` (56) are spelled. It is also what
+  /// an error-cluster selector's two frames carry, where the words are
+  /// sentinels and not comparable values at all (`(3, 1)` with equal ends on
+  /// the No Error frame, 462 entries; `(3, 3)` on the Error frame, 461).
+  unbounded(3)
+  ;
+
+  const ViSelectorBound(this.code);
+
+  /// The stored mode value.
+  final int code;
+
+  /// The bound [code] names, or null for a value outside the observed three.
+  static ViSelectorBound? ofCode(int code) => switch (code) {
+    0 => single,
+    1 => inclusive,
+    3 => unbounded,
+    _ => null,
+  };
+}
+
+/// One entry of a Case structure's **selector-range list** — the tag-`0x56`
+/// group on a `0x2c` object ([ViHeapObject.selectorRanges]): a value set, and
+/// the frame it selects.
+///
+/// Layout, one tag-`0x19` sub-group per entry, each holding five records:
+/// raw `0x01f` [low], `0x020` [high], `0x021` [lowBound], `0x022` [highBound],
+/// `0x023` [frame]. The two value words are **signed**, sign-extended from the
+/// width the record stores them at, so `..-1` keeps its `hi` of `0xff` as -1.
+/// The structure's own raw-`0x255` record ([HeapAttribute.selectNRightType])
+/// is the entry count: it equals the decoded list's length on 15 101 of the
+/// 15 101 structures that carry the group.
+///
+/// A frame may be named by several entries — that is how LabVIEW's `0, 2` list
+/// is spelled — and a frame named by none is reached only as the Default
+/// ([ViHeapObject.defaultFrameIndex]).
+///
+/// Validated against the one case value the file states in words: rendering
+/// the DISPLAYED frame's entries and comparing to its `0x95` selector label
+/// reproduces 14 118 labels character for character, with no value-level
+/// disagreement — 7 170 of 7 170 boolean frames (where frame order alone was
+/// measured to be wrong hundreds of times), 3 576 error-cluster frames, 1 739
+/// of 1 739 numeric frames by value, and 1 631 of 1 632 string frames. The
+/// residual differences are all label-rendering conventions the store does not
+/// hold: hexadecimal radix (12), LabVIEW's own string escaping (9), and the
+/// `, Default` suffix the label appends (21).
+class ViSelectorRange {
+  const ViSelectorRange({
+    required this.low,
+    required this.high,
+    required this.lowBound,
+    required this.highBound,
+    required this.frame,
+  });
+
+  /// The low end's stored signed word — a selector value, an index into
+  /// [ViHeapObject.selectorStrings] for a string selector, or the signed
+  /// 32-bit minimum when [lowBound] is [ViSelectorBound.unbounded].
+  final int low;
+
+  /// The high end's stored signed word, read the same way as [low].
+  final int high;
+
+  /// How [low] is stated, or null for a mode outside the observed three.
+  final ViSelectorBound? lowBound;
+
+  /// How [high] is stated, or null for a mode outside the observed three.
+  final ViSelectorBound? highBound;
+
+  /// The index of the frame this entry selects, in the structure's frame
+  /// order — the same space as [ViHeapObject.visibleFrameIndex]. Every entry
+  /// of every corpus structure indexes an existing frame.
+  final int frame;
+
+  /// Whether the entry names exactly one value ([ViSelectorBound.single] at
+  /// both ends), the shape a `case N:` frame takes.
+  bool get isSingle => lowBound == ViSelectorBound.single && highBound == ViSelectorBound.single;
+
+  /// Whether the entry names a closed `low..high` span.
+  bool get isClosed => lowBound == ViSelectorBound.inclusive && highBound == ViSelectorBound.inclusive;
+}
+
 /// One object in a block-diagram heap, recovered by [buildDiagram].
 ///
 /// The heap is a **balanced typed-group tree**: an object opens with
@@ -274,6 +453,30 @@ class ViHeapObject {
   /// sibling tag-`0x16`/`0x17` groups carry the same attr shape (`0x16`
   /// always 0; `0x17` small counts) — not decoded. // TODO(labwright)
   int? arrayIndex;
+
+  /// A Case structure's (`0x2c`) **selector ranges** — the value set each of
+  /// its frames is selected by, in the tag-`0x56` group's own order.
+  ///
+  /// This is the file's per-frame case-value store. The `0x95` selector label
+  /// states only the frame LabVIEW displays; these entries state every frame's
+  /// values, which is what makes a Case with more than two frames readable.
+  /// See [ViSelectorRange] for the entry layout and the corpus validation.
+  List<ViSelectorRange> selectorRanges = const <ViSelectorRange>[];
+
+  /// A Case structure's **selector string pool** — the tag-`0x58` group beside
+  /// [selectorRanges], in the entries' index space.
+  ///
+  /// Non-empty exactly when the selector carries strings: then an entry's
+  /// [ViSelectorRange.low] and [ViSelectorRange.high] are indices into this
+  /// list rather than the selector values themselves. Empty for a numeric,
+  /// boolean or enum selector, whose entries carry the values directly.
+  List<String> selectorStrings = const <String>[];
+
+  /// The index of a Case structure's **Default** frame
+  /// ([HeapAttribute.selectDefaultCase], raw `0x254`), or null when the record
+  /// is absent or reads the 255 "no default" sentinel. Indexes the structure's
+  /// frames in heap order, the same space as [visibleFrameIndex].
+  int? defaultFrameIndex;
 
   /// The `%`-led printf-style display-format text of a numeric display part
   /// ([HeapAttribute.formatStyle], raw `0x074`; e.g. `%.0f`, `%08x`) — or
@@ -1112,6 +1315,7 @@ const int kTerminalGlyphHiddenFlag = 0x800000;
 // which no capture acts on.
 const _objAttrIds = {
   0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, 0x74, //
+  0x54, // raw 0x254, the Case structure's Default frame index
 };
 
 /// The structure classes that stack multiple `0x1b` frames and display one —
@@ -1233,9 +1437,13 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 ///   i32 = 1, array-of-i32 = 2, 2D-array-of-string = 4 (2+2),
 ///   array-of-cluster = 4. Corpus range 1..6 (1: 138,606 / 2: 102,054 /
 ///   3: 168,343 / 4: 14,453 / 5: 4,384 / 6: 189; 0 outside). Refnum wires
-///   have **no fixed base** (observed 1..6): a refnum embedding an inner
-///   type (queue/notifier/DVR/event-registration) rides deeper with that
-///   type, so [arrayDims] stays null for the refnum codes.
+///   have **no fixed base** (observed 1..6): the base is a function of the
+///   reference CLASS — the `u16` discriminator a `0x70` VCTP descriptor
+///   carries after its type code — and, for the inner-typed classes, of the
+///   embedded type as well. Because that discriminator is not in this
+///   16-bit word, a refnum wire's base is not word-derivable and
+///   [arrayDims] falls back to the depth-1 law below. See
+///   [kSignalMinScalarDepth] for the measurement.
 /// * **flags** (bits 12-15) — only `0x4` and `0x8` observed (0x0 204,394 /
 ///   0x8 148,758 / 0x4 65,604 / 0xc 9,273; bits 12-13 zero corpus-wide);
 ///   they vary freely within one type and their meaning is not decoded
@@ -1273,7 +1481,7 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 ///
 /// Array-dimension agreement ([arrayDims] vs the exact VCTP dim count, on
 /// wires whose element families agree so arrayness mismatches stay
-/// visible): 0 dims 99.7% (94,756), 1D 85.7% (14,745), 2D 87.3% (1,203),
+/// visible): 0 dims 99.7% (102,382), 1D 82.6% (15,299), 2D 87.3% (1,203),
 /// 3D 23/40. 98.8% of all corpus signals resolve a non-null [typeKind].
 ///
 /// Rejected per-signal type carriers, measured on the same labeled set
@@ -1336,21 +1544,25 @@ class ViSignalType {
 
   /// The wire's array dimension count: [depth] minus the element family's
   /// corpus-pinned scalar base — 0 for a scalar wire, 1 for `array of X`,
-  /// 2 for a 2D array. Null when the base is unknown for [typeCode]: the
-  /// refnum codes (their depth rides the referenced inner type), the
-  /// uncatalogued codes, and the never-observed-below-base combinations
-  /// (kept null rather than clamped, so a contradiction is visible).
+  /// 2 for a 2D array.
+  ///
+  /// Where the base is unknown for [typeCode] — the refnum codes, whose base
+  /// rides the reference class, and the uncatalogued codes — the depth-1 law
+  /// ([kSignalMinScalarDepth]) still decides a depth-1 word as scalar, and
+  /// every deeper word stays null. Null also for the never-observed-below-base
+  /// combinations (kept null rather than clamped, so a contradiction is
+  /// visible).
   int? get arrayDims {
     final base = _signalScalarDepth(typeCode);
-    if (base == null) return null;
+    if (base == null) return depth == kSignalMinScalarDepth ? 0 : null;
     final dims = depth - base;
     return dims < 0 ? null : dims;
   }
 
   /// Whether the wire carries an array — or **null when undecidable**
-  /// ([arrayDims] null: the refnum codes and the uncatalogued codes), kept
-  /// tristate so an array-of-refnum wire reads as *unknown* array-ness
-  /// rather than a fabricated false.
+  /// ([arrayDims] null: a base-less [typeCode] deeper than
+  /// [kSignalMinScalarDepth]), kept tristate so an array-of-refnum wire reads
+  /// as *unknown* array-ness rather than a fabricated false.
   bool? get isArray {
     final dims = arrayDims;
     return dims == null ? null : dims > 0;
@@ -1373,14 +1585,44 @@ class ViSignalType {
   int get hashCode => raw.hashCode;
 }
 
+/// The smallest [ViSignalType.depth] a wire of ANY element family can carry —
+/// equivalently the floor on every family's scalar depth base.
+///
+/// This is what lets [ViSignalType.arrayDims] decide a wire whose base is
+/// unknown: depth is a base plus one per array dimension, so a word at this
+/// depth has no room for a dimension and is scalar whatever its family. The
+/// three facts behind it, all corpus-measured over 7 524 VIs:
+///
+/// * **No signal word carries depth 0.** 428 029 decoded words, range 1..6,
+///   zero outside (the `depthOutOfRange` law in the signal-type census).
+/// * **Every family whose base is pinned has base ≥ 1**, and no wire is ever
+///   observed below its family's base ([_signalScalarDepth]).
+/// * **The flag nibble does not carry array-ness**, so no other field of the
+///   word supplies the missing base: on every code with a pinned base both
+///   observed flag values appear on array and non-array wires alike (string
+///   `0x30`, flags 0: 51 559 scalar / 9 513 array; flags 4: 22 689 / 2 493).
+///
+/// It decides 28 582 of the 66 473 refnum-coded wires (43.0%) — the whole of
+/// `0x70`'s depth-1 population, 47.0% of that code, while the inner-typed
+/// `0x71` carries no depth-1 word at all.
+///
+/// Scored independently against the exact VCTP dim count an endpoint resolves
+/// (the census's `dims*` pins), the law brings 8 180 refnum wires into the
+/// oracle's reach and **7 626 of them agree** (93.2%): every one lands in the
+/// oracle's 0-dimension row, and the 554 that disagree are all in its 1-D row —
+/// the auto-indexing signature, where the typed endpoint sits on the array side
+/// of the tunnel the wire crosses, which the corpus shows at the same strength
+/// on the codes whose base IS pinned (their own 1-D agreement is 82.6%).
+const int kSignalMinScalarDepth = 1;
+
 /// The corpus-pinned scalar depth base of a signal type code (see
 /// [ViSignalType.depth]): the depth a non-array wire of that family carries.
-/// Null for the refnum codes (depth varies 1..6 with the referenced inner
-/// type) and for codes never censused in the wire-type word — including the
+/// Null for the refnum codes (whose base is the reference class's, not the
+/// code's) and for codes never censused in the wire-type word — including the
 /// packed-string codes `0x34`/`0x35`/`0x3f`, which appear 0 times corpus-wide
 /// (substring wires flatten to the plain `0x30`), so no scalar base is
-/// derivable for them. Callers treat null as "array-ness undecidable",
-/// never as scalar.
+/// derivable for them. Callers treat null as "array-ness undecidable above
+/// [kSignalMinScalarDepth]", never as scalar.
 int? _signalScalarDepth(int code) {
   if (code >= TypeCode.i8 && code <= TypeCode.complexExt) return 1;
   if (code >= TypeCode.enumU8 && code <= TypeCode.enumU32) return 1;
@@ -3629,9 +3871,41 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   ViHeapObject? arrayIndexOwner;
   var arrayIndexGroupDepth = 0;
 
+  // Case-selector value capture on a `0x2c` structure: the tag-`0x56` range
+  // list, one tag-`0x19` sub-group per entry ([SelectorRangeAttr]), and the
+  // tag-`0x58` string pool beside it. Both groups are tracked by DEPTH so a
+  // nested group's close does not end the capture early, and the entry tags
+  // are read only inside their own group — every one of them means something
+  // else in the general attribute space.
+  ViHeapObject? selectorOwner;
+  var selectorGroupDepth = 0;
+  var selectorInPool = false;
+  var selectorEntryOpen = false;
+  var selectorRanges = <ViSelectorRange>[];
+  var selectorStrings = <String>[];
+  var entryLow = 0, entryHigh = 0, entryLowBound = 0, entryHighBound = 0, entryFrame = 0;
+
   walkHeapObjects<ViHeapObject>(
     body,
     onGroupOpen: (groupTag, cur) {
+      if (selectorOwner != null) {
+        selectorGroupDepth++;
+        if (groupTag == HeapGroupTag.selectorRange.tag && selectorGroupDepth == 2 && !selectorInPool) {
+          selectorEntryOpen = true;
+          entryLow = entryHigh = entryLowBound = entryHighBound = entryFrame = 0;
+        }
+      } else if (cur != null && cur.kind == kViCaseStructureCode) {
+        if (kViSelectorGroupTags.contains(groupTag)) {
+          selectorOwner = cur;
+          selectorGroupDepth = 1;
+          selectorInPool = groupTag == HeapGroupTag.selectorStringPool.tag;
+          if (selectorInPool) {
+            selectorStrings = <String>[];
+          } else {
+            selectorRanges = <ViSelectorRange>[];
+          }
+        }
+      }
       if (arrayIndexOwner != null) {
         arrayIndexGroupDepth++;
       } else if (groupTag == HeapGroupTag.arrayIndex.tag &&
@@ -3656,6 +3930,30 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       }
     },
     onGroupClose: (groupTag, cur) {
+      if (selectorOwner != null) {
+        if (selectorEntryOpen && selectorGroupDepth == 2) {
+          selectorRanges.add(
+            ViSelectorRange(
+              low: entryLow,
+              high: entryHigh,
+              lowBound: ViSelectorBound.ofCode(entryLowBound),
+              highBound: ViSelectorBound.ofCode(entryHighBound),
+              frame: entryFrame,
+            ),
+          );
+          selectorEntryOpen = false;
+        }
+        if (--selectorGroupDepth == 0) {
+          // First-wins, like the other object captures.
+          if (selectorInPool) {
+            if (selectorOwner!.selectorStrings.isEmpty) selectorOwner!.selectorStrings = selectorStrings;
+          } else if (selectorOwner!.selectorRanges.isEmpty) {
+            selectorOwner!.selectorRanges = selectorRanges;
+          }
+          selectorOwner = null;
+          selectorInPool = false;
+        }
+      }
       if (arrayIndexOwner != null && --arrayIndexGroupDepth == 0) {
         arrayIndexOwner = null;
       }
@@ -3691,6 +3989,41 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       // The scoped group captures consume ONLY the records they decode; the
       // rest of the group's records (a font run's raw `0x029` colour value,
       // 15,471 corpus records) fall through to the generic handlers.
+      if (selectorOwner != null && identical(cur, selectorOwner)) {
+        if (selectorInPool) {
+          final value = _selectorPoolString(body, offset, lead, span.length);
+          if (value != null) {
+            selectorStrings.add(value);
+            return;
+          }
+        } else if (selectorEntryOpen) {
+          final attr = decodeHeapAttr(body, offset);
+          final value = attr?.asInt;
+          if (value != null) {
+            final tag = attr!.rawTag;
+            if (tag == SelectorRangeAttr.low.raw) {
+              entryLow = _signedAtWidth(value, attr.width);
+              return;
+            }
+            if (tag == SelectorRangeAttr.high.raw) {
+              entryHigh = _signedAtWidth(value, attr.width);
+              return;
+            }
+            if (tag == SelectorRangeAttr.lowBound.raw) {
+              entryLowBound = value;
+              return;
+            }
+            if (tag == SelectorRangeAttr.highBound.raw) {
+              entryHighBound = value;
+              return;
+            }
+            if (tag == SelectorRangeAttr.frame.raw) {
+              entryFrame = value;
+              return;
+            }
+          }
+        }
+      }
       if (arrayIndexOwner != null && identical(cur, arrayIndexOwner)) {
         final attr = decodeHeapAttr(body, offset);
         final value = attr?.asInt;
@@ -3853,6 +4186,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
               cur.wireTableRaw ??= table;
             }
           }
+        }
+        // The Default frame's index, kind-gated to the select structure that
+        // owns the tag. 255 is the record's own "no default" sentinel and is
+        // dropped rather than stored as a frame index.
+        if (attr.attribute == HeapAttribute.selectDefaultCase && cur.kind == kViCaseStructureCode) {
+          final frame = attr.asInt;
+          if (frame != null && frame != kViNoDefaultFrame) cur.defaultFrameIndex ??= frame;
         }
         // Kind-gated to the signal class (the record census puts the tag on
         // 0x17 at 99.99% — the stray off-class carriers are not wire types)
