@@ -478,9 +478,9 @@ class ViNameTable {
 
 /// The 20-byte record between the counted block list and the first section
 /// descriptor — DECODED: its first 12 bytes are the block list's **final
-/// entry**. The stored block count is count-1 (pylabview reads
-/// `blockinfo_count + 1` entries), so the list carries one entry past the
-/// stored count — a `FTAB` font table (7,247 corpus VIs) or `VITS` (322) —
+/// entry**. The stored block count is count-1, so the list carries one
+/// entry past the stored count (corpus: 7,569/7,569 files end with a valid
+/// extra entry) — a `FTAB` font table (7,247 corpus VIs) or `VITS` (322) —
 /// which `readViSections` returns as a section. The old reading ("a marker
 /// naming the alternate of the FTAB/VITS pair") inverted cause and effect:
 /// the tag looked like it was "never one of the VI's own blocks" only
