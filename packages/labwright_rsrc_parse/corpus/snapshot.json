@@ -247,6 +247,27 @@
       "linkSections": 798,
       "withNames": 700
     },
+    "selector_ranges": {
+      "boolAgree": 7170,
+      "countAgree": 15101,
+      "defaultAgree": 1656,
+      "defaultOnlyFrame": 905,
+      "defaultRecorded": 1275,
+      "defaultUnrecorded": 13826,
+      "displayedUnnamed": 1,
+      "errorAgree": 3577,
+      "frameInRange": 38595,
+      "frameReachable": 38930,
+      "labelNotDecimal": 965,
+      "noRanges": 297,
+      "numericAgree": 1273,
+      "numericRadix": 12,
+      "numericUnrendered": 39,
+      "stringAgree": 1153,
+      "stringEscaped": 6,
+      "structures": 15398,
+      "withRanges": 15101
+    },
     "short_text": {
       "capOn0a": 70262,
       "capOnOther": 2275,

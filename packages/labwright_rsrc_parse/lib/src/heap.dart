@@ -859,9 +859,11 @@ enum HeapAttribute {
 
   /// Raw `0x254` / `0x255` / `0x266` — **case-selector fields** on select
   /// structures `0x2C` (97..98.7%): the default-case index (255 = none;
-  /// matches OF__SelectDefaultCase), the selector right-type enum (matches
-  /// OF__SelectNRightType), and the selector-label flags word (matches
-  /// OF__SelectSelLabFlags).
+  /// matches OF__SelectDefaultCase), the length of the structure's
+  /// [HeapGroupTag.selectorRangeList] (it equals the decoded list on 15 101 of
+  /// the 15 101 corpus structures that carry one — the name matches
+  /// OF__SelectNRightType, which is not what the value does), and the
+  /// selector-label flags word (matches OF__SelectSelLabFlags).
   selectDefaultCase(0x254, HeapAttrKind.enumValue, 'selectDefaultCase', AttrConfidence.inferred),
   selectNRightType(0x255, HeapAttrKind.enumValue, 'selectNRightType', AttrConfidence.inferred),
   selectSelLabFlags(0x266, HeapAttrKind.numeric, 'selectSelLabFlags', AttrConfidence.inferred),
@@ -1837,7 +1839,22 @@ enum HeapGroupTag {
 
   /// `0x15` — an array shell's displayed-index group, carrying the shell's
   /// [HeapAttribute.arrayElemValue] index record (`ViHeapObject.arrayIndex`).
-  arrayIndex(0x15)
+  arrayIndex(0x15),
+
+  /// `0x56` — a Case structure's selector-range list, holding one
+  /// [selectorRange] sub-group per entry (`ViHeapObject.selectorRanges`).
+  /// 15 166 corpus carriers, every one a `0x2c` select structure.
+  selectorRangeList(0x56),
+
+  /// `0x19` — one entry inside a [selectorRangeList] group, carrying the
+  /// [SelectorRangeAttr] records. Shares its tag byte with [fontRun], which is
+  /// why both are only read while their own list group is open.
+  selectorRange(0x19),
+
+  /// `0x58` — a Case structure's selector string pool, beside the range list
+  /// and in the same entry index space (`ViHeapObject.selectorStrings`).
+  /// 15 172 corpus carriers, every one a `0x2c`.
+  selectorStringPool(0x58)
   ;
 
   const HeapGroupTag(this.tag);
@@ -1861,6 +1878,34 @@ enum FontRunAttr {
   ;
 
   const FontRunAttr(this.raw);
+
+  /// The 10-bit raw tag id ([HeapAttr.rawTag]).
+  final int raw;
+}
+
+/// The raw attribute tags one selector-range entry carries inside a
+/// [HeapGroupTag.selectorRange] sub-group. All five are shared with the general
+/// attribute space (raw `0x020`/`0x021` outside this group are a control's
+/// range maximum and its text-mode word), so they are only read as range
+/// fields while a [HeapGroupTag.selectorRangeList] group is open.
+enum SelectorRangeAttr {
+  /// Raw `0x01f` — the range's low end, signed at the stored width.
+  low(0x01f),
+
+  /// Raw `0x020` — the range's high end, signed at the stored width.
+  high(0x020),
+
+  /// Raw `0x021` — how the low end is stated (`ViSelectorBound`).
+  lowBound(0x021),
+
+  /// Raw `0x022` — how the high end is stated (`ViSelectorBound`).
+  highBound(0x022),
+
+  /// Raw `0x023` — the index of the frame the range selects.
+  frame(0x023)
+  ;
+
+  const SelectorRangeAttr(this.raw);
 
   /// The 10-bit raw tag id ([HeapAttr.rawTag]).
   final int raw;
