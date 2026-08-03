@@ -972,7 +972,9 @@ void main() {
       // reference's hard-cored glyphs average lighter per pixel than the
       // ink-weight-matched render's wider mid-alpha coverage (the same total
       // ink in more sub-threshold pixels), so a threshold count diverges
-      // while the summed ink tracks.
+      // while the summed ink tracks. Measured 19,862/18,870 = 1.053, so the
+      // +-25% band is a floor with room for face variance, not a shrug —
+      // tighten it as the text pass converges.
       expect(
         xorMass / xorRefMass,
         closeTo(1.0, 0.25),
@@ -1267,32 +1269,51 @@ void main() {
     expect(runPixels, greaterThan(2000));
   });
 
-  testWidgets('CrispImage shows the 1:1 base, not the supersample, at n:1', (
-    tester,
-  ) async {
+  testWidgets('CrispImage shows the base at n:1 and the box-downscaled '
+      'supersample below it', (tester) async {
     // A supersampled pane image has no exact n:1 path of its own: nearest
     // at a non-multiple ratio decimates its AA (thin, frayed text). At
-    // integer ratios the pane must therefore show the 1:1 base image.
+    // integer ratios the pane must therefore show the 1:1 base image —
+    // and BELOW 1:1 the opposite, the supersample box-averaged at the
+    // exact display size, where its extra samples are real detail.
     final base = await tester.runAsync(
       () => _fromRgba(Uint8List(10 * 10 * 4)..fillRange(0, 400, 255), 10, 10),
     );
     final ss = await tester.runAsync(
       () => _fromRgba(Uint8List(30 * 30 * 4)..fillRange(0, 3600, 255), 30, 30),
     );
-    for (final size in const [Size(10, 10), Size(25, 25)]) {
-      await pumpBody(
-        tester,
-        Center(
-          child: SizedBox(
-            width: size.width,
-            height: size.height,
-            child: CrispImage(ss!, supersample: 3, base: base),
-          ),
+    Future<void> pumpPane(Size size) => pumpBody(
+      tester,
+      Center(
+        child: SizedBox(
+          width: size.width,
+          height: size.height,
+          child: CrispImage(ss!, supersample: 3, base: base),
         ),
-        view: const Size(100, 100),
-      );
+      ),
+      view: const Size(100, 100),
+    );
+
+    for (final size in const [Size(10, 10), Size(25, 25)]) {
+      await pumpPane(size);
       final raw = tester.widget<RawImage>(find.byType(RawImage));
       expect(raw.image, same(base), reason: 'pane $size');
     }
+
+    // 4 px of a 10 px logical image: fitPhys 0.4, so the box factor is
+    // supersample * ceil(1/0.4) = 9 and the 30 px supersample lands as a
+    // 3 px raster — neither of the two source images.
+    await tester.runAsync(() async {
+      await pumpPane(const Size(4, 4));
+      // The downscale is computed on a worker isolate; pump until it lands.
+      for (var i = 0; i < 40 && find.byType(RawImage).evaluate().isEmpty; i++) {
+        await Future<void>.delayed(const Duration(milliseconds: 5));
+        await tester.pump();
+      }
+    });
+    final minified = tester.widget<RawImage>(find.byType(RawImage)).image;
+    expect(minified, isNot(same(base)));
+    expect(minified, isNot(same(ss)));
+    expect((minified!.width, minified.height), (3, 3), reason: '30 px / 9');
   });
 }

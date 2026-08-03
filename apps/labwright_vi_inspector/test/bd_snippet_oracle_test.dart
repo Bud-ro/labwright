@@ -167,9 +167,15 @@ void main() {
         // with the decoded background colour. Strips hug each border edge
         // away from the comment's text and overlapping constants.
         ('label-backing-top', 435, 826, 40, 3),
-        // One row tighter to the border than the top strip: the comment
-        // text's metric-matched last line drops its AA fringe into the
-        // row above (the reference's own descenders end one row higher).
+        // One row tighter to the border than the top strip. Measured over
+        // x=430..469: the reference's backing runs cream (255,255,204) to
+        // row 916 and its 1 px black bottom border is row 917 — both
+        // byte-exact here. Row 915 is cream across all 40 reference
+        // columns, but our comment text drops 2 px of descender fringe
+        // into it (x=452 221,221,177 and x=453 218,218,175), so the strip
+        // starts below it. TODO(text-fringe): that fringe is a real
+        // text-layer defect — our last line sits one row lower than the
+        // reference's; fix it and restore the row.
         ('label-backing-bottom', 430, 916, 40, 2),
         ('label-backing-left', 423, 850, 3, 20),
         ('label-backing-right', 692, 850, 4, 20),
@@ -179,9 +185,12 @@ void main() {
         ('growable-bottom', 1404, 967, 60, 1),
         ('growable-left', 1397, 920, 1, 20),
         ('growable-right', 1516, 920, 1, 20),
-        // One row lower than the row-text bottom: the metric-matched row
-        // text drops its AA fringe into the row the strip used to start
-        // on.
+        // One row lower than the row-text bottom. Measured over
+        // x=1404..1443: the reference's row text ends at row 911 and rows
+        // 912..915 are white, but our render carries 3 px of row-text AA
+        // into row 912 (x=1418/1419 255,253,255, x=1435 255,252,255), so
+        // the strip starts at 913. TODO(text-fringe): same one-row-low
+        // fringe as label-backing-bottom; fix it and restore row 912.
         ('growable-field', 1404, 913, 40, 3),
         // Path constants (0x5b under a 0x13 holder): plain 2px border, no
         // inner ring; strips skirt the colored value text.
