@@ -2913,6 +2913,12 @@ const double kBdTextLineHeight = 14.5 / kBdTextSize;
 /// calibration VIs (Excel .325→.362, MD5 .435→.472, crc8 .442→.475).
 const double kBdTextOverdrawAlpha = 0.75;
 
+/// The BOLD face's overdraw alpha: the regular calibration overshoots on
+/// bold — its stems are already multi-pixel, so the same fringe lift lands
+/// 1.14x the reference's mean ink (measured on MD5's `Calculate MD5`
+/// heading). Recalibrated on that heading: this alpha lands 1.015.
+const double kBdTextOverdrawAlphaBold = 0.15;
+
 /// One cached glyph of the diagram text face at a full style+colour: the
 /// full-ink and [kBdTextOverdrawAlpha] companion painters, the pen advance
 /// snapped to whole pixels, and the painter's own (fractional) alphabetic
@@ -3036,12 +3042,15 @@ class BdDiagramPainter extends CustomPainter {
       final hinted = fontSize == kBdTextSize && glyph.length == 1
           ? bdHintedAdvance(
               glyph.codeUnitAt(0),
-              bold: fontWeight.index >= FontWeight.w700.index,
+              bold: fontWeight.value >= FontWeight.w700.value,
             )
           : null;
+      final overdraw = fontWeight.value >= FontWeight.w700.value
+          ? kBdTextOverdrawAlphaBold
+          : kBdTextOverdrawAlpha;
       return BdGlyph(
         main: main,
-        dim: build(color.withValues(alpha: color.a * kBdTextOverdrawAlpha)),
+        dim: build(color.withValues(alpha: color.a * overdraw)),
         advance: hinted ?? main.width.round(),
         baseline: main.computeDistanceToActualBaseline(TextBaseline.alphabetic),
       );
@@ -4446,11 +4455,21 @@ class BdDiagramPainter extends CustomPainter {
         // which a bounds-edge clip would keep, is absent in the reference,
         // pinning the clip edge to bounds.right-4/-5). A wide-enough strip
         // (its sibling selectors) shows the whole run unchanged.
+        // A CENTRE-justified label ([ViHeapObject.labelJustifyCenter], the
+        // 0x021 word's 0x20 bit) centres its run in the label bounds —
+        // measured on crc8's disabled-ghost heading strip, whose reference
+        // ink sits at equal 20 px margins inside the 186 px bounds.
+        final centered = !selector && object.labelJustifyCenter;
         _paintText(
           canvas,
           tp,
           selector
               ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
+              : centered
+              ? Offset(
+                  rect0.left + ((rect0.width - tp.width) / 2).floorToDouble(),
+                  rect0.top + 1,
+                )
               : rect0.topLeft + Offset(backed ? 2 : 1, 1),
           text,
           clip: selector
@@ -4721,6 +4740,14 @@ class BdDiagramPainter extends CustomPainter {
         );
       }
     }
+    // Display-part furniture rects (`0x9` decos / `0xe0` value windows, the
+    // whole heap — parts are not in the drawable list), for the into-DCO
+    // leg trim below.
+    final furnitureRects = <Rect>[
+      for (final o in scene.diagram.objects)
+        if ((o.kind == 0x9 || o.kind == 0xe0) && o.absBounds != null)
+          _toCanvas(o.absBounds!),
+    ];
     // Segments already drawn by EARLIER wires (heap serialization order),
     // in integer pixel space — the crossing rule cuts later wires around
     // them.
@@ -5035,6 +5062,76 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
           }
+        }
+        // A leg end attached INSIDE a value-display endpoint (a numeric/
+        // array constant) shows no ink before the display's opaque window
+        // chrome: the stored attach point sits under the control's
+        // transparent label gap, where the reference is white (measured on
+        // crc8's `8-bits`/`bytes` constants — their reference runs begin
+        // at the window ring's outer column, 10 px past the stored attach).
+        // The end point slides forward along its own segment to the first
+        // furniture (`0x9`/`0xe0`) rect edge inside the endpoint's anchor;
+        // a point already under furniture keeps the chrome's own cover, and
+        // an anchor with no furniture on the segment is left exact.
+        if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
+          void trimToFurniture({required bool head}) {
+            final e = head ? 0 : wire.endpointAnchors.length - 1;
+            final anchor = wire.endpointAnchors[e];
+            if (anchor == null || anchor.width <= 0 || anchor.height <= 0) {
+              return;
+            }
+            final anchorRect = _toCanvas(anchor);
+            if (iconNodeRects.contains(anchorRect)) return;
+            final end = head ? points.first : points.last;
+            final next = head ? points[1] : points[points.length - 2];
+            if (!anchorRect.contains(end)) return;
+            final horizontal = end.dy == next.dy;
+            if (!horizontal && end.dx != next.dx) return;
+            final sign = horizontal
+                ? (next.dx - end.dx).sign
+                : (next.dy - end.dy).sign;
+            if (sign == 0) return;
+            double? best;
+            for (final r in furnitureRects) {
+              if (r.left < anchorRect.left ||
+                  r.top < anchorRect.top ||
+                  r.right > anchorRect.right ||
+                  r.bottom > anchorRect.bottom) {
+                continue;
+              }
+              if (horizontal
+                  ? end.dy < r.top || end.dy >= r.bottom
+                  : end.dx < r.left || end.dx >= r.right) {
+                continue;
+              }
+              if (r.contains(end)) return;
+              final near = horizontal
+                  ? (sign > 0 ? r.left : r.right - 1)
+                  : (sign > 0 ? r.top : r.bottom - 1);
+              final along = (near - (horizontal ? end.dx : end.dy)) * sign;
+              final limit =
+                  ((horizontal ? next.dx : next.dy) -
+                      (horizontal ? end.dx : end.dy)) *
+                  sign;
+              if (along <= 0 || along > limit) continue;
+              if (best == null ||
+                  along < (best - (horizontal ? end.dx : end.dy)) * sign) {
+                best = near;
+              }
+            }
+            if (best == null) return;
+            final trimmed = horizontal
+                ? Offset(best, end.dy)
+                : Offset(end.dx, best);
+            if (head) {
+              points[0] = trimmed;
+            } else {
+              points[points.length - 1] = trimmed;
+            }
+          }
+
+          trimToFurniture(head: true);
+          trimToFurniture(head: false);
         }
         // Withhold a polyline with NO visible box-level ink: every pixel
         // under a node box ([nodeCoverRects]) is painted over by node
@@ -6063,14 +6160,16 @@ class BdDiagramPainter extends CustomPainter {
           final pb = part.absBounds;
           if (pb == null) continue;
           if (part.kind == 0xb || part.kind == 0x9) border(pb);
-          // The index window shows the array's DISPLAYED index — the same
-          // base the cell grid below enumerates its values from (index 0),
+          // The index window shows the array's DISPLAYED index
+          // ([ViHeapObject.arrayIndex], the tag-`0x15` group value) — the
+          // same base the cell grid below enumerates its values from —
           // drawn in the cells' digit style at the window's text inset
           // (MD5's small 1D array: the `0` at window.left+2, the cell
-          // digit rows).
+          // digit rows; crc8's LUT arrays read `255` there).
           if (part.kind == 0x9 && pb.width >= 10 && pb.height >= 12) {
+            final indexText = '${shell.arrayIndex ?? 0}';
             final tp = _layoutText(
-              '0',
+              indexText,
               color: _dimFor(shell.oid, Colors.black),
               maxLines: 1,
             );
@@ -6081,7 +6180,7 @@ class BdDiagramPainter extends CustomPainter {
                 (pb.left + 2 - origin.dx).toDouble(),
                 (pb.top + pb.bottom) / 2 - origin.dy - tp.height / 2,
               ),
-              '0',
+              indexText,
             );
           }
           // The spinner's fat triangle (measured on crc8's Polynomial
@@ -6141,13 +6240,20 @@ class BdDiagramPainter extends CustomPainter {
         radixDy = part.absBounds!.top - cell.top;
       }
     }
+    // The visible window starts at the shell's DISPLAYED index (the
+    // tag-`0x15` value; crc8's LUT cells read `array[255]`, MD5's grids
+    // sit at 0). Multi-dimension index offsets are not yet decoded, so
+    // only a 1D window shifts.
+    final windowStart = dims != null && dims.length >= 2
+        ? 0
+        : (shell.arrayIndex ?? 0);
     for (var j = 0; j < rows; j++) {
       for (var i = 0; i < cols; i++) {
         // Storage order is row-major over the decoded dims; a 1D array is a
         // single visible row or column, so its index is i + j either way.
         final index = dims != null && dims.length >= 2
             ? j * dims.last + i
-            : i + j;
+            : windowStart + i + j;
         final value =
             values != null &&
                 index < values.length &&

@@ -452,7 +452,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71150),
+        lessThanOrEqualTo(71140),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The into-icon arrival law — stop '
@@ -467,7 +467,10 @@ void main() {
             '`bytes`/`8-bits` labels where the reference is white, a '
             'pre-existing wire overrun, offset by a 9 px ClassChildren '
             'improvement -> 71,151; the FTAB font-run decode (bold only '
-            'where a weight-1000 entry says so) -> 71,150.)',
+            'where a weight-1000 entry says so) -> 71,150; the into-DCO '
+            'leg trim — a leg attached inside a value display starts at '
+            'the window furniture, not the stored attach under the '
+            'transparent label gap -> 71,140.)',
       );
       expect(
         totalMissing,
