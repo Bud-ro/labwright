@@ -15,6 +15,7 @@
 /// `kLvMappedPrimOps`).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -114,6 +115,43 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1534 (name not decoded)': 11,
 };
 
+/// Everything `MD5.vi` still refuses on, one entry per blocking node — the
+/// exact distance to the second behavioural milestone after `crc8`.
+///
+/// Its every wire types and its whole structure tree builds; what remains is
+/// 46 nodes in four groups. Twenty carry a `primResID` no corpus VI labels, so
+/// the operation is not decoded at all. Eleven are named operations whose
+/// **operand order** is not decoded (`Subtract`, `String Subset`,
+/// `Concatenate Strings`, `Compound Arithmetic`, `Build Array`, `Select`) or
+/// whose rule is not (`Type Cast`'s flattened layout, `To Lower Case`'s
+/// case-mapping table, `Logical Shift`'s direction). Four are Case structures
+/// over an **integer** selector, where the file states only the displayed
+/// frame's case value and the others are not the complement of a two-valued
+/// selector. One is a string constant whose value the heap decode did not
+/// recover, and one a `0x114` node whose corpus captions do not agree on a
+/// name.
+const Map<String, int> kMd5Blockers = {
+  'Type Cast (primResID 1166)': 7,
+  'primResID 1162': 5,
+  'primResID 1163': 5,
+  'primResID 1181': 4,
+  'Subtract (primResID 1051)': 3,
+  'caseSelector over int': 4,
+  'primResID 1056': 3,
+  'Concatenate Strings (class 0x3e)': 2,
+  'String Subset (primResID 1503)': 2,
+  'Compound Arithmetic (class 0x6c)': 2,
+  'Build Array (class 0x3a)': 1,
+  'Select (primResID 1516)': 1,
+  'To Lower Case (primResID 1189)': 1,
+  'Logical Shift (primResID 1081)': 1,
+  'primResID 1082': 1,
+  'primResID 1155': 1,
+  'primResID 1156': 1,
+  'node class 0x114': 1,
+  'constantValue String': 1,
+};
+
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
 /// types are not in its signal word, so they come from the data-space type an
 /// endpoint of the wire resolves ([lvClusterOfEndpoint]) — which is the only
@@ -121,9 +159,9 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// cannot fall silently.
 const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClusterWires = (
   signals: 729,
-  resolved: 337,
+  resolved: 338,
   disagreeing: 13,
-  unresolved: 379,
+  unresolved: 378,
 );
 
 /// The snippets whose outcome differs under [LvErrorMode.threaded]. It is
@@ -150,6 +188,13 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// second glyph value appearing here is the evidence that would settle the
 /// polarity.
 ///
+/// The `clus.*` counters are the cluster-wire census: a cluster wire's member
+/// types are not in its signal word, so `clus.one` is how often an endpoint
+/// supplies them, `clus.none` how often none does, and `clus.many` how often
+/// two ends disagree. `clus.viaTypedef` is the share only the typedef unwrap
+/// ([lvClusterBase]) reaches, and `clus.typedefContradicts` the wires where it
+/// adds a shape the bare-cluster reading disagrees with.
+///
 /// The `idx.*` counters are the Index Array terminal census
 /// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
 /// `[array] ([output] [index]×rank)+`, `idx.rank1Index` the index terminals in
@@ -157,28 +202,34 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
 /// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 1290,
-  'call.calleeMissing': 159,
-  'call.noPaneMap': 567,
-  'call.paneMatched': 545,
+  'call': 1301,
+  'call.calleeMissing': 162,
+  'call.noPaneMap': 574,
+  'call.paneMatched': 546,
   'call.paneWidthMismatch': 6,
   'call.unnamed': 13,
+  'clus': 133106,
+  'clus.many': 502,
+  'clus.none': 88743,
+  'clus.one': 43861,
+  'clus.typedefContradicts': 24,
+  'clus.viaTypedef': 9381,
   'cond': 2267,
   'cond.dcoBit0': 382,
   'cond.dcoBit12': 140,
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 62,
-  'exceptions.constantValue': 68,
+  'exceptions.constantValue': 70,
   'exceptions.lowered': 136,
-  'exceptions.primitive': 158,
-  'exceptions.structure': 53,
-  'exceptions.subViCall': 59,
+  'exceptions.primitive': 162,
+  'exceptions.structure': 54,
+  'exceptions.subViCall': 61,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 55,
-  'exceptions.wireDirection': 66,
-  'exceptions.wireType': 6849,
+  'exceptions.unwiredTerminal': 58,
+  'exceptions.wireDirection': 67,
+  'exceptions.wireType': 6836,
   'idx': 3479,
   'idx.groupFirstIndex': 110,
   'idx.groupLastIndex': 94,
@@ -186,23 +237,23 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
   'modes.same': 136,
-  'term.calleeUntyped': 115,
-  'term.dirAgree': 304,
-  'term.resolved': 304,
+  'term.calleeUntyped': 117,
+  'term.dirAgree': 306,
+  'term.resolved': 306,
   'term.typeAgree': 189,
   'term.unresolved': 33,
-  'term.wired': 337,
+  'term.wired': 339,
   'threaded.caseSelector': 62,
-  'threaded.constantValue': 68,
+  'threaded.constantValue': 70,
   'threaded.lowered': 136,
-  'threaded.primitive': 158,
-  'threaded.structure': 53,
-  'threaded.subViCall': 59,
+  'threaded.primitive': 162,
+  'threaded.structure': 54,
+  'threaded.subViCall': 61,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 55,
-  'threaded.wireDirection': 66,
-  'threaded.wireType': 6849,
+  'threaded.unwiredTerminal': 58,
+  'threaded.wireDirection': 67,
+  'threaded.wireType': 6836,
   'vi': 7508,
 };
 
@@ -212,14 +263,23 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 113, nodes: 807);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 111, nodes: 799);
+
+/// How many VIs lower, and how many DISTINCT Dart sources they emit — the
+/// input to the analyze sweep below. Copies of one VI appear all over the
+/// corpus and lower to the same text, so the analyzer sees each source once.
+const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
 /// connector-pane binding of every call node and the per-mode outcome.
-Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
+///
+/// `sources` collects the distinct [LvErrorMode.exceptions] lowerings, which
+/// the analyze sweep runs the analyzer over.
+({Map<String, int> tally, Set<String> sources}) sweepLoweringChunk((List<String>, Map<String, String>) input) {
   final (paths, index) = input;
   final tally = <String, int>{};
+  final emitted = <String>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
   final flows = <String, LvDataflow?>{};
@@ -285,6 +345,37 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     }
   }
 
+  // The cluster-wire census: where a cluster wire's member shape comes from.
+  // `clus.viaTypedef` is the wires only the typedef unwrap ([lvClusterBase])
+  // resolves, and `clus.typedefContradicts` the wires where it adds a shape
+  // the bare-cluster reading disagrees with — the two numbers that say whether
+  // looking through a typedef is worth what it costs.
+  void censusClusterWires(ViDiagram diagram, List<ViType> pool) {
+    for (final wire in diagram.wires) {
+      final signal = wire.signalType;
+      if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
+      bump('clus');
+      final array = (signal.arrayDims ?? 0) > 0;
+      final shapes = <String>{}, bare = <String>{};
+      for (final endpoint in wire.endpointOids) {
+        final type = lvClusterOfEndpoint(diagram, endpoint, array: array);
+        if (type == null) continue;
+        final shape = lvClusterShape(type, pool);
+        shapes.add(shape);
+        if (type.kind == ViDataType.cluster) bare.add(shape);
+      }
+      bump(
+        'clus.${switch (shapes.length) {
+          0 => 'none',
+          1 => 'one',
+          _ => 'many',
+        }}',
+      );
+      if (shapes.length == 1 && bare.isEmpty) bump('clus.viaTypedef');
+      if (bare.length == 1 && shapes.length > 1) bump('clus.typedefContradicts');
+    }
+  }
+
   // The Index Array terminal census ([LvArrayTerminalRole]): the grammar's
   // regularity, and how much of the corpus the refused higher-rank groups
   // account for. `idx.dims<n>` is the dimensionality of the array wire, so
@@ -325,6 +416,7 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     if (unit == null) continue;
     bump('vi');
     censusConditionals(unit.diagram);
+    censusClusterWires(unit.diagram, unit.pool);
     censusIndexArrays(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
     final sources = <String?>[];
@@ -332,6 +424,7 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
       final result = emitLvLibrary(unit, functionName: 'lowered', errorMode: mode, resolveSubVi: resolve);
       bump('${mode.name}.${result.refusal?.kind.name ?? 'lowered'}');
       sources.add(result.source);
+      if (mode == LvErrorMode.exceptions && result.source != null) emitted.add(result.source!);
     }
     // The modes are only allowed to differ where an error cluster reaches the
     // connector pane, so this counts the VIs the choice actually changes.
@@ -339,7 +432,36 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
       bump(sources.first == sources.last ? 'modes.same' : 'modes.differ');
     }
   }
-  return tally;
+  return (tally: tally, sources: emitted);
+}
+
+/// The whole-corpus sweep, run once however many tests read it: it decodes
+/// every VI in the corpus, so paying for it twice would double this file's
+/// runtime.
+Future<({Map<String, int> tally, Set<String> sources})> corpusSweep(Directory corpus) =>
+    _corpusSweep ??= _runCorpusSweep(corpus);
+
+Future<({Map<String, int> tally, Set<String> sources})>? _corpusSweep;
+
+Future<({Map<String, int> tally, Set<String> sources})> _runCorpusSweep(Directory corpus) async {
+  final paths = corpusViPaths(corpus);
+  final index = <String, String>{};
+  for (final path in paths) {
+    index.putIfAbsent(path.split(Platform.pathSeparator).last.toLowerCase(), () => path);
+  }
+  final workers = (Platform.numberOfProcessors - 2).clamp(1, 16);
+  final chunks = List.generate(workers, (_) => <String>[]);
+  for (var i = 0; i < paths.length; i++) {
+    chunks[i % workers].add(paths[i]);
+  }
+  final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepLoweringChunk((chunk, index)))));
+  final tally = <String, int>{};
+  final sources = <String>{};
+  for (final result in results) {
+    result.tally.forEach((key, value) => tally[key] = (tally[key] ?? 0) + value);
+    sources.addAll(result.sources);
+  }
+  return (tally: tally, sources: sources);
 }
 
 void main() {
@@ -381,6 +503,43 @@ void main() {
     expect(measured, kSnippetThreadedDifferences);
   });
 
+  test('MD5 refuses on exactly the nodes it is pinned to refuse on', () {
+    final vi = snippetVi('MD5');
+    final flow = buildLvDataflow(vi.diagram, pool: vi.pool).dataflow!;
+    final measured = <String, int>{};
+    void bump(String key) => measured[key] = (measured[key] ?? 0) + 1;
+    void walk(LvRegion region) {
+      for (final node in region.units) {
+        switch (node) {
+          case LvStructUnit():
+            final selector = node.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
+            final outer = selector?.outerPort;
+            final type = outer == null ? null : flow.into(outer)?.type;
+            if (type != null && (node.frames.length != 2 || type.dartType != 'bool')) {
+              bump('caseSelector over ${type.dartType}');
+            }
+            for (final frame in node.frames) {
+              walk(frame);
+            }
+          case LvPrimUnit():
+            if (_loweringOf(node, flow) != null) continue;
+            bump(_blockerKey(node));
+          case LvConstUnit():
+            final type = flow.outOf(node.port)?.type;
+            if (type != null && !_constantHasValue(node, type)) bump('constantValue ${type.dartType}');
+          case _:
+            break;
+        }
+      }
+    }
+
+    walk(flow.root);
+    printOnFailure(
+      'measured:\n${[for (final key in measured.keys) "  '$key': ${measured[key]},"].join('\n')}',
+    );
+    expect(measured, kMd5Blockers);
+  });
+
   test('cluster wires resolve their member shape through their endpoints', () {
     var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
     for (final file in snippets) {
@@ -401,21 +560,7 @@ void main() {
   test(
     'subVI calls bind through the connector pane, and both error modes sweep the corpus',
     () async {
-      final paths = corpusViPaths(corpus!);
-      final index = <String, String>{};
-      for (final path in paths) {
-        index.putIfAbsent(path.split(Platform.pathSeparator).last.toLowerCase(), () => path);
-      }
-      final workers = (Platform.numberOfProcessors - 2).clamp(1, 16);
-      final chunks = List.generate(workers, (_) => <String>[]);
-      for (var i = 0; i < paths.length; i++) {
-        chunks[i % workers].add(paths[i]);
-      }
-      final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepLoweringChunk((chunk, index)))));
-      final measured = <String, int>{};
-      for (final result in results) {
-        result.forEach((key, value) => measured[key] = (measured[key] ?? 0) + value);
-      }
+      final measured = (await corpusSweep(corpus!)).tally;
       printOnFailure(
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
@@ -424,6 +569,42 @@ void main() {
       // derive it, so a disagreement would mean the contract is wrong.
       expect(measured['term.dirDisagree'], isNull, reason: 'the pane binding contradicts the caller\'s own direction');
       expect(measured['term.typeDisagree'], isNull, reason: 'the pane binding contradicts the two VIs\' wire types');
+    },
+    tags: 'corpus',
+    skip: corpus == null ? 'corpus not fetched' : null,
+  );
+
+  test(
+    'every emitted library analyzes clean at the recommended lint set, and compiles',
+    () async {
+      final swept = await corpusSweep(corpus!);
+      expect(
+        (vis: swept.tally['exceptions.lowered'], sources: swept.sources.length),
+        kEmittedSources,
+        reason: 'the set of VIs that lower changed; re-pin it before reading the analyzer result',
+      );
+      final scratch = _scratchPackage(swept.sources);
+      try {
+        final analyzed = Process.runSync(_kDart, ['analyze', '${scratch.path}/lib'], workingDirectory: scratch.path);
+        expect(analyzed.exitCode, 0, reason: 'the emitted code is not clean:\n${analyzed.stdout}${analyzed.stderr}');
+        // Analysis covers the static errors; a kernel compile of one entry
+        // importing all of them is the independent check that the emitted
+        // libraries really do link against the runtime.
+        final compiled = Process.runSync(_kDart, [
+          'compile',
+          'kernel',
+          'bin/all.dart',
+          '-o',
+          '${scratch.path}/all.dill',
+        ], workingDirectory: scratch.path);
+        expect(
+          compiled.exitCode,
+          0,
+          reason: 'the emitted code does not compile:\n${compiled.stdout}${compiled.stderr}',
+        );
+      } finally {
+        scratch.deleteSync(recursive: true);
+      }
     },
     tags: 'corpus',
     skip: corpus == null ? 'corpus not fetched' : null,
@@ -454,6 +635,101 @@ void main() {
   });
 }
 
+/// The Dart executable running this test — the same SDK the emitted code is
+/// analyzed and compiled with.
+final String _kDart = Platform.resolvedExecutable;
+
+/// The scratch package's name; it is throwaway, so nothing refers to it beyond
+/// the entry point that imports its libraries.
+const String _kScratchPackageName = 'lv_emitted';
+
+/// A throwaway package holding one library per source in [sources], ready for
+/// `dart analyze` and `dart compile`.
+///
+/// Package resolution is this repo's own `package_config.json` with every
+/// relative `rootUri` made absolute, so the emitted code links against the
+/// same `labwright_lv_runtime` the checked-in generated sources do without a
+/// `pub get`. `bin/all.dart` imports every library under a prefix — the
+/// emitted entry points all share a name, and a prefix keeps a batch compile
+/// to one invocation.
+Directory _scratchPackage(Set<String> sources) {
+  final dir = Directory.systemTemp.createTempSync('lv_emitted_');
+  for (final sub in const ['lib', 'bin', '.dart_tool']) {
+    Directory('${dir.path}/$sub').createSync();
+  }
+  final names = <String>[];
+  for (final source in sources) {
+    final name = 'vi_${names.length.toString().padLeft(4, '0')}.dart';
+    File('${dir.path}/lib/$name').writeAsStringSync(source);
+    names.add(name);
+  }
+  File('${dir.path}/bin/all.dart').writeAsStringSync(
+    '${[
+      for (var i = 0; i < names.length; i++) "import 'package:$_kScratchPackageName/${names[i]}' as vi$i;",
+    ].join('\n')}\n\nvoid main() {}\n',
+  );
+
+  final configUri = Isolate.packageConfigSync!;
+  final config = jsonDecode(File.fromUri(configUri).readAsStringSync()) as Map<String, dynamic>;
+  final packages = (config['packages']! as List<dynamic>).cast<Map<String, dynamic>>();
+  for (final package in packages) {
+    package['rootUri'] = configUri.resolve(package['rootUri']! as String).toString();
+  }
+  final runtime = packages.firstWhere((package) => package['name'] == kLvRuntimePackage);
+  packages.add({
+    'name': _kScratchPackageName,
+    'rootUri': dir.uri.toString(),
+    'packageUri': 'lib/',
+    'languageVersion': runtime['languageVersion'],
+  });
+  File('${dir.path}/.dart_tool/package_config.json').writeAsStringSync(jsonEncode(config));
+  File('${dir.path}/pubspec.yaml').writeAsStringSync(
+    'name: $_kScratchPackageName\n'
+    'environment:\n  sdk: ^${runtime['languageVersion']}.0\n'
+    'dependencies:\n  $kLvRuntimePackage: any\n',
+  );
+  // Goal: emitted code is clean at the lint set a new Dart package gets.
+  File('${dir.path}/analysis_options.yaml').writeAsStringSync('include: package:lints/recommended.yaml\n');
+  return dir;
+}
+
+/// [node]'s lowering against the wires that reach it, or null when it has
+/// none. The expressions are placeholders: only whether a lowering EXISTS is
+/// asked here, never what it says.
+List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
+  List<LvPrimTerminal> terminals(List<int> ports, {required bool isInput}) => [
+    for (final port in ports)
+      if (isInput ? flow.into(port) : flow.outOf(port) case final edge?)
+        LvPrimTerminal(port: port, type: edge.type, roleFlags: node.portRoleFlags[port] ?? 0, expression: 'x'),
+  ];
+  return lvPrimLowering(
+    LvPrimCall(
+      op: node.op,
+      primResId: node.primResId,
+      classCode: node.classCode,
+      inputs: terminals(node.inputPorts, isInput: true),
+      outputs: terminals(node.outputPorts, isInput: false),
+      requireImport: (_) {},
+    ),
+  );
+}
+
+/// How a refused node is named in [kMd5Blockers]: the operation, the named
+/// class, or the bare `primResID` an unnamed one carries.
+String _blockerKey(LvPrimUnit node) {
+  if (node.op case final op?) return '${op.opName} (primResID ${op.id})';
+  if (kLvNamedNodeClasses[node.classCode] case final named?) {
+    return '${named.name} (class 0x${node.classCode.toRadixString(16)})';
+  }
+  if (node.primResId case final id?) return 'primResID $id';
+  return 'node class 0x${node.classCode.toRadixString(16)}';
+}
+
+/// Whether the diagram constant [node] carries a decoded value of [type].
+bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
+    ? node.record.constBool != null || node.record.constText != null || node.record.constNumeric != null
+    : node.record.constArray != null && node.record.constArrayDims != null;
+
 /// Every cluster-coded signal in [diagram], bucketed by whether its endpoints
 /// resolve one member shape, several, or none.
 ({int signals, int resolved, int disagreeing, int unresolved}) _clusterWires(ViDiagram diagram, List<ViType> pool) {
@@ -465,8 +741,7 @@ void main() {
     final array = (signal.arrayDims ?? 0) > 0;
     final shapes = {
       for (final endpoint in wire.endpointOids)
-        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?)
-          '${cluster.name ?? ''}|${clusterFields(cluster, pool).map((m) => '${m.code}:${m.name ?? ''}').join(',')}',
+        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) lvClusterShape(cluster, pool),
     };
     if (shapes.isEmpty) {
       unresolved++;

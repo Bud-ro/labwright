@@ -293,6 +293,7 @@ class LvPrimUnit extends LvUnit {
     required this.oid,
     required this.classCode,
     required this.op,
+    required this.primResId,
     required this.label,
     required this.inputPorts,
     required this.outputPorts,
@@ -309,6 +310,10 @@ class LvPrimUnit extends LvUnit {
   /// The decoded primitive operation, or null when the node's identity is its
   /// [classCode] alone.
   final PrimOp? op;
+
+  /// The node's raw `primResID`, whether or not [PrimOp] names it — the number
+  /// a refusal reports so an unnamed operation is identifiable.
+  final int? primResId;
 
   /// The node's own recovered caption, or null when it carries none — the
   /// only name the diagram states for the values it produces.
@@ -649,7 +654,7 @@ class _Builder {
         if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) cluster,
     ];
     if (resolved.isEmpty) return direct;
-    final shapes = {for (final cluster in resolved) _clusterShape(cluster)};
+    final shapes = {for (final cluster in resolved) lvClusterShape(cluster, pool)};
     if (shapes.length != 1) {
       refuse(
         LvRefusalKind.wireType,
@@ -660,12 +665,6 @@ class _Builder {
     }
     return lvClusterWireType(signal, resolved.first, pool);
   }
-
-  /// A cluster descriptor's identity for the agreement check: its name and its
-  /// members' codes and names. Two descriptors with the same shape are the
-  /// same wire type however many pool entries spell it.
-  String _clusterShape(ViType cluster) =>
-      '${cluster.name ?? ''}|${clusterFields(cluster, pool).map((m) => '${m.code}:${m.name ?? ''}').join(',')}';
 
   /// The nearest enclosing frame of [oid], or null.
   int? _frameOf(int oid) {
@@ -744,6 +743,7 @@ class _Builder {
       oid: node.oid,
       classCode: node.kind,
       op: node.primResId == null ? null : PrimOp.fromId(node.primResId!),
+      primResId: node.primResId,
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,

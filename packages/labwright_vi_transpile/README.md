@@ -212,10 +212,28 @@ code, an array depth and a flag nibble. `mapLvWireType` resolves it to the same
 wire*, so a tunnel whose two sides carry different dimensionalities reads as
 two different types.
 
-Cluster wires (`0x50`, and `0x51` for the typedef/class form) are unmapped
-here: their member types are not on the wire. So are the wires whose Dart
-carrier a generated file does not declare — path, variant and refnum — because
-naming a type nothing declares would emit code that does not compile.
+Cluster wires (`0x50`, and `0x51` for the typedef/class form) carry no member
+types on the wire, so their Dart shape comes from the data-space type an
+**endpoint** of the wire resolves — the type a renderer draws the wire's tint
+from. Corpus, over 133,106 cluster-coded signals: 43,861 resolve exactly one
+member shape, 502 resolve two that disagree (refused), and 88,743 resolve none.
+
+9,381 of the resolved wires are reached only by looking **through a typedef**:
+a typedef over a cluster is a cluster descriptor, exactly as `mapLvType`
+already reads one, and it is the shape `0x51` names. It contradicts the
+bare-cluster reading on 24 wires, which are refused like any other
+disagreement. Reading the *other* half of an endpoint's resolved type instead
+(an array's element for a scalar wire, or the converse) would resolve a further
+586, but nothing decoded says an endpoint describing an array of clusters
+describes a scalar cluster wire's element, so that route is not taken.
+
+**What the unresolved majority costs.** Cluster wires with no member shape are
+the single largest lowering blocker in the corpus: 4,128 of the 6,836 wire-type
+refusals stop there first, and 1,381 VIs have no other wire-type blocker at
+all. Next is the refnum family (`0x70`/`0x71`), whose array-depth base rides
+the referenced inner type and is therefore not decoded — 2,258 VIs stop there
+— then the element codes with no Dart representation (measureData 67, picture
+29, `ext` 3) and the 33 VIs whose wire word carries an uncatalogued code.
 
 ## Lowering
 
@@ -287,9 +305,19 @@ and that default is not decoded.
 
 A node is mapped only when its **identity** and its **operand roles** are both
 decoded. `kLvMappedPrimOps` is deliberately narrow: commutative pairs, unary
-operations and the integer width conversions — everything whose roles follow
-from the terminals themselves. `Subtract`, `Divide` and the ordered comparisons
-are absent because nothing decoded says which terminal is the left operand.
+operations and the width conversions — everything whose roles follow from the
+terminals themselves. `Subtract`, `Divide` and the ordered comparisons are
+absent because nothing decoded says which terminal is the left operand.
+
+Having one operand is necessary but not sufficient — the *result* must follow
+from the operand too. These unary corpus operations are refused for want of a
+rule rather than a role: `Sort 1D Array` (181 nodes; sort direction and tie
+order unstated), `Boolean To (0,1)` (550; which boolean maps to which member),
+`To Lower Case` (673; LabVIEW's case-mapping table over a byte string),
+`Type Cast` (1,259; the flattened layout it reinterprets), `Number To Boolean
+Array` / `Boolean Array To Number` (21 / 26; bit order), and `Transpose 2D
+Array` and a rank-2 `Array Size` (the array's own dimension order — the same
+missing tie that refuses a higher-rank Index Array).
 
 Two node classes carry their identity in the class code, with corpus node
 labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
@@ -305,8 +333,8 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 122 distinct unmapped identities over
-878 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
+`test/corpus_lowering_sweep_test.dart`: 111 distinct unmapped identities over
+799 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
 class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
 
 ### subVI calls
@@ -337,9 +365,18 @@ primitives (7), constants whose value the heap decode did not recover (2),
 unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
 call whose callee is not supplied (1).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 135 lower
-and the rest refuse, 6,849 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 136 lower
+and the rest refuse, 6,836 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for.
+
+Those 136 lowerings are **20 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 20 into a
+throwaway package resolved against this repo's own package graph, runs one
+`dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
+**zero diagnostics** — errors, warnings and infos alike; a `dart compile
+kernel` of one entry point importing all 20 is the independent check that they
+link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
+corpus-wide rather than inferred from the one checked-in file.
 
 ### crc8.vi, byte-exact
 
@@ -352,6 +389,25 @@ reference CRC-8 written from the public parameter model, over the ten
 catalogued CRC-8 algorithms × 261 messages: **2,610 comparisons, all exact**.
 The reference itself is anchored to the published check values, so neither side
 can drift alone.
+
+### MD5.vi, the distance left
+
+`MD5.vi` is the largest tracked snippet and the next behavioural milestone. Its
+every wire types and its whole structure tree builds; `kMd5Blockers` pins what
+remains, one entry per blocking node — **46 nodes in four groups**:
+
+- **20** carry a `primResID` no corpus VI labels (1162 ×5, 1163 ×5, 1181 ×4,
+  1056 ×3, 1082, 1155, 1156), so the operation itself is not decoded;
+- **11** are named operations whose *operand order* is not decoded (`Subtract`
+  ×3, `String Subset` ×2, `Concatenate Strings` ×2, `Compound Arithmetic` ×2,
+  `Build Array`, `Select`) and **9** whose *rule* is not (`Type Cast` ×7, its
+  flattened layout; `To Lower Case`; `Logical Shift`);
+- **4** are Case structures over an **integer** selector, where the file states
+  only the displayed frame's case value;
+- **1** string constant whose value the heap decode did not recover, and **1**
+  `0x114` node whose corpus captions do not agree on a name.
+
+### crc8.vi, continued
 
 One ordering difference is recorded there: the VI applies its Xor Out *before*
 the output reflection, where the published model reflects first. The two

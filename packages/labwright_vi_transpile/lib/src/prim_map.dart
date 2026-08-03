@@ -54,6 +54,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'numeric.dart';
 import 'runtime.dart';
+import 'type_map.dart';
 import 'wire_type.dart';
 
 /// Role bits on a growable array node's terminal record
@@ -140,11 +141,16 @@ class LvPrimCall {
     required this.inputs,
     required this.outputs,
     required this.requireImport,
+    this.primResId,
   });
 
   /// The decoded primitive operation, or null when the node's identity is its
   /// class code alone.
   final PrimOp? op;
+
+  /// The node's raw `primResID`, whether or not [PrimOp] names it — reported
+  /// by [lvPrimUnmappedReason] so an unnamed operation is identifiable.
+  final int? primResId;
 
   /// The node's heap class code.
   final int classCode;
@@ -182,6 +188,25 @@ class LvPrimCall {
 /// the two-terminal comparisons stay out), and the conversions. `Subtract`,
 /// `Divide` and the ordered two-terminal comparisons are absent because
 /// nothing decoded says which terminal is the left operand.
+///
+/// Having one operand is necessary but not sufficient: the RESULT must follow
+/// from the operand too. These unary corpus operations are refused for want of
+/// a rule rather than a role, and each names the missing fact.
+///
+/// - `Sort 1D Array` (1120, 181 nodes) — the sort direction, and the order it
+///   puts equal elements in, are not stated anywhere in the file.
+/// - `Boolean To (0,1)` (1167, 550) — the name gives the pair, not which
+///   member each boolean maps to.
+/// - `To Lower Case` (1189, 673) — LabVIEW's case-mapping table over a byte
+///   string is not decoded, and Dart's `toLowerCase` is Unicode's, which
+///   differs above U+007F.
+/// - `Type Cast` (1166, 1259) — reinterprets an operand's *flattened* bytes,
+///   and the flattened layout of a general value is not decoded.
+/// - `Number To Boolean Array` (1814, 21) and `Boolean Array To Number`
+///   (1815, 26) — the bit order of the array is not decoded.
+/// - `Transpose 2D Array` (1902) and a rank-2 `Array Size` — the array's own
+///   dimension order, the same missing tie that refuses a higher-rank Index
+///   Array (see [LvArrayTerminalRole]).
 const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.exclusiveOr,
   PrimOp.and,
@@ -202,6 +227,9 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.emptyStringPath,
   PrimOp.stringLength,
   PrimOp.arraySize,
+  PrimOp.reverse1dArray,
+  PrimOp.toSinglePrecisionFloat,
+  PrimOp.toDoublePrecisionFloat,
   PrimOp.toByteInteger,
   PrimOp.toWordInteger,
   PrimOp.toLongInteger,
@@ -283,7 +311,7 @@ List<String>? lvPrimLowering(LvPrimCall call) {
       return _binaryPredicate(call, '!=');
 
     case PrimOp.not:
-      return _unaryBoolean(call, '!');
+      return _not(call);
     case PrimOp.increment:
       return _unaryNumeric(call, '+ 1');
     case PrimOp.decrement:
@@ -305,11 +333,19 @@ List<String>? lvPrimLowering(LvPrimCall call) {
       return _comparedToZero(call, '<=');
 
     case PrimOp.emptyStringPath:
-      return _unaryOfString(call, 'isEmpty', 'bool');
+      return _isEmpty(call);
     case PrimOp.stringLength:
       return _unaryOfString(call, 'length', 'int');
     case PrimOp.arraySize:
       return _arraySize(call);
+    case PrimOp.reverse1dArray:
+      return _reverse1dArray(call);
+
+    // Widening to a floating type: the target's own rounding, and no operand
+    // order to decode.
+    case PrimOp.toSinglePrecisionFloat:
+    case PrimOp.toDoublePrecisionFloat:
+      return _floatConversion(call);
 
     // Integer width conversions.
     case PrimOp.toByteInteger:
@@ -365,6 +401,10 @@ String lvPrimUnmappedReason(LvPrimCall call) {
         '(${named.captions} corpus captions), but which terminal is which '
         'argument is not established from the terminal records';
   }
+  if (call.primResId case final id?) {
+    return 'primResID $id on node class 0x${call.classCode.toRadixString(16)} is '
+        'not named anywhere in the corpus, so the operation it performs is not decoded';
+  }
   return 'node class 0x${call.classCode.toRadixString(16)} carries no decoded primitive identity';
 }
 
@@ -412,6 +452,35 @@ List<String>? _comparedToZero(LvPrimCall call, String operator) {
   return ['final bool $name = ${source.expression} $operator $zero;'];
 }
 
+/// `Empty String/Path?` — `isEmpty` on the operand's own carrier.
+///
+/// Both carriers answer it: a Dart `String` directly, and [LvRuntimeType.path]
+/// through the emptiness its `PTH0` record states — a relative path with no
+/// components. A rooted path is never empty however few components it names.
+List<String>? _isEmpty(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || out.type.dartType != 'bool') return null;
+  if (source.type.dartType != 'String' && source.type.dartType != LvRuntimeType.path) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final bool $name = ${source.expression}.isEmpty;'];
+}
+
+/// `Reverse 1D Array` — a new array holding the operand's elements in the
+/// opposite order. Rank is on the wire, so a higher-rank operand is refused.
+List<String>? _reverse1dArray(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 1 || out.type.dims != 1) return null;
+  if (source.type.dartType != out.type.dartType) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  if (out.type.numeric != null) call.requireImport('dart:typed_data');
+  final reversed = lvArrayFreeze(out.type.element, '${source.expression}.reversed.toList()');
+  return ['final ${out.type.dartType} $name = $reversed;'];
+}
+
 /// A unary string query — `member` read off a scalar string operand.
 List<String>? _unaryOfString(LvPrimCall call, String member, String resultType) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
@@ -442,13 +511,24 @@ List<String>? _arraySize(LvPrimCall call) {
 bool _hazardous(LvWireType type, String operator) =>
     type.numeric?.hazards.any((hazard) => hazard.operators.contains(operator)) ?? false;
 
-List<String>? _unaryBoolean(LvPrimCall call, String operator) {
+/// `Not` — a boolean negation, or an integer's one's complement renormalized
+/// to its LabVIEW width. A float has no bitwise complement and is refused. A
+/// U64 needs no special case: `~` is sign-agnostic, so it is exact on the raw
+/// bit pattern that carrier holds.
+List<String>? _not(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
-  if (call.inputs.single.type.dartType != 'bool') return null;
-  final out = call.outputs.single;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || out.type.dims != 0) return null;
+  if (source.type.dartType != out.type.dartType) return null;
   final name = out.expression;
+  if (out.type.dartType == 'bool') {
+    if (name == null) return const [];
+    return ['final bool $name = !${source.expression};'];
+  }
+  final kind = out.type.numeric;
+  if (kind == null || kind.isFloat) return null;
   if (name == null) return const [];
-  return ['final bool $name = $operator${call.inputs.single.expression};'];
+  return ['final int $name = ${lvWrapped(out.type, '~${source.expression}')};'];
 }
 
 List<String>? _unaryNumeric(LvPrimCall call, String suffix) {
@@ -475,6 +555,25 @@ List<String>? _integerConversion(LvPrimCall call) {
   if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return ['final int $name = ${LvRuntimeCall.integerConversion(target)}(${source.expression});'];
+}
+
+/// The **To-Float** conversions. Widening an integer or a SGL to a binary
+/// floating type is the target format's own round-to-nearest, which is what
+/// `toDouble` and the SGL narrowing wrap do, so the conversion needs no rule
+/// this reader does not have. A U64 source is refused: `toDouble` reads its
+/// carrier as signed ([LvArithmeticHazard.unsignedFormat]).
+List<String>? _floatConversion(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  final target = out.type.numeric, from = source.type.numeric;
+  if (target == null || !target.isFloat || from == null) return null;
+  if (source.type.dims != 0 || out.type.dims != 0) return null;
+  if (_hazardous(source.type, 'toDouble')) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  if (target == LvNumericKind.sgl) call.requireImport('dart:typed_data');
+  final widened = from.isFloat ? source.expression! : '${source.expression}.toDouble()';
+  return ['final double $name = ${lvWrapped(out.type, widened)};'];
 }
 
 List<String>? _byteArrayConversion(LvPrimCall call, {required bool encode}) {

@@ -276,6 +276,11 @@ class _Library {
   /// thrown [LvRuntimeType.error] rather than as a parameter or a result.
   bool _elides(LvWireType type) => errorMode == LvErrorMode.exceptions && type.isErrorCluster;
 
+  /// Declares the imports spelling [type] needs — the one route by which an
+  /// emitted type contributes an import, so the file's import list is exactly
+  /// what its text uses and no more. A `List<String>` needs neither import
+  /// where a `Uint8List` needs `dart:typed_data`; call this wherever a Dart
+  /// type is written into the output.
   void noteImportsFor(LvWireType type) {
     if (type.dims > 0 && type.numeric != null) imports.add('dart:typed_data');
     if (lvTypeNeedsRuntime(type.dartType)) imports.add(kLvRuntimeImport);
@@ -506,7 +511,7 @@ class _FunctionEmitter {
   /// was given — Replace Array Subset copies, and an auto-indexing output
   /// tunnel builds a new list.
   String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
-    library.imports.add('dart:typed_data');
+    library.noteImportsFor(type);
     final name = names.fileConstant(unit.label);
     final shape = dims.join(' × ');
     final flat = _typedListLiteral(values, type);
@@ -514,7 +519,6 @@ class _FunctionEmitter {
         ? flat
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
               'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
-    if (dims.length > 1) library.imports.add(kLvRuntimeImport);
     // A caption is free text and may hold newlines, which a `///` comment
     // cannot; it is collapsed to one line rather than dropped.
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
@@ -607,6 +611,7 @@ class _FunctionEmitter {
     ];
     final call = LvPrimCall(
       op: unit.op,
+      primResId: unit.primResId,
       classCode: unit.classCode,
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
@@ -811,8 +816,12 @@ class _FunctionEmitter {
           continue;
         }
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
-        final array = _atomic(outer) ? outer : names.wire(_typeAt(tunnel.outerPort!)!);
-        if (array != outer) body.writeln('final ${_typeAt(tunnel.outerPort!)!.dartType} $array = $outer;');
+        final outerType = _typeAt(tunnel.outerPort!)!;
+        final array = _atomic(outer) ? outer : names.wire(outerType);
+        if (array != outer) {
+          library.noteImportsFor(outerType);
+          body.writeln('final ${outerType.dartType} $array = $outer;');
+        }
         indexedInputs.add((terminal: tunnel, array: array));
         continue;
       }
@@ -828,7 +837,7 @@ class _FunctionEmitter {
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
       final type = _typeAt(tunnel.outerPort!)!;
       final builder = names.role(LvNameRole.builder);
-      library.imports.add('dart:typed_data');
+      library.noteImportsFor(type);
       body.writeln('final ${lvArrayBuilderType(type.element)} $builder = <${type.element.dartType}>[];');
       indexedOutputs.add((terminal: tunnel, builder: builder, type: type));
     }
@@ -864,10 +873,11 @@ class _FunctionEmitter {
     }
     for (final input in indexedInputs) {
       final inner = input.terminal.innerPorts[frame.frameOid]!;
-      final type = _typeAt(inner);
       if (flow.outOf(inner) == null) continue;
+      final type = _typeAt(inner)!;
+      library.noteImportsFor(type);
       final element = names.role(LvNameRole.element);
-      body.writeln('final ${type!.dartType} $element = ${input.array}[$iteration];');
+      body.writeln('final ${type.dartType} $element = ${input.array}[$iteration];');
       valueOf[inner] = element;
     }
 
@@ -901,6 +911,7 @@ class _FunctionEmitter {
 
     for (final output in indexedOutputs) {
       final name = names.wire(output.type);
+      library.noteImportsFor(output.type);
       body.writeln('final ${output.type.dartType} $name = ${lvArrayFreeze(output.type.element, output.builder)};');
       valueOf[output.terminal.outerPort!] = name;
     }
@@ -934,6 +945,7 @@ class _FunctionEmitter {
       }
       final type = _typeAt(left.outerPort!)!;
       final name = names.role(LvNameRole.carried);
+      library.noteImportsFor(type);
       body.writeln('${type.dartType} $name = $initial;');
       if (left.innerPorts[frameOid] case final port?) valueOf[port] = name;
       carried.add((terminal: right, name: name, rightOuter: right.outerPort));
