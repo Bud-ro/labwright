@@ -4543,6 +4543,23 @@ final Map<int, bool Function(ViDataType)> _typeAnchors = {
 /// base to both heaps: the data space is VI-global (verified on the corpus
 /// by the resolved panel names and reference-render colours agreeing).
 ///
+/// The self-calibration is what limits this pass's reach, and by a wide
+/// margin. Corpus (7,523 VIs): of the 7,490 carrying a `VCTP`, **3,301
+/// supply fewer than 2 anchor objects** and 1,117 more miss the agreement
+/// gate, so 3,072 (41.0%) calibrate — and 4,433 of 7,508 block diagrams
+/// (59.0%) end this pass with no object carrying a resolved type at all.
+///
+/// The `TM80` data-space type map's `indexShift` — which is exactly a
+/// per-VI base into the same top-level index list — is **not** that stored
+/// base. It is present in only **3,566 of 7,523 VIs** (47.4%; 1,609 of
+/// them carry more than one copy of the block), so it cannot source a base
+/// the other half of the corpus still needs; and where an independent
+/// per-VI calibration — the offset maximising agreement between each wire
+/// endpoint part's index and the family its signal's [ViSignalType] names,
+/// over VIs with ≥40 such anchors, a unique argmax and ≥90% purity —
+/// pins the base (1,153 VIs), only 229 also carry a `TM80`, and
+/// `base − indexShift` is 3 on 126 of them and spread over the rest.
+///
 /// A successful resolution **overwrites** a heuristically inferred
 /// [ViHeapObject.typeKind] — the pool descriptor is the VI's own type
 /// declaration, where the `C4 74` format inference is a guess — so colour

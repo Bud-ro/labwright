@@ -183,6 +183,11 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// endpoint route where both speak, and `clus.epTypeIdx` — absent from the
 /// pin, so zero — is the structural reason the caller-side walk stops.
 ///
+/// The `clus.kid*` counters score the endpoint's own node-terminal **parts**
+/// the same way, and the `clus.none*` counters partition the wires that
+/// resolve nothing by cause — see [lvClusterOfEndpoint], which owns both
+/// readings' evidence.
+///
 /// The `ref.*` and `flag<n>.*` counters are the refnum-wire census. A refnum
 /// wire's array-depth base is the reference class's, not the type code's, so
 /// `ref.scalar` is the share the depth-1 law ([kSignalMinScalarDepth]) decides
@@ -205,8 +210,16 @@ const Map<String, int> kCorpusLoweringSweep = {
   'call.paneWidthMismatch': 6,
   'call.unnamed': 27,
   'clus': 133106,
+  'clus.kid.many': 78,
+  'clus.kid.none': 11377,
+  'clus.kid.one': 30781,
+  'clus.kidAgrees': 21632,
+  'clus.kidDisagrees': 9149,
+  'clus.kidNameOnly': 8799,
   'clus.many': 502,
   'clus.none': 88743,
+  'clus.noneNoIndex': 558,
+  'clus.noneUncalibrated': 63697,
   'clus.one': 43861,
   'clus.pane.many': 1,
   'clus.pane.none': 1960,
@@ -223,12 +236,12 @@ const Map<String, int> kCorpusLoweringSweep = {
   'exceptions.caseSelector': 2,
   'exceptions.constantValue': 77,
   'exceptions.lowered': 162,
-  'exceptions.primitive': 178,
+  'exceptions.primitive': 175,
   'exceptions.structure': 61,
-  'exceptions.subViCall': 76,
+  'exceptions.subViCall': 77,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 75,
+  'exceptions.unwiredTerminal': 77,
   'exceptions.wireDirection': 68,
   'exceptions.wireType': 6807,
   'flag0.array': 24628,
@@ -258,12 +271,12 @@ const Map<String, int> kCorpusLoweringSweep = {
   'threaded.caseSelector': 2,
   'threaded.constantValue': 77,
   'threaded.lowered': 162,
-  'threaded.primitive': 178,
+  'threaded.primitive': 175,
   'threaded.structure': 61,
-  'threaded.subViCall': 76,
+  'threaded.subViCall': 77,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 75,
+  'threaded.unwiredTerminal': 77,
   'threaded.wireDirection': 68,
   'threaded.wireType': 6807,
   'vi': 7508,
@@ -275,7 +288,7 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 99, nodes: 632);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 98, nodes: 623);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
@@ -368,6 +381,13 @@ const ({int vis, int sources}) kEmittedSources = (vis: 162, sources: 41);
   // wire ending on one can be read against the callee VI's own terminal for
   // that pane. `clus.epTypeIdx` is the structural reason the caller-side walk
   // stops where it does.
+  //
+  // The `clus.kid*` counters measure the endpoint's own **part** objects — the
+  // node-terminal parts a bounds-less `0x15` endpoint DCO parents, which do
+  // carry a data-space index where the endpoint itself does not. They score it
+  // exactly as the pane side is scored, and refuse it for the same reason (see
+  // [lvClusterOfEndpoint]). The `clus.none*` counters partition the wires that
+  // resolve nothing by cause, so the size of each blocker is a measured number.
   void censusClusterWires(ViDiagram diagram, List<ViType> pool) {
     final clusterEndpoints = <int>{
       for (final wire in diagram.wires)
@@ -395,18 +415,32 @@ const ({int vis, int sources}) kEmittedSources = (vis: 162, sources: 41);
         paneOf[ports[pane]] = (callee, pane);
       }
     }
+    // Whether the VI's data-space type indices resolve at all: the per-VI base
+    // is self-calibrated, and where the calibration declines no object in the
+    // VI carries a resolved type, so no route can reach one.
+    final calibrated = diagram.objects.any((object) => object.resolvedType != null);
+    final childrenByOid = diagram.childrenByOid;
     for (final wire in diagram.wires) {
       final signal = wire.signalType;
       if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
       bump('clus');
       final array = (signal.arrayDims ?? 0) > 0;
-      final shapes = <String>{}, bare = <String>{}, viaPane = <String>{};
+      final shapes = <String>{}, bare = <String>{}, viaPane = <String>{}, viaKid = <String>{};
       for (final endpoint in wire.endpointOids) {
         final type = lvClusterOfEndpoint(diagram, endpoint, array: array);
         if (type == null) continue;
         final shape = lvClusterShape(type, pool);
         shapes.add(shape);
         if (type.kind == ViDataType.cluster) bare.add(shape);
+      }
+      // The endpoint's own node-terminal PARTS: the objects a bounds-less
+      // endpoint DCO parents, which carry the data-space index the endpoint
+      // itself never does.
+      for (final endpoint in wire.endpointOids) {
+        for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
+          final type = array ? part.resolvedElementType : part.resolvedType;
+          if (lvClusterBase(type) != null) viaKid.add(lvClusterShape(type!, pool));
+        }
       }
       for (final endpoint in wire.endpointOids) {
         if (paneOf[endpoint] case (final callee, final pane)) {
@@ -428,7 +462,28 @@ const ({int vis, int sources}) kEmittedSources = (vis: 162, sources: 41);
       if (shapes.length == 1 && viaPane.length == 1) {
         bump(shapes.single == viaPane.single ? 'clus.paneAgrees' : 'clus.paneDisagrees');
       }
+      if (viaKid.length == 1) bump('clus.kid.$own');
+      if (shapes.length == 1 && viaKid.length == 1) {
+        final agrees = shapes.single == viaKid.single;
+        bump(agrees ? 'clus.kidAgrees' : 'clus.kidDisagrees');
+        // A disagreement that is the descriptor NAME alone: the two readings
+        // spell identical members under different typedefs.
+        if (!agrees && shapes.single.split('|').last == viaKid.single.split('|').last) {
+          bump('clus.kidNameOnly');
+        }
+      }
       if (shapes.isNotEmpty) continue;
+      // Why this wire resolves nothing, one cause per wire.
+      if (!calibrated) {
+        bump('clus.noneUncalibrated');
+      } else if (!wire.endpointOids.any(
+        (endpoint) => [
+          if (diagram.byId[endpoint] case final object?) object,
+          ...?childrenByOid[endpoint],
+        ].any((object) => object.typeDescIdx != null),
+      )) {
+        bump('clus.noneNoIndex');
+      }
       for (final endpoint in wire.endpointOids) {
         if (diagram.byId[endpoint]?.typeDescIdx != null) bump('clus.epTypeIdx');
       }

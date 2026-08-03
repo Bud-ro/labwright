@@ -351,6 +351,8 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.stringLength,
   PrimOp.arraySize,
   PrimOp.reverse1dArray,
+  PrimOp.emptyArray,
+  PrimOp.addArrayElements,
   PrimOp.toSinglePrecisionFloat,
   PrimOp.toDoublePrecisionFloat,
   PrimOp.toByteInteger,
@@ -515,6 +517,10 @@ List<String>? _lowerDirect(LvPrimCall call) {
       return _arraySize(call);
     case PrimOp.reverse1dArray:
       return _reverse1dArray(call);
+    case PrimOp.emptyArray:
+      return _emptyArray(call);
+    case PrimOp.addArrayElements:
+      return _addArrayElements(call);
 
     // Widening to a floating type: the target's own rounding, and no operand
     // order to decode.
@@ -1139,6 +1145,50 @@ List<String>? _reverse1dArray(LvPrimCall call) {
   if (out.type.numeric != null) call.requireImport('dart:typed_data');
   final reversed = lvArrayFreeze(out.type.element, '${source.expression}.reversed.toList()');
   return ['final ${out.type.dartType} $name = $reversed;'];
+}
+
+/// `Empty Array?` — whether the operand array holds no elements. Unary, so
+/// the roles are the terminals' own directions and there is no operand order
+/// to decode. Rank is on the wire, and only rank 1 is lowered: what "empty"
+/// means for a rank-2 operand — an empty outer list, or an outer list of empty
+/// rows — is not decoded.
+List<String>? _emptyArray(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 1 || out.type.dims != 0 || out.type.dartType != 'bool') return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final bool $name = ${source.expression}.isEmpty;'];
+}
+
+/// `Add Array Elements` — the sum of a 1-D numeric array, accumulated at the
+/// element's own LabVIEW width so an integer sum wraps exactly where LabVIEW's
+/// does (wrapping each step and wrapping once at the end agree modulo the
+/// width). Unary, so there is no operand order to decode. An empty array sums
+/// to the seed, zero.
+///
+/// The result must carry the element's own Dart type: a node whose output
+/// widens or narrows the element would need LabVIEW's coercion rounding, which
+/// is not decoded, and a `U64` operand is refused with it — its carrier is
+/// signed, so the accumulator would misread ([LvArithmeticHazard]).
+List<String>? _addArrayElements(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 1 || out.type.dims != 0) return null;
+  final kind = out.type.numeric;
+  if (kind == null || kind.hazards.isNotEmpty) return null;
+  if (source.type.element.dartType != out.type.dartType) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  final total = call.names.role(LvNameRole.value);
+  final element = call.names.role(LvNameRole.element);
+  final step = lvWrapExpression(kind, '$total + $element');
+  return [
+    'final ${out.type.dartType} $name = ${source.expression}.fold<${out.type.dartType}>(',
+    '  ${kind.isFloat ? '0.0' : '0'},',
+    '  ($total, $element) => $step,',
+    ');',
+  ];
 }
 
 /// A unary string query — `member` read off a scalar string operand.
