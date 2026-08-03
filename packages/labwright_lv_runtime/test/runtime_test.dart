@@ -49,6 +49,44 @@ void main() {
     expect((value, carry), (0xA5, false));
   });
 
+  test('each swap exchanges the two halves of its own field width', () {
+    const cases = <({String name, int Function(int) swap, int input, int expected})>[
+      (name: 'bytes of a 16-bit value', swap: lvSwapBytes, input: 0xABCD, expected: 0xCDAB),
+      (name: 'bytes of each 16-bit field', swap: lvSwapBytes, input: 0x12345678, expected: 0x34127856),
+      (name: 'words of a 32-bit value', swap: lvSwapWords, input: 0x12345678, expected: 0x56781234),
+      (name: 'words of each 32-bit field', swap: lvSwapWords, input: 0x1122334455667788, expected: 0x3344112277885566),
+    ];
+    for (final row in cases) {
+      expect(row.swap(row.input), row.expected, reason: row.name);
+    }
+  });
+
+  test('swapping words then bytes reverses all four bytes of a 32-bit value', () {
+    // The composition LabVIEW diagrams use to change a 32-bit word's byte
+    // order; it holds only because each swap is per-field.
+    for (final value in const [0x12345678, 0xDEADBEEF, 0x00000001, 0xFFFFFFFF]) {
+      final bytes = Uint8List(4)..buffer.asByteData().setUint32(0, value);
+      final reversed = ByteData.sublistView(Uint8List.fromList(bytes.reversed.toList())).getUint32(0);
+      expect(lvSwapBytes(lvSwapWords(value)) & 0xFFFFFFFF, reversed, reason: '0x${value.toRadixString(16)}');
+    }
+  });
+
+  test('a quotient and its remainder reconstruct the dividend', () {
+    const cases = <({int dividend, int divisor, int quotient, int remainder})>[
+      (dividend: 17, divisor: 5, quotient: 3, remainder: 2),
+      (dividend: 20, divisor: 5, quotient: 4, remainder: 0),
+      (dividend: 7, divisor: 8, quotient: 0, remainder: 7),
+      (dividend: -17, divisor: 5, quotient: -4, remainder: 3),
+      (dividend: 17, divisor: -5, quotient: -4, remainder: -3),
+      (dividend: -17, divisor: -5, quotient: 3, remainder: -2),
+    ];
+    for (final row in cases) {
+      final measured = lvQuotientRemainder(row.dividend, row.divisor);
+      expect(measured, (row.quotient, row.remainder), reason: '${row.dividend} / ${row.divisor}');
+      expect(row.divisor * measured.$1 + measured.$2, row.dividend);
+    }
+  });
+
   test('a multi-dimensional array addresses its elements row-major', () {
     final array = LvArrayNd<Int32List>(
       Int32List.fromList(const <int>[0, 1, 2, 3, 4, 5]),
