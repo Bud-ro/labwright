@@ -5,6 +5,7 @@ import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 import 'package:test/test.dart';
 
 import 'pool_builder.dart';
+import 'snippets.dart';
 
 void main() {
   test('numeric widths: carrier, renormalizing expression, storage list', () {
@@ -380,6 +381,49 @@ final double volts;
         (dims, dartType),
         reason: '0x${raw.toRadixString(16)}: ${wire.value.note}',
       );
+    }
+  });
+
+  test('a refnum wire takes its array wrapping from the dimensionality it is given', () {
+    // (signal word, dims from the data space, Dart type). The word carries the
+    // reference family and a depth; only the dims decide the wrapping.
+    const rows = <(int, int, String)>[
+      (0x0270, 0, LvRuntimeType.refnum), // depth-2 plain refnum read as scalar
+      (0x0270, 1, 'List<${LvRuntimeType.refnum}>'), // ...and as a 1-D array
+      (0x0371, 0, LvRuntimeType.refnum), // the inner-typed form
+      (0x0571, 1, 'List<${LvRuntimeType.refnum}>'),
+      (0x0470, 2, 'LvArrayNd<List<${LvRuntimeType.refnum}>>'),
+    ];
+    for (final (raw, dims, dartType) in rows) {
+      final wire = lvRefnumWireType(ViSignalType(raw), dims);
+      expect((wire.dims, wire.dartType), (dims, dartType), reason: '0x${raw.toRadixString(16)} at $dims dims');
+    }
+  });
+
+  test('a refnum wire the signal word leaves open takes its dimensionality from the endpoint parts', () {
+    // Per snippet, the wires whose refnum word carries no array-depth base,
+    // keyed `<code>_d<depth>-><dims>` with `refused` where nothing decides
+    // them: the parts state nothing (`71_d5`), or the cell is one the
+    // corroborating pane route contradicts ([kLvRefnumContradictedCells],
+    // `70_d4`).
+    const rows = <String, Map<String, int>>{
+      'ClassChildren': {'70_d3->0': 6, '70_d4->refused': 2},
+      'Page1': {'70_d3->0': 2, '71_d5->0': 7, '71_d5->refused': 4},
+      'Pages': {'70_d2->1': 10, '70_d3->0': 12, '71_d5->0': 19},
+      'ProjectItems': {'70_d2->1': 2},
+    };
+    for (final MapEntry(key: name, value: expected) in rows.entries) {
+      final diagram = snippetDiagram(name);
+      final measured = <String, int>{};
+      for (final wire in diagram.wires) {
+        final signal = wire.signalType;
+        if (signal == null || !kLvWireRefnumCodes.contains(signal.typeCode)) continue;
+        if (signal.arrayDims != null) continue;
+        final dims = lvRefnumWireDims(diagram, wire);
+        final key = '${signal.typeCode.toRadixString(16)}_d${signal.depth}->${dims ?? 'refused'}';
+        measured[key] = (measured[key] ?? 0) + 1;
+      }
+      expect(measured, expected, reason: name);
     }
   });
 

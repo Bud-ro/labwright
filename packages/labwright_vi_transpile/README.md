@@ -261,15 +261,50 @@ disagreement. Reading the *other* half of an endpoint's resolved type instead
 586, but nothing decoded says an endpoint describing an array of clusters
 describes a scalar cluster wire's element, so that route is not taken.
 
+### Refnum dimensionality
+
+A refnum wire's array-depth base rides the **reference class**, not the type
+code, so the signal word decides only its depth-1 wires (28,582 of 66,473
+refnum-coded signals). `lvRefnumWireDims` supplies the base for the rest from
+the data-space descriptors on the node-terminal **part** objects the wire's
+endpoints parent, which state the dimension count outright. It decides 30,938
+of the 37,891 wires the word leaves open.
+
+Three readings of that dimensionality are censused, and only one is read:
+
+| reading | vs. the word's ground-truth row | verdict |
+| --- | --- | --- |
+| endpoint's node-terminal **parts** | 26,796 agree, 0 contradict | read |
+| endpoint DCO itself | 14,046 agree, 1,335 contradict (8.7%) | not read |
+| callee's **connector-pane** terminal | 1,869 agree, 0 contradict | corroborates |
+
+The word's row is one-sided — every wire it decides is scalar, so it catches an
+invented array and not a missed one. The pane reading supplies the other side:
+it is the endpoint route read in a *different file*, it answers on both rows of
+the undecided wires (4,661 scalar, 177 one-dimensional), and it reproduces the
+part route on 4,827 of the 4,838 wires where both speak. Ten of the eleven
+disagreements sit in one signal-word cell — plain refnum at depth 4, where the
+pane dissents on 10 of 101 while every other cell agrees 4,736 of 4,737 — so
+that cell (`kLvRefnumContradictedCells`, 1,494 wires) keeps the word's refusal
+rather than being decided by either reading.
+
+**LabVIEW's own wire stroke is not a third reading.** The stroke width is a
+function of dimensionality, and the render catalogue is pixel-measured against
+LabVIEW's reference rasters — but it is keyed on the signal word's low 12 bits,
+the same bits `arrayDims` reads, so it can only restate them. It is catalogued
+for 5,028 of the 37,891 undecided refnum wires (13.3%), all in the depth-2
+plain-refnum cell, and its single stroke there is shared by the 3,969 wires the
+part route calls one-dimensional and the 651 it calls scalar alike. For cluster
+wires it is weaker still: the whole 133,106-wire population falls in six cells,
+against the thousands of distinct member shapes the question needs.
+
 **What the unresolved majority costs.** Cluster wires with no member shape are
-the single largest lowering blocker in the corpus: of the 6,212 VIs whose own
-dataflow build refuses on a wire type, 3,988 stop first on a cluster wire and
-2,050 have no other unmapped wire family at all. Next is the refnum family
-(`0x70`/`0x71`), whose array-depth base rides the reference class rather than
-the type code — 2,022 VIs stop there first and 759 have nothing else — then the
-element codes with no Dart representation (measureData `0x54` 75, packed string
-`0x33` 44, tag `0x37` 19) and the 56 VIs whose wire word carries the
-uncatalogued `0xff`.
+the single largest lowering blocker in the corpus: of the 5,800 VIs whose own
+dataflow build refuses on a wire type, 4,363 stop first on a cluster wire and
+1,901 have no other unmapped wire family at all. Next is the refnum family
+(`0x70`/`0x71`) — 1,154 VIs stop there first and 666 have nothing else — then
+the element codes with no Dart representation (measureData `0x54` 81, uncatalogued
+`0xff` 70, packed string `0x33` 46, tag `0x37` 22).
 
 ## Lowering
 

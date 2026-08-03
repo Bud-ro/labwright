@@ -82,6 +82,112 @@ LvWireType mapLvWireType(ViSignalType signal) {
   );
 }
 
+/// The Dart type of a **refnum** wire whose dimensionality comes from the data
+/// space rather than from the signal word ([lvRefnumWireDims]).
+///
+/// The word carries the reference family and a depth, but not the base that
+/// separates the two ([ViSignalType.arrayDims] is null above
+/// [kSignalMinScalarDepth]); [dims] supplies it. The element is the same
+/// [LvRuntimeType.refnum] a word-decided refnum wire carries, so the only thing
+/// this adds is the array wrapping.
+LvWireType lvRefnumWireType(ViSignalType signal, int dims) {
+  final element = _mapSignalElement(signal.typeCode);
+  if (dims == 0 || !element.isMapped) {
+    return LvWireType._(dims: dims, element: element, value: element);
+  }
+  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.mapped(lvArrayDartType(element, dims)));
+}
+
+/// The `(code, depth)` signal-word cells where the two decoded readings of a
+/// refnum wire's dimensionality **contradict each other**, so neither is read.
+///
+/// The readings are the endpoint's node-terminal **parts** in the wire's own VI
+/// ([lvRefnumWireDims]) and the **callee's connector-pane terminal** where the
+/// wire ends on a subVI call — a different route (the terminal's own descriptor,
+/// not a part's) in a different file. Corpus-wide they answer together on 4 838
+/// of the 37 891 refnum wires the word does not decide and agree on 4 827
+/// (99.77%), but the 11 disagreements are not spread: 10 of them sit in this one
+/// cell, where the pane contradicts the part route on 10 of the 101 wires it
+/// tests (9.9%) while the whole rest of the corpus agrees 4 736 of 4 737
+/// (99.98%). A cell in which a corroborating route dissents at a tenth of its
+/// samples is not decided by either reading, so its 1 494 wires keep the
+/// word's own refusal.
+///
+/// TODO: revisit when a third reading of a plain-refnum depth-4 wire is decoded
+/// — the two present ones split the cell between base 3 (part) and base 4
+/// (pane) and nothing decoded says which the reference class carries.
+const Set<(int, int)> kLvRefnumContradictedCells = {(TypeCode.refnum, 4)};
+
+/// The **dimensionality** of a refnum wire whose signal word does not carry it,
+/// read from the data-space type descriptors on the node-terminal **part**
+/// objects its endpoints parent — or null when nothing decoded decides it.
+///
+/// A refnum wire's depth base rides the reference class rather than the type
+/// code, so the word alone decides only the depth-1 wires
+/// ([kSignalMinScalarDepth]): 28 582 of the corpus's 66 473 refnum-coded
+/// signals. The parts carry the data-space index the endpoint DCO itself never
+/// does, and their descriptor states the dimension count outright.
+///
+/// Null when the parts state nothing (5 459 wires), when two of them state
+/// different counts, or when the wire's word sits in a
+/// [kLvRefnumContradictedCells] cell. It decides 30 938 of the remaining
+/// 37 891.
+///
+/// **Why the reading is read.** Two independent checks, each on a different
+/// byte record:
+///
+/// * against the **signal word**, on the 26 796 depth-1 wires where the word
+///   decides and a part also speaks, the part route reproduces the word's
+///   answer 26 796 times and contradicts it **0** times. That check is
+///   one-sided — every wire the word decides is scalar, so it catches an
+///   invented array and cannot catch a missed one.
+/// * against the **callee's connector pane**, which supplies the missing side:
+///   it answers on both rows (4 661 scalar, 177 one-dimensional) and agrees on
+///   4 827 of 4 838. It is itself calibrated on the word's ground-truth row —
+///   1 869 depth-1 wires, 1 869 agreements, **0** contradictions — unlike the
+///   caller-side endpoint walk, which on that same row invents an array on
+///   1 335 of the 15 381 wires it answers (8.7%) and so is not read.
+///
+/// The residue is [kLvRefnumContradictedCells].
+int? lvRefnumWireDims(ViDiagram diagram, ViWire wire) {
+  final signal = wire.signalType;
+  if (signal == null || !kLvWireRefnumCodes.contains(signal.typeCode)) return null;
+  if (signal.arrayDims != null) return null;
+  if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) return null;
+  int? answer;
+  for (final endpoint in wire.endpointOids) {
+    for (final part in diagram.childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
+      final dims = _refnumDimsOf(part);
+      if (dims == null) continue;
+      if (answer != null && answer != dims) return null;
+      answer = dims;
+    }
+  }
+  return answer;
+}
+
+/// The refnum dimensionality [object]'s resolved data-space type states: 0 for
+/// a refnum descriptor, the dimension count for an array whose element is one,
+/// and null for every other descriptor. Typedefs are looked through on both
+/// halves, as [lvClusterBase] does for clusters.
+int? _refnumDimsOf(ViHeapObject object) {
+  final own = _throughTypedefs(object.resolvedType);
+  if (own == null) return null;
+  if (own.kind == ViDataType.refnum) return 0;
+  if (own.kind != ViDataType.array) return null;
+  return _throughTypedefs(object.resolvedElementType)?.kind == ViDataType.refnum ? (own.dimCount ?? 1) : null;
+}
+
+/// [type] with up to [kLvTypedefDepth] typedef wrappers removed, or null when
+/// it is absent or the walk does not reach a non-typedef descriptor.
+ViType? _throughTypedefs(ViType? type) {
+  for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
+    if (type.kind != ViDataType.typeDef) return type;
+    type = type.typedefBase;
+  }
+  return null;
+}
+
 /// Element codes carried by a **runtime type** ([LvRuntimeType]) rather than
 /// by a Dart core type. The runtime declares each of them, so a wire of one of
 /// these is typed exactly as a numeric wire is.
@@ -256,10 +362,11 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 /// 25 a VI whose data space types nothing.
 ///
 /// Next is the refnum codes' array-depth base, which rides the reference class
-/// rather than the code (named first in 2 161 VIs, the sole family in 971 — the
-/// depth-1 law [kSignalMinScalarDepth] decides the other half of those wires),
-/// and then the element codes with no Dart representation (the uncatalogued
-/// `0xff` 56, measureData `0x54` 76, packed string `0x33` 45, tag `0x37` 21).
+/// rather than the code (named first in 1 154 VIs, the sole family in 666 — the
+/// depth-1 law [kSignalMinScalarDepth] and [lvRefnumWireDims] between them
+/// decide the rest of those wires), and then the element codes with no Dart
+/// representation (the uncatalogued `0xff` 70, measureData `0x54` 81, packed
+/// string `0x33` 46, tag `0x37` 22).
 LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool, [LvDeclarations? declarations]) {
   final element = mapLvType(cluster, pool, 0, declarations);
   final dims = signal.arrayDims ?? 0;
