@@ -248,6 +248,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
     result.fitted.dispose();
     result.diffImage.dispose();
     reference.image.dispose();
+    scene.dispose();
   });
   return gauge;
 }
@@ -437,6 +438,7 @@ void main() {
         result.fitted.dispose();
         result.diffImage.dispose();
         reference.image.dispose();
+        scene.dispose();
       }
       rows.sort();
       // ignore: avoid_print

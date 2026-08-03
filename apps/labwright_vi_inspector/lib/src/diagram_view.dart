@@ -195,6 +195,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   @override
   void dispose() {
     _transform.dispose();
+    _scene?.dispose();
     for (final image in _xnodeFacades.values) {
       image.dispose();
     }
@@ -2875,6 +2876,23 @@ class BdScene {
   /// paint; the text-metric tests and accuracy probes read it to locate
   /// text ink without re-deriving the painter's placement rules.
   final List<({String text, Rect rect, double fontSize})> paintedText = [];
+
+  /// Releases the native handles the text caches hold — every recorded run
+  /// picture and every cached glyph's painters. Call it when the scene is
+  /// discarded: a scene is built per rasterise, and a corpus sweep otherwise
+  /// accumulates one picture per distinct run and two painters per distinct
+  /// glyph for the whole sweep. The scene must not be painted afterwards.
+  void dispose() {
+    for (final run in textLayoutCache.values) {
+      run.dispose();
+    }
+    textLayoutCache.clear();
+    for (final glyph in textGlyphCache.values) {
+      glyph.dispose();
+    }
+    textGlyphCache.clear();
+    paintedText.clear();
+  }
 }
 
 /// The block-diagram text size, in logical px per em, calibrated against
@@ -2989,6 +3007,12 @@ class BdGlyph {
 
   /// [main]'s alphabetic-baseline distance from its paint origin.
   final double baseline;
+
+  /// Releases both painters' native layout resources.
+  void dispose() {
+    main.dispose();
+    dim.dispose();
+  }
 }
 
 /// A laid-out text run on the whole-pixel glyph lattice: every glyph pens
@@ -3027,6 +3051,9 @@ class BdTextRun {
       ..drawPicture(_picture)
       ..restore();
   }
+
+  /// Releases the recorded picture's native handle.
+  void dispose() => _picture.dispose();
 }
 
 class BdDiagramPainter extends CustomPainter {

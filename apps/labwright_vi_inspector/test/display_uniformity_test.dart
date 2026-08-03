@@ -1061,6 +1061,7 @@ void main() {
         final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
         final drawable = bdDrawableObjects(bd);
         final wires = bdVisibleWires(bd);
+        final phaseScene = BdScene(bd, wires: wires, drawable: drawable);
         final raster = (await rasteriseBlockDiagram(
           bd,
           primIcons: icons,
@@ -1089,7 +1090,7 @@ void main() {
           drawable: drawable,
           style: BdRenderStyle(
             wireCycleOffset: deriveWireCycleOffset(
-              scene: BdScene(bd, wires: wires, drawable: drawable),
+              scene: phaseScene,
               raster: raster,
               registration: reg,
               referenceRgba: result.referenceRgba,
@@ -1252,6 +1253,7 @@ void main() {
             );
           }
         }
+        phaseScene.dispose();
       }
     });
     // ignore: avoid_print

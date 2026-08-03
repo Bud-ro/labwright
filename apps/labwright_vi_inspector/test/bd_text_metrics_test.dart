@@ -106,6 +106,7 @@ void main() {
         ))!;
         raster.image.dispose();
       });
+      addTearDown(scene.dispose);
       for (final (text, left, top, width, height) in entry.value) {
         final run = scene.paintedText
             .where((r) => r.text == text)

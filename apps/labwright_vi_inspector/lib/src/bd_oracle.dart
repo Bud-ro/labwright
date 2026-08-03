@@ -337,14 +337,25 @@ Future<BdRaster?> rasteriseBlockDiagram(
   // wires defaults to the diagram's visible dataflow wires; pass `const []`
   // to rasterise the wire-free layout (measuring the before/after delta), or
   // a pre-built [scene] to reuse its cached analyses across renders.
-  scene ??= BdScene(diagram, wires: wires, drawable: drawable);
-  if (scene.drawable.isEmpty) return null;
+  // A scene built here is this call's alone and is released before returning
+  // (its text caches hold native pictures/painters); a caller-supplied scene
+  // outlives the call and stays the caller's to dispose.
+  final ownScene = scene == null;
+  final activeScene =
+      scene ?? BdScene(diagram, wires: wires, drawable: drawable);
+  if (activeScene.drawable.isEmpty) {
+    if (ownScene) activeScene.dispose();
+    return null;
+  }
   final content = bdContentRect(
-    scene.drawable,
+    activeScene.drawable,
     includeWires: false,
     margin: margin,
   );
-  if (content.width <= 0 || content.height <= 0) return null;
+  if (content.width <= 0 || content.height <= 0) {
+    if (ownScene) activeScene.dispose();
+    return null;
+  }
 
   final longSide = math.max(content.width, content.height);
   var pxScale =
@@ -358,7 +369,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
 
   // The raster must be exact on first paint, so a diagram holding a
   // disabled frame waits for the grey variants (built once, lazily).
-  if (scene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
+  if (activeScene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -374,7 +385,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   );
   canvas.scale(pxScale);
   BdDiagramPainter(
-    scene: scene,
+    scene: activeScene,
     origin: content.topLeft,
     subViIcons: subViIcons,
     primIcons: primIcons,
@@ -394,6 +405,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     );
   } finally {
     picture.dispose();
+    if (ownScene) activeScene.dispose();
   }
 }
 
@@ -1630,9 +1642,13 @@ class _BdOracleViewState extends State<BdOracleView>
     );
     if (raster == null) {
       reference?.image.dispose();
+      scene.dispose();
       return const _OracleData();
     }
-    if (reference == null) return _OracleData(rendered: raster.image);
+    if (reference == null) {
+      scene.dispose();
+      return _OracleData(rendered: raster.image);
+    }
     var result = await compareToReference(
       raster.image,
       reference.image,
@@ -1726,6 +1742,9 @@ class _BdOracleViewState extends State<BdOracleView>
       );
       displayReference = await upscaleNearest(reference.image, ss);
     }
+    // The scene's text caches (recorded pictures, glyph painters) are done:
+    // every render this pipeline needed has been rasterised.
+    scene.dispose();
     return _OracleData(
       rendered: raster.image,
       result: result,
