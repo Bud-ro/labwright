@@ -122,6 +122,16 @@ const Map<int, String> kUnmappedTypeCodes = {
 /// `0x08` dominate). Which reference class each value selects is NOT decoded,
 /// so every refnum maps to one opaque [LvRuntimeType.refnum] handle rather
 /// than to a per-class Dart type.
+///
+/// What the discriminator IS measured to select is the wire word's scalar
+/// depth base (see `ViSignalType.depth`), which is why that base cannot be
+/// read off the type code. Over the wires whose endpoints agree on one bare
+/// refnum descriptor, the base is 1 for `0x08` (4 163 wires), `0x04` (528),
+/// `0x22` (302), `0x02` (114), `0x05` (84), `0x09` (12) and `0x10` (10), and 3
+/// for `0x1e` (4 756) and `0x17` (1 841). The classes that ride the
+/// wire-word-only `0x71` code carry an inner data type, and their base moves
+/// with it — `0x12` sits at 4 for 423 wires and 5 for 267, `0x19` at 4 for 30
+/// and 5 for 170, `0x20` at 5 for 315, `0x11` at 5 for 44.
 const String kRefnumSubtypeNote = 'refnum reference class is not decoded; all refnums share one opaque handle';
 
 /// The type codes that map to a Dart representation whose shape comes from the
