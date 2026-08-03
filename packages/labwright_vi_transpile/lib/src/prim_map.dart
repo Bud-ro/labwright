@@ -311,8 +311,15 @@ class LvPrimCall {
 /// - `To Lower Case` (1189, 673) — LabVIEW's case-mapping table over a byte
 ///   string is not decoded, and Dart's `toLowerCase` is Unicode's, which
 ///   differs above U+007F.
-/// - `Type Cast` (1166, 1259) — reinterprets an operand's *flattened* bytes,
-///   and the flattened layout of a general value is not decoded.
+/// - `String Subset` (1503, 669) — its operand ORDER reads (every one of the
+///   669 corpus nodes draws its three inputs on distinct rows, so the
+///   drawn-order rule gives `[string, offset, length]`, and the offset is
+///   0-based: 15 nodes wire a `0` constant to it, which a 1-based offset never
+///   takes). What is missing is the rule for an operand OUTSIDE the string —
+///   whether LabVIEW clamps, empties or raises — and the corpus cannot supply
+///   it: the offset is left unwired on 312 nodes and the length on 135, so the
+///   defaults are not stated either. Dart's `substring` raises, which is a
+///   different string from whatever LabVIEW returns, so the node is refused.
 /// - `Number To Boolean Array` (1814, 21) and `Boolean Array To Number`
 ///   (1815, 26) — the bit order of the array is not decoded.
 /// - `Transpose 2D Array` (1902) and a rank-2 `Array Size` — the array's own
@@ -362,6 +369,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.swapWords,
   PrimOp.select,
   PrimOp.logicalShift,
+  PrimOp.typeCast,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -545,6 +553,9 @@ List<String>? _lowerDirect(LvPrimCall call) {
 
     case PrimOp.logicalShift:
       return _logicalShift(call);
+
+    case PrimOp.typeCast:
+      return _typeCast(call);
 
     case _:
       break;
@@ -788,6 +799,108 @@ List<String>? _logicalShift(LvPrimCall call) {
   return ['final int $name = ${lvWrapped(out.type, shifted)};'];
 }
 
+/// `Type Cast` — the operand's own bytes read back as another type.
+///
+/// **Which terminal is the type.** The node takes a value and a *type*
+/// operand, and its result carries the type operand's type — so the type
+/// operand is the input whose wire type is the output's, and the other input
+/// is the value. Corpus, over the 1 127 two-input nodes in 7 524 VIs: 1 017
+/// resolve exactly one such input, 23 wire two inputs of ONE type (which this
+/// reading cannot separate, and which are refused), and the remaining 87 are a
+/// refnum-to-`0xff` family whose output wire code has no decided
+/// representation at all. Geometry cannot supply this and is not consulted:
+/// all 1 017 draw their two inputs on the SAME row, so the drawn-order rule
+/// that names every other node's operands is silent here.
+///
+/// A node whose type terminal is left **unwired** takes LabVIEW's own default
+/// for it, and the corpus states what that default is: on every one of the 106
+/// such nodes the result wire is a scalar `String` — i.e. the value's bytes
+/// themselves. Anything else is refused.
+///
+/// **The byte form** is [LvRuntimeCall.flatOfInt] and its siblings: scalars
+/// big-endian at their width, an array's elements end to end, a string's
+/// characters as bytes. Its big-endian half is the same law the parse
+/// package's constant payloads decode under — a fixed-width numeric constant
+/// stores its value big-endian at the type's width (5 211 of 5 730 corpus
+/// integer scalars), an array constant stores `[u32 × dims][big-endian
+/// elements]` (205 exact payloads, 322 empty ones), and a string constant
+/// `[u32 length][bytes]` (8 493 exact of 9 813, plus 1 171 empty strings which
+/// carry `[u32 0]` and one zero pad byte, every one of them length 0).
+///
+/// What the cast does NOT carry is those leading counts: the dimension vector
+/// and the length prefix frame a value in STORAGE, and a cast reinterprets the
+/// data alone. The round trip is what says so — `ReverseBitsVim` casts a `U64`
+/// to a byte array and back, which reproduces the value only if the eight
+/// bytes are the eight elements (see this package's behavioural pin).
+///
+/// Sizes must agree exactly; the runtime raises otherwise, since what LabVIEW
+/// does with a short or long operand is not established (see
+/// `TODO(lv-typecast-size)`).
+List<String>? _typeCast(LvPrimCall call) {
+  if (call.outputs.length != 1) return null;
+  final out = call.outputs.single;
+  final LvPrimTerminal value;
+  if (call.inputs.length == 2 && call.hasSoleSourceTerminal) {
+    final typed = call.inputs.where((operand) => _sameWireType(operand.type, out.type)).toList();
+    if (typed.length != 1) return null;
+    value = call.inputs.firstWhere((operand) => !identical(operand, typed.single));
+  } else if (call.inputs.length == 1 && call.outputPorts.length == 2) {
+    if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+    value = call.inputs.single;
+  } else {
+    return null;
+  }
+  final bytes = _flatOf(value);
+  if (bytes == null) return null;
+  final result = _valueOfFlat(out.type, bytes);
+  if (result == null) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  if (out.type.dims == 1 && out.type.numeric != null) call.requireImport('dart:typed_data');
+  return ['final ${out.type.dartType} $name = $result;'];
+}
+
+/// Whether two wires carry the same LabVIEW type. The numeric kind is part of
+/// it: `I32` and `U32` share a Dart carrier but are different LabVIEW types,
+/// and a Type Cast between them is a real reinterpretation.
+bool _sameWireType(LvWireType left, LvWireType right) =>
+    left.dims == right.dims && left.dartType == right.dartType && left.numeric == right.numeric;
+
+/// The expression yielding [operand]'s flat bytes, or null when its carrier
+/// has no decided byte form.
+String? _flatOf(LvPrimTerminal operand) {
+  final kind = operand.type.numeric;
+  if (operand.type.dims == 0) {
+    if (operand.type.dartType == 'String') {
+      return '${LvRuntimeCall.flatOfString}(${operand.expression})';
+    }
+    if (kind == null) return null;
+    final call = kind.isFloat ? LvRuntimeCall.flatOfFloat : LvRuntimeCall.flatOfInt;
+    return '$call(${operand.expression}, ${kind.bits})';
+  }
+  // Rank 2 and above is the array's own dimension order again, and a
+  // non-numeric element has no stated element width.
+  if (operand.type.dims != 1 || kind == null || kind.isFloat) return null;
+  return '${LvRuntimeCall.flatOfIntList}(${operand.expression}, ${kind.bits})';
+}
+
+/// The expression reading the flat [bytes] back as [type], or null when that
+/// carrier has no decided byte form.
+String? _valueOfFlat(LvWireType type, String bytes) {
+  final kind = type.numeric;
+  if (type.dims == 0) {
+    if (type.dartType == 'String') return '${LvRuntimeCall.stringOfFlat}($bytes)';
+    if (kind == null) return null;
+    if (kind.isFloat) return '${LvRuntimeCall.floatOfFlat}($bytes, ${kind.bits})';
+    // The runtime yields the raw bit pattern; the width wrap is what
+    // re-establishes a narrow signed carrier's sign.
+    return lvWrapped(type, '${LvRuntimeCall.intOfFlat}($bytes, ${kind.bits})');
+  }
+  if (type.dims != 1 || kind == null || kind.isFloat) return null;
+  return '${kind.typedListType}.fromList(${LvRuntimeCall.intListOfFlat}($bytes, ${kind.bits}))';
+}
+
 /// `Build Array` — one 1-D array holding, in drawn order, every operand: a
 /// scalar operand as one element and an array operand spliced in whole.
 ///
@@ -872,13 +985,17 @@ List<String>? _concatenateStrings(LvPrimCall call) {
 ///   each index is not stated anywhere in the file, so they are left on the
 ///   review list.
 ///
+/// `Type Cast` is excluded outright: it reads the WHOLE value's bytes, so an
+/// array operand is one cast over the concatenated elements rather than one
+/// cast per element, and its own rule already takes array wires.
+///
 /// An operand list longer than one uses [LvRuntimeCall.iterationCount] for its
 /// length — the same shortest-operand rule an auto-indexing For loop takes.
 List<String>? _elementwise(LvPrimCall call) {
   // Only the operations whose identity is a `primResID`: the classes this map
   // names are array and string operations already, and their own rule is what
   // reads an array wire.
-  if (call.op == null || call.inputs.isEmpty) return null;
+  if (call.op == null || call.op == PrimOp.typeCast || call.inputs.isEmpty) return null;
   final terminals = [...call.inputs, ...call.outputs];
   if (terminals.any((terminal) => terminal.type.dims != 1)) return null;
 

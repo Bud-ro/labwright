@@ -107,4 +107,31 @@ void main() {
     expect(lvIterationCount(<int>[7]), 7);
     expect(lvIterationCount(<int>[7, 3, 9]), 3);
   });
+
+  test('a value flattens to its own bytes, big-endian and unframed', () {
+    const cases = <({String name, List<int> bytes, int value, int bits})>[
+      (name: 'U8', bytes: [0xAB], value: 0xAB, bits: 8),
+      (name: 'U16', bytes: [0xAB, 0xCD], value: 0xABCD, bits: 16),
+      (name: 'U32', bytes: [0x01, 0x02, 0x03, 0x04], value: 0x01020304, bits: 32),
+      (name: 'I64', bytes: [0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF], value: -1, bits: 64),
+    ];
+    for (final row in cases) {
+      expect(lvFlatOfInt(row.value, row.bits), row.bytes, reason: row.name);
+      expect(lvIntOfFlat(Uint8List.fromList(row.bytes), row.bits), row.value, reason: row.name);
+    }
+    // No length prefix on a string and no dimension vector on an array: the
+    // bytes are the elements and nothing else.
+    expect(lvFlatOfString('AB'), <int>[0x41, 0x42]);
+    expect(lvStringOfFlat(Uint8List.fromList(const <int>[0x41, 0x42])), 'AB');
+    expect(lvFlatOfIntList(const <int>[0x0102, 0x0304], 16), <int>[0x01, 0x02, 0x03, 0x04]);
+    expect(lvIntListOfFlat(Uint8List.fromList(const <int>[0x01, 0x02, 0x03, 0x04]), 16), <int>[0x0102, 0x0304]);
+    expect(lvFloatOfFlat(lvFlatOfFloat(1.5, 64), 64), 1.5);
+    expect(lvFloatOfFlat(lvFlatOfFloat(-2.5, 32), 32), -2.5);
+  });
+
+  test('a cast whose bytes do not fill the target raises rather than inventing one', () {
+    // TODO(lv-typecast-size): the rule LabVIEW applies here is not decoded.
+    expect(() => lvIntOfFlat(Uint8List(3), 32), throwsArgumentError);
+    expect(() => lvIntListOfFlat(Uint8List(5), 16), throwsArgumentError);
+  });
 }

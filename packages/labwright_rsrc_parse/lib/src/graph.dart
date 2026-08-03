@@ -4741,8 +4741,24 @@ num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
 ///     5 length mismatches and 2 dims-truncated payloads decline. Non-numeric
 ///     element kinds (string/path/cluster/…, 1,107 constants) are not yet
 ///     decoded (TODO).
+///   * **empty string** — a string type whose payload is `[u32 0]` plus one
+///     trailing zero pad byte is the empty string, the same empty-with-pad
+///     form the array law above carries. The framing is the string half of
+///     the flat layout: of the 9,813 string-typed constants, 8,493 payloads
+///     read `[u32 length][length bytes]` exactly and a further 1,171 read
+///     `[u32 0][00]` — every single padded one declaring length 0, with no
+///     odd-length counterexample — while 149 fit neither.
 ///
-/// Boolean, string and path types have no typed layout law here yet — their
+/// The NON-empty framing is not read here yet. It agrees with what the
+/// fallback tier already decodes on 7,545 of the 7,650 constants both reach,
+/// and the 105 it does not are places the fallback drops bytes the framing
+/// keeps (an embedded newline, a leading UTF-8 BOM); which of the two readings
+/// is the constant's own text is not settled, and 843 payloads whose framed
+/// body is non-printable would newly decode as text under it.
+/// // TODO(labwright): settle the non-empty string framing against a reference
+/// render and adopt it.
+///
+/// Boolean and path types have no typed layout law here yet — their
 /// populations decode entirely through the fallback tier's carrier-class
 /// gates (whose corpus census they own).
 void _typedBdConstDecode(ViHeapObject object) {
@@ -4762,6 +4778,11 @@ void _typedBdConstDecode(ViHeapObject object) {
     final value = _flatNumericAt(flat, 0, kind, size);
     if (value is double && !value.isFinite) return;
     object.constNumeric = value;
+    return;
+  }
+  if (type.kind == ViDataType.string) {
+    if (object.constValueScalar || flat.length != 5 || flat.any((byte) => byte != 0)) return;
+    object.constText = '';
     return;
   }
   if (type.kind != ViDataType.array) return;
