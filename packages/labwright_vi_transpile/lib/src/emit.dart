@@ -1,5 +1,5 @@
 /// The **imperative lowering**: a block diagram's dataflow IR emitted as a
-/// Dart function.
+/// Dart function, and the VIs it calls emitted alongside it as a library.
 ///
 /// Dataflow becomes statements in three moves:
 ///
@@ -14,8 +14,14 @@
 ///    registers become loop-carried locals, a Case structure's selector
 ///    becomes an `if`.
 ///
+/// A **subVI call** becomes a Dart call to the callee's own lowering, emitted
+/// into the same file once however many diagrams call it; the arguments are
+/// named, so the binding is by connector-pane terminal rather than by position
+/// (see `subvi.dart` for the pane contract, and [LvErrorMode] for what the
+/// error cluster does to a signature).
+///
 /// Nothing partial is ever emitted. A construct whose meaning is not decoded
-/// aborts the whole function with an [LvRefusal] naming it, so generated code
+/// aborts the whole library with an [LvRefusal] naming it, so generated code
 /// is either complete or absent.
 library;
 
@@ -23,10 +29,12 @@ import 'package:dart_style/dart_style.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'dataflow_ir.dart';
+import 'error_mode.dart';
 import 'naming.dart';
 import 'numeric.dart';
 import 'prim_map.dart';
 import 'runtime.dart';
+import 'subvi.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
 
@@ -47,6 +55,10 @@ ViDiagram? lvBlockDiagramOf(ViModel model) {
 /// The page width the emitted source is formatted to — the repo's own.
 const int kLvEmitPageWidth = 120;
 
+/// Resolves a subVI call's target: the VI a call node's file name refers to,
+/// or null when it is not available.
+typedef LvViResolver = LvViUnit? Function(String fileName);
+
 /// [diagram] as a Dart function named [functionName], or an [LvRefusal] naming
 /// the decoded fact that is missing. Never throws for a diagram it cannot
 /// lower.
@@ -54,92 +66,219 @@ const int kLvEmitPageWidth = 120;
 /// [sourceNote] is recorded in the file header so a reader can find the VI the
 /// code came from. [pool] is the VI's consolidated type pool, which a cluster
 /// wire's member types are resolved through; without it a cluster wire has no
-/// decided Dart shape.
+/// decided Dart shape. A diagram lowered this way reaches no subVI, since a
+/// bare [ViDiagram] carries no connector pane to bind one through — use
+/// [emitLvLibrary] for that.
 ({String? source, LvRefusal? refusal}) emitLvFunction(
   ViDiagram diagram, {
   required String functionName,
   String? sourceNote,
   List<ViType> pool = const [],
+  LvErrorMode errorMode = LvErrorMode.exceptions,
+}) => emitLvLibrary(
+  LvViUnit(
+    fileName: sourceNote ?? functionName,
+    diagram: diagram,
+    pool: pool,
+    paneMap: const [],
+    panelDataItems: const [],
+    terminalOfDataItem: const {},
+  ),
+  functionName: functionName,
+  sourceNote: sourceNote,
+  errorMode: errorMode,
+);
+
+/// [entry] and every VI it calls as one Dart library, or an [LvRefusal] naming
+/// the decoded fact that is missing. Never throws.
+///
+/// [functionName] names the entry point; a callee's function is named from its
+/// own file name by the naming policy, emitted **once** however many call sites
+/// reach it, and a VI that calls itself emits an ordinary recursive call.
+/// [resolveSubVi] supplies a callee by the file name its call node spells;
+/// without it, any subVI call is refused.
+({String? source, LvRefusal? refusal}) emitLvLibrary(
+  LvViUnit entry, {
+  required String functionName,
+  String? sourceNote,
+  LvErrorMode errorMode = LvErrorMode.exceptions,
+  LvViResolver? resolveSubVi,
 }) {
-  final built = buildLvDataflow(diagram, pool: pool);
-  if (built.refusal case final refusal?) return (source: null, refusal: refusal);
+  final library = _Library(errorMode: errorMode, resolve: resolveSubVi, sourceNote: sourceNote);
   try {
-    final source = _Emitter(
-      built.dataflow!,
-      functionName: functionName,
-      sourceNote: sourceNote,
-    ).run();
-    return (source: source, refusal: null);
+    library.emit(entry, entryName: functionName);
+    return (source: library.assemble(), refusal: null);
   } on LvRefusedException catch (error) {
     return (source: null, refusal: error.refusal);
   }
 }
 
-class _Emitter {
-  _Emitter(this.flow, {required this.functionName, required this.sourceNote});
+Never _refuse(LvRefusalKind kind, String detail, {int? oid}) =>
+    throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
 
-  final LvDataflow flow;
+/// One signature position of a lowered VI: a parameter or a result field.
+class _Port {
+  const _Port({required this.terminal, required this.name, required this.type});
+
+  /// The oid of the connector-pane terminal on the VI's own block diagram.
+  final int terminal;
+
+  /// The Dart identifier: a parameter name, or a result record's field name.
+  final String name;
+
+  /// What the terminal's wire carries.
+  final LvWireType type;
+}
+
+/// One VI's lowering: its declared signature, then its body.
+class _Callable {
+  _Callable({required this.unit, required this.functionName, required this.flow});
+
+  final LvViUnit unit;
   final String functionName;
+  final LvDataflow flow;
+  final LvNaming names = LvNaming();
+
+  /// The parameters, in the order the VI draws its controls.
+  final List<_Port> parameters = <_Port>[];
+
+  /// The results, in the order the VI draws its indicators.
+  final List<_Port> results = <_Port>[];
+
+  /// Per connector-pane terminal oid, the signature position it became.
+  final Map<int, _Port> byTerminal = <int, _Port>{};
+
+  /// The connector-pane terminal oids the error mode removed from the
+  /// signature — a call site passes and binds nothing for these.
+  final Set<int> elided = <int>{};
+
+  /// The emitted source, once the body has run.
+  String? source;
+
+  /// The Dart type the function returns.
+  String get returnType => switch (results.length) {
+    0 => 'void',
+    1 => results.single.type.dartType!,
+    _ => '({${[for (final result in results) '${result.type.dartType} ${result.name}'].join(', ')}})',
+  };
+}
+
+/// The whole emitted file: its imports, its file-scope constants, and one
+/// function per VI reached.
+class _Library {
+  _Library({required this.errorMode, required this.resolve, required this.sourceNote});
+
+  final LvErrorMode errorMode;
+  final LvViResolver? resolve;
   final String? sourceNote;
 
-  final LvNaming names = LvNaming();
-  final StringBuffer body = StringBuffer();
-  final Map<int, String> valueOf = <int, String>{};
   final Set<String> imports = <String>{};
-
-  /// The file-scope declarations of the diagram's array constants, in the
-  /// order the lowering reached them.
   final List<String> fileConstants = <String>[];
 
-  Never refuse(LvRefusalKind kind, String detail, {int? oid}) =>
-      throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
+  /// Per callee file name, its declaration. Keyed case-insensitively, since a
+  /// call node's caption and a file name need not agree in case.
+  final Map<String, _Callable> byFile = <String, _Callable>{};
 
-  String run() {
+  /// The functions in emission order, entry first.
+  final List<_Callable> functions = <_Callable>[];
+
+  final Set<String> takenNames = <String>{};
+
+  /// Names the entry point and lowers it and everything it reaches.
+  void emit(LvViUnit unit, {required String entryName}) {
+    final entry = declare(unit, name: entryName);
+    // A callee declared while a body runs is appended to `functions`, so the
+    // list grows during the walk; index over it rather than iterating.
+    for (var index = 0; index < functions.length; index++) {
+      final callable = functions[index];
+      callable.source ??= _FunctionEmitter(this, callable).run();
+    }
+    assert(entry.source != null);
+  }
+
+  /// [unit]'s signature, declaring it (and its function name) on first sight.
+  /// Re-entrant: a VI that calls itself sees the declaration it is inside.
+  _Callable declare(LvViUnit unit, {String? name}) {
+    final key = unit.fileName.toLowerCase();
+    if (byFile[key] case final existing?) return existing;
+    final built = buildLvDataflow(unit.diagram, pool: unit.pool);
+    if (built.refusal case final refusal?) throw LvRefusedException(refusal);
+    final callable = _Callable(
+      unit: unit,
+      functionName: _uniqueName(name ?? lvFieldName(unit.fileName.replaceAll(RegExp(r'\.\w+$'), ''))),
+      flow: built.dataflow!,
+    );
+    byFile[key] = callable;
+    functions.add(callable);
+    _declareSignature(callable);
+    return callable;
+  }
+
+  String _uniqueName(String stem) {
+    final base = stem.isEmpty ? 'lowered' : stem;
+    if (takenNames.add(base)) return base;
+    for (var index = 2; ; index++) {
+      if (takenNames.add('$base$index')) return '$base$index';
+    }
+  }
+
+  /// The VI's connector-pane terminals, split into parameters and results and
+  /// named — everything a call site needs before the body exists.
+  void _declareSignature(_Callable callable) {
     final interface = [
-      for (final unit in flow.root.units)
+      for (final unit in callable.flow.root.units)
         if (unit is LvInterfaceUnit) unit,
     ];
     final controls = interface.where((unit) => !unit.isIndicator).toList()..sort(_byDrawnPosition);
     final indicators = interface.where((unit) => unit.isIndicator).toList()..sort(_byDrawnPosition);
 
-    final parameters = <String>[];
     for (final control in controls) {
-      final edge = flow.outOf(control.oid);
+      final edge = callable.flow.outOf(control.oid);
       if (edge == null) {
-        refuse(
+        _refuse(
           LvRefusalKind.unwiredTerminal,
           'connector-pane control "${control.name ?? 'unnamed'}" drives no wire, '
           'so the diagram states no type for it',
           oid: control.oid,
         );
       }
-      final name = names.parameter(control.name);
-      valueOf[control.oid] = name;
-      parameters.add('required ${edge.type.dartType} $name');
-      _noteImportsFor(edge.type);
+      if (_elides(edge.type)) {
+        callable.elided.add(control.oid);
+        continue;
+      }
+      final port = _Port(terminal: control.oid, name: callable.names.parameter(control.name), type: edge.type);
+      callable.parameters.add(port);
+      callable.byTerminal[control.oid] = port;
+      noteImportsFor(edge.type);
     }
-
-    final exits = {for (final indicator in indicators) indicator.oid};
-    _emitRegion(flow.root, exits);
-
-    final results = <({String name, String type, String expression})>[];
     for (final indicator in indicators) {
-      final edge = flow.into(indicator.oid);
+      final edge = callable.flow.into(indicator.oid);
       if (edge == null) {
-        refuse(
+        _refuse(
           LvRefusalKind.unwiredTerminal,
           'connector-pane indicator "${indicator.name ?? 'unnamed'}" receives no wire',
           oid: indicator.oid,
         );
       }
-      _noteImportsFor(edge.type);
-      results.add((
-        name: names.resultField(indicator.name),
-        type: edge.type.dartType!,
-        expression: valueOf[edge.source]!,
-      ));
+      if (_elides(edge.type)) {
+        callable.elided.add(indicator.oid);
+        continue;
+      }
+      final port = _Port(terminal: indicator.oid, name: callable.names.resultField(indicator.name), type: edge.type);
+      callable.results.add(port);
+      callable.byTerminal[indicator.oid] = port;
+      noteImportsFor(edge.type);
     }
-    return _assemble(parameters, results);
+  }
+
+  /// Whether a connector-pane terminal of [type] leaves the signature: an
+  /// error cluster under [LvErrorMode.exceptions], where failure travels as a
+  /// thrown [LvRuntimeType.error] rather than as a parameter or a result.
+  bool _elides(LvWireType type) => errorMode == LvErrorMode.exceptions && type.isErrorCluster;
+
+  void noteImportsFor(LvWireType type) {
+    if (type.dims > 0 && type.numeric != null) imports.add('dart:typed_data');
+    if (lvTypeNeedsRuntime(type.dartType)) imports.add(kLvRuntimeImport);
   }
 
   static int _byDrawnPosition(LvInterfaceUnit a, LvInterfaceUnit b) {
@@ -148,17 +287,7 @@ class _Emitter {
     return one.top != two.top ? one.top.compareTo(two.top) : one.left.compareTo(two.left);
   }
 
-  String _assemble(List<String> parameters, List<({String name, String type, String expression})> results) {
-    final returnType = switch (results.length) {
-      0 => 'void',
-      1 => results.single.type,
-      _ => '({${[for (final r in results) '${r.type} ${r.name}'].join(', ')}})',
-    };
-    final returnStatement = switch (results.length) {
-      0 => '',
-      1 => 'return ${results.single.expression};',
-      _ => 'return (${[for (final r in results) '${r.name}: ${r.expression}'].join(', ')});',
-    };
+  String assemble() {
     final file = StringBuffer()
       ..writeln('// GENERATED by package:labwright_vi_transpile — do not edit by hand.')
       ..writeln('//')
@@ -175,21 +304,92 @@ class _Emitter {
         ..writeln(declaration)
         ..writeln();
     }
-    file
-      ..writeln('$returnType $functionName(${parameters.isEmpty ? '' : '{${parameters.join(', ')}}'}) {')
-      ..write(body)
-      ..writeln(returnStatement)
-      ..writeln('}');
+    for (var index = 0; index < functions.length; index++) {
+      if (index > 0) file.writeln();
+      file.write(functions[index].source);
+    }
     return DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,
       pageWidth: kLvEmitPageWidth,
       trailingCommas: TrailingCommas.preserve,
     ).format(file.toString());
   }
+}
 
-  void _noteImportsFor(LvWireType type) {
-    if (type.dims > 0 && type.numeric != null) imports.add('dart:typed_data');
-    if (lvTypeNeedsRuntime(type.dartType)) imports.add(kLvRuntimeImport);
+/// Lowers one VI's body against its already-declared signature.
+class _FunctionEmitter {
+  _FunctionEmitter(this.library, this.callable);
+
+  final _Library library;
+  final _Callable callable;
+
+  LvDataflow get flow => callable.flow;
+  LvNaming get names => callable.names;
+
+  final StringBuffer body = StringBuffer();
+  final Map<int, String> valueOf = <int, String>{};
+
+  Never refuse(LvRefusalKind kind, String detail, {int? oid}) => _refuse(kind, detail, oid: oid);
+
+  /// The expression bound to [port], refusing when no emitted unit produced
+  /// one — a value read from a producer the lowering never reached.
+  String _bound(int port, int oid) {
+    final expression = valueOf[port];
+    if (expression == null) {
+      refuse(
+        LvRefusalKind.unboundValue,
+        'a live terminal reads a wire whose producer the lowering did not emit, '
+        'so the region\'s execution order does not define the value',
+        oid: oid,
+      );
+    }
+    return expression;
+  }
+
+  String run() {
+    for (final parameter in callable.parameters) {
+      valueOf[parameter.terminal] = parameter.name;
+    }
+    // An `error in` the signature dropped starts cleared: under
+    // [LvErrorMode.exceptions] a failing caller threw, so control only reaches
+    // this VI with no error in hand.
+    final thrown = <int>[];
+    for (final terminal in callable.elided) {
+      if (flow.outOf(terminal) != null) {
+        library.imports.add(kLvRuntimeImport);
+        valueOf[terminal] = LvRuntimeType.clearedError;
+      } else if (flow.into(terminal) != null) {
+        thrown.add(terminal);
+      }
+    }
+    _emitRegion(flow.root, {for (final result in callable.results) result.terminal, ...thrown});
+    // …and an `error out` the signature dropped becomes the throw itself, so
+    // the diagram's error computation is emitted rather than discarded.
+    for (final terminal in thrown) {
+      final value = _bound(flow.into(terminal)!.source, terminal);
+      body.writeln('if ($value.status) throw $value;');
+    }
+
+    final signature = [
+      for (final parameter in callable.parameters) 'required ${parameter.type.dartType} ${parameter.name}',
+    ];
+    final returnStatement = switch (callable.results.length) {
+      0 => '',
+      1 => 'return ${_bound(flow.into(callable.results.single.terminal)!.source, callable.results.single.terminal)};',
+      _ =>
+        'return (${[
+          for (final result in callable.results) '${result.name}: ${_bound(flow.into(result.terminal)!.source, result.terminal)}',
+        ].join(', ')});',
+    };
+    final source = StringBuffer()
+      ..writeln(
+        '${callable.returnType} ${callable.functionName}'
+        '(${signature.isEmpty ? '' : '{${signature.join(', ')}}'}) {',
+      )
+      ..write(body)
+      ..writeln(returnStatement)
+      ..writeln('}');
+    return source.toString();
   }
 
   // --- regions -----------------------------------------------------------
@@ -207,6 +407,8 @@ class _Emitter {
           _emitConstant(unit);
         case LvPrimUnit():
           _emitPrimitive(unit);
+        case LvSubViUnit():
+          _emitSubVi(unit);
         case LvStructUnit():
           _emitStructure(unit);
       }
@@ -304,7 +506,7 @@ class _Emitter {
   /// was given — Replace Array Subset copies, and an auto-indexing output
   /// tunnel builds a new list.
   String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
-    imports.add('dart:typed_data');
+    library.imports.add('dart:typed_data');
     final name = names.fileConstant(unit.label);
     final shape = dims.join(' × ');
     final flat = _typedListLiteral(values, type);
@@ -312,11 +514,11 @@ class _Emitter {
         ? flat
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
               'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
-    if (dims.length > 1) imports.add(kLvRuntimeImport);
+    if (dims.length > 1) library.imports.add(kLvRuntimeImport);
     // A caption is free text and may hold newlines, which a `///` comment
     // cannot; it is collapsed to one line rather than dropped.
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
-    fileConstants.add(
+    library.fileConstants.add(
       '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
       '$shape ${type.numeric!.glyph} elements.\n'
       'final ${type.dartType} $name = $initializer;',
@@ -390,12 +592,12 @@ class _Emitter {
           oid: unit.oid,
         );
       }
-      _noteImportsFor(edge.type);
+      library.noteImportsFor(edge.type);
       return LvPrimTerminal(
         port: port,
         type: edge.type,
         roleFlags: unit.portRoleFlags[port] ?? 0,
-        expression: isInput ? valueOf[edge.source]! : names.wire(edge.type, decoded: unit.label),
+        expression: isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label),
       );
     }
 
@@ -408,7 +610,7 @@ class _Emitter {
       classCode: unit.classCode,
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
-      requireImport: imports.add,
+      requireImport: library.imports.add,
     );
     final statements = lvPrimLowering(call);
     if (statements == null) {
@@ -420,6 +622,129 @@ class _Emitter {
     for (final output in outputs) {
       valueOf[output.port] = output.expression!;
     }
+  }
+
+  // --- subVI calls -------------------------------------------------------
+
+  /// Emits one subVI call: the callee's function, named arguments bound
+  /// through the connector pane, and the results bound to the wires that leave
+  /// the node.
+  void _emitSubVi(LvSubViUnit unit) {
+    final callee = _resolveCallee(unit);
+    final target = library.declare(callee);
+    if (callee.paneMap.length != unit.panePorts.length) {
+      refuse(
+        LvRefusalKind.subViCall,
+        'the call node draws ${unit.panePorts.length} connector-pane terminals but '
+        '"${callee.fileName}" has a ${callee.paneMap.length}-terminal pane, so the '
+        'two do not describe the same interface',
+        oid: unit.oid,
+      );
+    }
+
+    /// The callee's signature position for pane terminal [paneIndex], or null
+    /// when the error mode took that terminal out of the signature.
+    _Port? portFor(int paneIndex, int holder, {required bool isInput}) {
+      final terminal = callee.paneTerminal(paneIndex);
+      if (terminal == null) {
+        refuse(
+          LvRefusalKind.subViCall,
+          'connector-pane terminal $paneIndex of "${callee.fileName}" is wired here but '
+          'names no panel data item that a block-diagram terminal draws',
+          oid: unit.oid,
+        );
+      }
+      if (target.elided.contains(terminal.oid)) return null;
+      final port = target.byTerminal[terminal.oid];
+      if (port == null) {
+        refuse(
+          LvRefusalKind.subViCall,
+          'connector-pane terminal $paneIndex of "${callee.fileName}" is wired here but '
+          'is not part of the callee\'s signature',
+          oid: unit.oid,
+        );
+      }
+      final edge = isInput ? flow.into(holder)! : flow.outOf(holder)!;
+      if (port.type.dartType != edge.type.dartType) {
+        refuse(
+          LvRefusalKind.subViCall,
+          'the wire at connector-pane terminal $paneIndex carries ${edge.type.dartType}, '
+          'but "${callee.fileName}" declares ${port.type.dartType} there',
+          oid: unit.oid,
+        );
+      }
+      return port;
+    }
+
+    final arguments = <String>[];
+    for (final holder in unit.inputPorts) {
+      final edge = flow.into(holder);
+      if (edge == null) continue;
+      // A callee whose `error in` the signature dropped is entered only when
+      // there is no error, so the wire feeding it is not passed.
+      final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: true);
+      if (port == null) continue;
+      arguments.add('${port.name}: ${_bound(edge.source, unit.oid)}');
+    }
+    final wanted = <int, _Port>{};
+    for (final holder in unit.outputPorts) {
+      if (flow.outOf(holder) == null) continue;
+      final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: false);
+      // …and its `error out` is cleared, because a failure threw instead.
+      if (port == null) {
+        library.imports.add(kLvRuntimeImport);
+        valueOf[holder] = LvRuntimeType.clearedError;
+        continue;
+      }
+      wanted[holder] = port;
+    }
+    final call = '${target.functionName}(${arguments.join(', ')})';
+
+    if (target.results.isEmpty || wanted.isEmpty) {
+      body.writeln('$call;');
+      return;
+    }
+    if (target.results.length == 1) {
+      final port = target.results.single;
+      final name = names.wire(port.type, decoded: port.name);
+      library.noteImportsFor(port.type);
+      body.writeln('final ${port.type.dartType} $name = $call;');
+      for (final holder in wanted.keys) {
+        valueOf[holder] = name;
+      }
+      return;
+    }
+    final record = names.role(LvNameRole.value, decoded: target.functionName);
+    for (final port in target.results) {
+      library.noteImportsFor(port.type);
+    }
+    body.writeln('final ${target.returnType} $record = $call;');
+    wanted.forEach((holder, port) => valueOf[holder] = '$record.${port.name}');
+  }
+
+  LvViUnit _resolveCallee(LvSubViUnit unit) {
+    final name = unit.calleeName;
+    if (name == null) {
+      refuse(
+        LvRefusalKind.subViCall,
+        'node class 0x${unit.classCode.toRadixString(16)} calls a VI whose file name '
+        'the diagram does not state, so the callee cannot be identified',
+        oid: unit.oid,
+      );
+    }
+    final callee = library.resolve?.call(name);
+    if (callee == null) {
+      refuse(LvRefusalKind.subViCall, 'the called VI "$name" was not supplied to the lowering', oid: unit.oid);
+    }
+    if (callee.paneMap.isEmpty) {
+      refuse(
+        LvRefusalKind.subViCall,
+        'the called VI "$name" carries no connector-pane map, so which of its '
+        'controls each call terminal feeds is not decoded',
+        oid: unit.oid,
+      );
+    }
+    return callee;
   }
 
   // --- structures --------------------------------------------------------
@@ -474,6 +799,7 @@ class _Emitter {
     for (final tunnel in tunnels) {
       final inner = tunnel.innerPorts[frame.frameOid];
       if (inner == null) continue;
+      if (tunnel.outerPort != null && _typeAt(tunnel.outerPort!) == null) continue;
       if (tunnel.outerIsSink) {
         final outer = _outerValue(tunnel);
         if (outer == null) {
@@ -502,7 +828,7 @@ class _Emitter {
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
       final type = _typeAt(tunnel.outerPort!)!;
       final builder = names.role(LvNameRole.builder);
-      imports.add('dart:typed_data');
+      library.imports.add('dart:typed_data');
       body.writeln('final ${lvArrayBuilderType(type.element)} $builder = <${type.element.dartType}>[];');
       indexedOutputs.add((terminal: tunnel, builder: builder, type: type));
     }
@@ -525,7 +851,7 @@ class _Emitter {
     if (bounds.length == 1) {
       bound = bounds.single;
     } else {
-      imports.add(kLvRuntimeImport);
+      library.imports.add(kLvRuntimeImport);
       bound = names.role(LvNameRole.count);
       body.writeln('final int $bound = ${LvRuntimeCall.iterationCount}(<int>[${bounds.join(', ')}]);');
     }
@@ -557,7 +883,7 @@ class _Emitter {
           oid: register.terminal.oid,
         );
       }
-      body.writeln('${register.name} = ${valueOf[edge.source]};');
+      body.writeln('${register.name} = ${_bound(edge.source, register.terminal.oid)};');
     }
     for (final output in indexedOutputs) {
       final inner = output.terminal.innerPorts[frame.frameOid];
@@ -569,7 +895,7 @@ class _Emitter {
           oid: output.terminal.oid,
         );
       }
-      body.writeln('${output.builder}.add(${valueOf[edge.source]});');
+      body.writeln('${output.builder}.add(${_bound(edge.source, output.terminal.oid)});');
     }
     body.writeln('}');
 
@@ -596,6 +922,7 @@ class _Emitter {
       if (left == null) {
         refuse(LvRefusalKind.structure, 'a right shift register names no left partner', oid: right.oid);
       }
+      if (left.outerPort == null || _typeAt(left.outerPort!) == null) continue;
       final initial = _outerValue(left);
       if (initial == null) {
         refuse(
@@ -638,31 +965,38 @@ class _Emitter {
     if (selectorEdge == null) {
       refuse(LvRefusalKind.unwiredTerminal, 'a Case structure\'s selector receives no wire', oid: unit.oid);
     }
-    if (selectorEdge.type.dartType != 'bool' || unit.frames.length != 2) {
+    final onError = selectorEdge.type.isErrorCluster;
+    if ((selectorEdge.type.dartType != 'bool' && !onError) || unit.frames.length != 2) {
       refuse(
         LvRefusalKind.caseSelector,
-        'only a two-frame Case over a boolean selector lowers: the file records '
-        'the case value of the displayed frame alone, so the other frames\' '
-        'values are decoded only when they are the complement of a boolean '
-        '(this one has ${unit.frames.length} frames over '
-        '${selectorEdge.type.dartType})',
+        'only a two-frame Case over a boolean or an error-cluster selector '
+        'lowers: the file records the case value of the displayed frame alone, '
+        'so the other frames\' values are decoded only when they are the '
+        'complement of a two-valued selector (this one has '
+        '${unit.frames.length} frames over ${selectorEdge.type.dartType})',
         oid: unit.oid,
       );
     }
+    // The displayed frame's own label is the only case value the file states.
+    // The error form's two labels are LabVIEW's own: over the corpus's 10 Case
+    // structures whose selector wire resolves an error cluster, every one has
+    // two frames and every displayed label reads `No Error`.
     final displayed = unit.displayedCase?.trim().toLowerCase();
-    if (displayed != 'true' && displayed != 'false') {
+    final trueLabel = onError ? 'error' : 'true', falseLabel = onError ? 'no error' : 'false';
+    if (displayed != trueLabel && displayed != falseLabel) {
       refuse(
         LvRefusalKind.caseSelector,
         'the displayed frame\'s case value reads "${unit.displayedCase}", which is '
-        'not one of the boolean selector\'s two values',
+        'neither "$trueLabel" nor "$falseLabel"',
         oid: unit.oid,
       );
     }
     if (unit.displayedFrame >= unit.frames.length) {
       refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
     }
-    final trueIndex = displayed == 'true' ? unit.displayedFrame : 1 - unit.displayedFrame;
-    final selectorValue = valueOf[selectorEdge.source]!;
+    final trueIndex = displayed == trueLabel ? unit.displayedFrame : 1 - unit.displayedFrame;
+    final selectorValue = _bound(selectorEdge.source, unit.oid);
+    final predicate = onError ? '$selectorValue.status' : selectorValue;
 
     final outputs = <({LvStructTerminal terminal, String name, LvWireType type})>[];
     for (final tunnel in unit.terminals) {
@@ -672,7 +1006,7 @@ class _Emitter {
       if (port == null || flow.outOf(port) == null) continue;
       final type = _typeAt(port)!;
       final name = names.role(LvNameRole.branch);
-      _noteImportsFor(type);
+      library.noteImportsFor(type);
       body.writeln('final ${type.dartType} $name;');
       outputs.add((terminal: tunnel, name: name, type: type));
       valueOf[port] = name;
@@ -681,7 +1015,7 @@ class _Emitter {
     for (var branch = 0; branch < 2; branch++) {
       final frameIndex = branch == 0 ? trueIndex : 1 - trueIndex;
       final frame = unit.frames[frameIndex];
-      body.writeln(branch == 0 ? 'if ($selectorValue) {' : '} else {');
+      body.writeln(branch == 0 ? 'if ($predicate) {' : '} else {');
       _bindFrameInputs(unit, frame.frameOid, selectorValue);
       _emitRegion(frame, _frameExits(unit, frame.frameOid));
       for (final output in outputs) {
@@ -695,7 +1029,7 @@ class _Emitter {
             oid: output.terminal.oid,
           );
         }
-        body.writeln('${output.name} = ${valueOf[edge.source]};');
+        body.writeln('${output.name} = ${_bound(edge.source, output.terminal.oid)};');
       }
     }
     body.writeln('}');
@@ -747,7 +1081,7 @@ class _Emitter {
       if (edge == null) {
         refuse(LvRefusalKind.unwiredTerminal, 'a disable-structure output tunnel is unwired', oid: tunnel.oid);
       }
-      valueOf[port] = valueOf[edge.source]!;
+      valueOf[port] = _bound(edge.source, tunnel.oid);
     }
   }
 
