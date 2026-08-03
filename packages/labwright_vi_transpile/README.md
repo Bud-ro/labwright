@@ -249,17 +249,51 @@ two different types.
 Cluster wires (`0x50`, and `0x51` for the typedef/class form) carry no member
 types on the wire, so their Dart shape comes from the data-space type an
 **endpoint** of the wire resolves — the type a renderer draws the wire's tint
-from. Corpus, over 133,106 cluster-coded signals: 43,861 resolve exactly one
-member shape, 502 resolve two that disagree (refused), and 88,743 resolve none.
+from. Corpus, over 133,106 cluster-coded signals: 91,829 resolve exactly one
+Dart type, 157 resolve two that disagree (refused), and 41,120 resolve none.
+Two ends are compared by the **Dart type** they map to, not by the descriptor's
+spelling — the spelling counts 90,614 / 1,372 / 41,120, because a wire whose
+ends are an `error in` and an `error out` control spells two types and maps to
+one.
 
-9,381 of the resolved wires are reached only by looking **through a typedef**:
+18,105 of the resolved wires are reached only by looking **through a typedef**:
 a typedef over a cluster is a cluster descriptor, exactly as `mapLvType`
 already reads one, and it is the shape `0x51` names. It contradicts the
-bare-cluster reading on 24 wires, which are refused like any other
+bare-cluster reading on 6 wires, which are refused like any other
 disagreement. Reading the *other* half of an endpoint's resolved type instead
 (an array's element for a scalar wire, or the converse) would resolve a further
 586, but nothing decoded says an endpoint describing an array of clusters
 describes a scalar cluster wire's element, so that route is not taken.
+
+### Cluster member types
+
+The 41,120 wires no endpoint resolves are the corpus's largest lowering
+blocker, and two further decoded routes were scored as a source for them. Both
+are censused on the **Dart type** each maps to, since that is the identity a
+generated library has and the one the lowering compares by; the descriptor's
+spelling scores the same routes very differently and scores them wrong.
+
+| reading | vs. the endpoint route | would newly type | verdict |
+| --- | --- | --- | --- |
+| endpoint's node-terminal **parts** | 68,112 agree, 1,939 contradict (2.8%) | 38,236 | not read |
+| callee's **connector-pane** terminal | 5,777 agree, 523 contradict (8.3%) | 5,918 | not read |
+
+The part route's 1,939 contradictions are 1,874 wires whose two readings agree
+on every member's own type code and differ in a **label**, and 65 that differ
+in a member code outright. Since a nominal class is named from those labels,
+both kinds are a different generated type.
+
+The pane is the only decoded route that reads a cluster wire from *another
+file*, and it is the route that corroborates refnum dimensionality above — but
+it does not carry over. It contradicts the reading already trusted on 8.3% of
+the wires where both speak (518 of the 523 by a label alone), which is what a
+connector pane is: a cluster crosses it on its member **types**, so the two
+files need not label the same members alike, and the callee terminal's name is
+not the caller wire's. Where it does agree it is not independent either — the
+part route read *at* the call node's own terminal contradicts it on 39 of
+12,252 wires (0.32%) against 372 of 4,677 (7.95%) read anywhere else on the
+same wires, which is what a cached copy of the callee's descriptor looks like.
+It also reaches only 5,645 of the 38,236 wires the part route would newly type.
 
 ### Refnum dimensionality
 
@@ -299,7 +333,7 @@ wires it is weaker still: the whole 133,106-wire population falls in six cells,
 against the thousands of distinct member shapes the question needs.
 
 **What the unresolved majority costs.** Cluster wires with no member shape are
-the single largest lowering blocker in the corpus: of the 5,800 VIs whose own
+the single largest lowering blocker in the corpus: of the 5,748 VIs whose own
 dataflow build refuses on a wire type, 4,363 stop first on a cluster wire and
 1,901 have no other unmapped wire family at all. Next is the refnum family
 (`0x70`/`0x71`) — 1,154 VIs stop there first and 666 have nothing else — then

@@ -183,18 +183,18 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// two ends disagree. `clus.viaTypedef` is the share only the typedef unwrap
 /// ([lvClusterBase]) reaches, and `clus.typedefContradicts` the wires where it
 /// adds a shape the bare-cluster reading disagrees with. The `clus.pane*`
-/// counters size the CALLEE side as a second source and are why it is not one:
-/// `clus.pane.none` is the unresolved wires it would newly decide,
-/// `clus.paneAgrees` against `clus.paneDisagrees` is how it reproduces the
-/// endpoint route where both speak, and `clus.epTypeIdx` — absent from the
-/// pin, so zero — is the structural reason the caller-side walk stops.
+/// counters size the CALLEE side as a second source: `clus.pane.none` is the
+/// unresolved wires it would newly decide, `clus.paneAgrees` against
+/// `clus.paneDisagrees` is how it reproduces the endpoint route where both
+/// speak, and `clus.epTypeIdx` — absent from the pin, so zero — is the
+/// structural reason the caller-side walk stops.
 ///
 /// The `clus.kid*` counters score the endpoint's own node-terminal **parts**
 /// the same way, and the `clus.none*` counters partition the wires that
 /// resolve nothing by cause — see [lvClusterOfEndpoint], which owns both
 /// readings' evidence.
 ///
-/// The `clusType.*` counters re-score both of those on the **Dart type** each
+/// The `clusType.*` counters re-score all three on the **Dart type** each
 /// reading maps to instead of on the descriptor's own spelling — the identity
 /// a generated library has, and so the identity the lowering compares by. It
 /// is a different question and a different answer: `clusType.one` (91 829)
@@ -205,7 +205,35 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// what the part route would newly type — the largest single lever on the
 /// corpus — and `clusType.kidDisagrees` (1 939) is why it is measured and not
 /// read: two decoded readings of one wire that name different Dart types, with
-/// nothing decoded saying which is the wire's.
+/// nothing decoded saying which is the wire's. `clusType.kidLabelOnly` (1 874)
+/// and `clusType.kidShapeDiffers` (65) split those by kind: all but 65 agree on
+/// every member's own type code and differ in a LABEL — the descriptor's name
+/// or a member's — which is what a nominal class is named from.
+///
+/// The `clusType.pane*` counters do the same to the callee's connector pane,
+/// and are why it is not the second side that would gate the part route. It
+/// resolves one Dart type on 6 300 wires and agrees with the endpoint route on
+/// 5 777 of them (`clusType.paneAgrees`, 91.7%) where the spelling scores it at
+/// 2 626 of 6 277 (41.8%) — a large lift that still leaves 523 contradictions,
+/// of which 518 (`clusType.paneLabelOnly`) are a label difference and 5
+/// (`clusType.paneShapeDiffers`) a member-code one. A cluster crosses a
+/// connector pane on its member types, so the two files' labels need not match
+/// and the callee's terminal is not a reading of the caller's wire's NAME.
+///
+/// Where it agrees it is also not independent. `clusType.paneAtCall*` and
+/// `clusType.paneOffCall*` read the SAME part route at two places on one wire:
+/// at the call node's own terminal, the endpoint the pane is read through, it
+/// contradicts the pane on 39 of 12 252 (0.32%), and at any other endpoint of
+/// the same wire on 372 of 4 677 (7.95%) — the caller-side rate the endpoint
+/// route also scores. A route that tracks one endpoint's stored descriptor
+/// twenty-five times more closely than it tracks itself elsewhere on the same
+/// wire is that descriptor's copy, not a second witness. Nor does what it says
+/// there favour the part route: strip the labels and the off-call part route
+/// still differs from the pane in a member's own type code on 40 of 4 677 wires
+/// (`clusType.paneOffCallShapeDiffers`, 0.86%) where the endpoint route differs
+/// on 5 of 6 300 (0.08%). `clusType.kidChecked` (5 645) against
+/// `clusType.kidUnchecked` (32 591) is the reach either way: the pane sees
+/// 14.8% of what the part route would newly type.
 ///
 /// The `clus.why.*` counters partition every one of the 133 106 cluster wires
 /// by what stands between it and a Dart type, `clus.why.typed` (89 559) being
@@ -344,12 +372,31 @@ const Map<String, int> kCorpusLoweringSweep = {
   'clus.why.typesDisagree': 157,
   'clus.why.undeclarable': 176,
   'clusType.kidAgrees': 68112,
+  'clusType.kidChecked': 5645,
   'clusType.kidDisagrees': 1939,
+  'clusType.kidLabelOnly': 1874,
+  'clusType.kidShapeDiffers': 65,
+  'clusType.kidUnchecked': 32591,
   'clusType.kidWouldDecide': 38236,
   'clusType.kidWouldNotMap': 541,
   'clusType.many': 157,
   'clusType.none': 41120,
   'clusType.one': 91829,
+  'clusType.pane.many': 4,
+  'clusType.pane.none': 5949,
+  'clusType.pane.one': 6300,
+  'clusType.paneAgrees': 5777,
+  'clusType.paneAtCallAgrees': 12213,
+  'clusType.paneAtCallDisagrees': 39,
+  'clusType.paneDisagrees': 523,
+  'clusType.paneLabelOnly': 518,
+  'clusType.paneOffCallAgrees': 4305,
+  'clusType.paneOffCallDisagrees': 372,
+  'clusType.paneOffCallLabelOnly': 331,
+  'clusType.paneOffCallShapeDiffers': 40,
+  'clusType.paneShapeDiffers': 5,
+  'clusType.paneWouldDecide': 5918,
+  'clusType.paneWouldNotMap': 31,
   'cond': 2267,
   'cond.dcoBit0': 382,
   'cond.dcoBit12': 140,
@@ -613,11 +660,11 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
   // the bare-cluster reading disagrees with — the two numbers that say whether
   // looking through a typedef is worth what it costs.
   //
-  // The `clus.pane*` counters measure the CALLEE side as a second source: a
-  // call node's holders are its pane terminals in pane order, so a cluster
-  // wire ending on one can be read against the callee VI's own terminal for
-  // that pane. `clus.epTypeIdx` is the structural reason the caller-side walk
-  // stops where it does.
+  // The `clus.pane*` / `clusType.pane*` counters measure the CALLEE side as a
+  // second source: a call node's holders are its pane terminals in pane order,
+  // so a cluster wire ending on one can be read against the callee VI's own
+  // terminal for that pane. `clus.epTypeIdx` is the structural reason the
+  // caller-side walk stops where it does.
   //
   // The `clus.kid*` counters measure the endpoint's own **part** objects — the
   // node-terminal parts a bounds-less `0x15` endpoint DCO parents, which do
@@ -644,14 +691,19 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
     // it, and the census asks about it once per wire end.
     final registry = LvDeclarations();
     final mappingOf = <ViType, LvTypeMapping>{};
-    LvTypeMapping typeOf(ViType type) => mappingOf.putIfAbsent(type, () => mapLvType(type, pool, 0, registry));
+    LvTypeMapping typeOf(ViType type, List<ViType> owner) =>
+        mappingOf.putIfAbsent(type, () => mapLvType(type, owner, 0, registry));
     for (final wire in diagram.wires) {
       final signal = wire.signalType;
       if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
       bump('clus');
       final array = (signal.arrayDims ?? 0) > 0;
       final shapes = <String>{}, bare = <String>{}, viaPane = <String>{}, viaKid = <String>{};
-      final ownTypes = <String?>{}, kidTypes = <String?>{};
+      final ownTypes = <String?>{}, kidTypes = <String?>{}, paneTypes = <String?>{};
+      // The part route's answer split by WHERE the part sits: on the call
+      // node's own terminal, which is the same endpoint the pane is read
+      // through, or on another endpoint of the same wire.
+      final kidAtCall = <String?>{}, kidOffCall = <String?>{}, kidOffCallShape = <String>{};
       LvTypeMapping? ownMapping;
       for (final endpoint in wire.endpointOids) {
         final type = lvClusterOfEndpoint(diagram, endpoint, array: array);
@@ -659,7 +711,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
         final shape = lvClusterShape(type, pool);
         shapes.add(shape);
         if (type.kind == ViDataType.cluster) bare.add(shape);
-        final mapping = typeOf(type);
+        final mapping = typeOf(type, pool);
         ownMapping ??= mapping;
         ownTypes.add(mapping.dartType);
       }
@@ -670,8 +722,16 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
         for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
           final type = array ? part.resolvedElementType : part.resolvedType;
           if (lvClusterBase(type) == null) continue;
-          viaKid.add(lvClusterShape(type!, pool));
-          kidTypes.add(typeOf(type).dartType);
+          final shape = lvClusterShape(type!, pool);
+          viaKid.add(shape);
+          final mapped = typeOf(type, pool).dartType;
+          kidTypes.add(mapped);
+          if (paneOf.containsKey(endpoint)) {
+            kidAtCall.add(mapped);
+          } else {
+            kidOffCall.add(mapped);
+            kidOffCallShape.add(shape);
+          }
         }
       }
       for (final endpoint in wire.endpointOids) {
@@ -679,7 +739,12 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
           final terminal = callee.paneTerminal(pane);
           if (terminal == null) continue;
           final type = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
-          if (type != null) viaPane.add(lvClusterShape(type, callee.pool));
+          if (type == null) continue;
+          viaPane.add(lvClusterShape(type, callee.pool));
+          // Named through the CALLER's registry, so two readings hold one
+          // [LvTypeMapping.dartType] exactly when they are one type in one
+          // generated library.
+          paneTypes.add(typeOf(type, callee.pool).dartType);
         }
       }
       final own = switch (shapes.length) {
@@ -718,10 +783,60 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
       };
       bump('clusType.$ownCount');
       if (ownTypes.length == 1 && kidTypes.length == 1) {
-        bump(ownTypes.single == kidTypes.single ? 'clusType.kidAgrees' : 'clusType.kidDisagrees');
+        final agrees = ownTypes.single == kidTypes.single;
+        bump(agrees ? 'clusType.kidAgrees' : 'clusType.kidDisagrees');
+        if (!agrees && shapes.length == 1 && viaKid.length == 1) {
+          bump(
+            _clusterMemberCodes(shapes.single) == _clusterMemberCodes(viaKid.single)
+                ? 'clusType.kidLabelOnly'
+                : 'clusType.kidShapeDiffers',
+          );
+        }
       }
       if (ownTypes.isEmpty && kidTypes.length == 1) {
-        bump(kidTypes.single == null ? 'clusType.kidWouldNotMap' : 'clusType.kidWouldDecide');
+        if (kidTypes.single == null) {
+          bump('clusType.kidWouldNotMap');
+        } else {
+          bump('clusType.kidWouldDecide');
+          // Whether the pane reaches that wire at all, and so whether anything
+          // decoded can check the type the part route would give it.
+          bump(paneTypes.length == 1 ? 'clusType.kidChecked' : 'clusType.kidUnchecked');
+        }
+      }
+      // The CALLEE's pane terminal, scored the same way. Its calibration is
+      // against the reading the lowering already trusts, and its independence
+      // is the two counters below it.
+      if (paneTypes.length == 1) bump('clusType.pane.$ownCount');
+      if (ownTypes.length == 1 && paneTypes.length == 1) {
+        final agrees = ownTypes.single == paneTypes.single;
+        bump(agrees ? 'clusType.paneAgrees' : 'clusType.paneDisagrees');
+        if (!agrees && shapes.length == 1 && viaPane.length == 1) {
+          bump(
+            _clusterMemberCodes(shapes.single) == _clusterMemberCodes(viaPane.single)
+                ? 'clusType.paneLabelOnly'
+                : 'clusType.paneShapeDiffers',
+          );
+        }
+      }
+      if (ownTypes.isEmpty && paneTypes.length == 1) {
+        bump(paneTypes.single == null ? 'clusType.paneWouldNotMap' : 'clusType.paneWouldDecide');
+      }
+      // Is the pane a second reading, or the caller's own cached copy of the
+      // callee's terminal type? The same part route, read at the call node's
+      // terminal and read anywhere else on the same wire.
+      if (paneTypes.length == 1 && kidAtCall.length == 1) {
+        bump(kidAtCall.single == paneTypes.single ? 'clusType.paneAtCallAgrees' : 'clusType.paneAtCallDisagrees');
+      }
+      if (paneTypes.length == 1 && kidOffCall.length == 1) {
+        final agrees = kidOffCall.single == paneTypes.single;
+        bump(agrees ? 'clusType.paneOffCallAgrees' : 'clusType.paneOffCallDisagrees');
+        if (!agrees && kidOffCallShape.length == 1 && viaPane.length == 1) {
+          bump(
+            _clusterMemberCodes(kidOffCallShape.single) == _clusterMemberCodes(viaPane.single)
+                ? 'clusType.paneOffCallLabelOnly'
+                : 'clusType.paneOffCallShapeDiffers',
+          );
+        }
       }
       // Why this wire does not type — one cause per wire, the causes and
       // `clus.why.typed` partitioning `clus`.
@@ -1349,6 +1464,16 @@ bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
   }
   return (signals: signals, resolved: resolved, disagreeing: disagreeing, unresolved: unresolved);
 }
+
+/// A [lvClusterShape] spelling with every LABEL dropped: the member type codes
+/// alone, in order.
+///
+/// It separates the two things a cluster descriptor states. The codes are what
+/// the wire CARRIES; the labels — the descriptor's own name and its members' —
+/// are what a generated class is NAMED from. Two readings of one wire that
+/// share this string and differ in the full spelling differ only in naming.
+String _clusterMemberCodes(String shape) =>
+    shape.split('|').last.split(',').map((member) => member.split(':').first).join(',');
 
 /// Whether [roles] — one Index Array node's terminal role bits in heap order —
 /// reads as `[array] ([output] [index]×rank)+` ([LvArrayTerminalRole]).
