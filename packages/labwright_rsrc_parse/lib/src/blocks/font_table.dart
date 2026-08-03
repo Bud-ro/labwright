@@ -96,11 +96,20 @@ class ViFontEntry {
   /// unset-inherit).
   static const int weightBold = 1000;
 
-  /// Whether this entry renders bold ([weight] == [weightBold]).
+  /// Whether this entry renders bold ([weight] == [weightBold]). Corpus
+  /// (7,523 `FTAB` tables, 38,655 entries): 1,720 bold — the only other
+  /// weight words are `0` (23,563 plain) and [sizeUnset] (13,372
+  /// inherit-the-predefined-font), so the word is a three-value field here,
+  /// not a graded weight scale. 1,333 of the bold entries also name a
+  /// predefined font ([isPredefinedRef]) — bold rides the reference.
   bool get isBold => weight == weightBold;
 
   /// Whether [name] is a predefined-font digit (`0` application / `1` system
-  /// / `2` dialog) rather than a real typeface name.
+  /// / `2` dialog) rather than a real typeface name. Corpus (38,655 entries):
+  /// 14,705 predefined refs — `0` 9,524, `2` 3,135, `1` 2,046, no other digit
+  /// — and 23,950 typeface names, led by `Segoe UI` (17,105),
+  /// `Microsoft YaHei UI` (2,949), `Lucida Grande` (1,560), `Tahoma` (1,085),
+  /// `Arial` (675) and `Calibri` (425).
   bool get isPredefinedRef => name.length == 1 && name.codeUnitAt(0) >= 0x30 && name.codeUnitAt(0) <= 0x32;
 }
 

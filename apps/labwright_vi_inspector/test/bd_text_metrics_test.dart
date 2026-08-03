@@ -3,6 +3,7 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/bd_text_font.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import 'util.dart';
@@ -95,6 +96,10 @@ void main() {
       final bd = bestBlockDiagram(buildViModel(viBytes))!;
       final scene = BdScene(bd)..recordPaintedText = true;
       await loadRealTextFont();
+      // Every pin below is a Selawik advance sum: a test that registered the
+      // host's own UI face ([loadSystemUiFont]) earlier in this process would
+      // shift them all.
+      expect(bdTextFontFamily, 'Selawik');
       await tester.runAsync(() async {
         final raster = (await rasteriseBlockDiagram(
           bd,

@@ -2984,6 +2984,12 @@ const double kBdTextOverdrawAlpha = 0.75;
 /// bold — its stems are already multi-pixel, so the same fringe lift lands
 /// 1.14x the reference's mean ink (measured on MD5's `Calculate MD5`
 /// heading). Recalibrated on that heading: this alpha lands 1.015.
+///
+/// EXTRAPOLATED beyond that measurement: the calibration is one 12 em bold
+/// heading, and this alpha is applied to every bold glyph at every size (the
+/// 8.5 em type letters, the 11 em bold-italic structure glyphs, the 16 em
+/// headings). Those sizes have no ink-weight measurement of their own yet.
+/// // TODO(labwright): calibrate the bold alpha per size.
 const double kBdTextOverdrawAlphaBold = 0.15;
 
 /// The anchor for a text run of [text] size CENTRED in [box] — both axes
@@ -3067,9 +3073,10 @@ class BdGlyph {
 /// A laid-out text run on the whole-pixel glyph lattice: every glyph pens
 /// at an integer x, every line's baseline on an integer row at the
 /// [kBdTextLineHeight] pitch, with the overdraw pass recorded under the
-/// full-strength pass at identical origins. The paint is recorded once
-/// into a picture, so a repaint costs one draw per run regardless of
-/// glyph count.
+/// full-strength pass at identical origins. The run is laid out once and
+/// replayed from a recorded picture — the replay still issues the recorded
+/// draw per glyph per pass, so what a repaint saves is the layout, not the
+/// draw count.
 class BdTextRun {
   BdTextRun({
     required this.text,
