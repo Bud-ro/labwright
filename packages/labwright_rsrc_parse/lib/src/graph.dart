@@ -240,6 +240,30 @@ class ViHeapObject {
   /// array), or null alongside it.
   List<int>? constArrayDims;
 
+  /// A label's (`0x0a`) raw `0x021` **text-mode word** (`0x814404`/`0x14404`
+  /// patterns — see [HeapAttribute.cosmColorB]), or null. Bits `0x30` are
+  /// the JUSTIFICATION field: `0x20` = centre — its 29 snippet-corpus
+  /// carriers are exactly the wide centred headings (crc8's ghost strip
+  /// inks at equal 20 px margins; Excel's `Get Worksheets`/`Parse Sheet`)
+  /// — while `0x10` (648 carriers) rides ordinary text-sized control
+  /// labels where justification is invisible; not pixel-pinned.
+  /// // TODO(labwright): pin 0x10 (right?) against a reference.
+  int? labelModeWord;
+
+  /// Whether the label's text centres in its bounds ([labelModeWord] bit
+  /// `0x20`).
+  bool get labelJustifyCenter => ((labelModeWord ?? 0) & 0x20) != 0;
+
+  /// The DISPLAYED element index of an array shell (`0x52`): the attr-`0x19`
+  /// value of the shell's tag-`0x15` group — what its index display shows
+  /// and which element its value window presents. Corpus: 11,972 of 12,179
+  /// shells carry the group (value 0 for 11,536); reference-validated where
+  /// nonzero (the crc trio's LUT arrays show index 255 and element
+  /// `array[255]`; GetCurrentDirectory shows 1023 and element 0). The
+  /// sibling tag-`0x16`/`0x17` groups carry the same attr shape (`0x16`
+  /// always 0; `0x17` small counts) — not decoded. // TODO(labwright)
+  int? arrayIndex;
+
   /// The `%`-led printf-style display-format text of a numeric display part
   /// ([HeapAttribute.formatStyle], raw `0x074`; e.g. `%.0f`, `%08x`) — or
   /// null. Corpus (7,524 VIs): 32,440 records, every one printable
@@ -3585,9 +3609,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   var styleRunOpen = false;
   var styleRuns = <({int start, int fontId})>[];
 
+  // Array-shell displayed-index capture (the tag-`0x15` group on a `0x52`
+  // shell; see [ViHeapObject.arrayIndex]): the group's attr-`0x19` value.
+  ViHeapObject? arrayIndexOwner;
+
   walkHeapObjects<ViHeapObject>(
     body,
     onGroupOpen: (groupTag, cur) {
+      if (groupTag == 0x15 && cur != null && cur.kind == 0x52) {
+        arrayIndexOwner = cur;
+      }
       if (styleRunOwner == null) {
         if (groupTag == 0x25 && cur != null) {
           styleRunOwner = cur;
@@ -3604,6 +3635,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       }
     },
     onGroupClose: (groupTag, cur) {
+      if (groupTag == 0x15) arrayIndexOwner = null;
       if (styleRunOwner == null) return;
       styleRunGroupDepth--;
       if (styleRunOpen && styleRunGroupDepth == 1) {
@@ -3629,6 +3661,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (cur == null) return;
       final offset = span.offset;
       final lead = span.lead;
+      if (arrayIndexOwner != null && identical(cur, arrayIndexOwner)) {
+        final attr = decodeHeapAttr(body, offset);
+        if (attr?.id == 0x19 && attr?.asInt != null) {
+          arrayIndexOwner!.arrayIndex = attr!.asInt;
+        }
+        return;
+      }
       if (styleRunOpen && identical(cur, styleRunOwner)) {
         final attr = decodeHeapAttr(body, offset);
         final value = attr?.asInt;
@@ -3735,6 +3774,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
             cur.displayFormat ??= String.fromCharCodes(bytes);
           }
+        }
+        // The label text-mode word (raw 0x021 on the 0x0a label class; see
+        // [ViHeapObject.labelModeWord]) — justification bits ride it.
+        if (attr.attribute == HeapAttribute.cosmColorB && cur.kind == 0x0a) {
+          cur.labelModeWord ??= attr.asInt;
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
         if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
