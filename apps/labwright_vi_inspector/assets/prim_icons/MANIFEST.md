@@ -13,6 +13,12 @@ NOT bundled: every extraction reviewed so far baked neighbour state (wires,
 comment text, terminal rows) into the art. Those nodes render as plain
 ringed plates until clean per-arity art is re-extracted.
 
+Rows marked "targeted node-box crop" come from `kTargetedIconSamples` — an
+identity the consensus path cannot reach, cut instead from named node
+instances and cleaned individually (wire-palette ink erased, near-white
+flooded from the crop border, components kept only where they reach the box's
+centre third or lie wholly inside the box, then trimmed).
+
 | asset | op | size | sources |
 |---|---|---|---|
 
@@ -45,6 +51,7 @@ Palette (15 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1162.png | (uncatalogued) | 32x32 | border-exact rect (5/5 ring samples agree byte-for-byte): MD5; the neighbour-icon fragment above the top border lopped |
 | prim1163.png | (uncatalogued) | 32x32 | border-exact rect (5/5 ring samples agree byte-for-byte): MD5; the neighbour-icon fragment above the top border lopped |
 | prim1166_type-cast.png | Type Cast | 32x32 | Excel_Cell_to_Value, Config_Escape — pair-seeded consensus (3/8 agreeing) |
+| prim1170.png | (uncatalogued) | 18x18 | targeted node-box crop, 2 named instances agreeing byte-for-byte: crc16#820, crc16#619 (art at dx 7, dy 7 in the node box) |
 | prim1171.png | (uncatalogued) | 34x18 | IconHeader, Config_Escape, crc16 — pair-seeded consensus (3/6 agreeing) |
 | prim1180_number-to-decimal-string.png | Number To Decimal String | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): Excel_Variant_Elements |
 | prim1181.png | (uncatalogued) | 32x32 | border-exact rect (4/4 ring samples agree byte-for-byte): MD5; the neighbour-icon fragment above the top border lopped |
@@ -61,6 +68,7 @@ Palette (15 colours — every icon pixel is one of these): #000000 #0000ff #3333
 
 | prim1534.png | (uncatalogued) | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): Excel_Cell_to_Value |
 | prim1535_match-pattern.png | Match Pattern | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
+| prim1537.png | (uncatalogued) | 29x13 | targeted node-box crop, 1 named instance: Excel_Cell_to_RowCol#477 (art at dx 1, dy 10 in the node box) |
 | prim1539_spreadsheet-string-to-array.png | Spreadsheet String To Array | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
 | prim1606 | (verified — committed asset authoritative) | | crc8, crc16 — pair-seeded consensus (2/2 agreeing) |
 | prim1608 | (verified — committed asset authoritative) | | Read Library Version, Config_Escape, MD5, crc8, crc16 — pair-seeded consensus (4/6 agreeing) |
@@ -124,13 +132,11 @@ Palette (15 colours — every icon pixel is one of these): #000000 #0000ff #3333
 - prim1155: cleaned ink still reaches the crop edge (wire fusion; 8 samples)
 - prim1164: no agreeing consensus and no centred sample survived cleaning (2 samples)
 - prim1167: cleaned ink still reaches the crop edge (wire fusion; 4 samples)
-- prim1170: no agreeing consensus and no centred sample survived cleaning (2 samples)
 - prim1184: cleaned ink still reaches the crop edge (wire fusion; 7 samples)
 - prim1188: no agreeing consensus and no centred sample survived cleaning (4 samples)
 - prim1213: every sample came from a low-registration snippet
 - prim1303: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1421: every sample came from a low-registration snippet
-- prim1537: every sample came from a low-registration snippet
 - prim1609: no agreeing consensus and no centred sample survived cleaning (4 samples)
 - prim1814: every sample came from a low-registration snippet
 - prim1815: no agreeing consensus and no centred sample survived cleaning (1 samples)
