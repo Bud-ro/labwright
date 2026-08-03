@@ -173,7 +173,12 @@ class _Library {
   final String? sourceNote;
 
   final Set<String> imports = <String>{};
-  final List<String> fileConstants = <String>[];
+
+  /// The hoisted array constants, per declared name. A constant whose value no
+  /// emitted body reads is dropped by [assemble] — a `Type Cast`'s type
+  /// operand contributes only its TYPE, so the constant wired there is live on
+  /// the diagram and dead in the lowering.
+  final Map<String, String> fileConstants = <String, String>{};
 
   /// Per callee file name, its declaration. Keyed case-insensitively, since a
   /// call node's caption and a file name need not agree in case.
@@ -304,9 +309,11 @@ class _Library {
       file.writeln("import '$import';");
     }
     if (imports.isNotEmpty) file.writeln();
-    for (final declaration in fileConstants) {
+    final bodies = functions.map((function) => function.source ?? '').join('\n');
+    for (final entry in fileConstants.entries) {
+      if (!RegExp('\\b${entry.key}\\b').hasMatch(bodies)) continue;
       file
-        ..writeln(declaration)
+        ..writeln(entry.value)
         ..writeln();
     }
     for (var index = 0; index < functions.length; index++) {
@@ -522,11 +529,10 @@ class _FunctionEmitter {
     // A caption is free text and may hold newlines, which a `///` comment
     // cannot; it is collapsed to one line rather than dropped.
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
-    library.fileConstants.add(
-      '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
-      '$shape ${type.numeric!.glyph} elements.\n'
-      'final ${type.dartType} $name = $initializer;',
-    );
+    library.fileConstants[name] =
+        '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
+        '$shape ${type.numeric!.glyph} elements.\n'
+        'final ${type.dartType} $name = $initializer;';
     return name;
   }
 

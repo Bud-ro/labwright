@@ -38,6 +38,20 @@ abstract final class LvRuntimeCall {
   /// Logical Shift.
   static const String logicalShift = 'lvLogicalShift';
 
+  /// The flat bytes of a scalar integer, of a scalar float, of a string and of
+  /// a 1-D integer array — the Type Cast operand side.
+  static const String flatOfInt = 'lvFlatOfInt';
+  static const String flatOfFloat = 'lvFlatOfFloat';
+  static const String flatOfString = 'lvFlatOfString';
+  static const String flatOfIntList = 'lvFlatOfIntList';
+
+  /// The scalar integer, scalar float, string and 1-D integer array flat bytes
+  /// hold — the Type Cast result side.
+  static const String intOfFlat = 'lvIntOfFlat';
+  static const String floatOfFlat = 'lvFloatOfFlat';
+  static const String stringOfFlat = 'lvStringOfFlat';
+  static const String intListOfFlat = 'lvIntListOfFlat';
+
   /// The To-Integer conversion that renormalizes a value to [kind]'s width.
   static String integerConversion(LvNumericKind kind) => 'lvTo${kind.glyph}';
 }
