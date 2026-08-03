@@ -299,6 +299,7 @@ class LvPrimUnit extends LvUnit {
     required this.inputPorts,
     required this.outputPorts,
     required this.portRoleFlags,
+    required this.portDrawnTop,
   });
 
   @override
@@ -329,6 +330,13 @@ class LvPrimUnit extends LvUnit {
   /// Per port oid, the flags on the terminal's own typed record — the decoded
   /// operand role for the growable array nodes (see `LvArrayTerminalRole`).
   final Map<int, int> portRoleFlags;
+
+  /// Per port oid, the y of the point the terminal is DRAWN at, in absolute
+  /// diagram coordinates ([ViDiagram.dcoChildTerminalAttach]) — the operand
+  /// order for the operations whose terminal records do not carry one (see
+  /// `LvPrimCall.operandsTopDown`). Absent for a terminal whose attach
+  /// geometry does not resolve.
+  final Map<int, int> portDrawnTop;
 }
 
 /// A **subVI call**: one endpoint holder per connector-pane terminal of the
@@ -749,12 +757,15 @@ class _Builder {
   LvPrimUnit _primUnit(ViHeapObject node) {
     final inputs = <int>[], outputs = <int>[];
     final roleFlags = <int, int>{};
+    final drawnTop = <int, int>{};
     for (final holder in kids[node.oid] ?? const <ViHeapObject>[]) {
       if (holder.kind != kLvHolderCode) continue;
       ownerOfPort[holder.oid] = node.oid;
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
       final record = (kids[holder.oid] ?? const <ViHeapObject>[]).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
+      final attach = diagram.dcoChildTerminalAttach(holder.oid);
+      if (attach != null) drawnTop[holder.oid] = attach.candidates.first.y;
     }
     return LvPrimUnit(
       oid: node.oid,
@@ -765,6 +776,7 @@ class _Builder {
       inputPorts: inputs,
       outputPorts: outputs,
       portRoleFlags: roleFlags,
+      portDrawnTop: drawnTop,
     );
   }
 
