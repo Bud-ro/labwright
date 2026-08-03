@@ -115,6 +115,43 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1534 (name not decoded)': 11,
 };
 
+/// Everything `MD5.vi` still refuses on, one entry per blocking node — the
+/// exact distance to the second behavioural milestone after `crc8`.
+///
+/// Its every wire types and its whole structure tree builds; what remains is
+/// 46 nodes in four groups. Twenty carry a `primResID` no corpus VI labels, so
+/// the operation is not decoded at all. Eleven are named operations whose
+/// **operand order** is not decoded (`Subtract`, `String Subset`,
+/// `Concatenate Strings`, `Compound Arithmetic`, `Build Array`, `Select`) or
+/// whose rule is not (`Type Cast`'s flattened layout, `To Lower Case`'s
+/// case-mapping table, `Logical Shift`'s direction). Four are Case structures
+/// over an **integer** selector, where the file states only the displayed
+/// frame's case value and the others are not the complement of a two-valued
+/// selector. One is a string constant whose value the heap decode did not
+/// recover, and one a `0x114` node whose corpus captions do not agree on a
+/// name.
+const Map<String, int> kMd5Blockers = {
+  'Type Cast (primResID 1166)': 7,
+  'primResID 1162': 5,
+  'primResID 1163': 5,
+  'primResID 1181': 4,
+  'Subtract (primResID 1051)': 3,
+  'caseSelector over int': 4,
+  'primResID 1056': 3,
+  'Concatenate Strings (class 0x3e)': 2,
+  'String Subset (primResID 1503)': 2,
+  'Compound Arithmetic (class 0x6c)': 2,
+  'Build Array (class 0x3a)': 1,
+  'Select (primResID 1516)': 1,
+  'To Lower Case (primResID 1189)': 1,
+  'Logical Shift (primResID 1081)': 1,
+  'primResID 1082': 1,
+  'primResID 1155': 1,
+  'primResID 1156': 1,
+  'node class 0x114': 1,
+  'constantValue String': 1,
+};
+
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
 /// types are not in its signal word, so they come from the data-space type an
 /// endpoint of the wire resolves ([lvClusterOfEndpoint]) — which is the only
@@ -466,6 +503,43 @@ void main() {
     expect(measured, kSnippetThreadedDifferences);
   });
 
+  test('MD5 refuses on exactly the nodes it is pinned to refuse on', () {
+    final vi = snippetVi('MD5');
+    final flow = buildLvDataflow(vi.diagram, pool: vi.pool).dataflow!;
+    final measured = <String, int>{};
+    void bump(String key) => measured[key] = (measured[key] ?? 0) + 1;
+    void walk(LvRegion region) {
+      for (final node in region.units) {
+        switch (node) {
+          case LvStructUnit():
+            final selector = node.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
+            final outer = selector?.outerPort;
+            final type = outer == null ? null : flow.into(outer)?.type;
+            if (type != null && (node.frames.length != 2 || type.dartType != 'bool')) {
+              bump('caseSelector over ${type.dartType}');
+            }
+            for (final frame in node.frames) {
+              walk(frame);
+            }
+          case LvPrimUnit():
+            if (_loweringOf(node, flow) != null) continue;
+            bump(_blockerKey(node));
+          case LvConstUnit():
+            final type = flow.outOf(node.port)?.type;
+            if (type != null && !_constantHasValue(node, type)) bump('constantValue ${type.dartType}');
+          case _:
+            break;
+        }
+      }
+    }
+
+    walk(flow.root);
+    printOnFailure(
+      'measured:\n${[for (final key in measured.keys) "  '$key': ${measured[key]},"].join('\n')}',
+    );
+    expect(measured, kMd5Blockers);
+  });
+
   test('cluster wires resolve their member shape through their endpoints', () {
     var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
     for (final file in snippets) {
@@ -618,6 +692,43 @@ Directory _scratchPackage(Set<String> sources) {
   File('${dir.path}/analysis_options.yaml').writeAsStringSync('include: package:lints/recommended.yaml\n');
   return dir;
 }
+
+/// [node]'s lowering against the wires that reach it, or null when it has
+/// none. The expressions are placeholders: only whether a lowering EXISTS is
+/// asked here, never what it says.
+List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
+  List<LvPrimTerminal> terminals(List<int> ports, {required bool isInput}) => [
+    for (final port in ports)
+      if (isInput ? flow.into(port) : flow.outOf(port) case final edge?)
+        LvPrimTerminal(port: port, type: edge.type, roleFlags: node.portRoleFlags[port] ?? 0, expression: 'x'),
+  ];
+  return lvPrimLowering(
+    LvPrimCall(
+      op: node.op,
+      primResId: node.primResId,
+      classCode: node.classCode,
+      inputs: terminals(node.inputPorts, isInput: true),
+      outputs: terminals(node.outputPorts, isInput: false),
+      requireImport: (_) {},
+    ),
+  );
+}
+
+/// How a refused node is named in [kMd5Blockers]: the operation, the named
+/// class, or the bare `primResID` an unnamed one carries.
+String _blockerKey(LvPrimUnit node) {
+  if (node.op case final op?) return '${op.opName} (primResID ${op.id})';
+  if (kLvNamedNodeClasses[node.classCode] case final named?) {
+    return '${named.name} (class 0x${node.classCode.toRadixString(16)})';
+  }
+  if (node.primResId case final id?) return 'primResID $id';
+  return 'node class 0x${node.classCode.toRadixString(16)}';
+}
+
+/// Whether the diagram constant [node] carries a decoded value of [type].
+bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
+    ? node.record.constBool != null || node.record.constText != null || node.record.constNumeric != null
+    : node.record.constArray != null && node.record.constArrayDims != null;
 
 /// Every cluster-coded signal in [diagram], bucketed by whether its endpoints
 /// resolve one member shape, several, or none.

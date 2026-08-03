@@ -611,6 +611,7 @@ class _FunctionEmitter {
     ];
     final call = LvPrimCall(
       op: unit.op,
+      primResId: unit.primResId,
       classCode: unit.classCode,
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,

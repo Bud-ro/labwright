@@ -390,6 +390,25 @@ catalogued CRC-8 algorithms × 261 messages: **2,610 comparisons, all exact**.
 The reference itself is anchored to the published check values, so neither side
 can drift alone.
 
+### MD5.vi, the distance left
+
+`MD5.vi` is the largest tracked snippet and the next behavioural milestone. Its
+every wire types and its whole structure tree builds; `kMd5Blockers` pins what
+remains, one entry per blocking node — **46 nodes in four groups**:
+
+- **20** carry a `primResID` no corpus VI labels (1162 ×5, 1163 ×5, 1181 ×4,
+  1056 ×3, 1082, 1155, 1156), so the operation itself is not decoded;
+- **11** are named operations whose *operand order* is not decoded (`Subtract`
+  ×3, `String Subset` ×2, `Concatenate Strings` ×2, `Compound Arithmetic` ×2,
+  `Build Array`, `Select`) and **9** whose *rule* is not (`Type Cast` ×7, its
+  flattened layout; `To Lower Case`; `Logical Shift`);
+- **4** are Case structures over an **integer** selector, where the file states
+  only the displayed frame's case value;
+- **1** string constant whose value the heap decode did not recover, and **1**
+  `0x114` node whose corpus captions do not agree on a name.
+
+### crc8.vi, continued
+
 One ordering difference is recorded there: the VI applies its Xor Out *before*
 the output reflection, where the published model reflects first. The two
 coincide when the output is not reflected or the Xor Out is zero, which every

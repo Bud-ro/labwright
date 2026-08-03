@@ -141,11 +141,16 @@ class LvPrimCall {
     required this.inputs,
     required this.outputs,
     required this.requireImport,
+    this.primResId,
   });
 
   /// The decoded primitive operation, or null when the node's identity is its
   /// class code alone.
   final PrimOp? op;
+
+  /// The node's raw `primResID`, whether or not [PrimOp] names it — reported
+  /// by [lvPrimUnmappedReason] so an unnamed operation is identifiable.
+  final int? primResId;
 
   /// The node's heap class code.
   final int classCode;
@@ -395,6 +400,10 @@ String lvPrimUnmappedReason(LvPrimCall call) {
     return 'class 0x${call.classCode.toRadixString(16)} is ${named.name} '
         '(${named.captions} corpus captions), but which terminal is which '
         'argument is not established from the terminal records';
+  }
+  if (call.primResId case final id?) {
+    return 'primResID $id on node class 0x${call.classCode.toRadixString(16)} is '
+        'not named anywhere in the corpus, so the operation it performs is not decoded';
   }
   return 'node class 0x${call.classCode.toRadixString(16)} carries no decoded primitive identity';
 }

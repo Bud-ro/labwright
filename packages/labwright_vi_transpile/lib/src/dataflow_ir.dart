@@ -293,6 +293,7 @@ class LvPrimUnit extends LvUnit {
     required this.oid,
     required this.classCode,
     required this.op,
+    required this.primResId,
     required this.label,
     required this.inputPorts,
     required this.outputPorts,
@@ -309,6 +310,10 @@ class LvPrimUnit extends LvUnit {
   /// The decoded primitive operation, or null when the node's identity is its
   /// [classCode] alone.
   final PrimOp? op;
+
+  /// The node's raw `primResID`, whether or not [PrimOp] names it — the number
+  /// a refusal reports so an unnamed operation is identifiable.
+  final int? primResId;
 
   /// The node's own recovered caption, or null when it carries none — the
   /// only name the diagram states for the values it produces.
@@ -738,6 +743,7 @@ class _Builder {
       oid: node.oid,
       classCode: node.kind,
       op: node.primResId == null ? null : PrimOp.fromId(node.primResId!),
+      primResId: node.primResId,
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
