@@ -23,8 +23,10 @@ import 'package:dart_style/dart_style.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'dataflow_ir.dart';
+import 'naming.dart';
 import 'numeric.dart';
 import 'prim_map.dart';
+import 'runtime.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
 
@@ -70,39 +72,6 @@ const int kLvEmitPageWidth = 120;
   }
 }
 
-/// Allocates unique, readable Dart identifiers.
-class _Names {
-  final Set<String> _used = <String>{};
-
-  /// A fresh identifier derived from [base], never shorter than three
-  /// characters and never colliding with one already taken. A [base] that is
-  /// already a lowerCamelCase Dart identifier is kept verbatim — sanitizing it
-  /// would flatten the case a caller chose deliberately.
-  String take(String base) {
-    var stem = _isLowerCamel(base) ? base : lvFieldName(base);
-    if (stem.isEmpty) stem = 'value';
-    if (stem.length < 3) stem = '${stem}Value';
-    return _unique(stem);
-  }
-
-  /// A fresh file-scope constant name derived from [base] — the `_k` prefix
-  /// the repo spells library-level constants with.
-  String takeFileConstant(String base) {
-    final stem = lvClassName(base);
-    return _unique('_k${stem.isEmpty ? 'Constant' : stem}');
-  }
-
-  String _unique(String stem) {
-    if (_used.add(stem)) return stem;
-    for (var index = 2; ; index++) {
-      final candidate = '$stem$index';
-      if (_used.add(candidate)) return candidate;
-    }
-  }
-
-  static bool _isLowerCamel(String text) => RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(text);
-}
-
 class _Emitter {
   _Emitter(this.flow, {required this.functionName, required this.sourceNote});
 
@@ -110,11 +79,10 @@ class _Emitter {
   final String functionName;
   final String? sourceNote;
 
-  final _Names names = _Names();
+  final LvNaming names = LvNaming();
   final StringBuffer body = StringBuffer();
   final Map<int, String> valueOf = <int, String>{};
   final Set<String> imports = <String>{};
-  final Map<String, LvHelper> helpers = <String, LvHelper>{};
 
   /// The file-scope declarations of the diagram's array constants, in the
   /// order the lowering reached them.
@@ -142,7 +110,7 @@ class _Emitter {
           oid: control.oid,
         );
       }
-      final name = names.take(control.name ?? 'input');
+      final name = names.parameter(control.name);
       valueOf[control.oid] = name;
       parameters.add('required ${edge.type.dartType} $name');
       _noteImportsFor(edge.type);
@@ -163,7 +131,7 @@ class _Emitter {
       }
       _noteImportsFor(edge.type);
       results.add((
-        name: lvFieldName(indicator.name ?? 'result'),
+        name: names.resultField(indicator.name),
         type: edge.type.dartType!,
         expression: valueOf[edge.source]!,
       ));
@@ -209,11 +177,6 @@ class _Emitter {
       ..write(body)
       ..writeln(returnStatement)
       ..writeln('}');
-    for (final helper in (helpers.keys.toList()..sort()).map((key) => helpers[key]!)) {
-      file
-        ..writeln()
-        ..writeln(helper.source);
-    }
     return DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,
       pageWidth: kLvEmitPageWidth,
@@ -338,14 +301,14 @@ class _Emitter {
   /// tunnel builds a new list.
   String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
     imports.add('dart:typed_data');
-    final name = names.takeFileConstant(unit.label ?? 'constant');
+    final name = names.fileConstant(unit.label);
     final shape = dims.join(' × ');
     final flat = _typedListLiteral(values, type);
     final initializer = dims.length <= 1
         ? flat
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
               'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
-    if (dims.length > 1) helpers[_arrayNdHelper.name] = _arrayNdHelper;
+    if (dims.length > 1) imports.add(kLvRuntimeImport);
     fileConstants.add(
       '/// The block diagram\'s ${unit.label == null ? 'unnamed constant' : '"${unit.label}" constant'}: '
       '$shape ${type.numeric!.glyph} elements.\n'
@@ -425,7 +388,7 @@ class _Emitter {
         port: port,
         type: edge.type,
         roleFlags: unit.portRoleFlags[port] ?? 0,
-        expression: isInput ? valueOf[edge.source]! : names.take(_baseNameFor(unit)),
+        expression: isInput ? valueOf[edge.source]! : names.wire(edge.type, decoded: unit.label),
       );
     }
 
@@ -438,7 +401,6 @@ class _Emitter {
       classCode: unit.classCode,
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
-      requireHelper: (helper) => helpers[helper.name] = helper,
       requireImport: imports.add,
     );
     final statements = lvPrimLowering(call);
@@ -451,15 +413,6 @@ class _Emitter {
     for (final output in outputs) {
       valueOf[output.port] = output.expression!;
     }
-  }
-
-  String _baseNameFor(LvPrimUnit unit) {
-    if (unit.op case final op?) return op.opName;
-    return switch (unit.classCode) {
-      kLvIndexArrayClass => 'element',
-      kLvReplaceArraySubsetClass => 'array',
-      _ => 'value',
-    };
   }
 
   // --- structures --------------------------------------------------------
@@ -525,7 +478,7 @@ class _Emitter {
           continue;
         }
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
-        final array = _atomic(outer) ? outer : names.take('array');
+        final array = _atomic(outer) ? outer : names.wire(_typeAt(tunnel.outerPort!)!);
         if (array != outer) body.writeln('final ${_typeAt(tunnel.outerPort!)!.dartType} $array = $outer;');
         indexedInputs.add((terminal: tunnel, array: array));
         continue;
@@ -541,7 +494,7 @@ class _Emitter {
       }
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
       final type = _typeAt(tunnel.outerPort!)!;
-      final builder = names.take('collected');
+      final builder = names.role(LvNameRole.builder);
       imports.add('dart:typed_data');
       body.writeln('final ${lvArrayBuilderType(type.element)} $builder = <${type.element.dartType}>[];');
       indexedOutputs.add((terminal: tunnel, builder: builder, type: type));
@@ -565,12 +518,12 @@ class _Emitter {
     if (bounds.length == 1) {
       bound = bounds.single;
     } else {
-      helpers[_iterationCountHelper.name] = _iterationCountHelper;
-      bound = names.take('iterationCount');
-      body.writeln('final int $bound = ${_iterationCountHelper.name}(<int>[${bounds.join(', ')}]);');
+      imports.add(kLvRuntimeImport);
+      bound = names.role(LvNameRole.count);
+      body.writeln('final int $bound = ${LvRuntimeCall.iterationCount}(<int>[${bounds.join(', ')}]);');
     }
 
-    final iteration = names.take('iteration');
+    final iteration = names.loopIndex();
     body.writeln('for (var $iteration = 0; $iteration < $bound; $iteration++) {');
     for (final terminal in unit.terminals) {
       if (terminal.role != LvTerminalRole.iteration) continue;
@@ -580,7 +533,7 @@ class _Emitter {
       final inner = input.terminal.innerPorts[frame.frameOid]!;
       final type = _typeAt(inner);
       if (flow.outOf(inner) == null) continue;
-      final element = names.take('element');
+      final element = names.role(LvNameRole.element);
       body.writeln('final ${type!.dartType} $element = ${input.array}[$iteration];');
       valueOf[inner] = element;
     }
@@ -614,7 +567,7 @@ class _Emitter {
     body.writeln('}');
 
     for (final output in indexedOutputs) {
-      final name = names.take('indexedOut');
+      final name = names.wire(output.type);
       body.writeln('final ${output.type.dartType} $name = ${lvArrayFreeze(output.type.element, output.builder)};');
       valueOf[output.terminal.outerPort!] = name;
     }
@@ -646,7 +599,7 @@ class _Emitter {
         );
       }
       final type = _typeAt(left.outerPort!)!;
-      final name = names.take('shiftRegister');
+      final name = names.role(LvNameRole.carried);
       body.writeln('${type.dartType} $name = $initial;');
       if (left.innerPorts[frameOid] case final port?) valueOf[port] = name;
       carried.add((terminal: right, name: name, rightOuter: right.outerPort));
@@ -711,7 +664,7 @@ class _Emitter {
       final port = tunnel.outerPort;
       if (port == null || flow.outOf(port) == null) continue;
       final type = _typeAt(port)!;
-      final name = names.take('caseResult');
+      final name = names.role(LvNameRole.branch);
       _noteImportsFor(type);
       body.writeln('final ${type.dartType} $name;');
       outputs.add((terminal: tunnel, name: name, type: type));
@@ -793,32 +746,3 @@ class _Emitter {
 
   static bool _atomic(String expression) => RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(expression);
 }
-
-const LvHelper _arrayNdHelper = LvHelper(LvRuntimeType.arrayNd, '''
-/// A LabVIEW multi-dimensional array: a flat, **row-major** typed buffer plus
-/// its dimension lengths. LabVIEW arrays are rectangular, so one buffer and a
-/// length vector is the exact shape — a list of rows would admit ragged
-/// shapes LabVIEW forbids and cost an indirection per row.
-class ${LvRuntimeType.arrayNd}<T extends List<Object?>> {
-  ${LvRuntimeType.arrayNd}(this.data, this.dims);
-
-  /// The elements, row-major: the last dimension varies fastest.
-  final T data;
-
-  /// The length of each dimension, outermost first.
-  final Uint32List dims;
-
-  /// The flat [data] offset of the element at [indices].
-  int offsetOf(List<int> indices) {
-    var offset = 0;
-    for (var axis = 0; axis < dims.length; axis++) {
-      offset = offset * dims[axis] + indices[axis];
-    }
-    return offset;
-  }
-}''');
-
-const LvHelper _iterationCountHelper = LvHelper('_lvIterationCount', '''
-/// LabVIEW's For loop iteration count: the smallest of the wired count
-/// terminal and every auto-indexed input array's length.
-int _lvIterationCount(List<int> bounds) => bounds.reduce((a, b) => a < b ? a : b);''');

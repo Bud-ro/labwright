@@ -22,6 +22,7 @@ library;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'numeric.dart';
+import 'runtime.dart';
 import 'wire_type.dart';
 
 /// Role bits on a growable array node's terminal record
@@ -46,17 +47,6 @@ abstract final class LvArrayTerminalRole {
 
   /// The single index of a 1-D access — both dimension bits set.
   static const int singleIndex = 0x600000;
-}
-
-/// A runtime helper the emitted code declares.
-class LvHelper {
-  const LvHelper(this.name, this.source);
-
-  /// The function's name in the emitted file.
-  final String name;
-
-  /// Its complete Dart declaration, doc comment included.
-  final String source;
 }
 
 /// One terminal of a node, resolved.
@@ -84,7 +74,6 @@ class LvPrimCall {
     required this.classCode,
     required this.inputs,
     required this.outputs,
-    required this.requireHelper,
     required this.requireImport,
   });
 
@@ -100,9 +89,6 @@ class LvPrimCall {
 
   /// The output terminals, in terminal order.
   final List<LvPrimTerminal> outputs;
-
-  /// Declares a helper in the emitted file.
-  final void Function(LvHelper) requireHelper;
 
   /// Declares an import in the emitted file.
   final void Function(String) requireImport;
@@ -276,22 +262,8 @@ List<String>? _integerConversion(LvPrimCall call) {
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   final name = out.expression;
   if (name == null) return const [];
-  final helper = lvIntegerConversionHelper(target);
-  call.requireHelper(helper);
-  return ['final int $name = ${helper.name}(${source.expression});'];
-}
-
-/// The helper that renormalizes a value to [kind]'s LabVIEW width — what a
-/// To-Integer conversion node emits.
-LvHelper lvIntegerConversionHelper(LvNumericKind kind) {
-  final name = '_lvTo${kind.glyph}';
-  return LvHelper(name, '''
-/// LabVIEW's To ${kind.glyph} conversion: [value] renormalized to ${kind.bits}
-/// bits — exact for every value that width can hold.
-// TODO(lv-convert-range): LabVIEW's rule for a value outside the target width
-// (truncate or saturate) is not established from the file format; this
-// truncates.
-int $name(int value) => ${lvWrapExpression(kind, 'value')};''');
+  call.requireImport(kLvRuntimeImport);
+  return ['final int $name = ${LvRuntimeCall.integerConversion(target)}(${source.expression});'];
 }
 
 List<String>? _byteArrayConversion(LvPrimCall call, {required bool encode}) {
@@ -324,11 +296,11 @@ List<String>? _rotateWithCarry(LvPrimCall call, {required bool left}) {
   final kind = rotated.type.numeric;
   if (kind == null || kind.isFloat || value.type.numeric != kind) return null;
   if (rotated.expression == null && carryOut.expression == null) return const [];
-  final helper = left ? _rotateLeftHelper : _rotateRightHelper;
-  call.requireHelper(helper);
+  call.requireImport(kLvRuntimeImport);
+  final rotate = left ? LvRuntimeCall.rotateLeftWithCarry : LvRuntimeCall.rotateRightWithCarry;
   return [
     'final (${rotated.expression ?? '_'}, ${carryOut.expression ?? '_'}) = '
-        '${helper.name}(${value.expression}, ${carryIn.expression}, ${kind.bits});',
+        '$rotate(${value.expression}, ${carryIn.expression}, ${kind.bits});',
   ];
 }
 
@@ -337,24 +309,6 @@ LvPrimTerminal? _onlyNumeric(List<LvPrimTerminal> terminals) =>
 
 LvPrimTerminal? _onlyBoolean(List<LvPrimTerminal> terminals) =>
     LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.dartType == 'bool'));
-
-const LvHelper _rotateLeftHelper = LvHelper('_lvRotateLeftWithCarry', '''
-/// LabVIEW's Rotate Left With Carry over a [bits]-wide value: the value shifts
-/// up one bit, [carryIn] enters as bit 0, and the departing top bit is the
-/// carry out.
-(int, bool) _lvRotateLeftWithCarry(int value, bool carryIn, int bits) => (
-  ((value << 1) | (carryIn ? 1 : 0)) & ((1 << bits) - 1),
-  (value >>> (bits - 1)) & 1 != 0,
-);''');
-
-const LvHelper _rotateRightHelper = LvHelper('_lvRotateRightWithCarry', '''
-/// LabVIEW's Rotate Right With Carry over a [bits]-wide value: the value shifts
-/// down one bit, [carryIn] enters as the top bit, and the departing bit 0 is
-/// the carry out.
-(int, bool) _lvRotateRightWithCarry(int value, bool carryIn, int bits) => (
-  (value >>> 1) | (carryIn ? 1 << (bits - 1) : 0),
-  value & 1 != 0,
-);''');
 
 List<String>? _indexArray(LvPrimCall call) {
   final array = call.inputWithRole(LvArrayTerminalRole.array);

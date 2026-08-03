@@ -244,6 +244,7 @@ class LvPrimUnit extends LvUnit {
     required this.oid,
     required this.classCode,
     required this.op,
+    required this.label,
     required this.inputPorts,
     required this.outputPorts,
     required this.portRoleFlags,
@@ -259,6 +260,10 @@ class LvPrimUnit extends LvUnit {
   /// The decoded primitive operation, or null when the node's identity is its
   /// [classCode] alone.
   final PrimOp? op;
+
+  /// The node's own recovered caption, or null when it carries none — the
+  /// only name the diagram states for the values it produces.
+  final String? label;
 
   @override
   final List<int> inputPorts;
@@ -600,6 +605,7 @@ class _Builder {
       oid: node.oid,
       classCode: node.kind,
       op: node.primResId == null ? null : PrimOp.fromId(node.primResId!),
+      label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
       portRoleFlags: roleFlags,
@@ -640,6 +646,14 @@ class _Builder {
       );
     }
     return units;
+  }
+
+  /// A node's own drawn caption, or null when it carries none. A caption is
+  /// LabVIEW's default node name unless the author renamed it, so it is used
+  /// only where a name is wanted and never as an identity.
+  static String? _captionOf(ViHeapObject node) {
+    final label = nodeDisplayLabel(node);
+    return label.isHint ? null : label.text;
   }
 
   /// A constant's drawn name: the visible `0xa` caption on its bounded shell.

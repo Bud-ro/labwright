@@ -6,6 +6,7 @@
 
 import 'dart:convert';
 import 'dart:typed_data';
+import 'package:labwright_lv_runtime/labwright_lv_runtime.dart';
 
 /// The block diagram's unnamed constant: 256 U8 elements.
 final Uint8List _kConstant = Uint8List(256);
@@ -278,71 +279,49 @@ int crc8({
   required bool reflectOutputF,
   required int poly0x07,
 }) {
-  final Uint8List stringToByteArray = latin1.encode(dataIn);
-  Uint8List shiftRegister = _kConstant;
-  for (var iteration = 0; iteration < 256; iteration++) {
-    final int toUnsignedByteInteger = _lvToU8(iteration);
-    int shiftRegister2 = toUnsignedByteInteger;
-    for (var iteration2 = 0; iteration2 < 8; iteration2++) {
-      final (rotateLeftWithCarry, rotateLeftWithCarry2) = _lvRotateLeftWithCarry(shiftRegister2, false, 8);
-      final int caseResult;
-      if (rotateLeftWithCarry2) {
-        final int exclusiveOr = (poly0x07 ^ rotateLeftWithCarry) & 0xFF;
-        caseResult = exclusiveOr;
+  final Uint8List bytes = latin1.encode(dataIn);
+  Uint8List carried = _kConstant;
+  for (var i = 0; i < 256; i++) {
+    final int value = lvToU8(i);
+    int carried2 = value;
+    for (var j = 0; j < 8; j++) {
+      final (value2, flag) = lvRotateLeftWithCarry(carried2, false, 8);
+      final int branch;
+      if (flag) {
+        final int value3 = (poly0x07 ^ value2) & 0xFF;
+        branch = value3;
       } else {
-        caseResult = rotateLeftWithCarry;
+        branch = value2;
       }
-      shiftRegister2 = caseResult;
+      carried2 = branch;
     }
-    final Uint8List array = Uint8List.fromList(shiftRegister)..[iteration] = shiftRegister2;
-    shiftRegister = array;
+    final Uint8List bytes2 = Uint8List.fromList(carried)..[i] = carried2;
+    carried = bytes2;
   }
-  int shiftRegister3 = init0x00;
-  for (var iteration3 = 0; iteration3 < stringToByteArray.length; iteration3++) {
-    final int element = stringToByteArray[iteration3];
-    final int caseResult2;
+  int carried3 = init0x00;
+  for (var k = 0; k < bytes.length; k++) {
+    final int element = bytes[k];
+    final int branch2;
     if (reflectInputF) {
-      final int toLongInteger = _lvToI32(element);
-      final int element2 = _kU8BitsReversedLut[toLongInteger];
-      caseResult2 = element2;
+      final int value4 = lvToI32(element);
+      final int value5 = _kU8BitsReversedLut[value4];
+      branch2 = value5;
     } else {
-      caseResult2 = element;
+      branch2 = element;
     }
-    final int exclusiveOr2 = (shiftRegister3 ^ caseResult2) & 0xFF;
-    final int toLongInteger2 = _lvToI32(exclusiveOr2);
-    final int element3 = shiftRegister[toLongInteger2];
-    shiftRegister3 = element3;
+    final int value6 = (carried3 ^ branch2) & 0xFF;
+    final int value7 = lvToI32(value6);
+    final int value8 = carried[value7];
+    carried3 = value8;
   }
-  final int exclusiveOr3 = (xorOut0x00 ^ shiftRegister3) & 0xFF;
-  final int caseResult3;
+  final int value9 = (xorOut0x00 ^ carried3) & 0xFF;
+  final int branch3;
   if (reflectOutputF) {
-    final int toLongInteger3 = _lvToI32(exclusiveOr3);
-    final int element4 = _kU8BitsReversedLut[toLongInteger3];
-    caseResult3 = element4;
+    final int value10 = lvToI32(value9);
+    final int value11 = _kU8BitsReversedLut[value10];
+    branch3 = value11;
   } else {
-    caseResult3 = exclusiveOr3;
+    branch3 = value9;
   }
-  return caseResult3;
+  return branch3;
 }
-
-/// LabVIEW's Rotate Left With Carry over a [bits]-wide value: the value shifts
-/// up one bit, [carryIn] enters as bit 0, and the departing top bit is the
-/// carry out.
-(int, bool) _lvRotateLeftWithCarry(int value, bool carryIn, int bits) => (
-  ((value << 1) | (carryIn ? 1 : 0)) & ((1 << bits) - 1),
-  (value >>> (bits - 1)) & 1 != 0,
-);
-
-/// LabVIEW's To I32 conversion: [value] renormalized to 32
-/// bits — exact for every value that width can hold.
-// TODO(lv-convert-range): LabVIEW's rule for a value outside the target width
-// (truncate or saturate) is not established from the file format; this
-// truncates.
-int _lvToI32(int value) => value << 32 >> 32;
-
-/// LabVIEW's To U8 conversion: [value] renormalized to 8
-/// bits — exact for every value that width can hold.
-// TODO(lv-convert-range): LabVIEW's rule for a value outside the target width
-// (truncate or saturate) is not established from the file format; this
-// truncates.
-int _lvToU8(int value) => value & 0xFF;
