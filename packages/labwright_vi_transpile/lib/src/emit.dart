@@ -593,14 +593,36 @@ class _FunctionEmitter {
     return '${magnitude > (1 << (kind.bits - 1)) - 1 ? magnitude - (1 << kind.bits) : magnitude}';
   }
 
+  /// A single-quoted Dart literal for [text]. A LabVIEW string constant holds
+  /// arbitrary BYTES — one code unit each — so every unit outside printable
+  /// ASCII is written as a `\u{…}` escape rather than pasted into the source:
+  /// the emitted literal is the same sequence of code units whatever the
+  /// bytes are, and stays readable.
   static String _stringLiteral(String text) {
-    final escaped = text
-        .replaceAll(r'\', r'\\')
-        .replaceAll("'", r"\'")
-        .replaceAll(r'$', r'\$')
-        .replaceAll('\n', r'\n')
-        .replaceAll('\r', r'\r');
-    return "'$escaped'";
+    final out = StringBuffer("'");
+    for (final code in text.codeUnits) {
+      switch (code) {
+        case 0x5c:
+          out.write(r'\\');
+        case 0x27:
+          out.write(r"\'");
+        case 0x24:
+          out.write(r'\$');
+        case 0x0a:
+          out.write(r'\n');
+        case 0x0d:
+          out.write(r'\r');
+        case 0x09:
+          out.write(r'\t');
+        default:
+          if (code < 0x20 || code >= 0x7f) {
+            out.write('\\u{${code.toRadixString(16)}}');
+          } else {
+            out.writeCharCode(code);
+          }
+      }
+    }
+    return (out..write("'")).toString();
   }
 
   void _emitPrimitive(LvPrimUnit unit) {
