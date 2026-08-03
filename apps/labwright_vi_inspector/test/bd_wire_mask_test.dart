@@ -452,7 +452,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71151),
+        lessThanOrEqualTo(71150),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The into-icon arrival law — stop '
@@ -466,24 +466,30 @@ void main() {
             'the crc trio each draw one 0x0000ff px beside the '
             '`bytes`/`8-bits` labels where the reference is white, a '
             'pre-existing wire overrun, offset by a 9 px ClassChildren '
-            'improvement -> 71,151.)',
+            'improvement -> 71,151; the FTAB font-run decode (bold only '
+            'where a weight-1000 entry says so) -> 71,150.)',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21805),
+        lessThanOrEqualTo(21809),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
-            'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
-            '(The icon-asset repairs — foreign fragments lopped, baked '
-            'wires erased, full-box crops trimmed to their ink — took '
-            'this 22,046 -> 22,035; the prim-origin/uncatalogued 3-point '
-            'tiers, the container-face runs, and the Logical Shift '
-            'terminal row -> 21,906; the array-shell wrap arrival face '
-            '-> 21,872; the metric-matched text pass covering value-cell '
-            'ink -> 21,807; bold style-run labels -> 21,802; the '
-            'whole-pixel text boxes exposed 3 reference px (Pages, '
-            'crc32_lookup_table) the wider fractional boxes had '
-            'masked -> 21,805.)',
+            'misrouted budget; re-pin DOWNWARD as routing lands, never up '
+            '(text-layer exposures documented per pixel are the sole '
+            'exception). (The icon-asset repairs — foreign fragments '
+            'lopped, baked wires erased, full-box crops trimmed to their '
+            'ink — took this 22,046 -> 22,035; the prim-origin/'
+            'uncatalogued 3-point tiers, the container-face runs, and the '
+            'Logical Shift terminal row -> 21,906; the array-shell wrap '
+            'arrival face -> 21,872; the metric-matched text pass '
+            'covering value-cell ink -> 21,807; bold style-run labels '
+            '-> 21,802; the whole-pixel text boxes exposed 3 reference px '
+            '(Pages, crc32_lookup_table) the wider fractional boxes had '
+            'masked -> 21,805; the FTAB-sized 21 px heading '
+            '(crc32_lookup_table, ink-bbox exact at 16 em) exposed 4 '
+            'black glyph px of its own text the mis-sized small-bold box '
+            'had masked — text-layer accuracy, not wire routing '
+            '-> 21,809.)',
       );
     });
   });

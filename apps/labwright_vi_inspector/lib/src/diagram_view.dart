@@ -2939,7 +2939,9 @@ class BdGlyph {
   /// The ink-weight overdraw companion ([kBdTextOverdrawAlpha]).
   final TextPainter dim;
 
-  /// The whole-pixel pen advance: the face's fractional advance rounded.
+  /// The whole-pixel pen advance: the face's hinted 12 ppem advance where
+  /// the reference rasterizer's own metrics differ from rounding
+  /// ([bdHintedAdvance]), else the fractional advance rounded.
   final int advance;
 
   /// [main]'s alphabetic-baseline distance from its paint origin.
@@ -3027,10 +3029,20 @@ class BdDiagramPainter extends CustomPainter {
         textDirection: TextDirection.ltr,
       )..layout();
       final main = build(color);
+      // GDI pens by the face's HINTED per-ppem advance (`hdmx`), not the
+      // rounded linear one; at the reference's 12 ppem the two differ on a
+      // handful of glyphs ([bdHintedAdvance]). Other em sizes keep the
+      // rounded engine width.
+      final hinted = fontSize == kBdTextSize && glyph.length == 1
+          ? bdHintedAdvance(
+              glyph.codeUnitAt(0),
+              bold: fontWeight.index >= FontWeight.w700.index,
+            )
+          : null;
       return BdGlyph(
         main: main,
         dim: build(color.withValues(alpha: color.a * kBdTextOverdrawAlpha)),
-        advance: main.width.round(),
+        advance: hinted ?? main.width.round(),
         baseline: main.computeDistanceToActualBaseline(TextBaseline.alphabetic),
       );
     },
@@ -4397,17 +4409,27 @@ class BdDiagramPainter extends CustomPainter {
             holderKind == 0x1b ||
             (holderKind == 0x52 && ((object.objFlags ?? 0) & 0x800) == 0);
         final rect = rect0;
+        // The label's decoded face: its first font run resolved against the
+        // VI's FTAB ([ViHeapObject.labelFont]) — weight 1000 draws the bold
+        // face; a non-default table size (its cell height in px, 15 = the
+        // default UI font whose em is [kBdTextSize]) scales the em by
+        // size/15 (crc32_lookup_table's 21 px heading, Read VI Blocks'
+        // 20 px numbering). MD5's bold headings keep the regular face's
+        // 9 px caps and land within the stored label bounds only at the
+        // bold face's own advances (reference-measured). A non-default
+        // family (Courier New) is not yet rendered — the default face
+        // stands in. // TODO(labwright): render FTAB face names.
+        final labelFont = object.labelFont;
+        final fontSize = labelFont == null
+            ? kBdTextSize
+            : bdEmForCellHeight(labelFont.resolvedSize);
         final tp = _layoutText(
           text,
           color: _dimFor(
             object.oid,
             bdDecodedColor(object.fgRgb) ?? Colors.black,
           ),
-          // The label's decoded face (its first style run — see
-          // [ViHeapObject.labelIsBold]): bold labels draw with the bundled
-          // Selawik Bold at the same 12 em (reference-measured: MD5's bold
-          // headings keep the regular face's 9 px caps and land within the
-          // stored label bounds only at the bold face's own advances).
+          fontSize: fontSize,
           fontWeight: object.labelIsBold ? FontWeight.w700 : FontWeight.w400,
           // Label text is never truncated or auto-wrapped: LabVIEW sizes a
           // label's bounds to its text (multi-line captions carry their own
@@ -4415,7 +4437,7 @@ class BdDiagramPainter extends CustomPainter {
           // full width rather than ellipsising a few px of slack.
           maxLines: math.max(
             1,
-            (rect.height / (kBdTextSize * kBdTextLineHeight)).round(),
+            (rect.height / (fontSize * kBdTextLineHeight)).round(),
           ),
         );
         // A selector's value text HARD-clips 4 px inside its label part's
