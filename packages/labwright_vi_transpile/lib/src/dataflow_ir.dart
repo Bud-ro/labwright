@@ -212,6 +212,11 @@ enum LvRefusalKind {
   /// An auto-indexing flag that contradicts the two sides' dimensionalities.
   tunnelIndexing,
 
+  /// A structure tunnel whose two sides carry different Dart types. LabVIEW
+  /// coerces the value at the border; which of the two types the coercion
+  /// yields, and how it converts, is not decoded.
+  tunnelCoercion,
+
   /// A terminal that must carry a value but no wire reaches it.
   unwiredTerminal,
 
@@ -306,6 +311,8 @@ class LvPrimUnit extends LvUnit {
     required this.outputPorts,
     required this.portRoleFlags,
     required this.portDrawnTop,
+    required this.nodeFlags,
+    required this.portMemberName,
   });
 
   @override
@@ -343,6 +350,15 @@ class LvPrimUnit extends LvUnit {
   /// `LvPrimCall.operandsTopDown`). Absent for a terminal whose attach
   /// geometry does not resolve.
   final Map<int, int> portDrawnTop;
+
+  /// The node's own [ViHeapObject.objFlags] — the record that separates the
+  /// two operations sharing a class code (see `kLvByNameUnbundlesBit`).
+  final int nodeFlags;
+
+  /// Per port oid, the name of the data-space type descriptor the terminal's
+  /// own part resolves ([ViHeapObject.typeName]) — the cluster MEMBER a
+  /// by-name terminal selects. Absent where the part resolves no named type.
+  final Map<int, String> portMemberName;
 }
 
 /// A **subVI call**: one endpoint holder per connector-pane terminal of the
@@ -798,12 +814,14 @@ class _Builder {
     final inputs = <int>[], outputs = <int>[];
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
+    final memberName = <int, String>{};
     for (final holder in kids[node.oid] ?? const <ViHeapObject>[]) {
       if (holder.kind != kLvHolderCode) continue;
       ownerOfPort[holder.oid] = node.oid;
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
       final record = (kids[holder.oid] ?? const <ViHeapObject>[]).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
+      if (record?.typeName case final name?) memberName[holder.oid] = name;
       final attach = diagram.dcoChildTerminalAttach(holder.oid);
       if (attach != null) drawnTop[holder.oid] = attach.candidates.first.y;
     }
@@ -817,6 +835,8 @@ class _Builder {
       outputPorts: outputs,
       portRoleFlags: roleFlags,
       portDrawnTop: drawnTop,
+      nodeFlags: node.objFlags ?? 0,
+      portMemberName: memberName,
     );
   }
 

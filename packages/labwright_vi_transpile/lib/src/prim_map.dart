@@ -167,7 +167,13 @@ abstract final class LvArrayTerminalRole {
 
 /// One terminal of a node, resolved.
 class LvPrimTerminal {
-  const LvPrimTerminal({required this.port, required this.type, required this.roleFlags, required this.expression});
+  const LvPrimTerminal({
+    required this.port,
+    required this.type,
+    required this.roleFlags,
+    required this.expression,
+    this.memberName,
+  });
 
   /// The endpoint-holder oid.
   final int port;
@@ -181,6 +187,10 @@ class LvPrimTerminal {
   /// For an input, the Dart expression feeding it; for an output, the name it
   /// is bound to, or null when nothing consumes it.
   final String? expression;
+
+  /// The cluster MEMBER this terminal selects, for the by-name nodes that
+  /// carry one on the terminal's own record ([LvPrimUnit.portMemberName]).
+  final String? memberName;
 }
 
 /// One node's lowering request.
@@ -195,6 +205,7 @@ class LvPrimCall {
     required this.requireImport,
     required this.names,
     this.primResId,
+    this.nodeFlags = 0,
   });
 
   /// The decoded primitive operation, or null when the node's identity is its
@@ -207,6 +218,10 @@ class LvPrimCall {
 
   /// The node's heap class code.
   final int classCode;
+
+  /// The node's own record flags ([LvPrimUnit.nodeFlags]) — what separates the
+  /// two by-name operations sharing class [kLvByNameClass].
+  final int nodeFlags;
 
   /// The input terminals, in terminal order.
   final List<LvPrimTerminal> inputs;
@@ -252,6 +267,18 @@ class LvPrimCall {
       if (top == null || !rows.add(top)) return null;
     }
     return [...inputs]..sort((a, b) => portDrawnTop[a.port]!.compareTo(portDrawnTop[b.port]!));
+  }
+
+  /// [ports] **in drawn order**, uppermost first — or null when any port's
+  /// drawn position is missing or two of them share a row, in which case the
+  /// order is not stated.
+  List<int>? portsTopDown(List<int> ports) {
+    final rows = <int>{};
+    for (final port in ports) {
+      final top = portDrawnTop[port];
+      if (top == null || !rows.add(top)) return null;
+    }
+    return [...ports]..sort((a, b) => portDrawnTop[a]!.compareTo(portDrawnTop[b]!));
   }
 
   /// The node's two **inputs in drawn order**, uppermost first — its operand
@@ -372,6 +399,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.select,
   PrimOp.logicalShift,
   PrimOp.typeCast,
+  PrimOp.notANumberPathRefnum,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -385,22 +413,42 @@ const Set<PrimOp> kLvMappedPrimOps = {
 /// refusing — a `Concatenate Strings` whose input order is not decoded reads
 /// very differently from an unidentified class.
 ///
-/// Two classes are deliberately absent. `0x63` (14 975 nodes) is not one
-/// operation: its captions read `Unbundle By Name` ×269 AND `Bundle By Name`
-/// ×177, so the class cannot be an identity. `0x114` (414 nodes) has no
-/// agreement — `Overflow array` ×4 against `Initialize Array` ×3, both of
-/// which read as user text.
+/// The bar an addition clears: exactly **one** distinct caption text over the
+/// whole corpus, carried by at least three nodes. A class the corpus captions
+/// two ways is not one identity until something decoded separates the two, and
+/// a class captioned once is one author's word.
+///
+/// What the corpus says about the classes that do not clear it:
+/// `0x63` (14 975 nodes) is `Unbundle By Name` ×269 AND `Bundle By Name` ×177,
+/// and [kLvByNameUnbundlesBit] is the decoded record that separates them;
+/// `0xae` (156) is `Start Asynchronous Call` ×95 AND `Wait On Asynchronous
+/// Call` ×3; `0xd6` (2 437) is `Event Data Node` ×17 AND `Event Filter Node`
+/// ×1; `0x114` (414) is `Overflow array` ×4 against `Initialize Array` ×3, both
+/// of which read as author text; `0x14a` (380) is `Feedback Node` ×12 and
+/// `Target Angle` ×2. `0xa9` (2 619) carries 38 distinct captions of which
+/// `Invoke Node` ×84 is only the most common — the rest (`Classes` ×10,
+/// `Attribute` ×10, `Save` ×8, …) name a member rather than the node — and
+/// `0x6a` (865) carries 248, almost all of them a foreign entry point spelling
+/// (`ps3000.dll:_ps3000_open_unit@0` ×131). `0x48` `Array Subset` ×1 and `0xeb`
+/// `Register For Events` ×2 are below the floor. `0x153` (1 466), `0x170` (380)
+/// and `0x150` (406) carry no caption at all.
+///
+/// [kLvUnbundleClass]'s entry predates the bar and does not clear it: its
+/// second caption text is `Template unbundler` ×4, which reads as author text
+/// beside `Unbundle` ×25.
 const Map<int, ({String name, int captions})> kLvNamedNodeClasses = {
   kLvIndexArrayClass: (name: 'Index Array', captions: 27),
   kLvReplaceArraySubsetClass: (name: 'Replace Array Subset', captions: 10),
-  0x34: (name: 'Bundle', captions: 26),
-  0x36: (name: 'Unbundle', captions: 25),
+  kLvBundleClass: (name: 'Bundle', captions: 26),
+  kLvUnbundleClass: (name: 'Unbundle', captions: 25),
   kLvBuildArrayClass: (name: 'Build Array', captions: 74),
   kLvConcatenateStringsClass: (name: 'Concatenate Strings', captions: 32),
   0x6c: (name: 'Compound Arithmetic', captions: 14),
+  0x92: (name: 'Scan From String', captions: 3),
   0x93: (name: 'Format Into String', captions: 37),
   0x105: (name: 'Match Regular Expression', captions: 4),
-  0x172: (name: 'Merge Errors', captions: 113),
+  0xbd: (name: 'Delete From Array', captions: 7),
+  kLvMergeErrorsClass: (name: 'Merge Errors', captions: 113),
 };
 
 /// The node **classes** that are one operation and have a lowering rule — the
@@ -429,6 +477,9 @@ const Set<int> kLvMappedPrimClasses = {
   kLvReplaceArraySubsetClass,
   kLvBuildArrayClass,
   kLvConcatenateStringsClass,
+  kLvUnbundleClass,
+  kLvMergeErrorsClass,
+  kLvByNameClass,
 };
 
 /// Whether a node identified by [op] (null when its class is the identity) and
@@ -563,6 +614,9 @@ List<String>? _lowerDirect(LvPrimCall call) {
     case PrimOp.typeCast:
       return _typeCast(call);
 
+    case PrimOp.notANumberPathRefnum:
+      return _isNotANumber(call);
+
     case _:
       break;
   }
@@ -570,6 +624,9 @@ List<String>? _lowerDirect(LvPrimCall call) {
   if (call.classCode == kLvReplaceArraySubsetClass) return _replaceArraySubset(call);
   if (call.classCode == kLvBuildArrayClass) return _buildArray(call);
   if (call.classCode == kLvConcatenateStringsClass) return _concatenateStrings(call);
+  if (call.classCode == kLvUnbundleClass) return _unbundle(call);
+  if (call.classCode == kLvMergeErrorsClass) return _mergeErrors(call);
+  if (call.classCode == kLvByNameClass) return _byName(call);
   return null;
 }
 
@@ -588,6 +645,43 @@ const int kLvBuildArrayClass = 0x3a;
 /// The heap class code of the **Concatenate Strings** node (corpus node labels
 /// ×32, no competing caption).
 const int kLvConcatenateStringsClass = 0x3e;
+
+/// The heap class code of the **Unbundle** node — the positional one (corpus
+/// node labels `Unbundle` ×25).
+const int kLvUnbundleClass = 0x36;
+
+/// The heap class code of the **Bundle** node — the positional one (corpus
+/// node labels ×26, no competing caption).
+const int kLvBundleClass = 0x34;
+
+/// The heap class code of the **Merge Errors** node (corpus node labels ×113,
+/// no competing caption).
+const int kLvMergeErrorsClass = 0x172;
+
+/// The heap class code shared by **Bundle By Name** and **Unbundle By Name**.
+///
+/// The class is two operations, not one: its corpus captions read
+/// `Unbundle By Name` ×269 AND `Bundle By Name` ×177. Which of the two a node
+/// is comes from [kLvByNameUnbundlesBit].
+const int kLvByNameClass = 0x63;
+
+/// The bit of a [kLvByNameClass] node's own record ([LvPrimCall.nodeFlags])
+/// that marks it **Unbundle** By Name rather than Bundle By Name.
+///
+/// Measured against the captions the corpus writes on these nodes, which are
+/// LabVIEW's own default names for the two operations. Over the 507 captioned
+/// nodes among the class's 14 975: every one of the 313 captioned
+/// `Unbundle …` carries the bit (flag words `0x50000` ×255, `0x51000` ×57,
+/// `0x10000` ×1) and every one of the 194 captioned `Bundle …` does not
+/// (`0x40000` ×154, `0x41000` ×38, `0x40004` ×2). No node contradicts it.
+///
+/// The node's terminal ARITY is a second, independent reading — the cluster
+/// side has one terminal and the member side has the rest — and it agrees on
+/// 8 557 of the 8 588 nodes where it is decisive (99.6%). It is not the reading
+/// used: on the captioned nodes the arity disagrees with the caption twice and
+/// the bit never does, and an unwired input reads as a source, which flips the
+/// arity of a node whose cluster terminal is left open.
+const int kLvByNameUnbundlesBit = 0x10000;
 
 /// Why the node [call] describes has no lowering — the review-list entry.
 String lvPrimUnmappedReason(LvPrimCall call) {
@@ -611,7 +705,27 @@ String lvPrimUnmappedReason(LvPrimCall call) {
           for (final t in [...call.inputs, ...call.outputs]) '0x${t.roleFlags.toRadixString(16)}',
         ].join('/')})';
   }
+  if (call.classCode == kLvByNameClass) {
+    final unbundles = (call.nodeFlags & kLvByNameUnbundlesBit) != 0;
+    final members = unbundles ? call.outputs : call.inputs;
+    final cluster = (unbundles ? call.inputs : call.outputs).firstOrNull?.type;
+    final declaration = cluster == null ? null : _clusterDecl(cluster);
+    return '${unbundles ? 'Unbundle' : 'Bundle'} By Name (class '
+        '0x${call.classCode.toRadixString(16)}) does not resolve its members: '
+        '${declaration == null ? 'its cluster wire carries no declared class, and' : 'against ${declaration.name},'} '
+        '${members.where((terminal) => terminal.memberName == null).length} of ${members.length} '
+        'member terminals name no member on their own record';
+  }
   if (kLvNamedNodeClasses[call.classCode] case final named?) {
+    if (kLvMappedPrimClasses.contains(call.classCode)) {
+      return 'class 0x${call.classCode.toRadixString(16)} is ${named.name} and its '
+          'operand roles are decoded, but this node is outside the shape that '
+          'lowers (${call.inputs.length} wired inputs, ${call.outputs.length} of '
+          '${call.outputPorts.length} outputs consumed, terminal types '
+          '${[
+            for (final t in [...call.inputs, ...call.outputs]) t.type.dartType ?? '?',
+          ].join('/')})';
+    }
     return 'class 0x${call.classCode.toRadixString(16)} is ${named.name} '
         '(${named.captions} corpus captions), but which terminal is which '
         'argument is not established from the terminal records';
@@ -969,6 +1083,204 @@ List<String>? _concatenateStrings(LvPrimCall call) {
   final operands = [for (final operand in ordered) operand.expression];
   final joined = operands.length == 1 ? operands.single : "'${operands.map(_interpolated).join()}'";
   return ['final String $name = $joined;'];
+}
+
+/// The generated cluster class a wire of [type] carries, or null when it is
+/// not one: an array wire, a wire whose Dart type is not a declared class's
+/// name, an enum, or a cluster with no members.
+///
+/// An anonymous cluster becomes a Dart record rather than a class
+/// ([lvRecordType]) and so carries no declaration; the member operations below
+/// read the declaration's field list, so they take the nominal form alone.
+LvTypeDecl? _clusterDecl(LvWireType type) {
+  if (type.dims != 0 || type.declarations.length != 1) return null;
+  final declaration = type.declarations.single;
+  if (declaration.isEnum || declaration.fields.isEmpty) return null;
+  return declaration.name == type.dartType ? declaration : null;
+}
+
+/// The index of [declaration]'s single member named [label], or null when
+/// [label] is absent, names no member, or names more than one.
+int? _soleFieldIndex(LvTypeDecl declaration, String? label) {
+  if (label == null) return null;
+  int? found;
+  for (var index = 0; index < declaration.fields.length; index++) {
+    if (declaration.fields[index].label != label) continue;
+    if (found != null) return null;
+    found = index;
+  }
+  return found;
+}
+
+/// Whether the member at [index] of [declaration] can be read or written as
+/// [wire] — the member's own Dart type is decided and is the wire's.
+bool _memberMatches(LvTypeDecl declaration, int index, LvWireType wire) {
+  final type = declaration.fields[index].type;
+  return type.isMapped && type.dartType == wire.dartType;
+}
+
+/// `Unbundle` — the cluster's members, in drawn order.
+///
+/// The node takes one cluster and yields one terminal per member. That the
+/// drawn order is the DESCRIPTOR order is stated twice by the corpus, and the
+/// two agree. Over the 344 nodes whose cluster wire types and whose terminals
+/// resolve distinct drawn rows: the terminal count equals the member count on
+/// all 344, and the name the terminal's own record carries
+/// ([LvPrimTerminal.memberName]) is the name of the member at the same drawn
+/// position 782 times with **no counterexample** — where reading the terminals
+/// bottom-up instead contradicts the member type codes on 238 of the 344 nodes
+/// against 51 read top-down.
+///
+/// Both readings are applied: the position picks the member and the terminal's
+/// own name, where it carries one, must be that member's. A terminal whose
+/// wire type is not the member's own is refused rather than coerced.
+List<String>? _unbundle(LvPrimCall call) {
+  if (call.inputs.length != 1) return null;
+  final source = call.inputs.single;
+  final declaration = _clusterDecl(source.type);
+  if (declaration == null) return null;
+  final ordered = call.portsTopDown(call.outputPorts);
+  if (ordered == null || ordered.length != declaration.fields.length) return null;
+  final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+  final statements = <String>[];
+  for (var index = 0; index < ordered.length; index++) {
+    final result = LvPrimCall._terminalAt(call.outputs, ordered[index]);
+    if (result == null) continue;
+    if (!_memberMatches(declaration, index, result.type)) return null;
+    if (result.memberName != null && result.memberName != declaration.fields[index].label) return null;
+    statements.add(
+      'final ${declaration.fields[index].type.dartType} ${result.expression} = '
+      '${source.expression}.${names[index]};',
+    );
+  }
+  return statements;
+}
+
+/// The **by-name** cluster access pair, which share a class code: Unbundle By
+/// Name reads members out of a cluster, Bundle By Name writes them into one.
+/// [kLvByNameUnbundlesBit] is which.
+///
+/// Neither reads the drawn order. A by-name terminal carries the member it
+/// selects on its own record ([LvPrimTerminal.memberName]), and a terminal
+/// naming other than exactly one member of the wire's cluster is refused: over
+/// the corpus's 14 975 by-name nodes, the terminals of the 5 077 unbundling
+/// nodes whose cluster wire types name exactly one member 8 015 times, name no
+/// member of it 1 033 times, and carry no name 386 times, so 4 188 of those
+/// nodes resolve every terminal and 889 do not.
+List<String>? _byName(LvPrimCall call) =>
+    (call.nodeFlags & kLvByNameUnbundlesBit) != 0 ? _unbundleByName(call) : _bundleByName(call);
+
+List<String>? _unbundleByName(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.isEmpty) return null;
+  final source = call.inputs.single;
+  final declaration = _clusterDecl(source.type);
+  if (declaration == null) return null;
+  final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+  final statements = <String>[];
+  for (final result in call.outputs) {
+    final index = _soleFieldIndex(declaration, result.memberName);
+    if (index == null || !_memberMatches(declaration, index, result.type)) return null;
+    statements.add(
+      'final ${declaration.fields[index].type.dartType} ${result.expression} = '
+      '${source.expression}.${names[index]};',
+    );
+  }
+  return statements;
+}
+
+/// `Bundle By Name` — the base cluster with the named members replaced.
+///
+/// The node takes the cluster to modify and one value per member it writes,
+/// and every input but the base names its member on its own record. So the
+/// base is the single input that names no member of the cluster: over the
+/// 2 600 bundling nodes whose cluster wire types, exactly one input is that on
+/// 2 121 and two or more are on 479, which are refused.
+///
+/// The result is a whole new value rather than a mutation — a generated cluster
+/// class is immutable — so every member the node does not write is copied from
+/// the base.
+List<String>? _bundleByName(LvPrimCall call) {
+  if (call.outputs.length != 1 || !call.hasSoleSourceTerminal) return null;
+  final result = call.outputs.single;
+  final declaration = _clusterDecl(result.type);
+  if (declaration == null) return null;
+  final written = <int, LvPrimTerminal>{};
+  final bases = <LvPrimTerminal>[];
+  for (final operand in call.inputs) {
+    final index = _soleFieldIndex(declaration, operand.memberName);
+    if (index == null) {
+      bases.add(operand);
+      continue;
+    }
+    if (written.containsKey(index) || !_memberMatches(declaration, index, operand.type)) return null;
+    written[index] = operand;
+  }
+  if (bases.length != 1 || written.isEmpty) return null;
+  final base = bases.single;
+  if (base.type.dartType != declaration.name) return null;
+  final name = result.expression;
+  if (name == null) return const [];
+  // The base is read once per member the node does not write, so a compound
+  // operand is bound to a local rather than re-evaluated.
+  final statements = <String>[];
+  var carrier = base.expression!;
+  if (!_isAtomic(carrier) && written.length < declaration.fields.length) {
+    final local = call.names.wire(base.type);
+    statements.add('final ${declaration.name} $local = $carrier;');
+    carrier = local;
+  }
+  final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+  final arguments = [
+    for (var index = 0; index < declaration.fields.length; index++)
+      '${names[index]}: ${written[index]?.expression ?? '$carrier.${names[index]}'}',
+  ];
+  return statements..add('final ${declaration.name} $name = ${declaration.name}(${arguments.join(', ')});');
+}
+
+/// `Merge Errors` — the first of its operands that carries an error, else the
+/// first that carries a warning, else the cleared value.
+///
+/// The operands are taken in drawn order, which is this map's rule for every
+/// N-input node (see the library doc) and which the operation's own published
+/// description restates: the node is documented as searching its inputs from
+/// the topmost terminal down, returning the first error and, when there is
+/// none, the first warning. The error/warning/clear split is the error
+/// cluster's own ([LvRuntimeType.error]): an error is `status` set, a warning is
+/// a non-zero `code` with `status` clear.
+///
+/// Every operand and the result must be a scalar error cluster; an array of
+/// them is ordinary data and has no such reading.
+List<String>? _mergeErrors(LvPrimCall call) {
+  if (call.outputs.length != 1 || !call.hasSoleSourceTerminal || call.inputs.length < 2) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final result = call.outputs.single;
+  if (!result.type.isErrorCluster || ordered.any((operand) => !operand.type.isErrorCluster)) return null;
+  final name = result.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  final operands = [for (final operand in ordered) operand.expression].join(', ');
+  return [
+    'final ${LvRuntimeType.error} $name = '
+        '${LvRuntimeCall.mergeErrors}(<${LvRuntimeType.error}>[$operands]);',
+  ];
+}
+
+/// `Not A Number/Path/Refnum?` over a **floating** operand — IEEE 754's own
+/// NaN test, which is what the operation's name states for that carrier and
+/// what Dart's `isNaN` is.
+///
+/// The path and refnum halves of the operation are refused: LabVIEW's
+/// Not-A-Path and Not-A-Refnum sentinels are not decoded, so nothing says what
+/// value the test compares against.
+List<String>? _isNotANumber(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, result = call.outputs.single;
+  if (source.type.dims != 0 || !(source.type.numeric?.isFloat ?? false)) return null;
+  if (result.type.dims != 0 || result.type.dartType != 'bool') return null;
+  final name = result.expression;
+  if (name == null) return const [];
+  return ['final bool $name = ${source.expression}.isNaN;'];
 }
 
 /// A String-typed [expression] spliced into a string interpolation: `$name`

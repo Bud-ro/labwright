@@ -680,6 +680,7 @@ class _FunctionEmitter {
         type: edge.type,
         roleFlags: unit.portRoleFlags[port] ?? 0,
         expression: isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label),
+        memberName: unit.portMemberName[port],
       );
     }
 
@@ -697,6 +698,7 @@ class _FunctionEmitter {
       portDrawnTop: unit.portDrawnTop,
       requireImport: library.imports.add,
       names: names,
+      nodeFlags: unit.nodeFlags,
     );
     final statements = lvPrimLowering(call);
     if (statements == null) {
@@ -1231,6 +1233,15 @@ class _FunctionEmitter {
           LvRefusalKind.unwiredTerminal,
           'a Case output tunnel is unwired in one frame; the value LabVIEW '
           'substitutes there is not decoded',
+          oid: output.terminal.oid,
+        );
+      }
+      if (edge.type.dartType != output.type.dartType) {
+        refuse(
+          LvRefusalKind.tunnelCoercion,
+          'a Case output tunnel carries ${output.type.dartType} outside and '
+          '${edge.type.dartType} in one frame, and the coercion LabVIEW applies '
+          'at the border is not decoded',
           oid: output.terminal.oid,
         );
       }
