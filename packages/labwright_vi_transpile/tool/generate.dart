@@ -31,7 +31,12 @@ void main(List<String> args) {
     exit(1);
   }
   final stem = name.replaceAll(RegExp(r'\.\w+$'), '');
-  final result = emitLvFunction(diagram, functionName: lvFieldName(stem), sourceNote: '$stem.vi');
+  final result = emitLvFunction(
+    diagram,
+    functionName: lvFieldName(stem),
+    sourceNote: '$stem.vi',
+    pool: model.types,
+  );
   if (result.refusal case final refusal?) {
     stderr.writeln('$name: $refusal');
     exit(1);

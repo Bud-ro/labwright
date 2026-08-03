@@ -23,8 +23,10 @@ import 'package:dart_style/dart_style.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'dataflow_ir.dart';
+import 'naming.dart';
 import 'numeric.dart';
 import 'prim_map.dart';
+import 'runtime.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
 
@@ -50,13 +52,16 @@ const int kLvEmitPageWidth = 120;
 /// lower.
 ///
 /// [sourceNote] is recorded in the file header so a reader can find the VI the
-/// code came from.
+/// code came from. [pool] is the VI's consolidated type pool, which a cluster
+/// wire's member types are resolved through; without it a cluster wire has no
+/// decided Dart shape.
 ({String? source, LvRefusal? refusal}) emitLvFunction(
   ViDiagram diagram, {
   required String functionName,
   String? sourceNote,
+  List<ViType> pool = const [],
 }) {
-  final built = buildLvDataflow(diagram);
+  final built = buildLvDataflow(diagram, pool: pool);
   if (built.refusal case final refusal?) return (source: null, refusal: refusal);
   try {
     final source = _Emitter(
@@ -70,28 +75,6 @@ const int kLvEmitPageWidth = 120;
   }
 }
 
-/// Allocates unique, readable Dart identifiers.
-class _Names {
-  final Set<String> _used = <String>{};
-
-  /// A fresh identifier derived from [base], never shorter than three
-  /// characters and never colliding with one already taken. A [base] that is
-  /// already a lowerCamelCase Dart identifier is kept verbatim — sanitizing it
-  /// would flatten the case a caller chose deliberately.
-  String take(String base) {
-    var stem = _isLowerCamel(base) ? base : lvFieldName(base);
-    if (stem.isEmpty) stem = 'value';
-    if (stem.length < 3) stem = '${stem}Value';
-    if (_used.add(stem)) return stem;
-    for (var index = 2; ; index++) {
-      final candidate = '$stem$index';
-      if (_used.add(candidate)) return candidate;
-    }
-  }
-
-  static bool _isLowerCamel(String text) => RegExp(r'^[a-z][A-Za-z0-9]*$').hasMatch(text);
-}
-
 class _Emitter {
   _Emitter(this.flow, {required this.functionName, required this.sourceNote});
 
@@ -99,11 +82,14 @@ class _Emitter {
   final String functionName;
   final String? sourceNote;
 
-  final _Names names = _Names();
+  final LvNaming names = LvNaming();
   final StringBuffer body = StringBuffer();
   final Map<int, String> valueOf = <int, String>{};
   final Set<String> imports = <String>{};
-  final Map<String, LvHelper> helpers = <String, LvHelper>{};
+
+  /// The file-scope declarations of the diagram's array constants, in the
+  /// order the lowering reached them.
+  final List<String> fileConstants = <String>[];
 
   Never refuse(LvRefusalKind kind, String detail, {int? oid}) =>
       throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
@@ -127,7 +113,7 @@ class _Emitter {
           oid: control.oid,
         );
       }
-      final name = names.take(control.name ?? 'input');
+      final name = names.parameter(control.name);
       valueOf[control.oid] = name;
       parameters.add('required ${edge.type.dartType} $name');
       _noteImportsFor(edge.type);
@@ -148,7 +134,7 @@ class _Emitter {
       }
       _noteImportsFor(edge.type);
       results.add((
-        name: lvFieldName(indicator.name ?? 'result'),
+        name: names.resultField(indicator.name),
         type: edge.type.dartType!,
         expression: valueOf[edge.source]!,
       ));
@@ -184,16 +170,16 @@ class _Emitter {
       file.writeln("import '$import';");
     }
     if (imports.isNotEmpty) file.writeln();
+    for (final declaration in fileConstants) {
+      file
+        ..writeln(declaration)
+        ..writeln();
+    }
     file
       ..writeln('$returnType $functionName(${parameters.isEmpty ? '' : '{${parameters.join(', ')}}'}) {')
       ..write(body)
       ..writeln(returnStatement)
       ..writeln('}');
-    for (final helper in (helpers.keys.toList()..sort()).map((key) => helpers[key]!)) {
-      file
-        ..writeln()
-        ..writeln(helper.source);
-    }
     return DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,
       pageWidth: kLvEmitPageWidth,
@@ -203,6 +189,7 @@ class _Emitter {
 
   void _noteImportsFor(LvWireType type) {
     if (type.dims > 0 && type.numeric != null) imports.add('dart:typed_data');
+    if (lvTypeNeedsRuntime(type.dartType)) imports.add(kLvRuntimeImport);
   }
 
   // --- regions -----------------------------------------------------------
@@ -297,40 +284,71 @@ class _Emitter {
       return;
     }
     final values = record.constArray;
-    if (values == null || type.dims != 1 || type.numeric == null) {
+    final dims = record.constArrayDims;
+    if (values == null || dims == null || dims.length != type.dims || type.numeric == null) {
       refuse(
         LvRefusalKind.constantValue,
         'diagram constant of ${type.dims}-D type ${type.dartType} carries no decoded value',
         oid: unit.oid,
       );
     }
-    imports.add('dart:typed_data');
-    final name = names.take(unit.label ?? 'constant');
-    body.writeln('final ${type.dartType} $name = ${_arrayLiteral(values, type)};');
-    valueOf[unit.port] = name;
+    valueOf[unit.port] = _hoistArrayConstant(unit, type, values, dims);
   }
 
-  /// A 1-D numeric array constant's initializer.
+  /// Declares an array constant at **file scope** and returns its name.
   ///
-  /// A byte array — the common case, and the one whose element-per-line
-  /// literal would run to hundreds of lines — is carried as a hex string that
-  /// [_bytesHelper] decodes; everything else is an explicit element list.
-  String _arrayLiteral(List<num> values, LvWireType type) {
-    if (type.numeric == LvNumericKind.u8 && values.every((value) => value >= 0 && value <= 255)) {
-      helpers[_bytesHelper.name] = _bytesHelper;
-      final digits = StringBuffer();
-      for (final value in values) {
-        digits.write(value.toInt().toRadixString(16).padLeft(2, '0'));
-      }
-      final text = digits.toString();
-      final chunks = <String>[
-        for (var start = 0; start < text.length; start += 64)
-          "'${text.substring(start, start + 64 > text.length ? text.length : start + 64)}'",
-      ];
-      return '${_bytesHelper.name}(${chunks.join(' ')})';
+  /// A diagram constant reads no parameter, so its value is the same on every
+  /// call: building it once at load rather than per invocation costs one
+  /// allocation for the whole program instead of one per call. Sharing the
+  /// single instance is safe because no lowering writes through an array it
+  /// was given — Replace Array Subset copies, and an auto-indexing output
+  /// tunnel builds a new list.
+  String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
+    imports.add('dart:typed_data');
+    final name = names.fileConstant(unit.label);
+    final shape = dims.join(' × ');
+    final flat = _typedListLiteral(values, type);
+    final initializer = dims.length <= 1
+        ? flat
+        : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
+              'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
+    if (dims.length > 1) imports.add(kLvRuntimeImport);
+    // A caption is free text and may hold newlines, which a `///` comment
+    // cannot; it is collapsed to one line rather than dropped.
+    final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
+    fileConstants.add(
+      '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
+      '$shape ${type.numeric!.glyph} elements.\n'
+      'final ${type.dartType} $name = $initializer;',
+    );
+    return name;
+  }
+
+  /// A numeric array constant's flat, row-major typed-list initializer. The
+  /// element list is `const`, so the decoded values live in the binary's
+  /// constant pool and the only run-time work is the one bulk copy into the
+  /// typed list.
+  ///
+  /// An all-zero constant is the typed list's own length constructor instead:
+  /// a `dart:typed_data` list is zero-filled on construction, so it is the
+  /// same value written without an element per line.
+  String _typedListLiteral(List<num> values, LvWireType type) {
+    final kind = type.numeric!;
+    if (values.isNotEmpty && values.every((value) => value == 0)) {
+      return '${type.elementListType}(${values.length})';
     }
-    final elements = [for (final value in values) _numberLiteral(value, type)].join(', ');
+    final elements = [for (final value in values) _elementLiteral(value, kind)].join(', ');
     return '${type.elementListType}.fromList(const <${type.element.dartType}>[$elements])';
+  }
+
+  /// One array element's literal: hexadecimal at the kind's full width for an
+  /// unsigned integer — the form a mask or lookup table is read in — and
+  /// decimal for a signed integer or a float.
+  static String _elementLiteral(num value, LvNumericKind kind) {
+    if (kind.isFloat) return value is int ? '$value.0' : '$value';
+    final integer = value is double ? value.toInt() : value as int;
+    if (kind.signed || integer < 0) return '$integer';
+    return '0x${integer.toRadixString(16).toUpperCase().padLeft(kind.bits ~/ 4, '0')}';
   }
 
   String? _scalarLiteral(ViHeapObject record, LvWireType type) {
@@ -377,7 +395,7 @@ class _Emitter {
         port: port,
         type: edge.type,
         roleFlags: unit.portRoleFlags[port] ?? 0,
-        expression: isInput ? valueOf[edge.source]! : names.take(_baseNameFor(unit)),
+        expression: isInput ? valueOf[edge.source]! : names.wire(edge.type, decoded: unit.label),
       );
     }
 
@@ -390,7 +408,6 @@ class _Emitter {
       classCode: unit.classCode,
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
-      requireHelper: (helper) => helpers[helper.name] = helper,
       requireImport: imports.add,
     );
     final statements = lvPrimLowering(call);
@@ -403,15 +420,6 @@ class _Emitter {
     for (final output in outputs) {
       valueOf[output.port] = output.expression!;
     }
-  }
-
-  String _baseNameFor(LvPrimUnit unit) {
-    if (unit.op case final op?) return op.opName;
-    return switch (unit.classCode) {
-      kLvIndexArrayClass => 'element',
-      kLvReplaceArraySubsetClass => 'array',
-      _ => 'value',
-    };
   }
 
   // --- structures --------------------------------------------------------
@@ -477,7 +485,7 @@ class _Emitter {
           continue;
         }
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
-        final array = _atomic(outer) ? outer : names.take('array');
+        final array = _atomic(outer) ? outer : names.wire(_typeAt(tunnel.outerPort!)!);
         if (array != outer) body.writeln('final ${_typeAt(tunnel.outerPort!)!.dartType} $array = $outer;');
         indexedInputs.add((terminal: tunnel, array: array));
         continue;
@@ -493,7 +501,7 @@ class _Emitter {
       }
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
       final type = _typeAt(tunnel.outerPort!)!;
-      final builder = names.take('collected');
+      final builder = names.role(LvNameRole.builder);
       imports.add('dart:typed_data');
       body.writeln('final ${lvArrayBuilderType(type.element)} $builder = <${type.element.dartType}>[];');
       indexedOutputs.add((terminal: tunnel, builder: builder, type: type));
@@ -517,12 +525,12 @@ class _Emitter {
     if (bounds.length == 1) {
       bound = bounds.single;
     } else {
-      helpers[_iterationCountHelper.name] = _iterationCountHelper;
-      bound = names.take('iterationCount');
-      body.writeln('final int $bound = ${_iterationCountHelper.name}(<int>[${bounds.join(', ')}]);');
+      imports.add(kLvRuntimeImport);
+      bound = names.role(LvNameRole.count);
+      body.writeln('final int $bound = ${LvRuntimeCall.iterationCount}(<int>[${bounds.join(', ')}]);');
     }
 
-    final iteration = names.take('iteration');
+    final iteration = names.loopIndex();
     body.writeln('for (var $iteration = 0; $iteration < $bound; $iteration++) {');
     for (final terminal in unit.terminals) {
       if (terminal.role != LvTerminalRole.iteration) continue;
@@ -532,7 +540,7 @@ class _Emitter {
       final inner = input.terminal.innerPorts[frame.frameOid]!;
       final type = _typeAt(inner);
       if (flow.outOf(inner) == null) continue;
-      final element = names.take('element');
+      final element = names.role(LvNameRole.element);
       body.writeln('final ${type!.dartType} $element = ${input.array}[$iteration];');
       valueOf[inner] = element;
     }
@@ -566,7 +574,7 @@ class _Emitter {
     body.writeln('}');
 
     for (final output in indexedOutputs) {
-      final name = names.take('indexedOut');
+      final name = names.wire(output.type);
       body.writeln('final ${output.type.dartType} $name = ${lvArrayFreeze(output.type.element, output.builder)};');
       valueOf[output.terminal.outerPort!] = name;
     }
@@ -598,7 +606,7 @@ class _Emitter {
         );
       }
       final type = _typeAt(left.outerPort!)!;
-      final name = names.take('shiftRegister');
+      final name = names.role(LvNameRole.carried);
       body.writeln('${type.dartType} $name = $initial;');
       if (left.innerPorts[frameOid] case final port?) valueOf[port] = name;
       carried.add((terminal: right, name: name, rightOuter: right.outerPort));
@@ -663,7 +671,7 @@ class _Emitter {
       final port = tunnel.outerPort;
       if (port == null || flow.outOf(port) == null) continue;
       final type = _typeAt(port)!;
-      final name = names.take('caseResult');
+      final name = names.role(LvNameRole.branch);
       _noteImportsFor(type);
       body.writeln('final ${type.dartType} $name;');
       outputs.add((terminal: tunnel, name: name, type: type));
@@ -745,19 +753,3 @@ class _Emitter {
 
   static bool _atomic(String expression) => RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(expression);
 }
-
-const LvHelper _bytesHelper = LvHelper('_lvBytes', '''
-/// The bytes a generated byte-array constant carries, two hexadecimal digits
-/// each — the compact form of a decoded array literal.
-Uint8List _lvBytes(String digits) {
-  final bytes = Uint8List(digits.length >> 1);
-  for (var index = 0; index < bytes.length; index++) {
-    bytes[index] = int.parse(digits.substring(index * 2, index * 2 + 2), radix: 16);
-  }
-  return bytes;
-}''');
-
-const LvHelper _iterationCountHelper = LvHelper('_lvIterationCount', '''
-/// LabVIEW's For loop iteration count: the smallest of the wired count
-/// terminal and every auto-indexed input array's length.
-int _lvIterationCount(List<int> bounds) => bounds.reduce((a, b) => a < b ? a : b);''');

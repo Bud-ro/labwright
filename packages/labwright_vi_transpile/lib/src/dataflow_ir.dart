@@ -244,6 +244,7 @@ class LvPrimUnit extends LvUnit {
     required this.oid,
     required this.classCode,
     required this.op,
+    required this.label,
     required this.inputPorts,
     required this.outputPorts,
     required this.portRoleFlags,
@@ -259,6 +260,10 @@ class LvPrimUnit extends LvUnit {
   /// The decoded primitive operation, or null when the node's identity is its
   /// [classCode] alone.
   final PrimOp? op;
+
+  /// The node's own recovered caption, or null when it carries none — the
+  /// only name the diagram states for the values it produces.
+  final String? label;
 
   @override
   final List<int> inputPorts;
@@ -452,18 +457,19 @@ class LvDataflow {
 
 /// [diagram] as dataflow, or an [LvRefusal] naming the decoded fact that is
 /// missing. Never throws for a malformed diagram.
-({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(ViDiagram diagram) {
+({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(ViDiagram diagram, {List<ViType> pool = const []}) {
   try {
-    return (dataflow: _Builder(diagram).build(), refusal: null);
+    return (dataflow: _Builder(diagram, pool).build(), refusal: null);
   } on LvRefusedException catch (error) {
     return (dataflow: null, refusal: error.refusal);
   }
 }
 
 class _Builder {
-  _Builder(this.diagram) : byId = diagram.byId, kids = diagram.childrenByOid;
+  _Builder(this.diagram, this.pool) : byId = diagram.byId, kids = diagram.childrenByOid;
 
   final ViDiagram diagram;
+  final List<ViType> pool;
   final Map<int, ViHeapObject> byId;
   final Map<int, List<ViHeapObject>> kids;
 
@@ -526,7 +532,7 @@ class _Builder {
       if (signal == null) {
         refuse(LvRefusalKind.wireType, 'signal carries no decoded type word', oid: wire.signalOid);
       }
-      final type = mapLvWireType(signal);
+      final type = _wireType(wire, signal);
       if (!type.isMapped) {
         refuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
       }
@@ -542,6 +548,35 @@ class _Builder {
       }
     }
   }
+
+  /// The Dart type of [wire], resolving a cluster wire's members through its
+  /// endpoints when the signal word alone does not carry them.
+  LvWireType _wireType(ViWire wire, ViSignalType signal) {
+    final direct = mapLvWireType(signal);
+    if (direct.isMapped || !kLvWireClusterCodes.contains(signal.typeCode)) return direct;
+    final array = (signal.arrayDims ?? 0) > 0;
+    final resolved = <ViType>[
+      for (final endpoint in wire.endpointOids)
+        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) cluster,
+    ];
+    if (resolved.isEmpty) return direct;
+    final shapes = {for (final cluster in resolved) _clusterShape(cluster)};
+    if (shapes.length != 1) {
+      refuse(
+        LvRefusalKind.wireType,
+        'the wire\'s endpoints resolve ${shapes.length} different cluster shapes, '
+        'so the members it carries are not decided',
+        oid: wire.signalOid,
+      );
+    }
+    return lvClusterWireType(signal, resolved.first, pool);
+  }
+
+  /// A cluster descriptor's identity for the agreement check: its name and its
+  /// members' codes and names. Two descriptors with the same shape are the
+  /// same wire type however many pool entries spell it.
+  String _clusterShape(ViType cluster) =>
+      '${cluster.name ?? ''}|${clusterFields(cluster, pool).map((m) => '${m.code}:${m.name ?? ''}').join(',')}';
 
   /// The nearest enclosing frame of [oid], or null.
   int? _frameOf(int oid) {
@@ -600,6 +635,7 @@ class _Builder {
       oid: node.oid,
       classCode: node.kind,
       op: node.primResId == null ? null : PrimOp.fromId(node.primResId!),
+      label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
       portRoleFlags: roleFlags,
@@ -640,6 +676,14 @@ class _Builder {
       );
     }
     return units;
+  }
+
+  /// A node's own drawn caption, or null when it carries none. A caption is
+  /// LabVIEW's default node name unless the author renamed it, so it is used
+  /// only where a name is wanted and never as an identity.
+  static String? _captionOf(ViHeapObject node) {
+    final label = nodeDisplayLabel(node);
+    return label.isHint ? null : label.text;
   }
 
   /// A constant's drawn name: the visible `0xa` caption on its bounded shell.

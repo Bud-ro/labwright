@@ -38,12 +38,16 @@ List<File> snippetFiles() =>
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
 
-/// The block diagram of the snippet named [name] (without the `.png`).
-ViDiagram snippetDiagram(String name) {
+/// The block diagram and consolidated type pool of the snippet named [name]
+/// (without the `.png`) — the two inputs a lowering takes.
+({ViDiagram diagram, List<ViType> pool}) snippetVi(String name) {
   final vi = extractSnippetVi(File('${snippetDir().path}/$name.png').readAsBytesSync())!;
   final model = buildViModelFromDecoded(decodeSections(Uint8List.fromList(vi)));
-  return lvBlockDiagramOf(model)!;
+  return (diagram: lvBlockDiagramOf(model)!, pool: model.types);
 }
+
+/// The block diagram of the snippet named [name] (without the `.png`).
+ViDiagram snippetDiagram(String name) => snippetVi(name).diagram;
 
 /// A snippet file's name without its extension.
 String snippetName(File file) => file.uri.pathSegments.last.replaceAll(RegExp(r'\.png$'), '');

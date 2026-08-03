@@ -47,6 +47,22 @@ abstract final class LvRuntimeType {
   static const String anonymousEnum = 'LvEnum';
 }
 
+/// The [LvRuntimeType] names `package:labwright_lv_runtime` declares — every
+/// one except [LvRuntimeType.anonymousEnum], which the generator declares in
+/// the file that uses it.
+const Set<String> kLvRuntimeDeclaredTypes = {
+  LvRuntimeType.error,
+  LvRuntimeType.path,
+  LvRuntimeType.refnum,
+  LvRuntimeType.variant,
+  LvRuntimeType.arrayNd,
+};
+
+/// Whether the Dart type source [dartType] names a runtime type, so a file
+/// that spells it must import the runtime.
+bool lvTypeNeedsRuntime(String? dartType) =>
+    dartType != null && kLvRuntimeDeclaredTypes.any((name) => dartType.contains(name));
+
 /// Which bucket a pool entry falls into.
 enum LvMapStatus { mapped, internal, unmapped }
 
