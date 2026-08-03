@@ -35,6 +35,7 @@ export 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart'
         decodeTypePool;
 
 export 'src/dataflow_ir.dart';
+export 'src/emit.dart';
 export 'src/error_mode.dart';
 export 'src/numeric.dart';
 export 'src/prim_map.dart';
