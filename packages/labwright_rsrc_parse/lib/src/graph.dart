@@ -1233,9 +1233,13 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 ///   i32 = 1, array-of-i32 = 2, 2D-array-of-string = 4 (2+2),
 ///   array-of-cluster = 4. Corpus range 1..6 (1: 138,606 / 2: 102,054 /
 ///   3: 168,343 / 4: 14,453 / 5: 4,384 / 6: 189; 0 outside). Refnum wires
-///   have **no fixed base** (observed 1..6): a refnum embedding an inner
-///   type (queue/notifier/DVR/event-registration) rides deeper with that
-///   type, so [arrayDims] stays null for the refnum codes.
+///   have **no fixed base** (observed 1..6): the base is a function of the
+///   reference CLASS — the `u16` discriminator a `0x70` VCTP descriptor
+///   carries after its type code — and, for the inner-typed classes, of the
+///   embedded type as well. Because that discriminator is not in this
+///   16-bit word, a refnum wire's base is not word-derivable and
+///   [arrayDims] falls back to the depth-1 law below. See
+///   [kSignalMinScalarDepth] for the measurement.
 /// * **flags** (bits 12-15) — only `0x4` and `0x8` observed (0x0 204,394 /
 ///   0x8 148,758 / 0x4 65,604 / 0xc 9,273; bits 12-13 zero corpus-wide);
 ///   they vary freely within one type and their meaning is not decoded
@@ -1273,7 +1277,7 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
 ///
 /// Array-dimension agreement ([arrayDims] vs the exact VCTP dim count, on
 /// wires whose element families agree so arrayness mismatches stay
-/// visible): 0 dims 99.7% (94,756), 1D 85.7% (14,745), 2D 87.3% (1,203),
+/// visible): 0 dims 99.7% (102,382), 1D 82.6% (15,299), 2D 87.3% (1,203),
 /// 3D 23/40. 98.8% of all corpus signals resolve a non-null [typeKind].
 ///
 /// Rejected per-signal type carriers, measured on the same labeled set
@@ -1336,21 +1340,25 @@ class ViSignalType {
 
   /// The wire's array dimension count: [depth] minus the element family's
   /// corpus-pinned scalar base — 0 for a scalar wire, 1 for `array of X`,
-  /// 2 for a 2D array. Null when the base is unknown for [typeCode]: the
-  /// refnum codes (their depth rides the referenced inner type), the
-  /// uncatalogued codes, and the never-observed-below-base combinations
-  /// (kept null rather than clamped, so a contradiction is visible).
+  /// 2 for a 2D array.
+  ///
+  /// Where the base is unknown for [typeCode] — the refnum codes, whose base
+  /// rides the reference class, and the uncatalogued codes — the depth-1 law
+  /// ([kSignalMinScalarDepth]) still decides a depth-1 word as scalar, and
+  /// every deeper word stays null. Null also for the never-observed-below-base
+  /// combinations (kept null rather than clamped, so a contradiction is
+  /// visible).
   int? get arrayDims {
     final base = _signalScalarDepth(typeCode);
-    if (base == null) return null;
+    if (base == null) return depth == kSignalMinScalarDepth ? 0 : null;
     final dims = depth - base;
     return dims < 0 ? null : dims;
   }
 
   /// Whether the wire carries an array — or **null when undecidable**
-  /// ([arrayDims] null: the refnum codes and the uncatalogued codes), kept
-  /// tristate so an array-of-refnum wire reads as *unknown* array-ness
-  /// rather than a fabricated false.
+  /// ([arrayDims] null: a base-less [typeCode] deeper than
+  /// [kSignalMinScalarDepth]), kept tristate so an array-of-refnum wire reads
+  /// as *unknown* array-ness rather than a fabricated false.
   bool? get isArray {
     final dims = arrayDims;
     return dims == null ? null : dims > 0;
@@ -1373,14 +1381,44 @@ class ViSignalType {
   int get hashCode => raw.hashCode;
 }
 
+/// The smallest [ViSignalType.depth] a wire of ANY element family can carry —
+/// equivalently the floor on every family's scalar depth base.
+///
+/// This is what lets [ViSignalType.arrayDims] decide a wire whose base is
+/// unknown: depth is a base plus one per array dimension, so a word at this
+/// depth has no room for a dimension and is scalar whatever its family. The
+/// three facts behind it, all corpus-measured over 7 524 VIs:
+///
+/// * **No signal word carries depth 0.** 428 029 decoded words, range 1..6,
+///   zero outside (the `depthOutOfRange` law in the signal-type census).
+/// * **Every family whose base is pinned has base ≥ 1**, and no wire is ever
+///   observed below its family's base ([_signalScalarDepth]).
+/// * **The flag nibble does not carry array-ness**, so no other field of the
+///   word supplies the missing base: on every code with a pinned base both
+///   observed flag values appear on array and non-array wires alike (string
+///   `0x30`, flags 0: 51 559 scalar / 9 513 array; flags 4: 22 689 / 2 493).
+///
+/// It decides 28 582 of the 66 473 refnum-coded wires (43.0%) — the whole of
+/// `0x70`'s depth-1 population, 47.0% of that code, while the inner-typed
+/// `0x71` carries no depth-1 word at all.
+///
+/// Scored independently against the exact VCTP dim count an endpoint resolves
+/// (the census's `dims*` pins), the law brings 8 180 refnum wires into the
+/// oracle's reach and **7 626 of them agree** (93.2%): every one lands in the
+/// oracle's 0-dimension row, and the 554 that disagree are all in its 1-D row —
+/// the auto-indexing signature, where the typed endpoint sits on the array side
+/// of the tunnel the wire crosses, which the corpus shows at the same strength
+/// on the codes whose base IS pinned (their own 1-D agreement is 82.6%).
+const int kSignalMinScalarDepth = 1;
+
 /// The corpus-pinned scalar depth base of a signal type code (see
 /// [ViSignalType.depth]): the depth a non-array wire of that family carries.
-/// Null for the refnum codes (depth varies 1..6 with the referenced inner
-/// type) and for codes never censused in the wire-type word — including the
+/// Null for the refnum codes (whose base is the reference class's, not the
+/// code's) and for codes never censused in the wire-type word — including the
 /// packed-string codes `0x34`/`0x35`/`0x3f`, which appear 0 times corpus-wide
 /// (substring wires flatten to the plain `0x30`), so no scalar base is
-/// derivable for them. Callers treat null as "array-ness undecidable",
-/// never as scalar.
+/// derivable for them. Callers treat null as "array-ness undecidable above
+/// [kSignalMinScalarDepth]", never as scalar.
 int? _signalScalarDepth(int code) {
   if (code >= TypeCode.i8 && code <= TypeCode.complexExt) return 1;
   if (code >= TypeCode.enumU8 && code <= TypeCode.enumU32) return 1;

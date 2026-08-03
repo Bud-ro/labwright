@@ -79,16 +79,20 @@ LvWireType mapLvWireType(ViSignalType signal) {
 /// by a Dart core type. The runtime declares each of them, so a wire of one of
 /// these is typed exactly as a numeric wire is.
 ///
-/// The refnum codes are here too, but a refnum wire is refused before it
-/// reaches this map: its depth base rides the referenced inner type, so
-/// [ViSignalType.arrayDims] is null and the wire's array-ness is not decoded.
-/// The entry states the carrier a refnum wire would take once that base is.
+/// The refnum codes are here too. A refnum wire's depth base rides its
+/// reference class rather than its code, so only the ones the depth-1 law
+/// decides ([kSignalMinScalarDepth]) carry a dimensionality; a deeper refnum
+/// word reaches this map with [ViSignalType.arrayDims] null and is refused.
 const Map<int, String> kLvWireRuntimeCarriers = {
   TypeCode.path: LvRuntimeType.path,
   TypeCode.variant: LvRuntimeType.variant,
   TypeCode.refnum: LvRuntimeType.refnum,
   ViSignalType.typedRefnumCode: LvRuntimeType.refnum,
 };
+
+/// The element codes of a **refnum** wire, in both the plain and the
+/// inner-typed form ([ViSignalType.typedRefnumCode]).
+const Set<int> kLvWireRefnumCodes = {TypeCode.refnum, ViSignalType.typedRefnumCode};
 
 /// The element codes of a **cluster** wire, in both the plain and the
 /// typedef/class form ([ViSignalType.clusterVariantCode]).
@@ -163,11 +167,15 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 /// disagree, and a wire no end resolves, are both refused rather than picked
 /// between.
 ///
-/// The unresolved majority is the corpus's single largest lowering blocker: it
-/// is what 4 128 of the 6 836 `wireType` refusals stop at first, and 1 381 VIs
-/// have no other wire-type blocker at all. The rest of that bucket is the
-/// refnum codes' undecoded array-depth base (2 258 VIs) and the element codes
-/// with no Dart representation (measureData 67, picture 29, ext 3).
+/// The unresolved majority is the corpus's single largest lowering blocker.
+/// Of the 6 804 VIs whose dataflow build refuses on `wireType`, the wire the
+/// refusal names is a cluster wire in 5 088, and 2 626 have no unmapped wire
+/// of any other family at all. The rest of that bucket is the refnum codes'
+/// array-depth base, which rides the reference class rather than the code
+/// (named first in 1 532 VIs, the sole family in 224 — the depth-1 law
+/// [kSignalMinScalarDepth] decides the other half of those wires), and the
+/// element codes with no Dart representation (measureData `0x54` 71, the
+/// uncatalogued `0xff` 54, packed string `0x33` 37, tag `0x37` 16).
 LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool) {
   final element = mapLvType(cluster, pool);
   final dims = signal.arrayDims ?? 0;
