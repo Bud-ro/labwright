@@ -176,18 +176,32 @@ class LvPrimCall {
 ///
 /// The set is deliberately narrow. An operation is here only when its operand
 /// roles follow from the terminals themselves: commutative pairs (either order
-/// gives the same value), unary operations (there is only one operand), and
-/// the conversions. `Subtract`, `Divide` and the ordered comparisons are
-/// absent because nothing decoded says which terminal is the left operand.
+/// gives the same value — `Equal?` and `Not Equal?` included, since they are
+/// symmetric where `Greater?` is not), unary operations (there is only one
+/// operand, which is what puts the six *compare-to-zero* predicates here while
+/// the two-terminal comparisons stay out), and the conversions. `Subtract`,
+/// `Divide` and the ordered two-terminal comparisons are absent because
+/// nothing decoded says which terminal is the left operand.
 const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.exclusiveOr,
   PrimOp.and,
   PrimOp.or,
   PrimOp.add,
   PrimOp.multiply,
+  PrimOp.equal,
+  PrimOp.notEqual,
   PrimOp.not,
   PrimOp.increment,
   PrimOp.decrement,
+  PrimOp.equalToZero,
+  PrimOp.notEqualToZero,
+  PrimOp.greaterThanZero,
+  PrimOp.lessThanZero,
+  PrimOp.greaterOrEqualToZero,
+  PrimOp.lessOrEqualToZero,
+  PrimOp.emptyStringPath,
+  PrimOp.stringLength,
+  PrimOp.arraySize,
   PrimOp.toByteInteger,
   PrimOp.toWordInteger,
   PrimOp.toLongInteger,
@@ -259,12 +273,43 @@ List<String>? lvPrimLowering(LvPrimCall call) {
       return _binaryCommutative(call, '+');
     case PrimOp.multiply:
       return _binaryCommutative(call, '*');
+
+    // Symmetric comparisons: `a == b` and `b == a` are the same test, so no
+    // operand order is needed. Both sides must carry the same Dart type, which
+    // keeps the elementwise array and cluster forms out.
+    case PrimOp.equal:
+      return _binaryPredicate(call, '==');
+    case PrimOp.notEqual:
+      return _binaryPredicate(call, '!=');
+
     case PrimOp.not:
       return _unaryBoolean(call, '!');
     case PrimOp.increment:
       return _unaryNumeric(call, '+ 1');
     case PrimOp.decrement:
       return _unaryNumeric(call, '- 1');
+
+    // Compare-to-zero: the second operand is the constant the operation is
+    // named for, so there is only one terminal and no order to decode.
+    case PrimOp.equalToZero:
+      return _comparedToZero(call, '==');
+    case PrimOp.notEqualToZero:
+      return _comparedToZero(call, '!=');
+    case PrimOp.greaterThanZero:
+      return _comparedToZero(call, '>');
+    case PrimOp.lessThanZero:
+      return _comparedToZero(call, '<');
+    case PrimOp.greaterOrEqualToZero:
+      return _comparedToZero(call, '>=');
+    case PrimOp.lessOrEqualToZero:
+      return _comparedToZero(call, '<=');
+
+    case PrimOp.emptyStringPath:
+      return _unaryOfString(call, 'isEmpty', 'bool');
+    case PrimOp.stringLength:
+      return _unaryOfString(call, 'length', 'int');
+    case PrimOp.arraySize:
+      return _arraySize(call);
 
     // Integer width conversions.
     case PrimOp.toByteInteger:
@@ -331,6 +376,68 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
+
+/// A symmetric two-terminal comparison. Both operands must be scalars of the
+/// same mapped Dart type: an array or cluster wire would make the node the
+/// elementwise form, whose result is a shape this does not model.
+List<String>? _binaryPredicate(LvPrimCall call, String operator) {
+  if (call.inputs.length != 2 || call.outputs.length != 1) return null;
+  final left = call.inputs[0], right = call.inputs[1], out = call.outputs.single;
+  if (left.type.dims != 0 || right.type.dims != 0) return null;
+  if (left.type.dartType == null || left.type.dartType != right.type.dartType) {
+    return null;
+  }
+  if (_hazardous(left.type, operator) || _hazardous(right.type, operator)) {
+    return null;
+  }
+  if (out.type.dartType != 'bool') return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final bool $name = ${left.expression} $operator ${right.expression};'];
+}
+
+/// A compare-to-zero predicate: one numeric scalar in, one boolean out.
+List<String>? _comparedToZero(LvPrimCall call, String operator) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || source.type.numeric == null) return null;
+  if (_hazardous(source.type, operator)) return null;
+  if (out.type.dartType != 'bool') return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  final zero = source.type.numeric!.isFloat ? '0.0' : '0';
+  return ['final bool $name = ${source.expression} $operator $zero;'];
+}
+
+/// A unary string query — `member` read off a scalar string operand.
+List<String>? _unaryOfString(LvPrimCall call, String member, String resultType) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || source.type.dartType != 'String') return null;
+  if (out.type.dartType != resultType) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final $resultType $name = ${source.expression}.$member;'];
+}
+
+/// Array Size over a 1-D array. The higher-rank node yields an ARRAY of
+/// per-dimension sizes, whose dimension order is the same undecoded fact that
+/// refuses a higher-rank Index Array ([LvArrayTerminalRole]), so it is refused.
+List<String>? _arraySize(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 1 || out.type.dims != 0) return null;
+  if (out.type.numeric == null || out.type.numeric!.isFloat) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final int $name = ${source.expression}.length;'];
+}
+
+/// Whether [operator] misreads [type]'s carrier ([LvNumericKind.hazards]) — a
+/// U64's signed carrier makes every ordered comparison wrong, so those nodes
+/// are refused rather than emitted with a silent sign bug.
+bool _hazardous(LvWireType type, String operator) =>
+    type.numeric?.hazards.any((hazard) => hazard.operators.contains(operator)) ?? false;
 
 List<String>? _unaryBoolean(LvPrimCall call, String operator) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;

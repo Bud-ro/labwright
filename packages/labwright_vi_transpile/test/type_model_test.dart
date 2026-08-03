@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show PrimOp;
 import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 import 'package:test/test.dart';
 
@@ -302,6 +303,49 @@ void main() {
         (dims, dartType),
         reason: '0x${raw.toRadixString(16)}: ${wire.value.note}',
       );
+    }
+  });
+
+  test('the operand-order-free primitives lower; a hazardous carrier refuses', () {
+    // (op, input signal words, output word, statement or null when refused).
+    // Signal words: 0x0105 U8 scalar, 0x0107 U32, 0x0108 U64, 0x010a DBL,
+    // 0x0121 boolean, 0x0230 string, 0x0205 array of U8.
+    const rows = <(PrimOp, List<int>, int, String?)>[
+      (PrimOp.equal, [0x0105, 0x0105], 0x0121, 'final bool e0 = a0 == a1;'),
+      (PrimOp.notEqual, [0x0230, 0x0230], 0x0121, 'final bool e0 = a0 != a1;'),
+      // A U64's carrier is signed, so ordered comparisons on it are wrong —
+      // but equality reads the same bits either way.
+      (PrimOp.equal, [0x0108, 0x0108], 0x0121, 'final bool e0 = a0 == a1;'),
+      (PrimOp.greaterThanZero, [0x0108], 0x0121, null),
+      (PrimOp.lessThanZero, [0x0107], 0x0121, 'final bool e0 = a0 < 0;'),
+      (PrimOp.greaterOrEqualToZero, [0x0105], 0x0121, 'final bool e0 = a0 >= 0;'),
+      (PrimOp.lessOrEqualToZero, [0x010a], 0x0121, 'final bool e0 = a0 <= 0.0;'),
+      (PrimOp.equalToZero, [0x0105], 0x0121, 'final bool e0 = a0 == 0;'),
+      (PrimOp.notEqualToZero, [0x0108], 0x0121, 'final bool e0 = a0 != 0;'),
+      (PrimOp.emptyStringPath, [0x0230], 0x0121, 'final bool e0 = a0.isEmpty;'),
+      (PrimOp.stringLength, [0x0230], 0x0103, 'final int e0 = a0.length;'),
+      (PrimOp.arraySize, [0x0205], 0x0103, 'final int e0 = a0.length;'),
+      // Shapes the rules do not cover: the elementwise comparison, a path
+      // operand (whose emptiness test is not the string one), and the
+      // higher-rank Array Size that yields a vector of sizes.
+      (PrimOp.equal, [0x0205, 0x0205], 0x0221, null),
+      (PrimOp.emptyStringPath, [0x0132], 0x0121, null),
+      (PrimOp.arraySize, [0x0305], 0x0203, null),
+    ];
+    for (final (op, inputs, output, expected) in rows) {
+      final call = LvPrimCall(
+        op: op,
+        classCode: 0x2f,
+        inputs: [
+          for (var at = 0; at < inputs.length; at++)
+            LvPrimTerminal(port: at, type: mapLvWireType(ViSignalType(inputs[at])), roleFlags: 0, expression: 'a$at'),
+        ],
+        outputs: [
+          LvPrimTerminal(port: 9, type: mapLvWireType(ViSignalType(output)), roleFlags: 0, expression: 'e0'),
+        ],
+        requireImport: (_) {},
+      );
+      expect(lvPrimLowering(call), expected == null ? null : [expected], reason: op.opName);
     }
   });
 

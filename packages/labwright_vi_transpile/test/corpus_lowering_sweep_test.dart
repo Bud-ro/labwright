@@ -100,12 +100,10 @@ const Map<String, int> kSnippetPrimReviewList = {
   'Type Cast (primResID 1166)': 34,
   'node class 0x3e': 31,
   'String Subset (primResID 1503)': 24,
-  'Empty String/Path? (primResID 1112)': 23,
   'node class 0x93': 18,
   'Select (primResID 1516)': 16,
   'node class 0x105': 16,
   'node class 0xa9': 15,
-  'Array Size (primResID 1809)': 15,
   'Subtract (primResID 1051)': 15,
   'node class 0x172': 14,
   'node class 0x150': 12,
@@ -114,7 +112,6 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1171 (name not decoded)': 11,
   'primResID 8051 (name not decoded)': 11,
   'primResID 1534 (name not decoded)': 11,
-  'String Length (primResID 1502)': 10,
 };
 
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
@@ -171,15 +168,15 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.dcoBit12': 140,
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
-  'exceptions.caseSelector': 60,
-  'exceptions.constantValue': 66,
-  'exceptions.lowered': 135,
-  'exceptions.primitive': 167,
+  'exceptions.caseSelector': 62,
+  'exceptions.constantValue': 68,
+  'exceptions.lowered': 136,
+  'exceptions.primitive': 158,
   'exceptions.structure': 53,
-  'exceptions.subViCall': 57,
+  'exceptions.subViCall': 59,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 53,
+  'exceptions.unwiredTerminal': 55,
   'exceptions.wireDirection': 66,
   'exceptions.wireType': 6849,
   'idx': 3479,
@@ -188,22 +185,22 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.same': 135,
+  'modes.same': 136,
   'term.calleeUntyped': 115,
   'term.dirAgree': 304,
   'term.resolved': 304,
   'term.typeAgree': 189,
   'term.unresolved': 33,
   'term.wired': 337,
-  'threaded.caseSelector': 60,
-  'threaded.constantValue': 66,
-  'threaded.lowered': 135,
-  'threaded.primitive': 167,
+  'threaded.caseSelector': 62,
+  'threaded.constantValue': 68,
+  'threaded.lowered': 136,
+  'threaded.primitive': 158,
   'threaded.structure': 53,
-  'threaded.subViCall': 57,
+  'threaded.subViCall': 59,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 53,
+  'threaded.unwiredTerminal': 55,
   'threaded.wireDirection': 66,
   'threaded.wireType': 6849,
   'vi': 7508,
@@ -215,7 +212,7 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 122, nodes: 878);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 113, nodes: 807);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
