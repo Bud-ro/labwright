@@ -69,7 +69,7 @@ void main() {
   test('the lowered ReverseBitsVim reverses all 64 bits', () {
     for (final value in reverseBitsCases()) {
       expect(
-        reverseBitsVim(numericOut: value),
+        reverseBitsVim(numericIn: value),
         reverseBitsReference(value),
         reason: '0x${value.toRadixString(16)}',
       );

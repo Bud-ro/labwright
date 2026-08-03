@@ -103,7 +103,7 @@ void main() {
 
   test('the code lowered from Calc LRC-8.vi agrees with the reference byte for byte', () {
     for (final message in messages()) {
-      expect(lrc8(input: message), lrcReference(message), reason: '${message.length} bytes');
+      expect(lrc8(frameIn: message), lrcReference(message), reason: '${message.length} bytes');
     }
   });
 

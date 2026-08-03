@@ -170,22 +170,34 @@ bool lvTypeCodeIsAccountedFor(int code) =>
 /// One pool entry's Dart representation.
 class LvTypeMapping {
   /// A type with a decided Dart representation [dartType].
-  const LvTypeMapping.mapped(this.dartType, {this.numeric, this.note})
+  const LvTypeMapping.mapped(this.dartType, {this.numeric, this.note, this.needsDeclaration = false})
     : status = LvMapStatus.mapped,
       unmappedCode = null;
+
+  /// A type whose Dart spelling is a **nominal name no library declares yet**
+  /// — a named cluster's or enum's class ([lvClassName]), or the anonymous-enum
+  /// placeholder. Mapped, so the type model still names it; [needsDeclaration]
+  /// so an emitter refuses rather than referring to a class it never writes.
+  const LvTypeMapping.nominal(this.dartType, {this.note})
+    : status = LvMapStatus.mapped,
+      numeric = null,
+      unmappedCode = null,
+      needsDeclaration = true;
 
   /// A descriptor that is not a dataflow value ([kInternalTypeCodes]).
   const LvTypeMapping.internal(this.note)
     : status = LvMapStatus.internal,
       dartType = null,
       numeric = null,
-      unmappedCode = null;
+      unmappedCode = null,
+      needsDeclaration = false;
 
   /// A value type awaiting a representation decision ([kUnmappedTypeCodes]).
   const LvTypeMapping.unmapped(this.note, {this.unmappedCode})
     : status = LvMapStatus.unmapped,
       dartType = null,
-      numeric = null;
+      numeric = null,
+      needsDeclaration = false;
 
   final LvMapStatus status;
 
@@ -198,6 +210,12 @@ class LvTypeMapping {
 
   /// Why the entry is internal/unmapped, or a caveat on a mapped entry.
   final String? note;
+
+  /// Whether [dartType] names — or contains, through an array or record
+  /// wrapping — a class this package does not declare. No declaration
+  /// generator exists yet (TODO), so an emitter must refuse a value of such a
+  /// type rather than emit source that refers to an undefined name.
+  final bool needsDeclaration;
 
   /// For an unmapped entry, the [kUnmappedTypeCodes] code that caused it —
   /// propagated out of an array element, cluster member or typedef base, so a
@@ -240,7 +258,7 @@ LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0]) {
     case TypeCode.enumU8:
     case TypeCode.enumU16:
     case TypeCode.enumU32:
-      return LvTypeMapping.mapped(
+      return LvTypeMapping.nominal(
         type.name == null ? LvRuntimeType.anonymousEnum : lvClassName(type.name!),
         note: type.enumItems.isEmpty ? 'enum item labels not recovered; the generated enum has no member names' : null,
       );
@@ -278,7 +296,10 @@ LvTypeMapping _mapArray(ViType type, List<ViType> pool, int depth) {
   if (!element.isMapped) {
     return LvTypeMapping.unmapped('array element is unmapped: ${element.note}', unmappedCode: element.unmappedCode);
   }
-  return LvTypeMapping.mapped(lvArrayDartType(element, type.dimCount ?? 1));
+  return LvTypeMapping.mapped(
+    lvArrayDartType(element, type.dimCount ?? 1),
+    needsDeclaration: element.needsDeclaration,
+  );
 }
 
 /// The Dart type of an array of [element] with [dimCount] dimensions.
@@ -352,8 +373,11 @@ LvTypeMapping _mapCluster(ViType type, List<ViType> pool, int depth) {
   // across 36977 named clusters (`error out` 6388 times, `Cluster` 328), so
   // two clusters share a class only when their member types and member names
   // agree. Collision-suffixing is the generator's job.
-  if (type.name case final name? when lvClassName(name).isNotEmpty) return LvTypeMapping.mapped(lvClassName(name));
-  return LvTypeMapping.mapped(lvRecordType(members, mapped));
+  if (type.name case final name? when lvClassName(name).isNotEmpty) return LvTypeMapping.nominal(lvClassName(name));
+  return LvTypeMapping.mapped(
+    lvRecordType(members, mapped),
+    needsDeclaration: mapped.any((field) => field.needsDeclaration),
+  );
 }
 
 /// The Dart **record** type an anonymous cluster becomes: named fields when
@@ -386,7 +410,7 @@ LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth) {
   final nominal = base.kind == ViDataType.cluster || base.enumItems.isNotEmpty || _isEnumCode(base.code);
   final name = type.name;
   if (!nominal || name == null || lvClassName(name).isEmpty) return mapped;
-  return LvTypeMapping.mapped(lvClassName(name));
+  return LvTypeMapping.nominal(lvClassName(name));
 }
 
 bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;

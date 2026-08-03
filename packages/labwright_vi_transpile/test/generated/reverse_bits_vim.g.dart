@@ -267,8 +267,8 @@ final Uint8List _kLut = Uint8List.fromList(const <int>[
   0xFF,
 ]);
 
-int reverseBitsVim({required int numericOut}) {
-  final Uint8List bytes = Uint8List.fromList(lvIntListOfFlat(lvFlatOfInt(numericOut, 64), 8));
+int reverseBitsVim({required int numericIn}) {
+  final Uint8List bytes = Uint8List.fromList(lvIntListOfFlat(lvFlatOfInt(numericIn, 64), 8));
   final Uint8List bytes2 = Uint8List.fromList(bytes.reversed.toList());
   final List<int> builder = <int>[];
   for (var i = 0; i < bytes2.length; i++) {

@@ -34,6 +34,10 @@ class LvWireType {
   /// Whether the whole edge value has a decided Dart representation.
   bool get isMapped => value.isMapped;
 
+  /// Whether the edge's Dart type names a class no library declares
+  /// ([LvTypeMapping.needsDeclaration]).
+  bool get needsDeclaration => value.needsDeclaration || element.needsDeclaration;
+
   /// The Dart type source of the whole edge value, or null when unmapped.
   String? get dartType => value.dartType;
 
@@ -149,20 +153,18 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 /// (a 1-, 2- and 6-parent walk return identical counts over all 133 106
 /// cluster-coded signals).
 ///
-/// It stops there because the ancestors hold nothing. Across the 184 697
-/// endpoints of the 88 743 cluster wires no endpoint resolves, NOT ONE carries
-/// a type-descriptor index of its own ([ViHeapObject.typeDescIdx]) — a wire
-/// endpoint is a holder (`0x15`, 174 208) or an interface terminal (`0x16`,
-/// 10 489), and neither class stores one. Every type such an endpoint has is
-/// inherited from a paired panel DCO through its `dcoRef`, and 123 263 of them
-/// carry no `dcoRef` either.
+/// It stops there because the ancestors hold nothing. Across the endpoints of
+/// the cluster wires no endpoint resolves, NOT ONE carries a type-descriptor
+/// index of its own ([ViHeapObject.typeDescIdx]) — a wire endpoint is a holder
+/// (`0x15`) or an interface terminal (`0x16`), and neither class stores one.
+/// Every type such an endpoint has is inherited from a paired panel DCO
+/// through its `dcoRef`, and most carry no `dcoRef` either.
 ///
 /// **Where the data space does type a wire**, and why that route is not read:
 /// the index lives one level DOWN, on the node-terminal **part** objects a
 /// bounds-less `0x15` endpoint parents (`0x2d`, `0x33`, `0x30`, `0x62`, `0x8e`,
 /// `0x13`, … — the same parts [ViDiagram.dcoChildTerminalAttach] reads geometry
-/// from). Every one of them carries a [ViHeapObject.typeDescIdx]: 37 850 of
-/// 37 850 on the `0x33` parts under unresolved cluster wires alone. The
+/// from). Every one of them carries a [ViHeapObject.typeDescIdx]. The
 /// **signal object itself carries no index at all** — a census of all 428 043
 /// corpus signals finds exactly four record families on the `0x17` class (the
 /// `14 19` endpoint refs 428 043, the wire-type word `0x9f` 428 029, the
@@ -170,22 +172,19 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 /// a handful of cosmetic tags; no data-space index, generation or ordinal.
 ///
 /// Scored against the wires the endpoint route already decides, the part route
-/// reproduces its answer on 21 632 of 30 781 (70.3%) — and 8 799 of the 9 149
-/// disagreements are the descriptor NAME alone, the members' type codes being
-/// identical (98.9% on codes). That is the failure mode that already ruled out
-/// the callee's pane, so the part route is measured ([kCorpusLoweringSweep]'s
-/// `clus.kid*`) and not read; gating it to the endpoint's unique
-/// termBounds-carrying part moves the score by 0.6 points (20 952/30 074), so
-/// there is no clean subset either.
+/// reproduces its answer on 44 977 of 68 982 (65.2%) — and 23 636 of the
+/// 24 005 disagreements are the descriptor NAME alone, the members' type codes
+/// being identical (98.5% on codes). That is the failure mode that already
+/// ruled out the callee's pane, so the part route is measured
+/// ([kCorpusLoweringSweep]'s `clus.kid*`) and not read.
 ///
-/// It would not be the lever in any case. Of the 88 743 wires that resolve
-/// nothing, **63 697 (71.8%) sit in a VI where no object resolves a type at
-/// all** (`clus.noneUncalibrated`): the heap's type indices carry a per-VI base
-/// that `resolveDataSpaceTypes` self-calibrates from a handful of anchor
-/// classes, and 4 433 of the corpus's 7 508 VIs (59.0%) supply too few anchors
-/// to calibrate. Only 558 wires (0.6%) reach no index at all. Decoding where
-/// that base is stored — not a deeper walk, and not a second type source — is
-/// what stands between this route and the rest of the corpus.
+/// The per-VI base the heap's indices carry is **decoded** from the `DTHP`
+/// header (see `resolveDataSpaceTypes`), so the wires that resolve nothing are
+/// no longer dominated by VIs that type nothing: of the 41 120 unresolved
+/// cluster wires only 391 sit in a VI where no object resolves a type at all
+/// (`clus.noneUntyped`) and 46 reach no index at all (`clus.noneNoIndex`).
+/// What remains is wires whose endpoints hold no cluster descriptor of their
+/// own — a walk question, not a base question.
 ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
   var object = diagram.byId[oid];
   for (var depth = 0; object != null && depth < 2; depth++) {
@@ -202,43 +201,46 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 ///
 /// The signal word says only *cluster*; the member types come from the
 /// data-space type an endpoint of the wire resolves ([lvClusterOfEndpoint]).
-/// Corpus, over 133 106 cluster-coded signals in 7 524 VIs: 88 743 have no
-/// endpoint that resolves a cluster descriptor at all, 43 861 resolve exactly
-/// one member shape, and 502 resolve two or more. The agreement where two ends
-/// can be compared is the evidence the route is sound; a wire whose ends
-/// disagree, and a wire no end resolves, are both refused rather than picked
-/// between.
+/// Corpus, over 133 106 cluster-coded signals in 7 508 block diagrams: 90 614
+/// resolve exactly one member shape, 41 120 have no endpoint that resolves a
+/// cluster descriptor at all, and 1 372 resolve two or more. The agreement
+/// where two ends can be compared is the evidence the route is sound; a wire
+/// whose ends disagree, and a wire no end resolves, are both refused rather
+/// than picked between.
 ///
 /// The **callee's connector pane** is not a second source. A call node's
 /// holders are its pane terminals in pane order (the binding the subVI
 /// contract already proves at 99.83%), so a cluster wire ending on one can be
 /// read against the callee VI's own terminal for that pane — but measured over
-/// the corpus that reading decides only 1 960 of the 88 743 unresolved wires
-/// (2.2%), and where both it and the endpoint route resolve exactly one shape
-/// it reproduces that shape 338 times against 505 disagreements. Comparing
-/// member type codes alone lifts the agreement to 764/844, so most of the
-/// disagreement is the descriptor NAME: caller and callee spell the same
-/// members under different typedefs, and the name is what the emitted Dart
-/// type is. Two readings that name a wire differently 60% of the time are not
-/// one route, so the pane side is measured ([kCorpusLoweringSweep]'s
-/// `clus.pane*`) and not read.
+/// the corpus that reading decides only 4 230 of the unresolved wires, and
+/// where both it and the endpoint route resolve exactly one shape it
+/// reproduces that shape 2 626 times against 3 651 disagreements — of which
+/// 3 608 are the descriptor NAME alone (`clus.paneNameOnly`): caller and
+/// callee spell the same members under different typedefs, and the name is
+/// what the emitted Dart type is. Two readings that name a wire differently
+/// more than half the time are not one route, so the pane side is measured
+/// ([kCorpusLoweringSweep]'s `clus.pane*`) and not read.
 ///
 /// The unresolved majority is the corpus's single largest lowering blocker.
-/// Of the 6 804 VIs whose dataflow build refuses on `wireType`, the wire the
-/// refusal names is a cluster wire in 5 088, and 2 626 have no unmapped wire
+/// Of the 6 481 VIs whose dataflow build refuses on `wireType`, the wire the
+/// refusal names is a cluster wire in 4 528, and 2 309 have no unmapped wire
 /// of any other family at all. The rest of that bucket is the refnum codes'
 /// array-depth base, which rides the reference class rather than the code
-/// (named first in 1 532 VIs, the sole family in 224 — the depth-1 law
+/// (named first in 1 784 VIs, the sole family in 176 — the depth-1 law
 /// [kSignalMinScalarDepth] decides the other half of those wires), and the
 /// element codes with no Dart representation (measureData `0x54` 71, the
-/// uncatalogued `0xff` 54, packed string `0x33` 37, tag `0x37` 16).
+/// uncatalogued `0xff` 37, packed string `0x33` 34, tag `0x37` 19).
 LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool) {
   final element = mapLvType(cluster, pool);
   final dims = signal.arrayDims ?? 0;
   if (dims == 0 || !element.isMapped) {
     return LvWireType._(dims: dims, element: element, value: element);
   }
-  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.mapped(lvArrayDartType(element, dims)));
+  return LvWireType._(
+    dims: dims,
+    element: element,
+    value: LvTypeMapping.mapped(lvArrayDartType(element, dims), needsDeclaration: element.needsDeclaration),
+  );
 }
 
 /// The Dart representation of a signal word's element type [code].
