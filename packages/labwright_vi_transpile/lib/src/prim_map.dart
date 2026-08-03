@@ -361,6 +361,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.swapBytes,
   PrimOp.swapWords,
   PrimOp.select,
+  PrimOp.logicalShift,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -541,6 +542,9 @@ List<String>? _lowerDirect(LvPrimCall call) {
 
     case PrimOp.select:
       return _select(call);
+
+    case PrimOp.logicalShift:
+      return _logicalShift(call);
 
     case _:
       break;
@@ -750,6 +754,38 @@ List<String>? _select(LvPrimCall call) {
     'final ${out.type.dartType} $name = '
         '${selector.expression} ? ${whenTrue.expression} : ${whenFalse.expression};',
   ];
+}
+
+/// `Logical Shift` — the LOWER operand shifted by the upper one, toward the
+/// high bits when the count is positive and the low bits when it is negative.
+///
+/// Which operand is which is stated twice over and the two agree. The result
+/// carries the shifted value's own type, so the operand whose numeric kind is
+/// the result's is the value; on the 68 corpus nodes whose three wires all
+/// type, that operand is the LOWER-drawn one 56 times and the upper 0, with 12
+/// nodes whose operands share a kind and so distinguish nothing. The upper
+/// operand is a small signed integer on every one of them (I16 on 54, I8 on 7,
+/// I32 on 7), and the constants wired to it are shift counts rather than data:
+/// −8 ×21, −16 ×14, −32 ×4, −1 ×3, −48 ×2, −4 ×2, and 16, 8, 4, 3, 1, 0 in the
+/// ones and twos.
+///
+/// Integer operands only — a floating value has no bit pattern to shift — and
+/// the count is taken at run time, since its sign is what names the direction.
+List<String>? _logicalShift(LvPrimCall call) {
+  if (call.inputs.length != 2 || call.outputs.length != 1 || !call.hasSoleSourceTerminal) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final (count, value) = (ordered[0], ordered[1]);
+  final out = call.outputs.single;
+  final kind = out.type.numeric;
+  if (kind == null || kind.isFloat || out.type.dims != 0) return null;
+  if (value.type.dims != 0 || value.type.numeric != kind) return null;
+  if (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  final shifted = '${LvRuntimeCall.logicalShift}(${value.expression}, ${count.expression}, ${kind.bits})';
+  return ['final int $name = ${lvWrapped(out.type, shifted)};'];
 }
 
 /// `Build Array` — one 1-D array holding, in drawn order, every operand: a

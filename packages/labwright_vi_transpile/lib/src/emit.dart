@@ -569,11 +569,22 @@ class _FunctionEmitter {
     return value == null ? null : _numberLiteral(value, type);
   }
 
+  /// A numeric constant's literal, read at the width and signedness its WIRE
+  /// states.
+  ///
+  /// The constant record carries the value's bytes; the signal word carries the
+  /// type they are read as, and the two need not agree — a two-byte `FF FF` on
+  /// an I16 wire decodes as the magnitude 65 535 and is the value −1. The
+  /// signal word is the authority on what a wire carries, so a magnitude above
+  /// a signed kind's range is the same bit pattern read as negative.
   String _numberLiteral(num value, LvWireType type) {
-    if (type.numeric?.isFloat ?? false) {
+    final kind = type.numeric;
+    if (kind?.isFloat ?? false) {
       return value is int ? '$value.0' : '$value';
     }
-    return '${value is double ? value.toInt() : value}';
+    final magnitude = value is double ? value.toInt() : value as int;
+    if (kind == null || !kind.signed || kind.bits >= 64) return '$magnitude';
+    return '${magnitude > (1 << (kind.bits - 1)) - 1 ? magnitude - (1 << kind.bits) : magnitude}';
   }
 
   static String _stringLiteral(String text) {

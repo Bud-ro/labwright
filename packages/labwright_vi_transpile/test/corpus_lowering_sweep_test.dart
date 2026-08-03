@@ -75,7 +75,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'broken_wires_only': 'wireDirection',
   'crc16': 'primitive',
   'crc32': 'primitive',
-  'crc32_lookup_table': 'primitive',
+  'crc32_lookup_table': 'lowered',
   'crc8': 'lowered',
   'decorations_only': 'lowered',
   'example': 'wireType',
@@ -115,25 +115,24 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// structures lower from their own per-frame range lists, and its arithmetic
 /// — `Subtract`, `Quotient & Remainder`, the byte and word swaps, the 64-bit
 /// conversions — lowers from the drawn operand order. So now do its
-/// `Concatenate Strings`, `Build Array` and `Select` nodes, from the same order
-/// read at N operands, and its two swap nodes wired to an ARRAY, from the
-/// elementwise form. What remains is 19 nodes in three groups.
+/// `Concatenate Strings`, `Build Array`, `Select` and `Logical Shift` nodes,
+/// from the same order read at N operands, and its two swap nodes wired to an
+/// ARRAY, from the elementwise form. What remains is 18 nodes in three groups.
 ///
 /// Five carry a `primResID` no corpus VI labels and whose icon does not say
-/// what it computes either (1181 ×4, 1082). Twelve are named operations whose
+/// what it computes either (1181 ×4, 1082). Eleven are named operations whose
 /// RULE is not decoded: `Type Cast`'s flattened layout, `String Subset`'s
 /// clamping of an out-of-range offset or length, `Compound Arithmetic`'s mode
-/// and per-operand inversion (see [kLvMappedPrimClasses]), `To Lower Case`'s
-/// case-mapping table, and `Logical Shift`'s direction. One is a string
-/// constant whose value the heap decode did not recover, and one a `0x114` node
-/// whose corpus captions do not agree on a name.
+/// and per-operand inversion (see [kLvMappedPrimClasses]), and
+/// `To Lower Case`'s case-mapping table. One is a string constant whose value
+/// the heap decode did not recover, and one a `0x114` node whose corpus
+/// captions do not agree on a name.
 const Map<String, int> kMd5Blockers = {
   'Type Cast (primResID 1166)': 7,
   'primResID 1181': 4,
   'String Subset (primResID 1503)': 2,
   'Compound Arithmetic (class 0x6c)': 2,
   'To Lower Case (primResID 1189)': 1,
-  'Logical Shift (primResID 1081)': 1,
   'primResID 1082': 1,
   'node class 0x114': 1,
   'constantValue String': 1,
@@ -269,7 +268,7 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 101, nodes: 671);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 100, nodes: 666);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
