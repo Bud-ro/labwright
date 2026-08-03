@@ -4135,8 +4135,13 @@ class BdDiagramPainter extends CustomPainter {
                 }
               }
             }
-            // Row text: the terminal's resolved data-space name, centred,
-            // in the type colour (array rows colour by element).
+            // Row text: the terminal's resolved data-space name, centred
+            // in the row cell with the half pixel truncated (reference-
+            // measured across the corpus's growable strips: every odd
+            // cell−text gap inks at the floor — Excel 3233's 27 px
+            // `worksheet.xml` gap, Export/Pages/ProjectItems rows — never
+            // the rounded-up centre), in the type colour (array rows
+            // colour by element).
             for (final (term, tb) in rowTerms) {
               final name = term.typeName?.trim();
               if (name == null || name.isEmpty) continue;
@@ -4161,7 +4166,7 @@ class BdDiagramPainter extends CustomPainter {
                 canvas,
                 tp,
                 Offset(
-                  cell.center.dx - tp.width / 2,
+                  cell.left + ((cell.width - tp.width) / 2).floorToDouble(),
                   cell.center.dy - tp.height / 2,
                 ),
                 name,
@@ -4408,15 +4413,6 @@ class BdDiagramPainter extends CustomPainter {
         // reference's own leading space: MD5's " 3 " strip shows the glyph
         // at bounds.left+4, the space's width past a 1 px inset).
         final selector = object.kind == 0x95;
-        // A backed label (free comment / array-docked; the classes the
-        // backing pass fills) insets its text past the 1 px border+padding;
-        // an owned label's ink starts 1 px inside its bounds (reference-
-        // measured: crc8's owned labels at bounds.left+1, Excel's backed
-        // comment text at bounds.left+2).
-        final holderKind = scene.diagram.byId[object.parentOid ?? -1]?.kind;
-        final backed =
-            holderKind == 0x1b ||
-            (holderKind == 0x52 && ((object.objFlags ?? 0) & 0x800) == 0);
         final rect = rect0;
         // The label's decoded face: its first font run resolved against the
         // VI's FTAB ([ViHeapObject.labelFont]) — weight 1000 draws the bold
@@ -4456,9 +4452,15 @@ class BdDiagramPainter extends CustomPainter {
         // pinning the clip edge to bounds.right-4/-5). A wide-enough strip
         // (its sibling selectors) shows the whole run unchanged.
         // A CENTRE-justified label ([ViHeapObject.labelJustifyCenter], the
-        // 0x021 word's 0x20 bit) centres its run in the label bounds —
-        // measured on crc8's disabled-ghost heading strip, whose reference
-        // ink sits at equal 20 px margins inside the 186 px bounds.
+        // 0x021 word's 0x20 bit) centres its run over bounds-width−1,
+        // truncating the half pixel — reference-measured on every
+        // confidently-registered centred heading in the snippet corpus:
+        // odd width−text gaps read as plain floor, while all five even
+        // gaps (GenerateTree's 94/678, the crc trio's 40) ink one px LEFT
+        // of the symmetric centre.
+        // A LEFT-justified label pens at [ViHeapObject.labelTextInset]
+        // (the 0x021 word's 0x800000 bit: 2 px, else 1 px) inside its
+        // bounds — corpus-measured across holder classes.
         final centered = !selector && object.labelJustifyCenter;
         _paintText(
           canvas,
@@ -4467,10 +4469,11 @@ class BdDiagramPainter extends CustomPainter {
               ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
               : centered
               ? Offset(
-                  rect0.left + ((rect0.width - tp.width) / 2).floorToDouble(),
+                  rect0.left +
+                      ((rect0.width - tp.width - 1) / 2).floorToDouble(),
                   rect0.top + 1,
                 )
-              : rect0.topLeft + Offset(backed ? 2 : 1, 1),
+              : rect0.topLeft + Offset(object.labelTextInset.toDouble(), 1),
           text,
           clip: selector
               ? Rect.fromLTRB(rect.left, rect.top, rect.right - 4, rect.bottom)

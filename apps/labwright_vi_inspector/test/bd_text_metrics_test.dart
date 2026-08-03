@@ -27,8 +27,11 @@ void main() {
       ('Worksheets', 1821.0, 227.0, 61.0, 15.0),
       ('Excel Workbook (*.xlsx)', 373.0, 96.0, 124.0, 15.0),
       (' Default ', 655.0, 333.0, 44.0, 15.0),
-      // 86 = hinted `m` 11 (see the `Path in…` note); reference ink exact.
-      ('lvtemporary_%d', 386.0, 430.0, 86.0, 15.0),
+      // 86 = hinted `m` 11 (see the `Path in…` note). 387 = the 2 px
+      // label-text inset (the 0x021 word's 0x800000 bit): the reference
+      // `l` stem inks at bounds.left+3 (canvas 388), one bearing px past
+      // the pen — the 1 px inset sat one px left of the reference run.
+      ('lvtemporary_%d', 387.0, 430.0, 86.0, 15.0),
       // Right-aligned value text on the 6 px digit pitch (the numeric-
       // display law + integer glyph advances): the layout box ends 4 px
       // inside the value window; reference digit ink matches exactly
@@ -40,7 +43,10 @@ void main() {
       // cell ink bboxes match the reference at dT=0 where the old row
       // nudge sat 1 px up.
       ('D76AA478', 1422.0, 791.0, 54.0, 15.0),
-      ('Message String', 137.0, 284.0, 80.0, 15.0),
+      // 138 = the 2 px label-text inset (the 0x021 word's 0x800000 bit;
+      // mode 0x804404): the registered reference run correlates at +1
+      // from the old 1 px inset across the whole word.
+      ('Message String', 138.0, 284.0, 80.0, 15.0),
       // Bold (FTAB-resolved font run): 80 = the bold face's hinted
       // 12 ppem advances (`e` 7, not the rounded-linear 6); the heading's
       // 79 px reference ink sits inside it exactly (ink probe dL/dR 0 —

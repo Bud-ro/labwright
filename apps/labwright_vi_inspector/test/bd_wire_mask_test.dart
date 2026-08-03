@@ -452,7 +452,7 @@ void main() {
       // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
-        lessThanOrEqualTo(71140),
+        lessThanOrEqualTo(71137),
         reason:
             'wire-layer pixels off the reference, corpus-wide — re-pin '
             'DOWNWARD as decodes land. (The into-icon arrival law — stop '
@@ -470,11 +470,13 @@ void main() {
             'where a weight-1000 entry says so) -> 71,150; the into-DCO '
             'leg trim — a leg attached inside a value display starts at '
             'the window furniture, not the stored attach under the '
-            'transparent label gap -> 71,140.)',
+            'transparent label gap -> 71,140; the label-anchor laws '
+            '(0x800000 inset, boxW-1 centring, row-cell floor) -> '
+            '71,137.)',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21809),
+        lessThanOrEqualTo(21807),
         reason:
             'reference wire ink left white, corpus-wide — the undrawn/'
             'misrouted budget; re-pin DOWNWARD as routing lands, never up '
@@ -492,7 +494,8 @@ void main() {
             '(crc32_lookup_table, ink-bbox exact at 16 em) exposed 4 '
             'black glyph px of its own text the mis-sized small-bold box '
             'had masked — text-layer accuracy, not wire routing '
-            '-> 21,809.)',
+            '-> 21,809; the label-anchor laws\' corrected runs cover 2 '
+            'more reference px -> 21,807.)',
       );
     });
   });

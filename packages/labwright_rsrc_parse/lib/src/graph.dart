@@ -247,12 +247,23 @@ class ViHeapObject {
   /// inks at equal 20 px margins; Excel's `Get Worksheets`/`Parse Sheet`)
   /// — while `0x10` (648 carriers) rides ordinary text-sized control
   /// labels where justification is invisible; not pixel-pinned.
+  /// Bit `0x800000` widens the text pen's left inset ([labelTextInset]).
   /// // TODO(labwright): pin 0x10 (right?) against a reference.
   int? labelModeWord;
 
   /// Whether the label's text centres in its bounds ([labelModeWord] bit
   /// `0x20`).
   bool get labelJustifyCenter => ((labelModeWord ?? 0) & 0x20) != 0;
+
+  /// The label text pen's inset from its LEFT bound, in px: 2 when
+  /// [labelModeWord] carries bit `0x800000`, else 1. Reference-measured
+  /// across the snippet corpus by registered ink-profile correlation:
+  /// every confidently-matched carrier's text starts at bounds.left+2
+  /// (Excel_Read_XLSX's terminal-name labels on `0x51`/`0x5b` holders,
+  /// comment blocks, MD5's panel-terminal labels) and every non-carrier
+  /// at bounds.left+1 (crc8's `0x2c`/`0x50`-held names, the crc trio's
+  /// `0x52`-docked array labels) — independent of the holder class.
+  int get labelTextInset => ((labelModeWord ?? 0) & 0x800000) != 0 ? 2 : 1;
 
   /// The DISPLAYED element index of an array shell (`0x52`): the attr-`0x19`
   /// value of the shell's tag-`0x15` group — what its index display shows
