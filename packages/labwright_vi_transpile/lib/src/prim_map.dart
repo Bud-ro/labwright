@@ -149,7 +149,38 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.rotateRightWithCarry,
 };
 
-/// The node **classes** that are one operation and have a lowering rule.
+/// Node **classes the corpus names**: a class that is one operation, with
+/// LabVIEW's default node name read off corpus captions and the number of
+/// captions behind it. Users rarely rename a primitive, so a class whose
+/// captions agree on one name is identified by that agreement.
+///
+/// Being named is the identity half of the map and does not by itself give a
+/// lowering: [kLvMappedPrimClasses] is the subset whose OPERAND ROLES are also
+/// decoded. The rest are named here so the review list says what it is
+/// refusing — a `Concatenate Strings` whose input order is not decoded reads
+/// very differently from an unidentified class.
+///
+/// Two classes are deliberately absent. `0x63` (14 975 nodes) is not one
+/// operation: its captions read `Unbundle By Name` ×269 AND `Bundle By Name`
+/// ×177, so the class cannot be an identity. `0x114` (414 nodes) has no
+/// agreement — `Overflow array` ×4 against `Initialize Array` ×3, both of
+/// which read as user text.
+const Map<int, ({String name, int captions})> kLvNamedNodeClasses = {
+  kLvIndexArrayClass: (name: 'Index Array', captions: 27),
+  kLvReplaceArraySubsetClass: (name: 'Replace Array Subset', captions: 10),
+  0x34: (name: 'Bundle', captions: 26),
+  0x36: (name: 'Unbundle', captions: 25),
+  0x3a: (name: 'Build Array', captions: 74),
+  0x3e: (name: 'Concatenate Strings', captions: 32),
+  0x6c: (name: 'Compound Arithmetic', captions: 14),
+  0x93: (name: 'Format Into String', captions: 37),
+  0x105: (name: 'Match Regular Expression', captions: 4),
+  0x172: (name: 'Merge Errors', captions: 113),
+};
+
+/// The node **classes** that are one operation and have a lowering rule — the
+/// [kLvNamedNodeClasses] entries whose operand roles the terminal records
+/// establish (see [LvArrayTerminalRole]).
 const Set<int> kLvMappedPrimClasses = {kLvIndexArrayClass, kLvReplaceArraySubsetClass};
 
 /// Whether a node identified by [op] (null when its class is the identity) and
@@ -232,6 +263,11 @@ String lvPrimUnmappedReason(LvPrimCall call) {
         '${[
           for (final t in [...call.inputs, ...call.outputs]) '0x${t.roleFlags.toRadixString(16)}',
         ].join('/')})';
+  }
+  if (kLvNamedNodeClasses[call.classCode] case final named?) {
+    return 'class 0x${call.classCode.toRadixString(16)} is ${named.name} '
+        '(${named.captions} corpus captions), but which terminal is which '
+        'argument is not established from the terminal records';
   }
   return 'node class 0x${call.classCode.toRadixString(16)} carries no decoded primitive identity';
 }
