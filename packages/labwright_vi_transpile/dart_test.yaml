@@ -1,0 +1,7 @@
+tags:
+  corpus:
+    # Sweeps the whole fetched VI corpus (labwright_rsrc_parse/corpus/vi/) in a
+    # bounded isolate pool; self-skips when the corpus is absent so CI stays
+    # green without it. Timeout is scaled, not absolute: wall time moves with
+    # how many corpus suites a run loads concurrently.
+    timeout: 3x
