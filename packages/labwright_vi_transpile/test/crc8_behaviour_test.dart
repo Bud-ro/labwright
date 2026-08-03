@@ -157,9 +157,14 @@ void main() {
       sourceNote: 'crc8.vi',
     );
     expect(result.refusal, isNull, reason: 'crc8.vi must lower');
+    // Compared with newlines normalised: the emitter always writes \n, while a
+    // Windows checkout hands the committed file back as \r\n.
+    final committed = File(
+      '${Directory(_testDir()).path}/generated/crc8.g.dart',
+    ).readAsStringSync().replaceAll('\r\n', '\n');
     expect(
       result.source,
-      File('${Directory(_testDir()).path}/generated/crc8.g.dart').readAsStringSync(),
+      committed,
       reason: 'regenerate with `dart run tool/generate.dart` after changing the emitter',
     );
   });

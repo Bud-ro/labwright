@@ -1,0 +1,3 @@
+# Generated Dart sources are compared byte-for-byte against a fresh emit, so
+# they must arrive with the newlines the emitter writes on every platform.
+*.g.dart text eol=lf
