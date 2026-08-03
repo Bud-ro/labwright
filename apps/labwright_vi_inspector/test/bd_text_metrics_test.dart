@@ -93,7 +93,7 @@ void main() {
           .firstWhere((x) => x.path.endsWith('/${entry.key}'));
       final viBytes = extractSnippetVi(f.readAsBytesSync())!;
       final bd = bestBlockDiagram(buildViModel(viBytes))!;
-      final scene = BdScene(bd);
+      final scene = BdScene(bd)..recordPaintedText = true;
       await loadRealTextFont();
       await tester.runAsync(() async {
         final raster = (await rasteriseBlockDiagram(
