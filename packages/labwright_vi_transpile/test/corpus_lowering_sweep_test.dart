@@ -26,6 +26,13 @@ import 'snippets.dart';
 /// [kSnippetClusterWires]) and the wire codes with no pinned array-depth base;
 /// `primitive` — the review list below; `wireDirection` — the 1.3% of corpus
 /// signals whose endpoint flags do not resolve exactly one source.
+///
+/// `MD5` is the largest diagram here and refuses on `primitive`. Its every
+/// constant, structure and wire decodes; what stands in the way is identity:
+/// 20 of its nodes carry the primResIDs 1056, 1082, 1155, 1156, 1162, 1163
+/// and 1181, and not one of those ids is labelled anywhere in the 7 524-VI
+/// corpus, so none can be named from evidence. The rest of its refusals are
+/// ordinary review-list entries.
 const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassChildren': 'wireType',
   'ClassesInMemory': 'subViCall',
