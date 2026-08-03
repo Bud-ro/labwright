@@ -11,8 +11,9 @@
 /// is the primitive review list — every operation the corpus uses that has no
 /// lowering rule, with how often it appears; [kCorpusLoweringSweep] is the
 /// whole-corpus tally. Nothing on the review list is guessed at: an entry
-/// leaves it only when its identity *and* its operand roles are decoded (see
-/// `kLvMappedPrimOps`).
+/// leaves it when its identity *and* its operand roles are decoded (see
+/// `kLvMappedPrimOps`), or when a published test vector decides what it
+/// computes (see `kLvProvenPrimResIds`) — never on a reading nothing checks.
 library;
 
 import 'dart:convert';
@@ -34,9 +35,10 @@ import 'snippets.dart';
 /// `primitive` — the review list below; `wireDirection` — the 0.8% of corpus
 /// signals whose endpoints do not resolve exactly one source.
 ///
-/// `MD5` is the largest diagram here and refuses on `primitive`. Its every
-/// constant, structure and wire decodes, and so now does its arithmetic; what
-/// stands in the way is listed node by node in [kMd5Blockers].
+/// `MD5` is the largest diagram here and it **lowers**: every constant,
+/// structure, wire and node of it reads, and the code it lowers to reproduces
+/// RFC 1321's published digests (`md5_behaviour_test.dart`). [kMd5Blockers] is
+/// the node-level guard that keeps it that way.
 const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassChildren': 'wireType',
   'ClassesInMemory': 'subViCall',
@@ -54,7 +56,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'GenerateTree': 'wireType',
   'GetCurrentDirectory': 'wireType',
   'IconHeader': 'wireType',
-  'MD5': 'primitive',
+  'MD5': 'lowered',
   'PNG CRC32': 'lowered',
   'Page1': 'wireType',
   'Pages': 'wireType',
@@ -93,7 +95,6 @@ const Map<String, String> kSnippetLoweringOutcomes = {
 /// `primResID` is a node whose id [PrimOp] does not name.
 const Map<String, int> kSnippetPrimReviewList = {
   'Match Pattern (primResID 1535)': 134,
-  'String Subset (primResID 1503)': 24,
   'node class 0x93': 18,
   'node class 0x105': 16,
   'node class 0xa9': 15,
@@ -105,33 +106,22 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1534 (name not decoded)': 11,
 };
 
-/// Everything `MD5.vi` still refuses on, one entry per blocking node — the
-/// exact distance to the second behavioural milestone after `crc8`.
+/// Everything `MD5.vi` refuses on, one entry per blocking node. It is
+/// **empty**: every node of the corpus's largest tracked diagram lowers, and
+/// the result is checked against RFC 1321's published digests in
+/// `md5_behaviour_test.dart`.
 ///
-/// Its every wire types, its whole structure tree builds, its four Case
-/// structures lower from their own per-frame range lists, and its arithmetic
-/// — `Subtract`, `Quotient & Remainder`, the byte and word swaps, the 64-bit
-/// conversions — lowers from the drawn operand order. So now do its
-/// `Concatenate Strings`, `Build Array`, `Select` and `Logical Shift` nodes,
-/// from the same order read at N operands, its two swap nodes wired to an
-/// ARRAY, from the elementwise form, and all seven of its `Type Cast` nodes,
-/// from the flat byte form, and its every constant now decodes. What
-/// remains is 10 nodes in two groups.
+/// Kept as a pin because it is the finest-grained regression guard the diagram
+/// affords: a rule that stops reading one node repopulates this map with that
+/// node alone, naming it, where the outcome pin above only says `primitive`.
 ///
-/// Five carry a `primResID` no corpus VI labels and whose icon does not say
-/// what it computes either (1181 ×4, 1082). Five are named operations whose
-/// RULE is not decoded: `String Subset`'s handling of an offset or length
-/// outside the string, `Compound Arithmetic`'s mode and per-operand inversion
-/// (see [kLvMappedPrimClasses]), and `To Lower Case`'s case-mapping table. The
-/// last is a `0x114` node whose corpus captions do not agree on a name.
-const Map<String, int> kMd5Blockers = {
-  'primResID 1181': 4,
-  'String Subset (primResID 1503)': 2,
-  'Compound Arithmetic (class 0x6c)': 2,
-  'To Lower Case (primResID 1189)': 1,
-  'primResID 1082': 1,
-  'node class 0x114': 1,
-};
+/// The eleven nodes that closed it last, and what closes each:
+/// `Compound Arithmetic` ×2 ([LvCompoundMode]), `String Subset` ×2 and
+/// `To Lower Case` ×1 (the runtime carries each operation's decoded domain and
+/// throws outside it), the `0x114` Initialize Array node
+/// ([kLvInitializeArrayClass]), and the five nodes carrying a `primResID` no
+/// corpus VI labels — 1181 ×4 and 1082 ×1 ([kLvProvenPrimResIds]).
+const Map<String, int> kMd5Blockers = <String, int>{};
 
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
 /// types are not in its signal word, so they come from the data-space type an
@@ -317,7 +307,7 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// 30 938 (`ref.part.read`) are what the lowering types.
 ///
 /// Two other candidate oracles were measured and refuted. **Auto-indexing
-/// tunnels** ([kLvAutoIndexTunnelFlag]) would give a boundary whose two sides
+/// tunnels** ([kLvTunnelIndexerCode]) would give a boundary whose two sides
 /// differ by exactly one dimension, but the corpus does not carry it: of the
 /// 4 190 loop tunnels whose refnum-coded OUTER wire the part route types, NOT
 /// ONE inner side resolves a type (4 141 are a refnum-coded wire whose parts
@@ -417,14 +407,13 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 1213,
   'decl.vi': 3129,
   'exceptions.caseSelector': 3,
-  'exceptions.constantValue': 130,
-  'exceptions.foreignCall': 2,
-  'exceptions.lowered': 223,
-  'exceptions.primitive': 534,
-  'exceptions.structure': 118,
-  'exceptions.subViCall': 316,
+  'exceptions.constantValue': 135,
+  'exceptions.foreignCall': 3,
+  'exceptions.lowered': 229,
+  'exceptions.primitive': 524,
+  'exceptions.structure': 111,
+  'exceptions.subViCall': 322,
   'exceptions.tunnelCoercion': 6,
-  'exceptions.tunnelIndexing': 1,
   'exceptions.typeDeclaration': 18,
   'exceptions.unboundValue': 7,
   'exceptions.unwiredTerminal': 234,
@@ -448,7 +437,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
   'modes.differ': 43,
-  'modes.same': 180,
+  'modes.same': 186,
   'ref': 66473,
   'ref.ep.agrees': 14046,
   'ref.ep.contradicts': 1335,
@@ -495,14 +484,13 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 96,
   'term.wired': 1593,
   'threaded.caseSelector': 3,
-  'threaded.constantValue': 130,
-  'threaded.foreignCall': 2,
-  'threaded.lowered': 223,
-  'threaded.primitive': 534,
-  'threaded.structure': 118,
-  'threaded.subViCall': 316,
+  'threaded.constantValue': 135,
+  'threaded.foreignCall': 3,
+  'threaded.lowered': 229,
+  'threaded.primitive': 524,
+  'threaded.structure': 111,
+  'threaded.subViCall': 322,
   'threaded.tunnelCoercion': 6,
-  'threaded.tunnelIndexing': 1,
   'threaded.typeDeclaration': 18,
   'threaded.unboundValue': 7,
   'threaded.unwiredTerminal': 234,
@@ -565,35 +553,31 @@ const Map<String, int> kCorpusLoweringSweep = {
 /// are calls, not operations — which is why `0x124` left the list once its
 /// records identified it as one.
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
-  'node class 0x34': (vis: 805, nodes: 1659, sole: 66),
-  'Close Reference (primResID 8011)': (vis: 759, nodes: 3068, sole: 41),
-  'node class 0x93': (vis: 690, nodes: 1566, sole: 107),
-  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 70),
-  'node class 0xa9': (vis: 678, nodes: 2619, sole: 62),
-  'node class 0x6c': (vis: 621, nodes: 1104, sole: 67),
-  'Search 1D Array (primResID 1901)': (vis: 591, nodes: 1338, sole: 29),
-  'node class 0x153': (vis: 556, nodes: 1466, sole: 337),
-  'Build Path (primResID 1419)': (vis: 439, nodes: 1215, sole: 25),
-  'node class 0x6a': (vis: 408, nodes: 865, sole: 192),
+  'node class 0x34': (vis: 805, nodes: 1659, sole: 67),
+  'Close Reference (primResID 8011)': (vis: 759, nodes: 3068, sole: 44),
+  'node class 0x93': (vis: 690, nodes: 1566, sole: 112),
+  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 83),
+  'node class 0xa9': (vis: 678, nodes: 2619, sole: 64),
+  'Search 1D Array (primResID 1901)': (vis: 591, nodes: 1338, sole: 36),
+  'node class 0x153': (vis: 556, nodes: 1466, sole: 339),
+  'Build Path (primResID 1419)': (vis: 439, nodes: 1215, sole: 28),
+  'node class 0x6a': (vis: 408, nodes: 865, sole: 202),
   'node class 0xd6': (vis: 378, nodes: 2437, sole: 25),
-  'Strip Path (primResID 1420)': (vis: 370, nodes: 865, sole: 1),
-  'Wait (ms) (primResID 1302)': (vis: 349, nodes: 548, sole: 60),
-  'To More Specific Class (primResID 8016)': (vis: 344, nodes: 825, sole: 39),
-  'node class 0xbd': (vis: 332, nodes: 645, sole: 10),
-  'String Subset (primResID 1503)': (vis: 298, nodes: 669, sole: 34),
-  'node class 0xb6': (vis: 264, nodes: 533, sole: 20),
-  'Variant To Data (primResID 8003)': (vis: 263, nodes: 506, sole: 10),
-  'To Lower Case (primResID 1189)': (vis: 255, nodes: 673, sole: 4),
-  'Open VI Reference (primResID 8010)': (vis: 251, nodes: 447, sole: 7),
-  'node class 0x114': (vis: 243, nodes: 414, sole: 3),
+  'Strip Path (primResID 1420)': (vis: 370, nodes: 865, sole: 3),
+  'Wait (ms) (primResID 1302)': (vis: 349, nodes: 548, sole: 64),
+  'To More Specific Class (primResID 8016)': (vis: 344, nodes: 825, sole: 40),
+  'node class 0xbd': (vis: 332, nodes: 645, sole: 12),
+  'node class 0xb6': (vis: 264, nodes: 533, sole: 21),
+  'Variant To Data (primResID 8003)': (vis: 263, nodes: 506, sole: 14),
+  'Open VI Reference (primResID 8010)': (vis: 251, nodes: 447, sole: 8),
   'node class 0x14a': (vis: 221, nodes: 380, sole: 0),
   'node class 0x170': (vis: 221, nodes: 380, sole: 0),
   'node class 0xeb': (vis: 199, nodes: 226, sole: 6),
   'Unregister For Events (primResID 2076)': (vis: 181, nodes: 203, sole: 0),
-  'Call Chain (primResID 1999)': (vis: 174, nodes: 175, sole: 37),
-  'Search and Replace String (primResID 3914)': (vis: 157, nodes: 243, sole: 10),
+  'Call Chain (primResID 1999)': (vis: 174, nodes: 175, sole: 73),
   'node class 0x150': (vis: 157, nodes: 406, sole: 28),
-  'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 27),
+  'Search and Replace String (primResID 3914)': (vis: 157, nodes: 243, sole: 10),
+  'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 29),
   'Enqueue Element (primResID 9111)': (vis: 152, nodes: 369, sole: 3),
   'primResID 9113 (name not decoded)': (vis: 152, nodes: 187, sole: 2),
 };
@@ -626,7 +610,7 @@ const int kCorpusReviewListFloor = 150;
 
 /// The corpus review list's shape: distinct unmapped identities, the node
 /// instances they account for, and the VIs carrying at least one.
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 227, nodes: 38288, vis: 17515);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 221, nodes: 35411, vis: 16087);
 
 /// The occurrence count at which a review-list entry is pinned individually;
 /// the tail below it is pinned only by [kReviewListTotals].
@@ -634,12 +618,12 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 94, nodes: 520);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 88, nodes: 471);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 223, sources: 73);
+const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -1232,7 +1216,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 223, sources: 73);
       if (object.category != ViObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
       final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
-      if (lvPrimHasRule(op: op, classCode: object.kind)) continue;
+      if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
       final key = _reviewKey(op, object);
       here[key] = (here[key] ?? 0) + 1;
     }
@@ -1557,7 +1541,7 @@ void main() {
         if (object.category != ViObjectKind.node) continue;
         if (kSubViCallNodeCodes.contains(object.kind)) continue;
         final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
-        if (lvPrimHasRule(op: op, classCode: object.kind)) continue;
+        if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
         final key = _reviewKey(op, object);
         counts[key] = (counts[key] ?? 0) + 1;
       }

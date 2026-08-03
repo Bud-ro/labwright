@@ -38,6 +38,21 @@ abstract final class LvRuntimeCall {
   /// Logical Shift.
   static const String logicalShift = 'lvLogicalShift';
 
+  /// A bit rotation over a fixed width.
+  static const String rotate = 'lvRotate';
+
+  /// To Lower Case.
+  static const String toLowerCase = 'lvToLowerCase';
+
+  /// String Subset.
+  static const String stringSubset = 'lvStringSubset';
+
+  /// A fixed-width integer written in hexadecimal at a minimum field width.
+  static const String hexString = 'lvHexString';
+
+  /// Initialize Array.
+  static const String initializeArray = 'lvInitializeArray';
+
   /// Merge Errors.
   static const String mergeErrors = 'lvMergeErrors';
 

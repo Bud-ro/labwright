@@ -120,6 +120,22 @@ int lvLogicalShift(int value, int count, int bits) {
   return (count > 0 ? masked << count : masked >>> -count) & mask;
 }
 
+/// A **bit rotation** of a [bits]-wide value: a positive [count] moves
+/// [value]'s bits toward the high end and the bits that leave the top re-enter
+/// at the bottom; a negative [count] rotates the other way. The result is the
+/// raw [bits]-wide pattern, which the caller renormalizes to the LabVIEW type's
+/// own width.
+///
+/// Unlike [lvLogicalShift] nothing is lost, so a count of a whole width is the
+/// identity and the count is reduced modulo [bits] rather than saturating.
+int lvRotate(int value, int count, int bits) {
+  final mask = bits >= 64 ? -1 : (1 << bits) - 1;
+  final masked = value & mask;
+  final steps = count % bits;
+  if (steps == 0) return masked;
+  return ((masked << steps) | (masked >>> (bits - steps))) & mask;
+}
+
 /// LabVIEW's Rotate Left With Carry over a [bits]-wide value: the value shifts
 /// up one bit, [carryIn] enters as bit 0, and the departing top bit is the
 /// carry out.

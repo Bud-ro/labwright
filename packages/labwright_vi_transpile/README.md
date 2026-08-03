@@ -418,11 +418,15 @@ Having one operand is necessary but not sufficient — the *result* must follow
 from the operand too. These unary corpus operations are refused for want of a
 rule rather than a role: `Sort 1D Array` (181 nodes; sort direction and tie
 order unstated), `Boolean To (0,1)` (550; which boolean maps to which member),
-`To Lower Case` (673; LabVIEW's case-mapping table over a byte string),
-`Type Cast` (1,259; the flattened layout it reinterprets), `Number To Boolean
-Array` / `Boolean Array To Number` (21 / 26; bit order), and `Transpose 2D
-Array` and a rank-2 `Array Size` (the array's own dimension order — the same
-missing tie that refuses a higher-rank Index Array).
+`Number To Boolean Array` / `Boolean Array To Number` (21 / 26; bit order), and
+`Transpose 2D Array` and a rank-2 `Array Size` (the array's own dimension order
+— the same missing tie that refuses a higher-rank Index Array).
+
+Where an operation's *domain* is decoded but its behaviour outside that domain
+is not, the rule lowers and the **runtime** throws at the boundary rather than
+inventing a value, each with a `TODO` naming the gap: `String Subset` outside
+the string, `To Lower Case` above code unit `0x7F`, `Initialize Array` at a
+negative size, and `Type Cast` on a size mismatch.
 
 Two node classes carry their identity in the class code, with corpus node
 labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
@@ -438,9 +442,9 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 111 distinct unmapped identities over
-799 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
-class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
+`test/corpus_lowering_sweep_test.dart`: 88 distinct unmapped identities over
+471 nodes across the tracked snippets, headed by Match Pattern (134) and node
+classes `0x93` (18), `0x105` (16) and `0xa9` (15).
 
 ### subVI calls
 
@@ -498,22 +502,50 @@ catalogued CRC-8 algorithms × 261 messages: **2,610 comparisons, all exact**.
 The reference itself is anchored to the published check values, so neither side
 can drift alone.
 
-### MD5.vi, the distance left
+### MD5.vi, and hypotheses a published vector decides
 
-`MD5.vi` is the largest tracked snippet and the next behavioural milestone. Its
-every wire types and its whole structure tree builds; `kMd5Blockers` pins what
-remains, one entry per blocking node — **46 nodes in four groups**:
+`MD5.vi` is the largest tracked snippet, and it lowers: `kMd5Blockers` is empty
+and `test/md5_behaviour_test.dart` checks the result against **RFC 1321's own
+test suite**. The RFC fixes 128 bits of output per message, so each vector
+rejects a lowering that misreads any node and all seven together accept only
+one reading of every node — a two-sided oracle, and the reason several
+operations here rest on behaviour rather than on a decoded field.
 
-- **20** carry a `primResID` no corpus VI labels (1162 ×5, 1163 ×5, 1181 ×4,
-  1056 ×3, 1082, 1155, 1156), so the operation itself is not decoded;
-- **11** are named operations whose *operand order* is not decoded (`Subtract`
-  ×3, `String Subset` ×2, `Concatenate Strings` ×2, `Compound Arithmetic` ×2,
-  `Build Array`, `Select`) and **9** whose *rule* is not (`Type Cast` ×7, its
-  flattened layout; `To Lower Case`; `Logical Shift`);
-- **4** are Case structures over an **integer** selector, where the file states
-  only the displayed frame's case value;
-- **1** string constant whose value the heap decode did not recover, and **1**
-  `0x114` node whose corpus captions do not agree on a name.
+What that method decided, and what it did not:
+
+- **`primResID` 1082 and 1181** carry no name any corpus VI states. Their
+  terminal grammar and their position in the diagram give a hypothesis — 1082
+  has `Logical Shift`'s grammar exactly and sits under a rotation table; 1181
+  takes an I16 width and an integer and yields a string, in a run whose
+  neighbours 1180 and 1184 are corpus-labelled — and the digests confirm it.
+  `kLvProvenPrimResIds` records **what each computes in the shapes the vectors
+  exercise**, which is a weaker claim than naming the primitive, and a node
+  outside those shapes is refused exactly as an unnamed one is.
+- **Compound Arithmetic**'s mode field (bits 16..18 of the node record) selects
+  five reductions. Two of them — the four-term U32 sum and the three-term
+  combination MD5 draws — are decided by the digests; the other three are named
+  from the palette order the two bracket and are **not lowered**
+  (`LvCompoundMode`). The per-terminal inversion bit is not decoded either way,
+  and a node carrying it is refused.
+- **`String Subset`'s unwired length** defaults to the rest of the string. Every
+  message whose length is not a multiple of 64 depends on it, so the vectors
+  decide it; an unwired *offset* has no such witness and stays refused.
+- **`To Lower Case`** and 1181's digit case are proven only as a **pair**: the
+  digests are wrong if either the conversion writes lower case and the mapping
+  is a no-op, or the reverse, but they cannot separate the two. The VI's own
+  diagram is what breaks the tie — an author draws `To Lower Case` after a
+  conversion only when that conversion writes upper case.
+
+### Auto-indexing tunnels
+
+A loop tunnel's `0x23` **indexer** record states whether the boundary iterates
+its array element-wise. It is read by whether the record's flag word is set at
+all: over the 18,244 corpus tunnels whose two sides both resolve a
+dimensionality, all 6,770 with a non-zero indexer drop exactly one dimension
+and 11,341 of the 11,474 without one drop none. The 133 exceptions are rank-2
+and rank-3 arrays and are refused. The tunnel record's own `0x1000000` bit reads
+the same way and is subsumed: it marks 6,336 of the same tunnels and misses 567
+where this misses 133.
 
 ### crc8.vi, continued
 

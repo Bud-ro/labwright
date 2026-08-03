@@ -57,15 +57,37 @@ bool lvEndpointIsSink(ViHeapObject object) {
   return ((object.objFlags ?? 0) & kLvSinkEndpointFlag) != 0;
 }
 
-/// The tunnel ([ViHeapObject.objFlags]) bit marking an **auto-indexing** loop
-/// tunnel — the boundary that iterates an array element-wise instead of
-/// passing the whole value. Corpus, over 21 486 loop tunnels whose two sides
-/// both resolve a dimensionality: every one of the 6 584 flagged tunnels drops
-/// exactly one dimension across the border and every one of the 10 370
-/// unflagged tunnels drops none. 595 unflagged tunnels do drop a dimension;
-/// those disagree with the flag and are refused
-/// ([LvRefusalKind.tunnelIndexing]).
-const int kLvAutoIndexTunnelFlag = 0x1000000;
+/// The heap class code of a loop tunnel's **indexer** record — the child a
+/// `0x22` tunnel carries, and the file's statement that the boundary iterates
+/// an array element-wise instead of passing the whole value.
+///
+/// The record is read by *whether its flag word is set at all*
+/// ([lvTunnelAutoIndexes]), which the corpus states with no counterexample.
+/// Over the 18 244 loop tunnels in 7 524 VIs whose two sides both resolve a
+/// dimensionality: all 6 770 tunnels carrying an indexer with a non-zero flag
+/// word drop **exactly one** dimension across the border, and 11 341 of the
+/// 11 474 carrying none — no record, or one whose word is zero — drop **none**.
+/// The 133 exceptions are all zero-worded indexers on For-loop tunnels whose
+/// outer wire is rank 2 (110) or rank 3 (23), and they are refused
+/// ([LvRefusalKind.tunnelIndexing]) rather than read either way.
+///
+/// The word's own bits are not the reading and are not needed for it, but they
+/// are regular: `0x1` is set on 2 918 tunnels and every one of them is an
+/// **output** tunnel, and `0x400000` and `0x1000000` appear alone and together
+/// (`0x1400000`) across both directions. No combination sits on a tunnel that
+/// drops nothing.
+///
+/// The tunnel record's own [ViHeapObject.objFlags] carries a `0x1000000` bit
+/// that reads the same way and is **subsumed** by this one: over the same
+/// population it marks 6 336 tunnels, all of which this record also marks, and
+/// it leaves 567 droppers unmarked where this leaves 133. Reading the tunnel's
+/// own word as well changes not one tunnel's answer, so it is not read.
+const int kLvTunnelIndexerCode = 0x23;
+
+/// Whether the loop tunnel whose child records are [children] **auto-indexes**
+/// — see [kLvTunnelIndexerCode] for the corpus census behind the reading.
+bool lvTunnelAutoIndexes(Iterable<ViHeapObject> children) =>
+    children.any((child) => child.kind == kLvTunnelIndexerCode && (child.objFlags ?? 0) != 0);
 
 /// The heap class code of a structure's **frame** — one subdiagram.
 const int kLvFrameCode = 0x1b;
@@ -158,7 +180,7 @@ enum LvTerminalRole {
   rightShiftRegister(0x28),
 
   /// `0x22` — a loop **tunnel**, optionally auto-indexing
-  /// ([kLvAutoIndexTunnelFlag]).
+  /// ([kLvTunnelIndexerCode]).
   loopTunnel(0x22),
 
   /// `0x2d` — a case/event structure **tunnel**: one inner port per frame.
@@ -518,7 +540,7 @@ class LvStructTerminal {
   final Map<int, int> innerPorts;
 
   /// Whether the tunnel iterates an array element-wise
-  /// ([kLvAutoIndexTunnelFlag]).
+  /// ([kLvTunnelIndexerCode]).
   final bool autoIndexing;
 
   /// For a right shift register, its left partner's oid; else null.
@@ -983,7 +1005,7 @@ class _Builder {
           role: role,
           outerPort: outer,
           innerPorts: inner,
-          autoIndexing: ((terminal.objFlags ?? 0) & kLvAutoIndexTunnelFlag) != 0,
+          autoIndexing: lvTunnelAutoIndexes(kids[terminal.oid] ?? const <ViHeapObject>[]),
           partnerOid: partner,
           outerIsSink: outer != null && _isSink(outer),
         ),
