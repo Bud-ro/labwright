@@ -2060,15 +2060,20 @@ enum HeapRefKind {
   loopLimitDCORef(0x1bd, 'loopLimitDCORef', AttrConfidence.inferred),
 
   /// Raw `0x1D0` (`15 d0`; matches OF__dataValRefDCO) — **data-value-ref DCO
-  /// reference** on decompose nodes (`0x153` 100%; resolves 1,466/1,466).
+  /// reference**, carried by the In Place Element Structure border node that
+  /// accesses a data value reference ([HeapObjectClass.bdNode153] 100%;
+  /// resolves 1,466/1,466) and by no other class.
   dataValRefDCORef(0x1d0, 'dataValRefDCORef', AttrConfidence.inferred),
 
   /// Raw `0x1E2` (`15 e2`; matches OF__tunnelLink) — **tunnel link** on
   /// select tunnels (`0x2D` 100%; resolves 1,054/1,054).
   tunnelLinkRef(0x1e2, 'tunnelLinkRef', AttrConfidence.inferred),
 
-  /// Raw `0x1CF` (`15 cf`; matches OF__poser) — **poser reference** on
-  /// decompose nodes (resolves 2,080/2,080).
+  /// Raw `0x1CF` (`15 cf`; matches OF__poser) — **poser reference**, carried by
+  /// the In Place Element Structure border nodes and by nothing else (resolves
+  /// 2,080/2,080): `0x153` 1,466, `0x150` 406, `0x14F` 108, `0x152` 98, `0x18D`
+  /// 2. Every carrier is nested inside an [HeapObjectClass.bdInPlaceStructure],
+  /// with no exception, which is what identifies the family.
   poserRef(0x1cf, 'poserRef', AttrConfidence.inferred),
 
   /// Raw `0x28A` (`16 8a`; matches OF__attachment) — **attachment reference**

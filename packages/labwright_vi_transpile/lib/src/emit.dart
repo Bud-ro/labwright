@@ -665,6 +665,10 @@ class _FunctionEmitter {
   }
 
   void _emitPrimitive(LvPrimUnit unit) {
+    // A call into a native shared library is refused before its terminals are
+    // read: what it computes is in that library, not in this file, so no
+    // terminal reading could supply it.
+    if (unit.isForeignCall) refuse(LvRefusalKind.foreignCall, lvForeignCallDetail(unit), oid: unit.oid);
     LvPrimTerminal terminal(int port, {required bool isInput}) {
       final edge = isInput ? flow.into(port) : flow.outOf(port);
       if (edge == null) {

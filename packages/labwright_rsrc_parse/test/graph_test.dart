@@ -1401,7 +1401,8 @@ void main() {
       // BD nodes (caption- or icon-confirmed) + growable/icon-footprint nodes
       ViObjectKind.node: [
         0x12, 0x2f, 0x31, 0x63, 0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, //
-        0x6c, 0x36, 0x153, 0x6a, 0xbd, 0x114, 0xb6, 0xb9, 0x48, 0xeb, 0x103, 0x14a,
+        0x6c, 0x36, 0x153, 0x6a, 0xbd, 0x114, 0xb6, 0xb9, 0x48, 0xeb, 0x103, 0x14a, 0x124, //
+        0x150, 0x14f, 0x152,
       ],
       // free-standing leaves, case selector label, control terminals / constants
       ViObjectKind.terminal: [0x68, 0x16, 0x95, 0x55, 0x4e, 0x10c, 0xc2],
@@ -1576,7 +1577,7 @@ void main() {
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x1b, 2, tag: 0x1a),
-      ...open(0x150, 3, tag: 0x1b),
+      ...open(0x170, 3, tag: 0x1b),
       ...bounds(10, 10, 42, 42),
       ...open(0x15, 4, tag: 0x1c),
       ...close(0x1c),
@@ -1584,7 +1585,7 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[3]!.objectClass, HeapObjectClass.unknown, reason: '0x150 is not catalogued by code');
+    expect(d.byId[3]!.objectClass, HeapObjectClass.unknown, reason: '0x170 is not catalogued by code');
     expect(d.byId[3]!.category, ViObjectKind.node);
   });
 

@@ -579,6 +579,36 @@ class ViHeapObject {
   /// or null when the id is absent or uncatalogued (see [PrimOp]).
   String? get primName => primResId == null ? null : PrimOp.fromId(primResId!)?.opName;
 
+  /// The **native shared library** a Call Library Function node
+  /// ([HeapObjectClass.bdCallLibrary]) calls into, from its `C4 A4` path record
+  /// (`ps6000a.dll`, `/Program Files/Pico Technology/SDK/lib/ps4000a.dll`, the
+  /// bare `LabVIEW` for a call into the host itself) — or null off the class and
+  /// on the 55 of 865 corpus nodes whose record holds no path.
+  ///
+  /// Corpus (7 524 VIs): the `C4 A4` path record appears on 865 objects, every
+  /// one of them a `0x6a`, and on no object of any other class — so the record
+  /// identifies the class as surely as the class scopes the record.
+  String? foreignLibraryPath;
+
+  /// The **entry point** a Call Library Function node calls in
+  /// [foreignLibraryPath], from its `C4 C4` symbol-name record
+  /// (`ps4000aSetChannel`, `usb_tc08_open_unit`) — or null off the class.
+  ///
+  /// Corpus: all 865 `0x6a` nodes carry one, spelled in 1..31 characters, with
+  /// 84 at exactly 31 — the stored field's width, so a longer name is held
+  /// truncated. The `C4 C4` record is not class-exclusive (`0x8c`, `0xa9`,
+  /// `0xeb` carry it too), so it is read only on `0x6a`, where the path record
+  /// beside it says what the symbol is resolved against.
+  ///
+  /// This, not the node's caption, is the call site: over the 761 captioned
+  /// corpus nodes the caption spells `<library leaf>:<entry point>` 225 times
+  /// and the bare entry point 109 times, but contradicts the two records
+  /// outright 392 times — a copied node keeps the caption it was copied with
+  /// (`ps3000.dll:_ps3000_open_unit@0` sits on nodes calling
+  /// `ps4000aSetDataBuffers`), and 3 read LabVIEW's generic `Call Library
+  /// Function`.
+  String? foreignEntryPoint;
+
   /// A signal's raw packed wire-route table ([HeapAttribute
   /// .compressedWireTable], raw `0x1e7`, container form) — or null for the
   /// scalar trivial forms and non-signal objects. Decoded by
@@ -967,6 +997,24 @@ enum HeapObjectClass {
   /// Response.vi`, `getFlags.vi`). Renders as a node box.
   bdNode104(0x104, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
+  /// `0x124` — a **subVI call node**, the record shape of [bdNode104] under a
+  /// second class code. Corpus: 216 BD (0 FP), uniform 32×32, parent `0x1b`;
+  /// 216/216 carry an `0xa` caption, 211 of them a VI filename (`Destroy.vi`
+  /// ×47, `Actor Core.vi`); the other five read `Call Parent Method` /
+  /// `Call Parent Class Method`.
+  ///
+  /// It is a call node by its own records, not by the caption. Every one carries
+  /// `OF__paramTableOffset` (raw `0x48`) and 70 carry `OF__connectorTM` (raw
+  /// `0xDD`); corpus-wide those two records sit on only seven classes — the
+  /// subVI call classes `0x31`/`0x104`/`0xC5`/`0x32`/`0x103`, this one, and the
+  /// asynchronous-call node `0xAE`. Its children are the same `0x15`/`0xA`/`0x10B`
+  /// set as `0x104`'s and its terminal records the same `0x33` parameter DCOs.
+  /// And its terminal count is a connector-pane width — 12 on 138 nodes, 20 on
+  /// 77, 16 on 1 — which for the 30 nodes whose named callee is in the corpus
+  /// equals that VI's own `CPMp` terminal count **30 times out of 30**, the same
+  /// check `0x104` passes 879 times out of 879.
+  bdNode124(0x124, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
+
   /// `0x44` — a **built-in primitive node**. Corpus: 3228 BD (0 FP), ~32×27, parent
   /// `0x1b`; labelled ones read `Index Array`. Renders as a node box.
   bdNode44(0x44, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
@@ -1001,18 +1049,55 @@ enum HeapObjectClass {
   /// parent `0x1b`; labelled ones read `Unbundle`. Renders as a node box.
   bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x153` — a **built-in primitive node** (icon, name not yet recovered). Corpus:
-  /// 1466 BD (0 FP), 100% exactly **32×32** (the default node-icon footprint),
-  /// 100% parented to the node container `0x1b`, children only structural `0x15`
-  /// records — byte-for-byte the `0x2f` primitive profile, but with no `0xa`
-  /// caption, so the specific primitive is not yet recovered: [ClassConfidence.kindOnly].
-  bdNode153(0x153, 'Node (primitive)', ViObjectKind.node, ClassConfidence.kindOnly),
+  /// `0x153` — an **In Place Element Structure border node** accessing a **data
+  /// value reference**. Corpus: 1466 BD (0 FP), 100% exactly **32×32**, no `0xa`
+  /// caption on a single one.
+  ///
+  /// Three facts place it. Every one of the 1466 is nested two levels inside an
+  /// In Place Element Structure ([bdInPlaceStructure]) — its frame's frame —
+  /// with no exception. Every one carries the `15 D0` reference (matching
+  /// `OF__dataValRefDCO`) to one of its three terminal records, plus the `15 CF`
+  /// [HeapRefKind.poserRef] the whole border-node family carries. And its three
+  /// terminals are NAMED by the resolved data-space type: the corpus's most
+  /// frequent triples are `DataRef | Data | error IO` (461) and its exact mirror
+  /// `Data | DataRef | error IO` (461), then `DVRRefOut | Data | error IO` (55)
+  /// against `Data | DVRRefOut | error IO` (55) — reference, element, error, in
+  /// the two orders a read side and a write side have.
+  ///
+  /// The two orders are a per-node flags bit ([ViHeapObject.objFlags] `0x30000`,
+  /// set on 763 and clear on 703), and the counts pair off exactly within every
+  /// other flag value the class takes — one read node and one write node per
+  /// accessed reference.
+  bdNode153(0x153, 'Node (In Place Element)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0x6A` — a **Call Library Function Node** (calls into a native DLL/.so).
-  /// Corpus: 878 BD (0 FP), median 40×59, parent `0x1b`; 764/878 carry an `0xa`
-  /// caption that is a library entry point (`ps3000.dll:_ps3000_open_unit@0`,
-  /// `setMaxMinAppAndDriverBuffers`). Renders as a node box.
-  bdCallLibrary(0x6a, 'Call Library node', ViObjectKind.node, ClassConfidence.inferred),
+  /// `0x150` / `0x14F` / `0x152` — the other **In Place Element Structure border
+  /// nodes**. Corpus: 406 / 108 / 98 BD (0 FP), no caption on any, and — like
+  /// [bdNode153] — 100% nested inside an In Place Element Structure, carrying
+  /// the family's `15 CF` [HeapRefKind.poserRef]. Their left/right sides pair
+  /// off exactly (`0x150` 152+152 and 134+134 by flag value; `0x14F` 51+51),
+  /// but which element access each performs is not recovered — their terminals
+  /// carry only the VI author's own type names — so the label states the family
+  /// alone: [ClassConfidence.kindOnly]. A fifth class, `0x18D`, carries the same
+  /// reference on 2 corpus nodes and is left uncatalogued at that count.
+  bdNode150(0x150, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
+
+  /// See [bdNode150].
+  bdNode14f(0x14f, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
+
+  /// See [bdNode150].
+  bdNode152(0x152, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
+
+  /// `0x6A` — a **Call Library Function Node** (calls into a native shared
+  /// library). Corpus: 865 BD (0 FP), median 40×59, parent `0x1b`.
+  ///
+  /// Identified from its own records rather than its caption: every one of the
+  /// 865 carries a `C4 A4` filesystem-path record naming the library
+  /// ([ViHeapObject.foreignLibraryPath] — `ps6000a.dll`, `usbtc08.dll`, the bare
+  /// `LabVIEW` for a call into the host) and a `C4 C4` symbol-name record naming
+  /// the entry point ([ViHeapObject.foreignEntryPoint] — `ps4000aSetChannel`),
+  /// and the path record appears on no other class in the corpus. 761 also carry
+  /// an `0xa` caption, which contradicts those records on 392 of them.
+  bdCallLibrary(0x6a, 'Call Library node', ViObjectKind.node, ClassConfidence.confirmed),
 
   /// `0xBD` — a **built-in primitive node**. Corpus: 623 BD (0 FP), median 32×33,
   /// parent `0x1b`; labelled ones read `Delete From Array`. Renders as a node box.
@@ -4076,6 +4161,15 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
               final text = rec.text ?? rec.path ?? rec.descriptionText;
               if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
             }
+          // The Call Library Function node's two call-site records. Both are
+          // class-scoped to `0x6a` so neither can fabricate a foreign call on
+          // another class: the `C4 A4` path is carried by 0x6a and by nothing
+          // else in the corpus, and the shared `C4 C4` symbol name is read only
+          // here. See [ViHeapObject.foreignLibraryPath] / [foreignEntryPoint].
+          case 0xa4:
+            if (cur.kind == HeapObjectClass.bdCallLibrary.code) cur.foreignLibraryPath ??= rec.path;
+          case 0xc4:
+            if (cur.kind == HeapObjectClass.bdCallLibrary.code) cur.foreignEntryPoint ??= rec.text;
         }
       } else if (lead == 0x14) {
         final ref = decodeHeapRef(body, offset);
