@@ -12,10 +12,12 @@ import 'decode.dart';
 /// size selector (0 → no data/false, 1–4 → that many bytes, 6 → a `u8`
 /// length prefix with the `FF → u16` escape, 7 → no data/true). `0xC4` is the
 /// leaf/sizeSpec-6/tagHi-0 corner of that grid. The model reproduces every
-/// framing rule in [recordSkip] and is corroborated by the tag catalog of the
-/// open-source pylabview project (whose tag ids equal `rawTagId - 31`, with
-/// negative system tags: raw `0x19` = `arrayElement`, the object headers);
-/// every adopted tag name below is additionally verified against this corpus.
+/// framing rule in [recordSkip], derived from and verified against this
+/// corpus. The open-source pylabview project's tag catalog is used as a
+/// NAMING lead only (its tag ids line up as `rawTagId - 31`, with negative
+/// system tags: raw `0x19` = `arrayElement`, the object headers) — it is not
+/// treated as authority, and every tag name adopted below stands on the
+/// corpus evidence quoted with it.
 const int kHeapRecordPrefix = 0xc4;
 
 /// The section tags whose decompressed bodies are opcode-record heaps (walkable
@@ -370,9 +372,10 @@ enum AttrConfidence {
 /// HONESTY: this is clean-room RE. `confirmed` names are pinned by a decisive
 /// signal (RGB triples, the transparent sentinel, monotone orderings, ASCII,
 /// a structural identity such as value == child count); `inferred` names give
-/// the defensible direction from corpus scope + value shape, cross-checked
-/// against the open-source pylabview tag catalog (tag id = raw − 31);
-/// `kindOnly` names are pure value-kind labels. Class codes in the evidence
+/// the defensible direction from corpus scope + value shape, with the
+/// open-source pylabview tag catalog (tag id = raw − 31) as a naming lead
+/// where it has one — a suggestion, never the evidence; `kindOnly` names are
+/// pure value-kind labels. Class codes in the evidence
 /// notes are the object-header `SL__class` values (0x0A = label, 0x09 = cosm,
 /// 0x0B/0x0C = multi/bigMultiCosm, 0x12 = fPDCO, 0x13 = bDConstDCO,
 /// 0x17 = signal, 0x1B = diag, 0x20 = forLoop, 0x2C = select, 0x2F = prim,
@@ -622,7 +625,8 @@ enum HeapAttribute {
   /// matches OF__fgColor = 80): on the part classes (label/cosm 68%+).
   fgColor(0x06f, HeapAttrKind.color, 'fgColor', AttrConfidence.confirmed),
 
-  /// Raw `0x020` — a **class-polymorphic** tag (pylabview tag 1): in the cosm
+  /// Raw `0x020` — a **class-polymorphic** tag (pylabview names its tag 1
+  /// here; the class split below is this corpus's): in the cosm
   /// part classes at u32 width it is a **foreground/frame colour** (class
   /// bigMultiCosm `0x0C` at 99.38% of u32 records; greys/black); in the label
   /// classes at u16/u24 it carries text-style FLAG words (0x200/0x600/0x8000 —
@@ -632,7 +636,8 @@ enum HeapAttribute {
   /// value-kind-only.
   cosmFgColor(0x020, HeapAttrKind.color, 'cosmFgColor', AttrConfidence.inferred),
 
-  /// Raw `0x021` — **class-polymorphic** like [cosmFgColor] (pylabview tag 2):
+  /// Raw `0x021` — **class-polymorphic** like [cosmFgColor] (pylabview names
+  /// its tag 2 here):
   /// a **second cosm colour** at u32 in the cosm classes (60.7% of u32
   /// records; greys/white), but label-class u32/u24/u16 records carry
   /// text-mode words (0x814404/0x14404/0x4404 patterns — not colours).
@@ -678,7 +683,8 @@ enum HeapAttribute {
   /// pairs — a packed size point, not a colour.
   minPaneSize(0x0b7, HeapAttrKind.point, 'minPaneSize', AttrConfidence.inferred),
 
-  /// Raw `0x022` — **short label text** (pylabview textHair tag 3 = text): the
+  /// Raw `0x022` — **short label text** (the pylabview naming lead: textHair
+  /// tag 3 = text): the
   /// scalar-width sibling of the `C4 22` caption opcode ([HeapOpcode.caption],
   /// same tag, length-prefixed), carrying a 1-4 character caption with the text
   /// BYTES magnitude-encoded big-endian ("y", "x", "Idx", "XOR?"; 0 = empty).
@@ -1815,6 +1821,49 @@ enum HeapPropertyToken {
 
   /// The catalogued token for an `(op, subop)` pair, or null if uncatalogued.
   static HeapPropertyToken? lookup(int op, int subop) => _byKey[(op << 8) | subop];
+}
+
+/// The type tags of the non-object heap groups whose records `buildDiagram`
+/// scopes a capture to — the byte [walkHeapObjects] surfaces to its
+/// `onGroupOpen` / `onGroupClose` callbacks.
+enum HeapGroupTag {
+  /// `0x25` — a label's text font-run list ([HeapPropertyToken.textStyleRuns]),
+  /// holding one [fontRun] sub-group per run.
+  fontRunList(0x25),
+
+  /// `0x19` — one font run inside a [fontRunList] group, carrying the
+  /// [FontRunAttr] records.
+  fontRun(0x19),
+
+  /// `0x15` — an array shell's displayed-index group, carrying the shell's
+  /// [HeapAttribute.arrayElemValue] index record (`ViHeapObject.arrayIndex`).
+  arrayIndex(0x15)
+  ;
+
+  const HeapGroupTag(this.tag);
+
+  /// The group's type-tag byte.
+  final int tag;
+}
+
+/// The raw attribute tags a font run carries inside a [HeapGroupTag.fontRun]
+/// sub-group. Both tags are shared with the general attribute space (raw
+/// `0x028` outside a run group is [HeapAttribute.backgroundColor]), so they
+/// are only read as run fields while such a group is open.
+enum FontRunAttr {
+  /// Raw `0x027` — the run's start character offset (absent = 0). Uncatalogued
+  /// in [HeapAttribute] (it carries no meaning outside a run group).
+  start(0x027),
+
+  /// Raw `0x028` — the run's `FTAB` font id
+  /// (`ViFontTable.entryForRunFontId`).
+  fontId(0x028)
+  ;
+
+  const FontRunAttr(this.raw);
+
+  /// The 10-bit raw tag id ([HeapAttr.rawTag]).
+  final int raw;
 }
 
 /// Whether a byte is the `op == 0x04` lead of a bare two-byte `04 SS` token.

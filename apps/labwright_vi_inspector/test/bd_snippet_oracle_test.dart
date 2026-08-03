@@ -286,6 +286,7 @@ void main() {
           }
           expect(diff, 0, reason: name + ' ' + label + ' chrome');
         }
+        scene.dispose();
       }
     });
   });
@@ -479,6 +480,7 @@ void main() {
             reason: name + ' ' + dataType.name + ' terminal art',
           );
         }
+        scene.dispose();
       }
     });
   });

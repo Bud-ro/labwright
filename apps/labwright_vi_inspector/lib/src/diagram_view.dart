@@ -195,6 +195,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   @override
   void dispose() {
     _transform.dispose();
+    _scene?.dispose();
     for (final image in _xnodeFacades.values) {
       image.dispose();
     }
@@ -2852,6 +2853,18 @@ class BdScene {
   /// ([bdConstValueTexts]).
   late final Map<int, String> constValues = bdConstValueTexts(diagram);
 
+  /// The display-part furniture boxes the into-DCO wire trim stops on —
+  /// `0x9` decorations and `0xe0` value windows, in absolute diagram
+  /// coordinates. Parts are not in [drawable], so this is the only pass that
+  /// walks the whole heap for them; it depends on nothing but the diagram,
+  /// so it is derived once here rather than per paint.
+  late final List<HeapRect> furnitureBounds = [
+    for (final object in diagram.objects)
+      if ((object.kind == 0x9 || object.kind == 0xe0) &&
+          object.absBounds != null)
+        object.absBounds!,
+  ];
+
   /// The ink envelope of [drawable] (wires excluded: their absolute anchoring
   /// is not yet verified, and a misanchored run must not blow up the fit).
   late final Rect content = drawable.isEmpty
@@ -2862,20 +2875,68 @@ class BdScene {
   /// and zoom re-anchors (the canvas itself is scaled, so a layout never
   /// depends on [BdDiagramPainter.canvasScale]). Laying out hundreds of
   /// labels per frame dominated interactive paint time. Keyed by the text +
-  /// full style.
-  final Map<String, BdTextRun> textLayoutCache = {};
+  /// full style ([BdRunKey], a record: value equality with no key string to
+  /// build or parse).
+  final Map<BdRunKey, BdTextRun> textLayoutCache = {};
 
   /// Per-glyph layout/paint slots backing [textLayoutCache] (see [BdGlyph]),
   /// keyed by glyph + full style: a glyph's painters, integer advance, and
   /// baseline are computed once and shared by every run that uses it.
-  final Map<String, BdGlyph> textGlyphCache = {};
+  final Map<BdGlyphKey, BdGlyph> textGlyphCache = {};
 
-  /// Every text run the last paint drew: its string, the canvas-space rect
-  /// of its laid-out box, and the style size it was set in. Rebuilt each
-  /// paint; the text-metric tests and accuracy probes read it to locate
-  /// text ink without re-deriving the painter's placement rules.
+  /// Whether [paintedText] is recorded. Off by default: the record and rect
+  /// cost an allocation per run per paint and only the text-metric tests and
+  /// accuracy probes read them.
+  bool recordPaintedText = false;
+
+  /// Every text run the last paint drew (when [recordPaintedText]): its
+  /// string, the canvas-space rect of its laid-out box, and the style size
+  /// it was set in. Rebuilt each paint; the text-metric tests and accuracy
+  /// probes read it to locate text ink without re-deriving the painter's
+  /// placement rules.
   final List<({String text, Rect rect, double fontSize})> paintedText = [];
+
+  /// Releases the native handles the text caches hold — every recorded run
+  /// picture and every cached glyph's painters. Call it when the scene is
+  /// discarded: a scene is built per rasterise, and a corpus sweep otherwise
+  /// accumulates one picture per distinct run and two painters per distinct
+  /// glyph for the whole sweep. The scene must not be painted afterwards.
+  void dispose() {
+    for (final run in textLayoutCache.values) {
+      run.dispose();
+    }
+    textLayoutCache.clear();
+    for (final glyph in textGlyphCache.values) {
+      glyph.dispose();
+    }
+    textGlyphCache.clear();
+    paintedText.clear();
+  }
 }
+
+/// The layout cache key of one text run ([BdScene.textLayoutCache]): the
+/// string, the full style, and the EFFECTIVE line count — two runs of the
+/// same single-line text share a layout no matter how tall the boxes that
+/// hold them are.
+typedef BdRunKey = (
+  String text,
+  int color,
+  double fontSize,
+  FontWeight fontWeight,
+  FontStyle? fontStyle,
+  int lineCount,
+  String fontFamily,
+);
+
+/// The cache key of one glyph slot ([BdScene.textGlyphCache]).
+typedef BdGlyphKey = (
+  String glyph,
+  int color,
+  double fontSize,
+  FontWeight fontWeight,
+  FontStyle? fontStyle,
+  String fontFamily,
+);
 
 /// The block-diagram text size, in logical px per em, calibrated against
 /// the snippet references' own text ink (the Windows UI face as rasterised
@@ -2902,6 +2963,12 @@ const double kBdTextSize = 12.0;
 /// baselines at rows 103/118/133, 15 px apart).
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
+/// The line box (px) a run of em size [fontSize] sets on, and the pitch of
+/// its baselines: the [kBdTextLineHeight] multiple taken up to a whole pixel
+/// row, since the reference pens every baseline on a whole row.
+double bdLineBox(double fontSize) =>
+    (fontSize * kBdTextLineHeight).ceilToDouble();
+
 /// Ink-weight overdraw alpha: every text run re-draws itself once at this
 /// alpha under the full-strength pass (a zero-offset, zero-blur shadow in
 /// the run's style — one layout, one paint call), darkening each AA fringe
@@ -2917,7 +2984,50 @@ const double kBdTextOverdrawAlpha = 0.75;
 /// bold — its stems are already multi-pixel, so the same fringe lift lands
 /// 1.14x the reference's mean ink (measured on MD5's `Calculate MD5`
 /// heading). Recalibrated on that heading: this alpha lands 1.015.
+///
+/// EXTRAPOLATED beyond that measurement: the calibration is one 12 em bold
+/// heading, and this alpha is applied to every bold glyph at every size (the
+/// 8.5 em type letters, the 11 em bold-italic structure glyphs, the 16 em
+/// headings). Those sizes have no ink-weight measurement of their own yet.
+/// // TODO(labwright): calibrate the bold alpha per size.
 const double kBdTextOverdrawAlphaBold = 0.15;
+
+/// The anchor for a text run of [text] size CENTRED in [box] — both axes
+/// truncate the half pixel, so a run one px narrower than an even gap sits
+/// left/above of the symmetric centre.
+///
+/// Reference-measured over the 46-snippet corpus by registering each painted
+/// run's ink onto its reference's ink (best whole-pixel shift by ink IoU,
+/// runs scoring ≥0.5 with a decisive margin): 781 of 786 confidently
+/// registered runs sit at shift 0 under this law, and the 41 growable-node
+/// row texts whose cell−text gap is EVEN all move one px off the reference
+/// under the label law below. The vertical half pixel is unmeasurable on
+/// this corpus (flooring vs rounding moves no registered run) and is floored
+/// to match the horizontal axis. Glyph stamps (type/operator/structure
+/// letters) centre by the same law — no registered glyph run moves when they
+/// switch from rounding to flooring.
+Offset bdCentredTextAnchor(Rect box, Size text) => Offset(
+  box.left + ((box.width - text.width) / 2).floorToDouble(),
+  box.top + ((box.height - text.height) / 2).floorToDouble(),
+);
+
+/// The vertical half of [bdCentredTextAnchor], for runs whose horizontal
+/// anchor is justified rather than centred.
+double bdCentredTextTop(Rect box, double textHeight) =>
+    box.top + ((box.height - textHeight) / 2).floorToDouble();
+
+/// The LEFT anchor of a centre-justified label run
+/// ([ViHeapObject.labelJustifyCenter]) of [textWidth] in its stored [bounds]:
+/// centred over `width − 1`, so an even gap inks one px LEFT of the
+/// symmetric centre — a different law from [bdCentredTextAnchor], measured
+/// separately on the same registration probe. The four confidently
+/// registered centred labels with an EVEN gap (ClassChildren's
+/// `Find parents`, GenerateTree's `Index Ids` / `Recursively order children
+/// sorted by weight` / `Append id if parent`) sit at shift 0 here and all
+/// four move one px right of the reference under [bdCentredTextAnchor];
+/// odd-gap labels read the same under either law.
+double bdCentredLabelLeft(Rect bounds, double textWidth) =>
+    bounds.left + ((bounds.width - textWidth - 1) / 2).floorToDouble();
 
 /// One cached glyph of the diagram text face at a full style+colour: the
 /// full-ink and [kBdTextOverdrawAlpha] companion painters, the pen advance
@@ -2952,21 +3062,33 @@ class BdGlyph {
 
   /// [main]'s alphabetic-baseline distance from its paint origin.
   final double baseline;
+
+  /// Releases both painters' native layout resources.
+  void dispose() {
+    main.dispose();
+    dim.dispose();
+  }
 }
 
 /// A laid-out text run on the whole-pixel glyph lattice: every glyph pens
 /// at an integer x, every line's baseline on an integer row at the
 /// [kBdTextLineHeight] pitch, with the overdraw pass recorded under the
-/// full-strength pass at identical origins. The paint is recorded once
-/// into a picture, so a repaint costs one draw per run regardless of
-/// glyph count.
+/// full-strength pass at identical origins. The run is laid out once and
+/// replayed from a recorded picture — the replay still issues the recorded
+/// draw per glyph per pass, so what a repaint saves is the layout, not the
+/// draw count.
 class BdTextRun {
   BdTextRun({
+    required this.text,
     required this.width,
     required this.height,
     required this.fontSize,
     required ui.Picture picture,
   }) : _picture = picture;
+
+  /// The string the run lays out (the text-metric tests and accuracy probes
+  /// read it back off [BdScene.paintedText]).
+  final String text;
 
   /// The widest line's advance sum — an exact whole number of pixels.
   final double width;
@@ -2990,6 +3112,9 @@ class BdTextRun {
       ..drawPicture(_picture)
       ..restore();
   }
+
+  /// Releases the recorded picture's native handle.
+  void dispose() => _picture.dispose();
 }
 
 class BdDiagramPainter extends CustomPainter {
@@ -3016,46 +3141,54 @@ class BdDiagramPainter extends CustomPainter {
     double fontSize,
     FontWeight fontWeight,
     FontStyle? fontStyle,
-  ) => scene.textGlyphCache.putIfAbsent(
-    '$glyph|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|'
-    '$bdTextFontFamily',
-    () {
-      TextPainter build(Color inkColor) => TextPainter(
-        text: TextSpan(
-          text: glyph,
-          style: TextStyle(
-            color: inkColor,
-            fontSize: fontSize,
-            height: kBdTextLineHeight,
-            fontWeight: fontWeight,
-            fontStyle: fontStyle,
-            fontFamily: bdTextFontFamily,
-          ),
+  ) {
+    final key = (
+      glyph,
+      color.toARGB32(),
+      fontSize,
+      fontWeight,
+      fontStyle,
+      bdTextFontFamily,
+    );
+    final cached = scene.textGlyphCache[key];
+    if (cached != null) return cached;
+    TextPainter build(Color inkColor) => TextPainter(
+      text: TextSpan(
+        text: glyph,
+        style: TextStyle(
+          color: inkColor,
+          fontSize: fontSize,
+          height: kBdTextLineHeight,
+          fontWeight: fontWeight,
+          fontStyle: fontStyle,
+          fontFamily: bdTextFontFamily,
         ),
-        textDirection: TextDirection.ltr,
-      )..layout();
-      final main = build(color);
-      // GDI pens by the face's HINTED per-ppem advance (`hdmx`), not the
-      // rounded linear one; at the reference's 12 ppem the two differ on a
-      // handful of glyphs ([bdHintedAdvance]). Other em sizes keep the
-      // rounded engine width.
-      final hinted = fontSize == kBdTextSize && glyph.length == 1
-          ? bdHintedAdvance(
-              glyph.codeUnitAt(0),
-              bold: fontWeight.value >= FontWeight.w700.value,
-            )
-          : null;
-      final overdraw = fontWeight.value >= FontWeight.w700.value
-          ? kBdTextOverdrawAlphaBold
-          : kBdTextOverdrawAlpha;
-      return BdGlyph(
-        main: main,
-        dim: build(color.withValues(alpha: color.a * overdraw)),
-        advance: hinted ?? main.width.round(),
-        baseline: main.computeDistanceToActualBaseline(TextBaseline.alphabetic),
-      );
-    },
-  );
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final main = build(color);
+    // GDI pens by the face's HINTED per-ppem advance (`hdmx`), not the
+    // rounded linear one; at the reference's 12 ppem the two differ on a
+    // handful of glyphs ([bdHintedAdvance]). Other em sizes keep the
+    // rounded engine width.
+    final hinted = fontSize == kBdTextSize && glyph.length == 1
+        ? bdHintedAdvance(
+            glyph.codeUnitAt(0),
+            bold: fontWeight.value >= FontWeight.w700.value,
+          )
+        : null;
+    final overdraw = fontWeight.value >= FontWeight.w700.value
+        ? kBdTextOverdrawAlphaBold
+        : kBdTextOverdrawAlpha;
+    final slot = BdGlyph(
+      main: main,
+      dim: build(color.withValues(alpha: color.a * overdraw)),
+      advance: hinted ?? main.width.round(),
+      baseline: main.computeDistanceToActualBaseline(TextBaseline.alphabetic),
+    );
+    scene.textGlyphCache[key] = slot;
+    return slot;
+  }
 
   /// A laid-out [BdTextRun] from the scene's scale-independent layout
   /// cache ([BdScene.textLayoutCache]) — label text re-lays-out only when
@@ -3070,78 +3203,88 @@ class BdDiagramPainter extends CustomPainter {
     FontWeight fontWeight = FontWeight.w400,
     FontStyle? fontStyle,
     int? maxLines,
-  }) => scene.textLayoutCache.putIfAbsent(
-    '$text|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|$maxLines|'
-    '$bdTextFontFamily',
-    () {
-      final lineHeight = (fontSize * kBdTextLineHeight).ceilToDouble();
-      var lines = text.split('\n');
-      if (maxLines != null && lines.length > maxLines) {
-        lines = lines.sublist(0, maxLines);
-      }
-      final recorder = ui.PictureRecorder();
-      final canvas = Canvas(recorder);
-      var width = 0.0;
-      // The overdraw pass first ([kBdTextOverdrawAlpha]), the full-strength
-      // pass over it — identical integer origins by construction.
-      for (final dimPass in [true, false]) {
-        var lineTop = 0.0;
-        for (final line in lines) {
-          var x = 0.0;
-          for (final rune in line.runes) {
-            final g = _glyph(
-              String.fromCharCode(rune),
-              color,
-              fontSize,
-              fontWeight,
-              fontStyle,
-            );
-            final pen = Offset(
-              x,
-              lineTop + g.baseline.roundToDouble() - g.baseline,
-            );
-            (dimPass ? g.dim : g.main).paint(canvas, pen);
-            x += g.advance;
-          }
-          width = math.max(width, x);
-          lineTop += lineHeight;
-        }
-      }
-      return BdTextRun(
-        width: width,
-        height: lineHeight * lines.length,
-        fontSize: fontSize,
-        picture: recorder.endRecording(),
-      );
-    },
-  );
+  }) {
+    // The EFFECTIVE line count keys the cache: a taller box that truncates
+    // nothing is the same layout.
+    var lineCount = 1;
+    for (var i = 0; i < text.length; i++) {
+      if (text.codeUnitAt(i) == 0x0a) lineCount++;
+    }
+    if (maxLines != null && maxLines < lineCount) lineCount = maxLines;
+    final key = (
+      text,
+      color.toARGB32(),
+      fontSize,
+      fontWeight,
+      fontStyle,
+      lineCount,
+      bdTextFontFamily,
+    );
+    final cached = scene.textLayoutCache[key];
+    if (cached != null) return cached;
 
-  /// Paints [tp] at [at] — snapped to whole pixels: the references pen
+    final lineHeight = bdLineBox(fontSize);
+    final lines = text.split('\n');
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    var width = 0.0;
+    // The overdraw pass first ([kBdTextOverdrawAlpha]), the full-strength
+    // pass over it — identical integer origins by construction.
+    for (final dimPass in [true, false]) {
+      var lineTop = 0.0;
+      for (var line = 0; line < lineCount; line++) {
+        var x = 0.0;
+        for (final rune in lines[line].runes) {
+          final slot = _glyph(
+            String.fromCharCode(rune),
+            color,
+            fontSize,
+            fontWeight,
+            fontStyle,
+          );
+          final pen = Offset(
+            x,
+            lineTop + slot.baseline.roundToDouble() - slot.baseline,
+          );
+          (dimPass ? slot.dim : slot.main).paint(canvas, pen);
+          x += slot.advance;
+        }
+        width = math.max(width, x);
+        lineTop += lineHeight;
+      }
+    }
+    final run = BdTextRun(
+      text: text,
+      width: width,
+      height: lineHeight * lineCount,
+      fontSize: fontSize,
+      picture: recorder.endRecording(),
+    );
+    scene.textLayoutCache[key] = run;
+    return run;
+  }
+
+  /// Paints [run] at [at] — snapped to whole pixels: the references pen
   /// every run at integer device coordinates, and a fractional anchor
   /// would smear each glyph's AA and drop baseline fringes one row low —
   /// and records the run's canvas rect on [BdScene.paintedText] for
   /// text-metric tests and accuracy probes. [clip] bounds overlong text
   /// the way LabVIEW crops a value display to its box — a hard pixel
   /// clip, never an ellipsis (the references show cut glyphs, not `…`).
-  void _paintText(
-    Canvas canvas,
-    BdTextRun tp,
-    Offset at,
-    String text, {
-    Rect? clip,
-  }) {
+  void _paintText(Canvas canvas, BdTextRun run, Offset at, {Rect? clip}) {
     at = Offset(at.dx.roundToDouble(), at.dy.roundToDouble());
     if (clip != null) {
       canvas
         ..save()
         ..clipRect(clip);
     }
-    tp.paint(canvas, at);
+    run.paint(canvas, at);
     if (clip != null) canvas.restore();
+    if (!scene.recordPaintedText) return;
     scene.paintedText.add((
-      text: text,
-      rect: clip == null ? at & tp.size : (at & tp.size).intersect(clip),
-      fontSize: tp.fontSize,
+      text: run.text,
+      rect: clip == null ? at & run.size : (at & run.size).intersect(clip),
+      fontSize: run.fontSize,
     ));
   }
 
@@ -3875,7 +4018,7 @@ class BdDiagramPainter extends CustomPainter {
           // ([kBdRadixMarkerGlyphs]) at the constant's 0xb radix part, in
           // the type colour; decimal constants draw nothing there
           // (byte-measured on MD5's %08x initials and %08b feeders).
-          Offset? radixCorner;
+          var hasRadixMarker = false;
           if (constValue != null) {
             final marker =
                 kBdRadixMarkerGlyphs[bdFormatConversion(
@@ -3892,7 +4035,7 @@ class BdDiagramPainter extends CustomPainter {
             if (marker != null && radixPart != null) {
               final (dx, dy, rows) = marker;
               final corner = _toCanvas(radixPart.absBounds!).topLeft;
-              radixCorner = corner;
+              hasRadixMarker = true;
               final ink = _solidNoAa(tint);
               for (var r = 0; r < rows.length; r++) {
                 for (var c = 0; c < rows[r].length; c++) {
@@ -3917,17 +4060,19 @@ class BdDiagramPainter extends CustomPainter {
           // Inked black through the disabled transform (the reference's
           // disabled digits read as the (153,153,153) dim of black).
           if (constValue != null && box.width >= 12 && box.height >= 12) {
-            final tp = _layoutText(
+            final run = _layoutText(
               constValue,
               color: _dimFor(object.oid, Colors.black),
               maxLines: 1,
             );
             _paintText(
               canvas,
-              tp,
-              Offset(box.right - 4 - tp.width, box.center.dy - tp.height / 2),
-              constValue,
-              clip: box.deflate(radixCorner == null ? 1 : 2),
+              run,
+              Offset(
+                box.right - 4 - run.width,
+                bdCentredTextTop(box, run.height),
+              ),
+              clip: box.deflate(hasRadixMarker ? 2 : 1),
             );
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
@@ -3946,18 +4091,13 @@ class BdDiagramPainter extends CustomPainter {
           if (glyph != null &&
               box.width >= 6.0 * glyph.length + 10 &&
               box.height >= 13) {
-            final tp = _layoutText(
+            final run = _layoutText(
               glyph,
               color: border,
               fontSize: 8.5,
               fontWeight: FontWeight.w700,
             );
-            _paintText(
-              canvas,
-              tp,
-              box.center - Offset(tp.width / 2, tp.height / 2),
-              glyph,
-            );
+            _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: a verified primitive icon (the bundled
@@ -4157,19 +4297,15 @@ class BdDiagramPainter extends CustomPainter {
                 rect.left + tb.right - 1,
                 rect.top + tb.bottom,
               );
-              final tp = _layoutText(
+              final run = _layoutText(
                 name,
                 color: _dimFor(object.oid, rowColor),
                 maxLines: 1,
               );
               _paintText(
                 canvas,
-                tp,
-                Offset(
-                  cell.left + ((cell.width - tp.width) / 2).floorToDouble(),
-                  cell.center.dy - tp.height / 2,
-                ),
-                name,
+                run,
+                bdCentredTextAnchor(cell, run.size),
                 clip: cell,
               );
             }
@@ -4313,18 +4449,13 @@ class BdDiagramPainter extends CustomPainter {
               ? primOpGlyph(PrimOp.fromId(object.primResId!))
               : null;
           if (glyph != null && rect.width >= 14 && rect.height >= 12) {
-            final tp = _layoutText(
+            final run = _layoutText(
               glyph,
               color: _dimFor(object.oid, Colors.black).withValues(alpha: 0.75),
               fontSize: glyph.length > 2 ? 8.0 : 12,
               maxLines: 1,
             );
-            _paintText(
-              canvas,
-              tp,
-              rect.center - Offset(tp.width / 2, tp.height / 2),
-              glyph,
-            );
+            _paintText(canvas, run, bdCentredTextAnchor(rect, run.size));
           }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
@@ -4405,15 +4536,14 @@ class BdDiagramPainter extends CustomPainter {
           text = constValue ?? byOid[object.parentOid]?.typeName;
         }
         if (text == null || text.isEmpty) continue;
-        final rect0 = rectOf(object);
-        if (rect0.width < 8 || rect0.height < 8) continue;
+        final rect = rectOf(object);
+        if (rect.width < 8 || rect.height < 8) continue;
         // The case selector's value text fills its decoded label bounds — the
         // pager boxes and dropdown sit OUTSIDE them (see [_drawCaseSelector])
         // — LEFT-justified like LabVIEW's (the recovered label carries the
         // reference's own leading space: MD5's " 3 " strip shows the glyph
         // at bounds.left+4, the space's width past a 1 px inset).
         final selector = object.kind == 0x95;
-        final rect = rect0;
         // The label's decoded face: its first font run resolved against the
         // VI's FTAB ([ViHeapObject.labelFont]) — weight 1000 draws the bold
         // face; a non-default table size (its cell height in px, 15 = the
@@ -4428,7 +4558,7 @@ class BdDiagramPainter extends CustomPainter {
         final fontSize = labelFont == null
             ? kBdTextSize
             : bdEmForCellHeight(labelFont.resolvedSize);
-        final tp = _layoutText(
+        final run = _layoutText(
           text,
           color: _dimFor(
             object.oid,
@@ -4440,10 +4570,7 @@ class BdDiagramPainter extends CustomPainter {
           // label's bounds to its text (multi-line captions carry their own
           // newlines), so the render lets the metric-matched layout run its
           // full width rather than ellipsising a few px of slack.
-          maxLines: math.max(
-            1,
-            (rect.height / (fontSize * kBdTextLineHeight)).round(),
-          ),
+          maxLines: math.max(1, (rect.height / bdLineBox(fontSize)).round()),
         );
         // A selector's value text HARD-clips 4 px inside its label part's
         // right bound — cut glyphs, no ellipsis (MD5's oid 6039 strip:
@@ -4452,29 +4579,21 @@ class BdDiagramPainter extends CustomPainter {
         // pinning the clip edge to bounds.right-4/-5). A wide-enough strip
         // (its sibling selectors) shows the whole run unchanged.
         // A CENTRE-justified label ([ViHeapObject.labelJustifyCenter], the
-        // 0x021 word's 0x20 bit) centres its run over bounds-width−1,
-        // truncating the half pixel — reference-measured on every
-        // confidently-registered centred heading in the snippet corpus:
-        // odd width−text gaps read as plain floor, while all five even
-        // gaps (GenerateTree's 94/678, the crc trio's 40) ink one px LEFT
-        // of the symmetric centre.
+        // 0x021 word's 0x20 bit) centres its run by [bdCentredLabelLeft] —
+        // a different half-pixel law from the cell centring of
+        // [bdCentredTextAnchor], measured separately.
         // A LEFT-justified label pens at [ViHeapObject.labelTextInset]
         // (the 0x021 word's 0x800000 bit: 2 px, else 1 px) inside its
         // bounds — corpus-measured across holder classes.
         final centered = !selector && object.labelJustifyCenter;
         _paintText(
           canvas,
-          tp,
+          run,
           selector
-              ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
+              ? Offset(rect.left + 1, bdCentredTextTop(rect, run.height))
               : centered
-              ? Offset(
-                  rect0.left +
-                      ((rect0.width - tp.width - 1) / 2).floorToDouble(),
-                  rect0.top + 1,
-                )
-              : rect0.topLeft + Offset(object.labelTextInset.toDouble(), 1),
-          text,
+              ? Offset(bdCentredLabelLeft(rect, run.width), rect.top + 1)
+              : rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
           clip: selector
               ? Rect.fromLTRB(rect.left, rect.top, rect.right - 4, rect.bottom)
               : null,
@@ -4504,17 +4623,20 @@ class BdDiagramPainter extends CustomPainter {
       if (rect.width < 26 || rect.height < 11) continue;
       // A caption/constant is inked in the object's decoded foreground colour
       // when one was recovered (fgColor is the LabVIEW text/line colour), else
-      // a neutral near-black.
+      // a neutral near-black, and pens at the same decoded text inset a label
+      // does ([ViHeapObject.labelTextInset]). No run this fallback draws
+      // registers confidently against a snippet reference (the ink-registration
+      // census leaves it unmeasured either way), so it follows the measured
+      // label law rather than an inset of its own.
       final textColor = _dimFor(
         object.oid,
         bdDecodedColor(object.fgRgb) ?? Colors.black,
       );
-      final tp = _layoutText(text, color: textColor, maxLines: 1);
+      final run = _layoutText(text, color: textColor, maxLines: 1);
       _paintText(
         canvas,
-        tp,
-        rect.topLeft + const Offset(3, 1),
-        text,
+        run,
+        rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
         clip: rect.deflate(1),
       );
     }
@@ -4743,13 +4865,10 @@ class BdDiagramPainter extends CustomPainter {
         );
       }
     }
-    // Display-part furniture rects (`0x9` decos / `0xe0` value windows, the
-    // whole heap — parts are not in the drawable list), for the into-DCO
-    // leg trim below.
+    // The scene's furniture boxes ([BdScene.furnitureBounds]) in canvas
+    // space, for the into-DCO leg trim below.
     final furnitureRects = <Rect>[
-      for (final o in scene.diagram.objects)
-        if ((o.kind == 0x9 || o.kind == 0xe0) && o.absBounds != null)
-          _toCanvas(o.absBounds!),
+      for (final bounds in scene.furnitureBounds) _toCanvas(bounds),
     ];
     // Segments already drawn by EARLIER wires (heap serialization order),
     // in integer pixel space — the crossing rule cuts later wires around
@@ -5078,8 +5197,8 @@ class BdDiagramPainter extends CustomPainter {
         // an anchor with no furniture on the segment is left exact.
         if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
           void trimToFurniture({required bool head}) {
-            final e = head ? 0 : wire.endpointAnchors.length - 1;
-            final anchor = wire.endpointAnchors[e];
+            final index = head ? 0 : wire.endpointAnchors.length - 1;
+            final anchor = wire.endpointAnchors[index];
             if (anchor == null || anchor.width <= 0 || anchor.height <= 0) {
               return;
             }
@@ -5095,22 +5214,22 @@ class BdDiagramPainter extends CustomPainter {
                 : (next.dy - end.dy).sign;
             if (sign == 0) return;
             double? best;
-            for (final r in furnitureRects) {
-              if (r.left < anchorRect.left ||
-                  r.top < anchorRect.top ||
-                  r.right > anchorRect.right ||
-                  r.bottom > anchorRect.bottom) {
+            for (final furniture in furnitureRects) {
+              if (furniture.left < anchorRect.left ||
+                  furniture.top < anchorRect.top ||
+                  furniture.right > anchorRect.right ||
+                  furniture.bottom > anchorRect.bottom) {
                 continue;
               }
               if (horizontal
-                  ? end.dy < r.top || end.dy >= r.bottom
-                  : end.dx < r.left || end.dx >= r.right) {
+                  ? end.dy < furniture.top || end.dy >= furniture.bottom
+                  : end.dx < furniture.left || end.dx >= furniture.right) {
                 continue;
               }
-              if (r.contains(end)) return;
+              if (furniture.contains(end)) return;
               final near = horizontal
-                  ? (sign > 0 ? r.left : r.right - 1)
-                  : (sign > 0 ? r.top : r.bottom - 1);
+                  ? (sign > 0 ? furniture.left : furniture.right - 1)
+                  : (sign > 0 ? furniture.top : furniture.bottom - 1);
               final along = (near - (horizontal ? end.dx : end.dy)) * sign;
               final limit =
                   ((horizontal ? next.dx : next.dy) -
@@ -6171,19 +6290,18 @@ class BdDiagramPainter extends CustomPainter {
           // digit rows; crc8's LUT arrays read `255` there).
           if (part.kind == 0x9 && pb.width >= 10 && pb.height >= 12) {
             final indexText = '${shell.arrayIndex ?? 0}';
-            final tp = _layoutText(
+            final run = _layoutText(
               indexText,
               color: _dimFor(shell.oid, Colors.black),
               maxLines: 1,
             );
             _paintText(
               canvas,
-              tp,
+              run,
               Offset(
                 (pb.left + 2 - origin.dx).toDouble(),
-                (pb.top + pb.bottom) / 2 - origin.dy - tp.height / 2,
+                bdCentredTextTop(_toCanvas(pb), run.height),
               ),
-              indexText,
             );
           }
           // The spinner's fat triangle (measured on crc8's Polynomial
@@ -6377,7 +6495,7 @@ class BdDiagramPainter extends CustomPainter {
       shellOid,
       empty ? bdDimDisabled(Colors.black) : Colors.black,
     );
-    final tp = _layoutText(text, color: ink, maxLines: 1);
+    final run = _layoutText(text, color: ink, maxLines: 1);
     // Digits sit left-aligned after the radix zone on the centred line box
     // (MD5: decimal digits at cell.left+3, hex digits at cell.left+9 past
     // the marker; cell-ink bboxes match the reference at dL/dT = 0 across
@@ -6385,12 +6503,11 @@ class BdDiagramPainter extends CustomPainter {
     // inset each sat one px up/right of the reference ink).
     _paintText(
       canvas,
-      tp,
+      run,
       Offset(
         cell.left + (marker != null ? 9 : 3),
-        cell.center.dy - tp.height / 2,
+        bdCentredTextTop(cell, run.height),
       ),
-      text,
       clip: cell,
     );
   }
@@ -7436,19 +7553,14 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
-    final tp = _layoutText(
+    final run = _layoutText(
       glyph,
       color: color,
       fontSize: 11,
       fontWeight: FontWeight.w700,
       fontStyle: FontStyle.italic,
     );
-    _paintText(
-      canvas,
-      tp,
-      box.center - Offset(tp.width / 2, tp.height / 2),
-      glyph,
-    );
+    _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
   }
 
   /// Draws a structure's modeled terminals at their frame-relative boxes,

@@ -196,7 +196,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
   final bytes = f.readAsBytesSync();
   final viBytes = extractSnippetVi(bytes)!;
   final bd = bestBlockDiagram(buildViModel(viBytes))!;
-  final scene = BdScene(bd);
+  final scene = BdScene(bd)..recordPaintedText = true;
   await loadRealTextFont();
   ({
     int drawn,
@@ -330,6 +330,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
     result.fitted.dispose();
     result.diffImage.dispose();
     reference.image.dispose();
+    scene.dispose();
   });
   return gauge;
 }
@@ -411,7 +412,7 @@ void main() {
         final model = buildViModel(viBytes);
         final bd = bestBlockDiagram(model);
         if (bd == null) continue;
-        final scene = BdScene(bd);
+        final scene = BdScene(bd)..recordPaintedText = true;
         if (scene.drawable.isEmpty) continue;
         final facades = await loadXnodeFacades(viBytes, bd);
         final raster0 = await rasteriseBlockDiagram(
@@ -528,6 +529,7 @@ void main() {
         result.fitted.dispose();
         result.diffImage.dispose();
         reference.image.dispose();
+        scene.dispose();
       }
       rows.sort();
       // ignore: avoid_print

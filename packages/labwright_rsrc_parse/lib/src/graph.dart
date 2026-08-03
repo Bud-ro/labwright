@@ -3608,11 +3608,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   final liveParent = <ViHeapObject, ViHeapObject?>{};
   final length = body.length;
 
-  // Text font-run capture (the tag-`0x25` group inside a label object; see
-  // [HeapPropertyToken.textStyleRuns]): one tag-`0x19` sub-group per run,
-  // whose narrow `0x27`/`0x28` records are the run's start offset and font
-  // id. The shared-tag records inside the group (`0x28` = font id, not
-  // backgroundColor) are routed here and never reach the object handlers.
+  // Text font-run capture (the [HeapGroupTag.fontRunList] group inside a
+  // label object; see [HeapPropertyToken.textStyleRuns]): one
+  // [HeapGroupTag.fontRun] sub-group per run, whose narrow [FontRunAttr]
+  // records are the run's start offset and font id. Those two tags are
+  // consumed here (raw `0x028` inside the group is the font id, NOT
+  // [HeapAttribute.backgroundColor]); every other record in the group falls
+  // through to the generic handlers below.
   ViHeapObject? styleRunOwner;
   var styleRunGroupDepth = 0;
   var styleRunStart = 0;
@@ -3620,18 +3622,26 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   var styleRunOpen = false;
   var styleRuns = <({int start, int fontId})>[];
 
-  // Array-shell displayed-index capture (the tag-`0x15` group on a `0x52`
-  // shell; see [ViHeapObject.arrayIndex]): the group's attr-`0x19` value.
+  // Array-shell displayed-index capture (the [HeapGroupTag.arrayIndex] group
+  // on a `0x52` shell; see [ViHeapObject.arrayIndex]): the group's
+  // [HeapAttribute.arrayElemValue] record. The group is tracked by DEPTH, so
+  // a nested group's close does not end the capture early.
   ViHeapObject? arrayIndexOwner;
+  var arrayIndexGroupDepth = 0;
 
   walkHeapObjects<ViHeapObject>(
     body,
     onGroupOpen: (groupTag, cur) {
-      if (groupTag == 0x15 && cur != null && cur.kind == 0x52) {
+      if (arrayIndexOwner != null) {
+        arrayIndexGroupDepth++;
+      } else if (groupTag == HeapGroupTag.arrayIndex.tag &&
+          cur != null &&
+          cur.kind == HeapObjectClass.caseOrSequence.code) {
         arrayIndexOwner = cur;
+        arrayIndexGroupDepth = 1;
       }
       if (styleRunOwner == null) {
-        if (groupTag == 0x25 && cur != null) {
+        if (groupTag == HeapGroupTag.fontRunList.tag && cur != null) {
           styleRunOwner = cur;
           styleRunGroupDepth = 1;
           styleRuns = [];
@@ -3639,14 +3649,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         return;
       }
       styleRunGroupDepth++;
-      if (groupTag == 0x19 && styleRunGroupDepth == 2) {
+      if (groupTag == HeapGroupTag.fontRun.tag && styleRunGroupDepth == 2) {
         styleRunOpen = true;
         styleRunStart = 0;
         styleRunFontId = 0;
       }
     },
     onGroupClose: (groupTag, cur) {
-      if (groupTag == 0x15) arrayIndexOwner = null;
+      if (arrayIndexOwner != null && --arrayIndexGroupDepth == 0) {
+        arrayIndexOwner = null;
+      }
       if (styleRunOwner == null) return;
       styleRunGroupDepth--;
       if (styleRunOpen && styleRunGroupDepth == 1) {
@@ -3654,7 +3666,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         styleRunOpen = false;
       }
       if (styleRunGroupDepth == 0) {
-        if (styleRuns.isNotEmpty) styleRunOwner!.textStyleRuns = styleRuns;
+        // First-wins, like the other object captures: 11 corpus objects carry
+        // a second run group, each repeating the first group's runs exactly.
+        if (styleRuns.isNotEmpty && styleRunOwner!.textStyleRuns.isEmpty) {
+          styleRunOwner!.textStyleRuns = styleRuns;
+        }
         styleRunOwner = null;
       }
     },
@@ -3672,21 +3688,30 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (cur == null) return;
       final offset = span.offset;
       final lead = span.lead;
+      // The scoped group captures consume ONLY the records they decode; the
+      // rest of the group's records (a font run's raw `0x029` colour value,
+      // 15,471 corpus records) fall through to the generic handlers.
       if (arrayIndexOwner != null && identical(cur, arrayIndexOwner)) {
         final attr = decodeHeapAttr(body, offset);
-        if (attr?.id == 0x19 && attr?.asInt != null) {
-          arrayIndexOwner!.arrayIndex = attr!.asInt;
+        final value = attr?.asInt;
+        if (value != null && attr!.rawTag == HeapAttribute.arrayElemValue.raw) {
+          arrayIndexOwner!.arrayIndex = value;
+          return;
         }
-        return;
       }
       if (styleRunOpen && identical(cur, styleRunOwner)) {
         final attr = decodeHeapAttr(body, offset);
         final value = attr?.asInt;
-        if (attr != null && value != null) {
-          if (attr.id == 0x27) styleRunStart = value;
-          if (attr.id == 0x28) styleRunFontId = value;
+        if (value != null) {
+          if (attr!.rawTag == FontRunAttr.start.raw) {
+            styleRunStart = value;
+            return;
+          }
+          if (attr.rawTag == FontRunAttr.fontId.raw) {
+            styleRunFontId = value;
+            return;
+          }
         }
-        return;
       }
       if (lead == kHeapRecordPrefix) {
         final rec = c4FrameAt(body, offset, sectionTag);

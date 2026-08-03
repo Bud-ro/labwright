@@ -6,6 +6,11 @@ import 'package:flutter/services.dart';
 /// the bundled, metric-compatible Selawik by default, swapped to the host
 /// system's own Windows UI face when [loadSystemUiFont] finds and registers
 /// one.
+///
+// TODO(labwright): the face state (this family, the hinted-advance maps) and
+// the text laws that read it are process-global mutable state, so a test that
+// registers the host face shifts every later layout in the same process.
+// Fold them into a face object the scene holds.
 String bdTextFontFamily = 'Selawik';
 
 /// The registration name for the host system's UI face (see
@@ -33,8 +38,9 @@ const int kBdTextPpem = 12;
 /// but carries no hdmx, so these deltas are seeded as the canonical
 /// fallback — reference-measured too (crc8's `CRC-8` inks 32 px, which
 /// only `C`=8 lays out). When [loadSystemUiFont] registers the host face,
-/// its own parsed hdmx replaces the seed (byte-identical on a stock
-/// install).
+/// that face's own parsed hdmx replaces the seed; whether the two agree
+/// depends on the face version the host carries, which is not claimed
+/// here.
 final Map<int, int> _hintedRegular = Map.of(_kFallbackHintedRegular);
 final Map<int, int> _hintedBold = Map.of(_kFallbackHintedBold);
 
@@ -50,20 +56,30 @@ int? bdHintedAdvance(int rune, {required bool bold}) =>
 
 /// The em size (px) the reference rasterizer sets for a font-table entry's
 /// cell height [cellPx] (`ViFontEntry.resolvedSize` — GDI's positive
-/// lfHeight, the character cell): the largest em whose hinted cell fits.
-/// Measured against the references: cell 15 → 12 em (the default face:
-/// 15 px line pitch, 6 px digit advances); cell 21 → 16 em
-/// (crc32_lookup_table's heading ink runs 6 px SHORT of a linearly-scaled
-/// 16.8 em and matches the 16 ppem advance sum). Between the measured
-/// points the linear 4/5 ratio floors to the nearest whole em — hinted
-/// cells only ever meet or exceed the linear estimate.
+/// lfHeight, the character cell): the linear 4/5 ratio floored to a whole
+/// em, since a hinted cell only ever meets or exceeds the linear estimate.
+/// Reference-measured at both ends of the observed range: cell 15 → 12 em
+/// (the default face: 15 px line pitch, 6 px digit advances); cell 21 →
+/// 16 em (crc32_lookup_table's heading ink runs 6 px SHORT of a linearly
+/// scaled 16.8 em and matches the 16 ppem advance sum).
+///
+/// [cellPx] is an unvalidated `u16` off the font table, so it is clamped to
+/// a rasterisable range — a corrupt entry must not lay text out at a
+/// thousands-of-px em.
 double bdEmForCellHeight(int cellPx) =>
-    cellPx == 15 ? 12.0 : (cellPx * 4 / 5).floorToDouble();
+    (cellPx.clamp(4, 96) * 4 / 5).floorToDouble();
 
 /// Registers the host system's own Windows UI text face (`segoeui.ttf` +
 /// `segoeuib.ttf`) for diagram text and prefers it over the bundled Selawik,
-/// returning whether a face was found. The faces' `hdmx` tables at
-/// [kBdTextPpem] replace the canonical hinted-advance seed ([bdHintedAdvance]).
+/// returning whether the pair was found. The faces' `hdmx` tables at
+/// [kBdTextPpem] replace the canonical hinted-advance seed
+/// ([bdHintedAdvance]).
+///
+/// BOTH faces are required: with the regular face registered alone, bold
+/// labels would render as the engine's synthetic emboldening of it while the
+/// bold hinted advances still came from the bundled face's seed — a mix of
+/// two faces' metrics. A location carrying only the regular face is skipped,
+/// and absent a complete pair the bundled Selawik stays in effect whole.
 ///
 /// Licensing: the face is read AT RUNTIME from the host's licensed Windows
 /// installation and is never bundled, committed, or written anywhere —
@@ -82,18 +98,16 @@ Future<bool> loadSystemUiFont() async {
     if (dir == null) continue;
     final sep = dir.contains('\\') ? '\\' : '/';
     final regular = File('$dir${sep}segoeui.ttf');
-    if (!regular.existsSync()) continue;
-    final regularBytes = regular.readAsBytesSync();
-    final loader = FontLoader(kBdSystemUiFamily)
-      ..addFont(Future.value(ByteData.sublistView(regularBytes)));
-    _adoptHdmx(regularBytes, _hintedRegular);
     final bold = File('$dir${sep}segoeuib.ttf');
-    if (bold.existsSync()) {
-      final boldBytes = bold.readAsBytesSync();
-      loader.addFont(Future.value(ByteData.sublistView(boldBytes)));
-      _adoptHdmx(boldBytes, _hintedBold);
-    }
+    if (!regular.existsSync() || !bold.existsSync()) continue;
+    final regularBytes = regular.readAsBytesSync();
+    final boldBytes = bold.readAsBytesSync();
+    final loader = FontLoader(kBdSystemUiFamily)
+      ..addFont(Future.value(ByteData.sublistView(regularBytes)))
+      ..addFont(Future.value(ByteData.sublistView(boldBytes)));
     await loader.load();
+    _adoptHdmx(regularBytes, _hintedRegular);
+    _adoptHdmx(boldBytes, _hintedBold);
     bdTextFontFamily = kBdSystemUiFamily;
     return true;
   }
@@ -129,9 +143,17 @@ class _Sfnt {
   final ByteData _data;
   final Map<String, int> _tables;
 
+  /// The sfnt version tags this reader accepts: TrueType outlines
+  /// (`0x00010000`), Apple's `true`, and CFF outlines (`OTTO`). A collection
+  /// (`ttcf`) or a compressed wrapper (`wOFF`/`wOF2`) has a different header
+  /// shape, so reading one as a bare sfnt would take table offsets from the
+  /// wrong bytes and silently yield garbage advances.
+  static const Set<int> _sfntVersions = {0x00010000, 0x74727565, 0x4f54544f};
+
   static _Sfnt? tryParse(Uint8List bytes) {
     if (bytes.length < 12) return null;
     final data = ByteData.sublistView(bytes);
+    if (!_sfntVersions.contains(data.getUint32(0))) return null;
     final numTables = data.getUint16(4);
     if (12 + 16 * numTables > bytes.length) return null;
     final tables = <String, int>{};
