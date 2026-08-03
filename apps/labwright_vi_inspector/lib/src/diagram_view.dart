@@ -2920,6 +2920,12 @@ const double kBdTextSize = 12.0;
 /// baselines at rows 103/118/133, 15 px apart).
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
+/// The line box (px) a run of em size [fontSize] sets on, and the pitch of
+/// its baselines: the [kBdTextLineHeight] multiple taken up to a whole pixel
+/// row, since the reference pens every baseline on a whole row.
+double bdLineBox(double fontSize) =>
+    (fontSize * kBdTextLineHeight).ceilToDouble();
+
 /// Ink-weight overdraw alpha: every text run re-draws itself once at this
 /// alpha under the full-strength pass (a zero-offset, zero-blur shadow in
 /// the run's style — one layout, one paint call), darkening each AA fringe
@@ -3023,11 +3029,16 @@ class BdGlyph {
 /// glyph count.
 class BdTextRun {
   BdTextRun({
+    required this.text,
     required this.width,
     required this.height,
     required this.fontSize,
     required ui.Picture picture,
   }) : _picture = picture;
+
+  /// The string the run lays out (the text-metric tests and accuracy probes
+  /// read it back off [BdScene.paintedText]).
+  final String text;
 
   /// The widest line's advance sum — an exact whole number of pixels.
   final double width;
@@ -3138,7 +3149,7 @@ class BdDiagramPainter extends CustomPainter {
     '$text|${color.toARGB32()}|$fontSize|$fontWeight|$fontStyle|$maxLines|'
     '$bdTextFontFamily',
     () {
-      final lineHeight = (fontSize * kBdTextLineHeight).ceilToDouble();
+      final lineHeight = bdLineBox(fontSize);
       var lines = text.split('\n');
       if (maxLines != null && lines.length > maxLines) {
         lines = lines.sublist(0, maxLines);
@@ -3153,7 +3164,7 @@ class BdDiagramPainter extends CustomPainter {
         for (final line in lines) {
           var x = 0.0;
           for (final rune in line.runes) {
-            final g = _glyph(
+            final slot = _glyph(
               String.fromCharCode(rune),
               color,
               fontSize,
@@ -3162,16 +3173,17 @@ class BdDiagramPainter extends CustomPainter {
             );
             final pen = Offset(
               x,
-              lineTop + g.baseline.roundToDouble() - g.baseline,
+              lineTop + slot.baseline.roundToDouble() - slot.baseline,
             );
-            (dimPass ? g.dim : g.main).paint(canvas, pen);
-            x += g.advance;
+            (dimPass ? slot.dim : slot.main).paint(canvas, pen);
+            x += slot.advance;
           }
           width = math.max(width, x);
           lineTop += lineHeight;
         }
       }
       return BdTextRun(
+        text: text,
         width: width,
         height: lineHeight * lines.length,
         fontSize: fontSize,
@@ -3180,32 +3192,26 @@ class BdDiagramPainter extends CustomPainter {
     },
   );
 
-  /// Paints [tp] at [at] — snapped to whole pixels: the references pen
+  /// Paints [run] at [at] — snapped to whole pixels: the references pen
   /// every run at integer device coordinates, and a fractional anchor
   /// would smear each glyph's AA and drop baseline fringes one row low —
   /// and records the run's canvas rect on [BdScene.paintedText] for
   /// text-metric tests and accuracy probes. [clip] bounds overlong text
   /// the way LabVIEW crops a value display to its box — a hard pixel
   /// clip, never an ellipsis (the references show cut glyphs, not `…`).
-  void _paintText(
-    Canvas canvas,
-    BdTextRun tp,
-    Offset at,
-    String text, {
-    Rect? clip,
-  }) {
+  void _paintText(Canvas canvas, BdTextRun run, Offset at, {Rect? clip}) {
     at = Offset(at.dx.roundToDouble(), at.dy.roundToDouble());
     if (clip != null) {
       canvas
         ..save()
         ..clipRect(clip);
     }
-    tp.paint(canvas, at);
+    run.paint(canvas, at);
     if (clip != null) canvas.restore();
     scene.paintedText.add((
-      text: text,
-      rect: clip == null ? at & tp.size : (at & tp.size).intersect(clip),
-      fontSize: tp.fontSize,
+      text: run.text,
+      rect: clip == null ? at & run.size : (at & run.size).intersect(clip),
+      fontSize: run.fontSize,
     ));
   }
 
@@ -3939,7 +3945,7 @@ class BdDiagramPainter extends CustomPainter {
           // ([kBdRadixMarkerGlyphs]) at the constant's 0xb radix part, in
           // the type colour; decimal constants draw nothing there
           // (byte-measured on MD5's %08x initials and %08b feeders).
-          Offset? radixCorner;
+          var hasRadixMarker = false;
           if (constValue != null) {
             final marker =
                 kBdRadixMarkerGlyphs[bdFormatConversion(
@@ -3956,7 +3962,7 @@ class BdDiagramPainter extends CustomPainter {
             if (marker != null && radixPart != null) {
               final (dx, dy, rows) = marker;
               final corner = _toCanvas(radixPart.absBounds!).topLeft;
-              radixCorner = corner;
+              hasRadixMarker = true;
               final ink = _solidNoAa(tint);
               for (var r = 0; r < rows.length; r++) {
                 for (var c = 0; c < rows[r].length; c++) {
@@ -3981,20 +3987,19 @@ class BdDiagramPainter extends CustomPainter {
           // Inked black through the disabled transform (the reference's
           // disabled digits read as the (153,153,153) dim of black).
           if (constValue != null && box.width >= 12 && box.height >= 12) {
-            final tp = _layoutText(
+            final run = _layoutText(
               constValue,
               color: _dimFor(object.oid, Colors.black),
               maxLines: 1,
             );
             _paintText(
               canvas,
-              tp,
+              run,
               Offset(
-                box.right - 4 - tp.width,
-                bdCentredTextTop(box, tp.height),
+                box.right - 4 - run.width,
+                bdCentredTextTop(box, run.height),
               ),
-              constValue,
-              clip: box.deflate(radixCorner == null ? 1 : 2),
+              clip: box.deflate(hasRadixMarker ? 2 : 1),
             );
           }
           // The resolved data type's short label (DBL / I32 / TF / abc),
@@ -4013,13 +4018,13 @@ class BdDiagramPainter extends CustomPainter {
           if (glyph != null &&
               box.width >= 6.0 * glyph.length + 10 &&
               box.height >= 13) {
-            final tp = _layoutText(
+            final run = _layoutText(
               glyph,
               color: border,
               fontSize: 8.5,
               fontWeight: FontWeight.w700,
             );
-            _paintText(canvas, tp, bdCentredTextAnchor(box, tp.size), glyph);
+            _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: a verified primitive icon (the bundled
@@ -4219,16 +4224,15 @@ class BdDiagramPainter extends CustomPainter {
                 rect.left + tb.right - 1,
                 rect.top + tb.bottom,
               );
-              final tp = _layoutText(
+              final run = _layoutText(
                 name,
                 color: _dimFor(object.oid, rowColor),
                 maxLines: 1,
               );
               _paintText(
                 canvas,
-                tp,
-                bdCentredTextAnchor(cell, tp.size),
-                name,
+                run,
+                bdCentredTextAnchor(cell, run.size),
                 clip: cell,
               );
             }
@@ -4372,13 +4376,13 @@ class BdDiagramPainter extends CustomPainter {
               ? primOpGlyph(PrimOp.fromId(object.primResId!))
               : null;
           if (glyph != null && rect.width >= 14 && rect.height >= 12) {
-            final tp = _layoutText(
+            final run = _layoutText(
               glyph,
               color: _dimFor(object.oid, Colors.black).withValues(alpha: 0.75),
               fontSize: glyph.length > 2 ? 8.0 : 12,
               maxLines: 1,
             );
-            _paintText(canvas, tp, bdCentredTextAnchor(rect, tp.size), glyph);
+            _paintText(canvas, run, bdCentredTextAnchor(rect, run.size));
           }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
@@ -4481,7 +4485,7 @@ class BdDiagramPainter extends CustomPainter {
         final fontSize = labelFont == null
             ? kBdTextSize
             : bdEmForCellHeight(labelFont.resolvedSize);
-        final tp = _layoutText(
+        final run = _layoutText(
           text,
           color: _dimFor(
             object.oid,
@@ -4493,10 +4497,7 @@ class BdDiagramPainter extends CustomPainter {
           // label's bounds to its text (multi-line captions carry their own
           // newlines), so the render lets the metric-matched layout run its
           // full width rather than ellipsising a few px of slack.
-          maxLines: math.max(
-            1,
-            (rect.height / (fontSize * kBdTextLineHeight)).round(),
-          ),
+          maxLines: math.max(1, (rect.height / bdLineBox(fontSize)).round()),
         );
         // A selector's value text HARD-clips 4 px inside its label part's
         // right bound — cut glyphs, no ellipsis (MD5's oid 6039 strip:
@@ -4514,13 +4515,12 @@ class BdDiagramPainter extends CustomPainter {
         final centered = !selector && object.labelJustifyCenter;
         _paintText(
           canvas,
-          tp,
+          run,
           selector
-              ? Offset(rect.left + 1, bdCentredTextTop(rect, tp.height))
+              ? Offset(rect.left + 1, bdCentredTextTop(rect, run.height))
               : centered
-              ? Offset(bdCentredLabelLeft(rect, tp.width), rect.top + 1)
+              ? Offset(bdCentredLabelLeft(rect, run.width), rect.top + 1)
               : rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
-          text,
           clip: selector
               ? Rect.fromLTRB(rect.left, rect.top, rect.right - 4, rect.bottom)
               : null,
@@ -4550,17 +4550,20 @@ class BdDiagramPainter extends CustomPainter {
       if (rect.width < 26 || rect.height < 11) continue;
       // A caption/constant is inked in the object's decoded foreground colour
       // when one was recovered (fgColor is the LabVIEW text/line colour), else
-      // a neutral near-black.
+      // a neutral near-black, and pens at the same decoded text inset a label
+      // does ([ViHeapObject.labelTextInset]). No run this fallback draws
+      // registers confidently against a snippet reference (the ink-registration
+      // census leaves it unmeasured either way), so it follows the measured
+      // label law rather than an inset of its own.
       final textColor = _dimFor(
         object.oid,
         bdDecodedColor(object.fgRgb) ?? Colors.black,
       );
-      final tp = _layoutText(text, color: textColor, maxLines: 1);
+      final run = _layoutText(text, color: textColor, maxLines: 1);
       _paintText(
         canvas,
-        tp,
-        rect.topLeft + const Offset(3, 1),
-        text,
+        run,
+        rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
         clip: rect.deflate(1),
       );
     }
@@ -5124,8 +5127,8 @@ class BdDiagramPainter extends CustomPainter {
         // an anchor with no furniture on the segment is left exact.
         if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
           void trimToFurniture({required bool head}) {
-            final e = head ? 0 : wire.endpointAnchors.length - 1;
-            final anchor = wire.endpointAnchors[e];
+            final index = head ? 0 : wire.endpointAnchors.length - 1;
+            final anchor = wire.endpointAnchors[index];
             if (anchor == null || anchor.width <= 0 || anchor.height <= 0) {
               return;
             }
@@ -5141,22 +5144,22 @@ class BdDiagramPainter extends CustomPainter {
                 : (next.dy - end.dy).sign;
             if (sign == 0) return;
             double? best;
-            for (final r in furnitureRects) {
-              if (r.left < anchorRect.left ||
-                  r.top < anchorRect.top ||
-                  r.right > anchorRect.right ||
-                  r.bottom > anchorRect.bottom) {
+            for (final furniture in furnitureRects) {
+              if (furniture.left < anchorRect.left ||
+                  furniture.top < anchorRect.top ||
+                  furniture.right > anchorRect.right ||
+                  furniture.bottom > anchorRect.bottom) {
                 continue;
               }
               if (horizontal
-                  ? end.dy < r.top || end.dy >= r.bottom
-                  : end.dx < r.left || end.dx >= r.right) {
+                  ? end.dy < furniture.top || end.dy >= furniture.bottom
+                  : end.dx < furniture.left || end.dx >= furniture.right) {
                 continue;
               }
-              if (r.contains(end)) return;
+              if (furniture.contains(end)) return;
               final near = horizontal
-                  ? (sign > 0 ? r.left : r.right - 1)
-                  : (sign > 0 ? r.top : r.bottom - 1);
+                  ? (sign > 0 ? furniture.left : furniture.right - 1)
+                  : (sign > 0 ? furniture.top : furniture.bottom - 1);
               final along = (near - (horizontal ? end.dx : end.dy)) * sign;
               final limit =
                   ((horizontal ? next.dx : next.dy) -
@@ -6217,19 +6220,18 @@ class BdDiagramPainter extends CustomPainter {
           // digit rows; crc8's LUT arrays read `255` there).
           if (part.kind == 0x9 && pb.width >= 10 && pb.height >= 12) {
             final indexText = '${shell.arrayIndex ?? 0}';
-            final tp = _layoutText(
+            final run = _layoutText(
               indexText,
               color: _dimFor(shell.oid, Colors.black),
               maxLines: 1,
             );
             _paintText(
               canvas,
-              tp,
+              run,
               Offset(
                 (pb.left + 2 - origin.dx).toDouble(),
-                bdCentredTextTop(_toCanvas(pb), tp.height),
+                bdCentredTextTop(_toCanvas(pb), run.height),
               ),
-              indexText,
             );
           }
           // The spinner's fat triangle (measured on crc8's Polynomial
@@ -6423,7 +6425,7 @@ class BdDiagramPainter extends CustomPainter {
       shellOid,
       empty ? bdDimDisabled(Colors.black) : Colors.black,
     );
-    final tp = _layoutText(text, color: ink, maxLines: 1);
+    final run = _layoutText(text, color: ink, maxLines: 1);
     // Digits sit left-aligned after the radix zone on the centred line box
     // (MD5: decimal digits at cell.left+3, hex digits at cell.left+9 past
     // the marker; cell-ink bboxes match the reference at dL/dT = 0 across
@@ -6431,12 +6433,11 @@ class BdDiagramPainter extends CustomPainter {
     // inset each sat one px up/right of the reference ink).
     _paintText(
       canvas,
-      tp,
+      run,
       Offset(
         cell.left + (marker != null ? 9 : 3),
-        bdCentredTextTop(cell, tp.height),
+        bdCentredTextTop(cell, run.height),
       ),
-      text,
       clip: cell,
     );
   }
@@ -7482,14 +7483,14 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   void _drawGlyphText(Canvas canvas, Rect box, String glyph, Color color) {
-    final tp = _layoutText(
+    final run = _layoutText(
       glyph,
       color: color,
       fontSize: 11,
       fontWeight: FontWeight.w700,
       fontStyle: FontStyle.italic,
     );
-    _paintText(canvas, tp, bdCentredTextAnchor(box, tp.size), glyph);
+    _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
   }
 
   /// Draws a structure's modeled terminals at their frame-relative boxes,

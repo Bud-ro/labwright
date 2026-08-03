@@ -50,15 +50,18 @@ int? bdHintedAdvance(int rune, {required bool bold}) =>
 
 /// The em size (px) the reference rasterizer sets for a font-table entry's
 /// cell height [cellPx] (`ViFontEntry.resolvedSize` — GDI's positive
-/// lfHeight, the character cell): the largest em whose hinted cell fits.
-/// Measured against the references: cell 15 → 12 em (the default face:
-/// 15 px line pitch, 6 px digit advances); cell 21 → 16 em
-/// (crc32_lookup_table's heading ink runs 6 px SHORT of a linearly-scaled
-/// 16.8 em and matches the 16 ppem advance sum). Between the measured
-/// points the linear 4/5 ratio floors to the nearest whole em — hinted
-/// cells only ever meet or exceed the linear estimate.
+/// lfHeight, the character cell): the linear 4/5 ratio floored to a whole
+/// em, since a hinted cell only ever meets or exceeds the linear estimate.
+/// Reference-measured at both ends of the observed range: cell 15 → 12 em
+/// (the default face: 15 px line pitch, 6 px digit advances); cell 21 →
+/// 16 em (crc32_lookup_table's heading ink runs 6 px SHORT of a linearly
+/// scaled 16.8 em and matches the 16 ppem advance sum).
+///
+/// [cellPx] is an unvalidated `u16` off the font table, so it is clamped to
+/// a rasterisable range — a corrupt entry must not lay text out at a
+/// thousands-of-px em.
 double bdEmForCellHeight(int cellPx) =>
-    cellPx == 15 ? 12.0 : (cellPx * 4 / 5).floorToDouble();
+    (cellPx.clamp(4, 96) * 4 / 5).floorToDouble();
 
 /// Registers the host system's own Windows UI text face (`segoeui.ttf` +
 /// `segoeuib.ttf`) for diagram text and prefers it over the bundled Selawik,
