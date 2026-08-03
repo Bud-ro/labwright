@@ -19,8 +19,15 @@
 ///   arity via positional child count, corpus node frequency, or exhaustion
 ///   over a snippet's complete id set).
 ///
-/// Ids observed in the corpus without either kind of evidence (126 of 242)
-/// are deliberately absent — callers get null from [PrimOp.fromId] and must
+/// - [PrimNameBasis.review] — no corpus label and no run to interpolate in;
+///   the operation is read off the glyphs LabVIEW draws INSIDE the node's
+///   icon (`I64`, `8`+`8`, a division sign with `R` and `IQ`). The doc
+///   comment states the glyph and the corpus measurement that agrees with
+///   it, so the reading is checkable against the files rather than taken on
+///   trust.
+///
+/// Ids observed in the corpus without any of those (121 of 242) are
+/// deliberately absent — callers get null from [PrimOp.fromId] and must
 /// render/report the numeric id, never a guessed name. That includes ids
 /// with merely *suggestive* evidence: 1170/1171 read as Split/Join Numbers
 /// from CRC-snippet wiring, but 1170 pairs the pinned [clusterToArray] just
@@ -39,6 +46,11 @@ enum PrimNameBasis {
   /// Interpolated from corpus-pinned neighbours in a contiguous palette run,
   /// or the documented pair of a corpus-pinned entry.
   adjacency,
+
+  /// Read off the glyphs LabVIEW draws inside the node's own icon, confirmed
+  /// by review, and corroborated by a corpus measurement the entry states.
+  /// No corpus VI labels these ids.
+  review,
 }
 
 /// A named built-in primitive operation (see the library doc for evidence
@@ -60,6 +72,20 @@ enum PrimOp {
 
   /// ×18 corpus labels.
   divide(1053, 'Divide', PrimNameBasis.corpusLabel),
+
+  /// Icon: a division sign, with `R` beside the upper output and `IQ` beside
+  /// the lower one. Sits where the palette puts it, between the corpus-pinned
+  /// [divide] and [increment].
+  ///
+  /// The corpus agrees on both halves of that reading. All 149 nodes take two
+  /// inputs and yield two outputs; the LOWER-drawn input is a constant on 131
+  /// of them (2 ×95, then 4, 5, 6, 8, 16, 32, 64, 100, 128 and the floating
+  /// 2.0/60.0/100.0/3600.0) against 2 on the upper, which is a divisor's
+  /// distribution and not a dividend's. And six VIs across four projects wire
+  /// the ceil-division idiom — upper output into a compare-to-zero, lower
+  /// output into both an [increment] and the [select] that the comparison
+  /// steers — which reads only as `remainder != 0 ? quotient + 1 : quotient`.
+  quotientRemainder(1056, 'Quotient & Remainder', PrimNameBasis.review),
 
   /// ×12 corpus labels.
   increment(1057, 'Increment', PrimNameBasis.corpusLabel),
@@ -172,6 +198,35 @@ enum PrimOp {
 
   /// ×1 corpus label.
   toDoublePrecisionFloat(1147, 'To Double Precision Float', PrimNameBasis.corpusLabel),
+
+  /// Icon: the glyph `I64`. The 64-bit integer conversions sit outside the
+  /// 1140..1147 run the narrower widths fill. Corroborated by the wire: the
+  /// output of all 13 corpus nodes is typed I64, and each node takes exactly
+  /// one input.
+  toQuadInteger(1155, 'To Quad Integer', PrimNameBasis.review),
+
+  /// Icon: the glyph `U64`; the unsigned partner of [toQuadInteger]. The
+  /// output of all 27 corpus nodes is typed U64, and each node takes exactly
+  /// one input.
+  toUnsignedQuadInteger(1156, 'To Unsigned Quad Integer', PrimNameBasis.review),
+
+  /// Icon: a two-field box whose halves exchange across a pair of crossing
+  /// arrows, the fields labelled `8` and `8`.
+  ///
+  /// So the operation is defined on a PAIR of 8-bit fields, and a wider
+  /// operand is swapped one 16-bit field at a time rather than reversed end
+  /// to end. The corpus separates those two readings with no counterexample:
+  /// every 32-bit node (5) is fed directly by a [swapWords], which together
+  /// reverse all four bytes, while every 16-bit node (2) stands alone — and a
+  /// whole-value reading would make a 32-bit node a complete reversal already,
+  /// with nothing for the partner to do. Each node takes one input and yields
+  /// one output of the input's own type.
+  swapBytes(1162, 'Swap Bytes', PrimNameBasis.review),
+
+  /// Icon: [swapBytes]'s box one field width up, its halves labelled `16` and
+  /// `16`. All 5 corpus nodes carry a 32-bit operand — the narrowest width
+  /// that holds two 16-bit fields — and every one of them feeds a [swapBytes].
+  swapWords(1163, 'Swap Words', PrimNameBasis.review),
 
   /// ×1 corpus label.
   flattenToString(1164, 'Flatten To String', PrimNameBasis.corpusLabel),

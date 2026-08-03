@@ -22,6 +22,10 @@ import 'util.dart';
 ///
 /// Opt-in (it writes into lib/):
 /// `flutter test test/placement_census_test.dart --dart-define=PRIM_PLACEMENT_CENSUS=1`
+///
+/// A comma-separated key list in place of `1` re-measures only those
+/// identities and leaves every other row of the table as it was, so one
+/// re-cut asset's placement lands on its own.
 void main() {
   const enabled = String.fromEnvironment('PRIM_PLACEMENT_CENSUS');
   testWidgets(
@@ -196,17 +200,61 @@ void main() {
         const endMark = '// GENERATED-PLACEMENT-END';
         final begin = existing.indexOf(beginMark) + beginMark.length;
         final end = existing.indexOf(endMark);
+        // A key list re-measures only those identities, so one asset's
+        // placement is reviewable without the instance-count churn every
+        // other key's sample selection produces.
+        final only = enabled == '1'
+            ? const <String>{}
+            : enabled.split(',').map((key) => key.trim()).toSet();
+        final rows = only.isEmpty
+            ? entries
+            : _rowsWithReplacements(
+                existing.substring(begin, end),
+                entries,
+                only,
+              );
         catalogFile.writeAsStringSync(
           '${existing.substring(0, begin)}'
           'const Map<String, ({int dx, int dy})> kPrimIconPlacement = {\n'
-          '${entries.join('\n')}\n'
+          '${rows.join('\n')}\n'
           '};\n'
           '${existing.substring(end)}',
         );
         // ignore: avoid_print
-        print('wrote ${entries.length} measured placements');
+        print(
+          only.isEmpty
+              ? 'wrote ${entries.length} measured placements'
+              : 're-measured ${only.join(', ')}; every other row is untouched',
+        );
       });
     },
     timeout: const Timeout(Duration(minutes: 12)),
   );
+}
+
+/// The rows of [committed] — the placement table's current body — with the
+/// entries naming a key in [only] replaced by the matching rows of [fresh].
+List<String> _rowsWithReplacements(
+  String committed,
+  List<String> fresh,
+  Set<String> only,
+) {
+  String? keyOf(String row) =>
+      RegExp(r"^\s*'([a-z0-9_]+)':").firstMatch(row)?.group(1);
+  final replacements = <String, String>{
+    for (final row in fresh)
+      if (keyOf(row) case final key? when only.contains(key)) key: row,
+  };
+  final rows = <String>[];
+  for (final row in committed.split('\n')) {
+    final key = keyOf(row);
+    if (key == null) continue;
+    if (!only.contains(key)) {
+      rows.add(row);
+      continue;
+    }
+    if (replacements.remove(key) case final replacement?) rows.add(replacement);
+  }
+  rows.addAll(replacements.values);
+  return rows;
 }

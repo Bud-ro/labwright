@@ -615,6 +615,8 @@ class _FunctionEmitter {
       classCode: unit.classCode,
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
+      outputPorts: unit.outputPorts,
+      portDrawnTop: unit.portDrawnTop,
       requireImport: library.imports.add,
     );
     final statements = lvPrimLowering(call);

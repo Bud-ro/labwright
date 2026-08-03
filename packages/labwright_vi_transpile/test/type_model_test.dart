@@ -306,11 +306,36 @@ void main() {
     }
   });
 
-  test('the operand-order-free primitives lower; a hazardous carrier refuses', () {
+  test('a primitive lowers from its wire types, and a hazardous carrier refuses', () {
     // (op, input signal words, output word, statement or null when refused).
-    // Signal words: 0x0105 U8 scalar, 0x0107 U32, 0x0108 U64, 0x010a DBL,
-    // 0x0121 boolean, 0x0230 string, 0x0205 array of U8.
+    // Inputs are drawn top-down in list order, so `a0` is the first operand of
+    // an ordered node.
+    // Signal words: 0x0105 U8 scalar, 0x0102 I16, 0x0107 U32, 0x0108 U64,
+    // 0x0109 SGL, 0x010a DBL, 0x0121 boolean, 0x0230 string, 0x0205 array of
+    // U8.
     const rows = <(PrimOp, List<int>, int, String?)>[
+      // Ordered arithmetic and comparison: the upper operand is the first.
+      (PrimOp.subtract, [0x0107, 0x0107], 0x0107, 'final int e0 = (a0 - a1) & 0xFFFFFFFF;'),
+      (PrimOp.greater, [0x0105, 0x0105], 0x0121, 'final bool e0 = a0 > a1;'),
+      (PrimOp.less, [0x010a, 0x010a], 0x0121, 'final bool e0 = a0 < a1;'),
+      // A U64's carrier is signed, so an ordered comparison on it is wrong.
+      (PrimOp.greater, [0x0108, 0x0108], 0x0121, null),
+      // An ordered comparison of strings needs LabVIEW's collation.
+      (PrimOp.less, [0x0230, 0x0230], 0x0121, null),
+      // Divide yields a floating result, integer operands widening into it.
+      (PrimOp.divide, [0x0107, 0x0107], 0x010a, 'final double e0 = a0.toDouble() / a1.toDouble();'),
+      (PrimOp.divide, [0x0109, 0x0109], 0x0109, 'final double e0 = (Float32List(1)..[0] = a0 / a1)[0];'),
+      // An integer-typed Divide result would need LabVIEW's coercion rounding.
+      (PrimOp.divide, [0x0107, 0x0107], 0x0107, null),
+      // The field swaps: a 16-bit operand holds one byte pair, a 32-bit one
+      // holds one word pair, and a narrower operand holds neither.
+      (PrimOp.swapBytes, [0x0102], 0x0102, 'final int e0 = (lvSwapBytes(a0)) << 48 >> 48;'),
+      (PrimOp.swapWords, [0x0107], 0x0107, 'final int e0 = (lvSwapWords(a0)) & 0xFFFFFFFF;'),
+      (PrimOp.swapBytes, [0x0105], 0x0105, null),
+      (PrimOp.swapWords, [0x0102], 0x0102, null),
+      // The 64-bit conversions.
+      (PrimOp.toQuadInteger, [0x0107], 0x0104, 'final int e0 = lvToI64(a0);'),
+      (PrimOp.toUnsignedQuadInteger, [0x0107], 0x0108, 'final int e0 = lvToU64(a0);'),
       (PrimOp.equal, [0x0105, 0x0105], 0x0121, 'final bool e0 = a0 == a1;'),
       (PrimOp.notEqual, [0x0230, 0x0230], 0x0121, 'final bool e0 = a0 != a1;'),
       // A U64's carrier is signed, so ordered comparisons on it are wrong —
@@ -345,9 +370,70 @@ void main() {
         outputs: [
           LvPrimTerminal(port: 9, type: mapLvWireType(ViSignalType(output)), roleFlags: 0, expression: 'e0'),
         ],
+        outputPorts: const [9],
+        portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: op.opName);
+    }
+  });
+
+  test('an ordered operation reads its operands off the drawn order, not the heap order', () {
+    // Two U32 inputs, the heap order fixed and the DRAWN order flipped between
+    // the rows: the first operand follows the geometry both times, and a node
+    // whose terminals share a row states no order at all.
+    const rows = <(String, Map<int, int>, String?)>[
+      ('port 0 drawn upper', {0: 10, 1: 40}, 'final int e0 = (a0 - a1) & 0xFFFFFFFF;'),
+      ('port 1 drawn upper', {0: 40, 1: 10}, 'final int e0 = (a1 - a0) & 0xFFFFFFFF;'),
+      ('drawn on one row', {0: 10, 1: 10}, null),
+      ('geometry missing', {0: 10}, null),
+    ];
+    for (final (name, drawnTop, expected) in rows) {
+      final type = mapLvWireType(const ViSignalType(0x0107));
+      final call = LvPrimCall(
+        op: PrimOp.subtract,
+        classCode: 0x2f,
+        inputs: [
+          for (var at = 0; at < 2; at++) LvPrimTerminal(port: at, type: type, roleFlags: 0, expression: 'a$at'),
+        ],
+        outputs: [LvPrimTerminal(port: 9, type: type, roleFlags: 0, expression: 'e0')],
+        outputPorts: const [9],
+        portDrawnTop: drawnTop,
+        requireImport: (_) {},
+      );
+      expect(lvPrimLowering(call), expected == null ? null : [expected], reason: name);
+    }
+  });
+
+  test('Quotient & Remainder binds each result to the output it is drawn beside', () {
+    // The quotient is the LOWER output and the remainder the upper; an output
+    // nothing consumes never reaches the terminal list and binds to `_`.
+    const rows = <(String, List<int>, List<String?>, List<String>)>[
+      ('both results used', [8, 9], ['rem', 'quo'], ['final (quo, rem) = lvQuotientRemainder(a1, a0);']),
+      ('quotient only', [8, 9], [null, 'quo'], ['final (quo, _) = lvQuotientRemainder(a1, a0);']),
+      ('remainder only', [8, 9], ['rem', null], ['final (_, rem) = lvQuotientRemainder(a1, a0);']),
+      ('neither used', [8, 9], [null, null], <String>[]),
+    ];
+    for (final (name, ports, bindings, expected) in rows) {
+      final type = mapLvWireType(const ViSignalType(0x0107));
+      final call = LvPrimCall(
+        op: PrimOp.quotientRemainder,
+        classCode: 0x2f,
+        // Heap order is the reverse of the drawn order on a primitive node, so
+        // the dividend is `a1` and the divisor `a0`.
+        inputs: [
+          for (var at = 0; at < 2; at++) LvPrimTerminal(port: at, type: type, roleFlags: 0, expression: 'a$at'),
+        ],
+        outputs: [
+          for (var at = 0; at < 2; at++)
+            if (bindings[at] case final name?)
+              LvPrimTerminal(port: ports[at], type: type, roleFlags: 0, expression: name),
+        ],
+        outputPorts: ports,
+        portDrawnTop: {0: 40, 1: 10, ports[0]: 10, ports[1]: 40},
+        requireImport: (_) {},
+      );
+      expect(lvPrimLowering(call), expected, reason: name);
     }
   });
 
@@ -397,6 +483,8 @@ void main() {
         classCode: kLvIndexArrayClass,
         inputs: [for (var at = 0; at < inputRoles.length; at++) terminal(inputRoles[at], at, isInput: true)],
         outputs: [for (var at = 0; at < outputRoles.length; at++) terminal(outputRoles[at], at, isInput: false)],
+        outputPorts: [for (var at = 0; at < outputRoles.length; at++) at],
+        portDrawnTop: const {},
         requireImport: (_) {},
       );
       expect(lvPrimLowering(call), expected, reason: name);

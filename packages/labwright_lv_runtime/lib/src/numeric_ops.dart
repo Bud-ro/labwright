@@ -50,6 +50,56 @@ int lvToU32(int value) => value & 0xFFFFFFFF;
 /// the width model's unsigned hazards for the operators that misread it.
 int lvToU64(int value) => value;
 
+/// The 8-bit lanes of the carrier, alternating from bit 0 — the mask
+/// [lvSwapBytes] exchanges across.
+const int _kByteLanes = 0x00FF00FF00FF00FF;
+
+/// The 16-bit lanes of the carrier, alternating from bit 0 — the mask
+/// [lvSwapWords] exchanges across.
+const int _kWordLanes = 0x0000FFFF0000FFFF;
+
+/// LabVIEW's **Swap Bytes**: within every 16-bit field of [value], the high and
+/// low bytes exchange places.
+///
+/// The operation is defined on a *pair of 8-bit fields*, so a value wider than
+/// 16 bits is swapped one 16-bit field at a time: `0x12345678` becomes
+/// `0x34127856`, not `0x78563412`. Reversing all four bytes of a 32-bit value
+/// is this composed with [lvSwapWords].
+///
+/// Width-agnostic: it acts on the whole carrier, and the caller renormalizes
+/// the result to the LabVIEW type's width, which is what re-establishes the
+/// sign of a narrow signed carrier.
+int lvSwapBytes(int value) => ((value & _kByteLanes) << 8) | ((value >>> 8) & _kByteLanes);
+
+/// LabVIEW's **Swap Words**: within every 32-bit field of [value], the high and
+/// low 16-bit halves exchange places — `0x12345678` becomes `0x56781234`.
+///
+/// The [lvSwapBytes] counterpart one field width up; see it for the width
+/// contract.
+int lvSwapWords(int value) => ((value & _kWordLanes) << 16) | ((value >>> 16) & _kWordLanes);
+
+/// LabVIEW's **Quotient & Remainder**: the integer quotient of
+/// [dividend] / [divisor] and the amount left over, as `(quotient, remainder)`.
+///
+/// The two satisfy `dividend == divisor * quotient + remainder` exactly, which
+/// is the property the corpus's ceil-division idiom turns on
+/// (`remainder != 0 ? quotient + 1 : quotient`).
+///
+/// The quotient rounds toward negative infinity, so the remainder carries the
+/// divisor's sign. Dart's `~/` rounds toward zero instead, so the correction
+/// below is the whole difference between the two.
+// TODO(lv-quotient-sign): which way LabVIEW rounds a quotient with exactly one
+// negative operand is not established from the file format — every corpus node
+// that fixes the operation's shape does so with non-negative operands, where
+// the two conventions agree. Division by zero is undecided for the same reason
+// and throws here rather than inventing a result.
+(int, int) lvQuotientRemainder(int dividend, int divisor) {
+  final truncated = dividend ~/ divisor;
+  final toZero = dividend - divisor * truncated;
+  final quotient = toZero != 0 && (toZero < 0) != (divisor < 0) ? truncated - 1 : truncated;
+  return (quotient, dividend - divisor * quotient);
+}
+
 /// LabVIEW's Rotate Left With Carry over a [bits]-wide value: the value shifts
 /// up one bit, [carryIn] enters as bit 0, and the departing top bit is the
 /// carry out.

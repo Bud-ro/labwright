@@ -15,14 +15,21 @@ import 'util.dart';
 ///
 /// The consensus path needs several samples of an identity that survive
 /// per-pixel voting, and it harvests only from snippets whose whole-diagram
-/// registration clears the placement gate. Two identities satisfy neither
+/// registration clears the placement gate. Three identities satisfy neither
 /// condition: `prim1170` has two corpus instances outside the gate-excluded
-/// snippets and they fuse to their attached wires under generic cleaning, and
-/// `prim1537`'s only instance lives in a gate-excluded snippet. Naming the
-/// instance replaces the statistics: the crop is taken at the node's own
-/// decoded box and cleaned by [_cleanNodeBoxCrop], and where two instances are
-/// named the result must agree byte-for-byte or the key fails.
+/// snippets and they fuse to their attached wires under generic cleaning,
+/// `prim1537`'s only instance lives in a gate-excluded snippet, and `prim1082`
+/// has ONE instance anywhere in the snippet corpus, so per-pixel voting has
+/// nothing to vote against and the wires the node is drawn attached to survive
+/// into the art.
+///
+/// Naming the instance replaces the statistics: the crop is taken at the
+/// node's own decoded box and cleaned by [_cleanNodeBoxCrop], and where two
+/// instances are named the result must agree byte-for-byte or the key fails.
+/// A named key takes this art over the consensus path's — naming an instance
+/// is the statement that generic harvesting got that key wrong.
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
+  'prim1082': [(snippet: 'MD5', oid: 6017)],
   'prim1170': [(snippet: 'crc16', oid: 820), (snippet: 'crc16', oid: 619)],
   'prim1537': [(snippet: 'Excel_Cell_to_RowCol', oid: 477)],
 };
@@ -146,6 +153,37 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   return (rgba: art, w: artWidth, h: artHeight, dx: left - pad, dy: top - pad);
 }
 
+/// [committed] with the asset rows naming a key in [only] replaced by the
+/// matching rows of [fresh] — a re-cut of one identity leaves every other row
+/// of the manifest exactly as it was.
+///
+/// A row is `| <file> | <label> | <size> | <sources> |`, and its key is the
+/// file name's `prim<id>` / `class<code>_t<n>` stem.
+String _manifestWithRowsReplaced(
+  String committed,
+  String fresh,
+  Set<String> only,
+) {
+  String? keyOf(String line) => RegExp(
+    r'^\| ((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
+  ).firstMatch(line)?.group(1);
+  final replacements = <String, String>{
+    for (final line in fresh.split('\n'))
+      if (keyOf(line) case final key? when only.contains(key)) key: line,
+  };
+  final out = <String>[];
+  for (final line in committed.split('\n')) {
+    final key = keyOf(line);
+    if (key == null || !only.contains(key)) {
+      out.add(line);
+      continue;
+    }
+    if (replacements.remove(key) case final row?) out.add(row);
+  }
+  out.addAll(replacements.values);
+  return out.join('\n');
+}
+
 bool _sameBytes(Uint8List a, Uint8List b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
@@ -163,6 +201,11 @@ bool _sameBytes(Uint8List a, Uint8List b) {
 ///
 /// Generation is opt-in (it rewrites the checked-in assets):
 /// `flutter test test/extract_prim_icons_test.dart --dart-define=EXTRACT_PRIM_ICONS=1`
+///
+/// A comma-separated key list in place of `1` re-cuts only those identities —
+/// their assets and their manifest rows — and leaves every other asset, row
+/// and the review catalog untouched, so one icon's change is reviewable
+/// without the churn a whole sweep's sample selection produces.
 void main() {
   const enabled = String.fromEnvironment('EXTRACT_PRIM_ICONS');
   testWidgets(
@@ -1040,11 +1083,13 @@ void main() {
       }
 
       // Targeted extraction ([kTargetedIconSamples]): named instances, cleaned
-      // individually. It runs only where the consensus path produced nothing,
-      // so a key that starts extracting generically keeps the generic art.
+      // individually, and authoritative over whatever the consensus path made
+      // of the same key.
       for (final entry in kTargetedIconSamples.entries) {
         final key = entry.key;
-        if (pending.containsKey(key)) continue;
+        // Declared wrong, so the consensus art does not ship even when the
+        // targeted cut below fails; the key lands on the failure list instead.
+        pending.remove(key);
         final crops = targeted[key] ?? const [];
         if (crops.length != entry.value.length) {
           failed[key] =
@@ -1240,7 +1285,16 @@ void main() {
       );
       if (enabled.isEmpty) return; // verify-only: nothing is written
 
+      // A key list re-cuts exactly those identities and leaves every other
+      // committed asset, the manifest's other rows and the review catalog
+      // alone — one identity's art is reviewable on its own, and a sweep that
+      // rewrites all of them buries the change under the churn every other
+      // key's sample selection produces.
+      final only = enabled == '1'
+          ? const <String>{}
+          : enabled.split(',').map((key) => key.trim()).toSet();
       for (final key in pending.keys.toList()..sort()) {
+        if (only.isNotEmpty && !only.contains(key)) continue;
         final e = pending[key]!;
         if (verifiedKeys.contains(key) || handKeys.contains(key)) {
           // The committed verified asset stays authoritative (byte-identity
@@ -1301,13 +1355,30 @@ void main() {
         ).firstMatch(f.path);
         if (m == null) continue;
         final key = m.group(1)!;
+        if (only.isNotEmpty && !only.contains(key)) continue;
         if (!pending.containsKey(key) &&
             !verifiedKeys.contains(key) &&
             !handKeys.contains(key)) {
           f.deleteSync();
         }
       }
-      File('${outDir.path}/MANIFEST.md').writeAsStringSync(manifest.toString());
+      final manifestFile = File('${outDir.path}/MANIFEST.md');
+      manifestFile.writeAsStringSync(
+        only.isEmpty
+            ? manifest.toString()
+            : _manifestWithRowsReplaced(
+                manifestFile.readAsStringSync(),
+                manifest.toString(),
+                only,
+              ),
+      );
+      if (only.isNotEmpty) {
+        // ignore: avoid_print
+        print(
+          're-cut ${only.join(', ')}; the catalog and every other row are untouched',
+        );
+        return;
+      }
 
       // Regenerate the review catalog, preserving the maintainer's statuses.
       final catalogFile = File('$appDir/lib/src/prim_icon_catalog.dart');

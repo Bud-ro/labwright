@@ -7,47 +7,60 @@
 ///   code that *is* one operation and whose name corpus node labels carry
 ///   (`0x44` Index Array ×27, `0xB9` Replace Array Subset ×10, with no
 ///   competing caption); and
-/// - its **operand roles** — which terminal is which argument. Terminal
-///   position alone does not say, so roles come from the terminal's own
-///   decoded record: its direction flag, its wire's dimensionality, and for
-///   the growable array nodes the role bits below.
+/// - its **operand roles** — which terminal is which argument. These come
+///   from the terminal's own decoded record where it carries one (the
+///   direction flag, the wire's dimensionality, the growable array nodes'
+///   role bits below), and otherwise from the **drawn-order rule**.
 ///
 /// Everything else lands on the review list ([lvPrimUnmappedReason]) with what
-/// is missing, so a corpus sweep can size the gap instead of hiding it. That
-/// includes operations whose meaning is obvious but whose *operand order* is
-/// not decoded: `Subtract` needs to know which terminal is the minuend.
+/// is missing, so a corpus sweep can size the gap instead of hiding it.
 ///
-/// The terminal role bits do not supply it. Corpus census of the input
-/// terminals' role bits, over every node of each operation in 7 524 VIs:
+/// ## The drawn-order rule
 ///
-/// - `Subtract` — 1 172 nodes read `{0x0, 0x10000}` in heap order, 395 read
-///   `{0x10000, 0x0}`, and 64 carry `0x0` on BOTH inputs;
-/// - `Divide` — 247 of 516 carry `0x0` on both inputs, 228 read
-///   `{0x0, 0x10000}` and 39 the reverse;
-/// - `Greater?` — 231 of 237, and `Less?` 100 of 106, carry `0x0` on both.
+/// **A node's first operand is the input it draws uppermost.** So `Subtract`
+/// is `top - bottom`, `Divide` is `top / bottom`, and `Greater?` asks
+/// `top > bottom`.
 ///
-/// So the bits distinguish nothing at all for most ordered nodes; where two
-/// codes do appear their heap order flips both ways; and `0x10000` appears on
-/// the commutative `Add` (910 nodes) and `Exclusive Or` (17) as well, so it is
-/// not an operand ordinal. Nothing here says which terminal is the left
-/// operand, and these operations stay refused.
+/// The role bits do not supply this. Corpus census of the input terminals'
+/// role bits, over every node of each operation in 7 524 VIs: `Subtract` —
+/// 1 172 nodes read `{0x0, 0x10000}` in heap order, 395 read `{0x10000, 0x0}`,
+/// and 64 carry `0x0` on BOTH inputs; `Divide` — 247 of 516 carry `0x0` on
+/// both; `Greater?` — 231 of 237, and `Less?` 100 of 106, likewise. The bits
+/// distinguish nothing for most ordered nodes, where two codes do appear their
+/// heap order flips both ways, and `0x10000` sits on the commutative `Add`
+/// (910 nodes) and `Exclusive Or` (17) too, so it is not an operand ordinal.
 ///
-/// Terminal **geometry** does give a total order, and it is measured. Every
-/// two-input primitive stacks its inputs — 4 606 corpus nodes across `Add`,
-/// `Multiply`, `Exclusive Or`, `Subtract`, `Divide`, `Greater?` and `Less?`,
-/// and not one draws its two inputs on the same row — and in every one of
-/// those the FIRST holder in heap order is the LOWER terminal. Geometry also
-/// reproduces the one operand order that is independently known: on the 2 352
-/// `0x44`/`0xB9` nodes whose array and index terminals the role bits fix, the
-/// array terminal is drawn above the index terminal 2 352 times and below it
-/// none.
+/// Geometry does. Every two-input primitive stacks its inputs — 4 748 corpus
+/// nodes across `Add`, `Multiply`, `Exclusive Or`, `Subtract`, `Divide`,
+/// `Greater?`, `Less?`, `Quotient & Remainder` and the unnamed 1082/1181, not
+/// one of them drawing its two inputs on the same row — and the rule that
+/// order carries is established four ways, each with no counterexample:
 ///
-/// What is still missing is the tie from that drawn order to LabVIEW's own
-/// argument names — that the upper terminal of a `Subtract` is the minuend
-/// rather than the subtrahend. Confirming it needs a VI whose output is known
-/// independently and whose lowering turns on the choice; no corpus VI reaches
-/// that state (`crc16`, `crc32` and `Excel_Cell_to_RowCol` each stop at an
-/// unrelated node class first), so the order stays refused.
+/// - **The roles already decoded reproduce it.** On the 2 324 `0x44`/`0xB9`
+///   nodes whose array and index terminals the role bits fix and whose
+///   geometry resolves, the array — the first argument — is drawn above the
+///   index every time.
+/// - **`Quotient & Remainder` divides by its lower operand.** Its lower-drawn
+///   input is a constant on 131 of 149 corpus nodes and its upper on 2, and
+///   those constants are moduli (2 ×95, then 4, 5, 6, 8, 16, 32, 64, 100, 128,
+///   and the floating 60.0/3600.0 of a seconds-to-hours conversion). A divisor
+///   has that distribution; a dividend does not.
+/// - **`Subtract` and `Divide` take their subject from the top.** An
+///   `Array Size` or `String Length` feeds `Subtract`'s upper input 240 times
+///   against 36 on the lower (the `size - 1` idiom), and `Divide`'s upper 36
+///   against 10; constants sit on the lower input 256 against 71, and 285
+///   against 29.
+/// - **An ordered comparison never compares to a constant on top.** Across
+///   184 corpus `Greater?` and `Less?` nodes with a constant operand, the
+///   constant is the LOWER input 184 times and the upper 0 — a threshold is
+///   the second argument of `value > threshold`.
+///
+/// Heap order is not the rule and is not used as one: on those 4 748 nodes the
+/// first holder in heap order is the LOWER terminal, while on the `0x44` nodes
+/// the first holder is the array, which is drawn ABOVE. The two conventions
+/// disagree; the drawn order is what both classes share, so terminals carry
+/// their drawn position ([LvPrimTerminal.drawnTop]) and a node whose geometry
+/// does not resolve is refused rather than ordered by its heap layout.
 library;
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -140,6 +153,8 @@ class LvPrimCall {
     required this.classCode,
     required this.inputs,
     required this.outputs,
+    required this.outputPorts,
+    required this.portDrawnTop,
     required this.requireImport,
     this.primResId,
   });
@@ -161,6 +176,15 @@ class LvPrimCall {
   /// The output terminals, in terminal order.
   final List<LvPrimTerminal> outputs;
 
+  /// EVERY output port of the node in heap order — [outputs] holds only the
+  /// ones something consumes, so a node whose second result is left unwired
+  /// still says here that it has two.
+  final List<int> outputPorts;
+
+  /// Per port oid, the y the terminal is drawn at
+  /// ([LvPrimUnit.portDrawnTop]).
+  final Map<int, int> portDrawnTop;
+
   /// Declares an import in the emitted file.
   final void Function(String) requireImport;
 
@@ -169,6 +193,36 @@ class LvPrimCall {
 
   /// The single output carrying [flags] in its role bits, or null.
   LvPrimTerminal? outputWithRole(int flags) => _single(outputs.where((t) => t.roleFlags == flags));
+
+  /// The node's two **inputs in drawn order**, uppermost first — its operand
+  /// order (see the library doc) — or null when it has other than two inputs,
+  /// when either terminal's drawn position is missing, or when the two share a
+  /// row and the order is therefore not stated.
+  (LvPrimTerminal, LvPrimTerminal)? get operandsTopDown {
+    if (inputs.length != 2) return null;
+    final ranked = _rankTopDown([for (final terminal in inputs) terminal.port]);
+    return ranked == null ? null : (_terminalAt(inputs, ranked.$1)!, _terminalAt(inputs, ranked.$2)!);
+  }
+
+  /// The node's two **outputs in drawn order**, uppermost first. An entry is
+  /// null where nothing consumes that output, so a node that uses only one of
+  /// its two results still resolves which result that is.
+  (LvPrimTerminal?, LvPrimTerminal?)? get resultsTopDown {
+    final ranked = _rankTopDown(outputPorts);
+    return ranked == null ? null : (_terminalAt(outputs, ranked.$1), _terminalAt(outputs, ranked.$2));
+  }
+
+  /// [ports] — exactly two — ordered uppermost first, or null when either
+  /// resolves no drawn position or the two share a row.
+  (int, int)? _rankTopDown(List<int> ports) {
+    if (ports.length != 2) return null;
+    final first = portDrawnTop[ports[0]], second = portDrawnTop[ports[1]];
+    if (first == null || second == null || first == second) return null;
+    return first < second ? (ports[0], ports[1]) : (ports[1], ports[0]);
+  }
+
+  static LvPrimTerminal? _terminalAt(List<LvPrimTerminal> terminals, int port) =>
+      terminals.where((terminal) => terminal.port == port).firstOrNull;
 
   static LvPrimTerminal? _single(Iterable<LvPrimTerminal> matches) {
     final list = matches.toList();
@@ -181,13 +235,10 @@ class LvPrimCall {
 /// lower, so a corpus census can size the gap without building an IR.
 ///
 /// The set is deliberately narrow. An operation is here only when its operand
-/// roles follow from the terminals themselves: commutative pairs (either order
-/// gives the same value — `Equal?` and `Not Equal?` included, since they are
-/// symmetric where `Greater?` is not), unary operations (there is only one
-/// operand, which is what puts the six *compare-to-zero* predicates here while
-/// the two-terminal comparisons stay out), and the conversions. `Subtract`,
-/// `Divide` and the ordered two-terminal comparisons are absent because
-/// nothing decoded says which terminal is the left operand.
+/// roles follow from the terminals themselves — commutative pairs, unary
+/// operations, and the conversions — or from the drawn-order rule, which is
+/// what admits `Subtract`, `Divide`, the two ordered comparisons and
+/// `Quotient & Remainder`.
 ///
 /// Having one operand is necessary but not sufficient: the RESULT must follow
 /// from the operand too. These unary corpus operations are refused for want of
@@ -213,8 +264,13 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.or,
   PrimOp.add,
   PrimOp.multiply,
+  PrimOp.subtract,
+  PrimOp.divide,
+  PrimOp.quotientRemainder,
   PrimOp.equal,
   PrimOp.notEqual,
+  PrimOp.greater,
+  PrimOp.less,
   PrimOp.not,
   PrimOp.increment,
   PrimOp.decrement,
@@ -236,10 +292,14 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.toUnsignedByteInteger,
   PrimOp.toUnsignedWordInteger,
   PrimOp.toUnsignedLongInteger,
+  PrimOp.toQuadInteger,
+  PrimOp.toUnsignedQuadInteger,
   PrimOp.stringToByteArray,
   PrimOp.byteArrayToString,
   PrimOp.rotateLeftWithCarry,
   PrimOp.rotateRightWithCarry,
+  PrimOp.swapBytes,
+  PrimOp.swapWords,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -302,6 +362,14 @@ List<String>? lvPrimLowering(LvPrimCall call) {
     case PrimOp.multiply:
       return _binaryCommutative(call, '*');
 
+    // Ordered arithmetic: the drawn-order rule names the first operand.
+    case PrimOp.subtract:
+      return _binaryOrdered(call, '-');
+    case PrimOp.divide:
+      return _divide(call);
+    case PrimOp.quotientRemainder:
+      return _quotientRemainder(call);
+
     // Symmetric comparisons: `a == b` and `b == a` are the same test, so no
     // operand order is needed. Both sides must carry the same Dart type, which
     // keeps the elementwise array and cluster forms out.
@@ -309,6 +377,12 @@ List<String>? lvPrimLowering(LvPrimCall call) {
       return _binaryPredicate(call, '==');
     case PrimOp.notEqual:
       return _binaryPredicate(call, '!=');
+
+    // Ordered comparisons: the same test read off the drawn operand order.
+    case PrimOp.greater:
+      return _orderedPredicate(call, '>');
+    case PrimOp.less:
+      return _orderedPredicate(call, '<');
 
     case PrimOp.not:
       return _not(call);
@@ -354,6 +428,8 @@ List<String>? lvPrimLowering(LvPrimCall call) {
     case PrimOp.toUnsignedByteInteger:
     case PrimOp.toUnsignedWordInteger:
     case PrimOp.toUnsignedLongInteger:
+    case PrimOp.toQuadInteger:
+    case PrimOp.toUnsignedQuadInteger:
       return _integerConversion(call);
 
     case PrimOp.stringToByteArray:
@@ -365,6 +441,11 @@ List<String>? lvPrimLowering(LvPrimCall call) {
       return _rotateWithCarry(call, left: true);
     case PrimOp.rotateRightWithCarry:
       return _rotateWithCarry(call, left: false);
+
+    case PrimOp.swapBytes:
+      return _swap(call, LvRuntimeCall.swapBytes, fieldPairBits: 16);
+    case PrimOp.swapWords:
+      return _swap(call, LvRuntimeCall.swapWords, fieldPairBits: 32);
 
     case _:
       break;
@@ -415,6 +496,118 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   if (name == null) return const [];
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
+}
+
+/// An ordered arithmetic pair — the operands taken in drawn order, so the
+/// upper terminal is the left-hand side.
+List<String>? _binaryOrdered(LvPrimCall call, String operator) {
+  if (call.outputs.length != 1) return null;
+  final operands = call.operandsTopDown;
+  if (operands == null) return null;
+  final out = call.outputs.single;
+  if (_hazardous(out.type, operator)) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  final body = '${operands.$1.expression} $operator ${operands.$2.expression}';
+  return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
+}
+
+/// `Divide` — the upper operand over the lower.
+///
+/// The result is a floating type: every one of the 516 corpus nodes whose
+/// operands are scalar numerics yields a `DBL` or a `SGL`, integer operands
+/// included. A node whose output is an integer would need LabVIEW's own
+/// coercion rounding, which is not decoded, so it is refused.
+List<String>? _divide(LvPrimCall call) {
+  if (call.outputs.length != 1) return null;
+  final operands = call.operandsTopDown;
+  if (operands == null) return null;
+  final out = call.outputs.single;
+  if (out.type.dims != 0 || !(out.type.numeric?.isFloat ?? false)) return null;
+  final name = out.expression;
+  for (final operand in [operands.$1, operands.$2]) {
+    if (operand.type.dims != 0 || operand.type.numeric == null) return null;
+    // A U64 operand's carrier reads as signed under `toDouble`.
+    if (_hazardous(operand.type, 'toDouble')) return null;
+  }
+  if (name == null) return const [];
+  String widened(LvPrimTerminal operand) =>
+      operand.type.numeric!.isFloat ? operand.expression! : '${operand.expression}.toDouble()';
+  final body = '${widened(operands.$1)} / ${widened(operands.$2)}';
+  if (out.type.numeric == LvNumericKind.sgl) call.requireImport('dart:typed_data');
+  return ['final double $name = ${lvWrapped(out.type, body)};'];
+}
+
+/// An ordered two-terminal comparison, read off the drawn operand order.
+///
+/// Both operands must be scalar numerics: an array wire would make the node
+/// the elementwise form, and LabVIEW's ordering of the non-numeric carriers
+/// (a string's collation, a cluster's field-by-field order) is not decoded.
+List<String>? _orderedPredicate(LvPrimCall call, String operator) {
+  if (call.outputs.length != 1) return null;
+  final operands = call.operandsTopDown;
+  if (operands == null) return null;
+  final out = call.outputs.single;
+  if (out.type.dartType != 'bool') return null;
+  for (final operand in [operands.$1, operands.$2]) {
+    if (operand.type.dims != 0 || operand.type.numeric == null) return null;
+    if (_hazardous(operand.type, operator)) return null;
+  }
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final bool $name = ${operands.$1.expression} $operator ${operands.$2.expression};'];
+}
+
+/// `Quotient & Remainder` — the upper operand divided by the lower, with the
+/// quotient on the LOWER output and the remainder on the upper (see
+/// [PrimOp.quotientRemainder] for the icon glyphs and the corpus idiom that
+/// fix both orders).
+///
+/// Integer operands only: LabVIEW's floating form yields a floating quotient,
+/// whose rounding is the same undecided question the runtime records plus the
+/// binary-format one, so it is refused rather than approximated. A `U64`
+/// operand divides as signed on its carrier
+/// ([LvArithmeticHazard.unsignedDivide]) and is refused too. Most corpus nodes
+/// consume ONE of the two results — 98 of 149 leave the remainder unwired and
+/// 30 the quotient — so an unused result binds to `_`.
+List<String>? _quotientRemainder(LvPrimCall call) {
+  final operands = call.operandsTopDown, results = call.resultsTopDown;
+  if (operands == null || results == null) return null;
+  final (dividend, divisor) = operands;
+  final (remainder, quotient) = results;
+  if (quotient == null && remainder == null) return const [];
+  for (final terminal in [dividend, divisor, remainder, quotient]) {
+    if (terminal == null) continue;
+    final kind = terminal.type.numeric;
+    if (terminal.type.dims != 0 || kind == null || kind.isFloat) return null;
+    if (_hazardous(terminal.type, '~/')) return null;
+  }
+  call.requireImport(kLvRuntimeImport);
+  return [
+    'final (${quotient?.expression ?? '_'}, ${remainder?.expression ?? '_'}) = '
+        '${LvRuntimeCall.quotientRemainder}(${dividend.expression}, ${divisor.expression});',
+  ];
+}
+
+/// A **field swap** — `Swap Bytes` or `Swap Words`, whichever [runtimeCall]
+/// names.
+///
+/// The operand must be a scalar integer at least [fieldPairBits] wide, which
+/// is the narrowest type that holds the pair of fields the operation
+/// exchanges; the corpus never wires a narrower one. The result carries the
+/// operand's own type, so the width wrap is what re-establishes the sign of a
+/// narrow signed carrier.
+List<String>? _swap(LvPrimCall call, String runtimeCall, {required int fieldPairBits}) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  final kind = out.type.numeric;
+  if (source.type.dims != 0 || out.type.dims != 0) return null;
+  if (kind == null || kind.isFloat || kind.bits < fieldPairBits) return null;
+  if (source.type.numeric != kind) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  return ['final int $name = ${lvWrapped(out.type, '$runtimeCall(${source.expression})')};'];
 }
 
 /// The carriers whose Dart `==` is a VALUE comparison, so that a symmetric
