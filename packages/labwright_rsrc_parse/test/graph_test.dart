@@ -1718,7 +1718,7 @@ void main() {
 }
 
 /// resolveDataSpaceTypes: synthetic pool + table + heaps exercising the
-/// self-calibration, the agreement gate, and the dcoRef inheritance.
+/// DTHP-declared base, the no-base decline, and the dcoRef inheritance.
 void resolveTypesTests() {
   ViType type(int i, ViDataType k, [String? name]) => ViType(index: i, code: 0, kind: k, name: name);
   // Pool: [0]=void, [1]=string "data in", [2]=boolean, [3]=i32.
@@ -1728,8 +1728,10 @@ void resolveTypesTests() {
     type(2, ViDataType.boolean),
     type(3, ViDataType.i32),
   ];
-  // Table with the true base at +2: entries 2..5 hold the data items.
+  // A DTHP declaring 4 heap types starting at the 1-based top-level index 3
+  // puts the heap's index space at table entries 2..5, i.e. base +1.
   const table = [0, 0, 1, 2, 3, 1];
+  final dthp = decodeDataTypeHeap(Uint8List.fromList([0, 4, 0, 3]))!;
 
   ViHeapObject obj(int oid, int kind, {int? tdi}) {
     final o = ViHeapObject(oid: oid, kind: kind, offset: 0);
@@ -1737,21 +1739,26 @@ void resolveTypesTests() {
     return o;
   }
 
-  test('calibrates the base from anchors and resolves kinds + names', () {
-    final strConst = obj(1, 0x51, tdi: 0); // table[2]=1 → string ✓
-    final boolConst = obj(2, 0x4f, tdi: 1); // table[3]=2 → boolean ✓
-    final loopCount = obj(3, 0x24, tdi: 2); // table[4]=3 → i32 ✓
-    final dco = obj(10, 0x12, tdi: 3); // table[5]=1 → string "data in"
+  ViDiagram bd(List<ViHeapObject> objects) => ViDiagram(sectionTag: 'BDHb', objects: objects);
+
+  test('DTHP base: [count][firstTopLevelIndex] locates the heap index space', () {
+    expect((dthp.heapTypeCount, dthp.firstTopLevelIndex, dthp.viTypeIndexBase), (4, 3, 1));
+    expect(dthp.firstTopLevelIndex + dthp.heapTypeCount - 1, table.length);
+  });
+
+  test('resolves kinds + names at the DTHP base', () {
+    final strConst = obj(1, 0x51, tdi: 1); // table[3-1] = 1 → string ✓
+    final boolConst = obj(2, 0x4f, tdi: 2); // table[4-1] = 2 → boolean ✓
+    final loopCount = obj(3, 0x24, tdi: 3); // table[5-1] = 3 → i32 ✓
+    final dco = obj(10, 0x12, tdi: 4); // table[6-1] = 1 → string "data in"
     final terminal = obj(11, 0x16);
     terminal.typedRefs[HeapRefKind.dcoRef] = [10];
     resolveDataSpaceTypes(
       pool: pool,
       table: table,
+      typeIndexBase: dthp.viTypeIndexBase,
       blockDiagrams: [
-        ViDiagram(
-          sectionTag: 'BDHb',
-          objects: [strConst, boolConst, loopCount, terminal],
-        ),
+        bd([strConst, boolConst, loopCount, terminal]),
       ],
       frontPanelDiagrams: [
         ViDiagram(sectionTag: 'FPHb', objects: [dco]),
@@ -1765,29 +1772,14 @@ void resolveTypesTests() {
     expect(terminal.typeName, 'data in');
   });
 
-  test('below the agreement gate nothing resolves', () {
-    // Two anchors whose expectations can never both hold at one base.
-    final a = obj(1, 0x51, tdi: 0);
-    final b = obj(2, 0x4f, tdi: 0); // same slot: string ≠ boolean
+  test('no base leaves every type unresolved', () {
+    final only = obj(1, 0x51, tdi: 1);
     resolveDataSpaceTypes(
       pool: pool,
       table: table,
+      typeIndexBase: null,
       blockDiagrams: [
-        ViDiagram(sectionTag: 'BDHb', objects: [a, b]),
-      ],
-      frontPanelDiagrams: const [],
-    );
-    expect(a.typeKind, ViTypeKind.unknown);
-    expect(b.typeKind, ViTypeKind.unknown);
-  });
-
-  test('fewer than two anchors leaves types unresolved', () {
-    final only = obj(1, 0x51, tdi: 0);
-    resolveDataSpaceTypes(
-      pool: pool,
-      table: table,
-      blockDiagrams: [
-        ViDiagram(sectionTag: 'BDHb', objects: [only]),
+        bd([only]),
       ],
       frontPanelDiagrams: const [],
     );

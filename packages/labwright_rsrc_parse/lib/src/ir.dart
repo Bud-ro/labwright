@@ -277,12 +277,15 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
       }
     }
   }
-  // Pool and top-level table come from the same located VCTP section.
+  // Pool and top-level table come from the same located VCTP section; the
+  // heap's index base into that table comes from the DTHP header.
   final vctp = list.where((s) => s.tag == 'VCTP').map((s) => s.bytes).firstOrNull;
   final types = vctp == null ? const <ViType>[] : decodeTypePool(vctp);
+  final dthp = list.where((s) => s.tag == 'DTHP').map((s) => s.bytes).firstOrNull;
   resolveDataSpaceTypes(
     pool: types,
     table: vctp == null ? const [] : decodeTypeTable(vctp),
+    typeIndexBase: dthp == null ? null : decodeDataTypeHeap(dthp)?.viTypeIndexBase,
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
   );

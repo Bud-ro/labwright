@@ -4507,22 +4507,6 @@ ViTypeKind? _typeKindOf(ViDataType type) => switch (type) {
   _ => null,
 };
 
-/// The calibration anchors: BD object classes whose data kind the class
-/// catalog pins down, keyed by class code — the single source for both the
-/// anchor filter and the expectation test. Codes follow [HeapObjectClass]:
-/// `0x51` string/array control, `0x4f` boolean/cluster control, `0x25`
-/// loop conditional, `0x24`/`0x26` loop count/maximum.
-final Map<int, bool Function(ViDataType)> _typeAnchors = {
-  0x51: (t) {
-    final kind = _typeKindOf(t);
-    return kind == ViTypeKind.string || kind == ViTypeKind.array || kind == ViTypeKind.refnum;
-  },
-  0x4f: (t) => t == ViDataType.boolean || t == ViDataType.cluster,
-  0x25: (t) => t == ViDataType.boolean,
-  0x24: (t) => _typeKindOf(t) == ViTypeKind.numericInt,
-  0x26: (t) => _typeKindOf(t) == ViTypeKind.numericInt,
-};
-
 /// Resolves every heap object's `typeDescIndex` through the VCTP top-level
 /// [table] into the [pool], setting [ViHeapObject.typeKind],
 /// [ViHeapObject.dataType] and [ViHeapObject.typeName]; an object without
@@ -4531,34 +4515,25 @@ final Map<int, bool Function(ViDataType)> _typeAnchors = {
 /// dcoRef targets ~90% same heap / ~10% sibling heap, and oids repeat
 /// across heaps).
 ///
-/// The heap's indices carry a **per-VI base**: where that base is stored
-/// has not been found, so it is **self-calibrated** per VI — the offset
-/// that maximises agreement between the [_typeAnchors] classes and their
-/// resolved kinds. Calibration demands at least 2 anchors and 90%
-/// agreement; otherwise every type stays unresolved rather than guessed.
-/// The search window (−8..48) is wider than the bases observed on the
-/// snippet corpus (0..9 over 31/32 calibrating VIs) to cover larger VIs;
-/// a wrong window cannot mis-resolve silently because the agreement gate
-/// still applies. Calibration uses block-diagram anchors and applies the
-/// base to both heaps: the data space is VI-global (verified on the corpus
-/// by the resolved panel names and reference-render colours agreeing).
+/// The heap's indices are **1-based within the type-index space the `DTHP`
+/// data-type heap header declares** — [ViDataTypeHeap.firstTopLevelIndex]
+/// entries into [table], for [ViDataTypeHeap.heapTypeCount] entries — so the
+/// additive base is [typeIndexBase] ([ViDataTypeHeap.viTypeIndexBase]).
+/// Passing a null base leaves every type unresolved. One base serves both
+/// heaps: the data space is VI-global.
 ///
-/// The self-calibration is what limits this pass's reach, and by a wide
-/// margin. Corpus (7,523 VIs): of the 7,490 carrying a `VCTP`, **3,301
-/// supply fewer than 2 anchor objects** and 1,117 more miss the agreement
-/// gate, so 3,072 (41.0%) calibrate — and 4,433 of 7,508 block diagrams
-/// (59.0%) end this pass with no object carrying a resolved type at all.
-///
-/// The `TM80` data-space type map's `indexShift` — which is exactly a
-/// per-VI base into the same top-level index list — is **not** that stored
-/// base. It is present in only **3,566 of 7,523 VIs** (47.4%; 1,609 of
-/// them carry more than one copy of the block), so it cannot source a base
-/// the other half of the corpus still needs; and where an independent
-/// per-VI calibration — the offset maximising agreement between each wire
-/// endpoint part's index and the family its signal's [ViSignalType] names,
-/// over VIs with ≥40 such anchors, a unique argmax and ≥90% purity —
-/// pins the base (1,153 VIs), only 229 also carry a `TM80`, and
-/// `base − indexShift` is 3 on 126 of them and spread over the rest.
+/// **Validation.** The base is scored against an oracle independent of both
+/// `DTHP` and this resolution: each wire endpoint part's `typeDescIndex`
+/// against the element family its signal's [ViSignalType] names. On the 1,882
+/// corpus VIs where that oracle pins one offset (≥40 such anchors, a unique
+/// argmax, ≥90% purity), the `DTHP` base reproduces **all 1,882**; on a
+/// further 1,306 VIs that carry ≥40 anchors but no unique 90%-pure argmax, it
+/// is still the argmax offset — **1,306 of 1,306**, no counterexample. It is
+/// version-independent (per-version anchor purity 0.75–0.97 across LV 9.0
+/// through 25.1.3, with no cliff) and never runs out of range: the heap's
+/// smallest index is 1 and its largest is within
+/// [ViDataTypeHeap.heapTypeCount] on every one of the 7,467 corpus VIs that
+/// carry an index at all.
 ///
 /// A successful resolution **overwrites** a heuristically inferred
 /// [ViHeapObject.typeKind] — the pool descriptor is the VI's own type
@@ -4571,6 +4546,7 @@ final Map<int, bool Function(ViDataType)> _typeAnchors = {
 void resolveDataSpaceTypes({
   required List<ViType> pool,
   required List<int> table,
+  required int? typeIndexBase,
   required List<ViDiagram> blockDiagrams,
   required List<ViDiagram> frontPanelDiagrams,
 }) {
@@ -4608,27 +4584,27 @@ void resolveDataSpaceTypes({
     }
   }
 
-  _resolveTypeIndices(pool: pool, table: table, blockDiagrams: blockDiagrams, diagrams: diagrams, findDco: findDco);
+  _resolveTypeIndices(pool: pool, table: table, base: typeIndexBase, diagrams: diagrams, findDco: findDco);
 
   // The single BD-constant value decode pass, now that every resolvable type
-  // is on its object. Runs unconditionally: on a VI whose base never
-  // calibrates nothing resolves and the pass is fallback-only.
+  // is on its object. Runs unconditionally: on a VI with no base nothing
+  // resolves and the pass is fallback-only.
   for (final diagram in diagrams) {
     decodeBdConstValues(diagram);
   }
 }
 
 /// The table+base type resolution behind [resolveDataSpaceTypes] (see its
-/// doc for the calibration law); split out so the decode pass that follows
-/// it runs even when calibration declines.
+/// doc for the index law); split out so the decode pass that follows it runs
+/// even when the VI carries no base.
 void _resolveTypeIndices({
   required List<ViType> pool,
   required List<int> table,
-  required List<ViDiagram> blockDiagrams,
+  required int? base,
   required List<ViDiagram> diagrams,
   required ViHeapObject? Function(ViDiagram own, int oid) findDco,
 }) {
-  if (pool.isEmpty || table.isEmpty) return;
+  if (pool.isEmpty || table.isEmpty || base == null) return;
 
   ViType? resolve(int base, int index) {
     final ti = base + index;
@@ -4636,27 +4612,6 @@ void _resolveTypeIndices({
     final pi = table[ti];
     return pi >= 0 && pi < pool.length ? pool[pi] : null;
   }
-
-  final anchors = <(int, int)>[
-    for (final diagram in blockDiagrams)
-      for (final object in diagram.objects)
-        if (object.typeDescIdx != null && _typeAnchors.containsKey(object.kind)) (object.kind, object.typeDescIdx!),
-  ];
-  if (anchors.length < 2) return;
-  int? base;
-  var bestHits = 0;
-  for (var k = -8; k <= 48; k++) {
-    var hits = 0;
-    for (final (kind, index) in anchors) {
-      final type = resolve(k, index);
-      if (type != null && _typeAnchors[kind]!(type.kind)) hits++;
-    }
-    if (hits > bestHits) {
-      bestHits = hits;
-      base = k;
-    }
-  }
-  if (base == null || bestHits < anchors.length * 0.9) return;
 
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
@@ -4741,46 +4696,53 @@ num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
 /// The **TYPED tier** of [decodeBdConstValues]: decodes a BD constant's
 /// captured payload strictly by its **resolved data-space type**
 /// ([ViHeapObject.resolvedType] over [constValueRaw]). Every gate declines
-/// rather than guessing. Corpus (7,524 VIs, resolved-type constants only):
+/// rather than guessing. Corpus (7,524 VIs; every one of the 54,801 BD
+/// constants resolves a data-space type, so the tier reaches them all — the
+/// counters below are the `structure_terminals` snapshot section):
 ///
 ///   * **numeric scalar** — a fixed-width numeric type whose scalar payload
 ///     fits the type's width decodes as that type: unsigned/enum as stored,
 ///     signed two's-complement at full width, `sgl` as its IEEE-754 bits
 ///     (the SGL-alias and sign ambiguities of the type-independent gates are
-///     settled by the descriptor). 5,211 of 5,730 integer-typed scalars fit
-///     (877 of them beyond the type-independent gates); the 519 stored WIDER
-///     than their type (e.g. a 3-byte scalar on a u16 type) are declined —
-///     TODO: their encoding is not yet decoded.
+///     settled by the descriptor). Of 14,894 numeric-typed constants
+///     (`numTyped`) 10,702 match the type's width exactly (`numExact`) and
+///     4,192 are stored WIDER (`numWider`, e.g. a 4-byte payload on a u16
+///     type) and decline — TODO: their encoding is not yet decoded. None is
+///     stored narrower than its type or empty (`numNarrow`/`numNarrowFloat`/
+///     `numEmpty` absent).
 ///   * **array** — `[u32 × dimCount dims][elements big-endian]` for a
 ///     resolved array of a fixed-width numeric element ([constArray] /
-///     [constArrayDims]): 205 payloads match the length law exactly and 322
-///     empty arrays (every dim 0) carry exactly one trailing zero pad byte;
-///     5 length mismatches and 2 dims-truncated payloads decline. Non-numeric
-///     element kinds (string/path/cluster/…, 1,107 constants) are not yet
-///     decoded (TODO).
+///     [constArrayDims]). Of 3,304 array-typed constants (`arrTyped`) 2,460
+///     have a non-numeric element kind (string/path/cluster/…,
+///     `arrElemNotNumeric`) and are not yet decoded (TODO); **every one of
+///     the remaining 844 frames exactly** — 347 match the length law
+///     (`arrFits`) and 497 are empty arrays (every dim 0) carrying exactly
+///     one trailing zero pad byte (`arrEmptyPad`), with no length mismatch
+///     or truncated dims list (`arrNeither`/`arrDimsTruncated` absent).
 ///   * **string** — a string type's container payload is `[u32 length][length
 ///     bytes]`, the string half of the flat layout, and the body is the
 ///     constant's text ([ViHeapObject.constText], one code unit per stored
 ///     byte). An empty one is `[u32 0]` plus a single trailing zero pad byte,
-///     the same empty-with-pad form the array law above carries. Corpus:
-///     of the 10,326 string-typed constants, 513 are stored at a scalar
-///     magnitude width (no container to frame) and of the remaining 9,813
-///     payloads 8,493 fit the length law exactly and 1,171 are
-///     `[u32 0][00]` — every single padded one declaring length 0, with no
-///     odd-length counterexample — while 149 fit neither and decline.
+///     the same empty-with-pad form the array law above carries. **All
+///     19,713 string-typed constants frame exactly** (`strTyped`): 17,952 fit
+///     the length law (`strFits`) and 1,761 are `[u32 0][00]` — every single
+///     padded one declaring length 0, with no odd-length counterexample —
+///     leaving no payload that fits neither and none stored at a bare scalar
+///     magnitude width (`strNeither`/`strScalarForm` absent).
 ///
 /// The framing is byte-exact where the fallback tier's printable filter is
-/// lossy. Both reach 7,650 constants and agree on 7,545; on all 105 that
+/// lossy. Both tiers reach 16,735 texts and agree on 16,551; on all 184 that
 /// differ the fallback text is EXACTLY the framed body with its
 /// non-printable bytes deleted (an embedded newline, a tab, a leading UTF-8
 /// BOM, a Latin-1 quote), never a different reading. LabVIEW's own renders
 /// settle which is the constant's text: `Config_Dump`'s three `[u32 1][0A]`
 /// constants draw a two-glyph `\n` escape in a 27×19 box — the file's own
 /// saved box geometry and the reference PNG agree — so the byte is real
-/// content the fallback dropped, and 104 of the 105 draw in a box at least
-/// two lines tall, which a single-line fallback reading cannot produce. The
-/// framing therefore decodes 843 further payloads the fallback declined, every
-/// one of them carrying a non-printable byte.
+/// content the fallback dropped. Of the 1,590 framed texts carrying a line
+/// break (`strMultiLine`), 730 sit in a box at least two one-line heights tall
+/// (`strMultiLineTallBox`) — geometry no single-line fallback reading
+/// produces — against 860 in a shorter box (`strMultiLineShortBox`), whose
+/// drawn height is a display-mode question the decode does not settle.
 ///
 /// A constant's DISPLAY MODE (normal, `\`-codes, hex) is not decoded, so what
 /// LabVIEW draws for a non-printable byte is a separate question from what the
@@ -4852,19 +4814,21 @@ void _typedBdConstDecode(ViHeapObject object) {
 /// including constants whose type never resolved.
 ///
 /// The fallback runs on a typed DECLINE too, not only on an unresolved type,
-/// because the corpus shows the constant-DCO type resolution mis-assigns for
-/// a minority — payload+carrier evidence contradicts the resolved kind (an
-/// 8-byte IEEE-754 payload on an i32-resolved constant; a `{0,1}` `0x4f`
-/// boolean payload on a string-resolved constant) — while the type-free
-/// gates still decode: corpus (7,524 VIs) 2,082 containered zeros, 88
-/// payloads wider than their resolved type, 24 narrower than their resolved
-/// float type, 2,404 numerics on resolved kinds with no typed layout law
-/// (typeDef/string/boolean/refnum/cluster/void/…), 600 booleans and 1,469
-/// texts on non-boolean/non-string-resolved constants. TODO: decode where
-/// those constants' `typeDescIndex` actually points. The tier ORDER is
-/// value-neutral on the whole corpus: everywhere both tiers land (4,347
-/// integer + 454 double constants) they agree exactly, so the typed tier
-/// never contradicts the carrier-class census and vice versa.
+/// because the typed tier has no layout law for several resolved kinds and
+/// declines a stored-wider payload outright, while the type-free gates still
+/// decode. Corpus (7,524 VIs): 15,193 constants decode through the fallback
+/// alone — 7,504 booleans and 3,456 typeDefs (kinds with no typed layout law
+/// here), 4,001 payloads stored wider than their numeric type, and 232 on
+/// path/cluster/complex/uncatalogued kinds — against 5,721 only the typed
+/// tier reaches. TODO: decode the stored-wider encoding, and the boolean,
+/// path and typeDef layouts.
+///
+/// The tier ORDER is value-neutral: everywhere both tiers land they agree
+/// exactly — 16,471 of 16,471 numerics and 7,504 of 7,504 booleans — so the
+/// typed tier never contradicts the carrier-class census or vice versa. The
+/// 16,735 texts agree on 16,551, and on every one of the 184 that differ the
+/// fallback string is exactly the typed framing with its non-printable bytes
+/// removed (see [_typedBdConstDecode]).
 void decodeBdConstValues(ViDiagram diagram) {
   final nodeKids = _childrenByParentOid(diagram.objects);
   // Depth-capped: the positional tree is stack-balanced, but oids are not

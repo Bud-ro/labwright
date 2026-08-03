@@ -120,7 +120,8 @@ void main() {
 
   test('decodeDataTypeHeap: dominant 4-byte header form; extended form recovers 40xx names; null when short', () {
     final h = decodeDataTypeHeap(hx('00170004'))!;
-    expect((h.field0, h.field1, h.isExtended, h.rawLength), (0x17, 4, false, 4));
+    expect((h.heapTypeCount, h.firstTopLevelIndex, h.viTypeIndexBase), (0x17, 4, 2));
+    expect((h.isExtended, h.rawLength), (false, 4));
     expect(h.names, isEmpty);
     final e = decodeDataTypeHeap(u8([...hx('00000040 000e 4021 09'), ...'Auto Stop'.codeUnits]))!;
     expect(e.isExtended, isTrue);

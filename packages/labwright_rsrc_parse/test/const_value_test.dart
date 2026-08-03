@@ -152,7 +152,10 @@ void main() {
       expect(bd5.byId[1148]!.constNumeric, 10, reason: 'milliseconds to wait');
       expect(bd5.byId[2592]!.constBool, true);
       expect(bd5.byId[2692]!.constText, 'Test Status');
-      expect(bd5.byId[2924]!.constNumeric, isNull, reason: '0xFFFFFFFF is i32 -1 or u32 max: declined');
+      // The type-independent gates decline 0xFFFFFFFF (i32 -1 or u32 max); the
+      // pool descriptor settles it as i32.
+      expect(bd5.byId[2924]!.resolvedType?.kind, ViDataType.i32);
+      expect(bd5.byId[2924]!.constNumeric, -1);
 
       // The same VI's tiled data space carries the constants' values — the
       // ground-truth mechanism behind the decode census (see

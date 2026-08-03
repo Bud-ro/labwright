@@ -10,6 +10,17 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
+/// The flat serialized width of a fixed-width numeric VCTP kind, or null for
+/// every other kind — the typed tier's `_flatNumericSize` gate, restated so
+/// the census scores the law rather than the implementation.
+int? _flatWidth(ViDataType kind) => switch (kind) {
+  ViDataType.i8 || ViDataType.u8 || ViDataType.enumU8 => 1,
+  ViDataType.i16 || ViDataType.u16 || ViDataType.enumU16 => 2,
+  ViDataType.i32 || ViDataType.u32 || ViDataType.enumU32 || ViDataType.sgl => 4,
+  ViDataType.i64 || ViDataType.u64 || ViDataType.dbl => 8,
+  _ => null,
+};
+
 /// Corpus census for the structure-terminal glyph decode
 /// ([ViDiagram.terminalDco] / [ViDiagram.terminalGlyphHidden]) and the
 /// constant-endpoint decode ([ViDiagram.endpointConstant] /
@@ -35,12 +46,14 @@ import 'snapshot_check.dart';
 ///     route ships a closed polyline from the shell's centre
 ///     ([ViWire.routePoints] — closure is the zero-slack proof of the
 ///     centre attach convention).
-///  4. **String-constant framing** — how a string-typed constant's payload
-///     fits the `[u32 length][length bytes]` law the typed tier of
-///     [decodeBdConstValues] reads, and how that reading compares with the
-///     heap-parse printable filter it supersedes. Needs the resolved
-///     data-space type, so it rides this full-model pass rather than the
-///     type-free `bd_const_values` census.
+///  4. **Typed-constant framing** — how a constant's payload fits the layout
+///     law its resolved data-space type implies in the typed tier of
+///     [decodeBdConstValues]: the numeric-scalar width (`num*`), the
+///     `[u32 dim]*[elements]` array law (`arr*`), and the
+///     `[u32 length][length bytes]` string law (`str*`) plus how that
+///     reading compares with the heap-parse printable filter it supersedes.
+///     Needs the resolved data-space type, so it rides this full-model pass
+///     rather than the type-free `bd_const_values` census.
 Map<String, int> _census(Uint8List bytes, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -130,7 +143,48 @@ Map<String, int> _census(Uint8List bytes, String path) {
     for (final o in d.objects) {
       if (o.kind != HeapObjectClass.bdConstDco.code) continue;
       final flat = o.constValueRaw;
-      if (flat == null || o.resolvedType?.kind != ViDataType.string) continue;
+      final resolved = o.resolvedType;
+      if (flat == null || resolved == null) continue;
+      // The typed tier's numeric-scalar and array framing laws
+      // (`_typedBdConstDecode`), pinned alongside the string law below.
+      final scalarWidth = _flatWidth(resolved.kind);
+      if (scalarWidth != null) {
+        bump('numTyped');
+        if (flat.isEmpty) {
+          bump('numEmpty');
+        } else if (flat.length > scalarWidth) {
+          bump('numWider');
+        } else if (flat.length < scalarWidth) {
+          bump(resolved.kind == ViDataType.sgl || resolved.kind == ViDataType.dbl ? 'numNarrowFloat' : 'numNarrow');
+        } else {
+          bump('numExact');
+        }
+      }
+      if (resolved.kind == ViDataType.array) {
+        bump('arrTyped');
+        final element = o.resolvedElementType;
+        final dims = resolved.dimCount;
+        final elementWidth = element == null ? null : _flatWidth(element.kind);
+        if (elementWidth == null || dims == null || dims < 1 || dims > 8) {
+          bump('arrElemNotNumeric');
+        } else if (flat.length < 4 * dims) {
+          bump('arrDimsTruncated');
+        } else {
+          final view = ByteData.sublistView(flat);
+          var count = 1;
+          for (var i = 0; i < dims; i++) {
+            count *= view.getUint32(4 * i);
+          }
+          if (flat.length == 4 * dims + count * elementWidth) {
+            bump('arrFits');
+          } else if (count == 0 && flat.length == 4 * dims + 1 && flat.last == 0) {
+            bump('arrEmptyPad');
+          } else {
+            bump('arrNeither');
+          }
+        }
+      }
+      if (resolved.kind != ViDataType.string) continue;
       bump('strTyped');
       if (o.constValueScalar) {
         bump('strScalarForm');
