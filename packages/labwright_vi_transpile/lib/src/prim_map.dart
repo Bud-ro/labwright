@@ -59,25 +59,59 @@ import 'wire_type.dart';
 /// Role bits on a growable array node's terminal record
 /// ([ViHeapObject.objFlags] of the typed child under the terminal's holder).
 ///
-/// Corpus, over the 3 228 `0x44` and 372 `0xB9` nodes: the 1-D shapes are
-/// `{array 0x20000, out 0x1, index 0x600000}` (1 623 Index Array nodes) and
-/// `{array 0x20000, out 0x1, element 0x40000, index 0x600000}` (310 Replace
-/// Array Subset nodes). Higher-rank nodes split the index across `0x200000`
-/// (first dimension) and `0x400000` (second), and growable nodes repeat the
-/// output/index pair; both shapes are refused rather than assumed, so only the
-/// 1-D form above lowers.
+/// **Index Array's terminal grammar is measured.** Over the 3 479 `0x44` nodes
+/// in 7 524 VIs, 3 478 read as `[array] ([output] [index]×rank)+` in heap
+/// order — one array terminal, then one group per element the node yields, and
+/// one index terminal per array dimension inside each group. The single
+/// irregular node is not lowered.
+///
+/// The two high bits DELIMIT a group; they are not dimension names. A group of
+/// one index carries BOTH ([singleIndex] `0x600000`, 2 898 single-group
+/// nodes); a rank-2 group carries [groupFirst] on its first index and
+/// [groupLast] on its second; and a rank-3 group's middle index carries
+/// neither. So a group's rank is how many index terminals it holds and a
+/// dimension is an index terminal's position in it. An index terminal LabVIEW
+/// leaves unwired reads as a source rather than a sink, so it never reaches a
+/// lowering as an operand.
+///
+/// What that does NOT establish is which array dimension the first index
+/// terminal selects. Geometry gives a total drawn order — on the 24 nodes
+/// carrying exactly one `0x200000` and one `0x400000` terminal, the `0x200000`
+/// one is drawn above the `0x400000` one 24 times and below it none — but
+/// nothing decoded ties that order to the array type's own dimension order,
+/// and a rank-2 lowering must choose between `flat[i * dims[1] + j]` and
+/// `flat[j * dims[0] + i]`. Higher-rank groups are therefore refused: 22
+/// corpus nodes index a 2-D array on both terminals, 36 on the first alone and
+/// 14 on the second alone (each yielding a 1-D slice that is a row under one
+/// reading and a column under the other), and 12 index a 3-D array. This is
+/// the same missing tie that refuses `Subtract`'s operand order.
+///
+/// `0xB9` (Replace Array Subset, 371 nodes) does not read as this grammar at
+/// all — its group carries a new-element terminal too — so only its pinned 1-D
+/// shape `{array, out, element 0x40000, index 0x600000}` lowers.
 abstract final class LvArrayTerminalRole {
   /// The array being read or written.
   static const int array = 0x20000;
 
-  /// The node's primary output.
+  /// The node's primary output — the first group's element.
   static const int output = 0x1;
+
+  /// A growable node's SUBSEQUENT element output ([output] plus the grown-row
+  /// bit): groups after the first carry this.
+  static const int grownOutput = 0x40001;
 
   /// Replace Array Subset's new element.
   static const int newElement = 0x40000;
 
-  /// The single index of a 1-D access — both dimension bits set.
+  /// The one index terminal of a rank-1 group — both group-delimiter bits, so
+  /// it is the group's first index and its last.
   static const int singleIndex = 0x600000;
+
+  /// Marks a group's FIRST index terminal.
+  static const int groupFirst = 0x200000;
+
+  /// Marks a group's LAST index terminal.
+  static const int groupLast = 0x400000;
 }
 
 /// One terminal of a node, resolved.
@@ -377,16 +411,34 @@ LvPrimTerminal? _onlyNumeric(List<LvPrimTerminal> terminals) =>
 LvPrimTerminal? _onlyBoolean(List<LvPrimTerminal> terminals) =>
     LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.dartType == 'bool'));
 
+/// Index Array over a 1-D array, in the grammar's `[array] ([output]
+/// [index])+` shape — one statement per group, the growable node included.
+///
+/// Both terminal lists keep heap order, so group `k`'s index is
+/// `inputs[k + 1]` and its element is `outputs[k]`. Rank-1 groups are the only
+/// ones that lower ([LvArrayTerminalRole]), and a rank-1 group's index carries
+/// [LvArrayTerminalRole.singleIndex] exactly — which also rejects an unwired
+/// index, since one never reaches the input list.
 List<String>? _indexArray(LvPrimCall call) {
-  final array = call.inputWithRole(LvArrayTerminalRole.array);
-  final index = call.inputWithRole(LvArrayTerminalRole.singleIndex);
-  final out = call.outputWithRole(LvArrayTerminalRole.output);
-  if (array == null || index == null || out == null) return null;
-  if (call.inputs.length != 2 || call.outputs.length != 1) return null;
-  if (array.type.dims != 1 || index.type.dims != 0 || out.type.dims != 0) return null;
-  final name = out.expression;
-  if (name == null) return const [];
-  return ['final ${out.type.dartType} $name = ${array.expression}[${index.expression}];'];
+  if (call.outputs.isEmpty || call.inputs.length != call.outputs.length + 1) {
+    return null;
+  }
+  final array = call.inputs.first;
+  if (array.roleFlags != LvArrayTerminalRole.array || array.type.dims != 1) {
+    return null;
+  }
+  final statements = <String>[];
+  for (var group = 0; group < call.outputs.length; group++) {
+    final index = call.inputs[group + 1], out = call.outputs[group];
+    if (index.roleFlags != LvArrayTerminalRole.singleIndex) return null;
+    final expectedRole = group == 0 ? LvArrayTerminalRole.output : LvArrayTerminalRole.grownOutput;
+    if (out.roleFlags != expectedRole) return null;
+    if (index.type.dims != 0 || out.type.dims != 0) return null;
+    final name = out.expression;
+    if (name == null) return null;
+    statements.add('final ${out.type.dartType} $name = ${array.expression}[${index.expression}];');
+  }
+  return statements;
 }
 
 List<String>? _replaceArraySubset(LvPrimCall call) {

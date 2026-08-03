@@ -305,6 +305,58 @@ void main() {
     }
   });
 
+  test('Index Array lowers a rank-1 group per output and refuses the rest', () {
+    // (name, input roles, output roles, statements or null when refused).
+    // Roles are read off the corpus shapes in LvArrayTerminalRole; the array
+    // wire is 1-D U8 and every index and element is a U8 scalar, so only the
+    // roles decide the outcome.
+    const array = LvArrayTerminalRole.array;
+    const index = LvArrayTerminalRole.singleIndex;
+    const first = LvArrayTerminalRole.groupFirst;
+    const last = LvArrayTerminalRole.groupLast;
+    const out = LvArrayTerminalRole.output;
+    const grown = LvArrayTerminalRole.grownOutput;
+    final rows = <(String, List<int>, List<int>, List<String>?)>[
+      ('one group', [array, index], [out], ['final int e0 = a0[a1];']),
+      ('two groups', [array, index, index], [out, grown], ['final int e0 = a0[a1];', 'final int e1 = a0[a2];']),
+      (
+        'four groups',
+        [array, index, index, index, index],
+        [out, grown, grown, grown],
+        [
+          'final int e0 = a0[a1];',
+          'final int e1 = a0[a2];',
+          'final int e2 = a0[a3];',
+          'final int e3 = a0[a4];',
+        ],
+      ),
+      // A rank-2 group: the dimension order is not decoded.
+      ('rank 2', [array, first, last], [out], null),
+      ('rank 2, first index only', [array, first], [out], null),
+      ('rank 2, last index only', [array, last], [out], null),
+      // Shapes that do not read as the grammar at all.
+      ('no array terminal', [index, index], [out], null),
+      ('index without an output', [array, index, index], [out], null),
+      ('grown output first', [array, index], [grown], null),
+    ];
+    for (final (name, inputRoles, outputRoles, expected) in rows) {
+      LvPrimTerminal terminal(int role, int at, {required bool isInput}) => LvPrimTerminal(
+        port: at,
+        type: mapLvWireType(ViSignalType(role == LvArrayTerminalRole.array ? 0x0205 : 0x0105)),
+        roleFlags: role,
+        expression: isInput ? 'a$at' : 'e$at',
+      );
+      final call = LvPrimCall(
+        op: null,
+        classCode: kLvIndexArrayClass,
+        inputs: [for (var at = 0; at < inputRoles.length; at++) terminal(inputRoles[at], at, isInput: true)],
+        outputs: [for (var at = 0; at < outputRoles.length; at++) terminal(outputRoles[at], at, isInput: false)],
+        requireImport: (_) {},
+      );
+      expect(lvPrimLowering(call), expected, reason: name);
+    }
+  });
+
   test('Float32List narrowing is what SGL arithmetic needs', () {
     // 0.1 + 0.2 at binary32 differs from the binary64 result LabVIEW would not
     // produce for a SGL wire.

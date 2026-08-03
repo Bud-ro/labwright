@@ -152,6 +152,13 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// vary without changing anything LabVIEW draws. They size the refusal — a
 /// second glyph value appearing here is the evidence that would settle the
 /// polarity.
+///
+/// The `idx.*` counters are the Index Array terminal census
+/// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
+/// `[array] ([output] [index]×rank)+`, `idx.rank1Index` the index terminals in
+/// a rank-1 group (the shape that lowers), and `idx.groupFirstIndex` /
+/// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
+/// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
   'call': 1290,
   'call.calleeMissing': 159,
@@ -175,6 +182,12 @@ const Map<String, int> kCorpusLoweringSweep = {
   'exceptions.unwiredTerminal': 53,
   'exceptions.wireDirection': 66,
   'exceptions.wireType': 6849,
+  'idx': 3479,
+  'idx.groupFirstIndex': 110,
+  'idx.groupLastIndex': 94,
+  'idx.irregular': 1,
+  'idx.rank1Index': 2198,
+  'idx.regular': 3478,
   'modes.same': 135,
   'term.calleeUntyped': 115,
   'term.dirAgree': 304,
@@ -275,6 +288,30 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     }
   }
 
+  // The Index Array terminal census ([LvArrayTerminalRole]): the grammar's
+  // regularity, and how much of the corpus the refused higher-rank groups
+  // account for. `idx.dims<n>` is the dimensionality of the array wire, so
+  // `idx.dims2` and above size exactly what a decoded dimension order would
+  // unblock.
+  void censusIndexArrays(ViDiagram diagram) {
+    final childrenByOid = diagram.childrenByOid;
+    for (final node in diagram.objects) {
+      if (node.kind != kLvIndexArrayClass) continue;
+      bump('idx');
+      final roles = [
+        for (final holder in childrenByOid[node.oid] ?? const <ViHeapObject>[])
+          if (holder.kind == kLvHolderCode)
+            (childrenByOid[holder.oid] ?? const <ViHeapObject>[]).firstOrNull?.objFlags ?? 0,
+      ];
+      bump(_indexArrayShape(roles) ? 'idx.regular' : 'idx.irregular');
+      for (final role in roles) {
+        if (role == LvArrayTerminalRole.singleIndex) bump('idx.rank1Index');
+        if (role == LvArrayTerminalRole.groupFirst) bump('idx.groupFirstIndex');
+        if (role == LvArrayTerminalRole.groupLast) bump('idx.groupLastIndex');
+      }
+    }
+  }
+
   void walk(LvDataflow flow, LvRegion region) {
     for (final unit in region.units) {
       if (unit is LvSubViUnit) bindCall(flow, unit);
@@ -291,6 +328,7 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     if (unit == null) continue;
     bump('vi');
     censusConditionals(unit.diagram);
+    censusIndexArrays(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
     final sources = <String?>[];
     for (final mode in LvErrorMode.values) {
@@ -442,6 +480,31 @@ void main() {
     }
   }
   return (signals: signals, resolved: resolved, disagreeing: disagreeing, unresolved: unresolved);
+}
+
+/// Whether [roles] — one Index Array node's terminal role bits in heap order —
+/// reads as `[array] ([output] [index]×rank)+` ([LvArrayTerminalRole]).
+bool _indexArrayShape(List<int> roles) {
+  if (roles.isEmpty || roles.first != LvArrayTerminalRole.array) return false;
+  var at = 1;
+  while (at < roles.length) {
+    final head = roles[at];
+    if (head != LvArrayTerminalRole.output && head != LvArrayTerminalRole.grownOutput) {
+      return false;
+    }
+    at++;
+    var rank = 0;
+    var opensGroup = false;
+    while (at < roles.length &&
+        roles[at] != LvArrayTerminalRole.output &&
+        roles[at] != LvArrayTerminalRole.grownOutput) {
+      final role = roles[at++];
+      if (rank++ == 0) opensGroup = role & LvArrayTerminalRole.groupFirst != 0;
+      if (role & LvArrayTerminalRole.groupLast != 0) break;
+    }
+    if (rank == 0 || !opensGroup) return false;
+  }
+  return true;
 }
 
 String _reviewKey(PrimOp? op, ViHeapObject object) {
