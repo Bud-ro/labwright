@@ -1,0 +1,16 @@
+name: labwright_lv_runtime
+description: >-
+  The runtime a translated LabVIEW VI links against: the width model of
+  LabVIEW's numerics, its array and string carriers, and the reference and
+  error types a diagram passes along a wire. Pure Dart with no dependencies —
+  generated code must not pull in the transpiler that produced it.
+publish_to: none
+version: 0.0.1
+resolution: workspace
+
+environment:
+  sdk: ^3.11.0
+
+dev_dependencies:
+  lints: ^5.0.0
+  test: ^1.25.0

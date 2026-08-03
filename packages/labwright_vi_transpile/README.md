@@ -1,10 +1,15 @@
 # labwright_vi_transpile
 
-The **VI-to-Dart type model**: what a LabVIEW VI's data types become in Dart.
-Input is a VI's consolidated type pool (`VCTP`) as decoded by
-`labwright_rsrc_parse`; output is, per pool entry, a Dart representation, a
-"not a dataflow value" verdict, or a documented review item. No code generator
-lives here yet.
+**LabVIEW VI to Dart.** Two layers, one package:
+
+1. the **type model** — what a VI's data types become in Dart, per entry of its
+   consolidated type pool (`VCTP`) and per block-diagram wire;
+2. the **lowering** — a VI's block diagram recast as a dataflow graph and
+   emitted as a Dart function (`emitLvFunction`, `dart run tool/generate.dart`).
+
+Nothing partial is ever emitted. A construct whose meaning is not decoded
+aborts the whole function with an `LvRefusal` naming what is missing, so
+generated code is either complete or absent — see *Lowering* below.
 
 Every number below is a census over the pinned 7,524-VI corpus
 (`packages/labwright_rsrc_parse/corpus/vi`, 7,490 of which carry a type pool),
@@ -192,3 +197,126 @@ Two further items for review that are not type codes:
   so those arrays are modelled as dynamically sized like every other.
 - **Refnum reference class.** 17 distinct discriminator values, meanings not
   decoded (see above).
+
+## Wire types
+
+A block-diagram signal word is not a pool descriptor: it holds an element type
+code, an array depth and a flag nibble. `mapLvWireType` resolves it to the same
+`LvTypeMapping` terms, which is enough to type a dataflow edge and is *per
+wire*, so a tunnel whose two sides carry different dimensionalities reads as
+two different types.
+
+Cluster wires (`0x50`, and `0x51` for the typedef/class form) are unmapped
+here: their member types are not on the wire. So are the wires whose Dart
+carrier a generated file does not declare — path, variant and refnum — because
+naming a type nothing declares would emit code that does not compile.
+
+## Lowering
+
+`emitLvFunction(diagram)` turns a decoded block diagram into a Dart function,
+or returns an `LvRefusal` naming the decoded fact that is missing.
+
+### The IR
+
+A `ViDiagram` becomes an `LvDataflow`: **units** (primitive nodes, diagram
+constants, connector-pane terminals, structures) joined by typed **edges**, and
+grouped into one `LvRegion` per structure frame.
+
+- **Direction.** An endpoint holder's own flag bit `0x8000` marks it a wire's
+  sink. Corpus, over 435,881 signals in 7,624 files: 430,212 (98.7%) resolve to
+  exactly one source endpoint under that rule. The rest resolve to none or
+  several and are refused; no fallback rule was found — the `0x1000` bit that
+  looks like an indicator marker on the outliers misreads 1,561 wires the plain
+  rule gets right.
+- **Nesting.** Every node, structure and signal is parented to a frame
+  (`0x1b`), so each edge lives in exactly one region and a structure terminal
+  splits into an outer port and one inner port per frame.
+- **Acyclicity.** A loop's feedback runs through a shift register, whose inner
+  read is a region entry and inner write a region exit — never an edge. A back
+  edge that survives that is refused as a cycle.
+
+Each edge becomes one single-assignment local, named from the decoded label
+nearest to it: the connector-pane control's name, the constant's caption, or
+the primitive's own name.
+
+### Structures
+
+| structure | lowers to |
+| --- | --- |
+| For loop (`0x20`) | `for` over the count terminal and every auto-indexed array's length (`_lvIterationCount` when both) |
+| shift register (`0x27`/`0x28`) | a loop-carried local, initialised from the left register's outer input and reassigned from the right register's inner write |
+| auto-indexing input tunnel | `array[i]`, bound at the top of the body |
+| auto-indexing output tunnel | a `List<E>` builder, frozen once after the loop by `lvArrayFreeze` |
+| plain tunnel | the outer value, bound to the frame's inner reads |
+| Case structure (`0x2c`) | `if`/`else` over a boolean selector, each output tunnel a `final` assigned in both branches |
+| Diagram Disable (`0xcd`) | the Enabled frame's region, inline |
+| While loop (`0x21`) | **refused** — the conditional terminal's stop-if-true / continue-if-true polarity is not decoded |
+
+An auto-indexing tunnel is identified by flag `0x1000000`. Corpus, over 21,486
+loop tunnels whose two sides both resolve a dimensionality: all 6,584 flagged
+tunnels drop exactly one dimension and all 10,370 unflagged ones drop none.
+595 unflagged tunnels do drop a dimension; the emitter refuses those rather
+than pick a side.
+
+A Case structure lowers only over a **boolean** selector with two frames. The
+file records the case value of the *displayed* frame alone (its `0x95` label),
+so any other frame's value is decoded only when it is the complement of a
+boolean. Frame order does not supply it: over 3,587 two-frame boolean cases the
+displayed frame is index 1 labelled `True` 1,840 times, but index 0 labelled
+`True` 328 times.
+
+A For loop's **non-indexing output tunnel** is refused: it carries the last
+iteration's value, or the element type's default when the loop runs zero times,
+and that default is not decoded.
+
+### Primitives
+
+A node is mapped only when its **identity** and its **operand roles** are both
+decoded. `kLvMappedPrimOps` is deliberately narrow: commutative pairs, unary
+operations and the integer width conversions — everything whose roles follow
+from the terminals themselves. `Subtract`, `Divide` and the ordered comparisons
+are absent because nothing decoded says which terminal is the left operand.
+
+Two node classes carry their identity in the class code, with corpus node
+labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
+and `0xB9` Replace Array Subset (×10). Their operand roles come from role bits
+on each terminal's own record — array `0x20000`, output `0x1`, new element
+`0x40000`, single index `0x600000` — the shape 1,623 Index Array and 310
+Replace Array Subset nodes carry. Higher-rank variants split the index across
+`0x200000`/`0x400000` and growable ones repeat the output/index pair; both are
+refused.
+
+Integer conversions emit a width helper carrying a `TODO(lv-convert-range)`:
+they are exact for every value the target width holds, and LabVIEW's rule for
+one outside it (truncate or saturate) is not established from the file format.
+
+The **review list** is everything else, pinned by count in
+`test/corpus_lowering_sweep_test.dart`: 122 distinct unmapped identities over
+878 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
+class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
+
+### Outcomes
+
+Over the 46 tracked VI snippets: 3 lower (`crc8`, and `VI Tree` /
+`decorations_only`, which have no dataflow) and 43 refuse. Refusals are pinned
+per VI and concentrate in cluster / path / variant wire types (23), undecoded
+primitives (4), unresolved wire direction (6) and constants whose value the
+heap decode did not recover (3).
+
+### crc8.vi, byte-exact
+
+`test/generated/crc8.g.dart` is the Dart lowered from `crc8.vi`'s block
+diagram: six connector-pane parameters, a 256-iteration For loop building the
+CRC lookup table through an 8-iteration bit loop, a main byte loop over an
+auto-indexed array, and three Case structures for the reflect-in / reflect-out
+options. `test/crc8_behaviour_test.dart` checks it against a bit-at-a-time
+reference CRC-8 written from the public parameter model, over the ten
+catalogued CRC-8 algorithms × 261 messages: **2,610 comparisons, all exact**.
+The reference itself is anchored to the published check values, so neither side
+can drift alone.
+
+One ordering difference is recorded there: the VI applies its Xor Out *before*
+the output reflection, where the published model reflects first. The two
+coincide when the output is not reflected or the Xor Out is zero, which every
+catalogued CRC-8 satisfies — asserted in the test so the untested corner cannot
+be forgotten.

@@ -11,10 +11,18 @@ environment:
   sdk: ^3.11.0
 
 dependencies:
+  # Formats the emitted Dart so a generated file is byte-stable under the
+  # repo's own `dart format` run, and the generator need not manage layout.
+  dart_style: ^3.1.0
   # The RSRC reader owns the decode; this package consumes its `ViType` pool
   # and `ViModel`, never raw bytes.
   labwright_rsrc_parse: ^0.0.1
+  # `DartFormatter` takes the language version as a `Version`.
+  pub_semver: ^2.1.0
 
 dev_dependencies:
+  # Generated code links against the runtime, never against this package; the
+  # dependency is here only so the checked-in generated sources compile.
+  labwright_lv_runtime: ^0.0.1
   lints: ^5.0.0
   test: ^1.25.0
