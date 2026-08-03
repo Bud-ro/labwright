@@ -217,6 +217,58 @@ void main() {
     expect(bad.single.enumItems, isEmpty);
   });
 
+  test('typedef descriptors expose their inline base; a mis-framed base yields null', () {
+    // 0xf1 interior: [u32 checksum][u32 pathCount][pathCount x pascal][base descriptor],
+    // where the base's own length word counts 4 more than the bytes it occupies.
+    List<int> typeDef(String path, List<int> base) =>
+        descriptor([0x40, 0xf1, 0, 0, 0, 0, 0, 0, 0, 1, ...pascal(path), ...base]);
+    List<int> base(List<int> body) => [0x00, body.length + 7, 0x40, ...body];
+
+    final i32Base = decodeTypePool(
+      u8([
+        0,
+        0,
+        0,
+        1,
+        ...typeDef('X.ctl', base([0x03])),
+      ]),
+    ).single;
+    expect(
+      (i32Base.kind, i32Base.typedefBase?.kind, i32Base.typedefBase?.index),
+      (ViDataType.typeDef, ViDataType.i32, kInlineTypeIndex),
+    );
+    expect(serializedDefaultSize(i32Base, [i32Base]), 4, reason: 'a typedef flattens as its base');
+
+    // A cluster base keeps its member list; two path components frame the same.
+    final pool = decodeTypePool(
+      u8([
+        0, 0, 0, 3, //
+        0x00, 0x04, 0x40, 0x21, // 0: boolean
+        0x00, 0x04, 0x40, 0x03, // 1: i32
+        ...descriptor([
+          0x40, 0xf1, 0, 0, 0, 0, 0, 0, 0, 2, //
+          ...pascal('Lib.lvlib'), ...pascal('Y.ctl'), //
+          ...base([0x50, 0x00, 0x02, 0x00, 0x00, 0x00, 0x01]),
+        ]),
+      ]),
+    );
+    expect(pool[2].typedefBase?.members, [0, 1]);
+    expect(clusterFields(pool[2].typedefBase!, pool).map((f) => f.kind), [ViDataType.boolean, ViDataType.i32]);
+
+    // Length word not exactly 4 over the occupied extent → not framed, no guess.
+    final skew = decodeTypePool(
+      u8([
+        0,
+        0,
+        0,
+        1,
+        ...typeDef('X.ctl', [0x00, 0x09, 0x40, 0x03]),
+      ]),
+    ).single;
+    expect(skew.typedefBase, isNull);
+    expect(serializedDefaultSize(skew, [skew]), isNull);
+  });
+
   test('decodeTypeTable reads the top-level index table after the pool', () {
     // Two descriptors, then a 3-entry table referencing them.
     final body = u8([

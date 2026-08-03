@@ -239,6 +239,7 @@ class ViType {
     this.elementIndex,
     this.dimCount,
     this.enumItems = const [],
+    this.typedefBase,
   });
   final int index;
   final int code;
@@ -270,6 +271,14 @@ class ViType {
   /// are the type-pool source; FP control objects carry their own copy via
   /// `ViHeapObject.items`.
   final List<String> enumItems;
+
+  /// For a [ViDataType.typeDef] (`0xf1`), the **inline base descriptor** the
+  /// definition wraps — the actual data type the named typedef stands for
+  /// (`WPI_PWMDeadband.ctl` → a cluster of seven members). Decoded from the
+  /// bytes that follow the descriptor's owning-library path list, carrying
+  /// [index] `-1` because it has no position of its own in the pool. Null when
+  /// the descriptor does not frame under [_typedefBaseStart]'s grammar.
+  final ViType? typedefBase;
 }
 
 /// Decodes the **VI Consolidated Type Pool** from an already-decompressed `VCTP`
@@ -294,29 +303,84 @@ List<ViType> decodeTypePool(Uint8List body) {
     if (off + 4 > body.length) break;
     final descLen = (body[off] << 8) | body[off + 1];
     if (descLen < 4 || off + descLen > body.length) break;
-    final code = body[off + 3];
-    final kind = _typeCodes[code] ?? ViDataType.unknown;
-    final members = kind == ViDataType.cluster ? _clusterMembers(body, off, descLen, count) : const <int>[];
-    final elementIndex = kind == ViDataType.array ? _arrayElement(body, off, descLen, count) : null;
-    final dimCount = elementIndex == null || off + 6 > body.length ? null : (body[off + 4] << 8) | body[off + 5];
-    final isEnum = kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32;
-    final enumItems = isEnum ? _enumItems(body, off, descLen) : const <String>[];
-    final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
-    out.add(
-      ViType(
-        index: i,
-        code: code,
-        kind: kind,
-        name: _trailingName(body, nameStart, off + descLen),
-        members: members,
-        elementIndex: elementIndex,
-        dimCount: dimCount,
-        enumItems: enumItems,
-      ),
-    );
+    out.add(_decodeDescriptor(body, off, descLen, count, i));
     off += descLen;
   }
   return out;
+}
+
+/// Decodes ONE type descriptor occupying `[off, off + descLen)` of a `VCTP`
+/// [body] into a [ViType] at pool position [index] — the per-descriptor body
+/// of [decodeTypePool], shared with the inline typedef base ([_typedefBase]),
+/// which occupies the same descriptor grammar without a pool slot of its own.
+/// [depth] bounds typedef-in-typedef nesting.
+ViType _decodeDescriptor(Uint8List body, int off, int descLen, int poolCount, int index, [int depth = 0]) {
+  final code = body[off + 3];
+  final kind = _typeCodes[code] ?? ViDataType.unknown;
+  final members = kind == ViDataType.cluster ? _clusterMembers(body, off, descLen, poolCount) : const <int>[];
+  final elementIndex = kind == ViDataType.array ? _arrayElement(body, off, descLen, poolCount) : null;
+  final dimCount = elementIndex == null || off + 6 > body.length ? null : (body[off + 4] << 8) | body[off + 5];
+  final isEnum = kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32;
+  final enumItems = isEnum ? _enumItems(body, off, descLen) : const <String>[];
+  final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
+  return ViType(
+    index: index,
+    code: code,
+    kind: kind,
+    name: _trailingName(body, nameStart, off + descLen),
+    members: members,
+    elementIndex: elementIndex,
+    dimCount: dimCount,
+    enumItems: enumItems,
+    typedefBase: kind == ViDataType.typeDef && depth < 8 ? _typedefBase(body, off, descLen, poolCount, depth) : null,
+  );
+}
+
+/// The pool index carried by an inline base descriptor ([ViType.typedefBase]),
+/// which is nested inside its typedef rather than occupying a pool slot.
+const int kInlineTypeIndex = -1;
+
+/// The byte offset, within the `0xf1` typedef descriptor at [off], where its
+/// inline base descriptor begins — i.e. just past the interior's fixed pair of
+/// `u32` words and the **owning-library path list** they introduce:
+///
+///   `[u32 checksum][u32 componentCount][componentCount × [u8 len][chars]]`
+///
+/// Corpus-anchored: every one of the 31060 typedef descriptors frames under
+/// this grammar, with 1–3 path components (`WPI_PWMDeadband.ctl`,
+/// `NI_LVConfig.lvlib`/`Config Data.ctl`). Returns null when the interior is
+/// too short or the component list runs past the descriptor.
+int? _typedefBaseStart(Uint8List bytes, int off, int descLen) {
+  final end = off + descLen;
+  if (off + 12 > end) return null;
+  final componentCount = (bytes[off + 8] << 24) | (bytes[off + 9] << 16) | (bytes[off + 10] << 8) | bytes[off + 11];
+  if (componentCount < 0 || componentCount > 32) return null;
+  var pos = off + 12;
+  for (var i = 0; i < componentCount; i++) {
+    if (pos >= end) return null;
+    pos += 1 + bytes[pos];
+    if (pos > end) return null;
+  }
+  return pos + 4 <= end ? pos : null;
+}
+
+/// The inline base descriptor of the `0xf1` typedef at [off] ([ViType.typedefBase]).
+///
+/// The base is a plain type descriptor at [_typedefBaseStart], except that its
+/// own length word counts **4 bytes more** than the extent it occupies — the
+/// gate here is `declaredLength - 4 == bytes remaining in the typedef`, which
+/// holds for 31040 of the corpus's 31060 typedefs (99.94%; the remaining 20 do
+/// not frame and yield null rather than a guess). The 4-byte discrepancy is
+/// consistent across every framing descriptor but its meaning is not decoded
+/// (TODO). The base's extent is taken from the remaining bytes, not from the
+/// declared word, so a base can never read past its typedef.
+ViType? _typedefBase(Uint8List bytes, int off, int descLen, int poolCount, int depth) {
+  final start = _typedefBaseStart(bytes, off, descLen);
+  if (start == null) return null;
+  final remaining = off + descLen - start;
+  final declared = (bytes[start] << 8) | bytes[start + 1];
+  if (declared - 4 != remaining) return null;
+  return _decodeDescriptor(bytes, start, remaining, poolCount, kInlineTypeIndex, depth + 1);
 }
 
 /// Decodes the **top-level type index table** that follows the descriptor
@@ -399,8 +463,8 @@ int? _arrayElement(Uint8List bytes, int off, int descLen, int poolCount) {
 /// [pool]). Anything whose flattened length depends on runtime content —
 /// [ViDataType.string], [ViDataType.path], [ViDataType.array],
 /// [ViDataType.variant], the block family, a tag-carrying refnum, `unknown` —
-/// returns null, as does a [ViDataType.typeDef] (`0xf1`): its inline nested base
-/// descriptor's framing is not decoded, so its width is not derivable here.
+/// returns null. A [ViDataType.typeDef] (`0xf1`) is its base's size
+/// ([ViType.typedefBase]), or null when the base did not frame.
 /// Total; never throws.
 ///
 /// This mirrors LabVIEW's documented flat-data widths and is corpus-anchored by
@@ -447,6 +511,9 @@ int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {
         total += s;
       }
       return total;
+    case TypeCode.typeDef:
+      final base = t.typedefBase;
+      return base == null ? null : serializedDefaultSize(base, pool, depth + 1);
     default:
       return null;
   }
