@@ -253,6 +253,34 @@ void main() {
     }
   });
 
+  test('wire type words: element carrier, dimensionality, whole-wire type', () {
+    // (raw signal word, dims, whole-wire Dart type or null when unmapped) —
+    // words read off crc8.vi's own signals and the families beside them.
+    const rows = <(int, int, String?)>[
+      (0x0105, 0, 'int'), // U8 scalar
+      (0x4105, 0, 'int'), // the same, other flag nibble
+      (0x0205, 1, 'Uint8List'), // array of U8
+      (0x0305, 2, 'LvArrayNd<Uint8List>'), // 2-D array of U8
+      (0x0103, 0, 'int'), // I32 scalar
+      (0x0107, 0, 'int'), // U32 scalar
+      (0x0121, 0, 'bool'),
+      (0x0221, 1, 'List<bool>'),
+      (0x0230, 0, 'String'),
+      (0x010a, 0, 'double'), // DBL
+      (0x0150, 0, null), // cluster: members are not on the wire
+      (0x0132, 0, null), // path: no declared runtime carrier
+      (0x0153, 0, null), // variant
+    ];
+    for (final (raw, dims, dartType) in rows) {
+      final wire = mapLvWireType(ViSignalType(raw));
+      expect(
+        (wire.dims, wire.dartType),
+        (dims, dartType),
+        reason: '0x${raw.toRadixString(16)}: ${wire.value.note}',
+      );
+    }
+  });
+
   test('Float32List narrowing is what SGL arithmetic needs', () {
     // 0.1 + 0.2 at binary32 differs from the binary64 result LabVIEW would not
     // produce for a SGL wire.
