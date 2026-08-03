@@ -10,6 +10,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
+import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
 import 'util.dart';
 
 Future<ui.Image> _fromRgba(Uint8List rgba, int w, int h) {
@@ -119,18 +120,15 @@ void main() {
   testWidgets('all icon-stamp geometry lands on whole logical pixels', (
     tester,
   ) async {
-    final dir = repoDir(
-      'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-    );
-    if (dir == null) {
+    final pngs = snippetCorpusPngs();
+    if (pngs.isEmpty) {
       markTestSkipped('corpus not fetched');
       return;
     }
     await tester.runAsync(() async {
       final icons = await loadPrimIcons();
       var stamps = 0;
-      for (final f in dir.listSync(recursive: true).whereType<File>()) {
-        if (!f.path.endsWith('.png')) continue;
+      for (final f in pngs) {
         final vi = extractSnippetVi(f.readAsBytesSync());
         if (vi == null) continue;
         final bd = bestBlockDiagram(buildViModel(vi));
@@ -222,18 +220,12 @@ void main() {
   testWidgets('crc8 display pipeline: the U8 icon renders with uniform borders', (
     tester,
   ) async {
-    final dir = repoDir(
-      'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-    );
-    if (dir == null) {
+    final f = snippetPng('crc8.png');
+    if (f == null) {
       markTestSkipped('corpus not fetched');
       return;
     }
     await loadRealTextFont();
-    final f = dir
-        .listSync(recursive: true)
-        .whereType<File>()
-        .firstWhere((f) => f.path.endsWith('/crc8.png'));
     await tester.runAsync(() async {
       final bytes = f.readAsBytesSync();
       final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;

@@ -9,19 +9,25 @@ import 'package:labwright_vi_inspector/src/vi_demo.dart';
 
 import 'util.dart';
 
-/// The fetched snippet corpus across both pinned oracle repos, or empty when
-/// not fetched. The extracted repos keep their tarball-root directory, so the
-/// PNGs are matched by their in-repo path anywhere below the corpus folder.
-/// Snippet-ness itself is decided by extraction, not listing: the repos' plain
-/// art PNGs carry no niVI and are filtered here.
+/// The snippet references: the tracked flat set under `corpus/snippets`, or —
+/// when a checkout predates it — the same PNGs from the fetched oracle repos.
+/// These carry embedded VIs and are the project's concrete render/parse
+/// feedback loop, so they are committed and CI always has them. Snippet-ness
+/// is decided by extraction, not by listing: plain art PNGs carry no niVI and
+/// are filtered here.
 List<File> snippetCorpusPngs() {
+  final tracked = repoDir('packages/labwright_rsrc_parse/corpus/snippets');
+  final dirs = tracked != null
+      ? [tracked]
+      : [
+          for (final repo in const [
+            'rcpacini_LabVIEW-VI-Snippet',
+            'rcpacini_VI-Snippets',
+          ])
+            repoDir('packages/labwright_rsrc_parse/corpus/vi/$repo'),
+        ].whereType<Directory>();
   final files = <File>[];
-  for (final repo in const [
-    'rcpacini_LabVIEW-VI-Snippet',
-    'rcpacini_VI-Snippets',
-  ]) {
-    final dir = repoDir('packages/labwright_rsrc_parse/corpus/vi/$repo');
-    if (dir == null) continue;
+  for (final dir in dirs) {
     files.addAll(
       dir
           .listSync(recursive: true)
