@@ -49,6 +49,10 @@ class LvWireType {
   /// [LvErrorMode] decides the carrier of. An array of error clusters is
   /// ordinary data and is not one.
   bool get isErrorCluster => dims == 0 && value.dartType == LvRuntimeType.error;
+
+  /// This edge's type with its array wrapping removed — the scalar an
+  /// elementwise lowering operates on. Already scalar edges return themselves.
+  LvWireType get scalar => dims == 0 ? this : LvWireType._(dims: 0, element: element, value: element);
 }
 
 /// The Dart type of a wire whose decoded signal word is [signal].

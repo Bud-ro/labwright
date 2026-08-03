@@ -100,6 +100,26 @@ int lvSwapWords(int value) => ((value & _kWordLanes) << 16) | ((value >>> 16) & 
   return (quotient, dividend - divisor * quotient);
 }
 
+/// LabVIEW's **Logical Shift** over a [bits]-wide value: a positive [count]
+/// shifts [value] toward the high bits and a negative one toward the low bits,
+/// zero filling from the far end either way.
+///
+/// One node covers both directions because the shift count is signed, so the
+/// direction is a run-time value and cannot be folded into the operator. The
+/// result is the raw [bits]-wide bit pattern; the caller renormalizes it to the
+/// LabVIEW type's own width, which is what re-establishes the sign of a narrow
+/// signed carrier.
+///
+/// Shifting by the width or more leaves nothing behind, which is the zero fill
+/// carried to its end rather than a separate rule.
+int lvLogicalShift(int value, int count, int bits) {
+  final mask = bits >= 64 ? -1 : (1 << bits) - 1;
+  final masked = value & mask;
+  if (count == 0) return masked;
+  if (count >= bits || count <= -bits) return 0;
+  return (count > 0 ? masked << count : masked >>> -count) & mask;
+}
+
 /// LabVIEW's Rotate Left With Carry over a [bits]-wide value: the value shifts
 /// up one bit, [carryIn] enters as bit 0, and the departing top bit is the
 /// carry out.

@@ -35,6 +35,9 @@ abstract final class LvRuntimeCall {
   /// Quotient & Remainder.
   static const String quotientRemainder = 'lvQuotientRemainder';
 
+  /// Logical Shift.
+  static const String logicalShift = 'lvLogicalShift';
+
   /// The To-Integer conversion that renormalizes a value to [kind]'s width.
   static String integerConversion(LvNumericKind kind) => 'lvTo${kind.glyph}';
 }
