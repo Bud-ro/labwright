@@ -329,6 +329,8 @@ void main() {
       // operand (whose emptiness test is not the string one), and the
       // higher-rank Array Size that yields a vector of sizes.
       (PrimOp.equal, [0x0205, 0x0205], 0x0221, null),
+      // A path carrier defines no `==`, so Dart would compare identities.
+      (PrimOp.equal, [0x0132, 0x0132], 0x0121, null),
       (PrimOp.emptyStringPath, [0x0132], 0x0121, null),
       (PrimOp.arraySize, [0x0305], 0x0203, null),
     ];

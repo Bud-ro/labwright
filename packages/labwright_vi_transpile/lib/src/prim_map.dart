@@ -377,19 +377,22 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
 
+/// The carriers whose Dart `==` is a VALUE comparison, so that a symmetric
+/// LabVIEW comparison lowers to the operator directly. The runtime's own
+/// carriers ([LvRuntimeType]) are deliberately absent: none of them defines
+/// `==`, so Dart would compare identities where LabVIEW compares contents.
+const Set<String> _kValueEqualityCarriers = {'int', 'double', 'bool', 'String'};
+
 /// A symmetric two-terminal comparison. Both operands must be scalars of the
-/// same mapped Dart type: an array or cluster wire would make the node the
-/// elementwise form, whose result is a shape this does not model.
+/// same value-equality carrier: an array wire would make the node the
+/// elementwise form, whose result is a shape this does not model, and a
+/// cluster or runtime carrier has no decided equality.
 List<String>? _binaryPredicate(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final left = call.inputs[0], right = call.inputs[1], out = call.outputs.single;
   if (left.type.dims != 0 || right.type.dims != 0) return null;
-  if (left.type.dartType == null || left.type.dartType != right.type.dartType) {
-    return null;
-  }
-  if (_hazardous(left.type, operator) || _hazardous(right.type, operator)) {
-    return null;
-  }
+  if (!_kValueEqualityCarriers.contains(left.type.dartType)) return null;
+  if (left.type.dartType != right.type.dartType) return null;
   if (out.type.dartType != 'bool') return null;
   final name = out.expression;
   if (name == null) return const [];
