@@ -100,12 +100,10 @@ const Map<String, int> kSnippetPrimReviewList = {
   'Type Cast (primResID 1166)': 34,
   'node class 0x3e': 31,
   'String Subset (primResID 1503)': 24,
-  'Empty String/Path? (primResID 1112)': 23,
   'node class 0x93': 18,
   'Select (primResID 1516)': 16,
   'node class 0x105': 16,
   'node class 0xa9': 15,
-  'Array Size (primResID 1809)': 15,
   'Subtract (primResID 1051)': 15,
   'node class 0x172': 14,
   'node class 0x150': 12,
@@ -114,7 +112,6 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1171 (name not decoded)': 11,
   'primResID 8051 (name not decoded)': 11,
   'primResID 1534 (name not decoded)': 11,
-  'String Length (primResID 1502)': 10,
 };
 
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
@@ -145,6 +142,20 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `term.typeAgree` against `term.typeDisagree` compares the two VIs' wire
 /// types — neither is used to *derive* the binding, so both are independent
 /// checks on it.
+///
+/// The `cond.*` counters are the While-loop conditional terminal census
+/// ([LvTerminalRole.conditional]): one glyph selector on every drawn terminal
+/// (`cond.glyph192` = `cond` minus `cond.glyphNone`), and two flag bits that
+/// vary without changing anything LabVIEW draws. They size the refusal — a
+/// second glyph value appearing here is the evidence that would settle the
+/// polarity.
+///
+/// The `idx.*` counters are the Index Array terminal census
+/// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
+/// `[array] ([output] [index]×rank)+`, `idx.rank1Index` the index terminals in
+/// a rank-1 group (the shape that lowers), and `idx.groupFirstIndex` /
+/// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
+/// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
   'call': 1290,
   'call.calleeMissing': 159,
@@ -152,33 +163,44 @@ const Map<String, int> kCorpusLoweringSweep = {
   'call.paneMatched': 545,
   'call.paneWidthMismatch': 6,
   'call.unnamed': 13,
-  'exceptions.caseSelector': 60,
-  'exceptions.constantValue': 66,
-  'exceptions.lowered': 135,
-  'exceptions.primitive': 167,
+  'cond': 2267,
+  'cond.dcoBit0': 382,
+  'cond.dcoBit12': 140,
+  'cond.glyph192': 1892,
+  'cond.glyphNone': 375,
+  'exceptions.caseSelector': 62,
+  'exceptions.constantValue': 68,
+  'exceptions.lowered': 136,
+  'exceptions.primitive': 158,
   'exceptions.structure': 53,
-  'exceptions.subViCall': 57,
+  'exceptions.subViCall': 59,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 53,
+  'exceptions.unwiredTerminal': 55,
   'exceptions.wireDirection': 66,
   'exceptions.wireType': 6849,
-  'modes.same': 135,
+  'idx': 3479,
+  'idx.groupFirstIndex': 110,
+  'idx.groupLastIndex': 94,
+  'idx.irregular': 1,
+  'idx.rank1Index': 2198,
+  'idx.regular': 3478,
+  'modes.same': 136,
   'term.calleeUntyped': 115,
   'term.dirAgree': 304,
   'term.resolved': 304,
   'term.typeAgree': 189,
   'term.unresolved': 33,
   'term.wired': 337,
-  'threaded.caseSelector': 60,
-  'threaded.constantValue': 66,
-  'threaded.lowered': 135,
-  'threaded.primitive': 167,
+  'threaded.caseSelector': 62,
+  'threaded.constantValue': 68,
+  'threaded.lowered': 136,
+  'threaded.primitive': 158,
   'threaded.structure': 53,
-  'threaded.subViCall': 57,
+  'threaded.subViCall': 59,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 53,
+  'threaded.unwiredTerminal': 55,
   'threaded.wireDirection': 66,
   'threaded.wireType': 6849,
   'vi': 7508,
@@ -190,7 +212,7 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 122, nodes: 878);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 113, nodes: 807);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -248,6 +270,45 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     }
   }
 
+  // The While-loop conditional terminal census (see LvTerminalRole.conditional):
+  // what the file says about a terminal whose polarity decides the loop's exit
+  // test. Counted here so the refusal is backed by a number that moves the
+  // moment a second glyph or a discriminating flag appears in the corpus.
+  void censusConditionals(ViDiagram diagram) {
+    for (final object in diagram.objects) {
+      if (object.kind != LvTerminalRole.conditional.code) continue;
+      bump('cond');
+      bump('cond.glyph${object.termBmp ?? 'None'}');
+      final dcoFlags = diagram.terminalDco(object.oid)?.objFlags ?? 0;
+      if (dcoFlags & 0x1 != 0) bump('cond.dcoBit0');
+      if (dcoFlags & 0x1000 != 0) bump('cond.dcoBit12');
+    }
+  }
+
+  // The Index Array terminal census ([LvArrayTerminalRole]): the grammar's
+  // regularity, and how much of the corpus the refused higher-rank groups
+  // account for. `idx.dims<n>` is the dimensionality of the array wire, so
+  // `idx.dims2` and above size exactly what a decoded dimension order would
+  // unblock.
+  void censusIndexArrays(ViDiagram diagram) {
+    final childrenByOid = diagram.childrenByOid;
+    for (final node in diagram.objects) {
+      if (node.kind != kLvIndexArrayClass) continue;
+      bump('idx');
+      final roles = [
+        for (final holder in childrenByOid[node.oid] ?? const <ViHeapObject>[])
+          if (holder.kind == kLvHolderCode)
+            (childrenByOid[holder.oid] ?? const <ViHeapObject>[]).firstOrNull?.objFlags ?? 0,
+      ];
+      bump(_indexArrayShape(roles) ? 'idx.regular' : 'idx.irregular');
+      for (final role in roles) {
+        if (role == LvArrayTerminalRole.singleIndex) bump('idx.rank1Index');
+        if (role == LvArrayTerminalRole.groupFirst) bump('idx.groupFirstIndex');
+        if (role == LvArrayTerminalRole.groupLast) bump('idx.groupLastIndex');
+      }
+    }
+  }
+
   void walk(LvDataflow flow, LvRegion region) {
     for (final unit in region.units) {
       if (unit is LvSubViUnit) bindCall(flow, unit);
@@ -263,6 +324,8 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
     final unit = load(path, path.split(Platform.pathSeparator).last);
     if (unit == null) continue;
     bump('vi');
+    censusConditionals(unit.diagram);
+    censusIndexArrays(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
     final sources = <String?>[];
     for (final mode in LvErrorMode.values) {
@@ -414,6 +477,31 @@ void main() {
     }
   }
   return (signals: signals, resolved: resolved, disagreeing: disagreeing, unresolved: unresolved);
+}
+
+/// Whether [roles] — one Index Array node's terminal role bits in heap order —
+/// reads as `[array] ([output] [index]×rank)+` ([LvArrayTerminalRole]).
+bool _indexArrayShape(List<int> roles) {
+  if (roles.isEmpty || roles.first != LvArrayTerminalRole.array) return false;
+  var at = 1;
+  while (at < roles.length) {
+    final head = roles[at];
+    if (head != LvArrayTerminalRole.output && head != LvArrayTerminalRole.grownOutput) {
+      return false;
+    }
+    at++;
+    var rank = 0;
+    var opensGroup = false;
+    while (at < roles.length &&
+        roles[at] != LvArrayTerminalRole.output &&
+        roles[at] != LvArrayTerminalRole.grownOutput) {
+      final role = roles[at++];
+      if (rank++ == 0) opensGroup = role & LvArrayTerminalRole.groupFirst != 0;
+      if (role & LvArrayTerminalRole.groupLast != 0) break;
+    }
+    if (rank == 0 || !opensGroup) return false;
+  }
+  return true;
 }
 
 String _reviewKey(PrimOp? op, ViHeapObject object) {

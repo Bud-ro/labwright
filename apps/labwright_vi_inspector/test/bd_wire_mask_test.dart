@@ -596,12 +596,20 @@ void main() {
       );
       expect(
         totalExcludedText,
-        lessThanOrEqualTo(435),
+        lessThanOrEqualTo(437),
         reason:
-            'pixels handed to the text gauge — 433 glyph-AA blends on the '
+            'pixels handed to the text gauge — 435 glyph-AA blends on the '
             'off side, 2 reference ClearType fringes on the missing side. '
             'A rising bucket means the wire gauges are measuring less of '
-            'the render, so it is pinned like the gauges themselves.',
+            'the render, so it is pinned like the gauges themselves. '
+            '(433 -> 435 when prim1537 gained a real asset: its art is '
+            '29x13 inside a 32x32 node box, so the box margin the '
+            'fabricated full-box plate used to ink is now honest canvas, '
+            'and 2 Excel_Cell_to_RowCol string-wire pixels there stopped '
+            'being accidentally covered. off and missing are unchanged. '
+            'TODO(gauge-debt): those 2 px are a real wire-coverage gap '
+            'the plate was hiding — fix them in the wire campaign and '
+            're-pin down.)',
       );
     });
   });

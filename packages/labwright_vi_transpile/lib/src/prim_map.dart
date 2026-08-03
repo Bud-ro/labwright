@@ -59,25 +59,59 @@ import 'wire_type.dart';
 /// Role bits on a growable array node's terminal record
 /// ([ViHeapObject.objFlags] of the typed child under the terminal's holder).
 ///
-/// Corpus, over the 3 228 `0x44` and 372 `0xB9` nodes: the 1-D shapes are
-/// `{array 0x20000, out 0x1, index 0x600000}` (1 623 Index Array nodes) and
-/// `{array 0x20000, out 0x1, element 0x40000, index 0x600000}` (310 Replace
-/// Array Subset nodes). Higher-rank nodes split the index across `0x200000`
-/// (first dimension) and `0x400000` (second), and growable nodes repeat the
-/// output/index pair; both shapes are refused rather than assumed, so only the
-/// 1-D form above lowers.
+/// **Index Array's terminal grammar is measured.** Over the 3 479 `0x44` nodes
+/// in 7 524 VIs, 3 478 read as `[array] ([output] [index]×rank)+` in heap
+/// order — one array terminal, then one group per element the node yields, and
+/// one index terminal per array dimension inside each group. The single
+/// irregular node is not lowered.
+///
+/// The two high bits DELIMIT a group; they are not dimension names. A group of
+/// one index carries BOTH ([singleIndex] `0x600000`, 2 898 single-group
+/// nodes); a rank-2 group carries [groupFirst] on its first index and
+/// [groupLast] on its second; and a rank-3 group's middle index carries
+/// neither. So a group's rank is how many index terminals it holds and a
+/// dimension is an index terminal's position in it. An index terminal LabVIEW
+/// leaves unwired reads as a source rather than a sink, so it never reaches a
+/// lowering as an operand.
+///
+/// What that does NOT establish is which array dimension the first index
+/// terminal selects. Geometry gives a total drawn order — on the 24 nodes
+/// carrying exactly one `0x200000` and one `0x400000` terminal, the `0x200000`
+/// one is drawn above the `0x400000` one 24 times and below it none — but
+/// nothing decoded ties that order to the array type's own dimension order,
+/// and a rank-2 lowering must choose between `flat[i * dims[1] + j]` and
+/// `flat[j * dims[0] + i]`. Higher-rank groups are therefore refused: 22
+/// corpus nodes index a 2-D array on both terminals, 36 on the first alone and
+/// 14 on the second alone (each yielding a 1-D slice that is a row under one
+/// reading and a column under the other), and 12 index a 3-D array. This is
+/// the same missing tie that refuses `Subtract`'s operand order.
+///
+/// `0xB9` (Replace Array Subset, 371 nodes) does not read as this grammar at
+/// all — its group carries a new-element terminal too — so only its pinned 1-D
+/// shape `{array, out, element 0x40000, index 0x600000}` lowers.
 abstract final class LvArrayTerminalRole {
   /// The array being read or written.
   static const int array = 0x20000;
 
-  /// The node's primary output.
+  /// The node's primary output — the first group's element.
   static const int output = 0x1;
+
+  /// A growable node's SUBSEQUENT element output ([output] plus the grown-row
+  /// bit): groups after the first carry this.
+  static const int grownOutput = 0x40001;
 
   /// Replace Array Subset's new element.
   static const int newElement = 0x40000;
 
-  /// The single index of a 1-D access — both dimension bits set.
+  /// The one index terminal of a rank-1 group — both group-delimiter bits, so
+  /// it is the group's first index and its last.
   static const int singleIndex = 0x600000;
+
+  /// Marks a group's FIRST index terminal.
+  static const int groupFirst = 0x200000;
+
+  /// Marks a group's LAST index terminal.
+  static const int groupLast = 0x400000;
 }
 
 /// One terminal of a node, resolved.
@@ -142,18 +176,32 @@ class LvPrimCall {
 ///
 /// The set is deliberately narrow. An operation is here only when its operand
 /// roles follow from the terminals themselves: commutative pairs (either order
-/// gives the same value), unary operations (there is only one operand), and
-/// the conversions. `Subtract`, `Divide` and the ordered comparisons are
-/// absent because nothing decoded says which terminal is the left operand.
+/// gives the same value — `Equal?` and `Not Equal?` included, since they are
+/// symmetric where `Greater?` is not), unary operations (there is only one
+/// operand, which is what puts the six *compare-to-zero* predicates here while
+/// the two-terminal comparisons stay out), and the conversions. `Subtract`,
+/// `Divide` and the ordered two-terminal comparisons are absent because
+/// nothing decoded says which terminal is the left operand.
 const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.exclusiveOr,
   PrimOp.and,
   PrimOp.or,
   PrimOp.add,
   PrimOp.multiply,
+  PrimOp.equal,
+  PrimOp.notEqual,
   PrimOp.not,
   PrimOp.increment,
   PrimOp.decrement,
+  PrimOp.equalToZero,
+  PrimOp.notEqualToZero,
+  PrimOp.greaterThanZero,
+  PrimOp.lessThanZero,
+  PrimOp.greaterOrEqualToZero,
+  PrimOp.lessOrEqualToZero,
+  PrimOp.emptyStringPath,
+  PrimOp.stringLength,
+  PrimOp.arraySize,
   PrimOp.toByteInteger,
   PrimOp.toWordInteger,
   PrimOp.toLongInteger,
@@ -225,12 +273,43 @@ List<String>? lvPrimLowering(LvPrimCall call) {
       return _binaryCommutative(call, '+');
     case PrimOp.multiply:
       return _binaryCommutative(call, '*');
+
+    // Symmetric comparisons: `a == b` and `b == a` are the same test, so no
+    // operand order is needed. Both sides must carry the same Dart type, which
+    // keeps the elementwise array and cluster forms out.
+    case PrimOp.equal:
+      return _binaryPredicate(call, '==');
+    case PrimOp.notEqual:
+      return _binaryPredicate(call, '!=');
+
     case PrimOp.not:
       return _unaryBoolean(call, '!');
     case PrimOp.increment:
       return _unaryNumeric(call, '+ 1');
     case PrimOp.decrement:
       return _unaryNumeric(call, '- 1');
+
+    // Compare-to-zero: the second operand is the constant the operation is
+    // named for, so there is only one terminal and no order to decode.
+    case PrimOp.equalToZero:
+      return _comparedToZero(call, '==');
+    case PrimOp.notEqualToZero:
+      return _comparedToZero(call, '!=');
+    case PrimOp.greaterThanZero:
+      return _comparedToZero(call, '>');
+    case PrimOp.lessThanZero:
+      return _comparedToZero(call, '<');
+    case PrimOp.greaterOrEqualToZero:
+      return _comparedToZero(call, '>=');
+    case PrimOp.lessOrEqualToZero:
+      return _comparedToZero(call, '<=');
+
+    case PrimOp.emptyStringPath:
+      return _unaryOfString(call, 'isEmpty', 'bool');
+    case PrimOp.stringLength:
+      return _unaryOfString(call, 'length', 'int');
+    case PrimOp.arraySize:
+      return _arraySize(call);
 
     // Integer width conversions.
     case PrimOp.toByteInteger:
@@ -297,6 +376,71 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
+
+/// The carriers whose Dart `==` is a VALUE comparison, so that a symmetric
+/// LabVIEW comparison lowers to the operator directly. The runtime's own
+/// carriers ([LvRuntimeType]) are deliberately absent: none of them defines
+/// `==`, so Dart would compare identities where LabVIEW compares contents.
+const Set<String> _kValueEqualityCarriers = {'int', 'double', 'bool', 'String'};
+
+/// A symmetric two-terminal comparison. Both operands must be scalars of the
+/// same value-equality carrier: an array wire would make the node the
+/// elementwise form, whose result is a shape this does not model, and a
+/// cluster or runtime carrier has no decided equality.
+List<String>? _binaryPredicate(LvPrimCall call, String operator) {
+  if (call.inputs.length != 2 || call.outputs.length != 1) return null;
+  final left = call.inputs[0], right = call.inputs[1], out = call.outputs.single;
+  if (left.type.dims != 0 || right.type.dims != 0) return null;
+  if (!_kValueEqualityCarriers.contains(left.type.dartType)) return null;
+  if (left.type.dartType != right.type.dartType) return null;
+  if (out.type.dartType != 'bool') return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final bool $name = ${left.expression} $operator ${right.expression};'];
+}
+
+/// A compare-to-zero predicate: one numeric scalar in, one boolean out.
+List<String>? _comparedToZero(LvPrimCall call, String operator) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || source.type.numeric == null) return null;
+  if (_hazardous(source.type, operator)) return null;
+  if (out.type.dartType != 'bool') return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  final zero = source.type.numeric!.isFloat ? '0.0' : '0';
+  return ['final bool $name = ${source.expression} $operator $zero;'];
+}
+
+/// A unary string query — `member` read off a scalar string operand.
+List<String>? _unaryOfString(LvPrimCall call, String member, String resultType) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || source.type.dartType != 'String') return null;
+  if (out.type.dartType != resultType) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final $resultType $name = ${source.expression}.$member;'];
+}
+
+/// Array Size over a 1-D array. The higher-rank node yields an ARRAY of
+/// per-dimension sizes, whose dimension order is the same undecoded fact that
+/// refuses a higher-rank Index Array ([LvArrayTerminalRole]), so it is refused.
+List<String>? _arraySize(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 1 || out.type.dims != 0) return null;
+  if (out.type.numeric == null || out.type.numeric!.isFloat) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final int $name = ${source.expression}.length;'];
+}
+
+/// Whether [operator] misreads [type]'s carrier ([LvNumericKind.hazards]) — a
+/// U64's signed carrier makes every ordered comparison wrong, so those nodes
+/// are refused rather than emitted with a silent sign bug.
+bool _hazardous(LvWireType type, String operator) =>
+    type.numeric?.hazards.any((hazard) => hazard.operators.contains(operator)) ?? false;
 
 List<String>? _unaryBoolean(LvPrimCall call, String operator) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
@@ -377,16 +521,34 @@ LvPrimTerminal? _onlyNumeric(List<LvPrimTerminal> terminals) =>
 LvPrimTerminal? _onlyBoolean(List<LvPrimTerminal> terminals) =>
     LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.dartType == 'bool'));
 
+/// Index Array over a 1-D array, in the grammar's `[array] ([output]
+/// [index])+` shape — one statement per group, the growable node included.
+///
+/// Both terminal lists keep heap order, so group `k`'s index is
+/// `inputs[k + 1]` and its element is `outputs[k]`. Rank-1 groups are the only
+/// ones that lower ([LvArrayTerminalRole]), and a rank-1 group's index carries
+/// [LvArrayTerminalRole.singleIndex] exactly — which also rejects an unwired
+/// index, since one never reaches the input list.
 List<String>? _indexArray(LvPrimCall call) {
-  final array = call.inputWithRole(LvArrayTerminalRole.array);
-  final index = call.inputWithRole(LvArrayTerminalRole.singleIndex);
-  final out = call.outputWithRole(LvArrayTerminalRole.output);
-  if (array == null || index == null || out == null) return null;
-  if (call.inputs.length != 2 || call.outputs.length != 1) return null;
-  if (array.type.dims != 1 || index.type.dims != 0 || out.type.dims != 0) return null;
-  final name = out.expression;
-  if (name == null) return const [];
-  return ['final ${out.type.dartType} $name = ${array.expression}[${index.expression}];'];
+  if (call.outputs.isEmpty || call.inputs.length != call.outputs.length + 1) {
+    return null;
+  }
+  final array = call.inputs.first;
+  if (array.roleFlags != LvArrayTerminalRole.array || array.type.dims != 1) {
+    return null;
+  }
+  final statements = <String>[];
+  for (var group = 0; group < call.outputs.length; group++) {
+    final index = call.inputs[group + 1], out = call.outputs[group];
+    if (index.roleFlags != LvArrayTerminalRole.singleIndex) return null;
+    final expectedRole = group == 0 ? LvArrayTerminalRole.output : LvArrayTerminalRole.grownOutput;
+    if (out.roleFlags != expectedRole) return null;
+    if (index.type.dims != 0 || out.type.dims != 0) return null;
+    final name = out.expression;
+    if (name == null) return null;
+    statements.add('final ${out.type.dartType} $name = ${array.expression}[${index.expression}];');
+  }
+  return statements;
 }
 
 List<String>? _replaceArraySubset(LvPrimCall call) {

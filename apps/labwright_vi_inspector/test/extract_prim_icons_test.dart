@@ -7,7 +7,152 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 
 import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
+import 'bd_wire_mask_test.dart' show kWireInkPalette;
 import 'util.dart';
+
+/// Identities the consensus pipeline cannot reach, extracted instead from
+/// NAMED node instances: asset key → the snippet and heap oid of each.
+///
+/// The consensus path needs several samples of an identity that survive
+/// per-pixel voting, and it harvests only from snippets whose whole-diagram
+/// registration clears the placement gate. Two identities satisfy neither
+/// condition: `prim1170` has two corpus instances outside the gate-excluded
+/// snippets and they fuse to their attached wires under generic cleaning, and
+/// `prim1537`'s only instance lives in a gate-excluded snippet. Naming the
+/// instance replaces the statistics: the crop is taken at the node's own
+/// decoded box and cleaned by [_cleanNodeBoxCrop], and where two instances are
+/// named the result must agree byte-for-byte or the key fails.
+const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
+  'prim1170': [(snippet: 'crc16', oid: 820), (snippet: 'crc16', oid: 619)],
+  'prim1537': [(snippet: 'Excel_Cell_to_RowCol', oid: 477)],
+};
+
+/// One padded reference crop of a node box cleaned down to its icon art, with
+/// the art's offset from the box's top-left ([kPrimIconPlacement]'s measure).
+/// Null when nothing survives.
+///
+/// The crop is [w]×[h] RGBA with the node box inset by [pad] on every side.
+/// Cleaning is four steps, each a decoded fact rather than a threshold:
+/// exact [kWireInkPalette] colours are wire ink and are erased; near-white
+/// flooded inward from the crop border is canvas (an icon's own white fill is
+/// enclosed and survives); a surviving component is icon art only if it
+/// reaches the box's centre third or lies wholly inside the box (a wire tail
+/// or a neighbour's ink does neither); what is left is trimmed to its ink.
+({Uint8List rgba, int w, int h, int dx, int dy})? _cleanNodeBoxCrop(
+  Uint8List crop,
+  int w,
+  int h,
+  int pad,
+) {
+  final boxWidth = w - 2 * pad, boxHeight = h - 2 * pad;
+  if (boxWidth < 4 || boxHeight < 4) return null;
+  final pixels = Uint8List.fromList(crop);
+  for (var i = 0; i < pixels.length; i += 4) {
+    final rgb = (pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2];
+    if (kWireInkPalette.contains(rgb)) {
+      pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
+    }
+  }
+  final background = List<bool>.filled(w * h, false);
+  bool nearWhite(int idx) =>
+      pixels[idx * 4] >= 240 &&
+      pixels[idx * 4 + 1] >= 240 &&
+      pixels[idx * 4 + 2] >= 240;
+  final stack = <int>[];
+  for (var x = 0; x < w; x++) {
+    stack.addAll([x, (h - 1) * w + x]);
+  }
+  for (var y = 0; y < h; y++) {
+    stack.addAll([y * w, y * w + w - 1]);
+  }
+  while (stack.isNotEmpty) {
+    final idx = stack.removeLast();
+    if (background[idx] || !nearWhite(idx)) continue;
+    background[idx] = true;
+    final x = idx % w, y = idx ~/ w;
+    if (x > 0) stack.add(idx - 1);
+    if (x < w - 1) stack.add(idx + 1);
+    if (y > 0) stack.add(idx - w);
+    if (y < h - 1) stack.add(idx + w);
+  }
+  final thirdLeft = pad + boxWidth ~/ 3, thirdRight = pad + (2 * boxWidth) ~/ 3;
+  final thirdTop = pad + boxHeight ~/ 3,
+      thirdBottom = pad + (2 * boxHeight) ~/ 3;
+  final seen = List<bool>.filled(w * h, false);
+  for (var start = 0; start < w * h; start++) {
+    if (seen[start] || background[start]) continue;
+    final component = <int>[start];
+    final queue = <int>[start];
+    seen[start] = true;
+    var left = w, top = h, right = -1, bottom = -1, reachesCentre = false;
+    while (queue.isNotEmpty) {
+      final idx = queue.removeLast();
+      final x = idx % w, y = idx ~/ w;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+      if (x >= thirdLeft &&
+          x < thirdRight &&
+          y >= thirdTop &&
+          y < thirdBottom) {
+        reachesCentre = true;
+      }
+      for (var dy = -1; dy <= 1; dy++) {
+        for (var dx = -1; dx <= 1; dx++) {
+          final nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          final next = ny * w + nx;
+          if (seen[next] || background[next]) continue;
+          seen[next] = true;
+          component.add(next);
+          queue.add(next);
+        }
+      }
+    }
+    final insideBox =
+        left >= pad &&
+        top >= pad &&
+        right < pad + boxWidth &&
+        bottom < pad + boxHeight;
+    if (reachesCentre || insideBox) continue;
+    for (final idx in component) {
+      background[idx] = true;
+    }
+  }
+  var left = w, top = h, right = -1, bottom = -1;
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      if (background[y * w + x]) continue;
+      if (x < left) left = x;
+      if (x > right) right = x;
+      if (y < top) top = y;
+      if (y > bottom) bottom = y;
+    }
+  }
+  if (right < 0) return null;
+  final artWidth = right - left + 1, artHeight = bottom - top + 1;
+  final art = Uint8List(artWidth * artHeight * 4);
+  for (var y = 0; y < artHeight; y++) {
+    for (var x = 0; x < artWidth; x++) {
+      final idx = (top + y) * w + left + x;
+      final dst = (y * artWidth + x) * 4;
+      art[dst] = pixels[idx * 4];
+      art[dst + 1] = pixels[idx * 4 + 1];
+      art[dst + 2] = pixels[idx * 4 + 2];
+      art[dst + 3] = background[idx] ? 0 : 255;
+    }
+  }
+  return (rgba: art, w: artWidth, h: artHeight, dx: left - pad, dy: top - pad);
+}
+
+bool _sameBytes(Uint8List a, Uint8List b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
+}
 
 /// Generates the app's primitive-icon assets from LabVIEW's own renders:
 /// every snippet is registered against its embedded reference, each primitive
@@ -52,6 +197,13 @@ void main() {
           >{};
       final skippedLowQuality = <String>[];
       final observedKeys = <String>{};
+      // Targeted crops ([kTargetedIconSamples]): collected by named oid, so
+      // neither the placement gate nor the sample cap applies to them.
+      final targeted =
+          <
+            String,
+            List<({Uint8List rgba, int w, int h, int pad, String source})>
+          >{};
       await tester.runAsync(() async {
         for (final f in pngs) {
           final vi = extractSnippetVi(f.readAsBytesSync());
@@ -88,6 +240,41 @@ void main() {
               : placement.excessSupport;
           final refW = reference.image.width, refH = reference.image.height;
           final name = f.uri.pathSegments.last.replaceAll('.png', '');
+          // The registered reference pixels of [bounds] grown by [pad] on
+          // every side, or null when the padded box leaves the reference.
+          const pad = 5;
+          ({Uint8List rgba, int w, int h})? cropOf(HeapRect bounds) {
+            final left =
+                ((bounds.left - raster.content.left) *
+                            raster.scale *
+                            reg.scale +
+                        reg.dx)
+                    .round() -
+                pad;
+            final top =
+                ((bounds.top - raster.content.top) * raster.scale * reg.scale +
+                        reg.dy)
+                    .round() -
+                pad;
+            final w =
+                (bounds.width * raster.scale * reg.scale).round() + 2 * pad;
+            final h =
+                (bounds.height * raster.scale * reg.scale).round() + 2 * pad;
+            if (left < 0 || top < 0 || left + w > refW || top + h > refH) {
+              return null;
+            }
+            final crop = Uint8List(w * h * 4);
+            for (var y = 0; y < h; y++) {
+              crop.setRange(
+                y * w * 4,
+                (y + 1) * w * 4,
+                result.referenceRgba,
+                ((top + y) * refW + left) * 4,
+              );
+            }
+            return (rgba: crop, w: w, h: h);
+          }
+
           for (final o in bd.objects) {
             final b = o.absBounds;
             // Class-identified prims are growable stacked-terminal nodes
@@ -106,6 +293,20 @@ void main() {
             // Every observed identity stays visible even when no snippet can
             // contribute pixels for it.
             observedKeys.add(key);
+            if (kTargetedIconSamples[key]?.any(
+                  (s) => s.snippet == name && s.oid == o.oid,
+                ) ??
+                false) {
+              if (cropOf(b) case final crop?) {
+                (targeted[key] ??= []).add((
+                  rgba: crop.rgba,
+                  w: crop.w,
+                  h: crop.h,
+                  pad: pad,
+                  source: name,
+                ));
+              }
+            }
             if (lowQuality) continue;
             // A node inside a disable structure renders greyed — its washed
             // colours would poison the palette.
@@ -121,35 +322,12 @@ void main() {
             }
             if (disabled) continue;
             if ((samples[key]?.length ?? 0) >= 8) continue;
-            const pad = 5;
-            final left =
-                ((b.left - raster.content.left) * raster.scale * reg.scale +
-                        reg.dx)
-                    .round() -
-                pad;
-            final top =
-                ((b.top - raster.content.top) * raster.scale * reg.scale +
-                        reg.dy)
-                    .round() -
-                pad;
-            final w = (b.width * raster.scale * reg.scale).round() + 2 * pad;
-            final h = (b.height * raster.scale * reg.scale).round() + 2 * pad;
-            if (left < 0 || top < 0 || left + w > refW || top + h > refH)
-              continue;
-            final crop = Uint8List(w * h * 4);
-            for (var y = 0; y < h; y++) {
-              final src = ((top + y) * refW + left) * 4;
-              crop.setRange(
-                y * w * 4,
-                (y + 1) * w * 4,
-                result.referenceRgba,
-                src,
-              );
-            }
+            final crop = cropOf(b);
+            if (crop == null) continue;
             (samples[key] ??= []).add((
-              rgba: crop,
-              w: w,
-              h: h,
+              rgba: crop.rgba,
+              w: crop.w,
+              h: crop.h,
               source: name,
               quality: quality,
             ));
@@ -858,6 +1036,73 @@ void main() {
           sources:
               '${group.map((s) => s.source).toSet().join(', ')} — $method '
               '(${aligned.length}/${group.length} agreeing)',
+        );
+      }
+
+      // Targeted extraction ([kTargetedIconSamples]): named instances, cleaned
+      // individually. It runs only where the consensus path produced nothing,
+      // so a key that starts extracting generically keeps the generic art.
+      for (final entry in kTargetedIconSamples.entries) {
+        final key = entry.key;
+        if (pending.containsKey(key)) continue;
+        final crops = targeted[key] ?? const [];
+        if (crops.length != entry.value.length) {
+          failed[key] =
+              'targeted extraction reached ${crops.length} of '
+              '${entry.value.length} named instances';
+          continue;
+        }
+        final cleaned = [
+          for (final crop in crops)
+            if (_cleanNodeBoxCrop(crop.rgba, crop.w, crop.h, crop.pad)
+                case final art?)
+              (art: art, source: crop.source),
+        ];
+        if (cleaned.length != crops.length) {
+          failed[key] =
+              'targeted cleaning left no ink on ${crops.length - cleaned.length} of the named instances';
+          continue;
+        }
+        // Two crops of one identity are the same pixels or the extraction is
+        // carrying something that is not the icon.
+        final first = cleaned.first.art;
+        final disagreeing = cleaned
+            .skip(1)
+            .where(
+              (c) =>
+                  c.art.w != first.w ||
+                  c.art.h != first.h ||
+                  c.art.dx != first.dx ||
+                  c.art.dy != first.dy ||
+                  !_sameBytes(c.art.rgba, first.rgba),
+            );
+        if (disagreeing.isNotEmpty) {
+          failed[key] =
+              'the ${cleaned.length} targeted instances do not agree byte-for-byte';
+          continue;
+        }
+        final icon = img.Image(width: first.w, height: first.h, numChannels: 4);
+        for (var y = 0; y < first.h; y++) {
+          for (var x = 0; x < first.w; x++) {
+            final i = (y * first.w + x) * 4;
+            icon.setPixelRgba(
+              x,
+              y,
+              first.rgba[i],
+              first.rgba[i + 1],
+              first.rgba[i + 2],
+              first.rgba[i + 3],
+            );
+          }
+        }
+        failed.remove(key);
+        pending[key] = (
+          icon: icon,
+          sources:
+              'targeted node-box crop, ${cleaned.length} named instance'
+              '${cleaned.length == 1 ? '' : 's agreeing byte-for-byte'}: '
+              '${entry.value.map((s) => '${s.snippet}#${s.oid}').join(', ')} '
+              '(art at dx ${first.dx}, dy ${first.dy} in the node box)',
         );
       }
 

@@ -122,6 +122,26 @@ enum LvTerminalRole {
   iteration(0x24),
 
   /// `0x25` — a While loop's **conditional** terminal, written inside only.
+  ///
+  /// Its POLARITY — whether a true value stops the loop or continues it — is
+  /// not decoded, and the corpus says why. Over the 2 267 conditional
+  /// terminals in 7 524 VIs the terminal carries six record kinds and only
+  /// three of them vary at all:
+  ///
+  /// - the glyph selector ([ViHeapObject.termBmp]) is `192` on **1 892 of
+  ///   1 892** drawn terminals — one value, so the file names one drawn form;
+  /// - the terminal's own flags are `0x10001` on those 1 892 and `0x1` on the
+  ///   375 that carry no glyph at all (all of them on For loops);
+  /// - a `dsw` word (raw `0x061`) of `0x1000` appears on 244 of the 2 267;
+  /// - the carried DCO's flags set bit `0x1` on 382 and bit `0x1000` on 140.
+  ///
+  /// The three varying fields are not the polarity: each takes BOTH values
+  /// across the 26 conditional terminals the snippet references draw (`fg`
+  /// carries the `dsw` word and no other snippet does; `large` and
+  /// `Excel_Read_XLSX` split on both DCO bits), and all 26 reference renders
+  /// draw the identical red stop octagon. So nothing that varies changes what
+  /// LabVIEW draws, and the one field that would — the glyph selector — is
+  /// constant. While loops are refused rather than given a guessed exit test.
   conditional(0x25),
 
   /// `0x26` — a For loop's **count** terminal (`N`), written outside only.
