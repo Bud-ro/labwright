@@ -31,6 +31,23 @@
 /// the commutative `Add` (910 nodes) and `Exclusive Or` (17) as well, so it is
 /// not an operand ordinal. Nothing here says which terminal is the left
 /// operand, and these operations stay refused.
+///
+/// Terminal **geometry** does give a total order, and it is measured. Every
+/// two-input primitive stacks its inputs — 4 606 corpus nodes across `Add`,
+/// `Multiply`, `Exclusive Or`, `Subtract`, `Divide`, `Greater?` and `Less?`,
+/// and not one draws its two inputs on the same row — and in every one of
+/// those the FIRST holder in heap order is the LOWER terminal. Geometry also
+/// reproduces the one operand order that is independently known: on the 2 352
+/// `0x44`/`0xB9` nodes whose array and index terminals the role bits fix, the
+/// array terminal is drawn above the index terminal 2 352 times and below it
+/// none.
+///
+/// What is still missing is the tie from that drawn order to LabVIEW's own
+/// argument names — that the upper terminal of a `Subtract` is the minuend
+/// rather than the subtrahend. Confirming it needs a VI whose output is known
+/// independently and whose lowering turns on the choice; no corpus VI reaches
+/// that state (`crc16`, `crc32` and `Excel_Cell_to_RowCol` each stop at an
+/// unrelated node class first), so the order stays refused.
 library;
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
