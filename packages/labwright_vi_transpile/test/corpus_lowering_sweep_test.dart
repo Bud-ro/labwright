@@ -45,7 +45,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassesInMemory': 'subViCall',
   'Config_Dump': 'wireType',
   'Config_Dump2': 'wireType',
-  'Config_Escape': 'caseSelector',
+  'Config_Escape': 'constantValue',
   'Config_Load': 'wireType',
   'Config_Load2': 'wireType',
   'Excel_Cell_to_RowCol': 'primitive',
@@ -118,25 +118,22 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// Everything `MD5.vi` still refuses on, one entry per blocking node — the
 /// exact distance to the second behavioural milestone after `crc8`.
 ///
-/// Its every wire types and its whole structure tree builds; what remains is
-/// 46 nodes in four groups. Twenty carry a `primResID` no corpus VI labels, so
-/// the operation is not decoded at all. Eleven are named operations whose
-/// **operand order** is not decoded (`Subtract`, `String Subset`,
-/// `Concatenate Strings`, `Compound Arithmetic`, `Build Array`, `Select`) or
-/// whose rule is not (`Type Cast`'s flattened layout, `To Lower Case`'s
-/// case-mapping table, `Logical Shift`'s direction). Four are Case structures
-/// over an **integer** selector, where the file states only the displayed
-/// frame's case value and the others are not the complement of a two-valued
-/// selector. One is a string constant whose value the heap decode did not
-/// recover, and one a `0x114` node whose corpus captions do not agree on a
-/// name.
+/// Its every wire types, its whole structure tree builds, and all four of its
+/// Case structures over an integer selector now lower from their own per-frame
+/// range lists; what remains is 42 nodes in three groups. Twenty carry a
+/// `primResID` no corpus VI labels, so the operation is not decoded at all.
+/// Eleven are named operations whose **operand order** is not decoded
+/// (`Subtract`, `String Subset`, `Concatenate Strings`, `Compound Arithmetic`,
+/// `Build Array`, `Select`) or whose rule is not (`Type Cast`'s flattened
+/// layout, `To Lower Case`'s case-mapping table, `Logical Shift`'s direction).
+/// One is a string constant whose value the heap decode did not recover, and
+/// one a `0x114` node whose corpus captions do not agree on a name.
 const Map<String, int> kMd5Blockers = {
   'Type Cast (primResID 1166)': 7,
   'primResID 1162': 5,
   'primResID 1163': 5,
   'primResID 1181': 4,
   'Subtract (primResID 1051)': 3,
-  'caseSelector over int': 4,
   'primResID 1056': 3,
   'Concatenate Strings (class 0x3e)': 2,
   'String Subset (primResID 1503)': 2,
@@ -227,15 +224,15 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.dcoBit12': 140,
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
-  'exceptions.caseSelector': 64,
-  'exceptions.constantValue': 72,
-  'exceptions.lowered': 142,
-  'exceptions.primitive': 171,
+  'exceptions.caseSelector': 2,
+  'exceptions.constantValue': 81,
+  'exceptions.lowered': 146,
+  'exceptions.primitive': 197,
   'exceptions.structure': 60,
-  'exceptions.subViCall': 64,
+  'exceptions.subViCall': 70,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 58,
+  'exceptions.unwiredTerminal': 75,
   'exceptions.wireDirection': 68,
   'exceptions.wireType': 6807,
   'flag0.array': 24628,
@@ -252,7 +249,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.same': 142,
+  'modes.same': 146,
   'ref': 66473,
   'ref.scalar': 28582,
   'ref.undecided': 37891,
@@ -262,15 +259,15 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.typeAgree': 196,
   'term.unresolved': 33,
   'term.wired': 350,
-  'threaded.caseSelector': 64,
-  'threaded.constantValue': 72,
-  'threaded.lowered': 142,
-  'threaded.primitive': 171,
+  'threaded.caseSelector': 2,
+  'threaded.constantValue': 81,
+  'threaded.lowered': 146,
+  'threaded.primitive': 197,
   'threaded.structure': 60,
-  'threaded.subViCall': 64,
+  'threaded.subViCall': 70,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 58,
+  'threaded.unwiredTerminal': 75,
   'threaded.wireDirection': 68,
   'threaded.wireType': 6807,
   'vi': 7508,
@@ -287,7 +284,7 @@ const ({int identities, int nodes}) kReviewListTotals = (identities: 111, nodes:
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 142, sources: 21);
+const ({int vis, int sources}) kEmittedSources = (vis: 146, sources: 25);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -556,7 +553,11 @@ void main() {
             final selector = node.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
             final outer = selector?.outerPort;
             final type = outer == null ? null : flow.into(outer)?.type;
-            if (type != null && (node.frames.length != 2 || type.dartType != 'bool')) {
+            // A Case lowers from its own per-frame range list, or — for a
+            // boolean / error-cluster selector — from the displayed frame's
+            // label and its complement. A structure with neither refuses.
+            final twoWay = type != null && (type.isErrorCluster || type.dartType == 'bool');
+            if (type != null && !twoWay && node.selectorRanges.isEmpty) {
               bump('caseSelector over ${type.dartType}');
             }
             for (final frame in node.frames) {

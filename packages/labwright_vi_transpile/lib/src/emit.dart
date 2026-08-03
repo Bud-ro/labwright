@@ -11,8 +11,8 @@
 ///    only has through a shift register, is refused;
 /// 3. each structure becomes the control flow its terminals describe: a For
 ///    loop's count and auto-indexing tunnels become the loop bound, its shift
-///    registers become loop-carried locals, a Case structure's selector
-///    becomes an `if`.
+///    registers become loop-carried locals, a Case structure's frames become
+///    the branches its own per-frame selector ranges guard.
 ///
 /// A **subVI call** becomes a Dart call to the callee's own lowering, emitted
 /// into the same file once however many diagrams call it; the arguments are
@@ -977,22 +977,34 @@ class _FunctionEmitter {
     if (selectorEdge == null) {
       refuse(LvRefusalKind.unwiredTerminal, 'a Case structure\'s selector receives no wire', oid: unit.oid);
     }
+    if (unit.displayedFrame >= unit.frames.length) {
+      refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
+    }
+    // A boolean and an error cluster are the two selectors whose frames the
+    // `0x95` label alone settles, and the only ones whose stored values
+    // (0 and 1, or a sentinel pair) do not read as selector values.
+    if (selectorEdge.type.isErrorCluster || selectorEdge.type.dartType == 'bool') {
+      _emitTwoWayCase(unit, selectorEdge);
+      return;
+    }
+    _emitRangeCase(unit, selectorEdge);
+  }
+
+  /// Lowers a Case over a boolean or an error-cluster selector, whose two
+  /// frames are the displayed one and its complement.
+  void _emitTwoWayCase(LvStructUnit unit, LvEdge selectorEdge) {
     final onError = selectorEdge.type.isErrorCluster;
-    if ((selectorEdge.type.dartType != 'bool' && !onError) || unit.frames.length != 2) {
+    if (unit.frames.length != 2) {
       refuse(
         LvRefusalKind.caseSelector,
-        'only a two-frame Case over a boolean or an error-cluster selector '
-        'lowers: the file records the case value of the displayed frame alone, '
-        'so the other frames\' values are decoded only when they are the '
-        'complement of a two-valued selector (this one has '
-        '${unit.frames.length} frames over ${selectorEdge.type.dartType})',
+        'a Case over ${onError ? 'an error-cluster' : 'a boolean'} selector has '
+        '${unit.frames.length} frames, not the two its selector can take',
         oid: unit.oid,
       );
     }
-    // The displayed frame's own label is the only case value the file states.
-    // The error form's two labels are LabVIEW's own: over the corpus's 10 Case
+    // The error form's two labels are LabVIEW's own: over the corpus's Case
     // structures whose selector wire resolves an error cluster, every one has
-    // two frames and every displayed label reads `No Error`.
+    // two frames and every displayed label reads `No Error` or `Error`.
     final displayed = unit.displayedCase?.trim().toLowerCase();
     final trueLabel = onError ? 'error' : 'true', falseLabel = onError ? 'no error' : 'false';
     if (displayed != trueLabel && displayed != falseLabel) {
@@ -1003,17 +1015,108 @@ class _FunctionEmitter {
         oid: unit.oid,
       );
     }
-    if (unit.displayedFrame >= unit.frames.length) {
-      refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
-    }
     final trueIndex = displayed == trueLabel ? unit.displayedFrame : 1 - unit.displayedFrame;
     final selectorValue = _bound(selectorEdge.source, unit.oid);
-    final predicate = onError ? '$selectorValue.status' : selectorValue;
+    final outputs = _declareCaseOutputs(unit);
+    body.writeln('if (${onError ? '$selectorValue.status' : selectorValue}) {');
+    _emitCaseFrame(unit, trueIndex, outputs, selectorValue);
+    body.writeln('} else {');
+    _emitCaseFrame(unit, 1 - trueIndex, outputs, selectorValue);
+    body.writeln('}');
+  }
 
+  /// Lowers a Case over a value selector from the structure's own per-frame
+  /// range list ([LvStructUnit.selectorRanges]) — the values LabVIEW selects
+  /// each frame by, which is what makes a Case of more than two frames
+  /// lowerable at all.
+  ///
+  /// The frames come out in the file's own order, each guarded by the values
+  /// its ranges name, with the Default frame last as the `else`. Ranges are
+  /// disjoint, so the order carries no meaning beyond that.
+  void _emitRangeCase(LvStructUnit unit, LvEdge selectorEdge) {
+    final type = selectorEdge.type;
+    if (unit.selectorRanges.isEmpty) {
+      refuse(
+        LvRefusalKind.caseSelector,
+        'a Case over a ${type.dartType} selector carries no range list, so only '
+        'the displayed frame\'s value ("${unit.displayedCase}") is stated',
+        oid: unit.oid,
+      );
+    }
+    if (unit.defaultFrame >= unit.frames.length) {
+      refuse(LvRefusalKind.caseSelector, 'the Default frame index is out of range', oid: unit.oid);
+    }
+    final selectorValue = _bound(selectorEdge.source, unit.oid);
+    // Frames in the file's order, each with the conditions its ranges name.
+    // The Default frame is left out: it is the `else`, whatever else names it.
+    final guards = <int, List<String>>{};
+    for (final range in unit.selectorRanges) {
+      if (range.frame < 0 || range.frame >= unit.frames.length) {
+        refuse(
+          LvRefusalKind.caseSelector,
+          'a selector range names frame ${range.frame}, which does not exist',
+          oid: unit.oid,
+        );
+      }
+      if (range.frame == unit.defaultFrame) continue;
+      final guard = _rangeGuard(range, selectorValue, unit, type);
+      if (guard == null) {
+        refuse(
+          LvRefusalKind.caseSelector,
+          'a selector range over a ${type.dartType} selector is stated as '
+          '${range.low}..${range.high} with bound modes '
+          '${range.lowBound?.name}/${range.highBound?.name}, which has no '
+          'decoded reading as a value test',
+          oid: unit.oid,
+        );
+      }
+      (guards[range.frame] ??= <String>[]).add(guard);
+    }
+    final outputs = _declareCaseOutputs(unit);
+    for (final frame in guards.keys) {
+      body.writeln('${frame == guards.keys.first ? 'if' : '} else if'} (${guards[frame]!.join(' || ')}) {');
+      _emitCaseFrame(unit, frame, outputs, selectorValue);
+    }
+    body.writeln(guards.isEmpty ? '{' : '} else {');
+    _emitCaseFrame(unit, unit.defaultFrame, outputs, selectorValue);
+    body.writeln('}');
+  }
+
+  /// The Dart test that [range] selects its frame, or null when the range's
+  /// bound modes or the selector's [type] give it no decoded reading.
+  ///
+  /// A string selector's ranges index the structure's own pool, and only a
+  /// single value reads as a test there — an ordering over pool indices is not
+  /// the ordering over the strings themselves. An integer selector (an enum
+  /// wire carries its underlying integer) reads all four value-carrying bound
+  /// shapes. No other selector type has a decoded reading.
+  String? _rangeGuard(ViSelectorRange range, String selectorValue, LvStructUnit unit, LvWireType type) {
+    if (type.dims != 0) return null;
+    if (unit.selectorStrings.isNotEmpty) {
+      if (type.dartType != 'String' || !range.isSingle) return null;
+      if (range.low < 0 || range.low >= unit.selectorStrings.length) return null;
+      final text = unit.selectorStrings[range.low];
+      if (text.codeUnits.any((code) => code < 0x20 || code > 0x7e)) return null;
+      return '$selectorValue == ${_stringLiteral(text)}';
+    }
+    if (type.numeric == null || type.numeric!.isFloat) return null;
+    if (range.isSingle) return '$selectorValue == ${range.low}';
+    if (range.isClosed) return '($selectorValue >= ${range.low} && $selectorValue <= ${range.high})';
+    if (range.lowBound == ViSelectorBound.inclusive && range.highBound == ViSelectorBound.unbounded) {
+      return '$selectorValue >= ${range.low}';
+    }
+    if (range.lowBound == ViSelectorBound.unbounded && range.highBound == ViSelectorBound.inclusive) {
+      return '$selectorValue <= ${range.high}';
+    }
+    return null;
+  }
+
+  /// Declares one local per live Case output tunnel and binds the tunnel's
+  /// outer port to it, so every frame assigns the same names.
+  List<({LvStructTerminal terminal, String name, LvWireType type})> _declareCaseOutputs(LvStructUnit unit) {
     final outputs = <({LvStructTerminal terminal, String name, LvWireType type})>[];
     for (final tunnel in unit.terminals) {
-      if (tunnel.role != LvTerminalRole.caseTunnel) continue;
-      if (tunnel.outerIsSink) continue;
+      if (tunnel.role != LvTerminalRole.caseTunnel || tunnel.outerIsSink) continue;
       final port = tunnel.outerPort;
       if (port == null || flow.outOf(port) == null) continue;
       final type = _typeAt(port)!;
@@ -1023,28 +1126,33 @@ class _FunctionEmitter {
       outputs.add((terminal: tunnel, name: name, type: type));
       valueOf[port] = name;
     }
+    return outputs;
+  }
 
-    for (var branch = 0; branch < 2; branch++) {
-      final frameIndex = branch == 0 ? trueIndex : 1 - trueIndex;
-      final frame = unit.frames[frameIndex];
-      body.writeln(branch == 0 ? 'if ($predicate) {' : '} else {');
-      _bindFrameInputs(unit, frame.frameOid, selectorValue);
-      _emitRegion(frame, _frameExits(unit, frame.frameOid));
-      for (final output in outputs) {
-        final inner = output.terminal.innerPorts[frame.frameOid];
-        final edge = inner == null ? null : flow.into(inner);
-        if (edge == null) {
-          refuse(
-            LvRefusalKind.unwiredTerminal,
-            'a Case output tunnel is unwired in one frame; the value LabVIEW '
-            'substitutes there is not decoded',
-            oid: output.terminal.oid,
-          );
-        }
-        body.writeln('${output.name} = ${_bound(edge.source, output.terminal.oid)};');
+  /// Emits one Case frame's body into the open branch: its inner reads, its
+  /// region, and the assignment of every output tunnel.
+  void _emitCaseFrame(
+    LvStructUnit unit,
+    int frameIndex,
+    List<({LvStructTerminal terminal, String name, LvWireType type})> outputs,
+    String? selectorValue,
+  ) {
+    final frame = unit.frames[frameIndex];
+    _bindFrameInputs(unit, frame.frameOid, selectorValue);
+    _emitRegion(frame, _frameExits(unit, frame.frameOid));
+    for (final output in outputs) {
+      final inner = output.terminal.innerPorts[frame.frameOid];
+      final edge = inner == null ? null : flow.into(inner);
+      if (edge == null) {
+        refuse(
+          LvRefusalKind.unwiredTerminal,
+          'a Case output tunnel is unwired in one frame; the value LabVIEW '
+          'substitutes there is not decoded',
+          oid: output.terminal.oid,
+        );
       }
+      body.writeln('${output.name} = ${_bound(edge.source, output.terminal.oid)};');
     }
-    body.writeln('}');
   }
 
   /// Binds a frame's inner reads of the structure's input tunnels and selector
