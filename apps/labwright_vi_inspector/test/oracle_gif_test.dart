@@ -51,7 +51,7 @@ void main() {
       rightRgba: _flat(w, h, 0x0000ff),
       width: w,
       height: h,
-      positions: positions,
+      style: const OracleSweepGifStyle(positions: positions),
     );
     final decoded = img.decodeGif(gif)!;
     // positions stops out, positions-2 back — the turnaround endpoints are
@@ -80,18 +80,68 @@ void main() {
     }
   });
 
-  test('downscale shrinks the frames by the integer factor', () {
-    const w = 40, h = 20;
-    final gif = encodeOracleSweepGif(
-      leftRgba: _flat(w, h, 0xffffff),
-      rightRgba: _flat(w, h, 0x000000),
-      width: w,
-      height: h,
-      positions: 3,
-      downscale: 2,
-    );
-    final decoded = img.decodeGif(gif)!;
-    expect((decoded.width, decoded.height), (w ~/ 2, h ~/ 2));
+  test(
+    'a size or animation the frames cannot honour throws, in release too',
+    () {
+      // The encoder runs inside Isolate.run, where an assert is stripped in
+      // release and the mismatch resurfaces as a bare RangeError.
+      for (final (what, call) in [
+        (
+          'short buffer',
+          () => encodeOracleSweepGif(
+            leftRgba: _flat(4, 4, 0),
+            rightRgba: _flat(4, 5, 0),
+            width: 4,
+            height: 5,
+          ),
+        ),
+        (
+          'zero size',
+          () => encodeOracleSweepGif(
+            leftRgba: _flat(0, 0, 0),
+            rightRgba: _flat(0, 0, 0),
+            width: 0,
+            height: 0,
+          ),
+        ),
+        (
+          'one stop',
+          () => encodeOracleSweepGif(
+            leftRgba: _flat(4, 4, 0),
+            rightRgba: _flat(4, 4, 0),
+            width: 4,
+            height: 4,
+            style: const OracleSweepGifStyle(positions: 1),
+          ),
+        ),
+        (
+          'bar wider than the frame',
+          () => encodeOracleSweepGif(
+            leftRgba: _flat(4, 4, 0),
+            rightRgba: _flat(4, 4, 0),
+            width: 4,
+            height: 4,
+            style: const OracleSweepGifStyle(barWidth: 5),
+          ),
+        ),
+      ]) {
+        expect(call, throwsA(isA<ArgumentError>()), reason: what);
+      }
+    },
+  );
+
+  test('box downscale clamps a factor beyond the source to a 1 px floor', () {
+    // A factor past the smaller axis is clamped to it, so the block reads
+    // stay in bounds and each axis keeps at least one pixel.
+    for (final (factor, want) in const [
+      (2, (2, 1)),
+      (9, (2, 1)),
+      (0, (4, 2)),
+    ]) {
+      final out = boxDownscaleRgba(_flat(4, 2, 0x808080), 4, 2, factor);
+      expect((out.width, out.height), want, reason: 'factor $factor');
+      expect(out.rgba.sublist(0, 3), orderedEquals([0x80, 0x80, 0x80]));
+    }
   });
 
   testWidgets('corpus pair exports a faithful sweep GIF within budget', (

@@ -1808,15 +1808,13 @@ class _BdOracleViewState extends State<BdOracleView>
                       ),
                       label: Text(_wipe ? 'Side-by-side' : 'Wipe compare'),
                     ),
-                    Builder(
-                      builder: (context) => TextButton.icon(
-                        onPressed: _exportingGif
-                            ? null
-                            : () => _exportSweepGif(context, result),
-                        icon: const Icon(Icons.gif_box_outlined, size: 16),
-                        label: Text(
-                          _exportingGif ? 'Encoding…' : 'Export sweep GIF',
-                        ),
+                    TextButton.icon(
+                      onPressed: _exportingGif
+                          ? null
+                          : () => _exportSweepGif(result),
+                      icon: const Icon(Icons.gif_box_outlined, size: 16),
+                      label: Text(
+                        _exportingGif ? 'Encoding…' : 'Export sweep GIF',
                       ),
                     ),
                     if (_wipe) ...[
@@ -2118,10 +2116,7 @@ class _BdOracleViewState extends State<BdOracleView>
   /// encode runs off the UI isolate; the save destination comes from the OS
   /// save dialog (matching the file-open flow), and a snackbar reports where
   /// the file went.
-  Future<void> _exportSweepGif(
-    BuildContext context,
-    BdOracleResult result,
-  ) async {
+  Future<void> _exportSweepGif(BdOracleResult result) async {
     setState(() => _exportingGif = true);
     final messenger = ScaffoldMessenger.maybeOf(context);
     try {
@@ -2322,40 +2317,51 @@ int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
 Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   final data = (await src.toByteData())!;
   final sw = src.width, sh = src.height;
-  // A factor beyond a source dimension is clamped (every caller already
-  // clamps via [boxDownscaleFactor]); the floor below then keeps the block
-  // reads in bounds AND the output at least 1x1.
-  final blockK = math.min(k, math.min(sw, sh));
-  final dw = math.max(1, sw ~/ blockK), dh = math.max(1, sh ~/ blockK);
   final bytes = data.buffer.asUint8List();
   // The averaging is O(source pixels) on multi-megapixel supersampled
   // rasters — off the UI isolate so pane resizes don't jank.
-  final out = await Isolate.run(() {
-    final out = Uint8List(dw * dh * 4);
-    final n = blockK * blockK;
-    for (var y = 0; y < dh; y++) {
-      for (var x = 0; x < dw; x++) {
-        var r = 0, g = 0, b = 0, a = 0;
-        for (var sy = y * blockK; sy < y * blockK + blockK; sy++) {
-          var i = (sy * sw + x * blockK) * 4;
-          for (var sx = 0; sx < blockK; sx++) {
-            r += bytes[i];
-            g += bytes[i + 1];
-            b += bytes[i + 2];
-            a += bytes[i + 3];
-            i += 4;
-          }
+  final out = await Isolate.run(() => boxDownscaleRgba(bytes, sw, sh, k));
+  return imageFromRgba(out.rgba, out.width, out.height);
+}
+
+/// [boxDownscale] on plain bytes: the RGBA buffer [rgba] of a
+/// [width] x [height] image, averaged in [factor] x [factor] blocks, with
+/// the destination size it produced. A factor below 1 or beyond a source
+/// dimension is clamped, so the result always keeps at least one pixel per
+/// axis — an extreme squeeze must degrade to a tiny image, never a
+/// zero-dimension one. Remainder rows/columns past the last whole block are
+/// dropped.
+({Uint8List rgba, int width, int height}) boxDownscaleRgba(
+  Uint8List rgba,
+  int width,
+  int height,
+  int factor,
+) {
+  final blockK = math.max(1, math.min(factor, math.min(width, height)));
+  final dw = math.max(1, width ~/ blockK), dh = math.max(1, height ~/ blockK);
+  final out = Uint8List(dw * dh * 4);
+  final n = blockK * blockK;
+  for (var y = 0; y < dh; y++) {
+    for (var x = 0; x < dw; x++) {
+      var r = 0, g = 0, b = 0, a = 0;
+      for (var sy = y * blockK; sy < y * blockK + blockK; sy++) {
+        var i = (sy * width + x * blockK) * 4;
+        for (var sx = 0; sx < blockK; sx++) {
+          r += rgba[i];
+          g += rgba[i + 1];
+          b += rgba[i + 2];
+          a += rgba[i + 3];
+          i += 4;
         }
-        final j = (y * dw + x) * 4;
-        out[j] = r ~/ n;
-        out[j + 1] = g ~/ n;
-        out[j + 2] = b ~/ n;
-        out[j + 3] = a ~/ n;
       }
+      final j = (y * dw + x) * 4;
+      out[j] = r ~/ n;
+      out[j + 1] = g ~/ n;
+      out[j + 2] = b ~/ n;
+      out[j + 3] = a ~/ n;
     }
-    return out;
-  });
-  return imageFromRgba(out, dw, dh);
+  }
+  return (rgba: out, width: dw, height: dh);
 }
 
 /// Shows [image] crisp at any pane size: at native size or larger it draws

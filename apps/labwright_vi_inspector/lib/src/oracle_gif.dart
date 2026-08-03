@@ -4,13 +4,17 @@
 /// self-playing loop.
 ///
 /// Compression: GIF is indexed, so both source images share one **global
-/// 256-colour palette** ranked by pixel frequency. The pair's colour
-/// population is small (web-safe chrome plus ClearType text fringes measured
-/// at ~370-400 distinct colours per corpus reference, with the top 255
-/// covering >99.97% of pixels), so ranking keeps every colour that appears
-/// more than a handful of times exactly; only the rarest fringe pixels map
-/// to their nearest palette entry. No dithering — the sources are flat-
-/// colour renders where error diffusion would speckle solid fills.
+/// 256-colour palette** ranked by pixel frequency. The population past the
+/// palette is a thin tail: measured over all 46 snippet render/reference
+/// pairs, a pair holds 47 (missing_terminal) to 905 (ProjectItems) distinct
+/// colours — 35 of the 46 exceed 256 — yet the top 255 always cover at
+/// least **99.72%** of pixels (worst case Export Palette Image WMF, 844
+/// colours; most pairs are well above 99.9%). Web-safe chrome and flat
+/// fills dominate; the tail is ClearType text fringe. So ranking keeps
+/// every colour that appears more than a handful of times exactly, and
+/// only the rarest fringe pixels map to their nearest palette entry. No
+/// dithering — the sources are flat-colour renders where error diffusion
+/// would speckle solid fills.
 ///
 /// Everything operates on plain RGBA byte buffers so the encode runs in a
 /// background isolate and in plain Dart tests.
@@ -31,12 +35,14 @@ Future<Uint8List> encodeOracleSweepGifOffThread({
   required Uint8List rightRgba,
   required int width,
   required int height,
+  OracleSweepGifStyle style = const OracleSweepGifStyle(),
 }) => Isolate.run(
   () => encodeOracleSweepGif(
     leftRgba: leftRgba,
     rightRgba: rightRgba,
     width: width,
     height: height,
+    style: style,
   ),
 );
 
@@ -44,33 +50,74 @@ Future<Uint8List> encodeOracleSweepGifOffThread({
 /// divider draws (Material `orangeAccent`).
 const int kOracleSweepBarRgb = 0xffab40;
 
+/// The sweep animation's shape: how many stops the bar makes, how long each
+/// is held, and how wide it is. One value object rather than loose
+/// parameters, so a caller passes an animation rather than three numbers.
+class OracleSweepGifStyle {
+  const OracleSweepGifStyle({
+    this.positions = 24,
+    this.delayCs = 6,
+    this.barWidth = 3,
+  });
+
+  /// Bar stops per direction. The sweep runs out and back without
+  /// duplicating the turnaround endpoints, so it emits [frameCount] frames.
+  final int positions;
+
+  /// Frame duration in hundredths of a second (6 = ~17 fps).
+  final int delayCs;
+
+  /// The bar's width in pixels.
+  final int barWidth;
+
+  /// Frames emitted for [positions] stops: out, then back with neither
+  /// endpoint repeated.
+  int get frameCount => 2 * positions - 2;
+}
+
 /// Encodes the sweep GIF. [leftRgba]/[rightRgba] are same-sized RGBA buffers
 /// ([width] x [height]); left shows west of the bar (our render), right
-/// shows east of it (the reference). The bar makes [positions] stops each
-/// direction ([2 * positions - 2] frames — the turnaround endpoints are not
-/// duplicated), each held [delayCs] hundredths of a second, looping forever.
-/// [downscale] box-averages both sources by that integer factor first (1 =
-/// full resolution).
+/// shows east of it (the reference). The animation loops forever.
+///
+/// Throws [ArgumentError] on a buffer whose length does not match the given
+/// size, or on a [OracleSweepGifStyle] the frame geometry cannot honour.
+/// These are thrown, not asserted: the encoder's callers run it inside
+/// `Isolate.run`, where a release-mode assert is stripped and the mismatch
+/// resurfaces as a bare RangeError from the pixel loop.
 Uint8List encodeOracleSweepGif({
   required Uint8List leftRgba,
   required Uint8List rightRgba,
   required int width,
   required int height,
-  int positions = 24,
-  int delayCs = 6,
-  int barWidth = 3,
-  int downscale = 1,
+  OracleSweepGifStyle style = const OracleSweepGifStyle(),
 }) {
-  assert(leftRgba.length == width * height * 4);
-  assert(rightRgba.length == width * height * 4);
-  assert(positions >= 2);
-  var left = leftRgba, right = rightRgba, w = width, h = height;
-  if (downscale > 1) {
-    left = _boxDownscaleRgba(left, width, height, downscale);
-    right = _boxDownscaleRgba(right, width, height, downscale);
-    w = width ~/ downscale;
-    h = height ~/ downscale;
+  if (width <= 0 || height <= 0) {
+    throw ArgumentError(
+      'sweep GIF size must be positive, got ${width}x$height',
+    );
   }
+  for (final (name, rgba) in [
+    ('leftRgba', leftRgba),
+    ('rightRgba', rightRgba),
+  ]) {
+    if (rgba.length != width * height * 4) {
+      throw ArgumentError(
+        '$name is ${rgba.length} bytes, not the ${width * height * 4} '
+        'a ${width}x$height RGBA image needs',
+      );
+    }
+  }
+  if (style.positions < 2) {
+    throw ArgumentError(
+      'a sweep needs at least 2 stops, got ${style.positions}',
+    );
+  }
+  if (style.barWidth < 1 || style.barWidth > width) {
+    throw ArgumentError(
+      'bar width ${style.barWidth} does not fit a $width px frame',
+    );
+  }
+  final barWidth = style.barWidth;
   // Global palette: the bar colour, then the pair's colours by frequency.
   final counts = <int, int>{};
   void tally(Uint8List rgba) {
@@ -80,8 +127,8 @@ Uint8List encodeOracleSweepGif({
     }
   }
 
-  tally(left);
-  tally(right);
+  tally(leftRgba);
+  tally(rightRgba);
   final ranked = counts.keys.toList()..sort((a, b) => counts[b]! - counts[a]!);
   final paletteColors = <int>[
     kOracleSweepBarRgb,
@@ -112,67 +159,38 @@ Uint8List encodeOracleSweepGif({
   }
 
   Uint8List indexed(Uint8List rgba) {
-    final out = Uint8List(w * h);
-    for (var i = 0; i < w * h; i++) {
+    final out = Uint8List(width * height);
+    for (var i = 0; i < width * height; i++) {
       final c = (rgba[i * 4] << 16) | (rgba[i * 4 + 1] << 8) | rgba[i * 4 + 2];
       out[i] = indexOf[c] ??= nearest(c);
     }
     return out;
   }
 
-  final leftIdx = indexed(left);
-  final rightIdx = indexed(right);
+  final leftIdx = indexed(leftRgba);
+  final rightIdx = indexed(rightRgba);
   // Bar stops: 0..1 forward, then back without repeating the endpoints.
   final stops = <double>[
-    for (var i = 0; i < positions; i++) i / (positions - 1),
-    for (var i = positions - 2; i >= 1; i--) i / (positions - 1),
+    for (var i = 0; i < style.positions; i++) i / (style.positions - 1),
+    for (var i = style.positions - 2; i >= 1; i--) i / (style.positions - 1),
   ];
   final encoder = img.GifEncoder();
   for (final stop in stops) {
-    final barLeft = ((w - barWidth) * stop).round();
+    final barLeft = ((width - barWidth) * stop).round();
     final frame = img.Image(
-      width: w,
-      height: h,
+      width: width,
+      height: height,
       withPalette: true,
       palette: palette,
     );
-    final data = Uint8List.view(frame.buffer);
+    final data = frame.data!.toUint8List();
     data.setAll(0, rightIdx);
-    for (var y = 0; y < h; y++) {
-      final row = y * w;
+    for (var y = 0; y < height; y++) {
+      final row = y * width;
       data.setRange(row, row + barLeft, leftIdx, row);
       data.fillRange(row + barLeft, row + barLeft + barWidth, 0);
     }
-    encoder.addFrame(frame, duration: delayCs);
+    encoder.addFrame(frame, duration: style.delayCs);
   }
   return encoder.finish()!;
-}
-
-/// Integer box-average downscale of an RGBA buffer by [k] (truncating the
-/// remainder rows/columns).
-Uint8List _boxDownscaleRgba(Uint8List rgba, int width, int height, int k) {
-  final dw = width ~/ k, dh = height ~/ k;
-  final out = Uint8List(dw * dh * 4);
-  final n = k * k;
-  for (var y = 0; y < dh; y++) {
-    for (var x = 0; x < dw; x++) {
-      var r = 0, g = 0, b = 0, a = 0;
-      for (var sy = y * k; sy < y * k + k; sy++) {
-        var i = (sy * width + x * k) * 4;
-        for (var sx = 0; sx < k; sx++) {
-          r += rgba[i];
-          g += rgba[i + 1];
-          b += rgba[i + 2];
-          a += rgba[i + 3];
-          i += 4;
-        }
-      }
-      final j = (y * dw + x) * 4;
-      out[j] = r ~/ n;
-      out[j + 1] = g ~/ n;
-      out[j + 2] = b ~/ n;
-      out[j + 3] = a ~/ n;
-    }
-  }
-  return out;
 }
