@@ -26,6 +26,15 @@ abstract final class LvRuntimeCall {
   /// Rotate Right With Carry.
   static const String rotateRightWithCarry = 'lvRotateRightWithCarry';
 
+  /// Swap Bytes.
+  static const String swapBytes = 'lvSwapBytes';
+
+  /// Swap Words.
+  static const String swapWords = 'lvSwapWords';
+
+  /// Quotient & Remainder.
+  static const String quotientRemainder = 'lvQuotientRemainder';
+
   /// The To-Integer conversion that renormalizes a value to [kind]'s width.
   static String integerConversion(LvNumericKind kind) => 'lvTo${kind.glyph}';
 }

@@ -35,11 +35,8 @@ import 'snippets.dart';
 /// signals whose endpoints do not resolve exactly one source.
 ///
 /// `MD5` is the largest diagram here and refuses on `primitive`. Its every
-/// constant, structure and wire decodes; what stands in the way is identity:
-/// 20 of its nodes carry the primResIDs 1056, 1082, 1155, 1156, 1162, 1163
-/// and 1181, and not one of those ids is labelled anywhere in the 7 524-VI
-/// corpus, so none can be named from evidence. The rest of its refusals are
-/// ordinary review-list entries.
+/// constant, structure and wire decodes, and so now does its arithmetic; what
+/// stands in the way is listed node by node in [kMd5Blockers].
 const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassChildren': 'wireType',
   'ClassesInMemory': 'subViCall',
@@ -105,7 +102,6 @@ const Map<String, int> kSnippetPrimReviewList = {
   'Select (primResID 1516)': 16,
   'node class 0x105': 16,
   'node class 0xa9': 15,
-  'Subtract (primResID 1051)': 15,
   'node class 0x172': 14,
   'node class 0x150': 12,
   'node class 0x6a': 12,
@@ -118,33 +114,35 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// Everything `MD5.vi` still refuses on, one entry per blocking node — the
 /// exact distance to the second behavioural milestone after `crc8`.
 ///
-/// Its every wire types, its whole structure tree builds, and all four of its
-/// Case structures over an integer selector now lower from their own per-frame
-/// range lists; what remains is 42 nodes in three groups. Twenty carry a
-/// `primResID` no corpus VI labels, so the operation is not decoded at all.
-/// Eleven are named operations whose **operand order** is not decoded
-/// (`Subtract`, `String Subset`, `Concatenate Strings`, `Compound Arithmetic`,
-/// `Build Array`, `Select`) or whose rule is not (`Type Cast`'s flattened
-/// layout, `To Lower Case`'s case-mapping table, `Logical Shift`'s direction).
-/// One is a string constant whose value the heap decode did not recover, and
-/// one a `0x114` node whose corpus captions do not agree on a name.
+/// Its every wire types, its whole structure tree builds, its four Case
+/// structures lower from their own per-frame range lists, and its arithmetic
+/// — `Subtract`, `Quotient & Remainder`, the byte and word swaps, the 64-bit
+/// conversions — lowers from the drawn operand order. What remains is 25
+/// nodes in three groups.
+///
+/// Five carry a `primResID` no corpus VI labels and whose icon does not say
+/// what it computes either (1181 ×4, 1082). Eighteen are named operations
+/// whose **operand order** is not decoded (`String Subset`,
+/// `Concatenate Strings`, `Compound Arithmetic`, `Build Array`, `Select`) or
+/// whose rule is not (`Type Cast`'s flattened layout, `To Lower Case`'s
+/// case-mapping table, `Logical Shift`'s direction), plus the two swap nodes
+/// wired to an ARRAY, which is the elementwise form this reader does not
+/// model. One is a string constant whose value the heap decode did not
+/// recover, and one a `0x114` node whose corpus captions do not agree on a
+/// name.
 const Map<String, int> kMd5Blockers = {
   'Type Cast (primResID 1166)': 7,
-  'primResID 1162': 5,
-  'primResID 1163': 5,
   'primResID 1181': 4,
-  'Subtract (primResID 1051)': 3,
-  'primResID 1056': 3,
   'Concatenate Strings (class 0x3e)': 2,
   'String Subset (primResID 1503)': 2,
   'Compound Arithmetic (class 0x6c)': 2,
   'Build Array (class 0x3a)': 1,
   'Select (primResID 1516)': 1,
+  'Swap Bytes (primResID 1162)': 1,
+  'Swap Words (primResID 1163)': 1,
   'To Lower Case (primResID 1189)': 1,
   'Logical Shift (primResID 1081)': 1,
   'primResID 1082': 1,
-  'primResID 1155': 1,
-  'primResID 1156': 1,
   'node class 0x114': 1,
   'constantValue String': 1,
 };
@@ -226,8 +224,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 2,
   'exceptions.constantValue': 81,
-  'exceptions.lowered': 146,
-  'exceptions.primitive': 197,
+  'exceptions.lowered': 151,
+  'exceptions.primitive': 192,
   'exceptions.structure': 60,
   'exceptions.subViCall': 70,
   'exceptions.tunnelIndexing': 1,
@@ -249,7 +247,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.same': 146,
+  'modes.same': 151,
   'ref': 66473,
   'ref.scalar': 28582,
   'ref.undecided': 37891,
@@ -261,8 +259,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.wired': 350,
   'threaded.caseSelector': 2,
   'threaded.constantValue': 81,
-  'threaded.lowered': 146,
-  'threaded.primitive': 197,
+  'threaded.lowered': 151,
+  'threaded.primitive': 192,
   'threaded.structure': 60,
   'threaded.subViCall': 70,
   'threaded.tunnelIndexing': 1,
@@ -279,12 +277,12 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 111, nodes: 799);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 104, nodes: 757);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 146, sources: 25);
+const ({int vis, int sources}) kEmittedSources = (vis: 151, sources: 30);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -751,6 +749,8 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
       classCode: node.classCode,
       inputs: terminals(node.inputPorts, isInput: true),
       outputs: terminals(node.outputPorts, isInput: false),
+      outputPorts: node.outputPorts,
+      portDrawnTop: node.portDrawnTop,
       requireImport: (_) {},
     ),
   );
