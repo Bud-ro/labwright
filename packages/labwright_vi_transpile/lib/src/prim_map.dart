@@ -427,11 +427,24 @@ const Set<PrimOp> kLvMappedPrimOps = {
 /// of which read as author text; `0x14a` (380) is `Feedback Node` ×12 and
 /// `Target Angle` ×2. `0xa9` (2 619) carries 38 distinct captions of which
 /// `Invoke Node` ×84 is only the most common — the rest (`Classes` ×10,
-/// `Attribute` ×10, `Save` ×8, …) name a member rather than the node — and
-/// `0x6a` (865) carries 248, almost all of them a foreign entry point spelling
-/// (`ps3000.dll:_ps3000_open_unit@0` ×131). `0x48` `Array Subset` ×1 and `0xeb`
-/// `Register For Events` ×2 are below the floor. `0x153` (1 466), `0x170` (380)
-/// and `0x150` (406) carry no caption at all.
+/// `Attribute` ×10, `Save` ×8, …) name a member rather than the node.
+/// `0x48` `Array Subset` ×1 and `0xeb` `Register For Events` ×2 are below the
+/// floor. `0x153` (1 466), `0x170` (380) and `0x150` (406) carry no caption at
+/// all.
+///
+/// Two of those are identified anyway, by records rather than by captions, and
+/// are absent here because captions are not what named them.
+/// `0x6a` (865) is the **Call Library Function node**: every one carries a path
+/// record naming a native shared library and a symbol record naming an entry
+/// point in it ([ViHeapObject.foreignLibraryPath] / [foreignEntryPoint]), and
+/// its 248 caption texts are not evidence of anything — 392 of the 761
+/// captioned nodes carry a caption the two records contradict. It is refused as
+/// [LvRefusalKind.foreignCall], not as a primitive: see [kLvCallLibraryClass].
+/// `0x153` (1 466) is an **In Place Element Structure border node** accessing a
+/// data value reference ([HeapObjectClass.bdNode153]); a rule for it would
+/// lower nothing on its own, since all 1 466 sit inside an In Place Element
+/// Structure, whose control flow is not modelled and which refuses first
+/// ([LvRefusalKind.structure]).
 ///
 /// [kLvUnbundleClass]'s entry predates the bar and does not clear it: its
 /// second caption text is `Template unbundler` ×4, which reads as author text

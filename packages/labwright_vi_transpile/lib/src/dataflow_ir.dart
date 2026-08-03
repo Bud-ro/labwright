@@ -199,6 +199,17 @@ enum LvRefusalKind {
   /// A node's primitive identity is not decoded, or has no mapping.
   primitive,
 
+  /// A **Call Library Function node** ([kLvCallLibraryClass]): the diagram calls
+  /// an entry point in a native shared library, whose behaviour is not in the
+  /// file and is not Dart. The refusal names the library and the entry point,
+  /// which the node's own records state.
+  ///
+  /// This is a different fact from [primitive]. A primitive refusal says the
+  /// reader has not decoded an operation LabVIEW itself performs, and closes
+  /// when it does; this one says the operation is not LabVIEW's to perform, so
+  /// no amount of decoding produces a pure-Dart lowering of it.
+  foreignCall,
+
   /// A diagram constant whose value the heap decode did not recover.
   constantValue,
 
@@ -313,6 +324,8 @@ class LvPrimUnit extends LvUnit {
     required this.portDrawnTop,
     required this.nodeFlags,
     required this.portMemberName,
+    this.foreignLibrary,
+    this.foreignEntryPoint,
   });
 
   @override
@@ -359,6 +372,35 @@ class LvPrimUnit extends LvUnit {
   /// own part resolves ([ViHeapObject.typeName]) — the cluster MEMBER a
   /// by-name terminal selects. Absent where the part resolves no named type.
   final Map<int, String> portMemberName;
+
+  /// The native shared library this node calls into
+  /// ([ViHeapObject.foreignLibraryPath]) — set only on a Call Library Function
+  /// node ([kLvCallLibraryClass]), and null there when its path record is
+  /// empty.
+  final String? foreignLibrary;
+
+  /// The entry point this node calls in [foreignLibrary]
+  /// ([ViHeapObject.foreignEntryPoint]).
+  final String? foreignEntryPoint;
+
+  /// Whether this node is a call into a native shared library.
+  bool get isForeignCall => classCode == kLvCallLibraryClass;
+}
+
+/// The heap class code of a **Call Library Function node** — a call into a
+/// native shared library, named by the node's own path and symbol records
+/// ([ViHeapObject.foreignLibraryPath] / [ViHeapObject.foreignEntryPoint]).
+const int kLvCallLibraryClass = 0x6a;
+
+/// What a [LvRefusalKind.foreignCall] refusal reports: the entry point and the
+/// library the node calls it in, spelled as the node's own records state them,
+/// so the refusal identifies the exact call site a reader would have to supply.
+String lvForeignCallDetail(LvPrimUnit unit) {
+  final entry = unit.foreignEntryPoint;
+  final library = unit.foreignLibrary;
+  return 'the diagram calls ${entry == null ? 'an entry point' : '`$entry`'} in '
+      '${library == null ? 'a native shared library the node names no path for' : '`$library`'}, '
+      'whose behaviour is not in the VI';
 }
 
 /// A **subVI call**: one endpoint holder per connector-pane terminal of the
@@ -837,6 +879,8 @@ class _Builder {
       portDrawnTop: drawnTop,
       nodeFlags: node.objFlags ?? 0,
       portMemberName: memberName,
+      foreignLibrary: node.foreignLibraryPath,
+      foreignEntryPoint: node.foreignEntryPoint,
     );
   }
 
