@@ -69,6 +69,17 @@ String? _fromHex(String label) {
   return values.contains(null) ? null : values.join(', ');
 }
 
+/// Whether [range] is one of the error-cluster spellings, whose stored words
+/// are sentinels rather than selector values: an open low end that is not the
+/// `..high` shape.
+bool _isSentinel(ViSelectorRange range) =>
+    range.lowBound == ViSelectorBound.unbounded &&
+    (range.highBound == ViSelectorBound.unbounded || range.low == range.high);
+
+/// Whether [first] and [second] both match some value, read as closed spans
+/// over the stored words (a single value is the span `low..low`).
+bool _overlap(ViSelectorRange first, ViSelectorRange second) => first.low <= second.high && second.low <= first.high;
+
 /// A selector label reduced to the form the renders above produce: LabVIEW
 /// writes the separators with optional spaces.
 String _canonical(String label) =>
@@ -126,6 +137,18 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final frameCount = diagram.children(structure.oid).where((child) => child.kind == kViFrameCode).length;
       for (final range in ranges) {
         bump(range.frame >= 0 && range.frame < frameCount ? 'frameInRange' : 'frameOutOfRange');
+      }
+      // Whether two entries naming DIFFERENT frames can both match one value.
+      // A consumer that tests the entries in order relies on them not.
+      for (var i = 0; i < ranges.length; i++) {
+        for (var j = i + 1; j < ranges.length; j++) {
+          if (ranges[i].frame == ranges[j].frame) continue;
+          if (_isSentinel(ranges[i]) || _isSentinel(ranges[j])) {
+            bump('rangesSentinel');
+          } else {
+            bump(_overlap(ranges[i], ranges[j]) ? 'rangesOverlap' : 'rangesDisjoint');
+          }
+        }
       }
       final fallback = _defaultFrame(structure);
       bump(structure.defaultFrameIndex != null ? 'defaultRecorded' : 'defaultUnrecorded');

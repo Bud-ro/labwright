@@ -1031,8 +1031,10 @@ class _FunctionEmitter {
   /// lowerable at all.
   ///
   /// The frames come out in the file's own order, each guarded by the values
-  /// its ranges name, with the Default frame last as the `else`. Ranges are
-  /// disjoint, so the order carries no meaning beyond that.
+  /// its ranges name, with the Default frame last as the `else`. Order only
+  /// decides a value two frames both claim, which the corpus has 1 pair of
+  /// across 131 407 comparable pairs (the selector-range census's
+  /// `rangesOverlap`), so it is very nearly no decision at all.
   void _emitRangeCase(LvStructUnit unit, LvEdge selectorEdge) {
     final type = selectorEdge.type;
     if (unit.selectorRanges.isEmpty) {
