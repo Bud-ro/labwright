@@ -2919,6 +2919,43 @@ const double kBdTextOverdrawAlpha = 0.75;
 /// heading). Recalibrated on that heading: this alpha lands 1.015.
 const double kBdTextOverdrawAlphaBold = 0.15;
 
+/// The anchor for a text run of [text] size CENTRED in [box] — both axes
+/// truncate the half pixel, so a run one px narrower than an even gap sits
+/// left/above of the symmetric centre.
+///
+/// Reference-measured over the 46-snippet corpus by registering each painted
+/// run's ink onto its reference's ink (best whole-pixel shift by ink IoU,
+/// runs scoring ≥0.5 with a decisive margin): 781 of 786 confidently
+/// registered runs sit at shift 0 under this law, and the 41 growable-node
+/// row texts whose cell−text gap is EVEN all move one px off the reference
+/// under the label law below. The vertical half pixel is unmeasurable on
+/// this corpus (flooring vs rounding moves no registered run) and is floored
+/// to match the horizontal axis. Glyph stamps (type/operator/structure
+/// letters) centre by the same law — no registered glyph run moves when they
+/// switch from rounding to flooring.
+Offset bdCentredTextAnchor(Rect box, Size text) => Offset(
+  box.left + ((box.width - text.width) / 2).floorToDouble(),
+  box.top + ((box.height - text.height) / 2).floorToDouble(),
+);
+
+/// The vertical half of [bdCentredTextAnchor], for runs whose horizontal
+/// anchor is justified rather than centred.
+double bdCentredTextTop(Rect box, double textHeight) =>
+    box.top + ((box.height - textHeight) / 2).floorToDouble();
+
+/// The LEFT anchor of a centre-justified label run
+/// ([ViHeapObject.labelJustifyCenter]) of [textWidth] in its stored [bounds]:
+/// centred over `width − 1`, so an even gap inks one px LEFT of the
+/// symmetric centre — a different law from [bdCentredTextAnchor], measured
+/// separately on the same registration probe. The four confidently
+/// registered centred labels with an EVEN gap (ClassChildren's
+/// `Find parents`, GenerateTree's `Index Ids` / `Recursively order children
+/// sorted by weight` / `Append id if parent`) sit at shift 0 here and all
+/// four move one px right of the reference under [bdCentredTextAnchor];
+/// odd-gap labels read the same under either law.
+double bdCentredLabelLeft(Rect bounds, double textWidth) =>
+    bounds.left + ((bounds.width - textWidth - 1) / 2).floorToDouble();
+
 /// One cached glyph of the diagram text face at a full style+colour: the
 /// full-ink and [kBdTextOverdrawAlpha] companion painters, the pen advance
 /// snapped to whole pixels, and the painter's own (fractional) alphabetic
@@ -3925,7 +3962,10 @@ class BdDiagramPainter extends CustomPainter {
             _paintText(
               canvas,
               tp,
-              Offset(box.right - 4 - tp.width, box.center.dy - tp.height / 2),
+              Offset(
+                box.right - 4 - tp.width,
+                bdCentredTextTop(box, tp.height),
+              ),
               constValue,
               clip: box.deflate(radixCorner == null ? 1 : 2),
             );
@@ -3952,12 +3992,7 @@ class BdDiagramPainter extends CustomPainter {
               fontSize: 8.5,
               fontWeight: FontWeight.w700,
             );
-            _paintText(
-              canvas,
-              tp,
-              box.center - Offset(tp.width / 2, tp.height / 2),
-              glyph,
-            );
+            _paintText(canvas, tp, bdCentredTextAnchor(box, tp.size), glyph);
           }
         case ViObjectKind.node:
           // LabVIEW node icon plate: a verified primitive icon (the bundled
@@ -4165,10 +4200,7 @@ class BdDiagramPainter extends CustomPainter {
               _paintText(
                 canvas,
                 tp,
-                Offset(
-                  cell.left + ((cell.width - tp.width) / 2).floorToDouble(),
-                  cell.center.dy - tp.height / 2,
-                ),
+                bdCentredTextAnchor(cell, tp.size),
                 name,
                 clip: cell,
               );
@@ -4319,12 +4351,7 @@ class BdDiagramPainter extends CustomPainter {
               fontSize: glyph.length > 2 ? 8.0 : 12,
               maxLines: 1,
             );
-            _paintText(
-              canvas,
-              tp,
-              rect.center - Offset(tp.width / 2, tp.height / 2),
-              glyph,
-            );
+            _paintText(canvas, tp, bdCentredTextAnchor(rect, tp.size), glyph);
           }
         default:
           final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
@@ -4405,15 +4432,14 @@ class BdDiagramPainter extends CustomPainter {
           text = constValue ?? byOid[object.parentOid]?.typeName;
         }
         if (text == null || text.isEmpty) continue;
-        final rect0 = rectOf(object);
-        if (rect0.width < 8 || rect0.height < 8) continue;
+        final rect = rectOf(object);
+        if (rect.width < 8 || rect.height < 8) continue;
         // The case selector's value text fills its decoded label bounds — the
         // pager boxes and dropdown sit OUTSIDE them (see [_drawCaseSelector])
         // — LEFT-justified like LabVIEW's (the recovered label carries the
         // reference's own leading space: MD5's " 3 " strip shows the glyph
         // at bounds.left+4, the space's width past a 1 px inset).
         final selector = object.kind == 0x95;
-        final rect = rect0;
         // The label's decoded face: its first font run resolved against the
         // VI's FTAB ([ViHeapObject.labelFont]) — weight 1000 draws the bold
         // face; a non-default table size (its cell height in px, 15 = the
@@ -4452,12 +4478,9 @@ class BdDiagramPainter extends CustomPainter {
         // pinning the clip edge to bounds.right-4/-5). A wide-enough strip
         // (its sibling selectors) shows the whole run unchanged.
         // A CENTRE-justified label ([ViHeapObject.labelJustifyCenter], the
-        // 0x021 word's 0x20 bit) centres its run over bounds-width−1,
-        // truncating the half pixel — reference-measured on every
-        // confidently-registered centred heading in the snippet corpus:
-        // odd width−text gaps read as plain floor, while all five even
-        // gaps (GenerateTree's 94/678, the crc trio's 40) ink one px LEFT
-        // of the symmetric centre.
+        // 0x021 word's 0x20 bit) centres its run by [bdCentredLabelLeft] —
+        // a different half-pixel law from the cell centring of
+        // [bdCentredTextAnchor], measured separately.
         // A LEFT-justified label pens at [ViHeapObject.labelTextInset]
         // (the 0x021 word's 0x800000 bit: 2 px, else 1 px) inside its
         // bounds — corpus-measured across holder classes.
@@ -4466,14 +4489,10 @@ class BdDiagramPainter extends CustomPainter {
           canvas,
           tp,
           selector
-              ? Offset(rect.left + 1, rect.center.dy - tp.height / 2)
+              ? Offset(rect.left + 1, bdCentredTextTop(rect, tp.height))
               : centered
-              ? Offset(
-                  rect0.left +
-                      ((rect0.width - tp.width - 1) / 2).floorToDouble(),
-                  rect0.top + 1,
-                )
-              : rect0.topLeft + Offset(object.labelTextInset.toDouble(), 1),
+              ? Offset(bdCentredLabelLeft(rect, tp.width), rect.top + 1)
+              : rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
           text,
           clip: selector
               ? Rect.fromLTRB(rect.left, rect.top, rect.right - 4, rect.bottom)
@@ -6181,7 +6200,7 @@ class BdDiagramPainter extends CustomPainter {
               tp,
               Offset(
                 (pb.left + 2 - origin.dx).toDouble(),
-                (pb.top + pb.bottom) / 2 - origin.dy - tp.height / 2,
+                bdCentredTextTop(_toCanvas(pb), tp.height),
               ),
               indexText,
             );
@@ -6388,7 +6407,7 @@ class BdDiagramPainter extends CustomPainter {
       tp,
       Offset(
         cell.left + (marker != null ? 9 : 3),
-        cell.center.dy - tp.height / 2,
+        bdCentredTextTop(cell, tp.height),
       ),
       text,
       clip: cell,
@@ -7443,12 +7462,7 @@ class BdDiagramPainter extends CustomPainter {
       fontWeight: FontWeight.w700,
       fontStyle: FontStyle.italic,
     );
-    _paintText(
-      canvas,
-      tp,
-      box.center - Offset(tp.width / 2, tp.height / 2),
-      glyph,
-    );
+    _paintText(canvas, tp, bdCentredTextAnchor(box, tp.size), glyph);
   }
 
   /// Draws a structure's modeled terminals at their frame-relative boxes,
