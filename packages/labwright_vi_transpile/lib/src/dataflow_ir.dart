@@ -706,7 +706,12 @@ class _Builder {
   /// (`error in` against `error out`, both the error cluster).
   LvWireType _wireType(ViWire wire, ViSignalType signal) {
     final direct = mapLvWireType(signal);
-    if (direct.isMapped || !kLvWireClusterCodes.contains(signal.typeCode)) return direct;
+    if (direct.isMapped) return direct;
+    if (kLvWireRefnumCodes.contains(signal.typeCode)) {
+      final dims = lvRefnumWireDims(diagram, wire);
+      return dims == null ? direct : lvRefnumWireType(signal, dims);
+    }
+    if (!kLvWireClusterCodes.contains(signal.typeCode)) return direct;
     final array = (signal.arrayDims ?? 0) > 0;
     final resolved = <ViType>[
       for (final endpoint in wire.endpointOids)

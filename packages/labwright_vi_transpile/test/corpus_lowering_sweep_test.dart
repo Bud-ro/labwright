@@ -262,16 +262,44 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// lands on the per-reference-class bases the descriptor's own discriminator
 /// measures (see [kRefnumSubtypeNote]).
 ///
-/// It is measured and not read because the oracle is **one-sided**: every one
-/// of those 26 796 wires is scalar, so the test can catch a route that invents
-/// an array and cannot catch one that misses a real one. The test that would
-/// is the auto-indexing tunnel law ([kLvAutoIndexTunnelFlag]), a boundary whose
-/// two sides must differ by exactly one dimension — and the corpus does not
-/// carry it: of the 4 190 loop tunnels whose refnum-coded OUTER wire the part
-/// route types, NOT ONE inner side resolves a type (4 141 are a refnum-coded
-/// wire whose parts state nothing, 15 a wire of another code, 34 no wire at
-/// all). A structure border terminal carries no typed part; only a node
-/// terminal does.
+/// That test alone is **one-sided**: every one of those 26 796 wires is scalar,
+/// so it catches a route that invents an array and cannot catch one that misses
+/// a real one. The `ref.pane.*` counters are the second side. A call node's
+/// holders are its pane terminals in pane order, so a refnum wire ending on one
+/// can be read against the CALLEE's own terminal for that pane — a different
+/// route (a terminal's own descriptor rather than a part's) in a different
+/// file. It answers on both rows of the undecided wires (`ref.pane.dims0`
+/// 4 661, `ref.pane.dims1` 177) and reproduces the part route on 4 827 of 4 838
+/// (`ref.pane.vsAgrees`), the 11 disagreements splitting 10 `vsInvented` to 1
+/// `vsMissed`. Its own calibration is `ref.pane.lawAgrees`: on the word's
+/// ground-truth row it agrees 1 869 times with `ref.pane.lawContradicts` absent
+/// from the pin and so zero — unlike the caller-side endpoint walk, which is
+/// wrong 8.7% of the time on that same row and is not read.
+///
+/// The disagreements are not spread. `ref.pane.contraCell.*` breaks them out by
+/// signal-word cell: plain refnum at depth 4 holds 10 of the 11, dissenting on
+/// 10 of the 101 wires the pane tests there, while every other cell agrees
+/// 4 736 of 4 737. That cell is [kLvRefnumContradictedCells] and its 1 494
+/// wires (`ref.part.contradictedCell`) keep the word's refusal; the other
+/// 30 938 (`ref.part.read`) are what the lowering types.
+///
+/// Two other candidate oracles were measured and refuted. **Auto-indexing
+/// tunnels** ([kLvAutoIndexTunnelFlag]) would give a boundary whose two sides
+/// differ by exactly one dimension, but the corpus does not carry it: of the
+/// 4 190 loop tunnels whose refnum-coded OUTER wire the part route types, NOT
+/// ONE inner side resolves a type (4 141 are a refnum-coded wire whose parts
+/// state nothing, 15 a wire of another code, 34 no wire at all) — a structure
+/// border terminal carries no typed part, only a node terminal does.
+/// **LabVIEW's own wire stroke** ([ViSignalTypeRenderStyle]) draws
+/// dimensionality directly, but the shipped catalogue is a pure function of the
+/// same 12 bits [ViSignalType.arrayDims] reads, so it can only restate them:
+/// `render.lawSilent.styleSpeaks` is the wires where a stroke is catalogued and
+/// the depth base is not, and it covers 5 292 of 38 439 — of which
+/// `render.refUndecided.styleSpeaks` shows only 5 028 of the 37 891 refnum
+/// wires (13.3%), every one of them the single depth-2 plain-refnum cell, whose
+/// one catalogued stroke is shared by the 3 969 wires the part route calls
+/// one-dimensional AND the 651 it calls scalar. A stroke constant across a cell
+/// cannot separate readings inside it.
 ///
 /// The `idx.*` counters are the Index Array terminal census
 /// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
@@ -280,12 +308,12 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
 /// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 2057,
-  'call.calleeMissing': 327,
-  'call.noPaneMap': 837,
-  'call.paneMatched': 816,
+  'call': 2327,
+  'call.calleeMissing': 385,
+  'call.noPaneMap': 992,
+  'call.paneMatched': 853,
   'call.paneWidthMismatch': 15,
-  'call.unnamed': 62,
+  'call.unnamed': 82,
   'clus': 133106,
   'clus.kid.many': 228,
   'clus.kid.none': 21496,
@@ -337,17 +365,17 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 1213,
   'decl.vi': 3129,
   'exceptions.caseSelector': 3,
-  'exceptions.constantValue': 101,
-  'exceptions.lowered': 211,
-  'exceptions.primitive': 422,
-  'exceptions.structure': 109,
-  'exceptions.subViCall': 227,
+  'exceptions.constantValue': 126,
+  'exceptions.lowered': 222,
+  'exceptions.primitive': 587,
+  'exceptions.structure': 117,
+  'exceptions.subViCall': 288,
   'exceptions.tunnelIndexing': 1,
   'exceptions.typeDeclaration': 18,
   'exceptions.unboundValue': 6,
-  'exceptions.unwiredTerminal': 207,
-  'exceptions.wireDirection': 88,
-  'exceptions.wireType': 6115,
+  'exceptions.unwiredTerminal': 233,
+  'exceptions.wireDirection': 107,
+  'exceptions.wireType': 5800,
   'flag0.array': 24628,
   'flag0.scalar': 148921,
   'flag12.array': 907,
@@ -362,12 +390,27 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.differ': 40,
-  'modes.same': 171,
+  'modes.differ': 43,
+  'modes.same': 179,
   'ref': 66473,
   'ref.ep.agrees': 14046,
   'ref.ep.contradicts': 1335,
   'ref.ep.split': 19,
+  'ref.pane.contraCell.70_d2.agrees': 90,
+  'ref.pane.contraCell.70_d3.agrees': 4031,
+  'ref.pane.contraCell.70_d3.contradicts': 1,
+  'ref.pane.contraCell.70_d4.agrees': 91,
+  'ref.pane.contraCell.70_d4.contradicts': 10,
+  'ref.pane.contraCell.71_d4.agrees': 66,
+  'ref.pane.contraCell.71_d5.agrees': 548,
+  'ref.pane.contraCell.71_d6.agrees': 1,
+  'ref.pane.dims0': 4661,
+  'ref.pane.dims1': 177,
+  'ref.pane.lawAgrees': 1869,
+  'ref.pane.vsAgrees': 4827,
+  'ref.pane.vsContradicts': 11,
+  'ref.pane.vsInvented': 10,
+  'ref.pane.vsMissed': 1,
   'ref.part.agrees': 26796,
   'ref.part.base1': 3969,
   'ref.part.base2': 662,
@@ -375,54 +418,60 @@ const Map<String, int> kCorpusLoweringSweep = {
   'ref.part.base4': 1161,
   'ref.part.base5': 4161,
   'ref.part.base6': 18,
+  'ref.part.contradictedCell': 1494,
   'ref.part.decides': 32432,
   'ref.part.dims0': 26831,
   'ref.part.dims1': 5601,
+  'ref.part.read': 30938,
   'ref.part.silent': 5459,
   'ref.scalar': 28582,
   'ref.undecided': 37891,
-  'term.calleeUntyped': 725,
-  'term.dirAgree': 1345,
-  'term.resolved': 1345,
-  'term.typeAgree': 615,
-  'term.typeDisagree': 5,
-  'term.unresolved': 88,
-  'term.wired': 1433,
+  'render.lawSilent.styleMute': 33147,
+  'render.lawSilent.styleSpeaks': 5292,
+  'render.refUndecided.styleMute': 32863,
+  'render.refUndecided.styleSpeaks': 5028,
+  'term.calleeUntyped': 838,
+  'term.dirAgree': 1478,
+  'term.resolved': 1478,
+  'term.typeAgree': 634,
+  'term.typeDisagree': 6,
+  'term.unresolved': 95,
+  'term.wired': 1573,
   'threaded.caseSelector': 3,
-  'threaded.constantValue': 101,
-  'threaded.lowered': 211,
-  'threaded.primitive': 422,
-  'threaded.structure': 109,
-  'threaded.subViCall': 227,
+  'threaded.constantValue': 126,
+  'threaded.lowered': 222,
+  'threaded.primitive': 587,
+  'threaded.structure': 117,
+  'threaded.subViCall': 288,
   'threaded.tunnelIndexing': 1,
   'threaded.typeDeclaration': 18,
   'threaded.unboundValue': 6,
-  'threaded.unwiredTerminal': 207,
-  'threaded.wireDirection': 88,
-  'threaded.wireType': 6115,
+  'threaded.unwiredTerminal': 233,
+  'threaded.wireDirection': 107,
+  'threaded.wireType': 5800,
   'vi': 7508,
   'wt.cause.member.0x33': 14,
-  'wt.cause.member.0x54': 57,
-  'wt.cause.noneNoCluster': 3549,
+  'wt.cause.member.0x54': 67,
+  'wt.cause.noneNoCluster': 4197,
   'wt.cause.noneUntyped': 25,
-  'wt.cause.typesDisagree': 51,
-  'wt.cluster': 3696,
-  'wt.code0x0': 1,
-  'wt.code0x33': 45,
-  'wt.code0x37': 21,
-  'wt.code0x54': 76,
+  'wt.cause.typesDisagree': 60,
+  'wt.cluster': 4363,
+  'wt.code0x0': 4,
+  'wt.code0x33': 46,
+  'wt.code0x37': 22,
+  'wt.code0x54': 81,
   'wt.code0x74': 1,
   'wt.code0xb': 4,
-  'wt.code0xc': 2,
-  'wt.code0xff': 56,
-  'wt.refnum': 2161,
+  'wt.code0xc': 3,
+  'wt.code0xff': 70,
+  'wt.refnum': 1154,
   'wt.sole.cluster': 1901,
   'wt.sole.code0x33': 4,
   'wt.sole.code0x37': 5,
   'wt.sole.code0x54': 29,
   'wt.sole.code0xb': 1,
   'wt.sole.code0xff': 8,
-  'wt.sole.refnum': 971,
+  'wt.sole.refnum': 666,
 };
 
 /// The occurrence count at which a review-list entry is pinned individually;
@@ -436,7 +485,7 @@ const ({int identities, int nodes}) kReviewListTotals = (identities: 98, nodes: 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 211, sources: 62);
+const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -531,6 +580,33 @@ const ({int vis, int sources}) kEmittedSources = (vis: 211, sources: 62);
     }
   }
 
+  /// Per endpoint oid in [endpoints], the callee and pane index it is a pane
+  /// terminal of. A call node's holders are its pane terminals in pane order,
+  /// so a wire ending on one can be read against the callee VI's own terminal
+  /// for that pane. Built only for the call nodes [endpoints] actually reaches,
+  /// so the census does not load a callee it has no question for.
+  Map<int, (LvViUnit, int)> paneTerminalsOf(ViDiagram diagram, Set<int> endpoints) {
+    final paneOf = <int, (LvViUnit, int)>{};
+    for (final node in diagram.objects) {
+      if (!kSubViCallNodeCodes.contains(node.kind)) continue;
+      final name = node.label?.trim();
+      if (name == null) continue;
+      final lower = name.toLowerCase();
+      if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) continue;
+      final ports = [
+        for (final holder in diagram.children(node.oid))
+          if (holder.kind == kLvHolderCode) holder.oid,
+      ];
+      if (!ports.any(endpoints.contains)) continue;
+      final callee = resolve(name);
+      if (callee == null || ports.length != callee.paneMap.length || callee.paneMap.isEmpty) continue;
+      for (var pane = 0; pane < ports.length; pane++) {
+        paneOf[ports[pane]] = (callee, pane);
+      }
+    }
+    return paneOf;
+  }
+
   // The cluster-wire census: where a cluster wire's member shape comes from.
   // `clus.viaTypedef` is the wires only the typedef unwrap ([lvClusterBase])
   // resolves, and `clus.typedefContradicts` the wires where it adds a shape
@@ -555,27 +631,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 211, sources: 62);
         if (kLvWireClusterCodes.contains(wire.signalType?.typeCode)) ...wire.endpointOids,
     };
     if (clusterEndpoints.isEmpty) return;
-    // Per endpoint oid, the callee and pane index it is a pane terminal of —
-    // built only for the call nodes a cluster wire actually reaches, so the
-    // census does not load a callee it has no question for.
-    final paneOf = <int, (LvViUnit, int)>{};
-    for (final node in diagram.objects) {
-      if (!kSubViCallNodeCodes.contains(node.kind)) continue;
-      final name = node.label?.trim();
-      if (name == null) continue;
-      final lower = name.toLowerCase();
-      if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) continue;
-      final ports = [
-        for (final holder in diagram.children(node.oid))
-          if (holder.kind == kLvHolderCode) holder.oid,
-      ];
-      if (!ports.any(clusterEndpoints.contains)) continue;
-      final callee = resolve(name);
-      if (callee == null || ports.length != callee.paneMap.length || callee.paneMap.isEmpty) continue;
-      for (var pane = 0; pane < ports.length; pane++) {
-        paneOf[ports[pane]] = (callee, pane);
-      }
-    }
+    final paneOf = paneTerminalsOf(diagram, clusterEndpoints);
     // Whether the VI's data-space type indices resolve at all: a VI carrying
     // no `VCTP` pool, or a `DTHP` too short to declare the heap's index base,
     // has no object with a resolved type, so no route can reach one.
@@ -784,8 +840,29 @@ const ({int vis, int sources}) kEmittedSources = (vis: 211, sources: 62);
   // supplies that base: every observed flag value carries both array and
   // non-array wires among the codes whose base IS pinned, so the nibble does
   // not encode array-ness.
+  //
+  // Three readings of a refnum wire's dimensionality are scored here, each
+  // against the others and against the word where the word decides — the
+  // evidence [lvRefnumWireDims] rests on:
+  //
+  // * `ref.part.*` — the endpoint's node-terminal PARTS, in the wire's own VI.
+  //   This is the route the lowering reads.
+  // * `ref.ep.*` — the endpoint DCO itself, one parent up. Measured and NOT
+  //   read: on the word's ground-truth row it invents an array 1 335 times.
+  // * `ref.pane.*` — the CALLEE's connector-pane terminal where the wire ends
+  //   on a subVI call: a different route (a terminal's own descriptor, not a
+  //   part's) in a different file, and the only one of the three that answers
+  //   on both the scalar and the array row of the undecided wires. `ref.pane.law*`
+  //   is its calibration against the depth-1 law, `ref.pane.vs*` its verdict on
+  //   the part route, and `ref.pane.contraCell*` where the two disagree
+  //   ([kLvRefnumContradictedCells]).
   void censusRefnumWires(ViDiagram diagram) {
     final childrenByOid = diagram.childrenByOid;
+    final refnumEndpoints = <int>{
+      for (final wire in diagram.wires)
+        if (kLvWireRefnumCodes.contains(wire.signalType?.typeCode)) ...wire.endpointOids,
+    };
+    final paneOf = refnumEndpoints.isEmpty ? const <int, (LvViUnit, int)>{} : paneTerminalsOf(diagram, refnumEndpoints);
     for (final wire in diagram.wires) {
       final signal = wire.signalType;
       if (signal == null) continue;
@@ -793,10 +870,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 211, sources: 62);
       if (kLvWireRefnumCodes.contains(signal.typeCode)) {
         bump('ref');
         bump(dims == null ? 'ref.undecided' : 'ref.scalar');
-        // The two descriptor routes as a source for the dimensionality the
+        // The three descriptor routes as a source for the dimensionality the
         // word's missing base withholds, each scored against the other's
         // answer and against the word where the word decides.
-        final viaEndpoint = <int>{}, viaPart = <int>{};
+        final viaEndpoint = <int>{}, viaPart = <int>{}, viaPane = <int>{};
         for (final endpoint in wire.endpointOids) {
           var walker = diagram.byId[endpoint];
           for (var depth = 0; walker != null && depth < 2; depth++) {
@@ -810,21 +887,69 @@ const ({int vis, int sources}) kEmittedSources = (vis: 211, sources: 62);
           for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
             if (_refnumDims(part) case final answer?) viaPart.add(answer);
           }
+          if (paneOf[endpoint] case (final callee, final pane)) {
+            final terminal = callee.paneTerminal(pane);
+            if (terminal == null) continue;
+            var calleeWalker = callee.diagram.byId[terminal.oid];
+            for (var depth = 0; calleeWalker != null && depth < 2; depth++) {
+              if (_refnumDims(calleeWalker) case final answer?) {
+                viaPane.add(answer);
+                break;
+              }
+              final parent = calleeWalker.parentOid;
+              calleeWalker = parent == null ? null : callee.diagram.byId[parent];
+            }
+          }
         }
         if (viaPart.length > 1) bump('ref.part.split');
         if (viaEndpoint.length > 1) bump('ref.ep.split');
+        if (viaPane.length > 1) bump('ref.pane.split');
         if (dims != null) {
           if (viaPart.length == 1) bump(viaPart.single == dims ? 'ref.part.agrees' : 'ref.part.contradicts');
           if (viaEndpoint.length == 1) bump(viaEndpoint.single == dims ? 'ref.ep.agrees' : 'ref.ep.contradicts');
-        } else if (viaPart.length == 1) {
-          bump('ref.part.decides');
-          bump('ref.part.dims${viaPart.single}');
-          bump('ref.part.base${signal.depth - viaPart.single}');
-        } else if (viaPart.isEmpty) {
-          bump('ref.part.silent');
+          // The pane route's calibration: on the row the word decides, does the
+          // callee's terminal ever invent an array the word says is not there?
+          if (viaPane.length == 1) bump(viaPane.single == dims ? 'ref.pane.lawAgrees' : 'ref.pane.lawContradicts');
+        } else {
+          if (viaPart.length == 1 && viaPane.length == 1) {
+            final agrees = viaPart.single == viaPane.single;
+            bump(agrees ? 'ref.pane.vsAgrees' : 'ref.pane.vsContradicts');
+            // Both error directions, kept apart: the pane declining an array
+            // the part route reads, and the pane reading one the part route
+            // declines. A one-sided oracle can only ever fill one of these.
+            if (!agrees) bump('ref.pane.vs${viaPart.single > viaPane.single ? 'Invented' : 'Missed'}');
+            bump(
+              'ref.pane.contraCell.${signal.typeCode.toRadixString(16)}_d${signal.depth}'
+              '.${agrees ? 'agrees' : 'contradicts'}',
+            );
+          }
+          // The array row of the undecided wires, which only the pane route
+          // reaches: how many wires it calls one-dimensional at all.
+          if (viaPane.length == 1) bump('ref.pane.dims${viaPane.single}');
+          if (viaPart.length == 1) {
+            bump('ref.part.decides');
+            bump('ref.part.dims${viaPart.single}');
+            bump('ref.part.base${signal.depth - viaPart.single}');
+            if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) {
+              bump('ref.part.contradictedCell');
+            } else {
+              bump('ref.part.read');
+            }
+          } else if (viaPart.isEmpty) {
+            bump('ref.part.silent');
+          }
+          bump('render.refUndecided.${signal.renderStyle == null ? 'styleMute' : 'styleSpeaks'}');
         }
       } else if (dims != null) {
         bump('flag${signal.flags}.${dims > 0 ? 'array' : 'scalar'}');
+      }
+      // Whether the wire's MEASURED render stroke ([ViSignalTypeRenderStyle])
+      // says anything where the word's array-depth base does not — the whole
+      // question of whether LabVIEW's own drawing can supply the missing
+      // dimensionality. It is a pure function of the same 12 bits
+      // ([ViSignalType.arrayDims] reads), so it can only ever restate them.
+      if (dims == null) {
+        bump('render.lawSilent.${signal.renderStyle == null ? 'styleMute' : 'styleSpeaks'}');
       }
       // The non-cluster half of the untyped-family set the refusal
       // attribution below reads; the cluster half is filled by the cluster
