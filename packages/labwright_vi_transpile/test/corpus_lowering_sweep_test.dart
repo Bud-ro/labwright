@@ -1,16 +1,22 @@
-/// The lowering sweep over the tracked VI snippets: what each one's block
-/// diagram does when it is lowered, and what stands in the way of the rest.
+/// The lowering sweep: what each tracked VI snippet's block diagram does when
+/// it is lowered, what stands in the way of the rest, and — over the whole
+/// fetched `.vi` corpus — how subVI calls bind and what the two error modes
+/// make of it.
 ///
-/// Both halves are pinned as data, so progress and regression are equally
+/// Every half is pinned as data, so progress and regression are equally
 /// visible: a VI that starts lowering, and a VI that stops, both fail here
 /// until the pin is updated to the measured value.
 ///
 /// [kSnippetLoweringOutcomes] is the per-VI outcome; [kSnippetPrimReviewList]
 /// is the primitive review list — every operation the corpus uses that has no
-/// lowering rule, with how often it appears. Nothing on that list is guessed
-/// at: an entry leaves it only when its identity *and* its operand roles are
-/// decoded (see `kLvMappedPrimOps`).
+/// lowering rule, with how often it appears; [kCorpusLoweringSweep] is the
+/// whole-corpus tally. Nothing on the review list is guessed at: an entry
+/// leaves it only when its identity *and* its operand roles are decoded (see
+/// `kLvMappedPrimOps`).
 library;
+
+import 'dart:io';
+import 'dart:isolate';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
@@ -24,8 +30,8 @@ import 'snippets.dart';
 /// The refusals concentrate in three places, and each names real work:
 /// `wireType` — cluster wires whose endpoints resolve no member shape (see
 /// [kSnippetClusterWires]) and the wire codes with no pinned array-depth base;
-/// `primitive` — the review list below; `wireDirection` — the 1.3% of corpus
-/// signals whose endpoint flags do not resolve exactly one source.
+/// `primitive` — the review list below; `wireDirection` — the 0.8% of corpus
+/// signals whose endpoints do not resolve exactly one source.
 ///
 /// `MD5` is the largest diagram here and refuses on `primitive`. Its every
 /// constant, structure and wire decodes; what stands in the way is identity:
@@ -67,15 +73,15 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'VISA_Open2': 'wireType',
   'VISA_Query': 'wireType',
   'WriteConsole': 'wireType',
-  'basic': 'wireDirection',
+  'basic': 'lowered',
   'broken_wires_only': 'wireDirection',
   'crc16': 'primitive',
   'crc32': 'primitive',
-  'crc32_lookup_table': 'wireDirection',
+  'crc32_lookup_table': 'primitive',
   'crc8': 'lowered',
   'decorations_only': 'lowered',
   'example': 'wireType',
-  'fg': 'wireDirection',
+  'fg': 'structure',
   'large': 'wireType',
   'missing_terminal': 'wireDirection',
   'sub_vi_missing': 'wireDirection',
@@ -123,6 +129,61 @@ const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClu
   unresolved: 379,
 );
 
+/// The snippets whose outcome differs under [LvErrorMode.threaded]. It is
+/// **empty**: the two modes differ only where an error cluster reaches the
+/// connector pane, and no tracked snippet lowers far enough for that to
+/// matter. The corpus does show the difference — see the corpus sweep below,
+/// which is where the mode is measured.
+const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
+
+/// How the whole `.vi` corpus's **subVI calls** bind through the connector
+/// pane, and what the two error modes make of the corpus as a whole.
+///
+/// Keys are the counter names [sweepLoweringChunk] tallies. The binding chain
+/// is what proves the pane contract: `term.dirAgree` against `term.dirDisagree`
+/// compares the caller's own wire direction with the callee control's, and
+/// `term.typeAgree` against `term.typeDisagree` compares the two VIs' wire
+/// types — neither is used to *derive* the binding, so both are independent
+/// checks on it.
+const Map<String, int> kCorpusLoweringSweep = {
+  'call': 1290,
+  'call.calleeMissing': 159,
+  'call.noPaneMap': 567,
+  'call.paneMatched': 545,
+  'call.paneWidthMismatch': 6,
+  'call.unnamed': 13,
+  'exceptions.caseSelector': 60,
+  'exceptions.constantValue': 66,
+  'exceptions.lowered': 135,
+  'exceptions.primitive': 167,
+  'exceptions.structure': 53,
+  'exceptions.subViCall': 57,
+  'exceptions.tunnelIndexing': 1,
+  'exceptions.unboundValue': 1,
+  'exceptions.unwiredTerminal': 53,
+  'exceptions.wireDirection': 66,
+  'exceptions.wireType': 6849,
+  'modes.same': 135,
+  'term.calleeUntyped': 115,
+  'term.dirAgree': 304,
+  'term.resolved': 304,
+  'term.typeAgree': 189,
+  'term.unresolved': 33,
+  'term.wired': 337,
+  'threaded.caseSelector': 60,
+  'threaded.constantValue': 66,
+  'threaded.lowered': 135,
+  'threaded.primitive': 167,
+  'threaded.structure': 53,
+  'threaded.subViCall': 57,
+  'threaded.tunnelIndexing': 1,
+  'threaded.unboundValue': 1,
+  'threaded.unwiredTerminal': 53,
+  'threaded.wireDirection': 66,
+  'threaded.wireType': 6849,
+  'vi': 7508,
+};
+
 /// The occurrence count at which a review-list entry is pinned individually;
 /// the tail below it is pinned only by [kReviewListTotals].
 const int kReviewListFloor = 10;
@@ -130,6 +191,93 @@ const int kReviewListFloor = 10;
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
 const ({int identities, int nodes}) kReviewListTotals = (identities: 122, nodes: 878);
+
+/// Lowers every VI in [paths], resolving subVI calls against [index] (a
+/// `file name → path` map over the whole corpus), and tallies both the
+/// connector-pane binding of every call node and the per-mode outcome.
+Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
+  final (paths, index) = input;
+  final tally = <String, int>{};
+  void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
+  final units = <String, LvViUnit?>{};
+  final flows = <String, LvDataflow?>{};
+  LvViUnit? load(String path, String fileName) => units.putIfAbsent(path, () {
+    try {
+      return LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);
+    } catch (_) {
+      return null;
+    }
+  });
+  LvViUnit? resolve(String name) {
+    final path = index[name.toLowerCase()];
+    return path == null ? null : load(path, name);
+  }
+
+  LvDataflow? flowOf(LvViUnit unit) =>
+      flows.putIfAbsent(unit.fileName, () => buildLvDataflow(unit.diagram, pool: unit.pool).dataflow);
+
+  void bindCall(LvDataflow flow, LvSubViUnit call) {
+    bump('call');
+    if (call.calleeName == null) return bump('call.unnamed');
+    final callee = resolve(call.calleeName!);
+    if (callee == null) return bump('call.calleeMissing');
+    if (callee.paneMap.isEmpty) return bump('call.noPaneMap');
+    if (callee.paneMap.length != call.panePorts.length) return bump('call.paneWidthMismatch');
+    bump('call.paneMatched');
+    final calleeFlow = flowOf(callee);
+    for (var pane = 0; pane < call.panePorts.length; pane++) {
+      final holder = call.panePorts[pane];
+      final into = flow.into(holder), outOf = flow.outOf(holder);
+      if (into == null && outOf == null) continue;
+      bump('term.wired');
+      final terminal = callee.paneTerminal(pane);
+      if (terminal == null) {
+        bump('term.unresolved');
+        continue;
+      }
+      bump('term.resolved');
+      bump((into != null) == !lvEndpointIsSink(terminal) ? 'term.dirAgree' : 'term.dirDisagree');
+      final declared = calleeFlow == null
+          ? null
+          : (calleeFlow.into(terminal.oid) ?? calleeFlow.outOf(terminal.oid))?.type;
+      if (declared == null) {
+        bump('term.calleeUntyped');
+        continue;
+      }
+      bump(declared.dartType == (into ?? outOf)!.type.dartType ? 'term.typeAgree' : 'term.typeDisagree');
+    }
+  }
+
+  void walk(LvDataflow flow, LvRegion region) {
+    for (final unit in region.units) {
+      if (unit is LvSubViUnit) bindCall(flow, unit);
+      if (unit is LvStructUnit) {
+        for (final frame in unit.frames) {
+          walk(flow, frame);
+        }
+      }
+    }
+  }
+
+  for (final path in paths) {
+    final unit = load(path, path.split(Platform.pathSeparator).last);
+    if (unit == null) continue;
+    bump('vi');
+    if (flowOf(unit) case final flow?) walk(flow, flow.root);
+    final sources = <String?>[];
+    for (final mode in LvErrorMode.values) {
+      final result = emitLvLibrary(unit, functionName: 'lowered', errorMode: mode, resolveSubVi: resolve);
+      bump('${mode.name}.${result.refusal?.kind.name ?? 'lowered'}');
+      sources.add(result.source);
+    }
+    // The modes are only allowed to differ where an error cluster reaches the
+    // connector pane, so this counts the VIs the choice actually changes.
+    if (sources.every((source) => source != null)) {
+      bump(sources.first == sources.last ? 'modes.same' : 'modes.differ');
+    }
+  }
+  return tally;
+}
 
 void main() {
   final snippets = snippetFiles();
@@ -152,6 +300,24 @@ void main() {
     );
   });
 
+  test('the threaded error mode changes only the VIs that carry an error cluster', () {
+    final measured = <String, String>{};
+    for (final file in snippets) {
+      final name = snippetName(file);
+      final vi = snippetVi(name);
+      final result = emitLvFunction(
+        vi.diagram,
+        functionName: 'lowered',
+        sourceNote: name,
+        pool: vi.pool,
+        errorMode: LvErrorMode.threaded,
+      );
+      final outcome = result.refusal?.kind.name ?? 'lowered';
+      if (outcome != kSnippetLoweringOutcomes[name]) measured[name] = outcome;
+    }
+    expect(measured, kSnippetThreadedDifferences);
+  });
+
   test('cluster wires resolve their member shape through their endpoints', () {
     var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
     for (final file in snippets) {
@@ -167,6 +333,38 @@ void main() {
       kSnippetClusterWires,
     );
   });
+
+  final corpus = corpusViDir();
+  test(
+    'subVI calls bind through the connector pane, and both error modes sweep the corpus',
+    () async {
+      final paths = corpusViPaths(corpus!);
+      final index = <String, String>{};
+      for (final path in paths) {
+        index.putIfAbsent(path.split(Platform.pathSeparator).last.toLowerCase(), () => path);
+      }
+      final workers = (Platform.numberOfProcessors - 2).clamp(1, 16);
+      final chunks = List.generate(workers, (_) => <String>[]);
+      for (var i = 0; i < paths.length; i++) {
+        chunks[i % workers].add(paths[i]);
+      }
+      final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepLoweringChunk((chunk, index)))));
+      final measured = <String, int>{};
+      for (final result in results) {
+        result.forEach((key, value) => measured[key] = (measured[key] ?? 0) + value);
+      }
+      printOnFailure(
+        'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
+      );
+      expect(measured, kCorpusLoweringSweep);
+      // The two independent checks on the pane binding: neither is used to
+      // derive it, so a disagreement would mean the contract is wrong.
+      expect(measured['term.dirDisagree'], isNull, reason: 'the pane binding contradicts the caller\'s own direction');
+      expect(measured['term.typeDisagree'], isNull, reason: 'the pane binding contradicts the two VIs\' wire types');
+    },
+    tags: 'corpus',
+    skip: corpus == null ? 'corpus not fetched' : null,
+  );
 
   test('the primitive review list is exactly what the snippet corpus holds', () {
     final counts = <String, int>{};

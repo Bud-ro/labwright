@@ -41,9 +41,14 @@ List<File> snippetFiles() =>
 /// The block diagram and consolidated type pool of the snippet named [name]
 /// (without the `.png`) — the two inputs a lowering takes.
 ({ViDiagram diagram, List<ViType> pool}) snippetVi(String name) {
+  final unit = snippetUnit(name);
+  return (diagram: unit.diagram, pool: unit.pool);
+}
+
+/// The snippet named [name] as a lowering unit, connector pane included.
+LvViUnit snippetUnit(String name) {
   final vi = extractSnippetVi(File('${snippetDir().path}/$name.png').readAsBytesSync())!;
-  final model = buildViModelFromDecoded(decodeSections(Uint8List.fromList(vi)));
-  return (diagram: lvBlockDiagramOf(model)!, pool: model.types);
+  return LvViUnit.fromSections(decodeSections(Uint8List.fromList(vi)), fileName: '$name.vi')!;
 }
 
 /// The block diagram of the snippet named [name] (without the `.png`).
@@ -51,3 +56,29 @@ ViDiagram snippetDiagram(String name) => snippetVi(name).diagram;
 
 /// A snippet file's name without its extension.
 String snippetName(File file) => file.uri.pathSegments.last.replaceAll(RegExp(r'\.png$'), '');
+
+/// The RSRC package's fetched `.vi` corpus, or null when it is not present —
+/// in which case a corpus-tagged sweep skips rather than failing.
+Directory? corpusViDir() {
+  var dir = Directory.current;
+  for (var depth = 0; depth < 8; depth++) {
+    for (final relative in const ['packages/labwright_rsrc_parse/corpus', '../labwright_rsrc_parse/corpus']) {
+      final candidate = Directory('${dir.path}/$relative/vi');
+      if (candidate.existsSync()) return candidate;
+    }
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  return null;
+}
+
+/// Every `.vi` path under [corpus], sorted, so a sweep's chunking is stable.
+List<String> corpusViPaths(Directory corpus) =>
+    corpus
+        .listSync(recursive: true)
+        .whereType<File>()
+        .where((file) => file.path.toLowerCase().endsWith('.vi'))
+        .map((file) => file.path)
+        .toList()
+      ..sort();

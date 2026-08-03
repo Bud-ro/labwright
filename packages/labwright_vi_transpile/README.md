@@ -122,19 +122,25 @@ members typed `{boolean, I32 or U32, string}` and named `status` / `code` /
 - 2-of-3 near misses are ordinary user clusters (`control`/`shift`/`key`,
   `active`/`accessScope`/`code`) and stay ordinary.
 
-Both carrying modes are modelled from the start because they change function
-signatures (`LvErrorMode`, `lvSignature`):
+Both carrying modes are implemented, because they change function signatures
+(`LvErrorMode`, `lvSignature`, and the emitter):
 
-- `exceptions` (**default**) — error terminals are elided from the signature and
-  a set `status` becomes a thrown `LvError`. What a Dart caller expects, and it
-  collapses a diagram's error-case structures into ordinary control flow.
-- `threaded` (**opt-in**) — error terminals stay first-class `LvError` values,
-  preserving LabVIEW's behaviour that a node with an incoming error does
-  nothing and passes it through.
+- `exceptions` (**default**) — the error cluster leaves the *signature* and
+  becomes control flow, while the diagram's error computation stays. An
+  `error in` terminal is not a parameter and its wire starts at `LvError.none`;
+  an `error out` terminal is not a result and the function ends with
+  `if (it.status) throw it;`; a subVI call passes nothing for the callee's
+  `error in` and reads `LvError.none` from its `error out`. All three follow
+  from one premise: a caller that failed threw rather than returning.
+- `threaded` (**opt-in**) — error terminals stay first-class `LvError` values
+  and nothing throws. LabVIEW's per-node **short-circuit** is deliberately not
+  emitted: which nodes skip their work on an incoming error is a property of
+  LabVIEW's library, not a fact the file states.
 
-Connector-pane terminal **direction** is not recovered by the reader, so
-`lvSignature` models which terminals survive and how the error travels, not the
-input/output split.
+A **Case structure selecting on an error cluster** lowers in both modes,
+branching on `status`. Corpus: every one of the 10 Case structures whose
+selector wire resolves an error cluster has two frames, and every displayed
+selector label reads `No Error`.
 
 ## Other value types
 
@@ -223,11 +229,19 @@ constants, connector-pane terminals, structures) joined by typed **edges**, and
 grouped into one `LvRegion` per structure frame.
 
 - **Direction.** An endpoint holder's own flag bit `0x8000` marks it a wire's
-  sink. Corpus, over 435,881 signals in 7,624 files: 430,212 (98.7%) resolve to
-  exactly one source endpoint under that rule. The rest resolve to none or
-  several and are refused; no fallback rule was found — the `0x1000` bit that
-  looks like an indicator marker on the outliers misreads 1,561 wires the plain
-  rule gets right.
+  sink, except on a connector-pane terminal (`0x16`), which answers from its
+  panel data item's control/indicator bit. Corpus, over 428,043 signals in
+  7,524 files: 424,466 (99.2%) resolve to exactly one source endpoint. The
+  panel bit never contradicts the flag — it agrees on all 38,744 connector-pane
+  endpoints of already-resolved signals — and it settles 481 signals the flag
+  alone leaves with two sources.
+
+  The remaining 3,577 are refused. Every one has **several** sources, none has
+  zero, and 2,629 are two plain endpoint holders that both read as producers.
+  The terminal record's own `0x1` output bit would single out a producer for
+  2,182 of them, but it disagrees with the sink flag on 39 of the 213,394
+  already-resolved signals where it speaks, so it is not a law and is not
+  applied.
 - **Nesting.** Every node, structure and signal is parented to a frame
   (`0x1b`), so each edge lives in exactly one region and a structure terminal
   splits into an outer port and one inner port per frame.
@@ -295,13 +309,37 @@ The **review list** is everything else, pinned by count in
 878 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
 class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
 
+### subVI calls
+
+A call node's terminals are its callee's connector pane, in pane order, and
+`subvi.dart` states the three decoded facts that join the two files: the pane
+order itself, `CPMp` naming each pane terminal's panel data item counted from
+the last data-space slot backwards, and that item's block-diagram terminal
+reached through the terminal's `dcoRef`. A call lowers to a Dart call with
+**named** arguments, so the binding is by terminal rather than by position, and
+each callee is emitted once into the same file however many sites reach it.
+
+Corpus, over the 1,290 call nodes in diagrams whose dataflow builds: 545 have a
+callee with a connector pane of the right width, and of the 337 wired terminals
+at those calls, 304 resolve a callee terminal. Two independent checks confirm
+the binding — the caller's own wire direction agrees with the named control's
+on **304 of 304**, and the two VIs' wire types agree on **189 of 189** where
+both are decided. The rest are refused by name: 567 calls whose callee carries
+no `CPMp`, 159 whose callee is absent, 13 that name no file, 6 whose pane width
+disagrees.
+
 ### Outcomes
 
-Over the 46 tracked VI snippets: 3 lower (`crc8`, and `VI Tree` /
-`decorations_only`, which have no dataflow) and 43 refuse. Refusals are pinned
-per VI and concentrate in cluster / path / variant wire types (23), undecoded
-primitives (4), unresolved wire direction (6) and constants whose value the
-heap decode did not recover (3).
+Over the 46 tracked VI snippets: 4 lower (`crc8`, `basic`, and `VI Tree` /
+`decorations_only`, which have no dataflow) and 42 refuse. Refusals are pinned
+per VI and concentrate in cluster / path / variant wire types (27), undecoded
+primitives (7), constants whose value the heap decode did not recover (2),
+unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
+call whose callee is not supplied (1).
+
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 135 lower
+and the rest refuse, 6,849 of them on a wire type — overwhelmingly a cluster
+wire no endpoint resolves a member shape for.
 
 ### crc8.vi, byte-exact
 
