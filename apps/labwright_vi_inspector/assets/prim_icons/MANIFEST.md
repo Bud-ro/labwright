@@ -35,7 +35,7 @@ Palette (15 colours — every icon pixel is one of these): #000000 #0000ff #3333
 | prim1070_random-number-0-1.png | Random Number (0-1) | 19x21 | full-node-box crop from Excel_Read_XLSX (wire ink erased), trimmed to its ink bbox; byte-verified against the reference at its node |
 | prim1077_path-to-string.png | Path To String | 25x11 | Export Palette Image WMF, Excel_Read_XLSX, large — single-sample fallback (0/5 agreeing) |
 | prim1081_logical-shift.png | Logical Shift | 25x15 | node-box+pad crop from MD5 (wire palette erased, near-white border flood, centre-third component keep, trimmed); byte-verified against the reference at its node |
-| prim1082.png | (uncatalogued) | 37x15 | MD5 — single-sample fallback (0/1 agreeing) |
+| prim1082.png | (uncatalogued) | 25x15 | targeted node-box crop, 1 named instance: MD5#6017 (art at dx 4, dy 9 in the node box) |
 | prim1102_equal.png | Equal? | 21x21 | Excel_Read_XLSX, ClassChildren, GenerateTree — single-sample fallback (0/6 agreeing) |
 | prim1103.png | (uncatalogued) | 21x21 | Read VI Blocks, Config_Escape — single-sample fallback (0/2 agreeing) |
 | prim1105_not-equal.png | Not Equal? | 31x31 | large — single-sample fallback (0/2 agreeing) |
