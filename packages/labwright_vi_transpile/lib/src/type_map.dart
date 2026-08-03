@@ -47,11 +47,35 @@ abstract final class LvRuntimeType {
   /// `Uint32List` of dimension lengths. See [lvArrayDartType].
   static const String arrayNd = 'LvArrayNd';
 
-  /// The Dart type a generated enum falls back to when neither the enum
-  /// descriptor nor a wrapping typedef supplies a name; the generator
-  /// allocates a unique name of its own.
+  /// The class-name stem a generated enum falls back to when neither the enum
+  /// descriptor nor a wrapping typedef supplies a name. It is not declared by
+  /// the runtime: [LvDeclarations] allocates a unique name from this stem and
+  /// the generated file carries the declaration.
   static const String anonymousEnum = 'LvEnum';
 }
+
+/// The Dart type names a generated declaration may **not** take, because the
+/// emitted file spells them itself and a class of the same name would shadow
+/// them: the runtime types, `dart:typed_data`'s lists, and the `dart:core`
+/// types a lowering writes. [LvDeclarations] skips a reserved name exactly as
+/// it skips one already taken.
+final Set<String> kLvReservedTypeNames = {
+  ...kLvRuntimeDeclaredTypes,
+  LvRuntimeType.anonymousEnum,
+  for (final kind in LvNumericKind.values) kind.typedListType,
+  'BigInt',
+  'Function',
+  'Iterable',
+  'List',
+  'Map',
+  'Never',
+  'Null',
+  'Object',
+  'Record',
+  'Set',
+  'String',
+  'Type',
+};
 
 /// The [LvRuntimeType] names `package:labwright_lv_runtime` declares — every
 /// one except [LvRuntimeType.anonymousEnum], which the generator declares in
@@ -68,6 +92,14 @@ const Set<String> kLvRuntimeDeclaredTypes = {
 /// that spells it must import the runtime.
 bool lvTypeNeedsRuntime(String? dartType) =>
     dartType != null && kLvRuntimeDeclaredTypes.any((name) => dartType.contains(name));
+
+/// The `dart:typed_data` list types an emitted Dart type may name — the array
+/// storages of [LvNumericKind], plus the `Uint32List` an [LvRuntimeType.arrayNd]
+/// carries its dimension vector in. A file spelling one must import them.
+final Set<String> kLvTypedDataListTypes = {
+  for (final kind in LvNumericKind.values) kind.typedListType,
+  'Uint32List',
+};
 
 /// Which bucket a pool entry falls into.
 enum LvMapStatus { mapped, internal, unmapped }
@@ -167,22 +199,121 @@ bool lvTypeCodeIsAccountedFor(int code) =>
     kInternalTypeCodes.containsKey(code) ||
     kUnmappedTypeCodes.containsKey(code);
 
+/// One **member** of a generated cluster class: the LabVIEW label the
+/// descriptor carries for it (null when it recovered none) and its Dart type.
+///
+/// The Dart *identifier* is not here. It is allocated where the declaration is
+/// written, by the one naming policy every generated identifier goes through
+/// (`LvNaming.declarationFields`), so a member with no label and a member whose
+/// label collides with another are handled by the same rule as every other name.
+class LvDeclField {
+  const LvDeclField({required this.label, required this.type});
+
+  /// The member's own name in the descriptor, or null.
+  final String? label;
+
+  /// What the member's value becomes in Dart.
+  final LvTypeMapping type;
+}
+
+/// A Dart **declaration** a generated library must carry so that a nominal type
+/// it spells exists: a named cluster's class, or a named enum's `enum`.
+///
+/// A LabVIEW enum descriptor states its item labels in order and carries **no
+/// value word for any of them** (the interior is `[u16 count]` then
+/// `count × [u8 len][chars]`), so an item's value is its position. That is
+/// exactly a Dart `enum`, whose `index` is the ordinal — which is why an enum
+/// becomes an `enum` rather than a class of named integer constants.
+class LvTypeDecl {
+  const LvTypeDecl.cluster({required this.name, required this.label, required this.fields})
+    : items = const [],
+      isEnum = false;
+
+  const LvTypeDecl.enumeration({required this.name, required this.label, required this.items})
+    : fields = const [],
+      isEnum = true;
+
+  /// The Dart class name: [lvClassName] of [label], with a numeric suffix when
+  /// a structurally different type in the same library already took it.
+  final String name;
+
+  /// The LabVIEW name the declaration is spelled from, or null for an enum
+  /// descriptor that carries none.
+  final String? label;
+
+  /// A cluster's members, in descriptor order. Empty for an enum.
+  final List<LvDeclField> fields;
+
+  /// An enum's item labels, in ordinal order. Empty for a cluster.
+  final List<String> items;
+
+  /// Whether this is an enum rather than a cluster class.
+  final bool isEnum;
+
+  /// Why this declaration cannot be written as Dart source, or null when it
+  /// can. A Dart `enum` must have at least one member, so an enum descriptor
+  /// whose item labels did not decode has no declaration — the one shape that
+  /// is refused rather than written.
+  String? get undeclarable => isEnum && items.isEmpty
+      ? 'the enum descriptor\'s item labels did not decode, so its Dart enum would have no members'
+      : null;
+
+  /// The declarations this one's own field types name.
+  Iterable<LvTypeDecl> get dependencies sync* {
+    for (final field in fields) {
+      yield* field.type.declarations;
+    }
+  }
+}
+
+/// The **declaration registry** of one generated library: which nominal types
+/// it carries, and what each one's class is called.
+///
+/// A name is only the preferred spelling, and the corpus is why: 3 129 of its
+/// 7 508 VIs need a declaration at all, they need 10 437, and **724** of those
+/// cannot have the plain [lvClassName] of their own LabVIEW name because a
+/// structurally different type in the same VI already holds it (the corpus
+/// sweep's `decl.suffixed`). So **identity is the structure**: [allocate] hands
+/// one declaration to every type with the same [signature], and a numeric
+/// suffix to the next type that wants a name already spoken for.
+///
+/// Allocation order is the order the library maps its types in, which is the
+/// diagram's own wire order — so a given VI always emits the same names.
+class LvDeclarations {
+  final Map<String, LvTypeDecl> _bySignature = <String, LvTypeDecl>{};
+  final Set<String> _taken = <String>{};
+
+  /// Every declaration allocated so far, in allocation order.
+  Iterable<LvTypeDecl> get all => _bySignature.values;
+
+  /// The declaration for the type identified by [signature], building it under
+  /// a free name derived from [preferred] on first sight.
+  LvTypeDecl allocate(String preferred, String signature, LvTypeDecl Function(String name) build) {
+    if (_bySignature[signature] case final existing?) return existing;
+    var name = preferred;
+    for (var index = 2; kLvReservedTypeNames.contains(name) || _taken.contains(name); index++) {
+      name = '$preferred$index';
+    }
+    _taken.add(name);
+    return _bySignature[signature] = build(name);
+  }
+}
+
 /// One pool entry's Dart representation.
 class LvTypeMapping {
   /// A type with a decided Dart representation [dartType].
-  const LvTypeMapping.mapped(this.dartType, {this.numeric, this.note, this.needsDeclaration = false})
+  const LvTypeMapping.mapped(this.dartType, {this.numeric, this.note, this.declarations = const []})
     : status = LvMapStatus.mapped,
       unmappedCode = null;
 
-  /// A type whose Dart spelling is a **nominal name no library declares yet**
-  /// — a named cluster's or enum's class ([lvClassName]), or the anonymous-enum
-  /// placeholder. Mapped, so the type model still names it; [needsDeclaration]
-  /// so an emitter refuses rather than referring to a class it never writes.
-  const LvTypeMapping.nominal(this.dartType, {this.note})
+  /// A type whose Dart spelling is a **nominal class**: a named cluster's or a
+  /// named enum's [declaration], which the generated library writes.
+  LvTypeMapping.nominal(LvTypeDecl declaration, {this.note})
     : status = LvMapStatus.mapped,
+      dartType = declaration.name,
       numeric = null,
       unmappedCode = null,
-      needsDeclaration = true;
+      declarations = [declaration];
 
   /// A descriptor that is not a dataflow value ([kInternalTypeCodes]).
   const LvTypeMapping.internal(this.note)
@@ -190,14 +321,14 @@ class LvTypeMapping {
       dartType = null,
       numeric = null,
       unmappedCode = null,
-      needsDeclaration = false;
+      declarations = const [];
 
   /// A value type awaiting a representation decision ([kUnmappedTypeCodes]).
   const LvTypeMapping.unmapped(this.note, {this.unmappedCode})
     : status = LvMapStatus.unmapped,
       dartType = null,
       numeric = null,
-      needsDeclaration = false;
+      declarations = const [];
 
   final LvMapStatus status;
 
@@ -211,11 +342,11 @@ class LvTypeMapping {
   /// Why the entry is internal/unmapped, or a caveat on a mapped entry.
   final String? note;
 
-  /// Whether [dartType] names — or contains, through an array or record
-  /// wrapping — a class this package does not declare. No declaration
-  /// generator exists yet (TODO), so an emitter must refuse a value of such a
-  /// type rather than emit source that refers to an undefined name.
-  final bool needsDeclaration;
+  /// The declarations [dartType] names — directly for a nominal type, and
+  /// through the wrapping for an array or a record of one. A generated file
+  /// spelling this type must carry these and, transitively, everything their
+  /// own fields name ([LvTypeDecl.dependencies]).
+  final List<LvTypeDecl> declarations;
 
   /// For an unmapped entry, the [kUnmappedTypeCodes] code that caused it —
   /// propagated out of an array element, cluster member or typedef base, so a
@@ -232,7 +363,12 @@ class LvTypeMapping {
 /// not recovered, a cluster with an unmapped member, a typedef whose base did
 /// not frame — comes back [LvMapStatus.unmapped] with the reason, never a
 /// guess. [depth] bounds cluster/typedef nesting.
-LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0]) {
+///
+/// [declarations] is the generated library's declaration registry. Passing one
+/// makes every nominal class name unique within that library; without one each
+/// nominal type simply takes its preferred spelling, which is what a census
+/// over a pool asks for.
+LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0, LvDeclarations? declarations]) {
   if (depth > 16) return const LvTypeMapping.unmapped('type nesting deeper than 16 levels');
   if (kInternalTypeCodes[type.code] case final why?) return LvTypeMapping.internal(why);
   if (kUnmappedTypeCodes[type.code] case final why?) return LvTypeMapping.unmapped(why, unmappedCode: type.code);
@@ -258,16 +394,13 @@ LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0]) {
     case TypeCode.enumU8:
     case TypeCode.enumU16:
     case TypeCode.enumU32:
-      return LvTypeMapping.nominal(
-        type.name == null ? LvRuntimeType.anonymousEnum : lvClassName(type.name!),
-        note: type.enumItems.isEmpty ? 'enum item labels not recovered; the generated enum has no member names' : null,
-      );
+      return _mapEnum(type, type.name, declarations);
     case TypeCode.array:
-      return _mapArray(type, pool, depth);
+      return _mapArray(type, pool, depth, declarations);
     case TypeCode.cluster:
-      return _mapCluster(type, pool, depth);
+      return _mapCluster(type, type.name, pool, depth, declarations);
     case TypeCode.typeDef:
-      return _mapTypeDef(type, pool, depth);
+      return _mapTypeDef(type, pool, depth, declarations);
     default:
       return LvTypeMapping.unmapped(
         'type code 0x${type.code.toRadixString(16)} is not catalogued',
@@ -284,12 +417,12 @@ LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0]) {
 /// UTF-8 text is the caller's decision, not the translation's.
 const String kStringEncodingNote = 'byte string carried as Latin-1 code units';
 
-LvTypeMapping _mapArray(ViType type, List<ViType> pool, int depth) {
+LvTypeMapping _mapArray(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
   final elementIndex = type.elementIndex;
   if (elementIndex == null || elementIndex >= pool.length) {
     return const LvTypeMapping.unmapped('array element type not recovered from the descriptor');
   }
-  final element = mapLvType(pool[elementIndex], pool, depth + 1);
+  final element = mapLvType(pool[elementIndex], pool, depth + 1, declarations);
   if (element.status == LvMapStatus.internal) {
     return LvTypeMapping.internal('array of a non-value element: ${element.note}');
   }
@@ -298,7 +431,7 @@ LvTypeMapping _mapArray(ViType type, List<ViType> pool, int depth) {
   }
   return LvTypeMapping.mapped(
     lvArrayDartType(element, type.dimCount ?? 1),
-    needsDeclaration: element.needsDeclaration,
+    declarations: element.declarations,
   );
 }
 
@@ -347,7 +480,10 @@ String lvArrayBuilderType(LvTypeMapping element) => 'List<${element.dartType}>';
 String lvArrayFreeze(LvTypeMapping element, String builder) =>
     element.numeric == null ? builder : '${element.numeric!.typedListType}.fromList($builder)';
 
-LvTypeMapping _mapCluster(ViType type, List<ViType> pool, int depth) {
+/// The Dart representation of the cluster descriptor [type], named [label] —
+/// which is the descriptor's own name for a plain cluster and the **typedef's**
+/// name when a typedef wraps it.
+LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int depth, LvDeclarations? declarations) {
   if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvRuntimeType.error);
   final members = clusterFields(type, pool);
   if (members.length != type.members.length) {
@@ -355,7 +491,7 @@ LvTypeMapping _mapCluster(ViType type, List<ViType> pool, int depth) {
   }
   final mapped = <LvTypeMapping>[];
   for (final member in members) {
-    final field = mapLvType(member, pool, depth + 1);
+    final field = mapLvType(member, pool, depth + 1, declarations);
     // A cluster holding a non-value member is itself data-space layout, not a
     // wire value: the corpus's `{cluster, ptr}`, `{refnum, ptr}` and
     // `{ptr, u32}` shapes are the data space's own records, and 46370 of the
@@ -372,11 +508,46 @@ LvTypeMapping _mapCluster(ViType type, List<ViType> pool, int depth) {
   // spelling, never the identity — the corpus reuses 1460 distinct names
   // across 36977 named clusters (`error out` 6388 times, `Cluster` 328), so
   // two clusters share a class only when their member types and member names
-  // agree. Collision-suffixing is the generator's job.
-  if (type.name case final name? when lvClassName(name).isNotEmpty) return LvTypeMapping.nominal(lvClassName(name));
+  // agree, and [LvDeclarations] suffixes the rest.
+  if (label != null && lvClassName(label).isNotEmpty) {
+    final className = lvClassName(label);
+    final fields = [
+      for (var index = 0; index < members.length; index++) LvDeclField(label: members[index].name, type: mapped[index]),
+    ];
+    final signature =
+        'C:$className|${[for (final field in fields) '${field.label ?? ''}:${field.type.dartType}'].join(',')}';
+    return LvTypeMapping.nominal(
+      (declarations ?? LvDeclarations()).allocate(
+        className,
+        signature,
+        (name) => LvTypeDecl.cluster(name: name, label: label, fields: fields),
+      ),
+    );
+  }
   return LvTypeMapping.mapped(
     lvRecordType(members, mapped),
-    needsDeclaration: mapped.any((field) => field.needsDeclaration),
+    declarations: [for (final field in mapped) ...field.declarations],
+  );
+}
+
+/// The Dart representation of the enum descriptor [type], named [label] — the
+/// descriptor's own name, or the **typedef's** when one wraps it.
+///
+/// An enum with no usable name still becomes an enum, from the
+/// [LvRuntimeType.anonymousEnum] stem: its item labels ARE decoded, and Dart
+/// offers no structural carrier for them the way a record carries an unnamed
+/// cluster.
+LvTypeMapping _mapEnum(ViType type, String? label, LvDeclarations? declarations) {
+  final stem = label == null ? '' : lvClassName(label);
+  final className = stem.isEmpty ? LvRuntimeType.anonymousEnum : stem;
+  final signature = 'E:$className|${type.enumItems.join(' ')}';
+  return LvTypeMapping.nominal(
+    (declarations ?? LvDeclarations()).allocate(
+      className,
+      signature,
+      (name) => LvTypeDecl.enumeration(name: name, label: label, items: type.enumItems),
+    ),
+    note: type.enumItems.isEmpty ? 'enum item labels not recovered, so the enum has no members to declare' : null,
   );
 }
 
@@ -395,22 +566,25 @@ String lvRecordType(List<ViType> members, List<LvTypeMapping> mapped) {
   return '({${[for (var i = 0; i < mapped.length; i++) '${mapped[i].dartType} ${names[i]}'].join(', ')}})';
 }
 
-LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth) {
+LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
   final base = type.typedefBase;
   if (base == null) return const LvTypeMapping.unmapped('typedef base descriptor did not frame');
-  final mapped = mapLvType(base, pool, depth + 1);
+  // A typedef is nominal only where the base is a declaration anyway — a
+  // cluster or an enum, which then takes the TYPEDEF's name rather than its
+  // own. A typedef of a scalar, string or array is transparent: it is a named
+  // LabVIEW control over an ordinary value, and wrapping it in a Dart class
+  // would buy nothing and cost a conversion at every use.
+  final name = type.name;
+  if (name != null && lvClassName(name).isNotEmpty) {
+    if (base.kind == ViDataType.cluster) return _mapCluster(base, name, pool, depth + 1, declarations);
+    if (base.enumItems.isNotEmpty || _isEnumCode(base.code)) return _mapEnum(base, name, declarations);
+  }
+  final mapped = mapLvType(base, pool, depth + 1, declarations);
   if (mapped.status == LvMapStatus.internal) return LvTypeMapping.internal('typedef over a non-value: ${mapped.note}');
   if (!mapped.isMapped) {
     return LvTypeMapping.unmapped('typedef base is unmapped: ${mapped.note}', unmappedCode: mapped.unmappedCode);
   }
-  // A typedef is nominal only where the base needs a declaration anyway — a
-  // cluster or an enum. A typedef of a scalar, string or array is transparent:
-  // it is a named LabVIEW control over an ordinary value, and wrapping it in a
-  // Dart class would buy nothing and cost a conversion at every use.
-  final nominal = base.kind == ViDataType.cluster || base.enumItems.isNotEmpty || _isEnumCode(base.code);
-  final name = type.name;
-  if (!nominal || name == null || lvClassName(name).isEmpty) return mapped;
-  return LvTypeMapping.nominal(lvClassName(name));
+  return mapped;
 }
 
 bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
@@ -460,19 +634,22 @@ String lvClassName(String raw) {
 }
 
 /// [raw] sanitized to a lowerCamelCase Dart field name, or `''` when nothing
-/// usable remains. A name that would collide with a Dart reserved word, or
-/// that starts with a digit, gains a trailing `$`.
+/// usable remains. A name that would collide with a Dart reserved word gains a
+/// **leading** `$` (`class` → `$class`), which is where the lowerCamelCase
+/// pattern `non_constant_identifier_names` and `constant_identifier_names`
+/// enforce admits one — a trailing `$` fails those lints, and generated code
+/// is measured against `package:lints/recommended`.
 String lvFieldName(String raw) {
   final name = lvClassName(raw);
   if (name.isEmpty) return '';
   final lower = name[0].toLowerCase() + name.substring(1);
-  return _kReservedWords.contains(lower) || _startsWithDigit(lower) ? '$lower\$' : lower;
+  return kLvDartReservedWords.contains(lower) ? '\$$lower' : lower;
 }
 
 bool _startsWithDigit(String s) => s.codeUnitAt(0) >= 0x30 && s.codeUnitAt(0) <= 0x39;
 
-/// The Dart reserved words a sanitized field name may not be.
-const Set<String> _kReservedWords = {
+/// The Dart reserved words a sanitized identifier may not be.
+const Set<String> kLvDartReservedWords = {
   'assert', 'break', 'case', 'catch', 'class', 'const', 'continue', 'default', 'do', 'else', 'enum', 'extends', //
   'false', 'final', 'finally', 'for', 'if', 'in', 'is', 'new', 'null', 'rethrow', 'return', 'super', 'switch',
   'this', 'throw', 'true', 'try', 'var', 'void', 'while', 'with',

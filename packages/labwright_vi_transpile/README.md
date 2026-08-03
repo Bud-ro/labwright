@@ -3,7 +3,8 @@
 **LabVIEW VI to Dart.** Two layers, one package:
 
 1. the **type model** — what a VI's data types become in Dart, per entry of its
-   consolidated type pool (`VCTP`) and per block-diagram wire;
+   consolidated type pool (`VCTP`) and per block-diagram wire, including the
+   class and `enum` declarations a named cluster and a named enum need;
 2. the **lowering** — a VI's block diagram recast as a dataflow graph and
    emitted as a Dart function (`emitLvFunction`, `dart run tool/generate.dart`).
 
@@ -90,22 +91,55 @@ so those arrays are still modelled as dynamically sized. See the review list.
 **Identity is structural, not nominal.** A cluster's name is only the preferred
 spelling: the corpus reuses 1,460 distinct names across 36,977 named clusters
 (`error out` 6,388 times, `Cluster` 328), so two clusters share a generated
-class only when their member types and member names agree. Collision-suffixing
-is the generator's job.
+class only when their member types and member names agree.
 
-- **Named cluster** → a nominal Dart class named by `lvClassName`.
+- **Named cluster** → a Dart class of `final` fields with a `const`
+  constructor taking every one by name.
 - **Anonymous cluster** (62,368 of 99,345 have no name) → a Dart **record**:
   named fields when every member has a distinct sanitizable name
   (`({double volts, String serialNumber})`), positional otherwise
   (`(double, int)`). A record's identity is structural, exactly like an unnamed
   cluster's, and costs no generated declaration.
 - **Typedef** (`0xf1`) → nominal only when its base is a cluster or an enum,
-  which need a declaration anyway; a typedef of a scalar, string or array is
-  transparent. Corpus typedef bases: cluster 19,890, enumU16 5,548, U64 1,347,
-  enumU32 1,053, refnum 934, and 15 further kinds; 20 of 31,060 typedef
-  descriptors expose no base and are unmapped.
-- **Enum** → a generated Dart `enum` over the decoded item labels, sized U8 /
-  U16 / U32; an enum whose labels did not decode still maps, with a note.
+  which need a declaration anyway, and the declaration then takes the
+  *typedef's* name; a typedef of a scalar, string or array is transparent.
+  Corpus typedef bases: cluster 19,890, enumU16 5,548, U64 1,347, enumU32
+  1,053, refnum 934, and 15 further kinds; 20 of 31,060 typedef descriptors
+  expose no base and are unmapped.
+- **Enum** → a Dart `enum`. The descriptor's interior is `[u16 count]` then
+  `count × [u8 len][chars]` — item labels in order and **no value word
+  anywhere** — so an item's value is its ordinal, which is exactly a Dart
+  enum's `index`.
+
+### Declarations
+
+`LvDeclarations` is the per-library registry a lowering names its nominal types
+through, and `lvDeclarationSource` writes them. Structure is the key: two types
+with the same members under the same name are one class, and a structurally
+different type wanting a name already spoken for gets a numeric suffix — as
+does one wanting a name the file already spells (`String`, `Uint8List`,
+`LvError`; `kLvReservedTypeNames`).
+
+Corpus, over the cluster wires that resolve a member shape, one registry per VI:
+3,129 of 7,508 VIs need a declaration at all, and they need **10,437** — 8,583
+cluster classes and 1,854 enums. **724** take a suffix because a structurally
+different type in the same VI already holds the name, which is why the name
+alone cannot be the identity. Member names come from the one naming policy:
+1,213 declarations hold a member the descriptor does not name, and 1,594
+members are displaced by an earlier member or by a name every Dart class
+inherits.
+
+One shape has no declaration and is **refused**
+(`LvRefusalKind.typeDeclaration`, 16 VIs): an enum whose item labels did not
+decode, since a Dart `enum` must have a member. Anonymous enums are declared
+from an `LvEnum` stem rather than refused — their labels *are* decoded and Dart
+has no structural carrier for them the way a record carries an unnamed cluster;
+the corpus reaches 3.
+
+An **error cluster never becomes a declaration**, in either error mode: the
+`{status, code, source}` shape maps to the runtime's `LvError` before the
+nominal branch is reached, and no typedef reaching a wire type in the corpus
+wraps one (0 of 7,508 VIs).
 
 ## Error clusters
 
@@ -228,12 +262,14 @@ disagreement. Reading the *other* half of an endpoint's resolved type instead
 describes a scalar cluster wire's element, so that route is not taken.
 
 **What the unresolved majority costs.** Cluster wires with no member shape are
-the single largest lowering blocker in the corpus: 4,128 of the 6,836 wire-type
-refusals stop there first, and 1,381 VIs have no other wire-type blocker at
-all. Next is the refnum family (`0x70`/`0x71`), whose array-depth base rides
-the referenced inner type and is therefore not decoded — 2,258 VIs stop there
-— then the element codes with no Dart representation (measureData 67, picture
-29, `ext` 3) and the 33 VIs whose wire word carries an uncatalogued code.
+the single largest lowering blocker in the corpus: of the 6,212 VIs whose own
+dataflow build refuses on a wire type, 3,988 stop first on a cluster wire and
+2,050 have no other unmapped wire family at all. Next is the refnum family
+(`0x70`/`0x71`), whose array-depth base rides the reference class rather than
+the type code — 2,022 VIs stop there first and 759 have nothing else — then the
+element codes with no Dart representation (measureData `0x54` 75, packed string
+`0x33` 44, tag `0x37` 19) and the 56 VIs whose wire word carries the
+uncatalogued `0xff`.
 
 ## Lowering
 
@@ -365,16 +401,19 @@ primitives (7), constants whose value the heap decode did not recover (2),
 unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
 call whose callee is not supplied (1).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 136 lower
-and the rest refuse, 6,836 of them on a wire type — overwhelmingly a cluster
-wire no endpoint resolves a member shape for.
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 186 lower
+and the rest refuse, 6,263 of them on a wire type — overwhelmingly a cluster
+wire no endpoint resolves a member shape for. The rest are pinned per kind in
+`kCorpusLoweringSweep`: 372 on a primitive, 221 on a subVI call, 172 on an
+unwired terminal, 98 on a structure, 87 on a wire's direction, 84 on a
+constant's value, 16 on a declaration that cannot be written.
 
-Those 136 lowerings are **20 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 20 into a
+Those 186 lowerings are **54 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 54 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 20 is the independent check that they
+kernel` of one entry point importing all 54 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

@@ -76,7 +76,13 @@ enum LvNameRole {
   builder('builder'),
 
   /// A For loop's computed iteration count.
-  count('count')
+  count('count'),
+
+  /// A generated cluster class's field whose member carries no decoded name.
+  member('member'),
+
+  /// A generated enum's member whose item label sanitizes to nothing.
+  item('item')
   ;
 
   const LvNameRole(this.stem);
@@ -93,6 +99,21 @@ enum LvNameRole {
 /// every Dart reader parses without reading it. Do not "fix" these back to
 /// long names.
 const List<String> kLvLoopIndexNames = ['i', 'j', 'k', 'm', 'n', 'p'];
+
+/// The member names a generated class or enum may **not** take: what every
+/// object inherits from `Object`, and what an enum inherits from `Enum` or
+/// gets as its own static `values`. A declaration that redeclared one would not
+/// compile. Both kinds reserve the whole set, so one rule covers both, and the
+/// numeric suffix resolves a member that wanted one.
+const Set<String> kLvReservedMemberNames = {
+  'hashCode',
+  'index',
+  'name',
+  'noSuchMethod',
+  'runtimeType',
+  'toString',
+  'values',
+};
 
 /// Allocates the identifiers of one generated function.
 class LvNaming {
@@ -133,6 +154,37 @@ class LvNaming {
     return _unique('_k${stem.isEmpty ? 'Constant' : stem}', _used);
   }
 
+  /// The field identifiers of a generated cluster class, one per member
+  /// [labels] entry in descriptor order.
+  ///
+  /// A member with no decoded name, and a second member whose name sanitizes
+  /// to one already used, both resolve the same way every other generated name
+  /// does: a role stem, then a numeric suffix. Neither is a corner case worth
+  /// refusing over — over the corpus's 8 583 cluster declarations, 1 213 hold a
+  /// member the descriptor does not name and 1 594 members are displaced by an
+  /// earlier member or an inherited name (the corpus sweep's
+  /// `decl.unnamedMember` and `decl.displacedMember`).
+  static List<String> declarationFields(List<String?> labels) => _declarationNames(labels, LvNameRole.member);
+
+  /// The member identifiers of a generated enum, one per item label in ordinal
+  /// order.
+  static List<String> declarationItems(List<String> labels) => _declarationNames(labels, LvNameRole.item);
+
+  /// A declaration's members are named from the descriptor's own labels
+  /// without the short-name padding [_sanitize] gives a wire local: a member
+  /// labelled `On` is `on`, where a two-character *local* says nothing about
+  /// the value it holds and is padded to `onValue`.
+  static List<String> _declarationNames(List<String?> labels, LvNameRole fallback) {
+    final taken = <String>{...kLvReservedMemberNames};
+    final names = <String>[];
+    for (final label in labels) {
+      final trimmed = label?.trim() ?? '';
+      final name = _isVerbatim(trimmed) ? trimmed : lvFieldName(trimmed);
+      names.add(_unique(name.isEmpty ? fallback.stem : name, taken));
+    }
+    return names;
+  }
+
   /// The stem a wire of [type] takes when nothing names it: the decoded type
   /// is the only thing about the value the diagram states.
   static LvNameRole roleOfType(LvWireType type) {
@@ -154,10 +206,14 @@ class LvNaming {
   static String? _sanitize(String? raw) {
     if (raw == null) return null;
     final trimmed = raw.trim();
-    if (_lowerCamel.hasMatch(trimmed)) return trimmed;
+    if (_isVerbatim(trimmed)) return trimmed;
     final name = lvFieldName(trimmed);
     return name.isEmpty ? null : (name.length < 3 ? '${name}Value' : name);
   }
+
+  /// Whether [raw] is already a lowerCamelCase Dart identifier that may be used
+  /// as it stands — a Dart reserved word never may, however it is spelled.
+  static bool _isVerbatim(String raw) => _lowerCamel.hasMatch(raw) && !kLvDartReservedWords.contains(raw);
 
   static String _unique(String stem, Set<String> taken) {
     if (taken.add(stem)) return stem;

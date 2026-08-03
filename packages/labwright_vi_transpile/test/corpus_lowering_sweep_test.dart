@@ -162,10 +162,13 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// compares the caller's own wire direction with the callee control's, and
 /// `term.typeAgree` against `term.typeDisagree` compares the two VIs' wire
 /// types — neither is used to *derive* the binding, so both are independent
-/// checks on it. Direction agrees on all 544 resolved terminals. Type agrees
-/// on 247 of 249, and both exceptions are one LabVIEW type relation rather
-/// than a binding contradiction: an integer wire reaching a callee `Variant`
-/// terminal, which accepts a value of any wire type.
+/// checks on it. Direction agrees on all 1 312 resolved terminals. Type agrees
+/// on 525 of 529, and all four exceptions are LabVIEW type relations rather
+/// than binding contradictions: two are an integer wire reaching a callee
+/// `Variant` terminal, which accepts a value of any wire type, and two are a
+/// wire whose caller-side descriptor NAMES a 16-member cluster of `DBL` where
+/// the callee's descriptor for the same 16 members in the same order carries no
+/// name — the name-only difference `clus.paneNameOnly` sizes.
 ///
 /// The `cond.*` counters are the While-loop conditional terminal census
 /// ([LvTerminalRole.conditional]): one glyph selector on every drawn terminal
@@ -191,6 +194,20 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// resolve nothing by cause — see [lvClusterOfEndpoint], which owns both
 /// readings' evidence.
 ///
+/// The `decl.*` counters are the generated-declaration census: what a lowering
+/// must declare for the nominal types its cluster wires carry, one registry per
+/// VI. 3 129 of the 7 508 VIs need a declaration at all, and they need 10 437 —
+/// 8 583 cluster classes and 1 854 enums. The shape questions each have a
+/// number: `decl.suffixed` (724) is how often a class name is not the plain
+/// [lvClassName] of its own LabVIEW name because a structurally different type
+/// in the same VI already held it, which is what makes structural identity
+/// rather than the name the thing a declaration is keyed by;
+/// `decl.unnamedMember` (1 213) and `decl.displacedMember` (1 594) are the
+/// members the naming policy has to name or move; `decl.anonymous` (3) is the
+/// enums with no name of their own; and `decl.noItems` (61) is the one shape
+/// that cannot be declared — an enum whose item labels did not decode, which is
+/// refused ([LvRefusalKind.typeDeclaration]) rather than half-written.
+///
 /// The `ref.*` and `flag<n>.*` counters are the refnum-wire census. A refnum
 /// wire's array-depth base is the reference class's, not the type code's, so
 /// `ref.scalar` is the share the depth-1 law ([kSignalMinScalarDepth]) decides
@@ -206,12 +223,12 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
 /// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 1621,
-  'call.calleeMissing': 284,
-  'call.noPaneMap': 681,
-  'call.paneMatched': 594,
-  'call.paneWidthMismatch': 10,
-  'call.unnamed': 52,
+  'call': 1992,
+  'call.calleeMissing': 310,
+  'call.noPaneMap': 811,
+  'call.paneMatched': 804,
+  'call.paneWidthMismatch': 13,
+  'call.unnamed': 54,
   'clus': 133106,
   'clus.kid.many': 228,
   'clus.kid.none': 21496,
@@ -237,17 +254,27 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.dcoBit12': 140,
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
+  'decl': 10437,
+  'decl.anonymous': 3,
+  'decl.cluster': 8583,
+  'decl.displacedMember': 1594,
+  'decl.enum': 1854,
+  'decl.noItems': 61,
+  'decl.suffixed': 724,
+  'decl.unnamedMember': 1213,
+  'decl.vi': 3129,
   'exceptions.caseSelector': 2,
-  'exceptions.constantValue': 63,
-  'exceptions.lowered': 185,
-  'exceptions.primitive': 285,
-  'exceptions.structure': 85,
-  'exceptions.subViCall': 190,
+  'exceptions.constantValue': 84,
+  'exceptions.lowered': 186,
+  'exceptions.primitive': 372,
+  'exceptions.structure': 98,
+  'exceptions.subViCall': 221,
   'exceptions.tunnelIndexing': 1,
+  'exceptions.typeDeclaration': 16,
   'exceptions.unboundValue': 6,
-  'exceptions.unwiredTerminal': 124,
-  'exceptions.wireDirection': 79,
-  'exceptions.wireType': 6488,
+  'exceptions.unwiredTerminal': 172,
+  'exceptions.wireDirection': 87,
+  'exceptions.wireType': 6263,
   'flag0.array': 24628,
   'flag0.scalar': 148921,
   'flag12.array': 907,
@@ -263,28 +290,29 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
   'modes.differ': 15,
-  'modes.same': 170,
+  'modes.same': 171,
   'ref': 66473,
   'ref.scalar': 28582,
   'ref.undecided': 37891,
-  'term.calleeUntyped': 295,
-  'term.dirAgree': 544,
-  'term.resolved': 544,
-  'term.typeAgree': 247,
-  'term.typeDisagree': 2,
-  'term.unresolved': 35,
-  'term.wired': 579,
+  'term.calleeUntyped': 783,
+  'term.dirAgree': 1312,
+  'term.resolved': 1312,
+  'term.typeAgree': 525,
+  'term.typeDisagree': 4,
+  'term.unresolved': 86,
+  'term.wired': 1398,
   'threaded.caseSelector': 2,
-  'threaded.constantValue': 63,
-  'threaded.lowered': 185,
-  'threaded.primitive': 285,
-  'threaded.structure': 85,
-  'threaded.subViCall': 190,
+  'threaded.constantValue': 84,
+  'threaded.lowered': 186,
+  'threaded.primitive': 372,
+  'threaded.structure': 98,
+  'threaded.subViCall': 221,
   'threaded.tunnelIndexing': 1,
+  'threaded.typeDeclaration': 16,
   'threaded.unboundValue': 6,
-  'threaded.unwiredTerminal': 124,
-  'threaded.wireDirection': 79,
-  'threaded.wireType': 6488,
+  'threaded.unwiredTerminal': 172,
+  'threaded.wireDirection': 87,
+  'threaded.wireType': 6263,
   'vi': 7508,
 };
 
@@ -299,7 +327,7 @@ const ({int identities, int nodes}) kReviewListTotals = (identities: 98, nodes: 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 185, sources: 53);
+const ({int vis, int sources}) kEmittedSources = (vis: 186, sources: 54);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -313,7 +341,14 @@ const ({int vis, int sources}) kEmittedSources = (vis: 185, sources: 53);
   final emitted = <String>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
-  final flows = <String, LvDataflow?>{};
+  // The dataflows of ONE entry VI and the callees it reaches, all typed through
+  // that VI's own declaration registry — the scope a generated library has. A
+  // nominal class name is unique within a registry and means nothing across
+  // two, so comparing a caller's wire type with its callee's terminal type
+  // (`term.type*`) is only a statement about the pane binding when both were
+  // named by the same registry.
+  var flows = <String, LvDataflow?>{};
+  var registry = LvDeclarations();
   LvViUnit? load(String path, String fileName) => units.putIfAbsent(path, () {
     try {
       return LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);
@@ -326,8 +361,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 185, sources: 53);
     return path == null ? null : load(path, name);
   }
 
-  LvDataflow? flowOf(LvViUnit unit) =>
-      flows.putIfAbsent(unit.fileName, () => buildLvDataflow(unit.diagram, pool: unit.pool).dataflow);
+  LvDataflow? flowOf(LvViUnit unit) => flows.putIfAbsent(
+    unit.fileName,
+    () => buildLvDataflow(unit.diagram, pool: unit.pool, declarations: registry).dataflow,
+  );
 
   void bindCall(LvDataflow flow, LvSubViUnit call) {
     bump('call');
@@ -500,6 +537,52 @@ const ({int vis, int sources}) kEmittedSources = (vis: 185, sources: 53);
     }
   }
 
+  // The generated-declaration census: what a lowering has to declare so that
+  // the nominal types its cluster wires carry exist. One registry per VI, the
+  // scope a generated library has, over exactly the wires that resolve a single
+  // member shape — so it is independent of where a VI's lowering refuses.
+  //
+  // `decl.suffixed` is the collision rate the structural identity buys: a
+  // declaration whose class name is not the plain [lvClassName] of its own
+  // LabVIEW name, because a structurally different type in the same VI already
+  // took it. `decl.noItems` is the one shape that cannot be declared at all.
+  void censusDeclarations(ViDiagram diagram, List<ViType> pool) {
+    final registry = LvDeclarations();
+    for (final wire in diagram.wires) {
+      final signal = wire.signalType;
+      if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
+      if (mapLvWireType(signal).isMapped) continue;
+      final array = (signal.arrayDims ?? 0) > 0;
+      final resolved = <ViType>[
+        for (final endpoint in wire.endpointOids)
+          if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) cluster,
+      ];
+      if (resolved.isEmpty) continue;
+      if ({for (final cluster in resolved) lvClusterShape(cluster, pool)}.length != 1) continue;
+      lvClusterWireType(signal, resolved.first, pool, registry);
+    }
+    final declarations = registry.all.toList();
+    if (declarations.isEmpty) return;
+    bump('decl.vi');
+    for (final declaration in declarations) {
+      bump('decl');
+      bump(declaration.isEnum ? 'decl.enum' : 'decl.cluster');
+      final preferred = declaration.label == null ? LvRuntimeType.anonymousEnum : lvClassName(declaration.label!);
+      if (declaration.name != preferred) bump('decl.suffixed');
+      if (declaration.label == null) bump('decl.anonymous');
+      if (declaration.undeclarable != null) bump('decl.noItems');
+      if (declaration.fields.any((field) => field.label == null)) bump('decl.unnamedMember');
+      // A member the naming policy had to move: its identifier is not the one
+      // it would take on its own, because an earlier member, or a name every
+      // Dart class inherits, already held it.
+      final labels = [for (final field in declaration.fields) field.label];
+      final named = LvNaming.declarationFields(labels);
+      for (var index = 0; index < labels.length; index++) {
+        if (named[index] != LvNaming.declarationFields([labels[index]]).single) bump('decl.displacedMember');
+      }
+    }
+  }
+
   // The Index Array terminal census ([LvArrayTerminalRole]): the grammar's
   // regularity, and how much of the corpus the refused higher-rank groups
   // account for. `idx.dims<n>` is the dimensionality of the array wire, so
@@ -560,8 +643,11 @@ const ({int vis, int sources}) kEmittedSources = (vis: 185, sources: 53);
     final unit = load(path, path.split(Platform.pathSeparator).last);
     if (unit == null) continue;
     bump('vi');
+    flows = <String, LvDataflow?>{};
+    registry = LvDeclarations();
     censusConditionals(unit.diagram);
     censusClusterWires(unit.diagram, unit.pool);
+    censusDeclarations(unit.diagram, unit.pool);
     censusIndexArrays(unit.diagram);
     censusRefnumWires(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
