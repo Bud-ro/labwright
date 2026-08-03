@@ -42,7 +42,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassesInMemory': 'subViCall',
   'Config_Dump': 'wireType',
   'Config_Dump2': 'wireType',
-  'Config_Escape': 'constantValue',
+  'Config_Escape': 'structure',
   'Config_Load': 'wireType',
   'Config_Load2': 'wireType',
   'Excel_Cell_to_RowCol': 'primitive',
@@ -117,15 +117,15 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// `Concatenate Strings`, `Build Array`, `Select` and `Logical Shift` nodes,
 /// from the same order read at N operands, its two swap nodes wired to an
 /// ARRAY, from the elementwise form, and all seven of its `Type Cast` nodes,
-/// from the flat byte form. What remains is 11 nodes in three groups.
+/// from the flat byte form, and its every constant now decodes. What
+/// remains is 10 nodes in two groups.
 ///
 /// Five carry a `primResID` no corpus VI labels and whose icon does not say
 /// what it computes either (1181 ×4, 1082). Five are named operations whose
 /// RULE is not decoded: `String Subset`'s handling of an offset or length
 /// outside the string, `Compound Arithmetic`'s mode and per-operand inversion
-/// (see [kLvMappedPrimClasses]), and `To Lower Case`'s case-mapping table. One
-/// is a string constant whose value the heap decode did not recover, and one a
-/// `0x114` node whose corpus captions do not agree on a name.
+/// (see [kLvMappedPrimClasses]), and `To Lower Case`'s case-mapping table. The
+/// last is a `0x114` node whose corpus captions do not agree on a name.
 const Map<String, int> kMd5Blockers = {
   'primResID 1181': 4,
   'String Subset (primResID 1503)': 2,
@@ -133,7 +133,6 @@ const Map<String, int> kMd5Blockers = {
   'To Lower Case (primResID 1189)': 1,
   'primResID 1082': 1,
   'node class 0x114': 1,
-  'constantValue String': 1,
 };
 
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
@@ -212,11 +211,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 2,
-  'exceptions.constantValue': 83,
-  'exceptions.lowered': 161,
+  'exceptions.constantValue': 79,
+  'exceptions.lowered': 162,
   'exceptions.primitive': 176,
-  'exceptions.structure': 60,
-  'exceptions.subViCall': 74,
+  'exceptions.structure': 61,
+  'exceptions.subViCall': 76,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
   'exceptions.unwiredTerminal': 75,
@@ -236,7 +235,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.same': 161,
+  'modes.same': 162,
   'ref': 66473,
   'ref.scalar': 28582,
   'ref.undecided': 37891,
@@ -247,11 +246,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 33,
   'term.wired': 350,
   'threaded.caseSelector': 2,
-  'threaded.constantValue': 83,
-  'threaded.lowered': 161,
+  'threaded.constantValue': 79,
+  'threaded.lowered': 162,
   'threaded.primitive': 176,
-  'threaded.structure': 60,
-  'threaded.subViCall': 74,
+  'threaded.structure': 61,
+  'threaded.subViCall': 76,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
   'threaded.unwiredTerminal': 75,
@@ -271,7 +270,7 @@ const ({int identities, int nodes}) kReviewListTotals = (identities: 99, nodes: 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 161, sources: 40);
+const ({int vis, int sources}) kEmittedSources = (vis: 162, sources: 41);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
