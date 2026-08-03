@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
@@ -81,17 +79,11 @@ void main() {
   };
   for (final entry in cases.entries) {
     testWidgets('${entry.key} painted text metrics', (tester) async {
-      final dir = repoDir(
-        'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-      );
-      if (dir == null) {
+      final f = snippetPng(entry.key);
+      if (f == null) {
         markTestSkipped('corpus not fetched');
         return;
       }
-      final f = dir
-          .listSync(recursive: true)
-          .whereType<File>()
-          .firstWhere((x) => x.path.endsWith('/${entry.key}'));
       final viBytes = extractSnippetVi(f.readAsBytesSync())!;
       final bd = bestBlockDiagram(buildViModel(viBytes))!;
       final scene = BdScene(bd)..recordPaintedText = true;

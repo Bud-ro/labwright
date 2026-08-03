@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -185,15 +184,9 @@ Future<
   })?
 >
 perWireMaskGauge(WidgetTester tester, String pngName) async {
-  final dir = repoDir(
-    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-  );
-  if (dir == null) return null;
-  final f = dir
-      .listSync(recursive: true)
-      .whereType<File>()
-      .firstWhere((x) => x.path.endsWith('/$pngName'));
-  final bytes = f.readAsBytesSync();
+  final png = snippetPng(pngName);
+  if (png == null) return null;
+  final bytes = png.readAsBytesSync();
   final viBytes = extractSnippetVi(bytes)!;
   final bd = bestBlockDiagram(buildViModel(viBytes))!;
   final scene = BdScene(bd)..recordPaintedText = true;

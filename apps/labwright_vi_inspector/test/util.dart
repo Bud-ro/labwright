@@ -20,6 +20,24 @@ Directory? repoDir(String relative) {
   return null;
 }
 
+/// The snippet reference PNG named [pngName] (e.g. `crc8.png`), from the
+/// tracked flat set or — in a checkout that predates it — the fetched oracle
+/// repos. Null when no corpus is present, so corpus-backed tests skip.
+File? snippetPng(String pngName) {
+  for (final relative in const [
+    'packages/labwright_rsrc_parse/corpus/snippets',
+    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
+    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_LabVIEW-VI-Snippet',
+  ]) {
+    final dir = repoDir(relative);
+    if (dir == null) continue;
+    for (final file in dir.listSync(recursive: true).whereType<File>()) {
+      if (file.path.endsWith('/$pngName')) return file;
+    }
+  }
+  return null;
+}
+
 /// Pumps [body] inside MaterialApp/Scaffold at a fixed [view] size.
 Future<void> pumpBody(
   WidgetTester tester,
