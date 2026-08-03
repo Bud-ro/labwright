@@ -183,14 +183,14 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 62,
-  'exceptions.constantValue': 69,
+  'exceptions.constantValue': 70,
   'exceptions.lowered': 136,
-  'exceptions.primitive': 165,
+  'exceptions.primitive': 162,
   'exceptions.structure': 54,
   'exceptions.subViCall': 61,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 56,
+  'exceptions.unwiredTerminal': 58,
   'exceptions.wireDirection': 67,
   'exceptions.wireType': 6836,
   'idx': 3479,
@@ -207,14 +207,14 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 33,
   'term.wired': 339,
   'threaded.caseSelector': 62,
-  'threaded.constantValue': 69,
+  'threaded.constantValue': 70,
   'threaded.lowered': 136,
-  'threaded.primitive': 165,
+  'threaded.primitive': 162,
   'threaded.structure': 54,
   'threaded.subViCall': 61,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 56,
+  'threaded.unwiredTerminal': 58,
   'threaded.wireDirection': 67,
   'threaded.wireType': 6836,
   'vi': 7508,
@@ -226,7 +226,7 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 113, nodes: 807);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 111, nodes: 799);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the

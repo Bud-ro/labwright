@@ -305,9 +305,19 @@ and that default is not decoded.
 
 A node is mapped only when its **identity** and its **operand roles** are both
 decoded. `kLvMappedPrimOps` is deliberately narrow: commutative pairs, unary
-operations and the integer width conversions — everything whose roles follow
-from the terminals themselves. `Subtract`, `Divide` and the ordered comparisons
-are absent because nothing decoded says which terminal is the left operand.
+operations and the width conversions — everything whose roles follow from the
+terminals themselves. `Subtract`, `Divide` and the ordered comparisons are
+absent because nothing decoded says which terminal is the left operand.
+
+Having one operand is necessary but not sufficient — the *result* must follow
+from the operand too. These unary corpus operations are refused for want of a
+rule rather than a role: `Sort 1D Array` (181 nodes; sort direction and tie
+order unstated), `Boolean To (0,1)` (550; which boolean maps to which member),
+`To Lower Case` (673; LabVIEW's case-mapping table over a byte string),
+`Type Cast` (1,259; the flattened layout it reinterprets), `Number To Boolean
+Array` / `Boolean Array To Number` (21 / 26; bit order), and `Transpose 2D
+Array` and a rank-2 `Array Size` (the array's own dimension order — the same
+missing tie that refuses a higher-rank Index Array).
 
 Two node classes carry their identity in the class code, with corpus node
 labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
@@ -323,8 +333,8 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 113 distinct unmapped identities over
-807 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
+`test/corpus_lowering_sweep_test.dart`: 111 distinct unmapped identities over
+799 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
 class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
 
 ### subVI calls

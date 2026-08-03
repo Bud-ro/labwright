@@ -24,6 +24,12 @@ class LvPath {
 
   /// Whether the path is rooted rather than relative.
   final bool absolute;
+
+  /// Whether this is the **empty path**: relative, naming no component. It is
+  /// the form a `PTH0` record with the relative type word and a zero component
+  /// count carries. A rooted path is never empty, however few components it
+  /// names — `/` names a directory where the empty path names nothing.
+  bool get isEmpty => !absolute && components.isEmpty;
 }
 
 /// An opaque LabVIEW **reference handle** — a queue, a notifier, a VI
