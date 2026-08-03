@@ -78,3 +78,19 @@ class LvError {
   /// The cleared value: no error, no warning, no source.
   static const LvError none = LvError(status: false, code: 0, source: '');
 }
+
+/// `Merge Errors` — the first of [errors] that is an error, else the first
+/// that is a warning, else [LvError.none].
+///
+/// An error is [LvError.status] set; a warning is a non-zero [LvError.code]
+/// with the status clear. [errors] is in the order the node draws its input
+/// terminals, uppermost first, which is the order the operation searches.
+LvError lvMergeErrors(List<LvError> errors) {
+  for (final error in errors) {
+    if (error.status) return error;
+  }
+  for (final error in errors) {
+    if (error.code != 0) return error;
+  }
+  return LvError.none;
+}

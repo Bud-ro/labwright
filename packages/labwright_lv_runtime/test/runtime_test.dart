@@ -129,6 +129,33 @@ void main() {
     expect(lvFloatOfFlat(lvFlatOfFloat(-2.5, 32), 32), -2.5);
   });
 
+  test('merging errors takes the first error, then the first warning, then nothing', () {
+    const error1 = LvError(status: true, code: 5, source: 'first');
+    const error2 = LvError(status: true, code: 6, source: 'second');
+    const warning1 = LvError(status: false, code: 7, source: 'warn one');
+    const warning2 = LvError(status: false, code: 8, source: 'warn two');
+    const clear = LvError(status: false, code: 0, source: 'clear');
+    for (final row in const <({String name, List<LvError> inputs, LvError expected})>[
+      (name: 'first of two errors', inputs: [error1, error2], expected: error1),
+      (name: 'an error outranks an earlier warning', inputs: [warning1, error2], expected: error2),
+      (name: 'first of two warnings', inputs: [warning1, warning2], expected: warning1),
+      (name: 'a warning outranks an earlier clear', inputs: [clear, warning2], expected: warning2),
+      (name: 'all clear', inputs: [clear, clear], expected: LvError.none),
+      (name: 'nothing at all', inputs: [], expected: LvError.none),
+    ]) {
+      final measured = lvMergeErrors(row.inputs);
+      expect(
+        (measured.status, measured.code, measured.source),
+        (
+          row.expected.status,
+          row.expected.code,
+          row.expected.source,
+        ),
+        reason: row.name,
+      );
+    }
+  });
+
   test('a cast whose bytes do not fill the target raises rather than inventing one', () {
     // TODO(lv-typecast-size): the rule LabVIEW applies here is not decoded.
     expect(() => lvIntOfFlat(Uint8List(3), 32), throwsArgumentError);

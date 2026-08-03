@@ -38,6 +38,9 @@ abstract final class LvRuntimeCall {
   /// Logical Shift.
   static const String logicalShift = 'lvLogicalShift';
 
+  /// Merge Errors.
+  static const String mergeErrors = 'lvMergeErrors';
+
   /// The flat bytes of a scalar integer, of a scalar float, of a string and of
   /// a 1-D integer array — the Type Cast operand side.
   static const String flatOfInt = 'lvFlatOfInt';

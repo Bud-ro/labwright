@@ -93,12 +93,10 @@ const Map<String, String> kSnippetLoweringOutcomes = {
 /// `primResID` is a node whose id [PrimOp] does not name.
 const Map<String, int> kSnippetPrimReviewList = {
   'Match Pattern (primResID 1535)': 134,
-  'node class 0x63': 83,
   'String Subset (primResID 1503)': 24,
   'node class 0x93': 18,
   'node class 0x105': 16,
   'node class 0xa9': 15,
-  'node class 0x172': 14,
   'node class 0x150': 12,
   'node class 0x6a': 12,
   'Search 1D Array (primResID 1901)': 11,
@@ -412,17 +410,18 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 1213,
   'decl.vi': 3129,
   'exceptions.caseSelector': 3,
-  'exceptions.constantValue': 126,
-  'exceptions.lowered': 222,
-  'exceptions.primitive': 587,
-  'exceptions.structure': 117,
-  'exceptions.subViCall': 288,
+  'exceptions.constantValue': 130,
+  'exceptions.lowered': 223,
+  'exceptions.primitive': 558,
+  'exceptions.structure': 118,
+  'exceptions.subViCall': 294,
+  'exceptions.tunnelCoercion': 6,
   'exceptions.tunnelIndexing': 1,
   'exceptions.typeDeclaration': 18,
-  'exceptions.unboundValue': 6,
-  'exceptions.unwiredTerminal': 233,
+  'exceptions.unboundValue': 7,
+  'exceptions.unwiredTerminal': 234,
   'exceptions.wireDirection': 107,
-  'exceptions.wireType': 5800,
+  'exceptions.wireType': 5809,
   'flag0.array': 24628,
   'flag0.scalar': 148921,
   'flag12.array': 907,
@@ -438,7 +437,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
   'modes.differ': 43,
-  'modes.same': 179,
+  'modes.same': 180,
   'ref': 66473,
   'ref.ep.agrees': 14046,
   'ref.ep.contradicts': 1335,
@@ -485,17 +484,18 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 95,
   'term.wired': 1573,
   'threaded.caseSelector': 3,
-  'threaded.constantValue': 126,
-  'threaded.lowered': 222,
-  'threaded.primitive': 587,
-  'threaded.structure': 117,
-  'threaded.subViCall': 288,
+  'threaded.constantValue': 130,
+  'threaded.lowered': 223,
+  'threaded.primitive': 558,
+  'threaded.structure': 118,
+  'threaded.subViCall': 294,
+  'threaded.tunnelCoercion': 6,
   'threaded.tunnelIndexing': 1,
   'threaded.typeDeclaration': 18,
-  'threaded.unboundValue': 6,
-  'threaded.unwiredTerminal': 233,
+  'threaded.unboundValue': 7,
+  'threaded.unwiredTerminal': 234,
   'threaded.wireDirection': 107,
-  'threaded.wireType': 5800,
+  'threaded.wireType': 5809,
   'vi': 7508,
   'wt.cause.member.0x33': 14,
   'wt.cause.member.0x54': 67,
@@ -521,18 +521,82 @@ const Map<String, int> kCorpusLoweringSweep = {
   'wt.sole.refnum': 666,
 };
 
+/// The **corpus** primitive review list: every operation the whole `.vi` corpus
+/// uses that has no lowering rule and that at least [kCorpusReviewListFloor]
+/// VIs carry, ranked by the VIs it blocks.
+///
+/// `vis` is how many of the 7 508 VIs hold at least one node of the identity;
+/// `nodes` is the node instances; `sole` is the VIs whose only unmapped
+/// identity it is — the VIs a lowering rule for it would leave with no
+/// primitive blocker at all, which is the ranking that decides where the work
+/// goes. One identity appearing 2 437 times over 378 VIs (`0xd6`) is worth less
+/// than one appearing 216 times over 214, of which 69 carry nothing else
+/// (`0x124`).
+///
+/// The snippet review list ([kSnippetPrimReviewList]) is scored over 45
+/// diagrams and ranks differently: `Match Pattern` heads it and is sixth here,
+/// where `0x63` — a quarter of every unmapped node in the corpus — appears
+/// there 83 times.
+///
+/// The list is identity-level, exactly as the snippet one is: a node whose
+/// identity HAS a rule is not counted here however often its own operands fail
+/// to resolve. `exceptions.primitive` in [kCorpusLoweringSweep] is what sizes
+/// those.
+const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
+  'node class 0x34': (vis: 805, nodes: 1659, sole: 66),
+  'Close Reference (primResID 8011)': (vis: 759, nodes: 3068, sole: 40),
+  'node class 0x93': (vis: 690, nodes: 1566, sole: 107),
+  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 69),
+  'node class 0xa9': (vis: 678, nodes: 2619, sole: 61),
+  'node class 0x6c': (vis: 621, nodes: 1104, sole: 67),
+  'Search 1D Array (primResID 1901)': (vis: 591, nodes: 1338, sole: 29),
+  'node class 0x153': (vis: 556, nodes: 1466, sole: 335),
+  'Build Path (primResID 1419)': (vis: 439, nodes: 1215, sole: 25),
+  'node class 0x6a': (vis: 408, nodes: 865, sole: 192),
+  'node class 0xd6': (vis: 378, nodes: 2437, sole: 24),
+  'Strip Path (primResID 1420)': (vis: 370, nodes: 865, sole: 1),
+  'Wait (ms) (primResID 1302)': (vis: 349, nodes: 548, sole: 60),
+  'To More Specific Class (primResID 8016)': (vis: 344, nodes: 825, sole: 35),
+  'node class 0xbd': (vis: 332, nodes: 645, sole: 10),
+  'String Subset (primResID 1503)': (vis: 298, nodes: 669, sole: 34),
+  'node class 0xb6': (vis: 264, nodes: 533, sole: 18),
+  'Variant To Data (primResID 8003)': (vis: 263, nodes: 506, sole: 10),
+  'To Lower Case (primResID 1189)': (vis: 255, nodes: 673, sole: 4),
+  'Open VI Reference (primResID 8010)': (vis: 251, nodes: 447, sole: 7),
+  'node class 0x114': (vis: 243, nodes: 414, sole: 3),
+  'node class 0x14a': (vis: 221, nodes: 380, sole: 0),
+  'node class 0x170': (vis: 221, nodes: 380, sole: 0),
+  'node class 0x124': (vis: 214, nodes: 216, sole: 103),
+  'node class 0xeb': (vis: 199, nodes: 226, sole: 6),
+  'Unregister For Events (primResID 2076)': (vis: 181, nodes: 203, sole: 0),
+  'Call Chain (primResID 1999)': (vis: 174, nodes: 175, sole: 37),
+  'Search and Replace String (primResID 3914)': (vis: 157, nodes: 243, sole: 9),
+  'node class 0x150': (vis: 157, nodes: 406, sole: 28),
+  'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 27),
+  'Enqueue Element (primResID 9111)': (vis: 152, nodes: 369, sole: 3),
+  'primResID 9113 (name not decoded)': (vis: 152, nodes: 187, sole: 2),
+};
+
+/// The VI count at which a [kCorpusPrimReviewList] entry is pinned
+/// individually; the tail below it is pinned only by [kCorpusPrimTotals].
+const int kCorpusReviewListFloor = 150;
+
+/// The corpus review list's shape: distinct unmapped identities, the node
+/// instances they account for, and the VIs carrying at least one.
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 228, nodes: 38504, vis: 17729);
+
 /// The occurrence count at which a review-list entry is pinned individually;
 /// the tail below it is pinned only by [kReviewListTotals].
 const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 98, nodes: 623);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 94, nodes: 520);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
+const ({int vis, int sources}) kEmittedSources = (vis: 223, sources: 73);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -540,10 +604,16 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
 ///
 /// `sources` collects the distinct [LvErrorMode.exceptions] lowerings, which
 /// the analyze sweep runs the analyzer over.
-({Map<String, int> tally, Set<String> sources}) sweepLoweringChunk((List<String>, Map<String, String>) input) {
+({Map<String, int> tally, Set<String> sources, Map<String, int> prims}) sweepLoweringChunk(
+  (List<String>, Map<String, String>) input,
+) {
   final (paths, index) = input;
   final tally = <String, int>{};
   final emitted = <String>{};
+  // The unmapped-primitive census, keyed `<column>|<identity>`: `nodes` is
+  // node instances, `vis` the VIs holding at least one, and `sole` the VIs
+  // whose ONLY unmapped identity it is.
+  final prims = <String, int>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
   // The dataflows of ONE entry VI and the callees it reaches, all typed through
@@ -1104,10 +1174,37 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
     }
   }
 
+  // The unmapped-primitive census of one diagram: which operations it uses
+  // that [lvPrimHasRule] does not admit, how many nodes each accounts for, and
+  // whether it is the only one the VI carries — the ranking key, since mapping
+  // one identity clears a VI's primitive blockers only when nothing else is
+  // left. Identity-level exactly as the snippet review list is, so a node whose
+  // identity has a rule but whose own operands do not resolve is not counted
+  // here; `exceptions.primitive` is what sizes those.
+  void censusPrimitives(ViDiagram diagram) {
+    final here = <String, int>{};
+    for (final object in diagram.objects) {
+      if (object.category != ViObjectKind.node) continue;
+      if (kSubViCallNodeCodes.contains(object.kind)) continue;
+      final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
+      if (lvPrimHasRule(op: op, classCode: object.kind)) continue;
+      final key = _reviewKey(op, object);
+      here[key] = (here[key] ?? 0) + 1;
+    }
+    for (final entry in here.entries) {
+      prims['nodes|${entry.key}'] = (prims['nodes|${entry.key}'] ?? 0) + entry.value;
+      prims['vis|${entry.key}'] = (prims['vis|${entry.key}'] ?? 0) + 1;
+    }
+    if (here.length == 1) {
+      prims['sole|${here.keys.single}'] = (prims['sole|${here.keys.single}'] ?? 0) + 1;
+    }
+  }
+
   for (final path in paths) {
     final unit = load(path, path.split(Platform.pathSeparator).last);
     if (unit == null) continue;
     bump('vi');
+    censusPrimitives(unit.diagram);
     builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
     registry = LvDeclarations();
     clusterWireCause = <int, String>{};
@@ -1135,18 +1232,20 @@ const ({int vis, int sources}) kEmittedSources = (vis: 222, sources: 72);
       bump(sources.first == sources.last ? 'modes.same' : 'modes.differ');
     }
   }
-  return (tally: tally, sources: emitted);
+  return (tally: tally, sources: emitted, prims: prims);
 }
 
 /// The whole-corpus sweep, run once however many tests read it: it decodes
 /// every VI in the corpus, so paying for it twice would double this file's
 /// runtime.
-Future<({Map<String, int> tally, Set<String> sources})> corpusSweep(Directory corpus) =>
+Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims})> corpusSweep(Directory corpus) =>
     _corpusSweep ??= _runCorpusSweep(corpus);
 
-Future<({Map<String, int> tally, Set<String> sources})>? _corpusSweep;
+Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims})>? _corpusSweep;
 
-Future<({Map<String, int> tally, Set<String> sources})> _runCorpusSweep(Directory corpus) async {
+Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims})> _runCorpusSweep(
+  Directory corpus,
+) async {
   final paths = corpusViPaths(corpus);
   final index = <String, String>{};
   for (final path in paths) {
@@ -1160,11 +1259,13 @@ Future<({Map<String, int> tally, Set<String> sources})> _runCorpusSweep(Director
   final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepLoweringChunk((chunk, index)))));
   final tally = <String, int>{};
   final sources = <String>{};
+  final prims = <String, int>{};
   for (final result in results) {
     result.tally.forEach((key, value) => tally[key] = (tally[key] ?? 0) + value);
+    result.prims.forEach((key, value) => prims[key] = (prims[key] ?? 0) + value);
     sources.addAll(result.sources);
   }
-  return (tally: tally, sources: sources);
+  return (tally: tally, sources: sources, prims: prims);
 }
 
 void main() {
@@ -1318,6 +1419,49 @@ void main() {
     skip: corpus == null ? 'corpus not fetched' : null,
   );
 
+  test(
+    'the corpus primitive review list is exactly what the whole corpus holds',
+    () async {
+      final prims = (await corpusSweep(corpus!)).prims;
+      final identities = <String>{for (final key in prims.keys) key.split('|').skip(1).join('|')};
+      final measured = <String, ({int vis, int nodes, int sole})>{
+        for (final identity in identities)
+          identity: (
+            vis: prims['vis|$identity'] ?? 0,
+            nodes: prims['nodes|$identity'] ?? 0,
+            sole: prims['sole|$identity'] ?? 0,
+          ),
+      };
+      final ranked = identities.toList()
+        ..sort((a, b) {
+          final byVis = measured[b]!.vis.compareTo(measured[a]!.vis);
+          return byVis != 0 ? byVis : a.compareTo(b);
+        });
+      final frequent = <String, ({int vis, int nodes, int sole})>{
+        for (final identity in ranked)
+          if (measured[identity]!.vis >= kCorpusReviewListFloor) identity: measured[identity]!,
+      };
+      printOnFailure(
+        'measured:\n${[
+          for (final identity in ranked) "  '$identity': (vis: ${measured[identity]!.vis}, "
+                'nodes: ${measured[identity]!.nodes}, sole: ${measured[identity]!.sole}),',
+        ].join('\n')}',
+      );
+      expect(frequent, kCorpusPrimReviewList);
+      expect(
+        (
+          identities: identities.length,
+          nodes: measured.values.fold(0, (sum, entry) => sum + entry.nodes),
+          vis: measured.values.fold(0, (sum, entry) => sum + entry.vis),
+        ),
+        kCorpusPrimTotals,
+        reason: 'the corpus review list moved; re-pin it against the measured corpus',
+      );
+    },
+    tags: 'corpus',
+    skip: corpus == null ? 'corpus not fetched' : null,
+  );
+
   test('the primitive review list is exactly what the snippet corpus holds', () {
     final counts = <String, int>{};
     for (final file in snippets) {
@@ -1408,7 +1552,13 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
   List<LvPrimTerminal> terminals(List<int> ports, {required bool isInput}) => [
     for (final port in ports)
       if (isInput ? flow.into(port) : flow.outOf(port) case final edge?)
-        LvPrimTerminal(port: port, type: edge.type, roleFlags: node.portRoleFlags[port] ?? 0, expression: 'x'),
+        LvPrimTerminal(
+          port: port,
+          type: edge.type,
+          roleFlags: node.portRoleFlags[port] ?? 0,
+          expression: 'x',
+          memberName: node.portMemberName[port],
+        ),
   ];
   return lvPrimLowering(
     LvPrimCall(
@@ -1421,6 +1571,7 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
       portDrawnTop: node.portDrawnTop,
       requireImport: (_) {},
       names: LvNaming(),
+      nodeFlags: node.nodeFlags,
     ),
   );
 }
