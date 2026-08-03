@@ -9,8 +9,11 @@ library;
 
 import 'numeric.dart';
 
+/// The package a generated file depends on to reach the runtime.
+const String kLvRuntimePackage = 'labwright_lv_runtime';
+
 /// The import a generated file declares to reach the runtime.
-const String kLvRuntimeImport = 'package:labwright_lv_runtime/labwright_lv_runtime.dart';
+const String kLvRuntimeImport = 'package:$kLvRuntimePackage/$kLvRuntimePackage.dart';
 
 /// The runtime functions a lowering calls.
 abstract final class LvRuntimeCall {

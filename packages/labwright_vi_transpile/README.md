@@ -305,8 +305,8 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 122 distinct unmapped identities over
-878 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
+`test/corpus_lowering_sweep_test.dart`: 113 distinct unmapped identities over
+807 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
 class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
 
 ### subVI calls
@@ -337,9 +337,18 @@ primitives (7), constants whose value the heap decode did not recover (2),
 unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
 call whose callee is not supplied (1).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 135 lower
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 136 lower
 and the rest refuse, 6,849 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for.
+
+Those 136 lowerings are **20 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 20 into a
+throwaway package resolved against this repo's own package graph, runs one
+`dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
+**zero diagnostics** — errors, warnings and infos alike; a `dart compile
+kernel` of one entry point importing all 20 is the independent check that they
+link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
+corpus-wide rather than inferred from the one checked-in file.
 
 ### crc8.vi, byte-exact
 

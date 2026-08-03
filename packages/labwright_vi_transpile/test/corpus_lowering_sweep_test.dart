@@ -15,6 +15,7 @@
 /// `kLvMappedPrimOps`).
 library;
 
+import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
 
@@ -214,12 +215,21 @@ const int kReviewListFloor = 10;
 /// corpus holds, and how many node instances they account for.
 const ({int identities, int nodes}) kReviewListTotals = (identities: 113, nodes: 807);
 
+/// How many VIs lower, and how many DISTINCT Dart sources they emit — the
+/// input to the analyze sweep below. Copies of one VI appear all over the
+/// corpus and lower to the same text, so the analyzer sees each source once.
+const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
+
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
 /// connector-pane binding of every call node and the per-mode outcome.
-Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
+///
+/// `sources` collects the distinct [LvErrorMode.exceptions] lowerings, which
+/// the analyze sweep runs the analyzer over.
+({Map<String, int> tally, Set<String> sources}) sweepLoweringChunk((List<String>, Map<String, String>) input) {
   final (paths, index) = input;
   final tally = <String, int>{};
+  final emitted = <String>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
   final flows = <String, LvDataflow?>{};
@@ -332,6 +342,7 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
       final result = emitLvLibrary(unit, functionName: 'lowered', errorMode: mode, resolveSubVi: resolve);
       bump('${mode.name}.${result.refusal?.kind.name ?? 'lowered'}');
       sources.add(result.source);
+      if (mode == LvErrorMode.exceptions && result.source != null) emitted.add(result.source!);
     }
     // The modes are only allowed to differ where an error cluster reaches the
     // connector pane, so this counts the VIs the choice actually changes.
@@ -339,7 +350,36 @@ Map<String, int> sweepLoweringChunk((List<String>, Map<String, String>) input) {
       bump(sources.first == sources.last ? 'modes.same' : 'modes.differ');
     }
   }
-  return tally;
+  return (tally: tally, sources: emitted);
+}
+
+/// The whole-corpus sweep, run once however many tests read it: it decodes
+/// every VI in the corpus, so paying for it twice would double this file's
+/// runtime.
+Future<({Map<String, int> tally, Set<String> sources})> corpusSweep(Directory corpus) =>
+    _corpusSweep ??= _runCorpusSweep(corpus);
+
+Future<({Map<String, int> tally, Set<String> sources})>? _corpusSweep;
+
+Future<({Map<String, int> tally, Set<String> sources})> _runCorpusSweep(Directory corpus) async {
+  final paths = corpusViPaths(corpus);
+  final index = <String, String>{};
+  for (final path in paths) {
+    index.putIfAbsent(path.split(Platform.pathSeparator).last.toLowerCase(), () => path);
+  }
+  final workers = (Platform.numberOfProcessors - 2).clamp(1, 16);
+  final chunks = List.generate(workers, (_) => <String>[]);
+  for (var i = 0; i < paths.length; i++) {
+    chunks[i % workers].add(paths[i]);
+  }
+  final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepLoweringChunk((chunk, index)))));
+  final tally = <String, int>{};
+  final sources = <String>{};
+  for (final result in results) {
+    result.tally.forEach((key, value) => tally[key] = (tally[key] ?? 0) + value);
+    sources.addAll(result.sources);
+  }
+  return (tally: tally, sources: sources);
 }
 
 void main() {
@@ -401,21 +441,7 @@ void main() {
   test(
     'subVI calls bind through the connector pane, and both error modes sweep the corpus',
     () async {
-      final paths = corpusViPaths(corpus!);
-      final index = <String, String>{};
-      for (final path in paths) {
-        index.putIfAbsent(path.split(Platform.pathSeparator).last.toLowerCase(), () => path);
-      }
-      final workers = (Platform.numberOfProcessors - 2).clamp(1, 16);
-      final chunks = List.generate(workers, (_) => <String>[]);
-      for (var i = 0; i < paths.length; i++) {
-        chunks[i % workers].add(paths[i]);
-      }
-      final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepLoweringChunk((chunk, index)))));
-      final measured = <String, int>{};
-      for (final result in results) {
-        result.forEach((key, value) => measured[key] = (measured[key] ?? 0) + value);
-      }
+      final measured = (await corpusSweep(corpus!)).tally;
       printOnFailure(
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
@@ -424,6 +450,42 @@ void main() {
       // derive it, so a disagreement would mean the contract is wrong.
       expect(measured['term.dirDisagree'], isNull, reason: 'the pane binding contradicts the caller\'s own direction');
       expect(measured['term.typeDisagree'], isNull, reason: 'the pane binding contradicts the two VIs\' wire types');
+    },
+    tags: 'corpus',
+    skip: corpus == null ? 'corpus not fetched' : null,
+  );
+
+  test(
+    'every emitted library analyzes clean at the recommended lint set, and compiles',
+    () async {
+      final swept = await corpusSweep(corpus!);
+      expect(
+        (vis: swept.tally['exceptions.lowered'], sources: swept.sources.length),
+        kEmittedSources,
+        reason: 'the set of VIs that lower changed; re-pin it before reading the analyzer result',
+      );
+      final scratch = _scratchPackage(swept.sources);
+      try {
+        final analyzed = Process.runSync(_kDart, ['analyze', '${scratch.path}/lib'], workingDirectory: scratch.path);
+        expect(analyzed.exitCode, 0, reason: 'the emitted code is not clean:\n${analyzed.stdout}${analyzed.stderr}');
+        // Analysis covers the static errors; a kernel compile of one entry
+        // importing all of them is the independent check that the emitted
+        // libraries really do link against the runtime.
+        final compiled = Process.runSync(_kDart, [
+          'compile',
+          'kernel',
+          'bin/all.dart',
+          '-o',
+          '${scratch.path}/all.dill',
+        ], workingDirectory: scratch.path);
+        expect(
+          compiled.exitCode,
+          0,
+          reason: 'the emitted code does not compile:\n${compiled.stdout}${compiled.stderr}',
+        );
+      } finally {
+        scratch.deleteSync(recursive: true);
+      }
     },
     tags: 'corpus',
     skip: corpus == null ? 'corpus not fetched' : null,
@@ -452,6 +514,64 @@ void main() {
       reason: 'the review list grew or shrank; re-pin it against the measured corpus',
     );
   });
+}
+
+/// The Dart executable running this test — the same SDK the emitted code is
+/// analyzed and compiled with.
+final String _kDart = Platform.resolvedExecutable;
+
+/// The scratch package's name; it is throwaway, so nothing refers to it beyond
+/// the entry point that imports its libraries.
+const String _kScratchPackageName = 'lv_emitted';
+
+/// A throwaway package holding one library per source in [sources], ready for
+/// `dart analyze` and `dart compile`.
+///
+/// Package resolution is this repo's own `package_config.json` with every
+/// relative `rootUri` made absolute, so the emitted code links against the
+/// same `labwright_lv_runtime` the checked-in generated sources do without a
+/// `pub get`. `bin/all.dart` imports every library under a prefix — the
+/// emitted entry points all share a name, and a prefix keeps a batch compile
+/// to one invocation.
+Directory _scratchPackage(Set<String> sources) {
+  final dir = Directory.systemTemp.createTempSync('lv_emitted_');
+  for (final sub in const ['lib', 'bin', '.dart_tool']) {
+    Directory('${dir.path}/$sub').createSync();
+  }
+  final names = <String>[];
+  for (final source in sources) {
+    final name = 'vi_${names.length.toString().padLeft(4, '0')}.dart';
+    File('${dir.path}/lib/$name').writeAsStringSync(source);
+    names.add(name);
+  }
+  File('${dir.path}/bin/all.dart').writeAsStringSync(
+    '${[
+      for (var i = 0; i < names.length; i++) "import 'package:$_kScratchPackageName/${names[i]}' as vi$i;",
+    ].join('\n')}\n\nvoid main() {}\n',
+  );
+
+  final configUri = Isolate.packageConfigSync!;
+  final config = jsonDecode(File.fromUri(configUri).readAsStringSync()) as Map<String, dynamic>;
+  final packages = (config['packages']! as List<dynamic>).cast<Map<String, dynamic>>();
+  for (final package in packages) {
+    package['rootUri'] = configUri.resolve(package['rootUri']! as String).toString();
+  }
+  final runtime = packages.firstWhere((package) => package['name'] == kLvRuntimePackage);
+  packages.add({
+    'name': _kScratchPackageName,
+    'rootUri': dir.uri.toString(),
+    'packageUri': 'lib/',
+    'languageVersion': runtime['languageVersion'],
+  });
+  File('${dir.path}/.dart_tool/package_config.json').writeAsStringSync(jsonEncode(config));
+  File('${dir.path}/pubspec.yaml').writeAsStringSync(
+    'name: $_kScratchPackageName\n'
+    'environment:\n  sdk: ^${runtime['languageVersion']}.0\n'
+    'dependencies:\n  $kLvRuntimePackage: any\n',
+  );
+  // Goal: emitted code is clean at the lint set a new Dart package gets.
+  File('${dir.path}/analysis_options.yaml').writeAsStringSync('include: package:lints/recommended.yaml\n');
+  return dir;
 }
 
 /// Every cluster-coded signal in [diagram], bucketed by whether its endpoints
