@@ -149,14 +149,43 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 /// (a 1-, 2- and 6-parent walk return identical counts over all 133 106
 /// cluster-coded signals).
 ///
-/// It stops there because there is nothing there to read. Across the 184 697
+/// It stops there because the ancestors hold nothing. Across the 184 697
 /// endpoints of the 88 743 cluster wires no endpoint resolves, NOT ONE carries
 /// a type-descriptor index of its own ([ViHeapObject.typeDescIdx]) — a wire
 /// endpoint is a holder (`0x15`, 174 208) or an interface terminal (`0x16`,
 /// 10 489), and neither class stores one. Every type such an endpoint has is
 /// inherited from a paired panel DCO through its `dcoRef`, and 123 263 of them
-/// carry no `dcoRef` either. This is a missing decode of where the compiled
-/// data space types a wire, not a walk that gives up early.
+/// carry no `dcoRef` either.
+///
+/// **Where the data space does type a wire**, and why that route is not read:
+/// the index lives one level DOWN, on the node-terminal **part** objects a
+/// bounds-less `0x15` endpoint parents (`0x2d`, `0x33`, `0x30`, `0x62`, `0x8e`,
+/// `0x13`, … — the same parts [ViDiagram.dcoChildTerminalAttach] reads geometry
+/// from). Every one of them carries a [ViHeapObject.typeDescIdx]: 37 850 of
+/// 37 850 on the `0x33` parts under unresolved cluster wires alone. The
+/// **signal object itself carries no index at all** — a census of all 428 043
+/// corpus signals finds exactly four record families on the `0x17` class (the
+/// `14 19` endpoint refs 428 043, the wire-type word `0x9f` 428 029, the
+/// `0x115` state word 427 610 and the `0x1e7` route table), plus objFlags and
+/// a handful of cosmetic tags; no data-space index, generation or ordinal.
+///
+/// Scored against the wires the endpoint route already decides, the part route
+/// reproduces its answer on 21 632 of 30 781 (70.3%) — and 8 799 of the 9 149
+/// disagreements are the descriptor NAME alone, the members' type codes being
+/// identical (98.9% on codes). That is the failure mode that already ruled out
+/// the callee's pane, so the part route is measured ([kCorpusLoweringSweep]'s
+/// `clus.kid*`) and not read; gating it to the endpoint's unique
+/// termBounds-carrying part moves the score by 0.6 points (20 952/30 074), so
+/// there is no clean subset either.
+///
+/// It would not be the lever in any case. Of the 88 743 wires that resolve
+/// nothing, **63 697 (71.8%) sit in a VI where no object resolves a type at
+/// all** (`clus.noneUncalibrated`): the heap's type indices carry a per-VI base
+/// that `resolveDataSpaceTypes` self-calibrates from a handful of anchor
+/// classes, and 4 433 of the corpus's 7 508 VIs (59.0%) supply too few anchors
+/// to calibrate. Only 558 wires (0.6%) reach no index at all. Decoding where
+/// that base is stored — not a deeper walk, and not a second type source — is
+/// what stands between this route and the rest of the corpus.
 ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
   var object = diagram.byId[oid];
   for (var depth = 0; object != null && depth < 2; depth++) {
