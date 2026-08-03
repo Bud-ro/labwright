@@ -1810,6 +1810,49 @@ enum HeapPropertyToken {
   static HeapPropertyToken? lookup(int op, int subop) => _byKey[(op << 8) | subop];
 }
 
+/// The type tags of the non-object heap groups whose records `buildDiagram`
+/// scopes a capture to — the byte [walkHeapObjects] surfaces to its
+/// `onGroupOpen` / `onGroupClose` callbacks.
+enum HeapGroupTag {
+  /// `0x25` — a label's text font-run list ([HeapPropertyToken.textStyleRuns]),
+  /// holding one [fontRun] sub-group per run.
+  fontRunList(0x25),
+
+  /// `0x19` — one font run inside a [fontRunList] group, carrying the
+  /// [FontRunAttr] records.
+  fontRun(0x19),
+
+  /// `0x15` — an array shell's displayed-index group, carrying the shell's
+  /// [HeapAttribute.arrayElemValue] index record (`ViHeapObject.arrayIndex`).
+  arrayIndex(0x15)
+  ;
+
+  const HeapGroupTag(this.tag);
+
+  /// The group's type-tag byte.
+  final int tag;
+}
+
+/// The raw attribute tags a font run carries inside a [HeapGroupTag.fontRun]
+/// sub-group. Both tags are shared with the general attribute space (raw
+/// `0x028` outside a run group is [HeapAttribute.backgroundColor]), so they
+/// are only read as run fields while such a group is open.
+enum FontRunAttr {
+  /// Raw `0x027` — the run's start character offset (absent = 0). Uncatalogued
+  /// in [HeapAttribute] (it carries no meaning outside a run group).
+  start(0x027),
+
+  /// Raw `0x028` — the run's `FTAB` font id
+  /// (`ViFontTable.entryForRunFontId`).
+  fontId(0x028)
+  ;
+
+  const FontRunAttr(this.raw);
+
+  /// The 10-bit raw tag id ([HeapAttr.rawTag]).
+  final int raw;
+}
+
 /// Whether a byte is the `op == 0x04` lead of a bare two-byte `04 SS` token.
 /// These appear in FPHb/BDHb (the `SS` subop is dominated by the attribute/
 /// property family `0x1f`/`0x20`/`0x22`). Their `04 SS 00 00` payload has no
