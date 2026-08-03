@@ -313,8 +313,11 @@ class _Emitter {
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
               'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
     if (dims.length > 1) imports.add(kLvRuntimeImport);
+    // A caption is free text and may hold newlines, which a `///` comment
+    // cannot; it is collapsed to one line rather than dropped.
+    final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
     fileConstants.add(
-      '/// The block diagram\'s ${unit.label == null ? 'unnamed constant' : '"${unit.label}" constant'}: '
+      '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
       '$shape ${type.numeric!.glyph} elements.\n'
       'final ${type.dartType} $name = $initializer;',
     );
