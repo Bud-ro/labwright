@@ -966,8 +966,17 @@ List<String>? _concatenateStrings(LvPrimCall call) {
   }
   final name = out.expression;
   if (name == null) return const [];
-  return ['final String $name = ${ordered.map((operand) => operand.expression).join(' + ')};'];
+  final operands = [for (final operand in ordered) operand.expression];
+  final joined = operands.length == 1 ? operands.single : "'${operands.map(_interpolated).join()}'";
+  return ['final String $name = $joined;'];
 }
+
+/// A String-typed [expression] spliced into a string interpolation: `$name`
+/// for a bare identifier, `${…}` for anything else (including a nested string
+/// literal, whose own escaping already holds). Interpolation rather than `+`
+/// so the emitted source is idiomatic Dart.
+String _interpolated(String? expression) =>
+    RegExp(r'^[A-Za-z_]\w*$').hasMatch(expression!) ? '\$$expression' : '\${$expression}';
 
 /// A scalar operation **applied elementwise** to array wires: the node's own
 /// rule run over the elements, collected into an array of the result's element

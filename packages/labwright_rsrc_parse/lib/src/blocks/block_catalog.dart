@@ -196,7 +196,9 @@ const Map<String, ViBlockInfo> _catalog = {
     'Data-type heap table',
     _ti,
     _lk,
-    '4-byte [u16][u16] header (7541/7583 = 99.45%); rare extended form carries 40xx-tagged data-item names. See decodeDataTypeHeap.',
+    '4-byte [u16 heapTypeCount][u16 firstTopLevelIndex] header (7541/7583 = 99.45%) locating the heap '
+        'typeDescIndex space in the VCTP top-level list; rare extended form carries 40xx-tagged '
+        'data-item names. See decodeDataTypeHeap.',
     decoder: 'decodeDataTypeHeap',
   ),
   'FPTD': ViBlockInfo(

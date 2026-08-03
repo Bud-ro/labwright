@@ -466,7 +466,7 @@ void main() {
         kLvConcatenateStringsClass,
         [0x0230, 0x0230, 0x0230],
         0x0230,
-        ['final String e0 = a0 + a1 + a2;'],
+        [r"final String e0 = '$a0$a1$a2';"],
       ),
       // An array of strings would concatenate its own elements here, which the
       // depth reading does not distinguish from a scalar operand's role.

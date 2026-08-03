@@ -685,6 +685,13 @@ void main() {
 
     // Measured floors (well under the observed scores, see the sweep print):
     // a placement/rendering regression on any of these drops below its floor.
+    //
+    // Placement is a MEAN over the boxes a VI decodes, so a decode that draws
+    // an object it previously omitted moves it by that object's own support.
+    // `FileReadOnly.png` is the corpus's one such case: its box count is 8
+    // where it was 7, and the eighth scores near chance, which pulls the mean
+    // down even though the same decode lifts the VI's structural score from
+    // 31.5% to 67.8%. Its floor is set under the 8-box measurement.
     const floors = <String, double>{
       'fg.png': 0.92,
       'sub_vi_missing.png': 0.92,
@@ -706,7 +713,7 @@ void main() {
       'Config_Dump2.png': 0.80,
       'Export Palette Image WMF.png': 0.80,
       'Excel_Variant_Elements.png': 0.78,
-      'FileReadOnly.png': 0.78,
+      'FileReadOnly.png': 0.72,
       'GenerateTree.png': 0.78,
       'Excel_Cell_to_Value.png': 0.78,
       'VISA_InterfaceType.png': 0.76,

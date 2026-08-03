@@ -6,10 +6,10 @@
 
 import 'dart:typed_data';
 
-int lrc8({required Uint8List input}) {
+int lrc8({required Uint8List frameIn}) {
   int carried = 0;
-  for (var i = 0; i < input.length; i++) {
-    final int element = input[i];
+  for (var i = 0; i < frameIn.length; i++) {
+    final int element = frameIn[i];
     final int value = (element + carried) & 0xFF;
     carried = value;
   }

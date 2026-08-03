@@ -244,6 +244,31 @@ _Summ _summarize(Uint8List bytes, String path) {
     if (_sig(m) != _sig(buildViModel(bytes))) bad('nondet', path);
   } catch (_) {}
 
+  // The DTHP header's `[count][firstTopLevelIndex]` run vs the VCTP top-level
+  // list and the heap indices that address it (see decodeDataTypeHeap).
+  final decodedSections = dsecs;
+  if (decodedSections != null) {
+    Uint8List? bodyOf(String tag) => decodedSections.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
+    final vctp = bodyOf('VCTP');
+    final dthpBody = bodyOf('DTHP');
+    final dthp = dthpBody == null ? null : decodeDataTypeHeap(dthpBody);
+    final topLevel = vctp == null ? const <int>[] : decodeTypeTable(vctp);
+    if (dthp != null && topLevel.isNotEmpty) {
+      n('dthpBaseTot');
+      if (dthp.firstTopLevelIndex + dthp.heapTypeCount - 1 == topLevel.length) n('dthpRunEndsAtTail');
+      final indices = [
+        for (final d in [...m.blockDiagrams, ...m.frontPanelDiagrams])
+          for (final o in d.objects)
+            if (o.typeDescIdx != null) o.typeDescIdx!,
+      ];
+      if (indices.isNotEmpty) {
+        n('dthpIdxTot');
+        if (indices.reduce(min) == 1) n('dthpIdxMinOne');
+        if (indices.reduce(max) <= dthp.heapTypeCount) n('dthpIdxInRange');
+      }
+    }
+  }
+
   for (final o in [...m.blockDiagrams, ...m.frontPanelDiagrams].expand((d) => d.objects)) {
     kinds.add(o.kind);
     final r = o.absBounds;
@@ -430,6 +455,16 @@ void main() {
     expect(L('dthpDecoded'), L('dthpTotal'), reason: 'decodeDataTypeHeap returned null for a >=4-byte DTHP');
     expect(L('dthpExtNamed'), L('dthpExt'), reason: 'an extended DTHP recovered no names — _scanNames regressed');
     expect(L('dthpExtPrintable'), L('dthpExt'), reason: 'an extended DTHP recovered a non-printable name');
+  });
+
+  test('DTHP locates the heap type-index space in the VCTP top-level list', () {
+    expect(
+      L('dthpRunEndsAtTail'),
+      L('dthpBaseTot'),
+      reason: 'firstTopLevelIndex + heapTypeCount - 1 != topLevel.length — the heap run left the list tail',
+    );
+    expect(L('dthpIdxMinOne'), L('dthpIdxTot'), reason: 'a heap typeDescIndex space did not start at 1');
+    expect(L('dthpIdxInRange'), L('dthpIdxTot'), reason: 'a heap typeDescIndex ran past the DTHP-declared count');
   });
 
   test('section-law and model censuses match the committed snapshot exactly', () {

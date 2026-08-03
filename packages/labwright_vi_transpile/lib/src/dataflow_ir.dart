@@ -655,6 +655,14 @@ class _Builder {
       if (!type.isMapped) {
         refuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
       }
+      if (type.needsDeclaration) {
+        refuse(
+          LvRefusalKind.wireType,
+          'the wire\'s type spells ${type.dartType}, a nominal class no library '
+          'declares (see [LvTypeMapping.needsDeclaration])',
+          oid: wire.signalOid,
+        );
+      }
       final sinks = [
         for (final oid in wire.endpointOids)
           if (oid != sources.single) oid,
