@@ -618,6 +618,7 @@ class _FunctionEmitter {
       outputPorts: unit.outputPorts,
       portDrawnTop: unit.portDrawnTop,
       requireImport: library.imports.add,
+      names: names,
     );
     final statements = lvPrimLowering(call);
     if (statements == null) {

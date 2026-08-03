@@ -59,12 +59,49 @@
 /// first holder in heap order is the LOWER terminal, while on the `0x44` nodes
 /// the first holder is the array, which is drawn ABOVE. The two conventions
 /// disagree; the drawn order is what both classes share, so terminals carry
-/// their drawn position ([LvPrimTerminal.drawnTop]) and a node whose geometry
+/// their drawn position ([LvPrimCall.portDrawnTop]) and a node whose geometry
 /// does not resolve is refused rather than ordered by its heap layout.
+///
+/// ## The rule at N inputs
+///
+/// The growable and three-terminal operations read the same way, and their
+/// geometry is even cleaner than the two-input family's. Corpus, over every
+/// node of each in 7 524 VIs, counting the nodes whose terminal geometry
+/// resolves at all: `Concatenate Strings` 2 036 of 2 036, `Compound Arithmetic`
+/// 1 104 of 1 104, `Select` 2 401 of 2 401 and `Build Array` 3 676 of 3 682 —
+/// **not one node draws two inputs on the same row**, so drawn order is a total
+/// order over an operand list of any length. (Heap order is a second, separate
+/// convention again: these four classes list their terminals top-down in heap
+/// order on every node, where the two-input arithmetic family lists them
+/// bottom-up. Neither is read.)
+///
+/// That the drawn order is the ARGUMENT order is the same rule, corroborated on
+/// the one variadic operation whose argument order is observable in its
+/// operands — `Concatenate Strings`, where a string constant's own text says
+/// where in the result it belongs:
+///
+/// - a two-input node's lone constant ending in a label separator (`Name:`,
+///   `x =`) is the UPPER input 26 times and the lower 4;
+/// - a two-input node's lone constant *beginning* with one is the LOWER input
+///   44 times and the upper 7;
+/// - a bracket-opening constant (`<`, `(`, `[`, `{`) is drawn ABOVE the
+///   matching closer 25 times and below it 5.
+///
+/// [Select] is fixed by its own terminals rather than by an idiom: on the
+/// 2 058 three-input nodes whose wires type and which carry exactly one boolean
+/// operand, that boolean is the MIDDLE of the three drawn rows 2 058 times and
+/// an outer row 0 times, so the selector is the middle terminal and the two
+/// values are the outer ones. Which outer value the selector's true case takes
+/// is fixed by the constants the corpus wires to them, with no counterexample:
+/// an affirmative/negative word pair (`True`/`False`, `Yes`/`No`, `On`/`Off`,
+/// `Enabled`/`Disabled`, …) puts the affirmative on the UPPER input 22 times
+/// and the lower 0, and a `true`/`false` boolean-constant pair puts `true`
+/// upper 10 times and lower 0.
 library;
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'naming.dart';
 import 'numeric.dart';
 import 'runtime.dart';
 import 'type_map.dart';
@@ -156,6 +193,7 @@ class LvPrimCall {
     required this.outputPorts,
     required this.portDrawnTop,
     required this.requireImport,
+    required this.names,
     this.primResId,
   });
 
@@ -188,11 +226,33 @@ class LvPrimCall {
   /// Declares an import in the emitted file.
   final void Function(String) requireImport;
 
+  /// Allocates the identifiers a lowering needs beyond the ones its terminals
+  /// already carry — an elementwise loop's index and its per-output builder.
+  final LvNaming names;
+
   /// The single input carrying [flags] in its role bits, or null.
   LvPrimTerminal? inputWithRole(int flags) => _single(inputs.where((t) => t.roleFlags == flags));
 
   /// The single output carrying [flags] in its role bits, or null.
   LvPrimTerminal? outputWithRole(int flags) => _single(outputs.where((t) => t.roleFlags == flags));
+
+  /// Whether the node draws exactly one source terminal. An input LabVIEW
+  /// leaves unwired reads as a source rather than a sink, so a variadic node
+  /// with a spare source terminal has an operand the diagram supplies a default
+  /// for — a value that is not decoded — and this is what refuses it.
+  bool get hasSoleSourceTerminal => outputPorts.length == 1;
+
+  /// Every input **in drawn order**, uppermost first — the operand list (see
+  /// the library doc) — or null when any terminal's drawn position is missing
+  /// or two of them share a row, in which case the order is not stated.
+  List<LvPrimTerminal>? get inputsTopDown {
+    final rows = <int>{};
+    for (final terminal in inputs) {
+      final top = portDrawnTop[terminal.port];
+      if (top == null || !rows.add(top)) return null;
+    }
+    return [...inputs]..sort((a, b) => portDrawnTop[a.port]!.compareTo(portDrawnTop[b.port]!));
+  }
 
   /// The node's two **inputs in drawn order**, uppermost first — its operand
   /// order (see the library doc) — or null when it has other than two inputs,
@@ -200,8 +260,8 @@ class LvPrimCall {
   /// row and the order is therefore not stated.
   (LvPrimTerminal, LvPrimTerminal)? get operandsTopDown {
     if (inputs.length != 2) return null;
-    final ranked = _rankTopDown([for (final terminal in inputs) terminal.port]);
-    return ranked == null ? null : (_terminalAt(inputs, ranked.$1)!, _terminalAt(inputs, ranked.$2)!);
+    final ordered = inputsTopDown;
+    return ordered == null ? null : (ordered[0], ordered[1]);
   }
 
   /// The node's two **outputs in drawn order**, uppermost first. An entry is
@@ -300,6 +360,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.rotateRightWithCarry,
   PrimOp.swapBytes,
   PrimOp.swapWords,
+  PrimOp.select,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -323,8 +384,8 @@ const Map<int, ({String name, int captions})> kLvNamedNodeClasses = {
   kLvReplaceArraySubsetClass: (name: 'Replace Array Subset', captions: 10),
   0x34: (name: 'Bundle', captions: 26),
   0x36: (name: 'Unbundle', captions: 25),
-  0x3a: (name: 'Build Array', captions: 74),
-  0x3e: (name: 'Concatenate Strings', captions: 32),
+  kLvBuildArrayClass: (name: 'Build Array', captions: 74),
+  kLvConcatenateStringsClass: (name: 'Concatenate Strings', captions: 32),
   0x6c: (name: 'Compound Arithmetic', captions: 14),
   0x93: (name: 'Format Into String', captions: 37),
   0x105: (name: 'Match Regular Expression', captions: 4),
@@ -333,8 +394,31 @@ const Map<int, ({String name, int captions})> kLvNamedNodeClasses = {
 
 /// The node **classes** that are one operation and have a lowering rule — the
 /// [kLvNamedNodeClasses] entries whose operand roles the terminal records
-/// establish (see [LvArrayTerminalRole]).
-const Set<int> kLvMappedPrimClasses = {kLvIndexArrayClass, kLvReplaceArraySubsetClass};
+/// establish (see [LvArrayTerminalRole]) or the drawn order does (see the
+/// library doc's N-input section).
+///
+/// `Compound Arithmetic` (`0x6c`) is deliberately absent even though its
+/// operand ORDER now reads: the node also carries a mode — LabVIEW's one node
+/// adds, multiplies, ANDs, ORs or XORs — and a per-input inversion, and neither
+/// is decoded. The corpus, over its 1 104 nodes, says exactly how far the
+/// reading gets: the node's own [ViHeapObject.objFlags] takes ten values whose
+/// high nibble pairs with the wire carrier (`0xa0000` on 710 all-boolean nodes
+/// and 2 all-integer, `0xb0000` on 297 and 2, `0x80000` on 48 all-integer and
+/// 12 all-DBL, then `0x20000`, `0x30000`, `0x90000`, `0xc0000` in the tens),
+/// and the input terminals carry a `0x10000` bit on some inputs and not others
+/// — 334 nodes read `0x0,0x10000` and 97 read `0x10000,0x0`, which is the shape
+/// a per-input inversion would have. What is missing is the tie from either
+/// field to the operation it names: no corpus node labels its mode, an
+/// all-boolean node is equally an AND, an OR or an XOR under every reading, and
+/// the same `0x10000` bit sits on ordinary `Subtract` inputs where an inversion
+/// would mean nothing. A wrong mode is a silently wrong sum, so the node is
+/// refused.
+const Set<int> kLvMappedPrimClasses = {
+  kLvIndexArrayClass,
+  kLvReplaceArraySubsetClass,
+  kLvBuildArrayClass,
+  kLvConcatenateStringsClass,
+};
 
 /// Whether a node identified by [op] (null when its class is the identity) and
 /// [classCode] has a lowering rule at all. A node that passes this may still
@@ -346,8 +430,16 @@ bool lvPrimHasRule({PrimOp? op, required int classCode}) =>
 /// The statements defining a node's outputs, or null when the node has no
 /// decided lowering — in which case [lvPrimUnmappedReason] says what is
 /// missing.
+///
+/// A node whose own rule does not read its wires is tried once more as the
+/// **elementwise** form ([_elementwise]), which is how a scalar operation
+/// wired to arrays lowers.
 List<String>? lvPrimLowering(LvPrimCall call) {
   if (!lvPrimHasRule(op: call.op, classCode: call.classCode)) return null;
+  return _lowerDirect(call) ?? _elementwise(call);
+}
+
+List<String>? _lowerDirect(LvPrimCall call) {
   switch (call.op) {
     // Commutative bitwise/arithmetic pairs: the two inputs are interchangeable,
     // so a lowering needs no decoded operand order.
@@ -447,11 +539,16 @@ List<String>? lvPrimLowering(LvPrimCall call) {
     case PrimOp.swapWords:
       return _swap(call, LvRuntimeCall.swapWords, fieldPairBits: 32);
 
+    case PrimOp.select:
+      return _select(call);
+
     case _:
       break;
   }
   if (call.classCode == kLvIndexArrayClass) return _indexArray(call);
   if (call.classCode == kLvReplaceArraySubsetClass) return _replaceArraySubset(call);
+  if (call.classCode == kLvBuildArrayClass) return _buildArray(call);
+  if (call.classCode == kLvConcatenateStringsClass) return _concatenateStrings(call);
   return null;
 }
 
@@ -463,9 +560,25 @@ const int kLvIndexArrayClass = 0x44;
 /// labels ×10, no competing caption).
 const int kLvReplaceArraySubsetClass = 0xb9;
 
+/// The heap class code of the **Build Array** node (corpus node labels ×74, no
+/// competing caption).
+const int kLvBuildArrayClass = 0x3a;
+
+/// The heap class code of the **Concatenate Strings** node (corpus node labels
+/// ×32, no competing caption).
+const int kLvConcatenateStringsClass = 0x3e;
+
 /// Why the node [call] describes has no lowering — the review-list entry.
 String lvPrimUnmappedReason(LvPrimCall call) {
   if (call.op case final op?) {
+    final depths = {
+      for (final terminal in [...call.inputs, ...call.outputs]) terminal.type.dims,
+    };
+    if (kLvMappedPrimOps.contains(op) && depths.length > 1 && depths.contains(0)) {
+      return 'primitive ${op.opName} (primResID ${op.id}) mixes array and scalar '
+          'terminals (dimensionalities ${(depths.toList()..sort()).join('/')}), and the '
+          'value LabVIEW broadcasts the scalar operand to at each index is not decoded';
+    }
     return 'primitive ${op.opName} (primResID ${op.id}) has no decided lowering: '
         'its operand roles are not established from the terminal records';
   }
@@ -492,6 +605,9 @@ String lvPrimUnmappedReason(LvPrimCall call) {
 List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final out = call.outputs.single;
+  // Scalars only: an array wire makes the node the elementwise form, whose
+  // operands the Dart operator does not apply to.
+  if (out.type.dims != 0 || call.inputs.any((operand) => operand.type.dims != 0)) return null;
   final name = out.expression;
   if (name == null) return const [];
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
@@ -505,6 +621,7 @@ List<String>? _binaryOrdered(LvPrimCall call, String operator) {
   final operands = call.operandsTopDown;
   if (operands == null) return null;
   final out = call.outputs.single;
+  if (out.type.dims != 0 || operands.$1.type.dims != 0 || operands.$2.type.dims != 0) return null;
   if (_hazardous(out.type, operator)) return null;
   final name = out.expression;
   if (name == null) return const [];
@@ -608,6 +725,203 @@ List<String>? _swap(LvPrimCall call, String runtimeCall, {required int fieldPair
   if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return ['final int $name = ${lvWrapped(out.type, '$runtimeCall(${source.expression})')};'];
+}
+
+/// `Select` — the middle-drawn input chooses between the two outer ones, and
+/// the UPPER one is the value the true case takes (see the library doc for both
+/// halves of the census that fixes this).
+///
+/// The selector must be a scalar boolean; an array selector is the elementwise
+/// form, which the wrapper below reaches only when every terminal is an array.
+/// The two values and the result must carry one Dart type, which is what keeps
+/// LabVIEW's own coercion between differing operand types out.
+List<String>? _select(LvPrimCall call) {
+  if (call.inputs.length != 3 || call.outputs.length != 1 || !call.hasSoleSourceTerminal) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final (whenTrue, selector, whenFalse) = (ordered[0], ordered[1], ordered[2]);
+  final out = call.outputs.single;
+  if (selector.type.dims != 0 || selector.type.dartType != 'bool') return null;
+  if (whenTrue.type.dartType != out.type.dartType || whenFalse.type.dartType != out.type.dartType) return null;
+  if (whenTrue.type.dims != out.type.dims || whenFalse.type.dims != out.type.dims) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  return [
+    'final ${out.type.dartType} $name = '
+        '${selector.expression} ? ${whenTrue.expression} : ${whenFalse.expression};',
+  ];
+}
+
+/// `Build Array` — one 1-D array holding, in drawn order, every operand: a
+/// scalar operand as one element and an array operand spliced in whole.
+///
+/// Which of the two an operand is follows from the wires alone. Corpus, over
+/// the 2 340 nodes whose operand and result wires all type: an operand is
+/// exactly one dimension below the result on 3 723 terminals and level with it
+/// on 1 809, and the node mixes the two on 1 038 of them — so the depth
+/// difference names the role terminal by terminal and no node needs a mode
+/// read off anywhere else. (The `0x800000` bit some of these terminals carry is
+/// NOT that mode: it sits on 327 level operands and 1 482 lack it, and on 29
+/// one-below operands.) The 6 terminals two dimensions below a result have no
+/// reading and are refused.
+///
+/// A result of rank 2 or more is refused for the same reason a higher-rank
+/// Index Array is ([LvArrayTerminalRole]): the array type's own dimension order
+/// is not decoded.
+List<String>? _buildArray(LvPrimCall call) {
+  if (call.outputs.length != 1 || !call.hasSoleSourceTerminal || call.inputs.isEmpty) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final out = call.outputs.single;
+  if (out.type.dims != 1) return null;
+  final element = out.type.element;
+  final pieces = <String>[];
+  for (final operand in ordered) {
+    if (operand.type.element.dartType != element.dartType) return null;
+    switch (out.type.dims - operand.type.dims) {
+      case 0:
+        pieces.add('...${operand.expression}');
+      case 1:
+        pieces.add(operand.expression!);
+      case _:
+        return null;
+    }
+  }
+  final name = out.expression;
+  if (name == null) return const [];
+  if (out.type.numeric != null) call.requireImport('dart:typed_data');
+  final built = lvArrayFreeze(element, '<${element.dartType}>[${pieces.join(', ')}]');
+  return ['final ${out.type.dartType} $name = $built;'];
+}
+
+/// `Concatenate Strings` — its operands joined in drawn order.
+///
+/// Scalar string operands only. LabVIEW also takes an ARRAY of strings here and
+/// concatenates its elements, but which of the two an operand is would have to
+/// come from the same depth reading Build Array uses, and the node's result is
+/// a string either way, so the array form is left refused rather than assumed.
+List<String>? _concatenateStrings(LvPrimCall call) {
+  if (call.outputs.length != 1 || !call.hasSoleSourceTerminal || call.inputs.isEmpty) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final out = call.outputs.single;
+  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  for (final operand in ordered) {
+    if (operand.type.dims != 0 || operand.type.dartType != 'String') return null;
+  }
+  final name = out.expression;
+  if (name == null) return const [];
+  return ['final String $name = ${ordered.map((operand) => operand.expression).join(' + ')};'];
+}
+
+/// A scalar operation **applied elementwise** to array wires: the node's own
+/// rule run over the elements, collected into an array of the result's element
+/// type.
+///
+/// LabVIEW's scalar primitives are polymorphic over arrays, and the wires say
+/// when a node is being used that way — every operand and every result is an
+/// array of the type the scalar rule takes. The lowering is therefore the
+/// scalar lowering itself, emitted into a loop, so every operation the map
+/// already carries gains the array form at once and none of them states a rule
+/// twice.
+///
+/// Two shapes are refused rather than modelled:
+///
+/// - **rank 2 and above**, for the dimension order that refuses every other
+///   higher-rank operation ([LvArrayTerminalRole]);
+/// - **a mixed node** — an array operand beside a scalar one, which LabVIEW
+///   broadcasts. The corpus has 113 of them across the mapped operations
+///   (`Equal?` 23, `Multiply` 34, `Add` 14, `Divide` 12, `Subtract` 17, and the
+///   rest in ones and twos), and the value the scalar operand contributes at
+///   each index is not stated anywhere in the file, so they are left on the
+///   review list.
+///
+/// An operand list longer than one uses [LvRuntimeCall.iterationCount] for its
+/// length — the same shortest-operand rule an auto-indexing For loop takes.
+List<String>? _elementwise(LvPrimCall call) {
+  // Only the operations whose identity is a `primResID`: the classes this map
+  // names are array and string operations already, and their own rule is what
+  // reads an array wire.
+  if (call.op == null || call.inputs.isEmpty) return null;
+  final terminals = [...call.inputs, ...call.outputs];
+  if (terminals.any((terminal) => terminal.type.dims != 1)) return null;
+
+  // Each operand array is read once per iteration, so a compound operand is
+  // bound to a local first rather than recomputed inside the loop.
+  final prologue = <String>[];
+  final arrayOf = <int, String>{};
+  for (final operand in call.inputs) {
+    final expression = operand.expression!;
+    if (_isAtomic(expression)) {
+      arrayOf[operand.port] = expression;
+      continue;
+    }
+    final local = call.names.wire(operand.type);
+    prologue.add('final ${operand.type.dartType} $local = $expression;');
+    arrayOf[operand.port] = local;
+  }
+
+  // The scalar node the elements go through: the same ports and geometry, with
+  // every wire's array wrapping removed.
+  final index = call.names.loopIndex();
+  final scalarOf = <int, String>{};
+  final scalar = LvPrimCall(
+    op: call.op,
+    primResId: call.primResId,
+    classCode: call.classCode,
+    inputs: [
+      for (final operand in call.inputs)
+        LvPrimTerminal(
+          port: operand.port,
+          type: operand.type.scalar,
+          roleFlags: operand.roleFlags,
+          expression: '${arrayOf[operand.port]}[$index]',
+        ),
+    ],
+    outputs: [
+      for (final result in call.outputs)
+        LvPrimTerminal(
+          port: result.port,
+          type: result.type.scalar,
+          roleFlags: result.roleFlags,
+          expression: scalarOf[result.port] = call.names.wire(result.type.scalar),
+        ),
+    ],
+    outputPorts: call.outputPorts,
+    portDrawnTop: call.portDrawnTop,
+    requireImport: call.requireImport,
+    names: call.names,
+  );
+  final body = _lowerDirect(scalar);
+  if (body == null) return null;
+
+  final builderOf = <int, String>{};
+  final statements = [...prologue];
+  for (final result in call.outputs) {
+    final builder = call.names.role(LvNameRole.builder);
+    builderOf[result.port] = builder;
+    statements.add('final ${lvArrayBuilderType(result.type.element)} $builder = <${result.type.element.dartType}>[];');
+  }
+  final lengths = [for (final operand in call.inputs) '${arrayOf[operand.port]}.length'];
+  String bound;
+  if (lengths.length == 1) {
+    bound = lengths.single;
+  } else {
+    call.requireImport(kLvRuntimeImport);
+    bound = call.names.role(LvNameRole.count);
+    statements.add('final int $bound = ${LvRuntimeCall.iterationCount}(<int>[${lengths.join(', ')}]);');
+  }
+  statements
+    ..add('for (var $index = 0; $index < $bound; $index++) {')
+    ..addAll(body)
+    ..addAll([for (final result in call.outputs) '${builderOf[result.port]}.add(${scalarOf[result.port]});'])
+    ..add('}');
+  for (final result in call.outputs) {
+    if (result.type.numeric != null) call.requireImport('dart:typed_data');
+    final frozen = lvArrayFreeze(result.type.element, builderOf[result.port]!);
+    statements.add('final ${result.type.dartType} ${result.expression} = $frozen;');
+  }
+  return statements;
 }
 
 /// The carriers whose Dart `==` is a VALUE comparison, so that a symmetric

@@ -350,10 +350,13 @@ void main() {
       (PrimOp.emptyStringPath, [0x0230], 0x0121, 'final bool e0 = a0.isEmpty;'),
       (PrimOp.stringLength, [0x0230], 0x0103, 'final int e0 = a0.length;'),
       (PrimOp.arraySize, [0x0205], 0x0103, 'final int e0 = a0.length;'),
-      // Shapes the rules do not cover: the elementwise comparison, a path
-      // operand (whose emptiness test is not the string one), and the
-      // higher-rank Array Size that yields a vector of sizes.
-      (PrimOp.equal, [0x0205, 0x0205], 0x0221, null),
+      // Select: the middle operand chooses, and the upper one is the true case.
+      (PrimOp.select, [0x0230, 0x0121, 0x0230], 0x0230, 'final String e0 = a1 ? a0 : a2;'),
+      // …and with no boolean operand nothing says which terminal selects.
+      (PrimOp.select, [0x0105, 0x0105, 0x0105], 0x0105, null),
+      // Shapes the rules do not cover: a path operand (whose emptiness test is
+      // not the string one) and the higher-rank Array Size that yields a
+      // vector of sizes.
       // A path carrier defines no `==`, so Dart would compare identities.
       (PrimOp.equal, [0x0132, 0x0132], 0x0121, null),
       (PrimOp.emptyStringPath, [0x0132], 0x0121, null),
@@ -373,9 +376,165 @@ void main() {
         outputPorts: const [9],
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
+        names: LvNaming(),
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: op.opName);
     }
+  });
+
+  test('a scalar primitive wired to arrays lowers as a map over their elements', () {
+    // (name, op, input signal words, output word, statements or null when
+    // refused). 0x0205 is a 1-D U8 array, 0x0206 U16, 0x0207 U32, 0x0221
+    // boolean, 0x0305 a 2-D U8 array.
+    final rows = <(String, PrimOp, List<int>, int, List<String>?)>[
+      (
+        'unary over one array',
+        PrimOp.swapBytes,
+        [0x0206],
+        0x0206,
+        [
+          'final List<int> builder = <int>[];',
+          'for (var i = 0; i < a0.length; i++) {',
+          'final int value = (lvSwapBytes(a0[i])) & 0xFFFF;',
+          'builder.add(value);',
+          '}',
+          'final Uint16List e0 = Uint16List.fromList(builder);',
+        ],
+      ),
+      (
+        'a conversion changes the element type',
+        PrimOp.toUnsignedLongInteger,
+        [0x0205],
+        0x0207,
+        [
+          'final List<int> builder = <int>[];',
+          'for (var i = 0; i < a0.length; i++) {',
+          'final int value = lvToU32(a0[i]);',
+          'builder.add(value);',
+          '}',
+          'final Uint32List e0 = Uint32List.fromList(builder);',
+        ],
+      ),
+      (
+        'binary over two arrays runs to the shorter',
+        PrimOp.equal,
+        [0x0205, 0x0205],
+        0x0221,
+        [
+          'final List<bool> builder = <bool>[];',
+          'final int count = lvIterationCount(<int>[a0.length, a1.length]);',
+          'for (var i = 0; i < count; i++) {',
+          'final bool flag = a0[i] == a1[i];',
+          'builder.add(flag);',
+          '}',
+          'final List<bool> e0 = builder;',
+        ],
+      ),
+      // An array beside a scalar is LabVIEW's broadcast, whose per-index value
+      // the file does not state.
+      ('an array beside a scalar', PrimOp.multiply, [0x0205, 0x0105], 0x0205, null),
+      // Rank 2 needs the array's own dimension order.
+      ('rank 2', PrimOp.swapBytes, [0x0305], 0x0305, null),
+      // The scalar rule still has to hold: a U64 comparison misreads its
+      // carrier whether or not it is wrapped in a loop.
+      ('the scalar rule refuses', PrimOp.greater, [0x0208, 0x0208], 0x0221, null),
+    ];
+    for (final (name, op, inputs, output, expected) in rows) {
+      final call = LvPrimCall(
+        op: op,
+        classCode: 0x2f,
+        inputs: [
+          for (var at = 0; at < inputs.length; at++)
+            LvPrimTerminal(port: at, type: mapLvWireType(ViSignalType(inputs[at])), roleFlags: 0, expression: 'a$at'),
+        ],
+        outputs: [LvPrimTerminal(port: 9, type: mapLvWireType(ViSignalType(output)), roleFlags: 0, expression: 'e0')],
+        outputPorts: const [9],
+        portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
+        requireImport: (_) {},
+        names: LvNaming(),
+      );
+      expect(lvPrimLowering(call), expected, reason: name);
+    }
+  });
+
+  test('a variadic node takes its operands in the order it draws them', () {
+    // (name, class code, input words, output word, statements or null). Inputs
+    // are listed top-down, so the first entry is the uppermost terminal.
+    final rows = <(String, int, List<int>, int, List<String>?)>[
+      (
+        'Concatenate Strings joins top-down',
+        kLvConcatenateStringsClass,
+        [0x0230, 0x0230, 0x0230],
+        0x0230,
+        ['final String e0 = a0 + a1 + a2;'],
+      ),
+      // An array of strings would concatenate its own elements here, which the
+      // depth reading does not distinguish from a scalar operand's role.
+      ('an array operand', kLvConcatenateStringsClass, [0x0230, 0x0330], 0x0230, null),
+      (
+        'Build Array appends each scalar operand',
+        kLvBuildArrayClass,
+        [0x0105, 0x0105],
+        0x0205,
+        ['final Uint8List e0 = Uint8List.fromList(<int>[a0, a1]);'],
+      ),
+      (
+        'an operand level with the result is spliced in whole',
+        kLvBuildArrayClass,
+        [0x0205, 0x0105, 0x0205],
+        0x0205,
+        ['final Uint8List e0 = Uint8List.fromList(<int>[...a0, a1, ...a2]);'],
+      ),
+      (
+        'a non-numeric element keeps its List storage',
+        kLvBuildArrayClass,
+        [0x0230, 0x0230],
+        0x0330,
+        ['final List<String> e0 = <String>[a0, a1];'],
+      ),
+      // Two dimensions below the result has no reading, and a rank-2 result
+      // needs the array's own dimension order.
+      ('two dimensions below', kLvBuildArrayClass, [0x0105], 0x0305, null),
+      ('a rank-2 result', kLvBuildArrayClass, [0x0205, 0x0205], 0x0305, null),
+      // An operand of another element type is not this array's.
+      ('a mismatched element', kLvBuildArrayClass, [0x0105, 0x0230], 0x0205, null),
+    ];
+    for (final (name, classCode, inputs, output, expected) in rows) {
+      final call = LvPrimCall(
+        op: null,
+        classCode: classCode,
+        inputs: [
+          for (var at = 0; at < inputs.length; at++)
+            LvPrimTerminal(port: at, type: mapLvWireType(ViSignalType(inputs[at])), roleFlags: 0, expression: 'a$at'),
+        ],
+        outputs: [LvPrimTerminal(port: 9, type: mapLvWireType(ViSignalType(output)), roleFlags: 0, expression: 'e0')],
+        outputPorts: const [9],
+        portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
+        requireImport: (_) {},
+        names: LvNaming(),
+      );
+      expect(lvPrimLowering(call), expected, reason: name);
+    }
+  });
+
+  test('a variadic node with an unwired operand states no value for it', () {
+    // An input LabVIEW leaves unwired reads as a SOURCE, so it lands among the
+    // node's output ports; the operand it would carry is a default the file
+    // does not state, and the node is refused.
+    final type = mapLvWireType(const ViSignalType(0x0230));
+    final call = LvPrimCall(
+      op: null,
+      classCode: kLvConcatenateStringsClass,
+      inputs: [
+        for (var at = 0; at < 2; at++) LvPrimTerminal(port: at, type: type, roleFlags: 0, expression: 'a$at'),
+      ],
+      outputs: [LvPrimTerminal(port: 9, type: type, roleFlags: 0, expression: 'e0')],
+      outputPorts: const [9, 10],
+      portDrawnTop: const {0: 10, 1: 20},
+      requireImport: (_) {},
+      names: LvNaming(),
+    );
+    expect(lvPrimLowering(call), isNull);
   });
 
   test('an ordered operation reads its operands off the drawn order, not the heap order', () {
@@ -400,6 +559,7 @@ void main() {
         outputPorts: const [9],
         portDrawnTop: drawnTop,
         requireImport: (_) {},
+        names: LvNaming(),
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: name);
     }
@@ -432,6 +592,7 @@ void main() {
         outputPorts: ports,
         portDrawnTop: {0: 40, 1: 10, ports[0]: 10, ports[1]: 40},
         requireImport: (_) {},
+        names: LvNaming(),
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -486,6 +647,7 @@ void main() {
         outputPorts: [for (var at = 0; at < outputRoles.length; at++) at],
         portDrawnTop: const {},
         requireImport: (_) {},
+        names: LvNaming(),
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }

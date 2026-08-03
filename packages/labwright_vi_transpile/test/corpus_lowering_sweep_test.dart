@@ -94,12 +94,9 @@ const Map<String, String> kSnippetLoweringOutcomes = {
 const Map<String, int> kSnippetPrimReviewList = {
   'Match Pattern (primResID 1535)': 134,
   'node class 0x63': 83,
-  'node class 0x3a': 39,
   'Type Cast (primResID 1166)': 34,
-  'node class 0x3e': 31,
   'String Subset (primResID 1503)': 24,
   'node class 0x93': 18,
-  'Select (primResID 1516)': 16,
   'node class 0x105': 16,
   'node class 0xa9': 15,
   'node class 0x172': 14,
@@ -117,29 +114,24 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// Its every wire types, its whole structure tree builds, its four Case
 /// structures lower from their own per-frame range lists, and its arithmetic
 /// — `Subtract`, `Quotient & Remainder`, the byte and word swaps, the 64-bit
-/// conversions — lowers from the drawn operand order. What remains is 25
-/// nodes in three groups.
+/// conversions — lowers from the drawn operand order. So now do its
+/// `Concatenate Strings`, `Build Array` and `Select` nodes, from the same order
+/// read at N operands, and its two swap nodes wired to an ARRAY, from the
+/// elementwise form. What remains is 19 nodes in three groups.
 ///
 /// Five carry a `primResID` no corpus VI labels and whose icon does not say
-/// what it computes either (1181 ×4, 1082). Eighteen are named operations
-/// whose **operand order** is not decoded (`String Subset`,
-/// `Concatenate Strings`, `Compound Arithmetic`, `Build Array`, `Select`) or
-/// whose rule is not (`Type Cast`'s flattened layout, `To Lower Case`'s
-/// case-mapping table, `Logical Shift`'s direction), plus the two swap nodes
-/// wired to an ARRAY, which is the elementwise form this reader does not
-/// model. One is a string constant whose value the heap decode did not
-/// recover, and one a `0x114` node whose corpus captions do not agree on a
-/// name.
+/// what it computes either (1181 ×4, 1082). Twelve are named operations whose
+/// RULE is not decoded: `Type Cast`'s flattened layout, `String Subset`'s
+/// clamping of an out-of-range offset or length, `Compound Arithmetic`'s mode
+/// and per-operand inversion (see [kLvMappedPrimClasses]), `To Lower Case`'s
+/// case-mapping table, and `Logical Shift`'s direction. One is a string
+/// constant whose value the heap decode did not recover, and one a `0x114` node
+/// whose corpus captions do not agree on a name.
 const Map<String, int> kMd5Blockers = {
   'Type Cast (primResID 1166)': 7,
   'primResID 1181': 4,
-  'Concatenate Strings (class 0x3e)': 2,
   'String Subset (primResID 1503)': 2,
   'Compound Arithmetic (class 0x6c)': 2,
-  'Build Array (class 0x3a)': 1,
-  'Select (primResID 1516)': 1,
-  'Swap Bytes (primResID 1162)': 1,
-  'Swap Words (primResID 1163)': 1,
   'To Lower Case (primResID 1189)': 1,
   'Logical Shift (primResID 1081)': 1,
   'primResID 1082': 1,
@@ -223,11 +215,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 2,
-  'exceptions.constantValue': 81,
-  'exceptions.lowered': 151,
-  'exceptions.primitive': 192,
+  'exceptions.constantValue': 83,
+  'exceptions.lowered': 161,
+  'exceptions.primitive': 176,
   'exceptions.structure': 60,
-  'exceptions.subViCall': 70,
+  'exceptions.subViCall': 74,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
   'exceptions.unwiredTerminal': 75,
@@ -247,7 +239,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.same': 151,
+  'modes.same': 161,
   'ref': 66473,
   'ref.scalar': 28582,
   'ref.undecided': 37891,
@@ -258,11 +250,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 33,
   'term.wired': 350,
   'threaded.caseSelector': 2,
-  'threaded.constantValue': 81,
-  'threaded.lowered': 151,
-  'threaded.primitive': 192,
+  'threaded.constantValue': 83,
+  'threaded.lowered': 161,
+  'threaded.primitive': 176,
   'threaded.structure': 60,
-  'threaded.subViCall': 70,
+  'threaded.subViCall': 74,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
   'threaded.unwiredTerminal': 75,
@@ -277,12 +269,12 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 104, nodes: 757);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 101, nodes: 671);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 151, sources: 30);
+const ({int vis, int sources}) kEmittedSources = (vis: 161, sources: 40);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -752,6 +744,7 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
       outputPorts: node.outputPorts,
       portDrawnTop: node.portDrawnTop,
       requireImport: (_) {},
+      names: LvNaming(),
     ),
   );
 }
