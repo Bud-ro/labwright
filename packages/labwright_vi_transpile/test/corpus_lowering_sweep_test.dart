@@ -122,9 +122,9 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// cannot fall silently.
 const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClusterWires = (
   signals: 729,
-  resolved: 337,
+  resolved: 338,
   disagreeing: 13,
-  unresolved: 379,
+  unresolved: 378,
 );
 
 /// The snippets whose outcome differs under [LvErrorMode.threaded]. It is
@@ -151,6 +151,13 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// second glyph value appearing here is the evidence that would settle the
 /// polarity.
 ///
+/// The `clus.*` counters are the cluster-wire census: a cluster wire's member
+/// types are not in its signal word, so `clus.one` is how often an endpoint
+/// supplies them, `clus.none` how often none does, and `clus.many` how often
+/// two ends disagree. `clus.viaTypedef` is the share only the typedef unwrap
+/// ([lvClusterBase]) reaches, and `clus.typedefContradicts` the wires where it
+/// adds a shape the bare-cluster reading disagrees with.
+///
 /// The `idx.*` counters are the Index Array terminal census
 /// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
 /// `[array] ([output] [index]×rank)+`, `idx.rank1Index` the index terminals in
@@ -158,28 +165,34 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
 /// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 1290,
-  'call.calleeMissing': 159,
-  'call.noPaneMap': 567,
-  'call.paneMatched': 545,
+  'call': 1301,
+  'call.calleeMissing': 162,
+  'call.noPaneMap': 574,
+  'call.paneMatched': 546,
   'call.paneWidthMismatch': 6,
   'call.unnamed': 13,
+  'clus': 133106,
+  'clus.many': 502,
+  'clus.none': 88743,
+  'clus.one': 43861,
+  'clus.typedefContradicts': 24,
+  'clus.viaTypedef': 9381,
   'cond': 2267,
   'cond.dcoBit0': 382,
   'cond.dcoBit12': 140,
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
   'exceptions.caseSelector': 62,
-  'exceptions.constantValue': 68,
+  'exceptions.constantValue': 69,
   'exceptions.lowered': 136,
-  'exceptions.primitive': 158,
-  'exceptions.structure': 53,
-  'exceptions.subViCall': 59,
+  'exceptions.primitive': 165,
+  'exceptions.structure': 54,
+  'exceptions.subViCall': 61,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 55,
-  'exceptions.wireDirection': 66,
-  'exceptions.wireType': 6849,
+  'exceptions.unwiredTerminal': 56,
+  'exceptions.wireDirection': 67,
+  'exceptions.wireType': 6836,
   'idx': 3479,
   'idx.groupFirstIndex': 110,
   'idx.groupLastIndex': 94,
@@ -187,23 +200,23 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
   'modes.same': 136,
-  'term.calleeUntyped': 115,
-  'term.dirAgree': 304,
-  'term.resolved': 304,
+  'term.calleeUntyped': 117,
+  'term.dirAgree': 306,
+  'term.resolved': 306,
   'term.typeAgree': 189,
   'term.unresolved': 33,
-  'term.wired': 337,
+  'term.wired': 339,
   'threaded.caseSelector': 62,
-  'threaded.constantValue': 68,
+  'threaded.constantValue': 69,
   'threaded.lowered': 136,
-  'threaded.primitive': 158,
-  'threaded.structure': 53,
-  'threaded.subViCall': 59,
+  'threaded.primitive': 165,
+  'threaded.structure': 54,
+  'threaded.subViCall': 61,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 55,
-  'threaded.wireDirection': 66,
-  'threaded.wireType': 6849,
+  'threaded.unwiredTerminal': 56,
+  'threaded.wireDirection': 67,
+  'threaded.wireType': 6836,
   'vi': 7508,
 };
 
@@ -295,6 +308,37 @@ const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
     }
   }
 
+  // The cluster-wire census: where a cluster wire's member shape comes from.
+  // `clus.viaTypedef` is the wires only the typedef unwrap ([lvClusterBase])
+  // resolves, and `clus.typedefContradicts` the wires where it adds a shape
+  // the bare-cluster reading disagrees with — the two numbers that say whether
+  // looking through a typedef is worth what it costs.
+  void censusClusterWires(ViDiagram diagram, List<ViType> pool) {
+    for (final wire in diagram.wires) {
+      final signal = wire.signalType;
+      if (signal == null || !kLvWireClusterCodes.contains(signal.typeCode)) continue;
+      bump('clus');
+      final array = (signal.arrayDims ?? 0) > 0;
+      final shapes = <String>{}, bare = <String>{};
+      for (final endpoint in wire.endpointOids) {
+        final type = lvClusterOfEndpoint(diagram, endpoint, array: array);
+        if (type == null) continue;
+        final shape = lvClusterShape(type, pool);
+        shapes.add(shape);
+        if (type.kind == ViDataType.cluster) bare.add(shape);
+      }
+      bump(
+        'clus.${switch (shapes.length) {
+          0 => 'none',
+          1 => 'one',
+          _ => 'many',
+        }}',
+      );
+      if (shapes.length == 1 && bare.isEmpty) bump('clus.viaTypedef');
+      if (bare.length == 1 && shapes.length > 1) bump('clus.typedefContradicts');
+    }
+  }
+
   // The Index Array terminal census ([LvArrayTerminalRole]): the grammar's
   // regularity, and how much of the corpus the refused higher-rank groups
   // account for. `idx.dims<n>` is the dimensionality of the array wire, so
@@ -335,6 +379,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
     if (unit == null) continue;
     bump('vi');
     censusConditionals(unit.diagram);
+    censusClusterWires(unit.diagram, unit.pool);
     censusIndexArrays(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
     final sources = <String?>[];
@@ -585,8 +630,7 @@ Directory _scratchPackage(Set<String> sources) {
     final array = (signal.arrayDims ?? 0) > 0;
     final shapes = {
       for (final endpoint in wire.endpointOids)
-        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?)
-          '${cluster.name ?? ''}|${clusterFields(cluster, pool).map((m) => '${m.code}:${m.name ?? ''}').join(',')}',
+        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) lvClusterShape(cluster, pool),
     };
     if (shapes.isEmpty) {
       unresolved++;

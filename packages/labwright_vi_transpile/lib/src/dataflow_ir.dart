@@ -649,7 +649,7 @@ class _Builder {
         if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) cluster,
     ];
     if (resolved.isEmpty) return direct;
-    final shapes = {for (final cluster in resolved) _clusterShape(cluster)};
+    final shapes = {for (final cluster in resolved) lvClusterShape(cluster, pool)};
     if (shapes.length != 1) {
       refuse(
         LvRefusalKind.wireType,
@@ -660,12 +660,6 @@ class _Builder {
     }
     return lvClusterWireType(signal, resolved.first, pool);
   }
-
-  /// A cluster descriptor's identity for the agreement check: its name and its
-  /// members' codes and names. Two descriptors with the same shape are the
-  /// same wire type however many pool entries spell it.
-  String _clusterShape(ViType cluster) =>
-      '${cluster.name ?? ''}|${clusterFields(cluster, pool).map((m) => '${m.code}:${m.name ?? ''}').join(',')}';
 
   /// The nearest enclosing frame of [oid], or null.
   int? _frameOf(int oid) {

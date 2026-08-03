@@ -94,19 +94,57 @@ const Map<int, String> kLvWireRuntimeCarriers = {
 /// typedef/class form ([ViSignalType.clusterVariantCode]).
 const Set<int> kLvWireClusterCodes = {TypeCode.cluster, ViSignalType.clusterVariantCode};
 
+/// How many typedef wrappers [lvClusterBase] looks through. LabVIEW nests a
+/// typedef inside a typedef, and the pool decodes each base inline, so the
+/// walk is bounded rather than open-ended.
+const int kLvTypedefDepth = 8;
+
+/// The **cluster** [type] stands for: itself when it is one, and the base of a
+/// typedef over one. Null for every other descriptor.
+///
+/// A typedef is transparent to its base — [mapLvType] already reads it that
+/// way, giving the typedef's name to the cluster it wraps — so a typedef over
+/// a cluster is a cluster descriptor for the purpose of typing a wire. It is
+/// also the shape the `0x51` wire code names (the typedef'd / class-typed
+/// cluster family), and looking through it resolves 9 381 of the corpus's
+/// 133 106 cluster wires that the bare-cluster test alone leaves with no
+/// member shape, while contradicting that test on 24.
+ViType? lvClusterBase(ViType? type) {
+  for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
+    if (type.kind == ViDataType.cluster) return type;
+    if (type.kind != ViDataType.typeDef) return null;
+    type = type.typedefBase;
+  }
+  return null;
+}
+
+/// The identity two endpoints of a cluster wire must agree on for the wire to
+/// have one Dart type: the descriptor's own name, and its members' type codes
+/// and names. Two descriptors with the same shape are the same wire type
+/// however many pool entries spell it.
+String lvClusterShape(ViType type, List<ViType> pool) {
+  final members = clusterFields(lvClusterBase(type) ?? type, pool);
+  return '${type.name ?? ''}|${members.map((member) => '${member.code}:${member.name ?? ''}').join(',')}';
+}
+
 /// The cluster descriptor the wire endpoint [oid] resolves in [diagram], or
-/// null when neither it nor its owner carries one.
+/// null when neither it nor its owner carries one. A typedef over a cluster is
+/// returned as itself ([lvClusterBase]), so the wire keeps the typedef's name.
 ///
 /// [array] selects which half of an endpoint's resolved type to read: the
 /// element descriptor of a resolved array for an array-of-cluster wire, and
-/// the type itself for a scalar cluster wire. The walk stops at the endpoint's
-/// owner — the corpus resolves nothing further up (a 1-, 2- and 6-parent walk
-/// return identical counts over all 133 106 cluster-coded signals).
+/// the type itself for a scalar cluster wire. Reading the OTHER half instead
+/// would resolve a further 586 wires, but it asserts that an endpoint
+/// describing an array of clusters describes a scalar cluster wire's element
+/// (and the converse) — which nothing decoded says — so it is not read. The
+/// walk stops at the endpoint's owner: the corpus resolves nothing further up
+/// (a 1-, 2- and 6-parent walk return identical counts over all 133 106
+/// cluster-coded signals).
 ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
   var object = diagram.byId[oid];
   for (var depth = 0; object != null && depth < 2; depth++) {
     final type = array ? object.resolvedElementType : object.resolvedType;
-    if (type != null && type.kind == ViDataType.cluster) return type;
+    if (lvClusterBase(type) != null) return type;
     final parent = object.parentOid;
     object = parent == null ? null : diagram.byId[parent];
   }
@@ -118,12 +156,18 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 ///
 /// The signal word says only *cluster*; the member types come from the
 /// data-space type an endpoint of the wire resolves ([lvClusterOfEndpoint]).
-/// Corpus, over 133 106 cluster-coded signals in 7 524 VIs: 99 790 have no
-/// endpoint that resolves a cluster descriptor at all, 22 500 have exactly
-/// one, and 10 816 have two or more — of which 10 414 (96.3%) agree on the
-/// member shape and 402 disagree. The agreement where two ends can be
-/// compared is the evidence the route is sound; a wire whose ends disagree,
-/// and a wire no end resolves, are both refused rather than picked between.
+/// Corpus, over 133 106 cluster-coded signals in 7 524 VIs: 88 743 have no
+/// endpoint that resolves a cluster descriptor at all, 43 861 resolve exactly
+/// one member shape, and 502 resolve two or more. The agreement where two ends
+/// can be compared is the evidence the route is sound; a wire whose ends
+/// disagree, and a wire no end resolves, are both refused rather than picked
+/// between.
+///
+/// The unresolved majority is the corpus's single largest lowering blocker: it
+/// is what 4 128 of the 6 836 `wireType` refusals stop at first, and 1 381 VIs
+/// have no other wire-type blocker at all. The rest of that bucket is the
+/// refnum codes' undecoded array-depth base (2 258 VIs) and the element codes
+/// with no Dart representation (measureData 67, picture 29, ext 3).
 LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool) {
   final element = mapLvType(cluster, pool);
   final dims = signal.arrayDims ?? 0;

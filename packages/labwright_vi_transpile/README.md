@@ -212,10 +212,28 @@ code, an array depth and a flag nibble. `mapLvWireType` resolves it to the same
 wire*, so a tunnel whose two sides carry different dimensionalities reads as
 two different types.
 
-Cluster wires (`0x50`, and `0x51` for the typedef/class form) are unmapped
-here: their member types are not on the wire. So are the wires whose Dart
-carrier a generated file does not declare — path, variant and refnum — because
-naming a type nothing declares would emit code that does not compile.
+Cluster wires (`0x50`, and `0x51` for the typedef/class form) carry no member
+types on the wire, so their Dart shape comes from the data-space type an
+**endpoint** of the wire resolves — the type a renderer draws the wire's tint
+from. Corpus, over 133,106 cluster-coded signals: 43,861 resolve exactly one
+member shape, 502 resolve two that disagree (refused), and 88,743 resolve none.
+
+9,381 of the resolved wires are reached only by looking **through a typedef**:
+a typedef over a cluster is a cluster descriptor, exactly as `mapLvType`
+already reads one, and it is the shape `0x51` names. It contradicts the
+bare-cluster reading on 24 wires, which are refused like any other
+disagreement. Reading the *other* half of an endpoint's resolved type instead
+(an array's element for a scalar wire, or the converse) would resolve a further
+586, but nothing decoded says an endpoint describing an array of clusters
+describes a scalar cluster wire's element, so that route is not taken.
+
+**What the unresolved majority costs.** Cluster wires with no member shape are
+the single largest lowering blocker in the corpus: 4,128 of the 6,836 wire-type
+refusals stop there first, and 1,381 VIs have no other wire-type blocker at
+all. Next is the refnum family (`0x70`/`0x71`), whose array-depth base rides
+the referenced inner type and is therefore not decoded — 2,258 VIs stop there
+— then the element codes with no Dart representation (measureData 67, picture
+29, `ext` 3) and the 33 VIs whose wire word carries an uncatalogued code.
 
 ## Lowering
 
@@ -338,7 +356,7 @@ unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
 call whose callee is not supplied (1).
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 136 lower
-and the rest refuse, 6,849 of them on a wire type — overwhelmingly a cluster
+and the rest refuse, 6,836 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for.
 
 Those 136 lowerings are **20 distinct Dart sources** (a VI copied across
