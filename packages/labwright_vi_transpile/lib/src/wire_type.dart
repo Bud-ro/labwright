@@ -129,10 +129,17 @@ ViType? lvClusterBase(ViType? type) {
   return null;
 }
 
-/// The identity two endpoints of a cluster wire must agree on for the wire to
-/// have one Dart type: the descriptor's own name, and its members' type codes
-/// and names. Two descriptors with the same shape are the same wire type
-/// however many pool entries spell it.
+/// A cluster descriptor's **spelling**: its own name, and its members' type
+/// codes and names. Two pool entries with the same spelling describe the same
+/// LabVIEW cluster however many entries spell it.
+///
+/// It is a census identity, not the wire's. What decides whether two endpoints
+/// of one wire carry the same value is the Dart type each maps to
+/// ([mapLvType]) — the identity a generated library has — and the two answers
+/// differ: the spelling counts a wire whose ends are an `error in` and an
+/// `error out` control as two types where the mapping counts one. The lowering
+/// compares by the mapping; the corpus sweep pins both, as `clus.*` against
+/// `clusType.*`.
 String lvClusterShape(ViType type, List<ViType> pool) {
   final members = clusterFields(lvClusterBase(type) ?? type, pool);
   return '${type.name ?? ''}|${members.map((member) => '${member.code}:${member.name ?? ''}').join(',')}';
@@ -170,12 +177,25 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 /// `0x115` state word 427 610 and the `0x1e7` route table), plus objFlags and
 /// a handful of cosmetic tags; no data-space index, generation or ordinal.
 ///
-/// Scored against the wires the endpoint route already decides, the part route
-/// reproduces its answer on 44 977 of 68 982 (65.2%) — and 23 636 of the
-/// 24 005 disagreements are the descriptor NAME alone, the members' type codes
-/// being identical (98.5% on codes). That is the failure mode that already
-/// ruled out the callee's pane, so the part route is measured
-/// ([kCorpusLoweringSweep]'s `clus.kid*`) and not read.
+/// Scored on the DART TYPE the two routes map to — the identity that decides
+/// whether a lowering can use one for the other — the part route reproduces
+/// the endpoint route's answer on 68 112 of the 70 051 wires where both speak
+/// (97.2%), and would newly type 38 236 of the 41 120 wires no endpoint
+/// resolves. That is far better than the descriptor spelling scores it
+/// (44 977 of 68 982, 65.2%, `clus.kidAgrees`), because most of what the
+/// spelling counts as a conflict is one type under two control labels.
+///
+/// It is still not read, and 1 939 wires are the reason: two decoded readings
+/// of one wire that map to DIFFERENT Dart types, with nothing decoded saying
+/// which is the wire's. They are not a naming artefact — among them are wires
+/// where one route reads a `point` of two `I16` and the other a `point` of two
+/// `DBL`. Restricting the part route by descriptor kind does not separate them
+/// either: a plain-cluster part against a plain-cluster endpoint agrees on
+/// 54 555 of 54 997 (99.2%) and a typedef part against a typedef endpoint on
+/// 13 553 of 14 983 (90.5%), so the typedef — the descriptor that carries an
+/// owning-library path and so a file identity — is the WORSE of the two, not
+/// the better. The route is measured ([kCorpusLoweringSweep]'s `clus.kid*` and
+/// `clusType.kid*`) and not read.
 ///
 /// The per-VI base the heap's indices carry is **decoded** from the `DTHP`
 /// header (see `resolveDataSpaceTypes`), so the wires that resolve nothing are
@@ -200,12 +220,18 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 ///
 /// The signal word says only *cluster*; the member types come from the
 /// data-space type an endpoint of the wire resolves ([lvClusterOfEndpoint]).
-/// Corpus, over 133 106 cluster-coded signals in 7 508 block diagrams: 90 614
-/// resolve exactly one member shape, 41 120 have no endpoint that resolves a
-/// cluster descriptor at all, and 1 372 resolve two or more. The agreement
-/// where two ends can be compared is the evidence the route is sound; a wire
-/// whose ends disagree, and a wire no end resolves, are both refused rather
-/// than picked between.
+/// Corpus, over 133 106 cluster-coded signals in 7 508 block diagrams: 91 829
+/// resolve exactly one Dart type, 41 120 have no endpoint that resolves a
+/// cluster descriptor at all, and 157 resolve two or more. The agreement where
+/// two ends can be compared is the evidence the route is sound; a wire whose
+/// ends disagree, and a wire no end resolves, are both refused rather than
+/// picked between.
+///
+/// Two ends are compared by what they MAP TO, not by what they spell: of the
+/// 1 372 wires whose ends resolve two different descriptor spellings
+/// (`clus.many`), 1 353 differ by the descriptor's own name alone — the label
+/// of the control each end is, `error in` against `error out` — and 1 216 of
+/// those name the same Dart type. Only 19 differ in a member at all.
 ///
 /// The **callee's connector pane** is not a second source. A call node's
 /// holders are its pane terminals in pane order (the binding the subVI
@@ -221,14 +247,19 @@ ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
 /// ([kCorpusLoweringSweep]'s `clus.pane*`) and not read.
 ///
 /// The unresolved majority is the corpus's single largest lowering blocker.
-/// Of the 6 212 VIs whose own dataflow build refuses on `wireType`, the wire
-/// the refusal names is a cluster wire in 3 988, and 2 050 have no unmapped
-/// wire of any other family at all. Next is the refnum codes' array-depth base,
-/// which rides the reference class rather than the code (named first in 2 022
-/// VIs, the sole family in 759 — the depth-1 law [kSignalMinScalarDepth]
-/// decides the other half of those wires), and then the element codes with no
-/// Dart representation (the uncatalogued `0xff` 56, measureData `0x54` 75,
-/// packed string `0x33` 44, tag `0x37` 19).
+/// Of the 6 063 VIs whose own dataflow build refuses on `wireType`, the wire
+/// the refusal names is a cluster wire in 3 696, and 1 901 have no untyped wire
+/// of any other family at all. Within those 3 696 the sub-cause is measured
+/// (`wt.cause.*`): 3 549 name a wire whose endpoints resolve no cluster
+/// descriptor, 57 + 14 a cluster holding a review-list member (waveform `0x54`,
+/// picture `0x33`), 51 a wire whose ends resolve two different Dart types, and
+/// 25 a VI whose data space types nothing.
+///
+/// Next is the refnum codes' array-depth base, which rides the reference class
+/// rather than the code (named first in 2 161 VIs, the sole family in 971 — the
+/// depth-1 law [kSignalMinScalarDepth] decides the other half of those wires),
+/// and then the element codes with no Dart representation (the uncatalogued
+/// `0xff` 56, measureData `0x54` 76, packed string `0x33` 45, tag `0x37` 21).
 LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool, [LvDeclarations? declarations]) {
   final element = mapLvType(cluster, pool, 0, declarations);
   final dims = signal.arrayDims ?? 0;

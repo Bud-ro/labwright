@@ -695,6 +695,15 @@ class _Builder {
 
   /// The Dart type of [wire], resolving a cluster wire's members through its
   /// endpoints when the signal word alone does not carry them.
+  ///
+  /// Two endpoints that resolve descriptors are compared by the **Dart type
+  /// each one maps to**, not by the descriptors' own spelling: allocated
+  /// against one [LvDeclarations], two readings hold the same [LvWireType.dartType]
+  /// exactly when they are one type in the generated library, and hold
+  /// different ones as soon as their structures differ. Reading the spelling
+  /// instead refuses a wire whose ends carry the same type under two control
+  /// LABELS, which is what 1 216 of the corpus's 1 372 disagreeing wires are
+  /// (`error in` against `error out`, both the error cluster).
   LvWireType _wireType(ViWire wire, ViSignalType signal) {
     final direct = mapLvWireType(signal);
     if (direct.isMapped || !kLvWireClusterCodes.contains(signal.typeCode)) return direct;
@@ -704,16 +713,17 @@ class _Builder {
         if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) cluster,
     ];
     if (resolved.isEmpty) return direct;
-    final shapes = {for (final cluster in resolved) lvClusterShape(cluster, pool)};
-    if (shapes.length != 1) {
+    final readings = [for (final cluster in resolved) lvClusterWireType(signal, cluster, pool, declarations)];
+    final types = {for (final reading in readings) reading.dartType};
+    if (types.length != 1) {
       refuse(
         LvRefusalKind.wireType,
-        'the wire\'s endpoints resolve ${shapes.length} different cluster shapes, '
-        'so the members it carries are not decided',
+        'the wire\'s endpoints resolve ${types.length} different Dart types, '
+        'so the value it carries is not decided',
         oid: wire.signalOid,
       );
     }
-    return lvClusterWireType(signal, resolved.first, pool, declarations);
+    return readings.first;
   }
 
   /// The nearest enclosing frame of [oid], or null.
