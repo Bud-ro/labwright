@@ -91,6 +91,14 @@ const int kViNoDefaultFrame = 255;
 /// one this rule names, 15 100 times against 1.
 const int kViFirstFrameIsDefault = 0;
 
+/// The group tags a Case structure's selector values ride: the two spellings of
+/// the range list, and the string pool the entries index.
+final Set<int> kViSelectorGroupTags = {
+  HeapGroupTag.selectorRangeList.tag,
+  HeapGroupTag.selectorRangeListAlt.tag,
+  HeapGroupTag.selectorStringPool.tag,
+};
+
 /// The heap class code of a structure's **frame** — one subdiagram. A Case
 /// structure's frames are its `0x1b` children in heap order, the index space
 /// [ViSelectorRange.frame] and [ViHeapObject.visibleFrameIndex] share.
@@ -3887,7 +3895,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           entryLow = entryHigh = entryLowBound = entryHighBound = entryFrame = 0;
         }
       } else if (cur != null && cur.kind == kViCaseStructureCode) {
-        if (groupTag == HeapGroupTag.selectorRangeList.tag || groupTag == HeapGroupTag.selectorStringPool.tag) {
+        if (kViSelectorGroupTags.contains(groupTag)) {
           selectorOwner = cur;
           selectorGroupDepth = 1;
           selectorInPool = groupTag == HeapGroupTag.selectorStringPool.tag;

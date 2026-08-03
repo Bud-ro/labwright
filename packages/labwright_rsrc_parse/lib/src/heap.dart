@@ -1846,6 +1846,11 @@ enum HeapGroupTag {
   /// 15 166 corpus carriers, every one a `0x2c` select structure.
   selectorRangeList(0x56),
 
+  /// `0x57` — the same list under a second tag, on 6 corpus structures. Its
+  /// sub-groups carry the identical [SelectorRangeAttr] records, and reading it
+  /// as the list reproduces those structures' selector labels.
+  selectorRangeListAlt(0x57),
+
   /// `0x19` — one entry inside a [selectorRangeList] group, carrying the
   /// [SelectorRangeAttr] records. Shares its tag byte with [fontRun], which is
   /// why both are only read while their own list group is open.
