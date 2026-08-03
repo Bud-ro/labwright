@@ -22,21 +22,35 @@ import 'type_map.dart';
 
 /// The two error-carrying shapes.
 enum LvErrorMode {
-  /// **Default.** Error clusters are elided from the signature entirely: a VI
-  /// with `error in`/`error out` and one real output translates to a function
-  /// returning that output, and a cluster whose `status` is true becomes a
-  /// thrown [LvRuntimeType.error]. Chosen as the default because it is what a
-  /// Dart caller expects, and because a diagram's error-case structures
-  /// collapse into ordinary control flow instead of a conditional threaded
-  /// through every node.
+  /// **Default.** Error clusters leave the *signature* and become control
+  /// flow, while the diagram's own error computation stays:
+  ///
+  /// - an `error in` terminal is not a parameter; its wire starts at
+  ///   [LvRuntimeType.clearedError], because a caller that failed threw rather
+  ///   than returning, so control only reaches this VI with no error in hand;
+  /// - an `error out` terminal is not a result; the value the diagram computes
+  ///   for it is emitted, and `if (it.status) throw it;` ends the function;
+  /// - a subVI call passes nothing for the callee's `error in` and reads
+  ///   [LvRuntimeType.clearedError] from its `error out`, for the same reason;
+  /// - a Case structure selecting on an error cluster keeps its two frames and
+  ///   branches on `status`.
+  ///
+  /// Chosen as the default because it is what a Dart caller expects, and
+  /// because a diagram's error-case structures collapse into ordinary control
+  /// flow instead of a conditional threaded through every node.
   exceptions,
 
   /// **Opt-in.** Error clusters stay first-class values: an `error in`
   /// terminal remains a parameter and an `error out` terminal remains part of
-  /// the result, both typed [LvRuntimeType.error]. Chosen when a translation
-  /// must stay observationally identical to the VI — including the LabVIEW
-  /// behaviour that a node with an incoming error does nothing and passes the
-  /// error through unchanged.
+  /// the result, both typed [LvRuntimeType.error], and nothing throws. Chosen
+  /// when a translation must stay observationally identical to the VI.
+  ///
+  /// Scope: LabVIEW's own **short-circuit** — a node with an incoming error
+  /// does nothing and passes the error through unchanged — is not emitted.
+  /// Which nodes short-circuit is a per-node property of LabVIEW's library,
+  /// not a fact the file states, so guarding a node with it would be an
+  /// assumption. What this mode does state is the carrier: the error travels
+  /// as a value along the wires the diagram draws.
   threaded,
 }
 

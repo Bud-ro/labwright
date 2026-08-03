@@ -44,6 +44,11 @@ class LvWireType {
   /// The Dart type of a 1-D array **over this edge's element**: the storage a
   /// value of this element type is collected into.
   String get elementListType => lvArrayDartType(element, 1);
+
+  /// Whether the edge carries a bare LabVIEW **error cluster** — the wire an
+  /// [LvErrorMode] decides the carrier of. An array of error clusters is
+  /// ordinary data and is not one.
+  bool get isErrorCluster => dims == 0 && value.dartType == LvRuntimeType.error;
 }
 
 /// The Dart type of a wire whose decoded signal word is [signal].

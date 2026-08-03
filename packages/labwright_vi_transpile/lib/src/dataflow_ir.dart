@@ -8,10 +8,12 @@
 /// bytes alone:
 ///
 /// - **Direction** comes from the endpoint holder's own flag bit
-///   ([kLvSinkEndpointFlag]). Corpus, over 435 890 signals in 7 624 files:
-///   431 773 have exactly one source endpoint and the rest have none or
-///   several — those are refused ([LvRefusalKind.wireDirection]), never
-///   guessed at.
+///   ([kLvSinkEndpointFlag]), with a connector-pane terminal's direction taken
+///   from its panel data item instead ([lvEndpointIsSink]). Corpus, over
+///   428 043 signals in 7 524 files: 424 466 resolve exactly one source
+///   endpoint and 3 577 do not — every one of those has SEVERAL sources, none
+///   has none, and they are refused ([LvRefusalKind.wireDirection]) rather
+///   than picked between.
 /// - **Nesting** comes from the frame (`0x1b`) each node, structure and signal
 ///   is parented to, so every edge lives in exactly one [LvRegion] and a
 ///   structure's terminals split cleanly into an outer port (in the parent
@@ -31,6 +33,27 @@ import 'wire_type.dart';
 /// wire's **sink**; clear marks its source. See the library doc for the corpus
 /// census behind it.
 const int kLvSinkEndpointFlag = 0x8000;
+
+/// Whether the wire endpoint [object] consumes the value rather than produces
+/// it.
+///
+/// A **connector-pane terminal** (`0x16`) answers from its panel data item
+/// ([ViHeapObject.isIndicator], bit 0 of the owning DCO's flags): an indicator
+/// consumes, a control produces. Every other endpoint answers from its own
+/// [kLvSinkEndpointFlag].
+///
+/// The two never contradict each other and the panel bit is stated more often.
+/// Corpus, over 428 043 signals in 7 524 VIs: on the 423 985 signals whose
+/// flags already resolve exactly one source, the panel bit agrees with the flag
+/// on all 38 744 connector-pane endpoints it covers, with no disagreement; and
+/// on the 4 058 signals whose flags resolve two or more sources, 481 resolve to
+/// exactly one once a connector-pane endpoint answers from its panel item.
+bool lvEndpointIsSink(ViHeapObject object) {
+  if (object.kind == kLvInterfaceTerminalCode) {
+    if (object.isIndicator case final indicator?) return indicator;
+  }
+  return ((object.objFlags ?? 0) & kLvSinkEndpointFlag) != 0;
+}
 
 /// The tunnel ([ViHeapObject.objFlags]) bit marking an **auto-indexing** loop
 /// tunnel — the boundary that iterates an array element-wise instead of
@@ -171,7 +194,13 @@ enum LvRefusalKind {
   /// An endpoint holder that resolves to no known producer or consumer.
   endpointBinding,
 
-  /// A subVI call, whose body is in another file.
+  /// A live terminal reads a wire whose producing unit the lowering never
+  /// emitted, so the value it would read is not defined.
+  unboundValue,
+
+  /// A subVI call that cannot be bound: the called VI was not supplied, its
+  /// connector pane does not resolve to the caller's terminals, or the two
+  /// disagree about a terminal's type.
   subViCall,
 
   /// The diagram carries no block-diagram frame at all.
@@ -274,6 +303,46 @@ class LvPrimUnit extends LvUnit {
   /// Per port oid, the flags on the terminal's own typed record — the decoded
   /// operand role for the growable array nodes (see `LvArrayTerminalRole`).
   final Map<int, int> portRoleFlags;
+}
+
+/// A **subVI call**: one endpoint holder per connector-pane terminal of the
+/// called VI, in pane-index order.
+class LvSubViUnit extends LvUnit {
+  const LvSubViUnit({
+    required this.oid,
+    required this.classCode,
+    required this.calleeName,
+    required this.panePorts,
+    required this.inputPorts,
+    required this.outputPorts,
+  });
+
+  @override
+  final int oid;
+
+  /// The node's heap class code.
+  final int classCode;
+
+  /// The called VI's file name, from the node's caption, or null when the
+  /// caption is not a `.vi`/`.vim` file name.
+  final String? calleeName;
+
+  /// The endpoint-holder oids in connector-pane order — one per pane
+  /// position, in heap order.
+  final List<int> panePorts;
+
+  @override
+  final List<int> inputPorts;
+
+  @override
+  final List<int> outputPorts;
+
+  /// The connector-pane position [port] occupies, or null when it is not one
+  /// of this node's ports.
+  int? paneIndexOf(int port) {
+    final index = panePorts.indexOf(port);
+    return index < 0 ? null : index;
+  }
 }
 
 /// A diagram constant: one output port carrying a decoded literal.
@@ -511,7 +580,7 @@ class _Builder {
     if (holder == null) {
       refuse(LvRefusalKind.endpointBinding, 'signal endpoint $oid resolves to no heap object', oid: oid);
     }
-    return ((holder.objFlags ?? 0) & kLvSinkEndpointFlag) != 0;
+    return lvEndpointIsSink(holder);
   }
 
   void _buildEdges() {
@@ -524,7 +593,7 @@ class _Builder {
         refuse(
           LvRefusalKind.wireDirection,
           'signal has ${sources.length} source endpoints among ${wire.endpointOids.length}; '
-          'exactly one endpoint holder must have the source flag clear',
+          'exactly one endpoint must read as a producer ([lvEndpointIsSink])',
           oid: wire.signalOid,
         );
       }
@@ -597,7 +666,7 @@ class _Builder {
     for (final child in kids[frameOid] ?? const <ViHeapObject>[]) {
       switch (child.category) {
         case ViObjectKind.node:
-          units.add(_primUnit(child));
+          units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
         case ViObjectKind.structure:
           units.add(_structUnit(child));
         case _:
@@ -614,14 +683,34 @@ class _Builder {
 
   int _sourceOf(ViWire wire) => wire.endpointOids.firstWhere((oid) => !_isSink(oid));
 
-  LvPrimUnit _primUnit(ViHeapObject node) {
-    if (kSubViCallNodeCodes.contains(node.kind)) {
-      refuse(
-        LvRefusalKind.subViCall,
-        'subVI call to ${node.label ?? 'an unnamed VI'}; its body is in another file',
-        oid: node.oid,
-      );
+  /// A subVI call node. Its holders are its connector-pane terminals in pane
+  /// order, so their heap order is preserved rather than sorted.
+  LvSubViUnit _subViUnit(ViHeapObject node) {
+    final ports = <int>[];
+    final inputs = <int>[], outputs = <int>[];
+    for (final holder in kids[node.oid] ?? const <ViHeapObject>[]) {
+      if (holder.kind != kLvHolderCode) continue;
+      ownerOfPort[holder.oid] = node.oid;
+      ports.add(holder.oid);
+      (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
     }
+    final name = node.label?.trim();
+    return LvSubViUnit(
+      oid: node.oid,
+      classCode: node.kind,
+      calleeName: name != null && _isViFileName(name) ? name : null,
+      panePorts: ports,
+      inputPorts: inputs,
+      outputPorts: outputs,
+    );
+  }
+
+  static bool _isViFileName(String name) {
+    final lower = name.toLowerCase();
+    return lower.endsWith('.vi') || lower.endsWith('.vim');
+  }
+
+  LvPrimUnit _primUnit(ViHeapObject node) {
     final inputs = <int>[], outputs = <int>[];
     final roleFlags = <int, int>{};
     for (final holder in kids[node.oid] ?? const <ViHeapObject>[]) {

@@ -24,6 +24,12 @@ abstract final class LvRuntimeType {
   /// which is also the payload thrown under [LvErrorMode.exceptions].
   static const String error = 'LvError';
 
+  /// The **cleared** error value — no error, no warning. It is what an error
+  /// wire carries once [LvErrorMode.exceptions] has removed its source from a
+  /// signature: a caller that failed threw instead of returning, so control
+  /// only reaches the reader with no error in hand.
+  static const String clearedError = '$error.none';
+
   /// A LabVIEW file path — a rooted or relative component list, not a string
   /// (LabVIEW stores it as a `PTH0` record with its own separator rules).
   static const String path = 'LvPath';
