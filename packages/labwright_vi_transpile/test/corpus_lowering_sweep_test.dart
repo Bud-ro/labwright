@@ -45,7 +45,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassesInMemory': 'subViCall',
   'Config_Dump': 'wireType',
   'Config_Dump2': 'wireType',
-  'Config_Escape': 'caseSelector',
+  'Config_Escape': 'constantValue',
   'Config_Load': 'wireType',
   'Config_Load2': 'wireType',
   'Excel_Cell_to_RowCol': 'primitive',
@@ -118,25 +118,22 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// Everything `MD5.vi` still refuses on, one entry per blocking node — the
 /// exact distance to the second behavioural milestone after `crc8`.
 ///
-/// Its every wire types and its whole structure tree builds; what remains is
-/// 46 nodes in four groups. Twenty carry a `primResID` no corpus VI labels, so
-/// the operation is not decoded at all. Eleven are named operations whose
-/// **operand order** is not decoded (`Subtract`, `String Subset`,
-/// `Concatenate Strings`, `Compound Arithmetic`, `Build Array`, `Select`) or
-/// whose rule is not (`Type Cast`'s flattened layout, `To Lower Case`'s
-/// case-mapping table, `Logical Shift`'s direction). Four are Case structures
-/// over an **integer** selector, where the file states only the displayed
-/// frame's case value and the others are not the complement of a two-valued
-/// selector. One is a string constant whose value the heap decode did not
-/// recover, and one a `0x114` node whose corpus captions do not agree on a
-/// name.
+/// Its every wire types, its whole structure tree builds, and all four of its
+/// Case structures over an integer selector now lower from their own per-frame
+/// range lists; what remains is 42 nodes in three groups. Twenty carry a
+/// `primResID` no corpus VI labels, so the operation is not decoded at all.
+/// Eleven are named operations whose **operand order** is not decoded
+/// (`Subtract`, `String Subset`, `Concatenate Strings`, `Compound Arithmetic`,
+/// `Build Array`, `Select`) or whose rule is not (`Type Cast`'s flattened
+/// layout, `To Lower Case`'s case-mapping table, `Logical Shift`'s direction).
+/// One is a string constant whose value the heap decode did not recover, and
+/// one a `0x114` node whose corpus captions do not agree on a name.
 const Map<String, int> kMd5Blockers = {
   'Type Cast (primResID 1166)': 7,
   'primResID 1162': 5,
   'primResID 1163': 5,
   'primResID 1181': 4,
   'Subtract (primResID 1051)': 3,
-  'caseSelector over int': 4,
   'primResID 1056': 3,
   'Concatenate Strings (class 0x3e)': 2,
   'String Subset (primResID 1503)': 2,
@@ -195,6 +192,14 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// ([lvClusterBase]) reaches, and `clus.typedefContradicts` the wires where it
 /// adds a shape the bare-cluster reading disagrees with.
 ///
+/// The `ref.*` and `flag<n>.*` counters are the refnum-wire census. A refnum
+/// wire's array-depth base is the reference class's, not the type code's, so
+/// `ref.scalar` is the share the depth-1 law ([kSignalMinScalarDepth]) decides
+/// and `ref.undecided` the rest. The `flag<n>.array` / `flag<n>.scalar` pairs
+/// are measured over the codes whose base IS pinned, and are what rules the
+/// flag nibble out as the missing base: every observed flag value carries both
+/// array and non-array wires, so the nibble does not encode array-ness.
+///
 /// The `idx.*` counters are the Index Array terminal census
 /// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
 /// `[array] ([output] [index]×rank)+`, `idx.rank1Index` the index terminals in
@@ -202,12 +207,12 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
 /// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 1301,
-  'call.calleeMissing': 162,
+  'call': 1331,
+  'call.calleeMissing': 173,
   'call.noPaneMap': 574,
-  'call.paneMatched': 546,
+  'call.paneMatched': 551,
   'call.paneWidthMismatch': 6,
-  'call.unnamed': 13,
+  'call.unnamed': 27,
   'clus': 133106,
   'clus.many': 502,
   'clus.none': 88743,
@@ -219,41 +224,52 @@ const Map<String, int> kCorpusLoweringSweep = {
   'cond.dcoBit12': 140,
   'cond.glyph192': 1892,
   'cond.glyphNone': 375,
-  'exceptions.caseSelector': 62,
-  'exceptions.constantValue': 70,
-  'exceptions.lowered': 136,
-  'exceptions.primitive': 162,
-  'exceptions.structure': 54,
-  'exceptions.subViCall': 61,
+  'exceptions.caseSelector': 2,
+  'exceptions.constantValue': 81,
+  'exceptions.lowered': 146,
+  'exceptions.primitive': 197,
+  'exceptions.structure': 60,
+  'exceptions.subViCall': 70,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 1,
-  'exceptions.unwiredTerminal': 58,
-  'exceptions.wireDirection': 67,
-  'exceptions.wireType': 6836,
+  'exceptions.unwiredTerminal': 75,
+  'exceptions.wireDirection': 68,
+  'exceptions.wireType': 6807,
+  'flag0.array': 24628,
+  'flag0.scalar': 148921,
+  'flag12.array': 907,
+  'flag12.scalar': 6556,
+  'flag4.array': 4715,
+  'flag4.scalar': 57772,
+  'flag8.array': 9246,
+  'flag8.scalar': 108263,
   'idx': 3479,
   'idx.groupFirstIndex': 110,
   'idx.groupLastIndex': 94,
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
-  'modes.same': 136,
-  'term.calleeUntyped': 117,
-  'term.dirAgree': 306,
-  'term.resolved': 306,
-  'term.typeAgree': 189,
+  'modes.same': 146,
+  'ref': 66473,
+  'ref.scalar': 28582,
+  'ref.undecided': 37891,
+  'term.calleeUntyped': 121,
+  'term.dirAgree': 317,
+  'term.resolved': 317,
+  'term.typeAgree': 196,
   'term.unresolved': 33,
-  'term.wired': 339,
-  'threaded.caseSelector': 62,
-  'threaded.constantValue': 70,
-  'threaded.lowered': 136,
-  'threaded.primitive': 162,
-  'threaded.structure': 54,
-  'threaded.subViCall': 61,
+  'term.wired': 350,
+  'threaded.caseSelector': 2,
+  'threaded.constantValue': 81,
+  'threaded.lowered': 146,
+  'threaded.primitive': 197,
+  'threaded.structure': 60,
+  'threaded.subViCall': 70,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 1,
-  'threaded.unwiredTerminal': 58,
-  'threaded.wireDirection': 67,
-  'threaded.wireType': 6836,
+  'threaded.unwiredTerminal': 75,
+  'threaded.wireDirection': 68,
+  'threaded.wireType': 6807,
   'vi': 7508,
 };
 
@@ -268,7 +284,7 @@ const ({int identities, int nodes}) kReviewListTotals = (identities: 111, nodes:
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
+const ({int vis, int sources}) kEmittedSources = (vis: 146, sources: 25);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -400,6 +416,27 @@ const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
     }
   }
 
+  // The refnum-wire census, and the flag-nibble refutation behind it
+  // ([kSignalMinScalarDepth]). `ref.scalar` is the share of refnum-coded wires
+  // the depth-1 law decides and `ref.undecided` the rest, whose base is the
+  // reference class's. The `flag<n>.*` pairs are why no other field of the word
+  // supplies that base: every observed flag value carries both array and
+  // non-array wires among the codes whose base IS pinned, so the nibble does
+  // not encode array-ness.
+  void censusRefnumWires(ViDiagram diagram) {
+    for (final wire in diagram.wires) {
+      final signal = wire.signalType;
+      if (signal == null) continue;
+      final dims = signal.arrayDims;
+      if (kLvWireRefnumCodes.contains(signal.typeCode)) {
+        bump('ref');
+        bump(dims == null ? 'ref.undecided' : 'ref.scalar');
+      } else if (dims != null) {
+        bump('flag${signal.flags}.${dims > 0 ? 'array' : 'scalar'}');
+      }
+    }
+  }
+
   void walk(LvDataflow flow, LvRegion region) {
     for (final unit in region.units) {
       if (unit is LvSubViUnit) bindCall(flow, unit);
@@ -418,6 +455,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 136, sources: 20);
     censusConditionals(unit.diagram);
     censusClusterWires(unit.diagram, unit.pool);
     censusIndexArrays(unit.diagram);
+    censusRefnumWires(unit.diagram);
     if (flowOf(unit) case final flow?) walk(flow, flow.root);
     final sources = <String?>[];
     for (final mode in LvErrorMode.values) {
@@ -515,7 +553,11 @@ void main() {
             final selector = node.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
             final outer = selector?.outerPort;
             final type = outer == null ? null : flow.into(outer)?.type;
-            if (type != null && (node.frames.length != 2 || type.dartType != 'bool')) {
+            // A Case lowers from its own per-frame range list, or — for a
+            // boolean / error-cluster selector — from the displayed frame's
+            // label and its complement. A structure with neither refuses.
+            final twoWay = type != null && (type.isErrorCluster || type.dartType == 'bool');
+            if (type != null && !twoWay && node.selectorRanges.isEmpty) {
               bump('caseSelector over ${type.dartType}');
             }
             for (final frame in node.frames) {

@@ -17,8 +17,12 @@ void main() {
       (0x232, 0x32, 2, 0, ViDataType.path, ViTypeKind.path, 0, ViTypeKind.path),
       (0x8350, 0x50, 3, 8, ViDataType.cluster, ViTypeKind.cluster, 0, ViTypeKind.cluster),
       (0x351, 0x51, 3, 0, ViDataType.cluster, ViTypeKind.cluster, 0, ViTypeKind.cluster),
-      (0x170, 0x70, 1, 0, ViDataType.refnum, ViTypeKind.refnum, null, ViTypeKind.refnum),
+      // A base-less code at the minimum depth is scalar whatever its family
+      // ([kSignalMinScalarDepth]); deeper, its dimensionality stays unknown.
+      (0x170, 0x70, 1, 0, ViDataType.refnum, ViTypeKind.refnum, 0, ViTypeKind.refnum),
+      (0x8370, 0x70, 3, 8, ViDataType.refnum, ViTypeKind.refnum, null, ViTypeKind.refnum),
       (0x8571, 0x71, 5, 8, ViDataType.refnum, ViTypeKind.refnum, null, ViTypeKind.refnum),
+      (0x81ff, 0xff, 1, 8, null, null, 0, null),
       (0x203, 0x03, 2, 0, ViDataType.i32, ViTypeKind.numericInt, 1, ViTypeKind.array),
       (0x330, 0x30, 3, 0, ViDataType.string, ViTypeKind.string, 1, ViTypeKind.array),
       (0x430, 0x30, 4, 0, ViDataType.string, ViTypeKind.string, 2, ViTypeKind.array),
