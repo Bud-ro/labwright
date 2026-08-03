@@ -31,6 +31,8 @@
 /// is either complete or absent.
 library;
 
+import 'dart:math' show max, min;
+
 import 'package:dart_style/dart_style.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -568,10 +570,16 @@ class _FunctionEmitter {
     // A caption is free text and may hold newlines, which a `///` comment
     // cannot; it is collapsed to one line rather than dropped.
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
-    library.fileConstants[name] =
+    final declaration =
         '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
         '$shape ${type.numeric!.glyph} elements.\n'
         'final ${type.dartType} $name = $initializer;';
+    // A row-packed literal is only row-packed until the formatter reaches it:
+    // `dart format` gives a multi-element collection one element per line, so a
+    // 256-entry lookup table becomes 256 lines. The fence keeps the packing.
+    library.fileConstants[name] = initializer.contains('\n')
+        ? '// dart format off\n$declaration\n// dart format on'
+        : declaration;
     return name;
   }
 
@@ -583,14 +591,32 @@ class _FunctionEmitter {
   /// An all-zero constant is the typed list's own length constructor instead:
   /// a `dart:typed_data` list is zero-filled on construction, so it is the
   /// same value written without an element per line.
+  ///
+  /// Beyond [_kElementsPerLineThreshold] elements the literal is packed into
+  /// rows sized so a row fits a 100-column line, which is what makes a decoded
+  /// lookup table readable as a table rather than as a column of digits.
   String _typedListLiteral(List<num> values, LvWireType type) {
     final kind = type.numeric!;
     if (values.isNotEmpty && values.every((value) => value == 0)) {
       return '${type.elementListType}(${values.length})';
     }
-    final elements = [for (final value in values) _elementLiteral(value, kind)].join(', ');
-    return '${type.elementListType}.fromList(const <${type.element.dartType}>[$elements])';
+    final literals = [for (final value in values) _elementLiteral(value, kind)];
+    final open = '${type.elementListType}.fromList(const <${type.element.dartType}>[';
+    if (literals.length <= _kElementsPerLineThreshold) return '$open${literals.join(', ')}])';
+    final widest = literals.fold(0, (widest, literal) => max(widest, literal.length));
+    final perRow = max(1, _kLiteralLineWidth ~/ (widest + 2));
+    final rows = [
+      for (var start = 0; start < literals.length; start += perRow)
+        '  ${literals.sublist(start, min(start + perRow, literals.length)).join(', ')},',
+    ];
+    return '$open\n${rows.join('\n')}\n])';
   }
+
+  /// The element count above which an array literal is packed into rows.
+  static const int _kElementsPerLineThreshold = 12;
+
+  /// The column budget a packed row of element literals is sized to fill.
+  static const int _kLiteralLineWidth = 96;
 
   /// One array element's literal: hexadecimal at the kind's full width for an
   /// unsigned integer — the form a mask or lookup table is read in — and

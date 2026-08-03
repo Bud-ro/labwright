@@ -22,6 +22,10 @@ import 'util.dart';
 ///
 /// Export is opt-in (it writes a file outside the build tree):
 /// `flutter test test/prim_review_sheet_test.dart --dart-define=SHEET_DIR=<dir>`
+///
+/// Both forms are written from the same rows: `prim_review_sheet.png` draws
+/// each identity's icon, and `prim_review_sheet.txt` carries the same table as
+/// text for reading where an image cannot be opened.
 void main() {
   const sheetDir = String.fromEnvironment('SHEET_DIR');
   testWidgets('SHEET_DIR=<dir> exports prim_review_sheet.png', (tester) async {
@@ -36,8 +40,10 @@ void main() {
       final out = Directory(sheetDir)..createSync(recursive: true);
       final file = File('${out.path}/prim_review_sheet.png')
         ..writeAsBytesSync(png);
+      final text = File('${out.path}/prim_review_sheet.txt')
+        ..writeAsStringSync(reviewSheetText());
       // ignore: avoid_print
-      print('exported ${file.path}');
+      print('exported ${file.path} and ${text.path}');
     });
   });
 
@@ -630,4 +636,36 @@ Future<List<int>> _paintSheet(Map<int, PrimIconArt> icons) async {
   final picture = recorder.endRecording();
   final image = await picture.toImage(width.round(), height.round());
   return imageToPng(image);
+}
+
+/// [kReviewSheetRows] as plain text — the same table the sheet draws, in the
+/// form that needs no image viewer. Each entry names the identity, its VI /
+/// node / sole counts, what specifically is not decoded, and a corpus VI that
+/// holds one.
+String reviewSheetText() {
+  final out = StringBuffer()
+    ..writeln(
+      'Unmapped block-diagram operations, ranked by the VIs each one blocks',
+    )
+    ..writeln('=' * 78)
+    ..writeln()
+    ..writeln(
+      'vis / nodes / sole over the 7508-VI corpus. "sole" is the VIs whose only',
+    )
+    ..writeln(
+      'unmapped identity this is — but it ranks primitive blockers only, so a node',
+    )
+    ..writeln(
+      'whose enclosing structure refuses first is not unblocked by naming it.',
+    )
+    ..writeln();
+  for (final row in kReviewSheetRows) {
+    out
+      ..writeln(row.identity)
+      ..writeln('  ${row.vis} VIs · ${row.nodes} nodes · ${row.sole} sole')
+      ..writeln('  unknown: ${row.note}')
+      ..writeln('  example: ${row.example}')
+      ..writeln();
+  }
+  return out.toString();
 }
