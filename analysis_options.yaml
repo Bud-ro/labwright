@@ -7,12 +7,6 @@ formatter:
 analyzer:
   exclude:
     - apps/**
-    # Lowered block diagrams, checked in as test fixtures. They are machine
-    # output and are analyzed by `corpus_lowering_sweep_test.dart` at
-    # `package:lints/recommended.yaml` — the set the emitter targets — over
-    # every source the whole corpus lowers to. The extra style rules below are
-    # for code a person writes.
-    - packages/labwright_vi_transpile/test/generated/**
   language:
     strict-casts: true
     strict-inference: true

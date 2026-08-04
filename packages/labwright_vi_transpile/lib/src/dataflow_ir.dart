@@ -387,8 +387,11 @@ class LvPrimUnit extends LvUnit {
   final Map<int, int> portDrawnTop;
 
   /// The node's own [ViHeapObject.objFlags] — the record that separates the
-  /// two operations sharing a class code (see `kLvByNameUnbundlesBit`).
-  final int nodeFlags;
+  /// two operations sharing a class code (see `kLvByNameUnbundlesBit`), or null
+  /// where the object carries no flags word. Null is not zero: zero is a
+  /// selector value in its own right, so a reading that needs the word refuses
+  /// on null rather than taking its first case.
+  final int? nodeFlags;
 
   /// Per port oid, the name of the data-space type descriptor the terminal's
   /// own part resolves ([ViHeapObject.typeName]) — the cluster MEMBER a
@@ -899,7 +902,7 @@ class _Builder {
       outputPorts: outputs,
       portRoleFlags: roleFlags,
       portDrawnTop: drawnTop,
-      nodeFlags: node.objFlags ?? 0,
+      nodeFlags: node.objFlags,
       portMemberName: memberName,
       foreignLibrary: node.foreignLibraryPath,
       foreignEntryPoint: node.foreignEntryPoint,

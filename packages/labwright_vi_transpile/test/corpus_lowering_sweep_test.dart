@@ -125,9 +125,14 @@ const int kLvDataValueRefBorderClass = 0x153;
 /// split against it: `ipe.blocked.undecodedAccess` (22) carry a border node
 /// from [kLvInPlaceElementBorderClasses] whose element access is not recovered,
 /// leaving `ipe.blocked.identifiedOnly` (5) whose border nodes are all the
-/// data-value-reference pair. So the structure's ceiling as a lever is 27 VIs
-/// (0.36% of the corpus), and 22 of those need a border-node reading that does
-/// not exist yet rather than control flow.
+/// data-value-reference pair.
+///
+/// 27 is a **lower** bound on the lever, not a ceiling. Attribution follows the
+/// order the lowering does its work, not the order the diagram draws: whole
+/// diagram wire typing runs before any structure is reached, so every VI a wire
+/// blocks is counted against the wire even where the structure would have
+/// blocked it too. Widening any earlier reading moves VIs into this count:
+/// `exceptions.structure` is 113 with `Wait (ms)` lowered and 111 without it.
 const Map<String, int> kCorpusInPlaceElement = {
   'ipe.vis': 705,
   'ipe.structures': 904,
@@ -166,13 +171,6 @@ const Map<String, int> kSnippetPrimReviewList = {
 /// Kept as a pin because it is the finest-grained regression guard the diagram
 /// affords: a rule that stops reading one node repopulates this map with that
 /// node alone, naming it, where the outcome pin above only says `primitive`.
-///
-/// The eleven nodes that closed it last, and what closes each:
-/// `Compound Arithmetic` ×2 ([LvCompoundMode]), `String Subset` ×2 and
-/// `To Lower Case` ×1 (the runtime carries each operation's decoded domain and
-/// throws outside it), the `0x114` Initialize Array node
-/// ([kLvInitializeArrayClass]), and the five nodes carrying a `primResID` no
-/// corpus VI labels — 1181 ×4 and 1082 ×1 ([kLvProvenPrimResIds]).
 const Map<String, int> kMd5Blockers = <String, int>{};
 
 /// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
@@ -783,7 +781,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     final blocked =
         refusal != null &&
         refusal.kind == LvRefusalKind.structure &&
-        refusal.detail.contains('0x${kLvInPlaceElementClass.toRadixString(16)}');
+        diagram.byId[refusal.oid]?.kind == kLvInPlaceElementClass;
     if (!blocked) return;
     bump('ipe.blocked');
     bump(
@@ -1509,16 +1507,6 @@ void main() {
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
       expect(measured, {...kCorpusLoweringSweep, ...kCorpusInPlaceElement});
-      // Called out on its own so a move in the In Place Element Structure's
-      // size as a lever names itself rather than arriving as one row of the
-      // sweep above.
-      expect(
-        {
-          for (final key in measured.keys)
-            if (key.startsWith('ipe.')) key: measured[key],
-        },
-        kCorpusInPlaceElement,
-      );
       // The two independent checks on the pane binding: neither is used to
       // derive it, so a disagreement would mean the contract is wrong.
       // Direction admits none; the four type exceptions are attributed in
@@ -1540,7 +1528,11 @@ void main() {
       );
       final scratch = _scratchPackage(swept.sources);
       try {
-        final analyzed = Process.runSync(_kDart, ['analyze', '${scratch.path}/lib'], workingDirectory: scratch.path);
+        final analyzed = Process.runSync(_kDart, [
+          'analyze',
+          '--fatal-infos',
+          '${scratch.path}/lib',
+        ], workingDirectory: scratch.path);
         expect(analyzed.exitCode, 0, reason: 'the emitted code is not clean:\n${analyzed.stdout}${analyzed.stderr}');
         // Analysis covers the static errors; a kernel compile of one entry
         // importing all of them is the independent check that the emitted

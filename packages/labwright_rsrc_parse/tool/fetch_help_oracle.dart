@@ -26,6 +26,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 /// The archive's URL-index API. Queried once with a path prefix to enumerate
 /// every captured topic, which is cheaper and more complete than walking the
@@ -166,7 +167,9 @@ Future<_Index> _topicIndex(_Cache cache, {required bool refresh}) async {
   for (final line in const LineSplitter().convert(text)) {
     final parts = line.split(' ');
     if (parts.length < 2) continue;
-    final match = RegExp(r'/help/([^/]+)/glang/([^/]+)/?$').firstMatch(parts[0]);
+    // The two groups become cache path segments, so the charset is the one
+    // every captured URL uses and admits no separator or `..`.
+    final match = RegExp(r'/help/([\w-]+)/glang/([\w-]+)/?$').firstMatch(parts[0]);
     if (match == null) continue;
     captures++;
     final partNumber = match.group(1)!;
@@ -347,7 +350,7 @@ _Topic? _parseTopic(_Capture capture, String html) {
     paletteSlug: palette?.group(1),
     requires: requires == null ? null : _text(requires.group(1)!),
     description: description == null ? '' : _text(description.group(1)!),
-    iconUrl: pane == null ? null : _absolute(pane.group(1)!),
+    iconUrl: pane == null ? null : Uri.parse(capture.url).resolve(pane.group(1)!).toString(),
     terminals: terminals,
   );
 }
@@ -371,9 +374,6 @@ List<String> _leadingNames(String cell, int limit) {
   }
   return names;
 }
-
-/// Resolves a page-relative image path against the host that still serves it.
-String _absolute(String src) => src.startsWith('http') ? src : 'http://zone.ni.com$src';
 
 final _tagPattern = RegExp(r'<[^>]*>');
 const _entities = {
@@ -401,7 +401,10 @@ const _entities = {
 String _text(String html) {
   var s = html.replaceAll(_tagPattern, ' ');
   _entities.forEach((k, v) => s = s.replaceAll(k, v));
-  s = s.replaceAllMapped(RegExp(r'&#(\d+);'), (m) => String.fromCharCode(int.parse(m.group(1)!)));
+  s = s.replaceAllMapped(
+    RegExp(r'&#(x?)([0-9a-fA-F]+);'),
+    (m) => String.fromCharCode(int.parse(m.group(2)!, radix: m.group(1)!.isEmpty ? 10 : 16)),
+  );
   return s.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
@@ -419,7 +422,7 @@ class _Cache {
     return bytes == null ? null : utf8.decode(bytes, allowMalformed: true);
   }
 
-  Future<List<int>?> fetchBytes(String url, String relPath, {bool force = false}) async {
+  Future<Uint8List?> fetchBytes(String url, String relPath, {bool force = false}) async {
     final file = File('$root/$relPath');
     if (!force && file.existsSync()) return file.readAsBytesSync();
     final body = await _get(url);
@@ -430,7 +433,7 @@ class _Cache {
   }
 
   /// Serialized, spaced-out GET with backoff on the archive's rate limiter.
-  Future<List<int>?> _get(String url) async {
+  Future<Uint8List?> _get(String url) async {
     for (var attempt = 0; attempt < 4; attempt++) {
       final since = DateTime.now().difference(_last);
       if (since < delay) await Future<void>.delayed(delay - since);
@@ -441,11 +444,11 @@ class _Cache {
         request.maxRedirects = 10;
         final response = await request.close();
         if (response.statusCode == 200) {
-          final chunks = <int>[];
+          final body = BytesBuilder(copy: false);
           await for (final chunk in response) {
-            chunks.addAll(chunk);
+            body.add(chunk);
           }
-          return chunks;
+          return body.takeBytes();
         }
         await response.drain<void>();
         if (response.statusCode != 429 && response.statusCode < 500) {

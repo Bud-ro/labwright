@@ -20,43 +20,18 @@ abstract final class LvRuntimeCall {
   /// The For loop iteration count over several bounds.
   static const String iterationCount = 'lvIterationCount';
 
-  /// Rotate Left With Carry.
   static const String rotateLeftWithCarry = 'lvRotateLeftWithCarry';
-
-  /// Rotate Right With Carry.
   static const String rotateRightWithCarry = 'lvRotateRightWithCarry';
-
-  /// Swap Bytes.
   static const String swapBytes = 'lvSwapBytes';
-
-  /// Swap Words.
   static const String swapWords = 'lvSwapWords';
-
-  /// Quotient & Remainder.
   static const String quotientRemainder = 'lvQuotientRemainder';
-
-  /// Logical Shift.
   static const String logicalShift = 'lvLogicalShift';
-
-  /// A bit rotation over a fixed width.
   static const String rotate = 'lvRotate';
-
-  /// To Lower Case.
   static const String toLowerCase = 'lvToLowerCase';
-
-  /// String Subset.
   static const String stringSubset = 'lvStringSubset';
-
-  /// A fixed-width integer written in hexadecimal at a minimum field width.
   static const String hexString = 'lvHexString';
-
-  /// Initialize Array.
   static const String initializeArray = 'lvInitializeArray';
-
-  /// Merge Errors.
   static const String mergeErrors = 'lvMergeErrors';
-
-  /// Wait (ms).
   static const String waitMs = 'lvWaitMs';
 
   /// The flat bytes of a scalar integer, of a scalar float, of a string and of

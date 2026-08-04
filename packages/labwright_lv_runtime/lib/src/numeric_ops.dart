@@ -12,21 +12,16 @@
 /// no wraparound, so none of these hold there.
 library;
 
-/// LabVIEW's To Byte Integer conversion: [value] renormalized to a signed
-/// 8-bit range — exact for every value that width can hold.
+/// LabVIEW's To Byte Integer conversion.
 // TODO(lv-convert-range): LabVIEW's rule for a value outside the target width
-// (truncate or saturate) is not established from the file format; this
-// truncates.
+// (truncate or saturate) is not established from the file format; every
+// conversion here truncates.
 int lvToI8(int value) => value << 56 >> 56;
 
-/// LabVIEW's To Word Integer conversion: [value] renormalized to a signed
-/// 16-bit range.
-// TODO(lv-convert-range): see [lvToI8].
+/// LabVIEW's To Word Integer conversion.
 int lvToI16(int value) => value << 48 >> 48;
 
-/// LabVIEW's To Long Integer conversion: [value] renormalized to a signed
-/// 32-bit range.
-// TODO(lv-convert-range): see [lvToI8].
+/// LabVIEW's To Long Integer conversion.
 int lvToI32(int value) => value << 32 >> 32;
 
 /// LabVIEW's To Quad Integer conversion. Dart's `int` **is** a signed 64-bit
@@ -34,15 +29,12 @@ int lvToI32(int value) => value << 32 >> 32;
 int lvToI64(int value) => value;
 
 /// LabVIEW's To Unsigned Byte Integer conversion.
-// TODO(lv-convert-range): see [lvToI8].
 int lvToU8(int value) => value & 0xFF;
 
 /// LabVIEW's To Unsigned Word Integer conversion.
-// TODO(lv-convert-range): see [lvToI8].
 int lvToU16(int value) => value & 0xFFFF;
 
 /// LabVIEW's To Unsigned Long Integer conversion.
-// TODO(lv-convert-range): see [lvToI8].
 int lvToU32(int value) => value & 0xFFFFFFFF;
 
 /// LabVIEW's To Unsigned Quad Integer conversion. A U64 value fills the whole
@@ -54,17 +46,13 @@ int lvToU64(int value) => value;
 /// [lvSwapBytes] exchanges across.
 const int _kByteLanes = 0x00FF00FF00FF00FF;
 
-/// The 16-bit lanes of the carrier, alternating from bit 0 — the mask
-/// [lvSwapWords] exchanges across.
+/// The 16-bit lanes of the carrier — the mask [lvSwapWords] exchanges across.
 const int _kWordLanes = 0x0000FFFF0000FFFF;
 
 /// LabVIEW's **Swap Bytes**: within every 16-bit field of [value], the high and
-/// low bytes exchange places.
-///
-/// The operation is defined on a *pair of 8-bit fields*, so a value wider than
-/// 16 bits is swapped one 16-bit field at a time: `0x12345678` becomes
-/// `0x34127856`, not `0x78563412`. Reversing all four bytes of a 32-bit value
-/// is this composed with [lvSwapWords].
+/// low bytes exchange places — `0x12345678` becomes `0x34127856`, not
+/// `0x78563412`. Reversing all four bytes of a 32-bit value is this composed
+/// with [lvSwapWords].
 ///
 /// Width-agnostic: it acts on the whole carrier, and the caller renormalizes
 /// the result to the LabVIEW type's width, which is what re-establishes the
@@ -72,26 +60,19 @@ const int _kWordLanes = 0x0000FFFF0000FFFF;
 int lvSwapBytes(int value) => ((value & _kByteLanes) << 8) | ((value >>> 8) & _kByteLanes);
 
 /// LabVIEW's **Swap Words**: within every 32-bit field of [value], the high and
-/// low 16-bit halves exchange places — `0x12345678` becomes `0x56781234`.
-///
-/// The [lvSwapBytes] counterpart one field width up; see it for the width
-/// contract.
+/// low 16-bit halves exchange places — `0x12345678` becomes `0x56781234`. See
+/// [lvSwapBytes] for the width contract.
 int lvSwapWords(int value) => ((value & _kWordLanes) << 16) | ((value >>> 16) & _kWordLanes);
 
 /// LabVIEW's **Quotient & Remainder**: the integer quotient of
 /// [dividend] / [divisor] and the amount left over, as `(quotient, remainder)`.
 ///
-/// The two satisfy `dividend == divisor * quotient + remainder` exactly, which
-/// is the property the corpus's ceil-division idiom turns on
-/// (`remainder != 0 ? quotient + 1 : quotient`).
-///
 /// The quotient rounds toward negative infinity, so the remainder carries the
-/// divisor's sign. Dart's `~/` rounds toward zero instead, so the correction
-/// below is the whole difference between the two. The published reference
-/// settles the direction for every pair of signs: it names the two results
-/// `floor(x/y)` and `x-y*floor(x/y)`, and a floor is what this computes. The
-/// corpus alone could not have said so — every node that fixes the operation's
-/// shape does it with non-negative operands, where the two conventions agree.
+/// divisor's sign; Dart's `~/` rounds toward zero, which is the whole of the
+/// correction below. The published reference settles the direction for every
+/// pair of signs — it names the two results `floor(x/y)` and `x-y*floor(x/y)`.
+/// The corpus alone could not have: every node that fixes the operation's shape
+/// does it with non-negative operands, where the two conventions agree.
 // TODO(lv-divide-by-zero): what LabVIEW yields for a zero divisor is not
 // established; this throws rather than inventing a result.
 (int, int) lvQuotientRemainder(int dividend, int divisor) {
@@ -103,16 +84,13 @@ int lvSwapWords(int value) => ((value & _kWordLanes) << 16) | ((value >>> 16) & 
 
 /// LabVIEW's **Logical Shift** over a [bits]-wide value: a positive [count]
 /// shifts [value] toward the high bits and a negative one toward the low bits,
-/// zero filling from the far end either way.
+/// zero filling from the far end either way. Shifting by the width or more
+/// leaves nothing behind. The result is the raw [bits]-wide bit pattern; the
+/// caller renormalizes it to the LabVIEW type's own width, which is what
+/// re-establishes the sign of a narrow signed carrier.
 ///
 /// One node covers both directions because the shift count is signed, so the
-/// direction is a run-time value and cannot be folded into the operator. The
-/// result is the raw [bits]-wide bit pattern; the caller renormalizes it to the
-/// LabVIEW type's own width, which is what re-establishes the sign of a narrow
-/// signed carrier.
-///
-/// Shifting by the width or more leaves nothing behind, which is the zero fill
-/// carried to its end rather than a separate rule.
+/// direction is a run-time value and cannot be folded into the operator.
 int lvLogicalShift(int value, int count, int bits) {
   final mask = bits >= 64 ? -1 : (1 << bits) - 1;
   final masked = value & mask;
@@ -121,20 +99,21 @@ int lvLogicalShift(int value, int count, int bits) {
   return (count > 0 ? masked << count : masked >>> -count) & mask;
 }
 
-/// A **bit rotation** of a [bits]-wide value: a positive [count] moves
-/// [value]'s bits toward the high end and the bits that leave the top re-enter
-/// at the bottom; a negative [count] rotates the other way. The result is the
-/// raw [bits]-wide pattern, which the caller renormalizes to the LabVIEW type's
-/// own width.
-///
-/// Unlike [lvLogicalShift] nothing is lost, so a count of a whole width is the
-/// identity and the count is reduced modulo [bits] rather than saturating.
+/// A **bit rotation** of a [bits]-wide value: [count] moves [value]'s bits
+/// toward the high end and the bits that leave the top re-enter at the bottom.
+/// The result is the raw [bits]-wide pattern, which the caller renormalizes to
+/// the LabVIEW type's own width.
+// TODO(lv-rotate-range): decode what LabVIEW does with a count outside
+// `0 .. bits - 1` — reduce it, saturate it as [lvLogicalShift] does, or read a
+// negative one as the other direction. The proving vectors supply 4..23 at 32
+// bits; past a whole width there is nothing to read, so those counts throw.
 int lvRotate(int value, int count, int bits) {
+  if (count < 0 || count >= bits) {
+    throw RangeError.range(count, 0, bits - 1, 'count', "LabVIEW's rotation past one width is not decoded");
+  }
   final mask = bits >= 64 ? -1 : (1 << bits) - 1;
   final masked = value & mask;
-  final steps = count % bits;
-  if (steps == 0) return masked;
-  return ((masked << steps) | (masked >>> (bits - steps))) & mask;
+  return count == 0 ? masked : ((masked << count) | (masked >>> (bits - count))) & mask;
 }
 
 /// LabVIEW's Rotate Left With Carry over a [bits]-wide value: the value shifts

@@ -442,7 +442,9 @@ Where an operation's *domain* is decoded but its behaviour outside that domain
 is not, the rule lowers and the **runtime** throws at the boundary rather than
 inventing a value, each with a `TODO` naming the gap: `String Subset` outside
 the string, `To Lower Case` above code unit `0x7F`, `Initialize Array` at a
-negative size, and `Type Cast` on a size mismatch.
+negative size, `Type Cast` on a size mismatch, a rotation by anything but a
+count inside one width, and a hexadecimal conversion of a value wider than the
+field it is given.
 
 Two node classes carry their identity in the class code, with corpus node
 labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
@@ -569,13 +571,18 @@ What that method decided, and what it did not:
   neighbours 1180 and 1184 are corpus-labelled — and the digests confirm it.
   `kLvProvenPrimResIds` records **what each computes in the shapes the vectors
   exercise**, which is a weaker claim than naming the primitive, and a node
-  outside those shapes is refused exactly as an unnamed one is.
+  outside those shapes is refused exactly as an unnamed one is: both lower only
+  a 32-bit result, and the readings the vectors leave open — a rotation count
+  past one width, a field narrower than the value — are refused by the runtime
+  rather than guessed.
 - **Compound Arithmetic**'s mode field (bits 16..18 of the node record) selects
   five reductions. Two of them — the four-term U32 sum and the three-term
   combination MD5 draws — are decided by the digests; the other three are named
   from the palette order the two bracket and are **not lowered**
   (`LvCompoundMode`). The per-terminal inversion bit is not decoded either way,
-  and a node carrying it is refused.
+  and a node carrying it is refused, as is a float wire: the vectors are over
+  integers, where both lowered reductions are associative and the drawn order
+  cannot change the value.
 - **`String Subset`'s unwired length** defaults to the rest of the string. Every
   message whose length is not a multiple of 64 depends on it, so the vectors
   decide it; an unwired *offset* has no such witness and stays refused.

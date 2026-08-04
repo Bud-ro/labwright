@@ -593,8 +593,8 @@ class _FunctionEmitter {
   /// same value written without an element per line.
   ///
   /// Beyond [_kElementsPerLineThreshold] elements the literal is packed into
-  /// rows sized so a row fits a 100-column line, which is what makes a decoded
-  /// lookup table readable as a table rather than as a column of digits.
+  /// rows of [_kLiteralLineWidth] columns, which is what makes a decoded lookup
+  /// table readable as a table rather than as a column of digits.
   String _typedListLiteral(List<num> values, LvWireType type) {
     final kind = type.numeric!;
     if (values.isNotEmpty && values.every((value) => value == 0)) {
@@ -1217,8 +1217,6 @@ class _FunctionEmitter {
     }
     final outputs = _declareCaseOutputs(unit);
     for (final frame in guards.keys) {
-      // A frame reached by several ranges tests them in turn, and each range's
-      // own test is parenthesized only there — a lone range needs no brackets.
       final tests = guards[frame]!;
       final guard = tests.length == 1 ? tests.single : tests.map((test) => '($test)').join(' || ');
       body.writeln('${frame == guards.keys.first ? 'if' : '} else if'} ($guard) {');

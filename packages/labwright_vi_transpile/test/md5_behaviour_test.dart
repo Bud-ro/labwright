@@ -1,8 +1,8 @@
 /// The behavioural proof: the Dart lowered from `MD5.vi`'s block diagram
 /// computes the message digests RFC 1321 publishes.
 ///
-/// The suite in RFC 1321's appendix is a **two-sided** oracle. Each of its five
-/// messages fixes 128 bits of output, so a lowering that reads any of the
+/// The suite in RFC 1321's appendix is a **two-sided** oracle. Each of its
+/// seven messages fixes 128 bits of output, so a lowering that reads any of the
 /// diagram's operations wrongly produces a different digest, and one that reads
 /// them all rightly produces every published digest at once. Nothing here is
 /// fitted to the VI: the expected strings are the RFC's own.

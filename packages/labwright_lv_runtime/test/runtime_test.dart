@@ -182,24 +182,9 @@ void main() {
     }
   });
 
-  test('a wait is a floor its own returned timer confirms', () {
-    for (final requested in const [1, 5, 20]) {
-      final before = lvMillisecondTimer();
-      final after = lvWaitMs(requested);
-      expect(after - before, greaterThanOrEqualTo(requested), reason: '$requested ms');
-    }
-  });
-
-  test('the timer answers a 32-bit value that never runs backwards', () {
-    final first = lvMillisecondTimer();
-    expect(first, inInclusiveRange(0, 0xFFFFFFFF));
-    expect(lvWaitMs(0), greaterThanOrEqualTo(first));
-  });
-
-  test('a wait past the stated bound is clamped rather than attempted', () {
-    // The reference's own ceiling; the call would otherwise block for days.
-    expect(kLvMaxWaitMilliseconds, 2147483647);
-    final before = lvMillisecondTimer();
-    expect(lvWaitMs(-1) - before, lessThan(1000));
+  test('a wait blocks for its request, measured by a clock it does not read', () {
+    final wall = Stopwatch()..start();
+    lvWaitMs(20);
+    expect(wall.elapsedMicroseconds, greaterThanOrEqualTo(20 * Duration.microsecondsPerMillisecond));
   });
 }

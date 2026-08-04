@@ -505,6 +505,7 @@ final double volts;
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: op.opName);
     }
@@ -528,6 +529,7 @@ final double volts;
         portDrawnTop: const {0: 0},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       ),
     );
     expect(lower(consumed: false), ['lvWaitMs(a0);']);
@@ -604,6 +606,7 @@ final double volts;
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -664,6 +667,7 @@ final double volts;
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -685,6 +689,7 @@ final double volts;
       portDrawnTop: const {0: 10, 1: 20},
       requireImport: (_) {},
       names: LvNaming(),
+      nodeFlags: null,
     );
     expect(lvPrimLowering(call), isNull);
   });
@@ -712,6 +717,7 @@ final double volts;
         portDrawnTop: drawnTop,
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: name);
     }
@@ -745,6 +751,7 @@ final double volts;
         portDrawnTop: {0: 40, 1: 10, ports[0]: 10, ports[1]: 40},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -800,6 +807,7 @@ final double volts;
         portDrawnTop: const {},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
