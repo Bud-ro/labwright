@@ -601,8 +601,8 @@ class _FunctionEmitter {
   /// same value written without an element per line.
   ///
   /// Beyond [_kElementsPerLineThreshold] elements the literal is packed into
-  /// rows sized so a row fits a 100-column line, which is what makes a decoded
-  /// lookup table readable as a table rather than as a column of digits.
+  /// rows of [_kLiteralLineWidth] columns, which is what makes a decoded lookup
+  /// table readable as a table rather than as a column of digits.
   String _typedListLiteral(List<num> values, LvWireType type) {
     final kind = type.numeric!;
     if (values.isNotEmpty && values.every((value) => value == 0)) {
@@ -933,6 +933,7 @@ class _FunctionEmitter {
           continue;
         }
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
+        _checkIndexedRank(tunnel, inner);
         final outerType = _typeAt(tunnel.outerPort!)!;
         final array = _atomic(outer) ? outer : names.wire(outerType);
         if (array != outer) {
@@ -952,6 +953,7 @@ class _FunctionEmitter {
         );
       }
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
+      _checkIndexedRank(tunnel, inner);
       final type = _typeAt(tunnel.outerPort!)!;
       final builder = names.role(LvNameRole.builder);
       library.noteImportsFor(type);
@@ -963,7 +965,7 @@ class _FunctionEmitter {
     final bounds = <String>[
       if (unit.terminals.where((t) => t.role == LvTerminalRole.count).firstOrNull case final count?)
         if (_outerValue(count) case final value?) value,
-      for (final input in indexedInputs) '${input.array}.length',
+      for (final input in indexedInputs) '${input.array}.${_indexedLength(input.terminal)}',
     ];
     if (bounds.isEmpty) {
       refuse(
@@ -994,7 +996,10 @@ class _FunctionEmitter {
       final type = _typeAt(inner)!;
       library.noteImportsFor(type);
       final element = names.role(LvNameRole.element);
-      body.writeln('final ${type.dartType} $element = ${input.array}[$iteration];');
+      final read = _typeAt(input.terminal.outerPort!)!.dims > 1
+          ? '${input.array}.rowAt($iteration)'
+          : '${input.array}[$iteration]';
+      body.writeln('final ${type.dartType} $element = $read;');
       valueOf[inner] = element;
     }
 
@@ -1068,6 +1073,29 @@ class _FunctionEmitter {
       carried.add((terminal: right, name: name, rightOuter: right.outerPort));
     }
     return carried;
+  }
+
+  /// The member giving the number of slices an auto-indexing [tunnel] reads:
+  /// a 1-D array's own `length`, and a multi-dimensional array's outermost
+  /// dimension.
+  String _indexedLength(LvStructTerminal tunnel) => _typeAt(tunnel.outerPort!)!.dims > 1 ? 'outerLength' : 'length';
+
+  /// Refuses an auto-indexing tunnel whose inner side is itself
+  /// multi-dimensional.
+  ///
+  /// The slice a loop reads from a two-dimensional array is one row of the flat
+  /// buffer ([LvRuntimeType.arrayNd]'s `rowAt`), which is a complete value of
+  /// the inner wire's own type. A rank-3 array's slice is a rank-2 array, which
+  /// carries a dimension vector this reader has no decoded source for.
+  void _checkIndexedRank(LvStructTerminal tunnel, int innerPort) {
+    final inner = _typeAt(innerPort);
+    if (inner == null || inner.dims < 2) return;
+    refuse(
+      LvRefusalKind.tunnelIndexing,
+      'the tunnel auto-indexes an array whose slice is itself ${inner.dims}-dimensional, '
+      'and the dimension vector that slice carries is not decoded',
+      oid: tunnel.oid,
+    );
   }
 
   void _checkTunnelDims(LvStructTerminal tunnel, int structureOid, {required int drop}) {
@@ -1193,7 +1221,9 @@ class _FunctionEmitter {
     }
     final outputs = _declareCaseOutputs(unit);
     for (final frame in guards.keys) {
-      body.writeln('${frame == guards.keys.first ? 'if' : '} else if'} (${guards[frame]!.join(' || ')}) {');
+      final tests = guards[frame]!;
+      final guard = tests.length == 1 ? tests.single : tests.map((test) => '($test)').join(' || ');
+      body.writeln('${frame == guards.keys.first ? 'if' : '} else if'} ($guard) {');
       _emitCaseFrame(unit, frame, outputs, selectorValue);
     }
     body.writeln(guards.isEmpty ? '{' : '} else {');
@@ -1220,7 +1250,7 @@ class _FunctionEmitter {
     }
     if (type.numeric == null || type.numeric!.isFloat) return null;
     if (range.isSingle) return '$selectorValue == ${range.low}';
-    if (range.isClosed) return '($selectorValue >= ${range.low} && $selectorValue <= ${range.high})';
+    if (range.isClosed) return '$selectorValue >= ${range.low} && $selectorValue <= ${range.high}';
     if (range.lowBound == ViSelectorBound.inclusive && range.highBound == ViSelectorBound.unbounded) {
       return '$selectorValue >= ${range.low}';
     }

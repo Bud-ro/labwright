@@ -482,6 +482,13 @@ final double volts;
       (PrimOp.equal, [0x0132, 0x0132], 0x0121, null),
       (PrimOp.emptyStringPath, [0x0132], 0x0121, null),
       (PrimOp.arraySize, [0x0305], 0x0203, null),
+      // Wait (ms): one integer operand in, the U32 millisecond timer out. A
+      // float operand is a terminal coercion with no decided rounding, and a
+      // result wire of another width is not what the node yields.
+      (PrimOp.waitMs, [0x0107], 0x0107, 'final int e0 = lvWaitMs(a0);'),
+      (PrimOp.waitMs, [0x0103], 0x0107, 'final int e0 = lvWaitMs(a0);'),
+      (PrimOp.waitMs, [0x010a], 0x0107, null),
+      (PrimOp.waitMs, [0x0107], 0x0103, null),
     ];
     for (final (op, inputs, output, expected) in rows) {
       final call = LvPrimCall(
@@ -498,9 +505,35 @@ final double volts;
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: op.opName);
     }
+  });
+
+  test('a wait still elapses when nothing consumes the timer it returns', () {
+    // The elapsed time IS the operation, so an unwired result must leave the
+    // call standing rather than take it away.
+    List<String>? lower({required bool consumed}) => lvPrimLowering(
+      LvPrimCall(
+        op: PrimOp.waitMs,
+        classCode: 0x2f,
+        inputs: [
+          LvPrimTerminal(port: 0, type: mapLvWireType(const ViSignalType(0x0107)), roleFlags: 0, expression: 'a0'),
+        ],
+        outputs: [
+          if (consumed)
+            LvPrimTerminal(port: 9, type: mapLvWireType(const ViSignalType(0x0107)), roleFlags: 0, expression: 'e0'),
+        ],
+        outputPorts: const [9],
+        portDrawnTop: const {0: 0},
+        requireImport: (_) {},
+        names: LvNaming(),
+        nodeFlags: null,
+      ),
+    );
+    expect(lower(consumed: false), ['lvWaitMs(a0);']);
+    expect(lower(consumed: true), ['final int e0 = lvWaitMs(a0);']);
   });
 
   test('a scalar primitive wired to arrays lowers as a map over their elements', () {
@@ -573,6 +606,7 @@ final double volts;
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -633,6 +667,7 @@ final double volts;
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -654,6 +689,7 @@ final double volts;
       portDrawnTop: const {0: 10, 1: 20},
       requireImport: (_) {},
       names: LvNaming(),
+      nodeFlags: null,
     );
     expect(lvPrimLowering(call), isNull);
   });
@@ -681,6 +717,7 @@ final double volts;
         portDrawnTop: drawnTop,
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected == null ? null : [expected], reason: name);
     }
@@ -714,6 +751,7 @@ final double volts;
         portDrawnTop: {0: 40, 1: 10, ports[0]: 10, ports[1]: 40},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }
@@ -769,6 +807,7 @@ final double volts;
         portDrawnTop: const {},
         requireImport: (_) {},
         names: LvNaming(),
+        nodeFlags: null,
       );
       expect(lvPrimLowering(call), expected, reason: name);
     }

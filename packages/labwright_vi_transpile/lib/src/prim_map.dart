@@ -204,8 +204,8 @@ class LvPrimCall {
     required this.portDrawnTop,
     required this.requireImport,
     required this.names,
+    required this.nodeFlags,
     this.primResId,
-    this.nodeFlags = 0,
   });
 
   /// The decoded primitive operation, or null when the node's identity is its
@@ -219,9 +219,12 @@ class LvPrimCall {
   /// The node's heap class code.
   final int classCode;
 
-  /// The node's own record flags ([LvPrimUnit.nodeFlags]) — what separates the
-  /// two by-name operations sharing class [kLvByNameClass].
-  final int nodeFlags;
+  /// The node's own record flags ([LvPrimUnit.nodeFlags]), or null where the
+  /// object carries no flags word. It selects [LvCompoundMode] and separates
+  /// the two by-name operations sharing class [kLvByNameClass]; both readings
+  /// refuse on null, since zero is a value the field holds rather than its
+  /// absence.
+  final int? nodeFlags;
 
   /// The input terminals, in terminal order.
   final List<LvPrimTerminal> inputs;
@@ -335,18 +338,6 @@ class LvPrimCall {
 ///   puts equal elements in, are not stated anywhere in the file.
 /// - `Boolean To (0,1)` (1167, 550) — the name gives the pair, not which
 ///   member each boolean maps to.
-/// - `To Lower Case` (1189, 673) — LabVIEW's case-mapping table over a byte
-///   string is not decoded, and Dart's `toLowerCase` is Unicode's, which
-///   differs above U+007F.
-/// - `String Subset` (1503, 669) — its operand ORDER reads (every one of the
-///   669 corpus nodes draws its three inputs on distinct rows, so the
-///   drawn-order rule gives `[string, offset, length]`, and the offset is
-///   0-based: 15 nodes wire a `0` constant to it, which a 1-based offset never
-///   takes). What is missing is the rule for an operand OUTSIDE the string —
-///   whether LabVIEW clamps, empties or raises — and the corpus cannot supply
-///   it: the offset is left unwired on 312 nodes and the length on 135, so the
-///   defaults are not stated either. Dart's `substring` raises, which is a
-///   different string from whatever LabVIEW returns, so the node is refused.
 /// - `Number To Boolean Array` (1814, 21) and `Boolean Array To Number`
 ///   (1815, 26) — the bit order of the array is not decoded.
 /// - `Transpose 2D Array` (1902) and a rank-2 `Array Size` — the array's own
@@ -392,6 +383,8 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.toUnsignedQuadInteger,
   PrimOp.stringToByteArray,
   PrimOp.byteArrayToString,
+  PrimOp.stringSubset,
+  PrimOp.toLowerCase,
   PrimOp.rotateLeftWithCarry,
   PrimOp.rotateRightWithCarry,
   PrimOp.swapBytes,
@@ -400,6 +393,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.logicalShift,
   PrimOp.typeCast,
   PrimOp.notANumberPathRefnum,
+  PrimOp.waitMs,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -423,8 +417,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
 /// and [kLvByNameUnbundlesBit] is the decoded record that separates them;
 /// `0xae` (156) is `Start Asynchronous Call` ×95 AND `Wait On Asynchronous
 /// Call` ×3; `0xd6` (2 437) is `Event Data Node` ×17 AND `Event Filter Node`
-/// ×1; `0x114` (414) is `Overflow array` ×4 against `Initialize Array` ×3, both
-/// of which read as author text; `0x14a` (380) is `Feedback Node` ×12 and
+/// ×1; `0x14a` (380) is `Feedback Node` ×12 and
 /// `Target Angle` ×2. `0xa9` (2 619) carries 38 distinct captions of which
 /// `Invoke Node` ×84 is only the most common — the rest (`Classes` ×10,
 /// `Attribute` ×10, `Save` ×8, …) name a member rather than the node.
@@ -443,42 +436,47 @@ const Set<PrimOp> kLvMappedPrimOps = {
 /// [kLvUnbundleClass]'s entry predates the bar and does not clear it: its
 /// second caption text is `Template unbundler` ×4, which reads as author text
 /// beside `Unbundle` ×25.
-const Map<int, ({String name, int captions})> kLvNamedNodeClasses = {
-  kLvIndexArrayClass: (name: 'Index Array', captions: 27),
-  kLvReplaceArraySubsetClass: (name: 'Replace Array Subset', captions: 10),
-  kLvBundleClass: (name: 'Bundle', captions: 26),
-  kLvUnbundleClass: (name: 'Unbundle', captions: 25),
-  kLvBuildArrayClass: (name: 'Build Array', captions: 74),
-  kLvConcatenateStringsClass: (name: 'Concatenate Strings', captions: 32),
-  0x6c: (name: 'Compound Arithmetic', captions: 14),
-  0x92: (name: 'Scan From String', captions: 3),
-  0x93: (name: 'Format Into String', captions: 37),
-  0x105: (name: 'Match Regular Expression', captions: 4),
-  0xbd: (name: 'Delete From Array', captions: 7),
-  kLvMergeErrorsClass: (name: 'Merge Errors', captions: 113),
+///
+/// One entry is named by its **terminal grammar** instead
+/// ([LvClassNameBasis.terminalGrammar]) — see [kLvInitializeArrayClass], whose
+/// captions do not agree and whose signature admits one operation.
+const Map<int, ({String name, int captions, LvClassNameBasis basis})> kLvNamedNodeClasses = {
+  kLvIndexArrayClass: (name: 'Index Array', captions: 27, basis: LvClassNameBasis.captions),
+  kLvReplaceArraySubsetClass: (name: 'Replace Array Subset', captions: 10, basis: LvClassNameBasis.captions),
+  kLvBundleClass: (name: 'Bundle', captions: 26, basis: LvClassNameBasis.captions),
+  kLvUnbundleClass: (name: 'Unbundle', captions: 25, basis: LvClassNameBasis.captions),
+  kLvBuildArrayClass: (name: 'Build Array', captions: 74, basis: LvClassNameBasis.captions),
+  kLvConcatenateStringsClass: (name: 'Concatenate Strings', captions: 32, basis: LvClassNameBasis.captions),
+  kLvCompoundArithmeticClass: (name: 'Compound Arithmetic', captions: 14, basis: LvClassNameBasis.captions),
+  0x92: (name: 'Scan From String', captions: 3, basis: LvClassNameBasis.captions),
+  0x93: (name: 'Format Into String', captions: 37, basis: LvClassNameBasis.captions),
+  0x105: (name: 'Match Regular Expression', captions: 4, basis: LvClassNameBasis.captions),
+  0xbd: (name: 'Delete From Array', captions: 7, basis: LvClassNameBasis.captions),
+  kLvMergeErrorsClass: (name: 'Merge Errors', captions: 113, basis: LvClassNameBasis.captions),
+  kLvInitializeArrayClass: (name: 'Initialize Array', captions: 3, basis: LvClassNameBasis.terminalGrammar),
 };
+
+/// What names a node class in [kLvNamedNodeClasses].
+enum LvClassNameBasis {
+  /// **One** distinct caption text across the whole corpus, carried by at
+  /// least three nodes. Users rarely rename a primitive, so captions that
+  /// agree are LabVIEW's own default node name.
+  captions,
+
+  /// The class's **terminal grammar** admits one operation, and the corpus
+  /// captions it under a name that grammar fits. Read where the captions alone
+  /// do not clear the bar above, and stated with the grammar that does.
+  terminalGrammar,
+}
 
 /// The node **classes** that are one operation and have a lowering rule — the
 /// [kLvNamedNodeClasses] entries whose operand roles the terminal records
 /// establish (see [LvArrayTerminalRole]) or the drawn order does (see the
 /// library doc's N-input section).
 ///
-/// `Compound Arithmetic` (`0x6c`) is deliberately absent even though its
-/// operand ORDER now reads: the node also carries a mode — LabVIEW's one node
-/// adds, multiplies, ANDs, ORs or XORs — and a per-input inversion, and neither
-/// is decoded. The corpus, over its 1 104 nodes, says exactly how far the
-/// reading gets: the node's own [ViHeapObject.objFlags] takes ten values whose
-/// high nibble pairs with the wire carrier (`0xa0000` on 710 all-boolean nodes
-/// and 2 all-integer, `0xb0000` on 297 and 2, `0x80000` on 48 all-integer and
-/// 12 all-DBL, then `0x20000`, `0x30000`, `0x90000`, `0xc0000` in the tens),
-/// and the input terminals carry a `0x10000` bit on some inputs and not others
-/// — 334 nodes read `0x0,0x10000` and 97 read `0x10000,0x0`, which is the shape
-/// a per-input inversion would have. What is missing is the tie from either
-/// field to the operation it names: no corpus node labels its mode, an
-/// all-boolean node is equally an AND, an OR or an XOR under every reading, and
-/// the same `0x10000` bit sits on ordinary `Subtract` inputs where an inversion
-/// would mean nothing. A wrong mode is a silently wrong sum, so the node is
-/// refused.
+/// `Compound Arithmetic` (`0x6c`) is here for the two modes a published test
+/// vector decides and no others; [LvCompoundMode] carries the field's whole
+/// reading and [kLvLoweredCompoundModes] the part of it that lowers.
 const Set<int> kLvMappedPrimClasses = {
   kLvIndexArrayClass,
   kLvReplaceArraySubsetClass,
@@ -487,14 +485,63 @@ const Set<int> kLvMappedPrimClasses = {
   kLvUnbundleClass,
   kLvMergeErrorsClass,
   kLvByNameClass,
+  kLvCompoundArithmeticClass,
+  kLvInitializeArrayClass,
 };
 
-/// Whether a node identified by [op] (null when its class is the identity) and
-/// [classCode] has a lowering rule at all. A node that passes this may still
-/// be refused once its operands are resolved — a growable Index Array, say,
-/// whose terminal roles are outside the pinned 1-D shape.
-bool lvPrimHasRule({PrimOp? op, required int classCode}) =>
-    op == null ? kLvMappedPrimClasses.contains(classCode) : kLvMappedPrimOps.contains(op);
+/// The **primResIDs with no name** whose operation in a given shape a published
+/// test vector nonetheless decides.
+///
+/// [PrimOp] names an id only on the evidence its own library doc sets out, and
+/// neither id here clears that bar: no corpus VI labels either node. What this
+/// set adds is a different kind of evidence, and a weaker claim. A lowering is
+/// hypothesised for the node from its terminal grammar and its position in a
+/// diagram whose output is published, the diagram is lowered under the
+/// hypothesis, and the result is compared with the published vectors. A wrong
+/// hypothesis produces a wrong result; the right one reproduces every vector.
+///
+/// So each entry states **what the node computes in the shapes below**, proven
+/// against a vector, and does not name the primitive in general — a node
+/// outside those shapes is refused exactly as an unnamed one is: `_rotate` and
+/// `_hexString` gate on the width the vectors exercise, and the runtime refuses
+/// the operands they leave undecided.
+///
+/// - [kLvRotatePrimResId] (1082, 3 corpus nodes) — a rotation over the value's
+///   own width. Its terminal grammar is byte-for-byte the corpus-labelled
+///   `Logical Shift`'s (1081): two inputs and one output, role bits
+///   `[0x10000, 0x0]` in heap order on 3 of 3 nodes against 67 of 68, and the
+///   role-`0x10000` operand is the one carrying the result's numeric kind on
+///   both. `MD5.vi` wires it between a four-term sum and an addition, with its
+///   count taken from the published per-round rotation table, and the RFC 1321
+///   digests hold only if the node rotates left by a positive count. Only a
+///   32-bit result lowers; the count is a table lookup even in `MD5.vi`, so it
+///   is the runtime that refuses one outside a single width.
+/// - [kLvHexStringPrimResId] (1181, 14 corpus nodes) — an integer written in
+///   **hexadecimal** at a stated field width. Its signature is one
+///   I16 and one integer in, one string out, on all 14; the corpus-labelled
+///   `Number To Decimal String` is 1180 and `Decimal String To Number` 1184, so
+///   1181 sits in the to-string half of a radix run whose two ends are pinned,
+///   and the two integer radices left in that half are hexadecimal and octal.
+///   `MD5.vi` formats its four state words through it at width 8 and the RFC
+///   1321 digests hold under hexadecimal and under no other radix or width.
+///   Only a 32-bit value lowers, and the runtime refuses a field the value
+///   overflows.
+const Set<int> kLvProvenPrimResIds = {kLvRotatePrimResId, kLvHexStringPrimResId};
+
+/// The `primResID` of the rotation node — see [kLvProvenPrimResIds].
+const int kLvRotatePrimResId = 1082;
+
+/// The `primResID` of the hexadecimal number-to-string node — see
+/// [kLvProvenPrimResIds].
+const int kLvHexStringPrimResId = 1181;
+
+/// Whether a node identified by [op] (null when its class is the identity),
+/// [classCode] and [primResId] has a lowering rule at all. A node that passes
+/// this may still be refused once its operands are resolved — a growable Index
+/// Array, say, whose terminal roles are outside the pinned 1-D shape.
+bool lvPrimHasRule({PrimOp? op, required int classCode, int? primResId}) => op == null
+    ? kLvMappedPrimClasses.contains(classCode) || kLvProvenPrimResIds.contains(primResId)
+    : kLvMappedPrimOps.contains(op);
 
 /// The statements defining a node's outputs, or null when the node has no
 /// decided lowering — in which case [lvPrimUnmappedReason] says what is
@@ -504,7 +551,7 @@ bool lvPrimHasRule({PrimOp? op, required int classCode}) =>
 /// **elementwise** form ([_elementwise]), which is how a scalar operation
 /// wired to arrays lowers.
 List<String>? lvPrimLowering(LvPrimCall call) {
-  if (!lvPrimHasRule(op: call.op, classCode: call.classCode)) return null;
+  if (!lvPrimHasRule(op: call.op, classCode: call.classCode, primResId: call.primResId)) return null;
   return _lowerDirect(call) ?? _elementwise(call);
 }
 
@@ -624,6 +671,24 @@ List<String>? _lowerDirect(LvPrimCall call) {
     case PrimOp.notANumberPathRefnum:
       return _isNotANumber(call);
 
+    case PrimOp.stringSubset:
+      return _stringSubset(call);
+
+    case PrimOp.toLowerCase:
+      return _toLowerCase(call);
+
+    case PrimOp.waitMs:
+      return _waitMs(call);
+
+    case null:
+      // The ids with no name whose operation a published vector decides.
+      switch (call.primResId) {
+        case kLvRotatePrimResId:
+          return _rotate(call);
+        case kLvHexStringPrimResId:
+          return _hexString(call);
+      }
+
     case _:
       break;
   }
@@ -634,6 +699,8 @@ List<String>? _lowerDirect(LvPrimCall call) {
   if (call.classCode == kLvUnbundleClass) return _unbundle(call);
   if (call.classCode == kLvMergeErrorsClass) return _mergeErrors(call);
   if (call.classCode == kLvByNameClass) return _byName(call);
+  if (call.classCode == kLvCompoundArithmeticClass) return _compoundArithmetic(call);
+  if (call.classCode == kLvInitializeArrayClass) return _initializeArray(call);
   return null;
 }
 
@@ -664,6 +731,132 @@ const int kLvBundleClass = 0x34;
 /// The heap class code of the **Merge Errors** node (corpus node labels ×113,
 /// no competing caption).
 const int kLvMergeErrorsClass = 0x172;
+
+/// The heap class code of the **Compound Arithmetic** node (corpus node labels
+/// ×14, no competing caption). Which operation it performs is
+/// [LvCompoundMode].
+const int kLvCompoundArithmeticClass = 0x6c;
+
+/// The heap class code of the **Initialize Array** node.
+///
+/// Its captions do not agree — `Overflow array` ×4 against `Initialize Array`
+/// ×3 over 414 corpus nodes — so the class is named by its **terminal
+/// grammar**, which admits one operation. Every node reads as one
+/// [LvInitializeArrayRole.element] terminal, then one plain size terminal per
+/// dimension, then one output: 369 nodes are `[element, size] → 1-D` and 43 are
+/// `[element, size, size] → 2-D`, with 2 more whose second terminal is unwired
+/// and none of any other shape. Two wire facts fix which terminal is which,
+/// each on all 414: the role-flagged terminal's own wire type is the OUTPUT's
+/// element type (`0x50d0` in / `0x50d1` out, `0x3d0` in / `0x3d1` out, …), and
+/// every other input is an integer whose width does not track the element's.
+/// An operation taking one element and one length per dimension and yielding an
+/// array of that element is Initialize Array, which is also the LabVIEW default
+/// name the captions carry; `Overflow array` names a value rather than an
+/// operation and reads as author text.
+const int kLvInitializeArrayClass = 0x114;
+
+/// Role bits on an [kLvInitializeArrayClass] terminal's own record.
+abstract final class LvInitializeArrayRole {
+  /// The **element** every cell of the new array takes: the one input whose
+  /// wire type is the output's element type.
+  static const int element = 0x20000;
+
+  /// A **dimension size**. Carries no role bit of its own.
+  static const int size = 0x0;
+
+  /// The array the node yields.
+  static const int output = 0x1;
+}
+
+/// What a [kLvCompoundArithmeticClass] node computes: bits 16..18 of its own
+/// record ([LvPrimCall.nodeFlags]), read as a mode selector.
+///
+/// LabVIEW draws one node for five reductions, and the corpus separates the
+/// field's five values by the wire family they appear on. Over the 1 104 corpus
+/// nodes, counting the nodes whose every wire types and agrees on a family:
+///
+/// | value | boolean | integer | float | nodes |
+/// |-------|---------|---------|-------|-------|
+/// | 0     | 0       | 52      | 12    | 66    |
+/// | 1     | 0       | 0       | 1     | 9     |
+/// | 2     | 674     | 2       | 0     | 719   |
+/// | 3     | 250     | 4       | 0     | 309   |
+/// | 4     | 0       | 1       | 0     | 1     |
+///
+/// That splits the five into a numeric pair (0, 1 — never boolean, and both
+/// carry DBL wires, which no bitwise reduction does) and a bitwise triple
+/// (2, 3, 4 — 924 of their 931 typed nodes are all-boolean). Two of the five
+/// are then decided outright by a published test vector: `MD5.vi` sums four
+/// U32 words through a **value-0** node and combines three through a
+/// **value-4** node, and the RFC 1321 digests hold only if the first adds and
+/// the second exclusive-ORs. The remaining three are named for the palette
+/// order the pinned values bracket — 0 Add … 4 Exclusive OR, with Multiply the
+/// other member of the numeric pair — and are NOT lowered
+/// ([kLvLoweredCompoundModes]): a boolean node is equally an AND or an OR under
+/// every reading the file supports, and a wrong reduction is a silently wrong
+/// value.
+///
+/// Bit `0x80000` sits above the field on 1 091 of the 1 104 nodes and is not
+/// part of it: the 13 that lack it are 5 value-2 and 8 value-3 nodes, i.e. the
+/// same two modes the bit's carriers use, so it separates no operation.
+enum LvCompoundMode {
+  /// Proven by RFC 1321 in `MD5.vi`'s four-term U32 sum.
+  add(0, 'Add'),
+
+  /// Named from the palette order, on the numeric half of the census. Not
+  /// lowered.
+  multiply(1, 'Multiply'),
+
+  /// Named from the palette order, on the boolean half. Not lowered.
+  and(2, 'AND'),
+
+  /// Named from the palette order, on the boolean half. Not lowered.
+  or(3, 'OR'),
+
+  /// Proven by RFC 1321 in `MD5.vi`'s three-term U32 combination.
+  exclusiveOr(4, 'Exclusive OR')
+  ;
+
+  const LvCompoundMode(this.selector, this.opName);
+
+  /// The value bits 16..18 of the node's record carry.
+  final int selector;
+
+  /// LabVIEW's own name for the reduction.
+  final String opName;
+
+  /// The mode [nodeFlags] selects, or null when it holds no catalogued value or
+  /// the node carries no flags word at all.
+  static LvCompoundMode? ofNodeFlags(int? nodeFlags) => nodeFlags == null ? null : _bySelector[(nodeFlags >> 16) & 0x7];
+
+  static final Map<int, LvCompoundMode> _bySelector = {for (final mode in values) mode.selector: mode};
+}
+
+/// The [LvCompoundMode]s with a lowering — the ones a published test vector
+/// decides, with the Dart operator each reduces its operands by.
+const Map<LvCompoundMode, String> kLvLoweredCompoundModes = {
+  LvCompoundMode.add: '+',
+  LvCompoundMode.exclusiveOr: '^',
+};
+
+/// The bit a [kLvCompoundArithmeticClass] terminal's record carries where the
+/// node **inverts** that operand — LabVIEW draws a small circle on the
+/// terminal, and the node's published description is a reduction over operands
+/// any of which may be inverted, with the result optionally inverted too.
+///
+/// Which of the two states the bit names is not decoded, and the corpus cannot
+/// say: no node labels its inversions, and the same `0x10000` value sits on
+/// ordinary `Subtract` inputs where an inversion would mean nothing. So this is
+/// read only as a **gate** — a node carrying it on any terminal is refused,
+/// whichever state it names — and never as a licence to emit a complement.
+///
+/// Over the corpus's 1 104 nodes it sits on a terminal of 583 (an input role
+/// reads `0x50000` where a plain operand reads `0x40000`), and it concentrates
+/// exactly where a boolean complement is idiomatic: 505 of them select AND and
+/// 70 OR, against 8 that select Add and none that select Multiply or Exclusive
+/// OR. So of the 67 nodes in a mode [kLvLoweredCompoundModes] carries, 59 have
+/// no inverted terminal and this gate refuses 8.
+const int kLvCompoundInversionBit = 0x10000;
 
 /// The heap class code shared by **Bundle By Name** and **Unbundle By Name**.
 ///
@@ -713,7 +906,11 @@ String lvPrimUnmappedReason(LvPrimCall call) {
         ].join('/')})';
   }
   if (call.classCode == kLvByNameClass) {
-    final unbundles = (call.nodeFlags & kLvByNameUnbundlesBit) != 0;
+    if (call.nodeFlags == null) {
+      return 'Bundle/Unbundle By Name (class 0x${call.classCode.toRadixString(16)}) carries no '
+          'flags word, and [kLvByNameUnbundlesBit] is the only reading that separates the two';
+    }
+    final unbundles = (call.nodeFlags! & kLvByNameUnbundlesBit) != 0;
     final members = unbundles ? call.outputs : call.inputs;
     final cluster = (unbundles ? call.inputs : call.outputs).firstOrNull?.type;
     final declaration = cluster == null ? null : _clusterDecl(cluster);
@@ -722,6 +919,23 @@ String lvPrimUnmappedReason(LvPrimCall call) {
         '${declaration == null ? 'its cluster wire carries no declared class, and' : 'against ${declaration.name},'} '
         '${members.where((terminal) => terminal.memberName == null).length} of ${members.length} '
         'member terminals name no member on their own record';
+  }
+  if (call.classCode == kLvCompoundArithmeticClass) {
+    final mode = LvCompoundMode.ofNodeFlags(call.nodeFlags);
+    if (mode == null || !kLvLoweredCompoundModes.containsKey(mode)) {
+      final selects = call.nodeFlags == null
+          ? 'no mode, carrying no flags word'
+          : 'mode ${(call.nodeFlags! >> 16) & 0x7}';
+      return 'Compound Arithmetic (class 0x${call.classCode.toRadixString(16)}) selects $selects'
+          '${mode == null ? '' : ' (${mode.opName})'}, which no published test vector decides, '
+          'and a wrong reduction is a silently wrong value';
+    }
+    final inverted = [...call.inputs, ...call.outputs].where((t) => t.roleFlags & kLvCompoundInversionBit != 0);
+    if (inverted.isNotEmpty) {
+      return 'Compound Arithmetic (class 0x${call.classCode.toRadixString(16)}) carries the '
+          'per-terminal inversion bit on ${inverted.length} of ${call.inputs.length + call.outputs.length} '
+          'terminals, and which state the bit names is not decoded';
+    }
   }
   if (kLvNamedNodeClasses[call.classCode] case final named?) {
     if (kLvMappedPrimClasses.contains(call.classCode)) {
@@ -738,6 +952,16 @@ String lvPrimUnmappedReason(LvPrimCall call) {
         'argument is not established from the terminal records';
   }
   if (call.primResId case final id?) {
+    if (kLvProvenPrimResIds.contains(id)) {
+      return 'primResID $id is not named anywhere in the corpus; what it computes is '
+          'established for the shapes a published test vector exercises '
+          '(see kLvProvenPrimResIds), and this node is outside them '
+          '(${call.inputs.length} wired inputs, ${call.outputs.length} of '
+          '${call.outputPorts.length} outputs consumed, terminal types '
+          '${[
+            for (final t in [...call.inputs, ...call.outputs]) t.type.dartType ?? '?',
+          ].join('/')})';
+    }
     return 'primResID $id on node class 0x${call.classCode.toRadixString(16)} is '
         'not named anywhere in the corpus, so the operation it performs is not decoded';
   }
@@ -1174,8 +1398,11 @@ List<String>? _unbundle(LvPrimCall call) {
 /// nodes whose cluster wire types name exactly one member 8 015 times, name no
 /// member of it 1 033 times, and carry no name 386 times, so 4 188 of those
 /// nodes resolve every terminal and 889 do not.
-List<String>? _byName(LvPrimCall call) =>
-    (call.nodeFlags & kLvByNameUnbundlesBit) != 0 ? _unbundleByName(call) : _bundleByName(call);
+List<String>? _byName(LvPrimCall call) => switch (call.nodeFlags) {
+  null => null,
+  final flags when flags & kLvByNameUnbundlesBit != 0 => _unbundleByName(call),
+  _ => _bundleByName(call),
+};
 
 List<String>? _unbundleByName(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.isEmpty) return null;
@@ -1329,7 +1556,8 @@ List<String>? _elementwise(LvPrimCall call) {
   // Only the operations whose identity is a `primResID`: the classes this map
   // names are array and string operations already, and their own rule is what
   // reads an array wire.
-  if (call.op == null || call.op == PrimOp.typeCast || call.inputs.isEmpty) return null;
+  if (call.op == null && !kLvProvenPrimResIds.contains(call.primResId)) return null;
+  if (call.op == PrimOp.typeCast || call.inputs.isEmpty) return null;
   final terminals = [...call.inputs, ...call.outputs];
   if (terminals.any((terminal) => terminal.type.dims != 1)) return null;
 
@@ -1378,6 +1606,7 @@ List<String>? _elementwise(LvPrimCall call) {
     portDrawnTop: call.portDrawnTop,
     requireImport: call.requireImport,
     names: call.names,
+    nodeFlags: call.nodeFlags,
   );
   final body = _lowerDirect(scalar);
   if (body == null) return null;
@@ -1706,6 +1935,211 @@ List<String>? _replaceArraySubset(LvPrimCall call) {
   final storage = out.type.elementListType;
   return [
     'final $storage $name = $storage.fromList(${array.expression})..[${index.expression}] = ${element.expression};',
+  ];
+}
+
+/// `Compound Arithmetic` — its operands reduced by the operation
+/// [LvCompoundMode] names, in drawn order.
+///
+/// Only [kLvLoweredCompoundModes] lower, and only when no terminal carries
+/// [kLvCompoundInversionBit]. Every operand and the result must be a scalar
+/// INTEGER of the result's own kind: an array wire makes the node the
+/// elementwise form, LabVIEW's coercion between differing widths is not
+/// decoded, exclusive OR has no reading on a float, and float addition is not
+/// associative — so a float reduction of three or more operands would turn on
+/// an association order the file does not state. Over integers both lowered
+/// reductions ARE associative, which is what makes taking the operands in drawn
+/// order safe.
+List<String>? _compoundArithmetic(LvPrimCall call) {
+  if (call.outputs.length != 1 || !call.hasSoleSourceTerminal || call.inputs.length < 2) return null;
+  final mode = LvCompoundMode.ofNodeFlags(call.nodeFlags);
+  final operator = kLvLoweredCompoundModes[mode];
+  if (operator == null) return null;
+  final out = call.outputs.single;
+  if (out.roleFlags & kLvCompoundInversionBit != 0) return null;
+  final kind = out.type.numeric;
+  if (kind == null || out.type.dims != 0) return null;
+  if (kind.isFloat) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  for (final operand in ordered) {
+    if (operand.roleFlags & kLvCompoundInversionBit != 0) return null;
+    if (operand.type.dims != 0 || operand.type.numeric != kind) return null;
+  }
+  final name = out.expression;
+  if (name == null) return const [];
+  final body = [for (final operand in ordered) operand.expression].join(' $operator ');
+  return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
+}
+
+/// `Initialize Array` — a 1-D array of the drawn size, every cell holding the
+/// element operand (see [kLvInitializeArrayClass] for the terminal grammar
+/// that names both).
+///
+/// Rank 2 and above is refused for the reason every other higher-rank
+/// operation is ([LvArrayTerminalRole]): the array type's own dimension order
+/// is not decoded, so a two-size node cannot say which size is which axis.
+List<String>? _initializeArray(LvPrimCall call) {
+  if (call.outputs.length != 1 || !call.hasSoleSourceTerminal || call.inputs.length != 2) return null;
+  final element = call.inputWithRole(LvInitializeArrayRole.element);
+  final size = call.inputWithRole(LvInitializeArrayRole.size);
+  final out = call.outputs.single;
+  if (element == null || size == null || out.roleFlags != LvInitializeArrayRole.output) return null;
+  if (out.type.dims != 1 || element.type.dims != 0) return null;
+  if (element.type.dartType != out.type.element.dartType) return null;
+  if (size.type.dims != 0 || size.type.numeric == null || size.type.numeric!.isFloat) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  if (out.type.numeric != null) call.requireImport('dart:typed_data');
+  final filled =
+      '${LvRuntimeCall.initializeArray}<${out.type.element.dartType}>'
+      '(${size.expression}, ${element.expression})';
+  return ['final ${out.type.dartType} $name = ${lvArrayFreeze(out.type.element, filled)};'];
+}
+
+/// `String Subset` — [length] characters of the string operand from [offset],
+/// both taken in drawn order (`[string, offset, length]`; every one of the 669
+/// corpus nodes draws its three inputs on distinct rows). The offset is
+/// 0-based: 15 corpus nodes wire a `0` constant to it, which a 1-based offset
+/// never takes.
+///
+/// An input LabVIEW leaves unwired reads as a SOURCE terminal, so the node's
+/// three input rows are its wired inputs and its spare source ports together,
+/// ordered by the row each is drawn on. The **length** may be one of those
+/// spares: its unwired default is the rest of the string, which `MD5.vi`
+/// depends on — the VI takes its trailing partial block that way, and the RFC
+/// 1321 digest of every message whose length is not a multiple of 64 is wrong
+/// under any other default. An unwired **offset** (312 corpus nodes) has no
+/// such witness and is refused.
+///
+/// What an operand outside the string yields is not decoded either; the
+/// runtime throws there rather than choosing between clamping and emptying
+/// (see `TODO(lv-string-subset-range)`).
+List<String>? _stringSubset(LvPrimCall call) {
+  if (call.outputs.length != 1) return null;
+  final out = call.outputs.single;
+  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  final rows = call.portsTopDown([
+    for (final operand in call.inputs) operand.port,
+    for (final port in call.outputPorts)
+      if (port != out.port) port,
+  ]);
+  if (rows == null || rows.length != 3) return null;
+  final wired = {for (final operand in call.inputs) operand.port: operand};
+  final string = wired[rows[0]], offset = wired[rows[1]], length = wired[rows[2]];
+  if (string == null || offset == null) return null;
+  if (string.type.dims != 0 || string.type.dartType != 'String') return null;
+  for (final count in [offset, length]) {
+    if (count == null) continue;
+    if (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat) return null;
+    if (_hazardous(count.type, '<')) return null;
+  }
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  final arguments = [string.expression, offset.expression, if (length != null) length.expression];
+  return ['final String $name = ${LvRuntimeCall.stringSubset}(${arguments.join(', ')});'];
+}
+
+/// `To Lower Case` over a scalar string — LabVIEW's case mapping, which the
+/// runtime carries for the ASCII range and refuses above it (see
+/// `TODO(lv-lowercase-high)`). The node's numeric and array forms are refused:
+/// what a character CODE lowers to is the same undecoded table.
+List<String>? _toLowerCase(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputs.length != 1) return null;
+  final source = call.inputs.single, out = call.outputs.single;
+  if (source.type.dims != 0 || source.type.dartType != 'String') return null;
+  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  return ['final String $name = ${LvRuntimeCall.toLowerCase}(${source.expression});'];
+}
+
+/// `Wait (ms)` — the one operand is the wait, the one result is the millisecond
+/// timer read after it. There is no operand order to decode: the node draws one
+/// input and one output, which the published reference names `milliseconds to
+/// wait` and `millisecond timer value`, both unsigned 32-bit.
+///
+/// Unlike every other lowering here, the statement is emitted even when nothing
+/// consumes the result: the elapsed time is the point of the node, so dropping
+/// the call because its output is unwired would drop the operation itself.
+///
+/// A float or array operand is a coercion LabVIEW performs at the terminal and
+/// what it rounds toward is not established; a result wire of some other width
+/// is not what the node yields. Both are refused.
+List<String>? _waitMs(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputPorts.length != 1) return null;
+  final source = call.inputs.single;
+  final operand = source.type.numeric;
+  if (source.type.dims != 0 || operand == null || operand.isFloat) return null;
+
+  final out = call.outputs.singleOrNull;
+  if (out != null && (out.type.dims != 0 || out.type.numeric != LvNumericKind.u32)) return null;
+
+  call.requireImport(kLvRuntimeImport);
+  final wait = '${LvRuntimeCall.waitMs}(${source.expression})';
+  final name = out?.expression;
+  return [if (name == null) '$wait;' else 'final ${out!.type.dartType} $name = $wait;'];
+}
+
+/// The rotation node ([kLvRotatePrimResId]) — the LOWER operand rotated toward
+/// the high bits by the upper one. Which operand is which is `Logical Shift`'s
+/// own reading, on `Logical Shift`'s own terminal grammar (see
+/// [kLvProvenPrimResIds] and [_logicalShift]): the value is the operand
+/// carrying the result's numeric kind, which is the lower-drawn one.
+///
+/// Only the proven shape lowers: a 32-bit integer result. The count stays a
+/// run-time value even there — `MD5.vi` reads it from a table — so it is
+/// [LvRuntimeCall.rotate] that refuses one outside a single width.
+List<String>? _rotate(LvPrimCall call) {
+  if (call.inputs.length != 2 || call.outputs.length != 1 || !call.hasSoleSourceTerminal) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final (count, value) = (ordered[0], ordered[1]);
+  final out = call.outputs.single;
+  final kind = out.type.numeric;
+  if (kind == null || kind.isFloat || kind.bits != 32 || out.type.dims != 0) return null;
+  if (value.type.dims != 0 || value.type.numeric != kind) return null;
+  if (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  final rotated = '${LvRuntimeCall.rotate}(${value.expression}, ${count.expression}, ${kind.bits})';
+  return ['final int $name = ${lvWrapped(out.type, rotated)};'];
+}
+
+/// The hexadecimal number-to-string node ([kLvHexStringPrimResId]) — the UPPER
+/// operand written in hexadecimal at the lower operand's width.
+///
+/// The drawn order is the same rule every other ordered node takes, and the
+/// wires state it independently here: the width operand is an I16 on all 14
+/// corpus nodes while the value carries the width of whatever is being
+/// formatted, and the I16 is the lower-drawn terminal on every one of them.
+///
+/// Only the proven shape lowers: a 32-bit value. The field width is the wire's
+/// own, and [LvRuntimeCall.hexString] refuses one the value overflows, which is
+/// the only case the readings of it differ on. The digits are upper case on the
+/// VI's own evidence — it follows the four conversions with a `To Lower Case`,
+/// a no-op on a conversion that already writes lower case. The digests hold for
+/// the PAIR either way, so they prove the radix and not the case.
+List<String>? _hexString(LvPrimCall call) {
+  if (call.inputs.length != 2 || call.outputs.length != 1 || !call.hasSoleSourceTerminal) return null;
+  final ordered = call.inputsTopDown;
+  if (ordered == null) return null;
+  final (value, width) = (ordered[0], ordered[1]);
+  final out = call.outputs.single;
+  final kind = value.type.numeric;
+  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  if (kind == null || kind.isFloat || kind.bits != 32 || value.type.dims != 0) return null;
+  if (width.type.dims != 0 || width.type.numeric == null || width.type.numeric!.isFloat) return null;
+  final name = out.expression;
+  if (name == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  return [
+    'final String $name = '
+        '${LvRuntimeCall.hexString}(${value.expression}, ${width.expression}, ${kind.bits});',
   ];
 }
 

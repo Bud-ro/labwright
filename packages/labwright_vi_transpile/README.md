@@ -388,6 +388,7 @@ the primitive's own name.
 | Case structure (`0x2c`) | `if`/`else` over a boolean selector, each output tunnel a `final` assigned in both branches |
 | Diagram Disable (`0xcd`) | the Enabled frame's region, inline |
 | While loop (`0x21`) | **refused** — the conditional terminal's stop-if-true / continue-if-true polarity is not decoded |
+| In Place Element (`0x14d`) | **refused** — see below |
 
 An auto-indexing tunnel is identified by flag `0x1000000`. Corpus, over 21,486
 loop tunnels whose two sides both resolve a dimensionality: all 6,584 flagged
@@ -406,6 +407,21 @@ A For loop's **non-indexing output tunnel** is refused: it carries the last
 iteration's value, or the element type's default when the loop runs zero times,
 and that default is not decoded.
 
+The **In Place Element Structure** (`0x14d`) is common but is not the lever its
+frequency suggests, and `kCorpusInPlaceElement` is the measurement. 705 corpus
+VIs carry one, 904 in total — but a lowering refuses at the first thing it
+cannot read, and the structure is that first thing in only **27** of them.
+The other 678 are held up earlier, 482 by a single cause: a cluster wire whose
+member types no endpoint resolves. Modelling the structure's control flow would
+therefore move at most 0.36% of the corpus.
+
+Those 27 then split against it. 22 carry a border node from `0x150` / `0x14f` /
+`0x152`, whose element access is not recovered — the parser labels that family
+by tree position alone — so control flow is not what they are missing. The
+remaining 5 carry only `0x153`, the read/write pair that accesses a **data
+value reference**, which is the one border node whose role is decoded and which
+would need a reference model this package does not have.
+
 ### Primitives
 
 A node is mapped only when its **identity** and its **operand roles** are both
@@ -418,11 +434,17 @@ Having one operand is necessary but not sufficient — the *result* must follow
 from the operand too. These unary corpus operations are refused for want of a
 rule rather than a role: `Sort 1D Array` (181 nodes; sort direction and tie
 order unstated), `Boolean To (0,1)` (550; which boolean maps to which member),
-`To Lower Case` (673; LabVIEW's case-mapping table over a byte string),
-`Type Cast` (1,259; the flattened layout it reinterprets), `Number To Boolean
-Array` / `Boolean Array To Number` (21 / 26; bit order), and `Transpose 2D
-Array` and a rank-2 `Array Size` (the array's own dimension order — the same
-missing tie that refuses a higher-rank Index Array).
+`Number To Boolean Array` / `Boolean Array To Number` (21 / 26; bit order), and
+`Transpose 2D Array` and a rank-2 `Array Size` (the array's own dimension order
+— the same missing tie that refuses a higher-rank Index Array).
+
+Where an operation's *domain* is decoded but its behaviour outside that domain
+is not, the rule lowers and the **runtime** throws at the boundary rather than
+inventing a value, each with a `TODO` naming the gap: `String Subset` outside
+the string, `To Lower Case` above code unit `0x7F`, `Initialize Array` at a
+negative size, `Type Cast` on a size mismatch, a rotation by anything but a
+count inside one width, and a hexadecimal conversion of a value wider than the
+field it is given.
 
 Two node classes carry their identity in the class code, with corpus node
 labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
@@ -438,9 +460,9 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 111 distinct unmapped identities over
-799 nodes across the 46 tracked snippets, headed by Match Pattern (134), node
-class `0x63` (83), node class `0x3a` (39) and Type Cast (34).
+`test/corpus_lowering_sweep_test.dart`: 88 distinct unmapped identities over
+471 nodes across the tracked snippets, headed by Match Pattern (134) and node
+classes `0x93` (18), `0x105` (16) and `0xa9` (15).
 
 ### subVI calls
 
@@ -463,28 +485,35 @@ disagrees.
 
 ### Outcomes
 
-Over the 46 tracked VI snippets: 4 lower (`crc8`, `basic`, and `VI Tree` /
-`decorations_only`, which have no dataflow) and 42 refuse. Refusals are pinned
-per VI and concentrate in cluster / path / variant wire types (27), undecoded
-primitives (7), constants whose value the heap decode did not recover (2),
-unresolved wire direction (3), a case selector (1), a structure (1) and a subVI
-call whose callee is not supplied (1).
+Over the 46 tracked VI snippets: 8 lower (`MD5`, `PNG CRC32`,
+`crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, and `VI Tree` /
+`decorations_only`, which have no dataflow) and 38 refuse. Refusals are pinned
+per VI and concentrate in cluster / path / variant wire types (24), undecoded
+primitives (5), unresolved wire direction (3), constants whose value the heap
+decode did not recover (2), structures (2) and subVI calls whose callee is not
+supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 186 lower
-and the rest refuse, 6,263 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 229 lower
+and the rest refuse, 5,809 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for. The rest are pinned per kind in
-`kCorpusLoweringSweep`: 372 on a primitive, 221 on a subVI call, 172 on an
-unwired terminal, 98 on a structure, 87 on a wire's direction, 84 on a
-constant's value, 16 on a declaration that cannot be written.
+`kCorpusLoweringSweep`: 524 on a primitive, 322 on a subVI call, 234 on an
+unwired terminal, 111 on a structure, 107 on a wire's direction, 135 on a
+constant's value, 18 on a declaration that cannot be written.
 
-Those 186 lowerings are **54 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 54 into a
+Those 229 lowerings are **79 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 79 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 54 is the independent check that they
+kernel` of one entry point importing all 79 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
+
+Lowering is not the same as being *checked*, though, and the gap is what the
+behavioural tests close. Eight VIs are verified against a published vector
+rather than against this reader's own reading of them: `crc8.vi`,
+`crc32_lookup_table.vi`, `PNG CRC32.vi`, `Calculate CRC.vi`, `Calc CRC-16.vi`,
+`Calc LRC-8.vi`, `ReverseBitsVim.vi` and `MD5.vi`.
 
 ### crc8.vi, byte-exact
 
@@ -498,22 +527,81 @@ catalogued CRC-8 algorithms × 261 messages: **2,610 comparisons, all exact**.
 The reference itself is anchored to the published check values, so neither side
 can drift alone.
 
-### MD5.vi, the distance left
+### CRC-32 and CRC-16, both halves of each
 
-`MD5.vi` is the largest tracked snippet and the next behavioural milestone. Its
-every wire types and its whole structure tree builds; `kMd5Blockers` pins what
-remains, one entry per blocking node — **46 nodes in four groups**:
+Two algorithms are checked from both ends, so the table and the code that
+drives it are proven separately rather than as one round trip.
 
-- **20** carry a `primResID` no corpus VI labels (1162 ×5, 1163 ×5, 1181 ×4,
-  1056 ×3, 1082, 1155, 1156), so the operation itself is not decoded;
-- **11** are named operations whose *operand order* is not decoded (`Subtract`
-  ×3, `String Subset` ×2, `Concatenate Strings` ×2, `Compound Arithmetic` ×2,
-  `Build Array`, `Select`) and **9** whose *rule* is not (`Type Cast` ×7, its
-  flattened layout; `To Lower Case`; `Logical Shift`);
-- **4** are Case structures over an **integer** selector, where the file states
-  only the displayed frame's case value;
-- **1** string constant whose value the heap decode did not recover, and **1**
-  `0x114` node whose corpus captions do not agree on a name.
+- **CRC-32/ISO-HDLC.** `crc32_lookup_table.vi` *builds* the 256-entry table and
+  `PNG CRC32.vi` *consumes* one, and both land on the published check value
+  0xCBF43926 — the CRC of the nine ASCII bytes `123456789`. The consumer side
+  is the wider test: it has to get the 0xFFFFFFFF preset, the per-byte
+  `table[(register ^ byte) & 0xFF] ^ (register >>> 8)` fold and the final
+  complement all right at once, which exercises a U32 right shift, an Index
+  Array read against a constant table, a string auto-indexed into a byte loop,
+  and a `Select` whose two values are arrays.
+- **CRC-16/MODBUS.** `Calculate CRC.vi` folds the polynomial a bit at a time
+  and `Calc CRC-16.vi` — the largest lowering the fetched corpus produces —
+  reads two 256-byte tables through two shift registers that cross over each
+  iteration. Both reproduce the published check value 0x4B37, and they are
+  compared with each other as well as with a reference, so the table pair, the
+  crossover and the emitted byte order are each pinned.
+
+`PNG CRC32.vi` also shows what a faithful lowering looks like when the VI and
+the standard disagree. Its diagram routes an empty byte array to a one-element
+zero constant, so it digests a single zero byte where CRC-32 defines the empty
+message's value to be zero. The lowering reproduces the diagram, and the test
+states that deviation as the value it produces instead of excluding the input.
+
+### MD5.vi, and hypotheses a published vector decides
+
+`MD5.vi` is the largest tracked snippet, and it lowers: `kMd5Blockers` is empty
+and `test/md5_behaviour_test.dart` checks the result against **RFC 1321's own
+test suite**. The RFC fixes 128 bits of output per message, so each vector
+rejects a lowering that misreads any node and all seven together accept only
+one reading of every node — a two-sided oracle, and the reason several
+operations here rest on behaviour rather than on a decoded field.
+
+What that method decided, and what it did not:
+
+- **`primResID` 1082 and 1181** carry no name any corpus VI states. Their
+  terminal grammar and their position in the diagram give a hypothesis — 1082
+  has `Logical Shift`'s grammar exactly and sits under a rotation table; 1181
+  takes an I16 width and an integer and yields a string, in a run whose
+  neighbours 1180 and 1184 are corpus-labelled — and the digests confirm it.
+  `kLvProvenPrimResIds` records **what each computes in the shapes the vectors
+  exercise**, which is a weaker claim than naming the primitive, and a node
+  outside those shapes is refused exactly as an unnamed one is: both lower only
+  a 32-bit result, and the readings the vectors leave open — a rotation count
+  past one width, a field narrower than the value — are refused by the runtime
+  rather than guessed.
+- **Compound Arithmetic**'s mode field (bits 16..18 of the node record) selects
+  five reductions. Two of them — the four-term U32 sum and the three-term
+  combination MD5 draws — are decided by the digests; the other three are named
+  from the palette order the two bracket and are **not lowered**
+  (`LvCompoundMode`). The per-terminal inversion bit is not decoded either way,
+  and a node carrying it is refused, as is a float wire: the vectors are over
+  integers, where both lowered reductions are associative and the drawn order
+  cannot change the value.
+- **`String Subset`'s unwired length** defaults to the rest of the string. Every
+  message whose length is not a multiple of 64 depends on it, so the vectors
+  decide it; an unwired *offset* has no such witness and stays refused.
+- **`To Lower Case`** and 1181's digit case are proven only as a **pair**: the
+  digests are wrong if either the conversion writes lower case and the mapping
+  is a no-op, or the reverse, but they cannot separate the two. The VI's own
+  diagram is what breaks the tie — an author draws `To Lower Case` after a
+  conversion only when that conversion writes upper case.
+
+### Auto-indexing tunnels
+
+A loop tunnel's `0x23` **indexer** record states whether the boundary iterates
+its array element-wise. It is read by whether the record's flag word is set at
+all: over the 18,244 corpus tunnels whose two sides both resolve a
+dimensionality, all 6,770 with a non-zero indexer drop exactly one dimension
+and 11,341 of the 11,474 without one drop none. The 133 exceptions are rank-2
+and rank-3 arrays and are refused. The tunnel record's own `0x1000000` bit reads
+the same way and is subsumed: it marks 6,336 of the same tunnels and misses 567
+where this misses 133.
 
 ### crc8.vi, continued
 

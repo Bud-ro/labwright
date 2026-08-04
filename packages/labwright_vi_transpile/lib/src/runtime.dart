@@ -20,26 +20,19 @@ abstract final class LvRuntimeCall {
   /// The For loop iteration count over several bounds.
   static const String iterationCount = 'lvIterationCount';
 
-  /// Rotate Left With Carry.
   static const String rotateLeftWithCarry = 'lvRotateLeftWithCarry';
-
-  /// Rotate Right With Carry.
   static const String rotateRightWithCarry = 'lvRotateRightWithCarry';
-
-  /// Swap Bytes.
   static const String swapBytes = 'lvSwapBytes';
-
-  /// Swap Words.
   static const String swapWords = 'lvSwapWords';
-
-  /// Quotient & Remainder.
   static const String quotientRemainder = 'lvQuotientRemainder';
-
-  /// Logical Shift.
   static const String logicalShift = 'lvLogicalShift';
-
-  /// Merge Errors.
+  static const String rotate = 'lvRotate';
+  static const String toLowerCase = 'lvToLowerCase';
+  static const String stringSubset = 'lvStringSubset';
+  static const String hexString = 'lvHexString';
+  static const String initializeArray = 'lvInitializeArray';
   static const String mergeErrors = 'lvMergeErrors';
+  static const String waitMs = 'lvWaitMs';
 
   /// The flat bytes of a scalar integer, of a scalar float, of a string and of
   /// a 1-D integer array — the Type Cast operand side.

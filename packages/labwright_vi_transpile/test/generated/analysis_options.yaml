@@ -1,0 +1,10 @@
+# Lowered block diagrams, checked in as fixtures. Every rule the repo applies
+# to hand-written code applies here too, except the one the emitter cannot
+# satisfy: it declares each wire's value `final` because a wire's value is a
+# run-time one, and says nothing different when the operands it reduces all
+# happen to be diagram constants.
+include: ../../analysis_options.yaml
+
+analyzer:
+  errors:
+    prefer_const_declarations: ignore

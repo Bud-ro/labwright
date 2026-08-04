@@ -161,4 +161,30 @@ void main() {
     expect(() => lvIntOfFlat(Uint8List(3), 32), throwsArgumentError);
     expect(() => lvIntListOfFlat(Uint8List(5), 16), throwsArgumentError);
   });
+
+  test('a quotient floors, whatever the operands sign', () {
+    // The reference names the results `floor(x/y)` and `x-y*floor(x/y)`, which
+    // Dart's truncating `~/` does not give on its own.
+    const cases = <({int dividend, int divisor, int quotient, int remainder})>[
+      (dividend: 7, divisor: 2, quotient: 3, remainder: 1),
+      (dividend: -7, divisor: 2, quotient: -4, remainder: 1),
+      (dividend: 7, divisor: -2, quotient: -4, remainder: -1),
+      (dividend: -7, divisor: -2, quotient: 3, remainder: -1),
+      (dividend: 8, divisor: 2, quotient: 4, remainder: 0),
+      (dividend: -8, divisor: 2, quotient: -4, remainder: 0),
+    ];
+    for (final row in cases) {
+      expect(
+        lvQuotientRemainder(row.dividend, row.divisor),
+        (row.quotient, row.remainder),
+        reason: '${row.dividend} / ${row.divisor}',
+      );
+    }
+  });
+
+  test('a wait blocks for its request, measured by a clock it does not read', () {
+    final wall = Stopwatch()..start();
+    lvWaitMs(20);
+    expect(wall.elapsedMicroseconds, greaterThanOrEqualTo(20 * Duration.microsecondsPerMillisecond));
+  });
 }
