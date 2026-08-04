@@ -1334,11 +1334,15 @@ void main() {
     };
     byCategory.forEach((category, kinds) {
       for (final k in kinds) {
-        expect(classifyObject(kind: k, termCount: 0), category, reason: '0x${k.toRadixString(16)}');
+        expect(
+          classifyObject(objectClass: HeapObjectClass.fromCode(k), termCount: 0),
+          category,
+          reason: '0x${k.toRadixString(16)}',
+        );
       }
     });
     expect(
-      classifyObject(kind: 0x50, termCount: 2),
+      classifyObject(objectClass: HeapObjectClass.numericControl, termCount: 2),
       ViObjectKind.terminalCluster,
       reason: 'the C4-1F terminal signal wins over the catalog category',
     );

@@ -94,7 +94,7 @@ Map<int, String> bdConstValueTexts(ViDiagram diagram) {
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
     final parent = byId[object.parentOid ?? -1];
-    final value = parent?.kind == 0x13 ? parent!.constNumeric : null;
+    final value = parent?.objectClass == HeapObjectClass.bdConstDco ? parent!.constNumeric : null;
     if (value == null) continue;
     out[object.oid] = bdFormatConstValue(
       value,
@@ -126,7 +126,7 @@ String? bdDrawnConstText(ViHeapObject? object) {
 /// `0xe0` display part's [ViHeapObject.displayFormat] — or null.
 String? bdDisplayFormatOf(ViDiagram diagram, int oid) {
   for (final part in diagram.children(oid)) {
-    if (part.kind == 0xe0 && part.displayFormat != null) {
+    if (part.objectClass == HeapObjectClass.numericDisplay && part.displayFormat != null) {
       return part.displayFormat;
     }
   }
@@ -168,12 +168,15 @@ String bdFormatConstValue(num value, String? format) {
   return whole.toString();
 }
 
-/// Class codes LabVIEW draws as **free text** on the canvas: the control
-/// caption / free-label (`0x0a`) and the case-selector label (`0x95`). The
-/// painter renders their recovered caption text within the label's own bounds,
-/// backed by a bordered fill only when the label's background colour was
-/// decoded (a comment's yellow backing) — never a guessed box.
-const Set<int> kBdTextLabelCodes = {0x0a, 0x95};
+/// The classes LabVIEW draws as **free text** on the canvas: the control
+/// caption / free-label and the case-selector label. The painter renders their
+/// recovered caption text within the label's own bounds, backed by a bordered
+/// fill only when the label's background colour was decoded (a comment's
+/// yellow backing) — never a guessed box.
+const Set<HeapObjectClass> kBdTextLabelClasses = {
+  HeapObjectClass.controlLabel,
+  HeapObjectClass.bdSelectorLabel,
+};
 
 /// The text to show on a node box: its recovered name when present (e.g. a subVI
 /// filename), otherwise an honest class HINT derived from its classification
@@ -211,14 +214,15 @@ String? wireframeAnnotation(ViHeapObject o) {
 }
 
 /// An honest, wire-free **control-flow outline** of a block diagram: the
-/// structures grouped by catalog kind (e.g. `While loop`, `Case structure`), the
-/// distinct **labeled-node captions** (a node's `C4 22` caption — for a subVI
-/// usually its name, but NOT a proven call; many node kinds carry captions), and
-/// the total node count. A text summary of the diagram's control-flow shape; it
-/// lists no dataflow edges (those are drawn on the canvas from the decoded
-/// signal endpoints). Pure + public so it is unit-testable.
+/// structures counted per catalog class, the distinct **labeled-node captions**
+/// (a node's `C4 22` caption — for a subVI usually its name, but NOT a proven
+/// call; many node kinds carry captions), and the total node count. A summary
+/// of the diagram's control-flow shape; it lists no dataflow edges (those are
+/// drawn on the canvas from the decoded signal endpoints). Render a class key
+/// with [structureBadge] / [HeapObjectClass.label]. Pure + public so it is
+/// unit-testable.
 ({
-  Map<String, int> structuresByKind,
+  Map<HeapObjectClass, int> structuresByClass,
   List<String> labeledNodes,
   int nodeCount,
   Map<ClassConfidence, int> confidence,
@@ -230,27 +234,28 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
     HeapObjectClass.diagramFrame,
     HeapObjectClass.rootAux,
   };
-  final byKind = <String, int>{};
+  final byClass = <HeapObjectClass, int>{};
   final labeledNodes = <String>[];
   var nodeCount = 0;
   final confidence = <ClassConfidence, int>{};
   for (final object in objects) {
+    final objectClass = object.objectClass;
     if (object.category == ViObjectKind.structure) {
-      if (notControlFlow.contains(object.objectClass)) continue;
-      final badge = structureBadge(object);
-      byKind[badge] = (byKind[badge] ?? 0) + 1;
-      confidence[object.objectClass.confidence] = (confidence[object.objectClass.confidence] ?? 0) + 1;
+      if (notControlFlow.contains(objectClass)) continue;
+      byClass[objectClass] = (byClass[objectClass] ?? 0) + 1;
     } else if (object.category == ViObjectKind.node) {
       nodeCount++;
-      confidence[object.objectClass.confidence] = (confidence[object.objectClass.confidence] ?? 0) + 1;
       final label = nodeDisplayLabel(object);
       if (!label.isHint && !labeledNodes.contains(label.text)) {
         labeledNodes.add(label.text);
       }
+    } else {
+      continue;
     }
+    confidence[objectClass.confidence] = (confidence[objectClass.confidence] ?? 0) + 1;
   }
   return (
-    structuresByKind: byKind,
+    structuresByClass: byClass,
     labeledNodes: labeledNodes,
     nodeCount: nodeCount,
     confidence: confidence,
@@ -262,20 +267,20 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
 /// own connector-pane controls spliced into the caller's heap (an inlined/
 /// malleable subVI stores its panel controls here), NOT a top-level diagram
 /// object LabVIEW draws. See [_isInlinedSubViControl].
-const Set<int> _controlTerminalDrawCodes = {
-  0x50,
-  0x4f,
-  0x57,
-  0x5b,
-  0x51,
-  0x55,
-  0x10c,
-  0xc2,
-  0x56,
+const Set<HeapObjectClass> _controlTerminalDrawClasses = {
+  HeapObjectClass.numericControl,
+  HeapObjectClass.booleanOrClusterControl,
+  HeapObjectClass.enumRingControl,
+  HeapObjectClass.pathControl,
+  HeapObjectClass.stringOrArrayControl,
+  HeapObjectClass.controlTerminal55,
+  HeapObjectClass.controlTerminal10c,
+  HeapObjectClass.constantC2,
+  HeapObjectClass.controlRare56,
 };
 
 /// Whether [o] is a **subVI connector-pane control spliced into this heap** by an
-/// inlined/malleable subVI call — a control-terminal class ([_controlTerminalDrawCodes])
+/// inlined/malleable subVI call — a control-terminal class ([_controlTerminalDrawClasses])
 /// that (a) nests inside a block-diagram constant/structural subtree (a `0x13`
 /// `bDConstDCO` or `0x15` structural record ancestor) and (b) carries a named,
 /// **visible** `0x0a` caption child (the subVI control's drawn data name, e.g.
@@ -294,14 +299,14 @@ bool _isInlinedSubViControl(
   Map<int, ViHeapObject> byId,
   Map<int, List<ViHeapObject>> childrenByOid,
 ) {
-  if (!_controlTerminalDrawCodes.contains(o.kind)) return false;
+  if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
   var parentOid = o.parentOid;
   final seen = <int>{};
   var underConstOrStruct = false;
   while (parentOid != null && seen.add(parentOid)) {
     final parent = byId[parentOid];
     if (parent == null) break;
-    if (parent.kind == 0x13 || parent.kind == 0x15) {
+    if (parent.objectClass == HeapObjectClass.bdConstDco || parent.kind == kNodeEndpointDcoKind) {
       // A `0x13` holder carrying a DECODED constant value is a real diagram
       // constant, visible caption or not — LabVIEW draws the constant box
       // with its name beside it (crc8's `bytes` / `8-bits` feeders). Only a
@@ -309,7 +314,7 @@ bool _isInlinedSubViControl(
       // to the numeric-int terminals whose box chrome is reference-measured;
       // a named enum constant (FileReadOnly's `Read Only`) keeps the old
       // exclusion until its ring chrome is measured (TODO).
-      if (parent.kind == 0x13 &&
+      if (parent.objectClass == HeapObjectClass.bdConstDco &&
           o.typeKind == ViTypeKind.numericInt &&
           (parent.constNumeric != null || parent.constBool != null || parent.constText != null)) {
         return false;
@@ -323,7 +328,7 @@ bool _isInlinedSubViControl(
   final kids = childrenByOid[o.oid];
   if (kids == null) return false;
   return kids.any(
-    (c) => c.kind == 0x0a && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
+    (c) => c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
   );
 }
 
@@ -342,16 +347,19 @@ bool _isInlinedSubViControl(
 ///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
 ///   unknown rectangle over it.
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
-  if (o.kind == 0x09 || o.kind == 0x11c) return true;
+  if (o.objectClass == HeapObjectClass.controlChrome || o.objectClass == HeapObjectClass.contentViewport) return true;
   if (o.kind == 0xe5) return true;
-  if (o.kind == 0x68 && o.bounds == null) return true;
-  if (o.kind == 0xe0 || o.kind == 0x0b || o.kind == 0x0c || o.kind == 0x0d) {
+  if (o.objectClass == HeapObjectClass.connectorTerminal && o.bounds == null) return true;
+  if (o.objectClass == HeapObjectClass.numericDisplay ||
+      o.objectClass == HeapObjectClass.controlSubPart ||
+      o.objectClass == HeapObjectClass.nodeTerminalCluster ||
+      o.objectClass == HeapObjectClass.enumItemList) {
     var parentOid = o.parentOid;
     var depth = 0;
     while (parentOid != null && depth < 64) {
       final parent = byId[parentOid];
       if (parent == null) break;
-      if (kControlTerminalCodes.contains(parent.kind)) return true;
+      if (kControlTerminalClasses.contains(parent.objectClass)) return true;
       parentOid = parent.parentOid;
       depth++;
     }
@@ -368,7 +376,7 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
     while (parentOid != null && depth < 8) {
       final parent = byId[parentOid];
       if (parent == null) break;
-      if (parent.kind == 0x53 &&
+      if (parent.objectClass == HeapObjectClass.loop &&
           parent.absBounds != null &&
           parent.absBounds!.width <= 40 &&
           parent.absBounds!.height <= 24) {
@@ -438,7 +446,7 @@ Set<ViHeapObject> nodesWithin(
 /// case, all at overlapping coordinates, but LabVIEW draws only the visible
 /// one — drawing them all stacks every case's contents on top of each other).
 ///
-/// For the stacked structure kinds ([kMultiFrameStructureKinds]) the decoded
+/// For the stacked structure classes ([kMultiFrameStructureClasses]) the decoded
 /// [ViHeapObject.visibleFrameIndex] decides which frame draws. Elsewhere —
 /// and for the rare out-of-range index — the content heuristic remains: the
 /// frame with the most content positioned inside the structure's own box is
@@ -462,7 +470,9 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
     if (structure.category != ViObjectKind.structure) continue;
     final box = structure.absBounds;
     if (box == null || box.width <= 0 || box.height <= 0) continue;
-    final frames = (childrenByOid[structure.oid] ?? const <ViHeapObject>[]).where((c) => c.kind == 0x1b).toList();
+    final frames = (childrenByOid[structure.oid] ?? const <ViHeapObject>[])
+        .where((c) => c.kind == kViFrameCode)
+        .toList();
     if (frames.length < 2) continue;
 
     // The stored display index decides outright for the stacked structure
@@ -470,7 +480,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
     // frame 0. Out-of-range (one corpus outlier) falls through to the
     // content heuristic below. Flat sequences never reach here: they are a
     // different class (0xca) whose 0x121 subframes fail the 0x1b filter.
-    if (kMultiFrameStructureKinds.contains(structure.kind)) {
+    if (kMultiFrameStructureClasses.contains(structure.objectClass)) {
       final visible = structure.visibleFrameIndex;
       if (visible < frames.length) {
         for (var i = 0; i < frames.length; i++) {
@@ -743,7 +753,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           // reference ever shows a structure-nested 0x177 drawn. Top-level
           // positive-positioned 0x177s are real drawn glyphs (VI Tree's icon
           // row) and stay.
-          !(object.kind == 0x177 &&
+          !(object.objectClass == HeapObjectClass.bdGlyph &&
               (object.absBounds!.left < 0 || object.absBounds!.top < 0 || _nestedInStructure(object, byId))) &&
           !_escapesConstantBox(object, byId) &&
           !_escapesStructureBox(object, byId) &&
@@ -753,7 +763,9 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
           // belongs elsewhere. Drawing it stamps mislocated text AND inflates
           // the content rect above the diagram; labels anywhere else
           // (including legitimately negative coordinates) are kept.
-          !(kBdTextLabelCodes.contains(object.kind) && object.absBounds!.left == 0 && object.absBounds!.bottom == 0) &&
+          !(kBdTextLabelClasses.contains(object.objectClass) &&
+              object.absBounds!.left == 0 &&
+              object.absBounds!.bottom == 0) &&
           // An inlined/malleable subVI splices its own connector-pane controls
           // into this heap; LabVIEW draws the subVI as one icon node, not those
           // internal controls, so they are not this diagram's top-level content.
@@ -785,7 +797,7 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
   while (cur.parentOid != null && depth++ < 64) {
     final parent = byId[cur.parentOid];
     if (parent == null) break;
-    if (parent.kind == 0x13) {
+    if (parent.objectClass == HeapObjectClass.bdConstDco) {
       underConst = true;
       break;
     }
@@ -811,7 +823,7 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
     if (identical(bounds, box)) continue;
     if (outside(bounds)) return true;
   }
-  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  if (kBdTextLabelClasses.contains(object.objectClass)) return false;
   final bounds = object.absBounds;
   return bounds != null && bounds.width > 0 && bounds.height > 0 && outside(bounds);
 }
@@ -830,7 +842,7 @@ bool _escapesStructureBox(
   Map<int, ViHeapObject> byId, {
   int slack = 32,
 }) {
-  if (kBdTextLabelCodes.contains(object.kind)) return false;
+  if (kBdTextLabelClasses.contains(object.objectClass)) return false;
   if (object.category == ViObjectKind.wire) return false;
   final bounds = object.absBounds;
   if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return false;
@@ -839,7 +851,7 @@ bool _escapesStructureBox(
   while (cur.parentOid != null && depth++ < 64) {
     final parent = byId[cur.parentOid];
     if (parent == null) return false;
-    if (parent.kind == 0x1d) return false;
+    if (parent.objectClass == HeapObjectClass.bdWire) return false;
     final box = parent.absBounds;
     if (parent.category == ViObjectKind.structure && box != null && box.width > 0 && box.height > 0) {
       return bounds.right <= box.left - slack ||
@@ -895,7 +907,7 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
     var bestArea = -1;
     for (final child in children) {
       final bounds = child.absBounds;
-      if (child.kind != 0x9 || bounds == null || !contains(bounds, partBounds)) {
+      if (child.objectClass != HeapObjectClass.controlChrome || bounds == null || !contains(bounds, partBounds)) {
         continue;
       }
       final area = bounds.width * bounds.height;
@@ -906,10 +918,10 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
 
   return [
     for (final wrap in children)
-      if (wrap.kind == 0x9 && wrap.absBounds != null)
+      if (wrap.objectClass == HeapObjectClass.controlChrome && wrap.absBounds != null)
         if (!children.any(
               (other) =>
-                  other.kind == 0x9 &&
+                  other.objectClass == HeapObjectClass.controlChrome &&
                   !identical(other, wrap) &&
                   other.absBounds != null &&
                   contains(other.absBounds!, wrap.absBounds!) &&
@@ -917,7 +929,7 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
             ) &&
             !children.any(
               (part) =>
-                  part.kind == 0x50 &&
+                  part.objectClass == HeapObjectClass.numericControl &&
                   part.absBounds != null &&
                   contains(wrap.absBounds!, part.absBounds!) &&
                   wrap.absBounds!.width * wrap.absBounds!.height < largestContainerArea(part.absBounds!),
@@ -952,12 +964,21 @@ int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
 /// (0xFF6600 float orange there — the current class147 extraction had baked
 /// it grey); the 0x3a growable node's bottom-left cell shows TWO dotted
 /// boxes, not one empty box (review feedback on oid 3007's class58 art).
-const kSingleOpPrimClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0xb9};
+const kSingleOpPrimClasses = {
+  HeapObjectClass.bdNode3a,
+  HeapObjectClass.bdNode34,
+  HeapObjectClass.bdNode3e,
+  HeapObjectClass.bdNode44,
+  HeapObjectClass.bdNode6c,
+  HeapObjectClass.bdNode93,
+  HeapObjectClass.bdNode172,
+  HeapObjectClass.bdNodeB9,
+};
 
 /// The icon-map key for [object]: its primResID when present, else the
 /// negated class code for the single-op primitive classes, else null.
 int? primIconKeyOf(ViHeapObject object) =>
-    object.primResId ?? (kSingleOpPrimClasses.contains(object.kind) ? -object.kind : null);
+    object.primResId ?? (kSingleOpPrimClasses.contains(object.objectClass) ? -object.kind : null);
 
 /// The PER-ARITY icon key for a class-identified prim: several single-op
 /// classes are growable stacked-terminal prims (0x3a/0x44 grow ~8px per
@@ -1067,7 +1088,13 @@ Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> bdBorder
 /// variant stays undecoded).
 Set<int> bdErrorCaseOids(ViDiagram diagram) => {
   for (final o in diagram.objects)
-    if (o.kind == 0x2c && diagram.children(o.oid).any((k) => k.kind == 0x95 && k.label?.trim() == 'No Error')) o.oid,
+    if (o.objectClass == HeapObjectClass.bdStructureFrame &&
+        diagram
+            .children(o.oid)
+            .any(
+              (k) => k.objectClass == HeapObjectClass.bdSelectorLabel && k.label?.trim() == 'No Error',
+            ))
+      o.oid,
 };
 
 /// The oids of drawable objects sitting under a disable structure's
@@ -1079,13 +1106,13 @@ Set<int> bdErrorCaseOids(ViDiagram diagram) => {
 Set<int> bdDisabledObjectOids(ViDiagram diagram) {
   final out = <int>{};
   for (final o in diagram.objects) {
-    if (o.kind != 0xcd) continue;
+    if (o.objectClass != HeapObjectClass.bdDisableStructure) continue;
     final kids = diagram.children(o.oid).toList();
-    final selector = kids.firstWhere((k) => k.kind == 0x95, orElse: () => o);
+    final selector = kids.firstWhere((k) => k.objectClass == HeapObjectClass.bdSelectorLabel, orElse: () => o);
     if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
       continue;
     }
-    final frames = kids.where((k) => k.kind == 0x1b).toList();
+    final frames = kids.where((k) => k.kind == kViFrameCode).toList();
     final shown = o.visibleFrameIndex;
     if (shown >= frames.length) continue;
     final stack = [frames[shown].oid];
@@ -1152,6 +1179,9 @@ class ViDiagramSemantics {
   /// depends on nothing but the diagram, so it is derived once here.
   late final List<HeapRect> furnitureBounds = [
     for (final object in diagram.objects)
-      if ((object.kind == 0x9 || object.kind == 0xe0) && object.absBounds != null) object.absBounds!,
+      if ((object.objectClass == HeapObjectClass.controlChrome ||
+              object.objectClass == HeapObjectClass.numericDisplay) &&
+          object.absBounds != null)
+        object.absBounds!,
   ];
 }

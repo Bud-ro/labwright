@@ -98,7 +98,7 @@ Map<int, int> _statedCounts(List<DecodedSection> sections) {
       body,
       onObjectOpen: (span, kind, oid, parent) => (kind, oid),
       onRecord: (span, enclosing) {
-        if (enclosing == null || enclosing.$1 != kViCaseStructureCode) return;
+        if (enclosing == null || enclosing.$1 != HeapObjectClass.bdStructureFrame.code) return;
         final attr = decodeHeapAttr(body, span.offset);
         if (attr?.rawTag == HeapAttribute.selectNRightType.raw && attr?.asInt != null) {
           stated[enclosing.$2] ??= attr!.asInt!;
@@ -123,7 +123,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
   }
   for (final diagram in model.blockDiagrams) {
     for (final structure in diagram.objects) {
-      if (structure.kind != kViCaseStructureCode) continue;
+      if (structure.objectClass != HeapObjectClass.bdStructureFrame) continue;
       bump('structures');
       final ranges = structure.selectorRanges;
       if (ranges.isEmpty) {
@@ -159,7 +159,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
       final selectorLabel = diagram
           .children(structure.oid)
-          .where((child) => child.kind == kViSelectorLabelCode)
+          .where((child) => child.objectClass == HeapObjectClass.bdSelectorLabel)
           .map((child) => child.label)
           .whereType<String>()
           .firstOrNull;

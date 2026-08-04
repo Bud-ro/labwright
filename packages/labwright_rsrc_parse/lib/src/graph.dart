@@ -71,11 +71,6 @@ enum ViTypeKind {
   unknown,
 }
 
-/// The heap class code of a **Case structure**
-/// ([HeapObjectClass.bdStructureFrame]) — the object whose selector ranges and
-/// string pool [buildDiagram] captures.
-const int kViCaseStructureCode = 0x2c;
-
 /// The [HeapAttribute.selectDefaultCase] value that means a Case structure has
 /// **no** Default frame, rather than naming one
 /// ([ViHeapObject.defaultFrameIndex]).
@@ -103,12 +98,6 @@ final Set<int> kViSelectorGroupTags = {
 /// structure's frames are its `0x1b` children in heap order, the index space
 /// [ViSelectorRange.frame] and [ViHeapObject.visibleFrameIndex] share.
 const int kViFrameCode = 0x1b;
-
-/// The heap class code of a Case structure's **selector label**
-/// ([HeapObjectClass.bdSelectorLabel]) — the row that spells the DISPLAYED
-/// frame's case value, and the only one of a structure's values the file states
-/// in words.
-const int kViSelectorLabelCode = 0x95;
 
 /// [value] as read at the record's stored [width], sign-extended: a selector
 /// range's ends are signed, so `..-1` stores its high end as the one-byte
@@ -261,7 +250,8 @@ class ViSelectorRange {
 /// `14 19 01 fd <id>` → [refs] (child-membership ids, found on structure/diagram
 /// container objects).
 class ViHeapObject {
-  ViHeapObject({required this.oid, required this.kind, required this.offset});
+  ViHeapObject({required this.oid, required this.kind, required this.offset})
+    : objectClass = HeapObjectClass.fromCode(kind);
 
   /// The object's id (the `oid` field). Usually unique within a VI, but a few
   /// corpus VIs repeat an oid; id-keyed maps ([ViDiagram.byId]) keep last-wins.
@@ -271,6 +261,10 @@ class ViHeapObject {
   /// `0x53`/`0x4c` = structure/diagram container; `0x12` = node; `0x0c` = terminal
   /// cluster.
   final int kind;
+
+  /// The catalog entry [kind] names, resolved once here rather than per read —
+  /// [HeapObjectClass.unknown] for a code the catalog does not hold.
+  final HeapObjectClass objectClass;
 
   /// Byte offset of the object's header within the heap body.
   final int offset;
@@ -614,7 +608,7 @@ class ViHeapObject {
   int? dIdx;
 
   /// The stacked frame index LabVIEW displays for this multi-frame structure
-  /// (see [kMultiFrameStructureKinds]): [dIdx] with the bit-31 flag stripped
+  /// (see [kMultiFrameStructureClasses]): [dIdx] with the bit-31 flag stripped
   /// (every out-of-range raw corpus value but one is `0x80000000 | index`),
   /// or 0 when the record is absent. The index counts the structure's `0x1b`
   /// frame children in heap order. Only meaningful on the gated structure
@@ -655,7 +649,7 @@ class ViHeapObject {
   /// reading is consistency-only. False for every other class: 0 of 17,018
   /// case-selector (`0x95`) labels set the bit, and the bit's meaning off
   /// label parts is not decoded.
-  bool get isLabelHidden => kind == HeapObjectClass.controlLabel.code && ((objFlags ?? 0) & 0x08) != 0;
+  bool get isLabelHidden => objectClass == HeapObjectClass.controlLabel && ((objFlags ?? 0) & 0x08) != 0;
 
   /// Whether this data item is an **indicator** (an output) rather than a
   /// control: bit 0 of the owning DCO's [objFlags] (corpus-validated on
@@ -673,10 +667,6 @@ class ViHeapObject {
   /// entry per curve (commonly 8–9). Index-parallel to [plotNames] where both
   /// were recovered.
   List<int> plotColors = const [];
-
-  /// The named, documented class catalog entry for this object's [kind]
-  /// (or [HeapObjectClass.unknown] if the code is not catalogued).
-  HeapObjectClass get objectClass => HeapObjectClass.fromCode(kind);
 }
 
 /// How well-grounded a [HeapObjectClass]'s assigned name is. Clean-room RE, so
@@ -1275,9 +1265,15 @@ enum HeapObjectClass {
   static HeapObjectClass fromCode(int code) => _byCode[code] ?? unknown;
 }
 
-/// The control/indicator terminal class codes (front-panel controls' diagram
+/// The control/indicator terminal classes (front-panel controls' diagram
 /// footprint). Single source of truth.
-const kControlTerminalCodes = {0x50, 0x4f, 0x57, 0x5b, 0x51};
+const kControlTerminalClasses = {
+  HeapObjectClass.numericControl,
+  HeapObjectClass.booleanOrClusterControl,
+  HeapObjectClass.enumRingControl,
+  HeapObjectClass.pathControl,
+  HeapObjectClass.stringOrArrayControl,
+};
 
 /// The block-diagram **wire-endpoint DCO** class codes — the bounds-less
 /// data-connection objects a signal's `14 19` childRefs bind (corpus: 902,107
@@ -1404,15 +1400,17 @@ const _objAttrIds = {
   0x54, // raw 0x254, the Case structure's Default frame index
 };
 
-/// The structure classes that stack multiple `0x1b` frames and display one —
-/// case [HeapObjectClass.bdStructureFrame] `0x2c`, disable
-/// [HeapObjectClass.bdDisableStructure] `0xcd`, event
-/// [HeapObjectClass.bdEventStructure] `0xd5`, stacked sequence
-/// [HeapObjectClass.bdStackedSequence] `0x29`. Flat sequences are a
-/// different class (`0xca`, with `0x121` subframes, all drawn side by side)
-/// and never enter this set. The displayed frame comes from
-/// [ViHeapObject.visibleFrameIndex], which owns the corpus census.
-const kMultiFrameStructureKinds = {0x2c, 0xcd, 0xd5, 0x29};
+/// The structure classes that stack multiple `0x1b` frames and display one.
+/// Flat sequences are a different class ([HeapObjectClass.bdFlatSequence],
+/// with `0x121` subframes, all drawn side by side) and never enter this set.
+/// The displayed frame comes from [ViHeapObject.visibleFrameIndex], which owns
+/// the corpus census.
+const kMultiFrameStructureClasses = {
+  HeapObjectClass.bdStructureFrame,
+  HeapObjectClass.bdDisableStructure,
+  HeapObjectClass.bdEventStructure,
+  HeapObjectClass.bdStackedSequence,
+};
 
 /// Pixel-area threshold (width×height) for the structural node fallback in
 /// `buildDiagram`. A still-`unknown` object that otherwise matches the BD-node
@@ -1462,14 +1460,14 @@ String stripHelpMarkup(String helpText) {
 final RegExp _helpMarkupTag = RegExp(r'<\s*/?\s*[A-Za-z][A-Za-z0-9]*\s*>');
 final RegExp _interiorSpaces = RegExp(r'[ \t]{2,}');
 
-/// Classifies a heap object into a [ViObjectKind] from its class code and signals
-/// (corpus-validated; see the [HeapObjectClass] catalog). The data-driven
-/// terminal-cluster signal (`C4 1F` terminals) takes precedence over the class's
-/// catalog [HeapObjectClass.category].
-ViObjectKind classifyObject({required int kind, required int termCount}) {
-  if (kind == 0x0c || termCount >= 1) return ViObjectKind.terminalCluster;
-  return HeapObjectClass.fromCode(kind).category;
-}
+/// Classifies a heap object into a [ViObjectKind] from its catalog class and
+/// signals (corpus-validated; see the [HeapObjectClass] catalog). The
+/// data-driven terminal-cluster signal (`C4 1F` terminals) takes precedence
+/// over the class's catalog [HeapObjectClass.category].
+ViObjectKind classifyObject({required HeapObjectClass objectClass, required int termCount}) =>
+    objectClass == HeapObjectClass.nodeTerminalCluster || termCount >= 1
+    ? ViObjectKind.terminalCluster
+    : objectClass.category;
 
 /// The printf integer-conversion chars (`b` `d` `o` `x` `X`) that mark a numeric
 /// format as integer rather than float. See [inferTypeKind].
@@ -2790,7 +2788,7 @@ class ViDiagram {
   /// signals (e.g. a front panel). See [ViWire].
   late final List<ViWire> wires = [
     for (final object in objects)
-      if (object.kind == 0x17) _buildWire(object),
+      if (object.objectClass == HeapObjectClass.signal) _buildWire(object),
   ];
 
   ViWire _buildWire(ViHeapObject object) {
@@ -3391,7 +3389,7 @@ class ViDiagram {
     // a constant; only the bounds-less node-endpoint form does.
     if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
     for (final child in childrenByOid[oid] ?? const <ViHeapObject>[]) {
-      if (child.kind == HeapObjectClass.bdConstDco.code) return child;
+      if (child.objectClass == HeapObjectClass.bdConstDco) return child;
     }
     return null;
   }
@@ -3444,11 +3442,15 @@ class ViDiagram {
     if (constant == null) return null;
     for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
       if (child.absBounds == null) continue;
-      if (child.kind != 0x52) return null;
+      if (child.objectClass != HeapObjectClass.caseOrSequence) return null;
       HeapRect? element;
       for (final kid in childrenByOid[child.oid] ?? const <ViHeapObject>[]) {
         final kidBounds = kid.absBounds;
-        if (kid.kind == 0x9 || kid.kind == 0xa || kidBounds == null) continue;
+        if (kid.objectClass == HeapObjectClass.controlChrome ||
+            kid.objectClass == HeapObjectClass.controlLabel ||
+            kidBounds == null) {
+          continue;
+        }
         if (element == null || kidBounds.left > element.left) {
           element = kidBounds;
         }
@@ -3599,7 +3601,7 @@ class ViDiagram {
     if (rect == null) {
       if (_predatesFrameRelativeTermBounds(version)) return null;
       final endpoint = byId[oid];
-      if (endpoint == null || endpoint.kind != HeapObjectClass.bdLeaf.code) return null;
+      if (endpoint == null || endpoint.objectClass != HeapObjectClass.bdLeaf) return null;
       rect = endpoint.absBounds;
       if (rect == null) return null;
     }
@@ -3809,7 +3811,7 @@ String? decodeFlatPathText(Uint8List? raw) {
 /// The **type-independent FALLBACK tier** of [decodeBdConstValues]: decodes a
 /// BD constant's captured `0x26C` payload ([flat], stored at a [scalar]
 /// magnitude width or a length-prefixed container/blob) without a VCTP type —
-/// the payload is typed by the constant's value-carrier class [innerKind]
+/// the payload is typed by the value-[carrier] class
 /// (the `0x13` [HeapObjectClass.bdConstDco]'s first nested child) plus
 /// payload-shape gates, and every gate declines rather than guessing.
 /// Returns a [bool], [int], finite [double], [String], or null (not decoded).
@@ -3852,7 +3854,7 @@ String? decodeFlatPathText(Uint8List? raw) {
 /// constants (compound arrays/clusters/paths, 16/32-byte extendeds, ambiguous
 /// scalars and 8-byte payloads) are framed but not value-decoded.
 Object? decodeBdConstantValue({
-  required int? innerKind,
+  required HeapObjectClass carrier,
   required Uint8List? flat,
   required bool scalar,
   bool hasEnumItems = false,
@@ -3871,7 +3873,6 @@ Object? decodeBdConstantValue({
   // printable-validated text, so the all-zero and 8-byte-f64 content gates
   // below can never fire on one).
   final raw = scalar ? null : flat;
-  final carrier = innerKind == null ? HeapObjectClass.unknown : HeapObjectClass.fromCode(innerKind);
   switch (carrier) {
     case HeapObjectClass.pathControl:
       return decodeFlatPathText(raw);
@@ -3980,7 +3981,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           selectorEntryOpen = true;
           entryLow = entryHigh = entryLowBound = entryHighBound = entryFrame = 0;
         }
-      } else if (cur != null && cur.kind == kViCaseStructureCode) {
+      } else if (cur != null && cur.objectClass == HeapObjectClass.bdStructureFrame) {
         if (kViSelectorGroupTags.contains(groupTag)) {
           selectorOwner = cur;
           selectorGroupDepth = 1;
@@ -3996,7 +3997,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         arrayIndexGroupDepth++;
       } else if (groupTag == HeapGroupTag.arrayIndex.tag &&
           cur != null &&
-          cur.kind == HeapObjectClass.caseOrSequence.code) {
+          cur.objectClass == HeapObjectClass.caseOrSequence) {
         arrayIndexOwner = cur;
         arrayIndexGroupDepth = 1;
       }
@@ -4167,9 +4168,9 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           // read only on `0x6a`, where the path says what the symbol resolves
           // against.
           case 0xa4:
-            if (cur.kind == HeapObjectClass.bdCallLibrary.code) cur.foreignLibraryPath ??= rec.path;
+            if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignLibraryPath ??= rec.path;
           case 0xc4:
-            if (cur.kind == HeapObjectClass.bdCallLibrary.code) cur.foreignEntryPoint ??= rec.text;
+            if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignEntryPoint ??= rec.text;
         }
       } else if (lead == 0x14) {
         final ref = decodeHeapRef(body, offset);
@@ -4181,7 +4182,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         final attr = decodeHeapAttr(body, offset);
         if (attr == null) return;
         final number = attr.asDouble;
-        if (number != null && kControlTerminalCodes.contains(cur.kind)) {
+        if (number != null && kControlTerminalClasses.contains(cur.objectClass)) {
           if (attr.attribute == HeapAttribute.stdNumMin) cur.controlMin ??= number;
           if (attr.attribute == HeapAttribute.stdNumMax) cur.controlMax ??= number;
         }
@@ -4223,7 +4224,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // only — the value is interpreted later by [decodeBdConstValues],
         // once data-space types have resolved.
         if (attr.attribute == HeapAttribute.constValue &&
-            cur.kind == HeapObjectClass.bdConstDco.code &&
+            cur.objectClass == HeapObjectClass.bdConstDco &&
             cur.constValueRaw == null) {
           cur.constValueRaw = _attrFlatBytes(attr);
           cur.constValueScalar = _attrScalarBytes(attr.width) != null;
@@ -4240,7 +4241,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
         // The label text-mode word (raw 0x021 on the 0x0a label class; see
         // [ViHeapObject.labelModeWord]) — justification bits ride it.
-        if (attr.attribute == HeapAttribute.cosmColorB && cur.kind == 0x0a) {
+        if (attr.attribute == HeapAttribute.cosmColorB && cur.objectClass == HeapObjectClass.controlLabel) {
           cur.labelModeWord ??= attr.asInt;
         }
         if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
@@ -4250,10 +4251,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // primResID is class-scoped (0x2F at 99.95%) and u16-encoded in the
         // corpus; the rare off-class or off-width carriers are not primitive
         // identities, so they must not fabricate a primName.
-        if (attr.attribute == HeapAttribute.primResID && cur.kind == 0x2f && attr.width == HeapAttrWidth.u16) {
+        if (attr.attribute == HeapAttribute.primResID &&
+            cur.objectClass == HeapObjectClass.bdNode &&
+            attr.width == HeapAttrWidth.u16) {
           cur.primResId ??= attr.asInt;
         }
-        if (attr.attribute == HeapAttribute.dIdx && kMultiFrameStructureKinds.contains(cur.kind)) {
+        if (attr.attribute == HeapAttribute.dIdx && kMultiFrameStructureClasses.contains(cur.objectClass)) {
           cur.dIdx ??= attr.asInt;
         }
         // The wire table rides every attribute width: long tables use the
@@ -4266,7 +4269,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // re-serialised big-endian so [wireTableRaw] is the table bytes in
         // every case. First-wins is safe: no corpus signal carries a second
         // table record.
-        if (attr.attribute == HeapAttribute.compressedWireTable && cur.kind == 0x17) {
+        if (attr.attribute == HeapAttribute.compressedWireTable && cur.objectClass == HeapObjectClass.signal) {
           if (attr.width == HeapAttrWidth.container) {
             cur.wireTableRaw ??= attr.rawValueBytes;
           } else {
@@ -4284,7 +4287,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // The Default frame's index, kind-gated to the select structure that
         // owns the tag. 255 is the record's own "no default" sentinel and is
         // dropped rather than stored as a frame index.
-        if (attr.attribute == HeapAttribute.selectDefaultCase && cur.kind == kViCaseStructureCode) {
+        if (attr.attribute == HeapAttribute.selectDefaultCase && cur.objectClass == HeapObjectClass.bdStructureFrame) {
           final frame = attr.asInt;
           if (frame != null && frame != kViNoDefaultFrame) cur.defaultFrameIndex ??= frame;
         }
@@ -4293,7 +4296,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         // and width-gated to the documented u16 layout: an over-wide value
         // is not a wire-type word and is dropped rather than masked (the
         // census law `oversizedTypeWord == 0` pins that none exist).
-        if (attr.attribute == HeapAttribute.lastSignalKind && cur.kind == 0x17) {
+        if (attr.attribute == HeapAttribute.lastSignalKind && cur.objectClass == HeapObjectClass.signal) {
           final word = attr.asInt;
           if (word != null && word <= 0xffff) cur.lastSignalKind ??= word;
         }
@@ -4335,7 +4338,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   // owner's final origin is identical when the owner's bounds came first
   // (the common order) and fixes the late-bounds owners.
   for (final object in objects) {
-    if (object.kind != HeapObjectClass.controlLabel.code) continue;
+    if (object.objectClass != HeapObjectClass.controlLabel) continue;
     final parent = liveParent[object];
     final local = object.bounds;
     final ownerBounds = parent?.bounds;
@@ -4380,11 +4383,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   }
 
   for (final object in objects) {
-    if (object.kind != 0xca || object.absBounds == null) continue;
+    if (object.objectClass != HeapObjectClass.bdFlatSequence || object.absBounds == null) continue;
     for (final frame in childrenOf[object] ?? const <ViHeapObject>[]) {
       final local = frame.bounds;
       final abs = frame.absBounds;
-      if (frame.kind != 0x121 || local == null || abs == null) continue;
+      if (frame.objectClass != HeapObjectClass.bdSequenceFrame || local == null || abs == null) continue;
       final dTop = object.absBounds!.top + local.top - abs.top;
       final dLeft = object.absBounds!.left + local.left - abs.left;
       if (dTop != 0 || dLeft != 0) shiftSubtree(frame, dTop, dLeft);
@@ -4392,7 +4395,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   }
 
   for (final object in objects) {
-    object.category = classifyObject(kind: object.kind, termCount: object.termCount);
+    object.category = classifyObject(objectClass: object.objectClass, termCount: object.termCount);
     object.typeKind = inferTypeKind(c4ops[object] ?? const <int>{}, formatPayloads[object]);
   }
 
@@ -4404,7 +4407,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     while (parentOid != null && depth < 12) {
       final po = byOid[parentOid];
       if (po == null) break;
-      if (kControlTerminalCodes.contains(po.kind)) {
+      if (kControlTerminalClasses.contains(po.objectClass)) {
         if (po.items.isEmpty) po.items = object.items;
         break;
       }
@@ -4440,7 +4443,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     final cs = nodeKids[object.oid];
     if (cs == null) continue;
     final hasStructural = cs.any((c) => c.kind == 0x15);
-    final hasConnector = cs.any((c) => c.kind == 0x68);
+    final hasConnector = cs.any((c) => c.objectClass == HeapObjectClass.connectorTerminal);
     if (!hasStructural || hasConnector) continue;
     object.category = ViObjectKind.node;
   }
@@ -4448,7 +4451,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   for (final object in objects) {
     if (object.category != ViObjectKind.node || object.label != null) continue;
     final caps = (nodeKids[object.oid] ?? const <ViHeapObject>[])
-        .where((c) => c.kind == HeapObjectClass.controlLabel.code)
+        .where((c) => c.objectClass == HeapObjectClass.controlLabel)
         .map((c) => c.label?.trim())
         .where((cap) => cap != null && cap.isNotEmpty);
     if (caps.isNotEmpty) object.label = caps.first;
@@ -4516,8 +4519,8 @@ void _reanchorScrolledControls(
       if (!seen.add(parentOid)) return null;
       final po = byOid[parentOid];
       if (po == null) return null;
-      if (po.kind == 0x11c) return po.oid;
-      if (kControlTerminalCodes.contains(po.kind) || po.bounds != null) return null;
+      if (po.objectClass == HeapObjectClass.contentViewport) return po.oid;
+      if (kControlTerminalClasses.contains(po.objectClass) || po.bounds != null) return null;
       parentOid = po.parentOid;
     }
     return null;
@@ -4525,7 +4528,9 @@ void _reanchorScrolledControls(
 
   final groups = <int, List<ViHeapObject>>{};
   for (final object in objects) {
-    if (!kControlTerminalCodes.contains(object.kind) || object.bounds == null || object.absBounds == null) continue;
+    if (!kControlTerminalClasses.contains(object.objectClass) || object.bounds == null || object.absBounds == null) {
+      continue;
+    }
     final viewport = reanchorViewport(object);
     if (viewport != null) (groups[viewport] ??= <ViHeapObject>[]).add(object);
   }
@@ -4664,7 +4669,7 @@ void resolveDataSpaceTypes({
   // heaps).
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
-      if (object.kind == 0x12 && object.typeDescIdx != null) {
+      if (object.objectClass == HeapObjectClass.node && object.typeDescIdx != null) {
         object.isIndicator = ((object.objFlags ?? 0) & 1) != 0;
       }
     }
@@ -4937,7 +4942,7 @@ void decodeBdConstValues(ViDiagram diagram) {
   }
 
   for (final object in diagram.objects) {
-    if (object.kind != HeapObjectClass.bdConstDco.code || object.constValueRaw == null) continue;
+    if (object.objectClass != HeapObjectClass.bdConstDco || object.constValueRaw == null) continue;
     _typedBdConstDecode(object);
     // The value carrier class is the constant DCO's first nested child (see
     // [HeapObjectClass.bdConstDco]); enum items may sit on any descendant,
@@ -4945,11 +4950,10 @@ void decodeBdConstValues(ViDiagram diagram) {
     // enum-shaped carriers that consume it.
     final kids = nodeKids[object.oid];
     if (kids == null || kids.isEmpty) continue;
-    final carrierKind = kids.first.kind;
-    final wantsItems =
-        carrierKind == HeapObjectClass.enumRingControl.code || carrierKind == HeapObjectClass.clusterShell.code;
+    final carrier = kids.first.objectClass;
+    final wantsItems = carrier == HeapObjectClass.enumRingControl || carrier == HeapObjectClass.clusterShell;
     final value = decodeBdConstantValue(
-      innerKind: carrierKind,
+      carrier: carrier,
       flat: object.constValueRaw,
       scalar: object.constValueScalar,
       hasEnumItems: wantsItems && subtreeHasItems(object),
