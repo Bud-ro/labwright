@@ -46,7 +46,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'Config_Dump2': 'wireType',
   'Config_Escape': 'structure',
   'Config_Load': 'wireType',
-  'Config_Load2': 'constantValue',
+  'Config_Load2': 'foreignCall',
   'Excel_Cell_to_RowCol': 'primitive',
   'Excel_Cell_to_Value': 'wireType',
   'Excel_Read_XLSX': 'wireType',
@@ -284,12 +284,15 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 /// decode; 157 whose ends resolve two different Dart types; 46 reaching no
 /// index at all.
 ///
-/// The `foreign.*` counters size the corpus's Call Library Function nodes: 865
-/// nodes across 408 VIs, each naming a native shared library and an entry point
-/// in it, and `foreign.noLibrary` (55) the ones whose path record holds no path.
-/// They lower to nothing and refuse as `exceptions.foreignCall` rather than as
-/// `exceptions.primitive`, since what they call is not in the file — see
-/// [kCorpusForeignCalls].
+/// The `foreign.*` counters size the corpus's Call Library Function nodes
+/// ([kLvCallLibraryClass]), refused as `exceptions.foreignCall`;
+/// [kCorpusForeignCalls] counts the distinct libraries and entry points.
+///
+/// The `pane.0x<class>.equal` / `.differs` counters compare a subVI call node's
+/// holder count with its named callee's connector-pane width, over every node
+/// in the corpus. They are what identified `0x124` (30 equal, 0 differing) and
+/// what bounds that evidence: `0x32` differs on 975 of 1 012 and `0x103` on all
+/// 13, so passing the check is not a condition of membership.
 ///
 /// The `wt.*` counters attribute the `wireType` refusal of every VI whose own
 /// dataflow build raises one: `wt.<family>` is the family of the wire the
@@ -457,16 +460,16 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 1213,
   'decl.vi': 3129,
   'exceptions.caseSelector': 3,
-  'exceptions.constantValue': 135,
-  'exceptions.foreignCall': 3,
-  'exceptions.lowered': 229,
-  'exceptions.primitive': 522,
-  'exceptions.structure': 113,
-  'exceptions.subViCall': 322,
+  'exceptions.constantValue': 129,
+  'exceptions.foreignCall': 37,
+  'exceptions.lowered': 228,
+  'exceptions.primitive': 519,
+  'exceptions.structure': 111,
+  'exceptions.subViCall': 302,
   'exceptions.tunnelCoercion': 6,
   'exceptions.typeDeclaration': 18,
   'exceptions.unboundValue': 7,
-  'exceptions.unwiredTerminal': 234,
+  'exceptions.unwiredTerminal': 232,
   'exceptions.wireDirection': 107,
   'exceptions.wireType': 5809,
   'flag0.array': 24628,
@@ -486,8 +489,24 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2198,
   'idx.regular': 3478,
+  'ipe.blocked': 27,
+  'ipe.blocked.identifiedOnly': 5,
+  'ipe.blocked.undecodedAccess': 22,
+  'ipe.border.0x14f': 108,
+  'ipe.border.0x150': 406,
+  'ipe.border.0x152': 98,
+  'ipe.border.0x153': 1466,
+  'ipe.structures': 904,
+  'ipe.vis': 705,
   'modes.differ': 43,
-  'modes.same': 186,
+  'modes.same': 185,
+  'pane.0x103.differs': 13,
+  'pane.0x104.equal': 879,
+  'pane.0x124.equal': 30,
+  'pane.0x31.differs': 100,
+  'pane.0x31.equal': 7529,
+  'pane.0x32.differs': 975,
+  'pane.0x32.equal': 37,
   'ref': 66473,
   'ref.ep.agrees': 14046,
   'ref.ep.contradicts': 1335,
@@ -534,16 +553,16 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 96,
   'term.wired': 1593,
   'threaded.caseSelector': 3,
-  'threaded.constantValue': 135,
-  'threaded.foreignCall': 3,
-  'threaded.lowered': 229,
-  'threaded.primitive': 522,
-  'threaded.structure': 113,
-  'threaded.subViCall': 322,
+  'threaded.constantValue': 129,
+  'threaded.foreignCall': 37,
+  'threaded.lowered': 228,
+  'threaded.primitive': 519,
+  'threaded.structure': 111,
+  'threaded.subViCall': 302,
   'threaded.tunnelCoercion': 6,
   'threaded.typeDeclaration': 18,
   'threaded.unboundValue': 7,
-  'threaded.unwiredTerminal': 234,
+  'threaded.unwiredTerminal': 232,
   'threaded.wireDirection': 107,
   'threaded.wireType': 5809,
   'vi': 7508,
@@ -582,14 +601,12 @@ const Map<String, int> kCorpusLoweringSweep = {
 /// (`0xd6`, 25 sole) is worth less than one appearing 406 times over 157, of
 /// which 28 carry nothing else (`0x150`).
 ///
-/// **`sole` ranks primitive blockers, and a VI has other kinds.** `0x153` heads
-/// the column with 337 and is the clearest case: it is an In Place Element
-/// Structure border node ([HeapObjectClass.bdNode153]) and all 1 466 corpus
-/// nodes sit inside that structure, whose control flow is not modelled — so
-/// every one of the 337 refuses on [LvRefusalKind.structure] whatever is done
-/// about the node, and the entry is worth what the STRUCTURE is worth. Read the
-/// column as an upper bound on what a rule for the identity buys, never as the
-/// count of VIs it would make lower.
+/// **`sole` ranks primitive blockers only, so it is an upper bound on what a
+/// rule buys and never a count of VIs that would start lowering.** `0x153`
+/// heads the column with 337 and none of them would: of the 556 VIs holding
+/// one, 550 refuse [LvRefusalKind.wireType], 5 [LvRefusalKind.structure] and 1
+/// [LvRefusalKind.wireDirection] — every refusal the whole-VI lowering raises
+/// ahead of any primitive.
 ///
 /// The snippet review list ([kSnippetPrimReviewList]) is scored over 45
 /// diagrams and ranks differently: `Match Pattern` heads it and is fourth here,
@@ -599,19 +616,19 @@ const Map<String, int> kCorpusLoweringSweep = {
 /// The list is identity-level, exactly as the snippet one is: a node whose
 /// identity HAS a rule is not counted here however often its own operands fail
 /// to resolve. `exceptions.primitive` in [kCorpusLoweringSweep] is what sizes
-/// those. SubVI call nodes are not on it at all ([kSubViCallNodeCodes]) — they
-/// are calls, not operations — which is why `0x124` left the list once its
-/// records identified it as one.
+/// those. Nodes that are not operations are off the list entirely: the subVI
+/// call classes ([kSubViCallNodeCodes], which `0x124` joined) and the Call
+/// Library Function node ([kLvCallLibraryClass]), which [kCorpusForeignCalls]
+/// sizes instead.
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
-  'node class 0x34': (vis: 805, nodes: 1659, sole: 85),
+  'node class 0x34': (vis: 805, nodes: 1659, sole: 103),
   'Close Reference (primResID 8011)': (vis: 759, nodes: 3068, sole: 44),
   'node class 0x93': (vis: 690, nodes: 1566, sole: 134),
-  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 85),
+  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 86),
   'node class 0xa9': (vis: 678, nodes: 2619, sole: 64),
   'Search 1D Array (primResID 1901)': (vis: 591, nodes: 1338, sole: 37),
   'node class 0x153': (vis: 556, nodes: 1466, sole: 339),
   'Build Path (primResID 1419)': (vis: 439, nodes: 1215, sole: 28),
-  'node class 0x6a': (vis: 408, nodes: 865, sole: 206),
   'node class 0xd6': (vis: 378, nodes: 2437, sole: 25),
   'Strip Path (primResID 1420)': (vis: 370, nodes: 865, sole: 3),
   'To More Specific Class (primResID 8016)': (vis: 344, nodes: 825, sole: 45),
@@ -624,34 +641,20 @@ const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
   'node class 0xeb': (vis: 199, nodes: 226, sole: 6),
   'Unregister For Events (primResID 2076)': (vis: 181, nodes: 203, sole: 0),
   'Call Chain (primResID 1999)': (vis: 174, nodes: 175, sole: 73),
+  'Search and Replace String (primResID 3914)': (vis: 157, nodes: 243, sole: 12),
   'node class 0x150': (vis: 157, nodes: 406, sole: 28),
-  'Search and Replace String (primResID 3914)': (vis: 157, nodes: 243, sole: 10),
   'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 29),
   'Enqueue Element (primResID 9111)': (vis: 152, nodes: 369, sole: 3),
   'primResID 9113 (name not decoded)': (vis: 152, nodes: 187, sole: 2),
 };
 
-/// The corpus's **Call Library Function nodes** ([kLvCallLibraryClass]): calls
-/// into a native shared library, which is the one entry on the review list a
-/// decoding cannot close.
+/// The distinct libraries and entry points the corpus's Call Library Function
+/// nodes name; [kCorpusLoweringSweep]'s `foreign.*` counts the nodes.
 ///
-/// The call site itself IS decoded — every node carries a path record naming
-/// the library and a symbol record naming the entry point in it, and this pins
-/// how far that reaches: `noLibrary` is the nodes whose path record holds no
-/// path, `noEntryPoint` the nodes with no symbol. What is not in the VI is the
-/// library, so the lowering refuses ([LvRefusalKind.foreignCall]) with the
-/// entry point and library named rather than emitting a call it cannot make.
-///
-/// `libraries` and `entryPoints` are the distinct spellings across the corpus —
-/// the size of what a caller would have to bind, if a binding were the answer.
-const ({int nodes, int vis, int noLibrary, int noEntryPoint, int libraries, int entryPoints}) kCorpusForeignCalls = (
-  nodes: 865,
-  vis: 408,
-  noLibrary: 55,
-  noEntryPoint: 0,
-  libraries: 52,
-  entryPoints: 481,
-);
+/// `entryPoints` is a LOWER bound: the symbol field stores at most 31
+/// characters (84 nodes are at the limit), so two longer names sharing a
+/// prefix collide here.
+const ({int libraries, int entryPoints}) kCorpusForeignCalls = (libraries: 52, entryPoints: 481);
 
 /// The VI count at which a [kCorpusPrimReviewList] entry is pinned
 /// individually; the tail below it is pinned only by [kCorpusPrimTotals].
@@ -659,7 +662,7 @@ const int kCorpusReviewListFloor = 150;
 
 /// The corpus review list's shape: distinct unmapped identities, the node
 /// instances they account for, and the VIs carrying at least one.
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 220, nodes: 34863, vis: 15738);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 219, nodes: 33998, vis: 15330);
 
 /// The occurrence count at which a review-list entry is pinned individually;
 /// the tail below it is pinned only by [kReviewListTotals].
@@ -672,7 +675,7 @@ const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the
 /// corpus and lower to the same text, so the analyzer sees each source once.
-const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
+const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
 
 /// Lowers every VI in [paths], resolving subVI calls against [index] (a
 /// `file name → path` map over the whole corpus), and tallies both the
@@ -720,6 +723,19 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     final path = index[name.toLowerCase()];
     return path == null ? null : load(path, name);
   }
+
+  // A callee's connector-pane width alone, off its `CPMp` block — the pane
+  // census needs no diagram, so it does not pay for one.
+  final paneWidths = <String, int?>{};
+  int? paneWidth(String name) => paneWidths.putIfAbsent(name.toLowerCase(), () {
+    final path = index[name.toLowerCase()];
+    if (path == null) return null;
+    try {
+      return lvConnectorPaneMap(decodeSections(File(path).readAsBytesSync())).length;
+    } catch (_) {
+      return null;
+    }
+  });
 
   ({LvDataflow? dataflow, LvRefusal? refusal}) buildOf(LvViUnit unit) => builds.putIfAbsent(
     unit.fileName,
@@ -1295,6 +1311,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     for (final object in diagram.objects) {
       if (object.category != ViObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
+      if (object.kind == kLvCallLibraryClass) continue;
       final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
       if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
       final key = _reviewKey(op, object);
@@ -1309,10 +1326,23 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     }
   }
 
+  // Per subVI call class, whether a node's holder count equals its named
+  // callee's connector-pane width — over every node in the corpus, not only
+  // the calls an entry VI reaches. See [kCorpusLoweringSweep]'s `pane.*`.
+  void censusCallPaneWidths(ViDiagram diagram) {
+    for (final node in diagram.objects) {
+      if (!kSubViCallNodeCodes.contains(node.kind)) continue;
+      final name = node.label?.trim().toLowerCase();
+      if (name == null || !(name.endsWith('.vi') || name.endsWith('.vim'))) continue;
+      final width = paneWidth(name);
+      if (width == null || width == 0) continue;
+      final holders = diagram.children(node.oid).where((kid) => kid.kind == kLvHolderCode).length;
+      final tag = 'pane.0x${node.kind.toRadixString(16)}';
+      bump(holders == width ? '$tag.equal' : '$tag.differs');
+    }
+  }
+
   // The **foreign-call census**: what the Call Library Function nodes name.
-  // The node is on the review list like any other unmapped identity, because it
-  // does block the VIs that carry it; what this adds is that the call site is
-  // decoded, so the refusal names it — see [kCorpusForeignCalls].
   void censusForeignCalls(ViDiagram diagram) {
     var here = 0;
     for (final object in diagram.objects) {
@@ -1334,6 +1364,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 229, sources: 79);
     if (unit == null) continue;
     bump('vi');
     censusPrimitives(unit.diagram);
+    censusCallPaneWidths(unit.diagram);
     censusForeignCalls(unit.diagram);
     builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
     registry = LvDeclarations();
@@ -1605,10 +1636,6 @@ void main() {
     () async {
       final swept = await corpusSweep(corpus!);
       final measured = (
-        nodes: swept.tally['foreign.node'] ?? 0,
-        vis: swept.tally['foreign.vi'] ?? 0,
-        noLibrary: swept.tally['foreign.noLibrary'] ?? 0,
-        noEntryPoint: swept.tally['foreign.noEntryPoint'] ?? 0,
         libraries: swept.foreign.where((entry) => entry.startsWith('lib|')).length,
         entryPoints: swept.foreign.where((entry) => entry.startsWith('entry|')).length,
       );
