@@ -7,7 +7,7 @@ import 'decode.dart';
 ///
 /// HEADER MODEL: every heap record opens with a 2-byte node header
 /// `byte0 = sizeSpec(3b)<<5 | hasAttrList(1b)<<4 | scope(2b)<<2 | tagHi(2b)`,
-/// `byte1 = tagLo` — a **10-bit raw tag id** (`tagHi:tagLo`), a scope
+/// `byte1 = tagLo` — a 10-bit raw tag id (`tagHi:tagLo`), a scope
 /// (0 = open, 1 = leaf, 2 = close), an optional attribute list, and a data
 /// size selector (0 → no data/false, 1–4 → that many bytes, 6 → a `u8`
 /// length prefix with the `FF → u16` escape, 7 → no data/true). `0xC4` is the
@@ -44,7 +44,7 @@ const Set<int> kHeapGroupCloseLeads = {0x08, 0x09, 0x0a, 0x0b};
 /// the count in a typed-list record `<op> <subop> <count> <tag> <items>`.
 bool isHeapTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
 
-/// The catalog of known LabVIEW heap-record **opcodes** — the byte after
+/// The catalog of known LabVIEW heap-record opcodes — the byte after
 /// [kHeapRecordPrefix] in a `C4 <op> <u8 len> <payload>` record.
 ///
 /// This enhanced enum is the single source of truth for every opcode we have
@@ -54,132 +54,132 @@ bool isHeapTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte
 /// any byte not catalogued maps to [HeapOpcode.unknown].
 ///
 /// Status legend:
-/// - **decoded** — payload semantics confirmed and exposed by a typed accessor.
-/// - **structural** — payload *shape* known (e.g. it is a rectangle), but the
+/// - decoded — payload semantics confirmed and exposed by a typed accessor.
+/// - structural — payload *shape* known (e.g. it is a rectangle), but the
 ///   semantic role is not yet determined, so it is intentionally not given a
 ///   meaning-specific accessor.
-/// - **unknown** — not catalogued.
+/// - unknown — not catalogued.
 ///
 /// See `docs/vi-rsrc-and-heap-format.md` for the full evidence and probe history.
 enum HeapOpcode {
-  /// `0x2D` — **object bounds rectangle** (decoded). Payload is 8 bytes = four
+  /// `0x2D` — object bounds rectangle (decoded). Payload is 8 bytes = four
   /// big-endian `s16` fields `top, left, bottom, right`, in pixels: the position
   /// and size of a control / node / decoration. Corpus: 99% are valid rectangles
   /// with sane dimensions. Decoded by [HeapRecord.bounds].
   bounds(0x2d, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x1F` — **origin-anchored size rectangle** (decoded). Same 8-byte 4× `s16`
+  /// `0x1F` — origin-anchored size rectangle (decoded). Same 8-byte 4× `s16`
   /// layout as [bounds] but `top == left == 0`, so it encodes a height×width
   /// extent rather than a position. Corpus: ~99% are 8-byte (≈99.6% origin-anchored
   /// when 8-byte). Decoded by [HeapRecord.sizeRect].
   size(0x1f, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x2E` — **string table** (decoded). The only variable-length confirmed
+  /// `0x2E` — string table (decoded). The only variable-length confirmed
   /// opcode: the payload is `len` bytes of packed `[u8 strlen][chars]` Pascal
   /// strings (a `u16` length is used when the table exceeds 255 bytes). Holds a
   /// group of related labels (enum/ring items, captions). Decoded by
   /// [HeapStringTable] / the string-table parser.
   stringTable(0x2e, HeapShape.stringTable, isDecoded: true),
 
-  /// `0x22` — **caption** (decoded). A single control / parameter name; the
+  /// `0x22` — caption (decoded). A single control / parameter name; the
   /// payload *is* the text, sized by the record's own length byte. Corpus: 97% of
   /// bytes printable (≈92% of records fully printable; [HeapRecord.text] returns
   /// null on the rest). Decoded by [HeapRecord.text].
   caption(0x22, HeapShape.string, isDecoded: true),
 
-  /// `0x27` — **plot / legend name** (decoded). A single string naming a plot or
+  /// `0x27` — plot / legend name (decoded). A single string naming a plot or
   /// series, e.g. `Plot 0`, `Plot 1`. Same single-string payload as [caption]
   /// (≈99% of records fully printable). Decoded by [HeapRecord.text].
   plotName(0x27, HeapShape.string, isDecoded: true),
 
-  /// `0x74` — **numeric format string** (decoded). A single string holding a
+  /// `0x74` — numeric format string (decoded). A single string holding a
   /// display format specifier, e.g. `%020b`, `%016b`, `%#_6g`. Single-string
   /// payload, 96% of bytes printable (≈79% of records fully printable — format
   /// specifiers carry control bytes; [HeapRecord.text] returns null on the rest).
   /// Decoded by [HeapRecord.text].
   formatString(0x74, HeapShape.string, isDecoded: true),
 
-  /// `0x20` — **item / label string** (decoded). A single identifier or
+  /// `0x20` — item / label string (decoded). A single identifier or
   /// enum/ring item label, e.g. `Line 0`..`Line 7`, `stringLength`, `<None>`.
   /// Single-string payload (≈99% of records fully printable). Decoded by
   /// [HeapRecord.text].
   itemLabel(0x20, HeapShape.string, isDecoded: true),
 
-  /// `0xC4` — **symbol / C-function name** (decoded). A single string holding a
+  /// `0xC4` — symbol / C-function name (decoded). A single string holding a
   /// Call-Library function or decorated C entry-point name, e.g.
   /// `ps2000aRunStreaming`, `_ps5000SetEts@20`. Lives mostly in the `DTHP` type
   /// heap (93% printable). Decoded by [HeapRecord.text]. (The opcode byte here is
   /// `0xC4`, distinct from the record-prefix [kHeapRecordPrefix].)
   symbolName(0xc4, HeapShape.string, isDecoded: true),
 
-  /// `0xB6` — **VI-Server method / invoke-node name** (decoded). A single string
+  /// `0xB6` — VI-Server method / invoke-node name (decoded). A single string
   /// naming a property/invoke-node method, e.g. `FP.Open`, `FP.Close`, `FP.Center`,
   /// `Mass Compile`, `Reinit To Default`, `ClearCompObjCache`. 100% printable
   /// across the corpus (scoped to kinds 0xaa/0x0a). Decoded by [HeapRecord.text].
   methodName(0xb6, HeapShape.string, isDecoded: true),
 
-  /// `0x19` — **description / help text** (decoded, heuristic). HTML-ish
+  /// `0x19` — description / help text (decoded, heuristic). HTML-ish
   /// (`<B>…</B>`), multi-line tooltip/help text stored as length-prefixed text
   /// segments. The inner multi-segment framing is not fully decoded, so the text
   /// is recovered heuristically by [HeapRecord.descriptionText].
   description(0x19, HeapShape.helpText, isDecoded: true),
 
-  /// `0xA4` — **filesystem path** (decoded). A LabVIEW `PTH0` path record:
+  /// `0xA4` — filesystem path (decoded). A LabVIEW `PTH0` path record:
   /// `'PTH0' <u32 len> <u16 type> <u16 nComponents>` then packed Pascal-string
   /// components — a DLL / library reference (e.g. `ps5000.dll`,
   /// `Program Files\Pico Technology\…`). Mostly in `DTHP` (100% start with
   /// `PTH0`). Decoded by [HeapRecord.path].
   path(0xa4, HeapShape.path, isDecoded: true),
 
-  /// `0x4A` — **type / terminal bounds rectangle** (decoded). ~99% are an 8-byte
+  /// `0x4A` — type / terminal bounds rectangle (decoded). ~99% are an 8-byte
   /// 4× `s16` rectangle (100% valid when 8-byte), in the `DTHP` type heap — the
   /// bounds of a terminal / type element. Decoded by the generic [HeapRecord.rect].
   typeBounds(0x4a, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x44` — **composite container** (structural). ~74% of records hold nested
+  /// `0x44` — composite container (structural). ~74% of records hold nested
   /// `C4` children (bounds `2D` + origin/size `1F` + caption `22`, interleaved
   /// with non-`C4` style/color tuples) — a control/decoration cluster; the rest
   /// carry non-`C4` payloads (the container role is inferred, not universal).
   /// Children via [HeapRecord.children].
   container44(0x44, HeapShape.container),
 
-  /// `0x64` — **composite container** (structural). Like [container44] but richer
+  /// `0x64` — composite container (structural). Like [container44] but richer
   /// (~96% hold nested `C4`: bounds + captions + format strings + type tokens).
   /// Children via [HeapRecord.children].
   container64(0x64, HeapShape.container),
 
-  /// `0x24` — **composite container** (structural). A bounds-rect-dominant cluster
+  /// `0x24` — composite container (structural). A bounds-rect-dominant cluster
   /// with captions; ~72% hold nested `C4` children (the rest carry non-`C4`
   /// payloads). Children via [HeapRecord.children].
   container24(0x24, HeapShape.container),
 
-  /// `0x5F` — **document bounds rectangle** (decoded; matches OF__docBounds):
+  /// `0x5F` — document bounds rectangle (decoded; matches OF__docBounds):
   /// 4× `s16`, 97% valid, negatives allowed; scope pane `0x11C` 78% + supC
   /// `0x4C` 21% (35,207 records) — a pane's document/content bounds.
   /// Readable via the generic [HeapRecord.rect].
   docBounds(0x5f, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x4C` — **display bounds rectangle** (decoded; matches OF__dBounds):
+  /// `0x4C` — display bounds rectangle (decoded; matches OF__dBounds):
   /// 100% valid, often all-zero/negative; exactly one per heap section on the
   /// panel/diagram root. Readable via [HeapRecord.rect].
   dBounds(0x4c, HeapShape.rectangle, isDecoded: true),
 
-  /// `0xD6` — **panel bounds rectangle** (decoded; matches OF__pBounds): 100%
+  /// `0xD6` — panel bounds rectangle (decoded; matches OF__pBounds): 100%
   /// valid, frequently origin-anchored; exactly one per heap section on the
   /// panel/diagram root (paired with [dBounds]). Readable via [HeapRecord.rect].
   pBounds(0xd6, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x62` — **dynamic bounds rectangle** (decoded; matches OF__dynBounds):
+  /// `0x62` — dynamic bounds rectangle (decoded; matches OF__dynBounds):
   /// 100% valid; scope scale `0x8F` at 100.00% (FPHb) — a scale's dynamic
   /// bounds. Readable via [HeapRecord.rect].
   dynBounds(0x62, HeapShape.rectangle, isDecoded: true),
 
-  /// `0x26` — **rectangle, role undetermined** (structural). ~74% are an 8-byte
+  /// `0x26` — rectangle, role undetermined (structural). ~74% are an 8-byte
   /// 4× `s16` rectangle (100% valid when 8-byte); the rest are larger
   /// variable-length payloads of unknown shape. Readable via [HeapRecord.rect].
   rect26(0x26, HeapShape.rectangle),
 
-  /// `0x23` — **rectangle, role undetermined** (structural). 99.5% of payloads
+  /// `0x23` — rectangle, role undetermined (structural). 99.5% of payloads
   /// are 8 bytes and decode as 4× `s16` rectangles; scoped to select/case
   /// structures. Readable via [HeapRecord.rect].
   rect23(0x23, HeapShape.rectangle),
@@ -236,7 +236,7 @@ enum HeapShape {
   none,
 }
 
-/// The **value kind** an [HeapAttribute] carries — what the attribute's bytes
+/// The value kind an [HeapAttribute] carries — what the attribute's bytes
 /// *mean*, independent of how wide they are stored. The storage width comes from
 /// the carrying opcode (see [HeapAttrWidth]); for the length-prefixed `Cx` forms
 /// [HeapAttr.kind] refines the kind from that width at decode time (a
@@ -264,7 +264,7 @@ enum HeapAttrKind {
   ordinal,
 
   /// A general numeric value — scale, packed pair, or large id — whose finer
-  /// meaning is not pinned (kept honest rather than over-named).
+  /// meaning is not yet decoded; the name stays deliberately general.
   numeric,
 
   /// A floating-point numeric-control parameter (range min/max, increment,
@@ -289,7 +289,7 @@ enum HeapAttrKind {
   /// Decoded by [HeapAttr.asPoint].
   point,
 
-  /// An opaque length-prefixed `C5 <id> <len>` **container** (the raw-`0x1E7`
+  /// An opaque length-prefixed `C5 <id> <len>` container (the raw-`0x1E7`
   /// [HeapAttribute.compressedWireTable] payload) — framed but its interior
   /// packing is not decoded (only ~38% re-walks as a record sub-stream; it is
   /// a packed table, not a record stream). [HeapAttr.value] is the leading
@@ -333,11 +333,11 @@ enum HeapAttrWidth {
   container,
 }
 
-/// How well-grounded an [HeapAttribute]'s assigned **name** is. This is a
+/// How well-grounded an [HeapAttribute]'s assigned name is. This is a
 /// clean-room reverse-engineering effort (no LabVIEW source), so names are
-/// inferred from value distributions and must be labelled honestly.
+/// inferred from value distributions, and each records how well grounded it is.
 enum AttrConfidence {
-  /// Pinned by a decisive Rosetta — RGB triples, the transparent sentinel, a
+  /// Confirmed by a decisive Rosetta — RGB triples, the transparent sentinel, a
   /// monotone min≤max ordering, a strictly-sequential index, or decoded ASCII.
   confirmed,
 
@@ -349,8 +349,8 @@ enum AttrConfidence {
   kindOnly,
 }
 
-/// The catalog of known LabVIEW heap **attribute tags**, keyed by the 10-bit
-/// **raw tag id** `((op & 3) << 8) | idByte` of a leaf attribute record
+/// The catalog of known LabVIEW heap attribute tags, keyed by the 10-bit
+/// raw tag id `((op & 3) << 8) | idByte` of a leaf attribute record
 /// `<op> <id> <value>` (see the header model on [kHeapRecordPrefix]): the op's
 /// high nibble sets the value width (`2x`→u8, `4x`→u16, `6x`→u24, `8x`→u32,
 /// `Ex`→none/true, `0x04..0x06`→none/false, `Cx`→length-prefixed) and the op's
@@ -369,7 +369,7 @@ enum AttrConfidence {
 /// A tag not catalogued maps to [HeapAttribute.unknown]; resolve a raw tag id
 /// with [HeapAttribute.fromRaw] and decode a record with [decodeHeapAttr].
 ///
-/// HONESTY: this is clean-room RE. `confirmed` names are pinned by a decisive
+/// Clean-room RE: `confirmed` names rest on a decisive
 /// signal (RGB triples, the transparent sentinel, monotone orderings, ASCII,
 /// a structural identity such as value == child count); `inferred` names give
 /// the defensible direction from corpus scope + value shape, with the
@@ -382,7 +382,7 @@ enum AttrConfidence {
 /// 0x30 = parm, 0x31 = iUse, 0x52 = indArr, 0x64 = typeDef, 0x8C = propNode,
 /// 0xA9 = invokeNode, 0x110 = propItemInfo, 0x11C = pane).
 enum HeapAttribute {
-  /// Raw `0x01F` (tag 0) — **relative coordinate / offset** (`s16`, ≈99.96%
+  /// Raw `0x01F` (tag 0) — relative coordinate / offset (`s16`, ≈99.96%
   /// high-bit-set as `u16` → a relative/negative position; scope: cosm/label
   /// part classes). The single highest-volume attribute. The tag is unnamed in
   /// the pylabview catalog (its field table starts at 1); the same tag also
@@ -390,12 +390,12 @@ enum HeapAttribute {
   /// owner reference ([HeapRefKind.ownerRef]).
   relativeOffset(0x01f, HeapAttrKind.coordinate, 'relativeOffset', AttrConfidence.inferred),
 
-  /// Raw `0x000` / `0x001` — **absolute coordinate X / Y** (`s16`, small with
+  /// Raw `0x000` / `0x001` — absolute coordinate X / Y (`s16`, small with
   /// negatives; low-volume; TODO: re-probe scope on the raw-tag axis).
   coordX(0x000, HeapAttrKind.coordinate, 'coordX', AttrConfidence.inferred),
   coordY(0x001, HeapAttrKind.coordinate, 'coordY', AttrConfidence.inferred),
 
-  /// Raw `0x019` (system tag −6, `arrayElement`) — an **array element value**:
+  /// Raw `0x019` (system tag −6, `arrayElement`) — an array element value:
   /// the inline integer forms of the same tag that opens the object headers
   /// (`10 19 02 fe <class> fd <uid>`) and carries the `14 19` element
   /// references. Grammar-confirmed by the header model; the int widths hold
@@ -403,17 +403,17 @@ enum HeapAttribute {
   /// (see [HeapOpcode.description]).
   arrayElemValue(0x019, HeapAttrKind.numeric, 'arrayElementValue', AttrConfidence.confirmed),
 
-  /// Raw `0x0DF` — **part id** (`u8`/`u16`; matches OF__partID = 192): which
+  /// Raw `0x0DF` — part id (`u8`/`u16`; matches OF__partID = 192): which
   /// *part* of a composite object the enclosing object is.
   /// Full-corpus evidence (`tool/probe_part_role.dart`, [walkHeapObjects], 7524
   /// VIs): 1,573,913 records, every one inside an object scope (0 outside), and
-  /// the value→dominant-enclosing-kind mapping holds at **97.14%** purity across
-  /// 88 distinct values. Values **<8000** name common control parts —
+  /// the value→dominant-enclosing-kind mapping holds at 97.14% purity across
+  /// 88 distinct values. Values <8000 name common control parts —
   /// 16→label `0x0A` (335,878/335,898), 66→annex `0x68`
   /// (280,711/280,747 = 99.99%), 15→control sub-part `0x0B` (100,504/100,507),
   /// 9→cosm `0x09` (97.5%), 28→cosm `0x09` (98.7%), 10→numeric display
   /// `0xE0` (74,148/74,167), 22/12→enum item list `0x0D` (100%). Values
-  /// **≥8000** are control-scoped: 8002→numeric control `0x50`
+  /// ≥8000 are control-scoped: 8002→numeric control `0x50`
   /// (12,801/12,817 = 99.9%), 8019→boolean/cluster `0x4F` (2,444/2,444); the
   /// exception is 8010, which spans 13 control-terminal/container kinds
   /// (`0x53`/`0x57`/`0x50`/`0x55`/…) — a cross-kind role, not a kind alias.
@@ -421,45 +421,45 @@ enum HeapAttribute {
   /// `SL__class` header code; the two do not index into each other.
   partRole(0x0df, HeapAttrKind.enumValue, 'partRole', AttrConfidence.inferred),
 
-  /// Raw `0x0AF` — **master part id** (`u8`/`u16`; matches OF__masterPart):
+  /// Raw `0x0AF` — master part id (`u8`/`u16`; matches OF__masterPart):
   /// the [partRole] value of the part this part is slaved to. Corpus evidence
   /// (corpus-wide, 918,340 records): values live in the
   /// partRole value space (9/28/21/8010/30…), scope is the part classes
-  /// (label/cosm/multiCosm 85%+), and for **97.29%** an object in the same
+  /// (label/cosm/multiCosm 85%+), and for 97.29% an object in the same
   /// parent scope carries a [partRole] equal to the value (own-object equality
   /// is 0.02%, so it points at a *sibling* part, not itself). The earlier
   /// "objectSubKind" enclosing-kind axes were refuted (purity <48%) — the
   /// sibling-part axis is the one that holds.
   masterPart(0x0af, HeapAttrKind.enumValue, 'masterPart', AttrConfidence.inferred),
 
-  /// Raw `0x13A` — **type-descriptor index** (`u16` via `45 3A`; matches
+  /// Raw `0x13A` — type-descriptor index (`u16` via `45 3A`; matches
   /// OF__typeDesc): the object's index into the VI's type table, strictly
   /// sequential 1..n per heap (771k records, BDHb).
   typeDescIndex(0x13a, HeapAttrKind.ordinal, 'typeDescIndex', AttrConfidence.inferred),
 
-  /// Raw `0x03A` — **clump number** (`u24`/`u32`; matches OF__clumpNum): an
+  /// Raw `0x03A` — clump number (`u24`/`u32`; matches OF__clumpNum): an
   /// execution-clump word on BD node classes (sRN/prim/iUse/nMux…, 49 classes,
   /// BDHb only). Values are `(n << 16) | 3` with sequential `n` — the packed
   /// low half (constant 3) is not yet explained, so inferred, not confirmed.
   clumpNum(0x03a, HeapAttrKind.ordinal, 'clumpNum', AttrConfidence.inferred),
 
-  /// Raw `0x089` — **grow behaviour flags** (`u8`/`u16`; matches OF__howGrow):
+  /// Raw `0x089` — grow behaviour flags (`u8`/`u16`; matches OF__howGrow):
   /// on the part classes (cosm/label 60%+); values are sparse flag words
   /// (240, 4096, 4104, 12288…), not sizes.
   howGrow(0x089, HeapAttrKind.numeric, 'howGrow', AttrConfidence.inferred),
 
-  /// Raw `0x0F8` — **size / extent** (`u16` via the nibble form; values
+  /// Raw `0x0F8` — size / extent (`u16` via the nibble form; values
   /// cluster on pixel-ish extents). The `C5 F8 08 <f64>` form is a distinct tag
   /// (raw `0x1F8` = [scaleDIncr]), not a wider reading of this one.
   sizeExtent(0x0f8, HeapAttrKind.size, 'sizeExtent', AttrConfidence.inferred),
 
-  /// Raw `0x129` — **terminal bounds rectangle** carried as
+  /// Raw `0x129` — terminal bounds rectangle carried as
   /// `C5 29 08 <4× s16>` (NOT an f64 — see [decodeHeapAttr]; matches
   /// OF__termBounds). Corpus-confirmed *shape*: 100% valid rectangles
   /// (219,845/219,892), dims clustering on small glyph/terminal cells (8×8,
   /// 8×16, 9×9); the f64 reading is decisively garbage (0% sane doubles).
   /// Exactly 0/1 per object. ~1.0M records, the highest-volume `Cx` tag.
-  /// The rect is **relative to the carrier's enclosing frame** (its nearest
+  /// The rect is relative to the carrier's enclosing frame (its nearest
   /// bounded positional ancestor; LabVIEW < 8.6 stores that era's absolute
   /// space instead), and on a carrier whose `14 19` childRefs name a
   /// signal-endpoint DCO it is the wire's attach point — a structure tunnel /
@@ -468,16 +468,16 @@ enum HeapAttribute {
   termBounds(0x129, HeapAttrKind.rectangle, 'termBounds', AttrConfidence.inferred),
 
   /// Raw `0x029` — the `84 29` u32 form (a different tag than [termBounds]):
-  /// an opaque colour-shaped value; meaning not pinned on any corpus axis.
+  /// an opaque colour-shaped value; no corpus axis determines its meaning.
   color29(0x029, HeapAttrKind.numeric, 'value29', AttrConfidence.kindOnly),
 
-  /// Raw `0x0DC` — **parameter index** (`u8`, strictly sequential 1..n;
+  /// Raw `0x0DC` — parameter index (`u8`, strictly sequential 1..n;
   /// matches OF__paramIdx): scope iUseDCO `0x33` at 96.0% (sub-VI call
   /// parameter DCOs, 450k records, BDHb only). Confirmed by the strict
   /// sequence + scope.
   paramIdx(0x0dc, HeapAttrKind.ordinal, 'paramIdx', AttrConfidence.confirmed),
 
-  /// Raw `0x231` — **property-item name** string, carried inline as
+  /// Raw `0x231` — property-item name string, carried inline as
   /// `C6 31 <len> <raw ASCII>` (the whole payload is the text — see
   /// [_inlineStringRaws]; matches OF__PropItemName). Corpus-confirmed 100%
   /// printable: property-node item names ("Scale", "FP.State", "Data
@@ -485,9 +485,9 @@ enum HeapAttribute {
   /// ("AllObjs[]", "Panes[]", "Diagram", "OwningVI").
   propItemName(0x231, HeapAttrKind.stringBlob, 'propItemName', AttrConfidence.confirmed),
 
-  /// Raw `0x26C` — **BD constant value** (matches OF__ConstValue). This entry
-  /// owns the record census (pinned by the `bd_const_values` corpus-snapshot
-  /// section): the corpus' decoded top-level FP/BD heaps hold **54,801**
+  /// Raw `0x26C` — BD constant value (matches OF__ConstValue). This entry
+  /// owns the record census (asserted by the `bd_const_values` corpus-snapshot
+  /// section): the corpus' decoded top-level FP/BD heaps hold 54,801
   /// records, every one innermost-scoped to a `0x13` bDConstDCO (BDHb only),
   /// exactly one per constant. The value is the constant's flattened data:
   /// small ints ride the `u8..u32` widths (1/0/2/−1…), strings ride the
@@ -497,15 +497,15 @@ enum HeapAttribute {
   /// flattened data and stay framed-inside-the-record rather than fabricated.
   constValue(0x26c, HeapAttrKind.stringBlob, 'constValue', AttrConfidence.inferred),
 
-  /// Raw `0x163` / `0x164` — a **paired rectangle block** carried as
+  /// Raw `0x163` / `0x164` — a paired rectangle block carried as
   /// `C5 63|64 08 <4× s16>` (NOT f64; match OF__totalBounds / OF__srcRect).
   /// Corpus-confirmed shape: 100% valid rectangles, 0% sane f64; the two
   /// appear together with identical rects (75×75, 768×432) plus a colour.
   totalBounds(0x163, HeapAttrKind.rectangle, 'totalBounds', AttrConfidence.inferred),
   srcRect(0x164, HeapAttrKind.rectangle, 'srcRect', AttrConfidence.inferred),
 
-  /// Raw `0x1E7` — **compressed wire table** (matches
-  /// OF__compressedWireTable): scope signal `0x17` at **100.00%** (426,397
+  /// Raw `0x1E7` — compressed wire table (matches
+  /// OF__compressedWireTable): scope signal `0x17` at 100.00% (426,397
   /// records, BDHb only), in the per-signal chain `25 15 → C5 E7 → 44 9F`
   /// ([signalState] → this → [lastSignalKind]). The `C5 E7 <len>` form is the
   /// packed table payload (framed container — packed data, not a record
@@ -517,8 +517,8 @@ enum HeapAttribute {
   /// graph.dart, which own the grammar and the corpus census.
   compressedWireTable(0x1e7, HeapAttrKind.numeric, 'compressedWireTable', AttrConfidence.inferred),
 
-  /// Raw `0x09F` — **last signal kind**: the signal's **wire-type word**
-  /// (`u16`; matches OF__lastSignalKind): scope signal `0x17` at **99.99%**
+  /// Raw `0x09F` — last signal kind: the signal's wire-type word
+  /// (`u16`; matches OF__lastSignalKind): scope signal `0x17` at 99.99%
   /// (428,089 records, BDHb only), closing the signal chain. Decoded —
   /// `[flags][structural depth][element type code]` in the VCTP TypeCode
   /// space (e.g. 33616 = `0x8350` a cluster wire, 560 = `0x230` a string
@@ -526,40 +526,40 @@ enum HeapAttribute {
   /// oracle validation live on `ViSignalType` (graph.dart).
   lastSignalKind(0x09f, HeapAttrKind.numeric, 'lastSignalKind', AttrConfidence.inferred),
 
-  /// Raw `0x115` — **signal state** (`u8` bit-flag values 1/33/17/49; matches
-  /// OF__state): scope signal `0x17` at **99.99%** (428,093 records), opening
+  /// Raw `0x115` — signal state (`u8` bit-flag values 1/33/17/49; matches
+  /// OF__state): scope signal `0x17` at 99.99% (428,093 records), opening
   /// the signal chain.
   signalState(0x115, HeapAttrKind.numeric, 'signalState', AttrConfidence.inferred),
 
-  /// Raw `0x061` — **data-space word** (`u16`, power-of-two values
+  /// Raw `0x061` — data-space word (`u16`, power-of-two values
   /// 4096/512/2048/1024; matches OF__dsw): scope bDConstDCO `0x13` 55% +
   /// parm `0x30` 18%. The bit meanings are not decoded.
   dsw(0x061, HeapAttrKind.numeric, 'dsw', AttrConfidence.inferred),
 
-  /// Raw `0x106` — **short count** (`u8`, small even-dominant ints 1/2/4/6/8;
+  /// Raw `0x106` — short count (`u8`, small even-dominant ints 1/2/4/6/8;
   /// matches OF__shortCount): scope the BD node classes (sRN/prim/iUse/…,
   /// 59 classes, BDHb only; 223,646 records).
   shortCount(0x106, HeapAttrKind.numeric, 'shortCount', AttrConfidence.inferred),
 
-  /// Raw `0x286` — **mouse-wheel support** (`u8` enum {0, 2, 3}; matches
+  /// Raw `0x286` — mouse-wheel support (`u8` enum {0, 2, 3}; matches
   /// OF__MouseWheelSupport): scope the FP control DCO classes
   /// (stdString/stdNum/stdBool/stdClust…, 211,232 records).
   mouseWheelSupport(0x286, HeapAttrKind.enumValue, 'mouseWheelSupport', AttrConfidence.inferred),
 
-  /// Raw `0x072` — **first node index** (`u8`/`u16` small ints; matches
-  /// OF__firstNodeIdx): scope diag `0x1B` at **99.03%** (51,444 records,
+  /// Raw `0x072` — first node index (`u8`/`u16` small ints; matches
+  /// OF__firstNodeIdx): scope diag `0x1B` at 99.03% (51,444 records,
   /// BDHb only).
   firstNodeIdx(0x072, HeapAttrKind.ordinal, 'firstNodeIdx', AttrConfidence.inferred),
 
-  /// Raw `0x17B` — **annex DDO flag** (`u8`, value 2 at 99.89%; matches
-  /// OF__annexDDOFlag): scope annex `0x68` at **100.00%** (38,560 records).
+  /// Raw `0x17B` — annex DDO flag (`u8`, value 2 at 99.89%; matches
+  /// OF__annexDDOFlag): scope annex `0x68` at 100.00% (38,560 records).
   annexDDOFlag(0x17b, HeapAttrKind.numeric, 'annexDDOFlag', AttrConfidence.inferred),
 
-  /// Raw `0x08A` — **element index "i"** (`u8`, sequential 1,2,3…; matches
-  /// OF__i): scope nmxDCO `0x62` at **100.00%** (25,814 records, BDHb).
+  /// Raw `0x08A` — element index "i" (`u8`, sequential 1,2,3…; matches
+  /// OF__i): scope nmxDCO `0x62` at 100.00% (25,814 records, BDHb).
   elementI(0x08a, HeapAttrKind.ordinal, 'i', AttrConfidence.inferred),
 
-  /// Raw `0x048` — **connector terminal map** (`u8`/`u16`; matches
+  /// Raw `0x048` — connector terminal map (`u8`/`u16`; matches
   /// OF__connectorTM): scope iUse `0x31` 87% + dynIUse `0x104` (sub-VI call
   /// nodes; 37,620 records, BDHb only).
   connectorTM(0x048, HeapAttrKind.numeric, 'connectorTM', AttrConfidence.inferred),
@@ -569,65 +569,65 @@ enum HeapAttribute {
   /// a meaning, so kindOnly. Distinct from the `C4 23` rect opcode.
   field23(0x023, HeapAttrKind.numeric, 'field23', AttrConfidence.kindOnly),
 
-  /// Raw `0x0EA` — **primitive resource id** (`u16` values clustering
-  /// 1000..2100; matches OF__primResID): scope prim `0x2F` at **99.95%**
+  /// Raw `0x0EA` — primitive resource id (`u16` values clustering
+  /// 1000..2100; matches OF__primResID): scope prim `0x2F` at 99.95%
   /// (46,479 records, BDHb only).
   primResID(0x0ea, HeapAttrKind.numeric, 'primResID', AttrConfidence.inferred),
 
-  /// Raw `0x0E9` — **primitive index** (`u8`/`u16`; matches OF__primIndex):
+  /// Raw `0x0E9` — primitive index (`u8`/`u16`; matches OF__primIndex):
   /// scope parm `0x30` 75% + prim `0x2F` 22% (205,679 records, BDHb only).
   primIndex(0x0e9, HeapAttrKind.numeric, 'primIndex', AttrConfidence.inferred),
 
-  /// Raw `0x0DE` — **parameter index** (`u8` small ints; matches
-  /// OF__parmIndex): scope parm `0x30` at **100.00%** (114,327 records,
+  /// Raw `0x0DE` — parameter index (`u8` small ints; matches
+  /// OF__parmIndex): scope parm `0x30` at 100.00% (114,327 records,
   /// BDHb only).
   parmIndex(0x0de, HeapAttrKind.ordinal, 'parmIndex', AttrConfidence.inferred),
 
-  /// Raw `0x0CB` — **object flags** (`u8`/`u16`/`u24`/`u32`, stored at the
+  /// Raw `0x0CB` — object flags (`u8`/`u16`/`u24`/`u32`, stored at the
   /// smallest sufficient width — width tracks value magnitude at 100%; matches
   /// OF__objFlags): a per-object packed flags word. Corpus evidence
   /// (`tool/probe_gap_census.dart`, 3,745,810 records): it is the FIRST record
-  /// of its object scope at **99.99%** (position-0 invariant; the record
+  /// of its object scope at 99.99% (position-0 invariant; the record
   /// before it is the object header), values decompose as sparse-bit words,
   /// and every alternative identity is refuted (== bounds width/height ≤
   /// 0.07%, == oid 0.01%, == caption length 0.01%, sibling monotonicity 9.9%).
   /// The per-bit meanings are not decoded.
   objFlags(0x0cb, HeapAttrKind.numeric, 'objFlags', AttrConfidence.inferred),
 
-  /// Raw `0x05E` — **large numeric / packed pair** (`u32`, ~0.85M..3.9M).
+  /// Raw `0x05E` — large numeric / packed pair (`u32`, ~0.85M..3.9M).
   /// Low-volume; not re-probed on the raw-tag axis (TODO).
   packedPair(0x05e, HeapAttrKind.numeric, 'packedPairOrId', AttrConfidence.inferred),
 
-  /// Raw `0x0DA` — **pane flags** (`u24` bitfield, dominant `0x040101`;
+  /// Raw `0x0DA` — pane flags (`u24` bitfield, dominant `0x040101`;
   /// matches OF__paneFlags): scope pane `0x11C` 78% + supC `0x4C` 21%
   /// (35,207 records). Bit meanings not decoded.
   paneFlags(0x0da, HeapAttrKind.numeric, 'paneFlags', AttrConfidence.inferred),
 
-  /// Raw `0x028` — **background / fill colour** (u32 RGB with the flag byte;
+  /// Raw `0x028` — background / fill colour (u32 RGB with the flag byte;
   /// ~27% transparent, ~24% white; matches OF__bgColor = 9): on the part
   /// classes (label/cosm/multiCosm…). The `u8` narrow form is a different
-  /// field sharing the tag: the **font id** of a text run
+  /// field sharing the tag: the font id of a text run
   /// ([HeapPropertyToken.textStyleRuns], an `FTAB` font-table index), kept
   /// value-kind-only by [heapDecodeTier]. Corpus (7,569 files walked —
   /// 7,523 VIs + the 46 snippet PNGs): 162,869 narrow records, of which
-  /// **161,398 (99.10%) sit inside a label's tag-`0x25` run group**. The
+  /// 161,398 (99.10%) sit inside a label's tag-`0x25` run group. The
   /// other 1,471 are all FPHb-only, all on class-`0x5e` objects, inside
   /// tag-`0x19` (1,446) or tag-`0x21` (25) groups, values 0 (1,217) / 2
   /// (209) / 1 (36) — a third reading of the tag.
   // TODO(labwright): decode the class-0x5e narrow form.
   backgroundColor(0x028, HeapAttrKind.color, 'backgroundColor', AttrConfidence.confirmed),
 
-  /// Raw `0x024` — **content / area colour** (u32 RGB; ~58% transparent,
+  /// Raw `0x024` — content / area colour (u32 RGB; ~58% transparent,
   /// ~28% white; scope label 77% / numLabel 13%).
   contentColor(0x024, HeapAttrKind.color, 'contentColor', AttrConfidence.confirmed),
 
-  /// Raw `0x06F` — **foreground colour** (u32 RGB; greys + ~36% transparent;
+  /// Raw `0x06F` — foreground colour (u32 RGB; greys + ~36% transparent;
   /// matches OF__fgColor = 80): on the part classes (label/cosm 68%+).
   fgColor(0x06f, HeapAttrKind.color, 'fgColor', AttrConfidence.confirmed),
 
-  /// Raw `0x020` — a **class-polymorphic** tag (pylabview names its tag 1
+  /// Raw `0x020` — a class-polymorphic tag (pylabview names its tag 1
   /// here; the class split below is this corpus's): in the cosm
-  /// part classes at u32 width it is a **foreground/frame colour** (class
+  /// part classes at u32 width it is a foreground/frame colour (class
   /// bigMultiCosm `0x0C` at 99.38% of u32 records; greys/black); in the label
   /// classes at u16/u24 it carries text-style FLAG words (0x200/0x600/0x8000 —
   /// not colours); on select structures at u8 it is a small index (0..3,
@@ -636,9 +636,9 @@ enum HeapAttribute {
   /// value-kind-only.
   cosmFgColor(0x020, HeapAttrKind.color, 'cosmFgColor', AttrConfidence.inferred),
 
-  /// Raw `0x021` — **class-polymorphic** like [cosmFgColor] (pylabview names
+  /// Raw `0x021` — class-polymorphic like [cosmFgColor] (pylabview names
   /// its tag 2 here):
-  /// a **second cosm colour** at u32 in the cosm classes (60.7% of u32
+  /// a second cosm colour at u32 in the cosm classes (60.7% of u32
   /// records; greys/white), but label-class u32/u24/u16 records carry
   /// text-mode words (0x814404/0x14404/0x4404 patterns — not colours).
   /// [heapDecodeTier] counts only the cosm-scoped u32 form as a colour.
@@ -661,29 +661,29 @@ enum HeapAttribute {
   /// Field meanings not decoded. // TODO(labwright)
   cosmColorB(0x021, HeapAttrKind.color, 'cosmColorB', AttrConfidence.inferred),
 
-  /// Raw `0x02A` — **plot / graph colour** (u32 RGB; scope stdGraph `0x5E`
+  /// Raw `0x02A` — plot / graph colour (u32 RGB; scope stdGraph `0x5E`
   /// 100% of the re-probed u32 records, FPHb; the LabVIEW plot palette
-  /// #FF4242/#0EFF00/… appears). Role inferred, not pinned.
+  /// #FF4242/#0EFF00/… appears). Role inferred, not confirmed.
   plotColor(0x02a, HeapAttrKind.color, 'plotColor', AttrConfidence.inferred),
 
-  /// Raw `0x02B` — **border colour** (u32; 73% zero = black, hued minority;
+  /// Raw `0x02B` — border colour (u32; 73% zero = black, hued minority;
   /// matches OF__borderColor = 12): scope stdGraph/treeControl, FPHb.
   borderColor(0x02b, HeapAttrKind.color, 'borderColor', AttrConfidence.inferred),
 
-  /// Raw `0x0D0` — **origin** (u32 as a packed `(s16 y, s16 x)` point, NOT a
+  /// Raw `0x0D0` — origin (u32 as a packed `(s16 y, s16 x)` point, NOT a
   /// colour; matches OF__origin = 177): scope pane `0x11C` 60% / panel root;
   /// 99.82% decode as plausible small points, mostly small negatives like
   /// (−4,−4) — a scroll origin. The packed-point decomposition (not a colour)
   /// is what the value shape supports.
   origin(0x0d0, HeapAttrKind.point, 'origin', AttrConfidence.inferred),
 
-  /// Raw `0x0B7` — **minimum pane size** (u32 as packed `(s16, s16)`; matches
+  /// Raw `0x0B7` — minimum pane size (u32 as packed `(s16, s16)`; matches
   /// OF__minPaneSize = 152): scope pane `0x11C` 78% + supC `0x4C` 21%;
   /// dominant value `0x00010001` = (1,1), then (35,35); 82.8% positive size
   /// pairs — a packed size point, not a colour.
   minPaneSize(0x0b7, HeapAttrKind.point, 'minPaneSize', AttrConfidence.inferred),
 
-  /// Raw `0x022` — **short label text** (the pylabview naming lead: textHair
+  /// Raw `0x022` — short label text (the pylabview naming lead: textHair
   /// tag 3 = text): the
   /// scalar-width sibling of the `C4 22` caption opcode ([HeapOpcode.caption],
   /// same tag, length-prefixed), carrying a 1-4 character caption with the text
@@ -698,32 +698,32 @@ enum HeapAttribute {
   /// Distinct from raw `0x222` ([stdNumInc]).
   shortText(0x022, HeapAttrKind.text, 'shortText', AttrConfidence.inferred),
 
-  /// Raw `0x074` — **printf-format style** (RGB-width with style byte `0x25`,
+  /// Raw `0x074` — printf-format style (RGB-width with style byte `0x25`,
   /// or a `u16`). Distinct from the `C4 74` format-string opcode (same tag,
   /// lp width — the format text itself).
   formatStyle(0x074, HeapAttrKind.text, 'formatStyle', AttrConfidence.inferred),
 
-  /// Raw `0x158` — **terminal-list length** (`u8`; matches
+  /// Raw `0x158` — terminal-list length (`u8`; matches
   /// OF__termListLength): scope fPDCO `0x12` at 99.98%, and the value equals
-  /// the enclosing object's direct child-object count at **97.56%**
+  /// the enclosing object's direct child-object count at 97.56%
   /// (40,644/41,660) — a structural identity.
   termListLength(0x158, HeapAttrKind.ordinal, 'termListLength', AttrConfidence.confirmed),
 
-  /// Raw `0x044` — **connector-pane terminal number** (`u8`; matches
-  /// OF__conNum): scope fPDCO `0x12` at **99.98%**; values are small terminal
+  /// Raw `0x044` — connector-pane terminal number (`u8`; matches
+  /// OF__conNum): scope fPDCO `0x12` at 99.98%; values are small terminal
   /// ordinals (82% < 40) with the `255` = unwired sentinel (17.8%). Distinct
   /// from the `C4 44` container opcode.
   conNum(0x044, HeapAttrKind.ordinal, 'conNum', AttrConfidence.inferred),
 
-  /// Raw `0x059` — **reserved / near-always-zero flag** (`u8`; ~99.9% zero).
+  /// Raw `0x059` — reserved / near-always-zero flag (`u8`; ~99.9% zero).
   reservedFlag(0x059, HeapAttrKind.flag, 'reservedFlag', AttrConfidence.inferred),
 
-  /// Raw `0x05A` — a **u8 flag** (the narrow sibling of what was once thought
+  /// Raw `0x05A` — a u8 flag (the narrow sibling of what was once thought
   /// one dual-use id; the identity-string blob is the separate raw `0x25A` =
   /// [defaultData]).
   flag5A(0x05a, HeapAttrKind.flag, 'flag5A', AttrConfidence.inferred),
 
-  /// Raw `0x25A` — **control default data** (matches OF__DefaultData): scope
+  /// Raw `0x25A` — control default data (matches OF__DefaultData): scope
   /// fPDCO `0x12` 71% + xTunnel/indArr; the value is the control's flattened
   /// default value — small ints ride the integer widths (1/0/−1/15000…),
   /// strings (VISA resource names, serials) ride the validity-gated `C6 5A FF`
@@ -731,9 +731,9 @@ enum HeapAttribute {
   /// not fabricated into strings.
   defaultData(0x25a, HeapAttrKind.numeric, 'defaultData', AttrConfidence.inferred),
 
-  /// Raw `0x1F5`..`0x1FA` — the **scale data parameter family**
+  /// Raw `0x1F5`..`0x1FA` — the scale data parameter family
   /// (`C5 F5..FA 08` + f64; match OF__scaleDMin/scaleDMax/scaleDStart/
-  /// scaleDIncr/scaleDMinInc/scaleDMultiplier): the corpus orderings that pinned the old
+  /// scaleDIncr/scaleDMinInc/scaleDMultiplier): the corpus orderings behind the old
   /// controlMin/Max/FineIncrement/Unit names carry over — `F5 ≤ F7` ≈90%
   /// (min ≤ start), `F9 ≤ F8` 257/257 (minInc ≤ incr, confirmed), `FA` = 1.0
   /// constant 257/257 (multiplier, confirmed).
@@ -744,8 +744,8 @@ enum HeapAttribute {
   scaleDMinInc(0x1f9, HeapAttrKind.controlParam, 'scaleDMinInc', AttrConfidence.confirmed),
   scaleDMultiplier(0x1fa, HeapAttrKind.controlParam, 'scaleDMultiplier', AttrConfidence.confirmed),
 
-  /// Raw `0x220` / `0x221` / `0x222` — **numeric-control minimum / maximum /
-  /// increment** (match OF__StdNumMin/StdNumMax/StdNumInc; the
+  /// Raw `0x220` / `0x221` / `0x222` — numeric-control minimum / maximum /
+  /// increment (match OF__StdNumMin/StdNumMax/StdNumInc; the
   /// `C6 20|21|22 08` + f64 forms, with small values riding the integer widths). The old
   /// corpus evidence carries over: min 100% sane with the `−inf` = "no min"
   /// sentinel, max 98.8% sane with `+inf`, inc 99.2% sane with dominant 0.0
@@ -755,46 +755,46 @@ enum HeapAttribute {
   stdNumMax(0x221, HeapAttrKind.controlParam, 'stdNumMax', AttrConfidence.inferred),
   stdNumInc(0x222, HeapAttrKind.controlParam, 'stdNumInc', AttrConfidence.inferred),
 
-  /// Raw `0x120` — **table flags** (`u16` bitfield 0x2610/0x2E10…; matches
+  /// Raw `0x120` — table flags (`u16` bitfield 0x2610/0x2E10…; matches
   /// OF__tableFlags): scope treeControl/listbox/tableControl at 100.00%
   /// (416 records, FPHb). Bit meanings not decoded.
   tableFlags(0x120, HeapAttrKind.numeric, 'tableFlags', AttrConfidence.inferred),
 
-  /// Raw `0x114` — **timestamp** (`u32` seconds in the LabVIEW 1904 epoch;
-  /// matches OF__stamp): scope typeDef `0x64` at **100.00%**, and 4,005/4,005
+  /// Raw `0x114` — timestamp (`u32` seconds in the LabVIEW 1904 epoch;
+  /// matches OF__stamp): scope typeDef `0x64` at 100.00%, and 4,005/4,005
   /// values fall in the 1995..2030 window — a type-definition edit stamp.
   stamp(0x114, HeapAttrKind.numeric, 'stamp', AttrConfidence.confirmed),
 
-  /// Raw `0x0C4` — **node name** (matches OF__nodeName): scope propNode
+  /// Raw `0x0C4` — node name (matches OF__nodeName): scope propNode
   /// `0x8C` 67% + invokeNode `0xA9` 24%; the integer widths carry short
   /// VI-server class names as magnitude-encoded ASCII ("VI", "App" — 100%
   /// printable, 5,920/5,920), longer names ride the lp form (see also
   /// [HeapOpcode.symbolName], the same tag's `C4 C4` form).
   nodeName(0x0c4, HeapAttrKind.text, 'nodeName', AttrConfidence.inferred),
 
-  /// Raw `0x0C9` — **object-manager id** (`u16`; matches OF__oMId): scope
+  /// Raw `0x0C9` — object-manager id (`u16`; matches OF__oMId): scope
   /// propNode/invokeNode 92% (10,945 records, BDHb).
   oMId(0x0c9, HeapAttrKind.numeric, 'oMId', AttrConfidence.inferred),
 
-  /// Raw `0x0CE` — **OMId type descriptor** (`u8`/`u16`; matches
-  /// OF__omidTypeDesc): scope propItemInfo `0x110` at **100.00%**; values sit
+  /// Raw `0x0CE` — OMId type descriptor (`u8`/`u16`; matches
+  /// OF__omidTypeDesc): scope propItemInfo `0x110` at 100.00%; values sit
   /// one below the co-occurring [dataTypeDesc] values (85 vs 86, 63 vs 64).
   omidTypeDesc(0x0ce, HeapAttrKind.ordinal, 'omidTypeDesc', AttrConfidence.inferred),
 
-  /// Raw `0x15B` — **data type descriptor** (`u8`/`u16` type-table index;
-  /// matches OF__dataTypeDesc): scope propItemInfo `0x110` at **100.00%**.
+  /// Raw `0x15B` — data type descriptor (`u8`/`u16` type-table index;
+  /// matches OF__dataTypeDesc): scope propItemInfo `0x110` at 100.00%.
   dataTypeDesc(0x15b, HeapAttrKind.ordinal, 'dataTypeDesc', AttrConfidence.inferred),
 
-  /// Raw `0x232` — **property item code** (`u16`/`u32` codes like 104013824;
-  /// matches OF__PropItemCode): scope propItemInfo `0x110` at **100.00%**.
+  /// Raw `0x232` — property item code (`u16`/`u32` codes like 104013824;
+  /// matches OF__PropItemCode): scope propItemInfo `0x110` at 100.00%.
   propItemCode(0x232, HeapAttrKind.numeric, 'propItemCode', AttrConfidence.inferred),
 
-  /// Raw `0x043` — **connection id** (`u16` values 4800..4834; matches
-  /// OF__conId): scope conPane `0x7F` at **100.00%** (7,504 records, FPHb) —
+  /// Raw `0x043` — connection id (`u16` values 4800..4834; matches
+  /// OF__conId): scope conPane `0x7F` at 100.00% (7,504 records, FPHb) —
   /// the connector-pane pattern resource id.
   conId(0x043, HeapAttrKind.numeric, 'conId', AttrConfidence.inferred),
 
-  /// Raw `0x04D` — **displayed frame index** of a stacked multi-frame
+  /// Raw `0x04D` — displayed frame index of a stacked multi-frame
   /// structure (`u8`..`u32` with bit 31 as a flag; matches OF__dIdx): scope
   /// select `0x2C` at 89.7% (case structures, BDHb), the remainder on the
   /// other stacked kinds. Captured onto `ViHeapObject.dIdx` and read via
@@ -802,34 +802,34 @@ enum HeapAttribute {
   dIdx(0x04d, HeapAttrKind.ordinal, 'dIdx', AttrConfidence.inferred),
 
   /// Raw `0x051` — a `u16`/`u8` word on structure classes (lpTun/selTun/lCnt…;
-  /// values 512/4096/515; matches OF__dcoFiller, which does not pin a
-  /// meaning). kindOnly.
+  /// values 512/4096/515; matches OF__dcoFiller, which leaves the meaning
+  /// open). kindOnly.
   dcoFiller(0x051, HeapAttrKind.numeric, 'dcoFiller', AttrConfidence.kindOnly),
 
-  /// Raw `0x090` — **index** (`u8` sequential 1,2,3…; matches OF__index):
+  /// Raw `0x090` — index (`u8` sequential 1,2,3…; matches OF__index):
   /// scope multiLabel/multiCosm/bigMultiCosm 98% (19,709 records).
   index90(0x090, HeapAttrKind.ordinal, 'index', AttrConfidence.inferred),
 
-  /// Raw `0x097` — **inplace-ness** (`u8` small ints; matches OF__inplace):
+  /// Raw `0x097` — inplace-ness (`u8` small ints; matches OF__inplace):
   /// scope parm `0x30` 79% + overridableParm `0x14B` 21% at 100.00% combined.
   inplace(0x097, HeapAttrKind.numeric, 'inplace', AttrConfidence.inferred),
 
-  /// Raw `0x09A` — **instrument style** (`u8`, value 31 at 99.94%; matches
+  /// Raw `0x09A` — instrument style (`u8`, value 31 at 99.94%; matches
   /// OF__instrStyle): scope the panel root (2 records/VI: FPHb + BDHb roots).
   instrStyle(0x09a, HeapAttrKind.numeric, 'instrStyle', AttrConfidence.inferred),
 
-  /// Raw `0x0C0` — **visible item count** (`u8`, value 10 at 99.7%; matches
-  /// OF__nVisItems): scope selLabel `0x95` at **100.00%** (BDHb).
+  /// Raw `0x0C0` — visible item count (`u8`, value 10 at 99.7%; matches
+  /// OF__nVisItems): scope selLabel `0x95` at 100.00% (BDHb).
   nVisItems(0x0c0, HeapAttrKind.numeric, 'nVisItems', AttrConfidence.inferred),
 
-  /// Raw `0x0BF` / `0x0CA` — **row/column counts and origin** (u32 as packed
+  /// Raw `0x0BF` / `0x0CA` — row/column counts and origin (u32 as packed
   /// `(s16, s16)` pairs; match OF__nRC / OF__oRC): scope indArr `0x52` at
   /// 99.9% — an index-array DCO's dimensions (nRC values like (1,0)/(2,0))
   /// and origin (negatives allowed).
   nRC(0x0bf, HeapAttrKind.point, 'nRC', AttrConfidence.inferred),
   oRC(0x0ca, HeapAttrKind.point, 'oRC', AttrConfidence.inferred),
 
-  /// Raw `0x128` — **terminal bitmap selector** (`u8`; matches OF__termBMPs):
+  /// Raw `0x128` — terminal bitmap selector (`u8`; matches OF__termBMPs):
   /// scope the loop/case terminal classes with a value↔class pairing
   /// (caseSel `0x2E`→5, lCnt `0x24`→1, lSR `0x27`→3, rSR `0x28`→4,
   /// lMax `0x26`→2, lTst `0x25`→192) — which glyph the terminal shows.
@@ -839,12 +839,12 @@ enum HeapAttribute {
   /// small ints; matches OF__tdOffset but no corpus axis pins it). kindOnly.
   tdOffset(0x127, HeapAttrKind.numeric, 'tdOffset', AttrConfidence.kindOnly),
 
-  /// Raw `0x12D` — **text record field** (`u8`/`u16` small ints; matches
+  /// Raw `0x12D` — text record field (`u8`/`u16` small ints; matches
   /// OF__textRec): scope label classes 96%+ (label/numLabel/multiLabel). The
   /// same tag's open form (`10 2D …`) is the text-record group inside labels.
   textRecField(0x12d, HeapAttrKind.numeric, 'textRecField', AttrConfidence.inferred),
 
-  /// Raw `0x1C0`..`0x1C3` — the **fixed-point parameter quadruple** on
+  /// Raw `0x1C0`..`0x1C3` — the fixed-point parameter quadruple on
   /// overridable parms (`0x14B`, verified 100% for 0x1C0; the four co-occur
   /// with equal populations): word length (constant 64), override, overflow,
   /// quantize (match OF__maxWordLength/override/overflow/quantize).
@@ -853,11 +853,11 @@ enum HeapAttribute {
   fxpOverflow(0x1c2, HeapAttrKind.numeric, 'overflow', AttrConfidence.inferred),
   fxpQuantize(0x1c3, HeapAttrKind.numeric, 'quantize', AttrConfidence.inferred),
 
-  /// Raw `0x0DD` — **parameter table offset** (`u16`/`u24`; matches
+  /// Raw `0x0DD` — parameter table offset (`u16`/`u24`; matches
   /// OF__paramTableOffset): scope iUse `0x31` 78% + dynIUse (sub-VI calls).
   paramTableOffset(0x0dd, HeapAttrKind.numeric, 'paramTableOffset', AttrConfidence.inferred),
 
-  /// Raw `0x254` / `0x255` / `0x266` — **case-selector fields** on select
+  /// Raw `0x254` / `0x255` / `0x266` — case-selector fields on select
   /// structures `0x2C` (97..98.7%): the default-case index (255 = none;
   /// matches OF__SelectDefaultCase), the length of the structure's
   /// [HeapGroupTag.selectorRangeList] (it equals the decoded list on 15 101 of
@@ -868,7 +868,7 @@ enum HeapAttribute {
   selectNRightType(0x255, HeapAttrKind.enumValue, 'selectNRightType', AttrConfidence.inferred),
   selectSelLabFlags(0x266, HeapAttrKind.numeric, 'selectSelLabFlags', AttrConfidence.inferred),
 
-  /// Raw `0x25C` / `0x271` / `0x277` — **for-loop fields** on forLoop `0x20`
+  /// Raw `0x25C` / `0x271` / `0x277` — for-loop fields on forLoop `0x20`
   /// (98.7%): parallel-for index distribution, debugging-enabled, and
   /// output-instance-number-from-P (all observed only at their zero/false
   /// encodings; match OF__ParForIndexDistribution / OF__DebuggingEnabled /
@@ -877,90 +877,90 @@ enum HeapAttribute {
   debuggingEnabled(0x271, HeapAttrKind.flag, 'debuggingEnabled', AttrConfidence.inferred),
   outputInstanceNumberFromP(0x277, HeapAttrKind.flag, 'outputInstanceNumberFromP', AttrConfidence.inferred),
 
-  /// Raw `0x27F` — **default tunnel type** (`u8` enum {1, 2}; matches
-  /// OF__DefaultTunnelType): scope lpTun `0x22` at **100.00%**.
+  /// Raw `0x27F` — default tunnel type (`u8` enum {1, 2}; matches
+  /// OF__DefaultTunnelType): scope lpTun `0x22` at 100.00%.
   defaultTunnelType(0x27f, HeapAttrKind.enumValue, 'defaultTunnelType', AttrConfidence.inferred),
 
-  /// Raw `0x280` / `0x291` — **FPGA fields on index-array DCOs** (`0x52` at
+  /// Raw `0x280` / `0x291` — FPGA fields on index-array DCOs (`0x52` at
   /// 99.95%): implementation bool and enable-bounds-mux bool (match
   /// OF__FpgaImplementation / OF__FpgaEnableBoundsMux).
   fpgaImplementation(0x280, HeapAttrKind.flag, 'fpgaImplementation', AttrConfidence.inferred),
   fpgaEnableBoundsMux(0x291, HeapAttrKind.flag, 'fpgaEnableBoundsMux', AttrConfidence.inferred),
 
-  /// Raw `0x28F` — **default value matches control VI** (boolean; matches
+  /// Raw `0x28F` — default value matches control VI (boolean; matches
   /// OF__kSLHDefaultValueMatchesCtlVI): scope typeDef `0x64` at 99.97%.
   defaultValueMatchesCtlVI(0x28f, HeapAttrKind.flag, 'defaultValueMatchesCtlVI', AttrConfidence.inferred),
 
-  /// Raw `0x1B3` — **cell position column** (`u8` with 254/255 sentinels;
+  /// Raw `0x1B3` — cell position column (`u8` with 254/255 sentinels;
   /// matches OF__cellPosCol): scope treeControl/listbox 97% (FPHb).
   cellPosCol(0x1b3, HeapAttrKind.ordinal, 'cellPosCol', AttrConfidence.inferred),
 
-  /// Raw `0x275` — **saved size rectangle** (`C6 75 <8>`; matches
+  /// Raw `0x275` — saved size rectangle (`C6 75 <8>`; matches
   /// OF__savedSize): 35,079/35,079 payloads are 8 bytes and decode as valid
   /// rectangles (100.00%); scope stdClust `0x53` 78% + panel root 21%.
   savedSize(0x275, HeapAttrKind.rectangle, 'savedSize', AttrConfidence.inferred),
 
-  /// Raw `0x159` / `0x15A` — **reference-list length / grow-node-list length**
+  /// Raw `0x159` / `0x15A` — reference-list length / grow-node-list length
   /// (`u8`, 99.7%+ zero; match OF__refListLength / OF__hGrowNodeListLength,
-  /// the tags adjacent to [termListLength]): scope annex `0x68` at **99.98%**
+  /// the tags adjacent to [termListLength]): scope annex `0x68` at 99.98%
   /// (218k records each), and the 0x159 value equals the object's `14 19` ref
-  /// count at **99.88%** (0x15A at 99.71%) — a structural identity, degenerate
+  /// count at 99.88% (0x15A at 99.71%) — a structural identity, degenerate
   /// only in that both are usually zero.
   refListLength(0x159, HeapAttrKind.ordinal, 'refListLength', AttrConfidence.inferred),
   hGrowNodeListLength(0x15a, HeapAttrKind.ordinal, 'hGrowNodeListLength', AttrConfidence.inferred),
 
-  /// Raw `0x25E` — **minimum button size** (u32 packed `(s16, s16)`; matches
-  /// OF__MinButSize): scope stdBool `0x4F` at **100.00%** (34,889 records);
+  /// Raw `0x25E` — minimum button size (u32 packed `(s16, s16)`; matches
+  /// OF__MinButSize): scope stdBool `0x4F` at 100.00% (34,889 records);
   /// dominant value (20, 20).
   minButSize(0x25e, HeapAttrKind.point, 'minButSize', AttrConfidence.inferred),
 
-  /// Raw `0x12A` — **terminal hot point** (u32 packed `(s16, s16)`, negatives
+  /// Raw `0x12A` — terminal hot point (u32 packed `(s16, s16)`, negatives
   /// allowed, 100.00% plausible points; matches OF__termHotPoint, adjacent to
   /// [termBounds]): on the loop/shift-register terminal classes.
   termHotPoint(0x12a, HeapAttrKind.point, 'termHotPoint', AttrConfidence.inferred),
 
-  /// Raw `0x27E` — **tunnel type** (`u8` enum {1, 2}; matches OF__TunnelType,
-  /// adjacent to [defaultTunnelType]): scope lpTun `0x22` at **100.00%**.
+  /// Raw `0x27E` — tunnel type (`u8` enum {1, 2}; matches OF__TunnelType,
+  /// adjacent to [defaultTunnelType]): scope lpTun `0x22` at 100.00%.
   tunnelType(0x27e, HeapAttrKind.enumValue, 'tunnelType', AttrConfidence.inferred),
 
-  /// Raw `0x263` — **parallel-for static worker count** (`u8`, 99.2% zero;
-  /// matches OF__ParForNumStaticWorkers): scope forLoop `0x20` at **100.00%**.
+  /// Raw `0x263` — parallel-for static worker count (`u8`, 99.2% zero;
+  /// matches OF__ParForNumStaticWorkers): scope forLoop `0x20` at 100.00%.
   parForNumStaticWorkers(0x263, HeapAttrKind.numeric, 'parForNumStaticWorkers', AttrConfidence.inferred),
 
-  /// Raw `0x144` — **window flags** (u32, value 1 at 99.87%; matches
-  /// OF__winFlags): scope the panel root `0x7E` at **100.00%**.
+  /// Raw `0x144` — window flags (u32, value 1 at 99.87%; matches
+  /// OF__winFlags): scope the panel root `0x7E` at 100.00%.
   winFlags(0x144, HeapAttrKind.numeric, 'winFlags', AttrConfidence.inferred),
 
-  /// Raw `0x119` — **structure colour** (u32 RGB, greys #7F7F7F/#B3B3B3;
+  /// Raw `0x119` — structure colour (u32 RGB, greys #7F7F7F/#B3B3B3;
   /// matches OF__structColor): on loop/tunnel/shift-register classes.
   structColor(0x119, HeapAttrKind.color, 'structColor', AttrConfidence.inferred),
 
-  /// Raw `0x0E0` — **part order** (`u8` values 1..3; matches OF__partOrder):
+  /// Raw `0x0E0` — part order (`u8` values 1..3; matches OF__partOrder):
   /// scope cosm `0x09` 50% + stdNum `0x50` 48%.
   partOrder(0x0e0, HeapAttrKind.ordinal, 'partOrder', AttrConfidence.inferred),
 
-  /// Raw `0x0E8` — **preferred instance index** (`u8` with the 255 = none
+  /// Raw `0x0E8` — preferred instance index (`u8` with the 255 = none
   /// sentinel at 57%; matches OF__preferredInstIndex): scope polyIUse `0xC5`
-  /// at **100.00%** — a polymorphic sub-VI call's selected instance.
+  /// at 100.00% — a polymorphic sub-VI call's selected instance.
   preferredInstIndex(0x0e8, HeapAttrKind.ordinal, 'preferredInstIndex', AttrConfidence.inferred),
 
-  /// Raw `0x1B2` — **cell position row** (`u8` with 254/255 sentinels; matches
+  /// Raw `0x1B2` — cell position row (`u8` with 254/255 sentinels; matches
   /// OF__cellPosRow, pairing with [cellPosCol]): scope treeControl/listbox.
   cellPosRow(0x1b2, HeapAttrKind.ordinal, 'cellPosRow', AttrConfidence.inferred),
 
-  /// Raw `0x1B8` — **item flags** (`u8` bitfield 128/191/16/8; matches
+  /// Raw `0x1B8` — item flags (`u8` bitfield 128/191/16/8; matches
   /// OF__flags): scope treeControl/listbox (co-occurring with [cellPosRow]).
   /// Bit meanings not decoded.
   itemFlags(0x1b8, HeapAttrKind.numeric, 'flags', AttrConfidence.inferred),
 
-  /// Raw `0x25D` — **XNode state data** (length-prefixed payloads; matches
+  /// Raw `0x25D` — XNode state data (length-prefixed payloads; matches
   /// OF__StateData): scope xNode `0x105` at 91.2% (small population). The
   /// payload encoding is not decoded.
   stateData(0x25d, HeapAttrKind.numeric, 'stateData', AttrConfidence.inferred),
 
   /// Raw `0x02E` — the integer widths of the string-buffer tag (u32 form,
   /// 89.9% zero; the `C4 2E` lp form is the decoded string table,
-  /// [HeapOpcode.stringTable]). Meaning of the numeric form not pinned.
+  /// [HeapOpcode.stringTable]). The numeric form is not yet decoded.
   bufValue(0x02e, HeapAttrKind.numeric, 'bufValue', AttrConfidence.kindOnly),
 
   /// An attribute tag that is not (yet) catalogued. Its [raw] is -1.
@@ -979,7 +979,7 @@ enum HeapAttribute {
   /// The human-assigned name. See [confidence] for how grounded it is.
   final String attrName;
 
-  /// How well-grounded [attrName] is (clean-room honesty).
+  /// How well-grounded [attrName] is.
   final AttrConfidence confidence;
 
   static final Map<int, HeapAttribute> _byRaw = {
@@ -1027,7 +1027,7 @@ class HeapAttr {
   /// The total byte length of the record (so a walker can advance by it).
   final int length;
 
-  /// For the widths whose typed [value] is a **lossy** or partial reading —
+  /// For the widths whose typed [value] is a lossy or partial reading —
   /// [HeapAttrWidth.blob] (printable-filtered [String]), [HeapAttrWidth.f64]
   /// (an IEEE-754 [double] whose re-encode is not guaranteed bit-identical), and
   /// [HeapAttrWidth.container] (only the leading byte is exposed) — the exact
@@ -1057,7 +1057,7 @@ class HeapAttr {
   /// The value as a `String`, or null if it is not a blob.
   String? get asString => value is String ? value as String : null;
 
-  /// For a magnitude-encoded **text** tag ([_asciiIntRaws]:
+  /// For a magnitude-encoded text tag ([_asciiIntRaws]:
   /// [HeapAttribute.shortText] / [HeapAttribute.nodeName]), the integer [value]'s
   /// magnitude bytes read as ASCII (`0x50616765` → `"Page"`), or null when the
   /// tag is not one of those text tags, the value is not integer-stored, or any
@@ -1095,8 +1095,8 @@ class HeapAttr {
 /// [HeapAttribute.srcRect] pair, and [HeapAttribute.savedSize].
 const Set<int> _rectPayloadRaws = {0x129, 0x163, 0x164, 0x275};
 
-/// Raw tag ids whose `Cx <id> 08` 8-byte payload is a genuine IEEE-754 `f64`
-/// (corpus-validated ≈99–100% sane doubles): the scale-data family
+/// Raw tag ids whose `Cx <id> 08` 8-byte payload is an IEEE-754 `f64`
+/// (≈99–100% of corpus records decode as plausible doubles): the scale-data family
 /// (`C5 F5..FA` = raw `0x1F5..0x1FA`) and the numeric-control min/max/inc
 /// (`C6 20/21/22` = raw `0x220..0x222`). Every OTHER tag at `…08` is NOT
 /// assumed to be an f64 — blindly reading e.g. raw `0x1E7` (a container) as a
@@ -1119,12 +1119,12 @@ const Set<int> _inlineStringRaws = {0x231};
 /// leaves the rest framed — never fabricating a string.
 const Set<int> _u32StringRaws = {0x26c};
 
-/// Raw tag ids whose integer-width values are magnitude-encoded **short ASCII
-/// strings** ([HeapAttribute.shortText], 95.3% of nonzero values all-printable;
+/// Raw tag ids whose integer-width values are magnitude-encoded short ASCII
+/// strings ([HeapAttribute.shortText], 95.3% of nonzero values all-printable;
 /// [HeapAttribute.nodeName], 5,920/5,920). The record keeps its numeric
 /// [HeapAttr.value]; [HeapAttr.asciiText] exposes the ASCII reading separately,
-/// and only when every magnitude byte is printable — a genuinely-numeric record
-/// is never overwritten with a fabricated text token.
+/// and only when every magnitude byte is printable — a numeric record is
+/// never overwritten with a fabricated text token.
 const Set<int> _asciiIntRaws = {0x022, 0x0c4};
 
 /// Whether [c] is a printable ASCII byte (`0x20..0x7e`).
@@ -1143,7 +1143,7 @@ String? _asciiFromInt(int v) {
   return String.fromCharCodes(chars.reversed);
 }
 
-/// Value-byte count of the attribute **nibble family** by the opcode's high
+/// Value-byte count of the attribute nibble family by the opcode's high
 /// nibble — the header's `sizeSpec:hasAttrList` bits (`0x`→0/false, `2x`→1,
 /// `4x`→2, `6x`→3, `8x`→4, `Ex`→0/true); the record is `2 + value bytes` long.
 /// The `Cx` form is length-prefixed and framed separately. Shared by
@@ -1332,14 +1332,14 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   return null;
 }
 
-/// A length-prefixed **`C4` opcode record** in a decompressed VI heap.
+/// A length-prefixed `C4` opcode record in a decompressed VI heap.
 ///
 /// The heap is a stream of opcode-serialized objects. Records introduced by the
-/// byte `0xC4` are **length-prefixed** — `C4 <op> <u8 len> <len payload bytes>` —
+/// byte `0xC4` are length-prefixed — `C4 <op> <u8 len> <len payload bytes>` —
 /// confirmed across the corpus (see `docs/vi-rsrc-and-heap-format.md`): e.g.
 /// `C4 2D` always carries `len == 8` (an 11-byte record) and skipping `3 + len`
 /// lands on the next record's opcode byte in 99.97% of cases. So each `C4` record
-/// can be **framed and skipped without knowing its semantics** — the seed of a
+/// can be framed and skipped without knowing its semantics — the seed of a
 /// real heap walker.
 ///
 /// Note on confidence: the *framing* is confirmed; each opcode's decode status
@@ -1361,8 +1361,8 @@ class HeapRecord {
   /// Byte offset of the introducing `0xC4` within the decompressed section.
   final int offset;
 
-  /// Bytes from the introducing `0xC4` to the start of [payload]: **3** for the
-  /// normal `C4 <op> <u8 len>` header, **5** for the extended-length form
+  /// Bytes from the introducing `0xC4` to the start of [payload]: 3 for the
+  /// normal `C4 <op> <u8 len>` header, 5 for the extended-length form
   /// `C4 <op> FF <u16 len>` (used when the payload exceeds 255 bytes). The
   /// payload therefore starts at `offset + headerLength`.
   final int headerLength;
@@ -1400,7 +1400,7 @@ class HeapRecord {
   /// the payload decoded as text — the whole payload is the string (no inner
   /// prefix); else null. Null when empty or not fully printable ASCII.
   ///
-  /// This is a **display** reading: it drops the record on any non-printable byte.
+  /// This is a display reading: it drops the record on any non-printable byte.
   /// For the exact bytes (re-emission, byte accounting) use [rawText].
   String? get text {
     if (kind.shape != HeapShape.string || payload.isEmpty) return null;
@@ -1413,7 +1413,7 @@ class HeapRecord {
   }
 
   /// If this is any single-string opcode ([HeapShape.string]), the string's
-  /// **byte-faithful** content — the whole payload verbatim, every byte retained;
+  /// byte-faithful content — the whole payload verbatim, every byte retained;
   /// else null. The single-string opcodes carry the string as their entire
   /// payload (no inner prefix), so these bytes are the string itself.
   ///
@@ -1427,7 +1427,7 @@ class HeapRecord {
   /// (often HTML-ish, multi-line); null if none. The dominant form is raw text
   /// from byte 0 (no length prefix), returned verbatim when the payload is mostly
   /// printable; otherwise it falls back to recovering length-prefixed text
-  /// segments. **Heuristic** — the inner multi-segment framing is not fully
+  /// segments. Heuristic — the inner multi-segment framing is not fully
   /// decoded, so this recovers readable text, not exact fields. Total.
   String? get descriptionText {
     if (kind != HeapOpcode.description) return null;
@@ -1477,7 +1477,7 @@ class HeapRecord {
     return parts.isEmpty ? null : parts.join('/');
   }
 
-  /// If this is a [HeapOpcode.path] record, the path's **byte-faithful** bytes —
+  /// If this is a [HeapOpcode.path] record, the path's byte-faithful bytes —
   /// the whole `PTH0` payload verbatim (`'PTH0' <u32 len> <u16 type> <u16 nComp>`
   /// then the packed components); else null. The retention counterpart to the
   /// printable-filtered [path] (which is a display join and stops at the first
@@ -1572,12 +1572,12 @@ class HeapRect {
   String toString() => 'HeapRect(t:$top l:$left b:$bottom r:$right ${width}x$height)';
 }
 
-/// Scan-based inventory of the **`C4` length-prefixed records** in a VI's heaps.
+/// Scan-based inventory of the `C4` length-prefixed records in a VI's heaps.
 ///
 /// Walks each decompressed section: at a `0xC4` it frames the record by its `u8`
 /// length prefix and skips its payload (so a `0xC4` *inside* a framed record's
 /// payload is not re-scanned); non-`C4` records — whose length rules are not yet
-/// decoded — are stepped over one byte at a time. **Total** (never throws; all
+/// decoded — are stepped over one byte at a time. Total (never throws; all
 /// records are in-bounds).
 ///
 /// Best-effort, not a complete walker: until the non-`C4` opcode lengths are
@@ -1650,7 +1650,7 @@ enum PropTokenForm {
   /// item carries the value, returned as a raw `u16` (`FE`/`FB`) or an object id
   /// (`FD`) — not sign-extended; all observed `FE` values are small positive.
   /// The `count` is 1 or 2 (≈50/50 across the corpus; the dominant `10 19` token
-  /// is ≈79% count==2). [decodeHeapPropertyToken] returns only the **first**
+  /// is ≈79% count==2). [decodeHeapPropertyToken] returns only the first
   /// item's value; a frequently-present second item (often an `fd` object id) is
   /// not surfaced.
   taggedList,
@@ -1661,7 +1661,7 @@ enum PropTokenForm {
   selector,
 }
 
-/// Catalog of the **hi-nibble 0/1 property tokens** — the `<op> <subop>` records
+/// Catalog of the hi-nibble 0/1 property tokens — the `<op> <subop>` records
 /// (`op >> 4 ∈ {0,1}`, plus the `0x12` case-structure triples) that decorate an
 /// open heap object with a named property. These are framed by [recordSkip] /
 /// [_typedList]; this enum gives the decoded *meaning* of the high-volume pairs.
@@ -1672,10 +1672,10 @@ enum PropTokenForm {
 /// decisive finding: each `(op, subop)` pair carries exactly one item-tag (the
 /// subop selects the property *and* its value class), the value is near-constant
 /// per object kind for the role-marker pairs, and `op==0x04` two-byte tokens are
-/// **not** properties at all but type-descriptor-grammar fragments (see
+/// not properties at all but type-descriptor-grammar fragments (see
 /// [isTypeDescriptorToken]). See `docs/vi-rsrc-and-heap-format.md`.
 ///
-/// HONESTY ([AttrConfidence]): `confirmed` pairs are pinned by a decisive signal
+/// Grounding ([AttrConfidence]): `confirmed` pairs rest on a decisive signal
 /// (a value↔kind bijection, a known reflist opener, or 100%-invariant framing
 /// neighbours); `inferred` names give the defensible direction from value+kind
 /// correlation and co-occurring `C4` records; `kindOnly` names are value-kind
@@ -1683,52 +1683,52 @@ enum PropTokenForm {
 /// with [lookup]; map a record at an offset with [decodeHeapPropertyToken].
 enum HeapPropertyToken {
   /// `10 19` (non-header form) — a small `FE`→s16 property token. NOTE: the
-  /// dominant `10 19` shape in the corpus is the **object header**
+  /// dominant `10 19` shape in the corpus is the object header
   /// `10 19 02 fe <kind> fd <oid>` (≈79% of `10 19` records, count==2), which is
   /// NOT this token — [decodeHeapPropertyToken] excludes the object-header shape
   /// so it is not mis-read here. What remains (e.g. the `10 19 01 fe <s16>`
-  /// single-item form) is a genuine property token, but its meaning is not pinned
+  /// single-item form) is a property token whose meaning is not yet decoded
   /// — it must not be read as the object header's first u16 (a diverse class
   /// code, not a constant 0x258) — so the name states only the value kind.
   smallValueProperty(0x10, 0x19, PropTokenForm.taggedList, 'smallValueProperty', AttrConfidence.kindOnly),
 
-  /// `10 8d` — **text / appearance feature flag** (`FE`→s16, always 0x258) on
+  /// `10 8d` — text / appearance feature flag (`FE`→s16, always 0x258) on
   /// label-bearing parts (chrome, label, numeric display). Co-occurs with the
   /// `C4 22` caption.
   textAppearanceFlag(0x10, 0x8d, PropTokenForm.taggedList, 'textAppearanceFlag', AttrConfidence.inferred),
 
-  /// `10 22` — **terminal-cluster role marker** (`FE`→s16, always 0x258), scoped
+  /// `10 22` — terminal-cluster role marker (`FE`→s16, always 0x258), scoped
   /// almost entirely to terminal clusters; co-occurs exactly with `C4 2D` +
   /// `C4 1F` (the terminal signature).
   terminalClusterRole(0x10, 0x22, PropTokenForm.taggedList, 'terminalClusterRole', AttrConfidence.inferred),
 
-  /// `11 2d` — **text-element presence flag** (`FE`→s16, always 1) on labels,
+  /// `11 2d` — text-element presence flag (`FE`→s16, always 1) on labels,
   /// numeric displays and enum item-lists; co-occurs with `C4 2D` + `C4 22`.
   textElementPresent(0x11, 0x2d, PropTokenForm.taggedList, 'textElementPresent', AttrConfidence.inferred),
 
-  /// `11 1f` — **sub-part / member-shape count** (`FB`→u16, small: 2/4/5),
-  /// varying by control type. Tested **NOT** a child-membership count (0% match
+  /// `11 1f` — sub-part / member-shape count (`FB`→u16, small: 2/4/5),
+  /// varying by control type. Tested NOT a child-membership count (0% match
   /// to actual child-object counts) — it is an intrinsic shape parameter.
   subPartShapeCount(0x11, 0x1f, PropTokenForm.taggedList, 'subPartShapeCount', AttrConfidence.inferred),
 
-  /// `10 e1` — **control style / sub-element count** (`FB`→u16) whose value tracks
+  /// `10 e1` — control style / sub-element count (`FB`→u16) whose value tracks
   /// the control class (numeric=7, boolean cluster=4, string array=6, enum ring=6,
   /// loop/diagram frame=4/6): a per-control-class style/part code.
   controlStyleCount(0x10, 0xe1, PropTokenForm.taggedList, 'controlStyleCount', AttrConfidence.inferred),
 
-  /// `11 18` — **tip-strip flag** (`FB`→u16, observed values {1, 2}), scoped
+  /// `11 18` — tip-strip flag (`FB`→u16, observed values {1, 2}), scoped
   /// entirely to tip-strip objects; co-occurs only with `C4 19` help text.
   tipStripEnabled(0x11, 0x18, PropTokenForm.taggedList, 'tipStripEnabled', AttrConfidence.inferred),
 
-  /// `10 25` — **text font-run list** on the text-label classes: the group
+  /// `10 25` — text font-run list on the text-label classes: the group
   /// `10 25 01 fb <runCount>` opens one tag-`0x19` sub-group per run, each
   /// carrying narrow attribute records that override the default face for the
   /// caption text from a start offset on (pylabview's `SL__fontRun` tags —
   /// fontofst / fontid / fontcolor — were the lead for the field split; the
   /// corpus counts and the pixel checks below carry it):
   ///
-  ///  * raw `0x027` u8 — the run's **start character offset** (absent = 0);
-  ///  * raw `0x028` u8 — the run's **font id**: an index into the VI's
+  ///  * raw `0x027` u8 — the run's start character offset (absent = 0);
+  ///  * raw `0x028` u8 — the run's font id: an index into the VI's
   ///    `FTAB` font table at entry `fontId + 3` (past the three predefined
   ///    application/system/dialog slots — see `ViFontTable.entryForRunFontId`).
   ///    NOT a face bitmask: byte-identical runs render bold in one VI and
@@ -1737,7 +1737,7 @@ enum HeapPropertyToken {
   ///    weight-1000 entry renders bold; fg's id 1 → an inherit-app-font
   ///    entry renders regular; Read VI Blocks' id 3 → its `Courier New`
   ///    entry renders monospace).
-  ///  * raw `0x029` — a run **colour / face value** (plain RGB like
+  ///  * raw `0x029` — a run colour / face value (plain RGB like
   ///    `0xff0000`/`0x7f7f7f`, or `0x01`-flagged values like `0x100000c`);
   ///    field split not decoded. // TODO(labwright)
   ///
@@ -1748,52 +1748,52 @@ enum HeapPropertyToken {
   /// 0x4:4,681 / 0x5..0x9 minor — small per-VI font-table indexes.
   textStyleRuns(0x10, 0x25, PropTokenForm.taggedList, 'textStyleRuns', AttrConfidence.confirmed),
 
-  /// `10 55` — **structure child reflist opener** (`FB`→u16): the header of the
+  /// `10 55` — structure child reflist opener (`FB`→u16): the header of the
   /// child-membership reference list on loops/case structures/diagram frames (the
   /// `10 55 01 fb <count>` form, each member a `14 19 01 fd <oid>` ref).
   structureChildReflist(0x10, 0x55, PropTokenForm.taggedList, 'structureChildReflist', AttrConfidence.confirmed),
 
-  /// `11 4e` — **diagram-frame style / zoom parameter** (`FB`→u16: 2/3/4) on
+  /// `11 4e` — diagram-frame style / zoom parameter (`FB`→u16: 2/3/4) on
   /// content viewports and diagram frames.
   diagramFrameStyle(0x11, 0x4e, PropTokenForm.taggedList, 'diagramFrameStyle', AttrConfidence.kindOnly),
 
-  /// `11 eb` — **enum / ring property** (`FB`→u16, mostly 0), scoped to enum-ring
+  /// `11 eb` — enum / ring property (`FB`→u16, mostly 0), scoped to enum-ring
   /// controls.
   enumRingProperty(0x11, 0xeb, PropTokenForm.taggedList, 'enumRingProperty', AttrConfidence.inferred),
 
-  /// `11 ea` — **enum / ring count / style** (`FB`→u16, varies), scoped to
+  /// `11 ea` — enum / ring count / style (`FB`→u16, varies), scoped to
   /// enum-ring controls.
   enumRingCount(0x11, 0xea, PropTokenForm.taggedList, 'enumRingCount', AttrConfidence.inferred),
 
-  /// `10 49` — **diagram property** (`FB`→u16, value 12=0x0C dominant), scoped
+  /// `10 49` — diagram property (`FB`→u16, value 12=0x0C dominant), scoped
   /// entirely to diagram-properties objects.
   diagramProperty(0x10, 0x49, PropTokenForm.taggedList, 'diagramProperty', AttrConfidence.kindOnly),
 
-  /// `12 15` — **case/sequence frame parameter A** (`FB`→u16), scoped to
+  /// `12 15` — case/sequence frame parameter A (`FB`→u16), scoped to
   /// case/sequence structures (one of a 3-tuple with [caseSeqParamB]/[caseSeqParamC]).
   caseSeqParamA(0x12, 0x15, PropTokenForm.taggedList, 'caseSeqParamA', AttrConfidence.inferred),
 
-  /// `12 16` — **case/sequence frame parameter B** (`FB`→u16). See [caseSeqParamA].
+  /// `12 16` — case/sequence frame parameter B (`FB`→u16). See [caseSeqParamA].
   caseSeqParamB(0x12, 0x16, PropTokenForm.taggedList, 'caseSeqParamB', AttrConfidence.inferred),
 
-  /// `12 17` — **case/sequence frame parameter C** (`FB`→u16). See [caseSeqParamA].
+  /// `12 17` — case/sequence frame parameter C (`FB`→u16). See [caseSeqParamA].
   caseSeqParamC(0x12, 0x17, PropTokenForm.taggedList, 'caseSeqParamC', AttrConfidence.inferred),
 
-  /// `12 05` — **decoration property** (`FB`→u16, value 0), scoped to decorations.
+  /// `12 05` — decoration property (`FB`→u16, value 0), scoped to decorations.
   decorationProperty(0x12, 0x05, PropTokenForm.taggedList, 'decorationProperty', AttrConfidence.kindOnly),
 
-  /// `11 10` — **viewport property slot 1** (bare selector). Pinned by a
+  /// `11 10` — viewport property slot 1 (bare selector). Confirmed by a
   /// 100%-invariant context — it always sits between a `64`(u24 attr) and a
   /// `44`(u16 attr) inside content-viewport objects: a fixed scrollbar/viewport
   /// property slot.
   viewportSlot1(0x11, 0x10, PropTokenForm.selector, 'viewportSlot1', AttrConfidence.confirmed),
 
-  /// `11 14` — **viewport property slot 2** (bare selector), same `64`/`44`
+  /// `11 14` — viewport property slot 2 (bare selector), same `64`/`44`
   /// framing as [viewportSlot1] inside content viewports.
   viewportSlot2(0x11, 0x14, PropTokenForm.selector, 'viewportSlot2', AttrConfidence.inferred),
 
-  /// `15 4B` — **wizard-data marker** (bare selector; raw tag `0x14B`, matches
-  /// OF__wizID): scope label `0x0A` at **100.00%** (32,338 records, BDHb) —
+  /// `15 4B` — wizard-data marker (bare selector; raw tag `0x14B`, matches
+  /// OF__wizID): scope label `0x0A` at 100.00% (32,338 records, BDHb) —
   /// flags the label as wizard-owned. The bytes after the marker are the
   /// label's own attribute records (typically `24 DF`, its partRole), not an
   /// attribute list of this node.
@@ -1814,7 +1814,7 @@ enum HeapPropertyToken {
   /// The human-assigned name. See [confidence] for how grounded it is.
   final String tokenName;
 
-  /// How well-grounded [tokenName] is (clean-room honesty).
+  /// How well-grounded [tokenName] is.
   final AttrConfidence confidence;
 
   static final Map<int, HeapPropertyToken> _byKey = {
@@ -1943,8 +1943,8 @@ bool _isObjectHeader(Uint8List body, int offset) =>
 ///
 /// The `SL__uid` field after `fd` carries the object id in one of two forms,
 /// the same `u16`/`u32`-escape split the [_typedList] framing applies to an
-/// `fd` item: the **compact** `fd <u16 oid>` (9-byte record, ids `< 0x8000`),
-/// and the **32-bit escape** `fd 80 00 <u32 oid>` (13-byte record) used once the
+/// `fd` item: the compact `fd <u16 oid>` (9-byte record, ids `< 0x8000`),
+/// and the 32-bit escape `fd 80 00 <u32 oid>` (13-byte record) used once the
 /// id reaches `0x8000` and the high bit would otherwise collide with the escape
 /// marker. [length] is 9 or 13 accordingly; [oid] is the full id in both forms.
 /// Corpus: 80,177 escaped headers, every one `fd 80 00 <u32>` with an id up to
@@ -1981,11 +1981,11 @@ class HeapPropertyValue {
 /// bytes there are not a catalogued `(op, subop)` token. Mirrors [recordSkip]'s
 /// framing of the hi-nibble 0/1 family.
 ///
-/// Returns null for the **object-header** shape `10/11/12 02 fe <kind> fd <oid>`
+/// Returns null for the object-header shape `10/11/12 02 fe <kind> fd <oid>`
 /// even though its `(op, subop)` may be catalogued (e.g. `10 19`): that is an
 /// object declaration, not a property — decode it as a header (the (kind, oid)
 /// pair), not via this primitive. (Callers that classify object headers first
-/// were already correct; this keeps the primitive honest standalone.)
+/// were already correct; this keeps the primitive correct standalone.)
 HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   if (_isObjectHeader(body, offset)) return null;
@@ -2015,7 +2015,7 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   return HeapPropertyValue(token: token, value: value, length: len);
 }
 
-/// Catalog of the **typed-reference leaf family** — the 6-byte
+/// Catalog of the typed-reference leaf family — the 6-byte
 /// `14..17 <sub> 01 fd <u16 oid>` records (a leaf node whose single attribute
 /// is the system `SL__uid` = `fd`) that form the heap's object graph. Each is
 /// a typed link from the current object to another object (by id); the 10-bit
@@ -2023,64 +2023,64 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
 ///
 /// Corpus-validated resolve rates: [childRef]/[ownerRef] ~100% in the same heap;
 /// [dcoRef] 90.1% same heap + 9.8% in the sibling heap (≈100% total — BD
-/// terminals referencing FP DCOs cross the heap boundary); [ddoRef] **100%
-/// (2,048/2,048) in the sibling heap** (0% same heap — it links a BD node to
+/// terminals referencing FP DCOs cross the heap boundary); [ddoRef] 100%
+/// (2,048/2,048) in the sibling heap (0% same heap — it links a BD node to
 /// its FP display object); the named `15xx` refs resolve 100% each. Resolve a
 /// record with [decodeHeapRef].
 enum HeapRefKind {
-  /// Raw `0x019` (`14 19`, system tag `arrayElement`) — **element / child
-  /// membership** reference (the members of a loop / case structure /
+  /// Raw `0x019` (`14 19`, system tag `arrayElement`) — element / child
+  /// membership reference (the members of a loop / case structure /
   /// cluster). The highest-volume link; resolves ~100%.
   childRef(0x019, 'childRef', AttrConfidence.confirmed),
 
-  /// Raw `0x04F` (`14 4f`; matches OF__dco) — **DCO reference**: a terminal /
+  /// Raw `0x04F` (`14 4f`; matches OF__dco) — DCO reference: a terminal /
   /// list owner naming its data-carrying object. Resolves 90.1% in the same
   /// heap and 9.8% in the sibling heap (≈100% total).
   dcoRef(0x04f, 'dcoRef', AttrConfidence.inferred),
 
-  /// Raw `0x01F` (`14 1f`) — **owner / back-reference** (resolves 100%).
+  /// Raw `0x01F` (`14 1f`) — owner / back-reference (resolves 100%).
   ownerRef(0x01f, 'ownerRef', AttrConfidence.confirmed),
 
-  /// Raw `0x050` (`14 50`; matches OF__dcoAgg) — **aggregate-DCO / peer**
+  /// Raw `0x050` (`14 50`; matches OF__dcoAgg) — aggregate-DCO / peer
   /// reference (resolves 100%).
   dcoAggRef(0x050, 'dcoAggRef', AttrConfidence.inferred),
 
-  /// Raw `0x053` (`14 53`; matches OF__ddo) — **cross-heap display-object
-  /// reference**: the uid resolves in the OTHER heap of the same VI at
-  /// **100.00%** (2,048/2,048; 0% in its own heap) — a BD node naming its
+  /// Raw `0x053` (`14 53`; matches OF__ddo) — cross-heap display-object
+  /// reference: the uid resolves in the OTHER heap of the same VI at
+  /// 100.00% (2,048/2,048; 0% in its own heap) — a BD node naming its
   /// front-panel display object.
   ddoRef(0x053, 'ddoRef', AttrConfidence.inferred),
 
-  /// Raw `0x113` (`15 13`; matches OF__srcDCO) — **source-DCO reference** on
+  /// Raw `0x113` (`15 13`; matches OF__srcDCO) — source-DCO reference on
   /// array nodes (aIndx/aInit/aReshape 100%; resolves 3,854/3,854).
   srcDCORef(0x113, 'srcDCORef', AttrConfidence.inferred),
 
-  /// Raw `0x1BD` (`15 bd`; matches OF__loopLimitDCO) — **loop-limit DCO
-  /// reference** on for-loops (`0x20` 98.6%; resolves 5,158/5,158).
+  /// Raw `0x1BD` (`15 bd`; matches OF__loopLimitDCO) — loop-limit DCO
+  /// reference on for-loops (`0x20` 98.6%; resolves 5,158/5,158).
   loopLimitDCORef(0x1bd, 'loopLimitDCORef', AttrConfidence.inferred),
 
-  /// Raw `0x1D0` (`15 d0`; matches OF__dataValRefDCO) — **data-value-ref DCO
-  /// reference** on the In Place Element border node that accesses a data value
+  /// Raw `0x1D0` (`15 d0`; matches OF__dataValRefDCO) — data-value-ref DCO
+  /// reference on the In Place Element border node that accesses a data value
   /// reference ([HeapObjectClass.bdNode153] 100%; resolves 1,466/1,466).
   dataValRefDCORef(0x1d0, 'dataValRefDCORef', AttrConfidence.inferred),
 
-  /// Raw `0x1E2` (`15 e2`; matches OF__tunnelLink) — **tunnel link** on
+  /// Raw `0x1E2` (`15 e2`; matches OF__tunnelLink) — tunnel link on
   /// select tunnels (`0x2D` 100%; resolves 1,054/1,054).
   tunnelLinkRef(0x1e2, 'tunnelLinkRef', AttrConfidence.inferred),
 
-  /// Raw `0x1CF` (`15 cf`; matches OF__poser) — **poser reference** on the In
+  /// Raw `0x1CF` (`15 cf`; matches OF__poser) — poser reference on the In
   /// Place Element border nodes and nothing else (resolves 2,080/2,080): `0x153`
   /// 1,466, `0x150` 406, `0x14F` 108, `0x152` 98, `0x18D` 2. Every carrier is
   /// nested inside an [HeapObjectClass.bdInPlaceStructure].
   poserRef(0x1cf, 'poserRef', AttrConfidence.inferred),
 
-  /// Raw `0x28A` (`16 8a`; matches OF__attachment) — **attachment reference**
+  /// Raw `0x28A` (`16 8a`; matches OF__attachment) — attachment reference
   /// from a label (`0x0A` 100%) to its attached object (resolves
   /// 17,182/17,182). Pairs with [attachedObjectRef].
   attachmentRef(0x28a, 'attachmentRef', AttrConfidence.inferred),
 
-  /// Raw `0x289` (`16 89`; matches OF__attachedObject) — **attached-object
-  /// back-reference** on attachment objects (`0x177` 100%; resolves
+  /// Raw `0x289` (`16 89`; matches OF__attachedObject) — attached-object
+  /// back-reference on attachment objects (`0x177` 100%; resolves
   /// 1,395/1,395).
   attachedObjectRef(0x289, 'attachedObjectRef', AttrConfidence.inferred),
 
@@ -2156,10 +2156,10 @@ HeapRef? decodeHeapRef(Uint8List body, int offset) {
   return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: (body[offset + 4] << 8) | body[offset + 5], length: 6);
 }
 
-/// How fully a heap record's bytes are understood — the basis of the honest
+/// How fully a heap record's bytes are understood — the basis of the
 /// three-tier coverage metric (see `tool/coverage.dart` + `corpus/README.md`).
 enum HeapDecodeTier {
-  /// We know what the bytes **mean AND what they hold**: an object header
+  /// We know what the bytes mean AND what they hold: an object header
   /// (`kind`+`oid`), a bracket-tree group open/close, a typed object reference,
   /// a decoded `C4` opcode, or a *named* attribute/property-token of
   /// confirmed/inferred confidence whose value is decoded. A catalogued role
@@ -2168,12 +2168,12 @@ enum HeapDecodeTier {
   /// [HeapTierGrade.valueKindPayloadBytes]).
   semantic,
 
-  /// The value's **kind/width/extent** is known but its meaning or content is
+  /// The value's kind/width/extent is known but its meaning or content is
   /// not — a `kindOnly` catalog entry (a value-kind label, not a decoded role)
   /// or the unpacked payload interior of a role-catalogued container record.
   valueKindKnown,
 
-  /// Only the record **boundary** is known (it was framed); its content is not
+  /// Only the record boundary is known (it was framed); its content is not
   /// interpreted at all.
   framed,
 }
@@ -2349,8 +2349,8 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
 }
 
 /// The byte length of the heap record at [i] in [h], or null if [i] is not a
-/// recognized record start (the walk stops there). This is the **heap record
-/// skip table** — the reverse-engineered framing of every record family known so
+/// recognized record start (the walk stops there). This is the heap record
+/// skip table — the reverse-engineered framing of every record family known so
 /// far. Coverage across the diverse corpus is measured mechanically (the
 /// "% deliberately parsed" metric — see corpus/ and tool/coverage.dart), not
 /// hand-asserted here. Total (never throws).
@@ -2372,7 +2372,7 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
 ///   sections stay open/close-balanced at EOF, vs 99.95% with the uniform
 ///   5-byte reading — `tool/probe_tag_census.dart`.)
 /// - `02` (with `FE`) — fixed 7 bytes.
-/// - `25` — a fixed **3-byte** record (the `25 2d` form is NOT a counted list).
+/// - `25` — a fixed 3-byte record (the `25 2d` form is NOT a counted list).
 /// - attribute nibble-family (opcode low nibble in {4,5,6}): the high nibble sets
 ///   the value width — `2x`→3, `4x`→4, `6x`→5, `8x`→6, `Ex`→2, `Cx`→`3 + u8len`.
 int? recordSkip(Uint8List heapBytes, int offset) {
@@ -2478,21 +2478,21 @@ HeapWalk walkHeapBody(Uint8List body) {
   return HeapWalk(spans: spans, coveredBytes: covered, bodyBytes: bodyBytes);
 }
 
-/// Walks a decompressed heap [body] as its **balanced typed-group tree**,
+/// Walks a decompressed heap [body] as its balanced typed-group tree,
 /// tracking which object each record belongs to.
 ///
 /// The tree is delimited by group opens — a [kHeapGroupOpenLeads] lead whose
 /// byte after the count is a type tag ([isHeapTypeTag]) — and positional
-/// group closes ([kHeapGroupCloseLeads]). A group open that is an **object
-/// header** ([heapObjectHeaderAt]) opens an object scope: [onObjectOpen] is
+/// group closes ([kHeapGroupCloseLeads]). A group open that is an object
+/// header ([heapObjectHeaderAt]) opens an object scope: [onObjectOpen] is
 /// called with its span, class code, object id, and the innermost enclosing
 /// object's client value (null at the root), and its return value becomes the
-/// new scope. A non-object group open pushes a **null** scope so the positional
+/// new scope. A non-object group open pushes a null scope so the positional
 /// closes stay balanced without changing the enclosing object. Every other
 /// record span is delivered to [onRecord] with the innermost enclosing object's
 /// value (null outside any object); group open/close spans are consumed by the
 /// tree bookkeeping and are otherwise not delivered — except that a
-/// **non-object** group's boundaries are surfaced to [onGroupOpen] /
+/// non-object group's boundaries are surfaced to [onGroupOpen] /
 /// [onGroupClose] (the group's type-tag byte plus the innermost enclosing
 /// object), so a caller can scope records to a tagged sub-group such as the
 /// tag-`0x25` text style-run list ([HeapPropertyToken.textStyleRuns]).
