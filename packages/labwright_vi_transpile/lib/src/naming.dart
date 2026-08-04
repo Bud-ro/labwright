@@ -191,9 +191,9 @@ class LvNaming {
     if (type.dims > 0) {
       return type.numeric == LvNumericKind.u8 ? LvNameRole.bytes : LvNameRole.items;
     }
-    return switch (type.dartType) {
-      'bool' => LvNameRole.flag,
-      'String' => LvNameRole.text,
+    return switch (type.carrier) {
+      LvCarrier.boolean => LvNameRole.flag,
+      LvCarrier.text => LvNameRole.text,
       _ => LvNameRole.value,
     };
   }

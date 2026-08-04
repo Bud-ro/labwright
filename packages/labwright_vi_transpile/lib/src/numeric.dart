@@ -154,9 +154,6 @@ enum LvNumericKind {
   /// The Dart operators that misread this kind's carrier, with their remedies.
   final List<LvArithmeticHazard> hazards;
 
-  /// The Dart type the value is carried in: `int` or `double`.
-  String get dartType => isFloat ? 'double' : 'int';
-
   /// Whether an arithmetic result must be renormalized before it is stored or
   /// compared — i.e. whether [wrap] does anything.
   bool get needsWrap => wrap('x') != 'x';
