@@ -113,7 +113,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     identity: 'Close Reference (primResID 8011)',
     primResId: 8011,
     classCode: null,
-    hasIcon: true,
+    hasIcon: false,
     vis: 759,
     nodes: 3068,
     sole: 41,
