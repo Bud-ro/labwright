@@ -432,19 +432,13 @@ const Set<PrimOp> kLvMappedPrimOps = {
 /// floor. `0x153` (1 466), `0x170` (380) and `0x150` (406) carry no caption at
 /// all.
 ///
-/// Two of those are identified anyway, by records rather than by captions, and
-/// are absent here because captions are not what named them.
-/// `0x6a` (865) is the **Call Library Function node**: every one carries a path
-/// record naming a native shared library and a symbol record naming an entry
-/// point in it ([ViHeapObject.foreignLibraryPath] / [foreignEntryPoint]), and
-/// its 248 caption texts are not evidence of anything — 392 of the 761
-/// captioned nodes carry a caption the two records contradict. It is refused as
-/// [LvRefusalKind.foreignCall], not as a primitive: see [kLvCallLibraryClass].
-/// `0x153` (1 466) is an **In Place Element Structure border node** accessing a
-/// data value reference ([HeapObjectClass.bdNode153]); a rule for it would
-/// lower nothing on its own, since all 1 466 sit inside an In Place Element
-/// Structure, whose control flow is not modelled and which refuses first
-/// ([LvRefusalKind.structure]).
+/// Two of those are identified by their records instead. `0x6a` (865) is the
+/// **Call Library Function node** ([kLvCallLibraryClass]), refused as
+/// [LvRefusalKind.foreignCall]; its 248 caption texts name nothing reliably,
+/// since 392 of the 761 captioned nodes carry a caption the node's own path and
+/// symbol records contradict. `0x153` (1 466) is an **In Place Element
+/// Structure border node** accessing a data value reference
+/// ([HeapObjectClass.bdNode153]).
 ///
 /// [kLvUnbundleClass]'s entry predates the bar and does not clear it: its
 /// second caption text is `Template unbundler` ×4, which reads as author text

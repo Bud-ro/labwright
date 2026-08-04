@@ -87,9 +87,8 @@ typedef ReviewSheetRow = ({
 /// decoded — the question each row asks.
 ///
 /// `sole` counts only PRIMITIVE blockers, so it is an upper bound on what a
-/// rule for the row would buy and never the count of VIs it would make lower —
-/// `0x153` heads the column and every one of its VIs also carries the In Place
-/// Element Structure it sits in, which is refused before the node is reached.
+/// rule for the row would buy and never the count of VIs it would make lower.
+/// `kCorpusPrimReviewList` measures how far apart those are.
 const List<ReviewSheetRow> kReviewSheetRows = [
   (
     identity: 'class 0x34 — Bundle',
@@ -98,7 +97,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 805,
     nodes: 1659,
-    sole: 66,
+    sole: 84,
     note:
         'named by 26 corpus captions; which terminal is the cluster being '
         'modified and which are the members is not decoded',
@@ -137,7 +136,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 680,
     nodes: 1800,
-    sole: 70,
+    sole: 71,
     note:
         'the pattern dialect is not decoded: LabVIEW\'s Match Pattern is not '
         'a regular expression, and its metacharacter set is not established',
@@ -192,7 +191,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     sole: 337,
     note:
         'all 1466 sit inside an In Place Element Structure and name a data '
-        'value reference; that structure refuses first, so sole overstates it',
+        'value reference; no VI holding one lowers on a rule for it alone',
     example: 'rfporter_Modbus-Master/…/MB_Master_TCP/RX.vi',
   ),
   (
@@ -207,19 +206,6 @@ const List<ReviewSheetRow> kReviewSheetRows = [
         'LvPath carries components and a root flag; how LabVIEW joins a '
         'relative name onto a path, and what it does with an empty one, is not decoded',
     example: 'G-CLI_G-CLI/…/build/vipbBuild-nocli.vi',
-  ),
-  (
-    identity: 'class 0x6a — Call Library Function node',
-    primResId: null,
-    classCode: 0x6a,
-    hasIcon: false,
-    vis: 408,
-    nodes: 865,
-    sole: 192,
-    note:
-        'each names a native library and an entry point in it (52 libraries, '
-        '481 entry points); refused as foreignCall — not Dart to write',
-    example: 'smithed_vicompare/…/Trunk/lvlauncher.vi',
   ),
   (
     identity: 'class 0xd6 — Event Data / Event Filter Node',
@@ -254,7 +240,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 349,
     nodes: 548,
-    sole: 60,
+    sole: 61,
     note:
         'every node is 1 input 1 output; what the output carries, and whether '
         'the wait is a floor or a tick quantum, are not decoded',
@@ -358,7 +344,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 243,
     nodes: 414,
-    sole: 3,
+    sole: 13,
     note:
         'captions read Overflow array ×4 against Initialize Array ×3, both of '
         'which read as author text — what is this node?',
