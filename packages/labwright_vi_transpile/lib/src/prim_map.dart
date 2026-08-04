@@ -427,11 +427,18 @@ const Set<PrimOp> kLvMappedPrimOps = {
 /// of which read as author text; `0x14a` (380) is `Feedback Node` ×12 and
 /// `Target Angle` ×2. `0xa9` (2 619) carries 38 distinct captions of which
 /// `Invoke Node` ×84 is only the most common — the rest (`Classes` ×10,
-/// `Attribute` ×10, `Save` ×8, …) name a member rather than the node — and
-/// `0x6a` (865) carries 248, almost all of them a foreign entry point spelling
-/// (`ps3000.dll:_ps3000_open_unit@0` ×131). `0x48` `Array Subset` ×1 and `0xeb`
-/// `Register For Events` ×2 are below the floor. `0x153` (1 466), `0x170` (380)
-/// and `0x150` (406) carry no caption at all.
+/// `Attribute` ×10, `Save` ×8, …) name a member rather than the node.
+/// `0x48` `Array Subset` ×1 and `0xeb` `Register For Events` ×2 are below the
+/// floor. `0x153` (1 466), `0x170` (380) and `0x150` (406) carry no caption at
+/// all.
+///
+/// Two of those are identified by their records instead. `0x6a` (865) is the
+/// **Call Library Function node** ([kLvCallLibraryClass]), refused as
+/// [LvRefusalKind.foreignCall]; its 248 caption texts name nothing reliably,
+/// since 392 of the 761 captioned nodes carry a caption the node's own path and
+/// symbol records contradict. `0x153` (1 466) is an **In Place Element
+/// Structure border node** accessing a data value reference
+/// ([HeapObjectClass.bdNode153]).
 ///
 /// [kLvUnbundleClass]'s entry predates the bar and does not clear it: its
 /// second caption text is `Template unbundler` ×4, which reads as author text

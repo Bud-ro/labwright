@@ -85,6 +85,10 @@ typedef ReviewSheetRow = ({
 /// the VIs holding at least one such node, the node instances, and the VIs
 /// whose ONLY unmapped identity it is. `note` states what specifically is not
 /// decoded — the question each row asks.
+///
+/// `sole` counts only PRIMITIVE blockers, so it is an upper bound on what a
+/// rule for the row would buy and never the count of VIs it would make lower.
+/// `kCorpusPrimReviewList` measures how far apart those are.
 const List<ReviewSheetRow> kReviewSheetRows = [
   (
     identity: 'class 0x34 — Bundle',
@@ -93,7 +97,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 805,
     nodes: 1659,
-    sole: 66,
+    sole: 84,
     note:
         'named by 26 corpus captions; which terminal is the cluster being '
         'modified and which are the members is not decoded',
@@ -106,7 +110,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 759,
     nodes: 3068,
-    sole: 40,
+    sole: 41,
     note:
         'what closing a reference does to the referent is not decoded, and '
         'the reference classes are not separated (LvRefnum is one handle type)',
@@ -132,7 +136,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 680,
     nodes: 1800,
-    sole: 69,
+    sole: 71,
     note:
         'the pattern dialect is not decoded: LabVIEW\'s Match Pattern is not '
         'a regular expression, and its metacharacter set is not established',
@@ -145,7 +149,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 678,
     nodes: 2619,
-    sole: 61,
+    sole: 62,
     note:
         'captions read Invoke Node ×84 then Classes ×10, Attribute ×10, '
         'Save ×8 — is the class one node whose caption is the invoked member?',
@@ -178,16 +182,16 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     example: 'vipm-io_caraya/…/src/Caraya CLI.vi',
   ),
   (
-    identity: 'class 0x153 — no caption at all',
+    identity: 'class 0x153 — In Place Element (DVR access)',
     primResId: null,
     classCode: 0x153,
     hasIcon: false,
     vis: 556,
     nodes: 1466,
-    sole: 335,
+    sole: 337,
     note:
-        'not one corpus node carries a caption; two terminals, drawn as '
-        '0i3o ×763 and 1i2o ×703 — the largest single sole-blocker on the list',
+        'all 1466 sit inside an In Place Element Structure and name a data '
+        'value reference; no VI holding one lowers on a rule for it alone',
     example: 'rfporter_Modbus-Master/…/MB_Master_TCP/RX.vi',
   ),
   (
@@ -204,26 +208,13 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     example: 'G-CLI_G-CLI/…/build/vipbBuild-nocli.vi',
   ),
   (
-    identity: 'class 0x6a — 248 distinct captions',
-    primResId: null,
-    classCode: 0x6a,
-    hasIcon: false,
-    vis: 408,
-    nodes: 865,
-    sole: 192,
-    note:
-        'captions are foreign entry points (ps3000.dll:_ps3000_open_unit@0 '
-        '×131) — is the class a call to a foreign library?',
-    example: 'smithed_vicompare/…/Trunk/lvlauncher.vi',
-  ),
-  (
     identity: 'class 0xd6 — Event Data / Event Filter Node',
     primResId: null,
     classCode: 0xd6,
     hasIcon: false,
     vis: 378,
     nodes: 2437,
-    sole: 24,
+    sole: 25,
     note:
         'captioned two ways (Event Data Node ×17, Event Filter Node ×1); no '
         'decoded field separates the two the way 0x63\'s flag bit does',
@@ -249,7 +240,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 349,
     nodes: 548,
-    sole: 60,
+    sole: 61,
     note:
         'every node is 1 input 1 output; what the output carries, and whether '
         'the wait is a floor or a tick quantum, are not decoded',
@@ -262,7 +253,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 344,
     nodes: 825,
-    sole: 35,
+    sole: 39,
     note:
         'LabVIEW class hierarchies are not decoded, so what makes one class '
         'more specific than another has no reading',
@@ -301,7 +292,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 264,
     nodes: 533,
-    sole: 18,
+    sole: 20,
     note:
         'every node is 0 inputs 1 output; captions read Current VI Reference '
         '×141, This VI ×34, This Application ×8 — a reference source?',
@@ -353,7 +344,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: false,
     vis: 243,
     nodes: 414,
-    sole: 3,
+    sole: 13,
     note:
         'captions read Overflow array ×4 against Initialize Array ×3, both of '
         'which read as author text — what is this node?',
@@ -384,19 +375,6 @@ const List<ReviewSheetRow> kReviewSheetRows = [
         'not one corpus node carries a caption; every node is sink-only '
         '(1i0o ×372, 2i0o ×8), so it consumes values and yields none',
     example: 'nasa_NDAS/…/File Manager/Write Results.vi',
-  ),
-  (
-    identity: 'class 0x124 — captions are .vi file names',
-    primResId: null,
-    classCode: 0x124,
-    hasIcon: false,
-    vis: 214,
-    nodes: 216,
-    sole: 103,
-    note:
-        '75 distinct captions, every one a .vi name (Destroy.vi ×47) — is this '
-        'a call node that kSubViCallNodeCodes does not list?',
-    example: 'vipm-io_caraya/…/src/classes/Test Runner.Folder/setUp.vi',
   ),
   (
     identity: 'class 0xeb — Register For Events',
@@ -444,14 +422,14 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 157,
     nodes: 243,
-    sole: 9,
+    sole: 10,
     note:
         'the node carries a regular-expression mode and a replace-all flag; '
         'neither is tied to a decoded field, and the dialect is Match Pattern\'s',
     example: 'smithed_vicompare/…/Trunk/swap slashes.vi',
   ),
   (
-    identity: 'class 0x150 — no caption at all',
+    identity: 'class 0x150 — In Place Element border node',
     primResId: null,
     classCode: 0x150,
     hasIcon: false,
@@ -459,8 +437,8 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     nodes: 406,
     sole: 28,
     note:
-        'not one corpus node carries a caption; two terminals, drawn 0i2o '
-        '×152 / 1i1o ×152 and 0i3o ×27 / 2i1o ×27',
+        'all 406 sit inside an In Place Element Structure and pair off '
+        'left/right; which element access each performs is not recovered',
     example: 'nasa_NDAS/…/Peer Review Tool/Functions/Reset Files.vi',
   ),
   (

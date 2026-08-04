@@ -199,6 +199,12 @@ enum LvRefusalKind {
   /// A node's primitive identity is not decoded, or has no mapping.
   primitive,
 
+  /// The diagram holds a **Call Library Function node** ([kLvCallLibraryClass]),
+  /// which calls an entry point in a native shared library. Unlike [primitive],
+  /// no further decoding closes it: the behaviour is in the library, not the
+  /// file.
+  foreignCall,
+
   /// A diagram constant whose value the heap decode did not recover.
   constantValue,
 
@@ -359,6 +365,22 @@ class LvPrimUnit extends LvUnit {
   /// own part resolves ([ViHeapObject.typeName]) — the cluster MEMBER a
   /// by-name terminal selects. Absent where the part resolves no named type.
   final Map<int, String> portMemberName;
+}
+
+/// The heap class code of a **Call Library Function node** — a call into a
+/// native shared library, named by the node's own path and symbol records
+/// ([ViHeapObject.foreignLibraryPath] / [ViHeapObject.foreignEntryPoint]).
+const int kLvCallLibraryClass = 0x6a;
+
+/// What a [LvRefusalKind.foreignCall] refusal reports: the entry point and the
+/// library, as [node]'s own records spell them. The symbol is stored in at most
+/// 31 characters, so a longer one is named by its truncated prefix.
+String lvForeignCallDetail(ViHeapObject node) {
+  final entry = node.foreignEntryPoint;
+  final library = node.foreignLibraryPath;
+  return 'the diagram calls ${entry == null ? 'an entry point' : '`$entry`'} in '
+      '${library == null ? 'a native shared library the node names no path for' : '`$library`'}, '
+      'whose behaviour is not in the VI';
 }
 
 /// A **subVI call**: one endpoint holder per connector-pane terminal of the

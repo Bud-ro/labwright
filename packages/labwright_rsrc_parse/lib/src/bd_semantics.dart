@@ -27,7 +27,10 @@ import 'heap.dart' show HeapRect;
 /// **icon plate** — commonly light grey — distinct from the pale-gold primitive
 /// function nodes. Any node class not listed renders as a generic primitive
 /// plate; the node's specific icon is not recovered, so it is never guessed.
-const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c};
+///
+/// `0x124` ([HeapObjectClass.bdNode124]) is a member on its records rather than
+/// its caption; the evidence is catalogued there.
+const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c, 0x124};
 
 /// The short operator glyph drawn on a primitive node's plate for a decoded
 /// [PrimOp] — the recognisable core of LabVIEW's icon art (the `+` of Add,

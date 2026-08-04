@@ -398,6 +398,14 @@ class _FunctionEmitter {
   }
 
   String run() {
+    // A foreign call is side-effecting, so a diagram holding one is refused
+    // whether or not its outputs reach an exit port — dead by dataflow is not
+    // dead by execution.
+    for (final node in callable.unit.diagram.objects) {
+      if (node.kind == kLvCallLibraryClass) {
+        refuse(LvRefusalKind.foreignCall, lvForeignCallDetail(node), oid: node.oid);
+      }
+    }
     for (final parameter in callable.parameters) {
       valueOf[parameter.terminal] = parameter.name;
     }
