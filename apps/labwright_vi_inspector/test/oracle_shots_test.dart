@@ -5,7 +5,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
 import 'util.dart';
 
 /// Exports side-by-side screenshot pairs of the oracle comparison for

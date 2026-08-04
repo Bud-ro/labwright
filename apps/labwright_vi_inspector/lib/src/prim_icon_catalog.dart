@@ -17,12 +17,12 @@
 ///   falls back to the plate + operator glyph) until a better extraction or
 ///   a hand-drawn replacement lands.
 ///
-/// The generator (`test/extract_prim_icons_test.dart`) rewrites the entry
+/// The generator (`tool/extract_prim_icons.dart`) rewrites the entry
 /// list when assets regenerate but PRESERVES the statuses recorded here;
 /// only new keys default to [PrimIconStatus.unverified].
 enum PrimIconStatus { verified, verifiedHand, unverified, rejected }
 
-// GENERATED-ENTRIES-BEGIN (extract_prim_icons_test.dart rewrites this block;
+// GENERATED-ENTRIES-BEGIN (tool/extract_prim_icons.dart rewrites this block;
 // statuses are preserved — edit them freely.)
 const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1050': PrimIconStatus.verifiedHand,

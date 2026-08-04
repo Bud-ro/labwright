@@ -5,15 +5,16 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/prim_icon_catalog.dart';
 
-import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
-import 'util.dart';
+import '../test/util.dart';
 
 /// Writes the reviewer's run-down list: per snippet, the primitive icon keys
 /// that appear on its diagram, with each key's op name and current review
 /// status — so verifying a snippet verifies a known set of catalog entries.
 ///
-/// Opt-in (it writes into the repo):
-/// `flutter test test/review_list_test.dart --dart-define=PRIM_REVIEW_LIST=1`
+/// It decodes snippet art, so it runs under the flutter_test harness rather
+/// than as a plain script, from the app package root:
+///
+///     flutter test tool/write_icon_review_list.dart --dart-define=PRIM_REVIEW_LIST=1
 void main() {
   const enabled = String.fromEnvironment('PRIM_REVIEW_LIST');
   testWidgets('write the per-snippet icon review list', (tester) async {
@@ -28,7 +29,7 @@ void main() {
       'Per snippet, the primitive icon keys on its diagram (dedup within the\n'
       'snippet). Statuses reflect lib/src/prim_icon_catalog.dart at\n'
       'generation time; regenerate with\n'
-      '`flutter test test/review_list_test.dart --dart-define=PRIM_REVIEW_LIST=1`.\n',
+      '`flutter test tool/write_icon_review_list.dart --dart-define=PRIM_REVIEW_LIST=1`.\n',
     );
     final keysBySnippet = <String, Set<String>>{};
     await tester.runAsync(() async {

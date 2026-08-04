@@ -1046,7 +1046,7 @@ PrimIconArt? primIconArtFor(
   if (key >= 0) return icons[key];
   final terms = diagram
       .children(object.oid)
-      .where((c) => c.kind == 0x15)
+      .where((c) => c.kind == kNodeEndpointDcoKind)
       .length;
   final variant = icons[classVariantIconKey(object.kind, terms)];
   if (variant != null) {
@@ -1158,7 +1158,8 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
 ({int? x, int? y})? bdPrimTerminalOf(ViDiagram diagram, int endpointOid) {
   final head = diagram.byId[endpointOid];
   final parentOid = head?.parentOid;
-  if (head == null || head.kind != 0x15 || parentOid == null) return null;
+  if (head == null || head.kind != kNodeEndpointDcoKind || parentOid == null)
+    return null;
   final parent = diagram.byId[parentOid];
   final box = parent?.absBounds;
   if (parent == null || box == null) return null;
@@ -1167,7 +1168,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   var termIdx = -1;
   var at = 0;
   for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
-    if (c.kind != 0x15) continue;
+    if (c.kind != kNodeEndpointDcoKind) continue;
     if (c.oid == head.oid) {
       termIdx = at;
       break;
@@ -1244,23 +1245,30 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
       for (var i = 0; i < alpha.length; i++) {
         alpha[i] = rgba.getUint8(i * 4 + 3);
       }
-      _primIconMasks[id] = (w: image.width, h: image.height, alpha: alpha);
-      _primIconRgba[id] = Uint8List.fromList(
+      final pixels = Uint8List.fromList(
         rgba.buffer.asUint8List(rgba.offsetInBytes, rgba.lengthInBytes),
       );
       // Plate corner-AA pixels: an opaque `dddddd` on the art's ink
       // boundary (a transparent or outside 4-neighbour) is the rounded
       // plate corner's anti-aliasing baked against the white canvas — see
-      // [_primIconCornerAa].
+      // [_PrimIconPixels.cornerAa].
       final corners = <int>{};
+      // The art-space ink (opaque-pixel) bounding box — the measured art
+      // edge the wire fallback router anchors icon-stamped endpoints to.
+      var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
       for (var y = 0; y < image.height; y++) {
         for (var x = 0; x < image.width; x++) {
           final artIndex = y * image.width + x;
+          if (alpha[artIndex] == 0) continue;
+          if (x < minX) minX = x;
+          if (y < minY) minY = y;
+          if (x > maxX) maxX = x;
+          if (y > maxY) maxY = y;
           if (alpha[artIndex] != 255) continue;
           final byteIndex = artIndex * 4;
-          if (_primIconRgba[id]![byteIndex] != 0xdd ||
-              _primIconRgba[id]![byteIndex + 1] != 0xdd ||
-              _primIconRgba[id]![byteIndex + 2] != 0xdd) {
+          if (pixels[byteIndex] != 0xdd ||
+              pixels[byteIndex + 1] != 0xdd ||
+              pixels[byteIndex + 2] != 0xdd) {
             continue;
           }
           final onEdge =
@@ -1275,27 +1283,21 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
           if (onEdge) corners.add(artIndex);
         }
       }
-      if (corners.isNotEmpty) _primIconCornerAa[id] = corners;
-      // The art-space ink (opaque-pixel) bounding box — the measured art
-      // edge the wire fallback router anchors icon-stamped endpoints to.
-      var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
-      for (var y = 0; y < image.height; y++) {
-        for (var x = 0; x < image.width; x++) {
-          if (alpha[y * image.width + x] == 0) continue;
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
-        }
-      }
-      if (maxX >= minX && maxY >= minY) {
-        _primIconInkBounds[id] = ui.Rect.fromLTRB(
-          minX.toDouble(),
-          minY.toDouble(),
-          maxX + 1.0,
-          maxY + 1.0,
-        );
-      }
+      _primIconPixels[id] = _PrimIconPixels(
+        width: image.width,
+        height: image.height,
+        alpha: alpha,
+        rgba: pixels,
+        cornerAa: corners,
+        inkBounds: maxX >= minX && maxY >= minY
+            ? ui.Rect.fromLTRB(
+                minX.toDouble(),
+                minY.toDouble(),
+                maxX + 1.0,
+                maxY + 1.0,
+              )
+            : null,
+      );
     }
     icons[id] = await _prescaledArt(image);
   }
@@ -1480,20 +1482,43 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
   return imageFromRgba(rgba, icon.width, icon.height);
 }
 
-final Map<int, ({int w, int h, Uint8List alpha})> _primIconMasks = {};
+/// The decoded pixel side of one bundled icon, held together so every read
+/// along a paint path costs a single lookup.
+class _PrimIconPixels {
+  const _PrimIconPixels({
+    required this.width,
+    required this.height,
+    required this.alpha,
+    required this.rgba,
+    required this.cornerAa,
+    required this.inkBounds,
+  });
 
-/// Raw RGBA of each loaded icon (filled by [loadPrimIcons]) — the pixel
-/// source the plate corner-AA ladder reads when an overlap must restore the
-/// art a corner pixel yields to.
-final Map<int, Uint8List> _primIconRgba = {};
+  final int width;
+  final int height;
 
-/// Per icon, the art positions (`y * w + x`) of its plate CORNER-AA pixels:
-/// the `dddddd` blends baked where a prim plate's rounded outline corner
-/// anti-aliased against the white canvas (the triangle plates carry one at
-/// each left corner). These pixels are canvas artefacts, not opaque plate
-/// art — when prim boxes overlap they compose by the measured ladder in the
-/// icon stamping pass, not by plain source-over.
-final Map<int, Set<int>> _primIconCornerAa = {};
+  /// One byte per pixel, backing pixel-precise hit testing at LOGICAL
+  /// resolution: a stamped icon's transparent surround must not swallow
+  /// clicks meant for the wire or canvas behind it.
+  final Uint8List alpha;
+
+  /// The art's raw RGBA — the pixel source the plate corner-AA ladder reads
+  /// when an overlap must restore the art a corner pixel yields to.
+  final Uint8List rgba;
+
+  /// The art positions (`y * width + x`) of the plate CORNER-AA pixels: the
+  /// `dddddd` blends baked where a prim plate's rounded outline corner
+  /// anti-aliased against the white canvas (the triangle plates carry one at
+  /// each left corner). These pixels are canvas artefacts, not opaque plate
+  /// art — when prim boxes overlap they compose by the measured ladder in
+  /// the icon stamping pass, not by plain source-over.
+  final Set<int> cornerAa;
+
+  /// The art-space opaque-pixel bounding box, null for fully transparent art.
+  final ui.Rect? inkBounds;
+}
+
+final Map<int, _PrimIconPixels> _primIconPixels = {};
 
 /// The corner-AA ladder's second rung: the measured screen value where TWO
 /// plate corner-AA pixels coincide on bare canvas (MD5's stacked Adds, the
@@ -1501,15 +1526,11 @@ final Map<int, Set<int>> _primIconCornerAa = {};
 /// the next plate's top corner).
 const _kCornerAaRung2 = Color(0xFFAAAAAA);
 
-/// Art-space opaque-pixel bounding boxes of the loaded icons (filled by
-/// [loadPrimIcons] from the same alpha masks that back hit testing).
-final Map<int, ui.Rect> _primIconInkBounds = {};
-
 /// The art-space ink (opaque-pixel) bounding box of the icon keyed [key], or
 /// null while the icons are still loading / for keys without art. The wire
 /// fallback router anchors an icon-stamped endpoint at this measured art
 /// edge instead of the (larger) node box.
-ui.Rect? primIconInkBounds(int key) => _primIconInkBounds[key];
+ui.Rect? primIconInkBounds(int key) => _primIconPixels[key]?.inkBounds;
 
 /// Whether the diagram-space point ([x],[y]) lands on an opaque pixel of the
 /// primitive icon stamped on [object] (natural size, centred in its bounds).
@@ -1556,11 +1577,14 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
   if (b == null) return key;
   for (var t = 0; t <= 15; t++) {
     final id = classVariantIconKey(object.kind, t);
-    final m = _primIconMasks[id];
-    if (m != null && m.w == b.width && m.h == b.height) return id;
+    final art = _primIconPixels[id];
+    if (art != null && art.width == b.width && art.height == b.height) {
+      return id;
+    }
   }
-  final legacy = _primIconMasks[key];
-  if (legacy != null && (legacy.w != b.width || legacy.h != b.height)) {
+  final legacy = _primIconPixels[key];
+  if (legacy != null &&
+      (legacy.width != b.width || legacy.height != b.height)) {
     return null;
   }
   return key;
@@ -1568,8 +1592,8 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
 
 bool primIconHit(ViHeapObject object, double x, double y) {
   final id = loadedPrimIconIdOf(object);
-  final mask = id == null ? null : _primIconMasks[id];
-  if (mask == null || _primIconsSync[id] == null) return true;
+  final art = id == null ? null : _primIconPixels[id];
+  if (art == null || _primIconsSync[id] == null) return true;
   final bounds = object.absBounds!;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
@@ -1578,16 +1602,14 @@ bool primIconHit(ViHeapObject object, double x, double y) {
       bounds.right.toDouble(),
       bounds.bottom.toDouble(),
     ),
-    mask.w,
-    mask.h,
+    art.width,
+    art.height,
     key: id,
   );
-  final left = stamp.left;
-  final top = stamp.top;
-  final ix = (x - left).floor();
-  final iy = (y - top).floor();
-  if (ix < 0 || iy < 0 || ix >= mask.w || iy >= mask.h) return false;
-  return mask.alpha[iy * mask.w + ix] > 0;
+  final ix = (x - stamp.left).floor();
+  final iy = (y - stamp.top).floor();
+  if (ix < 0 || iy < 0 || ix >= art.width || iy >= art.height) return false;
+  return art.alpha[iy * art.width + ix] > 0;
 }
 
 /// The absolute diagram coordinate of [object]'s stamped-art opaque EDGE along
@@ -1608,9 +1630,9 @@ int? primIconInkEdge(
   required int sign,
 }) {
   final id = loadedPrimIconIdOf(object);
-  final mask = id == null ? null : _primIconMasks[id];
+  final art = id == null ? null : _primIconPixels[id];
   final b = object.absBounds;
-  if (mask == null || b == null) return null;
+  if (art == null || b == null) return null;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
       b.left.toDouble(),
@@ -1618,34 +1640,34 @@ int? primIconInkEdge(
       b.right.toDouble(),
       b.bottom.toDouble(),
     ),
-    mask.w,
-    mask.h,
+    art.width,
+    art.height,
     key: id,
   );
   if (horizontal) {
     final iy = (cross - stamp.top).floor();
-    if (iy < 0 || iy >= mask.h) return null;
-    final base = iy * mask.w;
+    if (iy < 0 || iy >= art.height) return null;
+    final base = iy * art.width;
     if (sign >= 0) {
-      for (var ix = 0; ix < mask.w; ix++) {
-        if (mask.alpha[base + ix] > 0) return stamp.left.floor() + ix;
+      for (var ix = 0; ix < art.width; ix++) {
+        if (art.alpha[base + ix] > 0) return stamp.left.floor() + ix;
       }
     } else {
-      for (var ix = mask.w - 1; ix >= 0; ix--) {
-        if (mask.alpha[base + ix] > 0) return stamp.left.floor() + ix + 1;
+      for (var ix = art.width - 1; ix >= 0; ix--) {
+        if (art.alpha[base + ix] > 0) return stamp.left.floor() + ix + 1;
       }
     }
     return null;
   }
   final ix = (cross - stamp.left).floor();
-  if (ix < 0 || ix >= mask.w) return null;
+  if (ix < 0 || ix >= art.width) return null;
   if (sign >= 0) {
-    for (var iy = 0; iy < mask.h; iy++) {
-      if (mask.alpha[iy * mask.w + ix] > 0) return stamp.top.floor() + iy;
+    for (var iy = 0; iy < art.height; iy++) {
+      if (art.alpha[iy * art.width + ix] > 0) return stamp.top.floor() + iy;
     }
   } else {
-    for (var iy = mask.h - 1; iy >= 0; iy--) {
-      if (mask.alpha[iy * mask.w + ix] > 0) return stamp.top.floor() + iy + 1;
+    for (var iy = art.height - 1; iy >= 0; iy--) {
+      if (art.alpha[iy * art.width + ix] > 0) return stamp.top.floor() + iy + 1;
     }
   }
   return null;
@@ -2356,7 +2378,9 @@ class BdDiagramPainter extends CustomPainter {
     // reach them.
     final arrayShellOids = {
       for (final o in objects)
-        if (o.kind == 0x50 && o.parentOid != null) o.parentOid!,
+        if (o.objectClass == HeapObjectClass.numericControl &&
+            o.parentOid != null)
+          o.parentOid!,
     };
     final tunnelSquares =
         <
@@ -2380,7 +2404,7 @@ class BdDiagramPainter extends CustomPainter {
       // routed to the same chrome as the solids pass (and drawn HERE, after
       // the wire pass: the reference covers a wire crossing the box's
       // interior — Excel_Read_XLSX's braid under the (316,826) constant).
-      if (object.kind == 0x53) {
+      if (object.objectClass == HeapObjectClass.loop) {
         final rect = rectOf(object);
         if (rect.width <= 40 && rect.height <= 24) {
           _drawSmallClusterBox(canvas, object, rect);
@@ -2416,21 +2440,25 @@ class BdDiagramPainter extends CustomPainter {
       // the element, the label); crc8's LUT constant renders frameless. A
       // 0x52 without an index box keeps its generic frame (decorations_only
       // scores on one).
-      if (object.kind == 0x52 && arrayShellOids.contains(object.oid)) {
+      if (object.objectClass == HeapObjectClass.caseOrSequence &&
+          arrayShellOids.contains(object.oid)) {
         _drawArrayConstantShell(canvas, object);
         continue;
       }
-      switch (object.kind) {
-        case 0x20: // For loop: crisp 1px black border + stacked pages.
+      switch (object.objectClass) {
+        case HeapObjectClass
+            .bdForLoop: // Crisp 1px black border + stacked pages.
           _drawForLoopBorder(canvas, rect, disabled: structDisabled);
-        case 0x21: // While loop: crisp rounded grey band + terminals.
+        case HeapObjectClass
+            .bdWhileLoop: // Crisp rounded grey band + terminals.
           _drawWhileLoopBand(
             canvas,
             rect,
             structColor,
             disabled: structDisabled,
           );
-        case 0x2c: // Case structure: solid 1px border + global hatch band.
+        case HeapObjectClass
+            .bdStructureFrame: // Solid 1px border + global hatch band.
           _drawStructureHatchBorder(
             canvas,
             rect,
@@ -2452,12 +2480,13 @@ class BdDiagramPainter extends CustomPainter {
               oid: object.oid,
             );
           }
-        case 0xca: // Flat sequence: the film-strip border.
+        case HeapObjectClass.bdFlatSequence: // The film-strip border.
           _drawFlatSequenceBorder(canvas, rect, object);
-        case 0x121: // A flat-sequence frame: the parent 0xca owns the strip
-          // chrome and the inter-frame dividers; the frame draws nothing.
+        case HeapObjectClass
+            .bdSequenceFrame: // The parent flat sequence owns the
+          // strip chrome and the inter-frame dividers; the frame draws nothing.
           break;
-        case 0xcd: // Diagram-disable structure. Displaying its Disabled
+        case HeapObjectClass.bdDisableStructure: // Displaying its Disabled
           // frame: a single 1px grey rectangle (153,153,153), measured on
           // crc8 — no double line, no tint. Displaying an ENABLED frame: a
           // 3px (119,119,119) crosshatch band on the left/right/bottom
@@ -2468,7 +2497,7 @@ class BdDiagramPainter extends CustomPainter {
               .children(object.oid)
               .any(
                 (k) =>
-                    k.kind == 0x95 &&
+                    k.objectClass == HeapObjectClass.bdSelectorLabel &&
                     k.label?.trim().toLowerCase() == 'disabled',
               );
           if (showsDisabled) {
@@ -2568,7 +2597,8 @@ class BdDiagramPainter extends CustomPainter {
     // reference draws a case's ? tunnel (and its wire) over the strip's
     // bottom-left corner where they overlap.
     for (final object in solids) {
-      if (object.kind == 0x95) _drawCaseSelector(canvas, rectOf(object));
+      if (object.objectClass == HeapObjectClass.bdSelectorLabel)
+        _drawCaseSelector(canvas, rectOf(object));
     }
     // Overlapping border terminals stack: the reference draws a selector
     // OVER the select tunnel sharing its edge (crc8's 0x2e/0x2d pair
@@ -2614,15 +2644,16 @@ class BdDiagramPainter extends CustomPainter {
       // while every other owned label (no decoded background, the `0x800`
       // value-window flag, or hidden) shows none. The text pass below
       // renders any recovered caption.
-      if (kBdTextLabelCodes.contains(object.kind)) {
+      if (kBdTextLabelClasses.contains(object.objectClass)) {
         // The case selector's chrome already drew in the pre-chrome pass; its
         // value text draws in the text pass.
-        if (object.kind == 0x95) continue;
+        if (object.objectClass == HeapObjectClass.bdSelectorLabel) continue;
         // A hidden label paints nothing — neither backing nor (below) text.
-        final holderKind = scene.diagram.byId[object.parentOid ?? -1]?.kind;
+        final holder = scene.diagram.byId[object.parentOid ?? -1];
         final backed =
-            holderKind == 0x1b ||
-            (holderKind == 0x52 && ((object.objFlags ?? 0) & 0x800) == 0);
+            holder?.kind == 0x1b ||
+            (holder?.objectClass == HeapObjectClass.caseOrSequence &&
+                ((object.objFlags ?? 0) & 0x800) == 0);
         final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
             : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
@@ -2632,7 +2663,9 @@ class BdDiagramPainter extends CustomPainter {
         if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
-      if (object.kind == 0x53 && rect.width <= 40 && rect.height <= 24) {
+      if (object.objectClass == HeapObjectClass.loop &&
+          rect.width <= 40 &&
+          rect.height <= 24) {
         _drawSmallClusterBox(canvas, object, rect);
         continue;
       }
@@ -2650,14 +2683,16 @@ class BdDiagramPainter extends CustomPainter {
                 const <ViHeapObject>[];
             final named = kids.any(
               (c) =>
-                  c.kind == 0x0a &&
+                  c.objectClass == HeapObjectClass.controlLabel &&
                   !c.isLabelHidden &&
                   (c.label?.trim().isNotEmpty ?? false),
             );
             if (named) {
               for (final c in kids) {
                 final b = c.absBounds;
-                if (c.kind == 0x9 && b != null && b.right > b.left) {
+                if (c.objectClass == HeapObjectClass.controlChrome &&
+                    b != null &&
+                    b.right > b.left) {
                   box = _toCanvas(b);
                   break;
                 }
@@ -2667,7 +2702,8 @@ class BdDiagramPainter extends CustomPainter {
           // A boolean constant's shell draws LabVIEW's exact T/F block — the
           // decoded [ViHeapObject.constBool] picks the bitmap.
           final constHolder = scene.diagram.byId[object.parentOid ?? -1];
-          final boolValue = constHolder?.kind == 0x13
+          final boolValue =
+              constHolder?.objectClass == HeapObjectClass.bdConstDco
               ? constHolder!.constBool
               : null;
           if (boolValue != null && box.width == 16 && box.height == 14) {
@@ -2746,7 +2782,8 @@ class BdDiagramPainter extends CustomPainter {
           // ON the bounds' right/bottom edges (crc8's Polynomial + LUT
           // arrays, byte-verified), value digits in the element colour.
           final shellParent = scene.diagram.byId[object.parentOid ?? -1];
-          if (object.kind == 0x50 && shellParent?.kind == 0x52) {
+          if (object.objectClass == HeapObjectClass.numericControl &&
+              shellParent?.objectClass == HeapObjectClass.caseOrSequence) {
             // Both the INDEX box (window, spinner boxes, arrows) and the
             // ELEMENT cells (the grid of value boxes) are the array shell's
             // furniture ([_drawArrayConstantShell]); the generic stroked
@@ -2782,7 +2819,8 @@ class BdDiagramPainter extends CustomPainter {
             // A STRING shell's LEFT border is 4 px (measured on
             // Excel_Read_XLSX's `INIT` constant: rows read 4 border px on
             // the left against 2 on the other three sides).
-            if (object.kind == 0x51 && box.width > 8) {
+            if (object.objectClass == HeapObjectClass.stringOrArrayControl &&
+                box.width > 8) {
               canvas.drawRect(
                 Rect.fromLTWH(box.left, box.top, 4, box.height),
                 _solidNoAa(border),
@@ -2793,7 +2831,9 @@ class BdDiagramPainter extends CustomPainter {
             // square 2 px right of the upper, anchored at (+3,+4) — measured
             // on Excel_Read_XLSX's three path control shells (byte-identical
             // at all three).
-            if (object.kind == 0x5b && box.width > 14 && box.height >= 17) {
+            if (object.objectClass == HeapObjectClass.pathControl &&
+                box.width > 14 &&
+                box.height >= 17) {
               const glyphRows = [
                 '####..',
                 '#..#..',
@@ -2822,7 +2862,9 @@ class BdDiagramPainter extends CustomPainter {
           // is not decoded (a `0x13` holder marks it): Excel_Read_XLSX's
           // path constants read the plain 2px border in the reference,
           // same as crc8's decoded oid 3033.
-          final isConstant = constValue != null || shellParent?.kind == 0x13;
+          final isConstant =
+              constValue != null ||
+              shellParent?.objectClass == HeapObjectClass.bdConstDco;
           if (object.isIndicator != true &&
               !isConstant &&
               box.width > 10 &&
@@ -2894,7 +2936,10 @@ class BdDiagramPainter extends CustomPainter {
                 : scene.diagram
                       .children(object.oid)
                       .where(
-                        (part) => part.kind == 0xb && part.absBounds != null,
+                        (part) =>
+                            part.objectClass ==
+                                HeapObjectClass.controlSubPart &&
+                            part.absBounds != null,
                       )
                       .firstOrNull;
             if (marker != null && radixPart != null) {
@@ -2950,7 +2995,7 @@ class BdDiagramPainter extends CustomPainter {
           final glyph =
               constValue != null ||
                   object.dataType == null ||
-                  (shellParent?.kind == 0x13 &&
+                  (shellParent?.objectClass == HeapObjectClass.bdConstDco &&
                       bdDrawnConstText(shellParent) != null)
               ? null
               : dataTypeGlyph(object.dataType!);
@@ -3004,7 +3049,7 @@ class BdDiagramPainter extends CustomPainter {
           //   dividers at shared row boundaries.
           // (objFlags bit 0x10000 marks the input-side flavour; both share
           // the ring/field chrome.)
-          if (object.kind == 0x63) {
+          if (object.objectClass == HeapObjectClass.bdGrowableNode) {
             canvas.drawRect(
               rect,
               Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
@@ -3019,7 +3064,7 @@ class BdDiagramPainter extends CustomPainter {
             final nodeH = object.absBounds!.bottom - object.absBounds!.top;
             final nodeW = object.absBounds!.right - object.absBounds!.left;
             for (final dco in scene.diagram.children(object.oid)) {
-              if (dco.kind != 0x15) continue;
+              if (dco.kind != kNodeEndpointDcoKind) continue;
               for (final t in scene.diagram.children(dco.oid)) {
                 final tb = t.termBounds;
                 if (t.kind != 0x62 || tb == null) continue;
@@ -3213,8 +3258,9 @@ class BdDiagramPainter extends CustomPainter {
               dst,
               Paint()..filterQuality = filter,
             );
-            // Plate corner-AA ladder: a corner pixel ([_primIconCornerAa])
-            // is the plate outline's anti-aliasing baked against the WHITE
+            // Plate corner-AA ladder: a corner pixel
+            // ([_PrimIconPixels.cornerAa]) is the plate outline's
+            // anti-aliasing baked against the WHITE
             // canvas, not opaque art, so over an earlier stamp it composes
             // by the measured reference ladder (MD5's stacked Adds, tops
             // 446/465/485/504):
@@ -3228,10 +3274,12 @@ class BdDiagramPainter extends CustomPainter {
             // 255->221 and 221->170 from the same stamp (TODO: revisit
             // when the corpus grows another corner-corner collision).
             final ladderId = disabled ? null : loadedPrimIconIdOf(object);
-            final corners = ladderId == null
-                ? null
-                : _primIconCornerAa[ladderId];
-            for (final artIndex in corners ?? const <int>{}) {
+            final corners =
+                (ladderId == null
+                    ? null
+                    : _primIconPixels[ladderId]?.cornerAa) ??
+                const <int>{};
+            for (final artIndex in corners) {
               final artWidth = primIcon.base.width;
               final cornerX = dst.left + artIndex % artWidth;
               final cornerY = dst.top + artIndex ~/ artWidth;
@@ -3240,27 +3288,25 @@ class BdDiagramPainter extends CustomPainter {
               for (final prior in stampedPrimIcons.reversed) {
                 final localX = (cornerX - prior.dst.left).round();
                 final localY = (cornerY - prior.dst.top).round();
-                final mask = _primIconMasks[prior.id];
-                if (mask == null ||
+                final priorArt = _primIconPixels[prior.id];
+                if (priorArt == null ||
                     localX < 0 ||
                     localY < 0 ||
-                    localX >= mask.w ||
-                    localY >= mask.h) {
+                    localX >= priorArt.width ||
+                    localY >= priorArt.height) {
                   continue;
                 }
-                final priorIndex = localY * mask.w + localX;
-                if (mask.alpha[priorIndex] == 0) continue;
-                if (_primIconCornerAa[prior.id]?.contains(priorIndex) ??
-                    false) {
+                final priorIndex = localY * priorArt.width + localX;
+                if (priorArt.alpha[priorIndex] == 0) continue;
+                if (priorArt.cornerAa.contains(priorIndex)) {
                   beneathCorner = true;
                   continue;
                 }
-                final rgba = _primIconRgba[prior.id]!;
                 restore = Color.fromARGB(
                   0xff,
-                  rgba[priorIndex * 4],
-                  rgba[priorIndex * 4 + 1],
-                  rgba[priorIndex * 4 + 2],
+                  priorArt.rgba[priorIndex * 4],
+                  priorArt.rgba[priorIndex * 4 + 1],
+                  priorArt.rgba[priorIndex * 4 + 2],
                 );
                 break;
               }
@@ -3367,7 +3413,7 @@ class BdDiagramPainter extends CustomPainter {
       // own bounds — across the snippet corpus 1819/1849 such labels carry a
       // plausible non-origin box, so the text lands where LabVIEW put it.
       // Degenerate boxes (origin-pinned or sub-glyph-sized) are skipped.
-      if (kBdTextLabelCodes.contains(object.kind)) {
+      if (kBdTextLabelClasses.contains(object.objectClass)) {
         // LabVIEW hides a label whose part sets objFlags bit 0x08 (see
         // [ViHeapObject.isLabelHidden]; false for 0x95 by its class gate —
         // the case selector's value text is structure furniture and never
@@ -3376,7 +3422,7 @@ class BdDiagramPainter extends CustomPainter {
         // The selector's stored value text keeps its own padding spaces
         // (" 3 ", " 0, Default ") — LabVIEW's left inset — so it is not
         // trimmed.
-        var text = object.kind == 0x95
+        var text = object.objectClass == HeapObjectClass.bdSelectorLabel
             ? (object.label?.trim().isEmpty ?? true ? null : object.label)
             : object.label?.trim();
         if (text == null || text.isEmpty) {
@@ -3409,7 +3455,7 @@ class BdDiagramPainter extends CustomPainter {
         // — LEFT-justified like LabVIEW's (the recovered label carries the
         // reference's own leading space: MD5's " 3 " strip shows the glyph
         // at bounds.left+4, the space's width past a 1 px inset).
-        final selector = object.kind == 0x95;
+        final selector = object.objectClass == HeapObjectClass.bdSelectorLabel;
         // The label's decoded face: its first font run resolved against the
         // VI's FTAB ([ViHeapObject.labelFont]) — weight 1000 draws the bold
         // face; a non-default table size (its cell height in px, 15 = the
@@ -4756,7 +4802,7 @@ class BdDiagramPainter extends CustomPainter {
           var runLo = lo, runHi = hi;
           for (final o in scene.drawable) {
             final b = o.absBounds;
-            if (o.kind != 0x52 ||
+            if (o.objectClass != HeapObjectClass.caseOrSequence ||
                 b == null ||
                 b.left != container.left ||
                 b.top != container.top ||
@@ -5062,7 +5108,11 @@ class BdDiagramPainter extends CustomPainter {
       var cum = 0.0;
       final frames = scene.diagram
           .children(seq.oid)
-          .where((c) => c.kind == 0x121 && c.absBounds != null)
+          .where(
+            (c) =>
+                c.objectClass == HeapObjectClass.bdSequenceFrame &&
+                c.absBounds != null,
+          )
           .toList();
       for (var i = 0; i + 1 < frames.length; i++) {
         cum += frames[i].absBounds!.right - frames[i].absBounds!.left;
@@ -5096,7 +5146,7 @@ class BdDiagramPainter extends CustomPainter {
     ViTypeKind elementType = ViTypeKind.unknown;
     ViHeapObject? element;
     for (final c in children) {
-      if (c.kind != 0x50) continue;
+      if (c.objectClass != HeapObjectClass.numericControl) continue;
       if (c.typeKind != ViTypeKind.unknown) elementType = c.typeKind;
       if (c.absBounds != null &&
           (element == null || c.absBounds!.right > element.absBounds!.right)) {
@@ -5142,18 +5192,24 @@ class BdDiagramPainter extends CustomPainter {
     }
     for (final c in children) {
       final b = c.absBounds;
-      if (c.kind == 0x50 && b != null && !identical(c, element)) {
+      if (c.objectClass == HeapObjectClass.numericControl &&
+          b != null &&
+          !identical(c, element)) {
         for (final part in scene.diagram.children(c.oid)) {
           final pb = part.absBounds;
           if (pb == null) continue;
-          if (part.kind == 0xb || part.kind == 0x9) border(pb);
+          if (part.objectClass == HeapObjectClass.controlSubPart ||
+              part.objectClass == HeapObjectClass.controlChrome)
+            border(pb);
           // The index window shows the array's DISPLAYED index
           // ([ViHeapObject.arrayIndex], the tag-`0x15` group value) — the
           // same base the cell grid below enumerates its values from —
           // drawn in the cells' digit style at the window's text inset
           // (MD5's small 1D array: the `0` at window.left+2, the cell
           // digit rows; crc8's LUT arrays read `255` there).
-          if (part.kind == 0x9 && pb.width >= 10 && pb.height >= 12) {
+          if (part.objectClass == HeapObjectClass.controlChrome &&
+              pb.width >= 10 &&
+              pb.height >= 12) {
             final indexText = '${shell.arrayIndex ?? 0}';
             final run = _layoutText(
               indexText,
@@ -5172,7 +5228,7 @@ class BdDiagramPainter extends CustomPainter {
           // The spinner's fat triangle (measured on crc8's Polynomial
           // index): rows t+2..t+5 at widths 1/3/3/5 centred on l+3, the
           // up box's tip on top and the down box's mirrored.
-          if (part.kind == 0xb) {
+          if (part.objectClass == HeapObjectClass.controlSubPart) {
             final up = pb.top == b.top;
             final cx = (pb.left + 3 - origin.dx).toDouble();
             for (var i = 0; i < 4; i++) {
@@ -5203,7 +5259,10 @@ class BdDiagramPainter extends CustomPainter {
     var gridArea = 1 << 60;
     for (final c in children) {
       final b = c.absBounds;
-      if (c.kind != 0x9 || b == null || !contains(b, cell)) continue;
+      if (c.objectClass != HeapObjectClass.controlChrome ||
+          b == null ||
+          !contains(b, cell))
+        continue;
       final area = b.width * b.height;
       if (area < gridArea) {
         grid = b;
@@ -5213,15 +5272,20 @@ class BdDiagramPainter extends CustomPainter {
     final cols = math.max(1, grid.width ~/ cellW);
     final rows = math.max(1, grid.height ~/ cellH);
     final holder = scene.diagram.byId[shell.parentOid ?? -1];
-    final values = holder?.kind == 0x13 ? holder!.constArray : null;
-    final dims = holder?.kind == 0x13 ? holder!.constArrayDims : null;
+    final values = holder?.objectClass == HeapObjectClass.bdConstDco
+        ? holder!.constArray
+        : null;
+    final dims = holder?.objectClass == HeapObjectClass.bdConstDco
+        ? holder!.constArrayDims
+        : null;
     final format = bdDisplayFormatOf(scene.diagram, element.oid);
     final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
     // The radix part's offset inside its cell, from the prototype's own
     // 0xb child (MD5: +2,+3 in every array).
     var radixDx = 2, radixDy = 3;
     for (final part in scene.diagram.children(element.oid)) {
-      if (part.kind == 0xb && part.absBounds != null) {
+      if (part.objectClass == HeapObjectClass.controlSubPart &&
+          part.absBounds != null) {
         radixDx = part.absBounds!.left - cell.left;
         radixDy = part.absBounds!.top - cell.top;
       }
@@ -6578,7 +6642,10 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
     canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
     canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
-    if (scene.diagram.byId[object.parentOid ?? -1]?.kind != 0x13) return;
+    if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass !=
+        HeapObjectClass.bdConstDco) {
+      return;
+    }
     const glyphRows = [
       '#####.###.###',
       '#...#.#.#....',
@@ -6810,7 +6877,7 @@ class _DetailsCard extends StatelessWidget {
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.isLabelHidden ? ' · hidden' : ''}'
-                    '${kMultiFrameStructureKinds.contains(object.kind) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
+                    '${kMultiFrameStructureClasses.contains(object.objectClass) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
                     '${_iconStatusSuffix(object)}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
@@ -6860,7 +6927,7 @@ class _DetailsCard extends StatelessWidget {
 class _BdOutline extends StatelessWidget {
   const _BdOutline({required this.outline, this.linkedSubVis = const []});
   final ({
-    Map<String, int> structuresByKind,
+    Map<HeapObjectClass, int> structuresByClass,
     List<String> labeledNodes,
     int nodeCount,
     Map<ClassConfidence, int> confidence,
@@ -6874,7 +6941,7 @@ class _BdOutline extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final structs = outline.structuresByKind.entries.toList()
+    final structs = outline.structuresByClass.entries.toList()
       ..sort((a, b) => b.value.compareTo(a.value));
     final labeledNodes = outline.labeledNodes;
     if (structs.isEmpty &&
@@ -6907,7 +6974,7 @@ class _BdOutline extends StatelessWidget {
                   style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
                 ),
                 for (final entry in structs)
-                  Text('${entry.key} ×${entry.value}', style: muted),
+                  Text('${entry.key.label} ×${entry.value}', style: muted),
               ],
             ),
           if (linkedSubVis.isNotEmpty)

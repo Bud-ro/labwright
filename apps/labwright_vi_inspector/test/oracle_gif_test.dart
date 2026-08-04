@@ -7,7 +7,6 @@ import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/oracle_gif.dart';
 
-import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
 import 'util.dart';
 
 /// [rgba] filled with 0xRRGGBB [color].

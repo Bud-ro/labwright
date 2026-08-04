@@ -556,9 +556,15 @@ void main() {
     });
 
     test('label-part classes are the free-text sub-parts', () {
-      // 0x0a control caption + 0x95 case selector — drawn as text elsewhere, never
-      // as a filled part on the canvas.
-      expect(kBdTextLabelCodes, containsAll(<int>[0x0a, 0x95]));
+      // Control caption + case selector — drawn as text elsewhere, never as a
+      // filled part on the canvas.
+      expect(
+        kBdTextLabelClasses,
+        containsAll(<HeapObjectClass>[
+          HeapObjectClass.controlLabel,
+          HeapObjectClass.bdSelectorLabel,
+        ]),
+      );
     });
 
     // A diagram carrying a subVI-call node and a standalone label part rasterises
