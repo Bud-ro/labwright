@@ -685,206 +685,128 @@ void main() {
     expect(miss.routeTree, isNull);
   });
 
-  test('walkOneAnchoredRoute: forward, reverse-straight, and underdetermined/inconsistent cases', () {
-    ViWireRoute r(int n, WireRouteDirection dir, List<int> signs, List<int> lens) =>
-        ViWireRoute(pointCount: n, direction: dir, segmentLengths: lens, jointSigns: signs);
-    // Far node box below-right of the walk; a vertical closing run into its
-    // top edge, a horizontal one into a side edge.
+  test('walkOneAnchoredRoute: forward, reverse, into-node, and reject cases', () {
+    ViWireRoute makeRoute(int pointCount, WireRouteDirection direction, List<int> signs, List<int> lengths) =>
+        ViWireRoute(pointCount: pointCount, direction: direction, segmentLengths: lengths, jointSigns: signs);
+    // Far node box below-right of the walks; right/bottom edges are exclusive.
     const box = HeapRect(top: 40, left: 40, bottom: 60, right: 60);
+    const boxRightOfAnchor = HeapRect(top: 40, left: 100, bottom: 60, right: 120);
 
-    // Forward, one bend: anchor (10, 20) walks right 30, then the implied
-    // closing run drops onto the box's top edge (y = 40) at the bend column.
-    final oneBend = walkOneAnchoredRoute(
-      r(3, WireRouteDirection.right, [1], [30]),
-      anchor: (x: 10, y: 20),
-      anchoredIndex: 0,
-      farBox: box,
+    void check(
+      String name,
+      ViWireRoute route,
+      ViPoint anchor, {
+      int anchoredIndex = 0,
+      HeapRect farBox = box,
+      List<ViPoint>? points,
+      ViStep? step,
+    }) {
+      final walked = walkOneAnchoredRoute(route, anchor: anchor, anchoredIndex: anchoredIndex, farBox: farBox);
+      expect(walked?.points, points, reason: name);
+      expect(walked?.closingStep, step, reason: name);
+    }
+
+    check(
+      'forward, one bend: closing run drops onto the box top edge, no into-node step',
+      makeRoute(3, WireRouteDirection.right, [1], [30]),
+      (x: 10, y: 20),
+      points: [(x: 10, y: 20), (x: 40, y: 20), (x: 40, y: 40)],
     );
-    expect(oneBend?.points, [(x: 10, y: 20), (x: 40, y: 20), (x: 40, y: 40)]);
-    // Reaching the box EDGE (not entering it) reports no into-node step.
-    expect(oneBend?.closingStep, isNull);
-    // Forward, straight (no bends): the whole run is the closing run, ending
-    // on the box's near (left) edge.
-    expect(
-      walkOneAnchoredRoute(
-        r(2, WireRouteDirection.right, const [], const []),
-        anchor: (x: 5, y: 50),
-        anchoredIndex: 0,
-        farBox: box,
-      )?.points,
-      [(x: 5, y: 50), (x: 40, y: 50)],
+    check(
+      'forward, straight: the whole run is the closing run onto the near edge',
+      makeRoute(2, WireRouteDirection.right, const [], const []),
+      (x: 5, y: 50),
+      points: [(x: 5, y: 50), (x: 40, y: 50)],
     );
-    // Reverse, straight: the anchor is the SECOND endpoint (100, 50); the
-    // first endpoint rides the box's far (right) edge (x = 59), storage order.
-    expect(
-      walkOneAnchoredRoute(
-        r(2, WireRouteDirection.right, const [], const []),
-        anchor: (x: 100, y: 50),
-        anchoredIndex: 1,
-        farBox: box,
-      )?.points,
-      [(x: 59, y: 50), (x: 100, y: 50)],
+    check(
+      'reverse, straight: the head rides the far (right) edge, storage order',
+      makeRoute(2, WireRouteDirection.right, const [], const []),
+      (x: 100, y: 50),
+      anchoredIndex: 1,
+      points: [(x: 59, y: 50), (x: 100, y: 50)],
     );
-    // Reverse with an odd point count leaves the far endpoint's along-run
-    // position unpinned — null (the departing and closing axes differ).
-    expect(
-      walkOneAnchoredRoute(
-        r(3, WireRouteDirection.right, [1], [30]),
-        anchor: (x: 100, y: 50),
-        anchoredIndex: 1,
-        farBox: box,
-      ),
-      isNull,
+    check(
+      'reverse, bent: departing and closing axes differ — underdetermined, null',
+      makeRoute(3, WireRouteDirection.right, [1], [30]),
+      (x: 100, y: 50),
+      anchoredIndex: 1,
     );
-    // A forward closing run that would double back against the stored sign
-    // (box placed the wrong way) ships null.
-    expect(
-      walkOneAnchoredRoute(
-        r(3, WireRouteDirection.right, [1], [30]),
-        anchor: (x: 10, y: 80),
-        anchoredIndex: 0,
-        farBox: box, // box.top = 40 is ABOVE the bend at y = 80; +sign wants down
-      ),
-      isNull,
+    check(
+      'forward closing run would double back against the stored sign: null',
+      makeRoute(3, WireRouteDirection.right, [1], [30]),
+      (x: 10, y: 80),
     );
-    // Cross-axis containment: a horizontal closing run whose terminus ROW falls
-    // outside the box's vertical span points into empty space beside the node —
-    // null. (Bend at y = 200, box spans y 40..60.)
-    expect(
-      walkOneAnchoredRoute(
-        r(3, WireRouteDirection.down, [1], [160]),
-        anchor: (x: 30, y: 40),
-        anchoredIndex: 0,
-        farBox: box, // walks down 160 to y = 200, then a horizontal run — y ∉ [40,60]
-      ),
-      isNull,
+    check(
+      'terminus row outside the box vertical span points beside the node: null',
+      makeRoute(3, WireRouteDirection.down, [1], [160]),
+      (x: 30, y: 40),
     );
-    // Reverse straight with the box on the WRONG side (the departing run cannot
-    // reach it in the stored direction) ships null.
-    expect(
-      walkOneAnchoredRoute(
-        r(2, WireRouteDirection.right, const [], const []),
-        anchor: (x: 30, y: 50),
-        anchoredIndex: 1,
-        farBox: const HeapRect(
-          top: 40,
-          left: 100,
-          bottom: 60,
-          right: 120,
-        ), // box is RIGHT of the anchor; dir=right departs right
-      ),
-      isNull,
+    check(
+      'reverse straight with the box on the wrong side of the anchor: null',
+      makeRoute(2, WireRouteDirection.right, const [], const []),
+      (x: 30, y: 50),
+      anchoredIndex: 1,
+      farBox: boxRightOfAnchor,
     );
-    // Zero-length closing run: the walk's last bend already sits on the box
-    // edge, so no duplicate terminal vertex is appended (pointCount - 1 points).
-    final zeroClose = walkOneAnchoredRoute(
-      r(3, WireRouteDirection.right, [1], [30]),
-      anchor: (x: 10, y: 40),
-      anchoredIndex: 0,
-      farBox: box, // bend lands at (40, 40) == box top-left; closing run length 0
+    check(
+      'zero-length close ends on the edge: no duplicate vertex and no step',
+      makeRoute(3, WireRouteDirection.right, [1], [30]),
+      (x: 10, y: 40),
+      points: [(x: 10, y: 40), (x: 40, y: 40)],
     );
-    expect(zeroClose?.points, [(x: 10, y: 40), (x: 40, y: 40)]);
-    // A zero-length close reaches the box EDGE, not the interior — NO into-node
-    // step. This locks the boundary against the into-node case below (both emit
-    // pointCount-1 points, but only an interior entry carries a step).
-    expect(zeroClose?.closingStep, isNull);
-    // Into-node close (horizontal, +x): the last decoded bend lands in the box
-    // INTERIOR (x = 45, past the left edge 40), so the implied run enters the
-    // node. The polyline stops at the bend and the +x step is reported — no
-    // fabricated terminus at the node's undecoded input-pin depth.
-    final intoH = walkOneAnchoredRoute(
-      r(4, WireRouteDirection.right, [1], [35, 5]),
-      anchor: (x: 10, y: 50),
-      anchoredIndex: 0,
-      farBox: box, // walks right 35 to x=45 (inside), down 5 to (45,55)
+    // Into-node closes stop the polyline at the last interior bend and report
+    // the step; the terminus at the node's input-pin depth is not fabricated.
+    check(
+      'into-node +x',
+      makeRoute(4, WireRouteDirection.right, [1], [35, 5]),
+      (x: 10, y: 50),
+      points: [(x: 10, y: 50), (x: 45, y: 50), (x: 45, y: 55)],
+      step: (dx: 1, dy: 0),
     );
-    expect(intoH?.points, [(x: 10, y: 50), (x: 45, y: 50), (x: 45, y: 55)]);
-    expect(intoH?.closingStep, (dx: 1, dy: 0));
-    // Into-node close (vertical, +y): last bend inside the box, run enters down.
-    final intoV = walkOneAnchoredRoute(
-      r(4, WireRouteDirection.down, [1], [15, 5]),
-      anchor: (x: 50, y: 35),
-      anchoredIndex: 0,
-      farBox: box, // down 15 to y=50 (inside), right 5 to (55,50)
+    check(
+      'into-node +y',
+      makeRoute(4, WireRouteDirection.down, [1], [15, 5]),
+      (x: 50, y: 35),
+      points: [(x: 50, y: 35), (x: 50, y: 50), (x: 55, y: 50)],
+      step: (dx: 0, dy: 1),
     );
-    expect(intoV?.points, [(x: 50, y: 35), (x: 50, y: 50), (x: 55, y: 50)]);
-    expect(intoV?.closingStep, (dx: 0, dy: 1));
-    // Into-node close (horizontal, −x): approaches from the right, the last bend
-    // lands inside, the run steps deeper LEFT.
-    final intoLeft = walkOneAnchoredRoute(
-      r(4, WireRouteDirection.left, [-1], [35, 5]),
-      anchor: (x: 90, y: 50),
-      anchoredIndex: 0,
-      farBox: box, // left 35 to x=55 (inside), up 5 to (55,45)
+    check(
+      'into-node -x',
+      makeRoute(4, WireRouteDirection.left, [-1], [35, 5]),
+      (x: 90, y: 50),
+      points: [(x: 90, y: 50), (x: 55, y: 50), (x: 55, y: 45)],
+      step: (dx: -1, dy: 0),
     );
-    expect(intoLeft?.points, [(x: 90, y: 50), (x: 55, y: 50), (x: 55, y: 45)]);
-    expect(intoLeft?.closingStep, (dx: -1, dy: 0));
-    // Into-node close (vertical, −y): the run steps deeper UP.
-    final intoUp = walkOneAnchoredRoute(
-      r(4, WireRouteDirection.up, [-1], [15, 5]),
-      anchor: (x: 50, y: 70),
-      anchoredIndex: 0,
-      farBox: box, // up 15 to y=55 (inside), left 5 to (45,55)
+    check(
+      'into-node -y',
+      makeRoute(4, WireRouteDirection.up, [-1], [15, 5]),
+      (x: 50, y: 70),
+      points: [(x: 50, y: 70), (x: 50, y: 55), (x: 45, y: 55)],
+      step: (dx: 0, dy: -1),
     );
-    expect(intoUp?.points, [(x: 50, y: 70), (x: 50, y: 55), (x: 45, y: 55)]);
-    expect(intoUp?.closingStep, (dx: 0, dy: -1));
-    // Into-node reject (horizontal): a bend BEYOND the far edge (x = 70 > box)
-    // has no node to enter — null.
-    expect(
-      walkOneAnchoredRoute(
-        r(4, WireRouteDirection.right, [1], [60, 5]),
-        anchor: (x: 10, y: 50),
-        anchoredIndex: 0,
-        farBox: box,
-      ),
-      isNull,
+    check(
+      'into-node reject: bend beyond the far edge has no node to enter',
+      makeRoute(4, WireRouteDirection.right, [1], [60, 5]),
+      (x: 10, y: 50),
     );
-    // Into-node reject (vertical): the last bend's ROW falls beyond the far edge
-    // (y = 70 ≥ bottom 60) — no interior to enter — null.
-    expect(
-      walkOneAnchoredRoute(
-        r(4, WireRouteDirection.down, [1], [60, 5]),
-        anchor: (x: 50, y: 10),
-        anchoredIndex: 0,
-        farBox: box,
-      ),
-      isNull,
+    check('into-node reject: bend row beyond the bottom edge', makeRoute(4, WireRouteDirection.down, [1], [60, 5]), (
+      x: 50,
+      y: 10,
+    ));
+    check(
+      'into-node reject: bend at the exclusive right edge (x = 60) is outside',
+      makeRoute(4, WireRouteDirection.right, [1], [50, 5]),
+      (x: 10, y: 50),
     );
-    // Into-node reject (off-by-one): a bend AT the EXCLUSIVE right edge (x = 60,
-    // one past the last interior column 59) is outside the interior — null.
-    expect(
-      walkOneAnchoredRoute(
-        r(4, WireRouteDirection.right, [1], [50, 5]),
-        anchor: (x: 10, y: 50),
-        anchoredIndex: 0,
-        farBox: box, // right 50 to x=60 == box.right (exclusive)
-      ),
-      isNull,
+    check(
+      'into-node reject: bend at the last interior column but the step would exit',
+      makeRoute(4, WireRouteDirection.right, [1], [49, 5]),
+      (x: 10, y: 50),
     );
-    // Into-node reject (step exits): the bend sits at the LAST interior column
-    // (x = 59) but the +x run would step to 60, out of the box — the run must
-    // head DEEPER in, so this is rejected.
-    expect(
-      walkOneAnchoredRoute(
-        r(4, WireRouteDirection.right, [1], [49, 5]),
-        anchor: (x: 10, y: 50),
-        anchoredIndex: 0,
-        farBox: box,
-      ),
-      isNull,
-    );
-    // Degenerate reject: a BENDLESS route (2 points, no stored segment) whose
-    // anchor already sits inside the box yields a 1-point local frame — no
-    // drawable segment — so the into-node branch withholds it rather than ship
-    // a zero-segment polyline the census would count but nothing could draw.
-    expect(
-      walkOneAnchoredRoute(
-        r(2, WireRouteDirection.right, const [], const []),
-        anchor: (x: 45, y: 50),
-        anchoredIndex: 0,
-        farBox: box,
-      ),
-      isNull,
+    check(
+      'into-node reject: a bendless route has no drawable segment to ship',
+      makeRoute(2, WireRouteDirection.right, const [], const []),
+      (x: 45, y: 50),
     );
   });
 
