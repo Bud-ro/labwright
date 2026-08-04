@@ -4,23 +4,22 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'sequence_outline.dart';
 import 'ui.dart';
 
-/// Chip color per module adapter, keyed by [SeqAdapter.name] so the keys stay in
-/// lockstep with the enum — a new code-bearing adapter that lacks a color is
-/// caught by the unit test rather than silently rendering as the fallback. The
-/// flow-control adapters ([SeqAdapter.none]/[SeqAdapter.unknown]) are
+/// Chip color per module adapter. A new code-bearing adapter that lacks a color
+/// is caught by the unit test rather than silently rendering as the fallback.
+/// The flow-control adapters ([SeqAdapter.none]/[SeqAdapter.unknown]) are
 /// intentionally absent and render with [adapterFallbackColor].
-final Map<String, Color> adapterColors = {
-  SeqAdapter.labView.name: Colors.teal,
-  SeqAdapter.sequenceCall.name: Colors.deepPurple,
-  SeqAdapter.cModule.name: Colors.brown,
-  SeqAdapter.python.name: Colors.green,
+const Map<SeqAdapter, Color> adapterColors = {
+  SeqAdapter.labView: Colors.teal,
+  SeqAdapter.sequenceCall: Colors.deepPurple,
+  SeqAdapter.cModule: Colors.brown,
+  SeqAdapter.python: Colors.green,
 };
 
 /// Chip color for adapters with no assigned color (see [adapterColors]).
 const adapterFallbackColor = Colors.blueGrey;
 
-/// The chip color for an adapter name, falling back to [adapterFallbackColor].
-Color adapterColor(String adapter) =>
+/// The chip color for [adapter], falling back to [adapterFallbackColor].
+Color adapterColor(SeqAdapter adapter) =>
     adapterColors[adapter] ?? adapterFallbackColor;
 
 /// The Sequences tab: a tree of sequences → Setup/Main/Cleanup groups → steps.
@@ -258,16 +257,20 @@ class _SequencesViewState extends State<SequencesView> {
       chips.add(_chip(context, 'mode: ${s.runMode}', Colors.deepOrange));
     }
     final td = s.targetDisplay;
-    if (s.adapter != null && td != null) {
-      final color = adapterColor(s.adapter!);
-      final chip = _chip(context, '${s.adapter}: ${td.label}', color);
+    final adapter = s.adapter;
+    if (adapter != null && td != null) {
+      final chip = _chip(
+        context,
+        '${adapter.name}: ${td.label}',
+        adapterColor(adapter),
+      );
       chips.add(
         td.label != td.tooltip
             ? Tooltip(message: td.tooltip, child: chip)
             : chip,
       );
-    } else if (s.adapter != null) {
-      chips.add(_chip(context, s.adapter!, adapterColor(s.adapter!)));
+    } else if (adapter != null) {
+      chips.add(_chip(context, adapter.name, adapterColor(adapter)));
     }
     if (s.isInFileCall) {
       chips.add(

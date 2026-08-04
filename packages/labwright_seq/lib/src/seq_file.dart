@@ -184,6 +184,11 @@ enum StepGroup {
 
   /// The property name holding this group's step array.
   final String key;
+
+  /// The group whose [key] is [name], or null when [name] names no group.
+  static StepGroup? byKey(String name) => _byKey[name];
+
+  static final Map<String, StepGroup> _byKey = {for (final group in values) group.key: group};
 }
 
 /// A single sequence: a name and its three ordered step groups.
@@ -570,7 +575,7 @@ SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) {
             for (final outline in outlines)
               SeqProperty(
                 name: outline.name,
-                className: 'Sequence',
+                className: SeqValueClass.sequence.wire,
                 subProps: [
                   // Sequence-record subprops decoded from the field tree —
                   // the leading Parameters/Locals plus the post-group
@@ -580,9 +585,9 @@ SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) {
                   // synthesized below from the decoded step outlines.
                   for (final field in outline.leadingSubProps) _typeFieldProp(field),
                   for (final field in outline.tailSubProps) _typeFieldProp(field),
-                  SeqProperty(name: 'Setup', array: [...outline.setup.map(stepProp)]),
-                  SeqProperty(name: 'Main', array: [...outline.main.map(stepProp)]),
-                  SeqProperty(name: 'Cleanup', array: [...outline.cleanup.map(stepProp)]),
+                  SeqProperty(name: StepGroup.setup.key, array: [...outline.setup.map(stepProp)]),
+                  SeqProperty(name: StepGroup.main.key, array: [...outline.main.map(stepProp)]),
+                  SeqProperty(name: StepGroup.cleanup.key, array: [...outline.cleanup.map(stepProp)]),
                 ],
               ),
           ],

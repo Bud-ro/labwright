@@ -55,8 +55,8 @@ class StepOutline {
   /// not noteworthy). The default itself is recovered via type inheritance.
   final String? runMode;
 
-  /// Module adapter name (e.g. `labView`, `sequenceCall`), or `null` for none.
-  final String? adapter;
+  /// The step's module adapter, or `null` when it has no code module.
+  final SeqAdapter? adapter;
 
   /// What the adapter targets (VI path, DLL function, called sequence, …).
   final String? target;
@@ -129,12 +129,12 @@ class StepOutline {
 
   factory StepOutline.of(Step step, SeqFile file, {int flowDepth = 0}) {
     final module = step.module;
-    String? adapter;
+    SeqAdapter? adapter;
     String? target;
     int? callTargetIndex;
     String? externalCall;
     if (module.adapter != SeqAdapter.none) {
-      adapter = module.adapter.name;
+      adapter = module.adapter;
       target = switch (module.adapter) {
         SeqAdapter.python => module.target ?? '(target not yet recovered)',
         _ => module.target ?? '(none)',
@@ -268,7 +268,7 @@ class StepOutline {
   String get summary {
     final out = StringBuffer('$name [$type]');
     if (flowHeader != null) out.write('  {flow: $flowHeader}');
-    if (adapter != null) out.write(' -> $adapter: $target');
+    if (adapter != null) out.write(' -> ${adapter!.name}: $target');
     if (limits != null) {
       out.write('  {limits $limits${units != null ? ' $units' : ''}}');
     } else if (units != null) {
@@ -558,7 +558,7 @@ bool stepMatches(StepOutline s, String query) {
   bool hit(String? x) => x != null && x.toLowerCase().contains(query);
   if (hit(s.name) ||
       hit(s.type) ||
-      hit(s.adapter) ||
+      hit(s.adapter?.name) ||
       hit(s.target) ||
       hit(s.limits) ||
       hit(s.units) ||

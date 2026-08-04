@@ -2,7 +2,9 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'seq_file.dart';
 import 'seq_format.dart';
+import 'seq_property.dart';
 
 part 'seq_binary_metrics.dart';
 part 'seq_binary_write.dart';
@@ -1305,6 +1307,33 @@ const _typeMaxFields = 200;
 /// corpus arrays are far smaller; this only bounds a hostile count).
 const _maxArrayElements = 4096;
 
+/// The value classes whose serialized tail the field grammar reads directly.
+/// A class outside this set opens a nested object DECLARATION instead, whose
+/// child count is found by scanning past the attr words.
+const _tailedValueClasses = {
+  SeqValueClass.boolean,
+  SeqValueClass.string,
+  SeqValueClass.number,
+  SeqValueClass.numbers,
+  SeqValueClass.strings,
+  SeqValueClass.objects,
+  SeqValueClass.expression,
+  SeqValueClass.path,
+  SeqValueClass.reference,
+};
+
+/// The value classes an UNVALUED field may carry — it reads its class default
+/// (`false` / `''` / `0`), or inherits when inside an instance.
+const _unvaluedScalarClasses = {
+  SeqValueClass.boolean,
+  SeqValueClass.string,
+  SeqValueClass.number,
+  SeqValueClass.reference,
+};
+
+/// The array classes serialized as a `lbound ubound` bound-token pair.
+const _boundedArrayClasses = {SeqValueClass.numbers, SeqValueClass.strings, SeqValueClass.objects};
+
 /// Parses a typedef BODY (`[0][subpropCount][field…]`, starting right after
 /// the head's record delimiter) into its field list, or null when any
 /// field uses a shape the grammar does not yet cover — all-or-nothing, so
@@ -1774,7 +1803,7 @@ class _TypeBodyParser {
     for (var i = 0; i < count; i++) {
       final m = ops.mark();
       final element = _arrayElement(p);
-      if (element == null || element.$1.className != 'Step') {
+      if (element == null || element.$1.valueClass != SeqValueClass.step) {
         ops.rollback(m);
         break;
       }
@@ -1928,7 +1957,7 @@ class _TypeBodyParser {
       }
       ops.f64(p, value);
       final text = value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value';
-      elements.add(BinaryTypeField('', className: 'Num', value: text));
+      elements.add(BinaryTypeField('', className: SeqValueClass.number.wire, value: text));
     }
     final attrsMark = attrsOut?.length;
     final after = _attrTail(p, attrsOut: attrsOut);
@@ -2080,7 +2109,7 @@ class _TypeBodyParser {
     return (
       BinaryTypeField(
         name,
-        className: 'Step',
+        className: SeqValueClass.step.wire,
         typeName: ref.name,
         children: children.$1,
         instanceOverrides: true,
@@ -2144,7 +2173,13 @@ class _TypeBodyParser {
           final after = _attrTail(word4At + _u32Bytes, attrsOut: attrs);
           if (after != null) {
             return (
-              BinaryTypeField('', className: 'ExprValue', typeName: 'Expression', value: value, attrWords: attrs),
+              BinaryTypeField(
+                '',
+                className: SeqValueClass.expression.wire,
+                typeName: 'Expression',
+                value: value,
+                attrWords: attrs,
+              ),
               after,
             );
           }
@@ -2181,7 +2216,7 @@ class _TypeBodyParser {
     return (
       BinaryTypeField(
         name,
-        className: ref != null ? (ref.className ?? 'Obj') : null,
+        className: ref != null ? (ref.className ?? SeqValueClass.object.wire) : null,
         typeName: ref?.name,
         children: children.$1,
         instanceOverrides: true,
@@ -2380,7 +2415,7 @@ class _TypeBodyParser {
     final mId = ops.mark();
     final idField = parseFieldAt(at + 5 * _u32Bytes);
     if (idField != null &&
-        idField.className == 'Str' &&
+        idField.valueClass == SeqValueClass.string &&
         idField.name == 'Id' &&
         (idField.value?.startsWith('ID#:') ?? false)) {
       // The descriptor-node header the fallback path validated:
@@ -2648,7 +2683,13 @@ class _TypeBodyParser {
       final children = _fields(at + 5 * _u32Bytes, childCount);
       if (children == null) return null;
       return (
-        BinaryTypeField(name, className: 'Obj', children: children.$1, instanceOverrides: true, fieldFlags: 0),
+        BinaryTypeField(
+          name,
+          className: SeqValueClass.object.wire,
+          children: children.$1,
+          instanceOverrides: true,
+          fieldFlags: 0,
+        ),
         children.$2,
       );
     }
@@ -2677,7 +2718,7 @@ class _TypeBodyParser {
       var next = at + 5 * _u32Bytes;
       String? value;
       var typeName = 'Expression';
-      var className = 'ExprValue';
+      var className = SeqValueClass.expression.wire;
       // A framed VALUED field whose stored tokens are a bound-token PAIR
       // is a typed ARRAY instance (`Substeps`): the pair discriminates it
       // from a framed scalar (whose single value token is followed by the
@@ -2719,7 +2760,7 @@ class _TypeBodyParser {
           return (
             BinaryTypeField(
               name,
-              className: 'Objs',
+              className: SeqValueClass.objects.wire,
               arrayLBound: lbound,
               arrayUBound: ubound,
               intrinsicTypeId: x == 0 ? null : x,
@@ -2739,7 +2780,7 @@ class _TypeBodyParser {
         return (
           BinaryTypeField(
             name,
-            className: 'Objs',
+            className: SeqValueClass.objects.wire,
             arrayLBound: lbound,
             arrayUBound: ubound,
             intrinsicTypeId: x == 0 ? null : x,
@@ -2820,7 +2861,7 @@ class _TypeBodyParser {
             return (
               BinaryTypeField(
                 name,
-                className: ref.className ?? 'Obj',
+                className: ref.className ?? SeqValueClass.object.wire,
                 typeName: ref.name,
                 children: children.$1,
                 instanceOverrides: true,
@@ -2832,7 +2873,7 @@ class _TypeBodyParser {
           }
           ops.rollback(mInst);
         }
-        className = ref.className ?? 'Obj';
+        className = ref.className ?? SeqValueClass.object.wire;
         typeName = ref.name;
         // A reference to a scalar-classed type reads that class's
         // default, the twin's `<value/>` semantics (AssemblyPath:Path
@@ -2841,10 +2882,10 @@ class _TypeBodyParser {
         // unvalued field is inherited, not defaulted.
         value = _inInstance
             ? null
-            : switch (className) {
-                'Str' || 'PathValue' || 'ExprValue' => '',
-                'Bool' => 'false',
-                'Num' => '0',
+            : switch (SeqValueClass.from(className)) {
+                SeqValueClass.string || SeqValueClass.path || SeqValueClass.expression => '',
+                SeqValueClass.boolean => 'false',
+                SeqValueClass.number => '0',
                 _ => null,
               };
       } else if (x == 1 && !valued) {
@@ -2887,7 +2928,7 @@ class _TypeBodyParser {
         return (
           BinaryTypeField(
             name,
-            className: 'Obj',
+            className: SeqValueClass.object.wire,
             children: overrides.$1,
             instanceOverrides: true,
             fieldFlags: fieldFlags,
@@ -3010,6 +3051,7 @@ class _TypeBodyParser {
     final className = _clsTok(_u32(at + 2 * _u32Bytes));
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
+    final cls = SeqValueClass.from(className);
     ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
     ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
     ops.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
@@ -3031,8 +3073,7 @@ class _TypeBodyParser {
     // `[childCount 4]{4 swallowed siblings}` under the scan (measured on
     // the iTAC `Connect` record, where it ate the sequence's remaining
     // parameters and its `Locals`).
-    if (!valued &&
-        !const {'Bool', 'Str', 'Num', 'Nums', 'Strs', 'Objs', 'ExprValue', 'PathValue', 'Ref'}.contains(className)) {
+    if (!valued && !_tailedValueClasses.contains(cls)) {
       if (hasNumericRep) return null;
       // On EXACTLY flags == 0x4, a ZERO count candidate yields to the
       // IMMEDIATELY following word: that shape can store a zero-valued
@@ -3111,7 +3152,7 @@ class _TypeBodyParser {
       // ([_fieldHasNumericRepBit]: NI_MeasurementParameter.ID/Dimension).
       int? repr;
       if (hasNumericRep) {
-        if (className != 'Num' || !_canRead(next)) return null;
+        if (cls != SeqValueClass.number || !_canRead(next)) return null;
         repr = _u32(next);
         ops.u32(next, repr, _OpSource.model);
         next += _u32Bytes;
@@ -3119,7 +3160,7 @@ class _TypeBodyParser {
       final attrs = <int>[];
       final after = hasExtData ? _extTail(next) : _attrTail(next, minWords: minAttrs, attrsOut: attrs);
       if (after == null) return null;
-      if (!const {'Bool', 'Str', 'Num', 'Ref'}.contains(className)) return null;
+      if (!_unvaluedScalarClasses.contains(cls)) return null;
       return (
         BinaryTypeField(
           name,
@@ -3127,11 +3168,11 @@ class _TypeBodyParser {
           // A 'Ref' carries no persisted value in ANY context (its XML
           // twin form is always a self-closing element) — value stays
           // null rather than a fabricated default.
-          value: _inInstance || className == 'Ref'
+          value: _inInstance || cls == SeqValueClass.reference
               ? null
-              : switch (className) {
-                  'Bool' => 'false',
-                  'Num' => '0',
+              : switch (cls) {
+                  SeqValueClass.boolean => 'false',
+                  SeqValueClass.number => '0',
                   _ => '',
                 },
           numericRepresentation: repr,
@@ -3145,7 +3186,7 @@ class _TypeBodyParser {
     // arrays (`Objs`) additionally carry ONE 0x00 pad byte after the
     // trail — the stream is byte-granular, and this pad is what shifts
     // everything after an empty Objs array off word alignment.
-    if (const {'Nums', 'Strs', 'Objs'}.contains(className) &&
+    if (_boundedArrayClasses.contains(cls) &&
         next + 2 * _u32Bytes <= recordRegionLength &&
         _isBoundToken(_tok(_u32(next))) &&
         _isBoundToken(_tok(_u32(next + _u32Bytes)))) {
@@ -3163,7 +3204,7 @@ class _TypeBodyParser {
       // carries its 2 Num members as plain fields). Count-gated by the
       // bounds and terminator-gated, all-or-nothing; on failure the array
       // falls back to the structural blob walk in [_fieldsInner].
-      if (className == 'Objs' && ubound != '[]') {
+      if (cls == SeqValueClass.objects && ubound != '[]') {
         final attrs = <int>[];
         final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
         if (elements != null) {
@@ -3191,7 +3232,7 @@ class _TypeBodyParser {
       // repo materializes the identical array in XML). Count-gated and
       // terminator-gated, all-or-nothing; on failure the array falls
       // back to the bounds-only read below (contents stay undecoded).
-      if (className == 'Nums' && valued && ubound != '[]') {
+      if (cls == SeqValueClass.numbers && valued && ubound != '[]') {
         final attrs = <int>[];
         final run = _scalarArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
         if (run != null) {
@@ -3215,7 +3256,7 @@ class _TypeBodyParser {
       final attrs = <int>[];
       var after = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs, attrsOut: attrs);
       if (after == null) return null;
-      if (className == 'Objs') {
+      if (cls == SeqValueClass.objects) {
         if (after >= recordRegionLength || view.getUint8(after) != 0) {
           return null;
         }
@@ -3268,8 +3309,8 @@ class _TypeBodyParser {
         after,
       );
     }
-    switch (className) {
-      case 'Str' when !hasNumericRep:
+    switch (cls) {
+      case SeqValueClass.string when !hasNumericRep:
         final value = _tok(_u32(next));
         if (value == null) return null;
         ops.poolRef(next, _u32(next));
@@ -3278,8 +3319,11 @@ class _TypeBodyParser {
             ? _extTail(next + _u32Bytes)
             : _attrTail(next + _u32Bytes, minWords: minAttrs, attrsOut: attrs);
         if (after == null) return null;
-        return (BinaryTypeField(name, className: 'Str', value: value, fieldFlags: fieldFlags, attrWords: attrs), after);
-      case 'Bool' when !hasNumericRep:
+        return (
+          BinaryTypeField(name, className: className, value: value, fieldFlags: fieldFlags, attrWords: attrs),
+          after,
+        );
+      case SeqValueClass.boolean when !hasNumericRep:
         // A stored Bool is ONE byte (TEInf's StepFCSeqF=true measured:
         // [01][attr 0x4d0018][terminator]) — the same byte the instance
         // grammar reads. Reading it as u32 was survivable only while
@@ -3293,14 +3337,14 @@ class _TypeBodyParser {
         return (
           BinaryTypeField(
             name,
-            className: 'Bool',
+            className: className,
             value: value == 1 ? 'true' : 'false',
             fieldFlags: fieldFlags,
             attrWords: attrs,
           ),
           after,
         );
-      case 'Num':
+      case SeqValueClass.number:
         // A 0x800-flagged Num stores [representation word][i64 value];
         // a plain one stores an f64 — unless it sits inside an instance
         // whose typedef declares this field with an integer
@@ -3356,7 +3400,7 @@ class _TypeBodyParser {
         return (
           BinaryTypeField(
             name,
-            className: 'Num',
+            className: className,
             value: text,
             numericRepresentation: repr,
             fieldFlags: fieldFlags,
@@ -3437,8 +3481,12 @@ class BinaryTypeField {
 
   /// The value class (`Bool`/`Str`/`Num`/`Nums`/`Strs`), or `ExprValue`
   /// for Expression-typed fields. Null for compact fields, whose class is
-  /// not serialized (never guessed).
+  /// not serialized (never guessed). Kept verbatim; [valueClass] is the
+  /// cataloged form.
   final String? className;
+
+  /// [className] resolved against the [SeqValueClass] catalog.
+  SeqValueClass? get valueClass => SeqValueClass.of(className);
 
   /// The named type for typed fields (`Expression`), null otherwise.
   final String? typeName;
@@ -3613,6 +3661,9 @@ class BinaryTypeRecord {
   /// The value-kind (`classname` attribute: `Obj`, `ExprValue`, `StepType`,
   /// …), or null when the class word does not resolve in the pool.
   final String? className;
+
+  /// [className] resolved against the [SeqValueClass] catalog.
+  SeqValueClass? get valueClass => SeqValueClass.of(className);
 
   /// `typecategory` (verbatim code; NI-internal meaning not invented).
   final int typeCategory;
@@ -3981,7 +4032,7 @@ List<String> _stepNamesFromBody(Uint8List body, int recordRegionLength) {
 
 /// The step-group container names, in the record region's declaration order
 /// context (`Main` is emitted before `Setup`/`Cleanup` in observed files).
-const _stepGroupNames = {'Setup', 'Main', 'Cleanup'};
+final _stepGroupNames = {for (final group in StepGroup.values) group.key};
 
 /// The sequence-record subprops that precede the `Main` group array in
 /// TestStand's fixed layout — the only ones the leading-subprop decode
@@ -4001,22 +4052,22 @@ const _sequenceLeadingSubPropNames = {'Parameters', 'Locals'};
 /// every field still needs its exact class and a clean parse, which
 /// stops the walk cold on any coincidental parse inside undecoded step
 /// content.
-const _sequenceSubPropHead = ['Parameters', 'Locals', 'Main', 'Setup', 'Cleanup'];
+final _sequenceSubPropHead = ['Parameters', 'Locals', StepGroup.main.key, StepGroup.setup.key, StepGroup.cleanup.key];
 const _sequenceSubPropTailNames = {'GotoCleanupOnFail', 'RecordResults', 'RTS', 'Requirements', 'FailureAction'};
 
 /// The value class each sequence subprop carries, from the same XML
 /// census — the per-field shape gate of the full-record walk.
-const _sequenceSubPropClasses = {
-  'Parameters': 'Obj',
-  'Locals': 'Obj',
-  'Main': 'Objs',
-  'Setup': 'Objs',
-  'Cleanup': 'Objs',
-  'RecordResults': 'Bool',
-  'GotoCleanupOnFail': 'Bool',
-  'RTS': 'Obj',
-  'Requirements': 'Obj',
-  'FailureAction': 'Num',
+final _sequenceSubPropClasses = {
+  'Parameters': SeqValueClass.object,
+  'Locals': SeqValueClass.object,
+  StepGroup.main.key: SeqValueClass.objects,
+  StepGroup.setup.key: SeqValueClass.objects,
+  StepGroup.cleanup.key: SeqValueClass.objects,
+  'RecordResults': SeqValueClass.boolean,
+  'GotoCleanupOnFail': SeqValueClass.boolean,
+  'RTS': SeqValueClass.object,
+  'Requirements': SeqValueClass.object,
+  'FailureAction': SeqValueClass.number,
 };
 
 /// Upper bound on a credible `[Sequence][name][count]` subprop count —
@@ -4118,13 +4169,15 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
       } else {
         gated = !_sequenceSubPropTailNames.contains(field.name) || !seenTail.add(field.name);
       }
-      if (!gated) gated = field.className != _sequenceSubPropClasses[field.name];
+      if (!gated) gated = field.valueClass != _sequenceSubPropClasses[field.name];
       // A group array's elements are ALWAYS placed steps — an element of
       // any other class is a misparse leaking a later field into the
       // array (corpus-caught: a short-read `ViCall` let the following
       // `TDChecksum` register as a group element), so the field and its
       // extent are not trusted and the walk stops BEFORE it.
-      if (!gated && _stepGroupNames.contains(field.name) && field.children.any((c) => c.className != 'Step')) {
+      if (!gated &&
+          _stepGroupNames.contains(field.name) &&
+          field.children.any((c) => c.valueClass != SeqValueClass.step)) {
         gated = true;
       }
       if (gated) {
@@ -4424,10 +4477,11 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   if (sequenceDecls.isEmpty) return const [];
 
   // 2. group-container markers (leaf records `Objs <group>`), with offsets
-  final markers = <(int, String)>[];
+  final markers = <(int, StepGroup)>[];
   for (final record in _propertyRecordsFromBody(body, recordRegionLength)) {
-    if (record.typeName == 'Objs' && _stepGroupNames.contains(record.name)) {
-      markers.add((record.offset, record.name));
+    final group = StepGroup.byKey(record.name);
+    if (group != null && record.typeName == SeqValueClass.objects.wire) {
+      markers.add((record.offset, group));
     }
   }
 
@@ -4545,12 +4599,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   // 4. assemble: nearest preceding sequence decl, then nearest preceding marker
   sequenceDecls.sort((a, b) => a.$1.compareTo(b.$1));
   final outlines = {
-    for (final (_, name) in sequenceDecls)
-      name: {
-        'Setup': <BinaryStepRef>[],
-        'Main': <BinaryStepRef>[],
-        'Cleanup': <BinaryStepRef>[],
-      },
+    for (final (_, name) in sequenceDecls) name: {for (final group in StepGroup.values) group: <BinaryStepRef>[]},
   };
   String sequenceAt(int offset) {
     var owner = sequenceDecls.first.$2;
@@ -4564,9 +4613,9 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     for (final (_, name) in sequenceDecls) name: <BinaryStepRef>[],
   };
   for (final (stepOffset, step) in steps) {
-    String? group;
-    for (final (markerOffset, markerName) in markers) {
-      if (markerOffset < stepOffset) group = markerName;
+    StepGroup? group;
+    for (final (markerOffset, markerGroup) in markers) {
+      if (markerOffset < stepOffset) group = markerGroup;
     }
     final owner = sequenceAt(stepOffset);
     if (group == null) {
@@ -4619,9 +4668,9 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
       if (seenNames.add(name))
         BinarySequenceOutline(
           name: name,
-          setup: outlines[name]!['Setup']!,
-          main: outlines[name]!['Main']!,
-          cleanup: outlines[name]!['Cleanup']!,
+          setup: outlines[name]![StepGroup.setup]!,
+          main: outlines[name]![StepGroup.main]!,
+          cleanup: outlines[name]![StepGroup.cleanup]!,
           ungrouped: ungrouped[name]!,
           leadingSubProps: leading[name] ?? const [],
           tailSubProps: tail[name] ?? const [],
@@ -4658,7 +4707,7 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
       if (pool[i] == token) i,
   };
   final anchors = [
-    for (final spec in _tailSubProps) (indicesOf(spec.name), indicesOf(spec.className), spec),
+    for (final spec in _tailSubProps) (indicesOf(spec.name), indicesOf(spec.className.wire), spec),
   ];
   final sorted = [...sequenceDecls]..sort((a, b) => a.$1.compareTo(b.$1));
   String ownerOf(int offset) {
@@ -4700,7 +4749,7 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
 class _TailSubProp {
   const _TailSubProp(this.name, this.className, this.accepts);
   final String name;
-  final String className;
+  final SeqValueClass className;
   final bool Function(BinaryTypeField) accepts;
 }
 
@@ -4708,17 +4757,21 @@ class _TailSubProp {
 /// shape gates. Scalars must carry a value; `Requirements` must hold a
 /// `Links` child; `RTS` must be an object with children.
 final _tailSubProps = <_TailSubProp>[
-  _TailSubProp('RecordResults', 'Bool', (f) => f.name == 'RecordResults' && f.value != null),
-  _TailSubProp('FailureAction', 'Num', (f) => f.name == 'FailureAction' && f.value != null),
+  _TailSubProp('RecordResults', SeqValueClass.boolean, (f) => f.name == 'RecordResults' && f.value != null),
+  _TailSubProp('FailureAction', SeqValueClass.number, (f) => f.name == 'FailureAction' && f.value != null),
   _TailSubProp(
     'Requirements',
-    'Obj',
+    SeqValueClass.object,
     (f) =>
         f.name == 'Requirements' &&
-        f.className == 'Obj' &&
-        f.children.any((c) => c.name == 'Links' && c.className == 'Strs'),
+        f.valueClass == SeqValueClass.object &&
+        f.children.any((c) => c.name == 'Links' && c.valueClass == SeqValueClass.strings),
   ),
-  _TailSubProp('RTS', 'Obj', (f) => f.name == 'RTS' && f.className == 'Obj' && f.children.isNotEmpty),
+  _TailSubProp(
+    'RTS',
+    SeqValueClass.object,
+    (f) => f.name == 'RTS' && f.valueClass == SeqValueClass.object && f.children.isNotEmpty,
+  ),
 ];
 
 /// Decodes a step's `TS` subprops from the step-data descriptor node at

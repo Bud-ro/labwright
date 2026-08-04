@@ -28,25 +28,23 @@ void main() {
   group('adapterColor', () {
     const fallback = {SeqAdapter.none, SeqAdapter.unknown};
 
-    test('keys are exactly the code-bearing SeqAdapter names (enum drift)', () {
+    test('keys are exactly the code-bearing adapters (enum drift)', () {
       for (final a in SeqAdapter.values) {
         expect(
-          adapterColors.containsKey(a.name),
+          adapterColors.containsKey(a),
           !fallback.contains(a),
           reason: a.name,
         );
       }
-      final names = {for (final a in SeqAdapter.values) a.name};
-      expect(names.containsAll(adapterColors.keys), isTrue);
     });
 
     test('resolves known adapters, falls back for the rest', () {
       expect(
-        adapterColor(SeqAdapter.labView.name),
-        adapterColors[SeqAdapter.labView.name],
+        adapterColor(SeqAdapter.labView),
+        adapterColors[SeqAdapter.labView],
       );
-      expect(adapterColor(SeqAdapter.none.name), adapterFallbackColor);
-      expect(adapterColor('not-an-adapter'), adapterFallbackColor);
+      expect(adapterColor(SeqAdapter.none), adapterFallbackColor);
+      expect(adapterColor(SeqAdapter.unknown), adapterFallbackColor);
     });
   });
 
@@ -68,7 +66,7 @@ void main() {
         StepOutline(
           name: 'Get User',
           type: 'Action',
-          adapter: SeqAdapter.cModule.name,
+          adapter: SeqAdapter.cModule,
           target: 'Engine.GetUser',
           callArgs: [
             CallArgOutline(

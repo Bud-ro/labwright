@@ -217,7 +217,7 @@ Set<SeqProperty> _modeledNodes(SeqFile file) {
   mark(file.data.prop('Seq'));
   for (final seq in file.sequences) {
     mark(seq.raw);
-    markKeys(seq.raw, ['Setup', 'Main', 'Cleanup']);
+    markKeys(seq.raw, [for (final group in StepGroup.values) group.key]);
     mark(seq.raw.prop('Locals'));
     mark(seq.raw.prop('Parameters'));
     // Locals/parameters are user variables — the SeqVariable lens applies to a

@@ -379,6 +379,31 @@ List<SeqProperty> iniTypes(IniSeqFile doc) {
   ];
 }
 
+/// One INI path in the section index: the sections addressing it (a
+/// `[DEF, <path>]` type declaration and/or a `[<path>]` value section) plus the
+/// immediate children every indexed path reveals about it. A node also exists
+/// for a path that appears only as an ANCESTOR of a deeper section, which is how
+/// container members implied by a deeper section (a step's `SData`) are found.
+class _IniPathNode {
+  /// The `[DEF, <path>]` section declaring this path's type members.
+  IniSection? def;
+
+  /// The `[<path>]` section holding this path's stored values.
+  IniSection? values;
+
+  /// Immediate member-name children, in first-seen order.
+  final Set<String> members = {};
+
+  /// Array element indices found under this path.
+  final Set<int> _elements = {};
+
+  /// [_elements] ascending — computed once, after indexing.
+  late final List<int> elementIndices = _elements.toList()..sort();
+
+  /// Whether a section addresses this path directly.
+  bool get hasSection => def != null || values != null;
+}
+
 /// Builds [SeqProperty] objects from an INI `.seq`'s path-addressed sections.
 class _IniBuilder {
   _IniBuilder(IniSeqFile doc) {
@@ -388,29 +413,29 @@ class _IniBuilder {
       // component reuses object paths like `Error.Code`) and pollute the path
       // index. They stay reachable on IniSeqFile.extDataSections.
       if (section.isExtData) continue;
-      (section.isDef ? _defs : _vals)[section.path] = section;
+      final node = _nodeAt(section.path);
+      if (section.isDef) {
+        node.def = section;
+      } else {
+        node.values = section;
+      }
     }
-    _allPaths = {..._defs.keys, ..._vals.keys};
     _indexPaths();
   }
 
-  final Map<String, IniSection> _defs = {};
-  final Map<String, IniSection> _vals = {};
-  late final Set<String> _allPaths;
+  /// Every indexed INI path → its node: the section paths plus every ancestor
+  /// they pass through.
+  final Map<String, _IniPathNode> _nodes = {};
 
-  final Map<String, List<String>> _memberChildren = {};
-  final Map<String, Set<String>> _memberChildSeen = {};
-  final Map<String, List<int>> _elemIdx = {};
+  _IniPathNode _nodeAt(String path) => _nodes[path] ??= _IniPathNode();
 
-  /// Single pass over [_allPaths]: for every path, register each immediate
+  /// Single pass over the section paths: for every path, register each immediate
   /// `parent.member` and `parent[index]` edge against its parent. A path's member
-  /// segments are separated by `.`; array elements by `[n]`. For each container
-  /// path this records its immediate member-name children (first-seen order) and
-  /// its array element indices. Built once so per-node child lookups are
-  /// O(children) instead of re-scanning every path (which made [build] O(paths²)).
+  /// segments are separated by `.`; array elements by `[n]`. Built once so
+  /// per-node child lookups are O(children) instead of re-scanning every path
+  /// (which made [build] O(paths²)).
   void _indexPaths() {
-    final elemSets = <String, Set<int>>{};
-    for (final path in _allPaths) {
+    for (final path in _nodes.keys.toList()) {
       final pathLength = path.length;
       var i = 0;
       while (i < pathLength && path[i] != '.' && path[i] != '[') {
@@ -424,9 +449,7 @@ class _IniBuilder {
             j++;
           }
           if (j > i + 1) {
-            final seg = path.substring(i + 1, j);
-            final seen = _memberChildSeen[anc] ??= <String>{};
-            if (seen.add(seg)) (_memberChildren[anc] ??= <String>[]).add(seg);
+            _nodeAt(anc).members.add(path.substring(i + 1, j));
           }
           i = j;
         } else {
@@ -436,7 +459,7 @@ class _IniBuilder {
           }
           if (j < pathLength) {
             final idx = int.tryParse(path.substring(i + 1, j));
-            if (idx != null) (elemSets[anc] ??= <int>{}).add(idx);
+            if (idx != null) _nodeAt(anc)._elements.add(idx);
             i = j + 1;
           } else {
             i = pathLength;
@@ -444,10 +467,13 @@ class _IniBuilder {
         }
       }
     }
-    elemSets.forEach((k, v) => _elemIdx[k] = v.toList()..sort());
   }
 
-  bool hasPath(String path) => _allPaths.contains(path);
+  IniSection? _def(String path) => _nodes[path]?.def;
+
+  IniSection? _values(String path) => _nodes[path]?.values;
+
+  bool hasPath(String path) => _nodes[path]?.hasSection ?? false;
 
   /// The root-objects alias sections, in priority order. Newer files declare
   /// top-level objects under `[DEF, %OBJROOT]`; older ones (e.g. versions 127/143)
@@ -460,7 +486,7 @@ class _IniBuilder {
   /// null when absent.
   String? dataRootPath() {
     for (final alias in _rootAliases) {
-      final root = _defs[alias];
+      final root = _def(alias);
       if (root == null) continue;
       for (final member in root.members.entries) {
         if (member.value == 'SequenceFileData') return member.key;
@@ -475,24 +501,25 @@ class _IniBuilder {
   /// 2242 across the corpus resolve here).
   String? rootAliasClass(String name) {
     for (final alias in _rootAliases) {
-      final declared = _defs[alias]?.members[name];
+      final declared = _def(alias)?.members[name];
       if (declared != null) return _unquote(declared);
     }
     return null;
   }
 
   /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…),
-  /// sorted ascending. Sourced from the prebuilt index.
-  List<int> _elementIndices(String childPath) => _elemIdx[childPath] ?? const <int>[];
+  /// sorted ascending.
+  List<int> _elementIndices(String childPath) => _nodes[childPath]?.elementIndices ?? const <int>[];
 
-  bool _isContainer(String childPath) =>
-      _allPaths.contains(childPath) || _memberChildren.containsKey(childPath) || _elemIdx.containsKey(childPath);
+  /// Whether [childPath] is indexed at all — a section addresses it, or a deeper
+  /// section passes through it.
+  bool _isContainer(String childPath) => _nodes.containsKey(childPath);
 
   /// Immediate child member names of [path] discovered from the path set —
   /// catches container members (e.g. a step's `SData`) implied only by a deeper
-  /// section and not listed in the object's own DEF/value members. Sourced from
-  /// the prebuilt index (first-seen order preserved).
-  List<String> _discoveredChildren(String path) => _memberChildren[path] ?? const <String>[];
+  /// section and not listed in the object's own DEF/value members, in first-seen
+  /// order.
+  Iterable<String> _discoveredChildren(String path) => _nodes[path]?.members ?? const <String>{};
 
   /// Cache of inherited (type-default) member subtrees. The key is the type
   /// path PLUS the active recursion-guard set ([build]'s `visiting`): the guard
@@ -599,8 +626,8 @@ class _IniBuilder {
     String? ownScalar,
   ]) {
     visiting ??= <String>{};
-    final def = _defs[path];
-    final val = _vals[path];
+    final def = _def(path);
+    final val = _values(path);
     // `%NAME` names ARRAY ELEMENTS only (their key is positional `[n]`);
     // elsewhere it is an enum value label ([enumValueAttr]) and the node
     // keeps its member/root key.
@@ -622,11 +649,11 @@ class _IniBuilder {
       };
     }
 
-    final typeRoot = (declaredTypeName != null && declaredTypeName != path && _defs.containsKey(declaredTypeName))
+    final typeRoot = (declaredTypeName != null && declaredTypeName != path && _def(declaredTypeName) != null)
         ? declaredTypeName
         : null;
     final inheritGuard = typeRoot != null && visiting.add(typeRoot);
-    final typeDefMembers = inheritGuard ? _defs[typeRoot]!.members : const <String, String>{};
+    final typeDefMembers = inheritGuard ? _def(typeRoot)!.members : const <String, String>{};
     String? memberTypeOf(String memberName) => def?.members[memberName] ?? typeDefMembers[memberName];
 
     final memberOrder = <String>{
@@ -646,10 +673,10 @@ class _IniBuilder {
       // with its own section can still carry its value on the parent.
       String? memberScalar() =>
           _unquote(val?.members[memberName]) ??
-          (typeRoot == null ? null : _unquote(_vals[typeRoot]?.members[memberName]));
+          (typeRoot == null ? null : _unquote(_values(typeRoot)?.members[memberName]));
       final elems = _elementIndices(instPath);
       if (elems.isNotEmpty) {
-        final arrDef = _defs[instPath];
+        final arrDef = _def(instPath);
         final arr = [
           for (final item in elems)
             build(

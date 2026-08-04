@@ -218,10 +218,10 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     return sameDir.length == 1 ? sameDir.single : null;
   }
 
-  // (callerKey, targetFileRef|seqName) → the callee's 'prefix.fn' plus
+  // callerKey → (targetFileRef, seqName) → the callee's 'prefix.fn' plus
   // its predicted scope (named-argument binding), per-file imports, and
   // the globally-called sequence set (those are not roots).
-  final resolvedOf = <String, Map<String, _ResolvedCall>>{};
+  final resolvedOf = <String, Map<(String, String), _ResolvedCall>>{};
   final importsOf = <String, Set<String>>{};
   final externallyCalledOf = <String, Set<String>>{};
   for (final key in ordered) {
@@ -238,7 +238,7 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         final fn = fnOf[targetKey]![target];
         if (fn == null) continue; // named sequence absent → stub
         final prefix = moduleOf[targetKey]!;
-        (resolvedOf[key] ??= {})['$sf|$target'] = (fn: '$prefix.$fn', scope: scopeByNameOf[targetKey]![target]!);
+        (resolvedOf[key] ??= {})[(sf, target)] = (fn: '$prefix.$fn', scope: scopeByNameOf[targetKey]![target]!);
         (importsOf[key] ??= {}).add(targetKey);
         (externallyCalledOf[targetKey] ??= {}).add(target);
       }
@@ -319,14 +319,17 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
       for (final dep in (importsOf[key] ?? const <String>{}).toList()..sort())
         "import '${moduleOf[dep]!}.dart' as ${moduleOf[dep]!};",
     ];
-    final resolved = resolvedOf[key] ?? const <String, _ResolvedCall>{};
+    final resolved = resolvedOf[key] ?? const <(String, String), _ResolvedCall>{};
     files['$module.dart'] = _DartExporter(
       byPath[key]!,
       sourceName: key,
       asTest: true,
       registerName: 'register',
       extraImports: extra,
-      resolveExternalCall: (m) => resolved['${m.sequenceFile}|${m.sequenceName}'],
+      resolveExternalCall: (m) {
+        final (sf, name) = (m.sequenceFile, m.sequenceName);
+        return sf == null || name == null ? null : resolved[(sf, name)];
+      },
       externallyCalled: externallyCalledOf[key] ?? const <String>{},
       stationGlobalNames: stationUnion,
       hostStationGlobals: !sharedStation && key == stationOwner,
@@ -624,21 +627,46 @@ List<String>? _rawStmtPieces(String raw) {
   return parts;
 }
 
-/// The Dart (type, zero-default) for a TestStand value class, or null when
-/// the class has no scalar Dart form (containers/refs stay `dynamic` so
-/// exported member paths compile via dynamic dispatch — `Object?` would
-/// reject `.member` at compile time).
-(String, String)? _scalarType(SeqVariable v) => switch (v.raw.className) {
-  'Num' => ('double', '0'),
-  'Bool' || 'Boolean' => ('bool', 'false'),
-  'Str' || 'ExprValue' || 'PathValue' => ('String', "''"),
+/// The Dart type a generated slot — local, parameter, or globals field — is
+/// declared with. [source] is the type name written into the generated file.
+enum _DartSlot {
+  /// A `Num` whose every assignment stays integral ([_refineIntTypes]).
+  integer('int'),
+
+  /// The unrefined `Num` type: TestStand numbers are IEEE doubles.
+  number('double'),
+
+  flag('bool'),
+  text('String'),
+  list('List'),
+
+  /// A container or reference: no static Dart type, so exported member paths
+  /// resolve by dynamic dispatch (`Object?` would reject `.member`).
+  untyped('dynamic')
+  ;
+
+  const _DartSlot(this.source);
+
+  /// The type name emitted in the generated source.
+  final String source;
+
+  /// Whether the slot holds a scalar the export passes BY VALUE (so a callee
+  /// that assigns it cannot write back through a bound variable path).
+  bool get isScalar => this != list && this != untyped;
+}
+
+/// The Dart (slot type, zero-default) for a TestStand value class, or null when
+/// the class has no scalar Dart form.
+(_DartSlot, String)? _scalarType(SeqVariable v) => switch (v.raw.valueClass) {
+  SeqValueClass.number => (_DartSlot.number, '0'),
+  SeqValueClass.boolean => (_DartSlot.flag, 'false'),
+  SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path => (_DartSlot.text, "''"),
   _ => null,
 };
 
-/// Whether the variable is a TestStand array (`Nums`/`Strs`/`Objs`/
-/// `Containers` — any `s`-suffixed array class or an explicit array value).
-bool _isArrayVar(SeqVariable v) =>
-    v.raw.array != null || const {'Nums', 'Strs', 'Objs', 'Containers'}.contains(v.raw.className);
+/// Whether the variable is a TestStand array — an explicit array value, or one
+/// of the array value classes.
+bool _isArrayVar(SeqVariable v) => v.raw.array != null || (v.raw.valueClass?.isArray ?? false);
 
 /// Escapes [s] for a single-quoted generated Dart string literal.
 String _escape(String s) => s
@@ -652,20 +680,20 @@ String _escape(String s) => s
 /// it is a valid literal of the type, else the class zero (with the
 /// original kept in a comment by the caller via `_typeComment` — a default
 /// that is an expression can't be a Dart initializer).
-String _scalarInit(SeqVariable v, String type, String zero) {
+String _scalarInit(SeqVariable v, _DartSlot type, String zero) {
   final value = v.value;
   if (value == null) return zero;
   switch (type) {
-    case 'int':
+    case _DartSlot.integer:
       // Only reachable for a refined int candidate — integral by
       // construction ([_refineIntTypes] checked the declared default).
       final i = num.tryParse(value);
       return i == null ? zero : i.toInt().toString();
-    case 'double':
+    case _DartSlot.number:
       final n = _parseTsNum(value);
       if (n == null) return zero; // non-literal default; raw kept in comment
       return _numLiteral(n);
-    case 'bool':
+    case _DartSlot.flag:
       final lower = value.toLowerCase();
       if (lower == 'true') return 'true';
       if (lower == 'false') return 'false';
@@ -675,14 +703,13 @@ String _scalarInit(SeqVariable v, String type, String zero) {
   }
 }
 
-/// The declared Dart type of a stub parameter recovered from a call
-/// site's prototype snapshot ('double' | 'bool' | 'String' | 'List' |
-/// 'dynamic') — no int refinement (the callee's body is not available
+/// The declared slot type of a stub parameter recovered from a call site's
+/// prototype snapshot — no int refinement (the callee's body is not available
 /// to prove integrality).
-String _stubParamType(SeqVariable p) {
+_DartSlot _stubParamType(SeqVariable p) {
   final scalar = _scalarType(p);
   if (scalar != null) return scalar.$1;
-  return _isArrayVar(p) ? 'List' : 'dynamic';
+  return _isArrayVar(p) ? _DartSlot.list : _DartSlot.untyped;
 }
 
 /// A stub parameter declaration from a prototype snapshot: scalars are
@@ -694,7 +721,7 @@ String _stubParamDecl(SeqVariable p, String id) {
   final scalar = _scalarType(p);
   if (scalar != null) {
     final (type, zero) = scalar;
-    return '$type $id = ${_scalarInit(p, type, zero)}';
+    return '${type.source} $id = ${_scalarInit(p, type, zero)}';
   }
   if (_isArrayVar(p)) return 'List<dynamic>? $id';
   return 'dynamic $id';
@@ -730,7 +757,7 @@ class _StubInfo {
 
   final String name;
   final bool isSeq;
-  final String adapter;
+  final SeqAdapter adapter;
   final String target;
   final String firstStepName;
 
@@ -764,7 +791,7 @@ class _StubInfo {
       final shape = [for (final p in proto) '${p.name.toLowerCase()}|${p.raw.className}'];
       if (_protoShape == null) {
         _protoShape = shape;
-      } else if (_protoShape!.join(' ') != shape.join(' ')) {
+      } else if (_protoShape!.join('\u0000') != shape.join('\u0000')) {
         _agree = false;
       }
       for (final p in proto) {
@@ -783,7 +810,7 @@ class _StubInfo {
   /// snapshot types when it has one — conservative, since the final
   /// signature is either identically typed or loosened to dynamic —
   /// else all-dynamic over the site's own rows.
-  Map<String, ({String id, String type})> paramTableFor(StepModule module) {
+  Map<String, ({String id, _DartSlot type})> paramTableFor(StepModule module) {
     final proto = module.prototypeParameters;
     if (proto.isNotEmpty) {
       return {
@@ -793,7 +820,7 @@ class _StubInfo {
     return {
       for (final a in module.sequenceArguments)
         if (_idOf.containsKey(a.name.toLowerCase()))
-          a.name.toLowerCase(): (id: _idOf[a.name.toLowerCase()]!, type: 'dynamic'),
+          a.name.toLowerCase(): (id: _idOf[a.name.toLowerCase()]!, type: _DartSlot.untyped),
     };
   }
 
@@ -846,9 +873,8 @@ class _SeqScope {
   final Map<String, String> paramIds;
   final Map<String, String> localIds;
 
-  /// Generated identifier → its declared Dart type ('double' | 'int' |
-  /// 'bool' | 'String' | 'List' | 'dynamic').
-  final Map<String, String> idTypes;
+  /// Generated identifier → its declared Dart slot type.
+  final Map<String, _DartSlot> idTypes;
 
   /// Lowercased names of parameters the sequence's own raw expressions
   /// ASSIGN — the callee-side signal for the scalar by-ref writeback
@@ -893,10 +919,10 @@ List<_SeqScope> _sequenceScopeTable(SeqFile file, Set<String> taken, {String? so
         if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
     ];
     final localIds = {for (final l in emittedLocals) l.name: _uniqueName(dartIdentifier(l.name), used)};
-    String typeOf(SeqVariable v) {
+    _DartSlot typeOf(SeqVariable v) {
       final scalar = _scalarType(v);
       if (scalar != null) return scalar.$1;
-      return _isArrayVar(v) ? 'List' : 'dynamic';
+      return _isArrayVar(v) ? _DartSlot.list : _DartSlot.untyped;
     }
 
     scopes.add(
@@ -981,7 +1007,7 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
     void seed(List<SeqVariable> list, Map<String, String> ids) {
       for (final v in list) {
         final id = ids[v.name];
-        if (id != null && scope.idTypes[id] == 'double' && integralDefault(v)) {
+        if (id != null && scope.idTypes[id] == _DartSlot.number && integralDefault(v)) {
           candidates.add((scope, id));
         }
       }
@@ -1075,7 +1101,7 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
           candidates.remove((target, id));
           changed = true;
         }
-      } else if (target.idTypes[id] == 'double' && rhs != null) {
+      } else if (target.idTypes[id] == _DartSlot.number && rhs != null) {
         // A double target with an int-typed RHS would not compile —
         // unless the RHS is a bare literal (Dart types a literal by
         // context). Demote the RHS's candidate refs.
@@ -1091,7 +1117,7 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
     }
   }
   for (final (scope, id) in candidates) {
-    scope.idTypes[id] = 'int';
+    scope.idTypes[id] = _DartSlot.integer;
   }
 }
 
@@ -1353,10 +1379,9 @@ class _DartExporter {
   Map<String, String> _localIds = const {};
   Map<String, String> _paramIds = const {};
 
-  /// Generated Dart identifier → its declared Dart type ('double' | 'bool'
-  /// | 'String' | 'List' | 'dynamic') for the current sequence — drives the
-  /// _truthy elision and the double-subscript guard.
-  Map<String, String> _idTypes = const {};
+  /// Generated Dart identifier → its declared slot type for the current
+  /// sequence — drives the _truthy elision and the double-subscript guard.
+  Map<String, _DartSlot> _idTypes = const {};
 
   void _markUnported(String target) {
     final seq = _currentSeq;
@@ -1373,12 +1398,11 @@ class _DartExporter {
   /// Sequence name → its (uniquified) generated function name.
   final Map<String, String> _sequenceFnNames = {};
 
-  /// stub key (adapter + target) → the stub's accumulated info: minted
-  /// function name plus, for external-sequence stubs, the parameter
-  /// surface gathered from every call site ([_StubInfo]). Declarations
-  /// render in [_emitStubs] AFTER all sites are seen, so the signature
-  /// reflects the whole file.
-  final Map<String, _StubInfo> _stubs = {};
+  /// (adapter, target) → the stub's accumulated info: minted function name
+  /// plus, for external-sequence stubs, the parameter surface gathered from
+  /// every call site ([_StubInfo]). Declarations render in [_emitStubs] AFTER
+  /// all sites are seen, so the signature reflects the whole file.
+  final Map<(SeqAdapter, String), _StubInfo> _stubs = {};
 
   /// Step-type name → the TYPE's default precondition (`<Type>.TS.PreCond`).
   /// A custom step type can carry the condition its instances inherit —
@@ -1618,8 +1642,8 @@ class _DartExporter {
           final isFile = m.group(1) == 'fileGlobals';
           final declared = (isFile ? _fileGlobalCanon : _stationGlobalCanon)[m.group(2)!.toLowerCase()];
           final call = m.group(3);
-          final type = declared == null ? null : (isFile ? _fileGlobalTypes[declared] : 'dynamic');
-          if (declared == null || (call != null && type != 'dynamic')) {
+          final type = declared == null ? null : (isFile ? _fileGlobalTypes[declared] : _DartSlot.untyped);
+          if (declared == null || (call != null && type != _DartSlot.untyped)) {
             unknownGlobal = true;
             return m.group(0)!;
           }
@@ -1658,7 +1682,7 @@ class _DartExporter {
       // Dart member to land on — dynamic receivers dispatch, typed
       // ones would not compile. Keep TestStand semantics via eval.
       for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(').allMatches(code)) {
-        if (_idTypes.containsKey(m.group(1)) && _idTypes[m.group(1)] != 'dynamic') {
+        if (_idTypes.containsKey(m.group(1)) && _idTypes[m.group(1)] != _DartSlot.untyped) {
           return _evalFallback(raw);
         }
       }
@@ -1667,7 +1691,7 @@ class _DartExporter {
       // semantic we have not pinned — keep via eval.
       for (final m in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
         for (final idm in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(m.group(1)!)) {
-          if (_idTypes[idm.group(0)] == 'double') return _evalFallback(raw);
+          if (_idTypes[idm.group(0)] == _DartSlot.number) return _evalFallback(raw);
         }
       }
       // Any bare identifier that survived rewriting must be a name the
@@ -1718,14 +1742,14 @@ class _DartExporter {
     // bool) instead of the doubly-wrapped truthy(eval(…)).
     if (e.startsWith('ts.eval(')) return 'ts.cond${e.substring(7)}';
     if (_staticallyBool(e)) return e;
-    if (_idTypes[e] == 'double' || _idTypes[e] == 'int') return '$e != 0';
+    if (_idTypes[e] == _DartSlot.number || _idTypes[e] == _DartSlot.integer) return '$e != 0';
     return 'ts.truthy($e)';
   }
 
   bool _staticallyBool(String e) {
     if (e.startsWith('ts.eval(')) return false;
     if (e == 'true' || e == 'false') return true;
-    if (_idTypes[e] == 'bool') return true;
+    if (_idTypes[e] == _DartSlot.flag) return true;
     if (e.startsWith('!')) return true; // Dart ! forces a bool static type
     // Top-level scan outside string literals and parens.
     var depth = 0;
@@ -1757,7 +1781,7 @@ class _DartExporter {
       if (lead == null) return false;
       if (RegExp(r'^[0-9.]').hasMatch(lead)) return true;
       final t = _idTypes[lead];
-      return t == 'double' || t == 'int' || t == 'bool' || t == 'String';
+      return t != null && t.isScalar;
     }
     return false;
   }
@@ -1860,11 +1884,11 @@ class _DartExporter {
   /// [v] emitted as [id] — the class scalar type with the int refinement
   /// ([_refineIntTypes], recorded in `_idTypes`) applied. null when [v] has
   /// no scalar Dart form; [_paramDecl] and [_localDecl] share it.
-  (String, String, String)? _scalarDecl(SeqVariable v, String id) {
+  (_DartSlot, String, String)? _scalarDecl(SeqVariable v, String id) {
     final scalar = _scalarType(v);
     if (scalar == null) return null;
     var (type, zero) = scalar;
-    if (type == 'double' && _idTypes[id] == 'int') type = 'int';
+    if (type == _DartSlot.number && _idTypes[id] == _DartSlot.integer) type = _DartSlot.integer;
     return (type, zero, _scalarInit(v, type, zero));
   }
 
@@ -1876,7 +1900,7 @@ class _DartExporter {
     final scalar = _scalarDecl(p, id);
     if (scalar != null) {
       final (type, _, init) = scalar;
-      return '$type $id = $init';
+      return '${type.source} $id = $init';
     }
     if (_isArrayVar(p)) return 'List<dynamic>? $id';
     return 'dynamic $id';
@@ -1889,8 +1913,8 @@ class _DartExporter {
       final (type, zero, init) = scalar;
       // A non-literal declared default (expression, NAN, …) initializes to
       // the class zero — the raw text rides in the comment, never dropped.
-      final fellBack = local.value != null && init == zero && type != 'String';
-      return '$type $id = $init;'
+      final fellBack = local.value != null && init == zero && type != _DartSlot.text;
+      return '${type.source} $id = $init;'
           '${_typeComment(local, rawDefault: fellBack ? local.value : null)}';
     }
     if (_isArrayVar(local)) {
@@ -1898,8 +1922,8 @@ class _DartExporter {
     }
     // A structured container (Obj / typed) local carries its declared
     // default structure — a plain reference (Ref) genuinely starts null.
-    final cls = local.raw.className;
-    if (cls == 'Ref' || (cls == null && local.raw.subProps.isEmpty)) {
+    final cls = local.raw.valueClass;
+    if (cls == SeqValueClass.reference || (cls == null && local.raw.subProps.isEmpty)) {
       return 'dynamic $id;${_typeComment(local)}';
     }
     return 'dynamic $id = ${_propObjInit(local.raw, {})};'
@@ -2116,11 +2140,11 @@ class _DartExporter {
               // mismatched element, never a silent reinterpretation.
               final targetId = RegExp(r'^([A-Za-z_][A-Za-z0-9_]*)').firstMatch(assign)?.group(1);
               final cast = switch (_idTypes[targetId]) {
-                'double' => '($loopVar as num).toDouble()',
-                'int' => '($loopVar as num).toInt()',
-                'bool' => '$loopVar as bool',
-                'String' => '$loopVar as String',
-                'List' => '$loopVar as List<dynamic>',
+                _DartSlot.number => '($loopVar as num).toDouble()',
+                _DartSlot.integer => '($loopVar as num).toInt()',
+                _DartSlot.flag => '$loopVar as bool',
+                _DartSlot.text => '$loopVar as String',
+                _DartSlot.list => '$loopVar as List<dynamic>',
                 _ => loopVar,
               };
               _line('${assign.replaceAll('__LWELEMENT__', cast)};');
@@ -2244,7 +2268,7 @@ class _DartExporter {
     if (m != null) {
       final lhsType = switch (m.group(1)) {
         'fileGlobals.' => _fileGlobalTypes[m.group(2)],
-        'stationGlobals.' => 'dynamic',
+        'stationGlobals.' => _DartSlot.untyped,
         _ => _idTypes[m.group(2)],
       };
       if (_kindMismatch(lhsType, translated.substring(m.end).trim())) {
@@ -2261,19 +2285,20 @@ class _DartExporter {
   /// ARGUMENT does the same for its bound expression ([_renderCallArgs]).
   /// Heuristic and one-sided: `false` means "not visibly wrong", never
   /// "proven right".
-  bool _kindMismatch(String? lhsType, String rhs) {
-    if (lhsType == null || lhsType == 'dynamic') return false;
+  bool _kindMismatch(_DartSlot? lhsType, String rhs) {
+    if (lhsType == null || lhsType == _DartSlot.untyped) return false;
     // `Nothing` (null) has no typed scalar/list slot to land in.
     if (rhs == 'null') return true;
     final looksString =
-        rhs.startsWith("'") || rhs.startsWith('"') || _idTypes[rhs] == 'String' || rhs.startsWith('ts.str(');
+        rhs.startsWith("'") || rhs.startsWith('"') || _idTypes[rhs] == _DartSlot.text || rhs.startsWith('ts.str(');
     final rhsLeadType = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*').firstMatch(rhs)?.group(0) ?? ''];
-    final looksNumericLead = RegExp(r'^[0-9(]').hasMatch(rhs) || rhsLeadType == 'double' || rhsLeadType == 'int';
+    final looksNumericLead =
+        RegExp(r'^[0-9(]').hasMatch(rhs) || rhsLeadType == _DartSlot.number || rhsLeadType == _DartSlot.integer;
     return switch (lhsType) {
-      'String' => (looksNumericLead && !looksString) || _staticallyBool(rhs),
-      'double' || 'int' => looksString || _staticallyBool(rhs),
-      'bool' => !_staticallyBool(rhs) && (looksString || looksNumericLead),
-      'List' => looksString || _staticallyBool(rhs) || (looksNumericLead && !rhs.startsWith('(')),
+      _DartSlot.text => (looksNumericLead && !looksString) || _staticallyBool(rhs),
+      _DartSlot.number || _DartSlot.integer => looksString || _staticallyBool(rhs),
+      _DartSlot.flag => !_staticallyBool(rhs) && (looksString || looksNumericLead),
+      _DartSlot.list => looksString || _staticallyBool(rhs) || (looksNumericLead && !rhs.startsWith('(')),
       _ => false,
     };
   }
@@ -2288,7 +2313,7 @@ class _DartExporter {
     if (e.contains("'") || e.contains('"')) return false;
     final sansHex = e.replaceAll(RegExp('0x[0-9A-Fa-f]+'), '0');
     for (final m in RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*').allMatches(sansHex)) {
-      if (_idTypes[m.group(0)] != 'int') return false;
+      if (_idTypes[m.group(0)] != _DartSlot.integer) return false;
     }
     final rest = sansHex.replaceAll(RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*'), '0');
     return rest.trim().isNotEmpty && RegExp(r'^[0-9\s()+\-*]+$').hasMatch(rest);
@@ -2336,7 +2361,7 @@ class _DartExporter {
     _emitStepAction(step);
 
     final post = settings.postExpression;
-    if (post != null && step.type != 'Statement') {
+    if (post != null && step.stepType != StepType.statement) {
       _emitStmt(post, 'post-expression');
     }
 
@@ -2349,8 +2374,8 @@ class _DartExporter {
   void _emitStepAction(Step step) {
     final module = step.module;
     final name = _comment(step.name);
-    switch (step.type) {
-      case 'Statement':
+    switch (step.stepType) {
+      case StepType.statement:
         final expression = step.settings.postExpression;
         if (expression != null) {
           // A default-named step's trailing comment restates nothing.
@@ -2359,10 +2384,10 @@ class _DartExporter {
           _line('// $name: Statement with no expression');
         }
         return;
-      case 'Label':
+      case StepType.label:
         _line('// label: $name');
         return;
-      case 'NI_Wait':
+      case StepType.wait:
         final timeout = step.timeoutExpression ?? step.waitTimeExpression;
         // A literal wait becomes a plain Future.delayed — no runtime shim;
         // computed waits go through the generated _wait helper.
@@ -2387,6 +2412,7 @@ class _DartExporter {
           _line('// $name: Wait with no time expression');
         }
         return;
+      case _:
     }
 
     switch (module.adapter) {
@@ -2537,7 +2563,7 @@ class _DartExporter {
 
   /// The callee-parameter binding table of [scope]: lowercased TestStand
   /// name → the generated parameter id and its declared (int-refined) type.
-  Map<String, ({String id, String type})> _scopeParamTable(_SeqScope scope) => {
+  Map<String, ({String id, _DartSlot type})> _scopeParamTable(_SeqScope scope) => {
     for (final e in scope.paramIds.entries) e.key.toLowerCase(): (id: e.value, type: scope.idTypes[e.value]!),
   };
 
@@ -2561,7 +2587,7 @@ class _DartExporter {
   ({String text, bool disarmed}) _renderCallArgs(
     StepModule module, {
     required String calleeLabel,
-    required Map<String, ({String id, String type})> params,
+    required Map<String, ({String id, _DartSlot type})> params,
     Set<String> writtenParams = const {},
   }) {
     final parts = <String>[];
@@ -2597,13 +2623,13 @@ class _DartExporter {
       }
       var value = _expr(raw);
       if (!value.startsWith('ts.eval(')) {
-        if (_kindMismatch(param.type, value) || (param.type == 'int' && !_staticallyIntExpr(value))) {
+        if (_kindMismatch(param.type, value) || (param.type == _DartSlot.integer && !_staticallyIntExpr(value))) {
           // Not visibly of the parameter's kind — TestStand's coercion is
           // not pinned, so the raw expression rides in eval rather than a
           // guessed cast.
           value = _evalFallback(raw);
-          disarm('type guard', '${arg.name} binding is not visibly ${param.type}-typed');
-        } else if (param.type == 'double' && _staticallyIntExpr(value) && !RegExp(r'^\d+$').hasMatch(value)) {
+          disarm('type guard', '${arg.name} binding is not visibly ${param.type.source}-typed');
+        } else if (param.type == _DartSlot.number && _staticallyIntExpr(value) && !RegExp(r'^\d+$').hasMatch(value)) {
           // Lossless: TestStand Num IS a double — the int refinement is
           // our own representation choice, so widening back is exact.
           // (Dart contextually retypes only a BARE integer literal.)
@@ -2621,9 +2647,7 @@ class _DartExporter {
       // scalars by value, losing that writeback. Containers/arrays pass
       // object identity (List/PropObj) and stay correct; a literal-bound
       // written parameter is safe too (nothing to write back to).
-      if (writtenParams.contains(lower) &&
-          const {'double', 'int', 'bool', 'String'}.contains(param.type) &&
-          _isVariablePath(raw)) {
+      if (writtenParams.contains(lower) && param.type.isScalar && _isVariablePath(raw)) {
         disarmed = true;
         _stats.siteDisarms['by-ref writeback'] = (_stats.siteDisarms['by-ref writeback'] ?? 0) + 1;
         _markUnported('by-ref writeback of parameter ${arg.name} of sequence $calleeLabel not exported');
@@ -2635,9 +2659,7 @@ class _DartExporter {
 
   _StubInfo _stubFor(Step step, StepModule module) {
     final target = _stubTarget(step, module);
-    final adapter = module.adapter.name;
-    final key = '$adapter|$target';
-    final info = _stubs.putIfAbsent(key, () {
+    final info = _stubs.putIfAbsent((module.adapter, target), () {
       final isSeq = module.adapter == SeqAdapter.sequenceCall;
       // Strip only a known trailing file extension; a dotted TARGET NAME
       // (UI.TestSocket.SetCaption) keeps every segment — collapsing to the
@@ -2657,7 +2679,7 @@ class _DartExporter {
       return _StubInfo(
         name: name,
         isSeq: isSeq,
-        adapter: adapter,
+        adapter: module.adapter,
         target: target,
         firstStepName: step.name,
       );
@@ -2693,14 +2715,14 @@ class _DartExporter {
                       '\n/// snapshots and bindings — they disagree or are partly missing,'
                       '\n/// so no types are claimed (dynamic).',
         ] else ...[
-          '/// Stub for the ${info.adapter} module call `${_comment(info.target)}`',
+          '/// Stub for the ${info.adapter.name} module call `${_comment(info.target)}`',
           '/// (from step `${_comment(info.firstStepName)}`). TODO: implement against '
               'the real module.',
         ],
         'Future<Object?> ${info.name}('
             '${params.isEmpty ? '' : '{${params.join(', ')}}'}) async =>',
         "    throw UnimplementedError('"
-            "${_escape(info.isSeq ? 'external sequence: ${info.target}' : '${info.adapter} call: ${info.target}')}');",
+            "${_escape(info.isSeq ? 'external sequence: ${info.target}' : '${info.adapter.name} call: ${info.target}')}');",
       ];
       _out
         ..writeln(lines.join('\n'))
@@ -2904,7 +2926,7 @@ class _DartExporter {
   /// rewrites level-1 members to declared casing and falls back to eval
   /// for names the struct does not declare.
   final Map<String, String> _fileGlobalCanon = {};
-  final Map<String, String> _fileGlobalTypes = {};
+  final Map<String, _DartSlot> _fileGlobalTypes = {};
   final List<String> _fileGlobalDecls = [];
   final List<String> _fileGlobalSkipped = [];
 
@@ -2937,25 +2959,26 @@ class _DartExporter {
 
   /// One FileGlobals field: typed scalars keep their declared default,
   /// arrays their declared length, containers their declared structure.
-  (String, String) _globalField(SeqProperty c) {
+  (_DartSlot, String) _globalField(SeqProperty c) {
     final name = c.name;
     final note = ' // ${c.typeName ?? c.className ?? 'value'}';
-    if (c.array != null || c.declaredArrayLength != null || _arrayClasses.contains(c.className)) {
-      return ('List', 'List<dynamic> $name = ${_listInit(c, {})};$note');
+    final cls = c.valueClass;
+    if (c.array != null || c.declaredArrayLength != null || (cls?.isArray ?? false)) {
+      return (_DartSlot.list, 'List<dynamic> $name = ${_listInit(c, {})};$note');
     }
     final scalar = c.scalar;
-    switch (c.className) {
-      case 'Num':
+    switch (cls) {
+      case SeqValueClass.number:
         final n = num.tryParse(scalar ?? '');
-        return ('double', 'double $name = ${n == null ? '0' : _numLiteral(n)};$note');
-      case 'Bool' || 'Boolean':
-        return ('bool', 'bool $name = ${scalar?.toLowerCase() == 'true'};$note');
-      case 'Str' || 'ExprValue' || 'PathValue':
-        return ('String', "String $name = '${_escape(scalar ?? '')}';$note");
-      case 'Ref':
-        return ('dynamic', 'dynamic $name;$note');
+        return (_DartSlot.number, 'double $name = ${n == null ? '0' : _numLiteral(n)};$note');
+      case SeqValueClass.boolean:
+        return (_DartSlot.flag, 'bool $name = ${scalar?.toLowerCase() == 'true'};$note');
+      case SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path:
+        return (_DartSlot.text, "String $name = '${_escape(scalar ?? '')}';$note");
+      case SeqValueClass.reference:
+        return (_DartSlot.untyped, 'dynamic $name;$note');
       default:
-        return ('dynamic', 'dynamic $name = ${_propObjInit(c, {})};$note');
+        return (_DartSlot.untyped, 'dynamic $name = ${_propObjInit(c, {})};$note');
     }
   }
 
@@ -2986,30 +3009,29 @@ class _DartExporter {
     return init;
   }
 
-  static const _arrayClasses = {'Nums', 'Strs', 'Bools', 'Objs', 'Containers'};
-
   String _propValue(SeqProperty c, Set<String> seenTypes) {
     if (c.array != null || c.declaredArrayLength != null) {
       return _listInit(c, seenTypes);
     }
     final scalar = c.scalar;
+    final cls = c.valueClass;
     if (scalar != null) {
-      return switch (c.className) {
-        'Num' => num.tryParse(scalar)?.toString() ?? "'${_escape(scalar)}'",
-        'Bool' || 'Boolean' => scalar.toLowerCase() == 'true' ? 'true' : 'false',
+      return switch (cls) {
+        SeqValueClass.number => num.tryParse(scalar)?.toString() ?? "'${_escape(scalar)}'",
+        SeqValueClass.boolean => scalar.toLowerCase() == 'true' ? 'true' : 'false',
         _ => "'${_escape(scalar)}'",
       };
     }
     if (c.subProps.isNotEmpty) return _propObjInit(c, seenTypes);
     // A typed field with no materialized children (`X = "TYPE, Foo"`)
     // carries its type as typeName, not className.
-    return switch (c.className) {
-      'Num' => '0',
-      'Bool' || 'Boolean' => 'false',
-      'Str' || 'ExprValue' || 'PathValue' => "''",
-      'Ref' => 'null',
-      final cls when _arrayClasses.contains(cls) => '<dynamic>[]',
-      final cls => switch (c.typeName ?? cls) {
+    return switch (cls) {
+      SeqValueClass.number => '0',
+      SeqValueClass.boolean => 'false',
+      SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path => "''",
+      SeqValueClass.reference => 'null',
+      final k? when k.isArray => '<dynamic>[]',
+      _ => switch (c.typeName ?? c.className) {
         null => 'null',
         final type => _typeOrEmpty(type, seenTypes),
       },
@@ -3070,11 +3092,11 @@ class _DartExporter {
   String _elementZero(SeqProperty owner, Set<String> seenTypes) {
     final proto = owner.elementTypeName;
     if (proto != null) return _typeOrEmpty(proto, seenTypes);
-    return switch (owner.className) {
-      'Nums' => '0',
-      'Bools' => 'false',
-      'Strs' => "''",
-      'Objs' || 'Containers' => 'ts.PropObj()',
+    return switch (owner.valueClass) {
+      SeqValueClass.numbers => '0',
+      SeqValueClass.booleans => 'false',
+      SeqValueClass.strings => "''",
+      SeqValueClass.objects || SeqValueClass.containers => 'ts.PropObj()',
       _ => 'null',
     };
   }
