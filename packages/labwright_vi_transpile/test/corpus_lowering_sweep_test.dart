@@ -462,8 +462,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'exceptions.constantValue': 135,
   'exceptions.foreignCall': 3,
   'exceptions.lowered': 229,
-  'exceptions.primitive': 524,
-  'exceptions.structure': 111,
+  'exceptions.primitive': 522,
+  'exceptions.structure': 113,
   'exceptions.subViCall': 322,
   'exceptions.tunnelCoercion': 6,
   'exceptions.typeDeclaration': 18,
@@ -539,8 +539,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'threaded.constantValue': 135,
   'threaded.foreignCall': 3,
   'threaded.lowered': 229,
-  'threaded.primitive': 524,
-  'threaded.structure': 111,
+  'threaded.primitive': 522,
+  'threaded.structure': 113,
   'threaded.subViCall': 322,
   'threaded.tunnelCoercion': 6,
   'threaded.typeDeclaration': 18,
@@ -605,19 +605,18 @@ const Map<String, int> kCorpusLoweringSweep = {
 /// are calls, not operations — which is why `0x124` left the list once its
 /// records identified it as one.
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
-  'node class 0x34': (vis: 805, nodes: 1659, sole: 67),
+  'node class 0x34': (vis: 805, nodes: 1659, sole: 85),
   'Close Reference (primResID 8011)': (vis: 759, nodes: 3068, sole: 44),
-  'node class 0x93': (vis: 690, nodes: 1566, sole: 112),
-  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 83),
+  'node class 0x93': (vis: 690, nodes: 1566, sole: 134),
+  'Match Pattern (primResID 1535)': (vis: 680, nodes: 1800, sole: 85),
   'node class 0xa9': (vis: 678, nodes: 2619, sole: 64),
-  'Search 1D Array (primResID 1901)': (vis: 591, nodes: 1338, sole: 36),
+  'Search 1D Array (primResID 1901)': (vis: 591, nodes: 1338, sole: 37),
   'node class 0x153': (vis: 556, nodes: 1466, sole: 339),
   'Build Path (primResID 1419)': (vis: 439, nodes: 1215, sole: 28),
-  'node class 0x6a': (vis: 408, nodes: 865, sole: 202),
+  'node class 0x6a': (vis: 408, nodes: 865, sole: 206),
   'node class 0xd6': (vis: 378, nodes: 2437, sole: 25),
   'Strip Path (primResID 1420)': (vis: 370, nodes: 865, sole: 3),
-  'Wait (ms) (primResID 1302)': (vis: 349, nodes: 548, sole: 64),
-  'To More Specific Class (primResID 8016)': (vis: 344, nodes: 825, sole: 40),
+  'To More Specific Class (primResID 8016)': (vis: 344, nodes: 825, sole: 45),
   'node class 0xbd': (vis: 332, nodes: 645, sole: 12),
   'node class 0xb6': (vis: 264, nodes: 533, sole: 21),
   'Variant To Data (primResID 8003)': (vis: 263, nodes: 506, sole: 14),
@@ -662,7 +661,7 @@ const int kCorpusReviewListFloor = 150;
 
 /// The corpus review list's shape: distinct unmapped identities, the node
 /// instances they account for, and the VIs carrying at least one.
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 221, nodes: 35411, vis: 16087);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 220, nodes: 34863, vis: 15738);
 
 /// The occurrence count at which a review-list entry is pinned individually;
 /// the tail below it is pinned only by [kReviewListTotals].
@@ -670,7 +669,7 @@ const int kReviewListFloor = 10;
 
 /// The review list's shape: how many distinct unmapped identities the snippet
 /// corpus holds, and how many node instances they account for.
-const ({int identities, int nodes}) kReviewListTotals = (identities: 88, nodes: 471);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
 /// How many VIs lower, and how many DISTINCT Dart sources they emit — the
 /// input to the analyze sweep below. Copies of one VI appear all over the

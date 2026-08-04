@@ -254,19 +254,6 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     example: 'vipm-io_caraya/…/src/Caraya CLI.vi',
   ),
   (
-    identity: 'Wait (ms) (primResID 1302)',
-    primResId: 1302,
-    classCode: null,
-    hasIcon: true,
-    vis: 349,
-    nodes: 548,
-    sole: 60,
-    note:
-        'every node is 1 input 1 output; what the output carries, and whether '
-        'the wait is a floor or a tick quantum, are not decoded',
-    example: 'DAQIO_LVMQTT/…/Sub/Sub_Wait.vi',
-  ),
-  (
     identity: 'To More Specific Class (primResID 8016)',
     primResId: 8016,
     classCode: null,

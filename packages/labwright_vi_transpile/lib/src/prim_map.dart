@@ -390,6 +390,7 @@ const Set<PrimOp> kLvMappedPrimOps = {
   PrimOp.logicalShift,
   PrimOp.typeCast,
   PrimOp.notANumberPathRefnum,
+  PrimOp.waitMs,
 };
 
 /// Node **classes the corpus names**: a class that is one operation, with
@@ -672,6 +673,9 @@ List<String>? _lowerDirect(LvPrimCall call) {
 
     case PrimOp.toLowerCase:
       return _toLowerCase(call);
+
+    case PrimOp.waitMs:
+      return _waitMs(call);
 
     case null:
       // The ids with no name whose operation a published vector decides.
@@ -2039,6 +2043,40 @@ List<String>? _toLowerCase(LvPrimCall call) {
   if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return ['final String $name = ${LvRuntimeCall.toLowerCase}(${source.expression});'];
+}
+
+/// `Wait (ms)` — the one operand is the wait, the one result is the millisecond
+/// timer read after it.
+///
+/// There is no operand order to decode: the node draws a single input and a
+/// single output, and the published reference names them `milliseconds to
+/// wait` and `millisecond timer value`, both unsigned 32-bit. The wait is a
+/// floor and the timer's origin is unspecified; [LvRuntimeCall.waitMs] carries
+/// both readings.
+///
+/// Unlike every other lowering here, the statement is emitted even when nothing
+/// consumes the result: the elapsed time is the point of the node, so dropping
+/// the call because its output is unwired would drop the operation itself.
+///
+/// The operand must be a scalar integer and the result wire must be the U32 the
+/// reference draws. A float or array operand is a coercion LabVIEW performs at
+/// the terminal, and what it rounds toward is not established; a result wire of
+/// some other width is not what the node yields. Both are refused rather than
+/// renormalized into agreement — and the corpus sweep counts the same either
+/// way, so the strict reading costs nothing measured.
+List<String>? _waitMs(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.outputPorts.length != 1) return null;
+  final source = call.inputs.single;
+  final operand = source.type.numeric;
+  if (source.type.dims != 0 || operand == null || operand.isFloat) return null;
+
+  final out = call.outputs.singleOrNull;
+  if (out != null && (out.type.dims != 0 || out.type.numeric != LvNumericKind.u32)) return null;
+
+  call.requireImport(kLvRuntimeImport);
+  final wait = '${LvRuntimeCall.waitMs}(${source.expression})';
+  final name = out?.expression;
+  return [if (name == null) '$wait;' else 'final ${out!.type.dartType} $name = $wait;'];
 }
 
 /// The rotation node ([kLvRotatePrimResId]) — the LOWER operand rotated by the

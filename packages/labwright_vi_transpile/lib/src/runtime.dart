@@ -56,6 +56,9 @@ abstract final class LvRuntimeCall {
   /// Merge Errors.
   static const String mergeErrors = 'lvMergeErrors';
 
+  /// Wait (ms).
+  static const String waitMs = 'lvWaitMs';
+
   /// The flat bytes of a scalar integer, of a scalar float, of a string and of
   /// a 1-D integer array — the Type Cast operand side.
   static const String flatOfInt = 'lvFlatOfInt';

@@ -87,12 +87,13 @@ int lvSwapWords(int value) => ((value & _kWordLanes) << 16) | ((value >>> 16) & 
 ///
 /// The quotient rounds toward negative infinity, so the remainder carries the
 /// divisor's sign. Dart's `~/` rounds toward zero instead, so the correction
-/// below is the whole difference between the two.
-// TODO(lv-quotient-sign): which way LabVIEW rounds a quotient with exactly one
-// negative operand is not established from the file format — every corpus node
-// that fixes the operation's shape does so with non-negative operands, where
-// the two conventions agree. Division by zero is undecided for the same reason
-// and throws here rather than inventing a result.
+/// below is the whole difference between the two. The published reference
+/// settles the direction for every pair of signs: it names the two results
+/// `floor(x/y)` and `x-y*floor(x/y)`, and a floor is what this computes. The
+/// corpus alone could not have said so — every node that fixes the operation's
+/// shape does it with non-negative operands, where the two conventions agree.
+// TODO(lv-divide-by-zero): what LabVIEW yields for a zero divisor is not
+// established; this throws rather than inventing a result.
 (int, int) lvQuotientRemainder(int dividend, int divisor) {
   final truncated = dividend ~/ divisor;
   final toZero = dividend - divisor * truncated;

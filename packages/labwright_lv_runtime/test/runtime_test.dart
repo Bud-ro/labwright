@@ -161,4 +161,45 @@ void main() {
     expect(() => lvIntOfFlat(Uint8List(3), 32), throwsArgumentError);
     expect(() => lvIntListOfFlat(Uint8List(5), 16), throwsArgumentError);
   });
+
+  test('a quotient floors, whatever the operands sign', () {
+    // The reference names the results `floor(x/y)` and `x-y*floor(x/y)`, which
+    // Dart's truncating `~/` does not give on its own.
+    const cases = <({int dividend, int divisor, int quotient, int remainder})>[
+      (dividend: 7, divisor: 2, quotient: 3, remainder: 1),
+      (dividend: -7, divisor: 2, quotient: -4, remainder: 1),
+      (dividend: 7, divisor: -2, quotient: -4, remainder: -1),
+      (dividend: -7, divisor: -2, quotient: 3, remainder: -1),
+      (dividend: 8, divisor: 2, quotient: 4, remainder: 0),
+      (dividend: -8, divisor: 2, quotient: -4, remainder: 0),
+    ];
+    for (final row in cases) {
+      expect(
+        lvQuotientRemainder(row.dividend, row.divisor),
+        (row.quotient, row.remainder),
+        reason: '${row.dividend} / ${row.divisor}',
+      );
+    }
+  });
+
+  test('a wait is a floor its own returned timer confirms', () {
+    for (final requested in const [1, 5, 20]) {
+      final before = lvMillisecondTimer();
+      final after = lvWaitMs(requested);
+      expect(after - before, greaterThanOrEqualTo(requested), reason: '$requested ms');
+    }
+  });
+
+  test('the timer answers a 32-bit value that never runs backwards', () {
+    final first = lvMillisecondTimer();
+    expect(first, inInclusiveRange(0, 0xFFFFFFFF));
+    expect(lvWaitMs(0), greaterThanOrEqualTo(first));
+  });
+
+  test('a wait past the stated bound is clamped rather than attempted', () {
+    // The reference's own ceiling; the call would otherwise block for days.
+    expect(kLvMaxWaitMilliseconds, 2147483647);
+    final before = lvMillisecondTimer();
+    expect(lvWaitMs(-1) - before, lessThan(1000));
+  });
 }
