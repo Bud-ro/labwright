@@ -206,19 +206,52 @@ const String _red = '\x1b[31m';
 const String _yellow = '\x1b[33m';
 const String _dim = '\x1b[2m';
 
-/// Terminal status of one test.
+/// Lifecycle of one test, from registration to verdict.
 enum TestStatus {
+  /// Registered, not yet reached by the current run.
+  queued('QUEUE', _dim),
+
+  /// Body currently executing.
+  running('RUN ', _dim),
+
   /// Body ran to completion with no escape.
-  passed,
+  passed('PASS', _green),
 
   /// The body threw a [TestFailure] — an assertion did not hold.
-  failed,
+  failed('FAIL', _red),
 
   /// The body escaped with something other than a [TestFailure].
-  error,
+  error('ERR ', _red),
 
   /// A [skipTest] body — reported in order, never run.
-  skipped,
+  skipped('SKIP', _yellow)
+  ;
+
+  const TestStatus(this._label, this._color);
+
+  final String _label;
+  final String _color;
+
+  /// The colored console verdict tag (`PASS `, `FAIL `, …).
+  String get _console => _paint(_label, _color);
+
+  /// [failed] or [error].
+  bool get isFail => this == failed || this == error;
+
+  /// A settled verdict: [passed], [skipped], or [isFail].
+  bool get isTerminal => this == passed || this == skipped || isFail;
+}
+
+/// Run-to-run verdict movement — the viewer's change badge.
+enum _TestChange {
+  /// Crossed the pass/fail line into failing.
+  newFail,
+
+  /// Crossed the pass/fail line into passing.
+  newPass,
+
+  /// Moved without crossing the line (e.g. into or out of [TestStatus.skipped]).
+  changed,
 }
 
 /// Registers one named test. Bodies run later — after every test is
@@ -344,7 +377,7 @@ class _TestEntry {
   final String? file;
   final int? line;
 
-  String status = 'queued';
+  TestStatus status = TestStatus.queued;
   String detail = '';
   int? ms;
   final List<_LogLine> logs = [];
@@ -355,19 +388,19 @@ class _TestEntry {
   int? startedAt;
   int? finishedAt;
 
-  /// Run-to-run diff, recomputed each pass: `newFail` / `newPass` / `changed`
-  /// versus the prior run ('' when unchanged or never run before), and a flip
-  /// count so the viewer can flag a test that keeps changing verdict (flaky).
-  String change = '';
+  /// Run-to-run diff versus the prior run; null when unchanged or never run
+  /// before. [flips] counts pass/fail crossings, feeding the viewer's flaky
+  /// flag.
+  _TestChange? change;
   int flips = 0;
 
   Map<String, Object?> toJson() => {
     'name': name,
-    'status': status,
+    'status': status.name,
     if (requirements.isNotEmpty) 'requirements': requirements,
     if (file != null) 'file': file,
     if (line != null) 'line': line,
-    if (change.isNotEmpty) 'change': change,
+    if (change case final change?) 'change': change.name,
     if (flips >= _flakyFlips) 'flaky': true,
     if (queuedAt != null) 'queuedAt': queuedAt,
     if (startedAt != null) 'startedAt': startedAt,
@@ -377,9 +410,6 @@ class _TestEntry {
     if (logs.isNotEmpty) 'logs': [for (final l in logs) l.toJson()],
   };
 }
-
-bool _isFail(String s) => s == 'failed' || s == 'error';
-bool _isTerminal(String s) => s == 'passed' || s == 'skipped' || _isFail(s);
 
 /// One operator-registered control button (see [button]).
 class _Button {
@@ -570,14 +600,16 @@ Map<String, Object?> _summary() {
   var passed = 0, failed = 0, errors = 0, skipped = 0;
   for (final t in _selected) {
     switch (t.status) {
-      case 'passed':
+      case TestStatus.passed:
         passed++;
-      case 'failed':
+      case TestStatus.failed:
         failed++;
-      case 'error':
+      case TestStatus.error:
         errors++;
-      case 'skipped':
+      case TestStatus.skipped:
         skipped++;
+      case TestStatus.queued || TestStatus.running:
+        break;
     }
   }
   return {
@@ -718,25 +750,27 @@ Future<void> _execute(List<_TestEntry> entries) async {
   }
 }
 
-/// Records how [entry]'s verdict moved from [priorStatus] to its current one:
-/// `newFail` / `newPass` / `changed` (or clears the badge when unchanged or
-/// there was no prior run), and bumps the flip counter when it crossed the
-/// pass↔fail line — that feeds the viewer's flaky flag.
-void _diff(_TestEntry entry, String priorStatus) {
+/// Records how [entry]'s verdict moved from [priorStatus] to its current one
+/// (null badge when unchanged or there was no prior run), and bumps the flip
+/// counter when it crossed the pass↔fail line — that feeds the viewer's flaky
+/// flag.
+void _diff(_TestEntry entry, TestStatus priorStatus) {
   final now = entry.status;
-  if (!_isTerminal(priorStatus) || priorStatus == now) {
-    entry.change = '';
+  if (!priorStatus.isTerminal || priorStatus == now) {
+    entry.change = null;
     return;
   }
   // A skip is neither a pass nor a failure: a transition into or out of
-  // 'skipped' reads as plain 'changed' — a test that went failed->skipped was
+  // skipped reads as plain changed — a test that went failed->skipped was
   // never "now passing", and skips must not count toward flakiness.
-  if (priorStatus == 'skipped' || now == 'skipped') {
-    entry.change = 'changed';
+  if (priorStatus == TestStatus.skipped || now == TestStatus.skipped) {
+    entry.change = _TestChange.changed;
     return;
   }
-  final wasFail = _isFail(priorStatus), nowFail = _isFail(now);
-  entry.change = !wasFail && nowFail ? 'newFail' : (wasFail && !nowFail ? 'newPass' : 'changed');
+  final wasFail = priorStatus.isFail, nowFail = now.isFail;
+  entry.change = nowFail && !wasFail
+      ? _TestChange.newFail
+      : (wasFail && !nowFail ? _TestChange.newPass : _TestChange.changed);
   if (wasFail != nowFail) entry.flips++;
 }
 
@@ -798,7 +832,7 @@ Future<Map<String, Object?>> _runFailedAction(Map<String, Object?> body) async {
   if (rejected != null) return rejected;
   final failed = [
     for (final t in _selected)
-      if (_isFail(t.status)) t,
+      if (t.status.isFail) t,
   ];
   if (failed.isEmpty) {
     return const {'accepted': false, 'error': 'nothing to re-run'};
@@ -998,7 +1032,7 @@ Map<String, Object?> _report() {
   final requirements = <String, List<Map<String, Object?>>>{};
   for (final t in _selected) {
     for (final req in t.requirements) {
-      requirements.putIfAbsent(req, () => []).add({'test': t.name, 'status': t.status});
+      requirements.putIfAbsent(req, () => []).add({'test': t.name, 'status': t.status.name});
     }
   }
   final state = _state()
@@ -1031,15 +1065,15 @@ Future<void> _runOne(_TestEntry entry) async {
   // Requirement IDs live in the report and the viewer, not the console.
   if (entry.skip) {
     entry
-      ..status = 'skipped'
+      ..status = TestStatus.skipped
       ..finishedAt = _now();
-    stdout.writeln('${_paint('SKIP', _yellow)} ${entry.name}');
+    stdout.writeln('${TestStatus.skipped._console} ${entry.name}');
     _viewer?.update();
     return;
   }
-  stdout.writeln('${_paint('RUN ', _dim)} ${entry.name}');
+  stdout.writeln('${TestStatus.running._console} ${entry.name}');
   entry
-    ..status = 'running'
+    ..status = TestStatus.running
     ..startedAt = _now();
   _running = entry;
   _viewer?.update();
@@ -1072,16 +1106,10 @@ Future<void> _runOne(_TestEntry entry) async {
       entry.detail = errors.map((e) => e.error.toString().trimRight()).join('\n').trim();
   }
   entry
-    ..status = status.name
+    ..status = status
     ..finishedAt = _now();
-  if (_isFail(status.name)) exitCode = 1;
-  final (label, color) = switch (status) {
-    TestStatus.passed => ('PASS', _green),
-    TestStatus.failed => ('FAIL', _red),
-    TestStatus.error => ('ERR ', _red),
-    TestStatus.skipped => ('SKIP', _yellow),
-  };
+  if (status.isFail) exitCode = 1;
   final note = entry.detail.isEmpty ? '' : '\n  ${entry.detail.replaceAll('\n', '\n  ')}';
-  stdout.writeln('${_paint(label, color)} ${entry.name} (${entry.ms} ms)$note');
+  stdout.writeln('${status._console} ${entry.name} (${entry.ms} ms)$note');
   _viewer?.update();
 }
