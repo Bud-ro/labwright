@@ -1164,7 +1164,9 @@ const _fieldHasFormatBit = 0x200; // display-format string after the value
 /// `AC_VOLTS` as `[0x802][0][Num][AC_VOLTS][2][i64 1][0]` — the twin's
 /// `<value representation='Int64'>1</value>`. Codes are surfaced verbatim
 /// ([BinaryTypeField.numericRepresentation]); see [BinaryNumericRepresentation]
-/// for the twin-evidenced code↔name pairs.
+/// for the twin-evidenced code↔name pairs. The bit is measured only on plain
+/// `Num` fields (typedef defaults and instance members); any other form carrying
+/// it is a shape the grammar does not cover and bails.
 const _fieldHasNumericRepBit = 0x800;
 
 /// Every bit the field grammar recognizes; a field carrying any other bit is a
@@ -1176,6 +1178,51 @@ const _fieldKnownFlagBits =
     _fieldHasExtDataBit |
     _fieldHasFormatBit |
     _fieldHasNumericRepBit;
+
+/// The stored-attr-word floor a field's flag bits promise (see [_attrTail]). Bit
+/// 0x4 is excluded: some 0x4 fields store a zero attr word (`LowExpr` `[0][0]`),
+/// most store none, and no per-file marker separates them — counting it
+/// unconditionally breaks 4 rosetta twin-validated bodies, and counting it only
+/// under the 0x76 record-prefix layout regresses the 0x76 exemplars (1→6 and 0→7
+/// bailing bodies).
+int _minAttrWords(int fieldFlags) => ((fieldFlags >> 3) & 1) + ((fieldFlags >> 5) & 1) + ((fieldFlags >> 6) & 1);
+
+/// The wire forms of a field record, discriminated by its first three words
+/// (see `_TypeBodyParser._fieldFormAt`). `DELIM` is [_recordDelimiter].
+enum _FieldForm {
+  /// `[name][value][attr words…][0]` — no flags/class prefix, so the second slot
+  /// holds the stored value where every other form has 0. Measured on the
+  /// binary-only step-type typedefs (`DescriptionFormat = ResStr(…)` in
+  /// NI_Measurement).
+  compact,
+
+  /// `[0][0][DELIM][name][childCount][children…]` — a descriptor node, with no
+  /// tail. The shape type descriptors use for nested objects, measured inside
+  /// element-type specs and PropertyObjectType instances (the spec's
+  /// `Type`/`ArrayDimensions` nodes). Distinguished from [framed] by flags == 0
+  /// (framed fields carry [_fieldFramedBit]) and from [plain] by the delimiter
+  /// where the class word would sit.
+  descriptor,
+
+  /// `[flags|0x80][0][DELIM][X][name][value…][attrs…][0]` — the delimiter-framed
+  /// form (Expression scalars, typed references, inline instances). `X` is 0 for
+  /// an implicit type, otherwise a 1-based type-table reference or an
+  /// intrinsic-type id.
+  framed,
+
+  /// `[flags][0][DELIM][name][value?][attrs…][0]` — a field with the delimiter
+  /// in the class slot and no `X` word (Action's TS override stores
+  /// `PassActTarget`/`FailActTarget` this way with flags 0x60). Distinguished
+  /// from [framed] by the absent [_fieldFramedBit] and from [descriptor] by
+  /// flags != 0.
+  framedLite,
+
+  /// `[flags][0][cls][name][value-part][format?][extras…][terminator 0]` — the
+  /// class-slotted form. Extras sit after the value part (CodeTemplates:
+  /// `[Str][name][value][0x480018][0]`); with no value part they precede the
+  /// terminator directly (BlockStartTypes: `[Str][name][0x480018][0]`).
+  plain,
+}
 
 /// The numeric-representation codes with twin evidence (see
 /// [_fieldHasNumericRepBit]): each pairs a binary code observed in the oracle
@@ -1500,10 +1547,10 @@ class _TypeBodyParser {
   /// collector (structural probe walks whose ops are rolled back) the words stay
   /// retained structure.
   int? _attrTail(int from, {int minWords = 0, List<int>? attrsOut}) {
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     var at = from;
     for (var i = 0; i <= _fieldMaxAttrWords; i++) {
-      if (at + _u32Bytes > recordRegionLength) return _blockBail(m);
+      if (at + _u32Bytes > recordRegionLength) return _blockBail(rollbackMark);
       final word = _u32(at);
       if (word == 0 && i >= minWords) {
         ops.u32(at, 0, _OpSource.grammar); // the verified attr-tail terminator
@@ -1522,7 +1569,7 @@ class _TypeBodyParser {
       // 0x8001800 with no spec at all) — specs are detected by their DELIM-led
       // frame instead (see [_fields]).
     }
-    return _blockBail(m);
+    return _blockBail(rollbackMark);
   }
 
   /// Walks a full element-type spec structurally and returns the offset after
@@ -1539,9 +1586,9 @@ class _TypeBodyParser {
   /// the writer — its interior parses capture no lasting write ops, and callers
   /// copy the whole extent verbatim.
   int? _elementSpec(int at) {
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     final end = _elementSpecWalk(at);
-    ops.rollback(m);
+    ops.rollback(rollbackMark);
     return end;
   }
 
@@ -1602,10 +1649,10 @@ class _TypeBodyParser {
   /// Whether a `u32` can be read at [at] within the record region.
   bool _canRead(int at) => at + _u32Bytes <= recordRegionLength;
 
-  /// Bails a parse that already recorded write ops: rolls back to mark [m]
+  /// Bails a parse that already recorded write ops: rolls back to mark [rollbackMark]
   /// and returns null — the shared failure exit of the op-emitting parsers.
-  Null _blockBail(int m) {
-    ops.rollback(m);
+  Null _blockBail(int rollbackMark) {
+    ops.rollback(rollbackMark);
     return null;
   }
 
@@ -1614,10 +1661,10 @@ class _TypeBodyParser {
   /// empty/malformed.
   static List<int>? _boundDims(String token) {
     final dims = <int>[];
-    for (final m in RegExp(r'\[(\d*)\]').allMatches(token)) {
-      final v = int.tryParse(m.group(1)!);
-      if (v == null) return null;
-      dims.add(v);
+    for (final match in RegExp(r'\[(\d*)\]').allMatches(token)) {
+      final dim = int.tryParse(match.group(1)!);
+      if (dim == null) return null;
+      dims.add(dim);
     }
     return dims.isEmpty ? null : dims;
   }
@@ -1654,10 +1701,10 @@ class _TypeBodyParser {
     final elements = <BinaryTypeField>[];
     var p = at;
     for (var i = 0; i < count; i++) {
-      final m = ops.mark();
+      final rollbackMark = ops.mark();
       final element = _arrayElement(p);
       if (element == null || element.$1.valueClass != SeqValueClass.step) {
-        ops.rollback(m);
+        ops.rollback(rollbackMark);
         break;
       }
       elements.add(element.$1);
@@ -1692,13 +1739,13 @@ class _TypeBodyParser {
       // the terminators, and the body-end boundary arbitrate.
       if (at < recordRegionLength && view.getUint8(at) == 0) {
         for (final start in _protoSpecEnds(at + 1)) {
-          final m = ops.mark();
+          final rollbackMark = ops.mark();
           final attrsMark = attrsOut?.length;
           ops.byte(at, 0, _OpSource.grammar); // the verified realignment pad
           ops.copy(at + 1, start); // proto block: extent walked, undecoded
           final elements = _elementRun(start, count);
           if (elements == null) {
-            ops.rollback(m);
+            ops.rollback(rollbackMark);
             continue;
           }
           final after = _attrTail(elements.$2, attrsOut: attrsOut);
@@ -1706,7 +1753,7 @@ class _TypeBodyParser {
             _usedSpec = true;
             return (elements.$1, after);
           }
-          ops.rollback(m);
+          ops.rollback(rollbackMark);
           if (attrsMark != null) attrsOut!.length = attrsMark;
         }
       }
@@ -1722,11 +1769,11 @@ class _TypeBodyParser {
     }
     ops.byte(tail, 0, _OpSource.grammar); // the verified pad after the array tail
     for (final start in _protoSpecEnds(tail + 1)) {
-      final m = ops.mark();
+      final rollbackMark = ops.mark();
       ops.copy(tail + 1, start); // proto block: extent walked, undecoded
       final elements = _elementRun(start, count);
       if (elements == null) {
-        ops.rollback(m);
+        ops.rollback(rollbackMark);
         continue;
       }
       // Element decode is boundary-sensitive like a spec walk — arm the body-end
@@ -1744,7 +1791,7 @@ class _TypeBodyParser {
     // explicit undecoded span. The committed attr-tail/pad ops above are reused.
     if (_partialStepArraysOk && !_inInstance) {
       for (final start in _protoSpecEnds(tail + 1)) {
-        final m = ops.mark();
+        final rollbackMark = ops.mark();
         ops.copy(tail + 1, start); // proto block: extent walked, undecoded
         final prefix = _stepElementPrefix(start, count);
         if (prefix != null) {
@@ -1752,7 +1799,7 @@ class _TypeBodyParser {
           _lastArrayPartial = true;
           return prefix;
         }
-        ops.rollback(m);
+        ops.rollback(rollbackMark);
       }
     }
     ops.rollback(mDecl);
@@ -1797,7 +1844,7 @@ class _TypeBodyParser {
     final count = _boundCount(lbound, ubound);
     if (count == null) return null;
     if (at + count * _f64Bytes > recordRegionLength) return null;
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     final elements = <BinaryTypeField>[];
     var p = at;
     for (var i = 0; i < count; i++, p += _f64Bytes) {
@@ -1806,7 +1853,7 @@ class _TypeBodyParser {
       // mis-framed Nums field (whose integer/handle words collapse into the
       // denormal range) falls back to the bounds-only undecoded read.
       if (!value.isFinite || (value != 0 && value.abs() < _smallestNormalF64)) {
-        return _blockBail(m);
+        return _blockBail(rollbackMark);
       }
       ops.f64(p, value);
       final text = value == value.truncateToDouble() && value.abs() < 1e15 ? '${value.truncate()}' : '$value';
@@ -1815,7 +1862,7 @@ class _TypeBodyParser {
     final attrsMark = attrsOut?.length;
     final after = _attrTail(p, attrsOut: attrsOut);
     if (after == null) {
-      ops.rollback(m);
+      ops.rollback(rollbackMark);
       if (attrsMark != null) attrsOut!.length = attrsMark;
       return null;
     }
@@ -1834,21 +1881,21 @@ class _TypeBodyParser {
     if (_u32(at + 2 * _u32Bytes) != 0) return null;
     // Probe for the writer: the block is surfaced as an undecoded spec blob, so
     // the caller copies its extent — no lasting attr-tail ops.
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     final after = _attrTail(at + 3 * _u32Bytes);
-    ops.rollback(m);
+    ops.rollback(rollbackMark);
     if (after == null) return null;
     return (cls, after);
   }
 
   /// Exactly [count] chained array elements starting at [at].
   (List<BinaryTypeField>, int)? _elementRun(int at, int count) {
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     var p = at;
     final elements = <BinaryTypeField>[];
     for (var i = 0; i < count; i++) {
       final element = _arrayElement(p);
-      if (element == null) return _blockBail(m);
+      if (element == null) return _blockBail(rollbackMark);
       elements.add(element.$1);
       p = element.$2;
     }
@@ -1891,10 +1938,10 @@ class _TypeBodyParser {
     // A block may carry one realignment pad byte before its delimiter.
     for (final start in [at, if (at < recordRegionLength && view.getUint8(at) == 0) at + 1]) {
       if (!_canRead(start) || _u32(start) != _recordDelimiter) continue;
-      final m = ops.mark();
+      final rollbackMark = ops.mark();
       if (start > at) ops.byte(at, 0, _OpSource.grammar); // the verified realignment pad
       final block = _elementBlock(start);
-      if (block == null) ops.rollback(m);
+      if (block == null) ops.rollback(rollbackMark);
       return block;
     }
     // Named step element (a `Substeps` array's substep, or a sequence group
@@ -1934,7 +1981,7 @@ class _TypeBodyParser {
     final count = _u32(at + 3 * _u32Bytes);
     if (count > _typeMaxFields) return null;
     final ref = _tableRef(x);
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     ops.poolRef(at, _u32(at)); // the 'Step' class token
     ops.u32(at + _u32Bytes, x, _OpSource.model); // 1-based type-table reference
     ops.poolRef(at + 2 * _u32Bytes, _u32(at + 2 * _u32Bytes));
@@ -1946,12 +1993,12 @@ class _TypeBodyParser {
     final children = _fields(at + 4 * _u32Bytes, count);
     _inInstance = outerInstance;
     _numericReprContext = outerRepr;
-    if (children == null) return _blockBail(m);
+    if (children == null) return _blockBail(rollbackMark);
     // The standard closing attr tail, like [_elementBlock] (`[0x80][0]` after
     // each substep's fields).
     final attrs = <int>[];
     final after = _attrTail(children.$2, attrsOut: attrs);
-    if (after == null) return _blockBail(m);
+    if (after == null) return _blockBail(rollbackMark);
     return (
       BinaryTypeField(
         name,
@@ -1982,18 +2029,18 @@ class _TypeBodyParser {
   ///    elements as `<VIParameter name='sequence context'>` with the decoded
   ///    children (Label/ArgVal/Type/WireRequirement/…).
   (BinaryTypeField, int)? _elementBlock(int at) {
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     ops.u32(at, _recordDelimiter, _OpSource.grammar); // verified by the caller
     var p = at + _u32Bytes;
-    if (!_canRead(p)) return _blockBail(m);
+    if (!_canRead(p)) return _blockBail(rollbackMark);
     final x = _u32(p);
     p += _u32Bytes;
-    if (!_canRead(p)) return _blockBail(m);
+    if (!_canRead(p)) return _blockBail(rollbackMark);
     final word3 = _u32(p);
     var name = '';
     BinaryTypeRecord? ref;
     if (word3 == _recordDelimiter) {
-      if (!_validTableX(x)) return _blockBail(m);
+      if (!_validTableX(x)) return _blockBail(rollbackMark);
       ref = _tableRef(x);
       ops.u32(at + _u32Bytes, x, _OpSource.model); // 1-based type-table reference
       ops.u32(p, _recordDelimiter, _OpSource.grammar); // the verified anonymous-form slot
@@ -2024,21 +2071,21 @@ class _TypeBodyParser {
             );
           }
         }
-        return _blockBail(m);
+        return _blockBail(rollbackMark);
       }
     } else {
       final named = _tok(word3);
       // The named form still requires X to resolve in the pool (the module-data
       // slot); a zero/unresolvable X does not frame.
-      if (named == null || x == 0 || _tok(x) == null) return _blockBail(m);
+      if (named == null || x == 0 || _tok(x) == null) return _blockBail(rollbackMark);
       name = named;
       ops.poolRef(at + _u32Bytes, x); // module-data slot, a pool ref
       ops.poolRef(p, word3);
     }
     p += _u32Bytes;
-    if (!_canRead(p)) return _blockBail(m);
+    if (!_canRead(p)) return _blockBail(rollbackMark);
     final count = _u32(p);
-    if (count > _typeMaxFields) return _blockBail(m);
+    if (count > _typeMaxFields) return _blockBail(rollbackMark);
     ops.u32(p, count, _OpSource.model);
     p += _u32Bytes;
     final outerInstance = _inInstance;
@@ -2048,10 +2095,10 @@ class _TypeBodyParser {
     final children = _fields(p, count);
     _inInstance = outerInstance;
     _numericReprContext = outerRepr;
-    if (children == null) return _blockBail(m);
+    if (children == null) return _blockBail(rollbackMark);
     final attrs = <int>[];
     final after = _attrTail(children.$2, attrsOut: attrs);
-    if (after == null) return _blockBail(m);
+    if (after == null) return _blockBail(rollbackMark);
     return (
       BinaryTypeField(
         name,
@@ -2268,14 +2315,14 @@ class _TypeBodyParser {
     if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
       return null;
     }
-    final m0 = ops.mark();
+    final rollbackMark = ops.mark();
     final count = _u32(after + _u32Bytes);
     (List<BinaryTypeField>, int)? parsed;
     if (count <= _typeMaxFields) {
       ops.u32(after, 0, _OpSource.grammar); // the verified body opener
       ops.u32(after + _u32Bytes, count, _OpSource.model);
       parsed = _fields(after + 2 * _u32Bytes, count);
-      if (parsed == null) ops.rollback(m0);
+      if (parsed == null) ops.rollback(rollbackMark);
     }
     if (parsed == null && count >= 1 && count <= _typeMaxExtBlocks) {
       // Extdata-opener body (Error): `[0][extCount]{extdata blocks}
@@ -2290,7 +2337,7 @@ class _TypeBodyParser {
           ops.copy(after + 2 * _u32Bytes, extEnd); // extdata blocks: undecoded
           ops.u32(extEnd, subCount, _OpSource.model);
           parsed = _fields(extEnd + _u32Bytes, subCount);
-          if (parsed == null) ops.rollback(m0);
+          if (parsed == null) ops.rollback(rollbackMark);
           if (parsed != null && debugCollectSpecs) {
             debugExtSpans.add((after + _u32Bytes, extEnd));
           }
@@ -2307,14 +2354,14 @@ class _TypeBodyParser {
       if (boundary == null) return null;
       ops.u32(after, 0, _OpSource.grammar); // the verified body opener
       parsed = _fieldsUntil(after + _u32Bytes, boundary);
-      if (parsed == null) return _blockBail(m0);
+      if (parsed == null) return _blockBail(rollbackMark);
     }
     // When a body used element-type specs and the next record's position is
     // known, the walk must not overrun it, so a walker misparse cannot fabricate
     // a body. Ending short of the boundary is normal: some records trail
     // undecoded inter-record content.
     final boundary = bodyEndBoundary;
-    if (_usedSpec && boundary != null && parsed.$2 > boundary) return _blockBail(m0);
+    if (_usedSpec && boundary != null && parsed.$2 > boundary) return _blockBail(rollbackMark);
     debugLastEndOffset = parsed.$2;
     return parsed.$1;
   }
@@ -2322,16 +2369,16 @@ class _TypeBodyParser {
   /// Parses fields until the walk lands exactly on [boundary] — the count-less
   /// body form. Any misparse, overshoot, or runaway bails.
   (List<BinaryTypeField>, int)? _fieldsUntil(int from, int boundary) {
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     var at = from;
     final fields = <BinaryTypeField>[];
     while (at < boundary && fields.length <= _typeMaxFields) {
       final parsed = _fields(at, 1);
-      if (parsed == null) return _blockBail(m);
+      if (parsed == null) return _blockBail(rollbackMark);
       fields.addAll(parsed.$1);
       at = parsed.$2;
     }
-    if (at != boundary) return _blockBail(m);
+    if (at != boundary) return _blockBail(rollbackMark);
     return (fields, at);
   }
 
@@ -2341,9 +2388,9 @@ class _TypeBodyParser {
   /// rollbacks, or that reject a field the parse already produced, keep explicit
   /// marks.
   T? _trial<T>(T? Function() body) {
-    final m = ops.mark();
+    final rollbackMark = ops.mark();
     final parsed = body();
-    if (parsed == null) ops.rollback(m);
+    if (parsed == null) ops.rollback(rollbackMark);
     return parsed;
   }
 
@@ -2431,7 +2478,8 @@ class _TypeBodyParser {
   /// (0x4/0x8/0x20/0x40) advertise which flag attributes the field stores, but
   /// the attr words run until the 0 terminator ([_attrTail]) — except on Obj
   /// declarations, which have no terminator, so there the 0x8/0x20/0x40 bit
-  /// count is load-bearing (one word each; twin-validated on Requirements).
+  /// count is load-bearing (one word each; twin-validated on Requirements). The
+  /// wire forms a record can take are cataloged in [_FieldForm].
   (BinaryTypeField, int)? _field(int at) {
     debugLastFieldOffset = at;
     return _trial(() => _fieldParse(at));
@@ -2440,147 +2488,132 @@ class _TypeBodyParser {
   (BinaryTypeField, int)? _fieldParse(int at) {
     if (at + 6 * _u32Bytes > recordRegionLength) return null;
     final fieldFlags = _u32(at);
-    if (_u32(at + _u32Bytes) != 0) {
-      // Compact form: [name][value][attr words…][0] — no flags/class prefix, so
-      // the second slot holds the stored value where every other form has 0.
-      // Measured on the binary-only step-type typedefs (DescriptionFormat =
-      // ResStr(…) in NI_Measurement). Declaration level only: inside an instance
-      // any two adjacent pool words match it and fabricate fields from
-      // structural tokens (a step TS's Requirements read a bogus
-      // `Data = 'Sequence'` child before instance context disabled it).
-      if (_inInstance) return null;
-      final name = _tok(fieldFlags);
-      final value = _tok(_u32(at + _u32Bytes));
-      if (name == null || value == null) return null;
-      ops.poolRef(at, fieldFlags);
-      ops.poolRef(at + _u32Bytes, _u32(at + _u32Bytes));
-      final attrs = <int>[];
-      final after = _attrTail(at + 2 * _u32Bytes, attrsOut: attrs);
-      if (after == null) return null;
-      return (BinaryTypeField(name, value: value, attrWords: attrs), after);
-    }
+    return switch (_fieldFormAt(at, fieldFlags)) {
+      _FieldForm.compact => _parseCompactField(at),
+      _FieldForm.descriptor => _parseDescriptorField(at),
+      _FieldForm.framed => _parseFramedField(at, fieldFlags),
+      _FieldForm.framedLite => _parseFramedLiteField(at, fieldFlags),
+      _FieldForm.plain => _parsePlainField(at, fieldFlags),
+      null => null,
+    };
+  }
+
+  /// The wire form of the field record at [at], whose flags word is
+  /// [fieldFlags]; null when that word carries a bit the grammar does not cover.
+  _FieldForm? _fieldFormAt(int at, int fieldFlags) {
+    // No framing zero: the second slot holds the compact form's stored value.
+    if (_u32(at + _u32Bytes) != 0) return _FieldForm.compact;
     if (fieldFlags & ~_fieldKnownFlagBits != 0) return null;
-    final hasExtData = fieldFlags & _fieldHasExtDataBit != 0;
+    final delimited = _u32(at + 2 * _u32Bytes) == _recordDelimiter;
+    if (fieldFlags == 0 && delimited) return _FieldForm.descriptor;
+    if (fieldFlags & _fieldFramedBit != 0) return _FieldForm.framed;
+    return delimited ? _FieldForm.framedLite : _FieldForm.plain;
+  }
+
+  /// Parses a [_FieldForm.compact] record. Declaration level only: inside an instance any two
+  /// adjacent pool words match this form and fabricate fields from structural
+  /// tokens (a step TS's Requirements read a bogus `Data = 'Sequence'` child
+  /// before instance context disabled it).
+  (BinaryTypeField, int)? _parseCompactField(int at) {
+    if (_inInstance) return null;
+    final nameWord = _u32(at);
+    final valueWord = _u32(at + _u32Bytes);
+    final name = _tok(nameWord);
+    final value = _tok(valueWord);
+    if (name == null || value == null) return null;
+    ops.poolRef(at, nameWord);
+    ops.poolRef(at + _u32Bytes, valueWord);
+    final attrs = <int>[];
+    final after = _attrTail(at + 2 * _u32Bytes, attrsOut: attrs);
+    if (after == null) return null;
+    return (BinaryTypeField(name, value: value, attrWords: attrs), after);
+  }
+
+  /// Parses a [_FieldForm.descriptor] record. Children serialize like overrides — a subset,
+  /// compared by name against the materialized twin.
+  (BinaryTypeField, int)? _parseDescriptorField(int at) {
+    final name = _tok(_u32(at + 3 * _u32Bytes));
+    if (name == null) return null;
+    final childCount = _u32(at + 4 * _u32Bytes);
+    if (childCount > _typeMaxFields) return null;
+    // The zero flags word discriminates the form — grammar-determined, like
+    // the framing zero and delimiter.
+    ops.u32(at, 0, _OpSource.grammar);
+    ops.u32(at + _u32Bytes, 0, _OpSource.grammar);
+    ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+    ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
+    ops.u32(at + 4 * _u32Bytes, childCount, _OpSource.model);
+    final children = _fields(at + 5 * _u32Bytes, childCount);
+    if (children == null) return null;
+    return (
+      BinaryTypeField(
+        name,
+        className: SeqValueClass.object.wire,
+        children: children.$1,
+        instanceOverrides: true,
+        fieldFlags: 0,
+      ),
+      children.$2,
+    );
+  }
+
+  /// Parses a [_FieldForm.framed] record.
+  (BinaryTypeField, int)? _parseFramedField(int at, int fieldFlags) {
     final valued = fieldFlags & _fieldHasValueBit != 0;
-    final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
-    // Bit 0x800 is only measured on plain `Num` fields (typedef defaults and
-    // instance members); any other shape carrying it is uncovered.
     final hasNumericRep = fieldFlags & _fieldHasNumericRepBit != 0;
-    // The stored-attr-word floor the flag bits promise (see [_attrTail]). Bit
-    // 0x4 is excluded: some 0x4 fields store a zero attr word (`LowExpr`
-    // `[0][0]`), most store none, and no per-file marker separates them —
-    // counting it unconditionally breaks 4 rosetta twin-validated bodies, and
-    // counting it only under the 0x76 record-prefix layout regresses the 0x76
-    // exemplars (1→6 and 0→7 bailing bodies).
-    final minAttrs = ((fieldFlags >> 3) & 1) + ((fieldFlags >> 5) & 1) + ((fieldFlags >> 6) & 1);
-
-    // Descriptor node: [0][0][DELIM][name][childCount][children…] — no tail. The
-    // shape type descriptors use for nested objects, measured inside
-    // element-type specs and PropertyObjectType instances (the spec's
-    // 'Type'/'ArrayDimensions' nodes). Distinguished from the framed form by
-    // flags == 0 (framed fields carry bit 0x80) and from the plain form by the
-    // delimiter where the class word would sit. Children serialize like
-    // overrides — a subset, compared by name against the materialized twin.
-    if (fieldFlags == 0 && _u32(at + 2 * _u32Bytes) == _recordDelimiter) {
-      final name = _tok(_u32(at + 3 * _u32Bytes));
-      if (name == null) return null;
-      final childCount = _u32(at + 4 * _u32Bytes);
-      if (childCount > _typeMaxFields) return null;
-      // The zero flags word discriminates the form — grammar-determined, like
-      // the framing zero and delimiter.
-      ops.u32(at, 0, _OpSource.grammar);
-      ops.u32(at + _u32Bytes, 0, _OpSource.grammar);
-      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-      ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
-      ops.u32(at + 4 * _u32Bytes, childCount, _OpSource.model);
-      final children = _fields(at + 5 * _u32Bytes, childCount);
-      if (children == null) return null;
-      return (
-        BinaryTypeField(
-          name,
-          className: SeqValueClass.object.wire,
-          children: children.$1,
-          instanceOverrides: true,
-          fieldFlags: 0,
-        ),
-        children.$2,
-      );
+    final minAttrs = _minAttrWords(fieldFlags);
+    if (hasNumericRep) return null;
+    if (_u32(at + 2 * _u32Bytes) != _recordDelimiter) return null;
+    final x = _u32(at + 3 * _u32Bytes);
+    final nameWord = _u32(at + 4 * _u32Bytes);
+    // A delimiter in the name slot is an anonymous element, legal only inside
+    // an instance/array context (an expression-array element; its
+    // cross-format twin writes `<ExprValue typename='Expression' name=''>`).
+    final name = nameWord == _recordDelimiter && _inInstance ? '' : _tok(nameWord);
+    if (name == null) return null;
+    ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
+    ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
+    ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+    if (nameWord == _recordDelimiter) {
+      // The verified anonymous-element sentinel (name == '').
+      ops.u32(at + 4 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+    } else {
+      ops.poolRef(at + 4 * _u32Bytes, nameWord);
     }
-
-    // Framed form: [flags|0x80][0][DELIM][X][name][value…][attrs…][0].
-    if (fieldFlags & _fieldFramedBit != 0) {
-      if (hasNumericRep) return null;
-      if (_u32(at + 2 * _u32Bytes) != _recordDelimiter) return null;
-      final x = _u32(at + 3 * _u32Bytes);
-      final nameWord = _u32(at + 4 * _u32Bytes);
-      // A delimiter in the name slot is an anonymous element, legal only inside
-      // an instance/array context (an expression-array element; its
-      // cross-format twin writes `<ExprValue typename='Expression' name=''>`).
-      final name = nameWord == _recordDelimiter && _inInstance ? '' : _tok(nameWord);
-      if (name == null) return null;
-      ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
-      ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
-      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-      if (nameWord == _recordDelimiter) {
-        // The verified anonymous-element sentinel (name == '').
-        ops.u32(at + 4 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-      } else {
-        ops.poolRef(at + 4 * _u32Bytes, nameWord);
-      }
-      var next = at + 5 * _u32Bytes;
-      String? value;
-      var typeName = 'Expression';
-      var className = SeqValueClass.expression.wire;
-      // A bound-token pair — not X — discriminates a typed array instance
-      // (`Substeps`) from a framed scalar, whose single value token is followed
-      // by an attr word, a flag bitmask never shaped like a bound token. X is
-      // not a table reference here: Substeps carries X=2 while its twin types it
-      // the never-serialized intrinsic StepTypeSubstepsArray, the newer record
-      // generation writes X=0, and a framed valued array of Expression elements
-      // (a step's `DataSourceArray`) carries an X resolving to `Expression`.
-      final boundPair =
-          valued &&
-          next + 2 * _u32Bytes <= recordRegionLength &&
-          _isBoundToken(_tok(_u32(next))) &&
-          _isBoundToken(_tok(_u32(next + _u32Bytes)));
-      if (boundPair) {
-        final lbound = _tok(_u32(next))!;
-        final ubound = _tok(_u32(next + _u32Bytes))!;
-        // X is an intrinsic type id / generation sentinel, surfaced as
-        // [BinaryTypeField.intrinsicTypeId] (null ↔ 0, bijective).
-        ops.u32(at + 3 * _u32Bytes, x, _OpSource.model);
-        ops.poolRef(next, _u32(next));
-        ops.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
-        if (ubound == '[]') {
-          // Empty array: ['[0]']['[]'][attr words…][0][one 0x00 pad byte] —
-          // anchor-measured across every rosetta binary.
-          if (lbound != '[0]') return null;
-          final attrs = <int>[];
-          final tail = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs, attrsOut: attrs);
-          if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
-            return null;
-          }
-          ops.byte(tail, 0, _OpSource.grammar); // the verified trailing pad
-          return (
-            BinaryTypeField(
-              name,
-              className: SeqValueClass.objects.wire,
-              arrayLBound: lbound,
-              arrayUBound: ubound,
-              intrinsicTypeId: x == 0 ? null : x,
-              fieldFlags: fieldFlags,
-              attrWords: attrs,
-            ),
-            tail + 1,
-          );
-        }
-        // Populated framed array: the elements follow the standard array tail,
-        // counted by the bounds ([_populatedArrayTail]). All-or-nothing — an
-        // element run that does not frame bails the body, since its extent
-        // cannot be measured without decoding it.
+    var next = at + 5 * _u32Bytes;
+    String? value;
+    var typeName = 'Expression';
+    var className = SeqValueClass.expression.wire;
+    // A bound-token pair — not X — discriminates a typed array instance
+    // (`Substeps`) from a framed scalar, whose single value token is followed
+    // by an attr word, a flag bitmask never shaped like a bound token. X is
+    // not a table reference here: Substeps carries X=2 while its twin types it
+    // the never-serialized intrinsic StepTypeSubstepsArray, the newer record
+    // generation writes X=0, and a framed valued array of Expression elements
+    // (a step's `DataSourceArray`) carries an X resolving to `Expression`.
+    final boundPair =
+        valued &&
+        next + 2 * _u32Bytes <= recordRegionLength &&
+        _isBoundToken(_tok(_u32(next))) &&
+        _isBoundToken(_tok(_u32(next + _u32Bytes)));
+    if (boundPair) {
+      final lbound = _tok(_u32(next))!;
+      final ubound = _tok(_u32(next + _u32Bytes))!;
+      // X is an intrinsic type id / generation sentinel, surfaced as
+      // [BinaryTypeField.intrinsicTypeId] (null ↔ 0, bijective).
+      ops.u32(at + 3 * _u32Bytes, x, _OpSource.model);
+      ops.poolRef(next, _u32(next));
+      ops.poolRef(next + _u32Bytes, _u32(next + _u32Bytes));
+      if (ubound == '[]') {
+        // Empty array: ['[0]']['[]'][attr words…][0][one 0x00 pad byte] —
+        // anchor-measured across every rosetta binary.
+        if (lbound != '[0]') return null;
         final attrs = <int>[];
-        final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
-        if (elements == null) return null;
+        final tail = _attrTail(next + 2 * _u32Bytes, minWords: minAttrs, attrsOut: attrs);
+        if (tail == null || tail >= recordRegionLength || view.getUint8(tail) != 0) {
+          return null;
+        }
+        ops.byte(tail, 0, _OpSource.grammar); // the verified trailing pad
         return (
           BinaryTypeField(
             name,
@@ -2588,254 +2621,276 @@ class _TypeBodyParser {
             arrayLBound: lbound,
             arrayUBound: ubound,
             intrinsicTypeId: x == 0 ? null : x,
-            children: elements.$1,
             fieldFlags: fieldFlags,
             attrWords: attrs,
           ),
-          elements.$2,
+          tail + 1,
         );
       }
-      if (x == 0) {
-        ops.u32(at + 3 * _u32Bytes, 0, _OpSource.grammar); // verified implicit-type X
-        if (valued) {
-          value = _tok(_u32(next));
-          if (value == null) return null;
-          ops.poolRef(next, _u32(next));
-          next += _u32Bytes;
-        } else {
-          // The twin's `<value/>` reads as an empty string, unless inside an
-          // instance where an unvalued field is inherited.
-          value = _inInstance ? null : '';
-        }
-      } else if (x >= 1 && valued && _validTableX(x) && _tableRef(x).name == 'Expression') {
-        // Framed valued scalar with an explicit type-table reference — the newer
-        // record generation's Expression scalar (the old one writes X=0, type
-        // implicit). Over 2,619 DescriptionFormat/DefaultNameFormat sites
-        // `X - 1 - typeIndexBase` equals the Expression record's index,
-        // including files where Expression is not first and files whose base is
-        // nonzero, so requiring that resolution makes a file whose base cannot
-        // be recovered bail instead of fabricating a type.
-        value = _tok(_u32(next));
-        if (value == null) return null;
-        ops.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
-        ops.poolRef(next, _u32(next));
-        next += _u32Bytes;
-      } else if (x >= 2 && !valued && _validTableX(x)) {
-        // Type table[X-1] (1-based, the same convention as step references), in
-        // one of two twin-validated shapes: an inline override instance —
-        // `[name][attr words…][childCount]` then the overridden fields in the
-        // full field grammar (Substep.TS stores an attr word 0x440018 before its
-        // count), serializing only the overrides like X == 1
-        // (DotNetStepAdditions.StructDef stores 2 of DotNetParameter's 11
-        // fields), so children compare as a subset of the materialized twin; or
-        // a default-instance reference with no inline content, just the
-        // attr-word tail.
-        final ref = _tableRef(x);
-        ops.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
-        // The scan starts past the flags-promised attr floor so a zero-valued
-        // attr slot does not read as the ref-only terminator (see [_attrTail]).
-        for (var k = minAttrs; k <= _fieldMaxAttrWords; k++) {
-          final countAt = next + k * _u32Bytes;
-          if (countAt + _u32Bytes > recordRegionLength) break;
-          final word = _u32(countAt);
-          if (word == 0) break; // the ref-only terminator — no instance
-          if (word < 1 || word > _typeMaxFields) continue; // attr word
-          final mInst = ops.mark();
-          final instAttrs = <int>[];
-          for (var j = 0; j < k; j++) {
-            instAttrs.add(_u32(next + j * _u32Bytes));
-            ops.u32(next + j * _u32Bytes, instAttrs[j], _OpSource.model);
-          }
-          ops.u32(countAt, word, _OpSource.model);
-          final outerInstance = _inInstance;
-          final outerRepr = _numericReprContext;
-          _inInstance = true;
-          _numericReprContext = _reprsOf(ref);
-          final children = _fields(countAt + _u32Bytes, word);
-          _inInstance = outerInstance;
-          _numericReprContext = outerRepr;
-          if (children != null) {
-            return (
-              BinaryTypeField(
-                name,
-                className: ref.className ?? SeqValueClass.object.wire,
-                typeName: ref.name,
-                children: children.$1,
-                instanceOverrides: true,
-                fieldFlags: fieldFlags,
-                attrWords: instAttrs,
-              ),
-              children.$2,
-            );
-          }
-          ops.rollback(mInst);
-        }
-        className = ref.className ?? SeqValueClass.object.wire;
-        typeName = ref.name;
-        // A reference to a scalar-classed type reads that class's default, the
-        // twin's `<value/>` semantics (AssemblyPath:Path materializes '' via its
-        // PathValue class). Object-classed references carry no value, and inside
-        // an instance an unvalued field is inherited, not defaulted.
-        value = _inInstance
-            ? null
-            : switch (SeqValueClass.from(className)) {
-                SeqValueClass.string || SeqValueClass.path || SeqValueClass.expression => '',
-                SeqValueClass.boolean => 'false',
-                SeqValueClass.number => '0',
-                _ => null,
-              };
-      } else if (x == 1 && !valued) {
-        // Inline custom instance: [name][attr words…][overrideCount] then the
-        // overridden fields, ordinary valued fields
-        // (`[0x2][0][cls][name][value]` — Bool/Str/framed-Expression) decoding
-        // with the general grammar in instance context. The instance's type is
-        // engine-intrinsic, so typeName stays null and children carry only the
-        // overrides. Attr words may precede the count (Action.Menu stores two
-        // 0x80018 words) — scanned past as in the X >= 2 form, starting past the
-        // flags-promised attr floor (see [_attrTail]).
-        ops.u32(at + 3 * _u32Bytes, 1, _OpSource.grammar); // verified X == 1 sentinel
-        final attrsFrom = next;
-        next += minAttrs * _u32Bytes;
-        if (next + _u32Bytes > recordRegionLength) return null;
-        var overrideCount = _u32(next);
-        for (var k = 0; overrideCount > _typeMaxFields && k < _fieldMaxAttrWords; k++) {
-          next += _u32Bytes;
-          if (next + _u32Bytes > recordRegionLength) return null;
-          overrideCount = _u32(next);
-        }
-        if (overrideCount > _typeMaxFields) return null;
-        final customAttrs = <int>[];
-        for (var q = attrsFrom; q < next; q += _u32Bytes) {
-          customAttrs.add(_u32(q)); // attr words before the override count
-          ops.u32(q, customAttrs.last, _OpSource.model);
-        }
-        ops.u32(next, overrideCount, _OpSource.model);
-        next += _u32Bytes;
-        final outer = _inInstance;
-        _inInstance = true;
-        final overrides = _fields(next, overrideCount);
-        _inInstance = outer;
-        if (overrides == null) return null;
-        return (
-          BinaryTypeField(
-            name,
-            className: SeqValueClass.object.wire,
-            children: overrides.$1,
-            instanceOverrides: true,
-            fieldFlags: fieldFlags,
-            attrWords: customAttrs,
-          ),
-          overrides.$2,
-        );
-      } else {
-        return null;
-      }
+      // Populated framed array: the elements follow the standard array tail,
+      // counted by the bounds ([_populatedArrayTail]). All-or-nothing — an
+      // element run that does not frame bails the body, since its extent
+      // cannot be measured without decoding it.
       final attrs = <int>[];
-      final after = _attrTail(next, minWords: minAttrs, attrsOut: attrs);
-      if (after == null) return null;
+      final elements = _populatedArrayTail(next + 2 * _u32Bytes, lbound, ubound, attrsOut: attrs);
+      if (elements == null) return null;
       return (
         BinaryTypeField(
           name,
-          className: className,
-          typeName: typeName,
-          value: value,
+          className: SeqValueClass.objects.wire,
+          arrayLBound: lbound,
+          arrayUBound: ubound,
+          intrinsicTypeId: x == 0 ? null : x,
+          children: elements.$1,
           fieldFlags: fieldFlags,
           attrWords: attrs,
         ),
-        after,
+        elements.$2,
       );
     }
-
-    // Framed-lite form: [flags][0][DELIM][name][value?][attrs…][0] — a field
-    // with the delimiter in the class slot and no X word (Action's TS override
-    // stores PassActTarget/FailActTarget this way with flags 0x60).
-    // Distinguished from the full framed form by the absent 0x80 bit and from
-    // the descriptor node by flags != 0.
-    if (fieldFlags != 0 && _u32(at + 2 * _u32Bytes) == _recordDelimiter) {
-      if (hasNumericRep) return null;
-      final name = _tok(_u32(at + 3 * _u32Bytes));
-      if (name == null) return null;
-      ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
-      ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
-      ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
-      ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
-      var next = at + 4 * _u32Bytes;
-      if (!valued) {
-        // Framed-lite object form: `[flags][0][DELIM][name][attrs…]
-        // [childCount]{children}` — an X-less instance node (a substep's `TS`
-        // stores `[0x60][0][DELIM][TS][0x40018][0x40018][4]` then its four
-        // children). Same count scan as the X >= 2 instance form, starting past
-        // the flags-promised attr floor (see [_attrTail]); when it stops at the
-        // scalar tail's 0 terminator, the field is the scalar below.
-        for (var k = minAttrs; k <= _fieldMaxAttrWords; k++) {
-          final countAt = next + k * _u32Bytes;
-          if (countAt + _u32Bytes > recordRegionLength) break;
-          final word = _u32(countAt);
-          if (word == 0) break; // the scalar terminator — not an object
-          if (word < 1 || word > _typeMaxFields) continue; // attr word
-          final mObj = ops.mark();
-          final objAttrs = <int>[];
-          for (var j = 0; j < k; j++) {
-            objAttrs.add(_u32(next + j * _u32Bytes));
-            ops.u32(next + j * _u32Bytes, objAttrs[j], _OpSource.model);
-          }
-          ops.u32(countAt, word, _OpSource.model);
-          final outerInstance = _inInstance;
-          _inInstance = true;
-          final children = _fields(countAt + _u32Bytes, word);
-          _inInstance = outerInstance;
-          if (children != null) {
-            return (
-              BinaryTypeField(
-                name,
-                className: 'Obj',
-                children: children.$1,
-                instanceOverrides: true,
-                fieldFlags: fieldFlags,
-                attrWords: objAttrs,
-              ),
-              children.$2,
-            );
-          }
-          ops.rollback(mObj);
-        }
-      }
-      // The twin's `<value/>` reads as an empty string, unless inside an
-      // instance where an unvalued field is inherited (null).
-      var value = _inInstance ? null : '';
+    if (x == 0) {
+      ops.u32(at + 3 * _u32Bytes, 0, _OpSource.grammar); // verified implicit-type X
       if (valued) {
-        // An all-ones value slot is the unset sentinel: the field stores a value
-        // slot but no value (MessagePopup's default TS stores
-        // `[0x2][0][DELIM][LoopIncrement][DELIM][0]`), reading like the twin's
-        // `<value/>`.
-        if (_u32(next) == _recordDelimiter) {
-          ops.u32(next, _recordDelimiter, _OpSource.grammar); // verified unset sentinel
-          next += _u32Bytes;
-        } else {
-          final stored = _tok(_u32(next));
-          if (stored == null) return null;
-          value = stored;
-          ops.poolRef(next, _u32(next));
-          next += _u32Bytes;
-        }
+        value = _tok(_u32(next));
+        if (value == null) return null;
+        ops.poolRef(next, _u32(next));
+        next += _u32Bytes;
+      } else {
+        // The twin's `<value/>` reads as an empty string, unless inside an
+        // instance where an unvalued field is inherited.
+        value = _inInstance ? null : '';
       }
-      final attrs = <int>[];
-      final after = _attrTail(next, minWords: minAttrs, attrsOut: attrs);
-      if (after == null) return null;
-      // The X-less framed-lite shape serializes no type, and the twin's type
-      // varies per site: Action's `PassActTarget`/`FailActTarget` materialize
-      // `typename='Expression'`, but an old-generation substep `Result` stores
-      // its `Error`/`Common` object references in the same shape
-      // (`<Error typename='Error' classname='Obj'>` in the materialized twin).
-      // Claiming `ExprValue`/`Expression` here is wrong at those Result sites,
-      // so no class/type is claimed.
-      return (BinaryTypeField(name, value: value, fieldFlags: fieldFlags, attrWords: attrs), after);
+    } else if (x >= 1 && valued && _validTableX(x) && _tableRef(x).name == 'Expression') {
+      // Framed valued scalar with an explicit type-table reference — the newer
+      // record generation's Expression scalar (the old one writes X=0, type
+      // implicit). Over 2,619 DescriptionFormat/DefaultNameFormat sites
+      // `X - 1 - typeIndexBase` equals the Expression record's index,
+      // including files where Expression is not first and files whose base is
+      // nonzero, so requiring that resolution makes a file whose base cannot
+      // be recovered bail instead of fabricating a type.
+      value = _tok(_u32(next));
+      if (value == null) return null;
+      ops.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
+      ops.poolRef(next, _u32(next));
+      next += _u32Bytes;
+    } else if (x >= 2 && !valued && _validTableX(x)) {
+      // Type table[X-1] (1-based, the same convention as step references), in
+      // one of two twin-validated shapes: an inline override instance —
+      // `[name][attr words…][childCount]` then the overridden fields in the
+      // full field grammar (Substep.TS stores an attr word 0x440018 before its
+      // count), serializing only the overrides like X == 1
+      // (DotNetStepAdditions.StructDef stores 2 of DotNetParameter's 11
+      // fields), so children compare as a subset of the materialized twin; or
+      // a default-instance reference with no inline content, just the
+      // attr-word tail.
+      final ref = _tableRef(x);
+      ops.u32(at + 3 * _u32Bytes, x, _OpSource.model); // 1-based type-table reference
+      // The scan starts past the flags-promised attr floor so a zero-valued
+      // attr slot does not read as the ref-only terminator (see [_attrTail]).
+      for (var k = minAttrs; k <= _fieldMaxAttrWords; k++) {
+        final countAt = next + k * _u32Bytes;
+        if (countAt + _u32Bytes > recordRegionLength) break;
+        final word = _u32(countAt);
+        if (word == 0) break; // the ref-only terminator — no instance
+        if (word < 1 || word > _typeMaxFields) continue; // attr word
+        final mInst = ops.mark();
+        final instAttrs = <int>[];
+        for (var j = 0; j < k; j++) {
+          instAttrs.add(_u32(next + j * _u32Bytes));
+          ops.u32(next + j * _u32Bytes, instAttrs[j], _OpSource.model);
+        }
+        ops.u32(countAt, word, _OpSource.model);
+        final outerInstance = _inInstance;
+        final outerRepr = _numericReprContext;
+        _inInstance = true;
+        _numericReprContext = _reprsOf(ref);
+        final children = _fields(countAt + _u32Bytes, word);
+        _inInstance = outerInstance;
+        _numericReprContext = outerRepr;
+        if (children != null) {
+          return (
+            BinaryTypeField(
+              name,
+              className: ref.className ?? SeqValueClass.object.wire,
+              typeName: ref.name,
+              children: children.$1,
+              instanceOverrides: true,
+              fieldFlags: fieldFlags,
+              attrWords: instAttrs,
+            ),
+            children.$2,
+          );
+        }
+        ops.rollback(mInst);
+      }
+      className = ref.className ?? SeqValueClass.object.wire;
+      typeName = ref.name;
+      // A reference to a scalar-classed type reads that class's default, the
+      // twin's `<value/>` semantics (AssemblyPath:Path materializes '' via its
+      // PathValue class). Object-classed references carry no value, and inside
+      // an instance an unvalued field is inherited, not defaulted.
+      value = _inInstance
+          ? null
+          : switch (SeqValueClass.from(className)) {
+              SeqValueClass.string || SeqValueClass.path || SeqValueClass.expression => '',
+              SeqValueClass.boolean => 'false',
+              SeqValueClass.number => '0',
+              _ => null,
+            };
+    } else if (x == 1 && !valued) {
+      // Inline custom instance: [name][attr words…][overrideCount] then the
+      // overridden fields, ordinary valued fields
+      // (`[0x2][0][cls][name][value]` — Bool/Str/framed-Expression) decoding
+      // with the general grammar in instance context. The instance's type is
+      // engine-intrinsic, so typeName stays null and children carry only the
+      // overrides. Attr words may precede the count (Action.Menu stores two
+      // 0x80018 words) — scanned past as in the X >= 2 form, starting past the
+      // flags-promised attr floor (see [_attrTail]).
+      ops.u32(at + 3 * _u32Bytes, 1, _OpSource.grammar); // verified X == 1 sentinel
+      final attrsFrom = next;
+      next += minAttrs * _u32Bytes;
+      if (next + _u32Bytes > recordRegionLength) return null;
+      var overrideCount = _u32(next);
+      for (var k = 0; overrideCount > _typeMaxFields && k < _fieldMaxAttrWords; k++) {
+        next += _u32Bytes;
+        if (next + _u32Bytes > recordRegionLength) return null;
+        overrideCount = _u32(next);
+      }
+      if (overrideCount > _typeMaxFields) return null;
+      final customAttrs = <int>[];
+      for (var q = attrsFrom; q < next; q += _u32Bytes) {
+        customAttrs.add(_u32(q)); // attr words before the override count
+        ops.u32(q, customAttrs.last, _OpSource.model);
+      }
+      ops.u32(next, overrideCount, _OpSource.model);
+      next += _u32Bytes;
+      final outer = _inInstance;
+      _inInstance = true;
+      final overrides = _fields(next, overrideCount);
+      _inInstance = outer;
+      if (overrides == null) return null;
+      return (
+        BinaryTypeField(
+          name,
+          className: SeqValueClass.object.wire,
+          children: overrides.$1,
+          instanceOverrides: true,
+          fieldFlags: fieldFlags,
+          attrWords: customAttrs,
+        ),
+        overrides.$2,
+      );
+    } else {
+      return null;
     }
+    final attrs = <int>[];
+    final after = _attrTail(next, minWords: minAttrs, attrsOut: attrs);
+    if (after == null) return null;
+    return (
+      BinaryTypeField(
+        name,
+        className: className,
+        typeName: typeName,
+        value: value,
+        fieldFlags: fieldFlags,
+        attrWords: attrs,
+      ),
+      after,
+    );
+  }
 
-    // Plain form: [flags][0][cls][name][value-part][format?][extras…]
-    // [terminator 0] — extras sit after the value part (CodeTemplates:
-    // [Str][name][value][0x480018][0]); with no value part they precede the
-    // terminator directly (BlockStartTypes: [Str][name][0x480018][0]).
+  /// Parses a [_FieldForm.framedLite] record.
+  (BinaryTypeField, int)? _parseFramedLiteField(int at, int fieldFlags) {
+    final valued = fieldFlags & _fieldHasValueBit != 0;
+    final hasNumericRep = fieldFlags & _fieldHasNumericRepBit != 0;
+    final minAttrs = _minAttrWords(fieldFlags);
+    if (hasNumericRep) return null;
+    final name = _tok(_u32(at + 3 * _u32Bytes));
+    if (name == null) return null;
+    ops.u32(at, fieldFlags, _OpSource.model); // surfaced: BinaryTypeField.fieldFlags
+    ops.u32(at + _u32Bytes, 0, _OpSource.grammar); // the verified framing zero
+    ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
+    ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
+    var next = at + 4 * _u32Bytes;
+    if (!valued) {
+      // Framed-lite object form: `[flags][0][DELIM][name][attrs…]
+      // [childCount]{children}` — an X-less instance node (a substep's `TS`
+      // stores `[0x60][0][DELIM][TS][0x40018][0x40018][4]` then its four
+      // children). Same count scan as the X >= 2 instance form, starting past
+      // the flags-promised attr floor (see [_attrTail]); when it stops at the
+      // scalar tail's 0 terminator, the field is the scalar below.
+      for (var k = minAttrs; k <= _fieldMaxAttrWords; k++) {
+        final countAt = next + k * _u32Bytes;
+        if (countAt + _u32Bytes > recordRegionLength) break;
+        final word = _u32(countAt);
+        if (word == 0) break; // the scalar terminator — not an object
+        if (word < 1 || word > _typeMaxFields) continue; // attr word
+        final mObj = ops.mark();
+        final objAttrs = <int>[];
+        for (var j = 0; j < k; j++) {
+          objAttrs.add(_u32(next + j * _u32Bytes));
+          ops.u32(next + j * _u32Bytes, objAttrs[j], _OpSource.model);
+        }
+        ops.u32(countAt, word, _OpSource.model);
+        final outerInstance = _inInstance;
+        _inInstance = true;
+        final children = _fields(countAt + _u32Bytes, word);
+        _inInstance = outerInstance;
+        if (children != null) {
+          return (
+            BinaryTypeField(
+              name,
+              className: 'Obj',
+              children: children.$1,
+              instanceOverrides: true,
+              fieldFlags: fieldFlags,
+              attrWords: objAttrs,
+            ),
+            children.$2,
+          );
+        }
+        ops.rollback(mObj);
+      }
+    }
+    // The twin's `<value/>` reads as an empty string, unless inside an
+    // instance where an unvalued field is inherited (null).
+    var value = _inInstance ? null : '';
+    if (valued) {
+      // An all-ones value slot is the unset sentinel: the field stores a value
+      // slot but no value (MessagePopup's default TS stores
+      // `[0x2][0][DELIM][LoopIncrement][DELIM][0]`), reading like the twin's
+      // `<value/>`.
+      if (_u32(next) == _recordDelimiter) {
+        ops.u32(next, _recordDelimiter, _OpSource.grammar); // verified unset sentinel
+        next += _u32Bytes;
+      } else {
+        final stored = _tok(_u32(next));
+        if (stored == null) return null;
+        value = stored;
+        ops.poolRef(next, _u32(next));
+        next += _u32Bytes;
+      }
+    }
+    final attrs = <int>[];
+    final after = _attrTail(next, minWords: minAttrs, attrsOut: attrs);
+    if (after == null) return null;
+    // The X-less framed-lite shape serializes no type, and the twin's type
+    // varies per site: Action's `PassActTarget`/`FailActTarget` materialize
+    // `typename='Expression'`, but an old-generation substep `Result` stores
+    // its `Error`/`Common` object references in the same shape
+    // (`<Error typename='Error' classname='Obj'>` in the materialized twin).
+    // Claiming `ExprValue`/`Expression` here is wrong at those Result sites,
+    // so no class/type is claimed.
+    return (BinaryTypeField(name, value: value, fieldFlags: fieldFlags, attrWords: attrs), after);
+  }
+
+  /// Parses a [_FieldForm.plain] record.
+  (BinaryTypeField, int)? _parsePlainField(int at, int fieldFlags) {
+    final hasExtData = fieldFlags & _fieldHasExtDataBit != 0;
+    final valued = fieldFlags & _fieldHasValueBit != 0;
+    final hasFormat = fieldFlags & _fieldHasFormatBit != 0;
+    final hasNumericRep = fieldFlags & _fieldHasNumericRepBit != 0;
+    final minAttrs = _minAttrWords(fieldFlags);
     final className = _clsTok(_u32(at + 2 * _u32Bytes));
     final name = _tok(_u32(at + 3 * _u32Bytes));
     if (className == null || name == null) return null;
