@@ -820,6 +820,18 @@ const Map<ViWireRenderStyle, int> kBdWireCyclePhase = {
   ViWireRenderStyle.braidDenseWide => (-2, 1),
 };
 
+/// The sign (+1 down/right, −1 up/left) of [route]'s implied closing run.
+///
+/// [ViWireRoute.jointSigns] carries segments `1..pointCount-2`, so its last
+/// entry is the closing run's stored sign. A route that stores none is a
+/// single run opened by [direction], whose sign is therefore the closing one —
+/// the same fallback the package walkers use (`walkOneAnchoredRoute` and
+/// `ViWire.routePoints`).
+int bdRouteClosingSign(ViWireRoute route, WireRouteDirection direction) =>
+    route.jointSigns.isEmpty
+    ? direction.dx + direction.dy
+    : route.jointSigns.last;
+
 /// The colour a [wire] is drawn in: [kBdWireColor] unless one of its endpoint
 /// anchors matches a terminal whose datatype was recovered, in which case that
 /// terminal's [labviewTypeColor] is used. [typedTerminalColors] maps a packed
@@ -841,11 +853,11 @@ Color bdWireColor(
         )];
     if (color != null) return color;
   }
-  // No typed terminal: if the first endpoint (the route source) is a
+  // No typed terminal: if the first endpoint carrying an anchor is a
   // primitive whose catalogued op fixes its output type, the wire carries
   // that output ([PrimOp.output], from documented semantics only).
   final source = wire.endpointAnchors.firstWhere(
-    (a) => a != null,
+    (anchor) => anchor != null,
     orElse: () => null,
   );
   if (source != null) {
@@ -999,6 +1011,12 @@ PrimIconArt? primIconArtFor(
 /// from reference-render bend columns/rows; an axis stays null until
 /// determined. Growable classes move terminals with the box, hence the size
 /// key.
+///
+/// TODO: five entries — `(1051, 2)`, `(1052, 1)`, `(1052, 2)`, `(1070, 0)` and
+/// `(1081, 0)`, all at 32x32 — record no derivation basis, and the corpus
+/// route census cannot supply one: a full sweep (7,569 files, 14,640
+/// head-slack wires) produces no observation for any of the five keys, so
+/// re-deriving them needs a reference render.
 const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   // Multiply's triangle: inputs at art rows top+5 / top+15 (art top =
   // box.top+6), output at mid-height.
@@ -1451,11 +1469,16 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
 /// primitive icon stamped on [object]. True when no icon is stamped, leaving
 /// the plain bounds hit; pixel-precise otherwise, so an icon's transparent
 /// surround does not swallow clicks.
+///
+/// An object without [ViHeapObject.absBounds] stamps nothing — there is no
+/// rect to place the art in — so the mask cannot narrow the hit and the answer
+/// is again true: this test only ever removes hits the caller's own bounds
+/// test has already accepted.
 bool primIconHit(ViHeapObject object, double x, double y) {
   final id = loadedPrimIconIdOf(object);
   final art = id == null ? null : _primIconPixels[id];
-  if (art == null || _primIconsSync[id] == null) return true;
-  final bounds = object.absBounds!;
+  final bounds = object.absBounds;
+  if (art == null || bounds == null || _primIconsSync[id] == null) return true;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
       bounds.left.toDouble(),
@@ -3228,9 +3251,11 @@ class BdDiagramPainter extends CustomPainter {
   /// Geometry: a wire with a proven absolute polyline ([ViWire.routePoints])
   /// or branch tree ([ViWire.routeTree]) draws it as stored, except that a
   /// terminal segment ending on an icon-stamped node extends under the art —
-  /// to the box centre, or, for a one-anchored walk entering off-centre, along
-  /// [ViWire.routeClosingStep] to the art's near ink edge on the arrival row.
-  /// A wire with no decoded route is not drawn.
+  /// to where the art becomes opaque on the arrival row/column
+  /// ([primIconInkEdge]), falling back to the centre of the stamped art's ink
+  /// rect (the node box when no art resolves). A one-anchored walk entering
+  /// off-centre extends along [ViWire.routeClosingStep] instead, to the same
+  /// ink edge. A wire with no decoded route is not drawn.
   ///
   /// Stroke: the wire-type word's measured render style
   /// ([ViSignalTypeRenderStyle.renderStyle]); the estimate tier
@@ -3315,7 +3340,8 @@ class BdDiagramPainter extends CustomPainter {
     //   0 typed endpoint-anchor rect ([typedTerminalColors]),
     //   1 resolved endpoint object ([bdTerminalTypeColor] — carries the
     //     cluster member tint the anchor map cannot),
-    //   2 a source primitive's documented output ([sourceOutputColors]),
+    //   2 the documented output of the primitive under the signal's first
+    //     anchored endpoint ([sourceOutputColors]),
     //   3 the signal word's element family (the 89.9% estimate tier).
     // The neutral grey means unresolved at every tier and never propagates.
     const unresolvedGrey = Color(0xFF8A8A8A);
@@ -3400,7 +3426,7 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
       final source = wire.endpointAnchors.firstWhere(
-        (a) => a != null,
+        (anchor) => anchor != null,
         orElse: () => null,
       );
       if (source != null) {
@@ -3990,12 +4016,8 @@ class BdDiagramPainter extends CustomPainter {
               ? null
               : scene.diagram.byId[headObj!.parentOid!];
           final headBox = headOwner?.absBounds;
-          final closingSign = route.jointSigns.isNotEmpty
-              ? route.jointSigns.last
-              : null;
-          if (headOwner == null || headBox == null || closingSign == null) {
-            break;
-          }
+          final closingSign = bdRouteClosingSign(route, dir);
+          if (headOwner == null || headBox == null) break;
           final start = (
             x: attach.left + (attach.right - attach.left) ~/ 2,
             y: attach.top + (attach.bottom - attach.top) ~/ 2,
@@ -4136,7 +4158,7 @@ class BdDiagramPainter extends CustomPainter {
             horizontal = !horizontal;
           }
           final closingHorizontal = horizontal;
-          final closingSign = route.jointSigns.last;
+          final closingSign = bdRouteClosingSign(route, dir);
           final arrivalCross = closingHorizontal ? walkY : walkX;
           int? terminus;
           final farAttach = wire.endpointAttachRects[1];
@@ -4252,7 +4274,7 @@ class BdDiagramPainter extends CustomPainter {
           }
           if (!covered) break;
           final closingHorizontal = horizontal;
-          final closingSign = route.jointSigns.last;
+          final closingSign = bdRouteClosingSign(route, dir);
           final arrivalCross = closingHorizontal ? walkY : walkX;
           final terminal = bdPrimTerminalOf(
             scene.diagram,
@@ -4314,9 +4336,12 @@ class BdDiagramPainter extends CustomPainter {
         final closingHorizontal = route.pointCount == 2
             ? dir.isHorizontal
             : (route.pointCount.isEven ? dir.isHorizontal : !dir.isHorizontal);
-        final closingSign = route.pointCount == 2
-            ? (dir.dx + dir.dy)
-            : (route.jointSigns.isEmpty ? 0 : route.jointSigns.last);
+        // A 3+-point table carrying no joint signs disagrees with its own
+        // point count, so no closing direction is stored; 0 is not a sign and
+        // rejects the run below rather than assuming one.
+        final closingSign = route.pointCount > 2 && route.jointSigns.isEmpty
+            ? 0
+            : bdRouteClosingSign(route, dir);
         final dirTowardContainer =
             route.pointCount == 2 ||
             (dir.isHorizontal == closingHorizontal &&
