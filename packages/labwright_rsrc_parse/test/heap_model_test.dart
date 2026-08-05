@@ -93,6 +93,20 @@ void main() {
       expect(recs.every((r) => r.bounds == null), isTrue, reason: 'a C4 2D with a non-8 payload is rejected');
     });
 
+    test('HeapRect is a value: equal edges are one map key, any differing edge is another', () {
+      const rect = HeapRect(top: 1, left: 2, bottom: 3, right: 4);
+      final decoded = rec1(hx('c4 2d 08 0001 0002 0003 0004')).bounds!;
+      expect(decoded, rect, reason: 'a rebuilt rect equals the one it was decoded from');
+      expect(decoded.hashCode, rect.hashCode);
+      const others = <HeapRect>[
+        HeapRect(top: 9, left: 2, bottom: 3, right: 4),
+        HeapRect(top: 1, left: 9, bottom: 3, right: 4),
+        HeapRect(top: 1, left: 2, bottom: 9, right: 4),
+        HeapRect(top: 1, left: 2, bottom: 3, right: 9),
+      ];
+      expect({rect, decoded, ...others}.length, 5);
+    });
+
     test('C4 19 keeps its RAW description text; other opcodes have null descriptionText', () {
       const text = 'The <B>error</B> describes the source';
       expect(rec1(c4(0x19, text.codeUnits)).descriptionText, text, reason: 'raw from byte 0 — no length prefix');

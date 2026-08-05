@@ -808,6 +808,22 @@ void main() {
       makeRoute(2, WireRouteDirection.right, const [], const []),
       (x: 45, y: 50),
     );
+    check(
+      'forward reject: a bend column on the exclusive right edge (x = 60) is beside the box',
+      makeRoute(3, WireRouteDirection.right, [1], [50]),
+      (x: 10, y: 20),
+    );
+    check(
+      'forward reject: a terminus row on the exclusive bottom edge (y = 60) is under the box',
+      makeRoute(3, WireRouteDirection.down, [1], [40]),
+      (x: 20, y: 20),
+    );
+    check(
+      'reverse reject: a head row on the exclusive bottom edge is under the box',
+      makeRoute(2, WireRouteDirection.right, const [], const []),
+      (x: 100, y: 60),
+      anchoredIndex: 1,
+    );
   });
 
   test('routePoints walked tier: one exact anchor ships the walk; the far plain node rides its box', () {
@@ -1133,6 +1149,29 @@ void main() {
     expect(d.byId[2]!.visibleFrameIndex, 2, reason: 'bit 31 is a flag, not index');
     expect(d.byId[3]!.visibleFrameIndex, 0, reason: 'absent record displays the first frame');
     expect(d.byId[4]!.dIdx, isNull, reason: 'capture is gated to the multi-frame structure kinds');
+  });
+
+  test('displayedFrameIndex: the stored index resolved against the frames that exist', () {
+    List<int> caseWithFrames(int oid, int? dIdx, int frames) => [
+      ...open(0x2c, oid),
+      if (dIdx != null) ...attrU8(0x4d, dIdx),
+      for (var i = 0; i < frames; i++) ...[...open(kViFrameCode, oid * 10 + i), ...close()],
+      ...close(),
+    ];
+    final d = dia([
+      ...caseWithFrames(1, 1, 2),
+      ...caseWithFrames(2, 5, 2),
+      ...caseWithFrames(3, null, 2),
+      ...caseWithFrames(4, 1, 0),
+      ...open(0x50, 5),
+      ...close(),
+    ]);
+    expect(d.framesOf(d.byId[1]!).map((f) => f.oid), [10, 11]);
+    expect(d.displayedFrameIndex(d.byId[1]!), 1);
+    expect(d.displayedFrameIndex(d.byId[2]!), isNull, reason: 'index past the frame count names no frame');
+    expect(d.displayedFrameIndex(d.byId[3]!), 0, reason: 'absent record displays the first frame');
+    expect(d.displayedFrameIndex(d.byId[4]!), isNull, reason: 'no frames, nothing to display');
+    expect(d.displayedFrameIndex(d.byId[5]!), isNull, reason: 'not a stacked multi-frame class');
   });
 
   test('an owned label composes against its owner even when the owner bounds record trails it', () {
