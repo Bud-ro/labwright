@@ -7,9 +7,9 @@
 //
 // Commands reach the worker between reads. A pause or a cancel issued while a buffered
 // read is in flight therefore takes effect only once that read returns, which is bounded
-// by the DAQmx read timeout. Cancel deliberately waits for that instead of killing the
-// isolate: a killed worker would skip DAQmxStopTask/DAQmxClearTask and leave the task
-// alive inside the driver.
+// by the run's [readTimeout] ([DaqmxApi.readStream]'s parameter of the same name). Cancel
+// waits for that instead of killing the isolate: a killed worker would skip
+// DAQmxStopTask/DAQmxClearTask and leave the task alive inside the driver.
 
 import 'dart:async';
 import 'dart:ffi';
@@ -138,7 +138,7 @@ Stream<TypedData> ffiReadStream({
   required double min,
   required double max,
   required int terminalConfig,
-  double readTimeout = 10,
+  required double readTimeout,
 }) {
   final fromWorker = ReceivePort();
 

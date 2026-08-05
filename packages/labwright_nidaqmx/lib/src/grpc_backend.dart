@@ -251,6 +251,9 @@ class GrpcDaqmxBackend implements DaqmxApi {
     double min = -10,
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
+    // Ignored here: [_beginRead] issues the server-side read with an indefinite DAQmx
+    // timeout, and cancelling closes the frame stream rather than waiting on a read.
+    double readTimeout = 10,
   }) {
     _ensureOpen();
     if (sideband != SidebandStrategy.inBandGrpc) {
