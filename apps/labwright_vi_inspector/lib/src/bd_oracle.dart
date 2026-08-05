@@ -96,7 +96,10 @@ GlobalHatchOffset deriveHatchOffset({
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
   for (final frame in diagram.objects) {
-    if (frame.kind != 0x2c || !drawableOids.contains(frame.oid)) continue;
+    if (frame.objectClass != HeapObjectClass.bdStructureFrame ||
+        !drawableOids.contains(frame.oid)) {
+      continue;
+    }
     if (errorOids.contains(frame.oid) != errorStyle) continue;
     final bounds = frame.absBounds;
     if (bounds == null) continue;
@@ -990,7 +993,7 @@ class PlacementComparison {
 /// Measured rectangles are the drawable structures, nodes, terminals and
 /// decorations — LabVIEW draws each as a bordered box — at least [minSide]
 /// model units on both sides, excluding free-text label parts
-/// ([kBdTextLabelCodes]: drawn as bare text, no box outline to trace) and any
+/// ([kBdTextLabelClasses]: drawn as bare text, no box outline to trace) and any
 /// box spanning (nearly) the whole drawable extent: the decoded root diagram
 /// object has such bounds but LabVIEW draws no border around the diagram
 /// itself. A border sample counts as supported when a reference edge pixel
@@ -1033,7 +1036,7 @@ PlacementComparison comparePlacement({
         object.category != ViObjectKind.decoration) {
       continue;
     }
-    if (kBdTextLabelCodes.contains(object.kind)) continue;
+    if (kBdTextLabelClasses.contains(object.objectClass)) continue;
     final bounds = object.absBounds!;
     if (bounds.width < minSide || bounds.height < minSide) continue;
     // The whole-extent box (the decoded diagram root): no drawn counterpart.

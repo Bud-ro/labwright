@@ -300,14 +300,15 @@ class _Library {
   /// what its text uses and no more. A `List<String>` needs neither import
   /// where a `Uint8List` needs `dart:typed_data`; call this wherever a Dart
   /// type is written into the output.
-  void noteImportsFor(LvWireType type) => noteImportsForSource(type.dartType);
+  void noteImportsFor(LvWireType type) => noteImportsForType(type.value);
 
-  /// The same, for a Dart type written as source — a generated declaration's
-  /// field type, which has no [LvWireType] of its own.
-  void noteImportsForSource(String? dartType) {
-    if (dartType == null) return;
-    if (kLvTypedDataListTypes.any(dartType.contains)) imports.add('dart:typed_data');
-    if (lvTypeNeedsRuntime(dartType)) imports.add(kLvRuntimeImport);
+  /// The same, for a mapped type with no [LvWireType] of its own — a generated
+  /// declaration's field type.
+  void noteImportsForType(LvTypeMapping type) {
+    final source = type.dartType;
+    if (source == null) return;
+    if (kLvTypedDataListTypes.any(source.contains)) imports.add('dart:typed_data');
+    if (lvTypeNeedsRuntime(type)) imports.add(kLvRuntimeImport);
   }
 
   static int _byDrawnPosition(LvInterfaceUnit a, LvInterfaceUnit b) {
@@ -332,7 +333,7 @@ class _Library {
     ]);
     for (final declaration in declared) {
       for (final field in declaration.fields) {
-        noteImportsForSource(field.type.dartType);
+        noteImportsForType(field.type);
       }
     }
 
@@ -637,10 +638,10 @@ class _FunctionEmitter {
   }
 
   String? _scalarLiteral(ViHeapObject record, LvWireType type) {
-    if (type.dartType == 'bool') {
+    if (type.carrier == LvCarrier.boolean) {
       return record.constBool?.toString();
     }
-    if (type.dartType == 'String') {
+    if (type.carrier == LvCarrier.text) {
       final text = record.constText;
       return text == null ? null : _stringLiteral(text);
     }
@@ -1128,7 +1129,7 @@ class _FunctionEmitter {
     // A boolean and an error cluster are the two selectors whose frames the
     // `0x95` label alone settles, and the only ones whose stored values
     // (0 and 1, or a sentinel pair) do not read as selector values.
-    if (selectorEdge.type.isErrorCluster || selectorEdge.type.dartType == 'bool') {
+    if (selectorEdge.type.isErrorCluster || selectorEdge.type.carrier == LvCarrier.boolean) {
       _emitTwoWayCase(unit, selectorEdge);
       return;
     }
@@ -1150,13 +1151,14 @@ class _FunctionEmitter {
     // The error form's two labels are LabVIEW's own: over the corpus's Case
     // structures whose selector wire resolves an error cluster, every one has
     // two frames and every displayed label reads `No Error` or `Error`.
-    final displayed = unit.displayedCase?.trim().toLowerCase();
-    final trueLabel = onError ? 'error' : 'true', falseLabel = onError ? 'no error' : 'false';
+    final displayed = unit.displayedLabel;
+    final trueLabel = onError ? LvCaseLabel.error : LvCaseLabel.isTrue;
+    final falseLabel = onError ? LvCaseLabel.noError : LvCaseLabel.isFalse;
     if (displayed != trueLabel && displayed != falseLabel) {
       refuse(
         LvRefusalKind.caseSelector,
         'the displayed frame\'s case value reads "${unit.displayedCase}", which is '
-        'neither "$trueLabel" nor "$falseLabel"',
+        'neither "${trueLabel.label}" nor "${falseLabel.label}"',
         oid: unit.oid,
       );
     }
@@ -1242,7 +1244,7 @@ class _FunctionEmitter {
   String? _rangeGuard(ViSelectorRange range, String selectorValue, LvStructUnit unit, LvWireType type) {
     if (type.dims != 0) return null;
     if (unit.selectorStrings.isNotEmpty) {
-      if (type.dartType != 'String' || !range.isSingle) return null;
+      if (type.carrier != LvCarrier.text || !range.isSingle) return null;
       if (range.low < 0 || range.low >= unit.selectorStrings.length) return null;
       final text = unit.selectorStrings[range.low];
       if (text.codeUnits.any((code) => code < 0x20 || code > 0x7e)) return null;
@@ -1332,8 +1334,8 @@ class _FunctionEmitter {
   }
 
   void _emitDisable(LvStructUnit unit) {
-    final displayed = unit.displayedCase?.trim().toLowerCase();
-    if (unit.frames.length != 2 || (displayed != 'disabled' && displayed != 'enabled')) {
+    final displayed = unit.displayedDisable;
+    if (unit.frames.length != 2 || displayed == LvDisableFrame.other) {
       refuse(
         LvRefusalKind.caseSelector,
         'a Diagram Disable structure runs its Enabled frame alone; the file '
@@ -1343,7 +1345,7 @@ class _FunctionEmitter {
         oid: unit.oid,
       );
     }
-    final enabled = displayed == 'enabled' ? unit.displayedFrame : 1 - unit.displayedFrame;
+    final enabled = displayed == LvDisableFrame.enabled ? unit.displayedFrame : 1 - unit.displayedFrame;
     if (enabled >= unit.frames.length) {
       refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
     }

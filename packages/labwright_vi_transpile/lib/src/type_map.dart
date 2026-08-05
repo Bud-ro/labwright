@@ -54,6 +54,44 @@ abstract final class LvRuntimeType {
   static const String anonymousEnum = 'LvEnum';
 }
 
+/// What kind of value a mapped type carries, and how Dart spells it.
+///
+/// This is the type identity a lowering asks about: whether a wire carries a
+/// boolean, a string or a path is this enum, never the emitted text. The
+/// carriers Dart spells one fixed way state that spelling here; the two that
+/// do not are [nominal], a generated declaration's class or enum, and
+/// [compound], a type written over other types — an array's storage or a
+/// record — which the mapping spells for itself.
+enum LvCarrier {
+  voidValue('void'),
+  boolean('bool'),
+  text('String'),
+  integer('int'),
+  float('double'),
+  error(LvRuntimeType.error, runtime: true),
+  path(LvRuntimeType.path, runtime: true),
+  refnum(LvRuntimeType.refnum, runtime: true),
+  variant(LvRuntimeType.variant, runtime: true),
+  nominal(null),
+  compound(null)
+  ;
+
+  const LvCarrier(this.dartType, {this.runtime = false});
+
+  /// The Dart source every value of this carrier is written as, or null when
+  /// the spelling comes from the mapped type rather than from the carrier.
+  final String? dartType;
+
+  /// Whether `package:labwright_lv_runtime` declares this carrier's type, so a
+  /// file spelling it must import the runtime.
+  final bool runtime;
+}
+
+/// The carrier a number of this width is held in.
+extension LvNumericCarrier on LvNumericKind {
+  LvCarrier get carrier => isFloat ? LvCarrier.float : LvCarrier.integer;
+}
+
 /// The Dart type names a generated declaration may **not** take, because the
 /// emitted file spells them itself and a class of the same name would shadow
 /// them: the runtime types, `dart:typed_data`'s lists, and the `dart:core`
@@ -88,10 +126,15 @@ const Set<String> kLvRuntimeDeclaredTypes = {
   LvRuntimeType.arrayNd,
 };
 
-/// Whether the Dart type source [dartType] names a runtime type, so a file
-/// that spells it must import the runtime.
-bool lvTypeNeedsRuntime(String? dartType) =>
-    dartType != null && kLvRuntimeDeclaredTypes.any((name) => dartType.contains(name));
+/// Whether the Dart source of [type] names a runtime type, so a file that
+/// spells it must import the runtime: the type IS one ([LvCarrier.runtime]),
+/// or it is a compound spelled over one.
+///
+/// A nominal type is not one however its class is spelled — the runtime types
+/// are reserved names ([kLvReservedTypeNames]), so no generated declaration
+/// can be called one, and what a declaration's own fields name is noted where
+/// the declaration is written.
+bool lvTypeNeedsRuntime(LvTypeMapping type) => type._namesRuntimeType || (type.carrier?.runtime ?? false);
 
 /// The `dart:typed_data` list types an emitted Dart type may name — the array
 /// storages of [LvNumericKind], plus the `Uint32List` an [LvRuntimeType.arrayNd]
@@ -301,16 +344,40 @@ class LvDeclarations {
 
 /// One pool entry's Dart representation.
 class LvTypeMapping {
-  /// A type with a decided Dart representation [dartType].
-  const LvTypeMapping.mapped(this.dartType, {this.numeric, this.note, this.declarations = const []})
+  /// A type whose Dart representation is [carrier]'s own spelling.
+  const LvTypeMapping.mapped(LvCarrier this.carrier, {this.numeric, this.note})
     : status = LvMapStatus.mapped,
+      _source = null,
+      _namesRuntimeType = false,
+      unmappedCode = null,
+      declarations = const [];
+
+  /// A type spelled over other types — an array's storage ([lvArrayDartType])
+  /// or a record ([lvRecordType]). [namesRuntimeType] states whether any type
+  /// it is built over is a runtime type, which is what decides the file's
+  /// runtime import.
+  LvTypeMapping.compound(String this._source, {required bool namesRuntimeType, this.note, this.declarations = const []})
+    : status = LvMapStatus.mapped,
+      carrier = LvCarrier.compound,
+      numeric = null,
+      _namesRuntimeType = namesRuntimeType,
       unmappedCode = null;
+
+  /// An array of [dimCount] dimensions over the mapped element [element].
+  LvTypeMapping.array(LvTypeMapping element, int dimCount)
+    : this.compound(
+        lvArrayDartType(element, dimCount),
+        namesRuntimeType: dimCount > 1 || lvTypeNeedsRuntime(element),
+        declarations: element.declarations,
+      );
 
   /// A type whose Dart spelling is a **nominal class**: a named cluster's or a
   /// named enum's [declaration], which the generated library writes.
   LvTypeMapping.nominal(LvTypeDecl declaration, {this.note})
     : status = LvMapStatus.mapped,
-      dartType = declaration.name,
+      carrier = LvCarrier.nominal,
+      _source = declaration.name,
+      _namesRuntimeType = false,
       numeric = null,
       unmappedCode = null,
       declarations = [declaration];
@@ -318,7 +385,9 @@ class LvTypeMapping {
   /// A descriptor that is not a dataflow value ([kInternalTypeCodes]).
   const LvTypeMapping.internal(this.note)
     : status = LvMapStatus.internal,
-      dartType = null,
+      carrier = null,
+      _source = null,
+      _namesRuntimeType = false,
       numeric = null,
       unmappedCode = null,
       declarations = const [];
@@ -326,15 +395,30 @@ class LvTypeMapping {
   /// A value type awaiting a representation decision ([kUnmappedTypeCodes]).
   const LvTypeMapping.unmapped(this.note, {this.unmappedCode})
     : status = LvMapStatus.unmapped,
-      dartType = null,
+      carrier = null,
+      _source = null,
+      _namesRuntimeType = false,
       numeric = null,
       declarations = const [];
 
   final LvMapStatus status;
 
+  /// What kind of value the type carries, or null unless [status] is
+  /// [LvMapStatus.mapped]. Two types are the same type when their carriers and
+  /// their [dartType]s agree.
+  final LvCarrier? carrier;
+
+  /// The spelling of a [LvCarrier.nominal] or [LvCarrier.compound] type, which
+  /// the carrier does not state.
+  final String? _source;
+
+  /// Whether a compound type is spelled over a runtime type
+  /// ([lvTypeNeedsRuntime]).
+  final bool _namesRuntimeType;
+
   /// The Dart type source (`int`, `Uint8List`, `ErrorOut`, `(int, String)`), or
   /// null unless [status] is [LvMapStatus.mapped].
-  final String? dartType;
+  String? get dartType => _source ?? carrier?.dartType;
 
   /// The numeric width model when this entry is a scalar number, else null.
   final LvNumericKind? numeric;
@@ -373,24 +457,24 @@ LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0, LvDeclar
   if (kInternalTypeCodes[type.code] case final why?) return LvTypeMapping.internal(why);
   if (kUnmappedTypeCodes[type.code] case final why?) return LvTypeMapping.unmapped(why, unmappedCode: type.code);
   if (LvNumericKind.ofCode(type.code) case final kind?) {
-    return LvTypeMapping.mapped(kind.dartType, numeric: kind);
+    return LvTypeMapping.mapped(kind.carrier, numeric: kind);
   }
   switch (type.code) {
     case TypeCode.voidType:
-      return const LvTypeMapping.mapped('void');
+      return const LvTypeMapping.mapped(LvCarrier.voidValue);
     case TypeCode.boolean:
     case TypeCode.booleanU16:
-      return const LvTypeMapping.mapped('bool');
+      return const LvTypeMapping.mapped(LvCarrier.boolean);
     case TypeCode.string:
     case TypeCode.cString:
     case TypeCode.pascalString:
-      return const LvTypeMapping.mapped('String', note: kStringEncodingNote);
+      return const LvTypeMapping.mapped(LvCarrier.text, note: kStringEncodingNote);
     case TypeCode.path:
-      return const LvTypeMapping.mapped(LvRuntimeType.path);
+      return const LvTypeMapping.mapped(LvCarrier.path);
     case TypeCode.variant:
-      return const LvTypeMapping.mapped(LvRuntimeType.variant, note: 'variant payloads are not decoded');
+      return const LvTypeMapping.mapped(LvCarrier.variant, note: 'variant payloads are not decoded');
     case TypeCode.refnum:
-      return const LvTypeMapping.mapped(LvRuntimeType.refnum, note: kRefnumSubtypeNote);
+      return const LvTypeMapping.mapped(LvCarrier.refnum, note: kRefnumSubtypeNote);
     case TypeCode.enumU8:
     case TypeCode.enumU16:
     case TypeCode.enumU32:
@@ -429,10 +513,7 @@ LvTypeMapping _mapArray(ViType type, List<ViType> pool, int depth, LvDeclaration
   if (!element.isMapped) {
     return LvTypeMapping.unmapped('array element is unmapped: ${element.note}', unmappedCode: element.unmappedCode);
   }
-  return LvTypeMapping.mapped(
-    lvArrayDartType(element, type.dimCount ?? 1),
-    declarations: element.declarations,
-  );
+  return LvTypeMapping.array(element, type.dimCount ?? 1);
 }
 
 /// The Dart type of an array of [element] with [dimCount] dimensions.
@@ -484,7 +565,7 @@ String lvArrayFreeze(LvTypeMapping element, String builder) =>
 /// which is the descriptor's own name for a plain cluster and the **typedef's**
 /// name when a typedef wraps it.
 LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int depth, LvDeclarations? declarations) {
-  if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvRuntimeType.error);
+  if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvCarrier.error);
   final members = clusterFields(type, pool);
   if (members.length != type.members.length) {
     return const LvTypeMapping.unmapped('cluster member indices did not resolve against the pool');
@@ -524,8 +605,9 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
       ),
     );
   }
-  return LvTypeMapping.mapped(
+  return LvTypeMapping.compound(
     lvRecordType(members, mapped),
+    namesRuntimeType: mapped.any(lvTypeNeedsRuntime),
     declarations: [for (final field in mapped) ...field.declarations],
   );
 }
@@ -540,7 +622,7 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
 LvTypeMapping _mapEnum(ViType type, String? label, LvDeclarations? declarations) {
   final stem = label == null ? '' : lvClassName(label);
   final className = stem.isEmpty ? LvRuntimeType.anonymousEnum : stem;
-  final signature = 'E:$className|${type.enumItems.join(' ')}';
+  final signature = 'E:$className|${type.enumItems.join('\u0000')}';
   return LvTypeMapping.nominal(
     (declarations ?? LvDeclarations()).allocate(
       className,

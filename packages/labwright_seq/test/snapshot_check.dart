@@ -33,6 +33,17 @@ Map<String, Object?> _sections() {
   return _sectionsCache = (root['sections'] as Map).cast<String, Object?>();
 }
 
+/// Named counters accumulated over one corpus pass. A name springs into being
+/// on its first [bump] and reads 0 until then, so the key list a snapshot call
+/// spells out is the sole declaration of what that pass measures.
+class Tally {
+  final Map<String, int> _counts = {};
+
+  void bump(String name, [int by = 1]) => _counts[name] = (_counts[name] ?? 0) + by;
+
+  int operator [](String name) => _counts[name] ?? 0;
+}
+
 /// Asserts [actual] equals snapshot section [section] exactly — same key set,
 /// same value per key. Under the regen tool it records [actual] instead.
 void expectCorpusSnapshot(String section, Map<String, int> actual) {

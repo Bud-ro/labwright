@@ -535,9 +535,50 @@ class LvStructTerminal {
   final bool outerIsSink;
 }
 
+/// Which frame of a Diagram Disable structure its selector label names, with
+/// [other] for a label that names neither and for a structure carrying none.
+/// LabVIEW runs the Enabled frame and drops the Disabled one.
+enum LvDisableFrame {
+  enabled,
+  disabled,
+  other
+  ;
+
+  static LvDisableFrame ofLabel(String? label) => switch (label?.trim().toLowerCase()) {
+    'enabled' => enabled,
+    'disabled' => disabled,
+    _ => other,
+  };
+}
+
+/// Which frame of a two-frame Case structure its selector label names: the
+/// values of a boolean selector, and an error-cluster selector's own pair,
+/// with [other] for a label neither vocabulary holds.
+enum LvCaseLabel {
+  isTrue('true'),
+  isFalse('false'),
+  error('error'),
+  noError('no error'),
+  other('')
+  ;
+
+  const LvCaseLabel(this.label);
+
+  /// The text LabVIEW spells the label with.
+  final String label;
+
+  static LvCaseLabel ofLabel(String? label) => switch (label?.trim().toLowerCase()) {
+    'true' => isTrue,
+    'false' => isFalse,
+    'error' => error,
+    'no error' => noError,
+    _ => other,
+  };
+}
+
 /// A structure node: its terminals, and one region per frame.
 class LvStructUnit extends LvUnit {
-  const LvStructUnit({
+  LvStructUnit({
     required this.oid,
     required this.kind,
     required this.terminals,
@@ -547,7 +588,8 @@ class LvStructUnit extends LvUnit {
     this.selectorRanges = const <ViSelectorRange>[],
     this.selectorStrings = const <String>[],
     this.defaultFrame = 0,
-  });
+  }) : displayedDisable = LvDisableFrame.ofLabel(displayedCase),
+       displayedLabel = LvCaseLabel.ofLabel(displayedCase);
 
   @override
   final int oid;
@@ -568,6 +610,12 @@ class LvStructUnit extends LvUnit {
   /// label. Null when no label was recovered. It is the only case value the
   /// file states in WORDS; the values themselves are in [selectorRanges].
   final String? displayedCase;
+
+  /// Which Diagram Disable frame [displayedCase] names.
+  final LvDisableFrame displayedDisable;
+
+  /// Which two-frame Case frame [displayedCase] names.
+  final LvCaseLabel displayedLabel;
 
   /// A Case structure's per-frame case values ([ViHeapObject.selectorRanges]),
   /// in the file's own order. Empty for the structures that carry no range list

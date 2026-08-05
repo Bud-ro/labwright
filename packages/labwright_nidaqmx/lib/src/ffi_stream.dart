@@ -26,7 +26,7 @@ class _StreamRequest {
     required this.rateHz,
     required this.samplesPerChunk,
     required this.totalSamples,
-    required this.formatIndex,
+    required this.format,
     required this.min,
     required this.max,
     required this.terminalConfig,
@@ -39,14 +39,56 @@ class _StreamRequest {
   final double rateHz;
   final int samplesPerChunk;
   final int? totalSamples;
-  final int formatIndex;
+  final DaqSampleFormat format;
   final double min;
   final double max;
   final int terminalConfig;
   final double readTimeout;
 }
 
-const _doneTag = '__daq_stream_done__';
+/// Command the stream owner sends the worker over the worker's control port.
+enum _StreamCommand {
+  /// Leave the read loop, then stop and clear the task.
+  stop,
+
+  /// Hold the read loop before its next read.
+  pause,
+
+  /// Release a held read loop.
+  resume,
+}
+
+/// Worker-to-owner message. Sample chunks are not part of this set: they cross the
+/// port bare as [TransferableTypedData], so delivering one allocates no wrapper.
+sealed class _WorkerReply {
+  const _WorkerReply();
+}
+
+/// First reply of every run: the port that accepts [_StreamCommand]s.
+final class _WorkerReady extends _WorkerReply {
+  const _WorkerReady(this.commands);
+
+  final SendPort commands;
+}
+
+/// A failed library load or DAQmx call. The owner turns this into a [DaqmxException];
+/// a [_WorkerDone] always follows.
+final class _WorkerFailed extends _WorkerReply {
+  const _WorkerFailed({required this.status, required this.operation, required this.message});
+
+  /// Negative DAQmx status, or -1 when the failure preceded any DAQmx call.
+  final int status;
+
+  /// The DAQmx entry point that failed, or `load` for the library itself.
+  final String operation;
+
+  final String message;
+}
+
+/// The read loop has ended and the task is cleared; no further replies follow.
+final class _WorkerDone extends _WorkerReply {
+  const _WorkerDone();
+}
 
 /// Buffered acquisition as a [Stream] of typed chunks, run on a worker isolate.
 /// Mirrors the [DaqmxApi.readStream] contract for the FFI backend.
@@ -69,7 +111,7 @@ Stream<TypedData> ffiReadStream({
   late StreamController<TypedData> controller;
 
   Future<void> teardown() async {
-    control?.send('stop');
+    control?.send(_StreamCommand.stop);
     await sub?.cancel();
     fromWorker.close();
     isolate?.kill();
@@ -78,24 +120,19 @@ Stream<TypedData> ffiReadStream({
 
   controller = StreamController<TypedData>(
     onListen: () async {
-      sub = fromWorker.listen((msg) {
-        if (msg is SendPort) {
-          control = msg;
-          // Honor any pause that arrived before the worker was ready.
-          if (controller.isPaused) control!.send('pause');
-        } else if (msg is TransferableTypedData) {
-          controller.add(_view(msg.materialize(), format));
-        } else if (msg == _doneTag) {
-          controller.close();
-        } else if (msg is Map) {
-          controller.addError(
-            DaqmxException(
-              msg['status'] as int? ?? -1,
-              msg['error'] as String? ?? 'stream error',
-              operation: msg['op'] as String?,
-            ),
-          );
-          controller.close();
+      sub = fromWorker.listen((reply) {
+        switch (reply) {
+          case final TransferableTypedData chunk:
+            controller.add(_view(chunk.materialize(), format));
+          case _WorkerReady(:final commands):
+            control = commands;
+            // Honor any pause that arrived before the worker was ready.
+            if (controller.isPaused) commands.send(_StreamCommand.pause);
+          case _WorkerFailed(:final status, :final message, :final operation):
+            controller.addError(DaqmxException(status, message, operation: operation));
+            controller.close();
+          case _WorkerDone():
+            controller.close();
         }
       });
       try {
@@ -108,7 +145,7 @@ Stream<TypedData> ffiReadStream({
             rateHz: rateHz,
             samplesPerChunk: samplesPerChunk,
             totalSamples: totalSamples,
-            formatIndex: format.index,
+            format: format,
             min: min,
             max: max,
             terminalConfig: terminalConfig,
@@ -116,13 +153,13 @@ Stream<TypedData> ffiReadStream({
           ),
           onError: fromWorker.sendPort,
         );
-      } catch (e) {
-        controller.addError(DaqmxUnavailable('failed to start stream worker: $e'));
+      } catch (error) {
+        controller.addError(DaqmxUnavailable('failed to start stream worker: $error'));
         await controller.close();
       }
     },
-    onPause: () => control?.send('pause'),
-    onResume: () => control?.send('resume'),
+    onPause: () => control?.send(_StreamCommand.pause),
+    onResume: () => control?.send(_StreamCommand.resume),
     onCancel: teardown,
   );
 
@@ -149,58 +186,63 @@ TypedData _view(ByteBuffer buf, DaqSampleFormat format) {
 
 Future<void> _streamWorker(_StreamRequest req) async {
   final control = ReceivePort();
-  req.toMain.send(control.sendPort);
+  req.toMain.send(_WorkerReady(control.sendPort));
 
   var stop = false;
   var paused = false;
   Completer<void>? resumeSignal;
-  control.listen((m) {
-    if (m == 'stop') {
-      stop = true;
-      resumeSignal?.complete();
-      resumeSignal = null;
-    } else if (m == 'pause') {
-      paused = true;
-    } else if (m == 'resume') {
-      paused = false;
-      resumeSignal?.complete();
-      resumeSignal = null;
+  control.listen((message) {
+    switch (message as _StreamCommand) {
+      case _StreamCommand.stop:
+        stop = true;
+        resumeSignal?.complete();
+        resumeSignal = null;
+      case _StreamCommand.pause:
+        paused = true;
+      case _StreamCommand.resume:
+        paused = false;
+        resumeSignal?.complete();
+        resumeSignal = null;
     }
   });
 
-  final format = DaqSampleFormat.values[req.formatIndex];
-  NidaqmxBindings b;
+  final format = req.format;
+  NidaqmxBindings bindings;
   try {
-    b = NidaqmxBindings(loadNidaqmx(path: req.libraryPath));
-  } catch (e) {
-    req.toMain.send({'error': 'NI-DAQmx unavailable: $e', 'op': 'load'});
-    req.toMain.send(_doneTag);
+    bindings = NidaqmxBindings(loadNidaqmx(path: req.libraryPath));
+  } catch (error) {
+    req.toMain.send(
+      _WorkerFailed(status: -1, operation: 'load', message: 'NI-DAQmx unavailable: $error'),
+    );
+    req.toMain.send(const _WorkerDone());
     control.close();
     return;
   }
 
   final arena = Arena();
   final taskPtr = arena<TaskHandle>();
-  String? errFor(int status, String op) {
+  String? errorText(int status) {
     if (status >= 0) return null;
     const cap = 2048;
     final buf = arena<Uint8>(cap);
     buf[0] = 0;
-    b.getExtendedErrorInfo(buf.cast<Utf8>(), cap);
+    bindings.getExtendedErrorInfo(buf.cast<Utf8>(), cap);
     return buf.cast<Utf8>().toDartString();
   }
 
-  void fail(int status, String op, String text) {
-    req.toMain.send({'error': text, 'status': status, 'op': op});
+  void fail(int status, String operation, String fallback) {
+    req.toMain.send(
+      _WorkerFailed(status: status, operation: operation, message: errorText(status) ?? fallback),
+    );
   }
 
   var task = nullptr.cast<Void>();
   try {
-    var s = b.createTask(''.toNativeUtf8(allocator: arena), taskPtr);
-    if (s < 0) return fail(s, 'DAQmxCreateTask', errFor(s, 'DAQmxCreateTask') ?? 'create failed');
+    var status = bindings.createTask(''.toNativeUtf8(allocator: arena), taskPtr);
+    if (status < 0) return fail(status, 'DAQmxCreateTask', 'create failed');
     task = taskPtr.value;
 
-    s = b.createAIVoltageChan(
+    status = bindings.createAIVoltageChan(
       task,
       req.channel.toNativeUtf8(allocator: arena),
       nullptr,
@@ -210,31 +252,32 @@ Future<void> _streamWorker(_StreamRequest req) async {
       DaqmxVal.volts,
       nullptr,
     );
-    if (s < 0) {
-      return fail(s, 'DAQmxCreateAIVoltageChan', errFor(s, 'DAQmxCreateAIVoltageChan') ?? 'channel failed');
-    }
+    if (status < 0) return fail(status, 'DAQmxCreateAIVoltageChan', 'channel failed');
 
     final continuous = req.totalSamples == null;
     final mode = continuous ? DaqmxVal.contSamps : DaqmxVal.finiteSamps;
     // Buffer hint: total for finite, a few chunks for continuous.
     final sampsHint = req.totalSamples ?? (req.samplesPerChunk * 4);
-    s = b.cfgSampClkTiming(task, ''.toNativeUtf8(allocator: arena), req.rateHz, DaqmxVal.rising, mode, sampsHint);
-    if (s < 0) {
-      return fail(s, 'DAQmxCfgSampClkTiming', errFor(s, 'DAQmxCfgSampClkTiming') ?? 'timing failed');
-    }
+    status = bindings.cfgSampClkTiming(
+      task,
+      ''.toNativeUtf8(allocator: arena),
+      req.rateHz,
+      DaqmxVal.rising,
+      mode,
+      sampsHint,
+    );
+    if (status < 0) return fail(status, 'DAQmxCfgSampClkTiming', 'timing failed');
 
     // For continuous high-rate acquisition, give the driver DMA headroom well beyond a
     // single chunk so it doesn't overrun between our reads. (Finite uses the default.)
     if (continuous) {
       final bufSamps = req.samplesPerChunk * 8 < 100000 ? 100000 : req.samplesPerChunk * 8;
-      s = b.cfgInputBuffer(task, bufSamps);
-      if (s < 0) {
-        return fail(s, 'DAQmxCfgInputBuffer', errFor(s, 'DAQmxCfgInputBuffer') ?? 'buffer failed');
-      }
+      status = bindings.cfgInputBuffer(task, bufSamps);
+      if (status < 0) return fail(status, 'DAQmxCfgInputBuffer', 'buffer failed');
     }
 
-    s = b.startTask(task);
-    if (s < 0) return fail(s, 'DAQmxStartTask', errFor(s, 'DAQmxStartTask') ?? 'start failed');
+    status = bindings.startTask(task);
+    if (status < 0) return fail(status, 'DAQmxStartTask', 'start failed');
 
     final sampsRead = arena<Int32>();
     final reserved = nullptr.cast<Uint32>();
@@ -251,37 +294,31 @@ Future<void> _streamWorker(_StreamRequest req) async {
       final want = continuous ? chunk : (req.totalSamples! - delivered).clamp(0, chunk);
       if (want == 0) break;
 
-      final transfer = _readChunk(b, format, task, want, req.readTimeout, sampsRead, reserved, arena);
-      if (transfer == null) {
-        final st = sampsRead.value; // unused for error; status captured below
-        // _readChunk returns null only on a negative status, surfaced via _lastReadStatus
-        final code = _lastReadStatus;
-        return fail(code, _readOp(format), errFor(code, _readOp(format)) ?? 'read failed (st=$st)');
-      }
+      final read = _readChunk(bindings, format, task, want, req.readTimeout, sampsRead, reserved, arena);
+      final samples = read.samples;
+      if (samples == null) return fail(read.status, _readOp(format), 'read failed');
       final got = sampsRead.value;
       if (got <= 0) {
         await Future<void>.delayed(Duration.zero);
         continue;
       }
-      req.toMain.send(transfer);
+      req.toMain.send(samples);
       delivered += got;
       if (!continuous && delivered >= req.totalSamples!) break;
       await Future<void>.delayed(Duration.zero); // let control messages land
     }
   } finally {
     if (task != nullptr) {
-      b.stopTask(task);
-      b.clearTask(task);
+      bindings.stopTask(task);
+      bindings.clearTask(task);
     }
     arena.releaseAll();
-    req.toMain.send(_doneTag);
+    req.toMain.send(const _WorkerDone());
     control.close();
   }
 }
 
-int _lastReadStatus = 0;
-
-String _readOp(DaqSampleFormat f) => switch (f) {
+String _readOp(DaqSampleFormat format) => switch (format) {
   DaqSampleFormat.volts => 'DAQmxReadAnalogF64',
   DaqSampleFormat.rawI16 => 'DAQmxReadBinaryI16',
   DaqSampleFormat.rawI32 => 'DAQmxReadBinaryI32',
@@ -289,10 +326,13 @@ String _readOp(DaqSampleFormat f) => switch (f) {
   DaqSampleFormat.rawU32 => 'DAQmxReadBinaryU32',
 };
 
-/// Read one block in [format] and package it as transferable bytes, or null on a
-/// negative DAQmx status (status stashed in [_lastReadStatus]).
-TransferableTypedData? _readChunk(
-  NidaqmxBindings b,
+/// One buffered read: the block as transferable bytes plus the DAQmx status.
+/// [samples] is null exactly when [status] is negative.
+typedef _ChunkRead = ({TransferableTypedData? samples, int status});
+
+/// Read one block in [format] and package it as transferable bytes.
+_ChunkRead _readChunk(
+  NidaqmxBindings bindings,
   DaqSampleFormat format,
   TaskHandle task,
   int want,
@@ -305,28 +345,30 @@ TransferableTypedData? _readChunk(
   switch (format) {
     case DaqSampleFormat.volts:
       final buf = arena<Double>(want);
-      _lastReadStatus = b.readAnalogF64(task, want, timeout, fill, buf, want, sampsRead, reserved);
-      if (_lastReadStatus < 0) return null;
-      return TransferableTypedData.fromList([Float64List.fromList(buf.asTypedList(sampsRead.value))]);
+      final status = bindings.readAnalogF64(task, want, timeout, fill, buf, want, sampsRead, reserved);
+      if (status < 0) return (samples: null, status: status);
+      return (samples: _transfer(Float64List.fromList(buf.asTypedList(sampsRead.value))), status: status);
     case DaqSampleFormat.rawI16:
       final buf = arena<Int16>(want);
-      _lastReadStatus = b.readBinaryI16(task, want, timeout, fill, buf, want, sampsRead, reserved);
-      if (_lastReadStatus < 0) return null;
-      return TransferableTypedData.fromList([Int16List.fromList(buf.asTypedList(sampsRead.value))]);
+      final status = bindings.readBinaryI16(task, want, timeout, fill, buf, want, sampsRead, reserved);
+      if (status < 0) return (samples: null, status: status);
+      return (samples: _transfer(Int16List.fromList(buf.asTypedList(sampsRead.value))), status: status);
     case DaqSampleFormat.rawI32:
       final buf = arena<Int32>(want);
-      _lastReadStatus = b.readBinaryI32(task, want, timeout, fill, buf, want, sampsRead, reserved);
-      if (_lastReadStatus < 0) return null;
-      return TransferableTypedData.fromList([Int32List.fromList(buf.asTypedList(sampsRead.value))]);
+      final status = bindings.readBinaryI32(task, want, timeout, fill, buf, want, sampsRead, reserved);
+      if (status < 0) return (samples: null, status: status);
+      return (samples: _transfer(Int32List.fromList(buf.asTypedList(sampsRead.value))), status: status);
     case DaqSampleFormat.rawU16:
       final buf = arena<Uint16>(want);
-      _lastReadStatus = b.readBinaryU16(task, want, timeout, fill, buf, want, sampsRead, reserved);
-      if (_lastReadStatus < 0) return null;
-      return TransferableTypedData.fromList([Uint16List.fromList(buf.asTypedList(sampsRead.value))]);
+      final status = bindings.readBinaryU16(task, want, timeout, fill, buf, want, sampsRead, reserved);
+      if (status < 0) return (samples: null, status: status);
+      return (samples: _transfer(Uint16List.fromList(buf.asTypedList(sampsRead.value))), status: status);
     case DaqSampleFormat.rawU32:
       final buf = arena<Uint32>(want);
-      _lastReadStatus = b.readBinaryU32(task, want, timeout, fill, buf, want, sampsRead, reserved);
-      if (_lastReadStatus < 0) return null;
-      return TransferableTypedData.fromList([Uint32List.fromList(buf.asTypedList(sampsRead.value))]);
+      final status = bindings.readBinaryU32(task, want, timeout, fill, buf, want, sampsRead, reserved);
+      if (status < 0) return (samples: null, status: status);
+      return (samples: _transfer(Uint32List.fromList(buf.asTypedList(sampsRead.value))), status: status);
   }
 }
+
+TransferableTypedData _transfer(TypedData samples) => TransferableTypedData.fromList([samples]);

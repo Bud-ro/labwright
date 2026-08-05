@@ -70,6 +70,13 @@ const _knownOffenders = {
   'RemoveUnusedChannels.seq: type name Obj',
 };
 
+/// The counters the `binary_sweep` snapshot section pins, by name. The byte
+/// coverage totals are spelled out at the call site.
+final _binarySweepCounters =
+    'binaries covFiles withNames totalNames anchors nonzeroBaseFiles withLeading leadingTotal withTs tsTotal '
+            'withRr withFa groupArrays partialGroups steps ids comments elementArrays elements dataSubProps'
+        .split(' ');
+
 /// Whole-corpus honesty sweep over every binary (one streaming pass): the
 /// decoders must never fabricate (no structural tokens, types from the file's
 /// own table, `ID#:` anchors, bounds == element counts, byte-coverage
@@ -118,10 +125,7 @@ void main() {
   }
 
   test('whole corpus: nothing fabricates, all invariants hold, censuses match the snapshot', () {
-    var binaries = 0, covFiles = 0, withNames = 0, totalNames = 0, nonzeroBaseFiles = 0, anchors = 0;
-    var withLeading = 0, leadingTotal = 0, withTs = 0, tsTotal = 0, withRr = 0, withFa = 0;
-    var groupArrays = 0, steps = 0, ids = 0, comments = 0, partialGroups = 0;
-    var elementArrays = 0, elements = 0, dataSubProps = 0;
+    final tally = Tally();
     var totalCov = const BinaryByteCoverage(
       bodyBytes: 0,
       poolBytes: 0,
@@ -133,7 +137,7 @@ void main() {
     for (final f in files) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binaries++;
+      tally.bump('binaries');
       final base = f.uri.pathSegments.last;
 
       // Byte-coverage scoreboard invariants + aggregate.
@@ -141,14 +145,14 @@ void main() {
       if (cov != null) {
         expect(cov.recordUndecodedBytes, greaterThanOrEqualTo(0), reason: f.path);
         expect(cov.recordRegionBytes, greaterThan(0), reason: f.path);
-        covFiles++;
+        tally.bump('covFiles');
         totalCov = totalCov + cov;
       }
 
       // Type-name recovery: never a structural token.
       final names = binaryTypeNames(bytes);
-      if (names.isNotEmpty) withNames++;
-      totalNames += names.length;
+      if (names.isNotEmpty) tally.bump('withNames');
+      tally.bump('totalNames', names.length);
       for (final name in names) {
         if (_typeNameTokens.contains(name)) offenders.add('$base: type name $name');
       }
@@ -156,11 +160,11 @@ void main() {
 
       // Type-index base recovery + the 0-fabrication anchor guard: every
       // decoded DescriptionFormat/DefaultNameFormat must be Expression-typed.
-      if (binaryTypeIndexBase(bytes) != 0) nonzeroBaseFiles++;
+      if (binaryTypeIndexBase(bytes) != 0) tally.bump('nonzeroBaseFiles');
       void anchorWalk(List<BinaryTypeField> fs) {
         for (final field in fs) {
           if ((field.name == 'DescriptionFormat' || field.name == 'DefaultNameFormat') && field.typeName != null) {
-            anchors++;
+            tally.bump('anchors');
             if (field.typeName != 'Expression') offenders.add('$base: ${field.name} -> ${field.typeName}');
           }
           anchorWalk(field.children);
@@ -171,7 +175,7 @@ void main() {
       // never structural tokens.
       void elementWalk(BinaryTypeField field, bool isElement) {
         if (isElement) {
-          elements++;
+          tally.bump('elements');
           for (final child in field.children) {
             if (_elementTokens.contains(child.name)) {
               offenders.add('$base: element child "${child.name}" is a structural token');
@@ -179,7 +183,7 @@ void main() {
           }
         }
         final elementContext = field.isArray && field.children.isNotEmpty;
-        if (elementContext) elementArrays++;
+        if (elementContext) tally.bump('elementArrays');
         for (final child in field.children) {
           elementWalk(child, elementContext);
         }
@@ -194,14 +198,14 @@ void main() {
 
       // Sequence outlines: leading subprops, TS subprops, group arrays.
       for (final outline in binarySequenceOutlines(bytes)) {
-        if (outline.comment != null) comments++;
-        if (outline.leadingSubProps.isNotEmpty) withLeading++;
+        if (outline.comment != null) tally.bump('comments');
+        if (outline.leadingSubProps.isNotEmpty) tally.bump('withLeading');
         for (final sp in outline.leadingSubProps) {
-          leadingTotal++;
+          tally.bump('leadingTotal');
           if (sp.name != 'Parameters' && sp.name != 'Locals') offenders.add('$base: leading subprop ${sp.name}');
         }
         for (final g in outline.groupArrays) {
-          groupArrays++;
+          tally.bump('groupArrays');
           if (!const {'Main', 'Setup', 'Cleanup'}.contains(g.name)) offenders.add('$base: group ${g.name}');
           if (g.className != 'Objs') offenders.add('$base: group class ${g.className}');
           final count = boundCount(g.arrayLBound, g.arrayUBound);
@@ -211,7 +215,7 @@ void main() {
             // prefix — the remainder is an explicit undecoded span, never
             // padded or fabricated.
             if (g.partialArray) {
-              partialGroups++;
+              tally.bump('partialGroups');
               expect(
                 g.children,
                 isNotEmpty,
@@ -227,7 +231,7 @@ void main() {
             }
           }
           for (final s in g.children) {
-            steps++;
+            tally.bump('steps');
             expect(s.className, 'Step', reason: '$base ${outline.name}.${g.name}');
             expect(s.name, isNotEmpty, reason: '$base ${outline.name}.${g.name}');
             if (s.typeName != null) {
@@ -239,18 +243,18 @@ void main() {
             }
             final id = _child(_child(s, 'TS') ?? s, 'Id');
             if (id != null && id.value != null) {
-              ids++;
+              tally.bump('ids');
               expect(id.value, startsWith('ID#:'), reason: '$base step ${s.name}');
             }
           }
         }
         for (final step in [...outline.setup, ...outline.main, ...outline.cleanup, ...outline.ungrouped]) {
-          if (step.tsSubProps.isNotEmpty) withTs++;
+          if (step.tsSubProps.isNotEmpty) tally.bump('withTs');
           for (final sp in step.tsSubProps) {
-            tsTotal++;
+            tally.bump('tsTotal');
             if (_tsTokens.contains(sp.name)) offenders.add('$base: TS subprop ${sp.name}');
           }
-          dataSubProps += step.dataSubProps.length;
+          tally.bump('dataSubProps', step.dataSubProps.length);
           for (final field in step.dataSubProps) {
             if (!const {'Measurement', 'PinMapPath'}.contains(field.name)) {
               offenders.add('$base: data subprop ${field.name}');
@@ -266,14 +270,14 @@ void main() {
       for (final s in parseSeqFile(bytes).sequences) {
         final rr = s.raw.prop('RecordResults');
         if (rr != null) {
-          withRr++;
+          tally.bump('withRr');
           if (rr.className != 'Bool' || (rr.scalar != 'true' && rr.scalar != 'false')) {
             offenders.add('$base: RecordResults=${rr.className}/${rr.scalar}');
           }
         }
         final fa = s.raw.prop('FailureAction');
         if (fa != null) {
-          withFa++;
+          tally.bump('withFa');
           if (fa.className != 'Num' || int.tryParse(fa.scalar ?? '') == null) {
             offenders.add('$base: FailureAction=${fa.className}/${fa.scalar}');
           }
@@ -291,11 +295,11 @@ void main() {
     }
 
     print(
-      'binary sweep: $binaries binaries · $withNames with type names ($totalNames) · '
-      '$nonzeroBaseFiles misaligned · $anchors anchors · $leadingTotal leading subprops in $withLeading sequences · '
-      '$tsTotal TS subprops in $withTs steps · $withRr RecordResults · $withFa FailureAction · '
-      '$groupArrays group arrays ($partialGroups partial) · $steps step elements · $ids Id anchors · '
-      '$comments comments · $elementArrays element arrays · $elements elements · $dataSubProps data subprops',
+      'binary sweep: ${tally['binaries']} binaries · ${tally['withNames']} with type names (${tally['totalNames']}) · '
+      '${tally['nonzeroBaseFiles']} misaligned · ${tally['anchors']} anchors · ${tally['leadingTotal']} leading subprops in ${tally['withLeading']} sequences · '
+      '${tally['tsTotal']} TS subprops in ${tally['withTs']} steps · ${tally['withRr']} RecordResults · ${tally['withFa']} FailureAction · '
+      '${tally['groupArrays']} group arrays (${tally['partialGroups']} partial) · ${tally['steps']} step elements · ${tally['ids']} Id anchors · '
+      '${tally['comments']} comments · ${tally['elementArrays']} element arrays · ${tally['elements']} elements · ${tally['dataSubProps']} data subprops',
     );
     expect(
       offenders.toSet(),
@@ -308,30 +312,11 @@ void main() {
     // counts (record-region coverage is reviewable straight from the byte
     // totals: semantic/(body−pool), accounted adds structural).
     expectCorpusSnapshot('binary_sweep', {
-      'binaries': binaries,
-      'covFiles': covFiles,
+      for (final key in _binarySweepCounters) key: tally[key],
       'bodyBytes': totalCov.bodyBytes,
       'poolBytes': totalCov.poolBytes,
       'recordSemanticBytes': totalCov.recordSemanticBytes,
       'recordStructuralBytes': totalCov.recordStructuralBytes,
-      'withNames': withNames,
-      'totalNames': totalNames,
-      'anchors': anchors,
-      'nonzeroBaseFiles': nonzeroBaseFiles,
-      'withLeading': withLeading,
-      'leadingTotal': leadingTotal,
-      'withTs': withTs,
-      'tsTotal': tsTotal,
-      'withRr': withRr,
-      'withFa': withFa,
-      'groupArrays': groupArrays,
-      'partialGroups': partialGroups,
-      'steps': steps,
-      'ids': ids,
-      'comments': comments,
-      'elementArrays': elementArrays,
-      'elements': elements,
-      'dataSubProps': dataSubProps,
     });
   });
 

@@ -398,7 +398,7 @@ void main() {
         ),
       ),
     );
-    expect(s.adapter, 'labView');
+    expect(s.adapter, SeqAdapter.labView);
     expect(s.notes, contains('vi: lib NIDCPower.lvlib, proj NIDCPower.lvproj'));
     final c = s.connectorParams;
     expect(c, hasLength(2));
@@ -433,7 +433,7 @@ void main() {
         ),
       ),
     );
-    expect(s.adapter, 'python');
+    expect(s.adapter, SeqAdapter.python);
     expect(s.target, 'create_instrument_sessions');
     expect(s.notes, contains(r'python: mod ..\smu\test.py, py 3.9'));
     expectMatches(s, {'create_instrument_sessions': true, 'test.py': true});
@@ -567,7 +567,7 @@ void main() {
     ({String label, String tooltip})? disp(String? target) => StepOutline(
       name: 'x',
       type: 'y',
-      adapter: target == null ? null : 'labView',
+      adapter: target == null ? null : SeqAdapter.labView,
       target: target,
       notes: const [],
     ).targetDisplay;

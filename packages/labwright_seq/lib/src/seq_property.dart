@@ -24,6 +24,91 @@ const knownDirectiveKeys = <String>{
   '%COMMENT',
 };
 
+/// The value kind a PropertyObject declares — the `classname` token, cataloged.
+///
+/// [wire] is the token exactly as the file spells it. The vocabulary is OPEN:
+/// a typedef's base class shares the slot (`CustomResult`, `StepType`,
+/// `PropertyObjectType`, `ArrayDimensions`, … — 20 further tokens across the
+/// corpus), so [of] maps anything uncataloged to [other] and
+/// [SeqProperty.className] keeps the raw token for byte-exact writing.
+enum SeqValueClass {
+  /// A floating-point number. TestStand `Num` is an IEEE double.
+  number('Num'),
+
+  /// A boolean. [alias] `Boolean` is accepted by the readers; no corpus file
+  /// spells it that way.
+  boolean('Bool', alias: 'Boolean'),
+
+  /// A text value.
+  string('Str'),
+
+  /// A TestStand expression stored as text.
+  expression('ExprValue'),
+
+  /// A file-system path stored as text.
+  path('PathValue'),
+
+  /// An engine object reference. Every corpus site is childless and valueless.
+  reference('Ref'),
+
+  /// A structured container (cluster) with named sub-properties.
+  object('Obj'),
+
+  /// A step object, the element class of the Setup/Main/Cleanup group arrays.
+  step('Step'),
+
+  /// A sequence object, the element class of the file's `Seq` array.
+  sequence('Sequence'),
+
+  /// Array of [number].
+  numbers('Nums'),
+
+  /// Array of [string].
+  strings('Strs'),
+
+  /// Array of [boolean].
+  booleans('Bools'),
+
+  /// Array of [object].
+  objects('Objs'),
+
+  /// Array of containers. Accepted by the readers; absent from the corpus.
+  containers('Containers'),
+
+  /// A token outside this catalog — a typedef base class or a spelling not yet
+  /// seen. The raw token stays on [SeqProperty.className].
+  other('')
+  ;
+
+  const SeqValueClass(this.wire, {this.alias});
+
+  /// The token as the file spells it.
+  final String wire;
+
+  /// A second accepted spelling of [wire], or null when there is only one.
+  final String? alias;
+
+  /// Whether values of this class are TestStand arrays.
+  bool get isArray => const {numbers, strings, booleans, objects, containers}.contains(this);
+
+  /// Whether values of this class carry text in their scalar slot.
+  bool get isText => const {string, expression, path}.contains(this);
+
+  static final Map<String, SeqValueClass> _byWire = {
+    for (final cls in values)
+      if (cls != other) ...{
+        cls.wire: cls,
+        if (cls.alias != null) cls.alias!: cls,
+      },
+  };
+
+  /// The class [token] names — [other] when uncataloged.
+  static SeqValueClass from(String token) => _byWire[token] ?? other;
+
+  /// [from] over a nullable token; null when [token] is null.
+  static SeqValueClass? of(String? token) => token == null ? null : from(token);
+}
+
 /// One node in a TestStand **PropertyObject** tree — the universal unit of a
 /// `.seq` file. Sequences, steps, variables, parameters and types are all
 /// property objects; this model captures any of them faithfully (every attribute
@@ -59,9 +144,15 @@ class SeqProperty {
   /// (which serialize as bare `<value>` wrappers, no tag).
   final String? xmlTag;
 
-  /// The value-kind (`classname` attr): `Bool`, `Str`, `Number`, `Obj`, `Objs`,
-  /// `ExprValue`, `Nums`, `ArrayDimensions`, … null if absent.
+  /// The value-kind (`classname` attr): `Bool`, `Str`, `Num`, `Obj`, `Objs`,
+  /// `ExprValue`, `Nums`, `ArrayDimensions`, … null if absent. Kept verbatim so
+  /// the writers re-emit it byte-exactly; [valueClass] is the cataloged form.
   final String? className;
+
+  /// [className] resolved against the [SeqValueClass] catalog —
+  /// [SeqValueClass.other] for a typedef base class or an uncataloged spelling,
+  /// null when the property declares no class.
+  SeqValueClass? get valueClass => SeqValueClass.of(className);
 
   /// The TestStand type (`typename`/`xsi:type` attr), e.g. a step's `Statement`,
   /// `EditSubstep`, or a custom data type. null if untyped.

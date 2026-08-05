@@ -1,7 +1,7 @@
 # Primitive icon assets
 
 Generated from LabVIEW's own renders in the snippet corpus (see
-test/extract_prim_icons_test.dart): per identity, the samples are
+tool/extract_prim_icons.dart): per identity, the samples are
 aligned and consensus-voted per pixel (attached wires and neighbour
 ink vanish where the samples disagree), edge-touching wire stubs are
 erased, the result is trimmed to its ink and the exterior background

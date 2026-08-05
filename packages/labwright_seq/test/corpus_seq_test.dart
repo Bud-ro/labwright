@@ -43,6 +43,28 @@ bool _isExprLike(String s) =>
     s.contains('"') ||
     (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
 
+/// The counters the `binary_recon` snapshot section pins, by name.
+final _binaryReconCounters =
+    'binary binaryWithSequences binaryStepsRecovered binaryTypedSteps binaryModuleSteps withSentinels '
+            'totalStrings notLargest isFirst rooted scaffold5Ok realTot realHit fakeTot fakeHit withPath totalPaths '
+            'nonAsciiPaths withId withExpr withLit'
+        .split(' ');
+
+/// The counters the `xml_ini` snapshot section pins, by name. The set-derived
+/// and coverage measurements are spelled out at the call site.
+final _xmlIniCounters =
+    'xmlFiles iniFiles binaryFiles xmlSeqs xmlSteps withAction withMode withModule xmlLocals withLimits '
+            'resolvedCalls withIcon mpBlocks mpPinMaps pySteps pyParams pyParamSteps pyBound viSteps viParams '
+            'typedefFiles totalTypes typesWithFields arFiles arEntries withResult custTrueAct custFalseAct measParams '
+            'measDirected measSpecialized measNotLogged measEnumParams measEnumValues flowOpeners ifWhile forLoops '
+            'eachLoops seqsWithFlow jumpSteps filesWithJump loopSteps filesWithLoop externalCalls filesWithExternal '
+            'sigParams filesWithParams adapterName stepDesc codeTemplates runtimeEP switchSettings seqCallExpr threading '
+            'pyInterp clusterEls dbStep limitExpr fileSettings fileGlobals iniFragments iniSeqCount iniStepCount '
+            'iniLocals iniTypes iniRecognized iniNone iniWithType iniWithMode iniWithLoop overrides filesWithOverride '
+            'stepComments seqComments varComments objVarsWithFields withFlowTarget resolvedIdTargets withModuleTiming '
+            'iniCovFiles iniCovSteps iniCovModule'
+        .split(' ');
+
 /// Validates the readers against the real fetched corpus (rosetta excluded —
 /// the twin oracles have their own suite): every XML/INI `.seq` parses into
 /// the shared typed model with pinned recovery counts, every binary `.seq`
@@ -66,87 +88,45 @@ void main() {
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 
   test('XML+INI corpus (single pass): typed-lens recovery counts are pinned, nothing fabricates', () {
-    var xml = 0, ini = 0, binary = 0;
+    final tally = Tally();
     final failures = <String>[];
-
-    // XML lens counters.
-    var xmlSeqs = 0, xmlSteps = 0, withAction = 0, withModule = 0, xmlLocals = 0, withLimits = 0;
-    var resolvedCalls = 0, withMode = 0, withIcon = 0, typedSteps = 0, unknownAdapters = 0;
     var xmlCov = const SeqCoverage(total: 0, modeled: 0);
-    // Measurement plug-ins.
-    var mpBlocks = 0, mpPinMaps = 0;
-    // Python descriptors + call params.
-    var pySteps = 0, pyFn = 0, pyModule = 0, pyVersion = 0, pyParamSteps = 0, pyParams = 0, pyNamed = 0, pyBound = 0;
-    // VI calls.
-    var viSteps = 0, viParams = 0, viDisplayType = 0, viConnector = 0;
-    // Typelist typedefs.
-    var typedefFiles = 0, totalTypes = 0, typesWithFields = 0;
-    int? firstXmlTypeDefs;
-    final baseClasses = <String>{};
-    // Additional results / step results / custom condition.
-    var arFiles = 0, arEntries = 0;
-    final arKinds = <String>{};
-    var withResult = 0, withError = 0, recordedOutcomes = 0;
-    var custTrueAct = 0, custFalseAct = 0;
-    // Measurement parameters.
-    var measParams = 0, measTyped = 0, measDirected = 0, measSpecialized = 0, measNotLogged = 0;
-    var measEnumParams = 0, measEnumValues = 0;
-    final measTypes = <String>{}, measSpecs = <String>{};
-
-    // Shared XML+INI logic-export counters.
-    var flowOpeners = 0, flowEnds = 0, conds = 0, forInit = 0, forIncr = 0, eachArr = 0, eachElem = 0;
-    var ifWhile = 0, forLoops = 0, eachLoops = 0, seqsWithFlow = 0, balancedSeqs = 0, totalFlowSeqs = 0;
-    var jumpSteps = 0, filesWithJump = 0, exportsWithJump = 0;
-    var loopSteps = 0, filesWithLoop = 0, exportsWithLoop = 0;
-    var externalCalls = 0, filesWithExternal = 0, exportsMarked = 0;
-    var sigParams = 0, sigTyped = 0, filesWithParams = 0, exportsSigned = 0;
-    // Newly-modeled lens accessors (XML+INI).
-    var adapterName = 0, stepDesc = 0, codeTemplates = 0, runtimeEP = 0;
-    var switchSettings = 0, seqCallExpr = 0, threading = 0, pyInterp = 0;
-    var clusterEls = 0, dbStep = 0, limitExpr = 0, fileSettings = 0, fileGlobals = 0;
-
-    // INI lens counters.
-    var iniCovFiles = 0, iniCovSteps = 0, iniCovModule = 0;
     var iniCov = const SeqCoverage(total: 0, modeled: 0);
-    var iniSeqType = 0, iniSfRoot = 0, iniDataNamed = 0, iniTreeBuilt = 0, iniDataRoot = 0;
-    var iniWithSeqArray = 0, iniNamedSeqs = 0;
-    var iniThrew = 0, iniBuilt = 0, iniSeqCount = 0, iniStepCount = 0, iniLocals = 0, iniWithType = 0, iniTypes = 0;
-    var iniRecognized = 0, iniNone = 0, iniUnknown = 0, iniWithMode = 0, iniWithLoop = 0;
-    var overrides = 0, filesWithOverride = 0, stepComments = 0, seqComments = 0, varComments = 0;
-    var objVarsWithFields = 0, withFlowTarget = 0, resolvedIdTargets = 0, withModuleTiming = 0;
-    var iniSkippedLines = 0, iniFragments = 0, iniResidual = 0;
+    int? firstXmlTypeDefs;
+    final baseClasses = <String>{}, arKinds = <String>{};
+    final measTypes = <String>{}, measSpecs = <String>{};
     final iniFragmentKeys = <String>{};
 
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       final fmt = detectSeqFormat(bytes);
       if (fmt == SeqFormat.binary) {
-        binary++;
+        tally.bump('binaryFiles');
         continue; // the binary recon sweep below owns these
       }
       if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
 
       // ── INI document layer (sections, continuations, raw-line audit) ──
       if (fmt == SeqFormat.ini) {
-        ini++;
+        tally.bump('iniFiles');
         final doc = parseIniSeqBytes(bytes);
-        if (doc.header.fileType == 'SequenceFile') iniSeqType++;
-        if (doc.sections.any((s) => s.isDef && s.members['SF'] == 'SequenceFileData')) iniSfRoot++;
-        if (doc.sections.any((s) => s.name == 'Data')) iniDataNamed++;
+        if (doc.header.fileType == 'SequenceFile') tally.bump('iniSeqType');
+        if (doc.sections.any((s) => s.isDef && s.members['SF'] == 'SequenceFileData')) tally.bump('iniSfRoot');
+        if (doc.sections.any((s) => s.name == 'Data')) tally.bump('iniDataNamed');
         final residualRe = RegExp(r' Line\d+$');
         for (final s in doc.sections) {
           for (final k in [...s.members.keys, ...s.directives.keys]) {
-            if (residualRe.hasMatch(k)) iniResidual++;
+            if (residualRe.hasMatch(k)) tally.bump('iniResidual');
           }
         }
         final tree = iniDataTree(doc);
         if (tree != null) {
-          iniTreeBuilt++;
-          if (tree.name == 'Data') iniDataRoot++;
+          tally.bump('iniTreeBuilt');
+          if (tree.name == 'Data') tally.bump('iniDataRoot');
           final seq = tree.subProps.where((p) => p.name == 'Seq' && p.isArray).firstOrNull;
           if (seq != null && seq.array!.isNotEmpty) {
-            iniWithSeqArray++;
-            if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) iniNamedSeqs++;
+            tally.bump('iniWithSeqArray');
+            if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) tally.bump('iniNamedSeqs');
           }
         }
         // Raw text: every in-section data line is `key = value`, and every
@@ -160,10 +140,10 @@ void main() {
             inSection = true;
             continue;
           }
-          if (inSection && !line.contains(' = ')) iniSkippedLines++;
+          if (inSection && !line.contains(' = ')) tally.bump('iniSkippedLines');
         }
         for (final m in RegExp(r'^(.+) Line(\d+)\s*=', multiLine: true).allMatches(text)) {
-          iniFragments++;
+          tally.bump('iniFragments');
           iniFragmentKeys.add(m.group(1)!.trim());
         }
       }
@@ -174,7 +154,7 @@ void main() {
         sf = parseSeqFile(bytes);
       } on FormatException catch (e) {
         if (fmt == SeqFormat.ini) {
-          iniThrew++;
+          tally.bump('iniThrew');
         } else {
           failures.add('${f.path}: $e');
         }
@@ -182,57 +162,57 @@ void main() {
       }
 
       if (fmt == SeqFormat.xml) {
-        xml++;
+        tally.bump('xmlFiles');
         xmlCov += measureCoverage(sf);
         final mp = sf.measurementPlugIns;
         if (mp != null) {
-          mpBlocks++;
-          if (mp.pinMapPath != null) mpPinMaps++;
+          tally.bump('mpBlocks');
+          if (mp.pinMapPath != null) tally.bump('mpPinMaps');
         }
-        typedefFiles++;
+        tally.bump('typedefFiles');
         firstXmlTypeDefs ??= sf.typeDefs.length;
         for (final t in sf.typeDefs) {
-          totalTypes++;
+          tally.bump('totalTypes');
           if (t.baseClass != null) baseClasses.add(t.baseClass!);
-          if (t.fields.isNotEmpty) typesWithFields++;
+          if (t.fields.isNotEmpty) tally.bump('typesWithFields');
         }
       } else {
-        iniBuilt++;
-        iniTypes += sf.types.length;
+        tally.bump('iniBuilt');
+        tally.bump('iniTypes', sf.types.length);
         final ovr = _countOverrides(sf.data);
-        overrides += ovr;
-        if (ovr > 0) filesWithOverride++;
+        tally.bump('overrides', ovr);
+        if (ovr > 0) tally.bump('filesWithOverride');
         if (bytes.length <= _maxProbeBytes) {
-          iniCovFiles++;
+          tally.bump('iniCovFiles');
           iniCov += measureCoverage(sf);
         }
       }
 
       // New-accessor file-level counters.
-      if (sf.modelFile != null || sf.contentVersion != null || sf.fileTypeCode != null) fileSettings++;
-      if (sf.fileGlobals.isNotEmpty) fileGlobals++;
+      if (sf.modelFile != null || sf.contentVersion != null || sf.fileTypeCode != null) tally.bump('fileSettings');
+      if (sf.fileGlobals.isNotEmpty) tally.bump('fileGlobals');
 
       var arAny = false;
       var fileJump = false, fileLoop = false, fileExternal = false, fileParams = false;
       for (final q in sf.sequences) {
-        if (q.runtimeSettings?.entryPointNameExpression != null) runtimeEP++;
+        if (q.runtimeSettings?.entryPointNameExpression != null) tally.bump('runtimeEP');
         if (fmt == SeqFormat.xml) {
-          xmlSeqs++;
-          xmlLocals += q.locals.length;
+          tally.bump('xmlSeqs');
+          tally.bump('xmlLocals', q.locals.length);
         } else {
-          iniSeqCount++;
-          iniLocals += q.locals.length;
-          if (q.comment != null) seqComments++;
+          tally.bump('iniSeqCount');
+          tally.bump('iniLocals', q.locals.length);
+          if (q.comment != null) tally.bump('seqComments');
           for (final v in [...q.locals, ...q.parameters]) {
-            if (!v.isArray && v.containerCount != null && v.containerCount! > 0) objVarsWithFields++;
-            if (v.comment != null) varComments++;
+            if (!v.isArray && v.containerCount != null && v.containerCount! > 0) tally.bump('objVarsWithFields');
+            if (v.comment != null) tally.bump('varComments');
           }
         }
         if (q.parameters.isNotEmpty) {
           fileParams = true;
           for (final p in q.parameters) {
-            sigParams++;
-            if (p.type != null) sigTyped++;
+            tally.bump('sigParams');
+            if (p.type != null) tally.bump('sigTyped');
           }
         }
 
@@ -242,120 +222,120 @@ void main() {
           final m = step.module;
 
           if (fmt == SeqFormat.xml) {
-            xmlSteps++;
-            if (step.type != null) typedSteps++;
-            if (set.passAction != null) withAction++;
-            if (set.mode != null) withMode++;
-            if (set.icon != null) withIcon++;
-            if (m.adapter == SeqAdapter.unknown) unknownAdapters++;
-            if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) withModule++;
-            if (step.limits != null) withLimits++;
-            if (sf.resolveCall(step) != null) resolvedCalls++;
+            tally.bump('xmlSteps');
+            if (step.type != null) tally.bump('typedSteps');
+            if (set.passAction != null) tally.bump('withAction');
+            if (set.mode != null) tally.bump('withMode');
+            if (set.icon != null) tally.bump('withIcon');
+            if (m.adapter == SeqAdapter.unknown) tally.bump('unknownAdapters');
+            if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) tally.bump('withModule');
+            if (step.limits != null) tally.bump('withLimits');
+            if (sf.resolveCall(step) != null) tally.bump('resolvedCalls');
 
             if (m.adapter == SeqAdapter.python) {
-              pySteps++;
-              if (m.pythonFunction != null) pyFn++;
-              if (m.pythonModulePath != null) pyModule++;
-              if (m.pythonVersion != null) pyVersion++;
+              tally.bump('pySteps');
+              if (m.pythonFunction != null) tally.bump('pyFn');
+              if (m.pythonModulePath != null) tally.bump('pyModule');
+              if (m.pythonVersion != null) tally.bump('pyVersion');
               final args = m.callParameters;
               if (args.isNotEmpty) {
-                pyParamSteps++;
+                tally.bump('pyParamSteps');
                 for (final a in args) {
-                  pyParams++;
-                  if (a.name.isNotEmpty) pyNamed++;
-                  if (a.boundExpression != null) pyBound++;
+                  tally.bump('pyParams');
+                  if (a.name.isNotEmpty) tally.bump('pyNamed');
+                  if (a.boundExpression != null) tally.bump('pyBound');
                 }
               }
             }
             if (m.adapter == SeqAdapter.labView && m.viParameters.isNotEmpty) {
-              viSteps++;
+              tally.bump('viSteps');
               for (final p in m.viParameters) {
-                viParams++;
-                if (p.displayType != null) viDisplayType++;
-                if (p.connectorNumber != null) viConnector++;
+                tally.bump('viParams');
+                if (p.displayType != null) tally.bump('viDisplayType');
+                if (p.connectorNumber != null) tally.bump('viConnector');
               }
             }
             for (final a in step.additionalResults) {
               arAny = true;
-              arEntries++;
+              tally.bump('arEntries');
               if (a.kind != null) arKinds.add(a.kind!);
             }
             final r = step.result;
             if (r != null) {
-              withResult++;
-              if (r.errorOccurred != null) withError++;
-              if (r.hasRecordedOutcome) recordedOutcomes++;
+              tally.bump('withResult');
+              if (r.errorOccurred != null) tally.bump('withError');
+              if (r.hasRecordedOutcome) tally.bump('recordedOutcomes');
             }
-            if (set.customTrueAction != null) custTrueAct++;
-            if (set.customFalseAction != null) custFalseAct++;
+            if (set.customTrueAction != null) tally.bump('custTrueAct');
+            if (set.customFalseAction != null) tally.bump('custFalseAct');
             for (final p in step.measurementParameters) {
-              measParams++;
+              tally.bump('measParams');
               if (p.dataType != null) {
-                measTyped++;
+                tally.bump('measTyped');
                 measTypes.add(p.dataType!);
               }
-              if (p.direction != null) measDirected++;
+              if (p.direction != null) tally.bump('measDirected');
               if (p.typeSpecialization != null) {
-                measSpecialized++;
+                tally.bump('measSpecialized');
                 measSpecs.add(p.typeSpecialization!);
               }
-              if (p.logged == false) measNotLogged++;
+              if (p.logged == false) tally.bump('measNotLogged');
               if (p.dataType == 'TypeEnum') {
-                measEnumParams++;
-                measEnumValues += p.enumValues.length;
+                tally.bump('measEnumParams');
+                tally.bump('measEnumValues', p.enumValues.length);
               }
             }
           } else {
-            iniStepCount++;
-            if (step.type != null) iniWithType++;
+            tally.bump('iniStepCount');
+            if (step.type != null) tally.bump('iniWithType');
             switch (m.adapter) {
               case SeqAdapter.none:
-                iniNone++;
+                tally.bump('iniNone');
               case SeqAdapter.unknown:
-                iniUnknown++;
+                tally.bump('iniUnknown');
               default:
-                iniRecognized++;
+                tally.bump('iniRecognized');
             }
-            if (set.mode != null) iniWithMode++;
-            if (set.loopType != null) iniWithLoop++;
-            if (step.comment != null) stepComments++;
-            if (set.passActionTarget != null || set.failActionTarget != null) withFlowTarget++;
+            if (set.mode != null) tally.bump('iniWithMode');
+            if (set.loopType != null) tally.bump('iniWithLoop');
+            if (step.comment != null) tally.bump('stepComments');
+            if (set.passActionTarget != null || set.failActionTarget != null) tally.bump('withFlowTarget');
             for (final t in [set.customTrueTarget, set.customFalseTarget]) {
-              if (t != null && t.startsWith('ID#:') && sf.stepNameForId(t) != null) resolvedIdTargets++;
+              if (t != null && t.startsWith('ID#:') && sf.stepNameForId(t) != null) tally.bump('resolvedIdTargets');
             }
             final lo = set.loadOption, uo = set.unloadOption;
             if ((lo != null && lo != 'PreloadWhenExecuted') || (uo != null && uo != 'UnloadWithFile')) {
-              withModuleTiming++;
+              tally.bump('withModuleTiming');
             }
             if (bytes.length <= _maxProbeBytes) {
-              iniCovSteps++;
-              if (m.adapter != SeqAdapter.none) iniCovModule++;
+              tally.bump('iniCovSteps');
+              if (m.adapter != SeqAdapter.none) tally.bump('iniCovModule');
             }
           }
 
           // Shared: new-accessor counters.
-          if (set.adapterName != null) adapterName++;
-          if (set.switchEnabled != null || set.canEditCode != null) switchSettings++;
-          if (step.description != null) stepDesc++;
-          if (step.typeInfo.codeTemplates.isNotEmpty) codeTemplates++;
-          if (m.sequenceNameExpression != null || m.specifiesByExpression != null) seqCallExpr++;
-          if (m.threadOptionCode != null) threading++;
-          if (m.pythonInterpreterLocation != null || m.pythonOperationTypeCode != null) pyInterp++;
+          if (set.adapterName != null) tally.bump('adapterName');
+          if (set.switchEnabled != null || set.canEditCode != null) tally.bump('switchSettings');
+          if (step.description != null) tally.bump('stepDesc');
+          if (step.typeInfo.codeTemplates.isNotEmpty) tally.bump('codeTemplates');
+          if (m.sequenceNameExpression != null || m.specifiesByExpression != null) tally.bump('seqCallExpr');
+          if (m.threadOptionCode != null) tally.bump('threading');
+          if (m.pythonInterpreterLocation != null || m.pythonOperationTypeCode != null) tally.bump('pyInterp');
           for (final p in [...m.viParameters, ...m.callParameters]) {
-            if (p.caption != null || p.typeCode != null) clusterEls++;
+            if (p.caption != null || p.typeCode != null) tally.bump('clusterEls');
           }
-          if (step.sqlStatement != null || step.statementHandle != null) dbStep++;
-          if (step.limits?.lowExpression != null || step.limits?.comparisonExpression != null) limitExpr++;
+          if (step.sqlStatement != null || step.statementHandle != null) tally.bump('dbStep');
+          if (step.limits?.lowExpression != null || step.limits?.comparisonExpression != null) tally.bump('limitExpr');
 
           // Shared: structured flow control.
           final fc = step.flowControl;
           if (fc != null) {
             localFlow++;
             if (fc.kind.opensBlock) {
-              flowOpeners++;
+              tally.bump('flowOpeners');
               depth++;
             } else if (fc.kind == FlowKind.end) {
-              flowEnds++;
+              tally.bump('flowEnds');
               depth--;
               if (depth < minDepth) minDepth = depth;
             }
@@ -363,17 +343,17 @@ void main() {
               case FlowKind.ifBlock:
               case FlowKind.elseIf:
               case FlowKind.whileLoop:
-                ifWhile++;
-                if (fc.condition != null) conds++;
+                tally.bump('ifWhile');
+                if (fc.condition != null) tally.bump('conds');
               case FlowKind.forLoop:
-                forLoops++;
-                if (fc.initialization != null) forInit++;
-                if (fc.condition != null) conds++;
-                if (fc.increment != null) forIncr++;
+                tally.bump('forLoops');
+                if (fc.initialization != null) tally.bump('forInit');
+                if (fc.condition != null) tally.bump('conds');
+                if (fc.increment != null) tally.bump('forIncr');
               case FlowKind.forEach:
-                eachLoops++;
-                if (fc.arrayExpr != null) eachArr++;
-                if (fc.arrayElement != null) eachElem++;
+                tally.bump('eachLoops');
+                if (fc.arrayExpr != null) tally.bump('eachArr');
+                if (fc.arrayElement != null) tally.bump('eachElem');
               default:
                 break;
             }
@@ -381,102 +361,103 @@ void main() {
           // Shared: logic-export annotation triggers.
           if ((set.passAction != null && set.passAction != 'Next') ||
               (set.failAction != null && set.failAction != 'Next')) {
-            jumpSteps++;
+            tally.bump('jumpSteps');
             fileJump = true;
           }
           if (fc == null && set.isLooping) {
-            loopSteps++;
+            tally.bump('loopSteps');
             fileLoop = true;
           }
           if (m.adapter == SeqAdapter.sequenceCall &&
               sf.resolveCall(step) == null &&
               (m.sequenceFile ?? '').isNotEmpty) {
-            externalCalls++;
+            tally.bump('externalCalls');
             fileExternal = true;
           }
         }
         if (localFlow > 0) {
-          totalFlowSeqs++;
-          seqsWithFlow++;
-          if (depth == 0 && minDepth == 0) balancedSeqs++;
+          tally.bump('totalFlowSeqs');
+          tally.bump('seqsWithFlow');
+          if (depth == 0 && minDepth == 0) tally.bump('balancedSeqs');
         }
       }
-      if (arAny) arFiles++;
+      if (arAny) tally.bump('arFiles');
 
       // One logic export per file covers all four annotation gates.
       if (fileJump || fileLoop || fileExternal || fileParams) {
         final logic = exportSequenceLogic(sf);
         if (fileJump) {
-          filesWithJump++;
-          if (logic.contains(RegExp(r'\[on (pass|fail)'))) exportsWithJump++;
+          tally.bump('filesWithJump');
+          if (logic.contains(RegExp(r'\[on (pass|fail)'))) tally.bump('exportsWithJump');
         }
         if (fileLoop) {
-          filesWithLoop++;
-          if (logic.contains('[loop ')) exportsWithLoop++;
+          tally.bump('filesWithLoop');
+          if (logic.contains('[loop ')) tally.bump('exportsWithLoop');
         }
         if (fileExternal) {
-          filesWithExternal++;
-          if (logic.contains(RegExp(r' in \S+\.seq'))) exportsMarked++;
+          tally.bump('filesWithExternal');
+          if (logic.contains(RegExp(r' in \S+\.seq'))) tally.bump('exportsMarked');
         }
         if (fileParams) {
-          filesWithParams++;
-          if (logic.contains(RegExp(r'^sequence .+\([^)]', multiLine: true))) exportsSigned++;
+          tally.bump('filesWithParams');
+          if (logic.contains(RegExp(r'^sequence .+\([^)]', multiLine: true))) tally.bump('exportsSigned');
         }
       }
     }
 
     print(
-      'teststand corpus: $xml XML / $ini INI / $binary binary · '
-      '$xmlSeqs+$iniSeqCount sequences · $xmlSteps+$iniStepCount steps · '
+      'teststand corpus: ${tally['xmlFiles']} XML / ${tally['iniFiles']} INI / ${tally['binaryFiles']} binary · '
+      '${tally['xmlSeqs']}+${tally['iniSeqCount']} sequences · ${tally['xmlSteps']}+${tally['iniStepCount']} steps · '
       'XML modeled ${(xmlCov.ratio * 100).toStringAsFixed(1)}% · INI modeled ${(iniCov.ratio * 100).toStringAsFixed(1)}% · '
-      '$overrides overrides in $filesWithOverride files · $iniFragments INI fragments / ${iniFragmentKeys.length} keys',
+      '${tally['overrides']} overrides in ${tally['filesWithOverride']} files · '
+      '${tally['iniFragments']} INI fragments / ${iniFragmentKeys.length} keys',
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
 
     // Format LAWS — relations between quantities computed in the same pass
     // (a broken lens, not a corpus change, is the only way these move).
     final laws = <(String, Object?, Object)>[
-      ('unknown-format file count', seqs.length - xml - ini - binary, 0),
-      ('XML typed steps (none lost in the lens)', typedSteps, xmlSteps),
-      ('XML unknown adapters', unknownAdapters, 0),
+      ('unknown-format file count', seqs.length - tally['xmlFiles'] - tally['iniFiles'] - tally['binaryFiles'], 0),
+      ('XML typed steps (none lost in the lens)', tally['typedSteps'], tally['xmlSteps']),
+      ('XML unknown adapters', tally['unknownAdapters'], 0),
       ('XML coverage: unaccounted nodes', xmlCov.unaccounted, 0),
-      ('python steps naming a function', pyFn, pySteps),
-      ('python steps with a module path', pyModule, pySteps),
-      ('python steps with a version', pyVersion, pySteps),
-      ('python params named', pyNamed, pyParams),
-      ('VI params with DisplayType', viDisplayType, viParams),
-      ('VI params with connector#', viConnector, viParams),
+      ('python steps naming a function', tally['pyFn'], tally['pySteps']),
+      ('python steps with a module path', tally['pyModule'], tally['pySteps']),
+      ('python steps with a version', tally['pyVersion'], tally['pySteps']),
+      ('python params named', tally['pyNamed'], tally['pyParams']),
+      ('VI params with DisplayType', tally['viDisplayType'], tally['viParams']),
+      ('VI params with connector#', tally['viConnector'], tally['viParams']),
       ('additional-results kinds', arKinds, everyElement(anyOf(contains('ParameterResult'), isNotEmpty))),
-      ('Results keeping their Error sub-object', withError, withResult),
-      ('recorded (non-default) outcomes in sequence files', recordedOutcomes, 0),
-      ('measurement params typed', measTyped, measParams),
+      ('Results keeping their Error sub-object', tally['withError'], tally['withResult']),
+      ('recorded (non-default) outcomes in sequence files', tally['recordedOutcomes'], 0),
+      ('measurement params typed', tally['measTyped'], tally['measParams']),
       ('measurement param types', measTypes, contains('TypeDouble')),
       ('measurement specializations', measSpecs, contains('IOResource')),
-      ('flow ends match openers', flowEnds, flowOpeners),
-      ('flow-bearing sequences balanced', balancedSeqs, totalFlowSeqs),
-      ('if/while/for conditions', conds, ifWhile + forLoops),
-      ('for initializations', forInit, forLoops),
-      ('for increments', forIncr, forLoops),
-      ('for-each array expressions', eachArr, eachLoops),
-      ('for-each element bindings', eachElem, eachLoops),
-      ('files annotating jumps in the export', exportsWithJump, filesWithJump),
-      ('files annotating loops in the export', exportsWithLoop, filesWithLoop),
-      ('files marking external calls with a file', exportsMarked, filesWithExternal),
-      ('parameters carrying a type', sigTyped, sigParams),
-      ('files rendering signatures in the export', exportsSigned, filesWithParams),
-      ('INI headers typed SequenceFile', iniSeqType, ini),
-      ('INI files defining SF=SequenceFileData', iniSfRoot, ini),
-      ('INI files naming an object "Data"', iniDataNamed, ini),
-      ('INI data trees built', iniTreeBuilt, ini),
-      ('INI trees rooted at "Data"', iniDataRoot, iniTreeBuilt),
-      ('INI trees with a non-empty Seq array', iniWithSeqArray, iniTreeBuilt),
-      ('INI Seq arrays exposing named sequences', iniNamedSeqs, iniWithSeqArray),
-      ('INI in-section lines without " = "', iniSkippedLines, 0),
-      ('INI residual ` LineNNNN` keys', iniResidual, 0),
-      ('INI files that threw', iniThrew, 0),
-      ('INI files built into SeqFiles', iniBuilt, ini),
-      ('INI unknown adapters', iniUnknown, 0),
-      ('INI adapter partition', iniRecognized + iniNone + iniUnknown, iniStepCount),
+      ('flow ends match openers', tally['flowEnds'], tally['flowOpeners']),
+      ('flow-bearing sequences balanced', tally['balancedSeqs'], tally['totalFlowSeqs']),
+      ('if/while/for conditions', tally['conds'], tally['ifWhile'] + tally['forLoops']),
+      ('for initializations', tally['forInit'], tally['forLoops']),
+      ('for increments', tally['forIncr'], tally['forLoops']),
+      ('for-each array expressions', tally['eachArr'], tally['eachLoops']),
+      ('for-each element bindings', tally['eachElem'], tally['eachLoops']),
+      ('files annotating jumps in the export', tally['exportsWithJump'], tally['filesWithJump']),
+      ('files annotating loops in the export', tally['exportsWithLoop'], tally['filesWithLoop']),
+      ('files marking external calls with a file', tally['exportsMarked'], tally['filesWithExternal']),
+      ('parameters carrying a type', tally['sigTyped'], tally['sigParams']),
+      ('files rendering signatures in the export', tally['exportsSigned'], tally['filesWithParams']),
+      ('INI headers typed SequenceFile', tally['iniSeqType'], tally['iniFiles']),
+      ('INI files defining SF=SequenceFileData', tally['iniSfRoot'], tally['iniFiles']),
+      ('INI files naming an object "Data"', tally['iniDataNamed'], tally['iniFiles']),
+      ('INI data trees built', tally['iniTreeBuilt'], tally['iniFiles']),
+      ('INI trees rooted at "Data"', tally['iniDataRoot'], tally['iniTreeBuilt']),
+      ('INI trees with a non-empty Seq array', tally['iniWithSeqArray'], tally['iniTreeBuilt']),
+      ('INI Seq arrays exposing named sequences', tally['iniNamedSeqs'], tally['iniWithSeqArray']),
+      ('INI in-section lines without " = "', tally['iniSkippedLines'], 0),
+      ('INI residual ` LineNNNN` keys', tally['iniResidual'], 0),
+      ('INI files that threw', tally['iniThrew'], 0),
+      ('INI files built into SeqFiles', tally['iniBuilt'], tally['iniFiles']),
+      ('INI unknown adapters', tally['iniUnknown'], 0),
+      ('INI adapter partition', tally['iniRecognized'] + tally['iniNone'] + tally['iniUnknown'], tally['iniStepCount']),
       ('INI coverage: unaccounted nodes', iniCov.unaccounted, 0),
     ];
     for (final (label, actual, want) in laws) {
@@ -486,97 +467,16 @@ void main() {
     // MEASUREMENTS — every recovery/census count, pinned exactly against the
     // committed snapshot (coverage as raw node counts, not rounded ratios).
     expectCorpusSnapshot('xml_ini', {
-      'xmlFiles': xml,
-      'iniFiles': ini,
-      'binaryFiles': binary,
-      'xmlSeqs': xmlSeqs,
-      'xmlSteps': xmlSteps,
-      'withAction': withAction,
-      'withMode': withMode,
-      'withModule': withModule,
-      'xmlLocals': xmlLocals,
-      'withLimits': withLimits,
-      'resolvedCalls': resolvedCalls,
-      'withIcon': withIcon,
+      for (final key in _xmlIniCounters) key: tally[key],
       'xmlCovTotal': xmlCov.total,
       'xmlCovModeled': xmlCov.modeled,
       'xmlCovPlumbing': xmlCov.plumbing,
-      'mpBlocks': mpBlocks,
-      'mpPinMaps': mpPinMaps,
-      'pySteps': pySteps,
-      'pyParams': pyParams,
-      'pyParamSteps': pyParamSteps,
-      'pyBound': pyBound,
-      'viSteps': viSteps,
-      'viParams': viParams,
-      'typedefFiles': typedefFiles,
-      'totalTypes': totalTypes,
-      'typesWithFields': typesWithFields,
       'baseClasses': baseClasses.length,
       'firstXmlTypeDefs': firstXmlTypeDefs ?? -1,
-      'arFiles': arFiles,
-      'arEntries': arEntries,
       'arKinds': arKinds.length,
-      'withResult': withResult,
-      'custTrueAct': custTrueAct,
-      'custFalseAct': custFalseAct,
-      'measParams': measParams,
-      'measDirected': measDirected,
-      'measSpecialized': measSpecialized,
-      'measNotLogged': measNotLogged,
-      'measEnumParams': measEnumParams,
-      'measEnumValues': measEnumValues,
       'measTypes': measTypes.length,
       'measSpecs': measSpecs.length,
-      'flowOpeners': flowOpeners,
-      'ifWhile': ifWhile,
-      'forLoops': forLoops,
-      'eachLoops': eachLoops,
-      'seqsWithFlow': seqsWithFlow,
-      'jumpSteps': jumpSteps,
-      'filesWithJump': filesWithJump,
-      'loopSteps': loopSteps,
-      'filesWithLoop': filesWithLoop,
-      'externalCalls': externalCalls,
-      'filesWithExternal': filesWithExternal,
-      'sigParams': sigParams,
-      'filesWithParams': filesWithParams,
-      'adapterName': adapterName,
-      'stepDesc': stepDesc,
-      'codeTemplates': codeTemplates,
-      'runtimeEP': runtimeEP,
-      'switchSettings': switchSettings,
-      'seqCallExpr': seqCallExpr,
-      'threading': threading,
-      'pyInterp': pyInterp,
-      'clusterEls': clusterEls,
-      'dbStep': dbStep,
-      'limitExpr': limitExpr,
-      'fileSettings': fileSettings,
-      'fileGlobals': fileGlobals,
-      'iniFragments': iniFragments,
       'iniFragmentKeys': iniFragmentKeys.length,
-      'iniSeqCount': iniSeqCount,
-      'iniStepCount': iniStepCount,
-      'iniLocals': iniLocals,
-      'iniTypes': iniTypes,
-      'iniRecognized': iniRecognized,
-      'iniNone': iniNone,
-      'iniWithType': iniWithType,
-      'iniWithMode': iniWithMode,
-      'iniWithLoop': iniWithLoop,
-      'overrides': overrides,
-      'filesWithOverride': filesWithOverride,
-      'stepComments': stepComments,
-      'seqComments': seqComments,
-      'varComments': varComments,
-      'objVarsWithFields': objVarsWithFields,
-      'withFlowTarget': withFlowTarget,
-      'resolvedIdTargets': resolvedIdTargets,
-      'withModuleTiming': withModuleTiming,
-      'iniCovFiles': iniCovFiles,
-      'iniCovSteps': iniCovSteps,
-      'iniCovModule': iniCovModule,
       'iniCovTotal': iniCov.total,
       'iniCovModeled': iniCov.modeled,
       'iniCovPlumbing': iniCov.plumbing,
@@ -584,14 +484,7 @@ void main() {
   });
 
   test('binary corpus (single pass): partial model is honest, recon lenses never fabricate', () {
-    var binary = 0, withBinaryBody = 0, binaryWithSequences = 0, binaryStepsRecovered = 0;
-    var binaryTypedSteps = 0, binaryModuleSteps = 0;
-    var framed = 0, withSentinels = 0, totalStrings = 0, word2Is1 = 0;
-    var nameFound = 0, hasModelTokens = 0, notLargest = 0, isFirst = 0, valuesOutsideName = 0;
-    var rooted = 0, prefix2Ok = 0, scaffold5Ok = 0, recordIndexesData = 0, objNamesOk = 0;
-    var analyzeChecked = 0;
-    var withPath = 0, withId = 0, withExpr = 0, withLit = 0, totalPaths = 0, nonAsciiPaths = 0;
-    var realTot = 0, realHit = 0, fakeTot = 0, fakeHit = 0;
+    final tally = Tally();
     final failures = <String>[];
 
     int u32(List<int> b, int i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
@@ -610,7 +503,7 @@ void main() {
     for (final f in seqs) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binary++;
+      tally.bump('binary');
 
       // Partial typed model: never throws, no structural tokens as names,
       // step types from the file's own table, module targets look like
@@ -618,7 +511,7 @@ void main() {
       // walk-corroborated and MAY collide with a structural token — the
       // corpus has a sandbox sequence literally named `Sequence`.)
       final partial = parseSeqFile(bytes);
-      if (partial.sequences.isNotEmpty) binaryWithSequences++;
+      if (partial.sequences.isNotEmpty) tally.bump('binaryWithSequences');
       final partialTypeNames = {for (final t in partial.types) t.name};
       final walkBacked = {
         for (final o in binarySequenceOutlines(bytes))
@@ -633,10 +526,10 @@ void main() {
             reason: '${f.path}: structural token as sequence name',
           );
         }
-        binaryStepsRecovered += seq.steps.length;
+        tally.bump('binaryStepsRecovered', seq.steps.length);
         for (final step in seq.steps) {
           if (step.type != null) {
-            binaryTypedSteps++;
+            tally.bump('binaryTypedSteps');
             expect(
               partialTypeNames,
               contains(step.type),
@@ -645,7 +538,7 @@ void main() {
           }
           final m = step.module;
           if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) {
-            binaryModuleSteps++;
+            tally.bump('binaryModuleSteps');
             if (m.viPath != null) {
               expect(m.viPath, contains('.vi'), reason: '${f.path}: ${step.name} VIPath ${m.viPath}');
             }
@@ -661,7 +554,7 @@ void main() {
       final body = inflateBinaryBody(bytes);
       expect(body, isNotNull, reason: '${f.path}: no inflatable body');
       if (body != null) {
-        withBinaryBody++;
+        tally.bump('withBinaryBody');
         expect(_bodyContains(body, 'Sequence'), isTrue, reason: '${f.path}: body lacks the Sequence token');
         final bodyNames = binaryBodyStrings(bytes).map((s) => s.text).toSet();
         expect(
@@ -681,16 +574,16 @@ void main() {
       if (layout == null) {
         failures.add('${f.path}: no layout');
       } else {
-        framed++;
-        totalStrings += layout.stringCount;
-        if (layout.sentinelCount > 0) withSentinels++;
+        tally.bump('framed');
+        tally.bump('totalStrings', layout.stringCount);
+        if (layout.sentinelCount > 0) tally.bump('withSentinels');
         if (layout.recordRegionLength <= 0 ||
             layout.recordRegionLength >= layout.inflatedSize ||
             layout.stringCount < 5) {
           failures.add('${f.path}: $layout');
         }
         final w = layout.leadingWords;
-        if (w.length >= 3 && w[2] == 1) word2Is1++;
+        if (w.length >= 3 && w[2] == 1) tally.bump('word2Is1');
         final segments = binaryStringSegments(bytes);
         if (layout.segmentCount != segments.length || layout.segmentCount < 2) {
           failures.add('${f.path}: ${layout.segmentCount} segments');
@@ -702,37 +595,37 @@ void main() {
         if (name == null) {
           failures.add('${f.path}: no name table');
         } else {
-          nameFound++;
+          tally.bump('nameFound');
           final texts = {for (final e in name.entries) e.text};
           if (['Step', 'Sequence', 'Locals'].any(texts.contains)) {
-            hasModelTokens++;
+            tally.bump('hasModelTokens');
           } else {
             failures.add('${f.path}: name table lacks core model tokens');
           }
-          if (segments.any((s) => s.entries.length > name.entries.length)) notLargest++;
-          if (segments.isNotEmpty && name.offset == segments.first.offset) isFirst++;
+          if (segments.any((s) => s.entries.length > name.entries.length)) tally.bump('notLargest');
+          if (segments.isNotEmpty && name.offset == segments.first.offset) tally.bump('isFirst');
           if (segments.any((s) => s.offset != name.offset && s.entries.any((e) => _isExprLike(e.text)))) {
-            valuesOutsideName++;
+            tally.bump('valuesOutsideName');
           }
 
           // Ordered pool opening with the fixed scaffold.
           final names = [for (final e in name.entries) e.text];
           if (names.isNotEmpty && names.first == 'SequenceFileData') {
-            rooted++;
+            tally.bump('rooted');
             if (names.length >= 2 && names[1] == 'Data') {
-              prefix2Ok++;
+              tally.bump('prefix2Ok');
             } else {
               failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
             }
             final n = binaryNameScaffold.length;
             if (names.length >= n && Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i])) {
-              scaffold5Ok++;
+              tally.bump('scaffold5Ok');
             }
             final words = binaryRecordWords(bytes);
-            if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') recordIndexesData++;
+            if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') tally.bump('recordIndexesData');
             final objNames = binaryObjectNames(bytes);
             if (objNames.isNotEmpty && objNames.first != 'SequenceFileData') {
-              objNamesOk++;
+              tally.bump('objNamesOk');
             } else if (objNames.isNotEmpty) {
               failures.add('${f.path}: scaffold prefix not dropped ($objNames)');
             }
@@ -744,12 +637,12 @@ void main() {
           if (body != null && nameLen > 5) {
             final rr = layout.recordRegionLength.clamp(0, body.length);
             for (var idx = 5; idx < nameLen; idx++) {
-              realTot++;
-              if (tripletExists(body, rr, idx)) realHit++;
+              tally.bump('realTot');
+              if (tripletExists(body, rr, idx)) tally.bump('realHit');
             }
             for (var k = 0; k < nameLen - 5; k++) {
-              fakeTot++;
-              if (tripletExists(body, rr, nameLen + 1 + k)) fakeHit++;
+              tally.bump('fakeTot');
+              if (tripletExists(body, rr, nameLen + 1 + k)) tally.bump('fakeHit');
             }
           }
         }
@@ -760,7 +653,7 @@ void main() {
       if (a == null) {
         failures.add('${f.path}: analyzeBinary null');
       } else {
-        analyzeChecked++;
+        tally.bump('analyzeChecked');
         final ok =
             a.inflatedSize == (inflateBinaryBody(bytes)?.length ?? 0) &&
             a.strings.length == binaryBodyStrings(bytes).length &&
@@ -795,39 +688,41 @@ void main() {
         }
       }
       if (paths.isNotEmpty) {
-        withPath++;
-        totalPaths += paths.length;
-        nonAsciiPaths += paths.where((p) => p.codeUnits.any((u) => u >= 0x80)).length;
+        tally.bump('withPath');
+        tally.bump('totalPaths', paths.length);
+        tally.bump('nonAsciiPaths', paths.where((p) => p.codeUnits.any((u) => u >= 0x80)).length);
       }
-      if (binaryStepReferences(bytes).isNotEmpty) withId++;
-      if (binaryExpressions(bytes).isNotEmpty) withExpr++;
-      if (binaryQuotedLiterals(bytes).isNotEmpty) withLit++;
+      if (binaryStepReferences(bytes).isNotEmpty) tally.bump('withId');
+      if (binaryExpressions(bytes).isNotEmpty) tally.bump('withExpr');
+      if (binaryQuotedLiterals(bytes).isNotEmpty) tally.bump('withLit');
     }
 
-    final realRate = realHit / realTot;
-    final fakeRate = fakeHit / fakeTot;
+    final realRate = tally['realHit'] / tally['realTot'];
+    final fakeRate = tally['fakeHit'] / tally['fakeTot'];
     print(
-      'binary recon: $binary binaries · $binaryWithSequences with sequences · $binaryStepsRecovered steps '
-      '($binaryTypedSteps typed, $binaryModuleSteps with modules) · $framed framed ($withSentinels sentinels, '
-      '$totalStrings strings) · $rooted rooted ($scaffold5Ok scaffold, $isFirst first-segment) · '
+      'binary recon: ${tally['binary']} binaries · ${tally['binaryWithSequences']} with sequences · '
+      '${tally['binaryStepsRecovered']} steps (${tally['binaryTypedSteps']} typed, '
+      '${tally['binaryModuleSteps']} with modules) · ${tally['framed']} framed '
+      '(${tally['withSentinels']} sentinels, ${tally['totalStrings']} strings) · '
+      '${tally['rooted']} rooted (${tally['scaffold5Ok']} scaffold, ${tally['isFirst']} first-segment) · '
       'triplet ${(realRate * 100).toStringAsFixed(1)}% vs control ${(fakeRate * 100).toStringAsFixed(1)}% · '
-      '$withPath with paths ($totalPaths, $nonAsciiPaths non-ASCII)',
+      '${tally['withPath']} with paths (${tally['totalPaths']}, ${tally['nonAsciiPaths']} non-ASCII)',
     );
     expect(failures, isEmpty, reason: failures.take(8).join('\n'));
 
     // Format LAWS: framing/naming shapes that must hold for EVERY binary (or
     // every rooted pool) — a miss is a lens break, not a corpus change.
     final laws = <(String, Object?, Object)>[
-      ('bodies inflated', withBinaryBody, binary),
-      ('bodies framed', framed, binary),
-      ('leadingWords[2] == 1', word2Is1, binary),
-      ('name tables found', nameFound, binary),
-      ('name tables with core tokens', hasModelTokens, binary),
-      ('expressions outside the name table', valuesOutsideName, binary),
-      ('rooted pools opening [.., Data]', prefix2Ok, rooted),
-      ('record word[2] indexes name[1]==Data', recordIndexesData, rooted),
-      ('rooted files exposing object names', objNamesOk, rooted),
-      ('analyzeBinary consistency checks', analyzeChecked, binary),
+      ('bodies inflated', tally['withBinaryBody'], tally['binary']),
+      ('bodies framed', tally['framed'], tally['binary']),
+      ('leadingWords[2] == 1', tally['word2Is1'], tally['binary']),
+      ('name tables found', tally['nameFound'], tally['binary']),
+      ('name tables with core tokens', tally['hasModelTokens'], tally['binary']),
+      ('expressions outside the name table', tally['valuesOutsideName'], tally['binary']),
+      ('rooted pools opening [.., Data]', tally['prefix2Ok'], tally['rooted']),
+      ('record word[2] indexes name[1]==Data', tally['recordIndexesData'], tally['rooted']),
+      ('rooted files exposing object names', tally['objNamesOk'], tally['rooted']),
+      ('analyzeBinary consistency checks', tally['analyzeChecked'], tally['binary']),
     ];
     for (final (label, actual, want) in laws) {
       expect(actual, want, reason: label);
@@ -837,27 +732,7 @@ void main() {
     // exactly (the real-vs-control separation is reviewable straight from the
     // realHit/realTot vs fakeHit/fakeTot numbers).
     expectCorpusSnapshot('binary_recon', {
-      'binary': binary,
-      'binaryWithSequences': binaryWithSequences,
-      'binaryStepsRecovered': binaryStepsRecovered,
-      'binaryTypedSteps': binaryTypedSteps,
-      'binaryModuleSteps': binaryModuleSteps,
-      'withSentinels': withSentinels,
-      'totalStrings': totalStrings,
-      'notLargest': notLargest,
-      'isFirst': isFirst,
-      'rooted': rooted,
-      'scaffold5Ok': scaffold5Ok,
-      'realTot': realTot,
-      'realHit': realHit,
-      'fakeTot': fakeTot,
-      'fakeHit': fakeHit,
-      'withPath': withPath,
-      'totalPaths': totalPaths,
-      'nonAsciiPaths': nonAsciiPaths,
-      'withId': withId,
-      'withExpr': withExpr,
-      'withLit': withLit,
+      for (final key in _binaryReconCounters) key: tally[key],
     });
   });
 

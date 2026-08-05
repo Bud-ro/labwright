@@ -1487,7 +1487,7 @@ void main() {
             // A Case lowers from its own per-frame range list, or — for a
             // boolean / error-cluster selector — from the displayed frame's
             // label and its complement. A structure with neither refuses.
-            final twoWay = type != null && (type.isErrorCluster || type.dartType == 'bool');
+            final twoWay = type != null && (type.isErrorCluster || type.carrier == LvCarrier.boolean);
             if (type != null && !twoWay && node.selectorRanges.isEmpty) {
               bump('caseSelector over ${type.dartType}');
             }

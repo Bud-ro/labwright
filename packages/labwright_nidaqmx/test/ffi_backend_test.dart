@@ -5,6 +5,7 @@
 @TestOn('!windows')
 library;
 
+import 'dart:async';
 import 'dart:typed_data';
 
 import 'package:labwright_nidaqmx/labwright_nidaqmx.dart';
@@ -95,6 +96,25 @@ void main() {
         await daq.close();
       });
     }
+
+    test('pausing then resuming the subscription keeps the worker delivering', () async {
+      final daq = open();
+      final chunks = <TypedData>[];
+      var arrived = Completer<void>();
+      final samples = daq.readStream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 16, format: DaqSampleFormat.rawI16);
+      final sub = samples.listen((chunk) {
+        chunks.add(chunk);
+        if (!arrived.isCompleted) arrived.complete();
+      });
+      await arrived.future;
+      sub.pause();
+      arrived = Completer<void>();
+      sub.resume();
+      await arrived.future.timeout(const Duration(seconds: 10));
+      expect(chunks.length, greaterThan(1));
+      await sub.cancel();
+      await daq.close();
+    });
 
     test('continuous stream sets contSamps and stops cleanly on cancel', () async {
       final daq = open();

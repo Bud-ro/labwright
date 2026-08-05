@@ -275,9 +275,9 @@ void main() {
         heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
         heapObj(0x2f, oid: 11, cat: ViObjectKind.node), // unlabeled primitive
       ]);
-      expect(outline.structuresByKind['While loop'], 2);
-      expect(outline.structuresByKind['Case structure'], 1);
-      expect(outline.structuresByKind.containsKey('Diagram root'), isFalse);
+      expect(outline.structuresByClass[HeapObjectClass.bdWhileLoop], 2);
+      expect(outline.structuresByClass[HeapObjectClass.bdStructureFrame], 1);
+      expect(outline.structuresByClass.containsKey(HeapObjectClass.diagramRoot), isFalse);
       expect(outline.labeledNodes, ['Acquire.vi']);
       expect(outline.nodeCount, 2);
       expect(outline.confidence.values.fold<int>(0, (a, b) => a + b), 5);
@@ -290,7 +290,10 @@ void main() {
         heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
         heapObj(0x12, oid: 11, cat: ViObjectKind.node, label: 'Write.vi'),
       ]);
-      final text = [...outline.structuresByKind.keys, ...outline.labeledNodes].join(' ').toLowerCase();
+      final text = [
+        ...outline.structuresByClass.keys.map((c) => c.label),
+        ...outline.labeledNodes,
+      ].join(' ').toLowerCase();
       for (final banned in ['wire', 'edge', 'dataflow', 'connect', '->', '→', 'flows to', 'wires to']) {
         expect(text.contains(banned), isFalse, reason: banned);
       }

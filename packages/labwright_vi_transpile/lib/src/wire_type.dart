@@ -40,6 +40,10 @@ class LvWireType {
   /// The Dart type source of the whole edge value, or null when unmapped.
   String? get dartType => value.dartType;
 
+  /// What kind of value the whole edge carries, or null when unmapped — the
+  /// identity a lowering tests, rather than the source it is spelled with.
+  LvCarrier? get carrier => value.carrier;
+
   /// [expression] renormalized to the element's LabVIEW width — the identity
   /// for a non-numeric or already-exact carrier.
   String wrap(String expression) => numeric?.wrap(expression) ?? expression;
@@ -51,7 +55,7 @@ class LvWireType {
   /// Whether the edge carries a bare LabVIEW **error cluster** — the wire an
   /// [LvErrorMode] decides the carrier of. An array of error clusters is
   /// ordinary data and is not one.
-  bool get isErrorCluster => dims == 0 && value.dartType == LvRuntimeType.error;
+  bool get isErrorCluster => dims == 0 && value.carrier == LvCarrier.error;
 
   /// This edge's type with its array wrapping removed — the scalar an
   /// elementwise lowering operates on. Already scalar edges return themselves.
@@ -75,11 +79,7 @@ LvWireType mapLvWireType(ViSignalType signal) {
   if (dims == 0 || !element.isMapped) {
     return LvWireType._(dims: dims, element: element, value: element);
   }
-  return LvWireType._(
-    dims: dims,
-    element: element,
-    value: LvTypeMapping.mapped(lvArrayDartType(element, dims)),
-  );
+  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
 }
 
 /// The Dart type of a **refnum** wire whose dimensionality comes from the data
@@ -95,7 +95,7 @@ LvWireType lvRefnumWireType(ViSignalType signal, int dims) {
   if (dims == 0 || !element.isMapped) {
     return LvWireType._(dims: dims, element: element, value: element);
   }
-  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.mapped(lvArrayDartType(element, dims)));
+  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
 }
 
 /// The `(code, depth)` signal-word cells where the two decoded readings of a
@@ -188,19 +188,19 @@ ViType? _throughTypedefs(ViType? type) {
   return null;
 }
 
-/// Element codes carried by a **runtime type** ([LvRuntimeType]) rather than
-/// by a Dart core type. The runtime declares each of them, so a wire of one of
-/// these is typed exactly as a numeric wire is.
+/// Element codes carried by a **runtime type** ([LvCarrier.runtime]) rather
+/// than by a Dart core type. The runtime declares each of them, so a wire of
+/// one of these is typed exactly as a numeric wire is.
 ///
 /// The refnum codes are here too. A refnum wire's depth base rides its
 /// reference class rather than its code, so only the ones the depth-1 law
 /// decides ([kSignalMinScalarDepth]) carry a dimensionality; a deeper refnum
 /// word reaches this map with [ViSignalType.arrayDims] null and is refused.
-const Map<int, String> kLvWireRuntimeCarriers = {
-  TypeCode.path: LvRuntimeType.path,
-  TypeCode.variant: LvRuntimeType.variant,
-  TypeCode.refnum: LvRuntimeType.refnum,
-  ViSignalType.typedRefnumCode: LvRuntimeType.refnum,
+const Map<int, LvCarrier> kLvWireRuntimeCarriers = {
+  TypeCode.path: LvCarrier.path,
+  TypeCode.variant: LvCarrier.variant,
+  TypeCode.refnum: LvCarrier.refnum,
+  ViSignalType.typedRefnumCode: LvCarrier.refnum,
 };
 
 /// The element codes of a **refnum** wire, in both the plain and the
@@ -405,11 +405,7 @@ LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> p
   if (dims == 0 || !element.isMapped) {
     return LvWireType._(dims: dims, element: element, value: element);
   }
-  return LvWireType._(
-    dims: dims,
-    element: element,
-    value: LvTypeMapping.mapped(lvArrayDartType(element, dims), declarations: element.declarations),
-  );
+  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
 }
 
 /// The Dart representation of a signal word's element type [code].
@@ -419,7 +415,7 @@ LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> p
 /// directly rather than through a pool descriptor.
 LvTypeMapping _mapSignalElement(int code) {
   if (LvNumericKind.ofCode(code) case final kind?) {
-    return LvTypeMapping.mapped(kind.dartType, numeric: kind);
+    return LvTypeMapping.mapped(kind.carrier, numeric: kind);
   }
   if (kLvWireClusterCodes.contains(code)) {
     return LvTypeMapping.unmapped(
@@ -429,16 +425,16 @@ LvTypeMapping _mapSignalElement(int code) {
     );
   }
   if (kLvWireRuntimeCarriers[code] case final carrier?) {
-    return LvTypeMapping.mapped(carrier, note: carrier == LvRuntimeType.refnum ? kRefnumSubtypeNote : null);
+    return LvTypeMapping.mapped(carrier, note: carrier == LvCarrier.refnum ? kRefnumSubtypeNote : null);
   }
   switch (code) {
     case TypeCode.boolean:
     case TypeCode.booleanU16:
-      return const LvTypeMapping.mapped('bool');
+      return const LvTypeMapping.mapped(LvCarrier.boolean);
     case TypeCode.string:
     case TypeCode.cString:
     case TypeCode.pascalString:
-      return const LvTypeMapping.mapped('String', note: kStringEncodingNote);
+      return const LvTypeMapping.mapped(LvCarrier.text, note: kStringEncodingNote);
     default:
       return LvTypeMapping.unmapped(
         'wire element type code 0x${code.toRadixString(16)} has no decided Dart '

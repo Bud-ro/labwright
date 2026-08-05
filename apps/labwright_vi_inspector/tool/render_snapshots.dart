@@ -1,4 +1,12 @@
-@Tags(['corpus'])
+/// Renders real corpus VIs through [ViDiagramView] (BD + FP) to PNGs under
+/// `build/render_snapshots/` so fidelity can be looked at. Skips when the
+/// corpus is not fetched.
+///
+/// It pumps widgets, so it runs under the flutter_test harness rather than as
+/// a plain script, from the app package root:
+///
+///     flutter test tool/render_snapshots.dart
+///
 library;
 
 import 'dart:io';
@@ -10,24 +18,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-import 'util.dart';
-
-/// Renders real corpus VIs through [ViDiagramView] (BD + FP) to PNGs under
-/// `build/render_snapshots/` so fidelity can be *looked at*. Skips when the
-/// corpus is not fetched. Run: `flutter test test/render_snapshot_test.dart`
-Directory? _corpusDir() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final candidate = Directory(
-      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi',
-    );
-    if (candidate.existsSync()) return candidate;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return null;
-}
+import '../test/util.dart';
 
 const _curatedVis = [
   'smithed_vicompare/smithed-vicompare-5bb0d48/Trunk/constants/required keys.vi',
@@ -67,7 +58,7 @@ List<String> _diverseSample(Directory corpus) {
 }
 
 void main() {
-  final corpus = _corpusDir();
+  final corpus = repoDir('packages/labwright_rsrc_parse/corpus/vi');
   if (corpus == null) {
     test('render snapshots (skipped: corpus not fetched)', () {}, skip: true);
     return;

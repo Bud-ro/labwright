@@ -22,10 +22,10 @@ void main() {
       (LvNumericKind.sgl, 'double', '(Float32List(1)..[0] = a + b)[0]', 'Float32List'),
       (LvNumericKind.dbl, 'double', 'a + b', 'Float64List'),
     ];
-    for (final (kind, carrier, wrapped, list) in rows) {
+    for (final (kind, dartType, wrapped, list) in rows) {
       expect(
-        (kind.dartType, kind.wrap('a + b'), kind.typedListType, LvNumericKind.ofCode(kind.code)),
-        (carrier, wrapped, list, kind),
+        (kind.carrier.dartType, kind.wrap('a + b'), kind.typedListType, LvNumericKind.ofCode(kind.code)),
+        (dartType, wrapped, list, kind),
         reason: kind.glyph,
       );
     }
@@ -112,8 +112,8 @@ void main() {
     expect(mapLvType(ext[1], ext).note, contains('80-bit'));
 
     // Growth: append into a growable list, convert once at the boundary.
-    const u8Element = LvTypeMapping.mapped('int', numeric: LvNumericKind.u8);
-    const stringElement = LvTypeMapping.mapped('String');
+    const u8Element = LvTypeMapping.mapped(LvCarrier.integer, numeric: LvNumericKind.u8);
+    const stringElement = LvTypeMapping.mapped(LvCarrier.text);
     expect(lvArrayBuilderType(u8Element), 'List<int>');
     expect(lvArrayFreeze(u8Element, 'acc'), 'Uint8List.fromList(acc)');
     expect(lvArrayFreeze(stringElement, 'acc'), 'acc', reason: 'a List<T> storage needs no conversion');
@@ -276,8 +276,8 @@ final double volts;
   });
 
   test('error mode decides the signature: elided and thrown, or threaded through', () {
-    const dbl = LvTypeMapping.mapped('double');
-    const err = LvTypeMapping.mapped(LvRuntimeType.error);
+    const dbl = LvTypeMapping.mapped(LvCarrier.float);
+    const err = LvTypeMapping.mapped(LvCarrier.error);
     const terminals = [
       LvTerminal('error in (no error)', err, isErrorCluster: true),
       LvTerminal('Message String', dbl),
@@ -301,7 +301,51 @@ final double volts;
     // The value an elided `error in` starts from, and an elided `error out`
     // reads back, is the runtime's own cleared cluster.
     expect(LvRuntimeType.clearedError, '${LvRuntimeType.error}.none');
-    expect(lvTypeNeedsRuntime(LvRuntimeType.clearedError), isTrue);
+    expect(lvTypeNeedsRuntime(err), isTrue);
+  });
+
+  test('the runtime import follows the carrier, not the spelling', () {
+    // (pool, the last entry's Dart type, whether a file spelling it imports the runtime)
+    final rows = <(List<List<int>>, String, bool)>[
+      ([scalar(TypeCode.boolean)], 'bool', false),
+      ([scalar(TypeCode.path)], 'LvPath', true),
+      ([scalar(TypeCode.variant)], 'LvVariant', true),
+      ([scalar(TypeCode.string), array(0, 1)], 'List<String>', false),
+      ([scalar(TypeCode.i32), array(0, 2)], 'LvArrayNd<Int32List>', true),
+      ([scalar(TypeCode.path), array(0, 1)], 'List<LvPath>', true),
+      (
+        [
+          scalar(TypeCode.path, name: 'where'),
+          cluster([0]),
+        ],
+        '({LvPath where})',
+        true,
+      ),
+      // A class whose NAME spells a runtime type's is not one of them, and
+      // neither is an array of it.
+      (
+        [
+          scalar(TypeCode.dbl, name: 'volts'),
+          cluster([0], name: 'LV error log'),
+        ],
+        'LvErrorLog',
+        false,
+      ),
+      (
+        [
+          scalar(TypeCode.dbl, name: 'volts'),
+          cluster([0], name: 'LV error log'),
+          array(1, 1),
+        ],
+        'List<LvErrorLog>',
+        false,
+      ),
+    ];
+    for (final (descriptors, dartType, expected) in rows) {
+      final pool = poolOf(descriptors);
+      final mapping = mapLvType(pool.last, pool);
+      expect((mapping.dartType, lvTypeNeedsRuntime(mapping)), (dartType, expected));
+    }
   });
 
   test('only a bare error cluster is the wire an error mode acts on', () {

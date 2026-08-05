@@ -617,7 +617,7 @@ List<String>? _lowerDirect(LvPrimCall call) {
     case PrimOp.emptyStringPath:
       return _isEmpty(call);
     case PrimOp.stringLength:
-      return _unaryOfString(call, 'length', 'int');
+      return _unaryOfString(call, 'length', LvCarrier.integer);
     case PrimOp.arraySize:
       return _arraySize(call);
     case PrimOp.reverse1dArray:
@@ -1031,7 +1031,7 @@ List<String>? _orderedPredicate(LvPrimCall call, String operator) {
   final operands = call.operandsTopDown;
   if (operands == null) return null;
   final out = call.outputs.single;
-  if (out.type.dartType != 'bool') return null;
+  if (out.type.carrier != LvCarrier.boolean) return null;
   for (final operand in [operands.$1, operands.$2]) {
     if (operand.type.dims != 0 || operand.type.numeric == null) return null;
     if (_hazardous(operand.type, operator)) return null;
@@ -1107,7 +1107,7 @@ List<String>? _select(LvPrimCall call) {
   if (ordered == null) return null;
   final (whenTrue, selector, whenFalse) = (ordered[0], ordered[1], ordered[2]);
   final out = call.outputs.single;
-  if (selector.type.dims != 0 || selector.type.dartType != 'bool') return null;
+  if (selector.type.dims != 0 || selector.type.carrier != LvCarrier.boolean) return null;
   if (whenTrue.type.dartType != out.type.dartType || whenFalse.type.dartType != out.type.dartType) return null;
   if (whenTrue.type.dims != out.type.dims || whenFalse.type.dims != out.type.dims) return null;
   final name = out.expression;
@@ -1196,7 +1196,7 @@ List<String>? _typeCast(LvPrimCall call) {
     if (typed.length != 1) return null;
     value = call.inputs.firstWhere((operand) => !identical(operand, typed.single));
   } else if (call.inputs.length == 1 && call.outputPorts.length == 2) {
-    if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+    if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
     value = call.inputs.single;
   } else {
     return null;
@@ -1223,7 +1223,7 @@ bool _sameWireType(LvWireType left, LvWireType right) =>
 String? _flatOf(LvPrimTerminal operand) {
   final kind = operand.type.numeric;
   if (operand.type.dims == 0) {
-    if (operand.type.dartType == 'String') {
+    if (operand.type.carrier == LvCarrier.text) {
       return '${LvRuntimeCall.flatOfString}(${operand.expression})';
     }
     if (kind == null) return null;
@@ -1241,7 +1241,7 @@ String? _flatOf(LvPrimTerminal operand) {
 String? _valueOfFlat(LvWireType type, String bytes) {
   final kind = type.numeric;
   if (type.dims == 0) {
-    if (type.dartType == 'String') return '${LvRuntimeCall.stringOfFlat}($bytes)';
+    if (type.carrier == LvCarrier.text) return '${LvRuntimeCall.stringOfFlat}($bytes)';
     if (kind == null) return null;
     if (kind.isFloat) return '${LvRuntimeCall.floatOfFlat}($bytes, ${kind.bits})';
     // The runtime yields the raw bit pattern; the width wrap is what
@@ -1305,9 +1305,9 @@ List<String>? _concatenateStrings(LvPrimCall call) {
   final ordered = call.inputsTopDown;
   if (ordered == null) return null;
   final out = call.outputs.single;
-  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
   for (final operand in ordered) {
-    if (operand.type.dims != 0 || operand.type.dartType != 'String') return null;
+    if (operand.type.dims != 0 || operand.type.carrier != LvCarrier.text) return null;
   }
   final name = out.expression;
   if (name == null) return const [];
@@ -1511,7 +1511,7 @@ List<String>? _isNotANumber(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, result = call.outputs.single;
   if (source.type.dims != 0 || !(source.type.numeric?.isFloat ?? false)) return null;
-  if (result.type.dims != 0 || result.type.dartType != 'bool') return null;
+  if (result.type.dims != 0 || result.type.carrier != LvCarrier.boolean) return null;
   final name = result.expression;
   if (name == null) return const [];
   return ['final bool $name = ${source.expression}.isNaN;'];
@@ -1642,9 +1642,10 @@ List<String>? _elementwise(LvPrimCall call) {
 
 /// The carriers whose Dart `==` is a VALUE comparison, so that a symmetric
 /// LabVIEW comparison lowers to the operator directly. The runtime's own
-/// carriers ([LvRuntimeType]) are deliberately absent: none of them defines
-/// `==`, so Dart would compare identities where LabVIEW compares contents.
-const Set<String> _kValueEqualityCarriers = {'int', 'double', 'bool', 'String'};
+/// carriers ([LvCarrier.runtime]) are deliberately absent: none of them
+/// defines `==`, so Dart would compare identities where LabVIEW compares
+/// contents.
+const Set<LvCarrier> _kValueEqualityCarriers = {LvCarrier.integer, LvCarrier.float, LvCarrier.boolean, LvCarrier.text};
 
 /// A symmetric two-terminal comparison. Both operands must be scalars of the
 /// same value-equality carrier: an array wire would make the node the
@@ -1654,9 +1655,9 @@ List<String>? _binaryPredicate(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final left = call.inputs[0], right = call.inputs[1], out = call.outputs.single;
   if (left.type.dims != 0 || right.type.dims != 0) return null;
-  if (!_kValueEqualityCarriers.contains(left.type.dartType)) return null;
-  if (left.type.dartType != right.type.dartType) return null;
-  if (out.type.dartType != 'bool') return null;
+  if (!_kValueEqualityCarriers.contains(left.type.carrier)) return null;
+  if (left.type.carrier != right.type.carrier) return null;
+  if (out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
   if (name == null) return const [];
   return ['final bool $name = ${left.expression} $operator ${right.expression};'];
@@ -1668,7 +1669,7 @@ List<String>? _comparedToZero(LvPrimCall call, String operator) {
   final source = call.inputs.single, out = call.outputs.single;
   if (source.type.dims != 0 || source.type.numeric == null) return null;
   if (_hazardous(source.type, operator)) return null;
-  if (out.type.dartType != 'bool') return null;
+  if (out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
   if (name == null) return const [];
   final zero = source.type.numeric!.isFloat ? '0.0' : '0';
@@ -1683,8 +1684,8 @@ List<String>? _comparedToZero(LvPrimCall call, String operator) {
 List<String>? _isEmpty(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;
-  if (source.type.dims != 0 || out.type.dartType != 'bool') return null;
-  if (source.type.dartType != 'String' && source.type.dartType != LvRuntimeType.path) return null;
+  if (source.type.dims != 0 || out.type.carrier != LvCarrier.boolean) return null;
+  if (source.type.carrier != LvCarrier.text && source.type.carrier != LvCarrier.path) return null;
   final name = out.expression;
   if (name == null) return const [];
   return ['final bool $name = ${source.expression}.isEmpty;'];
@@ -1712,7 +1713,7 @@ List<String>? _reverse1dArray(LvPrimCall call) {
 List<String>? _emptyArray(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;
-  if (source.type.dims != 1 || out.type.dims != 0 || out.type.dartType != 'bool') return null;
+  if (source.type.dims != 1 || out.type.dims != 0 || out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
   if (name == null) return const [];
   return ['final bool $name = ${source.expression}.isEmpty;'];
@@ -1749,14 +1750,14 @@ List<String>? _addArrayElements(LvPrimCall call) {
 }
 
 /// A unary string query — `member` read off a scalar string operand.
-List<String>? _unaryOfString(LvPrimCall call, String member, String resultType) {
+List<String>? _unaryOfString(LvPrimCall call, String member, LvCarrier result) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;
-  if (source.type.dims != 0 || source.type.dartType != 'String') return null;
-  if (out.type.dartType != resultType) return null;
+  if (source.type.dims != 0 || source.type.carrier != LvCarrier.text) return null;
+  if (out.type.carrier != result) return null;
   final name = out.expression;
   if (name == null) return const [];
-  return ['final $resultType $name = ${source.expression}.$member;'];
+  return ['final ${result.dartType} $name = ${source.expression}.$member;'];
 }
 
 /// Array Size over a 1-D array. The higher-rank node yields an ARRAY of
@@ -1788,7 +1789,7 @@ List<String>? _not(LvPrimCall call) {
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   if (source.type.dartType != out.type.dartType) return null;
   final name = out.expression;
-  if (out.type.dartType == 'bool') {
+  if (out.type.carrier == LvCarrier.boolean) {
     if (name == null) return const [];
     return ['final bool $name = !${source.expression};'];
   }
@@ -1885,7 +1886,7 @@ LvPrimTerminal? _onlyNumeric(List<LvPrimTerminal> terminals) =>
     LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.numeric != null));
 
 LvPrimTerminal? _onlyBoolean(List<LvPrimTerminal> terminals) =>
-    LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.dartType == 'bool'));
+    LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.carrier == LvCarrier.boolean));
 
 /// Index Array over a 1-D array, in the grammar's `[array] ([output]
 /// [index])+` shape — one statement per group, the growable node included.
@@ -2019,7 +2020,7 @@ List<String>? _initializeArray(LvPrimCall call) {
 List<String>? _stringSubset(LvPrimCall call) {
   if (call.outputs.length != 1) return null;
   final out = call.outputs.single;
-  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
   final rows = call.portsTopDown([
     for (final operand in call.inputs) operand.port,
     for (final port in call.outputPorts)
@@ -2029,7 +2030,7 @@ List<String>? _stringSubset(LvPrimCall call) {
   final wired = {for (final operand in call.inputs) operand.port: operand};
   final string = wired[rows[0]], offset = wired[rows[1]], length = wired[rows[2]];
   if (string == null || offset == null) return null;
-  if (string.type.dims != 0 || string.type.dartType != 'String') return null;
+  if (string.type.dims != 0 || string.type.carrier != LvCarrier.text) return null;
   for (final count in [offset, length]) {
     if (count == null) continue;
     if (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat) return null;
@@ -2049,8 +2050,8 @@ List<String>? _stringSubset(LvPrimCall call) {
 List<String>? _toLowerCase(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;
-  if (source.type.dims != 0 || source.type.dartType != 'String') return null;
-  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  if (source.type.dims != 0 || source.type.carrier != LvCarrier.text) return null;
+  if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
   final name = out.expression;
   if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
@@ -2131,7 +2132,7 @@ List<String>? _hexString(LvPrimCall call) {
   final (value, width) = (ordered[0], ordered[1]);
   final out = call.outputs.single;
   final kind = value.type.numeric;
-  if (out.type.dims != 0 || out.type.dartType != 'String') return null;
+  if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
   if (kind == null || kind.isFloat || kind.bits != 32 || value.type.dims != 0) return null;
   if (width.type.dims != 0 || width.type.numeric == null || width.type.numeric!.isFloat) return null;
   final name = out.expression;

@@ -5,7 +5,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-import 'bd_snippet_oracle_test.dart' show snippetCorpusPngs;
 import 'util.dart';
 
 /// Wire pixel-perfection ratchets — the tests that grow the "known perfect"
@@ -90,7 +89,7 @@ Uint8List sceneExclusionMask({
     if (b == null) continue;
     if (o.category == ViObjectKind.node ||
         o.category == ViObjectKind.terminal ||
-        kBdTextLabelCodes.contains(o.kind)) {
+        kBdTextLabelClasses.contains(o.objectClass)) {
       fill(
         b.left - 1 - cl,
         b.top - 1 - ct,

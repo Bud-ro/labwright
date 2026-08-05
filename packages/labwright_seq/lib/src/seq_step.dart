@@ -22,6 +22,10 @@ class Step {
   /// `SequenceCall`, `MessagePopup`. null if untyped.
   String? get type => raw.typeName;
 
+  /// [type] resolved against the [StepType] catalog — [StepType.other] for a
+  /// built-in test or a custom step type, null when the step is untyped.
+  StepType? get stepType => StepType.of(type);
+
   /// The step's free-text comment — the editor's per-step note (e.g.
   /// `"Lock sequence"`), or null when the step has none. Recovered from the
   /// step's `%COMMENT`; long comments are reassembled from their continuation
@@ -247,6 +251,63 @@ class Step {
   String toString() => 'Step($name : ${type ?? '?'})';
 }
 
+/// The step types this reader gives distinct treatment, cataloged. [wire] is
+/// the `typename` token as the file spells it. The vocabulary is OPEN — the
+/// built-in tests (`NI_MultipleNumericLimitTest`, `SequenceCall`, …) and every
+/// custom step type resolve to [other] and keep their raw token on [Step.type].
+enum StepType {
+  /// Carries no action of its own; its post-expression IS the step.
+  statement('Statement'),
+
+  /// A named no-op — a readable jump target.
+  label('Label'),
+
+  /// Waits for a time, a thread, or an execution.
+  wait('NI_Wait'),
+
+  ifBlock('NI_Flow_If', FlowKind.ifBlock),
+  elseIf('NI_Flow_ElseIf', FlowKind.elseIf),
+  elseBlock('NI_Flow_Else', FlowKind.elseBlock),
+  whileLoop('NI_Flow_While', FlowKind.whileLoop),
+  doWhile('NI_Flow_DoWhile', FlowKind.doWhile),
+  forLoop('NI_Flow_For', FlowKind.forLoop),
+  forEach('NI_Flow_ForEach', FlowKind.forEach),
+  selectBlock('NI_Flow_Select', FlowKind.selectBlock),
+  caseBlock('NI_Flow_Case', FlowKind.caseBlock),
+  flowEnd('NI_Flow_End', FlowKind.end),
+  breakStep('NI_Flow_Break', FlowKind.breakStmt),
+
+  /// A Break whose type carries its own precondition (the corpus "break on
+  /// terminate" gate), otherwise identical to [breakStep].
+  breakCustom('NI_Flow_Break_Custom', FlowKind.breakStmt),
+
+  continueStep('NI_Flow_Continue', FlowKind.continueStmt),
+
+  /// A type outside this catalog.
+  other('')
+  ;
+
+  const StepType(this.wire, [this.flowKind]);
+
+  /// The `typename` token as the file spells it.
+  final String wire;
+
+  /// The structured construct this type is, or null when it is not one of the
+  /// `NI_Flow_*` types.
+  final FlowKind? flowKind;
+
+  static final Map<String, StepType> _byWire = {
+    for (final type in values)
+      if (type != other) type.wire: type,
+  };
+
+  /// The type [token] names — [other] when uncataloged.
+  static StepType from(String token) => _byWire[token] ?? other;
+
+  /// [from] over a nullable token; null when [token] is null.
+  static StepType? of(String? token) => token == null ? null : from(token);
+}
+
 /// The kind of an `NI_Flow_*` control-flow step — what structured construct it
 /// represents in the sequence's logic.
 enum FlowKind {
@@ -315,23 +376,8 @@ class FlowControl {
   /// `ConditionExpr`/`IncrementExpr` for for; `ArrayExpr`/`ArrayElementExpr` for
   /// for-each) — verified across the corpus (100% populated where applicable).
   static FlowControl? fromStep(Step step) {
-    final kind = switch (step.type) {
-      'NI_Flow_If' => FlowKind.ifBlock,
-      'NI_Flow_ElseIf' => FlowKind.elseIf,
-      'NI_Flow_Else' => FlowKind.elseBlock,
-      'NI_Flow_While' => FlowKind.whileLoop,
-      'NI_Flow_DoWhile' => FlowKind.doWhile,
-      'NI_Flow_For' => FlowKind.forLoop,
-      'NI_Flow_ForEach' => FlowKind.forEach,
-      'NI_Flow_Select' => FlowKind.selectBlock,
-      'NI_Flow_Case' => FlowKind.caseBlock,
-      'NI_Flow_End' => FlowKind.end,
-      'NI_Flow_Break' || 'NI_Flow_Break_Custom' => FlowKind.breakStmt,
-      'NI_Flow_Continue' => FlowKind.continueStmt,
-      _ => null,
-    };
-    if (kind == null) return null;
-    return FlowControl._(kind, step.raw);
+    final kind = step.stepType?.flowKind;
+    return kind == null ? null : FlowControl._(kind, step.raw);
   }
 
   /// The branch/loop condition (`ConditionExpr`) — for `if`/`else if`/`while`/

@@ -3,7 +3,7 @@
 Per snippet, the primitive icon keys on its diagram (dedup within the
 snippet). Statuses reflect lib/src/prim_icon_catalog.dart at
 generation time; regenerate with
-`flutter test test/review_list_test.dart --dart-define=PRIM_REVIEW_LIST=1`.
+`flutter test tool/write_icon_review_list.dart --dart-define=PRIM_REVIEW_LIST=1`.
 
 ## ClassChildren.png
 
