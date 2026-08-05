@@ -25,6 +25,24 @@ class DaqmxException implements Exception {
   String toString() => 'DaqmxException(${operation ?? 'DAQmx'} status $status): $message';
 }
 
+/// Statuses labwright itself reports on [DaqmxException.status] for failures that never
+/// reached NI's driver, so no DAQmx status exists to carry. NI's error codes are small
+/// negatives (its documented range stops well short of -1,000,000) and its warnings are
+/// positive, so these values cannot be mistaken for one.
+enum DaqmxLocalStatus {
+  /// The NI-DAQmx runtime could not be loaded; surfaces as [DaqmxUnavailable].
+  libraryLoadFailed(-1000001),
+
+  /// The FFI streaming worker raised a Dart error rather than a DAQmx status.
+  streamWorkerFailed(-1000002)
+  ;
+
+  const DaqmxLocalStatus(this.status);
+
+  /// The value carried on [DaqmxException.status].
+  final int status;
+}
+
 /// The DAQmx transport could not be reached: the NI-DAQmx runtime is absent (FFI
 /// backend) or the gRPC Device Server is unreachable (gRPC backend). Distinct from
 /// [DaqmxException], which signals a call that reached DAQmx and came back failed.
@@ -80,6 +98,11 @@ abstract interface class DaqmxApi {
   /// clears the task. The FFI backend runs the blocking read loop on a dedicated
   /// isolate so it never stalls the caller's event loop; see [DaqmxStreams] for typed
   /// convenience wrappers (`readVoltageStream`, `readRawI16Stream`, …).
+  ///
+  /// Under the FFI backend the driver read blocks, so pause and cancel are honoured
+  /// between reads, not during one: a paused subscription can still receive the chunk
+  /// already being read, and `cancel()`'s future can take up to one read (bounded by the
+  /// DAQmx read timeout) to resolve while the task is stopped and cleared properly.
   Stream<TypedData> readStream(
     String physicalChannel, {
     required double rateHz,
