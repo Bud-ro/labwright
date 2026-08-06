@@ -7,6 +7,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'test_util.dart';
 
 /// The `0x1d` wire-segment class ([HeapObjectClass.bdWire]) is BD-only and its own-level rect is a
 /// degenerate (line-like) Manhattan run. Samples a corpus slice per run to stay fast.
@@ -93,10 +94,7 @@ void main() {
 
   test('endpoint terminal bounds: crc8 tunnels pin to their structure borders', () {
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
-    if (!crc8.existsSync()) {
-      markTestSkipped('crc8 snippet not fetched');
-      return;
-    }
+    if (!corpusOrSkip(crc8, what: 'crc8 snippet')) return;
     final diagram = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
     // endpoint oid -> absolute attach rect (t, l, b, r): the for-loop N terminal
     // (top-left corner), left-border tunnels of the outer and inner loops, the

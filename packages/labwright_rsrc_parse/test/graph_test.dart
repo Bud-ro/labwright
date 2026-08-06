@@ -7,72 +7,51 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'test_util.dart';
 
-/// Object/group open record: `10 <tag> 02 fe <u16 kind> fd <u16 oid>`.
-List<int> open(int kind, int oid, {int tag = 0x19}) => [
-  0x10,
-  tag,
-  0x02,
-  0xfe,
-  kind >> 8,
-  kind & 0xff,
-  0xfd,
-  oid >> 8,
-  oid & 0xff,
-];
-List<int> close([int tag = 0x19]) => [0x08, tag];
-List<int> bounds(int t, int l, int b, int r) => [
-  0xc4,
-  0x2d,
-  0x08,
-  t >> 8,
-  t & 0xff,
-  l >> 8,
-  l & 0xff,
-  b >> 8,
-  b & 0xff,
-  r >> 8,
-  r & 0xff,
-];
-List<int> caption(String s) => [0xc4, 0x22, s.length, ...s.codeUnits];
-List<int> enum2e(List<String> items) {
-  final b = [for (final it in items) ...pascal(it)];
-  return [0xc4, 0x2e, b.length, ...b];
-}
+ViDiagram dia(List<int> records, {String? version}) => buildDiagram(heapBody(records), version: version);
 
-/// `C6 <id> FF <u16 len> <u32 strlen> <text>` string blob.
-List<int> c6blob(int id, String s) => [
-  0xc6,
-  id,
-  0xff,
-  (4 + s.length) >> 8,
-  (4 + s.length) & 0xff,
-  0,
-  0,
-  0,
-  s.length,
-  ...s.codeUnits,
+/// A wire endpoint DCO, the bounds-less `0x15` leaf unless [kind] says otherwise.
+List<int> endpoint(int oid, {int kind = 0x15}) => [...open(kind, oid, tag: 0x1a), ...close(0x1a)];
+
+/// A terminal carrier claiming [endpointOid] over the attach rect
+/// `(top, left, bottom, right)`, whose floored centre is the attach point.
+List<int> terminal(int oid, int endpointOid, (int, int, int, int) rect, {int kind = 0x22}) => [
+  ...open(kind, oid, tag: 0x1a),
+  ...childRef(endpointOid),
+  ...c5(0x29, [...be16(rect.$1), ...be16(rect.$2), ...be16(rect.$3), ...be16(rect.$4)]),
+  ...close(0x1a),
 ];
 
-/// Description/help record `C4 19 <len> <text>` ([HeapRecord.descriptionText]).
-List<int> help(String s) => [0xc4, 0x19, s.length, ...s.codeUnits];
+/// The corpus tunnel pair: a [terminal] (oid `endpointOid - 1`) and the
+/// [endpoint] it claims.
+List<int> tunnel(int endpointOid, (int, int, int, int) rect, {int kind = 0x22}) => [
+  ...terminal(endpointOid - 1, endpointOid, rect, kind: kind),
+  ...endpoint(endpointOid),
+];
 
-/// Two-byte-BE numeric attribute record `44 <id> <u16 value>`.
-List<int> attrU16(int id, int v) => [0x44, id, v >> 8, v & 0xff];
+/// A square structure frame at the origin holding [body].
+List<int> frame(List<int> body, {int size = 100}) => [
+  ...open(0x20, 1),
+  ...bounds(0, 0, size, size),
+  ...body,
+  ...close(),
+];
 
-/// Length-prefixed container attribute record `C5 <id> <u8 len> <payload>`.
-List<int> c5(int id, List<int> payload) => [0xc5, id, payload.length, ...payload];
+/// A `0x17` signal binding [endpointOids] in storage order, carrying
+/// [routeRecord] (the `0xe7` route table in whichever stored width).
+List<int> signal(List<int> endpointOids, [List<int> routeRecord = const []]) => [
+  ...open(0x17, 9),
+  for (final oid in endpointOids) ...childRef(oid),
+  ...routeRecord,
+  ...close(),
+];
 
-/// Three-byte-BE numeric attribute record `64 <id> <u24 value>`.
-List<int> attrU24(int id, int v) => [0x64, id, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
-
-/// One-byte numeric attribute record `24 <id> <u8 value>`.
-List<int> attrU8(int id, int v) => [0x24, id, v & 0xff];
-
-/// Four-byte-BE numeric attribute record `84 <id> <u32 value>`.
-List<int> attrU32(int id, int v) => [0x84, id, (v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
-
-ViDiagram dia(List<int> records, {String? version}) =>
-    buildDiagram(u8([0, 0, 0, records.length, ...records]), version: version);
+/// Two structure tunnels on one frame — attach centres (9,14) and (54,44) —
+/// bound by a signal whose stored route is [table]. [reversed] swaps the
+/// signal's endpoint order, which picks the walk origin.
+List<int> twoTunnels(List<int> table, {bool reversed = false}) => [
+  ...frame([...tunnel(3, (10, 5, 19, 14)), ...tunnel(5, (40, 50, 49, 59))]),
+  ...signal(reversed ? [5, 3] : [3, 5], c5(0xe7, table)),
+];
 
 void main() {
   group('resolveDataSpaceTypes', resolveTypesTests);
@@ -125,10 +104,7 @@ void main() {
   });
 
   test('corpus pin: crc8 scalar-width caption', () {
-    if (!corpusViDir.existsSync()) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
+    if (!corpusOrSkip(corpusViDir)) return;
     // crc8.png stores oid221's label as `84 22 58 4F 52 3F` — the 4-byte
     // scalar form of raw 0x022 — on a label part under a case structure.
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
@@ -170,8 +146,8 @@ void main() {
   test('a signal captures its wire table at every width onto the wire model', () {
     final d = dia([
       ...open(0x17, 9), // container width
-      ...hx('14 19 01 fd 0002'),
-      ...hx('14 19 01 fd 0003'),
+      ...childRef(2),
+      ...childRef(3),
       ...c5(0xe7, [0x04, 0x08, 0x00, 0x00, 28, 12]),
       ...close(),
       ...open(0x17, 10), // u16 scalar (op 45 = raw 0x1E7) = the 2-byte straight table [02][dir]
@@ -199,116 +175,52 @@ void main() {
   });
 
   test('routePoints: the walked route closes exactly onto the far attach point or ships nothing', () {
-    // Two structure tunnels on one frame; the signal's stored route walks
-    // right 20 from the first tunnel's attach centre (9,14), turns down 30,
-    // and the implied closing segment lands on the second tunnel's attach
-    // centre (54,44).
-    List<int> records(List<int> table) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 4, tag: 0x1a),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0x29, [0, 40, 0, 50, 0, 49, 0, 59]), // attach (54, 44)
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0xe7, table),
-      ...close(),
-    ];
-    final good = dia(records([0x04, 0x08, 0x00, 0x00, 20, 30]));
+    // The stored route walks right 20 from the first tunnel's attach centre
+    // (9,14), turns down 30, and the implied closing segment lands on the
+    // second tunnel's attach centre (54,44).
+    final good = dia(twoTunnels([0x04, 0x08, 0x00, 0x00, 20, 30]));
     expect(good.wireAttachPoint(3), (x: 9, y: 14));
     expect(good.wireAttachPoint(5), (x: 54, y: 44));
     expect(good.wires.single.routePoints, [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44), (x: 54, y: 44)]);
     // A walk whose perpendicular lands 1 px off the far attach point ships
     // nothing — never force-closed.
-    expect(dia(records([0x04, 0x08, 0x00, 0x00, 20, 29])).wires.single.routePoints, isNull);
+    expect(dia(twoTunnels([0x04, 0x08, 0x00, 0x00, 20, 29])).wires.single.routePoints, isNull);
     // A closing segment contradicting the stored final sign ships nothing.
-    expect(dia(records([0x04, 0x08, 0x00, 0x01, 20, 30])).wires.single.routePoints, isNull);
+    expect(dia(twoTunnels([0x04, 0x08, 0x00, 0x01, 20, 30])).wires.single.routePoints, isNull);
     // Pre-8.6 files stay null (old coordinate space).
-    expect(dia(records([0x04, 0x08, 0x00, 0x00, 20, 30]), version: '8.5').wires.single.routePoints, isNull);
+    expect(dia(twoTunnels([0x04, 0x08, 0x00, 0x00, 20, 30]), version: '8.5').wires.single.routePoints, isNull);
   });
 
   test('routePoints: every first-segment direction closes; zero closures drop the duplicate vertex', () {
-    // The same two tunnels — attach (9,14) and (54,44) — wired in either
-    // direction, with the signal's endpoint order picking the walk origin.
-    List<int> records(List<int> table, {bool reversed = false}) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 4, tag: 0x1a),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0x29, [0, 40, 0, 50, 0, 49, 0, 59]), // attach (54, 44)
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx(reversed ? '14 19 01 fd 0005' : '14 19 01 fd 0003'),
-      ...hx(reversed ? '14 19 01 fd 0003' : '14 19 01 fd 0005'),
-      ...c5(0xe7, table),
-      ...close(),
-    ];
     // Down-first, and the walk ends ON the far attach point: the implied
     // closing run is zero-length, so the duplicate terminal vertex is
     // dropped (3 points for a 4-point table).
-    expect(dia(records([0x04, 0x04, 0x00, 0x00, 30, 45])).wires.single.routePoints, [
+    expect(dia(twoTunnels([0x04, 0x04, 0x00, 0x00, 30, 45])).wires.single.routePoints, [
       (x: 9, y: 14),
       (x: 9, y: 44),
       (x: 54, y: 44),
     ]);
     // Up-first from the far tunnel back to the near one (same shape).
-    expect(dia(records([0x04, 0x01, 0x01, 0x01, 30, 45], reversed: true)).wires.single.routePoints, [
+    expect(dia(twoTunnels([0x04, 0x01, 0x01, 0x01, 30, 45], reversed: true)).wires.single.routePoints, [
       (x: 54, y: 44),
       (x: 54, y: 14),
       (x: 9, y: 14),
     ]);
     // Left-first with a real (nonzero) closing run.
-    expect(dia(records([0x03, 0x02, 0x01, 45], reversed: true)).wires.single.routePoints, [
+    expect(dia(twoTunnels([0x03, 0x02, 0x01, 45], reversed: true)).wires.single.routePoints, [
       (x: 54, y: 44),
       (x: 9, y: 44),
       (x: 9, y: 14),
     ]);
     // A 1-point table ships iff the two attach points coincide.
-    expect(dia(records([0x01])).wires.single.routePoints, isNull);
+    expect(dia(twoTunnels([0x01])).wires.single.routePoints, isNull);
   });
 
   test('routePoints: 1-point coincident endpoints ship a single-point route', () {
+    // Two terminals over the same rect, and the u8-scalar 1-point table.
     final d = dia([
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 4, tag: 0x1a), // a second terminal over the same rect
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      0x25, 0xe7, 0x01, // the u8-scalar 1-point table
-      ...close(),
+      ...frame([...tunnel(3, (10, 5, 19, 14)), ...tunnel(5, (10, 5, 19, 14))]),
+      ...signal([3, 5], [0x25, 0xe7, 0x01]),
     ]);
     expect(d.wires.single.routePoints, [(x: 9, y: 14)]);
   });
@@ -320,23 +232,11 @@ void main() {
     // endpoints never anchor at their own box — but the one-anchored walked
     // tier ships a route to the node box's near edge off the exact tunnel end.
     List<int> records(int endpointKind) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
+      ...frame([...tunnel(3, (10, 5, 19, 14))]),
       ...open(endpointKind, 5),
       ...bounds(6, 100, 22, 132), // floored centre (116, 14)
       ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      0x45, 0xe7, 0x02, 0x08, // [02][right]: straight table
-      ...close(),
+      ...signal([3, 5], [0x45, 0xe7, 0x02, 0x08]), // [02][right]: straight table
     ];
     final leaf = dia(records(0x16));
     expect(leaf.wireAttachPoint(5), (x: 116, y: 14));
@@ -351,17 +251,7 @@ void main() {
     // (9,14). The right register's (0x28) connection column sits 4px left, so
     // its attach point is (5,14); the left register's (0x27) sits 4px right,
     // (13,14); any other terminal keeps the plain centre (9,14). Only x moves.
-    List<int> records(int terminalKind) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(terminalKind, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // floored centre (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-    ];
+    List<int> records(int terminalKind) => frame([...tunnel(3, (10, 5, 19, 14), kind: terminalKind)]);
     expect(dia(records(0x28)).wireAttachPoint(3), (x: 5, y: 14)); // right: centre.x - 4
     expect(dia(records(0x27)).wireAttachPoint(3), (x: 13, y: 14)); // left: centre.x + 4
     expect(dia(records(0x22)).wireAttachPoint(3), (x: 9, y: 14)); // non-shift terminal: unchanged
@@ -374,23 +264,11 @@ void main() {
     // register the anchor lands on the decoded column x=5; off the LEFT on
     // x=13 — both bent walks ship from their register's connection column.
     List<int> records(int terminalKind) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 200, 200),
-      ...open(terminalKind, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // floored centre (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
+      ...frame([...tunnel(3, (10, 5, 19, 14), kind: terminalKind)], size: 200),
       ...open(0x15, 5),
       ...bounds(40, 60, 60, 92), // far plain-node box; left edge x=60
       ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0xe7, [0x04, 0x08, 0x00, 0x00, 55, 36]), // right then down
-      ...close(),
+      ...signal([3, 5], c5(0xe7, [0x04, 0x08, 0x00, 0x00, 55, 36])), // right then down
     ];
     // Right register: anchor (5,14), right 55 -> x=60 (far box left edge), down
     // 36 -> y=50 (within the box's 40..60 y-span): a shipped bent walk.
@@ -401,25 +279,8 @@ void main() {
 
   test('routePoints: a 3+-endpoint signal ships nothing even when its table decodes', () {
     final d = dia([
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x15, 7, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, [0x03, 0x08, 0x00, 0x14]),
-      ...close(),
+      ...frame([...tunnel(3, (10, 5, 19, 14)), ...endpoint(5), ...endpoint(7)]),
+      ...signal([3, 5, 7], c5(0xe7, [0x03, 0x08, 0x00, 0x14])),
     ]);
     final wire = d.wires.single;
     expect(wire.route, isNotNull, reason: 'the short-form table itself decodes');
@@ -551,36 +412,14 @@ void main() {
   test('routeTree gate: an unanchored origin reverse-solves; a leaf-count mismatch ships nothing', () {
     // Three anchored tunnels (oids 3/5/7) plus a bare 0x15 node (oid 8) that
     // no terminal claims — it resolves no attach point.
-    List<int> records(List<int> firstRef, List<int> table) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]),
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 4, tag: 0x1a),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0x29, [0, 40, 0, 25, 0, 49, 0, 34]),
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 6, tag: 0x1a),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0x29, [0, 10, 0, 50, 0, 19, 0, 59]),
-      ...close(0x1a),
-      ...open(0x15, 7, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x15, 8, tag: 0x1a), // bare node, no terminal — no attach point
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...firstRef,
-      ...hx('14 19 01 fd 0005'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, table),
-      ...close(),
+    List<int> records(int firstEndpoint, List<int> table) => [
+      ...frame([
+        ...tunnel(3, (10, 5, 19, 14)),
+        ...tunnel(5, (40, 25, 49, 34)),
+        ...tunnel(7, (10, 50, 19, 59)),
+        ...endpoint(8), // bare node, no terminal — no attach point
+      ]),
+      ...signal([firstEndpoint, 5, 7], c5(0xe7, table)),
     ];
     // A valid 3-endpoint tree whose first endpoint (the bare node) resolves
     // no attach point: the REVERSE-SOLVED tier ships it — exactly one
@@ -589,9 +428,8 @@ void main() {
     // inside the head's owner box (the alternative seed translation
     // (-16,44) falls outside it). Fidelity is walked: the head is derived,
     // not independently confirmed.
-    final noOrigin = dia(records(hx('14 19 01 fd 0008'), [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])).wires.single;
+    final noOrigin = dia(records(8, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])).wires.single;
     expect(noOrigin.branchRoute, isNotNull);
-    expect(noOrigin.routeTree, isNotNull);
     expect(noOrigin.routeTreeFidelity, WireRouteFidelity.walked);
     expect(noOrigin.routeTree!.polylines, [
       [(x: 9, y: 14), (x: 29, y: 14), (x: 29, y: 44)],
@@ -600,7 +438,7 @@ void main() {
     expect(noOrigin.routeTree!.junctions, [(x: 29, y: 14)]);
     // A table with too few leaves for the endpoint count (one straight run,
     // no pops -> a single leaf vs three endpoints): the gate rejects it.
-    final fewLeaves = dia(records(hx('14 19 01 fd 0003'), [0x03, 0x00, 0x08, 0x00, 20, 30])).wires.single;
+    final fewLeaves = dia(records(3, [0x03, 0x00, 0x08, 0x00, 20, 30])).wires.single;
     expect(fewLeaves.branchRoute, isNotNull);
     expect(fewLeaves.routeTree, isNull);
   });
@@ -612,25 +450,12 @@ void main() {
     // branch leaf and (15,44) via the trailing run — and both land inside
     // the head's owner box, so the solve is ambiguous and withheld.
     final records = [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 40, 0, 56, 0, 49, 0, 65]), // attach (60, 44)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x15, 7, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0005'),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
-      ...close(),
+      ...frame([
+        ...tunnel(3, (40, 56, 49, 65)), // attach (60, 44)
+        ...endpoint(5),
+        ...endpoint(7),
+      ]),
+      ...signal([5, 3, 7], c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])),
     ];
     final wire = dia(records).wires.single;
     expect(wire.branchRoute, isNotNull);
@@ -642,33 +467,12 @@ void main() {
     // tunnel's attach centre (9,14), forks at (29,14) down 30 onto the second
     // tunnel (29,44), and resumes right 25 onto the third (54,14).
     List<int> records({required int thirdLeft}) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 4, tag: 0x1a),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0x29, [0, 40, 0, 25, 0, 49, 0, 34]), // attach (29, 44)
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 6, tag: 0x1a),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0x29, [0, 10, 0, thirdLeft, 0, 19, 0, thirdLeft + 9]), // attach (thirdLeft+4, 14)
-      ...close(0x1a),
-      ...open(0x15, 7, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
-      ...close(),
+      ...frame([
+        ...tunnel(3, (10, 5, 19, 14)), // attach (9, 14)
+        ...tunnel(5, (40, 25, 49, 34)), // attach (29, 44)
+        ...tunnel(7, (10, thirdLeft, 19, thirdLeft + 9)), // attach (thirdLeft+4, 14)
+      ]),
+      ...signal([3, 5, 7], c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])),
     ];
     final good = dia(records(thirdLeft: 50)).wires.single;
     expect(good.route, isNull, reason: 'the extended form is not the two-endpoint grammar');
@@ -833,30 +637,21 @@ void main() {
     // [nodeBounds] positions the far plain node's box so its edge actually
     // contains the connection point (the cross-axis containment gate rejects a
     // terminus that lands beside the box).
-    List<int> records(String a, String b, List<int> table, List<int> nodeBounds) => [
+    List<int> records(List<int> endpointOids, List<int> table, (int, int, int, int) nodeBox) => [
       ...open(0x20, 1),
       ...bounds(0, 0, 200, 200),
-      ...open(0x22, 2, tag: 0x1a), // tunnel terminal, structure-framed -> exact anchor
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // attach (9, 14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
+      ...tunnel(3, (10, 5, 19, 14)), // structure-framed terminal -> exact anchor at (9, 14)
       ...open(0x2f, 6, tag: 0x1a), // a bounded primitive node
-      ...bounds(nodeBounds[0], nodeBounds[1], nodeBounds[2], nodeBounds[3]),
+      ...bounds(nodeBox.$1, nodeBox.$2, nodeBox.$3, nodeBox.$4),
       ...open(0x15, 7, tag: 0x1b), // plain node endpoint (no terminal, no constant)
       ...close(0x1b),
       ...close(0x1a),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 000$a'),
-      ...hx('14 19 01 fd 000$b'),
-      ...c5(0xe7, table),
-      ...close(),
+      ...signal(endpointOids, c5(0xe7, table)),
     ];
     // Forward: anchor is endpoint 0 (the tunnel). Walk right 30 from (9,14) to
     // the bend (39,14), then the closing run drops onto the node's top edge
     // (y = 40); x = 39 lies within the box span [30, 90].
-    final fwdDia = dia(records('3', '7', [0x03, 0x08, 0x00, 30], [40, 30, 60, 90]));
+    final fwdDia = dia(records([3, 7], [0x03, 0x08, 0x00, 30], (40, 30, 60, 90)));
     expect(fwdDia.wireAttachPoint(3), (x: 9, y: 14));
     expect(fwdDia.wireAttachPoint(7), isNull);
     expect(fwdDia.wires.single.routePoints, [(x: 9, y: 14), (x: 39, y: 14), (x: 39, y: 40)]);
@@ -865,18 +660,18 @@ void main() {
     // node (endpoint 0) rides the box edge the wire departs. dir=left leaves
     // the node's LEFT edge (x = 40); the box spans y [5, 25] around row 14.
     // Storage order: plain, then anchor.
-    final rev = dia(records('7', '3', [0x02, 0x02], [5, 40, 25, 90])).wires.single;
+    final rev = dia(records([7, 3], [0x02, 0x02], (5, 40, 25, 90))).wires.single;
     expect(rev.routePoints, [(x: 40, y: 14), (x: 9, y: 14)]);
     // Reverse with an ODD stored-bend count: the departing and closing axes
     // differ, so the reverse geometry is underdetermined and ships nothing.
-    final revBent = dia(records('7', '3', [0x03, 0x02, 0x00, 30], [5, 40, 25, 90])).wires.single;
+    final revBent = dia(records([7, 3], [0x03, 0x02, 0x00, 30], (5, 40, 25, 90))).wires.single;
     expect(revBent.routePoints, isNull);
     // Reverse with an EVEN stored-bend count ships, the head pinned at the
     // departure edge and the undecoded terminal depth marked INTERIOR-ward
     // on routeHeadSlack: dir=left departs the node's LEFT edge (x = 40), so
     // the marked slide direction is +x, into the box.
     final revSlack = dia(
-      records('7', '3', [0x04, 0x02, 0x00, 0x01, 10, 6], [5, 40, 25, 90]),
+      records([7, 3], [0x04, 0x02, 0x00, 0x01, 10, 6], (5, 40, 25, 90)),
     ).wires.single;
     expect(revSlack.routePoints, [
       (x: 40, y: 8),
@@ -890,7 +685,7 @@ void main() {
     // trailing point on a slack ship, so the consumer's
     // translate-all-but-the-anchor resolution needs no special casing.
     final revSlackZero = dia(
-      records('7', '3', [0x04, 0x02, 0x00, 0x01, 31, 6], [5, 40, 25, 90]),
+      records([7, 3], [0x04, 0x02, 0x00, 0x01, 31, 6], (5, 40, 25, 90)),
     ).wires.single;
     expect(revSlackZero.routePoints, [
       (x: 40, y: 8),
@@ -906,18 +701,13 @@ void main() {
     List<int> bothBare(List<int> table) => [
       ...open(0x20, 1),
       ...bounds(0, 0, 200, 200),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
+      ...endpoint(3),
       ...open(0x2f, 6, tag: 0x1a),
       ...bounds(40, 40, 60, 90),
       ...open(0x15, 7, tag: 0x1b),
       ...close(0x1b),
       ...close(0x1a),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, table),
-      ...close(),
+      ...signal([3, 7], c5(0xe7, table)),
     ];
     expect(dia(bothBare([0x03, 0x08, 0x00, 30])).wires.single.routePoints, isNull);
 
@@ -941,11 +731,7 @@ void main() {
       ...open(0x15, 7, tag: 0x1b),
       ...close(0x1b),
       ...close(0x1a),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, [0x02, 0x08]),
-      ...close(),
+      ...signal([3, 7], c5(0xe7, [0x02, 0x08])),
     ]);
     expect(constAnchor.wireAttachPoint(3), isNotNull, reason: 'the constant shell resolves an attach point');
     expect(constAnchor.wires.single.routePoints, isNull, reason: 'but a coarse constant-shell anchor is withheld');
@@ -957,39 +743,13 @@ void main() {
     // bare plain node (rides the walk) or an anchored tunnel that may or may
     // not close.
     List<int> records({required bool bareSecond, int thirdLeft = 50}) => [
-      ...open(0x20, 1),
-      ...bounds(0, 0, 200, 200),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // origin attach (9,14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      // Second leaf: a bare plain node (oid 5) OR an anchored tunnel.
-      if (bareSecond) ...[
-        ...open(0x15, 5, tag: 0x1a),
-        ...close(0x1a),
-      ] else ...[
-        ...open(0x22, 4, tag: 0x1a),
-        ...hx('14 19 01 fd 0005'),
-        ...c5(0x29, [0, 40, 0, 25, 0, 49, 0, 34]), // attach (29,44)
-        ...close(0x1a),
-        ...open(0x15, 5, tag: 0x1a),
-        ...close(0x1a),
-      ],
-      ...open(0x22, 6, tag: 0x1a),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0x29, [0, 10, 0, thirdLeft, 0, 19, 0, thirdLeft + 9]), // attach (thirdLeft+4, 14)
-      ...close(0x1a),
-      ...open(0x15, 7, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
-      ...close(),
+      ...frame([
+        ...tunnel(3, (10, 5, 19, 14)), // origin attach (9,14)
+        // Second leaf: a bare plain node (oid 5) OR an anchored tunnel at (29,44).
+        if (bareSecond) ...endpoint(5) else ...tunnel(5, (40, 25, 49, 34)),
+        ...tunnel(7, (10, thirdLeft, 19, thirdLeft + 9)), // attach (thirdLeft+4, 14)
+      ], size: 200),
+      ...signal([3, 5, 7], c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])),
     ];
     // Origin anchored, second leaf a plain node (rides the walk), third leaf
     // closes exactly: the contradiction-free walked tree ships as the walked
@@ -1017,33 +777,12 @@ void main() {
     // both have to claim the single (54,14) leaf — a collision the greedy
     // multiset match rejects, so nothing ships (never double-counted).
     final d = dia([
-      ...open(0x20, 1),
-      ...bounds(0, 0, 200, 200),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // origin (9,14)
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 4, tag: 0x1a),
-      ...hx('14 19 01 fd 0005'),
-      ...c5(0x29, [0, 10, 0, 50, 0, 19, 0, 59]), // (54,14)
-      ...close(0x1a),
-      ...open(0x15, 5, tag: 0x1a),
-      ...close(0x1a),
-      ...open(0x22, 6, tag: 0x1a),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0x29, [0, 10, 0, 50, 0, 19, 0, 59]), // (54,14) — same as leaf 5
-      ...close(0x1a),
-      ...open(0x15, 7, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-      ...open(0x17, 9),
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0005'),
-      ...hx('14 19 01 fd 0007'),
-      ...c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25]),
-      ...close(),
+      ...frame([
+        ...tunnel(3, (10, 5, 19, 14)), // origin (9,14)
+        ...tunnel(5, (10, 50, 19, 59)), // (54,14)
+        ...tunnel(7, (10, 50, 19, 59)), // (54,14) — same as leaf 5
+      ], size: 200),
+      ...signal([3, 5, 7], c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])),
     ]);
     expect(d.wireAttachPoint(5), (x: 54, y: 14));
     expect(d.wireAttachPoint(7), (x: 54, y: 14));
@@ -1054,19 +793,10 @@ void main() {
     final records = [
       ...open(0x20, 1), // loop structure at (100, 50)
       ...bounds(100, 50, 200, 150),
-      ...open(0x22, 2, tag: 0x1a), // tunnel terminal: childRefs the endpoint, carries termBounds
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 10, 0, 5, 0, 19, 0, 14]), // t:10 l:5 b:19 r:14
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a), // the wire-endpoint DCO (bounds-less)
-      ...close(0x1a),
-      ...open(0x16, 4, tag: 0x1a), // an endpoint no terminal names
-      ...close(0x1a),
+      ...tunnel(3, (10, 5, 19, 14)), // terminal childRefs the endpoint and carries termBounds
+      ...endpoint(4, kind: 0x16), // an endpoint no terminal names
       ...close(),
-      ...open(0x17, 9), // the signal binding both endpoints
-      ...hx('14 19 01 fd 0003'),
-      ...hx('14 19 01 fd 0004'),
-      ...close(),
+      ...signal([3, 4]),
     ];
     final d = dia(records);
     expect(d.endpointTerminal(3)!.oid, 2);
@@ -1089,21 +819,9 @@ void main() {
   });
 
   test('endpointTerminal: an endpoint two terminals claim resolves to nothing', () {
-    final d = dia([
-      ...open(0x20, 1),
-      ...bounds(0, 0, 100, 100),
-      ...open(0x22, 2, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 0, 0, 0, 0, 9, 0, 9]),
-      ...close(0x1a),
-      ...open(0x22, 5, tag: 0x1a),
-      ...hx('14 19 01 fd 0003'),
-      ...c5(0x29, [0, 1, 0, 1, 0, 9, 0, 9]),
-      ...close(0x1a),
-      ...open(0x15, 3, tag: 0x1a),
-      ...close(0x1a),
-      ...close(),
-    ]);
+    final d = dia(
+      frame([...terminal(2, 3, (0, 0, 9, 9)), ...terminal(5, 3, (1, 1, 9, 9)), ...endpoint(3)]),
+    );
     expect(d.endpointTerminal(3), isNull, reason: 'ambiguous claims are dropped, never guessed (corpus: 0)');
     expect(d.endpointTerminalBounds(3), isNull);
   });
@@ -1334,13 +1052,13 @@ void main() {
       ...close(),
       ...close(),
     ]);
-    final vp = d.byId[3]!.absBounds!;
-    final c4 = d.byId[4]!.absBounds!, c5 = d.byId[5]!.absBounds!;
-    expect([c4.top, c4.left], [210, 55], reason: '#4 re-anchored to the viewport origin');
-    expect(c5.top, 248, reason: '#5 sits 38px below #4 (-262 vs -300) -> 210+38');
-    for (final c in [c4, c5]) {
-      final cy = (c.top + c.bottom) ~/ 2;
-      expect(cy >= vp.top && cy <= vp.bottom, isTrue, reason: 'control center inside viewport');
+    final viewport = d.byId[3]!.absBounds!;
+    final upper = d.byId[4]!.absBounds!, lower = d.byId[5]!.absBounds!;
+    expect([upper.top, upper.left], [210, 55], reason: '#4 re-anchored to the viewport origin');
+    expect(lower.top, 248, reason: '#5 sits 38px below #4 (-262 vs -300) -> 210+38');
+    for (final control in [upper, lower]) {
+      final centre = (control.top + control.bottom) ~/ 2;
+      expect(centre >= viewport.top && centre <= viewport.bottom, isTrue, reason: 'control center inside viewport');
     }
     expect(d.byId[6]!.absBounds!.top, 210, reason: "#4's label subtree rides along");
     expect([d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left], [215, 65], reason: 'nested control rides parent');
