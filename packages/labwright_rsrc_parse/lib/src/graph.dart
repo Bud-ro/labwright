@@ -851,8 +851,8 @@ enum HeapObjectClass {
   /// 2066/2075 carry an `0xa` VI-filename caption (`Robot Main.vi`, `PicoScope2000aSettings.vi`).
   bdNode32(0x32, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0xC5` — a subVI call node (icon). Corpus: 1518 BD (0 FP), uniform 32×32, parent `0x1b`;
-  /// 1518/1518 carry an `0xa` VI-filename caption (`Analog to Digital.vi`).
+  /// `0xC5` — a subVI call node (icon). Corpus: 1514 BD (0 FP), uniform 32×32, parent `0x1b`;
+  /// 1514/1514 carry an `0xa` VI-filename caption (`Analog to Digital.vi`).
   bdNodeC5(0xc5, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
   /// `0x104` — a subVI call node (icon). Corpus: 2155 BD (0 FP), uniform 32×32, parent `0x1b`;
@@ -2218,6 +2218,48 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   WireRouteDirection.right => WireRouteDirection.left,
 };
 
+/// Walks the stored bends of a decoded two-endpoint [route] from [origin] — the Manhattan polyline
+/// LabVIEW saved, minus the closing run whose length the table only implies.
+///
+/// The walk starts along [ViWireRoute.direction], alternates axis every segment, and takes each
+/// later segment's sign from [ViWireRoute.jointSigns]; it emits [origin] plus one point per
+/// [ViWireRoute.segmentLengths] entry, so a decoded route yields `pointCount - 1` points, the last
+/// being the final stored bend.
+///
+/// The record also carries what a caller needs to close that final run: the route's [direction], the
+/// closing run's axis (`closingHorizontal`) and its stored sign (`closingSign`, the first segment's
+/// sign for a 2-point route, which stores no joint signs). Callers close it onto a destination point
+/// ([ViDiagram._closedRoutePoints]) or onto a node box ([walkOneAnchoredRoute]). Null when the route
+/// stores no direction — the 1-point table, whose endpoints share one spot.
+({List<ViPoint> points, WireRouteDirection direction, bool closingHorizontal, int closingSign})? walkRouteBends(
+  ViWireRoute route, {
+  ViPoint origin = (x: 0, y: 0),
+}) {
+  final direction = route.direction;
+  if (direction == null) return null;
+  var x = origin.x, y = origin.y;
+  var horizontal = direction.isHorizontal;
+  var sign = direction.dx + direction.dy;
+  final lengths = route.segmentLengths;
+  final points = <ViPoint>[origin];
+  for (var k = 0; k < lengths.length; k++) {
+    if (k > 0) sign = route.jointSigns[k - 1];
+    if (horizontal) {
+      x += lengths[k] * sign;
+    } else {
+      y += lengths[k] * sign;
+    }
+    points.add((x: x, y: y));
+    horizontal = !horizontal;
+  }
+  return (
+    points: points,
+    direction: direction,
+    closingHorizontal: horizontal,
+    closingSign: route.jointSigns.isEmpty ? direction.dx + direction.dy : route.jointSigns.last,
+  );
+}
+
 /// Walks a decoded two-endpoint [ViWireRoute] from a single anchored endpoint, deriving the
 /// plain-node endpoint at the far end (a primitive input/output or subVI terminal, which carries no
 /// independently decoded attach geometry) from its owner node box [farBox]. This is the walked tier
@@ -2265,36 +2307,17 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   required HeapRect farBox,
 }) {
   if (route.pointCount < 2) return null;
-  final direction = route.direction;
-  if (direction == null) return null;
-  // Walk the stored bends in a local frame (origin at the first endpoint, closing run length 0):
-  // local[0..pointCount-2], the last being the final stored bend before the implied closing run.
-  var x = 0, y = 0;
-  var horizontal = direction.isHorizontal;
-  var sign = direction.dx + direction.dy;
-  final local = <ViPoint>[(x: 0, y: 0)];
-  final lengths = route.segmentLengths;
-  for (var k = 0; k < lengths.length; k++) {
-    if (k > 0) sign = route.jointSigns[k - 1];
-    if (horizontal) {
-      x += lengths[k] * sign;
-    } else {
-      y += lengths[k] * sign;
-    }
-    local.add((x: x, y: y));
-    horizontal = !horizontal;
-  }
-  final closingHorizontal = horizontal;
-  final closingSign = route.jointSigns.isEmpty ? (direction.dx + direction.dy) : route.jointSigns.last;
-  final lastBend = local.last;
 
   if (anchoredIndex == 0) {
-    // Forward: translate the local frame onto the anchor, then close the implied final run onto —
-    // or into — the far box.
-    final pts = [for (final p in local) (x: p.x + anchor.x, y: p.y + anchor.y)];
+    // Forward: walk the stored bends from the anchor, then close the implied final run onto — or
+    // into — the far box.
+    final walk = walkRouteBends(route, origin: anchor);
+    if (walk == null) return null;
+    final pts = walk.points;
+    final closingSign = walk.closingSign;
     final tail = pts.last;
     final ViPoint terminus;
-    if (closingHorizontal) {
+    if (walk.closingHorizontal) {
       // A terminus row outside the box's occupied rows means the closing run points into empty
       // space beside the node: a drifted/stale route.
       if (tail.y < farBox.top || tail.y >= farBox.bottom) return null;
@@ -2337,9 +2360,16 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 
   // Reverse: the anchored second endpoint pins the perpendicular-to-closing axis; the far edge of
   // the box pins the departing segment's axis. Solvable only when those axes differ — i.e. the
-  // departing segment shares the closing run's axis.
-  final seg0Sign = direction.dx + direction.dy;
-  if (direction.isHorizontal != closingHorizontal) return null;
+  // departing segment shares the closing run's axis. The bends are walked in a local frame (origin
+  // at the first endpoint) and translated once the box solves that frame's placement.
+  final walk = walkRouteBends(route);
+  if (walk == null) return null;
+  final local = walk.points;
+  final lastBend = local.last;
+  final closingHorizontal = walk.closingHorizontal;
+  final closingSign = walk.closingSign;
+  final seg0Sign = walk.direction.dx + walk.direction.dy;
+  if (walk.direction.isHorizontal != closingHorizontal) return null;
   final int tx, ty;
   if (closingHorizontal) {
     ty = anchor.y - lastBend.y;
@@ -2757,6 +2787,18 @@ class ViDiagram {
   /// and ship — the other 280 are withheld (no candidate closes, none lands in the head box, or two
   /// do). Of the shipped tables' 8,148 unresolved far endpoints, 8,136 (99.85%) land their leaf
   /// within 8 px of their own owner box — corroboration the gate does not consume.
+  ///
+  /// The containment test reads both far bounds inclusively, one pixel wider than the
+  /// `[left, right-1] x [top, bottom-1]` span [walkOneAnchoredRoute] snaps its termini to. Corpus
+  /// (7,524 VIs): 149 candidate evaluations place the tested coordinate exactly on a far edge, 60 of
+  /// them inside the box on the other axis, and 55 of those 60 close every resolved far endpoint —
+  /// each a second solution that renders an otherwise unique translation ambiguous. Reading the far
+  /// bounds exclusively relocates or withholds no tree that ships today and adds 55 ships across 47
+  /// VIs (`SimulationSubVI.vi` signal 671, `editDialog.vi` signal 588, `ArrangeNodes Main.vi` signal
+  /// 4069, …): the inclusive acceptance masks correct ships. All 55 solve to an origin strictly
+  /// interior to the head box, and all 61 of their unresolved far endpoints land a leaf within 8 px
+  /// of their own owner box, against 36,392 of 36,621 for the walked trees shipping today. TODO:
+  /// take the exclusive span and restate this tier's ship/withheld counts with the corpus snapshot.
   static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _reverseSolvedRouteTree(
     ViWireBranchRoute route,
     List<ViPoint?> attachPoints,
@@ -3214,41 +3256,26 @@ class ViDiagram {
     return (x: attach.x - kTerminalStripTargetLeftOffset, y: attach.y);
   }
 
-  /// Walks [route] from attach point [s] and closes it onto attach point [t], returning the
-  /// absolute polyline — [ViWireRoute.pointCount] points, one fewer when the closing run is
-  /// zero-length (the walk already ends ON [t]; a duplicate terminal vertex is never emitted) — or
-  /// null when either anchor is unknown or the closure is not exact (see [ViWire.routePoints];
-  /// never force-closed).
-  static List<ViPoint>? _closedRoutePoints(ViWireRoute route, ViPoint? s, ViPoint? t) {
-    if (s == null || t == null) return null;
-    final n = route.pointCount;
-    if (n == 1) return s == t ? [s] : null;
-    final direction = route.direction;
-    if (direction == null) return null;
-    var x = s.x, y = s.y;
-    var horizontal = direction.isHorizontal;
-    var sign = direction.dx + direction.dy;
-    final points = <ViPoint>[s];
-    final lengths = route.segmentLengths;
-    for (var k = 0; k < lengths.length; k++) {
-      if (k > 0) sign = route.jointSigns[k - 1];
-      if (horizontal) {
-        x += lengths[k] * sign;
-      } else {
-        y += lengths[k] * sign;
-      }
-      points.add((x: x, y: y));
-      horizontal = !horizontal;
-    }
-    // The closing segment's length is implied by [t], so the walk must already agree on the
-    // perpendicular axis and the closing direction must match the stored final sign. A zero-length
-    // closure has no drawn run to check the sign against and already ended on [t], so the polyline
-    // stops one point short rather than emitting a duplicate vertex.
-    if (horizontal ? y != t.y : x != t.x) return null;
-    final along = horizontal ? t.x - x : t.y - y;
-    final closingSign = route.jointSigns.isEmpty ? sign : route.jointSigns.last;
-    if (along != 0 && (along > 0 ? 1 : -1) != closingSign) return null;
-    if (along != 0) points.add(t);
+  /// Walks [route] from attach point [start] ([walkRouteBends]) and closes it onto attach point
+  /// [destination], returning the absolute polyline — [ViWireRoute.pointCount] points, one fewer
+  /// when the closing run is zero-length (the walk already ends on [destination]; a duplicate
+  /// terminal vertex is never emitted) — or null when either anchor is unknown or the closure is not
+  /// exact (see [ViWire.routePoints]; never force-closed).
+  static List<ViPoint>? _closedRoutePoints(ViWireRoute route, ViPoint? start, ViPoint? destination) {
+    if (start == null || destination == null) return null;
+    if (route.pointCount == 1) return start == destination ? [start] : null;
+    final walk = walkRouteBends(route, origin: start);
+    if (walk == null) return null;
+    final points = walk.points;
+    final tail = points.last;
+    // The closing segment's length is implied by [destination], so the walk must already agree on
+    // the perpendicular axis and the closing direction must match the stored final sign. A
+    // zero-length closure has no drawn run to check the sign against and already ended on
+    // [destination], so the polyline stops one point short rather than emitting a duplicate vertex.
+    if (walk.closingHorizontal ? tail.y != destination.y : tail.x != destination.x) return null;
+    final along = walk.closingHorizontal ? destination.x - tail.x : destination.y - tail.y;
+    if (along != 0 && (along > 0 ? 1 : -1) != walk.closingSign) return null;
+    if (along != 0) points.add(destination);
     return points;
   }
 
