@@ -462,6 +462,30 @@ void main() {
     expect(wire.routeTree, isNull);
   });
 
+  test('routeTree reverse-solve gate: a candidate on the head box far edge does not block the interior solve', () {
+    // Same shape, sliding the one anchored tunnel down the head box's bottom
+    // edge (the frame spans [0,100) x [0,100)). Both leaves close the single
+    // resolved endpoint, so containment alone decides: the branch leaf gives
+    // the interior origin (40, attachY-30), the trailing run gives
+    // (15, attachY).
+    List<int> records(int attachY) => [
+      ...frame([
+        ...tunnel(3, (attachY - 4, 56, attachY + 5, 65)), // attach (60, attachY)
+        ...endpoint(5),
+        ...endpoint(7),
+      ]),
+      ...signal([5, 3, 7], c5(0xe7, [0x04, 0x00, 0x08, 0x05, 0x03, 20, 30, 25])),
+    ];
+    for (final (attachY, origin) in <(int, ViPoint?)>[
+      (99, null), // (15,99) is interior too: two solutions, withheld
+      (100, (x: 40, y: 70)), // (15,100) sits on the exclusive bottom edge
+      (101, (x: 40, y: 71)), // (15,101) is outside outright
+    ]) {
+      final wire = dia(records(attachY)).wires.single;
+      expect(wire.routeTree?.polylines.first.first, origin, reason: 'attach y $attachY');
+    }
+  });
+
   test('routeTree: a fully-anchored branching signal ships exactly-closing trees only', () {
     // Three structure tunnels; the stored tree walks right 20 from the first
     // tunnel's attach centre (9,14), forks at (29,14) down 30 onto the second

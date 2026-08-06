@@ -1673,9 +1673,9 @@ class ViWire {
   /// ([kShiftRegisterColumnLeftOffset] / [kShiftRegisterColumnRightOffset]), leaving 12 far misses.
   ///
   /// Corpus-wide the closed tier ships 2,421 trees; the walked tier adds 17,755 on the
-  /// origin-anchored signals with plain-node leaves, the reverse-solved tier 8,950 on the
-  /// origin-unanchored ones, and the DCO-child closed tier 2,889 — 32,015 of the 35,968 extended
-  /// tables. The 3,953 unshipped remainder: origin-unanchored tables with no resolvable endpoint,
+  /// origin-anchored signals with plain-node leaves, the reverse-solved tier 9,005 on the
+  /// origin-unanchored ones, and the DCO-child closed tier 2,878 — 32,059 of the 35,968 extended
+  /// tables. The 3,909 unshipped remainder: origin-unanchored tables with no resolvable endpoint,
   /// plus the withheld contradictions/ambiguities on either side.
   ///
   /// Independent geometry check on well-registered snippets (the registration control discards
@@ -2775,30 +2775,27 @@ class ViDiagram {
   ///
   ///  * closes every resolved far endpoint onto a distinct walked leaf (each on any of its
   ///    destination candidates, strip column target first), and
-  ///  * lands the implied origin inside the head endpoint's owner box ([ViWire.endpointAnchors],
-  ///    bounds inclusive) — the branching analog of the two-endpoint reverse walk's far-box
-  ///    containment.
+  ///  * lands the implied origin inside the head endpoint's owner box ([ViWire.endpointAnchors]) —
+  ///    the branching analog of the two-endpoint reverse walk's far-box containment. The box is the
+  ///    `[left, right-1] x [top, bottom-1]` span [walkOneAnchoredRoute] snaps its termini to: far
+  ///    bounds exclusive, LabVIEW's rect convention throughout.
   ///
   /// An ambiguous solve (two in-box candidates) or an origin beside the head node ships nothing.
   /// The geometry is the stored tree placed by resolved-endpoint closure; the derived origin is
   /// implied but the head is not independently confirmed, so the tier is
-  /// [WireRouteFidelity.walked]. Corpus (7,524 VIs): 15,155 extended tables have an unresolved
-  /// origin; 9,147 carry a resolved far endpoint, and 8,867 solve to a unique in-box translation
-  /// and ship — the other 280 are withheld (no candidate closes, none lands in the head box, or two
-  /// do). Of the shipped tables' 8,148 unresolved far endpoints, 8,136 (99.85%) land their leaf
+  /// [WireRouteFidelity.walked]. Corpus (7,524 VIs): 15,162 extended tables have an unresolved
+  /// origin; 9,147 carry a resolved far endpoint, and 9,005 solve to a unique in-box translation
+  /// and ship — the other 142 are withheld (no candidate closes, none lands in the head box, or two
+  /// do). Of the shipped tables' 8,221 unresolved far endpoints, 8,209 (99.85%) land their leaf
   /// within 8 px of their own owner box — corroboration the gate does not consume.
   ///
-  /// The containment test reads both far bounds inclusively, one pixel wider than the
-  /// `[left, right-1] x [top, bottom-1]` span [walkOneAnchoredRoute] snaps its termini to. Corpus
-  /// (7,524 VIs): 149 candidate evaluations place the tested coordinate exactly on a far edge, 60 of
-  /// them inside the box on the other axis, and 55 of those 60 close every resolved far endpoint —
-  /// each a second solution that renders an otherwise unique translation ambiguous. Reading the far
-  /// bounds exclusively relocates or withholds no tree that ships today and adds 55 ships across 47
-  /// VIs (`SimulationSubVI.vi` signal 671, `editDialog.vi` signal 588, `ArrangeNodes Main.vi` signal
-  /// 4069, …): the inclusive acceptance masks correct ships. All 55 solve to an origin strictly
-  /// interior to the head box, and all 61 of their unresolved far endpoints land a leaf within 8 px
-  /// of their own owner box, against 36,392 of 36,621 for the walked trees shipping today. TODO:
-  /// take the exclusive span and restate this tier's ship/withheld counts with the corpus snapshot.
+  /// The exclusive far bounds are load-bearing: taking them inclusively admits candidates whose
+  /// origin sits exactly on the head box's right or bottom edge, and 55 of those close every
+  /// resolved far endpoint — each a phantom second solution that renders an otherwise unique
+  /// translation ambiguous. The inclusive form costs 55 trees across 47 VIs — 44 shipped by no tier
+  /// at all, 11 falling through to [_dcoChildRouteTree], which places them identically. Every one
+  /// of the 55 solves to an origin strictly interior to the head box, and all 61 of their
+  /// unresolved far endpoints land a leaf within 8 px of their own owner box.
   static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _reverseSolvedRouteTree(
     ViWireBranchRoute route,
     List<ViPoint?> attachPoints,
@@ -2859,7 +2856,10 @@ class ViDiagram {
     };
     ViPoint? solved;
     for (final origin in candidates) {
-      if (origin.x < headBox.left || origin.x > headBox.right || origin.y < headBox.top || origin.y > headBox.bottom) {
+      if (origin.x < headBox.left ||
+          origin.x >= headBox.right ||
+          origin.y < headBox.top ||
+          origin.y >= headBox.bottom) {
         continue;
       }
       if (!closesAll(origin)) continue;
