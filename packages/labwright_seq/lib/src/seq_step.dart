@@ -133,6 +133,51 @@ class Step {
   int? get dbMarshalOptionsCode => _intOf('MarshalOptions');
   int? get dbMaxRecordsToSelect => _intOf('MaxRecordsToSelect');
 
+  /// Further database step fields: the ADO connection string a database-open
+  /// step uses (`ConnectionString`, a literal or expression); null when absent.
+  String? get dbConnectionString => _scalarOf('ConnectionString');
+
+  /// For a message-popup step: the dialog title / message expressions
+  /// (`TitleExpr` / `MessageExpr`) — the text the operator sees. Each null
+  /// when absent.
+  String? get popupTitleExpression => _scalarOf('TitleExpr');
+  String? get popupMessageExpression => _scalarOf('MessageExpr');
+
+  /// The popup's button label expressions (`Button1Label`…`Button6Label`),
+  /// in order, unlabeled (`""`) buttons skipped. Empty for a non-popup step.
+  List<String> get popupButtonLabelExpressions {
+    final labels = <String>[];
+    for (var i = 1; i <= 6; i++) {
+      final label = _scalarOf('Button${i}Label');
+      if (label != null && label != '""') labels.add(label);
+    }
+    return labels;
+  }
+
+  /// Whether the popup collects an operator response (`ShowResponse`) and the
+  /// default it offers (`DefaultResponseExpr`). Each null when absent.
+  bool? get popupShowsResponse => _flagOf('ShowResponse');
+  String? get popupDefaultResponseExpression => _scalarOf('DefaultResponseExpr');
+
+  /// For a Call Executable step: the command (`Executable`), its arguments
+  /// (`Arguments`), the wait condition (`WaitCondition`, e.g. `WAIT_FOR_EXIT`),
+  /// and the initial window state (`InitialWindowState`). Each null when
+  /// absent.
+  String? get executablePath => _scalarOf('Executable');
+  String? get executableArguments => _scalarOf('Arguments');
+  String? get executableWaitCondition => _scalarOf('WaitCondition');
+  String? get executableInitialWindowState => _scalarOf('InitialWindowState');
+
+  /// For a synchronization step (lock/notification/rendezvous/…): the object
+  /// name-or-reference expression (`NameOrRefExpr`), the raw operation /
+  /// lifetime codes (`Operation` / `Lifetime`, NI-internal code→name not
+  /// invented), and whether the object is created when missing
+  /// (`CreateIfDoesNotExist`). Each null when absent.
+  String? get syncNameOrReferenceExpression => _scalarOf('NameOrRefExpr');
+  int? get syncOperationCode => _intOf('Operation');
+  int? get syncLifetimeCode => _intOf('Lifetime');
+  bool? get syncCreatesIfMissing => _flagOf('CreateIfDoesNotExist');
+
   /// For a Run/Wait step that references a sequence call by name: the referenced
   /// SequenceCall step's name (`SeqCallName`) and step-group index code
   /// (`SeqCallStepGroupIdx`), whether the target is specified by that sequence

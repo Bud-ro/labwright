@@ -117,6 +117,8 @@ void main() {
         'argsTranslated': stats.argsTranslated,
         'argsByOmission': stats.argsByOmission,
         'argsEvalFallback': stats.argsEvalFallback,
+        'payloadNotes': stats.payloadNotes,
+        'wiredArgs': stats.wiredArgs,
         for (final e in stats.siteDisarms.entries) 'siteDisarms:${e.key}': e.value,
       });
       print(
@@ -125,7 +127,8 @@ void main() {
         'call params: ${stats.callSites} sites · ${stats.boundSites} bound · '
         '${stats.localBoundSites} local bound · ${stats.localBoundSitesRearmed} re-armed · '
         '${stats.argsTranslated} args translated · ${stats.argsByOmission} by omission · '
-        '${stats.argsEvalFallback} eval-fallback · site disarms: ${stats.siteDisarms}',
+        '${stats.argsEvalFallback} eval-fallback · site disarms: ${stats.siteDisarms} · '
+        '${stats.payloadNotes} payload notes · ${stats.wiredArgs} wired args',
       );
 
       final result = Process.runSync('dart', ['analyze', 'test/.export_gen_batch'], workingDirectory: pkgRoot.path);
