@@ -13,6 +13,7 @@ const Map<SeqAdapter, Color> adapterColors = {
   SeqAdapter.sequenceCall: Colors.deepPurple,
   SeqAdapter.cModule: Colors.brown,
   SeqAdapter.python: Colors.green,
+  SeqAdapter.dotNet: Colors.indigo,
 };
 
 /// Chip color for adapters with no assigned color (see [adapterColors]).
