@@ -192,11 +192,12 @@ class FfiDaqmxBackend implements DaqmxApi {
     double min = -10,
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
+    double readTimeout = 10,
   }) {
     _ensureOpen();
     DaqLoggers.io.fine(
       'readStream($physicalChannel, ${rateHz}Hz, $format, '
-      '${totalSamples == null ? 'continuous' : '$totalSamples samps'})',
+      '${totalSamples == null ? 'continuous' : '$totalSamples samps'}, ${readTimeout}s read timeout)',
     );
     return ffiReadStream(
       libraryPath: libraryPath,
@@ -208,6 +209,7 @@ class FfiDaqmxBackend implements DaqmxApi {
       min: min,
       max: max,
       terminalConfig: terminalConfig,
+      readTimeout: readTimeout,
     );
   }
 

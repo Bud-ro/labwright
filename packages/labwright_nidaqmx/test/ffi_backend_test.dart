@@ -150,6 +150,28 @@ void main() {
       await daq.close();
     });
 
+    test('a short readTimeout bounds how long cancel waits on an in-flight read', () async {
+      final daq = open();
+      const blockedRead = Duration(seconds: 3);
+      // 0.25s read timeout plus the worker's teardown margin, comfortably inside the
+      // blocked read that the default 10s timeout would make cancel wait out.
+      const cancelBound = Duration(seconds: 2);
+      addTearDown(() => probe.readDelay = Duration.zero);
+      final firstChunk = Completer<void>();
+      final sub = daq
+          .readStream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 8, format: DaqSampleFormat.rawI16, readTimeout: 0.25)
+          .listen((_) {
+            if (!firstChunk.isCompleted) firstChunk.complete();
+          });
+      await firstChunk.future; // reads run at full speed until the delay is armed
+      probe.readDelay = blockedRead;
+      await Future<void>.delayed(const Duration(milliseconds: 50)); // a blocked read is now in flight
+      final started = Stopwatch()..start();
+      await sub.cancel();
+      expect(started.elapsed, lessThan(cancelBound), reason: 'cancel returned without waiting out the blocked read');
+      await daq.close();
+    });
+
     test('reads that report no samples yet neither end nor corrupt the stream', () async {
       final daq = open();
       final chunks = await daq

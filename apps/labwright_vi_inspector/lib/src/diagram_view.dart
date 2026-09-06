@@ -1571,6 +1571,22 @@ typedef _BdWireSeg = ({
   int bandHi,
 });
 
+/// The per-diagram lookups the wire pass resolves once before drawing any wire:
+/// packed endpoint-anchor rect → recovered terminal colour and catalogued node
+/// output colour, the icon-stamped node boxes with their art ink rects and
+/// owning objects, the node boxes that cover wire ink, and the furniture rects
+/// a leg end trims to. All in canvas coordinates except the packed colour keys,
+/// which are absolute ([_packRect]).
+typedef _BdWireAnchors = ({
+  Map<int, Color> typedTerminalColors,
+  Map<int, Color> sourceOutputColors,
+  Set<Rect> iconNodeRects,
+  Map<Rect, Rect> iconInkRects,
+  Map<Rect, ViHeapObject> iconNodeObjects,
+  List<Rect> nodeCoverRects,
+  List<Rect> furnitureRects,
+});
+
 /// Everything the block-diagram painter needs that derives from one
 /// [ViDiagram], computed once and passed as a unit. The decode-only half is
 /// [ViDiagramSemantics], shared with non-rendering consumers; this adds the
@@ -2047,28 +2063,34 @@ class BdDiagramPainter extends CustomPainter {
   /// chain's divider row carries no wire ink either. Any wider gap is visible
   /// ink and reads false.
   static bool _polylineUnderNodes(List<Offset> points, List<Rect> cover) {
-    for (var j = 1; j < points.length; j++) {
-      final a = points[j - 1], b = points[j];
-      final horizontal = a.dy == b.dy;
-      final lo = horizontal ? math.min(a.dx, b.dx) : math.min(a.dy, b.dy);
-      final hi = horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy);
-      var at = lo;
+    for (var segmentIndex = 1; segmentIndex < points.length; segmentIndex++) {
+      final start = points[segmentIndex - 1], end = points[segmentIndex];
+      final horizontal = start.dy == end.dy;
+      final runLo = horizontal
+          ? math.min(start.dx, end.dx)
+          : math.min(start.dy, end.dy);
+      final runHi = horizontal
+          ? math.max(start.dx, end.dx)
+          : math.max(start.dy, end.dy);
+      var at = runLo;
       var progressed = true;
-      while (at <= hi && progressed) {
+      while (at <= runHi && progressed) {
         progressed = false;
-        for (final r in cover) {
+        for (final box in cover) {
           final crossOk = horizontal
-              ? (a.dy >= r.top && a.dy < r.bottom)
-              : (a.dx >= r.left && a.dx < r.right);
+              ? (start.dy >= box.top && start.dy < box.bottom)
+              : (start.dx >= box.left && start.dx < box.right);
           if (!crossOk) continue;
-          final (s, e) = horizontal ? (r.left, r.right) : (r.top, r.bottom);
-          if (s <= at + 1 && e > at) {
-            at = e;
+          final (boxLo, boxHi) = horizontal
+              ? (box.left, box.right)
+              : (box.top, box.bottom);
+          if (boxLo <= at + 1 && boxHi > at) {
+            at = boxHi;
             progressed = true;
           }
         }
       }
-      if (at <= hi) return false;
+      if (at <= runHi) return false;
     }
     return points.isNotEmpty;
   }
@@ -2094,6 +2116,9 @@ class BdDiagramPainter extends CustomPainter {
   /// plain white canvas, and near-white dots break byte-exact comparisons.
   final bool drawDotGrid;
 
+  /// [object]'s recovered bounds in canvas coordinates.
+  Rect _rectOf(ViHeapObject object) => _toCanvas(object.absBounds!);
+
   @override
   void paint(Canvas canvas, Size size) {
     scene.paintedText.clear();
@@ -2103,8 +2128,6 @@ class BdDiagramPainter extends CustomPainter {
     size = Size(size.width / canvasScale, size.height / canvasScale);
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
     if (drawDotGrid) _drawDotGrid(canvas, size);
-
-    Rect rectOf(ViHeapObject o) => _toCanvas(o.absBounds!);
 
     final structures = objects
         .where((o) => o.category == ViObjectKind.structure)
@@ -2130,9 +2153,50 @@ class BdDiagramPainter extends CustomPainter {
             ),
           );
 
-    // Decoration pass: the backmost layer, so an opaque decoration never
-    // occludes the runs routed across it. One enclosing other drawn logic is a
-    // backdrop whose interior LabVIEW leaves as plain canvas.
+    final arrayShellOids = {
+      for (final o in objects)
+        if (o.objectClass == HeapObjectClass.numericControl &&
+            o.parentOid != null)
+          o.parentOid!,
+    };
+    final tunnelSquares =
+        <
+          (
+            Rect,
+            ({int kind, bool hollow, bool centreDot, bool disabled}),
+            Color,
+          )
+        >[];
+    // Rects owned by the border-terminal chrome pass (shift registers,
+    // selectors, tunnels). A modeled structure terminal at the same rect must
+    // not also draw: its anti-aliased ring bleeds blended pixels just outside
+    // the rect that the byte-exact chrome cannot cover.
+    final chromeOwnedRects = <Rect>{
+      for (final attach in borderTerminalKinds.keys) _toCanvas(attach),
+    };
+    final labelBackings = <(int, Rect, Color)>[];
+
+    _paintDecorations(canvas, decorations);
+    // Wire pass: over the canvas/decorations, under every structure/node.
+    _drawWires(canvas, tunnelSquares: tunnelSquares);
+    _paintStructures(
+      canvas,
+      structures,
+      arrayShellOids: arrayShellOids,
+      chromeOwnedRects: chromeOwnedRects,
+    );
+    _paintCaseSelectorStrips(canvas, solids);
+    _paintBorderChrome(canvas, tunnelSquares);
+    _paintWireObjects(canvas, wires);
+    _paintSolids(canvas, solids, labelBackings);
+    _paintLabelBackings(canvas, labelBackings);
+    _paintCaptions(canvas);
+  }
+
+  /// Decoration pass: the backmost layer, so an opaque decoration never
+  /// occludes the runs routed across it. One enclosing other drawn logic is a
+  /// backdrop whose interior LabVIEW leaves as plain canvas.
+  void _paintDecorations(Canvas canvas, List<ViHeapObject> decorations) {
     final backdropCandidates = [
       for (final other in objects)
         if (other.category == ViObjectKind.node ||
@@ -2158,7 +2222,7 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in decorations) {
       // An undecoded decoration is still a visible drawn element: a thin
       // border, plus a neutral near-canvas plate when it is a leaf box.
-      final rect = rectOf(object);
+      final rect = _rectOf(object);
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
       if (decoded != null) {
@@ -2177,36 +2241,22 @@ class BdDiagramPainter extends CustomPainter {
         );
       }
     }
-    // Wire pass: over the canvas/decorations, under every structure/node.
-    final arrayShellOids = {
-      for (final o in objects)
-        if (o.objectClass == HeapObjectClass.numericControl &&
-            o.parentOid != null)
-          o.parentOid!,
-    };
-    final tunnelSquares =
-        <
-          (
-            Rect,
-            ({int kind, bool hollow, bool centreDot, bool disabled}),
-            Color,
-          )
-        >[];
-    // Rects owned by the border-terminal chrome pass (shift registers,
-    // selectors, tunnels). A modeled structure terminal at the same rect must
-    // not also draw: its anti-aliased ring bleeds blended pixels just outside
-    // the rect that the byte-exact chrome cannot cover.
-    final chromeOwnedRects = <Rect>{
-      for (final attach in borderTerminalKinds.keys) _toCanvas(attach),
-    };
-    _drawWires(canvas, tunnelSquares: tunnelSquares);
-    // Structure pass.
+  }
+
+  /// Structure pass: each structure draws the border chrome and corner
+  /// terminals of its own class, over the wire pass.
+  void _paintStructures(
+    Canvas canvas,
+    List<ViHeapObject> structures, {
+    required Set<int> arrayShellOids,
+    required Set<Rect> chromeOwnedRects,
+  }) {
     for (final object in structures) {
       // A small 0x53 cluster container is a single drawn box, not a frame —
       // same chrome as the solids pass, drawn here after the wire pass because
       // the reference covers a wire crossing the box's interior.
       if (object.objectClass == HeapObjectClass.loop) {
-        final rect = rectOf(object);
+        final rect = _rectOf(object);
         if (rect.width <= 40 && rect.height <= 24) {
           _drawSmallClusterBox(canvas, object, rect);
           continue;
@@ -2215,7 +2265,7 @@ class BdDiagramPainter extends CustomPainter {
       // Class-accurate structure chrome, no badge text: LabVIEW names a
       // construct by its border furniture. Kinds without measured chrome keep
       // a neutral double-line frame.
-      final rect = rectOf(object);
+      final rect = _rectOf(object);
       final structDisabled = disabledOids.contains(object.oid);
       // A structure whose colour is LabVIEW's default grey (0x7F7F7F) carries
       // no user tint — the frame draws in its standard chrome (a while loop's
@@ -2383,45 +2433,66 @@ class BdDiagramPainter extends CustomPainter {
         disabled: structDisabled,
       );
     }
-    // Case-selector strip pass, under the border-terminal chrome: the
-    // reference draws a case's ? tunnel and its wire over the strip's
-    // bottom-left corner where they overlap.
+  }
+
+  /// Case-selector strip pass, under the border-terminal chrome: the reference
+  /// draws a case's ? tunnel and its wire over the strip's bottom-left corner
+  /// where they overlap.
+  void _paintCaseSelectorStrips(Canvas canvas, List<ViHeapObject> solids) {
     for (final object in solids) {
       if (object.objectClass == HeapObjectClass.bdSelectorLabel)
-        _drawCaseSelector(canvas, rectOf(object));
+        _drawCaseSelector(canvas, _rectOf(object));
     }
-    // Border-terminal chrome pass. Overlapping terminals stack squares first,
-    // then registers, then selectors: a selector draws over the select tunnel
-    // sharing its edge (a 0x2e/0x2d pair overlaps by two rows).
+  }
+
+  /// Border-terminal chrome pass. Overlapping terminals stack squares first,
+  /// then registers, then selectors: a selector draws over the select tunnel
+  /// sharing its edge (a 0x2e/0x2d pair overlaps by two rows).
+  void _paintBorderChrome(
+    Canvas canvas,
+    List<
+      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
+    >
+    tunnelSquares,
+  ) {
     tunnelSquares.sort(
       (a, b) => _chromeZOrder(a.$2.kind).compareTo(_chromeZOrder(b.$2.kind)),
     );
     for (final (rect, info, color) in tunnelSquares) {
       _drawBorderTerminalChrome(canvas, rect, info, color);
     }
-    // Wire-object pass: each 0x1d object is one stored Manhattan run, drawn as
-    // its own segment. Runs of the same wire already meet at their bend
-    // corners (79% of consecutive segment pairs share an exact endpoint), so a
-    // bent wire connects by geometry alone; runs that do not touch are left
-    // unbridged, since a gap belongs to a different wire.
+  }
+
+  /// Wire-object pass: each 0x1d object is one stored Manhattan run, drawn as
+  /// its own segment. Runs of the same wire already meet at their bend corners
+  /// (79% of consecutive segment pairs share an exact endpoint), so a bent wire
+  /// connects by geometry alone; runs that do not touch are left unbridged,
+  /// since a gap belongs to a different wire.
+  void _paintWireObjects(Canvas canvas, List<ViHeapObject> wires) {
     final wirePaint = Paint()
       ..color = _kindColor(ViObjectKind.wire)
       ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.square;
     for (final object in wires) {
-      final rect = rectOf(object);
+      final rect = _rectOf(object);
       // A zero-area segment is an unanchored stub, a point rather than a run.
       if (rect.width == 0 && rect.height == 0) continue;
       canvas.drawLine(rect.topLeft, rect.bottomRight, wirePaint);
     }
+  }
 
-    // Solids pass: terminals, nodes, controls.
-    final labelBackings = <(int, Rect, Color)>[];
+  /// Solids pass: terminals, nodes, controls. Free-label backings are collected
+  /// into [labelBackings] for the pass that draws them above this one.
+  void _paintSolids(
+    Canvas canvas,
+    List<ViHeapObject> solids,
+    List<(int, Rect, Color)> labelBackings,
+  ) {
     // Prim icon stamps already painted in this pass, in paint order — the
     // lookup behind the plate corner-AA ladder (see the stamping branch).
     final stampedPrimIcons = <({Rect dst, int id})>[];
     for (final object in solids) {
-      final rect = rectOf(object);
+      final rect = _rectOf(object);
       // Free-text label parts (control caption 0x0a, case selector 0x95) draw
       // as text; a backed label also shows an opaque bordered fill. Two backed
       // classes across the 812 drawn corpus `0x0a` labels: a free label (`0x1b`
@@ -2453,674 +2524,665 @@ class BdDiagramPainter extends CustomPainter {
       }
       switch (object.category) {
         case ViObjectKind.terminal:
-          // A named constant boxes only its value part (the `0x9` child
-          // window): the visible caption sits beside the box, inside the same
-          // terminal bounds. An unnamed constant's whole bounds are the box.
-          var box = rect;
-          if (constValues[object.oid] != null) {
-            final kids =
-                scene.diagram.childrenByOid[object.oid] ??
-                const <ViHeapObject>[];
-            final named = kids.any(
-              (c) =>
-                  c.objectClass == HeapObjectClass.controlLabel &&
-                  !c.isLabelHidden &&
-                  (c.label?.trim().isNotEmpty ?? false),
-            );
-            if (named) {
-              for (final c in kids) {
-                final b = c.absBounds;
-                if (c.objectClass == HeapObjectClass.controlChrome &&
-                    b != null &&
-                    b.right > b.left) {
-                  box = _toCanvas(b);
-                  break;
-                }
-              }
-            }
-          }
-          // A boolean constant's shell draws the T/F block, picked by the
-          // decoded [ViHeapObject.constBool].
-          final constHolder = scene.diagram.byId[object.parentOid ?? -1];
-          final boolValue =
-              constHolder?.objectClass == HeapObjectClass.bdConstDco
-              ? constHolder!.constBool
-              : null;
-          if (boolValue != null && box.width == 16 && box.height == 14) {
-            _drawBoolConstant(
-              canvas,
-              box,
-              boolValue,
-              disabled: disabledOids.contains(object.oid),
-            );
-            continue;
-          }
-          // A terminal whose (datatype, direction) has reference-measured art
-          // at the standard 32×16 box draws it pixel-exact ([kBdTerminalArt]);
-          // unmeasured types keep the generic frame.
-          final artType =
-              object.dataType ?? _dataTypeOfTypeKind(object.typeKind);
-          if (artType != null &&
-              object.isIndicator != null &&
-              box.width == 32 &&
-              box.height == 16) {
-            // An array terminal draws the element-typed bracket art
-            // ([kBdArrayTerminalArt]); a scalar draws its own table entry.
-            final elementKind = artType == ViDataType.array
-                ? object.resolvedElementType?.kind
-                : null;
-            final art = elementKind != null
-                ? bdArrayTerminalArtFor(
-                    elementKind,
-                    indicator: object.isIndicator == true,
-                  )
-                : bdTerminalArtFor(
-                    artType,
-                    indicator: object.isIndicator == true,
-                  );
-            if (art != null) {
-              _drawTerminalArt(
-                canvas,
-                box,
-                art,
-                disabled: disabledOids.contains(object.oid),
-              );
-              continue;
-            }
-          }
-          // Generic terminal chrome: a datatype-coloured double border (2 px
-          // outer, 1 px white gap, 1 px inner) over a plate shaded around the
-          // dataflow arrow. A recovered datatype or decoded foreground colour
-          // drives the colour; an unrecovered one stays neutral grey.
-          final typed =
-              object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
-          final tint = _dimFor(
-            object.oid,
-            object.typeKind != ViTypeKind.unknown
-                ? labviewTypeColor(object.typeKind)
-                : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill),
-          );
-          // An unknown-type terminal keeps a dark neutral border; the light
-          // "unknown" grey is invisible to the eye and the edge masks alike.
-          final border = typed
-              ? tint
-              : _dimFor(object.oid, const Color(0xFF5A5A5A));
-          // A constant box ([constValues]) carries the 2 px outer border only,
-          // no inner ring, and shows its decoded literal instead of a glyph.
-          final constValue = constValues[object.oid];
-          final shellParent = scene.diagram.byId[object.parentOid ?? -1];
-          if (object.objectClass == HeapObjectClass.numericControl &&
-              shellParent?.objectClass == HeapObjectClass.caseOrSequence) {
-            // Both the index box (window, spinner boxes, arrows) and the
-            // element cells are the array shell's furniture
-            // ([_drawArrayConstantShell]); a generic frame would double them.
-            continue;
-          }
-          // Indicators wear a thin 1px single border, controls the 2px
-          // double-border weight.
-          if (object.isIndicator == true) {
-            canvas.drawRect(
-              box,
-              Paint()
-                ..color = border
-                ..isAntiAlias = false,
-            );
-            canvas.drawRect(
-              box.deflate(1),
-              Paint()
-                ..color = Colors.white
-                ..isAntiAlias = false,
-            );
-          } else {
-            canvas.drawRect(box, Paint()..color = Colors.white);
-            canvas.drawRect(
-              box.deflate(1),
-              Paint()
-                ..color = border
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 2.0,
-            );
-            // A string shell's left border is 4 px against 2 on the other
-            // three sides.
-            if (object.objectClass == HeapObjectClass.stringOrArrayControl &&
-                box.width > 8) {
-              canvas.drawRect(
-                Rect.fromLTWH(box.left, box.top, 4, box.height),
-                _solidNoAa(border),
-              );
-            }
-            // A path shell carries the path glyph inside its left border: two
-            // linked 4x4 squares in the border teal, the lower square 2 px
-            // right of the upper, anchored at (+3,+4).
-            if (object.objectClass == HeapObjectClass.pathControl &&
-                box.width > 14 &&
-                box.height >= 17) {
-              const glyphRows = [
-                '####..',
-                '#..#..',
-                '#..#..',
-                '####..',
-                '...#..',
-                '...#..',
-                '..####',
-                '..#..#',
-                '..#..#',
-                '..####',
-              ];
-              final ink = _solidNoAa(border);
-              for (var r = 0; r < glyphRows.length; r++) {
-                for (var c = 0; c < glyphRows[r].length; c++) {
-                  if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
-                  canvas.drawRect(
-                    Rect.fromLTWH(box.left + 3 + c, box.top + 4 + r, 1, 1),
-                    ink,
-                  );
-                }
-              }
-            }
-          }
-          // Any constant skips the inner ring, including one whose value is
-          // not decoded (a `0x13` holder marks it).
-          final isConstant =
-              constValue != null ||
-              shellParent?.objectClass == HeapObjectClass.bdConstDco;
-          if (object.isIndicator != true &&
-              !isConstant &&
-              box.width > 10 &&
-              box.height > 10) {
-            canvas.drawRect(
-              box.deflate(3.5),
-              Paint()
-                ..color = border
-                ..style = PaintingStyle.stroke
-                ..strokeWidth = 1.0,
-            );
-          }
-          // The dataflow arrow sits inside the box: a right-pointing triangle
-          // 3 px deep and ~7 px tall. Data leaving (a control) puts the tip on
-          // the 2 px outer border with the base 1 px past the inner border;
-          // data arriving (an indicator) puts the base on the inner border.
-          if (object.isIndicator != null &&
-              box.height >= 12 &&
-              box.width >= 12) {
-            final indicator = object.isIndicator == true;
-            final cy = box.center.dy;
-            final double tipX;
-            if (indicator) {
-              tipX = box.left + 7;
-            } else {
-              tipX = box.right - 3;
-            }
-            final shade = Rect.fromLTRB(
-              indicator ? box.left + 3 : box.right - 10,
-              box.top + 4,
-              indicator ? box.left + 10 : box.right - 3,
-              box.bottom - 4,
-            );
-            canvas.drawRect(
-              shade,
-              Paint()..color = tint.withValues(alpha: 0.25),
-            );
-            final tri = Path()
-              ..moveTo(tipX - 3, cy - 3.5)
-              ..lineTo(tipX, cy)
-              ..lineTo(tipX - 3, cy + 3.5)
-              ..close();
-            canvas.drawPath(
-              tri,
-              Paint()
-                ..color = _dimFor(
-                  object.oid,
-                  Colors.black,
-                ).withValues(alpha: 0.87),
-            );
-          }
-          // A non-decimal constant's radix marker ([kBdRadixMarkerGlyphs]) at
-          // its 0xb radix part, in the type colour; decimal constants draw
-          // nothing there.
-          var hasRadixMarker = false;
-          if (constValue != null) {
-            final marker =
-                kBdRadixMarkerGlyphs[bdFormatConversion(
-                  bdDisplayFormatOf(scene.diagram, object.oid),
-                )];
-            final radixPart = marker == null
-                ? null
-                : scene.diagram
-                      .children(object.oid)
-                      .where(
-                        (part) =>
-                            part.objectClass ==
-                                HeapObjectClass.controlSubPart &&
-                            part.absBounds != null,
-                      )
-                      .firstOrNull;
-            if (marker != null && radixPart != null) {
-              final (dx, dy, rows) = marker;
-              final corner = _toCanvas(radixPart.absBounds!).topLeft;
-              hasRadixMarker = true;
-              final ink = _solidNoAa(tint);
-              for (var r = 0; r < rows.length; r++) {
-                for (var c = 0; c < rows[r].length; c++) {
-                  if (rows[r].codeUnitAt(c) != 0x23) continue;
-                  canvas.drawRect(
-                    Rect.fromLTWH(corner.dx + dx + c, corner.dy + dy + r, 1, 1),
-                    ink,
-                  );
-                }
-              }
-            }
-          }
-          // A constant's decoded literal, right-aligned as LabVIEW justifies
-          // numeric displays: the text advance ends 4 px inside the window's
-          // right edge. Inked black through the disabled transform, which
-          // renders digits as the (153,153,153) dim of black.
-          if (constValue != null && box.width >= 12 && box.height >= 12) {
-            final run = _layoutText(
-              constValue,
-              color: _dimFor(object.oid, Colors.black),
-              maxLines: 1,
-            );
-            _paintText(
-              canvas,
-              run,
-              Offset(
-                box.right - 4 - run.width,
-                bdCentredTextTop(box, run.height),
-              ),
-              clip: box.deflate(hasRadixMarker ? 2 : 1),
-            );
-          }
-          // The resolved data type's short label (DBL / I32 / TF / abc), sized
-          // to sit inside the double border even on a 16 px terminal. A
-          // constant box shows its value instead — a decoded text value on the
-          // `0x13` holder draws from its value-label part in the text pass.
-          final glyph =
-              constValue != null ||
-                  object.dataType == null ||
-                  (shellParent?.objectClass == HeapObjectClass.bdConstDco &&
-                      bdDrawnConstText(shellParent) != null)
-              ? null
-              : dataTypeGlyph(object.dataType!);
-          if (glyph != null &&
-              box.width >= 6.0 * glyph.length + 10 &&
-              box.height >= 13) {
-            final run = _layoutText(
-              glyph,
-              color: border,
-              fontSize: 8.5,
-              fontWeight: FontWeight.w700,
-            );
-            _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
-          }
+          _paintTerminal(canvas, object, rect);
         case ViObjectKind.node:
-          // Node icon plate: a verified primitive icon stamps at natural size;
-          // a subVI call stamps the icon resolved from its own file
-          // ([subViIcons]). Without either, subVI calls get the light-grey
-          // connector-pane plate and primitive nodes the pale-gold plate with
-          // the operator glyph, both inside the 1 px black node border.
-          final isSubVi = kSubViCallNodeCodes.contains(object.kind);
-          // An XNode facade is the node's own stored image, drawn verbatim at
-          // its bounds (the DSIM geometry matches them exactly).
-          final facade = xnodeFacades[object.oid];
-          if (facade != null) {
-            canvas.drawImageRect(
-              facade,
-              Rect.fromLTWH(
-                0,
-                0,
-                facade.width.toDouble(),
-                facade.height.toDouble(),
-              ),
-              rect,
-              Paint()..filterQuality = FilterQuality.none,
-            );
-            continue;
-          }
-          // A growable node (0x63): (68,68,68) ring, white field, and its
-          // `0x62` terminal strips laid out from their node-local termBounds.
-          // Full-height cells are terminals — (255,255,204) fill with a 1px
-          // black separator on the edge facing the interior, the left cell
-          // carrying the solid black input arrow and right-column cells the
-          // ridged output arrow. Partial-height cells are text rows: the
-          // resolved data-space name in the type colour (arrays by element),
-          // with 1px black dividers at shared row boundaries. objFlags bit
-          // 0x10000 marks the input-side flavour; both share the chrome.
-          if (object.objectClass == HeapObjectClass.bdGrowableNode) {
-            canvas.drawRect(
-              rect,
-              Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
-            );
-            canvas.drawRect(
-              rect.deflate(1),
-              Paint()..color = _dimFor(object.oid, Colors.white),
-            );
-            final rows = <HeapRect>[];
-            final rowTerms = <(ViHeapObject, HeapRect)>[];
-            final cells = <HeapRect>[];
-            final nodeH = object.absBounds!.bottom - object.absBounds!.top;
-            final nodeW = object.absBounds!.right - object.absBounds!.left;
-            for (final dco in scene.diagram.children(object.oid)) {
-              if (dco.kind != kNodeEndpointDcoKind) continue;
-              for (final t in scene.diagram.children(dco.oid)) {
-                final tb = t.termBounds;
-                if (t.kind != 0x62 || tb == null) continue;
-                if (tb.height >= nodeH) {
-                  cells.add(tb);
-                } else {
-                  rows.add(tb);
-                  rowTerms.add((t, tb));
-                }
-              }
-            }
-            final black = Paint()
-              ..color = _dimFor(object.oid, Colors.black)
-              ..isAntiAlias = false;
-            final cream = Paint()
-              ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
-              ..isAntiAlias = false;
-            rows.sort((a, b) => a.top.compareTo(b.top));
-            // Interior dividers at shared row boundaries.
-            for (var i = 0; i + 1 < rows.length; i++) {
-              if (rows[i].bottom != rows[i + 1].top) continue;
-              canvas.drawRect(
-                Rect.fromLTWH(
-                  rect.left + rows[i].left + 1,
-                  rect.top + rows[i].bottom,
-                  (rows[i].right - rows[i].left - 2).toDouble(),
-                  1,
-                ),
-                black,
-              );
-            }
-            for (final cell in cells) {
-              final leftSide = cell.left < nodeW - cell.right;
-              if (leftSide) {
-                // Input terminal cell: cream to the interior separator, and
-                // the black arrow into the node — a 6x3 shaft with a 4-column
-                // head, centred.
-                canvas.drawRect(
-                  Rect.fromLTRB(
-                    rect.left + 1,
-                    rect.top + 1,
-                    rect.left + cell.right,
-                    rect.bottom - 1,
-                  ),
-                  cream,
-                );
-                canvas.drawRect(
-                  Rect.fromLTWH(
-                    rect.left + cell.right,
-                    rect.top + 1,
-                    1,
-                    rect.height - 2,
-                  ),
-                  black,
-                );
-                final cy = rect.top + (nodeH ~/ 2);
-                canvas.drawRect(
-                  Rect.fromLTWH(rect.left + 1, cy - 1.0, 6, 3),
-                  black,
-                );
-                for (var i = 0; i < 4; i++) {
-                  canvas.drawRect(
-                    Rect.fromLTWH(
-                      rect.left + 7 + i,
-                      cy - 3.0 + i,
-                      1,
-                      (7 - 2 * i).toDouble(),
-                    ),
-                    black,
-                  );
-                }
-              } else {
-                // Output column: cream from the rows' right edge through the
-                // cell, separators at the rows' edge and the cell's left.
-                final rowsRight = rows.isEmpty ? cell.left : rows.first.right;
-                final top = rect.top + 1;
-                final h = rect.height - 2;
-                canvas.drawRect(
-                  Rect.fromLTRB(
-                    rect.left + rowsRight,
-                    top,
-                    rect.left + cell.right - 1,
-                    top + h,
-                  ),
-                  cream,
-                );
-                canvas.drawRect(
-                  Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
-                  black,
-                );
-                canvas.drawRect(
-                  Rect.fromLTWH(rect.left + cell.left - 1, top, 1, h),
-                  black,
-                );
-                // The ridged output arrow through the columns, centred on the
-                // node's middle row.
-                const arrowRows = [
-                  '...........#...',
-                  '.#####.....##..',
-                  '#.############.',
-                  '#.#############',
-                  '#.############.',
-                  '.#####.....##..',
-                  '...........#...',
-                ];
-                final cy = rect.top + (nodeH ~/ 2);
-                final x0 = rect.left + rowsRight;
-                for (var r = 0; r < arrowRows.length; r++) {
-                  final y = cy - 3 + r;
-                  final mask = arrowRows[r];
-                  for (var c = 0; c < mask.length; c++) {
-                    if (mask.codeUnitAt(c) != 0x23) continue;
-                    canvas.drawRect(
-                      Rect.fromLTWH(x0 + c.toDouble(), y.toDouble(), 1, 1),
-                      black,
-                    );
-                  }
-                }
-              }
-            }
-            // Row text: the terminal's resolved data-space name in the type
-            // colour, centred in the row cell with the half pixel truncated
-            // (every odd cell−text gap corpus-wide inks at the floor).
-            for (final (term, tb) in rowTerms) {
-              final name = term.typeName?.trim();
-              if (name == null || name.isEmpty) continue;
-              final elementKind = term.typeKind == ViTypeKind.array
-                  ? term.resolvedElementType?.kind
-                  : null;
-              final rowColor = elementKind != null
-                  ? labviewTypeColor(_typeKindOfDataType(elementKind))
-                  : labviewTypeColor(term.typeKind);
-              final cell = Rect.fromLTRB(
-                rect.left + tb.left + 1,
-                rect.top + tb.top,
-                rect.left + tb.right - 1,
-                rect.top + tb.bottom,
-              );
-              final run = _layoutText(
-                name,
-                color: _dimFor(object.oid, rowColor),
-                maxLines: 1,
-              );
-              _paintText(
-                canvas,
-                run,
-                bdCentredTextAnchor(cell, run.size),
-                clip: cell,
-              );
-            }
-            continue;
-          }
-          final icon = subViIcons[object.oid];
-          final iconKey = primIconKeyOf(object);
-          final disabled = disabledOids.contains(object.oid);
-          final primIcon =
-              (disabled
-                  ? primIconArtFor(object, scene.diagram, primIconsGrey)
-                  : null) ??
-              primIconArtFor(object, scene.diagram, primIcons);
-          if (primIcon != null) {
-            // The harvested art carries its own borders and transparency — no
-            // plate, backing, or extra frame. Exactness paths sample the
-            // asset's own pixels with nearest; the sharp-bilinear interactive
-            // path samples the prescale with linear.
-            final filter =
-                iconFilterQuality == FilterQuality.none ||
-                    canvasScale >= kPrimIconPrescale
-                ? FilterQuality.none
-                : iconFilterQuality;
-            final art = filter == FilterQuality.none
-                ? primIcon.base
-                : primIcon.sharp;
-            final dst = primIconStampRect(
-              rect,
-              primIcon.base.width,
-              primIcon.base.height,
-              key: iconKey,
-            );
-            canvas.drawImageRect(
-              art,
-              Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
-              dst,
-              Paint()..filterQuality = filter,
-            );
-            // Plate corner-AA ladder: a corner pixel
-            // ([_PrimIconPixels.cornerAa]) is anti-aliasing baked against the
-            // white canvas, not opaque art, so over an earlier stamp it
-            // composes by the measured ladder —
-            //  * over another stamp's opaque art it deposits nothing;
-            //  * two corner pixels coinciding on bare canvas deepen the blend
-            //    one rung, `dddddd` -> `aaaaaa`;
-            //  * on bare canvas alone the baked `dddddd` stands.
-            // TODO: no pixel-local source-over/coverage model yields 255->221
-            // and 221->170 from the same stamp; revisit the second rung when
-            // the corpus grows another corner-corner collision.
-            final ladderId = disabled ? null : loadedPrimIconIdOf(object);
-            final corners =
-                (ladderId == null
-                    ? null
-                    : _primIconPixels[ladderId]?.cornerAa) ??
-                const <int>{};
-            for (final artIndex in corners) {
-              final artWidth = primIcon.base.width;
-              final cornerX = dst.left + artIndex % artWidth;
-              final cornerY = dst.top + artIndex ~/ artWidth;
-              var beneathCorner = false;
-              Color? restore;
-              for (final prior in stampedPrimIcons.reversed) {
-                final localX = (cornerX - prior.dst.left).round();
-                final localY = (cornerY - prior.dst.top).round();
-                final priorArt = _primIconPixels[prior.id];
-                if (priorArt == null ||
-                    localX < 0 ||
-                    localY < 0 ||
-                    localX >= priorArt.width ||
-                    localY >= priorArt.height) {
-                  continue;
-                }
-                final priorIndex = localY * priorArt.width + localX;
-                if (priorArt.alpha[priorIndex] == 0) continue;
-                if (priorArt.cornerAa.contains(priorIndex)) {
-                  beneathCorner = true;
-                  continue;
-                }
-                restore = Color.fromARGB(
-                  0xff,
-                  priorArt.rgba[priorIndex * 4],
-                  priorArt.rgba[priorIndex * 4 + 1],
-                  priorArt.rgba[priorIndex * 4 + 2],
-                );
-                break;
-              }
-              final rung = restore ?? (beneathCorner ? _kCornerAaRung2 : null);
-              if (rung != null) {
-                canvas.drawRect(
-                  Rect.fromLTWH(cornerX, cornerY, 1, 1),
-                  _solidNoAa(rung),
-                );
-              }
-            }
-            if (ladderId != null) {
-              stampedPrimIcons.add((dst: dst, id: ladderId));
-            }
-          } else if (icon != null) {
-            paintLegacyIcon(canvas, icon, rect);
-          } else {
-            final fill = _dimFor(
-              object.oid,
-              isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill,
-            );
-            canvas.drawRect(rect, Paint()..color = fill);
-          }
-          if (primIcon == null) {
-            // A node without icon art is a 1 px black ring on the exact
-            // bounds, no anti-aliasing.
-            final ring = _solidNoAa(_dimFor(object.oid, Colors.black));
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
-              ring,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
-              ring,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
-              ring,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
-              ring,
-            );
-          }
-          // A decoded primitive identity draws its operator glyph on the plate
-          // when no icon asset exists — the recognisable core of the art.
-          // Uncatalogued ids draw nothing.
-          final glyph =
-              icon == null && primIcon == null && object.primResId != null
-              ? primOpGlyph(PrimOp.fromId(object.primResId!))
-              : null;
-          if (glyph != null && rect.width >= 14 && rect.height >= 12) {
-            final run = _layoutText(
-              glyph,
-              color: _dimFor(object.oid, Colors.black).withValues(alpha: 0.75),
-              fontSize: glyph.length > 2 ? 8.0 : 12,
-              maxLines: 1,
-            );
-            _paintText(canvas, run, bdCentredTextAnchor(rect, run.size));
-          }
+          _paintNode(canvas, object, rect, stampedPrimIcons);
         default:
-          final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
-          // A control/indicator takes its decoded interior colour when
-          // recovered, else its neutral category colour.
-          final fill = _dimFor(
-            object.oid,
-            bdFillColor(object) ?? _objectColor(object),
-          );
-          canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
-          canvas.drawRRect(
-            rr,
-            Paint()
-              ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.5)
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 0.8,
-          );
+          _paintPlainSolid(canvas, object, rect);
       }
     }
-    // Free-label backing pass, above every node/icon they overlap: a 1px black
-    // border on the outermost pixel ring of the label bounds, filled with the
-    // decoded colour.
+  }
+
+  /// A terminal/constant [object]: its value-window box, measured terminal art
+  /// or generic datatype-coloured chrome, radix marker, literal and glyph.
+  void _paintTerminal(Canvas canvas, ViHeapObject object, Rect rect) {
+    // A named constant boxes only its value part (the `0x9` child
+    // window): the visible caption sits beside the box, inside the same
+    // terminal bounds. An unnamed constant's whole bounds are the box.
+    var box = rect;
+    if (constValues[object.oid] != null) {
+      final kids =
+          scene.diagram.childrenByOid[object.oid] ?? const <ViHeapObject>[];
+      final named = kids.any(
+        (c) =>
+            c.objectClass == HeapObjectClass.controlLabel &&
+            !c.isLabelHidden &&
+            (c.label?.trim().isNotEmpty ?? false),
+      );
+      if (named) {
+        for (final c in kids) {
+          final b = c.absBounds;
+          if (c.objectClass == HeapObjectClass.controlChrome &&
+              b != null &&
+              b.right > b.left) {
+            box = _toCanvas(b);
+            break;
+          }
+        }
+      }
+    }
+    // A boolean constant's shell draws the T/F block, picked by the
+    // decoded [ViHeapObject.constBool].
+    final constHolder = scene.diagram.byId[object.parentOid ?? -1];
+    final boolValue = constHolder?.objectClass == HeapObjectClass.bdConstDco
+        ? constHolder!.constBool
+        : null;
+    if (boolValue != null && box.width == 16 && box.height == 14) {
+      _drawBoolConstant(
+        canvas,
+        box,
+        boolValue,
+        disabled: disabledOids.contains(object.oid),
+      );
+      return;
+    }
+    // A terminal whose (datatype, direction) has reference-measured art
+    // at the standard 32×16 box draws it pixel-exact ([kBdTerminalArt]);
+    // unmeasured types keep the generic frame.
+    final artType = object.dataType ?? _dataTypeOfTypeKind(object.typeKind);
+    if (artType != null &&
+        object.isIndicator != null &&
+        box.width == 32 &&
+        box.height == 16) {
+      // An array terminal draws the element-typed bracket art
+      // ([kBdArrayTerminalArt]); a scalar draws its own table entry.
+      final elementKind = artType == ViDataType.array
+          ? object.resolvedElementType?.kind
+          : null;
+      final art = elementKind != null
+          ? bdArrayTerminalArtFor(
+              elementKind,
+              indicator: object.isIndicator == true,
+            )
+          : bdTerminalArtFor(artType, indicator: object.isIndicator == true);
+      if (art != null) {
+        _drawTerminalArt(
+          canvas,
+          box,
+          art,
+          disabled: disabledOids.contains(object.oid),
+        );
+        return;
+      }
+    }
+    // Generic terminal chrome: a datatype-coloured double border (2 px
+    // outer, 1 px white gap, 1 px inner) over a plate shaded around the
+    // dataflow arrow. A recovered datatype or decoded foreground colour
+    // drives the colour; an unrecovered one stays neutral grey.
+    final typed = object.typeKind != ViTypeKind.unknown || object.fgRgb != null;
+    final tint = _dimFor(
+      object.oid,
+      object.typeKind != ViTypeKind.unknown
+          ? labviewTypeColor(object.typeKind)
+          : (bdDecodedColor(object.fgRgb) ?? kBdUnknownTerminalFill),
+    );
+    // An unknown-type terminal keeps a dark neutral border; the light
+    // "unknown" grey is invisible to the eye and the edge masks alike.
+    final border = typed ? tint : _dimFor(object.oid, const Color(0xFF5A5A5A));
+    // A constant box ([constValues]) carries the 2 px outer border only,
+    // no inner ring, and shows its decoded literal instead of a glyph.
+    final constValue = constValues[object.oid];
+    final shellParent = scene.diagram.byId[object.parentOid ?? -1];
+    if (object.objectClass == HeapObjectClass.numericControl &&
+        shellParent?.objectClass == HeapObjectClass.caseOrSequence) {
+      // Both the index box (window, spinner boxes, arrows) and the
+      // element cells are the array shell's furniture
+      // ([_drawArrayConstantShell]); a generic frame would double them.
+      return;
+    }
+    // Indicators wear a thin 1px single border, controls the 2px
+    // double-border weight.
+    if (object.isIndicator == true) {
+      canvas.drawRect(
+        box,
+        Paint()
+          ..color = border
+          ..isAntiAlias = false,
+      );
+      canvas.drawRect(
+        box.deflate(1),
+        Paint()
+          ..color = Colors.white
+          ..isAntiAlias = false,
+      );
+    } else {
+      canvas.drawRect(box, Paint()..color = Colors.white);
+      canvas.drawRect(
+        box.deflate(1),
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2.0,
+      );
+      // A string shell's left border is 4 px against 2 on the other
+      // three sides.
+      if (object.objectClass == HeapObjectClass.stringOrArrayControl &&
+          box.width > 8) {
+        canvas.drawRect(
+          Rect.fromLTWH(box.left, box.top, 4, box.height),
+          _solidNoAa(border),
+        );
+      }
+      // A path shell carries the path glyph inside its left border: two
+      // linked 4x4 squares in the border teal, the lower square 2 px
+      // right of the upper, anchored at (+3,+4).
+      if (object.objectClass == HeapObjectClass.pathControl &&
+          box.width > 14 &&
+          box.height >= 17) {
+        const glyphRows = [
+          '####..',
+          '#..#..',
+          '#..#..',
+          '####..',
+          '...#..',
+          '...#..',
+          '..####',
+          '..#..#',
+          '..#..#',
+          '..####',
+        ];
+        final ink = _solidNoAa(border);
+        for (var r = 0; r < glyphRows.length; r++) {
+          for (var c = 0; c < glyphRows[r].length; c++) {
+            if (glyphRows[r].codeUnitAt(c) != 0x23) continue;
+            canvas.drawRect(
+              Rect.fromLTWH(box.left + 3 + c, box.top + 4 + r, 1, 1),
+              ink,
+            );
+          }
+        }
+      }
+    }
+    // Any constant skips the inner ring, including one whose value is
+    // not decoded (a `0x13` holder marks it).
+    final isConstant =
+        constValue != null ||
+        shellParent?.objectClass == HeapObjectClass.bdConstDco;
+    if (object.isIndicator != true &&
+        !isConstant &&
+        box.width > 10 &&
+        box.height > 10) {
+      canvas.drawRect(
+        box.deflate(3.5),
+        Paint()
+          ..color = border
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0,
+      );
+    }
+    // The dataflow arrow sits inside the box: a right-pointing triangle
+    // 3 px deep and ~7 px tall. Data leaving (a control) puts the tip on
+    // the 2 px outer border with the base 1 px past the inner border;
+    // data arriving (an indicator) puts the base on the inner border.
+    if (object.isIndicator != null && box.height >= 12 && box.width >= 12) {
+      final indicator = object.isIndicator == true;
+      final cy = box.center.dy;
+      final double tipX;
+      if (indicator) {
+        tipX = box.left + 7;
+      } else {
+        tipX = box.right - 3;
+      }
+      final shade = Rect.fromLTRB(
+        indicator ? box.left + 3 : box.right - 10,
+        box.top + 4,
+        indicator ? box.left + 10 : box.right - 3,
+        box.bottom - 4,
+      );
+      canvas.drawRect(shade, Paint()..color = tint.withValues(alpha: 0.25));
+      final tri = Path()
+        ..moveTo(tipX - 3, cy - 3.5)
+        ..lineTo(tipX, cy)
+        ..lineTo(tipX - 3, cy + 3.5)
+        ..close();
+      canvas.drawPath(
+        tri,
+        Paint()
+          ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.87),
+      );
+    }
+    // A non-decimal constant's radix marker ([kBdRadixMarkerGlyphs]) at
+    // its 0xb radix part, in the type colour; decimal constants draw
+    // nothing there.
+    var hasRadixMarker = false;
+    if (constValue != null) {
+      final marker =
+          kBdRadixMarkerGlyphs[bdFormatConversion(
+            bdDisplayFormatOf(scene.diagram, object.oid),
+          )];
+      final radixPart = marker == null
+          ? null
+          : scene.diagram
+                .children(object.oid)
+                .where(
+                  (part) =>
+                      part.objectClass == HeapObjectClass.controlSubPart &&
+                      part.absBounds != null,
+                )
+                .firstOrNull;
+      if (marker != null && radixPart != null) {
+        final (dx, dy, rows) = marker;
+        final corner = _toCanvas(radixPart.absBounds!).topLeft;
+        hasRadixMarker = true;
+        final ink = _solidNoAa(tint);
+        for (var r = 0; r < rows.length; r++) {
+          for (var c = 0; c < rows[r].length; c++) {
+            if (rows[r].codeUnitAt(c) != 0x23) continue;
+            canvas.drawRect(
+              Rect.fromLTWH(corner.dx + dx + c, corner.dy + dy + r, 1, 1),
+              ink,
+            );
+          }
+        }
+      }
+    }
+    // A constant's decoded literal, right-aligned as LabVIEW justifies
+    // numeric displays: the text advance ends 4 px inside the window's
+    // right edge. Inked black through the disabled transform, which
+    // renders digits as the (153,153,153) dim of black.
+    if (constValue != null && box.width >= 12 && box.height >= 12) {
+      final run = _layoutText(
+        constValue,
+        color: _dimFor(object.oid, Colors.black),
+        maxLines: 1,
+      );
+      _paintText(
+        canvas,
+        run,
+        Offset(box.right - 4 - run.width, bdCentredTextTop(box, run.height)),
+        clip: box.deflate(hasRadixMarker ? 2 : 1),
+      );
+    }
+    // The resolved data type's short label (DBL / I32 / TF / abc), sized
+    // to sit inside the double border even on a 16 px terminal. A
+    // constant box shows its value instead — a decoded text value on the
+    // `0x13` holder draws from its value-label part in the text pass.
+    final glyph =
+        constValue != null ||
+            object.dataType == null ||
+            (shellParent?.objectClass == HeapObjectClass.bdConstDco &&
+                bdDrawnConstText(shellParent) != null)
+        ? null
+        : dataTypeGlyph(object.dataType!);
+    if (glyph != null &&
+        box.width >= 6.0 * glyph.length + 10 &&
+        box.height >= 13) {
+      final run = _layoutText(
+        glyph,
+        color: border,
+        fontSize: 8.5,
+        fontWeight: FontWeight.w700,
+      );
+      _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
+    }
+  }
+
+  /// A node [object]: its XNode facade, growable chrome, primitive/subVI icon
+  /// art or plate, and the operator glyph when no art resolves. Icon stamps are
+  /// appended to [stampedPrimIcons] in paint order for the corner-AA ladder.
+  void _paintNode(
+    Canvas canvas,
+    ViHeapObject object,
+    Rect rect,
+    List<({Rect dst, int id})> stampedPrimIcons,
+  ) {
+    // Node icon plate: a verified primitive icon stamps at natural size;
+    // a subVI call stamps the icon resolved from its own file
+    // ([subViIcons]). Without either, subVI calls get the light-grey
+    // connector-pane plate and primitive nodes the pale-gold plate with
+    // the operator glyph, both inside the 1 px black node border.
+    final isSubVi = kSubViCallNodeCodes.contains(object.kind);
+    // An XNode facade is the node's own stored image, drawn verbatim at
+    // its bounds (the DSIM geometry matches them exactly).
+    final facade = xnodeFacades[object.oid];
+    if (facade != null) {
+      canvas.drawImageRect(
+        facade,
+        Rect.fromLTWH(0, 0, facade.width.toDouble(), facade.height.toDouble()),
+        rect,
+        Paint()..filterQuality = FilterQuality.none,
+      );
+      return;
+    }
+    if (object.objectClass == HeapObjectClass.bdGrowableNode) {
+      _paintGrowableNode(canvas, object, rect);
+      return;
+    }
+    final icon = subViIcons[object.oid];
+    final iconKey = primIconKeyOf(object);
+    final disabled = disabledOids.contains(object.oid);
+    final primIcon =
+        (disabled
+            ? primIconArtFor(object, scene.diagram, primIconsGrey)
+            : null) ??
+        primIconArtFor(object, scene.diagram, primIcons);
+    if (primIcon != null) {
+      // The harvested art carries its own borders and transparency — no
+      // plate, backing, or extra frame. Exactness paths sample the
+      // asset's own pixels with nearest; the sharp-bilinear interactive
+      // path samples the prescale with linear.
+      final filter =
+          iconFilterQuality == FilterQuality.none ||
+              canvasScale >= kPrimIconPrescale
+          ? FilterQuality.none
+          : iconFilterQuality;
+      final art = filter == FilterQuality.none ? primIcon.base : primIcon.sharp;
+      final dst = primIconStampRect(
+        rect,
+        primIcon.base.width,
+        primIcon.base.height,
+        key: iconKey,
+      );
+      canvas.drawImageRect(
+        art,
+        Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
+        dst,
+        Paint()..filterQuality = filter,
+      );
+      // Plate corner-AA ladder: a corner pixel
+      // ([_PrimIconPixels.cornerAa]) is anti-aliasing baked against the
+      // white canvas, not opaque art, so over an earlier stamp it
+      // composes by the measured ladder —
+      //  * over another stamp's opaque art it deposits nothing;
+      //  * two corner pixels coinciding on bare canvas deepen the blend
+      //    one rung, `dddddd` -> `aaaaaa`;
+      //  * on bare canvas alone the baked `dddddd` stands.
+      // TODO: no pixel-local source-over/coverage model yields 255->221
+      // and 221->170 from the same stamp; revisit the second rung when
+      // the corpus grows another corner-corner collision.
+      final ladderId = disabled ? null : loadedPrimIconIdOf(object);
+      final corners =
+          (ladderId == null ? null : _primIconPixels[ladderId]?.cornerAa) ??
+          const <int>{};
+      for (final artIndex in corners) {
+        final artWidth = primIcon.base.width;
+        final cornerX = dst.left + artIndex % artWidth;
+        final cornerY = dst.top + artIndex ~/ artWidth;
+        var beneathCorner = false;
+        Color? restore;
+        for (final prior in stampedPrimIcons.reversed) {
+          final localX = (cornerX - prior.dst.left).round();
+          final localY = (cornerY - prior.dst.top).round();
+          final priorArt = _primIconPixels[prior.id];
+          if (priorArt == null ||
+              localX < 0 ||
+              localY < 0 ||
+              localX >= priorArt.width ||
+              localY >= priorArt.height) {
+            continue;
+          }
+          final priorIndex = localY * priorArt.width + localX;
+          if (priorArt.alpha[priorIndex] == 0) continue;
+          if (priorArt.cornerAa.contains(priorIndex)) {
+            beneathCorner = true;
+            continue;
+          }
+          restore = Color.fromARGB(
+            0xff,
+            priorArt.rgba[priorIndex * 4],
+            priorArt.rgba[priorIndex * 4 + 1],
+            priorArt.rgba[priorIndex * 4 + 2],
+          );
+          break;
+        }
+        final rung = restore ?? (beneathCorner ? _kCornerAaRung2 : null);
+        if (rung != null) {
+          canvas.drawRect(
+            Rect.fromLTWH(cornerX, cornerY, 1, 1),
+            _solidNoAa(rung),
+          );
+        }
+      }
+      if (ladderId != null) {
+        stampedPrimIcons.add((dst: dst, id: ladderId));
+      }
+    } else if (icon != null) {
+      paintLegacyIcon(canvas, icon, rect);
+    } else {
+      final fill = _dimFor(
+        object.oid,
+        isSubVi ? kBdSubViNodeFill : kBdPrimitiveNodeFill,
+      );
+      canvas.drawRect(rect, Paint()..color = fill);
+    }
+    if (primIcon == null) {
+      // A node without icon art is a 1 px black ring on the exact
+      // bounds, no anti-aliasing.
+      final ring = _solidNoAa(_dimFor(object.oid, Colors.black));
+      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, rect.width, 1), ring);
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+        ring,
+      );
+      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, 1, rect.height), ring);
+      canvas.drawRect(
+        Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+        ring,
+      );
+    }
+    // A decoded primitive identity draws its operator glyph on the plate
+    // when no icon asset exists — the recognisable core of the art.
+    // Uncatalogued ids draw nothing.
+    final glyph = icon == null && primIcon == null && object.primResId != null
+        ? primOpGlyph(PrimOp.fromId(object.primResId!))
+        : null;
+    if (glyph != null && rect.width >= 14 && rect.height >= 12) {
+      final run = _layoutText(
+        glyph,
+        color: _dimFor(object.oid, Colors.black).withValues(alpha: 0.75),
+        fontSize: glyph.length > 2 ? 8.0 : 12,
+        maxLines: 1,
+      );
+      _paintText(canvas, run, bdCentredTextAnchor(rect, run.size));
+    }
+  }
+
+  /// A growable node (0x63): (68,68,68) ring, white field, and its `0x62`
+  /// terminal strips laid out from their node-local termBounds. Full-height
+  /// cells are terminals — (255,255,204) fill with a 1px black separator on the
+  /// edge facing the interior, the left cell carrying the solid black input
+  /// arrow and right-column cells the ridged output arrow. Partial-height cells
+  /// are text rows: the resolved data-space name in the type colour (arrays by
+  /// element), with 1px black dividers at shared row boundaries. objFlags bit
+  /// 0x10000 marks the input-side flavour; both share the chrome.
+  void _paintGrowableNode(Canvas canvas, ViHeapObject object, Rect rect) {
+    canvas.drawRect(
+      rect,
+      Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
+    );
+    canvas.drawRect(
+      rect.deflate(1),
+      Paint()..color = _dimFor(object.oid, Colors.white),
+    );
+    final rows = <HeapRect>[];
+    final rowTerms = <(ViHeapObject, HeapRect)>[];
+    final cells = <HeapRect>[];
+    final nodeH = object.absBounds!.bottom - object.absBounds!.top;
+    final nodeW = object.absBounds!.right - object.absBounds!.left;
+    for (final dco in scene.diagram.children(object.oid)) {
+      if (dco.kind != kNodeEndpointDcoKind) continue;
+      for (final t in scene.diagram.children(dco.oid)) {
+        final tb = t.termBounds;
+        if (t.kind != 0x62 || tb == null) continue;
+        if (tb.height >= nodeH) {
+          cells.add(tb);
+        } else {
+          rows.add(tb);
+          rowTerms.add((t, tb));
+        }
+      }
+    }
+    final black = Paint()
+      ..color = _dimFor(object.oid, Colors.black)
+      ..isAntiAlias = false;
+    final cream = Paint()
+      ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
+      ..isAntiAlias = false;
+    rows.sort((a, b) => a.top.compareTo(b.top));
+    // Interior dividers at shared row boundaries.
+    for (var i = 0; i + 1 < rows.length; i++) {
+      if (rows[i].bottom != rows[i + 1].top) continue;
+      canvas.drawRect(
+        Rect.fromLTWH(
+          rect.left + rows[i].left + 1,
+          rect.top + rows[i].bottom,
+          (rows[i].right - rows[i].left - 2).toDouble(),
+          1,
+        ),
+        black,
+      );
+    }
+    for (final cell in cells) {
+      final leftSide = cell.left < nodeW - cell.right;
+      if (leftSide) {
+        // Input terminal cell: cream to the interior separator, and
+        // the black arrow into the node — a 6x3 shaft with a 4-column
+        // head, centred.
+        canvas.drawRect(
+          Rect.fromLTRB(
+            rect.left + 1,
+            rect.top + 1,
+            rect.left + cell.right,
+            rect.bottom - 1,
+          ),
+          cream,
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(
+            rect.left + cell.right,
+            rect.top + 1,
+            1,
+            rect.height - 2,
+          ),
+          black,
+        );
+        final cy = rect.top + (nodeH ~/ 2);
+        canvas.drawRect(Rect.fromLTWH(rect.left + 1, cy - 1.0, 6, 3), black);
+        for (var i = 0; i < 4; i++) {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              rect.left + 7 + i,
+              cy - 3.0 + i,
+              1,
+              (7 - 2 * i).toDouble(),
+            ),
+            black,
+          );
+        }
+      } else {
+        // Output column: cream from the rows' right edge through the
+        // cell, separators at the rows' edge and the cell's left.
+        final rowsRight = rows.isEmpty ? cell.left : rows.first.right;
+        final top = rect.top + 1;
+        final h = rect.height - 2;
+        canvas.drawRect(
+          Rect.fromLTRB(
+            rect.left + rowsRight,
+            top,
+            rect.left + cell.right - 1,
+            top + h,
+          ),
+          cream,
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
+          black,
+        );
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + cell.left - 1, top, 1, h),
+          black,
+        );
+        // The ridged output arrow through the columns, centred on the
+        // node's middle row.
+        const arrowRows = [
+          '...........#...',
+          '.#####.....##..',
+          '#.############.',
+          '#.#############',
+          '#.############.',
+          '.#####.....##..',
+          '...........#...',
+        ];
+        final cy = rect.top + (nodeH ~/ 2);
+        final x0 = rect.left + rowsRight;
+        for (var r = 0; r < arrowRows.length; r++) {
+          final y = cy - 3 + r;
+          final mask = arrowRows[r];
+          for (var c = 0; c < mask.length; c++) {
+            if (mask.codeUnitAt(c) != 0x23) continue;
+            canvas.drawRect(
+              Rect.fromLTWH(x0 + c.toDouble(), y.toDouble(), 1, 1),
+              black,
+            );
+          }
+        }
+      }
+    }
+    // Row text: the terminal's resolved data-space name in the type
+    // colour, centred in the row cell with the half pixel truncated
+    // (every odd cell−text gap corpus-wide inks at the floor).
+    for (final (term, tb) in rowTerms) {
+      final name = term.typeName?.trim();
+      if (name == null || name.isEmpty) continue;
+      final elementKind = term.typeKind == ViTypeKind.array
+          ? term.resolvedElementType?.kind
+          : null;
+      final rowColor = elementKind != null
+          ? labviewTypeColor(_typeKindOfDataType(elementKind))
+          : labviewTypeColor(term.typeKind);
+      final cell = Rect.fromLTRB(
+        rect.left + tb.left + 1,
+        rect.top + tb.top,
+        rect.left + tb.right - 1,
+        rect.top + tb.bottom,
+      );
+      final run = _layoutText(
+        name,
+        color: _dimFor(object.oid, rowColor),
+        maxLines: 1,
+      );
+      _paintText(canvas, run, bdCentredTextAnchor(cell, run.size), clip: cell);
+    }
+  }
+
+  /// A control/indicator with no measured chrome: a rounded plate in its
+  /// decoded interior colour under a thin border.
+  void _paintPlainSolid(Canvas canvas, ViHeapObject object, Rect rect) {
+    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
+    // A control/indicator takes its decoded interior colour when
+    // recovered, else its neutral category colour.
+    final fill = _dimFor(
+      object.oid,
+      bdFillColor(object) ?? _objectColor(object),
+    );
+    canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
+    canvas.drawRRect(
+      rr,
+      Paint()
+        ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.5)
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 0.8,
+    );
+  }
+
+  /// Free-label backing pass, above every node/icon they overlap: a 1px black
+  /// border on the outermost pixel ring of the label bounds, filled with the
+  /// decoded colour.
+  void _paintLabelBackings(
+    Canvas canvas,
+    List<(int, Rect, Color)> labelBackings,
+  ) {
     for (final (oid, rect, backing) in labelBackings) {
       canvas.drawRect(rect, Paint()..color = _dimFor(oid, Colors.black));
       canvas.drawRect(rect.deflate(1), Paint()..color = _dimFor(oid, backing));
     }
+  }
+
+  /// Text pass: only recovered captions and constant literals, matching
+  /// LabVIEW's sparse on-canvas text — no per-terminal datatype annotations.
+  void _paintCaptions(Canvas canvas) {
     // The drawn-object index for owner lookups in the text pass.
     final byOid = {for (final o in objects) o.oid: o};
-    // Text pass: only recovered captions and constant literals, matching
-    // LabVIEW's sparse on-canvas text — no per-terminal datatype annotations.
     for (final object in objects) {
       // Standalone label parts (0x0a free label / control caption, 0x95 case
       // selector) draw their recovered caption as multi-line text within their
@@ -3157,7 +3219,7 @@ class BdDiagramPainter extends CustomPainter {
           text = constValue ?? byOid[object.parentOid]?.typeName;
         }
         if (text == null || text.isEmpty) continue;
-        final rect = rectOf(object);
+        final rect = _rectOf(object);
         if (rect.width < 8 || rect.height < 8) continue;
         // The selector's value text fills its decoded label bounds
         // left-justified; the pagers and dropdown sit outside them (see
@@ -3222,7 +3284,7 @@ class BdDiagramPainter extends CustomPainter {
         text = literal ?? (label != null && label.isNotEmpty ? label : null);
       }
       if (text == null) continue;
-      final rect = rectOf(object);
+      final rect = _rectOf(object);
       if (rect.width < 26 || rect.height < 11) continue;
       // A caption/constant inks in the object's decoded foreground colour or a
       // neutral near-black, and pens at the same [ViHeapObject.labelTextInset]
@@ -3272,6 +3334,25 @@ class BdDiagramPainter extends CustomPainter {
     tunnelSquares,
   }) {
     if (wires.isEmpty) return;
+    final anchors = _collectWireAnchors();
+    final nets = _resolveWireNets(anchors);
+    // Segments already drawn by earlier wires (heap serialization order), in
+    // integer pixel space — the crossing rule cuts later wires around them.
+    final drawn = <_BdWireSeg>[];
+    for (final wire in wires) {
+      _drawOneWire(
+        canvas,
+        wire,
+        anchors: anchors,
+        nets: nets,
+        drawn: drawn,
+        tunnelSquares: tunnelSquares,
+      );
+    }
+  }
+
+  /// The per-diagram lookups the wire pass resolves once over [objects].
+  _BdWireAnchors _collectWireAnchors() {
     // Endpoint-anchor rectangle → recovered terminal colour; the icon-stamped
     // node rects; each node's catalogued output colour ([PrimOp.output]).
     final typedTerminalColors = <int, Color>{};
@@ -3330,30 +3411,50 @@ class BdDiagramPainter extends CustomPainter {
         sourceOutputColors[packed] = labviewTypeColor(output);
       }
     }
-    // Wire-net colour resolution. LabVIEW draws one dataflow wire as a chain
-    // of 0x17 signals joined end to end through tunnels and junction stubs,
-    // every segment inking the same type colour. The authoritative tint lives
-    // on whichever signal touches a resolved terminal (the others' endpoints
-    // are unbounded `0x1d`/`0x15` stubs), so signals union into nets by shared
-    // route endpoints/junctions and each takes its net's best-resolved colour.
-    // Tiers per signal, lowest wins:
-    //   0 typed endpoint-anchor rect ([typedTerminalColors]),
-    //   1 resolved endpoint object ([bdTerminalTypeColor] — carries the
-    //     cluster member tint the anchor map cannot),
-    //   2 the documented output of the primitive under the signal's first
-    //     anchored endpoint ([sourceOutputColors]),
-    //   3 the signal word's element family (the 89.9% estimate tier).
-    // The neutral grey means unresolved at every tier and never propagates.
+    // [BdScene.furnitureBounds] in canvas space, for the into-DCO leg trim.
+    final furnitureRects = <Rect>[
+      for (final bounds in scene.furnitureBounds) _toCanvas(bounds),
+    ];
+    return (
+      typedTerminalColors: typedTerminalColors,
+      sourceOutputColors: sourceOutputColors,
+      iconNodeRects: iconNodeRects,
+      iconInkRects: iconInkRects,
+      iconNodeObjects: iconNodeObjects,
+      nodeCoverRects: nodeCoverRects,
+      furnitureRects: furnitureRects,
+    );
+  }
+
+  /// Wire-net colour resolution. LabVIEW draws one dataflow wire as a chain
+  /// of 0x17 signals joined end to end through tunnels and junction stubs,
+  /// every segment inking the same type colour. The authoritative tint lives
+  /// on whichever signal touches a resolved terminal (the others' endpoints
+  /// are unbounded `0x1d`/`0x15` stubs), so signals union into nets by shared
+  /// route endpoints/junctions and each takes its net's best-resolved colour.
+  /// Tiers per signal, lowest wins:
+  ///   0 typed endpoint-anchor rect ([typedTerminalColors]),
+  ///   1 resolved endpoint object ([bdTerminalTypeColor] — carries the
+  ///     cluster member tint the anchor map cannot),
+  ///   2 the documented output of the primitive under the signal's first
+  ///     anchored endpoint ([sourceOutputColors]),
+  ///   3 the signal word's element family (the 89.9% estimate tier).
+  /// The neutral grey means unresolved at every tier and never propagates.
+  Map<int, ({Color? color, bool error})> _resolveWireNets(
+    _BdWireAnchors anchors,
+  ) {
+    final typedTerminalColors = anchors.typedTerminalColors;
+    final sourceOutputColors = anchors.sourceOutputColors;
     const unresolvedGrey = Color(0xFF8A8A8A);
     final netParent = <int, int>{
-      for (final w in wires) w.signalOid: w.signalOid,
+      for (final wire in wires) wire.signalOid: wire.signalOid,
     };
-    int netFind(int a) {
-      var root = a;
+    int netFind(int signalOid) {
+      var root = signalOid;
       while (netParent[root] != root) {
         root = netParent[root]!;
       }
-      var cursor = a;
+      var cursor = signalOid;
       while (netParent[cursor] != root) {
         final next = netParent[cursor]!;
         netParent[cursor] = root;
@@ -3362,11 +3463,12 @@ class BdDiagramPainter extends CustomPainter {
       return root;
     }
 
-    void netUnion(int a, int b) => netParent[netFind(a)] = netFind(b);
+    void netUnion(int left, int right) =>
+        netParent[netFind(left)] = netFind(right);
     final pointOwner = <int, int>{};
     List<ViPoint> netPointsOf(ViWire wire) => [
       for (final run in [
-        if (wire.routePoints case final p? when p.isNotEmpty) p,
+        if (wire.routePoints case final points? when points.isNotEmpty) points,
         ...?wire.routeTree?.polylines,
       ]) ...[run.first, run.last],
       ...?wire.routeTree?.junctions,
@@ -3376,8 +3478,8 @@ class BdDiagramPainter extends CustomPainter {
       // they share a decoded attach rect (the two signals either side of one
       // tunnel).
       final keys = [
-        for (final p in netPointsOf(wire))
-          ((p.x + 0x8000) << 17) | (p.y + 0x8000),
+        for (final point in netPointsOf(wire))
+          ((point.x + 0x8000) << 17) | (point.y + 0x8000),
         for (final attach in wire.endpointAttachRects)
           if (attach != null && attach.width > 0 && attach.height > 0)
             _packRect(attach.top, attach.left, attach.bottom, attach.right),
@@ -3453,1163 +3555,1300 @@ class BdDiagramPainter extends CustomPainter {
         );
       }
     }
-    // [BdScene.furnitureBounds] in canvas space, for the into-DCO leg trim.
-    final furnitureRects = <Rect>[
-      for (final bounds in scene.furnitureBounds) _toCanvas(bounds),
-    ];
-    // Segments already drawn by earlier wires (heap serialization order), in
-    // integer pixel space — the crossing rule cuts later wires around them.
-    final drawn = <_BdWireSeg>[];
+    final resolved = <int, ({Color? color, bool error})>{};
     for (final wire in wires) {
-      // Endpoints with a decoded attach rect get their border-terminal chrome
-      // drawn at it. A wire's body comes from its decoded route
-      // ([ViWire.routePoints] / [ViWire.routeTree]) alone.
-      final tunnels =
-          <(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>[];
-      for (var e = 0; e < wire.endpointAnchors.length; e++) {
-        final anchor = wire.endpointAnchors[e];
-        if (anchor == null) continue;
-        // A zero-area anchor is an endpoint whose nearest bounded owner is a
-        // degenerate wire-segment stub — no chrome to place there.
-        if (anchor.width <= 0 && anchor.height <= 0) continue;
-        final attach = e < wire.endpointAttachRects.length
-            ? wire.endpointAttachRects[e]
-            : null;
-        if (attach == null) continue;
-        final attachRect = _toCanvas(attach);
-        final info = borderTerminalKinds[attach];
-        if (info != null) tunnels.add((attachRect, info));
-      }
-      // The signal takes its net's best-resolved colour; an unresolved net
-      // keeps the neutral wire dark. Braid (depth-3 cluster) special case: an
-      // error net, or a braid net with no resolution at all (the corpus'
-      // unresolved braids are the error chains), draws the dark-yellow error
-      // palette — olive flanks plus a yellow/black weave, its tunnels filling
-      // the flank olive.
-      final netRoot = netFind(wire.signalOid);
-      var color = netBest[netRoot]?.$2 ?? kBdWireColor;
-      var errorBraid = false;
-      if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
-        errorBraid =
-            (netError[netRoot] ?? false) ||
-            netBest[netRoot] == null ||
-            color == const Color(0xFF666600);
-        if (errorBraid) color = const Color(0xFF666600);
-      }
-      final wireDisabled = disabledOids.contains(wire.signalOid);
-      if (wireDisabled) color = bdDimDisabled(color);
-      // Chrome is collected whenever its position is decoded, even when no
-      // route can be drawn, and painted after the structure chrome (LabVIEW
-      // draws the terminal over the band). A terminal inside a disabled frame
-      // dims even when the wire's own signal is outside it.
-      tunnelSquares?.addAll([
-        for (final (t, info) in tunnels)
-          (
-            t,
-            info,
-            info.disabled && !wireDisabled ? bdDimDisabled(color) : color,
-          ),
-      ]);
-      // Leg polylines: the proven absolute polyline when the parse shipped
-      // one, drawn as-is.
-      final routePoints = wire.routePoints;
-      final routeTree = wire.routeTree;
-      final legs = <List<Offset>>[];
-      final junctions = <Offset>[];
-      // Whether the straight-stub tier below may draw this wire: no decoded
-      // route shipped, or the shipped polyline was withheld as fully covered
-      // by node boxes, leaving only the seam between the adjacent nodes' art
-      // — exactly what the stub tier draws from the ink edges.
-      var stubEligible = routeTree == null && routePoints == null;
-      if (routeTree != null) {
-        // A proven branching tree ([ViWire.routeTree]): every run drawn
-        // origin-relative with a branch dot at each junction, through the same
-        // stroke and crossing-gap machinery as any other leg. Its endpoints
-        // are decoded attach points, so the attach-rect pass owns their
-        // chrome.
-        for (final run in routeTree.polylines) {
-          legs.add([
-            for (final p in run) Offset(p.x - origin.dx, p.y - origin.dy),
-          ]);
-        }
-        for (final j in routeTree.junctions) {
-          junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
-        }
-      } else if (routePoints != null) {
-        final points = [
-          for (final p in routePoints) Offset(p.x - origin.dx, p.y - origin.dy),
-        ];
-        // A proven polyline connects at its decoded attach point on the
-        // endpoint's own border. Where that endpoint is an icon-stamped node,
-        // LabVIEW draws the wire under the art, so the terminal segment
-        // extends into the icon and the art masks the covered interior.
-        if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
-          Rect? iconBox(int e) {
-            final a = wire.endpointAnchors[e];
-            if (a == null) return null;
-            final box = Rect.fromLTRB(
-              a.left - origin.dx,
-              a.top - origin.dy,
-              a.right - origin.dx,
-              a.bottom - origin.dy,
-            );
-            return iconNodeRects.contains(box) ? box : null;
-          }
+      final root = netFind(wire.signalOid);
+      resolved[wire.signalOid] = (
+        color: netBest[root]?.$2,
+        error: netError[root] ?? false,
+      );
+    }
+    return resolved;
+  }
 
-          final slack = wire.routeHeadSlack;
-          if (slack != null) {
-            // A slack-headed walk ([ViWire.routeHeadSlack]): the stored
-            // lengths measure from the head prim's own terminal, a builtin
-            // position the file does not carry, so the walk placed the head on
-            // the prim's border and left the slack-axis coordinate free.
-            // Resolve it from [bdPrimTerminalOf] by sliding every point but
-            // the anchored tail. An uncatalogued terminal is not drawn.
-            final terminal = bdPrimTerminalOf(
-              scene.diagram,
-              wire.endpointOids[0],
-            );
-            final tx = terminal?.x, ty = terminal?.y;
-            final head = points.first;
-            // The catalog entry must agree with the walk's fixed
-            // perpendicular coordinate, and the slide must run along the
-            // shipped interior-ward step: a contrary slide means the resolved
-            // terminal is wrong, and would shorten or invert the closing run.
-            final slide = slack.dx != 0
-                ? (tx == null ? null : tx - origin.dx - head.dx)
-                : (ty == null ? null : ty - origin.dy - head.dy);
-            final resolved =
-                tx != null &&
-                ty != null &&
-                slide != null &&
-                slide * (slack.dx + slack.dy) >= 0 &&
-                (slack.dx != 0
-                    ? (head.dy + origin.dy).round() == ty
-                    : (head.dx + origin.dx).round() == tx);
-            if (!resolved) {
-              points.clear();
-            } else {
-              final delta = slack.dx != 0 ? Offset(slide, 0) : Offset(0, slide);
-              for (var i = 0; i < points.length - 1; i++) {
-                points[i] = points[i] + delta;
-              }
-            }
-          } else {
-            // A polyline closed onto a [ViDiagram.dcoChildTerminalAttach]
-            // candidate whose prim terminal is catalogued at both axes
-            // re-anchors: the whole polyline translates so that endpoint sits
-            // on the catalogued terminal, which outranks the candidate
-            // convention. Two catalogued ends demanding different translations
-            // contradict, and the wire is withheld.
-            Offset? reanchor;
-            var reanchorConflict = false;
-            if (wire.endpointOids.length == 2) {
-              for (final (e, p) in [(0, points.first), (1, points.last)]) {
-                final oid = wire.endpointOids[e];
-                if (scene.diagram.wireAttachPoint(oid) != null) continue;
-                final abs = (
-                  x: (p.dx + origin.dx).round(),
-                  y: (p.dy + origin.dy).round(),
-                );
-                final candidates = scene.diagram
-                    .dcoChildTerminalAttach(oid)
-                    ?.candidates;
-                if (candidates == null || !candidates.contains(abs)) continue;
-                final term = bdPrimTerminalOf(scene.diagram, oid);
-                if (term?.x == null || term?.y == null) continue;
-                final delta = Offset(
-                  (term!.x! - abs.x).toDouble(),
-                  (term.y! - abs.y).toDouble(),
-                );
-                if (delta == Offset.zero) continue;
-                if (reanchor == null) {
-                  reanchor = delta;
-                } else if (reanchor != delta) {
-                  reanchorConflict = true;
-                }
-              }
-            }
-            if (reanchorConflict) {
-              points.clear();
-            } else if (reanchor != null) {
-              for (var i = 0; i < points.length; i++) {
-                points[i] = points[i] + reanchor;
-              }
-            }
-            final sourceBox = iconBox(0);
-            if (points.length >= 2 && sourceBox != null) {
-              final c = (iconInkRects[sourceBox] ?? sourceBox).center;
-              final p0 = points.first, p1 = points[1];
-              points[0] = p0.dy == p1.dy
-                  ? Offset(c.dx, p0.dy)
-                  : Offset(p0.dx, c.dy);
-            }
-          }
-          final sinkBox = points.isEmpty
-              ? null
-              : iconBox(wire.endpointAnchors.length - 1);
-          if (sinkBox != null) {
-            final ink = iconInkRects[sinkBox] ?? sinkBox;
-            final closing = wire.routeClosingStep;
-            if (closing != null) {
-              // The polyline ends at the last decoded bend inside the node;
-              // the implied closing run enters along [ViWire.routeClosingStep]
-              // at the wire's own input row, not the box centre. Extend from
-              // that bend along the closing axis to where the art becomes
-              // opaque on the arrival row ([primIconInkEdge]), falling back to
-              // the ink-box edge when the row carries no masked art.
-              final last = points.last;
-              final farObj = iconNodeObjects[sinkBox];
-              final Offset target;
-              if (closing.dx != 0) {
-                final edge = farObj == null
-                    ? null
-                    : primIconInkEdge(
-                        farObj,
-                        horizontal: true,
-                        cross: (last.dy + origin.dy).round(),
-                        sign: closing.dx,
-                      );
-                target = Offset(
-                  edge != null
-                      ? edge - origin.dx
-                      : (closing.dx > 0 ? ink.left : ink.right - 1),
-                  last.dy,
-                );
-              } else {
-                final edge = farObj == null
-                    ? null
-                    : primIconInkEdge(
-                        farObj,
-                        horizontal: false,
-                        cross: (last.dx + origin.dx).round(),
-                        sign: closing.dy,
-                      );
-                target = Offset(
-                  last.dx,
-                  edge != null
-                      ? edge - origin.dy
-                      : (closing.dy > 0 ? ink.top : ink.bottom - 1),
-                );
-              }
-              // The closing run steps from the bend in the closing direction.
-              // An edge behind the bend means the run lies entirely under
-              // opaque art and adds no visible ink; extending to it would drag
-              // a stroke backwards across the art and out the far side.
-              final along =
-                  (target.dx - last.dx) * closing.dx +
-                  (target.dy - last.dy) * closing.dy;
-              if (along > 0) points.add(target);
-            } else {
-              // The closing run reached the box edge: run on under the art to
-              // where it becomes opaque on the arrival row/column
-              // ([primIconInkEdge]) and no further — the reference leaves the
-              // art's transparent cells white, so overrunning to the icon
-              // centre paints ink LabVIEW never shows. Falls back to the
-              // icon-ink centre when the line carries no masked art.
-              final c = ink.center;
-              final pn = points.last, pm = points[points.length - 2];
-              final farObj = iconNodeObjects[sinkBox];
-              if (pn.dy == pm.dy) {
-                final edge = farObj == null
-                    ? null
-                    : primIconInkEdge(
-                        farObj,
-                        horizontal: true,
-                        cross: (pn.dy + origin.dy).round(),
-                        sign: pn.dx >= pm.dx ? 1 : -1,
-                      );
-                points[points.length - 1] = Offset(
-                  edge != null ? edge - origin.dx : c.dx,
-                  pn.dy,
-                );
-              } else {
-                final edge = farObj == null
-                    ? null
-                    : primIconInkEdge(
-                        farObj,
-                        horizontal: false,
-                        cross: (pn.dx + origin.dx).round(),
-                        sign: pn.dy >= pm.dy ? 1 : -1,
-                      );
-                points[points.length - 1] = Offset(
-                  pn.dx,
-                  edge != null ? edge - origin.dy : c.dy,
-                );
-              }
-            }
-          }
+  /// Draws one decoded [wire]: its endpoint chrome, the legs its stored route
+  /// resolves to, the crossing-cut strokes, and its branch dots.
+  void _drawOneWire(
+    Canvas canvas,
+    ViWire wire, {
+    required _BdWireAnchors anchors,
+    required Map<int, ({Color? color, bool error})> nets,
+    required List<_BdWireSeg> drawn,
+    required List<
+      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
+    >?
+    tunnelSquares,
+  }) {
+    final tunnels = _wireTunnelChrome(wire);
+    // The signal takes its net's best-resolved colour; an unresolved net
+    // keeps the neutral wire dark. Braid (depth-3 cluster) special case: an
+    // error net, or a braid net with no resolution at all (the corpus'
+    // unresolved braids are the error chains), draws the dark-yellow error
+    // palette — olive flanks plus a yellow/black weave, its tunnels filling
+    // the flank olive.
+    final net = nets[wire.signalOid]!;
+    var color = net.color ?? kBdWireColor;
+    var errorBraid = false;
+    if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
+      errorBraid =
+          net.error || net.color == null || color == const Color(0xFF666600);
+      if (errorBraid) color = const Color(0xFF666600);
+    }
+    final wireDisabled = disabledOids.contains(wire.signalOid);
+    if (wireDisabled) color = bdDimDisabled(color);
+    // Chrome is collected whenever its position is decoded, even when no
+    // route can be drawn, and painted after the structure chrome (LabVIEW
+    // draws the terminal over the band). A terminal inside a disabled frame
+    // dims even when the wire's own signal is outside it.
+    tunnelSquares?.addAll([
+      for (final (tunnelRect, info) in tunnels)
+        (
+          tunnelRect,
+          info,
+          info.disabled && !wireDisabled ? bdDimDisabled(color) : color,
+        ),
+    ]);
+    // Leg polylines: the proven absolute polyline when the parse shipped
+    // one, drawn as-is.
+    final routePoints = wire.routePoints;
+    final routeTree = wire.routeTree;
+    final legs = <List<Offset>>[];
+    final junctions = <Offset>[];
+    // Whether the straight-stub tier below may draw this wire: no decoded
+    // route shipped, or the shipped polyline was withheld as fully covered
+    // by node boxes, leaving only the seam between the adjacent nodes' art
+    // — exactly what the stub tier draws from the ink edges.
+    var stubEligible = routeTree == null && routePoints == null;
+    if (routeTree != null) {
+      // A proven branching tree ([ViWire.routeTree]): every run drawn
+      // origin-relative with a branch dot at each junction, through the same
+      // stroke and crossing-gap machinery as any other leg. Its endpoints
+      // are decoded attach points, so the attach-rect pass owns their
+      // chrome.
+      for (final run in routeTree.polylines) {
+        legs.add([
+          for (final point in run)
+            Offset(point.x - origin.dx, point.y - origin.dy),
+        ]);
+      }
+      for (final junction in routeTree.junctions) {
+        junctions.add(Offset(junction.x - origin.dx, junction.y - origin.dy));
+      }
+    } else if (routePoints != null) {
+      final points = _resolvedRoutePolyline(wire, routePoints, anchors);
+      // Withhold a polyline with no visible box-level ink: every pixel under
+      // a node box ([anchors.nodeCoverRects]) is painted over by node art. A
+      // withheld 2-point wire falls through to the straight-stub tier, which
+      // draws the seam ink between the adjacent nodes' art edges.
+      if (points.length >= 2) {
+        if (!_polylineUnderNodes(points, anchors.nodeCoverRects)) {
+          legs.add(points);
+        } else {
+          stubEligible = true;
         }
-        // A leg end attached inside a value-display endpoint (a numeric or
-        // array constant) shows no ink before the display's opaque window
-        // chrome: the stored attach point sits under the control's transparent
-        // label gap, where the reference is white. The end slides forward
-        // along its own segment to the first furniture (`0x9`/`0xe0`) rect
-        // edge inside the anchor; an anchor with no furniture on the segment
-        // is left exact.
-        if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
-          void trimToFurniture({required bool head}) {
-            final index = head ? 0 : wire.endpointAnchors.length - 1;
-            final anchor = wire.endpointAnchors[index];
-            if (anchor == null || anchor.width <= 0 || anchor.height <= 0) {
-              return;
-            }
-            final anchorRect = _toCanvas(anchor);
-            if (iconNodeRects.contains(anchorRect)) return;
-            final end = head ? points.first : points.last;
-            final next = head ? points[1] : points[points.length - 2];
-            if (!anchorRect.contains(end)) return;
-            final horizontal = end.dy == next.dy;
-            if (!horizontal && end.dx != next.dx) return;
-            final sign = horizontal
-                ? (next.dx - end.dx).sign
-                : (next.dy - end.dy).sign;
-            if (sign == 0) return;
-            double? best;
-            for (final furniture in furnitureRects) {
-              if (furniture.left < anchorRect.left ||
-                  furniture.top < anchorRect.top ||
-                  furniture.right > anchorRect.right ||
-                  furniture.bottom > anchorRect.bottom) {
-                continue;
-              }
-              if (horizontal
-                  ? end.dy < furniture.top || end.dy >= furniture.bottom
-                  : end.dx < furniture.left || end.dx >= furniture.right) {
-                continue;
-              }
-              if (furniture.contains(end)) return;
-              final near = horizontal
-                  ? (sign > 0 ? furniture.left : furniture.right - 1)
-                  : (sign > 0 ? furniture.top : furniture.bottom - 1);
-              final along = (near - (horizontal ? end.dx : end.dy)) * sign;
-              final limit =
-                  ((horizontal ? next.dx : next.dy) -
-                      (horizontal ? end.dx : end.dy)) *
-                  sign;
-              if (along <= 0 || along > limit) continue;
-              if (best == null ||
-                  along < (best - (horizontal ? end.dx : end.dy)) * sign) {
-                best = near;
-              }
-            }
-            if (best == null) return;
-            final trimmed = horizontal
-                ? Offset(best, end.dy)
-                : Offset(end.dx, best);
-            if (head) {
-              points[0] = trimmed;
-            } else {
-              points[points.length - 1] = trimmed;
-            }
+      }
+    } else if (wire.branchRoute != null && wire.endpointOids.length >= 3) {
+      // A branching table whose origin is a catalogued prim terminal
+      // ([bdPrimTerminalOf], both axes) with no endpoint resolving a
+      // standard attach: the stored tree decodes off that origin and ships
+      // only when every walked leaf lands exactly on its own endpoint's
+      // catalogued terminal or [ViDiagram.dcoChildTerminalAttach] candidate.
+      // Leaves sit under their nodes' art.
+      final headTerminal = bdPrimTerminalOf(
+        scene.diagram,
+        wire.endpointOids[0],
+      );
+      if (headTerminal?.x != null && headTerminal?.y != null) {
+        final tree = walkWireBranchRoute(wire.branchRoute!, (
+          x: headTerminal!.x!,
+          y: headTerminal.y!,
+        ));
+        final leaves = tree.leaves;
+        var closed = leaves.length == wire.endpointOids.length - 1;
+        if (closed) {
+          final remaining = <ViPoint, int>{};
+          for (final leaf in leaves) {
+            remaining.update(leaf, (count) => count + 1, ifAbsent: () => 1);
           }
-
-          trimToFurniture(head: true);
-          trimToFurniture(head: false);
-        }
-        // Withhold a polyline with no visible box-level ink: every pixel under
-        // a node box ([nodeCoverRects]) is painted over by node art. A
-        // withheld 2-point wire falls through to the straight-stub tier, which
-        // draws the seam ink between the adjacent nodes' art edges.
-        if (points.length >= 2) {
-          if (!_polylineUnderNodes(points, nodeCoverRects)) {
-            legs.add(points);
-          } else {
-            stubEligible = true;
-          }
-        }
-      } else if (wire.branchRoute != null && wire.endpointOids.length >= 3) {
-        // A branching table whose origin is a catalogued prim terminal
-        // ([bdPrimTerminalOf], both axes) with no endpoint resolving a
-        // standard attach: the stored tree decodes off that origin and ships
-        // only when every walked leaf lands exactly on its own endpoint's
-        // catalogued terminal or [ViDiagram.dcoChildTerminalAttach] candidate.
-        // Leaves sit under their nodes' art.
-        final headTerminal = bdPrimTerminalOf(
-          scene.diagram,
-          wire.endpointOids[0],
-        );
-        if (headTerminal?.x != null && headTerminal?.y != null) {
-          final tree = walkWireBranchRoute(wire.branchRoute!, (
-            x: headTerminal!.x!,
-            y: headTerminal.y!,
-          ));
-          final leaves = tree.leaves;
-          var closed = leaves.length == wire.endpointOids.length - 1;
-          if (closed) {
-            final remaining = <ViPoint, int>{};
-            for (final leaf in leaves) {
-              remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
-            }
-            for (var e = 1; e < wire.endpointOids.length; e++) {
-              final oid = wire.endpointOids[e];
-              final term = bdPrimTerminalOf(scene.diagram, oid);
-              ViPoint? match;
-              for (final candidate in [
-                if (term?.x != null && term?.y != null)
-                  (x: term!.x!, y: term.y!),
-                ...?scene.diagram.dcoChildTerminalAttach(oid)?.candidates,
-              ]) {
-                if (remaining.containsKey(candidate)) {
-                  match = candidate;
-                  break;
-                }
-              }
-              if (match == null) {
-                closed = false;
+          for (
+            var endpointIndex = 1;
+            endpointIndex < wire.endpointOids.length;
+            endpointIndex++
+          ) {
+            final oid = wire.endpointOids[endpointIndex];
+            final term = bdPrimTerminalOf(scene.diagram, oid);
+            ViPoint? match;
+            for (final candidate in [
+              if (term?.x != null && term?.y != null) (x: term!.x!, y: term.y!),
+              ...?scene.diagram.dcoChildTerminalAttach(oid)?.candidates,
+            ]) {
+              if (remaining.containsKey(candidate)) {
+                match = candidate;
                 break;
               }
-              final count = remaining[match]!;
-              if (count == 1) {
-                remaining.remove(match);
-              } else {
-                remaining[match] = count - 1;
-              }
             }
-          }
-          if (closed) {
-            for (final run in tree.polylines) {
-              legs.add([
-                for (final p in run) Offset(p.x - origin.dx, p.y - origin.dy),
-              ]);
-            }
-            for (final j in tree.junctions) {
-              junctions.add(Offset(j.x - origin.dx, j.y - origin.dy));
-            }
-          }
-        }
-      }
-      if (stubEligible &&
-          legs.isEmpty &&
-          wire.route?.pointCount == 2 &&
-          wire.route?.direction != null &&
-          wire.endpointOids.length == 2 &&
-          wire.endpointAttachRects.length >= 2) {
-        // A straight 2-point route between undecoded attach points: one
-        // implied segment at the endpoints' shared terminal row/column, of
-        // which only the gap between the two nodes' ink is visible. The cross
-        // coordinate comes from a decoded attach rect or a catalogued builtin
-        // terminal ([bdPrimTerminalOf]), every determinable end agreeing; each
-        // visible bound comes from the adjacent node's art ink edge on that
-        // row ([primIconInkEdge]) or the attach rect's border. An end
-        // resolving neither way is not drawn.
-        final dir = wire.route!.direction!;
-        final horizontal = dir.dy == 0;
-        final crossCandidates = <int>{};
-        for (var e = 0; e < 2; e++) {
-          final attach = wire.endpointAttachRects[e];
-          if (attach != null &&
-              attach.right > attach.left &&
-              attach.bottom > attach.top) {
-            crossCandidates.add(
-              horizontal
-                  ? attach.top + (attach.bottom - attach.top) ~/ 2
-                  : attach.left + (attach.right - attach.left) ~/ 2,
-            );
-          } else {
-            final terminal = bdPrimTerminalOf(
-              scene.diagram,
-              wire.endpointOids[e],
-            );
-            final coord = horizontal ? terminal?.y : terminal?.x;
-            if (coord != null) crossCandidates.add(coord);
-          }
-        }
-        if (crossCandidates.length == 1) {
-          final cross = crossCandidates.single;
-          // The endpoint at the run's low-coordinate side: [dir] steps from
-          // endpoint 0 toward endpoint 1.
-          final lowEnd = dir.dx > 0 || dir.dy > 0 ? 0 : 1;
-          int? visibleBound(int e, {required bool lowSide}) {
-            final attach = wire.endpointAttachRects[e];
-            if (attach != null &&
-                attach.right > attach.left &&
-                attach.bottom > attach.top) {
-              return horizontal
-                  ? (lowSide ? attach.right : attach.left - 1)
-                  : (lowSide ? attach.bottom : attach.top - 1);
-            }
-            final dco = scene.diagram.byId[wire.endpointOids[e]];
-            final owner = dco?.parentOid == null
-                ? null
-                : scene.diagram.byId[dco!.parentOid!];
-            if (owner == null) return null;
-            final edge = primIconInkEdge(
-              owner,
-              horizontal: horizontal,
-              cross: cross,
-              sign: lowSide ? -1 : 1,
-            );
-            if (edge != null) return lowSide ? edge : edge - 1;
-            // A node drawn as a plain box (no icon art resolved) covers its
-            // interior with the box chrome, so the wire's visible ink ends at
-            // the 1 px border, provided the arrival row lies inside the box.
-            final bounds = owner.absBounds;
-            if (bounds == null) return null;
-            final inSpan = horizontal
-                ? cross >= bounds.top && cross < bounds.bottom
-                : cross >= bounds.left && cross < bounds.right;
-            if (!inSpan) return null;
-            return horizontal
-                ? (lowSide ? bounds.right : bounds.left - 1)
-                : (lowSide ? bounds.bottom : bounds.top - 1);
-          }
-
-          final lo = visibleBound(lowEnd, lowSide: true);
-          final hi = visibleBound(1 - lowEnd, lowSide: false);
-          if (lo != null && hi != null && lo <= hi) {
-            legs.add(
-              horizontal
-                  ? [
-                      Offset(lo - origin.dx, cross - origin.dy),
-                      Offset(hi - origin.dx, cross - origin.dy),
-                    ]
-                  : [
-                      Offset(cross - origin.dx, lo - origin.dy),
-                      Offset(cross - origin.dx, hi - origin.dy),
-                    ],
-            );
-          }
-        }
-      }
-      if (stubEligible &&
-          legs.isEmpty &&
-          wire.route?.pointCount == 3 &&
-          wire.route?.direction != null &&
-          wire.route!.segmentLengths.length == 1 &&
-          wire.endpointOids.length == 2 &&
-          wire.endpointAttachRects.length >= 2) {
-        // A 3-point route table anchored at one decoded attach rect, with a
-        // plain prim DCO at the other end. Three resolutions, tried in order,
-        // each requiring arrival equality or containment:
-        //
-        //  1. Attach-origin onto a catalogued terminal: the walk starts at the
-        //     attach centre and its closing run's arrival coordinate must
-        //     equal the far prim's catalogued cross coordinate
-        //     ([bdPrimTerminalOf]); visible from the anchor border to the far
-        //     node's art ink edge.
-        //  2. Prim-origin onto the attach: the table is stored from the prim's
-        //     terminal instead, so the catalogued coordinate walked through
-        //     the first segment must equal the attach's centre cross and the
-        //     closing sign must point from the prim's box toward the attach;
-        //     visible from the prim's art ink edge to the attach border, the
-        //     origin jog under the art.
-        //  3. Attach-origin with the far terminal uncatalogued but the walked
-        //     bend landing inside the far node's box: the closing run and
-        //     terminal sit under the node, whose art overdraws the covered
-        //     interior, so the visible ink ends at the node's art edge.
-        final route = wire.route!;
-        final dir = route.direction!;
-        for (final (tail, head) in [(0, 1), (1, 0)]) {
-          final attach = wire.endpointAttachRects[tail];
-          if (attach == null ||
-              attach.right <= attach.left ||
-              attach.bottom <= attach.top) {
-            continue;
-          }
-          if (wire.endpointAttachRects[head] != null) continue;
-          final terminal = bdPrimTerminalOf(
-            scene.diagram,
-            wire.endpointOids[head],
-          );
-          final headObj = scene.diagram.byId[wire.endpointOids[head]];
-          final headOwner = headObj?.parentOid == null
-              ? null
-              : scene.diagram.byId[headObj!.parentOid!];
-          final headBox = headOwner?.absBounds;
-          final closingSign = bdRouteClosingSign(route, dir);
-          if (headOwner == null || headBox == null) break;
-          final start = (
-            x: attach.left + (attach.right - attach.left) ~/ 2,
-            y: attach.top + (attach.bottom - attach.top) ~/ 2,
-          );
-          final bend = (
-            x: start.x + dir.dx * route.segmentLengths[0],
-            y: start.y + dir.dy * route.segmentLengths[0],
-          );
-          final closingHorizontal = dir.dx == 0;
-          final arrivalCross = closingHorizontal ? bend.y : bend.x;
-          final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
-          // The first segment's visible ink starts just outside the anchor
-          // rect's border on the walk side.
-          final visStart = (
-            x: dir.dx == 0
-                ? start.x
-                : (dir.dx > 0 ? attach.right : attach.left - 1),
-            y: dir.dy == 0
-                ? start.y
-                : (dir.dy > 0 ? attach.bottom : attach.top - 1),
-          );
-          if (catalogued != null && catalogued == arrivalCross) {
-            final edge = primIconInkEdge(
-              headOwner,
-              horizontal: closingHorizontal,
-              cross: arrivalCross,
-              sign: closingSign,
-            );
-            if (edge == null) break;
-            final far = edge - closingSign;
-            legs.add([
-              Offset(visStart.x - origin.dx, visStart.y - origin.dy),
-              Offset(bend.x - origin.dx, bend.y - origin.dy),
-              closingHorizontal
-                  ? Offset(far - origin.dx, bend.y - origin.dy)
-                  : Offset(bend.x - origin.dx, far - origin.dy),
-            ]);
-            break;
-          }
-          // Prim-origin: the first segment departs the prim's terminal, so its
-          // axis coordinate is the catalogued one walked by the stored length.
-          final primCoord = dir.dx == 0 ? terminal?.y : terminal?.x;
-          if (primCoord != null) {
-            final closingCross =
-                primCoord + (dir.dx + dir.dy) * route.segmentLengths[0];
-            final attachCross = dir.dx == 0 ? start.y : start.x;
-            // The closing sign must carry the run off the prim's box toward
-            // the attach side.
-            final signToAttach = dir.dx == 0
-                ? (start.x >= headBox.right
-                      ? 1
-                      : start.x < headBox.left
-                      ? -1
-                      : 0)
-                : (start.y >= headBox.bottom
-                      ? 1
-                      : start.y < headBox.top
-                      ? -1
-                      : 0);
-            if (closingCross == attachCross && closingSign == signToAttach) {
-              final edge = primIconInkEdge(
-                headOwner,
-                horizontal: dir.dx == 0,
-                cross: closingCross,
-                sign: -closingSign,
-              );
-              if (edge == null) break;
-              final nearAttach = dir.dx == 0
-                  ? (closingSign > 0 ? attach.left - 1 : attach.right)
-                  : (closingSign > 0 ? attach.top - 1 : attach.bottom);
-              legs.add([
-                dir.dx == 0
-                    ? Offset(edge - origin.dx, closingCross - origin.dy)
-                    : Offset(closingCross - origin.dx, edge - origin.dy),
-                dir.dx == 0
-                    ? Offset(nearAttach - origin.dx, closingCross - origin.dy)
-                    : Offset(closingCross - origin.dx, nearAttach - origin.dy),
-              ]);
+            if (match == null) {
+              closed = false;
               break;
             }
+            final count = remaining[match]!;
+            if (count == 1) {
+              remaining.remove(match);
+            } else {
+              remaining[match] = count - 1;
+            }
           }
-          // Uncatalogued far terminal: decoded first segment whose bend
-          // lands inside the far node's box.
-          if (terminal == null &&
-              bend.x > headBox.left &&
-              bend.x < headBox.right &&
-              bend.y > headBox.top &&
-              bend.y < headBox.bottom) {
+        }
+        if (closed) {
+          for (final run in tree.polylines) {
             legs.add([
-              Offset(visStart.x - origin.dx, visStart.y - origin.dy),
-              Offset(bend.x - origin.dx, bend.y - origin.dy),
+              for (final point in run)
+                Offset(point.x - origin.dx, point.y - origin.dy),
             ]);
-            break;
           }
+          for (final junction in tree.junctions) {
+            junctions.add(
+              Offset(junction.x - origin.dx, junction.y - origin.dy),
+            );
+          }
+        }
+      }
+    }
+    // Stub tiers: each draws only where no earlier tier resolved a leg.
+    if (stubEligible) {
+      if (legs.isEmpty) _straightStubLeg(wire, legs);
+      if (legs.isEmpty) _threePointStubLeg(wire, legs);
+      if (legs.isEmpty) _walkedRouteLeg(wire, legs);
+      if (legs.isEmpty) _coveredAttachWalkLeg(wire, legs);
+      if (legs.isEmpty) _containerFaceLeg(wire, legs);
+    }
+    // A wire with no decoded route is not drawn: only its endpoint chrome,
+    // collected above, appears. Stroke style: the measured tier first, then
+    // the estimate tier for the simple solid/dotted styles only, then the
+    // pre-catalogue laws (array ⇒ 2 px, scalar boolean ⇒ dotted, else 1 px).
+    final style = _wireStrokeStyle(wire);
+    final fill = _solidNoAa(color);
+    _strokeWireLegs(
+      canvas,
+      fill,
+      style,
+      legs,
+      junctions,
+      drawn,
+      errorBraid: errorBraid,
+    );
+    // Branch dots sit on top of the wire's own runs in the same colour;
+    // terminal features, not crossing segments, so they stay out of [drawn].
+    for (final junction in junctions) {
+      _drawWireJunctionDot(
+        canvas,
+        junction,
+        fill,
+        bdWireStrokeBand(style),
+        style: style,
+        errorBraid: errorBraid,
+      );
+    }
+  }
+
+  /// [wire]'s endpoints that carry a decoded border-terminal attach rect,
+  /// paired with the chrome kind catalogued at it.
+  List<(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>
+  _wireTunnelChrome(ViWire wire) {
+    // Endpoints with a decoded attach rect get their border-terminal chrome
+    // drawn at it. A wire's body comes from its decoded route
+    // ([ViWire.routePoints] / [ViWire.routeTree]) alone.
+    final tunnels =
+        <(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>[];
+    for (
+      var endpointIndex = 0;
+      endpointIndex < wire.endpointAnchors.length;
+      endpointIndex++
+    ) {
+      final anchor = wire.endpointAnchors[endpointIndex];
+      if (anchor == null) continue;
+      // A zero-area anchor is an endpoint whose nearest bounded owner is a
+      // degenerate wire-segment stub — no chrome to place there.
+      if (anchor.width <= 0 && anchor.height <= 0) continue;
+      final attach = endpointIndex < wire.endpointAttachRects.length
+          ? wire.endpointAttachRects[endpointIndex]
+          : null;
+      if (attach == null) continue;
+      final attachRect = _toCanvas(attach);
+      final info = borderTerminalKinds[attach];
+      if (info != null) tunnels.add((attachRect, info));
+    }
+    return tunnels;
+  }
+
+  /// [wire]'s proven absolute polyline ([ViWire.routePoints]) in canvas
+  /// coordinates, with the head slack resolved, catalogued terminals
+  /// re-anchored, icon-stamped ends run under the art, and value-display ends
+  /// trimmed to their window chrome.
+  List<Offset> _resolvedRoutePolyline(
+    ViWire wire,
+    List<ViPoint> routePoints,
+    _BdWireAnchors anchors,
+  ) {
+    final points = [
+      for (final point in routePoints)
+        Offset(point.x - origin.dx, point.y - origin.dy),
+    ];
+    // A proven polyline connects at its decoded attach point on the
+    // endpoint's own border. Where that endpoint is an icon-stamped node,
+    // LabVIEW draws the wire under the art, so the terminal segment
+    // extends into the icon and the art masks the covered interior.
+    if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
+      final slack = wire.routeHeadSlack;
+      if (slack != null) {
+        _slideSlackHead(wire, points, slack);
+      } else {
+        _reanchorPolyline(wire, points, anchors);
+      }
+      final sinkBox = points.isEmpty
+          ? null
+          : _iconBoxOfEndpoint(
+              wire,
+              wire.endpointAnchors.length - 1,
+              anchors.iconNodeRects,
+            );
+      if (sinkBox != null) {
+        _extendIntoSinkIcon(wire, points, sinkBox, anchors);
+      }
+    }
+    // A leg end attached inside a value-display endpoint (a numeric or
+    // array constant) shows no ink before the display's opaque window
+    // chrome: the stored attach point sits under the control's transparent
+    // label gap, where the reference is white. The end slides forward
+    // along its own segment to the first furniture (`0x9`/`0xe0`) rect
+    // edge inside the anchor; an anchor with no furniture on the segment
+    // is left exact.
+    if (points.length >= 2 && wire.endpointAnchors.length >= 2) {
+      _trimEndToFurniture(wire, points, anchors, head: true);
+      _trimEndToFurniture(wire, points, anchors, head: false);
+    }
+    return points;
+  }
+
+  /// [wire]'s endpoint anchor at [endpointIndex] as a canvas rect, when that
+  /// rect is an icon-stamped node box.
+  Rect? _iconBoxOfEndpoint(
+    ViWire wire,
+    int endpointIndex,
+    Set<Rect> iconNodeRects,
+  ) {
+    final anchor = wire.endpointAnchors[endpointIndex];
+    if (anchor == null) return null;
+    final box = Rect.fromLTRB(
+      anchor.left - origin.dx,
+      anchor.top - origin.dy,
+      anchor.right - origin.dx,
+      anchor.bottom - origin.dy,
+    );
+    return iconNodeRects.contains(box) ? box : null;
+  }
+
+  /// A slack-headed walk ([ViWire.routeHeadSlack]): the stored
+  /// lengths measure from the head prim's own terminal, a builtin
+  /// position the file does not carry, so the walk placed the head on
+  /// the prim's border and left the slack-axis coordinate free.
+  /// Resolve it from [bdPrimTerminalOf] by sliding every point but
+  /// the anchored tail. An uncatalogued terminal is not drawn.
+  void _slideSlackHead(ViWire wire, List<Offset> points, ViStep slack) {
+    final terminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[0]);
+    final terminalX = terminal?.x, terminalY = terminal?.y;
+    final head = points.first;
+    // The catalog entry must agree with the walk's fixed
+    // perpendicular coordinate, and the slide must run along the
+    // shipped interior-ward step: a contrary slide means the resolved
+    // terminal is wrong, and would shorten or invert the closing run.
+    final slide = slack.dx != 0
+        ? (terminalX == null ? null : terminalX - origin.dx - head.dx)
+        : (terminalY == null ? null : terminalY - origin.dy - head.dy);
+    final resolved =
+        terminalX != null &&
+        terminalY != null &&
+        slide != null &&
+        slide * (slack.dx + slack.dy) >= 0 &&
+        (slack.dx != 0
+            ? (head.dy + origin.dy).round() == terminalY
+            : (head.dx + origin.dx).round() == terminalX);
+    if (!resolved) {
+      points.clear();
+    } else {
+      final delta = slack.dx != 0 ? Offset(slide, 0) : Offset(0, slide);
+      for (var index = 0; index < points.length - 1; index++) {
+        points[index] = points[index] + delta;
+      }
+    }
+  }
+
+  /// A polyline closed onto a [ViDiagram.dcoChildTerminalAttach]
+  /// candidate whose prim terminal is catalogued at both axes
+  /// re-anchors: the whole polyline translates so that endpoint sits
+  /// on the catalogued terminal, which outranks the candidate
+  /// convention. Two catalogued ends demanding different translations
+  /// contradict, and the wire is withheld.
+  void _reanchorPolyline(
+    ViWire wire,
+    List<Offset> points,
+    _BdWireAnchors anchors,
+  ) {
+    Offset? reanchor;
+    var reanchorConflict = false;
+    if (wire.endpointOids.length == 2) {
+      for (final (endpointIndex, point) in [
+        (0, points.first),
+        (1, points.last),
+      ]) {
+        final oid = wire.endpointOids[endpointIndex];
+        if (scene.diagram.wireAttachPoint(oid) != null) continue;
+        final abs = (
+          x: (point.dx + origin.dx).round(),
+          y: (point.dy + origin.dy).round(),
+        );
+        final candidates = scene.diagram
+            .dcoChildTerminalAttach(oid)
+            ?.candidates;
+        if (candidates == null || !candidates.contains(abs)) continue;
+        final term = bdPrimTerminalOf(scene.diagram, oid);
+        if (term?.x == null || term?.y == null) continue;
+        final delta = Offset(
+          (term!.x! - abs.x).toDouble(),
+          (term.y! - abs.y).toDouble(),
+        );
+        if (delta == Offset.zero) continue;
+        if (reanchor == null) {
+          reanchor = delta;
+        } else if (reanchor != delta) {
+          reanchorConflict = true;
+        }
+      }
+    }
+    if (reanchorConflict) {
+      points.clear();
+    } else if (reanchor != null) {
+      for (var index = 0; index < points.length; index++) {
+        points[index] = points[index] + reanchor;
+      }
+    }
+    final sourceBox = _iconBoxOfEndpoint(wire, 0, anchors.iconNodeRects);
+    if (points.length >= 2 && sourceBox != null) {
+      final inkCentre = (anchors.iconInkRects[sourceBox] ?? sourceBox).center;
+      final head = points.first, next = points[1];
+      points[0] = head.dy == next.dy
+          ? Offset(inkCentre.dx, head.dy)
+          : Offset(head.dx, inkCentre.dy);
+    }
+  }
+
+  /// Runs [points]' sink end under the art stamped on [sinkBox], to where the
+  /// art becomes opaque on the arrival row/column ([primIconInkEdge]).
+  void _extendIntoSinkIcon(
+    ViWire wire,
+    List<Offset> points,
+    Rect sinkBox,
+    _BdWireAnchors anchors,
+  ) {
+    final ink = anchors.iconInkRects[sinkBox] ?? sinkBox;
+    final closing = wire.routeClosingStep;
+    if (closing != null) {
+      // The polyline ends at the last decoded bend inside the node;
+      // the implied closing run enters along [ViWire.routeClosingStep]
+      // at the wire's own input row, not the box centre. Extend from
+      // that bend along the closing axis to where the art becomes
+      // opaque on the arrival row ([primIconInkEdge]), falling back to
+      // the ink-box edge when the row carries no masked art.
+      final last = points.last;
+      final farObj = anchors.iconNodeObjects[sinkBox];
+      final Offset target;
+      if (closing.dx != 0) {
+        final edge = farObj == null
+            ? null
+            : primIconInkEdge(
+                farObj,
+                horizontal: true,
+                cross: (last.dy + origin.dy).round(),
+                sign: closing.dx,
+              );
+        target = Offset(
+          edge != null
+              ? edge - origin.dx
+              : (closing.dx > 0 ? ink.left : ink.right - 1),
+          last.dy,
+        );
+      } else {
+        final edge = farObj == null
+            ? null
+            : primIconInkEdge(
+                farObj,
+                horizontal: false,
+                cross: (last.dx + origin.dx).round(),
+                sign: closing.dy,
+              );
+        target = Offset(
+          last.dx,
+          edge != null
+              ? edge - origin.dy
+              : (closing.dy > 0 ? ink.top : ink.bottom - 1),
+        );
+      }
+      // The closing run steps from the bend in the closing direction.
+      // An edge behind the bend means the run lies entirely under
+      // opaque art and adds no visible ink; extending to it would drag
+      // a stroke backwards across the art and out the far side.
+      final along =
+          (target.dx - last.dx) * closing.dx +
+          (target.dy - last.dy) * closing.dy;
+      if (along > 0) points.add(target);
+    } else {
+      // The closing run reached the box edge: run on under the art to
+      // where it becomes opaque on the arrival row/column
+      // ([primIconInkEdge]) and no further — the reference leaves the
+      // art's transparent cells white, so overrunning to the icon
+      // centre paints ink LabVIEW never shows. Falls back to the
+      // icon-ink centre when the line carries no masked art.
+      final inkCentre = ink.center;
+      final last = points.last, prior = points[points.length - 2];
+      final farObj = anchors.iconNodeObjects[sinkBox];
+      if (last.dy == prior.dy) {
+        final edge = farObj == null
+            ? null
+            : primIconInkEdge(
+                farObj,
+                horizontal: true,
+                cross: (last.dy + origin.dy).round(),
+                sign: last.dx >= prior.dx ? 1 : -1,
+              );
+        points[points.length - 1] = Offset(
+          edge != null ? edge - origin.dx : inkCentre.dx,
+          last.dy,
+        );
+      } else {
+        final edge = farObj == null
+            ? null
+            : primIconInkEdge(
+                farObj,
+                horizontal: false,
+                cross: (last.dx + origin.dx).round(),
+                sign: last.dy >= prior.dy ? 1 : -1,
+              );
+        points[points.length - 1] = Offset(
+          last.dx,
+          edge != null ? edge - origin.dy : inkCentre.dy,
+        );
+      }
+    }
+  }
+
+  /// Slides the head (or tail) end of [points] forward along its own segment
+  /// to the first furniture rect edge inside its endpoint anchor.
+  void _trimEndToFurniture(
+    ViWire wire,
+    List<Offset> points,
+    _BdWireAnchors anchors, {
+    required bool head,
+  }) {
+    final index = head ? 0 : wire.endpointAnchors.length - 1;
+    final anchor = wire.endpointAnchors[index];
+    if (anchor == null || anchor.width <= 0 || anchor.height <= 0) {
+      return;
+    }
+    final anchorRect = _toCanvas(anchor);
+    if (anchors.iconNodeRects.contains(anchorRect)) return;
+    final end = head ? points.first : points.last;
+    final next = head ? points[1] : points[points.length - 2];
+    if (!anchorRect.contains(end)) return;
+    final horizontal = end.dy == next.dy;
+    if (!horizontal && end.dx != next.dx) return;
+    final sign = horizontal ? (next.dx - end.dx).sign : (next.dy - end.dy).sign;
+    if (sign == 0) return;
+    double? best;
+    for (final furniture in anchors.furnitureRects) {
+      if (furniture.left < anchorRect.left ||
+          furniture.top < anchorRect.top ||
+          furniture.right > anchorRect.right ||
+          furniture.bottom > anchorRect.bottom) {
+        continue;
+      }
+      if (horizontal
+          ? end.dy < furniture.top || end.dy >= furniture.bottom
+          : end.dx < furniture.left || end.dx >= furniture.right) {
+        continue;
+      }
+      if (furniture.contains(end)) return;
+      final near = horizontal
+          ? (sign > 0 ? furniture.left : furniture.right - 1)
+          : (sign > 0 ? furniture.top : furniture.bottom - 1);
+      final along = (near - (horizontal ? end.dx : end.dy)) * sign;
+      final limit =
+          ((horizontal ? next.dx : next.dy) - (horizontal ? end.dx : end.dy)) *
+          sign;
+      if (along <= 0 || along > limit) continue;
+      if (best == null ||
+          along < (best - (horizontal ? end.dx : end.dy)) * sign) {
+        best = near;
+      }
+    }
+    if (best == null) return;
+    final trimmed = horizontal ? Offset(best, end.dy) : Offset(end.dx, best);
+    if (head) {
+      points[0] = trimmed;
+    } else {
+      points[points.length - 1] = trimmed;
+    }
+  }
+
+  /// A straight 2-point route between undecoded attach points: one implied
+  /// segment at the endpoints' shared terminal row/column, of which only the
+  /// gap between the two nodes' ink is visible. The cross coordinate comes from
+  /// a decoded attach rect or a catalogued builtin terminal
+  /// ([bdPrimTerminalOf]), every determinable end agreeing; each visible bound
+  /// comes from the adjacent node's art ink edge on that row
+  /// ([primIconInkEdge]) or the attach rect's border. An end resolving neither
+  /// way is not drawn.
+  void _straightStubLeg(ViWire wire, List<List<Offset>> legs) {
+    if (wire.route?.pointCount != 2 ||
+        wire.route?.direction == null ||
+        wire.endpointOids.length != 2 ||
+        wire.endpointAttachRects.length < 2) {
+      return;
+    }
+    final dir = wire.route!.direction!;
+    final horizontal = dir.dy == 0;
+    final crossCandidates = <int>{};
+    for (var endpointIndex = 0; endpointIndex < 2; endpointIndex++) {
+      final attach = wire.endpointAttachRects[endpointIndex];
+      if (attach != null &&
+          attach.right > attach.left &&
+          attach.bottom > attach.top) {
+        crossCandidates.add(
+          horizontal
+              ? attach.top + (attach.bottom - attach.top) ~/ 2
+              : attach.left + (attach.right - attach.left) ~/ 2,
+        );
+      } else {
+        final terminal = bdPrimTerminalOf(
+          scene.diagram,
+          wire.endpointOids[endpointIndex],
+        );
+        final coord = horizontal ? terminal?.y : terminal?.x;
+        if (coord != null) crossCandidates.add(coord);
+      }
+    }
+    if (crossCandidates.length == 1) {
+      final cross = crossCandidates.single;
+      // The endpoint at the run's low-coordinate side: [dir] steps from
+      // endpoint 0 toward endpoint 1.
+      final lowEnd = dir.dx > 0 || dir.dy > 0 ? 0 : 1;
+      final lowBound = _stubVisibleBound(
+        wire,
+        lowEnd,
+        horizontal: horizontal,
+        cross: cross,
+        lowSide: true,
+      );
+      final highBound = _stubVisibleBound(
+        wire,
+        1 - lowEnd,
+        horizontal: horizontal,
+        cross: cross,
+        lowSide: false,
+      );
+      if (lowBound != null && highBound != null && lowBound <= highBound) {
+        legs.add(
+          horizontal
+              ? [
+                  Offset(lowBound - origin.dx, cross - origin.dy),
+                  Offset(highBound - origin.dx, cross - origin.dy),
+                ]
+              : [
+                  Offset(cross - origin.dx, lowBound - origin.dy),
+                  Offset(cross - origin.dx, highBound - origin.dy),
+                ],
+        );
+      }
+    }
+  }
+
+  /// The coordinate at which a straight stub's ink becomes visible past
+  /// [wire]'s endpoint [endpointIndex], travelling along the [horizontal] axis
+  /// on row/column [cross]: the endpoint's attach-rect border, else the owning
+  /// node's art ink edge ([primIconInkEdge]), else its plain box border.
+  /// [lowSide] picks the end at the run's low-coordinate side. Null when the
+  /// endpoint resolves none of the three.
+  int? _stubVisibleBound(
+    ViWire wire,
+    int endpointIndex, {
+    required bool horizontal,
+    required int cross,
+    required bool lowSide,
+  }) {
+    final attach = wire.endpointAttachRects[endpointIndex];
+    if (attach != null &&
+        attach.right > attach.left &&
+        attach.bottom > attach.top) {
+      return horizontal
+          ? (lowSide ? attach.right : attach.left - 1)
+          : (lowSide ? attach.bottom : attach.top - 1);
+    }
+    final dco = scene.diagram.byId[wire.endpointOids[endpointIndex]];
+    final owner = dco?.parentOid == null
+        ? null
+        : scene.diagram.byId[dco!.parentOid!];
+    if (owner == null) return null;
+    final edge = primIconInkEdge(
+      owner,
+      horizontal: horizontal,
+      cross: cross,
+      sign: lowSide ? -1 : 1,
+    );
+    if (edge != null) return lowSide ? edge : edge - 1;
+    // A node drawn as a plain box (no icon art resolved) covers its interior
+    // with the box chrome, so the wire's visible ink ends at the 1 px border,
+    // provided the arrival row lies inside the box.
+    final bounds = owner.absBounds;
+    if (bounds == null) return null;
+    final inSpan = horizontal
+        ? cross >= bounds.top && cross < bounds.bottom
+        : cross >= bounds.left && cross < bounds.right;
+    if (!inSpan) return null;
+    return horizontal
+        ? (lowSide ? bounds.right : bounds.left - 1)
+        : (lowSide ? bounds.bottom : bounds.top - 1);
+  }
+
+  /// A 3-point route table anchored at one decoded attach rect, with a
+  /// plain prim DCO at the other end. Three resolutions, tried in order,
+  /// each requiring arrival equality or containment:
+  ///
+  ///  1. Attach-origin onto a catalogued terminal: the walk starts at the
+  ///     attach centre and its closing run's arrival coordinate must
+  ///     equal the far prim's catalogued cross coordinate
+  ///     ([bdPrimTerminalOf]); visible from the anchor border to the far
+  ///     node's art ink edge.
+  ///  2. Prim-origin onto the attach: the table is stored from the prim's
+  ///     terminal instead, so the catalogued coordinate walked through
+  ///     the first segment must equal the attach's centre cross and the
+  ///     closing sign must point from the prim's box toward the attach;
+  ///     visible from the prim's art ink edge to the attach border, the
+  ///     origin jog under the art.
+  ///  3. Attach-origin with the far terminal uncatalogued but the walked
+  ///     bend landing inside the far node's box: the closing run and
+  ///     terminal sit under the node, whose art overdraws the covered
+  ///     interior, so the visible ink ends at the node's art edge.
+  void _threePointStubLeg(ViWire wire, List<List<Offset>> legs) {
+    if (wire.route?.pointCount != 3 ||
+        wire.route?.direction == null ||
+        wire.route!.segmentLengths.length != 1 ||
+        wire.endpointOids.length != 2 ||
+        wire.endpointAttachRects.length < 2) {
+      return;
+    }
+    final route = wire.route!;
+    final dir = route.direction!;
+    for (final (tail, head) in [(0, 1), (1, 0)]) {
+      final attach = wire.endpointAttachRects[tail];
+      if (attach == null ||
+          attach.right <= attach.left ||
+          attach.bottom <= attach.top) {
+        continue;
+      }
+      if (wire.endpointAttachRects[head] != null) continue;
+      final terminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[head]);
+      final headObj = scene.diagram.byId[wire.endpointOids[head]];
+      final headOwner = headObj?.parentOid == null
+          ? null
+          : scene.diagram.byId[headObj!.parentOid!];
+      final headBox = headOwner?.absBounds;
+      final closingSign = bdRouteClosingSign(route, dir);
+      if (headOwner == null || headBox == null) break;
+      final start = (
+        x: attach.left + (attach.right - attach.left) ~/ 2,
+        y: attach.top + (attach.bottom - attach.top) ~/ 2,
+      );
+      final bend = (
+        x: start.x + dir.dx * route.segmentLengths[0],
+        y: start.y + dir.dy * route.segmentLengths[0],
+      );
+      final closingHorizontal = dir.dx == 0;
+      final arrivalCross = closingHorizontal ? bend.y : bend.x;
+      final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
+      // The first segment's visible ink starts just outside the anchor
+      // rect's border on the walk side.
+      final visStart = (
+        x: dir.dx == 0
+            ? start.x
+            : (dir.dx > 0 ? attach.right : attach.left - 1),
+        y: dir.dy == 0
+            ? start.y
+            : (dir.dy > 0 ? attach.bottom : attach.top - 1),
+      );
+      if (catalogued != null && catalogued == arrivalCross) {
+        final edge = primIconInkEdge(
+          headOwner,
+          horizontal: closingHorizontal,
+          cross: arrivalCross,
+          sign: closingSign,
+        );
+        if (edge == null) break;
+        final far = edge - closingSign;
+        legs.add([
+          Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+          Offset(bend.x - origin.dx, bend.y - origin.dy),
+          closingHorizontal
+              ? Offset(far - origin.dx, bend.y - origin.dy)
+              : Offset(bend.x - origin.dx, far - origin.dy),
+        ]);
+        break;
+      }
+      // Prim-origin: the first segment departs the prim's terminal, so its
+      // axis coordinate is the catalogued one walked by the stored length.
+      final primCoord = dir.dx == 0 ? terminal?.y : terminal?.x;
+      if (primCoord != null) {
+        final closingCross =
+            primCoord + (dir.dx + dir.dy) * route.segmentLengths[0];
+        final attachCross = dir.dx == 0 ? start.y : start.x;
+        // The closing sign must carry the run off the prim's box toward
+        // the attach side.
+        final signToAttach = dir.dx == 0
+            ? (start.x >= headBox.right
+                  ? 1
+                  : start.x < headBox.left
+                  ? -1
+                  : 0)
+            : (start.y >= headBox.bottom
+                  ? 1
+                  : start.y < headBox.top
+                  ? -1
+                  : 0);
+        if (closingCross == attachCross && closingSign == signToAttach) {
+          final edge = primIconInkEdge(
+            headOwner,
+            horizontal: dir.dx == 0,
+            cross: closingCross,
+            sign: -closingSign,
+          );
+          if (edge == null) break;
+          final nearAttach = dir.dx == 0
+              ? (closingSign > 0 ? attach.left - 1 : attach.right)
+              : (closingSign > 0 ? attach.top - 1 : attach.bottom);
+          legs.add([
+            dir.dx == 0
+                ? Offset(edge - origin.dx, closingCross - origin.dy)
+                : Offset(closingCross - origin.dx, edge - origin.dy),
+            dir.dx == 0
+                ? Offset(nearAttach - origin.dx, closingCross - origin.dy)
+                : Offset(closingCross - origin.dx, nearAttach - origin.dy),
+          ]);
           break;
         }
       }
-      if (stubEligible &&
-          legs.isEmpty &&
-          wire.routePoints == null &&
-          (wire.route?.pointCount ?? 0) >= 3 &&
-          wire.route?.direction != null &&
-          wire.route!.segmentLengths.length == wire.route!.pointCount - 2 &&
-          wire.endpointOids.length == 2) {
-        // A full stored route departing a catalogued prim terminal
-        // ([bdPrimTerminalOf], both axes) with no decoded attach at that end:
-        // every stored segment walks off that origin, and the implied closing
-        // run's arrival coordinate must equal the far end's independently
-        // known cross coordinate — a decoded attach rect's centre row/column,
-        // the far prim's catalogued terminal, or its [dcoChildTerminalAttach]
-        // candidate. The closing run ends at the far attach rect's border or
-        // at the far node's art ink edge ([primIconInkEdge], plain box border
-        // when no art resolves).
-        final route = wire.route!;
-        final headTerminal = bdPrimTerminalOf(
+      // Uncatalogued far terminal: decoded first segment whose bend
+      // lands inside the far node's box.
+      if (terminal == null &&
+          bend.x > headBox.left &&
+          bend.x < headBox.right &&
+          bend.y > headBox.top &&
+          bend.y < headBox.bottom) {
+        legs.add([
+          Offset(visStart.x - origin.dx, visStart.y - origin.dy),
+          Offset(bend.x - origin.dx, bend.y - origin.dy),
+        ]);
+        break;
+      }
+      break;
+    }
+  }
+
+  /// A full stored route departing a catalogued prim terminal
+  /// ([bdPrimTerminalOf], both axes) with no decoded attach at that end:
+  /// every stored segment walks off that origin, and the implied closing
+  /// run's arrival coordinate must equal the far end's independently
+  /// known cross coordinate — a decoded attach rect's centre row/column,
+  /// the far prim's catalogued terminal, or its [dcoChildTerminalAttach]
+  /// candidate. The closing run ends at the far attach rect's border or
+  /// at the far node's art ink edge ([primIconInkEdge], plain box border
+  /// when no art resolves).
+  void _walkedRouteLeg(ViWire wire, List<List<Offset>> legs) {
+    if (wire.routePoints != null ||
+        (wire.route?.pointCount ?? 0) < 3 ||
+        wire.route?.direction == null ||
+        wire.route!.segmentLengths.length != wire.route!.pointCount - 2 ||
+        wire.endpointOids.length != 2) {
+      return;
+    }
+    final route = wire.route!;
+    final headTerminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[0]);
+    final headAttach = wire.endpointAttachRects[0];
+    if (headTerminal?.x != null &&
+        headTerminal?.y != null &&
+        (headAttach == null ||
+            headAttach.right <= headAttach.left ||
+            headAttach.bottom <= headAttach.top)) {
+      final walk = walkRouteBends(
+        route,
+        origin: (x: headTerminal!.x!, y: headTerminal.y!),
+      )!;
+      final bends = walk.points;
+      final lastBend = bends.last;
+      final closingHorizontal = walk.closingHorizontal;
+      final closingSign = walk.closingSign;
+      final arrivalCross = closingHorizontal ? lastBend.y : lastBend.x;
+      int? terminus;
+      final farAttach = wire.endpointAttachRects[1];
+      if (farAttach != null &&
+          farAttach.right > farAttach.left &&
+          farAttach.bottom > farAttach.top) {
+        final cross = closingHorizontal
+            ? farAttach.top + (farAttach.bottom - farAttach.top) ~/ 2
+            : farAttach.left + (farAttach.right - farAttach.left) ~/ 2;
+        if (cross == arrivalCross) {
+          terminus = closingHorizontal
+              ? (closingSign > 0 ? farAttach.left - 1 : farAttach.right)
+              : (closingSign > 0 ? farAttach.top - 1 : farAttach.bottom);
+        }
+      } else {
+        final farTerminal = bdPrimTerminalOf(
           scene.diagram,
-          wire.endpointOids[0],
+          wire.endpointOids[1],
         );
-        final headAttach = wire.endpointAttachRects[0];
-        if (headTerminal?.x != null &&
-            headTerminal?.y != null &&
-            (headAttach == null ||
-                headAttach.right <= headAttach.left ||
-                headAttach.bottom <= headAttach.top)) {
-          final dir = route.direction!;
-          var horizontal = dir.isHorizontal;
-          var sign = dir.dx + dir.dy;
-          var walkX = headTerminal!.x!, walkY = headTerminal.y!;
-          final walk = <(int, int)>[(walkX, walkY)];
-          for (var k = 0; k < route.segmentLengths.length; k++) {
-            if (k > 0) sign = route.jointSigns[k - 1];
-            if (horizontal) {
-              walkX += route.segmentLengths[k] * sign;
-            } else {
-              walkY += route.segmentLengths[k] * sign;
-            }
-            walk.add((walkX, walkY));
-            horizontal = !horizontal;
-          }
-          final closingHorizontal = horizontal;
-          final closingSign = bdRouteClosingSign(route, dir);
-          final arrivalCross = closingHorizontal ? walkY : walkX;
-          int? terminus;
-          final farAttach = wire.endpointAttachRects[1];
-          if (farAttach != null &&
-              farAttach.right > farAttach.left &&
-              farAttach.bottom > farAttach.top) {
-            final cross = closingHorizontal
-                ? farAttach.top + (farAttach.bottom - farAttach.top) ~/ 2
-                : farAttach.left + (farAttach.right - farAttach.left) ~/ 2;
+        var farCross = closingHorizontal ? farTerminal?.y : farTerminal?.x;
+        if (farCross == null) {
+          for (final candidate
+              in scene.diagram
+                      .dcoChildTerminalAttach(wire.endpointOids[1])
+                      ?.candidates ??
+                  const <ViPoint>[]) {
+            final cross = closingHorizontal ? candidate.y : candidate.x;
             if (cross == arrivalCross) {
-              terminus = closingHorizontal
-                  ? (closingSign > 0 ? farAttach.left - 1 : farAttach.right)
-                  : (closingSign > 0 ? farAttach.top - 1 : farAttach.bottom);
+              farCross = cross;
+              break;
             }
-          } else {
-            final farTerminal = bdPrimTerminalOf(
-              scene.diagram,
-              wire.endpointOids[1],
-            );
-            var farCross = closingHorizontal ? farTerminal?.y : farTerminal?.x;
-            if (farCross == null) {
-              for (final c
-                  in scene.diagram
-                          .dcoChildTerminalAttach(wire.endpointOids[1])
-                          ?.candidates ??
-                      const <ViPoint>[]) {
-                final cross = closingHorizontal ? c.y : c.x;
-                if (cross == arrivalCross) {
-                  farCross = cross;
-                  break;
-                }
-              }
-            }
-            final farObj = scene.diagram.byId[wire.endpointOids[1]];
-            final farOwner = farObj?.parentOid == null
-                ? null
-                : scene.diagram.byId[farObj!.parentOid!];
-            final farBox = farOwner?.absBounds;
-            if (farCross == arrivalCross && farBox != null) {
-              final edge = primIconInkEdge(
-                farOwner!,
-                horizontal: closingHorizontal,
-                cross: arrivalCross,
-                sign: closingSign,
-              );
-              terminus = edge != null
-                  ? edge - closingSign
-                  : (closingSign > 0
-                        ? (closingHorizontal ? farBox.left : farBox.top) - 1
-                        : (closingHorizontal ? farBox.right : farBox.bottom));
-            }
-          }
-          // The closing run must extend beyond the last bend in its stored
-          // direction; a double-back means the resolved geometry is wrong.
-          if (terminus != null &&
-              (terminus - (closingHorizontal ? walkX : walkY)) * closingSign >=
-                  0) {
-            legs.add([
-              for (final (px, py) in walk)
-                Offset(px - origin.dx, py - origin.dy),
-              closingHorizontal
-                  ? Offset(terminus - origin.dx, walkY - origin.dy)
-                  : Offset(walkX - origin.dx, terminus - origin.dy),
-            ]);
           }
         }
-      }
-      if (stubEligible &&
-          legs.isEmpty &&
-          wire.routePoints == null &&
-          (wire.route?.pointCount ?? 0) >= 4 &&
-          wire.route?.direction != null &&
-          wire.route!.segmentLengths.length == wire.route!.pointCount - 2 &&
-          wire.endpointOids.length == 2 &&
-          wire.endpointAttachRects.length >= 2) {
-        // Attach-origin covered walk: the full stored table departs a decoded
-        // attach rect toward a far prim with no decoded attach, every walked
-        // bend staying inside that rect, so the origin jogs under the
-        // terminal's own chrome and only the closing run's tail is visible.
-        // Ships when the arrival coordinate equals the far prim's catalogued
-        // terminal cross coordinate ([bdPrimTerminalOf]) and the run exits the
-        // rect toward the far node; visible from the attach rect's border to
-        // the far node's art ink edge ([primIconInkEdge]).
-        final route = wire.route!;
-        for (final (tail, head) in [(0, 1), (1, 0)]) {
-          final attach = wire.endpointAttachRects[tail];
-          if (attach == null ||
-              attach.right <= attach.left ||
-              attach.bottom <= attach.top) {
-            continue;
-          }
-          if (wire.endpointAttachRects[head] != null) continue;
-          final dir = route.direction!;
-          var horizontal = dir.isHorizontal;
-          var sign = dir.dx + dir.dy;
-          var walkX = attach.left + (attach.right - attach.left) ~/ 2;
-          var walkY = attach.top + (attach.bottom - attach.top) ~/ 2;
-          var covered = true;
-          for (var k = 0; k < route.segmentLengths.length; k++) {
-            if (k > 0) sign = route.jointSigns[k - 1];
-            if (horizontal) {
-              walkX += route.segmentLengths[k] * sign;
-            } else {
-              walkY += route.segmentLengths[k] * sign;
-            }
-            covered =
-                covered &&
-                walkX >= attach.left &&
-                walkX < attach.right &&
-                walkY >= attach.top &&
-                walkY < attach.bottom;
-            horizontal = !horizontal;
-          }
-          if (!covered) break;
-          final closingHorizontal = horizontal;
-          final closingSign = bdRouteClosingSign(route, dir);
-          final arrivalCross = closingHorizontal ? walkY : walkX;
-          final terminal = bdPrimTerminalOf(
-            scene.diagram,
-            wire.endpointOids[head],
-          );
-          final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
-          if (catalogued == null || catalogued != arrivalCross) break;
-          final headObj = scene.diagram.byId[wire.endpointOids[head]];
-          final headOwner = headObj?.parentOid == null
-              ? null
-              : scene.diagram.byId[headObj!.parentOid!];
-          if (headOwner == null) break;
+        final farObj = scene.diagram.byId[wire.endpointOids[1]];
+        final farOwner = farObj?.parentOid == null
+            ? null
+            : scene.diagram.byId[farObj!.parentOid!];
+        final farBox = farOwner?.absBounds;
+        if (farCross == arrivalCross && farBox != null) {
           final edge = primIconInkEdge(
-            headOwner,
+            farOwner!,
             horizontal: closingHorizontal,
             cross: arrivalCross,
             sign: closingSign,
           );
-          if (edge == null) break;
-          final terminus = edge - closingSign;
-          // Visible ink starts at the attach rect's border on the exit side;
-          // the run must truly leave the rect toward the far node.
-          final border = closingHorizontal
-              ? (closingSign > 0 ? attach.right : attach.left - 1)
-              : (closingSign > 0 ? attach.bottom : attach.top - 1);
-          if ((terminus - border) * closingSign < 0) break;
-          legs.add(
-            closingHorizontal
-                ? [
-                    Offset(border - origin.dx, arrivalCross - origin.dy),
-                    Offset(terminus - origin.dx, arrivalCross - origin.dy),
-                  ]
-                : [
-                    Offset(arrivalCross - origin.dx, border - origin.dy),
-                    Offset(arrivalCross - origin.dx, terminus - origin.dy),
-                  ],
-          );
-          break;
+          terminus = edge != null
+              ? edge - closingSign
+              : (closingSign > 0
+                    ? (closingHorizontal ? farBox.left : farBox.top) - 1
+                    : (closingHorizontal ? farBox.right : farBox.bottom));
         }
       }
-      if (stubEligible &&
-          legs.isEmpty &&
-          wire.route?.direction != null &&
-          wire.endpointOids.length == 2 &&
-          wire.endpointAttachRects.length >= 2) {
-        // Container-face run: one endpoint resolves an exact border-terminal
-        // attach (a tunnel-family rect; every catalogued kind fits 16 px), the
-        // other a large container face (an array-block value rect, tens of px
-        // a side). The stored route closes onto the exact attach, so the
-        // closing run's cross coordinate is that attach's own — the
-        // container's centre is not its connection point. Ships when the cross
-        // lies within the container's span, the rects are disjoint along the
-        // closing axis, and the closing sign carries the run from the
-        // container to the attach; a longer table's interior bends jog on the
-        // container's side, so the stored first segment must point into it.
-        const exactMax = 16, containerMin = 17;
-        final route = wire.route!;
-        final dir = route.direction!;
-        final closingHorizontal = route.pointCount == 2
-            ? dir.isHorizontal
-            : (route.pointCount.isEven ? dir.isHorizontal : !dir.isHorizontal);
-        // A 3+-point table carrying no joint signs disagrees with its own
-        // point count, so no closing direction is stored; 0 is not a sign and
-        // rejects the run below rather than assuming one.
-        final closingSign = route.pointCount > 2 && route.jointSigns.isEmpty
-            ? 0
-            : bdRouteClosingSign(route, dir);
-        final dirTowardContainer =
-            route.pointCount == 2 ||
-            (dir.isHorizontal == closingHorizontal &&
-                (dir.dx + dir.dy) == -closingSign);
-        for (final (exactEnd, containerEnd) in [(0, 1), (1, 0)]) {
-          if (closingSign == 0 || !dirTowardContainer) break;
-          final exact = wire.endpointAttachRects[exactEnd];
-          final container = wire.endpointAttachRects[containerEnd];
-          if (exact == null || container == null) continue;
-          if (exact.width <= 0 ||
-              exact.width > exactMax ||
-              exact.height <= 0 ||
-              exact.height > exactMax) {
-            continue;
-          }
-          if (container.width < containerMin ||
-              container.height < containerMin) {
-            continue;
-          }
-          final wap = scene.diagram.wireAttachPoint(
-            wire.endpointOids[exactEnd],
-          );
-          if (wap == null) continue;
-          // Travel sign from the container face to the exact attach along
-          // the closing axis, from the rects' disjoint order.
-          final int toExact, cross, lo, hi;
-          if (closingHorizontal) {
-            cross = wap.y;
-            if (cross <= container.top || cross >= container.bottom) continue;
-            if (container.right <= exact.left) {
-              toExact = 1;
-              lo = container.right;
-              hi = exact.left - 1;
-            } else if (exact.right <= container.left) {
-              toExact = -1;
-              lo = exact.right;
-              hi = container.left - 1;
-            } else {
-              continue;
-            }
-          } else {
-            cross = wap.x;
-            if (cross <= container.left || cross >= container.right) continue;
-            if (container.bottom <= exact.top) {
-              toExact = 1;
-              lo = container.bottom;
-              hi = exact.top - 1;
-            } else if (exact.bottom <= container.top) {
-              toExact = -1;
-              lo = exact.bottom;
-              hi = container.top - 1;
-            } else {
-              continue;
-            }
-          }
-          // An n==2 table's sign runs endpoint 0 -> 1; a longer table's
-          // closing sign runs container -> exact.
-          final wantSign = route.pointCount == 2
-              ? (exactEnd == 0 ? -toExact : toExact)
-              : toExact;
-          if (closingSign != wantSign || lo > hi) continue;
-          // An array-shell container's box edge is not chrome: the shell draws
-          // only its wrap frames ([bdArrayShellWrapRects]) plus the
-          // index/label furniture, and the label band is bare canvas, so the
-          // run's ink continues past the box edge until it touches the wrap
-          // spanning its cross coordinate. Containers that are not drawn array
-          // shells keep their box face.
-          var runLo = lo, runHi = hi;
-          for (final o in scene.drawable) {
-            final b = o.absBounds;
-            if (o.objectClass != HeapObjectClass.caseOrSequence ||
-                b == null ||
-                b.left != container.left ||
-                b.top != container.top ||
-                b.right != container.right ||
-                b.bottom != container.bottom) {
-              continue;
-            }
-            // The first opaque chrome the ink meets travelling from the exact
-            // attach: the outermost candidate wins, so a nested frame never
-            // stops the run early.
-            int? face;
-            for (final wrap in bdArrayShellWrapRects(scene.diagram, o.oid)) {
-              final int wrapLo, wrapHi, wrapFace;
-              if (closingHorizontal) {
-                wrapLo = wrap.top;
-                wrapHi = wrap.bottom;
-                wrapFace = toExact == 1 ? wrap.right : wrap.left;
-              } else {
-                wrapLo = wrap.left;
-                wrapHi = wrap.right;
-                wrapFace = toExact == 1 ? wrap.bottom : wrap.top;
-              }
-              if (cross <= wrapLo || cross >= wrapHi) continue;
-              face = face == null
-                  ? wrapFace
-                  : (toExact == 1
-                        ? math.max(face, wrapFace)
-                        : math.min(face, wrapFace));
-            }
-            if (face != null) {
-              if (toExact == 1) {
-                runLo = face;
-              } else {
-                runHi = face - 1;
-              }
-            }
-            break;
-          }
-          if (runLo > runHi) continue;
-          legs.add(
-            closingHorizontal
-                ? [
-                    Offset(runLo - origin.dx, cross - origin.dy),
-                    Offset(runHi - origin.dx, cross - origin.dy),
-                  ]
-                : [
-                    Offset(cross - origin.dx, runLo - origin.dy),
-                    Offset(cross - origin.dx, runHi - origin.dy),
-                  ],
-          );
-          break;
-        }
-      }
-      // A wire with no decoded route is not drawn: only its endpoint chrome,
-      // collected above, appears. Stroke style: the measured tier first, then
-      // the estimate tier for the simple solid/dotted styles only, then the
-      // pre-catalogue laws (array ⇒ 2 px, scalar boolean ⇒ dotted, else 1 px).
-      final sigType = wire.signalType;
-      var style = sigType?.renderStyle;
-      if (style == null) {
-        final estimate = sigType?.renderStyleEstimate;
-        if (estimate == ViWireRenderStyle.solid1px ||
-            estimate == ViWireRenderStyle.solid2px ||
-            estimate == ViWireRenderStyle.dotted) {
-          style = estimate;
-        }
-      }
-      style ??=
-          (wire.elementTypeKind == ViTypeKind.boolean &&
-              (sigType?.arrayDims ?? 0) == 0)
-          ? ViWireRenderStyle.dotted
-          : ((sigType?.arrayDims ?? 0) >= 1
-                ? ViWireRenderStyle.solid2px
-                : ViWireRenderStyle.solid1px);
-
-      final fill = _solidNoAa(color);
-      final (bandLo, bandHi) = bdWireStrokeBand(style);
-      // Appended to [drawn] only after the whole wire, so a wire never gaps
-      // against its own bends.
-      final mine = <_BdWireSeg>[];
-      for (final leg in legs) {
-        for (var j = 1; j < leg.length; j++) {
-          final a = leg[j - 1], b = leg[j];
-          if (a == b) continue;
-          final horizontal = a.dy == b.dy;
-          var lo = (horizontal ? math.min(a.dx, b.dx) : math.min(a.dy, b.dy))
-              .floor();
-          var hi = (horizontal ? math.max(a.dx, b.dx) : math.max(a.dy, b.dy))
-              .floor();
-          final cross = (horizontal ? a.dy : a.dx).floor();
-          // Bend continuity: at a shared vertex the segment also covers the
-          // perpendicular partner's ink band, so the two bands fully overlap
-          // and the texture masks the whole corner square. The braid is the
-          // one exception: its horizontal run owns the corner (flanks and core
-          // texture extend over the vertical's band) while the vertical run
-          // starts at band+1, below the horizontal band.
-          if (const {
-                ViWireRenderStyle.solid1px,
-                ViWireRenderStyle.solid2px,
-                ViWireRenderStyle.dotted,
-                ViWireRenderStyle.zigzag,
-                ViWireRenderStyle.chainLink,
-                ViWireRenderStyle.chainLinkWide,
-              }.contains(style) ||
-              (style == ViWireRenderStyle.braid && horizontal)) {
-            for (final neighbour in [
-              if (j >= 2) leg[j - 2],
-              if (j + 1 < leg.length) leg[j + 1],
-            ]) {
-              final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
-              if (nCross + bandLo < lo) lo = nCross + bandLo;
-              if (nCross + bandHi > hi) hi = nCross + bandHi;
-            }
-          }
-          if (style == ViWireRenderStyle.braid && !horizontal) {
-            for (final neighbour in [
-              if (j >= 2) leg[j - 2],
-              if (j + 1 < leg.length) leg[j + 1],
-            ]) {
-              final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
-              if ((nCross - lo).abs() <= 1) lo = nCross + 2;
-              if ((hi - nCross).abs() <= 1) hi = nCross - 2;
-            }
-          }
-          // A braid elbow's outer wall is continuous: the cell where the
-          // vertical's far flank column (away from the horizontal run) meets
-          // the route row inks even where the core texture would hole it,
-          // while the mirrored near-side cell stays a texture hole. Junction
-          // blobs own their measured art instead.
-          if (style == ViWireRenderStyle.braid && horizontal) {
-            for (final (vertex, other) in [
-              if (j >= 2) (a, b),
-              if (j + 1 < leg.length) (b, a),
-            ]) {
-              final bendX = vertex.dx.floor();
-              final farX = bendX - (other.dx > vertex.dx ? 1 : -1);
-              final isJunction = junctions.any(
-                (junction) =>
-                    junction.dx.floor() == bendX &&
-                    junction.dy.floor() == cross,
-              );
-              if (!isJunction) {
-                canvas.drawRect(
-                  Rect.fromLTWH(farX * 1.0, cross * 1.0, 1, 1),
-                  fill,
-                );
-              }
-            }
-          }
-          // Crossing gaps (the measured rule, see wire_render.dart): where
-          // this later-drawn segment properly crosses an earlier wire's
-          // perpendicular segment, it skips a 1 px gap either side of the
-          // earlier stroke's ink band. Endpoint touches are not crossings.
-          final gaps = <(int, int)>[];
-          for (final e in drawn) {
-            if (e.horizontal == horizontal) continue;
-            if (e.bandLo > lo &&
-                e.bandHi < hi &&
-                cross + bandLo > e.lo &&
-                cross + bandHi < e.hi) {
-              gaps.add((e.bandLo - 1, e.bandHi + 1));
-            }
-          }
-          _strokeSegment(
-            canvas,
-            fill,
-            style,
-            horizontal,
-            lo,
-            hi,
-            cross,
-            gaps,
-            errorBraid: errorBraid,
-          );
-          mine.add((
-            horizontal: horizontal,
-            lo: lo,
-            hi: hi,
-            bandLo: cross + bandLo,
-            bandHi: cross + bandHi,
-          ));
-        }
-      }
-      drawn.addAll(mine);
-      // Branch dots sit on top of the wire's own runs in the same colour;
-      // terminal features, not crossing segments, so they stay out of [drawn].
-      for (final junction in junctions) {
-        _drawWireJunctionDot(
-          canvas,
-          junction,
-          fill,
-          bdWireStrokeBand(style),
-          style: style,
-          errorBraid: errorBraid,
-        );
+      // The closing run must extend beyond the last bend in its stored
+      // direction; a double-back means the resolved geometry is wrong.
+      if (terminus != null &&
+          (terminus - (closingHorizontal ? lastBend.x : lastBend.y)) *
+                  closingSign >=
+              0) {
+        legs.add([
+          for (final bend in bends)
+            Offset(bend.x - origin.dx, bend.y - origin.dy),
+          closingHorizontal
+              ? Offset(terminus - origin.dx, lastBend.y - origin.dy)
+              : Offset(lastBend.x - origin.dx, terminus - origin.dy),
+        ]);
       }
     }
+  }
+
+  /// Attach-origin covered walk: the full stored table departs a decoded
+  /// attach rect toward a far prim with no decoded attach, every walked
+  /// bend staying inside that rect, so the origin jogs under the
+  /// terminal's own chrome and only the closing run's tail is visible.
+  /// Ships when the arrival coordinate equals the far prim's catalogued
+  /// terminal cross coordinate ([bdPrimTerminalOf]) and the run exits the
+  /// rect toward the far node; visible from the attach rect's border to
+  /// the far node's art ink edge ([primIconInkEdge]).
+  void _coveredAttachWalkLeg(ViWire wire, List<List<Offset>> legs) {
+    if (wire.routePoints != null ||
+        (wire.route?.pointCount ?? 0) < 4 ||
+        wire.route?.direction == null ||
+        wire.route!.segmentLengths.length != wire.route!.pointCount - 2 ||
+        wire.endpointOids.length != 2 ||
+        wire.endpointAttachRects.length < 2) {
+      return;
+    }
+    final route = wire.route!;
+    for (final (tail, head) in [(0, 1), (1, 0)]) {
+      final attach = wire.endpointAttachRects[tail];
+      if (attach == null ||
+          attach.right <= attach.left ||
+          attach.bottom <= attach.top) {
+        continue;
+      }
+      if (wire.endpointAttachRects[head] != null) continue;
+      final walk = walkRouteBends(
+        route,
+        origin: (
+          x: attach.left + (attach.right - attach.left) ~/ 2,
+          y: attach.top + (attach.bottom - attach.top) ~/ 2,
+        ),
+      )!;
+      var covered = true;
+      for (var index = 1; index < walk.points.length; index++) {
+        final bend = walk.points[index];
+        covered =
+            covered &&
+            bend.x >= attach.left &&
+            bend.x < attach.right &&
+            bend.y >= attach.top &&
+            bend.y < attach.bottom;
+      }
+      if (!covered) break;
+      final lastBend = walk.points.last;
+      final closingHorizontal = walk.closingHorizontal;
+      final closingSign = walk.closingSign;
+      final arrivalCross = closingHorizontal ? lastBend.y : lastBend.x;
+      final terminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[head]);
+      final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
+      if (catalogued == null || catalogued != arrivalCross) break;
+      final headObj = scene.diagram.byId[wire.endpointOids[head]];
+      final headOwner = headObj?.parentOid == null
+          ? null
+          : scene.diagram.byId[headObj!.parentOid!];
+      if (headOwner == null) break;
+      final edge = primIconInkEdge(
+        headOwner,
+        horizontal: closingHorizontal,
+        cross: arrivalCross,
+        sign: closingSign,
+      );
+      if (edge == null) break;
+      final terminus = edge - closingSign;
+      // Visible ink starts at the attach rect's border on the exit side;
+      // the run must truly leave the rect toward the far node.
+      final border = closingHorizontal
+          ? (closingSign > 0 ? attach.right : attach.left - 1)
+          : (closingSign > 0 ? attach.bottom : attach.top - 1);
+      if ((terminus - border) * closingSign < 0) break;
+      legs.add(
+        closingHorizontal
+            ? [
+                Offset(border - origin.dx, arrivalCross - origin.dy),
+                Offset(terminus - origin.dx, arrivalCross - origin.dy),
+              ]
+            : [
+                Offset(arrivalCross - origin.dx, border - origin.dy),
+                Offset(arrivalCross - origin.dx, terminus - origin.dy),
+              ],
+      );
+      break;
+    }
+  }
+
+  /// Container-face run: one endpoint resolves an exact border-terminal
+  /// attach (a tunnel-family rect; every catalogued kind fits 16 px), the
+  /// other a large container face (an array-block value rect, tens of px
+  /// a side). The stored route closes onto the exact attach, so the
+  /// closing run's cross coordinate is that attach's own — the
+  /// container's centre is not its connection point. Ships when the cross
+  /// lies within the container's span, the rects are disjoint along the
+  /// closing axis, and the closing sign carries the run from the
+  /// container to the attach; a longer table's interior bends jog on the
+  /// container's side, so the stored first segment must point into it.
+  void _containerFaceLeg(ViWire wire, List<List<Offset>> legs) {
+    if (wire.route?.direction == null ||
+        wire.endpointOids.length != 2 ||
+        wire.endpointAttachRects.length < 2) {
+      return;
+    }
+    const exactMax = 16, containerMin = 17;
+    final route = wire.route!;
+    final dir = route.direction!;
+    final closingHorizontal = route.pointCount == 2
+        ? dir.isHorizontal
+        : (route.pointCount.isEven ? dir.isHorizontal : !dir.isHorizontal);
+    // A 3+-point table carrying no joint signs disagrees with its own
+    // point count, so no closing direction is stored; 0 is not a sign and
+    // rejects the run below rather than assuming one.
+    final closingSign = route.pointCount > 2 && route.jointSigns.isEmpty
+        ? 0
+        : bdRouteClosingSign(route, dir);
+    final dirTowardContainer =
+        route.pointCount == 2 ||
+        (dir.isHorizontal == closingHorizontal &&
+            (dir.dx + dir.dy) == -closingSign);
+    for (final (exactEnd, containerEnd) in [(0, 1), (1, 0)]) {
+      if (closingSign == 0 || !dirTowardContainer) break;
+      final exact = wire.endpointAttachRects[exactEnd];
+      final container = wire.endpointAttachRects[containerEnd];
+      if (exact == null || container == null) continue;
+      if (exact.width <= 0 ||
+          exact.width > exactMax ||
+          exact.height <= 0 ||
+          exact.height > exactMax) {
+        continue;
+      }
+      if (container.width < containerMin || container.height < containerMin) {
+        continue;
+      }
+      final attachPoint = scene.diagram.wireAttachPoint(
+        wire.endpointOids[exactEnd],
+      );
+      if (attachPoint == null) continue;
+      // Travel sign from the container face to the exact attach along
+      // the closing axis, from the rects' disjoint order.
+      final int toExact, cross, faceLo, faceHi;
+      if (closingHorizontal) {
+        cross = attachPoint.y;
+        if (cross <= container.top || cross >= container.bottom) continue;
+        if (container.right <= exact.left) {
+          toExact = 1;
+          faceLo = container.right;
+          faceHi = exact.left - 1;
+        } else if (exact.right <= container.left) {
+          toExact = -1;
+          faceLo = exact.right;
+          faceHi = container.left - 1;
+        } else {
+          continue;
+        }
+      } else {
+        cross = attachPoint.x;
+        if (cross <= container.left || cross >= container.right) continue;
+        if (container.bottom <= exact.top) {
+          toExact = 1;
+          faceLo = container.bottom;
+          faceHi = exact.top - 1;
+        } else if (exact.bottom <= container.top) {
+          toExact = -1;
+          faceLo = exact.bottom;
+          faceHi = container.top - 1;
+        } else {
+          continue;
+        }
+      }
+      // An n==2 table's sign runs endpoint 0 -> 1; a longer table's
+      // closing sign runs container -> exact.
+      final wantSign = route.pointCount == 2
+          ? (exactEnd == 0 ? -toExact : toExact)
+          : toExact;
+      if (closingSign != wantSign || faceLo > faceHi) continue;
+      // An array-shell container's box edge is not chrome: the shell draws
+      // only its wrap frames ([bdArrayShellWrapRects]) plus the
+      // index/label furniture, and the label band is bare canvas, so the
+      // run's ink continues past the box edge until it touches the wrap
+      // spanning its cross coordinate. Containers that are not drawn array
+      // shells keep their box face.
+      var runLo = faceLo, runHi = faceHi;
+      for (final shell in scene.drawable) {
+        final bounds = shell.absBounds;
+        if (shell.objectClass != HeapObjectClass.caseOrSequence ||
+            bounds == null ||
+            bounds.left != container.left ||
+            bounds.top != container.top ||
+            bounds.right != container.right ||
+            bounds.bottom != container.bottom) {
+          continue;
+        }
+        // The first opaque chrome the ink meets travelling from the exact
+        // attach: the outermost candidate wins, so a nested frame never
+        // stops the run early.
+        int? face;
+        for (final wrap in bdArrayShellWrapRects(scene.diagram, shell.oid)) {
+          final int wrapLo, wrapHi, wrapFace;
+          if (closingHorizontal) {
+            wrapLo = wrap.top;
+            wrapHi = wrap.bottom;
+            wrapFace = toExact == 1 ? wrap.right : wrap.left;
+          } else {
+            wrapLo = wrap.left;
+            wrapHi = wrap.right;
+            wrapFace = toExact == 1 ? wrap.bottom : wrap.top;
+          }
+          if (cross <= wrapLo || cross >= wrapHi) continue;
+          face = face == null
+              ? wrapFace
+              : (toExact == 1
+                    ? math.max(face, wrapFace)
+                    : math.min(face, wrapFace));
+        }
+        if (face != null) {
+          if (toExact == 1) {
+            runLo = face;
+          } else {
+            runHi = face - 1;
+          }
+        }
+        break;
+      }
+      if (runLo > runHi) continue;
+      legs.add(
+        closingHorizontal
+            ? [
+                Offset(runLo - origin.dx, cross - origin.dy),
+                Offset(runHi - origin.dx, cross - origin.dy),
+              ]
+            : [
+                Offset(cross - origin.dx, runLo - origin.dy),
+                Offset(cross - origin.dx, runHi - origin.dy),
+              ],
+      );
+      break;
+    }
+  }
+
+  /// [wire]'s stroke style: the measured tier first, then the estimate tier
+  /// for the simple solid/dotted styles only, then the pre-catalogue laws
+  /// (array ⇒ 2 px, scalar boolean ⇒ dotted, else 1 px).
+  ViWireRenderStyle _wireStrokeStyle(ViWire wire) {
+    final sigType = wire.signalType;
+    var style = sigType?.renderStyle;
+    if (style == null) {
+      final estimate = sigType?.renderStyleEstimate;
+      if (estimate == ViWireRenderStyle.solid1px ||
+          estimate == ViWireRenderStyle.solid2px ||
+          estimate == ViWireRenderStyle.dotted) {
+        style = estimate;
+      }
+    }
+    style ??=
+        (wire.elementTypeKind == ViTypeKind.boolean &&
+            (sigType?.arrayDims ?? 0) == 0)
+        ? ViWireRenderStyle.dotted
+        : ((sigType?.arrayDims ?? 0) >= 1
+              ? ViWireRenderStyle.solid2px
+              : ViWireRenderStyle.solid1px);
+    return style;
+  }
+
+  /// Strokes every segment of [legs], cutting the crossing gaps the measured
+  /// rule opens over the earlier-wire segments in [drawn], and appends this
+  /// wire's own segments to [drawn] once the whole wire is stroked.
+  void _strokeWireLegs(
+    Canvas canvas,
+    Paint fill,
+    ViWireRenderStyle style,
+    List<List<Offset>> legs,
+    List<Offset> junctions,
+    List<_BdWireSeg> drawn, {
+    required bool errorBraid,
+  }) {
+    final (bandLo, bandHi) = bdWireStrokeBand(style);
+    // Appended to [drawn] only after the whole wire, so a wire never gaps
+    // against its own bends.
+    final mine = <_BdWireSeg>[];
+    for (final leg in legs) {
+      for (var segmentIndex = 1; segmentIndex < leg.length; segmentIndex++) {
+        final start = leg[segmentIndex - 1], end = leg[segmentIndex];
+        if (start == end) continue;
+        final horizontal = start.dy == end.dy;
+        var runLo =
+            (horizontal
+                    ? math.min(start.dx, end.dx)
+                    : math.min(start.dy, end.dy))
+                .floor();
+        var runHi =
+            (horizontal
+                    ? math.max(start.dx, end.dx)
+                    : math.max(start.dy, end.dy))
+                .floor();
+        final cross = (horizontal ? start.dy : start.dx).floor();
+        // Bend continuity: at a shared vertex the segment also covers the
+        // perpendicular partner's ink band, so the two bands fully overlap
+        // and the texture masks the whole corner square. The braid is the
+        // one exception: its horizontal run owns the corner (flanks and core
+        // texture extend over the vertical's band) while the vertical run
+        // starts at band+1, below the horizontal band.
+        if (const {
+              ViWireRenderStyle.solid1px,
+              ViWireRenderStyle.solid2px,
+              ViWireRenderStyle.dotted,
+              ViWireRenderStyle.zigzag,
+              ViWireRenderStyle.chainLink,
+              ViWireRenderStyle.chainLinkWide,
+            }.contains(style) ||
+            (style == ViWireRenderStyle.braid && horizontal)) {
+          for (final neighbour in [
+            if (segmentIndex >= 2) leg[segmentIndex - 2],
+            if (segmentIndex + 1 < leg.length) leg[segmentIndex + 1],
+          ]) {
+            final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
+            if (nCross + bandLo < runLo) runLo = nCross + bandLo;
+            if (nCross + bandHi > runHi) runHi = nCross + bandHi;
+          }
+        }
+        if (style == ViWireRenderStyle.braid && !horizontal) {
+          for (final neighbour in [
+            if (segmentIndex >= 2) leg[segmentIndex - 2],
+            if (segmentIndex + 1 < leg.length) leg[segmentIndex + 1],
+          ]) {
+            final nCross = (horizontal ? neighbour.dx : neighbour.dy).floor();
+            if ((nCross - runLo).abs() <= 1) runLo = nCross + 2;
+            if ((runHi - nCross).abs() <= 1) runHi = nCross - 2;
+          }
+        }
+        // A braid elbow's outer wall is continuous: the cell where the
+        // vertical's far flank column (away from the horizontal run) meets
+        // the route row inks even where the core texture would hole it,
+        // while the mirrored near-side cell stays a texture hole. Junction
+        // blobs own their measured art instead.
+        if (style == ViWireRenderStyle.braid && horizontal) {
+          for (final (vertex, other) in [
+            if (segmentIndex >= 2) (start, end),
+            if (segmentIndex + 1 < leg.length) (end, start),
+          ]) {
+            final bendX = vertex.dx.floor();
+            final farX = bendX - (other.dx > vertex.dx ? 1 : -1);
+            final isJunction = junctions.any(
+              (junction) =>
+                  junction.dx.floor() == bendX && junction.dy.floor() == cross,
+            );
+            if (!isJunction) {
+              canvas.drawRect(
+                Rect.fromLTWH(farX * 1.0, cross * 1.0, 1, 1),
+                fill,
+              );
+            }
+          }
+        }
+        // Crossing gaps (the measured rule, see wire_render.dart): where
+        // this later-drawn segment properly crosses an earlier wire's
+        // perpendicular segment, it skips a 1 px gap either side of the
+        // earlier stroke's ink band. Endpoint touches are not crossings.
+        final gaps = <(int, int)>[];
+        for (final earlier in drawn) {
+          if (earlier.horizontal == horizontal) continue;
+          if (earlier.bandLo > runLo &&
+              earlier.bandHi < runHi &&
+              cross + bandLo > earlier.lo &&
+              cross + bandHi < earlier.hi) {
+            gaps.add((earlier.bandLo - 1, earlier.bandHi + 1));
+          }
+        }
+        _strokeSegment(
+          canvas,
+          fill,
+          style,
+          horizontal,
+          runLo,
+          runHi,
+          cross,
+          gaps,
+          errorBraid: errorBraid,
+        );
+        mine.add((
+          horizontal: horizontal,
+          lo: runLo,
+          hi: runHi,
+          bandLo: cross + bandLo,
+          bandHi: cross + bandHi,
+        ));
+      }
+    }
+    drawn.addAll(mine);
   }
 
   /// A flat sequence's film-strip border, byte-measured: 10 px top/bottom

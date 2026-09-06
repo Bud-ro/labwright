@@ -101,8 +101,15 @@ abstract interface class DaqmxApi {
   ///
   /// Under the FFI backend the driver read blocks, so pause and cancel are honoured
   /// between reads, not during one: a paused subscription can still receive the chunk
-  /// already being read, and `cancel()`'s future can take up to one read (bounded by the
-  /// DAQmx read timeout) to resolve while the task is stopped and cleared properly.
+  /// already being read, and `cancel()`'s future can take up to one read to resolve
+  /// while the task is stopped and cleared properly. [readTimeout] is the DAQmx timeout
+  /// every buffered read is issued with, in seconds (`-1` = wait indefinitely), so it is
+  /// what bounds that worst case: a lower value shortens cancel latency, and makes a read
+  /// the device cannot satisfy within it come back as a DAQmx timeout error.
+  ///
+  /// [readTimeout] reaches the FFI backend only. The gRPC backend issues its server-side
+  /// `Begin*Read` with an indefinite DAQmx timeout and cancels by closing the frame
+  /// stream, without waiting on a read, so the value is ignored there.
   Stream<TypedData> readStream(
     String physicalChannel, {
     required double rateHz,
@@ -112,6 +119,7 @@ abstract interface class DaqmxApi {
     double min = -10,
     double max = 10,
     int terminalConfig = DaqmxVal.cfgDefault,
+    double readTimeout = 10,
   });
 
   /// Release the transport (free FFI handles / shut the gRPC channel). Idempotent.
