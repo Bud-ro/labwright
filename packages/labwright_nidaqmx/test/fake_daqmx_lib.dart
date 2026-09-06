@@ -67,6 +67,16 @@ class FakeDaqmxProbe {
   int get lastSampleMode => _i('fake_last_sample_mode');
   int get lastInputBuffer => _lib.lookupFunction<Uint32 Function(), int Function()>('fake_last_input_buffer')();
 
+  /// DAQmxStopTask / DAQmxClearTask calls since [resetTaskCounts] — how a test proves a
+  /// task was torn down rather than abandoned with its isolate.
+  int get stopCount => _i('fake_stop_count');
+  int get clearCount => _i('fake_clear_count');
+  void resetTaskCounts() => _lib.lookupFunction<Void Function(), void Function()>('fake_reset_counts')();
+
+  /// Makes every buffered read block for [delay], so a cancel can land mid-read.
+  set readDelay(Duration delay) =>
+      _lib.lookupFunction<Void Function(Uint32), void Function(int)>('fake_set_read_delay_us')(delay.inMicroseconds);
+
   double _d(String s) => _lib.lookupFunction<Double Function(), double Function()>(s)();
   int _i(String s) => _lib.lookupFunction<Int32 Function(), int Function()>(s)();
 }

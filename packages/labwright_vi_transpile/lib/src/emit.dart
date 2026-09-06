@@ -305,9 +305,7 @@ class _Library {
   /// The same, for a mapped type with no [LvWireType] of its own — a generated
   /// declaration's field type.
   void noteImportsForType(LvTypeMapping type) {
-    final source = type.dartType;
-    if (source == null) return;
-    if (kLvTypedDataListTypes.any(source.contains)) imports.add('dart:typed_data');
+    if (lvTypeNeedsTypedData(type)) imports.add('dart:typed_data');
     if (lvTypeNeedsRuntime(type)) imports.add(kLvRuntimeImport);
   }
 
@@ -317,6 +315,20 @@ class _Library {
     return one.top != two.top ? one.top.compareTo(two.top) : one.left.compareTo(two.left);
   }
 
+  /// The file's text, with the constants and declarations nothing spells left
+  /// out.
+  ///
+  /// A name counts as spelled when it matches as a word in the emitted text,
+  /// which reads a Dart string literal or a comment as if it were code: a
+  /// hoisted constant named `table` is kept by a diagram string constant whose
+  /// value is `table`, though no code names it.
+  ///
+  /// TODO: decide use structurally, by recording each name as it is written
+  /// into the output. Binding a name is not writing it — a `Type Cast`'s type
+  /// operand is read and discarded, which is why an unspelled constant is
+  /// dropped at all — so the record has to travel with the emitted text, which
+  /// makes an emitted expression a (text, names) pair everywhere `String` is
+  /// the currency today, here and through the primitive lowerings.
   String assemble() {
     final bodies = functions.map((function) => function.source ?? '').join('\n');
     final constants = [

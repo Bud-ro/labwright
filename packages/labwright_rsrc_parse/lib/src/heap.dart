@@ -1542,6 +1542,10 @@ HeapRecord? c4FrameAt(Uint8List heapBytes, int offset, String sectionTag) {
 
 /// A bounding rectangle in LabVIEW's field order (`top, left, bottom, right`),
 /// in pixels. The position/size of a VI object (control, node, decoration).
+///
+/// A value type: two rectangles with the same four edges are equal and hash
+/// alike, so a rect works as a map key across decodes that rebuild it (the
+/// attach-rect keyed maps of `bd_semantics`).
 class HeapRect {
   const HeapRect({required this.top, required this.left, required this.bottom, required this.right});
 
@@ -1567,6 +1571,14 @@ class HeapRect {
 
   /// Whether this is a well-formed rectangle (`bottom ≥ top ∧ right ≥ left`).
   bool get isValid => bottom >= top && right >= left;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is HeapRect && other.top == top && other.left == left && other.bottom == bottom && other.right == right;
+
+  @override
+  int get hashCode => Object.hash(top, left, bottom, right);
 
   @override
   String toString() => 'HeapRect(t:$top l:$left b:$bottom r:$right ${width}x$height)';

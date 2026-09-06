@@ -8,10 +8,6 @@ import '../tool/corpus_base.dart';
 import 'corpus_dirs.dart';
 import 'test_util.dart';
 
-/// Object/group open record: `10 <tag> 02 fe <u16 kind> fd <u16 oid>`.
-List<int> open(int kind, int oid) => [0x10, 0x19, 0x02, 0xfe, kind >> 8, kind & 0xff, 0xfd, oid >> 8, oid & 0xff];
-List<int> close() => [0x08, 0x19];
-
 /// `0x26C` constValue records at each stored width (`x6` ops carry tag bit 9).
 List<int> cvU8(int v) => [0x26, 0x6c, v];
 List<int> cvU16(int v) => [0x46, 0x6c, v >> 8, v & 0xff];
@@ -19,12 +15,6 @@ List<int> cvU24(int v) => [0x66, 0x6c, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0x
 List<int> cvU32(int v) => [0x86, 0x6c, (v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
 List<int> cvRaw(List<int> payload) => [0xc6, 0x6c, payload.length, ...payload];
 List<int> f64(double v) => (ByteData(8)..setFloat64(0, v)).buffer.asUint8List();
-
-/// Enum/ring item table `C4 2E <len> <pascal items>`.
-List<int> items2e(List<String> items) {
-  final b = [for (final it in items) ...pascal(it)];
-  return [0xc4, 0x2e, b.length, ...b];
-}
 
 /// A `0x13` constant DCO wrapping one [inner]-class child, with [rec] scoped to
 /// the DCO (after the child closes) — the corpus layout of a BD constant.
@@ -40,7 +30,7 @@ List<int> constant(int oid, int inner, List<int> rec, {List<int> innerBody = con
 /// Build + decode with no VCTP types in play: exercises the fallback tier of
 /// [decodeBdConstValues] alone.
 ViDiagram dia(List<int> records) {
-  final d = buildDiagram(u8([0, 0, 0, records.length, ...records]));
+  final d = buildDiagram(heapBody(records));
   decodeBdConstValues(d);
   return d;
 }
@@ -81,9 +71,9 @@ void main() {
       (constant(1, 0x50, cvRaw(List.filled(17, 0))), null), // extended-width zero
       (constant(1, 0x50, cvRaw(const [])), null),
       // Enums/rings decode their stored integer only with an item table.
-      (constant(1, 0x57, cvU16(3), innerBody: items2e(['a', 'b', 'c', 'd'])), 3),
+      (constant(1, 0x57, cvU16(3), innerBody: enum2e(['a', 'b', 'c', 'd'])), 3),
       (constant(1, 0x57, cvU16(3)), null),
-      (constant(1, 0x64, cvU8(1), innerBody: items2e(['off', 'on'])), 1),
+      (constant(1, 0x64, cvU8(1), innerBody: enum2e(['off', 'on'])), 1),
       (constant(1, 0x64, cvU8(1)), null),
       // Unhandled carriers decline.
       (constant(1, 0x52, cvRaw(f64(2.0))), null), // array shell
@@ -101,7 +91,7 @@ void main() {
   });
 
   test('corpus pins: known constant values', () {
-    if (!corpusViDir.existsSync()) return;
+    if (!corpusOrSkip(corpusViDir)) return;
     // crc8.png (VI snippet): CRC width 8, table size 256, bit-reversal LUT.
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
     final vi = extractSnippetVi(crc8.readAsBytesSync())!;

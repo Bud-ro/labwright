@@ -1,45 +1,10 @@
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// Object/group open record: `10 <tag> 02 fe <u16 kind> fd <u16 oid>`.
-List<int> open(int kind, int oid, {int tag = 0x19}) => [
-  0x10,
-  tag,
-  0x02,
-  0xfe,
-  kind >> 8,
-  kind & 0xff,
-  0xfd,
-  oid >> 8,
-  oid & 0xff,
-];
-List<int> close([int tag = 0x19]) => [0x08, tag];
-List<int> bounds(int t, int l, int b, int r) => [
-  0xc4,
-  0x2d,
-  0x08,
-  t >> 8,
-  t & 0xff,
-  l >> 8,
-  l & 0xff,
-  b >> 8,
-  b & 0xff,
-  r >> 8,
-  r & 0xff,
-];
-List<int> caption(String s) => [0xc4, 0x22, s.length, ...s.codeUnits];
-
-/// objFlags (raw `0x0cb`) as a `u32` attribute record; bit `0x08` hides a label.
-List<int> objFlags(int v) => [0x84, 0xcb, (v >> 24) & 0xff, (v >> 16) & 0xff, (v >> 8) & 0xff, v & 0xff];
-List<int> childRef(int oid) => [0x14, 0x19, 0x01, 0xfd, oid >> 8, oid & 0xff];
-List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, oid >> 8, oid & 0xff];
-
-/// [records] framed with the u32 heap content-length header.
-Uint8List heapBody(List<int> records) => Uint8List.fromList([0, 0, 0, records.length, ...records]);
+/// A `0x4f` member reference `14 4F 01 FD <u16 oid>`.
+List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
 
 /// The block diagram [records] decode to, through the whole model build.
 ViDiagram bdOf(List<int> records) =>
@@ -103,7 +68,7 @@ final hiddenLabeledConstantBd = <int>[
   ...open(0x0a, 4, tag: 0x1c),
   ...bounds(100, 120, 117, 130),
   ...caption('x'),
-  ...objFlags(0x08),
+  ...attrU32(0xcb, 0x08), // objFlags bit 0x08 hides the label
   ...close(0x1c),
   ...close(0x1b),
   ...close(0x1a),

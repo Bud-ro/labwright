@@ -89,9 +89,14 @@ final Set<int> kViSelectorGroupTags = {
   HeapGroupTag.selectorStringPool.tag,
 };
 
-/// The heap class code of a structure's frame — one subdiagram. A Case structure's frames are its
-/// `0x1b` children in heap order, the index space [ViSelectorRange.frame] and
-/// [ViHeapObject.visibleFrameIndex] share.
+/// The heap class code of a diagram frame — one subdiagram, and the container every node hangs
+/// from. A Case structure's frames are its `0x1b` children in heap order, the index space
+/// [ViSelectorRange.frame] and [ViHeapObject.visibleFrameIndex] share.
+///
+/// The top-level diagram is a frame of the same class: of the 60,979 corpus frames, 60,881 have a
+/// structure-category parent — 7,508 of those the heap root `0x7e` (one per VI), the rest a case
+/// (39,522), loop (5,241 `0x20` / 1,643 `0x21`) or other structure — and 39,752 hold at least one
+/// node child.
 const int kViFrameCode = 0x1b;
 
 /// [value] as read at the record's stored [width], sign-extended: a selector range's ends are
@@ -552,10 +557,14 @@ class ViHeapObject {
 
   /// The stacked frame index LabVIEW displays for this multi-frame structure
   /// (see [kMultiFrameStructureClasses]): [dIdx] with the bit-31 flag stripped
-  /// (every out-of-range raw corpus value but one is `0x80000000 | index`),
-  /// or 0 when the record is absent. The index counts the structure's `0x1b`
-  /// frame children in heap order; reads 0 off the gated structure kinds,
-  /// whose capture is dropped.
+  /// (234 corpus records carry it), or 0 when the record is absent. The index
+  /// counts the structure's `0x1b` frame children in heap order; reads 0 off
+  /// the gated structure kinds, whose capture is dropped.
+  ///
+  /// The stored index is not guaranteed to name an existing frame — two corpus
+  /// structures store one past their frame count — so a caller indexing a frame
+  /// list reads [ViDiagram.displayedFrameIndex], which resolves the index
+  /// against [ViDiagram.framesOf] and answers null when it names no frame.
   ///
   /// The absent-record default is render-verified (the GetCurrentDirectory snippet's two
   /// dIdx-absent structures hold their content in frame 0); heap-order indexing is fixed by event
@@ -563,8 +572,8 @@ class ViHeapObject {
   /// `[6] "Reload": Value Change` rides dIdx=6 of seven frames). The semantics agree with the
   /// app-layer content-placement heuristic on 106/117 snippet structures, the disagreements in VIs
   /// with known content-geometry defects. Corpus: 8,070 records on the four gated kinds (case 7,325
-  /// / disable 431 / event 300 / stacked sequence 14); 8,069 in range after the mask (one outlier —
-  /// callers must range-check against the frame count); one object carries a second record
+  /// / disable 431 / event 300 / stacked sequence 14); 8,068 in range after the mask, the two
+  /// outliers named under [ViDiagram.displayedFrameIndex]; one object carries a second record
   /// (first-wins capture). 97 further `0x4d` records ride part kinds (`0x20`/`0x21`/`0x121`/
   /// `0x1b`/`0x105`) where the meaning is not decoded; the kind gate drops them.
   int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
@@ -842,8 +851,8 @@ enum HeapObjectClass {
   /// 2066/2075 carry an `0xa` VI-filename caption (`Robot Main.vi`, `PicoScope2000aSettings.vi`).
   bdNode32(0x32, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
-  /// `0xC5` — a subVI call node (icon). Corpus: 1518 BD (0 FP), uniform 32×32, parent `0x1b`;
-  /// 1518/1518 carry an `0xa` VI-filename caption (`Analog to Digital.vi`).
+  /// `0xC5` — a subVI call node (icon). Corpus: 1514 BD (0 FP), uniform 32×32, parent `0x1b`;
+  /// 1514/1514 carry an `0xa` VI-filename caption (`Analog to Digital.vi`).
   bdNodeC5(0xc5, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
   /// `0x104` — a subVI call node (icon). Corpus: 2155 BD (0 FP), uniform 32×32, parent `0x1b`;
@@ -1065,6 +1074,19 @@ enum HeapObjectClass {
   /// `0xC1` — a tip-strip / help-text sub-part (`C4 19` only).
   tipStrip(0xc1, 'Tip strip', ViObjectKind.terminal, ClassConfidence.confirmed),
 
+  /// `0xE5` — the instance-selector strip of a polymorphic subVI call. Corpus: 948 BD (0 FP), every
+  /// one parented to a `0xC5` icon call node (uniform 32×32, all captioned with the poly VI's
+  /// filename); 720 compose entirely below the icon (`+33` px the dominant offset) and 228 overlap
+  /// it; widths 34..159 px at heights 21/23. Each holds one `0x0D` item list, one `0x0B` sub-part,
+  /// one `0x68` connector and two `0x09` chrome frames, and its data type reads numeric-int (the
+  /// selected ordinal). The item list names the class: all 948 read `Automatic`, a `-` separator,
+  /// then the poly VI's instance names (`NT Write Boolean`, `NT Write Number`, … under
+  /// `NT Write Value.vi`; `Equal (Value)`, `Almost Equal`, … under `Assert (Poly).vi`).
+  ///
+  /// None is a wire endpoint (0/948 resolve an endpoint terminal), so the coarse category stays
+  /// unclassified rather than claiming a terminal or a decoration role.
+  bdPolySelector(0xe5, 'Polymorphic instance selector (BD)', ViObjectKind.unknown, ClassConfidence.inferred),
+
   /// `0x09` — control chrome / resize handle: a bounded, child-less, never-labelled leaf — the
   /// visual frame/handle of a control or structure. Suppressed from the faithful render.
   controlChrome(0x09, 'Resize handle/chrome', ViObjectKind.decoration, ClassConfidence.inferred),
@@ -1133,12 +1155,19 @@ const kControlTerminalClasses = {
 /// / `0x16` 39,948; see [HeapObjectClass.signal]). An endpoint's attach rectangle is resolved via
 /// the terminal object that declares it a member — [ViDiagram.endpointTerminalBounds], which owns
 /// the resolution census.
-const kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, 0x16 /* HeapObjectClass.bdLeaf */};
+final Set<int> kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, HeapObjectClass.bdLeaf.code};
 
-/// The bounds-less node-endpoint DCO class code (`0x15`) — the on-node member of
+/// The node data-connection object class code (`0x15`) — the on-node member of
 /// [kSignalEndpointDcoKinds] (its sibling is the bounded free-standing `0x16`
-/// [HeapObjectClass.bdLeaf]). It carries no bounds of its own; when it parents a `0x13` constant it
-/// is how a wired block-diagram constant attaches to a signal (see [ViDiagram.endpointConstant]).
+/// [HeapObjectClass.bdLeaf]). It carries no bounds of its own (1,446,243 of 1,446,243 corpus
+/// instances are bounds-less); when it parents a `0x13` constant it is how a wired block-diagram
+/// constant attaches to a signal (see [ViDiagram.endpointConstant]).
+///
+/// One class in two roles, which the corpus shows are the same population seen from two sides: a
+/// node's connection points are its `0x15` children (866,123 sit directly under a node-category
+/// object — the structural records the node fallback in `buildDiagram` keys on), and a wired one is
+/// named by a signal's childRefs (862,159 are signal endpoints, 422,160 of them under a node).
+/// The rest are the unwired connection points and the ones nesting under structures (151,594).
 const int kNodeEndpointDcoKind = 0x15;
 
 /// Heap object class ([ViHeapObject.kind]) of the right shift-register terminal — the stacked
@@ -1237,11 +1266,11 @@ const kMultiFrameStructureClasses = {
 };
 
 /// Pixel-area threshold (width×height) for the structural node fallback in `buildDiagram`. A
-/// still-`unknown` object that otherwise matches the BD-node signature (drawable, parented to the
-/// node container `0x1b`, holding the structural `0x15` records, no `0x68` connector child) is
-/// reclassified as a node — but only below this cap, so a rare large unknown object (a possible
-/// structure body) stays a faint placeholder rather than a big node box. The fallback classifies
-/// ~1953 objects across ~22 low-frequency kinds without enumerating each.
+/// still-`unknown` object that otherwise matches the BD-node signature (drawable, parented to a
+/// diagram frame [kViFrameCode], holding [kNodeEndpointDcoKind] connection records, no `0x68`
+/// connector child) is reclassified as a node — but only below this cap, so a rare large unknown
+/// object (a possible structure body) stays a faint placeholder rather than a big node box. The
+/// fallback classifies ~1953 objects across ~22 low-frequency kinds without enumerating each.
 const int _structureAreaCap = 20000;
 
 String _fmtNum(double v) => v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
@@ -1500,25 +1529,7 @@ int? _signalScalarDepth(int code) {
   return null;
 }
 
-/// A recovered block-diagram dataflow wire — a LabVIEW *signal* ([HeapObjectClass.signal], class
-/// `0x17`), the logical connection drawn between terminals.
-///
-/// Unlike the visual [HeapObjectClass.bdWire] `0x1d` segments (Manhattan-run geometry with no oid
-/// endpoints), a signal carries oid endpoint binding: [endpointOids] are the data-connection
-/// objects it joins (`14 19` childRefs; resolving 100% within the BD heap corpus-wide, 91% of
-/// signals holding two = source + sink). Each endpoint is resolved to an [endpointAnchor] — the
-/// absolute bounds of the endpoint's nearest bounded owner (the node or wire segment it attaches
-/// to; 100% have one) — so a consumer can route the wire between anchors. [endpointOids] and
-/// [endpointAnchors] are index-aligned; an anchor is null only if that endpoint oid does not
-/// resolve (0% corpus-wide). Where the endpoint is a structure tunnel / border terminal, the exact
-/// attach rectangle is also decoded — [endpointAttachRects].
-///
-/// The wire's datatype is decoded from the signal's own [HeapAttribute.lastSignalKind] record —
-/// [signalType] / [typeKind] (see [ViSignalType] for the byte layout and the corpus validation).
-/// The per-object [HeapAttribute.typeDescIndex] route was refuted instead: the index reachable from
-/// ~8.7% of signals (via an endpoint's `14 4f` dcoRef) is an object ordinal that agrees across a
-/// signal's endpoints in 0.0% of cases, so it cannot identify a shared wire type. The confidence
-/// tier of a shipped wire route ([ViWire.routePoints] / [ViWire.routeTree]).
+/// The confidence tier of a shipped wire route ([ViWire.routePoints] / [ViWire.routeTree]).
 enum WireRouteFidelity {
   /// Closure-proven: every endpoint resolved an attach point and the walk closed with zero slack
   /// (two-endpoint) / every leaf landed on an endpoint (branching). The geometry closes at both
@@ -1535,6 +1546,24 @@ enum WireRouteFidelity {
   walked,
 }
 
+/// A recovered block-diagram dataflow wire — a LabVIEW *signal* ([HeapObjectClass.signal], class
+/// `0x17`), the logical connection drawn between terminals.
+///
+/// Unlike the visual [HeapObjectClass.bdWire] `0x1d` segments (Manhattan-run geometry with no oid
+/// endpoints), a signal carries oid endpoint binding: [endpointOids] are the data-connection
+/// objects it joins (`14 19` childRefs; resolving 100% within the BD heap corpus-wide, 91% of
+/// signals holding two = source + sink). Each endpoint is resolved to an anchor in
+/// [endpointAnchors] — the absolute bounds of the endpoint's nearest bounded owner (the node or
+/// wire segment it attaches to; 100% have one) — so a consumer can route the wire between anchors.
+/// [endpointOids] and [endpointAnchors] are index-aligned; an anchor is null only if that endpoint
+/// oid does not resolve (0% corpus-wide). Where the endpoint is a structure tunnel / border
+/// terminal, the exact attach rectangle is also decoded — [endpointAttachRects].
+///
+/// The wire's datatype is decoded from the signal's own [HeapAttribute.lastSignalKind] record —
+/// [signalType] / [typeKind] (see [ViSignalType] for the byte layout and the corpus validation).
+/// The per-object [HeapAttribute.typeDescIndex] route was refuted instead: the index reachable from
+/// ~8.7% of signals (via an endpoint's `14 4f` dcoRef) is an object ordinal that agrees across a
+/// signal's endpoints in 0.0% of cases, so it cannot identify a shared wire type.
 class ViWire {
   ViWire({
     required this.signalOid,
@@ -1644,9 +1673,9 @@ class ViWire {
   /// ([kShiftRegisterColumnLeftOffset] / [kShiftRegisterColumnRightOffset]), leaving 12 far misses.
   ///
   /// Corpus-wide the closed tier ships 2,421 trees; the walked tier adds 17,755 on the
-  /// origin-anchored signals with plain-node leaves, the reverse-solved tier 8,950 on the
-  /// origin-unanchored ones, and the DCO-child closed tier 2,889 — 32,015 of the 35,968 extended
-  /// tables. The 3,953 unshipped remainder: origin-unanchored tables with no resolvable endpoint,
+  /// origin-anchored signals with plain-node leaves, the reverse-solved tier 9,005 on the
+  /// origin-unanchored ones, and the DCO-child closed tier 2,878 — 32,059 of the 35,968 extended
+  /// tables. The 3,909 unshipped remainder: origin-unanchored tables with no resolvable endpoint,
   /// plus the withheld contradictions/ambiguities on either side.
   ///
   /// Independent geometry check on well-registered snippets (the registration control discards
@@ -2189,6 +2218,48 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   WireRouteDirection.right => WireRouteDirection.left,
 };
 
+/// Walks the stored bends of a decoded two-endpoint [route] from [origin] — the Manhattan polyline
+/// LabVIEW saved, minus the closing run whose length the table only implies.
+///
+/// The walk starts along [ViWireRoute.direction], alternates axis every segment, and takes each
+/// later segment's sign from [ViWireRoute.jointSigns]; it emits [origin] plus one point per
+/// [ViWireRoute.segmentLengths] entry, so a decoded route yields `pointCount - 1` points, the last
+/// being the final stored bend.
+///
+/// The record also carries what a caller needs to close that final run: the route's [direction], the
+/// closing run's axis (`closingHorizontal`) and its stored sign (`closingSign`, the first segment's
+/// sign for a 2-point route, which stores no joint signs). Callers close it onto a destination point
+/// ([ViDiagram._closedRoutePoints]) or onto a node box ([walkOneAnchoredRoute]). Null when the route
+/// stores no direction — the 1-point table, whose endpoints share one spot.
+({List<ViPoint> points, WireRouteDirection direction, bool closingHorizontal, int closingSign})? walkRouteBends(
+  ViWireRoute route, {
+  ViPoint origin = (x: 0, y: 0),
+}) {
+  final direction = route.direction;
+  if (direction == null) return null;
+  var x = origin.x, y = origin.y;
+  var horizontal = direction.isHorizontal;
+  var sign = direction.dx + direction.dy;
+  final lengths = route.segmentLengths;
+  final points = <ViPoint>[origin];
+  for (var k = 0; k < lengths.length; k++) {
+    if (k > 0) sign = route.jointSigns[k - 1];
+    if (horizontal) {
+      x += lengths[k] * sign;
+    } else {
+      y += lengths[k] * sign;
+    }
+    points.add((x: x, y: y));
+    horizontal = !horizontal;
+  }
+  return (
+    points: points,
+    direction: direction,
+    closingHorizontal: horizontal,
+    closingSign: route.jointSigns.isEmpty ? direction.dx + direction.dy : route.jointSigns.last,
+  );
+}
+
 /// Walks a decoded two-endpoint [ViWireRoute] from a single anchored endpoint, deriving the
 /// plain-node endpoint at the far end (a primitive input/output or subVI terminal, which carries no
 /// independently decoded attach geometry) from its owner node box [farBox]. This is the walked tier
@@ -2204,15 +2275,18 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 /// only when the departing segment shares the closing run's axis (an even stored point count); an
 /// odd count leaves the far endpoint's along-run position unpinned and returns null.
 ///
+/// [farBox] occupies `[left, right-1] x [top, bottom-1]` — right and bottom exclusive, the same
+/// span its edge termini are snapped to — and every containment test here reads it that way: a
+/// terminus one pixel past the far edge belongs to no node and returns null.
+///
 /// A forward walk whose last decoded bend lies past the near edge — in the interior of [farBox] —
 /// is an into-node close: the implied run enters the plain node instead of reaching its edge, and
 /// its length (the node's input-pin depth) is not decoded. Such a walk ships the polyline truncated
 /// at the last bend and reports `closingStep` = the run's unit direction; the consumer completes
 /// the wire along that step to the node's drawn ink. The into-node case is accepted only when the
 /// polyline carries a real segment (>= 2 points) and the run points into the interior — the last
-/// bend and the pixel one step deeper both lie within `[left, right-1] x [top, bottom-1]`
-/// (right/bottom exclusive); a bend at or beyond an edge, or a step that would exit the box, is
-/// rejected.
+/// bend and the pixel one step deeper both lie within the box; a bend at or beyond an edge, or a
+/// step that would exit the box, is rejected.
 ///
 /// Returns `(points, closingStep, headSlack)`: the absolute polyline (anchor end to the far
 /// connection, in storage order) — [ViWireRoute.pointCount] points, one fewer when the closing run
@@ -2233,48 +2307,27 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   required HeapRect farBox,
 }) {
   if (route.pointCount < 2) return null;
-  final direction = route.direction;
-  if (direction == null) return null;
-  // Walk the stored bends in a local frame (origin at the first endpoint, closing run length 0):
-  // local[0..pointCount-2], the last being the final stored bend before the implied closing run.
-  var x = 0, y = 0;
-  var horizontal = direction.isHorizontal;
-  var sign = direction.dx + direction.dy;
-  final local = <ViPoint>[(x: 0, y: 0)];
-  final lengths = route.segmentLengths;
-  for (var k = 0; k < lengths.length; k++) {
-    if (k > 0) sign = route.jointSigns[k - 1];
-    if (horizontal) {
-      x += lengths[k] * sign;
-    } else {
-      y += lengths[k] * sign;
-    }
-    local.add((x: x, y: y));
-    horizontal = !horizontal;
-  }
-  final closingHorizontal = horizontal;
-  final closingSign = route.jointSigns.isEmpty ? (direction.dx + direction.dy) : route.jointSigns.last;
-  final lastBend = local.last;
 
   if (anchoredIndex == 0) {
-    // Forward: translate the local frame onto the anchor, then close the implied final run onto —
-    // or into — the far box.
-    final pts = [for (final p in local) (x: p.x + anchor.x, y: p.y + anchor.y)];
+    // Forward: walk the stored bends from the anchor, then close the implied final run onto — or
+    // into — the far box.
+    final walk = walkRouteBends(route, origin: anchor);
+    if (walk == null) return null;
+    final pts = walk.points;
+    final closingSign = walk.closingSign;
     final tail = pts.last;
     final ViPoint terminus;
-    if (closingHorizontal) {
-      // A terminus row outside the box's vertical span means the closing run points into empty
+    if (walk.closingHorizontal) {
+      // A terminus row outside the box's occupied rows means the closing run points into empty
       // space beside the node: a drifted/stale route.
-      if (tail.y < farBox.top || tail.y > farBox.bottom) return null;
+      if (tail.y < farBox.top || tail.y >= farBox.bottom) return null;
       final tx = closingSign > 0 ? farBox.left : farBox.right - 1;
       if ((tx - tail.x) * closingSign < 0) {
         // Into-node close: the run's length is the undecoded input-pin depth, so ship to the last
-        // bend and report the direction. Interior-entry test, right/bottom exclusive (see the doc
-        // comment).
+        // bend and report the direction. Interior-entry test along the run's axis (the row is
+        // already inside the box).
         final ahead = tail.x + closingSign;
         if (pts.length < 2 ||
-            tail.y < farBox.top ||
-            tail.y >= farBox.bottom ||
             tail.x < farBox.left ||
             tail.x >= farBox.right ||
             ahead < farBox.left ||
@@ -2285,14 +2338,12 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
       }
       terminus = (x: tx, y: tail.y);
     } else {
-      if (tail.x < farBox.left || tail.x > farBox.right) return null;
+      if (tail.x < farBox.left || tail.x >= farBox.right) return null;
       final ty = closingSign > 0 ? farBox.top : farBox.bottom - 1;
       if ((ty - tail.y) * closingSign < 0) {
         // Into-node close along y: the horizontal branch's interior-entry test.
         final ahead = tail.y + closingSign;
         if (pts.length < 2 ||
-            tail.x < farBox.left ||
-            tail.x >= farBox.right ||
             tail.y < farBox.top ||
             tail.y >= farBox.bottom ||
             ahead < farBox.top ||
@@ -2309,17 +2360,24 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
 
   // Reverse: the anchored second endpoint pins the perpendicular-to-closing axis; the far edge of
   // the box pins the departing segment's axis. Solvable only when those axes differ — i.e. the
-  // departing segment shares the closing run's axis.
-  final seg0Sign = direction.dx + direction.dy;
-  if (direction.isHorizontal != closingHorizontal) return null;
+  // departing segment shares the closing run's axis. The bends are walked in a local frame (origin
+  // at the first endpoint) and translated once the box solves that frame's placement.
+  final walk = walkRouteBends(route);
+  if (walk == null) return null;
+  final local = walk.points;
+  final lastBend = local.last;
+  final closingHorizontal = walk.closingHorizontal;
+  final closingSign = walk.closingSign;
+  final seg0Sign = walk.direction.dx + walk.direction.dy;
+  if (walk.direction.isHorizontal != closingHorizontal) return null;
   final int tx, ty;
   if (closingHorizontal) {
     ty = anchor.y - lastBend.y;
-    if (ty < farBox.top || ty > farBox.bottom) return null;
+    if (ty < farBox.top || ty >= farBox.bottom) return null;
     tx = seg0Sign > 0 ? farBox.right - 1 : farBox.left;
   } else {
     tx = anchor.x - lastBend.x;
-    if (tx < farBox.left || tx > farBox.right) return null;
+    if (tx < farBox.left || tx >= farBox.right) return null;
     ty = seg0Sign > 0 ? farBox.bottom - 1 : farBox.top;
   }
   final pts = [for (final p in local) (x: p.x + tx, y: p.y + ty)];
@@ -2389,6 +2447,29 @@ class ViDiagram {
 
   /// The direct children of the object with [oid] in the nesting tree.
   Iterable<ViHeapObject> children(int oid) => childrenByOid[oid] ?? const <ViHeapObject>[];
+
+  /// The subdiagram frames of [structure] — its [kViFrameCode] children in heap order, the index
+  /// space [ViHeapObject.visibleFrameIndex] and [ViSelectorRange.frame] count in.
+  List<ViHeapObject> framesOf(ViHeapObject structure) => [
+    for (final child in children(structure.oid))
+      if (child.kind == kViFrameCode) child,
+  ];
+
+  /// The index of the frame [structure] displays, or null when it names none — [structure] is not
+  /// one of the stacked [kMultiFrameStructureClasses], or its stored
+  /// [ViHeapObject.visibleFrameIndex] falls outside [framesOf] (2 corpus structures, both `0x2c`
+  /// cases: a 9-frame case storing 52 and a 15-frame case storing 87, neither carrying a selector
+  /// range list). The range-checked reading of the stored index: a null answer is a caller's cue to
+  /// fall back, never an index into a frame list.
+  int? displayedFrameIndex(ViHeapObject structure) {
+    if (!kMultiFrameStructureClasses.contains(structure.objectClass)) return null;
+    var frames = 0;
+    for (final child in children(structure.oid)) {
+      if (child.kind == kViFrameCode) frames++;
+    }
+    final index = structure.visibleFrameIndex;
+    return index < frames ? index : null;
+  }
 
   /// The bounded objects (have an absolute rectangle) — the drawable layout layer.
   Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
@@ -2694,18 +2775,27 @@ class ViDiagram {
   ///
   ///  * closes every resolved far endpoint onto a distinct walked leaf (each on any of its
   ///    destination candidates, strip column target first), and
-  ///  * lands the implied origin inside the head endpoint's owner box ([ViWire.endpointAnchors],
-  ///    bounds inclusive) — the branching analog of the two-endpoint reverse walk's far-box
-  ///    containment.
+  ///  * lands the implied origin inside the head endpoint's owner box ([ViWire.endpointAnchors]) —
+  ///    the branching analog of the two-endpoint reverse walk's far-box containment. The box is the
+  ///    `[left, right-1] x [top, bottom-1]` span [walkOneAnchoredRoute] snaps its termini to: far
+  ///    bounds exclusive, LabVIEW's rect convention throughout.
   ///
   /// An ambiguous solve (two in-box candidates) or an origin beside the head node ships nothing.
   /// The geometry is the stored tree placed by resolved-endpoint closure; the derived origin is
   /// implied but the head is not independently confirmed, so the tier is
-  /// [WireRouteFidelity.walked]. Corpus (7,524 VIs): 15,155 extended tables have an unresolved
-  /// origin; 9,147 carry a resolved far endpoint, and 8,867 solve to a unique in-box translation
-  /// and ship — the other 280 are withheld (no candidate closes, none lands in the head box, or two
-  /// do). Of the shipped tables' 8,148 unresolved far endpoints, 8,136 (99.85%) land their leaf
+  /// [WireRouteFidelity.walked]. Corpus (7,524 VIs): 15,162 extended tables have an unresolved
+  /// origin; 9,147 carry a resolved far endpoint, and 9,005 solve to a unique in-box translation
+  /// and ship — the other 142 are withheld (no candidate closes, none lands in the head box, or two
+  /// do). Of the shipped tables' 8,221 unresolved far endpoints, 8,209 (99.85%) land their leaf
   /// within 8 px of their own owner box — corroboration the gate does not consume.
+  ///
+  /// The exclusive far bounds are load-bearing: taking them inclusively admits candidates whose
+  /// origin sits exactly on the head box's right or bottom edge, and 55 of those close every
+  /// resolved far endpoint — each a phantom second solution that renders an otherwise unique
+  /// translation ambiguous. The inclusive form costs 55 trees across 47 VIs — 44 shipped by no tier
+  /// at all, 11 falling through to [_dcoChildRouteTree], which places them identically. Every one
+  /// of the 55 solves to an origin strictly interior to the head box, and all 61 of their
+  /// unresolved far endpoints land a leaf within 8 px of their own owner box.
   static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _reverseSolvedRouteTree(
     ViWireBranchRoute route,
     List<ViPoint?> attachPoints,
@@ -2766,7 +2856,10 @@ class ViDiagram {
     };
     ViPoint? solved;
     for (final origin in candidates) {
-      if (origin.x < headBox.left || origin.x > headBox.right || origin.y < headBox.top || origin.y > headBox.bottom) {
+      if (origin.x < headBox.left ||
+          origin.x >= headBox.right ||
+          origin.y < headBox.top ||
+          origin.y >= headBox.bottom) {
         continue;
       }
       if (!closesAll(origin)) continue;
@@ -3163,41 +3256,26 @@ class ViDiagram {
     return (x: attach.x - kTerminalStripTargetLeftOffset, y: attach.y);
   }
 
-  /// Walks [route] from attach point [s] and closes it onto attach point [t], returning the
-  /// absolute polyline — [ViWireRoute.pointCount] points, one fewer when the closing run is
-  /// zero-length (the walk already ends ON [t]; a duplicate terminal vertex is never emitted) — or
-  /// null when either anchor is unknown or the closure is not exact (see [ViWire.routePoints];
-  /// never force-closed).
-  static List<ViPoint>? _closedRoutePoints(ViWireRoute route, ViPoint? s, ViPoint? t) {
-    if (s == null || t == null) return null;
-    final n = route.pointCount;
-    if (n == 1) return s == t ? [s] : null;
-    final direction = route.direction;
-    if (direction == null) return null;
-    var x = s.x, y = s.y;
-    var horizontal = direction.isHorizontal;
-    var sign = direction.dx + direction.dy;
-    final points = <ViPoint>[s];
-    final lengths = route.segmentLengths;
-    for (var k = 0; k < lengths.length; k++) {
-      if (k > 0) sign = route.jointSigns[k - 1];
-      if (horizontal) {
-        x += lengths[k] * sign;
-      } else {
-        y += lengths[k] * sign;
-      }
-      points.add((x: x, y: y));
-      horizontal = !horizontal;
-    }
-    // The closing segment's length is implied by [t], so the walk must already agree on the
-    // perpendicular axis and the closing direction must match the stored final sign. A zero-length
-    // closure has no drawn run to check the sign against and already ended on [t], so the polyline
-    // stops one point short rather than emitting a duplicate vertex.
-    if (horizontal ? y != t.y : x != t.x) return null;
-    final along = horizontal ? t.x - x : t.y - y;
-    final closingSign = route.jointSigns.isEmpty ? sign : route.jointSigns.last;
-    if (along != 0 && (along > 0 ? 1 : -1) != closingSign) return null;
-    if (along != 0) points.add(t);
+  /// Walks [route] from attach point [start] ([walkRouteBends]) and closes it onto attach point
+  /// [destination], returning the absolute polyline — [ViWireRoute.pointCount] points, one fewer
+  /// when the closing run is zero-length (the walk already ends on [destination]; a duplicate
+  /// terminal vertex is never emitted) — or null when either anchor is unknown or the closure is not
+  /// exact (see [ViWire.routePoints]; never force-closed).
+  static List<ViPoint>? _closedRoutePoints(ViWireRoute route, ViPoint? start, ViPoint? destination) {
+    if (start == null || destination == null) return null;
+    if (route.pointCount == 1) return start == destination ? [start] : null;
+    final walk = walkRouteBends(route, origin: start);
+    if (walk == null) return null;
+    final points = walk.points;
+    final tail = points.last;
+    // The closing segment's length is implied by [destination], so the walk must already agree on
+    // the perpendicular axis and the closing direction must match the stored final sign. A
+    // zero-length closure has no drawn run to check the sign against and already ended on
+    // [destination], so the polyline stops one point short rather than emitting a duplicate vertex.
+    if (walk.closingHorizontal ? tail.y != destination.y : tail.x != destination.x) return null;
+    final along = walk.closingHorizontal ? destination.x - tail.x : destination.y - tail.y;
+    if (along != 0 && (along > 0 ? 1 : -1) != walk.closingSign) return null;
+    if (along != 0) points.add(destination);
     return points;
   }
 
@@ -3916,10 +3994,10 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
     if (bounds.width * bounds.height >= _structureAreaCap) continue;
-    if (object.parentOid == null || byOid[object.parentOid]?.kind != 0x1b) continue;
+    if (object.parentOid == null || byOid[object.parentOid]?.kind != kViFrameCode) continue;
     final cs = nodeKids[object.oid];
     if (cs == null) continue;
-    final hasStructural = cs.any((c) => c.kind == 0x15);
+    final hasStructural = cs.any((c) => c.kind == kNodeEndpointDcoKind);
     final hasConnector = cs.any((c) => c.objectClass == HeapObjectClass.connectorTerminal);
     if (!hasStructural || hasConnector) continue;
     object.category = ViObjectKind.node;

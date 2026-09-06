@@ -9,6 +9,7 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
+import 'test_util.dart';
 
 /// The flat serialized width of a fixed-width numeric VCTP kind, or null for
 /// every other kind — the typed tier's `_flatNumericSize` gate, restated so
@@ -235,10 +236,7 @@ void main() {
 
   test('crc8: N feeders resolve to their constant boxes; hidden i glyphs decode', () {
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
-    if (!crc8.existsSync()) {
-      markTestSkipped('crc8 snippet not fetched');
-      return;
-    }
+    if (!corpusOrSkip(crc8, what: 'crc8 snippet')) return;
     final d = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
 
     // Terminal glyph visibility, straight from LabVIEW's own raster in the

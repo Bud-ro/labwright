@@ -124,7 +124,10 @@ format: DaqSampleFormat.rawI16)` yields the matching typed list; `readVoltageStr
 stalls your event loop; the stream's pause/resume/cancel drive the worker (and tear the
 task down on cancel). Continuous mode sizes the DMA input buffer for headroom
 (`DAQmxCfgInputBuffer`) so high rates don't overrun between reads. This is the
-high-throughput path — direct DMA buffer → typed list, no serialization.
+high-throughput path — direct DMA buffer → typed list, no serialization. Commands land
+between reads, so `readTimeout:` (seconds, default 10, `-1` = indefinite) is both the
+DAQmx timeout of each read and the bound on how long `cancel()` takes; the gRPC backend
+ignores it.
 
 **Remote (gRPC)** streams over NI's **data-moniker** protocol: `Daqmx.remote(...).readStream(...)`
 sets up the task, calls a `Begin*Read` (which returns a `Moniker`), then opens one

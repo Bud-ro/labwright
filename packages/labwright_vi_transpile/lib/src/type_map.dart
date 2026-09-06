@@ -136,13 +136,19 @@ const Set<String> kLvRuntimeDeclaredTypes = {
 /// the declaration is written.
 bool lvTypeNeedsRuntime(LvTypeMapping type) => type._namesRuntimeType || (type.carrier?.runtime ?? false);
 
-/// The `dart:typed_data` list types an emitted Dart type may name — the array
-/// storages of [LvNumericKind], plus the `Uint32List` an [LvRuntimeType.arrayNd]
-/// carries its dimension vector in. A file spelling one must import them.
-final Set<String> kLvTypedDataListTypes = {
-  for (final kind in LvNumericKind.values) kind.typedListType,
-  'Uint32List',
-};
+/// Whether the Dart source of [type] names a `dart:typed_data` list, so a file
+/// that spells it must import that library.
+///
+/// Only one construction spells one: a 1-D array of a numeric element, whose
+/// storage is the element's [LvNumericKind.typedListType] ([lvArrayDartType]).
+/// Every other type that needs the import is written over such an array — a
+/// multi-dimensional array, a record holding one, an array of one.
+///
+/// No carrier spells a typed list, and no nominal type can be called one: the
+/// typed lists are reserved names ([kLvReservedTypeNames]), so a declaration
+/// whose LabVIEW name sanitizes to `Uint8List` takes `Uint8List2` instead and
+/// remains an ordinary class.
+bool lvTypeNeedsTypedData(LvTypeMapping type) => type._namesTypedData;
 
 /// Which bucket a pool entry falls into.
 enum LvMapStatus { mapped, internal, unmapped }
@@ -349,25 +355,33 @@ class LvTypeMapping {
     : status = LvMapStatus.mapped,
       _source = null,
       _namesRuntimeType = false,
+      _namesTypedData = false,
       unmappedCode = null,
       declarations = const [];
 
   /// A type spelled over other types — an array's storage ([lvArrayDartType])
-  /// or a record ([lvRecordType]). [namesRuntimeType] states whether any type
-  /// it is built over is a runtime type, which is what decides the file's
-  /// runtime import.
-  LvTypeMapping.compound(String this._source, {required bool namesRuntimeType, this.note, this.declarations = const []})
-    : status = LvMapStatus.mapped,
-      carrier = LvCarrier.compound,
-      numeric = null,
-      _namesRuntimeType = namesRuntimeType,
-      unmappedCode = null;
+  /// or a record ([lvRecordType]). [namesRuntimeType] and [namesTypedData]
+  /// state whether any type it is built over is a runtime type or a typed-data
+  /// list, which is what decides the file's imports.
+  LvTypeMapping.compound(
+    String this._source, {
+    required bool namesRuntimeType,
+    required bool namesTypedData,
+    this.note,
+    this.declarations = const [],
+  }) : status = LvMapStatus.mapped,
+       carrier = LvCarrier.compound,
+       numeric = null,
+       _namesRuntimeType = namesRuntimeType,
+       _namesTypedData = namesTypedData,
+       unmappedCode = null;
 
   /// An array of [dimCount] dimensions over the mapped element [element].
   LvTypeMapping.array(LvTypeMapping element, int dimCount)
     : this.compound(
         lvArrayDartType(element, dimCount),
         namesRuntimeType: dimCount > 1 || lvTypeNeedsRuntime(element),
+        namesTypedData: element.numeric != null || lvTypeNeedsTypedData(element),
         declarations: element.declarations,
       );
 
@@ -378,6 +392,7 @@ class LvTypeMapping {
       carrier = LvCarrier.nominal,
       _source = declaration.name,
       _namesRuntimeType = false,
+      _namesTypedData = false,
       numeric = null,
       unmappedCode = null,
       declarations = [declaration];
@@ -388,6 +403,7 @@ class LvTypeMapping {
       carrier = null,
       _source = null,
       _namesRuntimeType = false,
+      _namesTypedData = false,
       numeric = null,
       unmappedCode = null,
       declarations = const [];
@@ -398,6 +414,7 @@ class LvTypeMapping {
       carrier = null,
       _source = null,
       _namesRuntimeType = false,
+      _namesTypedData = false,
       numeric = null,
       declarations = const [];
 
@@ -415,6 +432,10 @@ class LvTypeMapping {
   /// Whether a compound type is spelled over a runtime type
   /// ([lvTypeNeedsRuntime]).
   final bool _namesRuntimeType;
+
+  /// Whether this type's spelling names a `dart:typed_data` list
+  /// ([lvTypeNeedsTypedData]).
+  final bool _namesTypedData;
 
   /// The Dart type source (`int`, `Uint8List`, `ErrorOut`, `(int, String)`), or
   /// null unless [status] is [LvMapStatus.mapped].
@@ -608,6 +629,7 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
   return LvTypeMapping.compound(
     lvRecordType(members, mapped),
     namesRuntimeType: mapped.any(lvTypeNeedsRuntime),
+    namesTypedData: mapped.any(lvTypeNeedsTypedData),
     declarations: [for (final field in mapped) ...field.declarations],
   );
 }

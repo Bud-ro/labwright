@@ -304,15 +304,17 @@ final double volts;
     expect(lvTypeNeedsRuntime(err), isTrue);
   });
 
-  test('the runtime import follows the carrier, not the spelling', () {
-    // (pool, the last entry's Dart type, whether a file spelling it imports the runtime)
-    final rows = <(List<List<int>>, String, bool)>[
-      ([scalar(TypeCode.boolean)], 'bool', false),
-      ([scalar(TypeCode.path)], 'LvPath', true),
-      ([scalar(TypeCode.variant)], 'LvVariant', true),
-      ([scalar(TypeCode.string), array(0, 1)], 'List<String>', false),
-      ([scalar(TypeCode.i32), array(0, 2)], 'LvArrayNd<Int32List>', true),
-      ([scalar(TypeCode.path), array(0, 1)], 'List<LvPath>', true),
+  test('both imports follow the carrier, not the spelling', () {
+    // (pool, the last entry's Dart type, whether a file spelling it imports
+    // the runtime, whether it imports `dart:typed_data`)
+    final rows = <(List<List<int>>, String, bool, bool)>[
+      ([scalar(TypeCode.boolean)], 'bool', false, false),
+      ([scalar(TypeCode.path)], 'LvPath', true, false),
+      ([scalar(TypeCode.variant)], 'LvVariant', true, false),
+      ([scalar(TypeCode.string), array(0, 1)], 'List<String>', false, false),
+      ([scalar(TypeCode.u8), array(0, 1)], 'Uint8List', false, true),
+      ([scalar(TypeCode.i32), array(0, 2)], 'LvArrayNd<Int32List>', true, true),
+      ([scalar(TypeCode.path), array(0, 1)], 'List<LvPath>', true, false),
       (
         [
           scalar(TypeCode.path, name: 'where'),
@@ -320,15 +322,29 @@ final double volts;
         ],
         '({LvPath where})',
         true,
+        false,
       ),
-      // A class whose NAME spells a runtime type's is not one of them, and
-      // neither is an array of it.
+      (
+        [
+          scalar(TypeCode.u8),
+          array(0, 1),
+          scalar(TypeCode.dbl, name: 'volts'),
+          cluster([1, 2]),
+        ],
+        '(Uint8List, double)',
+        false,
+        true,
+      ),
+      // A class whose NAME spells a runtime type's or a typed list's is not
+      // one of them, and neither is an array of it. A name a generated
+      // declaration may not take is suffixed away from it.
       (
         [
           scalar(TypeCode.dbl, name: 'volts'),
           cluster([0], name: 'LV error log'),
         ],
         'LvErrorLog',
+        false,
         false,
       ),
       (
@@ -339,12 +355,39 @@ final double volts;
         ],
         'List<LvErrorLog>',
         false,
+        false,
+      ),
+      (
+        [
+          scalar(TypeCode.dbl, name: 'volts'),
+          cluster([0], name: 'Uint8 List'),
+        ],
+        'Uint8List2',
+        false,
+        false,
+      ),
+      (
+        [
+          scalar(TypeCode.dbl, name: 'volts'),
+          cluster([0], name: 'Uint8 List'),
+          array(1, 1),
+        ],
+        'List<Uint8List2>',
+        false,
+        false,
       ),
     ];
-    for (final (descriptors, dartType, expected) in rows) {
+    for (final (descriptors, dartType, runtime, typedData) in rows) {
       final pool = poolOf(descriptors);
       final mapping = mapLvType(pool.last, pool);
-      expect((mapping.dartType, lvTypeNeedsRuntime(mapping)), (dartType, expected));
+      expect(
+        (mapping.dartType, lvTypeNeedsRuntime(mapping), lvTypeNeedsTypedData(mapping)),
+        (
+          dartType,
+          runtime,
+          typedData,
+        ),
+      );
     }
   });
 
