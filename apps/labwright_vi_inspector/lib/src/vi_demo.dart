@@ -2,9 +2,6 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Builds a minimal but valid LabVIEW **RSRC** byte buffer so the inspector can
-/// be demoed without a real `.vi` on hand. Mirrors the structure `parseVi`
-/// expects (header + repeated info section + block-info list + trailing name).
 Uint8List demoViBytes({
   String fileType = 'LVIN',
   List<String> blocks = const ['vers', 'FPHb', 'BDHb', 'CONP', 'LIvi'],
@@ -53,7 +50,6 @@ Uint8List demoViBytes({
       .toBytes();
 }
 
-/// Result of trying to parse a buffer: either a [summary] or a human [error].
 class ViLoad {
   const ViLoad.ok(this.summary) : error = null;
   const ViLoad.failed(this.error) : summary = null;
@@ -64,8 +60,6 @@ class ViLoad {
   bool get isOk => summary != null;
 }
 
-/// Parses [bytes] into a [ViLoad], turning a [ViFormatException] into a friendly
-/// message instead of throwing. Keeps the UI layer free of try/catch.
 ViLoad summarize(Uint8List bytes) {
   try {
     return ViLoad.ok(parseVi(bytes));
@@ -76,8 +70,6 @@ ViLoad summarize(Uint8List bytes) {
   }
 }
 
-/// Human descriptions for the common 4-char RSRC block tags, so the inventory
-/// reads as more than opaque codes. Unknown tags fall back to "resource block".
 const Map<String, String> kBlockGlossary = {
   'BDHb': 'Block diagram — compiled logic',
   'BDHP': 'Block diagram — heap',

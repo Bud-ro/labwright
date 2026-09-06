@@ -5,13 +5,11 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// A synthetic VCTP pool: `[u32 count]` ++ one 4-byte descriptor per code (`[u16 len=4][0x40][code]`).
 Uint8List _pool(List<int> codes) => u8([
   0, 0, 0, codes.length, //
   for (final c in codes) ...[0x00, 0x04, 0x40, c],
 ]);
 
-/// A VCTP descriptor: `[u16 len = 2 + body.length]` ++ body.
 List<int> descriptor(List<int> body) => [((2 + body.length) >> 8) & 0xff, (2 + body.length) & 0xff, ...body];
 
 void main() {
@@ -36,9 +34,6 @@ void main() {
   });
 
   test('string/path/picture family and pointer codes map to their DFDS-proven kinds', () {
-    // Corpus-anchored and cross-referenced from pylabview (not LabVIEW-verified);
-    // the flattened widths of these codes are proven by exact DFDS tiling. 0x31
-    // does not appear in the corpus, so it stays uncatalogued.
     const rows = <(int, ViDataType)>[
       (0x30, ViDataType.string),
       (0x31, ViDataType.unknown),
@@ -108,7 +103,6 @@ void main() {
   });
 
   test('serializedDefaultSize: fixed-width leaves, cluster is the member sum, variable/unknown are null', () {
-    // One descriptor per code; check the flattened default width of each.
     final types = decodeTypePool(
       _pool([
         0x00,
@@ -150,10 +144,8 @@ void main() {
         4, // refnum
       ],
     );
-    // string, array, variant, ptr 0x80, typedef 0xf1 — not derivable.
     expect([for (var i = 13; i < 18; i++) sz(i)], [null, null, null, null, null]);
 
-    // Cluster{boolean, i32, dbl} = 1 + 4 + 8 = 13.
     final cl = decodeTypePool(
       u8([
         0, 0, 0, 4, //
@@ -165,7 +157,6 @@ void main() {
     );
     expect(serializedDefaultSize(cl[3], cl), 13);
 
-    // A cluster with a variable member (string) is not derivable.
     final clv = decodeTypePool(
       u8([
         0, 0, 0, 2, //
@@ -218,8 +209,6 @@ void main() {
   });
 
   test('typedef descriptors expose their inline base; a mis-framed base yields null', () {
-    // 0xf1 interior: [u32 checksum][u32 pathCount][pathCount x pascal][base descriptor],
-    // where the base's own length word counts 4 more than the bytes it occupies.
     List<int> typeDef(String path, List<int> base) =>
         descriptor([0x40, 0xf1, 0, 0, 0, 0, 0, 0, 0, 1, ...pascal(path), ...base]);
     List<int> base(List<int> body) => [0x00, body.length + 7, 0x40, ...body];
@@ -239,7 +228,6 @@ void main() {
     );
     expect(serializedDefaultSize(i32Base, [i32Base]), 4, reason: 'a typedef flattens as its base');
 
-    // A cluster base keeps its member list; two path components frame the same.
     final pool = decodeTypePool(
       u8([
         0, 0, 0, 3, //
@@ -255,7 +243,6 @@ void main() {
     expect(pool[2].typedefBase?.members, [0, 1]);
     expect(clusterFields(pool[2].typedefBase!, pool).map((f) => f.kind), [ViDataType.boolean, ViDataType.i32]);
 
-    // Length word not exactly 4 over the occupied extent → not framed, no guess.
     final skew = decodeTypePool(
       u8([
         0,
@@ -270,7 +257,6 @@ void main() {
   });
 
   test('decodeTypeTable reads the top-level index table after the pool', () {
-    // Two descriptors, then a 3-entry table referencing them.
     final body = u8([
       0, 0, 0, 2, //
       0x00, 0x04, 0x40, 0x30, // string
@@ -279,9 +265,7 @@ void main() {
       0x00, 0x01, 0x00, 0x00, 0x00, 0x01, // entries: 1, 0, 1
     ]);
     expect(decodeTypeTable(body), [1, 0, 1]);
-    // No tail after the descriptors → no table.
     expect(decodeTypeTable(_pool([0x30, 0x21])), isEmpty);
-    // An out-of-range entry invalidates the table.
     final bad = u8([
       0, 0, 0, 1, //
       0x00, 0x04, 0x40, 0x30, //

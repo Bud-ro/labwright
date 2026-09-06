@@ -7,10 +7,6 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// Builds a valid RSRC container with the given blocks/sections in the real layout `readViSections`
-/// expects: 32-byte header ++ `[u32 len][bytes]` data sections ++ info area (subheader @0x2c -> block
-/// list @0x34, descriptor offsets relative to the block-list header base @0x3c, 20-byte descriptors
-/// whose word16 is 0xFFFFFFFF for own-data sections and 0 for embedded LIBN/VINS sections).
 Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks, {Set<String> embeddedTags = const {}}) {
   void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
   void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
@@ -74,7 +70,6 @@ Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks, {Set<
       .toBytes();
 }
 
-/// Wraps [payload] as a stored heap section: `[u32 decompressedSize][zlib stream]`.
 Uint8List compressedSection(List<int> payload) {
   final z = const ZLibEncoder().encode(payload);
   return u8([...(ByteData(4)..setUint32(0, payload.length)).buffer.asUint8List(), ...z]);
@@ -188,8 +183,7 @@ void main() {
       }
       try {
         readViSections(b);
-      } on ViFormatException {
-        // acceptable
+      } on ViFormatException catch (_) {
       } catch (e) {
         fail('leaked ${e.runtimeType}: $e');
       }

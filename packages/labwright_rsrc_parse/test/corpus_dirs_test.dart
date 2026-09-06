@@ -5,8 +5,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// The corpus contains symlinked directories; an enumeration that follows them counts the same VI
-/// twice and skews every corpus metric and the committed snapshot.
 void main() {
   final all = corpusVis();
   if (all.isEmpty) {

@@ -5,13 +5,8 @@ import 'format.dart';
 import 'model.dart';
 
 const double _twoPow64 = 18446744073709551616.0;
-
-/// Reinterprets a Dart signed 64-bit read as its unsigned u64 magnitude in
-/// double space.
 double _u64AsDouble(int value) => value >= 0 ? value.toDouble() : value + _twoPow64;
 
-/// Parses TDMS bytes (as written by [TdmsWriter]) back into a [TdmsFile].
-/// Accumulates raw data per channel across segments (streaming).
 abstract final class TdmsReader {
   static TdmsFile read(Uint8List bytes) {
     final cursor = _ByteCursor(bytes);
@@ -20,14 +15,12 @@ abstract final class TdmsReader {
     final activeObjects = <_ObjectState>[];
 
     while (cursor.remaining >= leadInByteLength) {
-      // Lead-in: tag and ToC are always little-endian; the ToC's big-endian
-      // flag switches everything after it (version, offsets, metadata, raw).
       cursor.endian = Endian.little;
       final tag = cursor.bytes(4);
       if (!_bytesEqual(tag, leadInTag)) break;
       final tocMask = cursor.u32();
       cursor.endian = TocFlag.bigEndian.isSetIn(tocMask) ? Endian.big : Endian.little;
-      cursor.u32(); // format version — not validated
+      cursor.u32(); // format version
       final nextSegmentOffset = cursor.u64();
       final rawDataOffset = cursor.u64();
       if (nextSegmentOffset < 0 || rawDataOffset < 0 || rawDataOffset > nextSegmentOffset) {
@@ -49,12 +42,11 @@ abstract final class TdmsReader {
           if (rawDataIndex == noRawDataIndex) {
             carriesRawData = false;
           } else if (rawDataIndex == sameLayoutAsPreviousIndex) {
-            // Layout unchanged from this object's previous segment.
           } else if (rawDataIndex == daqmxFormatChangingIndex || rawDataIndex == daqmxDigitalLineIndex) {
             _readDaqmxRawDataIndex(cursor, object);
           } else {
             final dataTypeCode = cursor.u32();
-            cursor.u32(); // array dimension (always 1)
+            cursor.u32(); // array dimension
             final valueCount = cursor.u64();
             if (dataTypeCode == TdsType.string.code) {
               cursor.u64(); // total byte size of the string data
@@ -120,11 +112,9 @@ abstract final class TdmsReader {
       if (path == '/') continue;
       final names = _parseObjectPath(path);
       if (names.length == 1) {
-        // /'group'
         ensureGroup(names[0]);
         groupProperties[names[0]] = objectsByPath[path]!.properties;
       } else if (names.length == 2) {
-        // /'group'/'channel'
         final groupName = names[0];
         ensureGroup(groupName);
         final object = objectsByPath[path]!;
@@ -143,49 +133,28 @@ abstract final class TdmsReader {
   }
 }
 
-/// Per-object decode state accumulated across segments: the last-declared raw
-/// data layout, the merged properties, and every sample decoded so far.
 class _ObjectState {
   _ObjectState();
-
-  /// `tdsDataType` code from the most recent raw-data index (`-1` for DAQmx).
   int dataTypeCode = 0;
-
-  /// Declared value count from the most recent raw-data index.
   int valueCount = 0;
 
   final Map<String, Object> properties = {};
-
-  /// Decoded numeric samples, appended segment by segment.
   final List<double> samples = [];
-
-  /// DAQmx format-changing scaler layout: set when this object carries DAQmx
-  /// raw data, with the buffer/offset/stride that locate its samples.
   bool isDaqmx = false;
   int daqmxBufferIndex = 0;
   int daqmxByteOffset = 0;
   int daqmxStrideBytes = 0;
 }
 
-/// A bounds-checked forward reader over [Uint8List]. Every read validates
-/// against the buffer length and throws [TdmsFormatException] (never
-/// `RangeError`) past the end, so arbitrary input cannot crash the reader.
 class _ByteCursor {
   _ByteCursor(this._bytes) : _byteData = ByteData.sublistView(_bytes);
   final Uint8List _bytes;
   final ByteData _byteData;
   int position = 0;
-
-  /// Endianness of the current segment after its ToC — its version, segment
-  /// offsets, metadata, and raw data. The lead-in tag and ToC mask are always
-  /// little-endian; the ToC big-endian flag selects this.
   Endian endian = Endian.little;
 
   int get remaining => _bytes.length - position;
   int get length => _bytes.length;
-
-  /// Reads a signed integer of [width] bytes at an absolute offset [at]
-  /// (random access, for DAQmx stride decoding). Does not move [position].
   int intAt(int at, int width) {
     if (at < 0 || at + width > _bytes.length) {
       throw TdmsFormatException('read past end of data at $at');
@@ -292,16 +261,12 @@ class _ByteCursor {
     return value;
   }
 
-  /// NI timestamp raw value as seconds since 1904-01-01 UTC (u64 fractions of a
-  /// second, then i64 seconds).
   double timestamp1904Seconds() {
     final fractions = u64();
     final seconds = i64();
     return seconds + _u64AsDouble(fractions) / _twoPow64;
   }
 
-  /// Reads a length-prefixed UTF-8 string. Malformed bytes are replaced rather
-  /// than thrown, so arbitrary input never raises a (non-TDMS) FormatException.
   String string() {
     final byteLength = u32();
     _need(byteLength);
@@ -312,8 +277,6 @@ class _ByteCursor {
 }
 
 int _elementWidth(int dataTypeCode) => TdsType.fromCode(dataTypeCode)?.width ?? -1;
-
-/// Reads one fixed-size raw sample as a double (the channel data model).
 double _readSample(_ByteCursor cursor, int dataTypeCode) {
   switch (TdsType.fromCode(dataTypeCode)) {
     case TdsType.i8:
@@ -354,7 +317,6 @@ DateTime _readTimestampUtc(_ByteCursor cursor) {
   return DateTime.utc(1904).add(Duration(microseconds: micros));
 }
 
-/// Reads one property value (or null for a void property).
 Object? _readPropertyValue(_ByteCursor cursor, int typeCode) {
   if (typeCode == 0) return null;
   switch (TdsType.fromCode(typeCode)) {
@@ -389,9 +351,6 @@ Object? _readPropertyValue(_ByteCursor cursor, int typeCode) {
   }
 }
 
-/// Reads one channel's contiguous raw data into [object], handling fixed-size
-/// types and the string layout (a u32 offset array followed by the UTF-8 bytes;
-/// not yet surfaced as values, but consumed to stay aligned).
 void _readContiguousSamples(_ByteCursor cursor, _ObjectState object) {
   final dataTypeCode = object.dataTypeCode;
   final valueCount = object.valueCount;
@@ -422,8 +381,6 @@ void _readContiguousSamples(_ByteCursor cursor, _ObjectState object) {
   }
 }
 
-/// Reads interleaved raw data (sample-major: all channels' value 0, then all
-/// channels' value 1, …). Assumes a common sample count (the first channel's).
 void _readInterleavedSamples(_ByteCursor cursor, List<_ObjectState> objects) {
   if (objects.isEmpty) return;
   var bytesPerSample = 0;
@@ -451,12 +408,8 @@ void _readInterleavedSamples(_ByteCursor cursor, List<_ObjectState> objects) {
   }
 }
 
-/// Parses a DAQmx format-changing/digital-line scaler index into [object]'s
-/// layout (buffer, byte offset within the stride, and stride), using the first
-/// scaler. Recognized by the raw-data index sentinels
-/// [daqmxFormatChangingIndex] and [daqmxDigitalLineIndex], not by any ToC flag.
 void _readDaqmxRawDataIndex(_ByteCursor cursor, _ObjectState object) {
-  cursor.u32(); // data type (always "DAQmx raw data")
+  cursor.u32(); // data type
   cursor.u32(); // array dimension
   final valueCount = cursor.u64();
   final scalerCount = cursor.u32();
@@ -494,10 +447,6 @@ void _readDaqmxRawDataIndex(_ByteCursor cursor, _ObjectState object) {
     ..daqmxStrideBytes = strideBytes;
 }
 
-/// Decodes one segment of DAQmx raw data: an interleaved buffer of fixed
-/// stride bytes per sample, each channel at its byte offset. Element width is
-/// inferred from the gaps between channel offsets. Applies the linear scale
-/// when the channel's data is stored unscaled.
 void _readDaqmxSamples(_ByteCursor cursor, List<_ObjectState> objects, int rawDataStart, int rawDataLength) {
   final strideBytes = objects.first.daqmxStrideBytes;
   if (strideBytes <= 0) throw TdmsFormatException('invalid DAQmx stride $strideBytes');
@@ -527,8 +476,6 @@ void _readDaqmxSamples(_ByteCursor cursor, List<_ObjectState> objects, int rawDa
   }
 }
 
-/// Finds the linear scale to apply to a DAQmx channel: the highest-indexed
-/// `NI_Scale[N]_Linear_*`, applied only when `NI_Scaling_Status` is `unscaled`.
 ({double slope, double intercept, bool apply}) _daqmxLinearScale(_ObjectState object) {
   final slopeKeyPattern = RegExp(r'^NI_Scale\[(\d+)\]_Linear_Slope$');
   double? slope;
@@ -549,7 +496,6 @@ void _readDaqmxSamples(_ByteCursor cursor, List<_ObjectState> objects, int rawDa
   return (slope: slope ?? 1.0, intercept: intercept, apply: apply);
 }
 
-/// Splits an object path (`/'group'/'channel'`) into its unescaped names.
 final RegExp _quotedSegmentPattern = RegExp("'((?:[^']|'')*)'");
 List<String> _parseObjectPath(String path) => [
   for (final match in _quotedSegmentPattern.allMatches(path)) match.group(1)!.replaceAll("''", "'"),

@@ -5,19 +5,11 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'vctp_view.dart';
 
-/// Read-only view of the VI's recovered **data-type dictionary** (the VCTP type
-/// pool): named typedefs rendered structurally — enums with their item values,
-/// clusters with their typed fields, others as `kind name`. When the raw `VCTP`
-/// body is supplied, a toggle switches to a byte↔decode correlation view
-/// ([VctpCorrelationView]) that matches raw bytes to the descriptors they decode
-/// as and vice-versa.
 class ViTypesView extends StatefulWidget {
   const ViTypesView({super.key, required this.model, this.vctpBytes});
 
   final ViModel? model;
 
-  /// The decompressed `VCTP` section body, when available — enables the
-  /// bytes↔types correlation toggle.
   final Uint8List? vctpBytes;
 
   @override

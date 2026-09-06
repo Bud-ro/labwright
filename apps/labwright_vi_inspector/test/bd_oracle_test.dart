@@ -10,19 +10,17 @@ import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 
 import 'util.dart';
 
-/// A small synthetic block diagram: a loop frame, a named node inside it, and a
-/// labeled numeric terminal — enough to exercise the renderer + oracle.
 ViDiagram _synthDiagram() => modelFromRecords(<int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 300, 400),
-  ...open(0x21, 2, tag: 0x1a), // While loop frame
+  ...open(0x21, 2, tag: 0x1a),
   ...bounds(20, 20, 200, 360),
-  ...open(0x2f, 3, tag: 0x1b), // node inside the loop
+  ...open(0x2f, 3, tag: 0x1b),
   ...bounds(60, 80, 92, 180),
   ...caption('Acquire.vi'),
   ...close(0x1b),
   ...close(0x1a),
-  ...open(0x50, 4, tag: 0x1c), // numeric terminal outside
+  ...open(0x50, 4, tag: 0x1c),
   ...bounds(240, 40, 257, 140),
   ...caption('count'),
   ...close(0x1c),
@@ -43,11 +41,6 @@ Directory? _corpusDir() {
   return null;
 }
 
-/// Whether every drawable **non-wire** object's absolute rectangle lies inside
-/// [content] — the layout invariant the view relies on (objects placed within
-/// the canvas). Wires are exempt: their absolute anchoring is unverified and a
-/// misanchored run can compose outside the object frame (see the wire caveat),
-/// which is exactly why the content rect is built from the non-wire objects.
 bool _allWithin(Iterable<ViHeapObject> drawable, Rect content) {
   for (final object in drawable) {
     if (object.category == ViObjectKind.wire) continue;
@@ -94,7 +87,7 @@ void main() {
     test('one changed pixel is a small fraction over the threshold', () {
       final a = solid(4, 4, 0, 0, 0);
       final b = Uint8List.fromList(a);
-      b[0] = 200; // one channel of one pixel
+      b[0] = 200;
       final cmp = compareRgba(a, b, 4, 4);
       expect(cmp.diffFraction, closeTo(1 / 16, 1e-9));
       expect(cmp.meanAbsDiff, greaterThan(0));
@@ -102,7 +95,6 @@ void main() {
   });
 
   group('structural comparison (pure)', () {
-    // A white RGBA canvas with the given black rectangles (x0,y0,x1,y1) painted.
     Uint8List canvasWith(int w, int h, List<(int, int, int, int)> darkRects) {
       final out = Uint8List(w * h * 4);
       for (var i = 0; i < out.length; i += 4) {
@@ -130,7 +122,6 @@ void main() {
       expect(s.inkIoU, 1.0);
       expect(s.edgeIoU, 1.0);
       expect(s.score, 1.0);
-      // The same content on both sides has equal ink coverage.
       expect(s.inkFractionRender, s.inkFractionReference);
     });
 
@@ -138,26 +129,25 @@ void main() {
       final a = canvasWith(16, 16, [(1, 1, 6, 6)]);
       final b = canvasWith(16, 16, [(10, 10, 15, 15)]);
       final s = compareStructural(a, b, 16, 16);
-      // Non-overlapping ink and non-overlapping edges → no structural overlap.
       expect(s.inkIoU, 0.0);
       expect(s.edgeIoU, 0.0);
       expect(s.score, lessThan(0.05));
     });
 
-    test('drawing more of the reference content raises the structural score', () {
-      // A reference with two boxes; a sparse render that draws only one of them
-      // must score lower than a fuller render that draws both.
-      final reference = canvasWith(24, 24, [(2, 2, 9, 9), (14, 14, 21, 21)]);
-      final sparse = canvasWith(24, 24, [(2, 2, 9, 9)]);
-      final full = canvasWith(24, 24, [(2, 2, 9, 9), (14, 14, 21, 21)]);
-      final sparseScore = compareStructural(sparse, reference, 24, 24).score;
-      final fullScore = compareStructural(full, reference, 24, 24).score;
-      expect(fullScore, greaterThan(sparseScore));
-    });
+    test(
+      'drawing more of the reference content raises the structural score',
+      () {
+        final reference = canvasWith(24, 24, [(2, 2, 9, 9), (14, 14, 21, 21)]);
+        final sparse = canvasWith(24, 24, [(2, 2, 9, 9)]);
+        final full = canvasWith(24, 24, [(2, 2, 9, 9), (14, 14, 21, 21)]);
+        final sparseScore = compareStructural(sparse, reference, 24, 24).score;
+        final fullScore = compareStructural(full, reference, 24, 24).score;
+        expect(fullScore, greaterThan(sparseScore));
+      },
+    );
   });
 
   group('content-bounds registration', () {
-    // A white RGBA canvas with one black rectangle painted (LTRB).
     Uint8List canvasWith(int w, int h, int l, int t, int r, int b) {
       final out = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 0xff);
       for (var y = t; y < b; y++) {
@@ -175,7 +165,6 @@ void main() {
       final rgba = canvasWith(20, 10, 5, 3, 12, 7);
       final bounds = inkBoundsOf(rgba, 20, 10);
       expect(bounds, isNotNull);
-      // Half-open box: right/bottom are one past the last inked column/row.
       expect(bounds!.left, 5);
       expect(bounds.top, 3);
       expect(bounds.right, 12);
@@ -191,14 +180,11 @@ void main() {
       tester,
     ) async {
       await tester.runAsync(() async {
-        // Render: a 20×10 mark near the top-left of a small canvas.
         final render = await imageFromRgba(
           canvasWith(60, 60, 10, 10, 30, 20),
           60,
           60,
         );
-        // Reference: the same mark at twice the size, off-centre in a larger,
-        // differently-shaped canvas — a correct render, framed differently.
         final reference = await imageFromRgba(
           canvasWith(200, 120, 140, 80, 180, 100),
           200,
@@ -206,8 +192,6 @@ void main() {
         );
         final result = await compareToReference(render, reference);
         expect(result.registered, isTrue);
-        // Aligning the ink boxes recovers a strong structural overlap that a
-        // naive centred letterbox (different crop/scale) would not.
         expect(result.structural.inkIoU, greaterThan(0.5));
       });
     });
@@ -225,12 +209,14 @@ void main() {
   });
 
   group('decoded object colours', () {
-    test('bdDecodedColor maps 24-bit rgb to an opaque colour, null to null', () {
-      expect(bdDecodedColor(null), isNull);
-      expect(bdDecodedColor(0x123456), const Color(0xFF123456));
-      // High bits beyond 24 are dropped (the flag byte the model already strips).
-      expect(bdDecodedColor(0xAB010203), const Color(0xFF010203));
-    });
+    test(
+      'bdDecodedColor maps 24-bit rgb to an opaque colour, null to null',
+      () {
+        expect(bdDecodedColor(null), isNull);
+        expect(bdDecodedColor(0x123456), const Color(0xFF123456));
+        expect(bdDecodedColor(0xAB010203), const Color(0xFF010203));
+      },
+    );
 
     test('bdFillColor prefers the content colour over the background', () {
       final o = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
@@ -243,7 +229,6 @@ void main() {
       expect(bdFillColor(ViHeapObject(oid: 3, kind: 0x50, offset: 0)), isNull);
     });
 
-    // A caption's decoded ink colour ([ViHeapObject.fgRgb]).
     ViDiagram captionDiagram({int? rgb}) {
       final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
         ..category = ViObjectKind.structure
@@ -257,7 +242,6 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
     }
 
-    // A loop frame's decoded structure tint ([ViHeapObject.structRgb]).
     ViDiagram framedDiagram({int? rgb}) {
       final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
         ..category = ViObjectKind.decoration
@@ -270,7 +254,6 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: [root, loop]);
     }
 
-    // A decoration's decoded fill ([ViHeapObject.bgRgb]).
     ViDiagram decorationDiagram({int? rgb}) {
       final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
         ..category = ViObjectKind.structure
@@ -283,7 +266,6 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: [root, deco]);
     }
 
-    // 0xffffcc is the recovered LabVIEW sequence/timed structure tint.
     final colourCases = <(String, int, ViDiagram Function({int? rgb}))>[
       ('a caption inks fgRgb', 0x1040E0, captionDiagram),
       ('a loop frame inks structRgb', 0xFFFFCC, framedDiagram),
@@ -292,7 +274,6 @@ void main() {
 
     for (final (what, rgb, build) in colourCases) {
       testWidgets(what, (tester) async {
-        // Each pixel as opaque 0xAARRGGBB; the raster is opaque throughout.
         Future<Uint32List> packedPixels(BdRaster raster) async {
           final bytes = (await raster.image.toByteData())!.buffer.asUint8List();
           final out = Uint32List(bytes.length >> 2);
@@ -308,9 +289,6 @@ void main() {
         }
 
         await tester.runAsync(() async {
-          // Same geometry both ways; only the decoded colour field differs, so
-          // every changed pixel is one the field painted and the exact decoded
-          // value must be among them.
           final inked = await rasteriseBlockDiagram(build(rgb: rgb));
           final plain = await rasteriseBlockDiagram(build());
           expect(inked!.content, plain!.content);
@@ -330,8 +308,6 @@ void main() {
             greaterThan(0),
             reason: 'no pixel changed to 0x${want.toRadixString(16)}',
           );
-          // The colour is the decoded field's doing, not part of the plain
-          // render's palette.
           expect(
             plainPixels.contains(want),
             isFalse,
@@ -345,9 +321,6 @@ void main() {
   });
 
   group('dataflow wire rendering', () {
-    // A diagram with two bounded nodes joined by one signal (0x17) wire, plus an
-    // optional third node [midNode] sitting on the wire's horizontal run (used to
-    // prove paint order). Endpoint anchors resolve to the two joined nodes.
     ViDiagram wireDiagram({bool midNode = false}) {
       final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
         ..category = ViObjectKind.structure
@@ -392,10 +365,6 @@ void main() {
       return ViDiagram(sectionTag: 'BDHb', objects: objects);
     }
 
-    // The A→B signal's DECODED route: a straight horizontal run at the node
-    // centre row (y = 120), from A's right edge to B's left edge. Supplied to
-    // the rasteriser directly (the synthetic signal carries no stored route
-    // table); a wire with no decoded route is not drawn at all.
     ViWire straightWire() => ViWire(
       signalOid: 4,
       endpointOids: const [2, 3],
@@ -424,7 +393,6 @@ void main() {
         );
         final wireFree = await rasteriseBlockDiagram(diagram, wires: const []);
         final cmp = await compareToReference(withWire!.image, wireFree!.image);
-        // Same objects; the only difference is the routed wire.
         expect(cmp.comparison.meanAbsDiff, greaterThan(0));
       });
     });
@@ -433,9 +401,6 @@ void main() {
       tester,
     ) async {
       await tester.runAsync(() async {
-        // The A→B wire's horizontal run passes through the mid node's centre
-        // (midX = (60+360)/2 = 210, at y = 120). With the mid node present the
-        // centre pixel is its light plate fill; without it, the dark wire shows.
         int centrePixel(BdRaster raster) {
           final px = ((210 - raster.content.left) * raster.scale).round();
           final py = ((120 - raster.content.top) * raster.scale).round();
@@ -450,8 +415,6 @@ void main() {
           wireDiagram(),
           wires: [straightWire()],
         );
-        // Content extent is identical (the mid node lies within the existing
-        // bounds), so the centre maps to the same pixel in both renders.
         expect(withNode!.content, withoutNode!.content);
 
         final nodeBytes = (await withNode.image.toByteData())!.buffer
@@ -459,17 +422,13 @@ void main() {
         final wireBytes = (await withoutNode.image.toByteData())!.buffer
             .asUint8List();
         final i = centrePixel(withNode);
-        // Node present → light plate fill over the wire (node on top).
         expect(nodeBytes[i], greaterThan(150));
-        // Node absent → the dark wire run shows at that same pixel.
         expect(wireBytes[i], lessThan(120));
       });
     });
 
     test('bdWireColor stays neutral without a typed-terminal anchor', () {
       final wire = wireDiagram().wires.single;
-      // No endpoint anchor matches a typed terminal → the neutral wire colour
-      // (datatype is not decoded, so no colour is fabricated).
       expect(bdWireColor(wire, const {}), kBdWireColor);
     });
   });
@@ -493,15 +452,11 @@ void main() {
     await tester.runAsync(() async {
       final raster = await rasteriseBlockDiagram(_synthDiagram());
       final result = await compareToReference(raster!.image, raster.image);
-      // Same pixels, same size, no letterbox loss.
       expect(result.comparison.meanAbsDiff, 0);
       expect(result.comparison.diffFraction, 0);
     });
   });
 
-  // The BdOracleView drives real (engine-backed) async — off-screen rasterise
-  // and image decode — so it is pumped inside runAsync, polling until its
-  // FutureBuilder resolves past the initial spinner.
   Future<void> settleOracle(WidgetTester tester, Finder marker) async {
     await tester.runAsync(() async {
       for (var i = 0; i < 60; i++) {
@@ -515,7 +470,6 @@ void main() {
   testWidgets('BdOracleView renders without a reference and with one', (
     tester,
   ) async {
-    // Without a reference: shows only the clean-room render.
     await tester.pumpWidget(
       MaterialApp(
         home: Scaffold(body: BdOracleView(diagram: _synthDiagram())),
@@ -526,7 +480,6 @@ void main() {
     expect(find.text('Rendered (clean-room)'), findsOneWidget);
     expect(find.text('Reference'), findsNothing);
 
-    // With a reference: shows render, reference and diff panes.
     final ref = await tester.runAsync(() async {
       final raster = await rasteriseBlockDiagram(_synthDiagram());
       return imageToPng(raster!.image);
@@ -544,31 +497,25 @@ void main() {
     expect(find.text('Reference'), findsOneWidget);
     expect(find.text('Absolute diff'), findsOneWidget);
     expect(find.textContaining('mean abs'), findsOneWidget);
-    // The structural metric is surfaced alongside the pixel diff.
     expect(find.textContaining('Structural'), findsOneWidget);
   });
 
   group('LabVIEW block-diagram styling', () {
-    test('canvas is near-white and the grid dot stays within match threshold', () {
-      // The reference oracle letterboxes over white; a near-white canvas keeps the
-      // empty margin matching instead of reading as a grey plate.
-      expect(kBdCanvas, const Color(0xFFFFFFFF));
-      // Grid alpha low enough that a dot pixel over white differs by < the 16/255
-      // comparison threshold (so the faint grid is never counted as content).
-      expect(kBdGridDot.a * 255, lessThan(16));
-    });
+    test(
+      'canvas is near-white and the grid dot stays within match threshold',
+      () {
+        expect(kBdCanvas, const Color(0xFFFFFFFF));
+        expect(kBdGridDot.a * 255, lessThan(16));
+      },
+    );
 
     test('subVI-call node codes are the caption-bearing call classes', () {
-      // Corpus subVI-call classes (they carry a called-VI filename caption) get
-      // the grey icon plate; a primitive class must not be in the set.
       expect(kSubViCallNodeCodes, contains(0x31));
       expect(kSubViCallNodeCodes, contains(0xc5));
       expect(kSubViCallNodeCodes.contains(0x2f), isFalse);
     });
 
     test('label-part classes are the free-text sub-parts', () {
-      // Control caption + case selector — drawn as text elsewhere, never as a
-      // filled part on the canvas.
       expect(
         kBdTextLabelClasses,
         containsAll(<HeapObjectClass>[
@@ -578,8 +525,6 @@ void main() {
       );
     });
 
-    // A diagram carrying a subVI-call node and a standalone label part rasterises
-    // without error (exercises the node-plate + label-skip paths).
     testWidgets('renders a subVI-call node and a label part without error', (
       tester,
     ) async {
@@ -587,11 +532,11 @@ void main() {
         final diagram = modelFromRecords(<int>[
           ...open(0x7e, 1),
           ...bounds(0, 0, 300, 200),
-          ...open(0x31, 2, tag: 0x1b), // subVI call node
+          ...open(0x31, 2, tag: 0x1b),
           ...bounds(40, 40, 72, 72),
           ...caption('Do Thing.vi'),
           ...close(0x1b),
-          ...open(0x0a, 3, tag: 0x1c), // standalone label part
+          ...open(0x0a, 3, tag: 0x1c),
           ...bounds(40, 20, 130, 37),
           ...caption('Do Thing.vi'),
           ...close(0x1c),
@@ -610,14 +555,11 @@ void main() {
     expect(drawable, isNotEmpty);
     final content = bdContentRect(drawable, includeWires: false);
     expect(_allWithin(drawable, content), isTrue);
-    // The node placed inside the loop frame is spatially within it.
     final loop = diagram.byId[2]!;
     final members = nodesWithin(loop, drawable);
     expect(members.map((m) => m.oid), contains(3));
   });
 
-  // Corpus-backed: the BD view renders a real VI without error and every drawn
-  // object lands within the diagram's content frame.
   group('corpus', () {
     final corpus = _corpusDir();
     const rel =
@@ -659,10 +601,6 @@ void main() {
     });
   });
 
-  // A constant carrying a recovered literal ([ViHeapObject.constText]) draws that
-  // text on its plate; the identical constant without a recovered value draws a
-  // bare plate. The two renders must therefore differ (the literal is real
-  // decoded content, only rendered where recovered).
   testWidgets('a recovered constant literal renders (vs a blank plate)', (
     tester,
   ) async {
@@ -685,14 +623,11 @@ void main() {
         withLiteral!.image,
         withoutLiteral!.image,
       );
-      // Same geometry, so any difference is the rendered literal text.
       expect(cmp.comparison.meanAbsDiff, greaterThan(0));
     });
   });
 
   group('subVI icon rendering', () {
-    // subViWantedNames selects ONLY subVI-call nodes whose caption is a
-    // `.vi`/`.vim` filename; other nodes are not searched for.
     test('subViWantedNames picks subVI-call node filenames only', () {
       final call = ViHeapObject(oid: 5, kind: 0x31, offset: 0)
         ..category = ViObjectKind.node
@@ -702,7 +637,7 @@ void main() {
         ..label = 'Not In Corpus.vi';
       final primitive = ViHeapObject(oid: 7, kind: 0x2f, offset: 0)
         ..category = ViObjectKind.node
-        ..label = 'Add'; // not a subVI-call class → not wanted
+        ..label = 'Add';
       final diagram = ViDiagram(
         sectionTag: 'BDHb',
         objects: [call, another, primitive],
@@ -710,8 +645,6 @@ void main() {
       expect(subViWantedNames(diagram), {'Define Test.vi', 'Not In Corpus.vi'});
     });
 
-    // A diagram rendered with icons stamped on a node differs from the
-    // neutral-plate render, and rasterises without error.
     testWidgets('rasterising with subVI icons stamps the node', (tester) async {
       final corpus = _corpusDir();
       if (corpus == null) return;

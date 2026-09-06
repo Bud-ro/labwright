@@ -1,13 +1,9 @@
-/// Per-step view models for the sequence outline: the step row itself plus its
-/// call arguments, connector-pane parameters, measurement parameters, limits,
-/// and variables.
 library;
 
 import 'package:labwright_seq/labwright_seq.dart';
 
 import 'sequence_outline.dart';
 
-/// One step, with its fields pulled apart for layout.
 class StepOutline {
   StepOutline({
     required this.name,
@@ -34,92 +30,42 @@ class StepOutline {
   final String name;
   final String type;
 
-  /// For an `NI_Flow_*` step, the construct's readable header — `if (cond)`,
-  /// `for each (x in xs)`, `while (cond)`, `else`, `end`, `break`, … — recovered
-  /// via [Step.flowControl]. `null` for ordinary (non-flow) steps. Lets the UI
-  /// render the control-flow construct instead of a bare step name.
   final String? flowHeader;
 
-  /// The step's control-flow nesting depth (0 at a group's top level), computed
-  /// by balancing the `NI_Flow_*` openers/ends across the group. Drives the
-  /// indentation of the structured view so the nested logic reads like code.
   final int flowDepth;
 
-  /// The step's free-text comment — the editor's per-step note — or `null` when
-  /// the step has none. Recovered from `%COMMENT`.
   final String? comment;
 
-  /// The step's run mode when it is *not* the normal `Normal` (e.g. `Skip`,
-  /// `Pass`, `Fail`) — a forced override that changes execution, so it gets its
-  /// own prominent badge. `null` when the step runs normally (the common case;
-  /// not noteworthy). The default itself is recovered via type inheritance.
   final String? runMode;
 
-  /// The step's module adapter, or `null` when it has no code module.
   final SeqAdapter? adapter;
 
-  /// What the adapter targets (VI path, DLL function, called sequence, …).
   final String? target;
 
-  /// For an in-file SequenceCall, the [SeqOutline.sequences] index to jump to.
-  /// `null` when the step is not an in-file call.
   final int? callTargetIndex;
 
-  /// For an external SequenceCall, the file it lives in (or `''` if unknown);
-  /// `null` when the step is not an external call.
   final String? externalCall;
 
-  /// Limits summary (e.g. `GELE [9, 11]`), or `null` if the step has none.
-  /// Kept for the one-line label and search; [limitsDetail] holds the fields.
   final String? limits;
 
-  /// The individual limit fields for a richer display, or `null` if the step has
-  /// no limits.
   final LimitsOutline? limitsDetail;
 
-  /// The measurement units the step's result records in (`Result.Units`, e.g.
-  /// `V`, `mA`), or `null` when the step records none. Pairs with [limitsDetail]
-  /// for a numeric limit test; shown as a "Units" row there, or its own chip.
   final String? units;
 
-  /// The step's data-source expression (`DataSource`) — the pass/fail criterion
-  /// for a `PassFailTest` (e.g. `Step.Result.PassFail`) or the measured value
-  /// otherwise — or `null` when the step has none. For a limit test this is
-  /// already shown in [limitsDetail]'s "Data source" row, so the UI only renders
-  /// it standalone when [limitsDetail] is null.
   final String? dataSource;
 
-  /// The step's TestStand expressions that are set (label → expression), in
-  /// editor order: precondition, pre/post/status expressions, loop-while. Empty
-  /// when the step uses none. These are the custom logic the editor surfaces but
-  /// are too long for a chip, so the UI shows them as their own rows.
   final List<(String, String)> expressions;
 
-  /// The arguments the step's code-module call binds (name, direction, bound
-  /// expression, type) — the editor's "Module > Parameters" rows. Empty when the
-  /// call passes none. Shown as their own mini-table, like [limitsDetail].
   final List<CallArgOutline> callArgs;
 
-  /// The typed formal parameters of a measurement step (`Measurement.Parameters`)
-  /// — name, data type, direction, bound value. Empty for non-measurement steps.
-  /// Shown as their own mini-table, distinct from [callArgs].
   final List<MeasurementParamOutline> measurementParams;
 
-  /// The LabVIEW VI-call connector-pane parameters (`ViCall.Parms`) — connector
-  /// terminal, label, display type, bound expression. Empty for non-LabVIEW
-  /// steps. Shown as their own mini-table; the VI library/project ride in
-  /// [notes] (parity with the dump's `{vi:}`/`{conn:}` chips).
   final List<ConnectorParamOutline> connectorParams;
 
-  /// Mode / flow / loop notes (only non-default ones).
   final List<String> notes;
 
   bool get isInFileCall => callTargetIndex != null;
 
-  /// How to display the module target: the basename as a prominent [label] when
-  /// the target looks like a file path (contains `/` or `\`), otherwise the
-  /// target verbatim; [tooltip] is always the full target. Returns null when the
-  /// step has no module target. Pure.
   ({String label, String tooltip})? get targetDisplay {
     final targetText = target;
     if (targetText == null) return null;
@@ -263,8 +209,6 @@ class StepOutline {
     );
   }
 
-  /// A one-line label, equivalent to the dump view's per-step line (minus the
-  /// in-file/external tag, which the UI renders as a tappable chip).
   String get summary {
     final out = StringBuffer('$name [$type]');
     if (flowHeader != null) out.write('  {flow: $flowHeader}');
@@ -274,8 +218,6 @@ class StepOutline {
     } else if (units != null) {
       out.write('  {units $units}');
     }
-    // Data source standalone only for non-limit steps (limit steps carry it in
-    // limitsDetail), matching the dump.
     if (limitsDetail == null && dataSource != null) {
       out.write('  {data-source $dataSource}');
     }
@@ -300,12 +242,6 @@ class StepOutline {
   }
 }
 
-/// One LabVIEW VI-call connector parameter for display — mirrors the package's
-/// [CallParameter] read from `ViCall.Parms`, and the dump's `_dumpViParam`: a
-/// connector-pane terminal [connectorNumber], the param [name] (its `Label`),
-/// the human-readable [displayType], and the [boundExpression] wired to it. Each
-/// field is omitted (left null) when absent — never invented. Distinct from
-/// [CallArgOutline] (which carries a direction, not a connector index).
 class ConnectorParamOutline {
   ConnectorParamOutline({
     required this.name,
@@ -326,13 +262,9 @@ class ConnectorParamOutline {
     boundExpression: p.boundExpression,
   );
 
-  /// Left-column label: the connector terminal index (when known) and the param
-  /// name, e.g. `#11 sequence context`.
   String get label =>
       connectorNumber != null ? '#$connectorNumber $name' : name;
 
-  /// Right-column value: the display type then the wired expression, e.g.
-  /// `Object Reference ←ThisContext`; `(unwired)` when neither is present.
   String get cell {
     final out = StringBuffer();
     if (displayType != null) out.write(displayType);
@@ -341,8 +273,6 @@ class ConnectorParamOutline {
     return out.isEmpty ? '(unwired)' : out.toString();
   }
 
-  /// Compact one-line form for the text summary / search, mirroring the dump's
-  /// `_dumpViParam`: `#11 sequence context (Object Reference)←ThisContext`.
   String get line {
     final out = StringBuffer();
     if (connectorNumber != null) out.write('#$connectorNumber ');
@@ -353,11 +283,6 @@ class ConnectorParamOutline {
   }
 }
 
-/// One module-call argument for display — mirrors the package's [CallParameter]:
-/// a parameter [name], the [boundExpression] that supplies its value, its
-/// [direction] (`in`/`out`/`in/out`, null when the code is absent/unrecognized),
-/// and its [displayType]. Each field is omitted (left null) when absent — never
-/// invented.
 class CallArgOutline {
   CallArgOutline({
     required this.name,
@@ -378,16 +303,10 @@ class CallArgOutline {
     displayType: p.displayType,
   );
 
-  /// Left-column label: the parameter name, tagged with its direction when known
-  /// (e.g. `LoginName (in)`).
   String get label => direction != null ? '$name ($direction)' : name;
 
-  /// Right-column value: the bound expression, falling back to the declared type
-  /// when the call leaves the parameter unbound, else `(unbound)`.
   String get value => boundExpression ?? displayType ?? '(unbound)';
 
-  /// Compact one-line form for the text summary / search, e.g.
-  /// `LoginName in←FileGlobals.UserToAutoLogin`.
   String get line {
     final out = StringBuffer(name);
     if (direction != null) out.write(' $direction');
@@ -396,12 +315,6 @@ class CallArgOutline {
   }
 }
 
-/// One measurement-step formal parameter for display — mirrors the package's
-/// [MeasurementParameter]: a parameter [name], its [dataType] (`TypeDouble`,
-/// `TypeString`, …), [direction] (`In`/`Out`), bound [value] expression, and
-/// whether it [isArray]. Each field is omitted (left null) when absent — never
-/// invented. Distinct from [CallArgOutline] (the ActiveX/C + Python adapter
-/// argument list); a measurement step uses these instead.
 class MeasurementParamOutline {
   MeasurementParamOutline({
     required this.name,
@@ -420,16 +333,10 @@ class MeasurementParamOutline {
   final String? value;
   final bool isArray;
 
-  /// A refinement of [dataType] (`IOResource`/`Path`/`Pin`/`Enum`), or null for
-  /// an unspecialized parameter.
   final String? typeSpecialization;
 
-  /// Whether the parameter is recorded to the report; null when unknown. Only a
-  /// `false` is noteworthy (logging is the default).
   final bool? logged;
 
-  /// For a `TypeEnum` parameter, the enum's allowed values as `name=value`
-  /// strings (e.g. `NONE=0`); empty for non-enum parameters.
   final List<String> enumValues;
 
   factory MeasurementParamOutline.of(MeasurementParameter p) =>
@@ -446,8 +353,6 @@ class MeasurementParamOutline {
         ],
       );
 
-  /// The enum value list capped for compact display, e.g. `NONE=0, DC_VOLTS=1,
-  /// …(16)`; empty string when the parameter is not an enum.
   String get _enumChip {
     if (enumValues.isEmpty) return '';
     final shown = enumValues.take(6).join(', ');
@@ -455,14 +360,9 @@ class MeasurementParamOutline {
     return '{$shown$more}';
   }
 
-  /// Left-column label: the parameter name, tagged with its direction when known
-  /// (e.g. `voltage_level (in)`).
   String get label =>
       direction != null ? '$name (${direction!.toLowerCase()})' : name;
 
-  /// Right-column value: the data type (with its `(specialization)` and `[]` for
-  /// an array), the bound expression when set, then a `not logged` marker;
-  /// `(unbound)` when nothing is present.
   String get cell {
     final out = StringBuffer();
     if (dataType != null) {
@@ -476,8 +376,6 @@ class MeasurementParamOutline {
     return out.isEmpty ? '(unbound)' : out.toString();
   }
 
-  /// Compact one-line form for the text summary / search, e.g.
-  /// `voltage_level in TypeDouble = 6`.
   String get line {
     final out = StringBuffer(name);
     if (direction != null) out.write(' ${direction!.toLowerCase()}');
@@ -487,20 +385,15 @@ class MeasurementParamOutline {
       if (isArray) out.write('[]');
     }
     if (value != null) out.write(' = $value');
-    // All enum values in the search/summary line (not capped, so every constant
-    // is searchable).
     if (enumValues.isNotEmpty) out.write(' {${enumValues.join(', ')}}');
     if (logged == false) out.write(' [not logged]');
     return out.toString();
   }
 }
 
-/// `n label` with the label pluralized (`label + 's'`) unless `n == 1`.
 String _count(int count, String label) =>
     '$count $label${count == 1 ? '' : 's'}';
 
-/// A one-line summary of an outline, e.g. `3 sequences · 42 steps`; when
-/// [typeCount] is given (from the file's type list), appends `· K types`. Pure.
 String outlineSummary(SeqOutline outline, {int? typeCount}) {
   final parts = [
     _count(outline.sequences.length, 'sequence'),
@@ -510,9 +403,6 @@ String outlineSummary(SeqOutline outline, {int? typeCount}) {
   return parts.join(' · ');
 }
 
-/// A step's limits broken into individual fields for a richer display. Mirrors
-/// the package's [StepLimits]; every field is optional and is omitted (left
-/// null) when the step doesn't carry it — never invented.
 class LimitsOutline {
   LimitsOutline({
     this.comparison,
@@ -539,7 +429,6 @@ class LimitsOutline {
     dataSource: l.dataSource,
   );
 
-  /// Present fields as label→value rows, in display order, omitting nulls.
   List<(String, String)> get rows => [
     if (comparison != null) ('Comparison', comparison!),
     if (low != null) ('Low', low!),
@@ -550,9 +439,6 @@ class LimitsOutline {
   ];
 }
 
-/// True if [s] matches [query] (case-insensitive, query already lower-cased) by
-/// name, type, adapter, target, limits summary, run mode, free-text comment, or
-/// any note/expression.
 bool stepMatches(StepOutline s, String query) {
   if (query.isEmpty) return true;
   bool hit(String? x) => x != null && x.toLowerCase().contains(query);
@@ -599,15 +485,6 @@ bool _varMatches(VarOutline v, String query) =>
     (v.value?.toLowerCase().contains(query) ?? false) ||
     (v.comment?.toLowerCase().contains(query) ?? false);
 
-/// Returns a display-filtered copy of [outline]: keeps a sequence if its name
-/// matches, any variable matches, or any step matches; within a kept sequence,
-/// keeps only matching steps — UNLESS the sequence name itself matches, in which
-/// case the whole sequence is kept. An empty/blank query returns [outline]
-/// unchanged (same instance). Pure.
-///
-/// Step objects are reused as-is, so each [StepOutline.callTargetIndex] still
-/// refers to the ORIGINAL `outline.sequences` — callers that resolve jumps must
-/// keep the full outline, not this filtered view.
 SeqOutline filterSequences(SeqOutline outline, String query) {
   final needle = query.trim().toLowerCase();
   if (needle.isEmpty) return outline;
@@ -615,7 +492,7 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
   for (final seq in outline.sequences) {
     if (seq.name.toLowerCase().contains(needle) ||
         (seq.comment?.toLowerCase().contains(needle) ?? false)) {
-      kept.add(seq); // whole-sequence match → keep everything
+      kept.add(seq);
       continue;
     }
     final varHit =
@@ -641,7 +518,6 @@ SeqOutline filterSequences(SeqOutline outline, String query) {
   return SeqOutline(kept);
 }
 
-/// A parameter or local variable row.
 class VarOutline {
   VarOutline({
     required this.name,
@@ -655,14 +531,10 @@ class VarOutline {
   final String? type;
   final String? value;
 
-  /// Whether the variable is an array container (vs. an object/cluster). Only
-  /// meaningful when [containerCount] is non-null.
   final bool isArray;
 
-  /// Array element count / object field count, or `null` for a scalar variable.
   final int? containerCount;
 
-  /// The variable's free-text comment (editor note), or `null` when it has none.
   final String? comment;
 
   factory VarOutline.of(SeqVariable v) => VarOutline(
@@ -674,9 +546,6 @@ class VarOutline {
     comment: v.comment,
   );
 
-  /// `name : type`, then either ` = value` for a scalar or a container-size
-  /// suffix (` [N]` for an array, ` {N fields}` for an object/cluster), and a
-  /// trailing ` // comment` when the variable carries one.
   String get label {
     final out = StringBuffer('$name : ${type ?? '(untyped)'}');
     if (value != null) {

@@ -9,38 +9,16 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Corpus census for the Case-structure **selector-range** decode
-/// ([ViSelectorRange] / [ViHeapObject.selectorRanges]).
-///
-/// The store is the file's per-frame case-value list, and the only value it can
-/// be checked against is the one the file also states in words: the `0x95`
-/// selector label of the frame LabVIEW displays. So the census renders the
-/// DISPLAYED frame's entries the way LabVIEW spells a selector label and
-/// compares the two strings, bucketed by what the selector carries — a
-/// disagreement on the one frame we can read would sink the whole store.
-///
-/// Also pinned are the structural laws a `switch` lowering rests on: every
-/// entry names an existing frame, and every frame is either named by an entry
-/// or is the one the Default reaches ([_defaultFrame]).
-
-/// The signed-32-bit extremes an open bound stores in place of a value.
 const int _kOpenHigh = 0x7fffffff;
 const int _kOpenLow = -0x80000000;
 
-/// The suffix LabVIEW appends to the Default frame's own selector label.
 const String _kDefaultSuffix = ', Default';
 
-/// The frame a Case [structure] falls back to: the `0x254` record's index, or
-/// frame 0 when the record is absent ([kViFirstFrameIsDefault]).
 int _defaultFrame(ViHeapObject structure) => structure.defaultFrameIndex ?? kViFirstFrameIsDefault;
 
-/// How LabVIEW spells one entry of a numeric selector's label. Null for a bound
-/// combination outside the four value-carrying shapes (the error-cluster
-/// sentinels, whose words are not selector values).
 String? _renderNumeric(ViSelectorRange range) {
   if (range.isSingle) return '${range.low}';
   if (range.isClosed) {
-    // A two-value span is spelled as the list LabVIEW writes it back as.
     return range.high == range.low + 1 ? '${range.low}, ${range.high}' : '${range.low}..${range.high}';
   }
   if (range.lowBound == ViSelectorBound.inclusive && range.highBound == ViSelectorBound.unbounded) {
@@ -52,14 +30,10 @@ String? _renderNumeric(ViSelectorRange range) {
   return null;
 }
 
-/// [label] with LabVIEW's string-display escapes undone: `\\` is one backslash
-/// and `\HH` the byte its two hex digits spell.
 String _unescape(String label) => label
     .replaceAllMapped(RegExp(r'\\([0-9a-fA-F]{2})'), (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)))
     .replaceAll(r'\\', r'\');
 
-/// [label] read as the signed 32-bit values its hexadecimal words spell, in the
-/// decimal form [_renderNumeric] writes. Null when it is not such a label.
 String? _fromHex(String label) {
   final words = label.split(', ');
   final values = [
@@ -69,25 +43,15 @@ String? _fromHex(String label) {
   return values.contains(null) ? null : values.join(', ');
 }
 
-/// Whether [range] is one of the error-cluster spellings, whose stored words
-/// are sentinels rather than selector values: an open low end that is not the
-/// `..high` shape.
 bool _isSentinel(ViSelectorRange range) =>
     range.lowBound == ViSelectorBound.unbounded &&
     (range.highBound == ViSelectorBound.unbounded || range.low == range.high);
 
-/// Whether [first] and [second] both match some value, read as closed spans
-/// over the stored words (a single value is the span `low..low`).
 bool _overlap(ViSelectorRange first, ViSelectorRange second) => first.low <= second.high && second.low <= first.high;
 
-/// A selector label reduced to the form the renders above produce: LabVIEW
-/// writes the separators with optional spaces.
 String _canonical(String label) =>
     label.replaceAll(RegExp(r'\s*,\s*'), ', ').replaceAll(RegExp(r'\s*\.\.\s*'), '..').trim();
 
-/// Per Case-structure oid, the `0x255` record's value — the file's own count of
-/// the structure's range entries, read straight off the heap so it is an
-/// independent check that the group decode drops none.
 Map<int, int> _statedCounts(List<DecodedSection> sections) {
   final stated = <int, int>{};
   for (final section in sections) {
@@ -138,8 +102,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       for (final range in ranges) {
         bump(range.frame >= 0 && range.frame < frameCount ? 'frameInRange' : 'frameOutOfRange');
       }
-      // Whether two entries naming DIFFERENT frames can both match one value.
-      // A consumer that tests the entries in order relies on them not.
       for (var i = 0; i < ranges.length; i++) {
         for (var j = i + 1; j < ranges.length; j++) {
           if (ranges[i].frame == ranges[j].frame) continue;
@@ -168,13 +130,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
         continue;
       }
       var want = _canonical(selectorLabel);
-      // The Default frame's label carries the suffix; stripping it here scores
-      // the VALUE set, and the suffix itself is scored on its own below.
-      // The suffix is what LabVIEW writes on the Default frame's own label, so
-      // a label carrying it must sit on the frame the rule names. The converse
-      // is NOT a law and is not asserted: LabVIEW omits the suffix when the
-      // entries already exhaust the selector (a boolean's two frames), even
-      // though the fallback frame is still where an unmatched value would go.
       final wantsDefault = want.endsWith(_kDefaultSuffix) || want == 'Default';
       if (wantsDefault) {
         bump(fallback == structure.visibleFrameIndex ? 'defaultAgree' : 'defaultDisagree');
@@ -185,16 +140,9 @@ Map<String, int> _census(Uint8List bytes, String path) {
           if (range.frame == structure.visibleFrameIndex) range,
       ];
       if (displayed.isEmpty) {
-        // A Default-only frame carries no entry, so its label is the suffix
-        // alone — already scored above.
         bump(want.isEmpty ? 'defaultOnlyFrame' : 'displayedUnnamed');
         continue;
       }
-      // A label reading `Error` / `No Error` is the error-cluster form, whose
-      // two frames carry sentinel words rather than selector values.
-      // A boolean selector, and an error cluster's status, are both stored as
-      // the single values 0 and 1. The No Error frame also has a sentinel
-      // spelling whose words are not selector values.
       if (const {'True', 'False', 'Error', 'No Error'}.contains(want)) {
         final entry = displayed.length == 1 ? displayed.single : null;
         final wantsSet = want == 'True' || want == 'Error';
@@ -216,12 +164,8 @@ Map<String, int> _census(Uint8List bytes, String path) {
         } else if (values.map((value) => '"$value"').join(', ') == want) {
           bump('stringAgree');
         } else if (values.map((value) => '"$value"').join(', ') == _unescape(want)) {
-          // The label escapes what a LabVIEW string display escapes; the pool
-          // holds the characters themselves.
           bump('stringEscaped');
         } else if (values.every((value) => value!.trim().isEmpty)) {
-          // A pool value that is only whitespace: the label does not render it
-          // back, so there is nothing to compare.
           bump('stringWhitespace');
         } else {
           bump('stringDisagree');
@@ -236,14 +180,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
       if (rendered.join(', ') == want) {
         bump('numericAgree');
       } else if (rendered.join(', ') == _fromHex(want)) {
-        // The selector's display format is hexadecimal, so the label spells the
-        // same value in another radix.
         bump('numericRadix');
       } else if (RegExp(r'^-?[0-9][-0-9 ,.]*$').hasMatch(want)) {
         bump('numericDisagree');
       } else {
-        // An enum item name, or another rendering whose text the store does not
-        // hold — outside what this census can score.
         bump('labelNotDecimal');
       }
     }

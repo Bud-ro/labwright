@@ -2,10 +2,6 @@ import 'dart:typed_data';
 
 import 'reader.dart';
 
-/// Converts the numeric channels of a TDMS file to CSV: one column per channel
-/// (header `group/channel`), one row per sample index, shorter channels padded
-/// with empty cells. Non-numeric (empty-data) channels are omitted. Header names
-/// are RFC-4180 quoted when they contain the delimiter, a quote, or a newline.
 String tdmsToCsv(Uint8List bytes, {String delimiter = ',', bool header = true}) {
   final file = TdmsReader.read(bytes);
 

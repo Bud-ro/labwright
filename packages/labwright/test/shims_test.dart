@@ -1,6 +1,3 @@
-// The compatibility-shim contract exported sequence programs rely on: engine
-// built-ins with pinned semantics, always-throwing eval/cond (the honesty
-// contract), and PropObj's engine-object surface via dynamic dispatch.
 import 'package:labwright/labwright.dart' as lw;
 import 'package:labwright/shims.dart' as ts;
 import 'package:test/test.dart';
@@ -96,7 +93,6 @@ void main() {
       expect(lw.rand(2, 4), inInclusiveRange(2, 4));
       expect(ts.rand(), inInclusiveRange(0, 1));
     }
-    // Unseeded here (lw.seed == 0): the stream must still advance.
     expect(List.generate(8, (_) => lw.rand()).toSet().length, greaterThan(1));
   });
 }

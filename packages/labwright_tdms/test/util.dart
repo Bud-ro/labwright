@@ -1,4 +1,3 @@
-// Shared shorthand for building, writing, and re-reading TDMS in tests.
 import 'dart:typed_data';
 
 import 'package:labwright_tdms/labwright_tdms.dart';
@@ -23,7 +22,6 @@ TdmsFile reread(
   Map<String, Map<String, Object>> groupProps = const {},
 }) => TdmsReader.read(write(channels, fileProps: fileProps, groupProps: groupProps));
 
-/// Flattens a parsed file to `{'group/channel': data}` for one-line comparison.
 Map<String, List<double>> channelsOf(TdmsFile f) => {
   for (final g in f.groups)
     for (final c in g.channels) '${g.name}/${c.name}': c.data,

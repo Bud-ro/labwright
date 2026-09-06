@@ -1,24 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Fetches the pinned TestStand corpus cataloged in `corpus/seq-sources.json`.
-///
-/// Sibling of the VI corpus fetcher (`labwright_rsrc_parse/tool/fetch_corpus.dart`)
-/// — same approach: the `.seq`/config files are NOT committed (clean-room +
-/// licensing), so this pulls each source repo at its pinned commit, making the
-/// corpus reproducible. Requires `gh` (authenticated) and `tar`.
-///
-/// Only the corpus files (the `_extensions` below) are kept from each repo
-/// tarball — extracting whole repos wasted gigabytes of unused sources. Everything
-/// else is discarded during extraction, so the on-disk corpus holds only what the
-/// tests + coverage tool read.
-///
-/// Usage:
-///   dart run tool/fetch_seq_corpus.dart [destRoot]
-///
-/// `destRoot` defaults to the gitignored `<package>/corpus/seq/`. Each repo
-/// extracts to `<destRoot>/<owner>_<name>/`; already-populated dirs are skipped,
-/// so re-running only fetches what's missing.
 const _extensions = ['.seq', '.ini', '.cfg', '.tsw', '.tpj'];
 
 Future<void> main(List<String> args) async {
@@ -78,8 +60,6 @@ Future<void> main(List<String> args) async {
 int _countSeq(Directory d) =>
     d.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.seq')).length;
 
-/// Streams `gh api repos/<repo>/tarball/<commit>` to [tarPath]. Drains stderr
-/// concurrently so a large error stream can't deadlock.
 Future<bool> _ghTarball(String repo, String commit, String tarPath) async {
   final Process proc;
   try {
@@ -100,10 +80,6 @@ Future<bool> _ghTarball(String repo, String commit, String tarPath) async {
   return true;
 }
 
-/// Extracts ONLY the archive members whose path ends in one of [keepExts] from
-/// the gzipped tarball [tarPath] into [destPath], discarding the rest of the repo.
-/// Returns the number of files extracted, or -1 on a tar error. The member list is
-/// piped to `tar --files-from=-` NUL-separated so paths with spaces are safe.
 Future<int> _extractSelected(String tarPath, String destPath, List<String> keepExts) async {
   final listing = await Process.run('tar', ['tzf', tarPath]);
   if (listing.exitCode != 0) {
@@ -136,7 +112,6 @@ Future<int> _extractSelected(String tarPath, String destPath, List<String> keepE
   return members.length;
 }
 
-/// Walks up from this script to find `corpus/seq-sources.json`.
 File? _findCatalog() {
   var dir = File.fromUri(Platform.script).parent;
   for (var i = 0; i < 8; i++) {

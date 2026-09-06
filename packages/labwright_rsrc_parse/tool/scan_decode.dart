@@ -2,10 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Corpus validator for Stage 1b (decode): inflates every block section under a
-/// directory of `.vi`/`.ctl`/`.llb` files and reports how many inflated, total
-/// decompressed bytes, BDEx heap sizes, and any crashes (must be zero).
-///
 /// Usage: `dart run packages/labwright_rsrc_parse/tool/scan_decode.dart <dir>`
 void main(List<String> args) {
   final root = args.isEmpty ? '.' : args.first;

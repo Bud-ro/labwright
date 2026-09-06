@@ -3,18 +3,6 @@ import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
-/// Corpus census of UNDECODED record-region bytes — the round-2 targeting
-/// tool. Two views:
-///
-///  1. `--bails`: every bailed typedef body ([binaryTypeBodyExtents] rows with
-///     a bail offset), aggregated by type name with undecoded mass (bail →
-///     next head), so the biggest blocked body shapes rank first.
-///  2. default: every [binaryUndecodedSpans] span, clustered by a leading
-///     shape signature (first words: DELIM / zero / small int / pool ref),
-///     aggregated by mass — the map of where the residual bytes sit.
-///
-/// Run from the package root:
-///   dart run tool/undecoded_census.dart [corpusRoot] [--bails] [--top n]
 String _defaultCorpusRoot() {
   const pkgRel = 'packages/labwright_seq/corpus';
   var d = Directory.current;
@@ -37,7 +25,6 @@ List<File> _binaryFiles(String root) {
   return out;
 }
 
-/// Builds the ordered NUL string pool the record words reference by index.
 List<String> _pool(Uint8List body, int recordRegionLength) {
   final pool = <String>[];
   var at = recordRegionLength;
@@ -54,8 +41,6 @@ List<String> _pool(Uint8List body, int recordRegionLength) {
 
 bool _nameLike(String s) => s.isNotEmpty && s.length <= 40 && RegExp(r'^[A-Za-z_%][A-Za-z0-9_.%#\[\]]*$').hasMatch(s);
 
-/// One signature token for a record word: delimiter, zero, small raw int,
-/// name-like pool ref (kept verbatim — the cluster key), other pool ref, raw.
 String _wordSig(int w, List<String> pool) {
   if (w == 0xffffffff) return 'D';
   if (w == 0) return '0';
@@ -86,7 +71,6 @@ void main(List<String> args) {
 
   final files = _binaryFiles(root);
   if (bailShapes) {
-    // shape at the bail offset → (count, mass, example)
     final byShape = <String, (int, int, String)>{};
     for (final f in files) {
       final bytes = f.readAsBytesSync();
@@ -123,7 +107,6 @@ void main(List<String> args) {
     return;
   }
   if (bails) {
-    // type name → (count, undecoded mass ≈ next-head − body start)
     final byName = <String, (int, int)>{};
     var totalMass = 0, totalCount = 0;
     for (final f in files) {
@@ -149,7 +132,6 @@ void main(List<String> args) {
     return;
   }
 
-  // shape signature → (span count, total bytes)
   final byShape = <String, (int, int)>{};
   var totalMass = 0, totalSpans = 0;
   for (final f in files) {

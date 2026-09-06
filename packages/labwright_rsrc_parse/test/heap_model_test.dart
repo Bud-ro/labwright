@@ -5,10 +5,8 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// A `C4 <op> <len> <payload>` record.
 List<int> c4(int op, List<int> payload) => [0xc4, op, payload.length, ...payload];
 
-/// A PTH0 path record with one component.
 List<int> pth0(String path) => [...'PTH0'.codeUnits, 0, 0, 0, 0, 0, 0, 0, 1, ...pascal(path)];
 
 HeapRecord rec1(List<int> heap) => heapC4RecordsFromDecoded([dsec(heap)]).single;
@@ -131,9 +129,13 @@ void main() {
       final heap = [
         ...hx('10 55'),
         ...hx('c4 2d 08 0000 0000 0000 0000'),
-        0xc4, 0x99, // inside no record: an uncatalogued opcode pair
+        0xc4,
+        0x99,
         ...hx('c4 5f 08 0102 0304 0506 0708'),
-        0xc4, 0x2e, strTable.length, ...strTable,
+        0xc4,
+        0x2e,
+        strTable.length,
+        ...strTable,
       ];
       final recs = heapC4RecordsFromDecoded([dsec(heap)]);
       expect(recs.map((r) => r.opcode), [0x2d, 0x5f, 0x2e], reason: 'the 0xc4 0x99 pair did not start a record');

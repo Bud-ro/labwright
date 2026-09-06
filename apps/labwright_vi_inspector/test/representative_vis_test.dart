@@ -19,7 +19,7 @@ void main() {
       final url = vi.rawUrl;
       expect(url.scheme, 'https');
       expect(url.host, 'raw.githubusercontent.com');
-      expect(url.toString(), contains('%20')); // the path has spaces
+      expect(url.toString(), contains('%20'));
       expect(url.toString(), contains('tuftsBaxter/ROS-for-LabVIEW-Software'));
       expect(url.pathSegments.last, 'OriginalTest.vi');
     });
@@ -57,7 +57,6 @@ void main() {
         },
       );
       addTearDown(() => fetched.projectDir.deleteSync(recursive: true));
-      // Main file + every dependency fetched; all written under the project dir.
       expect(urls.length, 1 + vi.dependencies.length);
       expect(fetched.fetchedDeps, vi.dependencies.length);
       expect(fetched.failedDeps, 0);
@@ -107,7 +106,6 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // The examples live in a toolbar menu (reachable before AND after a load).
     await tester.tap(find.byKey(const Key('examples')));
     await tester.pumpAndSettle();
     expect(find.text('3DBaxter.vi'), findsOneWidget);
@@ -115,12 +113,10 @@ void main() {
     await tester.tap(find.text('3DBaxter.vi'));
     await tester.pumpAndSettle();
 
-    // 3DBaxter has no in-repo deps: exactly one fetch, and the VI loaded.
     expect(urls, hasLength(1));
     expect(urls.single.pathSegments.last, '3DBaxter.vi');
     expect(find.text('Block Diagram'), findsOneWidget);
 
-    // The menu is still reachable after the load.
     expect(find.byKey(const Key('examples')), findsOneWidget);
   });
 
@@ -131,9 +127,6 @@ void main() {
     tester.view.devicePixelRatio = 1.0;
     addTearDown(tester.view.reset);
 
-    // A synthetic snippet PNG: a real PNG with the demo VI spliced in as
-    // niVI. Built inside runAsync — the engine-backed image encode never
-    // completes under the widget test's fake event loop.
     final snippetPng = (await tester.runAsync(() async {
       final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
       final png = await imageToPng(await imageFromRgba(rgba, 60, 60));
@@ -152,7 +145,6 @@ void main() {
 
     await tester.tap(find.text('crc8.png (VI snippet)'));
     await tester.pumpAndSettle();
-    // The embedded demo VI loaded and the paired reference armed the Oracle.
     expect(find.text('demo.vi'), findsWidgets);
     expect(find.text('Oracle'), findsOneWidget);
   });

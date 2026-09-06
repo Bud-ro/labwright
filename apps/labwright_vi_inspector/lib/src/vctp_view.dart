@@ -5,20 +5,8 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'span_annotations.dart';
 
-/// One type descriptor's byte span inside a `VCTP` body, paired with the decoded
-/// [ViType] it frames: [offset]/[length] locate the descriptor's raw bytes,
-/// [type] is `decodeTypePool(body)[index]` for the same index.
 typedef VctpSpan = ({int offset, int length, ViType type});
 
-/// Walks a `VCTP` body's pool framing and returns, per type descriptor, its exact
-/// byte span paired with the decoded [ViType] at the same index. The framing is
-/// `[u32 count]` then `count × [u16 descLen][descLen-2 interior]`
-/// (see `type_pool.dart`), so descriptor `i` occupies `[off, off+descLen)`; each
-/// span is paired to `decodeTypePool(body)[i]` by index. The spans tile the
-/// descriptor region contiguously (span `i` ends exactly where span `i+1`
-/// begins); the leading count word and the trailing top-level index list are not
-/// type descriptors and are not covered. Total: returns `const []` on a
-/// malformed/short pool rather than throwing.
 List<VctpSpan> vctpTypeSpans(Uint8List body) {
   final types = decodeTypePool(body);
   if (types.isEmpty || body.length < 8) return const [];
@@ -36,16 +24,9 @@ List<VctpSpan> vctpTypeSpans(Uint8List body) {
   return out;
 }
 
-/// A byte↔decode correlation view of the `VCTP` type pool: the section's raw
-/// bytes as a hex dump on the left, the decoded type descriptors as a list on the
-/// right, with bidirectional selection. Selecting a type highlights its byte span
-/// in the hex; tapping a hex byte highlights the owning descriptor in the list and
-/// names the field the byte falls in. Byte spans are computed app-side from the
-/// pool framing via [vctpTypeSpans] (ViType carries no offsets).
 class VctpCorrelationView extends StatefulWidget {
   const VctpCorrelationView({super.key, required this.body});
 
-  /// The decompressed `VCTP` section body.
   final Uint8List body;
 
   @override
@@ -57,15 +38,10 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
   final _listScroll = ScrollController();
   late List<VctpSpan> _spans;
 
-  /// For every byte, the index into [_spans] of the descriptor that owns it, or
-  /// -1 when the byte is the count header / top-level index list (not a
-  /// descriptor).
   late List<int> _byteToSpan;
 
-  /// Selected descriptor index (into [_spans]), or -1 for none.
   int _selected = -1;
 
-  /// The last hex byte tapped, for the field-level detail line, or -1.
   int _selectedByte = -1;
 
   @override
@@ -106,8 +82,6 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     super.dispose();
   }
 
-  /// Selects descriptor [i], scrolls the hex to its span, and — when the
-  /// selection came from a hex tap ([fromHex]) — scrolls the type list to it too.
   void _select(int i, {bool fromHex = false, int byteOffset = -1}) {
     setState(() {
       _selected = i;
@@ -368,8 +342,6 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     );
   }
 
-  /// The field a byte offset falls in within its descriptor's framing:
-  /// `[u16 descLen][u8 flags][u8 code][interior]`.
   static String _fieldAt(VctpSpan span, int byteOffset) {
     final rel = byteOffset - span.offset;
     if (rel < 0) return '';

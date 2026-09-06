@@ -6,8 +6,6 @@ import 'package:test/test.dart';
 
 const _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
-/// Minimal big-endian RSRC (.vi): 32-byte header stored twice, five-u32 sub-header whose 4th word
-/// points at the block list (0x34), u32 block count, 12 bytes per block entry, trailing Pascal name.
 Uint8List _buildVi({
   String fileType = 'LVIN',
   List<String> blocks = const ['CONP', 'BDHb', 'vers'],
@@ -49,8 +47,6 @@ Uint8List _buildVi({
       .toBytes();
 }
 
-/// The core invariant: `parseVi` is TOTAL — for ANY bytes it either returns a usable [ViSummary] or
-/// throws [ViFormatException]. Anything else would crash the viewer on a real internet VI.
 void _mustBeTotal(Uint8List b) {
   try {
     final s = parseVi(b);
@@ -58,8 +54,7 @@ void _mustBeTotal(Uint8List b) {
       ..describe()
       ..toJson();
     expect(s.blocks.length, lessThanOrEqualTo(100002));
-  } on ViFormatException {
-    // acceptable: a clean, catchable rejection
+  } on ViFormatException catch (_) {
   } catch (e, st) {
     fail('parseVi leaked ${e.runtimeType} on ${b.length} bytes: $e\n$st');
   }

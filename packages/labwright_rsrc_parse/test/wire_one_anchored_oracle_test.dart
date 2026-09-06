@@ -10,33 +10,6 @@ import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 import 'wire_style_oracle.dart';
 
-/// Independent pixel oracle for the **one-anchored (walked) wire tier** — the
-/// polylines [ViWire.routePoints] / [ViWire.routeTree] ship
-/// ([WireRouteFidelity.walked]) when only one endpoint resolves an attach point
-/// and the far endpoint is a plain-node DCO (a primitive input/output or subVI
-/// terminal). The closed tier is proven by two-ended closure; the walked tier
-/// is placed by ONE attach point plus the stored table, so it is corroborated
-/// HERE against LabVIEW's own snippet renders.
-///
-/// **The headline signal is RUN overlay** — the fraction of a wire's PATH
-/// pixels that land on reference ink. The terminus-on-ink figure is NOT
-/// evidence the far end connects to the correct terminal: the walked terminus
-/// is snapped onto the far node's box edge, and the whole edge is ink, so it
-/// proves only "on the node outline," never "the right pin." It is recorded but
-/// never asserted as far-end correctness.
-///
-/// **Registration control.** Each snippet's diagram is registered onto its
-/// raster ([registerDiagram]); registration can still drift locally on a large
-/// diagram, which would make EVERY overlay there meaningless. So each snippet is
-/// gated on its CLOSED-tier control overlay (proven geometry): a snippet whose
-/// closed two-endpoint routes overlay below 90% is discarded from the walked
-/// census (`oa_reg_control_skip`) — its registration is untrustworthy.
-///
-/// The census also measures the **withheld** one-anchored walks (computed but
-/// NOT shipped) so the miss that justifies withholding them is pinned. Sample
-/// sizes are small; this pins the overlay measurement and the zero-gross-miss
-/// law, not a broad statistical claim. Corpus-wide ship counts live in
-/// `wire_route_census`.
 Map<String, int> _census(Uint8List png, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -75,8 +48,6 @@ Map<String, int> _census(Uint8List png, String path) {
     return false;
   }
 
-  // Pixel overlay (px, ink) of a wire's polylines — no side effects, so the
-  // control pass can measure without recording.
   (int, int) measure(List<List<ViPoint>> polys) {
     var px = 0, ink = 0;
     for (final poly in polys) {
@@ -94,13 +65,6 @@ Map<String, int> _census(Uint8List png, String path) {
     return (px, ink);
   }
 
-  // Registration control: the closed two-endpoint tier is proven geometry, so
-  // its overlay measures how faithfully THIS snippet registers. Below 90% (with
-  // enough sampled pixels to trust) the registration is unreliable and the
-  // whole snippet is discarded from the walked census.
-  // Standard-attach closures only: the DCO-child fallback tier's closures
-  // legitimately thread under node boxes (no visible ink), which would sink
-  // the control without measuring registration.
   var ctrlPx = 0, ctrlInk = 0;
   for (final w in bd.wires) {
     if (w.endpointOids.length != 2 || w.routePointsFidelity != WireRouteFidelity.closed) continue;
@@ -116,8 +80,6 @@ Map<String, int> _census(Uint8List png, String path) {
     return c;
   }
   bump('oa_reg_ok');
-  // The closed-tier baseline (pinned): the proven-geometry overlay this
-  // snippet corpus achieves, the bar the walked tier is compared against.
   bump('oa2_closed_runpx', ctrlPx);
   bump('oa2_closed_runink', ctrlInk);
 
@@ -146,30 +108,15 @@ Map<String, int> _census(Uint8List png, String path) {
       final a1 = bd.wireAttachPoint(w.endpointOids[1]);
       final oneAnchored = (a0 == null) ^ (a1 == null);
       if (w.routePointsFidelity == WireRouteFidelity.closed && (a0 == null || a1 == null)) {
-        // DCO-child fallback closures ([ViDiagram.dcoChildTerminalAttach]):
-        // zero-slack proven, but their runs legitimately thread under node
-        // boxes (a row cell's centre, a prim part's glyph half), so raw
-        // overlay is snapshot-tracked in its own bucket, outside the
-        // walked-tier gross-miss laws.
         record('oa2_dcoclosed', [w.routePoints!]);
         continue;
       }
       if (w.routePointsFidelity == WireRouteFidelity.walked) {
         if (a0 == null && a1 == null) {
-          // Wide-row fallback-anchored walks: the anchor is a row cell's
-          // centre inside the node body — measured apart for the same
-          // reason as the fallback closures above.
           record('oa2_dcorow', [w.routePoints!]);
           continue;
         }
         if (w.routeHeadSlack != null) {
-          // Head-slack tier: the head-side points carry an app-resolved
-          // degree of freedom (terminal depth), so raw overlay is measured
-          // in its own bucket — the strict qlo law governs unslacked ships
-          // only. Of the slack ship, the laws below pin one POINT (the
-          // anchor, on ink) and the head's identity (a prim `0x15` DCO,
-          // which is what makes the depth builtin-terminal geometry); the
-          // closing-run overlay is snapshot-tracked, not law-pinned.
           record('oa2_slack', [w.routePoints!]);
           bump('oa2_slack_anchor');
           if (onInk(w.routePoints!.last)) bump('oa2_slack_anchor_ink');
@@ -180,19 +127,11 @@ Map<String, int> _census(Uint8List png, String path) {
           continue;
         }
         record('oa2_ship', [w.routePoints!]);
-        // ISOLATED into-node census: the novel reinterpretation is shipping the
-        // TRUNCATED polyline (last decoded bend inside the node) for a wire
-        // whose closing run enters the node. Measure ITS run overlay on its own
-        // — not folded into the aggregate — so the reinterpretation is proven
-        // to overlay ink independently, with its own gross-miss law below.
         if (w.routeClosingStep != null) record('oa2_into', [w.routePoints!]);
-        // Terminus-on-ink: recorded, NOT asserted — a box-edge snap lands on
-        // the node outline regardless of the exact pin (see the library doc).
         final terminus = a0 != null ? w.routePoints!.last : w.routePoints!.first;
         bump('oa2_ship_term');
         if (onInk(terminus)) bump('oa2_ship_term_ink');
       } else if (w.routePoints == null && oneAnchored) {
-        // Withheld: the walk exists but did not ship. Measure what it would be.
         final ai = a0 != null ? 0 : 1;
         final farBox = w.endpointAnchors[1 - ai];
         if (farBox == null) continue;
@@ -216,7 +155,6 @@ Map<String, int> _census(Uint8List png, String path) {
   return c;
 }
 
-/// Ink-overlay percentage of a tier (runink / runpx), or -1 when unsampled.
 int _pct(Map<String, int> c, String tier) {
   final px = c['${tier}_runpx'] ?? 0;
   if (px == 0) return -1;
@@ -239,18 +177,8 @@ void main() {
   });
 
   test('one-anchored oracle law: NO shipped two-endpoint walk grossly misses the ink', () {
-    // The real gate: the structural ship gate (exact anchor, cross-axis
-    // containment, no shift-register bent anchor; bent reverse walks are
-    // diverted to the slack bucket) admits ZERO shipped two-endpoint walks
-    // below 50% path overlay. The
-    // aggregate floor below is secondary; this per-wire law is what proves no
-    // fabricated route is silently shipped.
     expect(C['oa2_ship_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry shipped walked polylines');
     expect(C['oa2_ship_qlo'] ?? 0, 0, reason: 'no shipped two-endpoint walk overlays below 50% ink');
-    // Head-slack ships: raw overlay is app-resolved, but the anchored end is
-    // exact and must sit on ink unconditionally, and every slack head is a
-    // prim-parented `0x15` DCO — the fact that makes the unresolved depth
-    // builtin-terminal geometry rather than a decode gap.
     expect(C['oa2_slack_anchor'] ?? 0, greaterThan(0), reason: 'the snippets carry head-slack ships');
     expect(
       C['oa2_slack_anchor_ink'] ?? 0,
@@ -262,7 +190,6 @@ void main() {
       C['oa2_slack_anchor'] ?? 0,
       reason: 'every head-slack ship heads at a prim DCO terminal',
     );
-    // Path overlay stays at the proven closed-tier's own snippet level.
     final shipPx = C['oa2_ship_runpx'] ?? 0, shipInk = C['oa2_ship_runink'] ?? 0;
     expect(
       shipInk * 100,
@@ -274,19 +201,12 @@ void main() {
       greaterThanOrEqualTo(_pct(C, 'oa2_closed') - 3),
       reason: 'shipped walked overlay tracks the closed-tier control',
     );
-    // Withheld one-anchored walks overlay measurably WORSE — the miss that
-    // justifies the gate withholding them.
     if ((C['oa2_held_runpx'] ?? 0) > 0) {
       expect(_pct(C, 'oa2_held'), lessThan(_pct(C, 'oa2_ship')), reason: 'withheld walks overlay worse than shipped');
     }
   });
 
   test('one-anchored oracle law: into-node ships overlay ink on their own', () {
-    // The into-node reinterpretation ships the TRUNCATED polyline (last decoded
-    // bend inside the node) instead of withholding. Measured in ISOLATION here
-    // — not folded into the aggregate — its run pixels must overlay reference
-    // ink, with the SAME zero-gross-miss law as the aggregate: no into-node ship
-    // below 50% overlay. This proves the novel ship overlays ink by itself.
     expect(C['oa2_into_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry into-node ships');
     expect(C['oa2_into_qlo'] ?? 0, 0, reason: 'no into-node ship overlays below 50% ink');
     final px = C['oa2_into_runpx'] ?? 0, ink = C['oa2_into_runink'] ?? 0;
@@ -296,19 +216,11 @@ void main() {
   test('one-anchored oracle: shipped branch trees overlay well, with a documented drift residue', () {
     final shipPx = C['oab_ship_runpx'] ?? 0, shipInk = C['oab_ship_runink'] ?? 0;
     if (shipPx == 0) return;
-    // Walked branch trees are DECODED LabVIEW geometry (not fabricated) placed
-    // from the origin; overall they overlay well.
     expect(
       shipInk * 100,
       greaterThanOrEqualTo(85 * shipPx),
       reason: 'shipped walked trees overlay reference ink >= 85%',
     );
-    // A residue overlays below 50%: junction-catalog drift on a plain-node arm
-    // that no resolved leaf can close against — the drift the closed tier
-    // rejects via leaf closure but the walked tier cannot detect at decode
-    // time (no structural signal isolates it; corroboration/containment/junction
-    // -risk gates were measured and do not separate it). Bounded as a
-    // regression guard; the exact count is pinned by the snapshot.
     final qlo = C['oab_ship_qlo'] ?? 0, wires = C['oab_ship_wires'] ?? 1;
     expect(
       qlo * 20,

@@ -21,54 +21,25 @@ void main() {
   testWidgets('stop, bool T/F, and enum-pager chrome are byte-exact', (
     tester,
   ) async {
-    // Reference-measured chrome: the while-loop stop terminal, boolean T/F
-    // constant blocks (value = decoded constBool), and the enum/ring control
-    // terminal's pager glyphs. Each pinned box must match the reference
-    // byte-for-byte (dominant capture palette; fg-class captures differ only
-    // by the known boolean-green variance and are not pinned).
     const expected = {
       'Tokenize URL.png': [('stop', 286, 262, 16, 16)],
       'crc8.png': [
         ('F', 284, 472, 16, 14),
-        // Selector strips (chrome only; the value text region is AA text and
-        // sits inside these two side windows' gap).
         ('selector-left', 554, 237, 10, 17),
         ('selector-right', 599, 237, 20, 17),
-        // Thick-wire branch junction: the 2/4/6/6/4/2 diamond on the 2 px
-        // LUT wire's fork at (512,178), plus the surrounding wire runs.
         ('junction', 506, 172, 13, 13),
-        // Slack-headed prim departures resolved by the builtin-terminal
-        // catalog ([bdPrimTerminalOf]): each box covers the wire's bend
-        // column and arrival runs beside the head prim.
         ('slack-271', 378, 481, 33, 17),
-        // slack-686's window starts BESIDE its head node (oid 641, a class68
-        // growable): no class-icon asset is bundled, so the node body itself
-        // is not reference-exact — the wire chrome beside it still is.
         ('slack-686', 758, 304, 49, 17),
-        // Straight 2-point stub runs between builtin terminals: the visible
-        // gap between the two nodes' art ink (dotted boolean for 293).
         ('stub-293', 296, 473, 13, 15),
-        // stub-1393/-701 arrive at class68 growable nodes (oids 1224/641):
-        // their windows stop at the node box — no class-icon asset is
-        // bundled, so the node bodies are not reference-exact.
         ('stub-1393', 578, 274, 7, 15),
         ('stub-701', 715, 303, 10, 15),
         ('stub-704', 686, 303, 11, 15),
-        // stub-881 likewise stops at oid 789's class68 box.
         ('stub-881', 895, 311, 9, 15),
-        // Diagram-disable structure: a single 1px (153,153,153) rectangle
-        // (no double line, no tint) — pinned as four border strips.
         ('disable-top', 184, 163, 239, 1),
         ('disable-bottom', 184, 255, 239, 1),
         ('disable-left', 184, 163, 1, 93),
         ('disable-right', 422, 163, 1, 93),
-        // The disabled LUT chain's seam stubs: dimmed-blue ink on the row
-        // t+16 at every prim abutment (straight-stub tier + the chain's
-        // terminal-catalog entries).
         ('disable-seams', 246, 222, 159, 5),
-        // Named numeric constants (`bytes` / `8-bits`, the loop-N feeders):
-        // the 2 px blue value box draws at the 0x9 part bounds; the border
-        // strips are pinned (the interior digit text is AA text).
         ('bytes-box-top', 125, 374, 25, 2),
         ('bytes-box-bottom', 125, 391, 25, 2),
         ('bytes-box-left', 125, 374, 2, 19),
@@ -77,9 +48,6 @@ void main() {
         ('8bits-box-bottom', 242, 449, 13, 2),
         ('8bits-box-left', 242, 432, 2, 19),
         ('8bits-box-right', 253, 432, 2, 19),
-        // Array-constant furniture (Polynomial + U8 LUT): wrap frames,
-        // index spinner boxes/arrows, element 3 px ring — pinned as strips
-        // that exclude the AA value/index digit text.
         ('array-poly-top', 75, 397, 76, 6),
         ('array-poly-bottom', 75, 414, 76, 9),
         ('array-poly-left', 75, 397, 11, 26),
@@ -91,12 +59,6 @@ void main() {
         ('array-lut-mid', 464, 166, 7, 26),
         ('array-lut-right', 496, 166, 8, 26),
       ],
-      // MD5's constant chrome: the hex spinner constants' 2px blue value
-      // box + the measured radix-marker glyphs (x/b at the 0xb part), the
-      // Indices 2D grid's cell-ring lattice (top band, a vertical wall, a
-      // horizontal wall — strips exclude the AA digit text), a per-cell
-      // radix marker inside the T array, and the empty array's dim-ringed
-      // prototype cell.
       'MD5.png': [
         ('s1-box-top', 740, 448, 61, 2),
         ('s1-box-bottom', 740, 465, 61, 2),
@@ -113,8 +75,6 @@ void main() {
         ('empty-ring-left', 478, 466, 3, 21),
         ('empty-ring-right', 490, 466, 3, 21),
       ],
-      // The crc siblings' slack wires resolve through the same catalog
-      // entries; each box covers the wire's bends and both arrivals.
       'crc16.png': [
         ('slack-271', 372, 484, 34, 11),
         ('slack-683', 782, 303, 29, 15),
@@ -124,81 +84,44 @@ void main() {
         ('slack-2396', 736, 523, 29, 15),
         ('slack-3742', 1000, 517, 29, 25),
       ],
-      // The flat sequence's film-strip border (top/bottom sprocket bands,
-      // woven side columns, inter-frame divider) on clean stretches away
-      // from border tunnels.
       'Excel_Read_XLSX.png': [
         ('filmstrip-top', 1000, 851, 31, 10),
         ('filmstrip-bottom', 1000, 1142, 31, 10),
         ('filmstrip-left', 870, 950, 6, 23),
         ('filmstrip-right', 1334, 966, 6, 8),
         ('filmstrip-divider', 1249, 950, 7, 24),
-        // An XNode facade drawn verbatim from its DSIM image, including the
-        // braid (error-cluster) wire crossing under it.
         ('xnode-facade', 636, 1068, 46, 30),
-        // The braid wire's measured three-colour band on a clean stretch.
         ('braid', 500, 1069, 40, 5),
-        // The free-label comment's backing: 1px black border ring filled
-        // with the decoded background colour. Strips hug each border edge
-        // away from the comment's text and overlapping constants.
         ('label-backing-top', 435, 826, 40, 3),
-        // One row tighter to the border than the top strip. Measured over
-        // x=430..469: the reference's backing runs cream (255,255,204) to
-        // row 916 and its 1 px black bottom border is row 917 — both
-        // byte-exact here. Row 915 is cream across all 40 reference
-        // columns, but our comment text drops 2 px of descender fringe
-        // into it (x=452 221,221,177 and x=453 218,218,175), so the strip
-        // starts below it. TODO(text-fringe): that fringe is a real
-        // text-layer defect — our last line sits one row lower than the
-        // reference's; fix it and restore the row.
+        // TODO(text-fringe): starts one row below the reference's backing edge; our descender fringe lands on that row.
         ('label-backing-bottom', 430, 916, 40, 2),
         ('label-backing-left', 423, 850, 3, 20),
         ('label-backing-right', 692, 850, 4, 20),
-        // The grown 0x63 node's plate ring (1px 0x444444 on white), on
-        // strips clear of its row text, dividers and terminal cells.
         ('growable-top', 1404, 899, 60, 1),
         ('growable-bottom', 1404, 967, 60, 1),
         ('growable-left', 1397, 920, 1, 20),
         ('growable-right', 1516, 920, 1, 20),
-        // One row lower than the row-text bottom. Measured over
-        // x=1404..1443: the reference's row text ends at row 911 and rows
-        // 912..915 are white, but our render carries 3 px of row-text AA
-        // into row 912 (x=1418/1419 255,253,255, x=1435 255,252,255), so
-        // the strip starts at 913. TODO(text-fringe): same one-row-low
-        // fringe as label-backing-bottom; fix it and restore row 912.
+        // TODO(text-fringe): starts one row below the reference's row-text bottom; our text AA lands on row 912.
         ('growable-field', 1404, 913, 40, 3),
-        // Path constants (0x5b under a 0x13 holder): plain 2px border, no
-        // inner ring; strips skirt the colored value text.
         ('path-const-top', 770, 934, 40, 3),
         ('path-const-bottom', 770, 949, 40, 4),
         ('path-const2-top', 770, 968, 40, 3),
-        // Flat-sequence border tunnels (0x2a/0xcb): 1px ring + solid
-        // wire-colour fill punched through the film-strip band — the last
-        // one is the braid wire's olive-filled tunnel.
         ('seq-tunnel-2a', 1331, 890, 9, 9),
         ('seq-tunnel-cb-str', 1248, 890, 9, 9),
         ('seq-tunnel-cb-int', 1248, 1041, 9, 9),
         ('seq-tunnel-cb-err', 1248, 1125, 9, 9),
-        // Growable-node internals (white flavour): row dividers at the 0x62
-        // strip boundaries and the right terminal cells (black separator
-        // columns + cream fills); the yellow flavour's ring + field.
         ('growable-div-1', 1398, 916, 60, 1),
         ('growable-div-2', 1398, 933, 60, 1),
         ('growable-div-3', 1398, 950, 60, 1),
         ('growable-cells', 1500, 903, 17, 10),
         ('growable-yellow-left', 423, 888, 2, 12),
-        // The path INDICATOR terminal draws its measured mirrored art.
         ('path-indicator', 1852, 678, 32, 16),
-        // Film-strip corners (checker + clipped hole + interrupted inner
-        // border) and the divider junctions through the border rows.
         ('strip-corner-tl', 870, 852, 6, 9),
         ('strip-corner-tr', 1334, 852, 6, 9),
         ('strip-corner-bl', 870, 1142, 6, 9),
         ('strip-corner-br', 1334, 1142, 6, 9),
         ('strip-div-top', 1244, 858, 16, 4),
         ('strip-div-bot', 1244, 1140, 16, 4),
-        // The enabled-frame disable structure's grey crosshatch band
-        // (left/right/bottom) and plain black top row.
         ('disable-left', 707, 1030, 3, 13),
         ('disable-tunnel', 707, 1043, 9, 9),
         ('disable-right', 848, 1030, 3, 16),
@@ -269,11 +192,6 @@ void main() {
   testWidgets('hatch phase derives per capture and rephases to the reference', (
     tester,
   ) async {
-    // LabVIEW anchors the case-hatch lattice to its device brush origin at
-    // capture time (not stored in the .vi), so the oracle measures each
-    // reference's phase. Expected offsets are pinned from the captures; the
-    // rephased render's hatch ring must then match the reference nearly
-    // everywhere (the small remainder is border-terminal overdraw).
     const expected = {
       'crc8.png': ((x: 0, y: 0), 716, 0.95),
       'fg.png': ((x: 0, y: 2), 128, 0.95),
@@ -370,10 +288,6 @@ void main() {
   testWidgets('measured terminal art matches its reference somewhere per key', (
     tester,
   ) async {
-    // For each (datatype, direction) with measured art ([kBdTerminalArt]),
-    // at least one terminal of that key in its source VI must render
-    // byte-exact (siblings may be overdrawn by wires; the clean one proves
-    // the art). Files chosen from the majority-vote winners' sources.
     const expected = {
       'crc8.png': [(ViDataType.u8, false), (ViDataType.boolean, false)],
       'crc32.png': [(ViDataType.u32, false)],
@@ -463,11 +377,6 @@ void main() {
   testWidgets('error cases derive their stripe phase and rephase to match', (
     tester,
   ) async {
-    // A case displaying its "No Error" frame draws the green stripe band
-    // ([bdErrorCaseOids] / [kBdErrorHatch]); the stripe lattice carries a
-    // per-capture phase of its own, independent of the black hatch's. Both
-    // derived offsets are pinned; the rephased green ring must then match the
-    // reference (strict 4-class: green field / grey stripe / black / other).
     const expected = {
       'GetCurrentDirectory.png': ((x: 0, y: 0), (x: 2, y: 0), 2380, 0.95),
       'Read VI Blocks.png': ((x: 3, y: 0), (x: 1, y: 0), 8715, 0.95),
@@ -582,7 +491,6 @@ void main() {
     );
     expect(cmp.objects, 2);
     expect(cmp.meanSupport, closeTo(0.4, 1e-9));
-    // (0.6-0.2)/0.8 = 0.5 and (0.2-0.2)/0.8 = 0 → mean 0.25.
     expect(cmp.excessSupport, closeTo(0.25, 1e-9));
     expect(
       const PlacementComparison(perObject: [], chance: 0.5).excessSupport,
@@ -601,7 +509,6 @@ void main() {
       expect((asIs.image.width, asIs.image.height), (60, 60));
       final snippet = spliceNiVi(plain, demoViBytes());
       final cropped = await decodeReferenceImage(snippet);
-      // Interior [2, 58) × [26, 58) — header strip and dashed frame removed.
       expect(cropped.snippetCropped, isTrue);
       expect((cropped.image.width, cropped.image.height), (56, 32));
     });
@@ -610,9 +517,6 @@ void main() {
   testWidgets('placement scores a self-reference high and a shift low', (
     tester,
   ) async {
-    // A structure frame + a node box: rendered, then compared against the
-    // render itself (identity registration). Correct placement traces the
-    // drawn outlines exactly; a 15-px shift must rank strictly lower.
     final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
       ..category = ViObjectKind.structure
       ..absBounds = const HeapRect(top: 0, left: 0, bottom: 160, right: 240);
@@ -642,7 +546,6 @@ void main() {
         height: raster.image.height,
       );
       final aligned = at(0);
-      // The loop frame and node measure; the whole-extent root is excluded.
       expect(aligned.perObject.map((e) => e.oid), unorderedEquals([2, 3]));
       expect(aligned.meanSupport, greaterThan(0.95));
       expect(aligned.excessSupport, greaterThan(at(15).excessSupport));
@@ -652,15 +555,6 @@ void main() {
   group('snippet corpus sweep', () {
     final pngs = snippetCorpusPngs();
 
-    // Measured floors (well under the observed scores, see the sweep print):
-    // a placement/rendering regression on any of these drops below its floor.
-    //
-    // Placement is a MEAN over the boxes a VI decodes, so a decode that draws
-    // an object it previously omitted moves it by that object's own support.
-    // `FileReadOnly.png` is the corpus's one such case: its box count is 8
-    // where it was 7, and the eighth scores near chance, which pulls the mean
-    // down even though the same decode lifts the VI's structural score from
-    // 31.5% to 67.8%. Its floor is set under the 8-box measurement.
     const floors = <String, double>{
       'fg.png': 0.92,
       'sub_vi_missing.png': 0.92,
@@ -701,10 +595,6 @@ void main() {
       'crc32.png': 0.64,
       'Resolve Path.png': 0.62,
       'PNG CRC32.png': 0.60,
-      // The typed-value decode draws the `LE: 0x04C11DB7` named constant
-      // (its box chrome byte-matches the reference); the terminal's
-      // composite caption+box BOUNDS trace no reference edge, so the
-      // bounds-perimeter metric scores the new object low — 0.585 measured.
       'crc32_lookup_table.png': 0.56,
       'Excel_Read_XLSX.png': 0.60,
       'decorations_only.png': 0.60,
@@ -716,8 +606,6 @@ void main() {
       tester,
     ) async {
       if (pngs.isEmpty) return;
-      // Real glyphs, not Ahem blocks — canvas text is part of what the
-      // oracle measures.
       await loadRealTextFont();
       expect(pngs, hasLength(46));
       var placementSum = 0.0, shiftedSum = 0.0, measured = 0;
@@ -731,7 +619,6 @@ void main() {
           final raster = (await rasteriseBlockDiagram(
             diagram!,
             scale: 1.0,
-            // The same ink+2px crop the production Oracle tab renders with.
             margin: 2,
           ))!;
           final reference = await decodeReferenceImage(png);
@@ -772,7 +659,6 @@ void main() {
             'shifted=${(shifted.excessSupport * 100).toStringAsFixed(1)}%',
           );
           expect(placement.chance, inExclusiveRange(0, 1), reason: name);
-          // Excess is support read against chance — never above the raw rate.
           expect(
             placement.excessSupport,
             lessThanOrEqualTo(placement.meanSupport + 1e-9),
@@ -793,12 +679,6 @@ void main() {
           }
         }
       });
-      // The metric ranks true placement above a 12-px displaced control **in
-      // aggregate** across the corpus. Per-snippet strictness is deliberately
-      // not asserted here: on a VI whose decode is systematically mismatched
-      // (an honest gap the oracle exists to expose) both offsets score
-      // near-noise and can tie — the metric's ranking property itself is
-      // pinned by the synthetic self-reference test above.
       expect(measured, greaterThan(20));
       expect(
         placementSum / measured,

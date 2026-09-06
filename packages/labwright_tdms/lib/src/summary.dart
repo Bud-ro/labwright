@@ -2,10 +2,6 @@ import 'dart:typed_data';
 
 import 'reader.dart';
 
-/// A machine-readable (JSON-encodable) summary of a TDMS file: root properties
-/// and, per group/channel, value counts, min/max/mean for numeric channels, and
-/// properties. Timestamps are emitted as ISO-8601 strings so the whole map is
-/// `jsonEncode`-safe. Complements the human-readable `inspectTdms`.
 Map<String, Object?> tdmsSummary(Uint8List bytes) {
   final file = TdmsReader.read(bytes);
   return {

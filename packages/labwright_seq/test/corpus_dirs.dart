@@ -1,9 +1,5 @@
 import 'dart:io';
 
-/// Resolves this package's gitignored TestStand corpus (`<pkg>/corpus/seq/`),
-/// checked out by `tool/fetch_seq_corpus.dart`. Tests run from either the repo
-/// root or the package dir, so walk up from CWD checking both the package-relative
-/// location and the package-local one.
 Directory _corpusSeqRoot() {
   const pkgRel = 'packages/labwright_seq/corpus';
   var dir = Directory.current;
@@ -20,10 +16,6 @@ Directory _corpusSeqRoot() {
   return Directory('corpus/seq');
 }
 
-/// The fetched TestStand corpus (every pinned source). Empty/absent until
-/// fetched — corpus tests skip when it does not exist.
 final Directory corpusSeqDir = _corpusSeqRoot();
 
-/// The committed corpus metrics snapshot (written by `tool/snapshot.dart`,
-/// asserted exactly by the corpus tests via `snapshot_check.dart`).
 File corpusSeqSnapshotFile() => File('${corpusSeqDir.parent.path}/snapshot.json');

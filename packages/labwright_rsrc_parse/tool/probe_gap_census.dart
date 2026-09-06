@@ -6,24 +6,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Full-corpus GAP CENSUS + `0xCB` multi-axis probe.
-///
-/// Census: every walked heap span is keyed by its record family
-/// (`C4:<op>`, `attr:<id>:<width>`, `tok:<op><subop>`, `ref:<subop>`, …) and its
-/// [heapDecodeTier]; byte totals per (tier, key) itemize exactly where the
-/// non-semantic bytes live.
-///
-/// 0xCB axes (new — the enclosing-kind/width/co-0xDF axes were already refuted):
-///   - PREV/NEXT record key in the same object (positional grammar).
-///   - byte decomposition per storage width (hi/mid/lo byte histograms,
-///     lo16==0 rate) — flags word vs coordinate vs fixed-point signature.
-///   - identity tests against the same object's decoded bounds (C4 2D),
-///     size rect (C4 1F), caption length (C4 22), oid, and the immediately
-///     preceding attribute's value.
-///   - sequential position of the 0xCB record within its object.
-///   - monotonicity across sibling objects under one parent.
-///   - per-VI-version value stability (dominant-value share per version).
-///
 /// Run: `dart run tool/probe_gap_census.dart [corpusRoot=<pkg>/corpus/vi]`
 
 class CappedHist {
@@ -45,8 +27,6 @@ class CappedHist {
   }
 
   void merge(CappedHist other) {
-    // add() bumps total for every counted record; other's overflowed records
-    // carry only their count, so fold them into both tallies explicitly.
     other.counts.forEach(add);
     overflow += other.overflow;
     total += other.overflow;
@@ -59,24 +39,21 @@ class CappedHist {
 }
 
 class _Agg {
-  // Census: (tier index, key) -> bytes / count.
   final Map<String, int> tierKeyBytes = {};
   final Map<String, int> tierKeyCount = {};
 
-  // 0xCB axes.
   final Map<String, CappedHist> cbByPrevKey = {};
   final Map<String, CappedHist> cbByNextKey = {};
-  final Map<int, CappedHist> cbByteHist = {}; // (width*4+bytePos) -> byte value hist
+  final Map<int, CappedHist> cbByteHist = {};
   int cbU24 = 0, cbU24Lo16Zero = 0, cbU24Lo8Zero = 0;
   int cbU16 = 0, cbU8 = 0, cbRgb = 0;
-  // identity tests: name -> matches, with a shared trial count per family.
   final Map<String, int> idMatch = {};
   int idTrialsBounds = 0, idTrialsCaption = 0, idTrialsPrevAttr = 0, idTrialsOid = 0;
   final CappedHist cbPosition = CappedHist();
   int monoParents = 0, monoNonDec = 0, monoStrictInc = 0, monoAllEqual = 0;
   int multiCbObjects = 0, multiCbNonDec = 0, multiCbAllEqual = 0;
   final Map<String, CappedHist> cbByVersion = {};
-  final Map<int, CappedHist> cbByKindU24Hi = {}; // enclosing kind -> hi-byte hist (u24 only)
+  final Map<int, CappedHist> cbByKindU24Hi = {};
 
   void bump(Map<String, int> m, String k, int n) => m[k] = (m[k] ?? 0) + n;
 
@@ -121,7 +98,7 @@ class _Node {
   final List<_Node> children = [];
   HeapRect? bounds;
   int? captionLen;
-  List<(int, int, int)>? cb; // (widthIndex, value, recordIndex)
+  List<(int, int, int)>? cb;
   int recordIndex = 0;
 }
 
@@ -132,7 +109,6 @@ class _Ev {
   final String key;
 }
 
-/// Family key for the record at [offset] (framing-aligned with [recordSkip]).
 String _keyAt(Uint8List body, int offset, int lead) {
   if (heapObjectHeaderAt(body, offset) != null) return 'hdr';
   if (kHeapGroupCloseLeads.contains(lead)) return 'close';
@@ -194,8 +170,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
       onRecord: (span, node) {
         final key = _keyAt(body, span.offset, span.lead);
         events.add(_Ev(span.offset, span.length, span.lead, node, key));
-        // Census (records only; opens/closes/headers not delivered here are
-        // credited semantic by the tier metric anyway).
         final grade = heapDecodeTier(body, span.offset, span.lead, sec.tag);
         final tk = '${grade.tier.index}|$key';
         agg.bump(agg.tierKeyBytes, tk, span.length - grade.valueKindPayloadBytes);
@@ -205,7 +179,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
         agg.bump(agg.tierKeyCount, tk, 1);
         if (node == null) return;
         node.recordIndex++;
-        // Per-object gather for identity tests.
         if (span.lead == kHeapRecordPrefix && span.offset + 2 <= body.length) {
           final op = body[span.offset + 1];
           if (op == 0x2d && node.bounds == null) {
@@ -223,7 +196,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
       },
     );
 
-    // prev/next positional grammar for 0xCB.
     for (var i = 0; i < events.length; i++) {
       final ev = events[i];
       if (!ev.key.startsWith('attr:cb:')) continue;
@@ -234,7 +206,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
       final next = i + 1 < events.length && identical(events[i + 1].node, ev.node) ? events[i + 1] : null;
       (agg.cbByPrevKey[prev?.key ?? '<objBoundary>'] ??= CappedHist()).add(v);
       (agg.cbByNextKey[next?.key ?? '<objBoundary>'] ??= CappedHist()).add(v);
-      // prev-attr value identity.
       if (prev != null && prev.key.startsWith('attr:')) {
         final pa = decodeHeapAttr(body, prev.offset);
         final pv = pa?.asInt;
@@ -243,7 +214,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
           if (pv == v) agg.bump(agg.idMatch, 'prevAttrEq', 1);
         }
       }
-      // width tallies + byte decomposition.
       switch (a.width) {
         case HeapAttrWidth.u8:
           agg.cbU8++;
@@ -270,7 +240,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
       (agg.cbByVersion[version] ??= CappedHist()).add(v);
     }
 
-    // Per-object identity + position + monotonicity.
     void visit(_Node n) {
       final cb = n.cb;
       if (cb != null) {
@@ -307,7 +276,6 @@ void _probeVi(Uint8List bytes, _Agg agg) {
           if (allEq) agg.multiCbAllEqual++;
         }
       }
-      // Sibling monotonicity: children with >=1 cb, in declaration order.
       final seq = [
         for (final c in n.children)
           if (c.cb != null && c.cb!.isNotEmpty) c.cb!.first.$2,
@@ -379,7 +347,6 @@ Future<void> main(List<String> args) async {
   }
   stdout.writeln('probe pass: ${sw.elapsedMilliseconds} ms');
 
-  // ---- census ----
   final totalBytes = agg.tierKeyBytes.values.fold<int>(0, (a, b) => a + b);
   stdout.writeln('\n#### GAP CENSUS (record bytes by tier|key; total=$totalBytes) ####');
   for (final tier in [1, 2]) {
@@ -399,7 +366,6 @@ Future<void> main(List<String> args) async {
     if (rows.length > 40) stdout.writeln('  ... ${rows.length - 40} more');
   }
 
-  // ---- 0xCB ----
   stdout.writeln('\n#### 0xCB ####');
   stdout.writeln('widths: u8=${agg.cbU8} u16=${agg.cbU16} u24=${agg.cbU24} rgb=${agg.cbRgb}');
   stdout.writeln(

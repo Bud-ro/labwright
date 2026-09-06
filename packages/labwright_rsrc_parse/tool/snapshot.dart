@@ -5,29 +5,8 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Regenerates the committed corpus snapshot (`corpus/snapshot.json`):
-///
-/// 1. **Per-VI feature groups** — for each VI (via the exact app decode path
-///    `buildViModel`/`parseVi`) the front-panel object count, block-diagram
-///    object count, and resource-block set, grouped by block set so
-///    structurally-similar VIs cluster and each block list is written once.
-///    `corpus_snapshot_test.dart` asserts these EXACTLY — a count or block-set
-///    change in either direction is a reviewed snapshot diff.
-/// 2. **Metric sections** — the aggregate corpus censuses (coverage axes as
-///    raw counts, section-law numerator/denominator pairs, aux-decoder
-///    censuses). The corpus tests measure them (single source of truth: the
-///    code that asserts is the code that measures); this tool re-runs those
-///    tests with `LABWRIGHT_SNAPSHOT_UPDATE` pointed at a fragment directory
-///    where each `expectCorpusSnapshot` call site records its section, then
-///    merges the fragments in. `snapshot_check.dart` asserts them EXACTLY.
-///
 /// Run: `dart run tool/snapshot.dart [corpusDir]` (writes `<pkg>/corpus/snapshot.json`)
-/// Default corpusDir = the whole gitignored corpus fetched by tool/fetch_corpus.dart,
-/// resolved by the shared [corpusBaseDir]; enumeration via [listCorpusVis]
-/// (recursive, symlinks excluded). Aborts without writing when the test run
-/// fails — laws must hold before numbers are pinned.
 
-/// The corpus test files that own metric sections.
 const _sectionTests = [
   'test/const_value_census_test.dart',
   'test/corpus_coverage_test.dart',
@@ -55,12 +34,8 @@ void main(List<String> args) {
   final vis = listCorpusVis(dir);
 
   final root = '${dir.path}/';
-  // Group VIs by their resource-block SET, so structurally-similar VIs cluster
-  // together and the block list is recorded once per group instead of once per
-  // file. Each file carries its front-panel (fp) and block-diagram (bd) object
-  // counts. VIs that fail to decode go in a separate `errors` list.
-  final files = <String, List<Map<String, dynamic>>>{}; // blocksKey -> file records
-  final blockSet = <String, List<String>>{}; // blocksKey -> the block list
+  final files = <String, List<Map<String, dynamic>>>{};
+  final blockSet = <String, List<String>>{};
   final errors = <Map<String, dynamic>>[];
   for (final f in vis) {
     final name = f.path.startsWith(root) ? f.path.substring(root.length).replaceAll('\\', '/') : f.path;
@@ -79,9 +54,6 @@ void main(List<String> args) {
       errors.add({'name': name, 'error': e.toString()});
     }
   }
-  // Deterministic, diff-stable ordering: groups by block-set, files within a
-  // group by name, errors by name. A file changing its block-set moves groups
-  // but every group keeps its position, so diffs stay localized.
   final groupKeys = blockSet.keys.toList()..sort();
   for (final list in files.values) {
     list.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
@@ -94,9 +66,6 @@ void main(List<String> args) {
     return;
   }
 
-  // Pretty outer structure; each metric section key is one line, each file
-  // record stays compact on one line, and each group's block list is one line
-  // — readable and diffable over the whole corpus.
   const note =
       'Exact corpus snapshot: `sections` holds the aggregate metrics the '
       'corpus tests measure (asserted exactly by test/snapshot_check.dart); '
@@ -147,9 +116,6 @@ void main(List<String> args) {
   );
 }
 
-/// Runs the section-owning corpus tests in record mode and returns the merged
-/// sections (existing snapshot sections overlaid with the fresh fragments), or
-/// null when the test run failed.
 Map<String, Map<String, Object?>>? _measureSections(String corpusBase) {
   final pkgRoot = Directory(corpusBase).parent.path;
   final fragments = Directory.systemTemp.createTempSync('lw_rsrc_snapshot_');

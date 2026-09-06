@@ -9,19 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Corpus census for the BD-constant value decode (`decodeBdConstantValue` /
-/// `constText`) — the numbers its doc comments cite, recomputed from scratch
-/// and asserted exactly against the `bd_const_values` snapshot section.
-///
-/// Ground truth: a decoded constant whose flattened payload uniquely
-/// byte-matches ONE value slot of the VI's tiled `DFDS` data space
-/// ([dataSpaceSlots]) is typed by that slot's VCTP descriptor. Booleans are
-/// excluded from matching (their {0,1} payloads zero-extend onto any
-/// same-valued slot width, so a match carries no type information).
-
-/// VCTP kinds that agree with the integer gate: the fixed-width integer/enum
-/// family plus `typeDef` (a named wrapper whose byte-matched value is the
-/// integer regardless of the wrapping).
 const _intFamily = {
   ViDataType.i8,
   ViDataType.i16,
@@ -53,8 +40,6 @@ bool _bytesEq(Uint8List a, Uint8List b) {
   return true;
 }
 
-/// The record payload as flattened big-endian bytes zero-extended to [width]
-/// (scalar forms), or the raw container payload (whatever [width]).
 Uint8List _canonical(_Rec rec, int width) {
   final raw = rec.raw;
   if (raw != null) return raw;
@@ -83,7 +68,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
     if (d.tag == 'DFDS') dfds ??= d.bytes;
   }
 
-  // Slot index (length -> slots) over the tiled data space, for ground truth.
   Map<int, List<DataSpaceSlot>>? slotsByLen;
   List<ViType> pool = const [];
   List<int> table = const [];
@@ -128,7 +112,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
   for (final d in decoded) {
     if (d.bytes.length < 6 || !const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag)) continue;
     final body = d.bytes;
-    // Raw record capture (op, scalar, payload) keyed by constant oid.
     final recs = <int, _Rec>{};
     walkHeapObjects<({int kind, int oid})>(
       body,
@@ -154,8 +137,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
     bump('constants', recs.length);
     bump('multiRecordConstants', recs.values.where((r) => r.count > 1).length);
 
-    // Decode with no VCTP types in play: this census pins the FALLBACK tier
-    // of decodeBdConstValues (the type-independent gates) on its own.
     final diagram = buildDiagram(body, sectionTag: d.tag);
     decodeBdConstValues(diagram);
     for (final e in recs.entries) {
@@ -165,8 +146,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final scalar = rec.raw == null;
       if (o.constBool != null) {
         bump('decodedBool');
-        // Width by the op's high nibble: flag (0x0/0xE) and u8 (0x2) forms
-        // carry <= 1 value byte; the u16 form carries 2.
         final hi = rec.op >> 4;
         bump(scalar && (hi <= 0x2 || hi == 0xe) ? 'bool1Byte' : 'bool2Byte');
       } else if (o.kind == HeapObjectClass.bdConstDco.code &&
@@ -184,7 +163,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       if (o.constText != null) bump('decodedText');
       if (o.constBool == null && n == null && o.constText == null) bump('undecoded');
 
-      // Ground truth per gate (booleans excluded — see the library doc).
       if (n != null || o.constText != null) {
         final t = groundTruth(rec);
         if (t == null) continue;

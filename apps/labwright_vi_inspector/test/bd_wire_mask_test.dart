@@ -7,62 +7,21 @@ import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import 'util.dart';
 
-/// Wire pixel-perfection ratchets — the tests that grow the "known perfect"
-/// region of the render wire by wire, measured BOTH ways:
-///
-///  * OUR ink must be right: leave-one-out per-wire masks (re-rasterise
-///    without a wire; the changed pixels are its visible ink and every one
-///    must byte-equal the reference).
-///  * The REFERENCE's ink must be covered: reference pixels of the wire-ink
-///    palette that we leave white — outside node/terminal/label boxes (the
-///    icon campaign's art) — are MISSING wire ink (undrawn or misrouted
-///    wires), gauged without reference to what we chose to draw.
-///
-/// An exclusion may only remove pixels another layer PROVABLY owns, and
-/// every excluded pixel is reported in its own `excludedText` bucket: a
-/// gauge that can quietly absorb a defect is not a ratchet.
-///
-/// The floors are exact-state pins, not aspirations: a change that makes a
-/// perfect wire imperfect, or uncovers reference ink, fails here. When a fix
-/// (or new routing) moves a count, re-pin to the measured value and PROVE
-/// the delta against reference ink — never loosen. The same technique is
-/// the template for pinning every other drawn element class later.
-///
-/// Known Excel imperfect remainder (100 px over 15 wires at pin time): the
-/// braid T-junction art (sig 534), a prim stub whose output type is
-/// uncatalogued (2398), wire ink under the film-strip band (2806/495),
-/// crossing gaps against still-unrouted wires (5458/6282), patterned-band
-/// junction shapes (4838), bend-corner pattern trims, and anti-aliased
-/// chrome (terminal arrows) blending over wire ink. The missing-ink budget
-/// is dominated by the visible-frame signals whose routes are not yet
-/// decoded (Excel's 22 undrawn wires; see the census below).
-
-/// The wire-stroke ink palette on the white canvas (web-safe captures; an
-/// AA capture's blended wires undercount, which only slackens the gauge).
 const Set<int> kWireInkPalette = {
-  0xff00ff, // string family
-  0x006666, // path
-  0x0000ff, // integer
-  0x006600, // boolean
-  0x666600, // error braid flanks
-  0xffff00, // error braid weave
-  0xff6600, // float
-  0x660066, // tag
+  0xff00ff,
+  0x006666,
+  0x0000ff,
+  0x006600,
+  0x666600,
+  0xffff00,
+  0xff6600,
+  0x660066,
 };
 
-/// Mask bit for a pixel inside a node/terminal/label box — the icon
-/// campaign's art, not the wire layer's.
 const int kMaskArtBox = 1;
 
-/// Mask bit for a pixel inside one of the painter's own text runs
-/// ([BdScene.paintedText], grown 1 px).
 const int kMaskTextRun = 2;
 
-/// The scene's exclusion geometry rasterised ONCE into a `width * height`
-/// byte mask ([kMaskArtBox] | [kMaskTextRun]) in render-image coordinates,
-/// so a per-pixel gauge tests a byte instead of scanning every rect: the
-/// masks cost O(area + total rect area) to build and O(1) to read, where
-/// the per-pixel scan cost O(pixels x rects) on multi-megapixel rasters.
 Uint8List sceneExclusionMask({
   required BdScene scene,
   required BdRaster raster,
@@ -82,7 +41,6 @@ Uint8List sceneExclusionMask({
     }
   }
 
-  // Object bounds are diagram-space; the gauges walk image space.
   final cl = raster.content.left.toInt(), ct = raster.content.top.toInt();
   for (final o in scene.drawable) {
     final b = o.absBounds;
@@ -99,7 +57,6 @@ Uint8List sceneExclusionMask({
       );
     }
   }
-  // `Rect.contains` is half-open on right/bottom: `x >= left && x < right`.
   for (final run in scene.paintedText) {
     final r = run.rect.inflate(1);
     fill(
@@ -113,16 +70,6 @@ Uint8List sceneExclusionMask({
   return mask;
 }
 
-/// Whether the reference pixel at (`rx`, `ry`) is a ClearType subpixel
-/// FRINGE of the reference's own text: a horizontally adjacent reference
-/// pixel is glyph core (every channel < 0x80). Windows subpixel AA colours
-/// the left/right edge columns of a black stem, and some of those fringe
-/// colours land exactly on the wire palette — so a palette pixel with a
-/// dark horizontal neighbour inside a text run is text ink, while one
-/// without is wire ink passing under a label and MUST still be gauged.
-/// Corpus-measured over the 46 snippet references: 2 such pixels exist,
-/// both 0x660066 in Pages.png, both with a dark horizontal neighbour; no
-/// wire-palette colour other than 0x660066 occurs inside a text run at all.
 bool isTextFringe(int Function(int, int) refPixel, int rx, int ry) {
   bool dark(int rgb) =>
       rgb >= 0 &&
@@ -132,13 +79,6 @@ bool isTextFringe(int Function(int, int) refPixel, int rx, int ry) {
   return dark(refPixel(rx - 1, ry)) || dark(refPixel(rx + 1, ry));
 }
 
-/// Reference wire-ink pixels that [ourPixel] leaves white and that lie
-/// outside every node/terminal/label box ([kMaskArtBox]) — the coverage
-/// gauge. Palette pixels inside a painted text run ([kMaskTextRun]) are
-/// counted too UNLESS they are provable ClearType fringe of the
-/// reference's own glyphs ([isTextFringe]); those go to `excludedText`, a
-/// reported bucket rather than an invisible one, so a wire misrouted under
-/// a label still registers as missing ink.
 ({int missing, int excludedText}) missingWireInk({
   required Uint8List mask,
   required int Function(int, int) refPixel,
@@ -167,11 +107,6 @@ bool isTextFringe(int Function(int, int) refPixel, int rx, int ry) {
   return (missing: missing, excludedText: excludedText);
 }
 
-/// The per-wire leave-one-out gauge over one snippet reference: renders the
-/// diagram, then re-renders without each wire in turn — the changed pixels
-/// are that wire's visible ink and every one is compared byte-for-byte to
-/// the registered reference — and finally measures the reference wire ink
-/// left uncovered ([missingWireInk]). Null when the corpus is not fetched.
 Future<
   ({
     int drawn,
@@ -217,9 +152,6 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
       lockScale: 1.0 / raster.scale,
       anchorRects: bdStructureAnchorRects(bd, raster, drawable: scene.drawable),
     );
-    // The capture's wire-cycle phase (screen-anchored patterns; see
-    // [BdRenderStyle.wireCycleOffset]) — derived exactly as the oracle
-    // does, then both renders below use it.
     final wirePhase = deriveWireCycleOffset(
       scene: scene,
       raster: raster,
@@ -328,16 +260,9 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
 }
 
 void main() {
-  // Per-snippet exact-state pins: every drawn wire byte-perfect, zero
-  // off-reference wire-layer pixels, and the missing-ink pin. A change
-  // that moves a count must re-prove it against reference ink and re-pin
-  // DOWNWARD (missing) / hold at zero (off), never loosen.
   for (final (name, drawnFloor, offPin, missingPin) in const [
     ('Excel_Read_XLSX.png', 92, 0, 0),
-    // MD5's 3 off px are the wires' own ClearType fringe over prim1113's
-    // triangle edge — the blend pixels were removed from the icon asset on
-    // review (they are wire ink, not icon ink) and the wire pass does not
-    // yet composite arrival fringes. TODO(wire-fringe).
+    // MD5's 3 off px are wire ClearType fringe over prim1113's edge. TODO(wire-fringe).
     ('MD5.png', 187, 3, 0),
   ]) {
     testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
@@ -466,15 +391,6 @@ void main() {
           return (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
         }
 
-        // The wire LAYER's own visible pixels (with-wires vs without) that
-        // miss the reference. Inside the painter's own text runs (grown
-        // 1 px) a glyph's AA blend shifts with the wire underneath it, so
-        // the with/without diff picks the glyph fringe up as "wire" ink;
-        // that BLEND's accuracy is the text campaign's gauge. Only blends
-        // are handed over: a pixel our render leaves at an unblended
-        // wire-palette colour has no glyph contribution to explain it, so
-        // it counts here however deep under a label it sits. What is
-        // handed over is reported as `excludedText`, never absorbed.
         final mask = sceneExclusionMask(
           scene: scene,
           raster: withWires,
@@ -532,9 +448,6 @@ void main() {
         'excludedText=$totalExcludedText over ${rows.length} snippets',
       );
       expect(rows.length, greaterThanOrEqualTo(46), reason: 'corpus size');
-      // Aggregate exact-state pins over the 46 snippets (the two AA-machine
-      // captures, fg/large, contribute constant reference variance that can
-      // never byte-converge; they still guard against regressions).
       expect(
         totalOff,
         lessThanOrEqualTo(71239),

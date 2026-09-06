@@ -1,12 +1,5 @@
-/// Renders real corpus VIs through [ViDiagramView] (BD + FP) to PNGs under
-/// `build/render_snapshots/` so fidelity can be looked at. Skips when the
-/// corpus is not fetched.
-///
-/// It pumps widgets, so it runs under the flutter_test harness rather than as
-/// a plain script, from the app package root:
-///
+/// Renders corpus VIs to PNGs under `build/render_snapshots/`:
 ///     flutter test tool/render_snapshots.dart
-///
 library;
 
 import 'dart:io';
@@ -25,8 +18,7 @@ const _curatedVis = [
   'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/_TEST/test message before initialize.vi',
 ];
 
-/// `--dart-define=RENDER_SWEEP=true` renders ~100 diverse VIs instead of the
-/// curated two (round-robin across sources, deterministic size spread).
+/// `--dart-define=RENDER_SWEEP=true` renders ~100 VIs instead of the curated two.
 const bool _sweep = bool.fromEnvironment('RENDER_SWEEP');
 const int _sweepTarget = 100;
 
@@ -45,7 +37,6 @@ List<String> _diverseSample(Directory corpus) {
   final perSource = (_sweepTarget / bySource.length).ceil();
   final picks = <String>[];
   for (final files in bySource.values) {
-    // evenly spaced through the size-sorted list: smallest, spread, largest
     for (var i = 0; i < perSource && picks.length < _sweepTarget; i++) {
       final index = files.length <= perSource
           ? i
@@ -92,7 +83,6 @@ void main() {
         try {
           model = buildViModel(file.readAsBytesSync());
         } on ViFormatException {
-          // Not a real VI (e.g. the G-CLI test stub) — nothing to render.
           return;
         }
         final modelMs = lap();
@@ -121,8 +111,6 @@ void main() {
         final pumpMs = lap();
         final boundary =
             key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-        // toImage/toByteData perform real async work; run them outside the
-        // fake-async test zone or they can never complete.
         await tester.runAsync(() async {
           final image = await boundary.toImage();
           final rasterMs = lap();
@@ -136,7 +124,6 @@ void main() {
             'pump=${pumpMs}ms raster=${rasterMs}ms encode=${encodeMs}ms',
           );
         });
-        // Unmount so no timers/animations outlive the test.
         await tester.pumpWidget(const SizedBox.shrink());
         await tester.pump(const Duration(seconds: 1));
       });

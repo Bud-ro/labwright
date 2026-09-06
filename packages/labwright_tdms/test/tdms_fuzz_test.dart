@@ -1,5 +1,3 @@
-// The reader must be total on adversarial input: every byte string either
-// parses or raises TdmsFormatException — never RangeError, OOM, or a hang.
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -19,9 +17,7 @@ void main() {
   void readTotal(Uint8List b) {
     try {
       TdmsReader.read(b);
-    } on TdmsFormatException {
-      // The only permitted failure mode.
-    }
+    } on TdmsFormatException catch (_) {}
   }
 
   test('arbitrary random bytes never crash the reader', () {

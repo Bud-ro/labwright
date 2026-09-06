@@ -5,7 +5,6 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// A `Cx <id> 08 <f64>` scale/std-num parameter record.
 Uint8List f64Rec(int id, double v, {int op = 0xc5}) {
   final d = ByteData(11)
     ..setUint8(0, op)
@@ -15,7 +14,6 @@ Uint8List f64Rec(int id, double v, {int op = 0xc5}) {
   return d.buffer.asUint8List();
 }
 
-/// Decodes [bytes] and checks every supplied expectation; `no*` flags assert the accessor is null.
 void chk(
   List<int> bytes,
   HeapAttribute attr, {
@@ -89,16 +87,13 @@ void main() {
     );
     chk([0x44, 0xe7, 0x02, 0x08], HeapAttribute.unknown, rawTag: 0x0e7);
     chk([0x45, 0xe7, 0x02, 0x08], HeapAttribute.compressedWireTable, rawTag: 0x1e7);
-    // partRole (raw 0x0DF) in both corpus widths, inferred
     chk([0x24, 0xdf, 66], HeapAttribute.partRole, asInt: 66, confidence: AttrConfidence.inferred);
     chk([0x44, 0xdf, 0x1f, 0x42], HeapAttribute.partRole, width: HeapAttrWidth.u16, asInt: 8002);
     chk([0x24, 0xaf, 0x09], HeapAttribute.masterPart, confidence: AttrConfidence.inferred);
-    // objFlags at u24, including the refuted 64 CB 26 special case
     chk([0x64, 0xcb, 0x10, 0x00, 0x00], HeapAttribute.objFlags, width: HeapAttrWidth.u24, asInt: 0x100000, len: 5);
     final rec = u8([0x64, 0xcb, 0x26, 0x84, 0x20]);
     expect(recordSkip(rec, 0), 5, reason: 'the 3-byte 64 CB 26 special case was refuted');
     expect(decodeHeapAttr(rec, 0)!.asInt, 0x268420);
-    // bare flag: E4 true / 04 false
     chk([0xe4, 0x59], HeapAttribute.reservedFlag, width: HeapAttrWidth.flag, asInt: 1, len: 2);
     chk([0x04, 0x59], HeapAttribute.reservedFlag, width: HeapAttrWidth.flag, asInt: 0, len: 2);
   });
@@ -131,7 +126,6 @@ void main() {
     chk(f64Rec(0x20, -1.0, op: 0xc6), HeapAttribute.stdNumMin, kind: HeapAttrKind.controlParam, asDouble: -1.0);
     chk(f64Rec(0x21, 5.0, op: 0xc6), HeapAttribute.stdNumMax, asDouble: 5.0);
     chk(f64Rec(0x22, 0.0, op: 0xc6), HeapAttribute.stdNumInc, asDouble: 0.0);
-    // C5 20 08 is raw 0x120 = tableFlags (a u16 tag): framed data, never a fabricated double
     chk(f64Rec(0x20, -1.0), HeapAttribute.tableFlags, width: HeapAttrWidth.container, noDouble: true);
   });
 
@@ -145,7 +139,6 @@ void main() {
       len: 11,
       noDouble: true,
     );
-    // 84 29 is a DIFFERENT tag (raw 0x029, kindOnly numeric)
     chk(
       [0x84, 0x29, 0xff, 0x00, 0x00, 0x0c],
       HeapAttribute.color29,
@@ -161,7 +154,6 @@ void main() {
       kind: HeapAttrKind.rectangle,
       rect: [0, 0, 256, 512],
     );
-    // compressedWireTable container form frames; asInt exposes payload[0]
     chk(
       hx('c5 e7 08 04 10 00 20 00 30 00 40'),
       HeapAttribute.compressedWireTable,
@@ -177,7 +169,6 @@ void main() {
       width: HeapAttrWidth.container,
       len: 9,
     );
-    // the 45/85 E7 scalar forms carry ints (small wire tables)
     chk([0x45, 0xe7, 0x02, 0x08], HeapAttribute.compressedWireTable, width: HeapAttrWidth.u16);
     chk([0x85, 0xe7, 0x01, 0x00, 0x01, 0x00], HeapAttribute.compressedWireTable, width: HeapAttrWidth.rgb, noRgb: true);
   });
@@ -202,7 +193,6 @@ void main() {
       HeapAttribute.constValue,
       asString: 'Robot!',
     );
-    // rejections: overrunning strlen, mostly-binary blob, big-slack 1-char false positive
     chk(hx('c6 6c 06 00000040 4142'), HeapAttribute.constValue, width: HeapAttrWidth.container, noString: true);
     chk(
       hx('c6 6c ff 000a 00000006 0102030405 41'),
@@ -216,7 +206,6 @@ void main() {
       width: HeapAttrWidth.container,
       noString: true,
     );
-    // magnitude-encoded ASCII ints: shortText (0x022), nodeName (0x0C4)
     chk(
       [0x84, 0x22, ...'Page'.codeUnits],
       HeapAttribute.shortText,

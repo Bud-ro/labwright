@@ -5,20 +5,8 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Exact-match gate for corpus-derived metrics against the committed
-/// `corpus/snapshot.json`.
-///
-/// Every value here is a MEASUREMENT over the pinned corpus (counts, raw byte
-/// totals, census numerators/denominators) — deterministic, so it is asserted
-/// EXACTLY. Any change, up or down, fails with a per-key diff until the
-/// snapshot is regenerated ([snapshotRegenCommand]) and the new numbers are
-/// reviewed as part of the diff. Format LAWS (X == Y between computed
-/// quantities, zero-fabrication sweeps) stay as ordinary assertions in the
-/// tests; only measurements live in the snapshot.
 const snapshotRegenCommand = 'dart run packages/labwright_seq/tool/snapshot.dart';
 
-/// Set by the regen tool to a fragment directory: metrics are recorded there
-/// instead of asserted, and the tool merges them into `corpus/snapshot.json`.
 final String? _updateDir = Platform.environment['LABWRIGHT_SNAPSHOT_UPDATE'];
 
 Map<String, Object?>? _sectionsCache;
@@ -33,9 +21,6 @@ Map<String, Object?> _sections() {
   return _sectionsCache = (root['sections'] as Map).cast<String, Object?>();
 }
 
-/// Named counters accumulated over one corpus pass. A name springs into being
-/// on its first [bump] and reads 0 until then, so the key list a snapshot call
-/// spells out is the sole declaration of what that pass measures.
 class Tally {
   final Map<String, int> _counts = {};
 
@@ -44,8 +29,6 @@ class Tally {
   int operator [](String name) => _counts[name] ?? 0;
 }
 
-/// Asserts [actual] equals snapshot section [section] exactly — same key set,
-/// same value per key. Under the regen tool it records [actual] instead.
 void expectCorpusSnapshot(String section, Map<String, int> actual) {
   final dir = _updateDir;
   if (dir != null) {

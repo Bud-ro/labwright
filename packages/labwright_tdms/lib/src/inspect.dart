@@ -2,10 +2,6 @@ import 'dart:typed_data';
 
 import 'reader.dart';
 
-/// Renders a human-readable summary of a TDMS file: root properties, then each
-/// group and channel with value counts, min/max/mean for numeric channels, a
-/// short value preview, and channel properties. Pure (no I/O) so it is testable
-/// and web-safe; the `bin/inspect.dart` CLI wraps it for files.
 String inspectTdms(Uint8List bytes, {int preview = 5}) {
   final file = TdmsReader.read(bytes);
   final out = StringBuffer()..writeln('TDMS file');

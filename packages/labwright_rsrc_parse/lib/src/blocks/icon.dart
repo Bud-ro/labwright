@@ -2,21 +2,6 @@ import 'dart:typed_data';
 
 import '../decode.dart';
 
-/// An embedded uncompressed 24-bit RGB picture extracted from a VI.
-///
-/// LabVIEW embeds RGB888 bitmaps (no palette, no compression) inside "picture"
-/// streams that can live under several section tags (`PICC`, `DSIM`, `FPHb`,
-/// `FPSE`, `LIbd`, …). [extractRgbIcon] recovers one such bitmap by signature.
-///
-/// HONESTY: on the PicoScope sample corpus the *first* such bitmap is **not** a
-/// per-VI identity icon — there are only two distinct 20×20 images across all
-/// files (a generic checkmark and an X glyph), byte-identical across unrelated
-/// VIs. So this is best understood as "an embedded RGB glyph", not the VI's
-/// unique icon. The real per-VI icon lives in the classic `ICON` (1-bit) /
-/// `icl4` / `icl8` (8-bit, 1024 B, corpus 7,583/7,583 at 32×32) blocks,
-/// decoded by `legacy_icon.dart`; a caller's file carries only its OWN icon
-/// (subVI call nodes' icons are NOT embedded — corpus-verified byte-search
-/// negative across every snippet with subVI nodes).
 class ViIcon {
   const ViIcon({required this.width, required this.height, required this.rgb});
 
@@ -24,26 +9,13 @@ class ViIcon {
 
   final int height;
 
-  /// `width * height * 3` bytes, row-major top-to-bottom, RGB per pixel.
   final Uint8List rgb;
 }
 
 int _u16(Uint8List bytes, int at) => (bytes[at] << 8) | bytes[at + 1];
 
-/// Largest plausible embedded-icon edge, in pixels; a sanity bound rejecting
-/// garbage rects.
 const int _maxIconEdge = 512;
 
-/// Extracts an embedded 24-bit RGB icon bitmap from one section's [bytes], or
-/// null if the section does not contain one.
-///
-/// The bitmap is stored with a fixed big-endian header — `u32@0 == 0`,
-/// `width@4`, `height@6`, `depth@8 == 24`, and a doubled rect at offset 30
-/// matching the one at offset 4 — followed (at the tail) by `width*height*3`
-/// packed RGB bytes. This signature + the doubled-rect check is what
-/// distinguishes the real bitmap from the vector/label "picture" ops that share
-/// these section tags. Honest by construction: no palette or decompression is
-/// involved (the data is already RGB888).
 ViIcon? extractRgbIcon(Uint8List bytes) {
   if (bytes.length < 36) return null;
   if (bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0 || bytes[3] != 0) {
@@ -59,9 +31,6 @@ ViIcon? extractRgbIcon(Uint8List bytes) {
   return ViIcon(width: width, height: height, rgb: bytes.sublist(bytes.length - need));
 }
 
-/// Finds the VI's icon by scanning all decoded [sections] for an embedded RGB
-/// bitmap (it appears under different tags depending on the VI). Returns the
-/// first match, or null when no uncompressed icon is present (~11% of VIs).
 ViIcon? decodeViIcon(List<DecodedSection> sections) {
   for (final section in sections) {
     final icon = extractRgbIcon(section.bytes);

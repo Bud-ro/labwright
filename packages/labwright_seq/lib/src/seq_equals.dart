@@ -1,20 +1,9 @@
-/// Deep structural equality over the parsed `.seq` models: [seqFileDeepEquals]
-/// and [seqPropertyDeepEquals] for the XML-flavor [SeqFile] / [SeqProperty]
-/// trees, [iniDeepEquals] for the legacy INI [IniSeqFile]. These back the
-/// model-level round-trip gates (`parse(write(parse(f)))` must deep-equal
-/// `parse(f)`) in `test/seq_write_xml_test.dart` and
-/// `test/seq_write_ini_test.dart`.
 library;
 
 import 'seq_file.dart';
 import 'seq_ini.dart';
 import 'seq_property.dart';
 
-/// Deep structural equality over two [SeqFile] models — the model-level
-/// round-trip gate (`parse(write(parse(f)))` must deep-equal `parse(f)`).
-/// Deliberately ORDER-SENSITIVE on attribute maps: attribute order is document
-/// order in this model and the writer re-emits it, so a reordering is a real
-/// fidelity loss, not an equivalent file.
 bool seqFileDeepEquals(SeqFile a, SeqFile b) {
   if (a.header.format != b.header.format ||
       a.header.fileType != b.header.fileType ||
@@ -38,10 +27,6 @@ bool seqFileDeepEquals(SeqFile a, SeqFile b) {
   return seqPropertyDeepEquals(a.data, b.data);
 }
 
-/// Deep structural equality over two [SeqProperty] trees: every model field —
-/// name, tag, class/type names, scalar, attribute maps (order-sensitive),
-/// value attributes, element prototype, array elements, extdata, numeric
-/// format, and sub-properties, recursively.
 bool seqPropertyDeepEquals(SeqProperty a, SeqProperty b) {
   if (a.name != b.name ||
       a.className != b.className ||
@@ -75,13 +60,6 @@ bool seqPropertyDeepEquals(SeqProperty a, SeqProperty b) {
   return true;
 }
 
-/// Deep structural equality over two [IniSeqFile] models — the model-level
-/// round-trip gate (`parse(write(parse(f)))` must deep-equal `parse(f)`).
-/// Deliberately ORDER-SENSITIVE on header fields and section entries: order is
-/// document order in this model and the writer re-emits it, so a reordering is
-/// a real fidelity loss, not an equivalent file. The derived [IniSeqFile.header]
-/// and [IniSection.members]/[IniSection.directives] indexes are not compared —
-/// they are derived entirely from the compared fields.
 bool iniDeepEquals(IniSeqFile a, IniSeqFile b) {
   if (a.lineTerminator != b.lineTerminator) return false;
   if (!_orderedMapEquals(a.headerFields, b.headerFields)) return false;
@@ -110,7 +88,6 @@ bool _nullableOrderedMapEquals(Map<String, String>? a, Map<String, String>? b) {
   return _orderedMapEquals(a, b);
 }
 
-/// Order-sensitive map equality (insertion order == document order here).
 bool _orderedMapEquals(Map<String, String> a, Map<String, String> b) {
   if (a.length != b.length) return false;
   final ai = a.entries.iterator;

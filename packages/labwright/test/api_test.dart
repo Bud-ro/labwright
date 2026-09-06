@@ -1,6 +1,3 @@
-// Batch (non-interactive) runner contract: verdicts, report, ordering,
-// sharding, seeds, identity hashes. Viewer/interactive HTTP behavior lives in
-// viewer_test.dart; hot reload in hot_reload_test.dart.
 import 'package:test/test.dart';
 
 import 'harness.dart';
@@ -64,7 +61,7 @@ void main() {
       return testsOf(report).map((t) => t['name']).toList();
     }
 
-    final registration = orderFor(0); // an explicit 0 keeps registration order
+    final registration = orderFor(0);
     final seeded = orderFor(1);
     expect(seeded.toSet(), registration.toSet(), reason: 'a seed permutes the order, never the set');
     expect(seeded, isNot(equals(registration)), reason: 'seed 1 reorders this fixture (verified permutation)');

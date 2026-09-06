@@ -4,11 +4,7 @@ import 'dart:typed_data';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// Binary TOF1 writer primitives on SYNTHETIC containers; the corpus gates and
-/// mutation probes live in `binary_writer_corpus_test.dart`.
 void main() {
-  /// A minimal TOF1 container: magic, zero-padded header whose final u32 is the
-  /// inflated-body size (`PMCZ` + size), then one zlib stream to EOF.
   Uint8List synthetic(Uint8List body) {
     const headerLen = 64;
     final compressed = ZLibCodec().encode(body);
@@ -20,10 +16,8 @@ void main() {
     return out;
   }
 
-  /// No packed string table: the writer's plan must be a single verbatim copy.
   final unframedBody = Uint8List.fromList([for (var i = 0; i < 96; i++) (i * 7 + 1) & 0x3f]);
 
-  /// An undecodable 40-byte record region then a five-entry packed NUL pool.
   final framedBody = Uint8List.fromList([
     for (var i = 0; i < 40; i++) 0x11,
     ...'alpha\x00beta\x00gamma\x00delta\x00epsilon\x00'.codeUnits,

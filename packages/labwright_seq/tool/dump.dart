@@ -2,10 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
-/// Prints a sequence-editor-like view of a TestStand `.seq` file.
-///
-/// Run: `dart run tool/dump.dart [path/to/file.seq]`
-/// With no path, picks the first XML `.seq` found under `corpus/seq/`.
 void main(List<String> args) {
   final path = args.isNotEmpty ? args.first : _firstCorpusXml();
   if (path == null) {

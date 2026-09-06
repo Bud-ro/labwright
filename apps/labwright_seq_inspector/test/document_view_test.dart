@@ -11,7 +11,6 @@ import 'package:labwright_seq_inspector/src/sequence_outline.dart';
 
 import 'util.dart';
 
-/// Parses a one-step XML file and returns that step's outline.
 StepOutline stepOf(String typename, String name, [String subprops = '']) {
   final doc =
       SeqDocument.parse(seqXml(steps: step(typename, name, subprops)))
@@ -19,7 +18,6 @@ StepOutline stepOf(String typename, String name, [String subprops = '']) {
   return SeqOutline.of(doc.file).sequences.single.groups.single.steps.single;
 }
 
-/// Parses a legacy INI file: shared header/root defs + caller [lines].
 IniSeqDocument iniDoc(List<String> lines) =>
     SeqDocument.parse(
           Uint8List.fromList(
@@ -47,7 +45,6 @@ IniSeqDocument iniDoc(List<String> lines) =>
         )
         as IniSeqDocument;
 
-/// A TOF1 binary body: zlib pool of NUL-terminated strings after the header.
 Uint8List binarySeq() {
   final pool = <int>[];
   for (final n in [

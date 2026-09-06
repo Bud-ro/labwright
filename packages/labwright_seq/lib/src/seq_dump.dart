@@ -6,13 +6,8 @@ import 'seq_format.dart';
 import 'seq_module.dart';
 import 'seq_step.dart';
 
-/// Max enum allowed-values shown inline for a `TypeEnum` measurement parameter
-/// before truncating with a `…(count)` marker (kept short for readability).
 const _enumValueCap = 6;
 
-/// Renders a [SeqFile] as a faithful, sequence-editor-like text view — the M4
-/// "viewer" in text form. Pure (returns a String); honest (shows
-/// `(not yet recovered)` / omits a field rather than inventing one).
 String dumpSeqFile(SeqFile file) {
   final out = StringBuffer();
   final header = file.header;
@@ -45,15 +40,6 @@ String dumpSeqFile(SeqFile file) {
   return out.toString();
 }
 
-/// Renders each sequence's steps as readable, **nested** control-flow pseudocode
-/// — the structured logic view, complementary to the flat per-step listing above.
-///
-/// The `NI_Flow_*` step types form structured blocks: If/ElseIf/Else, While,
-/// For, ForEach open a block closed by a matching `NI_Flow_End` (corpus-verified
-/// balanced), and each carries its real condition / loop expressions (see
-/// [FlowControl]). Ordinary steps render at the current indent with their call
-/// target + key gating expression / limits. Built entirely from already-recovered
-/// fields — no new decode.
 String exportSequenceLogic(SeqFile file) {
   final out = StringBuffer();
   for (final seq in file.sequences) {
@@ -69,11 +55,6 @@ String exportSequenceLogic(SeqFile file) {
   return out.toString();
 }
 
-/// The sequence's parameter list as a function-style signature, e.g.
-/// `(TestSocketName: Str, Voltage: Num = 5)` — each parameter's name, its type,
-/// and a default value when the sequence declares one. Empty string when the
-/// sequence takes no parameters. All recovered from the lens
-/// ([Sequence.parameters] → [SeqVariable]); corpus shows every parameter typed.
 String _paramSignature(Sequence seq) {
   final params = seq.parameters;
   if (params.isEmpty) return '';
@@ -86,9 +67,6 @@ String _paramSignature(Sequence seq) {
   return '(${params.map(one).join(', ')})';
 }
 
-/// A `  // N steps, L locals` summary for a sequence header (the step count is
-/// always shown; locals only when non-zero — parameters appear in the signature,
-/// see [_paramSignature]). Empty string when there are no steps or locals.
 String _seqSummary(Sequence seq) {
   final steps = seq.steps.length;
   final locals = seq.locals.length;
@@ -100,9 +78,6 @@ String _seqSummary(Sequence seq) {
   return '  // ${parts.join(', ')}';
 }
 
-/// Emits [steps] as indented logic, opening/closing blocks on `NI_Flow_*` steps.
-/// [baseIndent] is the starting indent depth (in 2-space units). Indent never
-/// drops below [baseIndent], so a malformed/unbalanced block can't underflow.
 void _emitLogic(StringBuffer out, List<Step> steps, SeqFile file, {required int baseIndent}) {
   var depth = baseIndent;
   String ind(int depth) => '  ' * depth;
@@ -128,10 +103,6 @@ void _emitLogic(StringBuffer out, List<Step> steps, SeqFile file, {required int 
   }
 }
 
-/// A concise one-line logic rendering of a non-flow step: its name, the module
-/// target it calls, and the most decision-relevant annotations (precondition,
-/// limits, and a non-default pass/fail jump) — kept short so the nested
-/// structure stays readable.
 String _logicStepLine(Step step, SeqFile file) {
   final out = StringBuffer(step.name);
   final module = step.module;
@@ -153,11 +124,6 @@ String _logicStepLine(Step step, SeqFile file) {
   return out.toString();
 }
 
-/// A concise rendering of a non-flow step's own looping (the step repeats itself
-/// under its `LoopType`), e.g. `[loop FixedNumLoops while RunState.LoopIndex < 10]`,
-/// or null when the step does not loop (`NoLooping`/absent — the common case).
-/// The loop-while expression (the termination condition) is included when set;
-/// the init/increment/status expressions stay in the fuller per-step dump.
 String? _loopAnnotation(StepSettings set) {
   if (!set.isLooping) return null;
   final type = set.loopType ?? 'loop';
@@ -165,10 +131,6 @@ String? _loopAnnotation(StepSettings set) {
   return whileExpr != null ? '[loop $type while $whileExpr]' : '[loop $type]';
 }
 
-/// A concise rendering of a step's non-default pass/fail jump (a `Goto`/non-`Next`
-/// action and its target), e.g. `[on fail → Cleanup]`, or null when both sides
-/// fall through (`Next`) — the common case. An `ID#:` target is resolved to the
-/// destination step's name; a bookmark like `<Cleanup>` is shown verbatim.
 String? _jumpAnnotation(StepSettings set, SeqFile file) {
   String resolve(String target) => target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
   String? side(String label, String? act, String? target) {
@@ -183,9 +145,6 @@ String? _jumpAnnotation(StepSettings set, SeqFile file) {
   return parts.isEmpty ? null : '[${parts.join(', ')}]';
 }
 
-/// Lists the Semiconductor-Test-System resource set the file declares (pin map +
-/// specifications/levels/timing/pattern files) — the external files the sequence
-/// depends on. Omitted when the file declares none.
 void _dumpPlugins(StringBuffer out, SeqFile file) {
   final mp = file.measurementPlugIns;
   if (mp == null || !mp.isNotEmpty) return;
@@ -202,9 +161,6 @@ void _dumpPlugins(StringBuffer out, SeqFile file) {
   list('patterns', mp.patternFiles);
 }
 
-/// Lists the `<typelist>` type definitions and their declared fields. This is
-/// recovered structure (type name, base class, field names + type tokens) — not
-/// an interpretation of NI's internal type-system semantics.
 void _dumpTypes(StringBuffer out, SeqFile file) {
   final defs = file.typeDefs;
   if (defs.isEmpty) return;
@@ -228,8 +184,6 @@ void _dumpVars(StringBuffer out, String label, List<SeqVariable> vars) {
   }
 }
 
-/// The trailing detail for a variable: ` = value` for a scalar, else a container
-/// size (` [N]` array / ` {N fields}` object), plus ` // comment` when present.
 String _varSuffix(SeqVariable v) {
   final out = StringBuffer();
   if (v.value != null) {
@@ -243,8 +197,6 @@ String _varSuffix(SeqVariable v) {
   return out.toString();
 }
 
-/// Renders one module call argument as `name[ dir][←expr]` — e.g.
-/// `LoginName in←FileGlobals.UserToAutoLogin`, `Return Value out`.
 String _dumpCallParam(CallParameter p) {
   final out = StringBuffer(p.name);
   if (p.direction != null) out.write(' ${p.direction}');
@@ -252,9 +204,6 @@ String _dumpCallParam(CallParameter p) {
   return out.toString();
 }
 
-/// Renders one LabVIEW VI-call connector parameter as
-/// `[#conn ]label[ (DisplayType)][←expr]` — e.g.
-/// `#11 sequence context (Object Reference)←ThisContext`.
 String _dumpViParam(CallParameter p) {
   final out = StringBuffer();
   if (p.connectorNumber != null) out.write('#${p.connectorNumber} ');
@@ -396,15 +345,6 @@ String _dumpStep(Step step, SeqFile file) {
   return parts.toString();
 }
 
-/// Renders a binary `TOF1` `.seq` as a TEXT **reconnaissance report** — the
-/// binary analogue of [dumpSeqFile] for files that don't yet parse into a
-/// [SeqFile] (the record grammar isn't fully decoded, so [parseSeqFile] refuses
-/// binary). Pure; **honest** — it surfaces only recovered data and explicitly
-/// marks that the record links tying values to their step tree are not yet
-/// recovered.
-///
-/// Built from a **single** [analyzeBinary] inflate. Returns
-/// `(not a binary TOF1 file)` when [seqBytes] is not a binary file.
 String dumpBinaryRecon(Uint8List seqBytes) {
   if (detectSeqFormat(seqBytes) != SeqFormat.binary) {
     return '(not a binary TOF1 file)';
@@ -467,8 +407,6 @@ String dumpBinaryRecon(Uint8List seqBytes) {
   return out.toString();
 }
 
-/// Emits a `=== title (n) ===` block listing [items] (capped at [cap], with an
-/// honest "… and N more" when truncated). No-op when [items] is empty.
 void _reconSection(
   StringBuffer b,
   String title,

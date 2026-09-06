@@ -1,15 +1,7 @@
-/// Renders one VI's block diagram, registers it against a reference PNG
-/// ([compareToReference]) and writes `build/bd_oracle/<name>.{render,
-/// reference,diff}.png` plus the difference summary, so a single oracle pair
-/// can be eyeballed.
-///
-/// It rasterises through the widget layer, so it runs under the flutter_test
-/// harness rather than as a plain script, from the app package root:
-///
+/// Writes `build/bd_oracle/<name>.{render,reference,diff}.png` for one VI against its reference:
 ///     flutter test tool/bd_reference_dump.dart \
 ///       --dart-define=BD_VI=/abs/path/foo.vi \
 ///       --dart-define=BD_REFERENCE=/abs/path/foo.bd.png
-///
 library;
 
 import 'dart:io';

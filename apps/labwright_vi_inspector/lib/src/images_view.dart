@@ -8,9 +8,6 @@ import 'image_clipboard.dart';
 import 'mac_icon_palette.dart';
 import 'span_annotations.dart';
 
-/// The eight-byte PNG signature `\x89PNG\r\n\x1a\n`. A block payload is scanned
-/// for this magic to locate embedded images; `decodePngEnvelope` then validates
-/// the IHDR and reports dimensions at each hit.
 const List<int> _pngSignature = [
   0x89,
   0x50,
@@ -22,8 +19,6 @@ const List<int> _pngSignature = [
   0x0a,
 ];
 
-/// One PNG located inside a block payload: the source block tag/index, the IHDR
-/// dimensions, and the exact PNG byte slice ready for `Image.memory`.
 class EmbeddedPng {
   const EmbeddedPng({
     required this.tag,
@@ -33,29 +28,22 @@ class EmbeddedPng {
     required this.bytes,
   });
 
-  /// The resource-block tag the PNG was found in (e.g. `MNGI`, `DSIM`).
   final String tag;
 
-  /// The section index within that tag.
   final int index;
 
   final int width;
   final int height;
 
-  /// The exact PNG bytes, from the magic to the end of the payload.
   final Uint8List bytes;
 }
 
-/// One legacy 32×32 icon bitmap (`icl8`/`icl4`/`ICON`) with its source tag.
 class EmbeddedLegacyIcon {
   const EmbeddedLegacyIcon({required this.tag, required this.icon});
   final String tag;
   final ViLegacyIcon icon;
 }
 
-/// An image decoded out of a metafile block — a `PICT`'s uncompressed QuickTime
-/// raster — converted to PNG for display. Unlike [EmbeddedPng.bytes] (an exact
-/// byte slice of the file), [png] is *encoded here* from the decoded pixels.
 class DecodedMetafileImage {
   const DecodedMetafileImage({
     required this.tag,
@@ -69,16 +57,11 @@ class DecodedMetafileImage {
   final int width;
   final int height;
 
-  /// Source bits per pixel (24 = packed RGB, 32 = QuickDraw xRGB).
   final int depth;
 
-  /// PNG bytes encoded from the decoded raster.
   final Uint8List png;
 }
 
-/// The renderable images recovered from a VI: embedded PNGs, legacy icon
-/// bitmaps, and images decoded out of metafile blocks. All lists are empty when
-/// the VI carries no images.
 class ViImages {
   const ViImages({
     this.pngs = const [],
@@ -93,7 +76,6 @@ class ViImages {
   int get count => pngs.length + icons.length + metafiles.length;
 }
 
-/// Whether the PNG signature begins at [start] in [bytes].
 bool _pngSignatureAt(Uint8List bytes, int start) {
   if (start + _pngSignature.length > bytes.length) return false;
   for (var i = 0; i < _pngSignature.length; i++) {
@@ -102,11 +84,6 @@ bool _pngSignatureAt(Uint8List bytes, int start) {
   return true;
 }
 
-/// Extracts every renderable image from the decoded [sections]. Each payload is
-/// scanned for PNG signatures (`MNGI` is a raw PNG; `DSIM` embeds one after a
-/// geometry header; scanning all payloads catches any other carrier), and
-/// `decodePngEnvelope` validates the IHDR + reports dimensions at each hit.
-/// `icl8`/`icl4`/`ICON` payloads are decoded to 32×32 index grids.
 ViImages extractViImages(List<DecodedSection> sections) {
   final pngs = <EmbeddedPng>[];
   final icons = <EmbeddedLegacyIcon>[];
@@ -154,10 +131,6 @@ ViImages extractViImages(List<DecodedSection> sections) {
   return ViImages(pngs: pngs, icons: icons, metafiles: metafiles);
 }
 
-/// Encodes a decoded QuickTime raster to PNG. Depth 24 pixels are packed
-/// `R G B`; depth 32 are QuickDraw xRGB (the leading byte is a pad, not alpha —
-/// the image is rendered opaque). Other depths are not present in the corpus and
-/// yield a 1×1 placeholder rather than a guessed decode.
 Uint8List encodeQuickTimeRasterPng(ViQuickTimeRaster raster) {
   if (raster.depth != 24 && raster.depth != 32) {
     return img.encodePng(img.Image(width: 1, height: 1));
@@ -168,7 +141,6 @@ Uint8List encodeQuickTimeRasterPng(ViQuickTimeRaster raster) {
   for (var y = 0; y < raster.height; y++) {
     final row = y * rowBytes;
     for (var x = 0; x < raster.width; x++) {
-      // 32-bit pixels lead with the pad byte; 24-bit start at the red byte.
       final base = row + x * bytesPerPixel + (bytesPerPixel - 3);
       image.setPixelRgb(
         x,
@@ -182,23 +154,15 @@ Uint8List encodeQuickTimeRasterPng(ViQuickTimeRaster raster) {
   return img.encodePng(image);
 }
 
-/// [icons] ordered richest depth first (icl8 → icl4 → ICON), so every surface
-/// picks the same lead icon for a VI.
 List<EmbeddedLegacyIcon> orderedLegacyIcons(List<EmbeddedLegacyIcon> icons) {
   const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
   return [...icons]
     ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9));
 }
 
-/// The single richest-depth legacy icon of [images], or null when the VI
-/// carries none.
 ViLegacyIcon? bestLegacyIcon(ViImages images) =>
     images.icons.isEmpty ? null : orderedLegacyIcons(images.icons).first.icon;
 
-/// Encodes a decoded [ViLegacyIcon]'s 32×32 index grid to PNG bytes, mapping each
-/// stored pixel index through the standard Macintosh icon palette for the icon's
-/// bit depth ([macIconArgb]) — the same palette [LegacyIconPainter] displays, so
-/// the copied-to-clipboard PNG matches what is shown on screen.
 Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
   const dim = ViLegacyIcon.width;
   final image = img.Image(width: dim, height: dim);
@@ -217,9 +181,6 @@ Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
   return img.encodePng(image);
 }
 
-/// Whether two decoded icons carry the identical pixel grid (byte-for-byte across
-/// their index arrays) — used to note honestly when a depth variant happens to
-/// match another, rather than assuming the depths are equal.
 bool _sameGrid(ViLegacyIcon a, ViLegacyIcon b) {
   if (a.pixels.length != b.pixels.length) return false;
   for (var i = 0; i < a.pixels.length; i++) {
@@ -228,11 +189,6 @@ bool _sameGrid(ViLegacyIcon a, ViLegacyIcon b) {
   return true;
 }
 
-/// A gallery of the VI's embedded images: PNGs (`MNGI`/`DSIM` and any other
-/// carrier) rendered via `Image.memory`, and legacy 32×32 icon bitmaps
-/// (`icl8`/`icl4`/`ICON`) drawn from their pixel grids. Each tile is captioned
-/// with its source block tag, dimensions, and byte size; a per-image failure
-/// renders a placeholder rather than crashing the tab.
 class ViImagesView extends StatelessWidget {
   const ViImagesView({
     super.key,
@@ -241,13 +197,8 @@ class ViImagesView extends StatelessWidget {
   });
   final ViImages images;
 
-  /// Sink for the per-tile "copy as image" action — the OS clipboard in
-  /// production, a fake in tests.
   final ImageClipboard clipboard;
 
-  /// Copies [pngBytes] to the clipboard as an image and shows a brief
-  /// confirmation (or an honest failure notice). The messenger is captured
-  /// before the await so the async gap does not touch a stale context.
   Future<void> _copy(
     BuildContext context,
     Uint8List pngBytes,
@@ -379,9 +330,6 @@ class ViImagesView extends StatelessWidget {
     );
   }
 
-  /// The tag of an earlier-listed depth variant whose decoded pixel grid is
-  /// byte-identical to [icon]'s, or null when [icon]'s grid is unique. Only a
-  /// proven match is noted — depths are never assumed equal.
   String? _matchNote(EmbeddedLegacyIcon icon, List<EmbeddedLegacyIcon> icons) {
     for (final other in icons) {
       if (identical(other, icon)) break;
@@ -391,7 +339,6 @@ class ViImagesView extends StatelessWidget {
   }
 }
 
-/// A framed image tile with a caption and a per-tile "copy as image" button.
 class _ImageTile extends StatelessWidget {
   const _ImageTile({
     required this.caption,
@@ -474,8 +421,6 @@ class _LegacyIconTile extends StatelessWidget {
   final EmbeddedLegacyIcon entry;
   final VoidCallback onCopy;
 
-  /// The tag of an earlier depth variant with an identical decoded grid, noted
-  /// in the caption when proven; null otherwise.
   final String? sameAs;
 
   @override
@@ -491,8 +436,6 @@ class _LegacyIconTile extends StatelessWidget {
   );
 }
 
-/// The per-image failure placeholder — names the source tag rather than letting
-/// a decode/render error take down the tab.
 class _Failed extends StatelessWidget {
   const _Failed({required this.tag});
   final String tag;

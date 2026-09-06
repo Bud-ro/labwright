@@ -2,27 +2,18 @@ import 'dart:typed_data';
 
 import '../labwright_rsrc_parse.dart';
 
-/// The LabVIEW version a VI was saved in, plus its embedded title/description.
 class ViVersionInfo {
   const ViVersionInfo({this.version, this.title});
 
-  /// The LabVIEW version string from the `vers` block, e.g. `10.0` (null if not
-  /// recoverable).
   final String? version;
 
-  /// The VI's embedded title/description (from the `vers` block's `VIDS`
-  /// record), if present.
   final String? title;
 }
 
 final RegExp _versionPattern = RegExp(r'^\d{1,2}\.\d');
 
-/// Decodes the LabVIEW version + title from a `.vi`'s `vers` block. Reliable:
-/// every VI in the validation corpus yields both.
 ViVersionInfo decodeVersion(Uint8List viBytes) => versionFromSections(readViSections(viBytes));
 
-/// [decodeVersion] over already-read sections (the `vers` block is uncompressed,
-/// so raw [ViSection] bytes suffice). Total — never throws.
 ViVersionInfo versionFromSections(Iterable<ViSection> sections) {
   String? version, title;
   for (final section in sections) {
@@ -35,8 +26,6 @@ ViVersionInfo versionFromSections(Iterable<ViSection> sections) {
   return ViVersionInfo(version: version, title: title);
 }
 
-/// A VI block summarized by size — its component footprint. Reliable (just
-/// section sizes), regardless of whether the heap's logic can be parsed.
 class BlockComponent {
   const BlockComponent({
     required this.tag,
@@ -46,28 +35,19 @@ class BlockComponent {
     required this.compressed,
   });
 
-  /// The 4-char block tag (e.g. `BDEx`, `FPHb`, `DTHP`).
   final String tag;
 
-  /// Number of sections in this block.
   final int sectionCount;
 
-  /// Total stored (possibly compressed) bytes across the block's sections.
   final int rawBytes;
 
-  /// Total bytes after inflation (== [rawBytes] for uncompressed blocks).
   final int decompressedBytes;
 
-  /// Whether any section in the block was zlib-compressed.
   final bool compressed;
 }
 
-/// Per-block size summary for a VI (largest decompressed first) — the VI's
-/// "components" view (how heavy the block diagram / front panel / type data are).
-/// Reliable and total.
 List<BlockComponent> blockComponents(Uint8List viBytes) => componentsFromDecoded(decodeSections(viBytes));
 
-/// [blockComponents] over already-decoded sections.
 List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
   final byTag = <String, List<DecodedSection>>{};
   for (final decodedSection in decoded) {
@@ -87,26 +67,6 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
   return out;
 }
 
-/// A **string table** in a VI heap: one contiguous run of Pascal strings.
-///
-/// LabVIEW packs the strings that belong to a single owning object — an enum/ring
-/// control's item labels, a control's caption + parts, a help string set — as a
-/// back-to-back `[u8 len][chars]` run. The *grouping* is real structure: these
-/// strings share an owner, so keeping them together (rather than flattening to a
-/// bag of strings) is genuine graph-relevant progress. [offset] is the run's byte
-/// position within its **decompressed** section.
-///
-/// [framed] distinguishes confidence:
-/// - `true` — the table was delimited by the confirmed **`C4 2E <len>` opcode**
-///   (the 2-byte `C4 2E`, then a `u8` byte-length, or a `u16` when >255, then
-///   exactly that many bytes of packed Pascal strings). This is a structurally
-///   exact boundary, not a guess — across the corpus `0xC4` precedes `0x2E` in
-///   100% of tables and the length field matches the table size with zero
-///   exceptions (see the format doc).
-/// - `false` — the table was located by the heuristic run-scan fallback (a run of
-///   ≥2 consecutive valid Pascal strings). Used for tables not introduced by
-///   `0x2E` (entry.g. long help-text tables, which use a different, not-yet-decoded
-///   framing). Best-effort: may occasionally merge adjacent tables or clip.
 class HeapStringTable {
   const HeapStringTable({
     required this.sectionTag,
@@ -115,44 +75,21 @@ class HeapStringTable {
     this.framed = false,
   });
 
-  /// The 4-char tag of the section this table lives in (e.g. `BDEx`, `FPHb`).
   final String sectionTag;
 
-  /// Byte offset of the run's start within the decompressed section bytes.
   final int offset;
 
-  /// The useful (wordy, deduped, order-preserving) labels in this table.
   final List<String> strings;
 
-  /// Whether this table was delimited by the confirmed `0x2E <len>` opcode
-  /// (exact), versus the heuristic run-scan fallback.
   final bool framed;
 }
 
-/// Best-effort human-readable strings embedded in a VI's heaps (control labels,
-/// help/tooltip text, value lists). **Heuristic**, not authoritative: the heap
-/// is an opcode-serialized object tree, so this scans for length-prefixed
-/// printable runs and may include occasional fragments. Useful for "what does
-/// this VI contain"; deduplicated, order-preserving.
 List<String> extractHeapStrings(Uint8List viBytes, {int minLength = 4}) =>
     heapStringsFromDecoded(decodeSections(viBytes), minLength: minLength);
 
-/// The located, grouped [HeapStringTable]s in a VI's heaps — the structured
-/// primitive [extractHeapStrings] flattens. Order-preserving and total.
 List<HeapStringTable> heapStringTables(Uint8List viBytes, {int minLength = 4, int minRun = 2}) =>
     heapStringTablesFromDecoded(decodeSections(viBytes), minLength: minLength, minRun: minRun);
 
-/// [heapStringTables] over already-decoded sections.
-///
-/// Strings live in the heap as **contiguous Pascal-string tables** (`[u8 len]
-/// [chars]` packed back-to-back, no per-string opcode tag). Most are introduced
-/// by the confirmed **`C4 2E <len>` opcode** — those are parsed structurally
-/// (exact boundary, [HeapStringTable.framed] == true). Bytes not covered by a
-/// framed table fall back to a **heuristic run-scan**: a run of at least [minRun]
-/// consecutive valid Pascal strings (rejecting coincidental single length-byte
-/// matches), emitted with `framed == false`. Within a table the strings are
-/// filtered to wordy ones of length ≥ [minLength] and deduped (preserving order);
-/// a table with no useful strings is dropped. Single forward pass and total.
 List<HeapStringTable> heapStringTablesFromDecoded(
   Iterable<DecodedSection> decoded, {
   int minLength = 4,
@@ -207,11 +144,6 @@ List<HeapStringTable> heapStringTablesFromDecoded(
   return out;
 }
 
-/// If [h] at [i] is a `C4 2E` string table — `<region>` is exactly `<len>` bytes
-/// of packed `[u8 len][printable]` Pascal strings (≥2 of them) — returns it;
-/// otherwise null. The opcode is the **2-byte `C4 2E`** (`0xC4` precedes `0x2E`
-/// in 100% of corpus tables). Length is a `u8`, or the extended-length escape
-/// `C4 2E FF <u16 len>` for tables >255 bytes (header 5 bytes). Total/bounds-safe.
 ({List<String> strings, int headerLen, int consumed})? _tryFramedTable(Uint8List bytes, int start) {
   final byteCount = bytes.length;
   if (start + 3 > byteCount || bytes[start] != kHeapRecordPrefix || bytes[start + 1] != HeapOpcode.stringTable.byte) {
@@ -232,9 +164,6 @@ List<HeapStringTable> heapStringTablesFromDecoded(
   return (strings: strs, headerLen: headerLen, consumed: headerLen + payloadLen);
 }
 
-/// Parses exactly [len] bytes at [start] as packed `[u8 L][L printable]` Pascal
-/// strings. Returns the strings only if the region is consumed exactly (no
-/// trailing bytes, no zero-length or non-printable entry); otherwise null. Total.
 List<String>? _packedPascals(Uint8List bytes, int start, int len) {
   final end = start + len;
   final out = <String>[];
@@ -248,8 +177,6 @@ List<String>? _packedPascals(Uint8List bytes, int start, int len) {
   return out;
 }
 
-/// [extractHeapStrings] over already-decoded sections — the flat, globally
-/// deduped view of [heapStringTablesFromDecoded]. Total.
 List<String> heapStringsFromDecoded(Iterable<DecodedSection> decoded, {int minLength = 4, int minRun = 2}) {
   final seen = <String>{};
   return [
@@ -268,7 +195,6 @@ bool _allPrintable(Uint8List bytes, int start, int len) {
   return true;
 }
 
-/// Extracts `[u8 len][len printable bytes]` runs from [h]. Total.
 List<String> _pascalStrings(Uint8List bytes) {
   final out = <String>[];
   var i = 0;
@@ -284,17 +210,11 @@ List<String> _pascalStrings(Uint8List bytes) {
   return out;
 }
 
-bool _isTextByte(int byte) =>
-    byte == 9 || byte == 10 || byte == 13 || (byte >= 32 && byte < 127); // tab/LF/CR or printable ASCII
+bool _isTextByte(int byte) => byte == 9 || byte == 10 || byte == 13 || (byte >= 32 && byte < 127);
 
-/// True if [s] contains at least one ASCII letter (filters numeric/byte noise).
 bool _looksWordy(String text) =>
     text.codeUnits.any((byte) => (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a));
 
-/// The VI's top-level **description / help text**, from the `CPC2` block, stored
-/// as `[u32 len][ASCII]` (e.g. "This closes the device…"). Returns null when the
-/// `CPC2` block is a compiled-cache/empty variant rather than a description.
-/// Total.
 String? cpc2Description(Iterable<ViSection> sections) {
   for (final section in sections) {
     if (section.tag != 'CPC2') continue;
@@ -308,8 +228,6 @@ String? cpc2Description(Iterable<ViSection> sections) {
   return null;
 }
 
-/// Reads the `VIDS` record's title (`'VIDS'` then `[u8 len][string]`) from a
-/// `vers` section, or null.
 String? _vidsTitle(Uint8List bytes) {
   for (var i = 0; i + 5 <= bytes.length; i++) {
     if (bytes[i] == 0x56 && bytes[i + 1] == 0x49 && bytes[i + 2] == 0x44 && bytes[i + 3] == 0x53) {

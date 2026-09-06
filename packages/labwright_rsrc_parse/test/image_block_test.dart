@@ -6,7 +6,6 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// Builds one PNG chunk `[u32 len][type][data][u32 crc]` with a correct CRC-32.
 List<int> _chunk(String type, List<int> data) {
   final typeData = Uint8List.fromList([...type.codeUnits, ...data]);
   final crc = crc32(typeData, 0, typeData.length);
@@ -17,21 +16,17 @@ List<int> _chunk(String type, List<int> data) {
 
 const _pngSig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
-/// A minimal valid PNG: signature + IHDR + IDAT + IEND.
 Uint8List _png() {
   final ihdr = _chunk('IHDR', [
     0, 0, 0, 4, // width 4
     0, 0, 0, 4, // height 4
     8, 2, 0, 0, 0, // bit depth 8, colour type 2 (RGB), 0/0/0
   ]);
-  final idat = _chunk('IDAT', [0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]); // opaque stream stand-in
+  final idat = _chunk('IDAT', [0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]);
   final iend = _chunk('IEND', const []);
   return u8([..._pngSig, ...ihdr, ...idat, ...iend]);
 }
 
-/// A 4x4 RGB PNG whose IDAT is a real zlib stream over a per-scanline raster
-/// `[filter byte][row pixels]`, optionally split across [idatParts] IDAT chunks.
-/// Returns the PNG bytes and the raster the IDAT inflates to.
 ({Uint8List png, Uint8List raster}) _pngRealIdat({int idatParts = 1}) {
   const w = 4, h = 4;
   final raster = Uint8List((1 + w * 3) * h);
@@ -49,8 +44,6 @@ Uint8List _png() {
   return (png: u8([..._pngSig, ...ihdr, ...idats, ...iend]), raster: raster);
 }
 
-/// A raw-raster DSIM header: leading zero u32, geometry at 4 and 30, length
-/// fields, `u32@22` = pixel byte count.
 Uint8List _dsimRaster(int w, int h, int depth, List<int> pixels, {List<int> trailer = const []}) {
   final b = ByteData(46);
   b.setUint16(4, w);
@@ -77,14 +70,13 @@ void main() {
       expect(img.modelBytes + img.copiedBytes, png.length);
       expect(img.pngChunks, 3);
       expect(img.crcVerified, 3);
-      // Only the 6-byte IDAT stream is copied; everything else is model.
       expect(img.copiedBytes, 6);
       expect(img.isRaster, isFalse);
     });
 
     test('a corrupt CRC keeps that chunk copied but stays byte-exact', () {
       final png = Uint8List.fromList(_png());
-      png[png.length - 1] ^= 0xff; // corrupt the IEND CRC
+      png[png.length - 1] ^= 0xff;
       final img = decodeImageBlock('MNGI', png)!;
       expect(img.bytes, isNot(equals(png)), reason: 'recomputed CRC no longer matches the corrupted byte');
       expect(img.crcVerified, 2);
@@ -95,8 +87,6 @@ void main() {
     });
 
     test('an unrecoverable IDAT stream leaves the content-level split zero', () {
-      // _png()'s IDAT is not a valid zlib stream, so nothing is swapped in at the
-      // content level: the 6 IDAT bytes stay in the byte-level copied set.
       final img = decodeImageBlock('MNGI', _png())!;
       expect(img.compressedContentBytes, 0);
       expect(img.inflatedContentBytes, 0);
@@ -109,7 +99,6 @@ void main() {
       final img = decodeImageBlock('MNGI', made.png)!;
       expect(img.bytes, made.png, reason: 're-emit must stay byte-exact');
       expect(inflateImageRaster('MNGI', made.png), made.raster);
-      // The compressed IDAT is swapped for the inflated raster, all modeled.
       expect(img.inflatedContentBytes, made.raster.length);
       expect(img.inflatedModelBytes, made.raster.length);
       expect(img.inflatedCopiedBytes, 0);
@@ -128,14 +117,13 @@ void main() {
 
   group('DSIM', () {
     test('raw raster: header + pixels are model, trailer copied, byte-exact', () {
-      final pixels = List.filled(4 * 4 * 3, 0xbb); // 4x4 RGB
+      final pixels = List.filled(4 * 4 * 3, 0xbb);
       final dsim = _dsimRaster(4, 4, 24, pixels, trailer: const [1, 2, 3, 4]);
       final img = decodeImageBlock('DSIM', dsim)!;
       expect(img.bytes, dsim);
       expect(img.isRaster, isTrue);
       expect(img.modelBytes, 46 + pixels.length);
-      expect(img.copiedBytes, 4); // trailer
-      // A raw raster carries no PNG, so there is no IDAT to inflate.
+      expect(img.copiedBytes, 4);
       expect(img.inflatedContentBytes, 0);
       expect(img.compressedContentBytes, 0);
       expect(inflateImageRaster('DSIM', dsim), isNull);
@@ -146,7 +134,7 @@ void main() {
       b.setUint16(4, 4);
       b.setUint16(6, 4);
       b.setUint16(8, 24);
-      b.setUint32(22, 999); // wrong
+      b.setUint32(22, 999);
       b.setUint16(30, 4);
       b.setUint16(32, 4);
       b.setUint16(34, 24);
@@ -163,12 +151,12 @@ void main() {
       header.setUint16(32, 4);
       header.setUint16(34, 24);
       final png = _png();
-      final dsim = u8([...header.buffer.asUint8List(), ...png, 0xaa, 0xbb]); // 2-byte palette trailer
+      final dsim = u8([...header.buffer.asUint8List(), ...png, 0xaa, 0xbb]);
       final img = decodeImageBlock('DSIM', dsim)!;
       expect(img.bytes, dsim);
       expect(img.isRaster, isFalse);
-      expect(img.modelBytes, 46 + (png.length - 6)); // header + PNG framing/IHDR (IDAT 6B copied)
-      expect(img.copiedBytes, 6 + 2); // IDAT + trailer
+      expect(img.modelBytes, 46 + (png.length - 6));
+      expect(img.copiedBytes, 6 + 2);
     });
 
     test('an invalid header (nonzero lead) is not framed', () {
@@ -179,8 +167,6 @@ void main() {
   });
 
   group('ancillary chunks (iCCP / iTXt)', () {
-    // iCCP data: [name][0][method(1=0)][zlib profile]; iTXt uncompressed data:
-    // [keyword][0][compFlag(0)][compMethod(0)][langtag][0][transKw][0][text].
     List<int> iccp(List<int> profile) {
       final z = const ZLibEncoder().encodeBytes(Uint8List.fromList(profile));
       return _chunk('iCCP', [...'ICC'.codeUnits, 0, 0, ...z]);
@@ -191,7 +177,7 @@ void main() {
 
     Uint8List pngWith(List<int> extra) {
       final ihdr = _chunk('IHDR', [0, 0, 0, 4, 0, 0, 0, 4, 8, 2, 0, 0, 0]);
-      final idat = _chunk('IDAT', [0xde, 0xad, 0xbe, 0xef]); // opaque IDAT stand-in
+      final idat = _chunk('IDAT', [0xde, 0xad, 0xbe, 0xef]);
       final iend = _chunk('IEND', const []);
       return u8([..._pngSig, ...ihdr, ...extra, ...idat, ...iend]);
     }
@@ -201,7 +187,6 @@ void main() {
       final png = pngWith(iccp(profile));
       final img = decodeImageBlock('MNGI', png)!;
       expect(img.bytes, png, reason: 're-emit stays byte-exact');
-      // The inflated profile is added to the content total, all modeled.
       expect(img.inflatedContentBytes, profile.length);
       expect(img.inflatedModelBytes, profile.length);
       expect(img.compressedContentBytes, greaterThan(0));
@@ -214,7 +199,6 @@ void main() {
       final png = pngWith(itxtPlain('Comment', 'hello world'));
       final img = decodeImageBlock('MNGI', png)!;
       expect(img.bytes, png);
-      // Only the 4-byte opaque IDAT is copied; the uncompressed iTXt is model.
       expect(img.copiedBytes, 4);
       expect(imageAncillaryRoundTrips('MNGI', png).count, 0);
     });

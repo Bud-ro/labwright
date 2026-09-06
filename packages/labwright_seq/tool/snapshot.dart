@@ -1,21 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
 
-/// Regenerates the committed corpus metrics snapshot (`corpus/snapshot.json`).
-///
-/// The corpus tests measure everything (single source of truth — the exact
-/// code that asserts is the code that measures); this tool re-runs them with
-/// `LABWRIGHT_SNAPSHOT_UPDATE` pointed at a fragment directory, where each
-/// `expectCorpusSnapshot` call site records its section instead of asserting.
-/// The fragments are then merged over the existing snapshot and written back
-/// deterministically (sorted sections, sorted keys, one key per line) so
-/// regeneration diffs are minimal and reviewable.
-///
-/// Run: `dart run packages/labwright_seq/tool/snapshot.dart`
-/// Requires the fetched corpus (tool/fetch_seq_corpus.dart). Aborts without
-/// writing when the test run fails — laws must hold before numbers are pinned.
-
-/// The corpus test files that own snapshot sections.
 const _sectionTests = [
   'test/corpus_seq_test.dart',
   'test/binary_sweep_test.dart',
@@ -98,7 +83,6 @@ void main() {
   }
 }
 
-/// Walks up from CWD looking for this package (same resolution as the tests).
 String? _packageRoot() {
   const pkgRel = 'packages/labwright_seq';
   var dir = Directory.current;

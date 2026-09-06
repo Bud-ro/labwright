@@ -1,92 +1,41 @@
-/// Catalog of LabVIEW RSRC resource-block tags (the 4-char block names in a
-/// `.vi`), each mapped to a coarse [ViBlockCategory] so callers can treat a block
-/// by *what it is* instead of guessing from its bytes.
-///
-/// This is the foundation for per-block parsing: today most blocks are still
-/// opaque, but classifying them correctly is what stops, e.g., a type-descriptor
-/// pool (`VCTP`) or a compiled-code blob (`VICD`) from being mis-read as a
-/// record heap. Every entry carries a [BlockConfidence] label (clean-room — we
-/// have no NI source); `confirmed` means corpus-verified or self-identifying
-/// (a magic number / embedded ASCII), `likely` is strong convention, `tentative`
-/// is a best-effort name with the format not yet decoded.
-///
-/// Coverage: the 81 distinct tags observed across the 7583-VI corpus, plus the
-/// remaining tags documented on labviewwiki.org/wiki/Resource_Container that we
-/// have not yet seen in a real VI (catalogued as `tentative` with a TODO so the
-/// registry is complete). An unknown tag resolves to [ViBlockInfo.unknownFor]
-/// rather than throwing.
-///
-/// This catalog doubles as the **block registry**: each entry's
-/// [ViBlockInfo.decoder] names the function that decodes it (grep it to find the
-/// file under `lib/src/blocks/`), or is null when no decoder exists yet.
-library;
-
-/// Coarse role of a resource block. Drives display and parser dispatch.
 enum ViBlockCategory {
-  /// `C4`-record bracket-tree heap — the FP/BD object graph. The ONLY blocks that
-  /// should get the heap record-walk. Corpus-confirmed set: `FPHb`, `BDHb`,
-  /// `FPHc`, `BDHc` (each 100%: a valid `u32` content-length header followed by a
-  /// group-open/`C4` lead, across all 7568 VIs that have them).
   recordHeap,
 
-  /// Type descriptors / the VI type pool (`VCTP`) — the table of every data type
-  /// the VI uses. Its own `[count][type-record…]` format, NOT a record heap.
   typeInfo,
 
-  /// Compiled machine code (`VICD`) — e.g. an `i386` code image. Opaque to us.
   compiledCode,
 
-  /// Default / run-time data images (`DFDS` default data space, …).
   dataSpace,
 
-  /// Connector-pane / terminal-pattern description (`CONP`, `CPC2`, …).
   connectorPane,
 
-  /// Icon bitmaps (`icl8` 8-bit, `icl4` 4-bit, `ICON` 1-bit mask).
   icon,
 
-  /// Embedded raster/vector images by magic number (`MNGI`=PNG, `WEMF`=Win EMF,
-  /// `PICT`=Mac PICT).
   image,
 
-  /// Dependency / link tables (`LIvi`/`LIfp`/`LIbd`/`LIds` — each embeds an ASCII
-  /// `LVIN`/`FPHP`/`BDHP`/`VIDS` tag).
   linkInfo,
 
-  /// Human-readable text: strings, titles, help text (`STRG`, `TITL`, `HLPT`…).
   text,
 
-  /// A help-file path (`HLPP` begins with the `PTH0` path magic).
   helpPath,
 
-  /// VI settings / save record / version (`LVSR`, `vers`).
   settings,
 
-  /// Security: a password hash (`BDPW` — the sample is the MD5 of the empty
-  /// string, `d41d8cd9…`).
   security,
 
-  /// Embedded sub-VIs (`VINS`) — already recovered by `readEmbeddedVis`.
   embeddedVi,
 
-  /// Name / font tables (`FTAB`, `VITS`).
   nameTable,
 
-  /// GUIDs / signatures / unique-id tables (`*UID`, `*SG`, …) — small fixed blobs.
   identifier,
 
-  /// Edit/revision history (`HIST`).
   history,
 
-  /// Recognized tag whose byte format is not yet decoded.
   unknown,
 }
 
-/// How sure we are of a block's identity (clean-room, no NI source).
 enum BlockConfidence { confirmed, likely, tentative }
 
-/// One catalog entry: a block tag, a human name, its [ViBlockCategory], a
-/// [BlockConfidence], and a short note on the evidence.
 class ViBlockInfo {
   const ViBlockInfo(this.tag, this.name, this.category, this.confidence, this.note, {this.decoder});
 
@@ -96,13 +45,6 @@ class ViBlockInfo {
   final BlockConfidence confidence;
   final String note;
 
-  /// The name of the function that decodes this block (e.g. `decodeTypePool`,
-  /// `buildDiagram`), or null when no decoder exists yet. This is the registry
-  /// pointer that answers "where is the code for this block?": grep the name to
-  /// find its file under `lib/src/blocks/`. Tags with a null decoder are either
-  /// recognized-but-undecoded or only catalogued from documentation (see the
-  /// `// --- Documented … not yet observed/decoded ---` section); decoding one is
-  /// "add a `decodeXxxx` to its `blocks/` file and set this field".
   final String? decoder;
 
   bool get isDecoded => decoder != null;
@@ -111,14 +53,10 @@ class ViBlockInfo {
       ViBlockInfo(tag, 'Unknown ($tag)', ViBlockCategory.unknown, BlockConfidence.tentative, 'Not catalogued.');
 }
 
-/// Look up a block tag. Never throws — an uncatalogued tag yields
-/// [ViBlockInfo.unknownFor].
 ViBlockInfo blockInfo(String tag) => _catalog[tag] ?? ViBlockInfo.unknownFor(tag);
 
 bool isRecordHeapTag(String tag) => blockInfo(tag).category == ViBlockCategory.recordHeap;
 
-/// Whether [tag] is a catalogued block (identified by type), vs an entirely
-/// unrecognized tag that falls back to [ViBlockInfo.unknownFor].
 bool isCataloguedTag(String tag) => _catalog.containsKey(tag);
 
 const ViBlockCategory _h = ViBlockCategory.recordHeap;
@@ -742,10 +680,6 @@ const Map<String, ViBlockInfo> _catalog = {
     'Rare (n=2); one instance is a PTH0 path. Format not yet decoded.',
   ),
 
-  // --- Documented on labviewwiki.org/wiki/Resource_Container but NOT yet observed
-  //     in our corpus (so unconfirmed) and NOT yet decoded. Catalogued here so the
-  //     registry is complete and each has a home; TODO: confirm against a real VI
-  //     and write a decoder (then move it into its own blocks/ file + set decoder).
   'FLAG': ViBlockInfo(
     'FLAG',
     'Integer flags',

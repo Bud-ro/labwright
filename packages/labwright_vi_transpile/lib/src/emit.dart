@@ -1,36 +1,3 @@
-/// The **imperative lowering**: a block diagram's dataflow IR emitted as a
-/// Dart function, and the VIs it calls emitted alongside it as a library.
-///
-/// Dataflow becomes statements in three moves:
-///
-/// 1. every edge becomes one single-assignment local, named from the decoded
-///    label nearest to it (a control's name, a constant's caption, the
-///    primitive's own name);
-/// 2. each region's units are emitted in topological order, so a value is
-///    always defined before it is read — and a back edge, which a real diagram
-///    only has through a shift register, is refused;
-/// 3. each structure becomes the control flow its terminals describe: a For
-///    loop's count and auto-indexing tunnels become the loop bound, its shift
-///    registers become loop-carried locals, a Case structure's frames become
-///    the branches its own per-frame selector ranges guard.
-///
-/// A **subVI call** becomes a Dart call to the callee's own lowering, emitted
-/// into the same file once however many diagrams call it; the arguments are
-/// named, so the binding is by connector-pane terminal rather than by position
-/// (see `subvi.dart` for the pane contract, and [LvErrorMode] for what the
-/// error cluster does to a signature).
-///
-/// The **nominal types** the file spells — a named cluster's class, a named
-/// enum's `enum` — are declared in the file itself, from one [LvDeclarations]
-/// registry shared by the entry VI and every callee, so that one structure is
-/// one class however many VIs carry it. A declaration no emitted text names is
-/// dropped, exactly as an unread array constant is.
-///
-/// Nothing partial is ever emitted. A construct whose meaning is not decoded
-/// aborts the whole library with an [LvRefusal] naming it, so generated code
-/// is either complete or absent.
-library;
-
 import 'dart:math' show max, min;
 
 import 'package:dart_style/dart_style.dart';
@@ -47,12 +14,6 @@ import 'subvi.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
 
-/// The block diagram [model]'s code is lowered from: the block-diagram heap
-/// that carries objects.
-///
-/// A VI holds up to three block-diagram sections (`BDHb`, `BDHP`, `BDEx`) and
-/// the ones it does not use decode to an empty heap, so "the block diagram" is
-/// the one with content — never simply the first.
 ViDiagram? lvBlockDiagramOf(ViModel model) {
   ViDiagram? best;
   for (final diagram in model.blockDiagrams) {
@@ -61,23 +22,10 @@ ViDiagram? lvBlockDiagramOf(ViModel model) {
   return best == null || best.objects.isEmpty ? null : best;
 }
 
-/// The page width the emitted source is formatted to — the repo's own.
 const int kLvEmitPageWidth = 120;
 
-/// Resolves a subVI call's target: the VI a call node's file name refers to,
-/// or null when it is not available.
 typedef LvViResolver = LvViUnit? Function(String fileName);
 
-/// [diagram] as a Dart function named [functionName], or an [LvRefusal] naming
-/// the decoded fact that is missing. Never throws for a diagram it cannot
-/// lower.
-///
-/// [sourceNote] is recorded in the file header so a reader can find the VI the
-/// code came from. [pool] is the VI's consolidated type pool, which a cluster
-/// wire's member types are resolved through; without it a cluster wire has no
-/// decided Dart shape. A diagram lowered this way reaches no subVI, since a
-/// bare [ViDiagram] carries no connector pane to bind one through — use
-/// [emitLvLibrary] for that.
 ({String? source, LvRefusal? refusal}) emitLvFunction(
   ViDiagram diagram, {
   required String functionName,
@@ -98,14 +46,6 @@ typedef LvViResolver = LvViUnit? Function(String fileName);
   errorMode: errorMode,
 );
 
-/// [entry] and every VI it calls as one Dart library, or an [LvRefusal] naming
-/// the decoded fact that is missing. Never throws.
-///
-/// [functionName] names the entry point; a callee's function is named from its
-/// own file name by the naming policy, emitted **once** however many call sites
-/// reach it, and a VI that calls itself emits an ordinary recursive call.
-/// [resolveSubVi] supplies a callee by the file name its call node spells;
-/// without it, any subVI call is refused.
 ({String? source, LvRefusal? refusal}) emitLvLibrary(
   LvViUnit entry, {
   required String functionName,
@@ -125,21 +65,16 @@ typedef LvViResolver = LvViUnit? Function(String fileName);
 Never _refuse(LvRefusalKind kind, String detail, {int? oid}) =>
     throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
 
-/// One signature position of a lowered VI: a parameter or a result field.
 class _Port {
   const _Port({required this.terminal, required this.name, required this.type});
 
-  /// The oid of the connector-pane terminal on the VI's own block diagram.
   final int terminal;
 
-  /// The Dart identifier: a parameter name, or a result record's field name.
   final String name;
 
-  /// What the terminal's wire carries.
   final LvWireType type;
 }
 
-/// One VI's lowering: its declared signature, then its body.
 class _Callable {
   _Callable({required this.unit, required this.functionName, required this.flow});
 
@@ -148,23 +83,16 @@ class _Callable {
   final LvDataflow flow;
   final LvNaming names = LvNaming();
 
-  /// The parameters, in the order the VI draws its controls.
   final List<_Port> parameters = <_Port>[];
 
-  /// The results, in the order the VI draws its indicators.
   final List<_Port> results = <_Port>[];
 
-  /// Per connector-pane terminal oid, the signature position it became.
   final Map<int, _Port> byTerminal = <int, _Port>{};
 
-  /// The connector-pane terminal oids the error mode removed from the
-  /// signature — a call site passes and binds nothing for these.
   final Set<int> elided = <int>{};
 
-  /// The emitted source, once the body has run.
   String? source;
 
-  /// The Dart type the function returns.
   String get returnType => switch (results.length) {
     0 => 'void',
     1 => results.single.type.dartType!,
@@ -172,8 +100,6 @@ class _Callable {
   };
 }
 
-/// The whole emitted file: its imports, its file-scope constants, and one
-/// function per VI reached.
 class _Library {
   _Library({required this.errorMode, required this.resolve, required this.sourceNote});
 
@@ -183,31 +109,19 @@ class _Library {
 
   final Set<String> imports = <String>{};
 
-  /// The nominal types the whole library spells, named uniquely across it —
-  /// which is why the callees' dataflow is built through this one registry
-  /// rather than each on its own.
   final LvDeclarations declarations = LvDeclarations();
 
-  /// The hoisted array constants, per declared name. A constant whose value no
-  /// emitted body reads is dropped by [assemble] — a `Type Cast`'s type
-  /// operand contributes only its TYPE, so the constant wired there is live on
-  /// the diagram and dead in the lowering.
   final Map<String, String> fileConstants = <String, String>{};
 
-  /// Per callee file name, its declaration. Keyed case-insensitively, since a
-  /// call node's caption and a file name need not agree in case.
   final Map<String, _Callable> byFile = <String, _Callable>{};
 
-  /// The functions in emission order, entry first.
   final List<_Callable> functions = <_Callable>[];
 
   final Set<String> takenNames = <String>{};
 
-  /// Names the entry point and lowers it and everything it reaches.
   void emit(LvViUnit unit, {required String entryName}) {
     final entry = declare(unit, name: entryName);
-    // A callee declared while a body runs is appended to `functions`, so the
-    // list grows during the walk; index over it rather than iterating.
+    // Callees declared while a body runs append to `functions`; index over it.
     for (var index = 0; index < functions.length; index++) {
       final callable = functions[index];
       callable.source ??= _FunctionEmitter(this, callable).run();
@@ -215,8 +129,6 @@ class _Library {
     assert(entry.source != null);
   }
 
-  /// [unit]'s signature, declaring it (and its function name) on first sight.
-  /// Re-entrant: a VI that calls itself sees the declaration it is inside.
   _Callable declare(LvViUnit unit, {String? name}) {
     final key = unit.fileName.toLowerCase();
     if (byFile[key] case final existing?) return existing;
@@ -241,8 +153,6 @@ class _Library {
     }
   }
 
-  /// The VI's connector-pane terminals, split into parameters and results and
-  /// named — everything a call site needs before the body exists.
   void _declareSignature(_Callable callable) {
     final interface = [
       for (final unit in callable.flow.root.units)
@@ -290,20 +200,10 @@ class _Library {
     }
   }
 
-  /// Whether a connector-pane terminal of [type] leaves the signature: an
-  /// error cluster under [LvErrorMode.exceptions], where failure travels as a
-  /// thrown [LvRuntimeType.error] rather than as a parameter or a result.
   bool _elides(LvWireType type) => errorMode == LvErrorMode.exceptions && type.isErrorCluster;
 
-  /// Declares the imports spelling [type] needs — the one route by which an
-  /// emitted type contributes an import, so the file's import list is exactly
-  /// what its text uses and no more. A `List<String>` needs neither import
-  /// where a `Uint8List` needs `dart:typed_data`; call this wherever a Dart
-  /// type is written into the output.
   void noteImportsFor(LvWireType type) => noteImportsForType(type.value);
 
-  /// The same, for a mapped type with no [LvWireType] of its own — a generated
-  /// declaration's field type.
   void noteImportsForType(LvTypeMapping type) {
     if (lvTypeNeedsTypedData(type)) imports.add('dart:typed_data');
     if (lvTypeNeedsRuntime(type)) imports.add(kLvRuntimeImport);
@@ -315,29 +215,12 @@ class _Library {
     return one.top != two.top ? one.top.compareTo(two.top) : one.left.compareTo(two.left);
   }
 
-  /// The file's text, with the constants and declarations nothing spells left
-  /// out.
-  ///
-  /// A name counts as spelled when it matches as a word in the emitted text,
-  /// which reads a Dart string literal or a comment as if it were code: a
-  /// hoisted constant named `table` is kept by a diagram string constant whose
-  /// value is `table`, though no code names it.
-  ///
-  /// TODO: decide use structurally, by recording each name as it is written
-  /// into the output. Binding a name is not writing it — a `Type Cast`'s type
-  /// operand is read and discarded, which is why an unspelled constant is
-  /// dropped at all — so the record has to travel with the emitted text, which
-  /// makes an emitted expression a (text, names) pair everywhere `String` is
-  /// the currency today, here and through the primitive lowerings.
   String assemble() {
     final bodies = functions.map((function) => function.source ?? '').join('\n');
     final constants = [
       for (final entry in fileConstants.entries)
         if (RegExp('\\b${entry.key}\\b').hasMatch(bodies)) entry.value,
     ];
-    // Declarations follow the text: a nominal type that only a refused-away or
-    // dead wire carried is not written, exactly as an unread array constant is
-    // not. What a written declaration's own fields name comes with it.
     final spelled = '$bodies\n${constants.join('\n')}';
     final declared = lvDeclarationClosure([
       for (final declaration in declarations.all)
@@ -382,7 +265,6 @@ class _Library {
   }
 }
 
-/// Lowers one VI's body against its already-declared signature.
 class _FunctionEmitter {
   _FunctionEmitter(this.library, this.callable);
 
@@ -397,8 +279,6 @@ class _FunctionEmitter {
 
   Never refuse(LvRefusalKind kind, String detail, {int? oid}) => _refuse(kind, detail, oid: oid);
 
-  /// The expression bound to [port], refusing when no emitted unit produced
-  /// one — a value read from a producer the lowering never reached.
   String _bound(int port, int oid) {
     final expression = valueOf[port];
     if (expression == null) {
@@ -413,9 +293,6 @@ class _FunctionEmitter {
   }
 
   String run() {
-    // A foreign call is side-effecting, so a diagram holding one is refused
-    // whether or not its outputs reach an exit port — dead by dataflow is not
-    // dead by execution.
     for (final node in callable.unit.diagram.objects) {
       if (node.kind == kLvCallLibraryClass) {
         refuse(LvRefusalKind.foreignCall, lvForeignCallDetail(node), oid: node.oid);
@@ -424,9 +301,6 @@ class _FunctionEmitter {
     for (final parameter in callable.parameters) {
       valueOf[parameter.terminal] = parameter.name;
     }
-    // An `error in` the signature dropped starts cleared: under
-    // [LvErrorMode.exceptions] a failing caller threw, so control only reaches
-    // this VI with no error in hand.
     final thrown = <int>[];
     for (final terminal in callable.elided) {
       if (flow.outOf(terminal) != null) {
@@ -437,8 +311,6 @@ class _FunctionEmitter {
       }
     }
     _emitRegion(flow.root, {for (final result in callable.results) result.terminal, ...thrown});
-    // …and an `error out` the signature dropped becomes the throw itself, so
-    // the diagram's error computation is emitted rather than discarded.
     for (final terminal in thrown) {
       final value = _bound(flow.into(terminal)!.source, terminal);
       body.writeln('if ($value.status) throw $value;');
@@ -466,10 +338,6 @@ class _FunctionEmitter {
     return source.toString();
   }
 
-  // --- regions -----------------------------------------------------------
-
-  /// Emits [region]'s units in topological order, keeping only those that
-  /// reach one of [exitPorts].
   void _emitRegion(LvRegion region, Set<int> exitPorts) {
     final byOid = {for (final unit in region.units) unit.oid: unit};
     final live = _liveUnits(region, exitPorts, byOid);
@@ -504,8 +372,6 @@ class _FunctionEmitter {
     return live;
   }
 
-  /// [region]'s live units, each after every unit it reads from. A back edge
-  /// is a cycle no shift register explains, and is refused.
   List<LvUnit> _ordered(LvRegion region, Map<int, LvUnit> byOid, Set<int> live) {
     final ordered = <LvUnit>[];
     final state = <int, int>{}; // 1 = on the stack, 2 = emitted
@@ -538,8 +404,6 @@ class _FunctionEmitter {
     return ordered;
   }
 
-  // --- units -------------------------------------------------------------
-
   void _emitConstant(LvConstUnit unit) {
     final edge = flow.outOf(unit.port);
     if (edge == null) return;
@@ -554,8 +418,6 @@ class _FunctionEmitter {
           oid: unit.oid,
         );
       }
-      // A scalar literal is inlined at its use sites: binding it would be a
-      // `final` over a compile-time constant, and it reads better in place.
       valueOf[unit.port] = literal;
       return;
     }
@@ -571,14 +433,6 @@ class _FunctionEmitter {
     valueOf[unit.port] = _hoistArrayConstant(unit, type, values, dims);
   }
 
-  /// Declares an array constant at **file scope** and returns its name.
-  ///
-  /// A diagram constant reads no parameter, so its value is the same on every
-  /// call: building it once at load rather than per invocation costs one
-  /// allocation for the whole program instead of one per call. Sharing the
-  /// single instance is safe because no lowering writes through an array it
-  /// was given — Replace Array Subset copies, and an auto-indexing output
-  /// tunnel builds a new list.
   String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
     library.noteImportsFor(type);
     final name = names.fileConstant(unit.label);
@@ -588,34 +442,17 @@ class _FunctionEmitter {
         ? flat
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
               'Uint32List.fromList(const <int>[${dims.join(', ')}]))';
-    // A caption is free text and may hold newlines, which a `///` comment
-    // cannot; it is collapsed to one line rather than dropped.
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
     final declaration =
         '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
         '$shape ${type.numeric!.glyph} elements.\n'
         'final ${type.dartType} $name = $initializer;';
-    // A row-packed literal is only row-packed until the formatter reaches it:
-    // `dart format` gives a multi-element collection one element per line, so a
-    // 256-entry lookup table becomes 256 lines. The fence keeps the packing.
     library.fileConstants[name] = initializer.contains('\n')
         ? '// dart format off\n$declaration\n// dart format on'
         : declaration;
     return name;
   }
 
-  /// A numeric array constant's flat, row-major typed-list initializer. The
-  /// element list is `const`, so the decoded values live in the binary's
-  /// constant pool and the only run-time work is the one bulk copy into the
-  /// typed list.
-  ///
-  /// An all-zero constant is the typed list's own length constructor instead:
-  /// a `dart:typed_data` list is zero-filled on construction, so it is the
-  /// same value written without an element per line.
-  ///
-  /// Beyond [_kElementsPerLineThreshold] elements the literal is packed into
-  /// rows of [_kLiteralLineWidth] columns, which is what makes a decoded lookup
-  /// table readable as a table rather than as a column of digits.
   String _typedListLiteral(List<num> values, LvWireType type) {
     final kind = type.numeric!;
     if (values.isNotEmpty && values.every((value) => value == 0)) {
@@ -633,15 +470,10 @@ class _FunctionEmitter {
     return '$open\n${rows.join('\n')}\n])';
   }
 
-  /// The element count above which an array literal is packed into rows.
   static const int _kElementsPerLineThreshold = 12;
 
-  /// The column budget a packed row of element literals is sized to fill.
   static const int _kLiteralLineWidth = 96;
 
-  /// One array element's literal: hexadecimal at the kind's full width for an
-  /// unsigned integer — the form a mask or lookup table is read in — and
-  /// decimal for a signed integer or a float.
   static String _elementLiteral(num value, LvNumericKind kind) {
     if (kind.isFloat) return value is int ? '$value.0' : '$value';
     final integer = value is double ? value.toInt() : value as int;
@@ -661,14 +493,6 @@ class _FunctionEmitter {
     return value == null ? null : _numberLiteral(value, type);
   }
 
-  /// A numeric constant's literal, read at the width and signedness its WIRE
-  /// states.
-  ///
-  /// The constant record carries the value's bytes; the signal word carries the
-  /// type they are read as, and the two need not agree — a two-byte `FF FF` on
-  /// an I16 wire decodes as the magnitude 65 535 and is the value −1. The
-  /// signal word is the authority on what a wire carries, so a magnitude above
-  /// a signed kind's range is the same bit pattern read as negative.
   String _numberLiteral(num value, LvWireType type) {
     final kind = type.numeric;
     if (kind?.isFloat ?? false) {
@@ -679,11 +503,6 @@ class _FunctionEmitter {
     return '${magnitude > (1 << (kind.bits - 1)) - 1 ? magnitude - (1 << kind.bits) : magnitude}';
   }
 
-  /// A single-quoted Dart literal for [text]. A LabVIEW string constant holds
-  /// arbitrary BYTES — one code unit each — so every unit outside printable
-  /// ASCII is written as a `\u{…}` escape rather than pasted into the source:
-  /// the emitted literal is the same sequence of code units whatever the
-  /// bytes are, and stays readable.
   static String _stringLiteral(String text) {
     final out = StringBuffer("'");
     for (final code in text.codeUnits) {
@@ -759,11 +578,6 @@ class _FunctionEmitter {
     }
   }
 
-  // --- subVI calls -------------------------------------------------------
-
-  /// Emits one subVI call: the callee's function, named arguments bound
-  /// through the connector pane, and the results bound to the wires that leave
-  /// the node.
   void _emitSubVi(LvSubViUnit unit) {
     final callee = _resolveCallee(unit);
     final target = library.declare(callee);
@@ -777,8 +591,6 @@ class _FunctionEmitter {
       );
     }
 
-    /// The callee's signature position for pane terminal [paneIndex], or null
-    /// when the error mode took that terminal out of the signature.
     _Port? portFor(int paneIndex, int holder, {required bool isInput}) {
       final terminal = callee.paneTerminal(paneIndex);
       if (terminal == null) {
@@ -815,8 +627,6 @@ class _FunctionEmitter {
     for (final holder in unit.inputPorts) {
       final edge = flow.into(holder);
       if (edge == null) continue;
-      // A callee whose `error in` the signature dropped is entered only when
-      // there is no error, so the wire feeding it is not passed.
       final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: true);
       if (port == null) continue;
       arguments.add('${port.name}: ${_bound(edge.source, unit.oid)}');
@@ -825,7 +635,6 @@ class _FunctionEmitter {
     for (final holder in unit.outputPorts) {
       if (flow.outOf(holder) == null) continue;
       final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: false);
-      // …and its `error out` is cleared, because a failure threw instead.
       if (port == null) {
         library.imports.add(kLvRuntimeImport);
         valueOf[holder] = LvRuntimeType.clearedError;
@@ -882,8 +691,6 @@ class _FunctionEmitter {
     return callee;
   }
 
-  // --- structures --------------------------------------------------------
-
   void _emitStructure(LvStructUnit unit) {
     switch (unit.kind) {
       case LvStructureKind.forLoop:
@@ -903,8 +710,6 @@ class _FunctionEmitter {
     }
   }
 
-  /// The expression reaching [terminal]'s outer port, or null when nothing
-  /// does.
   String? _outerValue(LvStructTerminal terminal) {
     final port = terminal.outerPort;
     if (port == null) return null;
@@ -912,11 +717,8 @@ class _FunctionEmitter {
     return edge == null ? null : valueOf[edge.source];
   }
 
-  /// The type of the wire attached to [port], or null when there is none.
   LvWireType? _typeAt(int port) => (flow.into(port) ?? flow.outOf(port))?.type;
 
-  /// The inner sink ports of [unit]'s terminals inside [frameOid] — the frame's
-  /// exits.
   Set<int> _frameExits(LvStructUnit unit, int frameOid) => {
     for (final terminal in unit.terminals)
       if (terminal.innerPorts[frameOid] case final port? when flow.sinkPorts.contains(port)) port,
@@ -1055,8 +857,6 @@ class _FunctionEmitter {
     }
   }
 
-  /// Declares one loop-carried local per shift-register pair, initialised from
-  /// the left register's outer input.
   List<({LvStructTerminal terminal, String name, int? rightOuter})> _emitShiftRegisters(
     LvStructUnit unit,
     int frameOid,
@@ -1088,18 +888,8 @@ class _FunctionEmitter {
     return carried;
   }
 
-  /// The member giving the number of slices an auto-indexing [tunnel] reads:
-  /// a 1-D array's own `length`, and a multi-dimensional array's outermost
-  /// dimension.
   String _indexedLength(LvStructTerminal tunnel) => _typeAt(tunnel.outerPort!)!.dims > 1 ? 'outerLength' : 'length';
 
-  /// Refuses an auto-indexing tunnel whose inner side is itself
-  /// multi-dimensional.
-  ///
-  /// The slice a loop reads from a two-dimensional array is one row of the flat
-  /// buffer ([LvRuntimeType.arrayNd]'s `rowAt`), which is a complete value of
-  /// the inner wire's own type. A rank-3 array's slice is a rank-2 array, which
-  /// carries a dimension vector this reader has no decoded source for.
   void _checkIndexedRank(LvStructTerminal tunnel, int innerPort) {
     final inner = _typeAt(innerPort);
     if (inner == null || inner.dims < 2) return;
@@ -1138,9 +928,6 @@ class _FunctionEmitter {
     if (unit.displayedFrame >= unit.frames.length) {
       refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
     }
-    // A boolean and an error cluster are the two selectors whose frames the
-    // `0x95` label alone settles, and the only ones whose stored values
-    // (0 and 1, or a sentinel pair) do not read as selector values.
     if (selectorEdge.type.isErrorCluster || selectorEdge.type.carrier == LvCarrier.boolean) {
       _emitTwoWayCase(unit, selectorEdge);
       return;
@@ -1148,8 +935,6 @@ class _FunctionEmitter {
     _emitRangeCase(unit, selectorEdge);
   }
 
-  /// Lowers a Case over a boolean or an error-cluster selector, whose two
-  /// frames are the displayed one and its complement.
   void _emitTwoWayCase(LvStructUnit unit, LvEdge selectorEdge) {
     final onError = selectorEdge.type.isErrorCluster;
     if (unit.frames.length != 2) {
@@ -1160,9 +945,6 @@ class _FunctionEmitter {
         oid: unit.oid,
       );
     }
-    // The error form's two labels are LabVIEW's own: over the corpus's Case
-    // structures whose selector wire resolves an error cluster, every one has
-    // two frames and every displayed label reads `No Error` or `Error`.
     final displayed = unit.displayedLabel;
     final trueLabel = onError ? LvCaseLabel.error : LvCaseLabel.isTrue;
     final falseLabel = onError ? LvCaseLabel.noError : LvCaseLabel.isFalse;
@@ -1184,16 +966,6 @@ class _FunctionEmitter {
     body.writeln('}');
   }
 
-  /// Lowers a Case over a value selector from the structure's own per-frame
-  /// range list ([LvStructUnit.selectorRanges]) — the values LabVIEW selects
-  /// each frame by, which is what makes a Case of more than two frames
-  /// lowerable at all.
-  ///
-  /// The frames come out in the file's own order, each guarded by the values
-  /// its ranges name, with the Default frame last as the `else`. Order only
-  /// decides a value two frames both claim, which the corpus has 1 pair of
-  /// across 131 407 comparable pairs (the selector-range census's
-  /// `rangesOverlap`), so it is very nearly no decision at all.
   void _emitRangeCase(LvStructUnit unit, LvEdge selectorEdge) {
     final type = selectorEdge.type;
     if (unit.selectorRanges.isEmpty) {
@@ -1208,8 +980,6 @@ class _FunctionEmitter {
       refuse(LvRefusalKind.caseSelector, 'the Default frame index is out of range', oid: unit.oid);
     }
     final selectorValue = _bound(selectorEdge.source, unit.oid);
-    // Frames in the file's order, each with the conditions its ranges name.
-    // The Default frame is left out: it is the `else`, whatever else names it.
     final guards = <int, List<String>>{};
     for (final range in unit.selectorRanges) {
       if (range.frame < 0 || range.frame >= unit.frames.length) {
@@ -1245,14 +1015,6 @@ class _FunctionEmitter {
     body.writeln('}');
   }
 
-  /// The Dart test that [range] selects its frame, or null when the range's
-  /// bound modes or the selector's [type] give it no decoded reading.
-  ///
-  /// A string selector's ranges index the structure's own pool, and only a
-  /// single value reads as a test there — an ordering over pool indices is not
-  /// the ordering over the strings themselves. An integer selector (an enum
-  /// wire carries its underlying integer) reads all four value-carrying bound
-  /// shapes. No other selector type has a decoded reading.
   String? _rangeGuard(ViSelectorRange range, String selectorValue, LvStructUnit unit, LvWireType type) {
     if (type.dims != 0) return null;
     if (unit.selectorStrings.isNotEmpty) {
@@ -1274,8 +1036,6 @@ class _FunctionEmitter {
     return null;
   }
 
-  /// Declares one local per live Case output tunnel and binds the tunnel's
-  /// outer port to it, so every frame assigns the same names.
   List<({LvStructTerminal terminal, String name, LvWireType type})> _declareCaseOutputs(LvStructUnit unit) {
     final outputs = <({LvStructTerminal terminal, String name, LvWireType type})>[];
     for (final tunnel in unit.terminals) {
@@ -1292,8 +1052,6 @@ class _FunctionEmitter {
     return outputs;
   }
 
-  /// Emits one Case frame's body into the open branch: its inner reads, its
-  /// region, and the assignment of every output tunnel.
   void _emitCaseFrame(
     LvStructUnit unit,
     int frameIndex,
@@ -1327,8 +1085,6 @@ class _FunctionEmitter {
     }
   }
 
-  /// Binds a frame's inner reads of the structure's input tunnels and selector
-  /// to the values that reach them from outside.
   void _bindFrameInputs(LvStructUnit unit, int frameOid, String? selectorValue) {
     for (final terminal in unit.terminals) {
       final inner = terminal.innerPorts[frameOid];

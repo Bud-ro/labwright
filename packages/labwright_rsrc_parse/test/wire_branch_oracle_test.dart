@@ -10,25 +10,6 @@ import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 import 'wire_style_oracle.dart';
 
-/// Independent pixel oracle for the branching wire route ([ViWire.routeTree]):
-/// the shipping gate proves the LEAF endpoints only, so the interior bends
-/// and junction-dot positions — decoded from the stored stream, not
-/// re-derived from an endpoint — are corroborated HERE against LabVIEW's own
-/// snippet renders. Each registrable snippet's diagram is registered onto its
-/// reference raster (the shared [registerDiagram]); then, for every branching
-/// signal, the walked tree's runs are sampled pixel-by-pixel for ink overlay
-/// and each junction dot is tested for ink.
-///
-/// Two scopes: **shipped** trees ([ViWire.routeTree] non-null — leaves
-/// proven) are the oracle's ground; **walk** trees (origin anchored, not all
-/// leaves closed) are reported for context — their far arms drift off the
-/// true wire, so their lower coverage is expected, not a defect. Pinned by
-/// the `wire_branch_oracle` snapshot section.
-///
-/// Sample size is small (branching wires are rare in registrable snippets),
-/// so this pins the overlay measurement and the junction-on-ink law, not a
-/// broad statistical claim; the corpus-wide leaf closure and the rule
-/// selection live in `wire_route_census_test`.
 Map<String, int> _census(Uint8List png, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -73,12 +54,6 @@ Map<String, int> _census(Uint8List png, String path) {
     final branch = w.branchRoute;
     if (branch == null) continue;
     if (!objectVisibleInRender(bd, w.signalOid)) continue;
-    // The 'shipped' scope gates the PROVEN closed tier — the tree the model
-    // actually ships ([ViWire.routeTree], closure-arbitrated attach
-    // candidates included). Unshipped/partially-anchored wires fall in
-    // 'walk' (re-walked from the shell-centre attach), whose far arms
-    // drift — that lower coverage is expected. The walked tier's own
-    // overlay is pinned by `wire_one_anchored_oracle`.
     final closed = w.routeTree != null && w.routeTreeFidelity == WireRouteFidelity.closed;
     final ViWireRouteTree tree;
     if (closed) {
@@ -126,10 +101,7 @@ void main() {
   });
 
   test('branch oracle laws: shipped junction dots sit on reference ink', () {
-    // Every junction dot of a shipped (leaf-proven) tree lands on wire ink —
-    // the branch points are where the render draws them.
     expect(C['brc_shipped_junc_on_ink'] ?? 0, C['brc_shipped_junctions'] ?? 0);
-    // Shipped runs overlay the render's own ink near-perfectly (>= 99%).
     final px = C['brc_shipped_runpx'] ?? 0, ink = C['brc_shipped_runink'] ?? 0;
     expect(px, greaterThan(0), reason: 'the registrable snippet corpus contains shipped branching trees');
     expect(ink * 100, greaterThanOrEqualTo(99 * px), reason: 'shipped interior geometry overlays reference ink >= 99%');

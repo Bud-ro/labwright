@@ -9,18 +9,10 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Mechanical regression guard over the pinned corpus. Every coverage axis
-/// (container/blocks/heap tiers, as raw counts) and every decode/correlation
-/// sentinel is measured over the WHOLE corpus and asserted EXACTLY against the
-/// `coverage` section of corpus/snapshot.json — see `snapshot_check.dart`. The
-/// per-section tier arithmetic is shared with tool/coverage.dart
-/// ([kHeapSectionTags]/[measureHeapTiers]) so the scorecard and this gate
-/// cannot drift. Each VI is summarized ONCE in a worker isolate; tests assert
-/// on the aggregate.
 typedef _Cov = ({
-  String? totalityFail, // parseVi/decodeSections/walk threw on a real VI
-  String? walkFail, // a framed span ran past the section body
-  int parseOk, // container-level axes (raw counts; tool/coverage.dart mirrors them as ratios)
+  String? totalityFail,
+  String? walkFail,
+  int parseOk,
   int decodeOk,
   int blockInstances,
   int blocksIdentified,
@@ -32,15 +24,14 @@ typedef _Cov = ({
   int body,
   int semantic,
   int valueKind,
-  int propertyNames, // decoder-presence sentinels: a count drop = silently dropped decoder
+  int propertyNames,
   int helpStrings,
   int controlF64,
   int fallbackNodes,
   int drawableUnknown,
-  Map<String, int> sent, // correlation sentinels behind the inferred raw-tag upgrades
+  Map<String, int> sent,
 });
 
-/// Per-object scratch for the raw-tag sentinels.
 class _SentNode {
   _SentNode(this.kind, this.parent);
   final int kind;
@@ -92,8 +83,6 @@ _Cov _covSumm(Uint8List bytes, String path) {
           controlF64++;
         }
       }
-      // Sentinels: partRole enclosing kinds, objFlags position-0, masterPart sibling parts, the
-      // signal chain scope, termListLength == child count, ddoRef cross-heap resolution.
       final nodes = <_SentNode>[];
       final oids = oidsBySec[s.tag] ??= <int>{};
       walkHeapObjects<_SentNode>(
@@ -118,7 +107,6 @@ _Cov _covSumm(Uint8List bytes, String path) {
             }
             return;
           }
-          // Every attribute form carries the tag low byte at offset+1 — cheap pre-filter.
           if (!const {0xdf, 0xcb, 0xaf, 0xe7, 0x9f, 0x58}.contains(idByte)) return;
           final a = decodeHeapAttr(s.bytes, span.offset);
           if (a == null) return;
@@ -236,13 +224,6 @@ void main() {
   });
 
   test('coverage axes, decode sentinels, and raw-tag correlations match the committed snapshot', () {
-    // Coverage as RAW counts (bytes/instances, not rounded ratios) — the
-    // scorecard axes of tool/coverage.dart plus the decode-presence sentinels
-    // and the correlation numerator/denominator pairs behind the raw-tag
-    // upgrades (partRole in labels/connectors/numerics, objFlags-first,
-    // masterPart sibling hits, signal-chain scoping, termListLength == child
-    // count, ddoRef cross-heap resolution). Exact equality: any move, up or
-    // down, is a reviewed snapshot diff.
     int sum(int Function(_Cov) f) => C.fold(0, (a, c) => a + f(c));
     final sentKeys = <String>{for (final c in C) ...c.sent.keys};
     expectCorpusSnapshot('coverage', {

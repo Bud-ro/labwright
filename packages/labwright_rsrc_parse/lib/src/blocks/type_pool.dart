@@ -2,13 +2,7 @@ import 'dart:typed_data';
 
 import '../decode.dart';
 
-/// A recovered LabVIEW data-type kind, from the VI Consolidated Type Pool
-/// (`VCTP`). The pool's per-descriptor **type enumerator** (one byte) maps to
-/// these; clean-room RE, so well-attested codes are named and everything else is
-/// [unknown] (the raw code is preserved on [ViType] regardless).
 enum ViDataType {
-  /// No data (`0x00`). Zero-length descriptor interior; contributes 0 bytes to a
-  /// serialized default value.
   voidType,
   i8,
   i16,
@@ -30,49 +24,30 @@ enum ViDataType {
   boolean,
   string,
 
-  /// A NUL-terminated C string (`0x34`); descriptor mirrors [string]
-  /// (`ffffffff` sentinel + optional name).
   cString,
 
-  /// A length-prefixed Pascal string (`0x35`).
   pascalString,
 
-  /// A substring view type (`0x3f`); descriptor mirrors [string].
   subString,
   path,
   picture,
 
-  /// A "tag" type (`0x37`) — an enumerated tag carrying a small fixed record
-  /// after the `ffffffff` sentinel.
   tag,
   array,
 
-  /// An array-data-pointer type (`0x41`); same `[u16 numDims][dims][u16 elem]`
-  /// interior shape as [array].
   arrayDataPointer,
 
-  /// A sub-array view type (`0x4f`); `[u16 numDims][u16 elem]` interior.
   subArray,
   cluster,
 
-  /// The LabVIEW variant type (`0x53`, `LVVariant`) — a self-describing value;
-  /// carries only an optional name in its descriptor.
   variant,
 
-  /// Measurement/waveform data (`0x54`) — `[u16 subKind]` selecting timestamp /
-  /// waveform / digital-waveform, then an optional name.
   measureData,
 
-  /// Complex fixed-point (`0x5e`) and fixed-point (`0x5f`) numeric types.
   complexFixedPoint,
   fixedPoint,
   refnum,
 
-  /// Internal storage-block descriptors used inside the data-space type tree:
-  /// `Block` (`0x60`, `[u32 size]`), `TypeBlock` (`0x61`), `VoidBlock` (`0x62`,
-  /// `[u16]`), `AlignedBlock` (`0x63`, `[u32][u16]`), `RepeatedBlock` (`0x64`,
-  /// `[u32 count][u16 elem]`), and an `AlignmentMarker` (`0x65`, `[u16]`). These
-  /// carry no directly-serialized default value.
   block,
   typeBlock,
   voidBlock,
@@ -80,36 +55,19 @@ enum ViDataType {
   repeatedBlock,
   alignmentMarker,
 
-  /// A generic pointer (`0x80`, `Ptr`): a modern LabVIEW (≥ 8.6) reference that
-  /// flattens to zero bytes in the data-space image.
   ptr,
 
-  /// A pointer-to-type (`0x83`, `PtrTo`) that flattens as a 4-byte value.
   ptrTo,
 
-  /// A VI/function connector type (`0xf0`) — a connector-pane signature, not a
-  /// data value; contributes 0 bytes to a serialized default.
   function,
 
-  /// A named type definition (`0xf1`) that wraps exactly one base type inline
-  /// (see [ViType.typedefBase]); its serialized default is the base's.
   typeDef,
 
-  /// A polymorphic-VI reference (`0xf2`).
   polyVi,
 
-  /// A type code not (yet) catalogued — see [ViType.code] for the raw byte.
   unknown,
 }
 
-/// The VCTP type-descriptor enumerator bytes — the low byte of each descriptor's
-/// type word. This is the package's single catalogue of type-code **identity**:
-/// the kind map [_typeCodes] here and the `DFDS` flattened-value walk
-/// (`dfds.dart`) both key off these constants, so the two cannot disagree on what
-/// a code means. Codes and names are cross-referenced from the pylabview project
-/// (not LabVIEW-verified) and corpus-anchored by descriptor frequency and — for
-/// the flattened widths in `dfds.dart` — exact `DFDS` byte tiling. Codes with no
-/// constant here decode to [ViDataType.unknown] rather than being guessed.
 abstract final class TypeCode {
   static const int voidType = 0x00;
   static const int i8 = 0x01;
@@ -166,9 +124,6 @@ abstract final class TypeCode {
   static const int polyVi = 0xf2;
 }
 
-/// The catalogued LabVIEW type-descriptor enumerators, keyed by [TypeCode].
-/// Corpus-validated against the `VCTP` histogram; codes absent here decode to
-/// [ViDataType.unknown] rather than being guessed.
 const Map<int, ViDataType> _typeCodes = {
   TypeCode.voidType: ViDataType.voidType,
   TypeCode.i8: ViDataType.i8,
@@ -218,17 +173,8 @@ const Map<int, ViDataType> _typeCodes = {
   TypeCode.polyVi: ViDataType.polyVi,
 };
 
-/// The catalogued [ViDataType] for a raw type-enumerator byte in the
-/// [TypeCode] space, or null for an uncatalogued code. The lookup behind
-/// [decodeTypePool]'s kind assignment, exposed for the other decoders that
-/// read values from the same code space (e.g. a signal's wire-type word,
-/// `ViSignalType` in graph.dart).
 ViDataType? dataTypeOfCode(int code) => _typeCodes[code];
 
-/// One entry in the VI's type pool: its position [index], the raw type
-/// enumerator byte [code], the catalogued [kind] (or [ViDataType.unknown]), and
-/// the recovered [name] (a typedef/control name like `Serial Number`) when the
-/// descriptor carries one, else null.
 class ViType {
   const ViType({
     required this.index,
@@ -245,54 +191,19 @@ class ViType {
   final int code;
   final ViDataType kind;
 
-  /// For a [ViDataType.cluster], the VCTP indices of its member types in order
-  /// (resolve against the pool with [clusterFields]) — the struct's fields.
-  /// Empty for non-clusters or when the member list can't be parsed.
   final List<int> members;
 
-  /// The descriptor's embedded name (typedef / labelled control), or null. These
-  /// are real identifiers (`Trigger Threshold (volts)`, `error out`) — the VI's
-  /// typed data dictionary. Heuristically recovered (see [decodeTypePool]); only
-  /// populated when a clean trailing Pascal string is present.
   final String? name;
 
-  /// For a [ViDataType.array], the VCTP index of its element type (resolve
-  /// against the pool), or null for non-arrays / unparseable descriptors.
   final int? elementIndex;
 
-  /// For a [ViDataType.array], the descriptor's stored dimension count (the
-  /// `[u16 numDims]` word its interior opens with, 1..8 by the same gate as
-  /// [elementIndex]) — 1 for a 1D array, 2 for a 2D array — or null for
-  /// non-arrays / unparseable descriptors.
   final int? dimCount;
 
-  /// For an enum/ring type ([ViDataType.enumU8]/[enumU16]/[enumU32]), the ordered
-  /// item labels (`Channel A`, `Channel B`, …), or empty when unparseable. These
-  /// are the type-pool source; FP control objects carry their own copy via
-  /// `ViHeapObject.items`.
   final List<String> enumItems;
 
-  /// For a [ViDataType.typeDef] (`0xf1`), the **inline base descriptor** the
-  /// definition wraps — the actual data type the named typedef stands for
-  /// (`WPI_PWMDeadband.ctl` → a cluster of seven members). Decoded from the
-  /// bytes that follow the descriptor's owning-library path list, carrying
-  /// [index] `-1` because it has no position of its own in the pool. Null when
-  /// the descriptor does not frame under [_typedefBaseStart]'s grammar.
   final ViType? typedefBase;
 }
 
-/// Decodes the **VI Consolidated Type Pool** from an already-decompressed `VCTP`
-/// section body into an ordered list of [ViType]. Layout (big-endian),
-/// corpus-validated to parse cleanly for 100% of VIs:
-///
-///   `[u32 count]` then `count` × `[u16 descLen][u8 flags][u8 typeCode] …`
-///
-/// where `descLen` is the descriptor's total byte length (including the length
-/// word) and `typeCode` is the low byte of the type word. The remaining bytes
-/// (numeric sub-info, embedded names, nested element types) are not decoded here
-/// — this recovers the type *kind* inventory honestly; deeper structure is not
-/// decoded. Total: returns `const []` on a malformed/short pool rather than
-/// throwing.
 List<ViType> decodeTypePool(Uint8List body) {
   if (body.length < 8) return const [];
   final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
@@ -309,11 +220,6 @@ List<ViType> decodeTypePool(Uint8List body) {
   return out;
 }
 
-/// Decodes ONE type descriptor occupying `[off, off + descLen)` of a `VCTP`
-/// [body] into a [ViType] at pool position [index] — the per-descriptor body
-/// of [decodeTypePool], shared with the inline typedef base ([_typedefBase]),
-/// which occupies the same descriptor grammar without a pool slot of its own.
-/// [depth] bounds typedef-in-typedef nesting.
 ViType _decodeDescriptor(Uint8List body, int off, int descLen, int poolCount, int index, [int depth = 0]) {
   final code = body[off + 3];
   final kind = _typeCodes[code] ?? ViDataType.unknown;
@@ -336,20 +242,8 @@ ViType _decodeDescriptor(Uint8List body, int off, int descLen, int poolCount, in
   );
 }
 
-/// The pool index carried by an inline base descriptor ([ViType.typedefBase]),
-/// which is nested inside its typedef rather than occupying a pool slot.
 const int kInlineTypeIndex = -1;
 
-/// The byte offset, within the `0xf1` typedef descriptor at [off], where its
-/// inline base descriptor begins — i.e. just past the interior's fixed pair of
-/// `u32` words and the **owning-library path list** they introduce:
-///
-///   `[u32 checksum][u32 componentCount][componentCount × [u8 len][chars]]`
-///
-/// Corpus-anchored: every one of the 31060 typedef descriptors frames under
-/// this grammar, with 1–3 path components (`WPI_PWMDeadband.ctl`,
-/// `NI_LVConfig.lvlib`/`Config Data.ctl`). Returns null when the interior is
-/// too short or the component list runs past the descriptor.
 int? _typedefBaseStart(Uint8List bytes, int off, int descLen) {
   final end = off + descLen;
   if (off + 12 > end) return null;
@@ -364,16 +258,7 @@ int? _typedefBaseStart(Uint8List bytes, int off, int descLen) {
   return pos + 4 <= end ? pos : null;
 }
 
-/// The inline base descriptor of the `0xf1` typedef at [off] ([ViType.typedefBase]).
-///
-/// The base is a plain type descriptor at [_typedefBaseStart], except that its
-/// own length word counts **4 bytes more** than the extent it occupies — the
-/// gate here is `declaredLength - 4 == bytes remaining in the typedef`, which
-/// holds for 31040 of the corpus's 31060 typedefs (99.94%; the remaining 20 do
-/// not frame and yield null rather than a guess). The 4-byte discrepancy is
-/// consistent across every framing descriptor but its meaning is not decoded
-/// (TODO). The base's extent is taken from the remaining bytes, not from the
-/// declared word, so a base can never read past its typedef.
+/// TODO: the inline base's length word exceeds its extent by 4; not decoded.
 ViType? _typedefBase(Uint8List bytes, int off, int descLen, int poolCount, int depth) {
   final start = _typedefBaseStart(bytes, off, descLen);
   if (start == null) return null;
@@ -383,17 +268,6 @@ ViType? _typedefBase(Uint8List bytes, int off, int descLen, int poolCount, int d
   return _decodeDescriptor(bytes, start, remaining, poolCount, kInlineTypeIndex, depth + 1);
 }
 
-/// Decodes the **top-level type index table** that follows the descriptor
-/// list in a `VCTP` body: `[u16 count]` then `count` × `[u16 poolIndex]` —
-/// the VI's ordered list of top-level data items, each referencing a
-/// descriptor in the pool (the list `TM80` map entries and the heap's
-/// `typeDescIndex` records index into; the heap's indices carry a per-VI
-/// base, see the graph builder). Returns `const []` when the body ends at
-/// the descriptors, the count word is truncated, or any entry is out of
-/// pool range. Unlike [decodeTypePool] (which keeps the descriptors decoded
-/// before a malformed one), a partially-decodable pool yields NO table: the
-/// table sits after the last descriptor, so its offset is only known when
-/// every descriptor framed.
 List<int> decodeTypeTable(Uint8List body) {
   if (body.length < 8) return const [];
   final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
@@ -417,11 +291,6 @@ List<int> decodeTypeTable(Uint8List body) {
   return out;
 }
 
-/// Parses a cluster descriptor's member list: `[u16 numMembers][u16 typeIndex]*`
-/// at body offset `off+4` (right after the length word + flags + code), each
-/// index pointing into the same pool. Returns the member indices, or `const []`
-/// if the layout doesn't validate (count fits the descriptor, every index in
-/// range) — corpus-validated to parse for 99.9% of clusters.
 List<int> _clusterMembers(Uint8List bytes, int off, int descLen, int poolCount) {
   if (off + 6 > bytes.length) return const [];
   final memberCount = (bytes[off + 4] << 8) | bytes[off + 5];
@@ -437,10 +306,6 @@ List<int> _clusterMembers(Uint8List bytes, int off, int descLen, int poolCount) 
   return out;
 }
 
-/// Parses an array descriptor's element type index: layout is
-/// `[u16 numDims][u32 dimSize]*numDims[u16 elementTypeIndex]` after flags+code.
-/// Returns the element index (into the pool) or null if it doesn't validate
-/// (1–8 dims, the index fits the descriptor and is in range) — corpus-derived.
 int? _arrayElement(Uint8List bytes, int off, int descLen, int poolCount) {
   if (off + 6 > bytes.length) return null;
   final numDims = (bytes[off + 4] << 8) | bytes[off + 5];
@@ -452,24 +317,6 @@ int? _arrayElement(Uint8List bytes, int off, int descLen, int poolCount) {
   return idx;
 }
 
-/// The **serialized default-value size**, in bytes, of a type's value as it is
-/// flattened into the data-space image (`DFDS`) — or null when the size is not
-/// derivable from the type alone (a variable-length or not-yet-catalogued type).
-///
-/// Fixed-width types return their flattened width: the integers (1/2/4/8 by
-/// width), `SGL`/`DBL`/`EXT` (4/8/16), the complex pair (8/16/32), enums
-/// (1/2/4 by tag width), boolean (1), void (0), and a simple refnum (4). A
-/// [ViDataType.cluster] is the sum of its members' sizes (resolved against
-/// [pool]). Anything whose flattened length depends on runtime content —
-/// [ViDataType.string], [ViDataType.path], [ViDataType.array],
-/// [ViDataType.variant], the block family, a tag-carrying refnum, `unknown` —
-/// returns null. A [ViDataType.typeDef] (`0xf1`) is its base's size
-/// ([ViType.typedefBase]), or null when the base did not frame.
-/// Total; never throws.
-///
-/// This mirrors LabVIEW's documented flat-data widths and is corpus-anchored by
-/// the `DFDS` data-space image, whose leading fixed region is the 51-word
-/// [kDataSpaceInitTableBytes] init table.
 int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {
   if (depth > 64) return null;
   switch (t.code) {
@@ -519,17 +366,8 @@ int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {
   }
 }
 
-/// The size in bytes of the **data-space init table** — a fixed block of 51
-/// big-endian `u32` words that leads every `DFDS` default-data-space image
-/// before the per-DCO default values. Corpus-anchored: across the whole corpus
-/// every `DFDS` body is at least this long, and the shortest (a data space with
-/// no non-default control/indicator values) is exactly this long.
 const int kDataSpaceInitTableBytes = 51 * 4;
 
-/// Parses an enum/ring descriptor's item labels: `[u16 numItems]` then
-/// `numItems` × `[u8 len][label]` Pascal strings, after flags+code. Returns the
-/// labels, or `const []` if the list doesn't validate (1–256 items, printable,
-/// fits the descriptor) — corpus-validated to parse for ~96% of enums.
 List<String> _enumItems(Uint8List bytes, int off, int descLen) {
   if (off + 6 > bytes.length) return const [];
   final numItems = (bytes[off + 4] << 8) | bytes[off + 5];
@@ -548,15 +386,11 @@ List<String> _enumItems(Uint8List bytes, int off, int descLen) {
   return out;
 }
 
-/// Resolves a cluster [c]'s [ViType.members] indices against the full pool
-/// [types] into the ordered member [ViType]s. Out-of-range indices are skipped.
 List<ViType> clusterFields(ViType c, List<ViType> types) => [
   for (final member in c.members)
     if (member < types.length) types[member],
 ];
 
-/// A short human label for a type, resolving one level of array nesting:
-/// `array<dbl>`, `array<cluster>`, else the bare kind name (`i32`, `cluster`).
 String typeLabel(ViType t, List<ViType> types) {
   final ei = t.elementIndex;
   if (t.kind == ViDataType.array && ei != null && ei < types.length) {
@@ -565,14 +399,6 @@ String typeLabel(ViType t, List<ViType> types) {
   return t.kind.name;
 }
 
-/// Recovers a type descriptor's embedded name: LabVIEW stores it as a Pascal
-/// string (`u8 len` + bytes) at the **end** of the descriptor. Scans for a valid
-/// string (2–63 printable bytes — a single char is too weak — containing letters:
-/// ≥2, or a letter-majority for short names, so a coincidental `[len][punct]`
-/// binary tail is rejected) ending at the descriptor's last byte (allowing one pad
-/// byte). Returns null when no clean name is present
-/// — heuristic but precise enough that ~all recovered names are real identifiers
-/// (corpus-validated: ~64% of descriptors named, e.g. `Serial Number`).
 String? _trailingName(Uint8List bytes, int start, int end) {
   for (final nameEnd in [end, end - 1]) {
     if (nameEnd <= start) continue;
@@ -598,11 +424,6 @@ String? _trailingName(Uint8List bytes, int start, int end) {
   return null;
 }
 
-/// The byte offset where a descriptor's optional trailing name may begin — i.e.
-/// just past the type's known binary payload (cluster member indices, array
-/// dimension sizes + element index, enum item strings). For other types the name
-/// (if any) follows the flags+code word. Confining [_trailingName] to this region
-/// stops binary payload bytes from being mis-read as a name.
 int _nameRegionStart(
   Uint8List bytes,
   int off,
@@ -624,21 +445,6 @@ int _nameRegionStart(
   return off + 4;
 }
 
-/// Re-serializes a `VCTP` type-pool [body] from its framing grammar, or returns
-/// null when [body] does not parse and tile exactly under it (total; never
-/// throws). The grammar (big-endian), corpus-verified to frame 7490/7490 pools
-/// to the last byte:
-///
-///   `[u32 count]` then `count` × `[u16 descLen][descLen-2 interior]` then the
-///   **top-level type list** `[u16 tlCount][tlCount × u16 index]`.
-///
-/// Every structural word (`count`, each `descLen`, `tlCount`, each top-level
-/// index) is reconstructed from the value read at its offset; each descriptor's
-/// type-specific interior is retained byte-faithfully. The output is therefore
-/// byte-identical to [body] for a well-formed pool — the reconstruction proves
-/// the framing rather than copying it. Returns null (caller copies verbatim)
-/// when a descriptor length runs past the body, a `descLen < 4`, the count is
-/// out of range, or the top-level list does not end exactly at the body's end.
 Uint8List? reserializeTypePool(Uint8List body) {
   if (body.length < 6) return null;
   final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
@@ -666,9 +472,6 @@ Uint8List? reserializeTypePool(Uint8List body) {
   return out;
 }
 
-/// Whether a `VCTP` type-pool [body] parses and tiles exactly under the framing
-/// grammar of [reserializeTypePool], without allocating the reconstructed
-/// buffer — the lean predicate for the content scoreboard. Total; never throws.
 bool typePoolFrames(Uint8List body) {
   if (body.length < 6) return false;
   final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
@@ -685,8 +488,6 @@ bool typePoolFrames(Uint8List body) {
   return off + 2 + tlCount * 2 == body.length;
 }
 
-/// [decodeTypePool] over a set of decoded sections — finds the `VCTP` section and
-/// decodes it, or returns `const []` if absent.
 List<ViType> typePoolFromDecoded(Iterable<DecodedSection> decoded) {
   for (final decodedSection in decoded) {
     if (decodedSection.tag == 'VCTP') return decodeTypePool(decodedSection.bytes);
@@ -694,15 +495,11 @@ List<ViType> typePoolFromDecoded(Iterable<DecodedSection> decoded) {
   return const [];
 }
 
-/// The subset of [types] that carry a recovered [ViType.name], in pool order —
-/// the VI's named typedefs / labelled data items.
 List<ViType> namedTypes(List<ViType> types) => [
   for (final type in types)
     if (type.name != null) type,
 ];
 
-/// A compact `{kind-name: count}` histogram of [types] (omitting empties),
-/// ordered most-frequent first — the VI's type inventory at a glance.
 Map<String, int> typeKindHistogram(List<ViType> types) {
   final counts = <ViDataType, int>{};
   for (final type in types) {

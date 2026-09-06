@@ -49,7 +49,6 @@ void main() {
   });
 
   group('step rendering', () {
-    // (name, step, exact texts that must each render exactly once)
     final rows = <(String, StepOutline, List<String>)>[
       (
         'forced run-mode badge for a Skip step',

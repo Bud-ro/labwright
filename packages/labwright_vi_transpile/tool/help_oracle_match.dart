@@ -1,28 +1,3 @@
-/// Cross-references the primitive catalogue against the published function
-/// reference harvested by `labwright_rsrc_parse`'s `tool/fetch_help_oracle.dart`.
-///
-/// [PrimOp] names primitives from what the corpus shows — a node caption, a
-/// palette neighbour, a glyph read off the icon. The reference is an
-/// INDEPENDENT statement of the same names, so joining the two on the name
-/// tests every entry at once:
-///
-/// - a name the reference also carries is corroborated, and the topic supplies
-///   the terminal names, directions and count the corpus never spells out —
-///   which is what an operand-role decision needs;
-/// - a name the reference does not carry is a lead to re-examine, listed so
-///   nothing is quietly assumed correct.
-///
-/// The join is by name alone. The reference states no primResID, so a topic
-/// with no matching [PrimOp] entry is reported as unclaimed rather than
-/// attached to an id — naming an id is a decision this tool never makes.
-///
-/// Usage:
-///   dart run tool/help_oracle_match.dart [oracle.json]
-///
-/// The path defaults to `$NI_HELP_CACHE/oracle.json`. Nothing is written; the
-/// report goes to stdout.
-library;
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -45,8 +20,6 @@ Future<void> main(List<String> args) async {
   ];
   final byName = <String, _Topic>{};
   for (final topic in topics) {
-    // A later part number restates the same topic; the newest wins, matching
-    // how the harvest itself picks a capture.
     final existing = byName[_key(topic.title)];
     if (existing == null || topic.partNumber.compareTo(existing.partNumber) > 0) byName[_key(topic.title)] = topic;
   }
@@ -86,12 +59,6 @@ Future<void> main(List<String> args) async {
     }
     if (topic.terminals.isEmpty) stdout.writeln('        (the topic states no terminal table)');
   }
-
-  // The class-coded nodes carry no primResID, so they never reach [PrimOp]; the
-  // reference states their terminals all the same, and the corpus's heaviest
-  // blockers are among them. A growable node's arity here is the count its
-  // illustration happens to draw — the reference names the run `element
-  // 0..n-1`, so read the NAMES for the grammar and never the count as a bound.
   stdout.writeln('\n== node classes the corpus names, checked against the reference ==');
   for (final entry in kLvNamedNodeClasses.entries) {
     final topic = byName[_key(entry.value.name)];
@@ -133,10 +100,6 @@ Future<void> main(List<String> args) async {
   }
 }
 
-/// The join key. Editions differ in case and spacing, and some titles carry a
-/// trailing packaging qualifier — `Unregister For Events (Not in Base Package)`
-/// is the same operation as `Unregister For Events`, and which package ships it
-/// is not part of its identity.
 String _key(String name) => name
     .replaceAll(RegExp(r'\s*\((?:Not in|Windows|Mac OS X|Linux)[^)]*\)\s*$', caseSensitive: false), '')
     .toLowerCase()

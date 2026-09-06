@@ -9,22 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Corpus census for the scalar-width short-caption decode (raw tag `0x022`,
-/// [HeapAttribute.shortText]) — the numbers the [buildDiagram] caption comment
-/// cites, recomputed from scratch and asserted exactly against the `short_text`
-/// snapshot section.
-///
-/// Every scalar-width `0x022` record (`u8`/`u16`/`u24`/`u32`) across every heap
-/// section is bucketed exactly once:
-///  * `zero` — value 0 (an empty caption).
-///  * `captured` — every stored byte a printable ASCII glyph AND the decoded
-///    text fills the whole stored width (a genuine N-char caption uses the
-///    N-byte width). These become object labels; split by width `capW1..capW4`
-///    and by carrier class (`capOn0a` = the label class, the dominant scope).
-///  * `widthInconsistent` — all-printable low bytes but a null leading byte, so
-///    the string is shorter than the width: a number, left numeric.
-///  * `nonPrintableHighBit` / `nonPrintableLowCtrl` — a byte outside
-///    `0x20..0x7e` (high-bit Latin-1, or a control code): left numeric.
 const _heapTags = {'BDHb', 'BDHP', 'BDEx', 'FPHb', 'FPHP', 'FPEx'};
 
 int _scalarBytes(HeapAttrWidth w) => switch (w) {
@@ -57,7 +41,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
         final attr = decodeHeapAttr(body, off);
         if (attr == null || attr.rawTag != 0x022) return;
         final sb = _scalarBytes(attr.width);
-        if (sb == 0) return; // flag / length-prefixed widths carry no scalar text
+        if (sb == 0) return;
         bump('total');
         final v = attr.asInt ?? -1;
         if (v == 0) {

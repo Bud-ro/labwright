@@ -9,38 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Corpus census for the signal wire-type-word decode ([ViSignalType] /
-/// [ViWire.signalType]) — every number the doc comments cite, recomputed from
-/// scratch and asserted exactly against the `signal_types` snapshot section.
-/// One extra full-model corpus pass (~10 s wall inside the parallel suite).
-///
-/// Oracle: a signal whose endpoints resolve an unambiguous VCTP type family
-/// (the endpoint DCO itself, a near ancestor, or its attach terminal — the
-/// same resolution `resolveDataSpaceTypes` performs) is labeled with that
-/// family; the wire's own decoded [ViWire.typeKind] is scored against it.
-/// Enum-labeled wires are scored separately (the word stores the enum's
-/// underlying integer code by design). Family **disagreements are
-/// partitioned by cause** instead of being asserted away:
-///
-///  * `miss_<fam>_element` — the word names the endpoint array's ELEMENT
-///    family (or, for a scalar oracle, an array OF that family): the
-///    loop-boundary/indexing signature, where the typed endpoint sits on
-///    the other side of an auto-indexing tunnel from the wire.
-///  * `miss_<fam>_nearby` — the word's family is carried by another
-///    resolved type in the endpoint neighbourhood (an ancestor / terminal
-///    the first-hit oracle walked past): local oracle ambiguity.
-///  * `miss_<fam>_other` — unexplained residual.
-///
-/// Also pinned: the depth and flag histograms, the exact-VCTP array-dims
-/// agreement (`dimsK`/`dimsK_agree`, on wires whose element families agree,
-/// so arrayness mismatches stay visible), and the majority-family purity of
-/// the REJECTED per-signal type carriers (`ruledOut*`): signalState `0x115`,
-/// the scalar `0x1e7` wire-table forms, and the signal's objFlags — the
-/// measurements that justified choosing `0x09f` over them.
-
-/// The wire-level family an oracle endpoint type predicts, or null for the
-/// kinds that carry no family claim (typedefs resolve on the wire word but
-/// not in this oracle; void/blocks/function are not wire data).
 String? _familyOf(ViDataType t) => switch (t) {
   ViDataType.i8 ||
   ViDataType.i16 ||
@@ -66,7 +34,6 @@ String? _familyOf(ViDataType t) => switch (t) {
   _ => null,
 };
 
-/// The oracle family a decoded wire-level [ViTypeKind] counts as agreeing with.
 String? _familyOfKind(ViTypeKind kind) => switch (kind) {
   ViTypeKind.numericInt => 'int',
   ViTypeKind.numericFloat => 'float',
@@ -80,9 +47,6 @@ String? _familyOfKind(ViTypeKind kind) => switch (kind) {
   _ => null,
 };
 
-/// Follows a resolved VCTP type's array chain: total dimension count (from
-/// [ViType.dimCount]) and the terminal element's family. `(0, family)` for a
-/// non-array; `(null, null)` on an unresolvable chain.
 (int?, String?) _dimsAndElement(ViType t, List<ViType> pool) {
   var dims = 0;
   var cur = t;
@@ -109,14 +73,12 @@ Map<String, int> _census(Uint8List bytes, String path) {
   }
   final pool = model.types;
 
-  // Raw per-signal capture of the REJECTED type-carrier candidates plus the
-  // 0x9f width law (the model's capture drops >u16 values; prove none exist).
   final bdBodies = [
     for (final d in decoded)
       if (const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag) && d.bytes.length >= 6) d.bytes,
   ];
-  final stateBySig = <int, Map<int, int>>{}; // diagram index -> oid -> 0x115
-  final wtScalarBySig = <int, Map<int, int>>{}; // diagram index -> oid -> scalar 0x1e7
+  final stateBySig = <int, Map<int, int>>{};
+  final wtScalarBySig = <int, Map<int, int>>{};
   for (var di = 0; di < model.blockDiagrams.length && di < bdBodies.length; di++) {
     final body = bdBodies[di];
     final st = stateBySig[di] = <int, int>{};
@@ -157,9 +119,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       if (t.dataType == null) bump('codeUncatalogued');
       if (t.typeKind != null) bump('kindResolved');
 
-      // Oracle: first-hit resolved type per endpoint (family unanimity
-      // required) plus the FULL neighbourhood family set for the miss
-      // partition.
       final fams = <String>{};
       final nearbyFams = <String>{};
       ViType? oracleType;
@@ -192,8 +151,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       }
       final fam = fams.first;
 
-      // Rejected-carrier purity inputs (labeled wires only; `x_` keys are
-      // folded into the ruledOut* purities and never snapshotted).
       final st = stateBySig[di]?[wire.signalOid];
       if (st != null) bump('x_st_${st.toRadixString(16)}|$fam');
       final wt = wtScalarBySig[di]?[wire.signalOid];
@@ -204,7 +161,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final kind = wire.typeKind;
       final predicted = kind == null ? null : _familyOfKind(kind);
       if (fam == 'enum') {
-        // The word flattens enums to their integer code — scored separately.
         bump('oracleEnum');
         if (predicted == 'int') bump('oracleEnumAsInt');
         continue;
@@ -217,7 +173,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       if (predicted == fam) {
         bump('oracle_${fam}_agree');
       } else {
-        // Partition the miss (each miss lands in exactly one bucket).
         final elementMiss =
             (fam == 'array' && oracleElemFam != null && predicted == oracleElemFam) ||
             (fam != 'array' && predicted == 'array' && wordElemFam == fam);
@@ -230,9 +185,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
         }
       }
 
-      // Exact-VCTP array-dims agreement, on wires whose ELEMENT families
-      // agree (so arrayness mismatches stay visible here) and both sides
-      // resolve dims.
       final wordDims = t.arrayDims;
       if (wordDims != null && oracleDims != null && oracleElemFam != null && wordElemFam == oracleElemFam) {
         final k = oracleDims > 3 ? '4plus' : '$oracleDims';
@@ -244,8 +196,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
   return c;
 }
 
-/// Majority-family purity over the aggregated `x_<tag>_<value>|<family>`
-/// keys: (sum of each value's dominant-family count, total labeled records).
 (int, int) _purity(Map<String, int> agg, String prefix) {
   final byValue = <String, Map<String, int>>{};
   agg.forEach((k, n) {
@@ -283,7 +233,6 @@ void main() {
     for (final m in res) {
       m.forEach((k, v) => C[k] = (C[k] ?? 0) + v);
     }
-    // Fold the rejected-carrier inputs into their purity pins.
     for (final (tag, name) in [('x_st_', 'SignalState'), ('x_wt_', 'WireTableScalar'), ('x_of_', 'ObjFlags')]) {
       final (pure, total) = _purity(C, tag);
       C['ruledOut${name}Pure'] = pure;

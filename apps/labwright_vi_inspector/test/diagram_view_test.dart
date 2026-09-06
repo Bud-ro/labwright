@@ -10,7 +10,6 @@ import 'package:labwright_vi_inspector/src/images_view.dart';
 
 import 'util.dart';
 
-/// An enum/ring control (0x57, items via its 0x0d child) + a plain boolean.
 ViModel modelWithControls() => modelFromRecords(<int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
@@ -27,7 +26,6 @@ ViModel modelWithControls() => modelFromRecords(<int>[
   ...close(),
 ]);
 
-/// A named node + a labeled terminal under the diagram root.
 ViModel modelWithDiagram() => modelFromRecords(<int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
@@ -55,7 +53,6 @@ Future<void> pumpView(
 
 Future<ui.Image> _tinyIcon() {
   final completer = Completer<ui.Image>();
-  // 2x1: a black pixel and a transparent one.
   final rgba = Uint8List.fromList([0, 0, 0, 255, 0, 0, 0, 0]);
   ui.decodeImageFromPixels(
     rgba,
@@ -79,7 +76,6 @@ void main() {
   test('terminals keep LabVIEW datatype colors; unknown stays neutral', () {
     const rows = {
       ViTypeKind.numericFloat: Color(0xFFFF6600),
-      // Sampled from LabVIEW's own snippet renders.
       ViTypeKind.numericInt: Color(0xFF0000FF),
       ViTypeKind.enumRing: Color(0xFF0000FF),
       ViTypeKind.string: Color(0xFFFF00FF),
@@ -138,7 +134,6 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     expect(find.textContaining('VI icon'), findsOneWidget);
-    // The front panel never shows the identity strip.
     await pumpBody(
       tester,
       ViDiagramView(
@@ -168,8 +163,6 @@ void main() {
   testWidgets('BD view shows a control-flow outline (structures + calls)', (
     tester,
   ) async {
-    // The no-fabricated-wires contract is enforced by the computeBdOutline
-    // unit test; the view keeps its honest "not dataflow" disclaimer.
     await pumpView(
       tester,
       modelFromRecords(<int>[

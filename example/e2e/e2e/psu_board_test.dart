@@ -1,8 +1,3 @@
-// The example bench module: `register()` is called from e2e/main.dart and
-// only REGISTERS — bodies run after main returns, one at a time. The device
-// is a simulated PSU board so the suite runs anywhere; on a real bench you
-// hand `dut.use` a driver that implements Plug and the bodies stay
-// identical.
 import 'package:e2e_test/e2e_test.dart';
 import 'package:e2e_test/psu_board.dart';
 import 'package:labwright/labwright.dart';
@@ -26,9 +21,6 @@ void register() {
     },
   );
 
-  // labwright has no expected-failure tier (an exception IS a failure), so
-  // proving the fault is CAUGHT is a normal passing test: the sagged rail
-  // must read OUTSIDE its limit.
   test('a 5V brownout is caught by the rail limit', () async {
     final board = PsuBoard(brownout5v: true);
     const nominal = 5.0;

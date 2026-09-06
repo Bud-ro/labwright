@@ -5,7 +5,6 @@ import 'dart:typed_data';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// A fake TOF1 file: magic + preamble + file-type token + a zlib body.
 Uint8List _tof1(List<int> bodyBytes, {int pad = 0x100}) => Uint8List.fromList(
   (BytesBuilder()
         ..add(ascii.encode('TOF1'))
@@ -24,7 +23,6 @@ List<int> _nulPool(List<String> names) => [
   for (final n in names) ...[...ascii.encode(n), 0],
 ];
 
-/// A 48-byte named-scalar record: [tag][pad][nameRel][typeCode][f64] + 6 zero words.
 List<int> _scalarRec({int tag = 0, int nameRel = 8, int typeCode = 99, double value = 42.0}) => [
   ..._u32le(tag),
   ..._u32le(0),
@@ -158,12 +156,22 @@ void main() {
     test('binaryNamedRecords keeps consistently-tagged names, drops the rest', () {
       final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList', 'StepX', 'SeqX']);
       final rec = [
-        // Two consistent [tag=5][nameRel=8] pairs, two conflicting tags for rel 19.
-        ..._u32le(0), ..._u32le(5), ..._u32le(8),
-        ..._u32le(0), ..._u32le(5), ..._u32le(8),
-        ..._u32le(0), ..._u32le(3), ..._u32le(19),
-        ..._u32le(0), ..._u32le(4), ..._u32le(19),
-        ..._u32le(0), ..._u32le(0), ..._u32le(0), ..._u32le(0),
+        ..._u32le(0),
+        ..._u32le(5),
+        ..._u32le(8),
+        ..._u32le(0),
+        ..._u32le(5),
+        ..._u32le(8),
+        ..._u32le(0),
+        ..._u32le(3),
+        ..._u32le(19),
+        ..._u32le(0),
+        ..._u32le(4),
+        ..._u32le(19),
+        ..._u32le(0),
+        ..._u32le(0),
+        ..._u32le(0),
+        ..._u32le(0),
       ];
       final recs = binaryNamedRecords(_tof1([...rec, ...pool]));
       expect(recs, hasLength(1));
@@ -195,8 +203,6 @@ void main() {
     });
 
     test('deeply nested typedef bodies bail instead of overflowing the stack', () {
-      // 100k self-nesting descriptor nodes ([flags][0][DELIM][nameIdx][childCount=1]):
-      // each recurses one level, so an uncapped parse would blow the Dart stack.
       final region = BytesBuilder();
       for (var i = 0; i < 100000; i++) {
         region

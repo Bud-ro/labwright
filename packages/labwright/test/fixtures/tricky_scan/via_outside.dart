@@ -1,5 +1,3 @@
-// Plugged in through ../outside/bench_helpers.dart — reachable, not
-// unplugged, even though nothing in THIS folder imports it directly.
 import 'package:labwright/labwright.dart';
 
 void register() {

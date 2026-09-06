@@ -10,37 +10,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Corpus census for the stored wire-route decode ([ViWireRoute] /
-/// [ViWire.routePoints]) — every number the doc comments cite, recomputed
-/// from scratch and asserted exactly against the `wire_routes` snapshot
-/// section. One extra full-model corpus pass.
-///
-/// Four censuses share the pass:
-///
-///  1. **Table forms** — per two-endpoint signal: which direction code the
-///     table opens with, the undecoded residue, and the multi-endpoint
-///     (extended `[n][00]…`) population.
-///  2. **Closure outcomes** — for every two-endpoint signal whose BOTH
-///     endpoints resolve a [ViDiagram.wireAttachPoint], whether the walked
-///     route closes exactly (ships [ViWire.routePoints]) or how it fails.
-///     Failures are never force-closed, so the miss buckets stay visible.
-///  3. **Branching routes** — per 3+-endpoint extended table: decode/walk
-///     totality, leaf closure onto the anchored attach points (destination
-///     candidates include the strip-column target,
-///     [kTerminalStripTargetLeftOffset]), the fully-anchored split gating
-///     [ViWire.routeTree], the reverse-solved tier (`extShippedRev`), the
-///     DCO-child closed tier (`extShippedDcoClosed`), and the
-///     exact-attach-geometry subset (see [_extCensus]).
-///  4. **Plain-node landings** — for wires walkable from one anchored end
-///     whose far endpoint is a plain-node DCO (no attach geometry), the
-///     walked landing coordinate relative to the owner node's box, grouped
-///     by (node kind / primResID, endpoint ordinal, box size, approach).
-///     Only the unanimity SUMMARY is pinned: the groups are dominated by a
-///     single landing value but are NOT unanimous (rare stale-route
-///     outliers), so no placement table is shipped — the walked polyline
-///     ([ViWire.routePoints], its far end derived from the owner box) stands
-///     alone. TODO: revisit a placement table once the outliers are separable
-///     (e.g. by a staleness signal).
 Map<String, int> _census(Uint8List bytes, String path) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
@@ -54,8 +23,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
     for (final w in d.wires) {
       final raw = d.byId[w.signalOid]?.wireTableRaw;
       final eps = w.endpointOids.length;
-      // Law: the 0x15 node endpoints are bounds-less (the own-bounds attach
-      // fallback belongs to 0x16 alone).
       for (final oid in w.endpointOids) {
         final ep = d.byId[oid];
         if (ep != null && ep.kind == 0x15 && ep.absBounds != null) bump('bounded15Endpoints');
@@ -64,21 +31,16 @@ Map<String, int> _census(Uint8List bytes, String path) {
         bump(eps == 2 ? 'noTable2ep' : 'noTableMulti');
         continue;
       }
-      // Law: the grammar has no 3-byte table, so the u24 capture width is
-      // never exercised.
       if (raw.length == 3) bump('tables3Byte');
       if (eps != 2) {
         final ext = raw.length >= 2 && raw[1] == 0;
         bump(ext ? 'multiExtTable' : 'multiShortTable');
-        // The extended form on a degenerate <3-endpoint signal: counted here
-        // so multiExtTable (all eps != 2) reconciles with the eps >= 3
-        // branch census (extDecoded) — the gap is `multiExtTableSub3`.
         if (ext && eps < 3) bump('multiExtTableSub3');
         if (ext && eps >= 3) _extCensus(d, w, bump);
         continue;
       }
       bump('tables2ep');
-      if (raw.length >= 2 && raw[1] == 0) bump('ext2ep'); // law: 0
+      if (raw.length >= 2 && raw[1] == 0) bump('ext2ep');
       final route = w.route;
       if (route == null) {
         bump('undecoded2ep');
@@ -99,9 +61,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       }
       final s = d.wireAttachPoint(w.endpointOids[0]);
       final t = d.wireAttachPoint(w.endpointOids[1]);
-      // An array constant's closure may arbitrate onto its element-centre
-      // candidate instead of the shell centre (see
-      // [ViDiagram.endpointConstantElementBounds]).
       ViPoint? altOf(int oid) {
         final elem = d.endpointConstantElementBounds(oid);
         return elem == null
@@ -118,13 +77,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final points = w.routePoints;
       if (points != null) {
         bump('shipped');
-        // Tier split by the exposed fidelity and the standard-attach
-        // resolution: both standard endpoints = the historical closed tier;
-        // a closed ship with a missing standard end went through the
-        // DCO-child fallback candidates ([ViDiagram.dcoChildTerminalAttach]);
-        // a walked ship splits into the standard one-anchored walk (forward
-        // from endpoint 0 / reverse from endpoint 1) and the wide-row
-        // fallback-anchored walk (no standard attach at all).
         final walked = w.routePointsFidelity == WireRouteFidelity.walked;
         if (!walked) {
           bump(s != null && t != null ? 'shippedClosed' : 'shippedClosedDcoChild');
@@ -133,19 +85,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
         } else {
           bump('shippedWalkedDcoRow');
         }
-        // Law: the fidelity tier is exposed for every ship.
         if (w.routePointsFidelity == null) bump('fidelityBad');
-        // A forward walk whose last decoded bend enters the far node ships the
-        // polyline to that bend (pointCount-1 points) with an into-node closing
-        // step; the length that would carry it to the node's connection is the
-        // undecoded input-pin depth. Counted apart from a genuine zero-length
-        // closing run.
         if (w.routeClosingStep != null) {
           bump('shippedWalkedIntoNode');
         } else if (points.length == route.pointCount - 1) {
-          // A zero-length closing/derived run ships pointCount-1 points (the
-          // walk ends ON the far point; no duplicate terminal vertex). Its
-          // stored closing sign is uncheckable — census its split anyway.
           bump('shippedZeroClose');
           final closingSign = route.jointSigns.isEmpty ? null : route.jointSigns.last;
           bump(
@@ -156,12 +99,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
                 : 'Neg'}',
           );
         }
-        // Law: a shipped polyline carries the stored point count (one fewer
-        // for a zero run) and touches its anchor(s) — both endpoint candidate
-        // sets when closed (standard attach/alt/strip points, else the
-        // DCO-child fallback candidates), else the sole anchored end (leading
-        // for a forward walk, trailing for a reverse walk; either end for the
-        // wide-row fallback walk).
         final lenOk = points.length == route.pointCount || points.length == route.pointCount - 1;
         final fb0 = d.dcoChildTerminalAttach(w.endpointOids[0]);
         final fb1 = d.dcoChildTerminalAttach(w.endpointOids[1]);
@@ -187,14 +124,12 @@ Map<String, int> _census(Uint8List bytes, String path) {
       } else if (s == null || t == null) {
         bump('oneAnchorUnshipped');
       } else if (route.pointCount == 1) {
-        bump('closeMissOnePoint'); // 1-point table, endpoints do not coincide
+        bump('closeMissOnePoint');
       } else {
         final land = _openLanding(route, s)!;
         final miss = land.horizontal ? (land.y - t.y).abs() : (land.x - t.x).abs();
         bump(miss == 0 ? 'closeSignBad' : (miss <= 1 ? 'closeOff1' : 'closeMiss'));
         if (miss > 1) {
-          // How many misses press against an elongated attach rect (a grown
-          // border-terminal stack: narrow dimension ≤ 9, other ≥ 2×).
           final elongated = [w.endpointAttachRects[0], w.endpointAttachRects[1]].any((r) {
             if (r == null) return false;
             final w2 = r.right - r.left, h = r.bottom - r.top;
@@ -205,7 +140,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
         }
       }
 
-      // Landing census: anchored start, plain-node far endpoint.
       if (s != null && t == null && route.direction != null) {
         final ep = d.byId[w.endpointOids[1]];
         final owner = ep == null ? null : _boundedOwner(d, ep);
@@ -231,39 +165,16 @@ Map<String, int> _census(Uint8List bytes, String path) {
   return c;
 }
 
-/// The extended (branching) route census for one 3+-endpoint signal whose
-/// table opens `[n][00]`. Structural (no anchoring): per-code junction
-/// segments (`extJunc*`), start-mask population (`extStartMask`), the
-/// substitution count (`extJuncSubst`), and the leaf-count law
-/// `#pop + 2 == endpoint count` (`extLeafLawViol`). Origin-anchored:
-/// the walk, the junction-on-vertex interior law (`extJuncOffVertex`),
-/// per-endpoint leaf closure onto the attach points (greedy multiset
-/// matching), and the fully-anchored split that gates [ViWire.routeTree].
-///
-/// The **exact-attach subset** (`extEpExact` / `extEpExactHit`) isolates
-/// the walk rule from attach-point error: an endpoint counts as exact when
-/// its attach geometry is border-exact — anchored on its own `0x16` bounds
-/// (no terminal, no constant shell), or resolving a terminal whose REAL
-/// composing frame (the nearest BOUNDED ancestor of the terminal's parent,
-/// matching how [ViDiagram.endpointTerminalBounds] composes) is a structure.
-/// Node-framed rects and constant value-shell centres (both approximate) are
-/// excluded. Both origin and endpoint must be exact. Exact-subset misses are
-/// partitioned into `extEpExactMissInRect`
-/// (the nearest walked leaf still lands inside the endpoint's own attach
-/// rect — right terminal, off the floored-centre convention) and
-/// `extEpExactMissFar`.
 void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   final branch = w.branchRoute;
   if (branch == null) {
-    bump('extUndecoded'); // law: 0 — every extended table decodes
+    bump('extUndecoded');
     return;
   }
   bump('extDecoded');
   final eps = w.endpointOids.length;
   final modes = branch.modes;
 
-  // Structural census (no attach anchoring needed).
-  // Per-code junction segments + start-mask population.
   if (_bitCount(modes[0]) > 1) bump('extStartMask');
   for (var k = 1; k < modes.length; k++) {
     switch (WireRouteJunction.fromCode(modes[k])) {
@@ -280,18 +191,9 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     }
   }
   bump('extJuncSubst', _junctionSubstitutions(branch));
-  // Leaf-count law over ALL tables: endpoint count == #pop + 2. The first
-  // mode is never a pop (it is a direction or start mask — a 0x03 there is
-  // the up|left mask), so pops are counted from mode 1.
   final pops = modes.skip(1).where((m) => m == ViWireBranchRoute.popCode).length;
   if (pops + 2 != eps) bump('extLeafLawViol');
-  // Fully-anchored accounting (independent of the walk): every endpoint has
-  // an attach point.
   final attach = [for (final oid in w.endpointOids) d.wireAttachPoint(oid)];
-  // The closure-arbitrated element-centre candidates of array-constant
-  // endpoints (see [ViDiagram.endpointConstantElementBounds]): the model's
-  // ship gate may swap an endpoint onto its element centre, so this census
-  // walks and matches with the same candidates.
   final altAttach = [
     for (final oid in w.endpointOids)
       switch (d.endpointConstantElementBounds(oid)) {
@@ -307,12 +209,7 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     bump('extFullAnchored');
     if (pops + 2 != eps) bump('extFullLeafMismatch');
   }
-  // Strip-column destination candidates (a route ends 8 px left of a width-8
-  // terminal-strip column's centre; see [kTerminalStripTargetLeftOffset]).
   final strip = [for (var i = 0; i < eps; i++) _stripTargetOf(d, w, i)];
-  // Whether endpoint [i] closes onto an unmatched leaf in [pool] — on any of
-  // its destination candidates, strip column target first (mirrors the ship
-  // gate's arbitration order).
   bool hitOf(List<ViPoint> pool, int i) =>
       (strip[i] != null && pool.remove(strip[i])) ||
       pool.remove(attach[i]) ||
@@ -320,24 +217,16 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
 
   if (attach[0] == null) {
     bump('extEp0Unanchored');
-    // The reverse-solved tier: the tree's translation solved from resolved
-    // far endpoints, origin inside the head owner box (see [ViWire.routeTree]).
     if ([for (var i = 1; i < eps; i++) attach[i]].any((p) => p != null)) bump('extRevAnchored');
     final tree = w.routeTree;
     if (tree != null) {
       bump('extShipped');
-      // The DCO-child closed tier ships an unanchored-origin tree as closed
-      // (every endpoint zero-slack on a candidate); the reverse-solved tier
-      // ships walked.
       if (w.routeTreeFidelity == WireRouteFidelity.closed) {
         bump('extShippedDcoClosed');
         return;
       }
       bump('extShippedRev');
       if (w.routeTreeFidelity != WireRouteFidelity.walked) bump('extFidelityBad');
-      // Corroboration the gate does NOT consume: after the resolved far
-      // endpoints claim their leaves, each unresolved (plain-node) endpoint
-      // should find a remaining leaf within 8 px of its own owner box.
       final pool = List<ViPoint>.of(tree.leaves);
       for (var i = 1; i < eps; i++) {
         if (attach[i] != null) hitOf(pool, i);
@@ -358,9 +247,6 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     }
     return;
   }
-  // Arbitrate the origin candidate exactly like the ship gate: the walk from
-  // the element centre is used only when it leaf-hits more resolved
-  // endpoints than the shell-centre walk.
   ViWireRouteTree walkFrom(ViPoint origin) => walkWireBranchRoute(branch, origin);
   int leafHits(ViWireRouteTree t) {
     final pool = List<ViPoint>.of(t.leaves);
@@ -377,26 +263,19 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
     final altTree = walkFrom(altAttach[0]!);
     if (leafHits(altTree) > leafHits(tree)) tree = altTree;
   }
-  // Interior law: every junction dot lies on a walked vertex of the tree.
   final vertices = {for (final line in tree.polylines) ...line};
   for (final j in tree.junctions) {
-    if (!vertices.contains(j)) bump('extJuncOffVertex'); // law: 0
+    if (!vertices.contains(j)) bump('extJuncOffVertex');
   }
   final leaves = tree.leaves;
   if (leaves.length != eps - 1) {
-    bump('extLeafMismatch'); // origin-anchored subset of extLeafLawViol
+    bump('extLeafMismatch');
     return;
   }
-  // Exact attach geometry: the endpoint resolves a structure-framed rect via
-  // its REAL composing frame (endpointTerminalBounds composes against the
-  // nearest BOUNDED ancestor of the terminal's parent), or is anchored on
-  // its own `0x16` bounds (no terminal, no constant shell). Node-framed
-  // rects AND constant value-shell centres are approximate — the wire leaves
-  // a constant at its edge, not the shell centre — and are excluded.
   bool exact(int i) {
     final oid = w.endpointOids[i];
     final terminal = d.endpointTerminal(oid);
-    if (terminal == null) return d.endpointConstantBounds(oid) == null; // 0x16 own-bounds only
+    if (terminal == null) return d.endpointConstantBounds(oid) == null;
     final parent = terminal.parentOid == null ? null : d.byId[terminal.parentOid!];
     final frame = parent == null ? null : _boundedOwner(d, parent);
     return frame != null && frame.category == ViObjectKind.structure;
@@ -416,9 +295,6 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
       if (hit) {
         bump('extEpExactHit');
       } else {
-        // Miss partition: does the nearest walked leaf land inside this
-        // endpoint's own attach rect (right terminal, off the floored
-        // centre) or genuinely far?
         final rect = w.endpointAttachRects[i];
         final near = _nearestLeaf(leaves, p);
         final inRect =
@@ -430,23 +306,15 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   bump('extEpAnchored', anchored);
   bump('extEpHit', hits);
   if (anchored == eps - 1) bump(hits == anchored ? 'extFullClosed' : 'extFullMiss');
-  // Tier split: a fully-anchored shipped tree is the proven closed tier (law:
-  // == extFullClosed); a shipped tree with a plain-node leaf is the walked
-  // tier (origin-anchored, contradiction-free — see [ViWire.routeTree]).
   if (w.routeTree != null) {
     bump('extShipped');
     bump(fullyAnchored ? 'extShippedClosed' : 'extShippedWalked');
-    // Law: the exposed tree fidelity matches the anchoring.
     if (w.routeTreeFidelity != (fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked)) {
       bump('extFidelityBad');
     }
   }
 }
 
-/// The strip-column destination candidate of endpoint [i] — 8 px left of a
-/// width-8 [kNodeTerminalStripClasses] terminal's attach centre
-/// ([kTerminalStripTargetLeftOffset]) — or null for every other endpoint.
-/// Independent re-derivation of the ship gates' candidate.
 ViPoint? _stripTargetOf(ViDiagram d, ViWire w, int i) {
   final rect = w.endpointAttachRects[i];
   final p = d.wireAttachPoint(w.endpointOids[i]);
@@ -456,8 +324,6 @@ ViPoint? _stripTargetOf(ViDiagram d, ViWire w, int i) {
   return (x: p.x - kTerminalStripTargetLeftOffset, y: p.y);
 }
 
-/// The walked leaf nearest [p] (Manhattan) — for the exact-subset miss
-/// partition.
 ViPoint _nearestLeaf(List<ViPoint> leaves, ViPoint p) {
   var best = leaves.first;
   var bestD = 1 << 30;
@@ -471,14 +337,8 @@ ViPoint _nearestLeaf(List<ViPoint> leaves, ViPoint p) {
   return best;
 }
 
-/// Set-bit count of a mode byte (masks are ≤ 4 bits).
 int _bitCount(int v) => (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1);
 
-/// The number of junction outgoing directions the branch walk SUBSTITUTES to
-/// [WireRouteDirection.left] because the catalog direction would reverse the
-/// incoming edge — a direction-only replay (positions are irrelevant to the
-/// substitution). Independent re-derivation of the rule shipped in
-/// [walkWireBranchRoute], pinned as `extJuncSubst`.
 int _junctionSubstitutions(ViWireBranchRoute branch) {
   final modes = branch.modes;
   WireRouteDirection rev(WireRouteDirection dir) => switch (dir) {
@@ -530,8 +390,6 @@ int _junctionSubstitutions(ViWireBranchRoute branch) {
   return subs;
 }
 
-/// The owner node whose box the plain-node landing is measured against —
-/// the endpoint itself if bounded, else its nearest bounded ancestor.
 ViHeapObject? _boundedOwner(ViDiagram d, ViHeapObject ep) {
   ViHeapObject? cur = ep;
   final seen = <int>{};
@@ -542,8 +400,6 @@ ViHeapObject? _boundedOwner(ViDiagram d, ViHeapObject ep) {
   return null;
 }
 
-/// Walks the stored segments from [s] without closing: the position after
-/// the last stored segment, the closing segment's axis, and its stored sign.
 ({int x, int y, bool horizontal, int sign})? _openLanding(ViWireRoute route, ({int x, int y}) s) {
   final direction = route.direction;
   if (direction == null) return null;
@@ -563,9 +419,6 @@ ViHeapObject? _boundedOwner(ViDiagram d, ViHeapObject ep) {
   return (x: x, y: y, horizontal: horizontal, sign: closingSign);
 }
 
-/// Folds the raw `L_<group>=<offset>` landing keys into the pinned summary:
-/// group counts, unanimous coverage, and majority coverage — overall and for
-/// the primitive-owned (`L_p…`) subset.
 Map<String, int> _foldLandings(Map<String, int> c) {
   final byGroup = <String, Map<int, int>>{};
   for (final e in c.entries.toList()) {
@@ -670,14 +523,12 @@ void main() {
           'shipped polylines partition into closed (standard + DCO-child '
           'fallback) + walked (forward/reverse/wide-row) tiers',
     );
-    // Junction-segment totals reconcile two ways (per-code sum == 41,304).
     final juncSum =
         (C['extJuncCross'] ?? 0) +
         (C['extJuncDownRight'] ?? 0) +
         (C['extJuncUpRight'] ?? 0) +
         (C['extJuncUpDown'] ?? 0);
     expect(juncSum, 41304, reason: 'per-code junction segments sum to the corpus total');
-    // Fully-anchored accounting: 1,859 = closed + missed + leaf-mismatch.
     expect(
       (C['extFullClosed'] ?? 0) + (C['extFullMiss'] ?? 0) + (C['extFullLeafMismatch'] ?? 0),
       C['extFullAnchored'] ?? 0,
@@ -693,10 +544,6 @@ void main() {
   });
 
   test('basic.png ground truth: decoded routes reproduce the reference render geometry', () {
-    // The snippet's raster is LabVIEW's own render of the embedded VI (see
-    // png_snippet.dart): terminal boxes (58,1)-(90,17) / (58,35)-(90,51),
-    // the add primitive at (106,10)-(138,42), bend column drawn at
-    // x=102-103, input rows drawn at y=21 / y=31.
     final candidates = corpusViDir
         .listSync(recursive: true, followLinks: false)
         .whereType<File>()
@@ -705,28 +552,18 @@ void main() {
     expect(candidates, hasLength(1));
     final vi = extractSnippetVi(candidates.single.readAsBytesSync())!;
     final d = buildViModelFromDecoded(decodeSections(vi)).blockDiagrams.single;
-    // Select the two routed wires by their source terminal's attach point
-    // (the 32x16 boxes' floored centres).
     ViWire wireAt(ViPoint p) => d.wires.singleWhere((w) => d.wireAttachPoint(w.endpointOids[0]) == p);
     final x = wireAt((x: 74, y: 9)), y = wireAt((x: 74, y: 43));
     expect(x.route!.direction, WireRouteDirection.right);
     expect(x.route!.segmentLengths, [28, 12]);
     expect(x.route!.jointSigns, [1, 1]);
     expect(y.route!.jointSigns, [-1, 1]);
-    // The walked bends land on the drawn bend column and input rows.
     final landX = _openLanding(x.route!, (x: 74, y: 9))!;
     expect((landX.x, landX.y, landX.horizontal, landX.sign), (102, 21, true, 1));
     final landY = _openLanding(y.route!, (x: 74, y: 43))!;
     expect((landY.x, landY.y), (102, 31));
-    // The x wire's far endpoint is a plain-node DCO (the add input): it
-    // resolves no attach point, so the closed polyline cannot ship. The
-    // one-anchored walked tier does — the source terminal is an exact anchor,
-    // so the polyline walks the stored bends and lands the plain-node terminus
-    // on the add primitive's left edge (x=106) at the drawn input row (y=21).
     expect(d.wireAttachPoint(x.endpointOids[1]), isNull);
     expect(x.routePoints, [(x: 74, y: 9), (x: 102, y: 9), (x: 102, y: 21), (x: 106, y: 21)]);
-    // The third wire (add output -> indicator terminal) stored the trivial
-    // straight table.
     final straight = d.wires.singleWhere((w) => w.signalOid != x.signalOid && w.signalOid != y.signalOid);
     expect((straight.route!.pointCount, straight.route!.direction), (2, WireRouteDirection.right));
   });

@@ -3,8 +3,6 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Corpus-wide validation of specific grammar hypotheses for VITS / CPMp /
-/// DSIM / IPSR / GCDI / BKMK before decoders are written (the No-Hacks rule).
 String _corpusBase() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var dir = Directory.current;
@@ -32,18 +30,11 @@ void main() {
       dir.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.vi')).toList()
         ..sort((a, b) => a.path.compareTo(b.path));
 
-  // VITS hypothesis: [u32 count] then `count` entries of
-  //   [u32 nameLen][name][u32 payloadLen][payload]
   var vitsTotal = 0, vitsFullWalk = 0, vitsNamesOk = 0;
-  // CPMp hypothesis: [u16le count][count x u16le] == exact length
   var cpmpTotal = 0, cpmpExact = 0, cpmpLe = 0, cpmpBe = 0;
-  // IPSR hypothesis: whole body = ascending u32be offsets
   var ipsrTotal = 0, ipsrAscending = 0;
-  // GCDI hypothesis: [u32 count][u8 version=1][...]
   var gcdiTotal = 0, gcdiVer1 = 0;
-  // BKMK hypothesis: [u32 count]; count==0 iff 8-byte body
   var bkmkTotal = 0, bkmkEmptyOk = 0, bkmkNonEmpty = 0;
-  // DSIM hypothesis: u32be@0 == 0 and PNG magic present for the big variants
   var dsimTotal = 0, dsimZero = 0, dsimPng = 0;
 
   for (final file in vis) {

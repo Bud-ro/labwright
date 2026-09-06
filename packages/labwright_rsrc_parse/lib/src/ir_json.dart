@@ -3,24 +3,6 @@ import 'graph.dart';
 import 'heap.dart';
 import 'ir.dart';
 
-/// Serializes a recovered [ViDiagram] to a JSON-encodable map: its section tag
-/// plus a **flat list of objects** carrying the positional nesting via
-/// `parentOid`. Flat-with-parent (not a nested `children` tree) is deliberate —
-/// it is lossless, avoids duplicating shared nodes, preserves the heap pre-order,
-/// and the tree is trivially rebuilt from `parentOid`. Every drawable object
-/// (one with absolute bounds) is represented.
-///
-/// Each node map omits null/empty fields to stay compact. Non-finite control
-/// range sentinels (±infinity = "no bound") are dropped rather than emitted as
-/// invalid JSON numbers. Deterministic: object order follows the diagram's
-/// pre-order [ViDiagram.objects].
-///
-/// Honesty note on the two id fields: `parentOid` is the containment tree (the
-/// nesting is rebuilt from it). `memberOids` is the heap's *declared*
-/// childRef/dcoRef reflist — orthogonal to `parentOid` and diverging from it
-/// ~72% of the time, so a consumer must not read it as the child list. For a
-/// structure it is child membership (not containment); for a **signal** (`0x17`,
-/// a dataflow wire) it is the wire's endpoint objects (see [ViWire]).
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
   'sectionTag': d.sectionTag,
   'objects': d.objects.map(_objectToJson).toList(),
@@ -56,9 +38,6 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     if (object.controlMax?.isFinite ?? false) 'controlMax': object.controlMax,
     if (object.helpText != null) 'helpText': object.helpText,
     if (object.constText != null) 'constText': object.constText,
-    // Always finite (the decode declines non-finite f64 readings -- see
-    // decodeBdConstantValue), so unlike controlMin/controlMax no infinity
-    // guard is needed for JSON safety.
     if (object.constNumeric != null) 'constNumeric': object.constNumeric,
     if (object.constBool != null) 'constBool': object.constBool,
   };
@@ -71,22 +50,6 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
   'right': r.right,
 };
 
-/// Serializes a whole [ViModel] to a JSON-encodable map — the top-level IR
-/// artifact: schema version, VI identity (version/title/description), the
-/// external symbols/library paths the VI calls (the Call-Library surface a
-/// translator must bind), and the recovered block-diagram + front-panel object
-/// trees ([viDiagramToJson]).
-///
-/// Scope note carried from [ViModel]: dataflow **wire endpoint binding** is
-/// decoded — each signal (`0x17`) object emits its endpoint objects as
-/// `memberOids` (see [ViWire] / [ViDiagram.wires]). Wire **datatype**
-/// ([ViWire.signalType]) and stored route geometry ([ViWire.route]) are
-/// decoded on the object model and not yet emitted here.
-/// Deterministic and `jsonEncode`-safe (no non-finite numbers, no cycles).
-/// The connector-pane terminals (kind + recovered name) resolved from the VI's
-/// VCTP type pool, or null when no in-range conpane index is present. A cluster's
-/// members are the terminals; otherwise the conpane type is a single terminal.
-/// Direction (in/out) is not recovered, so it is not emitted.
 List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
   final typeIndex = m.connectorPaneTypeIndex;
   if (typeIndex == null || typeIndex < 1 || typeIndex > m.types.length) return null;
@@ -95,8 +58,6 @@ List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
   return [for (final term in terms) _termJson(term, m.types)];
 }
 
-/// A terminal/cluster field rendered as its `{kind, name?}` JSON object — the
-/// shared shape used by both the connector-pane terminals and named-type members.
 Map<String, Object?> _termJson(ViType t, List<ViType> types) => {
   'kind': typeLabel(t, types),
   if (t.name != null) 'name': t.name,

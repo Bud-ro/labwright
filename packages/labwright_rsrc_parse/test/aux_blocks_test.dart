@@ -9,9 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Whole-corpus decode censuses for the auxiliary-block decoders: per-probe section and decode
-/// counts, asserted EXACTLY against the `aux` section of corpus/snapshot.json (any move — a decoder
-/// break, corpus drift, or a real improvement — is a reviewed snapshot diff).
 void main() {
   final all = corpusVis();
   if (all.isEmpty) {
@@ -19,7 +16,6 @@ void main() {
     return;
   }
 
-  // tag pattern -> (census key, decode probe)
   final probes = <String, List<(String, bool Function(Uint8List))>>{
     'CPMp': [('CPMp', (b) => decodeConnectorPaneMap(b) != null)],
     'IPSR': [('IPSR', (b) => decodeOffsetTable(b) != null)],
@@ -31,7 +27,7 @@ void main() {
     ],
     'VICD': [('VICD', (b) => decodeCompiledCode(b) != null)],
     'DSIM': [('DSIM', (b) => decodeDataSpaceImage(b) != null)],
-    'MNGI': [('MNGI', (b) => decodePngEnvelope(b) != null)], // rare MNG variant returns null
+    'MNGI': [('MNGI', (b) => decodePngEnvelope(b) != null)],
     'LIbd': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],
     'LIvi': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],
     'LIfp': [('LI**', (b) => decodeLinkInfo(b)?.version == 1)],

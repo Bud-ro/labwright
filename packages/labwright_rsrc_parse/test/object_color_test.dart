@@ -103,21 +103,11 @@ void main() {
     expect(sum[7], sum[0] + sum[2] + sum[4], reason: 'every confirmed rgb in 0..0xffffff');
     expect(sum[12], sum[8] + sum[11], reason: 'every struct/border rgb in 0..0xffffff');
     expect(sum[16], sum[15], reason: 'every plot rgb in 0..0xffffff');
-    // plotColor lands on the drawable graph object itself (discovery: 234/234
-    // bounded, 234/234 a graphIndicator), so a renderer colours a graph's curves
-    // directly from its own list — no association guesswork.
     expect(sum[14], sum[13], reason: 'every plotColor carrier is drawable');
     expect(sum[17], sum[13], reason: 'every plotColor carrier is a graph');
-    // Placement invariant (discovery: fg 1056287/1056287 = 100% bounded, content
-    // 546130/546307 = 99.97%, bg 1287391/1348503 = 95.5%): the confirmed colours
-    // land on the drawable object itself, so a renderer can colour an object by
-    // its own colour with no part→owner propagation. A colour on an unbounded
-    // object is simply not drawn (it has no rectangle).
     expect(sum[3] / sum[2], greaterThan(0.99), reason: 'fgColor is on the drawable object');
     expect(sum[5] / sum[4], greaterThan(0.99), reason: 'contentColor is on the drawable object');
     expect(sum[1] / sum[0], greaterThan(0.9), reason: 'backgroundColor is overwhelmingly on the drawable object');
-    // structColor is a block-diagram structure-frame colour: it lands on a
-    // drawable BD structure object, so the frame can be drawn in it.
     expect(sum[9] / sum[8], greaterThan(0.9), reason: 'structColor is on the drawable object');
     expect(sum[10] / sum[8], greaterThan(0.9), reason: 'structColor is on a BD structure object');
   });

@@ -6,22 +6,8 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Full-corpus probe for the `0xDF` / `0xAF` / `0xCB` attribute ids on the
-/// object-tree axes exposed by [walkHeapObjects]:
-///
-///   0xDF — value vs the ENCLOSING object's header kind (purity of the
-///          value→dominant-kind mapping; the <8000 vs ≥8000 range split).
-///   0xCB — value vs enclosing kind, vs storage width nibble, and vs the
-///          co-occurring 0xDF value on the same object.
-///   0xAF — value vs the OWNING CONTROL's kind (nearest enclosing object,
-///          self included, whose kind is a control-terminal class) and vs the
-///          co-occurring 0xDF value on the same object.
-///
 /// Run: `dart run tool/probe_part_role.dart [corpusRoot=<pkg>/corpus/vi]`
 
-/// Control-terminal class codes (the placed control/constant/indicator
-/// terminals from the `HeapObjectClass` catalog — NOT their label/chrome/
-/// connector sub-parts).
 const Set<int> kControlKinds = {
   0x4e,
   0x4f,
@@ -44,7 +30,7 @@ class _Node {
   final _Node? parent;
   List<int>? dfValues;
   List<int>? afValues;
-  List<(int, int)>? cbValues; // (widthNibbleIndex, value)
+  List<(int, int)>? cbValues;
 }
 
 class _Agg {
@@ -239,7 +225,6 @@ Future<void> main(List<String> args) async {
   stdout.writeln('\n#### 0xDF ####');
   stdout.writeln('records=${agg.dfTotal} noEnclosingObject=${agg.dfNoEnclosing}');
   _printTable('0xDF value -> enclosing object kind', agg.dfValueKind, topValues: 60);
-  // Range split: which kinds host the >=8000 values vs <8000.
   final geKinds = <int, int>{};
   agg.dfValueKind.forEach((v, row) {
     if (v >= 8000) row.forEach((k, n) => geKinds[k] = (geKinds[k] ?? 0) + n);

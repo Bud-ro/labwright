@@ -12,8 +12,6 @@ import 'package:labwright_vi_inspector/src/mac_icon_palette.dart';
 import 'package:labwright_vi_inspector/src/span_annotations.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
 
-/// Records the PNGs written to it so a copy action can be verified without a real
-/// system clipboard (which isn't available on the test VM).
 class _FakeImageClipboard implements ImageClipboard {
   final List<Uint8List> writes = [];
   bool result = true;
@@ -25,7 +23,6 @@ class _FakeImageClipboard implements ImageClipboard {
   }
 }
 
-/// The corpus root, or null when it is not fetched (corpus-guarded tests skip).
 Directory? _corpusDir() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
@@ -47,9 +44,6 @@ ViLegacyIcon _icon(int fill, int bpp) => decodeLegacyIcon(
   bpp,
 )!;
 
-/// Renders a [LegacyIconPainter] to a raw RGBA buffer with each 32×32 icon pixel
-/// scaled to a [cell]×[cell] block, so a cell centre can be sampled clear of the
-/// 1px grid-border stroke. Returns the buffer and its row stride (in pixels).
 Future<({Uint8List rgba, int stride})> _renderIcon(
   WidgetTester tester,
   ViLegacyIcon icon, {
@@ -78,14 +72,13 @@ Future<({Uint8List rgba, int stride})> _renderIcon(
   await tester.runAsync(() async {
     final boundary =
         key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-    final image = await boundary.toImage(); // pixelRatio 1.0 → side×side px
-    final data = await image.toByteData(); // rawRgba
+    final image = await boundary.toImage();
+    final data = await image.toByteData();
     rgba = data!.buffer.asUint8List();
   });
   return (rgba: rgba, stride: dim * cell);
 }
 
-/// The colour at the centre of icon cell ([cx], [cy]) in a [_renderIcon] buffer.
 Color _cellColor(
   ({Uint8List rgba, int stride}) render,
   int cx,
@@ -102,8 +95,6 @@ Color _cellColor(
   );
 }
 
-/// A legacy icon whose interior cell ([cx],[cy]) carries palette [index], on an
-/// index-0 field, at [bpp] bits/pixel. Used to sample a known index's colour.
 ViLegacyIcon _iconWithCells(int bpp, Map<int, int> cellIndexByLinear) {
   final byteLen = bpp == 8 ? 1024 : (bpp == 4 ? 512 : 128);
   final body = Uint8List(byteLen);
@@ -123,8 +114,6 @@ ViLegacyIcon _iconWithCells(int bpp, Map<int, int> cellIndexByLinear) {
   return decodeLegacyIcon(body, bpp)!;
 }
 
-/// A real 1×1 PNG (67 bytes): decodable by `Image.memory`, and its IHDR reports
-/// 1×1 to `decodePngEnvelope`.
 final Uint8List _png1x1 = Uint8List.fromList(const [
   0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a, //
   0x00, 0x00, 0x00, 0x0d, 0x49, 0x48, 0x44, 0x52,
@@ -155,7 +144,6 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 
 void main() {
   test('extractViImages locates a PNG embedded after a header', () {
-    // A DSIM-style payload: some header bytes, then the PNG.
     final body = [0, 0, 0, 0, 0x14, 0x14, ..._png1x1];
     final off = 6;
     final images = extractViImages([_section('DSIM', body)]);
@@ -192,7 +180,6 @@ void main() {
   });
 
   test('encodeQuickTimeRasterPng maps 24-bit RGB and 32-bit xRGB pixels', () {
-    // 2×1 at 24-bit: a red pixel then a green pixel.
     final rgb = encodeQuickTimeRasterPng(
       ViQuickTimeRaster(
         width: 2,
@@ -204,7 +191,6 @@ void main() {
     final decodedRgb = img.decodePng(rgb)!;
     expect(decodedRgb.getPixel(0, 0).r, 255);
     expect(decodedRgb.getPixel(1, 0).g, 255);
-    // 1×1 at 32-bit xRGB: the leading pad byte is skipped, not read as red.
     final xrgb = encodeQuickTimeRasterPng(
       ViQuickTimeRaster(
         width: 1,
@@ -232,7 +218,6 @@ void main() {
     final metafile = images.metafiles.single;
     expect((metafile.tag, metafile.width, metafile.height), ('PICT', 411, 489));
     expect(metafile.depth, 24);
-    // The encoded PNG round-trips through a PNG decoder at the same size.
     final decoded = img.decodePng(metafile.png);
     expect((decoded!.width, decoded.height), (411, 489));
   });
@@ -328,8 +313,8 @@ void main() {
       );
       await _pump(tester, ViImagesView(images: images, clipboard: clip));
       await tester.tap(find.byTooltip('Copy image to clipboard'));
-      await tester.pump(); // run the async copy
-      await tester.pump(); // show the SnackBar
+      await tester.pump();
+      await tester.pump();
       expect(clip.writes, hasLength(1));
       expect(clip.writes.single, equals(_png1x1));
       expect(find.text('Copied MNGI image to clipboard'), findsOneWidget);
@@ -354,20 +339,17 @@ void main() {
   ) async {
     final images = ViImages(
       icons: [
-        EmbeddedLegacyIcon(tag: 'ICON', icon: _icon(0xff, 1)), // all-1 grid
+        EmbeddedLegacyIcon(tag: 'ICON', icon: _icon(0xff, 1)),
         EmbeddedLegacyIcon(tag: 'icl8', icon: _icon(3, 8)),
-        EmbeddedLegacyIcon(tag: 'icl4', icon: _icon(0x11, 4)), // all-1 grid
+        EmbeddedLegacyIcon(tag: 'icl4', icon: _icon(0x11, 4)),
       ],
     );
     await _pump(tester, ViImagesView(images: images));
     expect(find.text('VI icon'), findsOneWidget);
-    // Ordered icl8 → icl4 → ICON, each its own depth-labeled tile.
     expect(find.textContaining('VI icon · 8-bit (icl8)'), findsOneWidget);
     expect(find.textContaining('VI icon · 4-bit (icl4)'), findsOneWidget);
     expect(find.textContaining('VI icon · 1-bit (ICON)'), findsOneWidget);
-    // ICON's grid matches icl4's (both all-1) — noted only because it's proven.
     expect(find.textContaining('identical grid to icl4'), findsOneWidget);
-    // One copy affordance per tile.
     expect(find.byTooltip('Copy image to clipboard'), findsNWidgets(3));
   });
 
@@ -377,30 +359,29 @@ void main() {
   });
 
   test('macIconArgb maps icl4 indices to the Mac 16-colour palette', () {
-    expect(macIconArgb(4, 0), 0xFFFFFFFF); // white
-    expect(macIconArgb(4, 3), 0xFFDD0806); // red
-    expect(macIconArgb(4, 6), 0xFF0000D4); // blue
-    expect(macIconArgb(4, 15), 0xFF000000); // black
+    expect(macIconArgb(4, 0), 0xFFFFFFFF);
+    expect(macIconArgb(4, 3), 0xFFDD0806);
+    expect(macIconArgb(4, 6), 0xFF0000D4);
+    expect(macIconArgb(4, 15), 0xFF000000);
   });
 
   test('macIconArgb maps icl8 indices to the Mac 256-colour palette', () {
-    expect(macIconArgb(8, 0), 0xFFFFFFFF); // white (cube corner)
-    expect(macIconArgb(8, 5), 0xFFFFFF00); // yellow (cube)
-    expect(macIconArgb(8, 35), 0xFFFF0000); // pure red (cube)
-    expect(macIconArgb(8, 215), 0xFFEE0000); // red ramp head
-    expect(macIconArgb(8, 245), 0xFFEEEEEE); // gray ramp head
-    expect(macIconArgb(8, 255), 0xFF000000); // black
+    expect(macIconArgb(8, 0), 0xFFFFFFFF);
+    expect(macIconArgb(8, 5), 0xFFFFFF00);
+    expect(macIconArgb(8, 35), 0xFFFF0000);
+    expect(macIconArgb(8, 215), 0xFFEE0000);
+    expect(macIconArgb(8, 245), 0xFFEEEEEE);
+    expect(macIconArgb(8, 255), 0xFF000000);
   });
 
   testWidgets('icl8 painter draws each index in its palette colour', (
     tester,
   ) async {
-    // Four interior cells carry indices 0/35/5/255 on an index-0 field.
     final icon = _iconWithCells(8, {
-      5 * 32 + 5: 0, // white
-      5 * 32 + 6: 35, // pure red
-      5 * 32 + 7: 5, // yellow
-      5 * 32 + 8: 255, // black
+      5 * 32 + 5: 0,
+      5 * 32 + 6: 35,
+      5 * 32 + 7: 5,
+      5 * 32 + 8: 255,
     });
     final render = await _renderIcon(tester, icon);
     expect(_cellColor(render, 5, 5), const Color(0xFFFFFFFF));
@@ -412,8 +393,6 @@ void main() {
   testWidgets('a multi-index icl8 icon renders many distinct colours', (
     tester,
   ) async {
-    // A palette-index gradient across the top rows → many distinct colours,
-    // proving the render is not a two-tone mask.
     final icon = _iconWithCells(8, {
       for (var i = 0; i < 32 * 8; i++) i: i % 256,
     });
@@ -432,11 +411,8 @@ void main() {
   ) async {
     final icon = _iconWithCells(1, {5 * 32 + 5: 1});
     final render = await _renderIcon(tester, icon);
-    expect(
-      _cellColor(render, 5, 5),
-      const Color(0xFF000000),
-    ); // set bit → black
-    expect(_cellColor(render, 5, 6), const Color(0xFFFFFFFF)); // clear → white
+    expect(_cellColor(render, 5, 5), const Color(0xFF000000));
+    expect(_cellColor(render, 5, 6), const Color(0xFFFFFFFF));
   });
 
   test('encodeLegacyIconPng emits a decodable PNG carrying the shape', () {

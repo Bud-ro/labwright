@@ -2,14 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
-/// TestStand XML model-coverage report — the sibling of the VI coverage tool.
-///
-/// Walks the fetched corpus (`corpus/seq/`), and for each XML `.seq` reports how
-/// much of the `Data` property tree the typed lens surfaces (`modeled/total`).
-/// Prints a per-source + total table and writes a gitignored `corpus/seq/REPORT.md`
-/// so the scorecard is regenerated from the live decoders, never hand-maintained.
-///
-/// Run: `dart run tool/coverage.dart [corpusRoot=<package>/corpus/seq]`
 String _defaultCorpusRoot() {
   const pkgRel = 'packages/labwright_seq/corpus';
   var d = Directory.current;

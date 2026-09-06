@@ -17,8 +17,6 @@ import 'src/sequences_view.dart';
 import 'src/types_view.dart';
 import 'src/ui.dart';
 
-/// App entry point. A path passed after `--` (e.g. `flutter run -- file.seq`)
-/// is opened at launch.
 void main(List<String> args) {
   runApp(InspectorApp(initialPath: args.isNotEmpty ? args.first : null));
 }
@@ -51,12 +49,8 @@ class _InspectorPageState extends State<InspectorPage> {
   String? _error;
   List<String> _recent = const [];
 
-  /// Per-byte decode coverage of a loaded binary `TOF1` body (null for text
-  /// encodings and files whose body does not frame).
   BinaryByteCoverage? _binaryCoverage;
 
-  /// Owned here so Ctrl/Cmd+F can focus the active tab's search field; each is
-  /// passed down into its view's TextField.
   final _sequencesSearchFocus = FocusNode();
   final _propertiesSearchFocus = FocusNode();
   final _typesSearchFocus = FocusNode();
@@ -97,10 +91,6 @@ class _InspectorPageState extends State<InspectorPage> {
     super.dispose();
   }
 
-  /// Focuses the search field of the tab at [tabIndex] (Dump/Logic have none →
-  /// no-op). Indices match the TabBar order: 0 Dump, 1 Logic, 2 Sequences,
-  /// 3 Properties, 4 Types (Logic..Types present only for a structured file;
-  /// Types only when it defines a type palette).
   void _focusSearch(int tabIndex) {
     if (tabIndex == 2) _sequencesSearchFocus.requestFocus();
     if (tabIndex == 3) _propertiesSearchFocus.requestFocus();
@@ -132,9 +122,6 @@ class _InspectorPageState extends State<InspectorPage> {
     try {
       _loadBytes(path, File(path).readAsBytesSync());
     } catch (e) {
-      // A failed read replaces the whole document state: keeping the previous
-      // _doc/_path would leave the AppBar title and tabs showing the old file
-      // while the body shows this error (review finding).
       setState(() {
         _doc = null;
         _binaryCoverage = null;
@@ -159,8 +146,6 @@ class _InspectorPageState extends State<InspectorPage> {
     final doc = _doc;
     final file = switch (doc) {
       StructuredSeqDocument() => doc.file,
-      // Binary: the partial typed model (sequence/step skeleton) — the typed
-      // tabs render what IS decoded; the Dump tab stays the honest recon view.
       BinarySeqDocument() => doc.partialFile,
       _ => null,
     };
@@ -280,8 +265,6 @@ class _InspectorPageState extends State<InspectorPage> {
     }
     final file = switch (doc) {
       StructuredSeqDocument() => doc.file,
-      // Binary: the partial typed model (sequence/step skeleton) — the typed
-      // tabs render what IS decoded; the Dump tab stays the honest recon view.
       BinarySeqDocument() => doc.partialFile,
       _ => null,
     };
@@ -374,18 +357,11 @@ class _InspectorPageState extends State<InspectorPage> {
     );
   }
 
-  /// The Dump tab: the scrollable monospace text plus a copy-to-clipboard button.
   Widget _dumpTab(SeqDocument doc) => _monoTextTab(documentText(doc), 'dump');
 
-  /// The Logic tab: the structured sequence-logic export (nested control flow as
-  /// readable pseudocode) for a parsed file, as monospace text with a copy
-  /// button. Distinct from the full Dump — just the recovered control flow.
   Widget _logicTab(SeqFile file) =>
       _monoTextTab(exportSequenceLogic(file), 'logic');
 
-  /// A scrollable, selectable monospace text view with a copy-to-clipboard
-  /// button — shared by the Dump and Logic tabs. [label] names the content in
-  /// the copy tooltip / confirmation (e.g. `dump`, `logic`).
   Widget _monoTextTab(String text, String label) {
     return Stack(
       children: [

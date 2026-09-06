@@ -9,7 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Structural scaffold/model tokens that must never be recovered as TYPE names.
 const _typeNameTokens = {
   'SequenceFileData',
   'Data',
@@ -27,7 +26,6 @@ const _typeNameTokens = {
   'Calls',
 };
 
-/// Tokens that must never surface as a step TS subprop name.
 const _tsTokens = {
   'SequenceFileData',
   'Data',
@@ -42,47 +40,21 @@ const _tsTokens = {
   'TS',
 };
 
-/// Tokens that must never surface as a populated-array element child name.
 const _elementTokens = {'Objs', 'Obj', 'Seq', 'Data', 'Step', 'Sequence', 'SequenceFileData', '[0]', '[]'};
 
 BinaryTypeField? _child(BinaryTypeField f, String name) => f.children.where((c) => c.name == name).firstOrNull;
 
-/// Corpus-closure counterexamples, pinned EXACTLY (an extra offense or a
-/// silently vanished one both fail): the three "Continuous Monitoring Tester"
-/// files of NIVeriStandAdd-Ons/TestStand-Examples-for-HIL each recover a
-/// fully-framed type record named `Obj` — pool-resolvable name, valid save
-/// stamp, resolvable version triple (both duplicating the project's real
-/// records: stamp 1449181662, versions 14.0.0.274/14.0.1.103/14.0.0.0), a
-/// parseable 8-byte body, but an unresolvable class word. Sibling files of
-/// the same project carry no such record. The anchor-driven base recovery
-/// classifies it as an over-detected head in MainCycle/MainTest (base −1,
-/// all anchors still Expression-typed) but counts it in RemoveUnusedChannels
-/// (base 0, 14/14 anchors Expression-typed) — so whether the window is a
-/// genuine intrinsic-`Obj` typedef record this file generation serializes, or
-/// a record-shaped window inside adjacent structure, is NOT yet decided. No
-/// discriminator found so far: requiring a resolvable class word is refuted
-/// corpus-wide (1164 of 9696 genuine records leave it unresolved). TODO:
-/// differential decode of the 0x1e-byte gap before the window (e.g.
-/// RemoveUnusedChannels 0x141–0x15f) to root-cause it.
 const _knownOffenders = {
   'MainCycle.seq: type name Obj',
   'MainTest.seq: type name Obj',
   'RemoveUnusedChannels.seq: type name Obj',
 };
 
-/// The counters the `binary_sweep` snapshot section pins, by name. The byte
-/// coverage totals are spelled out at the call site.
 final _binarySweepCounters =
     'binaries covFiles withNames totalNames anchors nonzeroBaseFiles withLeading leadingTotal withTs tsTotal '
             'withRr withFa groupArrays partialGroups steps ids comments elementArrays elements dataSubProps'
         .split(' ');
 
-/// Whole-corpus honesty sweep over every binary (one streaming pass): the
-/// decoders must never fabricate (no structural tokens, types from the file's
-/// own table, `ID#:` anchors, bounds == element counts, byte-coverage
-/// invariants) and the recovery censuses must match the committed snapshot
-/// exactly (see `snapshot_check.dart`). The per-value twin validation lives
-/// in `binary_oracle_test.dart`.
 void main() {
   if (!corpusSeqDir.existsSync()) {
     test(
@@ -102,7 +74,6 @@ void main() {
         ..sort((a, b) => a.path.compareTo(b.path));
   File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
 
-  /// The element count a populated bound-token pair declares, or null.
   int? boundCount(String? lb, String? ub) {
     if (lb == null || ub == null || ub == '[]') return null;
     List<int>? dims(String t) {
@@ -140,7 +111,6 @@ void main() {
       tally.bump('binaries');
       final base = f.uri.pathSegments.last;
 
-      // Byte-coverage scoreboard invariants + aggregate.
       final cov = binaryByteCoverage(bytes);
       if (cov != null) {
         expect(cov.recordUndecodedBytes, greaterThanOrEqualTo(0), reason: f.path);
@@ -149,7 +119,6 @@ void main() {
         totalCov = totalCov + cov;
       }
 
-      // Type-name recovery: never a structural token.
       final names = binaryTypeNames(bytes);
       if (names.isNotEmpty) tally.bump('withNames');
       tally.bump('totalNames', names.length);
@@ -158,8 +127,6 @@ void main() {
       }
       final tableNames = names.toSet();
 
-      // Type-index base recovery + the 0-fabrication anchor guard: every
-      // decoded DescriptionFormat/DefaultNameFormat must be Expression-typed.
       if (binaryTypeIndexBase(bytes) != 0) tally.bump('nonzeroBaseFiles');
       void anchorWalk(List<BinaryTypeField> fs) {
         for (final field in fs) {
@@ -171,8 +138,6 @@ void main() {
         }
       }
 
-      // Populated-array ELEMENT decode: element children are real fields,
-      // never structural tokens.
       void elementWalk(BinaryTypeField field, bool isElement) {
         if (isElement) {
           tally.bump('elements');
@@ -196,7 +161,6 @@ void main() {
         }
       }
 
-      // Sequence outlines: leading subprops, TS subprops, group arrays.
       for (final outline in binarySequenceOutlines(bytes)) {
         if (outline.comment != null) tally.bump('comments');
         if (outline.leadingSubProps.isNotEmpty) tally.bump('withLeading');
@@ -210,10 +174,6 @@ void main() {
           if (g.className != 'Objs') offenders.add('$base: group class ${g.className}');
           final count = boundCount(g.arrayLBound, g.arrayUBound);
           if (g.children.isNotEmpty) {
-            // A fully decoded group array holds exactly its bound-count
-            // elements; a PARTIAL one (partialArray) holds a nonempty PROPER
-            // prefix — the remainder is an explicit undecoded span, never
-            // padded or fabricated.
             if (g.partialArray) {
               tally.bump('partialGroups');
               expect(
@@ -266,7 +226,6 @@ void main() {
         }
       }
 
-      // Post-group scalar subprops via the typed model.
       for (final s in parseSeqFile(bytes).sequences) {
         final rr = s.raw.prop('RecordResults');
         if (rr != null) {
@@ -308,9 +267,6 @@ void main() {
           'fabrication/honesty offenders beyond (or missing from) the pinned '
           'known counterexamples:\n${offenders.take(10).join('\n')}',
     );
-    // Recovery censuses + the byte-coverage scoreboard, pinned exactly as raw
-    // counts (record-region coverage is reviewable straight from the byte
-    // totals: semantic/(body−pool), accounted adds structural).
     expectCorpusSnapshot('binary_sweep', {
       for (final key in _binarySweepCounters) key: tally[key],
       'bodyBytes': totalCov.bodyBytes,
@@ -321,10 +277,6 @@ void main() {
   });
 
   test('misaligned cohort recovers its exact per-file base, and the rebase is semantic', () {
-    // A framed 1-based type reference X names table[X - 1 - base]; base is
-    // recovered from the invariant that DescriptionFormat/DefaultNameFormat
-    // are always Expression-typed. Positive = intrinsic types reserved before
-    // the first serialized record; negative = a head over-detected.
     const expected = {
       'teststand/Sequence File 1.seq': 1,
       'EnumControls/EnumControls.seq': 4,
@@ -336,14 +288,12 @@ void main() {
     var checked = 0;
     expected.forEach((suffix, base) {
       final f = pin(suffix);
-      if (f == null) return; // pinned file absent — do not fail the sweep
+      if (f == null) return;
       checked++;
       expect(binaryTypeIndexBase(f.readAsBytesSync()), base, reason: '$suffix type-index base');
     });
     expect(checked, greaterThanOrEqualTo(4), reason: 'too few cohort files present to guard the recovery');
 
-    // With the base applied, a cohort file's anchor fields must decode with
-    // typeName 'Expression' — direct evidence the rebase lands right.
     final f = pin('teststand/Sequence File 1.seq');
     if (f == null) return;
     final bytes = f.readAsBytesSync();
@@ -365,10 +315,6 @@ void main() {
   });
 
   group('pinned corpus files (record-walk correctness)', () {
-    // The former Harmonik_Akım/Reaktif_Güç pins (populated Nums locals and
-    // DataSourceArray expression elements) came from the provenance-rejected
-    // caizikun/Teststand_Git source; the same decode shapes are re-pinned on
-    // in-manifest exemplars below.
     const pinnedSuffixes = [
       'DHA_TestStand_Seq-39449e1/DHA5x5_STTE_CalibrationSequence.seq',
       'sandbox/Test Sequence.seq',
@@ -391,7 +337,6 @@ void main() {
       final main = verify.groupArrays.firstWhere((g) => g.name == 'Main');
       expect(main.children, hasLength(72));
       expect(main.children.every((s) => s.typeName != null), isTrue);
-      // The populated scalar-array locals: a 9-element Nums local.
       final locals = verify.leadingSubProps.firstWhere((p) => p.name == 'Locals');
       final crosshair = locals.children.firstWhere((c) => c.name == 'CrosshairX');
       expect(crosshair.className, 'Nums');
@@ -441,11 +386,6 @@ void main() {
     });
 
     test('iTAC.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode', () {
-      // This generation's pool leads with the root token `Obj` and its
-      // Obj-classed fields reference it by INDEX 0 (`[flags][0][0][name]`),
-      // which older grammar refused as an unresolvable class slot; and its
-      // `Ref`-classed parameters must take the scalar tail — the count-scan
-      // once misread `[attr 4][0]` as 4 swallowed sibling fields here.
       if (pin(pinnedSuffixes[4]) == null) return;
       final outlines = outlinesOf(pinnedSuffixes[4]);
       expect(outlines.map((o) => o.name), contains('Connect'));
@@ -468,8 +408,6 @@ void main() {
     });
 
     test('Solar_panel_main.seq: pool[0]-`Obj` generation — NI_Wait typedef body decodes through its substeps', () {
-      // The class-slot-0 `Result` node inside the substep instances was the
-      // whole-body blocker (all-or-nothing bail) before pool[0] resolved.
       if (pin(pinnedSuffixes[5]) == null) return;
       final records = binaryTypeRecords(pin(pinnedSuffixes[5])!.readAsBytesSync());
       final wait = records.firstWhere((r) => r.name == 'NI_Wait');
@@ -480,15 +418,12 @@ void main() {
       final result = edit.children.firstWhere((f) => f.name == 'Result');
       expect(result.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
       expect([for (final c in result.children) c.name], ['Error', 'ReportText', 'Common']);
-      // The X-less framed-lite children claim NO type (the twin types them
-      // per site: Error/Common are Obj references there).
       expect(result.children[0].className, isNull);
       expect(
         edit.children.firstWhere((f) => f.name == 'MenuName').value,
         'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
       );
       expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
-      // The remaining all-or-nothing body bails in this file, pinned exactly.
       expectCorpusSnapshot('binary_pins', {
         'solarPanelMainUndecodedBodies': records.where((r) => r.undecodedBody).length,
       });

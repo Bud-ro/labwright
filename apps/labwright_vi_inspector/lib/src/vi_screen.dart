@@ -17,12 +17,6 @@ import 'subvi_icon_resolver.dart';
 import 'types_view.dart';
 import 'vi_demo.dart';
 
-/// Imports a LabVIEW `.vi`/`.ctl` file and shows what it is and does — type,
-/// version, capability flags, the resource-block inventory, the recovered
-/// front-panel and block-diagram object layout (structures, nodes, wires,
-/// per-object colours, subVI icons), embedded images, and writer coverage —
-/// via the clean-room `labwright_rsrc_parse` reader. A read-only viewer
-/// (editing is future work).
 class ViInspectorScreen extends StatefulWidget {
   const ViInspectorScreen({
     super.key,
@@ -39,39 +33,26 @@ class ViInspectorScreen extends StatefulWidget {
     this.fetchBytes = fetchViBytes,
   });
 
-  /// Fetches one URL's bytes during a representative-VI fetch (the main file
-  /// and each dependency-closure file). Defaults to [fetchViBytes] (a real
-  /// HTTPS GET); overridable in tests to avoid network I/O.
   final Future<Uint8List> Function(Uri) fetchBytes;
 
-  /// Optional summary to show on first build (used by tests).
   final ViSummary? initial;
 
-  /// Label describing where [initial] came from.
   final String? initialSource;
 
-  /// Optional decoded version/title to show on first build (tests).
   final ViVersionInfo? initialVersion;
 
-  /// Optional embedded strings to show on first build (tests).
   final List<String>? initialStrings;
 
-  /// Optional per-block components to show on first build (tests).
   final List<BlockComponent>? initialComponents;
 
-  /// Optional decoded model (for the Diagram tab) to show on first build (tests).
   final ViModel? initialModel;
 
-  /// Optional owning-library names (from LIBN) to show on first build (tests).
   final List<String>? initialLibraryNames;
 
-  /// Optional embedded sub-VIs (from VINS) to show on first build (tests).
   final List<ViEmbeddedVi>? initialEmbeddedVis;
 
-  /// Optional writer byte-attribution to show on first build (tests).
   final WriterAttribution? initialAttribution;
 
-  /// Optional embedded images to show on first build (tests).
   final ViImages? initialImages;
 
   @override
@@ -93,23 +74,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   WriterAttribution? _attribution;
   ViImages _images = const ViImages();
 
-  /// The VI-snippet PNG the loaded VI was extracted from, or null. Doubles as
-  /// the Oracle tab's reference image: the snippet's visible raster is
-  /// LabVIEW's own render of this very VI's block diagram.
   Uint8List? _snippetPng;
 
-  /// The representative VI currently being fetched from GitHub, or null. Drives
-  /// the Examples menu's busy state.
   String? _fetchingRep;
 
-  /// The temp project directory of the last representative-VI fetch (the main
-  /// file + its dependency closure), deleted when the next fetch replaces it.
   Directory? _repProjectDir;
 
-  /// Resolves a subVI-call node's target `.vi` to its bytes so the block diagram
-  /// can stamp the node with the called VI's icon. Set only when a file was
-  /// opened from disk (drag/browse/path) — demo and embedded VIs have no project
-  /// directory to search, so their nodes keep the neutral plate.
   Future<Map<String, ViLegacyIcon>> Function(Set<String>)? _subViIconResolver;
 
   @override
@@ -127,12 +97,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _images = widget.initialImages ?? const ViImages();
   }
 
-  /// Parse + decode a VI from its bytes, then show it. Decoding is total, so the
-  /// UI never crashes on a file from the wild.
-  ///
-  /// A VI-snippet PNG is accepted directly: the embedded `.vi` (its `niVI`
-  /// chunk) is what loads, and the PNG itself is kept as the Oracle tab's
-  /// reference render. A PNG without an embedded VI is a clean error.
   void _loadBytes(
     Uint8List bytes,
     String source, {
@@ -182,14 +146,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
         sections = const [];
         model = null;
       }
-      // Byte attribution is independent of heap decode; compute it separately so
-      // a heap-decode failure still leaves the writer-fidelity view populated.
       try {
         attribution = attributeVi(bytes);
       } catch (_) {
         attribution = null;
       }
-      // Image extraction is isolated so a malformed VI still loads other tabs.
       try {
         images = extractViImages(sections);
       } catch (_) {
@@ -214,8 +175,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     });
   }
 
-  /// The decompressed `VCTP` section body, or null when the VI carries none —
-  /// feeds the Types tab's bytes↔types correlation view.
   Uint8List? _vctpBytes() {
     for (final section in _sections) {
       if (section.tag == 'VCTP') return section.bytes;
@@ -223,9 +182,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     return null;
   }
 
-  /// Reads and inspects the file at [path] (shared by the text field, the
-  /// Browse dialog, and drag-and-drop). Surfaces missing/unreadable files as a
-  /// clean error rather than throwing.
   void _loadPath(String path) {
     if (path.isEmpty) return;
     final file = File(path);
@@ -248,9 +204,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       });
       return;
     }
-    // The project index is built off the UI isolate, so a large or slow project
-    // tree never blocks the load; the on-node subVI icons appear once it
-    // resolves. The future is passed straight through to the diagram view.
     _loadBytes(
       bytes,
       path,
@@ -258,12 +211,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     );
   }
 
-  /// Fetches a curated representative VI — the main file plus its in-repo subVI
-  /// dependency closure, written to a fresh temp project directory — and
-  /// inspects it, with subVI icons resolved from that directory exactly as for
-  /// a locally-opened file. Network failure of the main file surfaces as a
-  /// clean error; an individual dependency failure only costs that subVI's
-  /// icon. The previous fetch's temp directory is deleted first.
   Future<void> _openRepresentative(RepresentativeVi vi) async {
     if (_fetchingRep != null) return;
     setState(() => _fetchingRep = vi.name);
@@ -276,10 +223,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
           ? ''
           : ' (+${fetched.fetchedDeps} subVIs'
                 '${fetched.failedDeps > 0 ? ', ${fetched.failedDeps} failed' : ''})';
-      // Clamp the icon search's outermost ring to the temp project directory:
-      // the main file sits vi.path-segments deep inside it, so searching up one
-      // fewer level than that lands exactly on the project dir (never the
-      // system temp directory above it).
       final mainPath = fetched.mainPath;
       final levelsUp = vi.path.split('/').length - 1;
       _loadBytes(
@@ -299,13 +242,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       if (mounted) setState(() => _fetchingRep = null);
       try {
         previous?.deleteSync(recursive: true);
-      } catch (_) {
-        // Best-effort cleanup of the prior fetch's temp files.
-      }
+      } catch (_) {}
     }
   }
 
-  /// Opens the OS file-open dialog and inspects the chosen file.
   Future<void> _browse() async {
     final result = await FilePicker.pickFiles(
       dialogTitle: 'Open a LabVIEW VI (or a VI-snippet PNG)',
@@ -327,16 +267,11 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            // One compact header row: the loaded VI's icon + name, then the
-            // load affordances. A Wrap so a narrow window flows to a second
-            // line instead of overflowing.
             Wrap(
               spacing: 8,
               runSpacing: 8,
               crossAxisAlignment: WrapCrossAlignment.center,
               children: [
-                // The VI-icon slot is always present: a neutral placeholder
-                // until a file with an icon loads, then the real 32x32 icon.
                 SizedBox(
                   width: 28,
                   height: 28,
@@ -391,8 +326,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                   icon: const Icon(Icons.science_outlined),
                   label: const Text('Load demo VI'),
                 ),
-                // Curated interesting VIs, fetched from GitHub on demand — in
-                // the toolbar so they stay reachable after a VI is loaded.
                 MenuAnchor(
                   menuChildren: [
                     for (final vi in kRepresentativeVis)
@@ -491,9 +424,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                   const Tab(text: 'Types'),
                                   const Tab(text: 'Images'),
                                   const Tab(text: 'Coverage'),
-                                  // A snippet load carries LabVIEW's own render
-                                  // of this VI — the reference the oracle
-                                  // compares the clean-room render against.
                                   if (_snippetPng != null)
                                     const Tab(text: 'Oracle'),
                                 ],
@@ -528,9 +458,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                           'No front-panel objects recovered in this file.',
                                       isFrontPanel: true,
                                     ),
-                                    // Block Diagram, headed by the honest
-                                    // recovery-summary strip (previously
-                                    // the Review tab's header).
                                     Column(
                                       children: [
                                         if (_model != null) ...[
@@ -656,16 +583,12 @@ class _SummaryView extends StatefulWidget {
   final List<BlockComponent> components;
   final List<DecodedSection> sections;
 
-  /// The decoded model, used to surface recovered subVI deps + data-type summary.
   final ViModel? model;
 
-  /// Owning-library names (from LIBN sections), e.g. `MQTT Server.lvlib`.
   final List<String> libraryNames;
 
-  /// Embedded sub-VIs (from VINS sections) — each a complete nested VI.
   final List<ViEmbeddedVi> embeddedVis;
 
-  /// Invoked when the user taps an embedded sub-VI to open it in the inspector.
   final void Function(ViEmbeddedVi)? onOpenEmbedded;
 
   @override
@@ -981,9 +904,6 @@ class _SummaryViewState extends State<_SummaryView> {
 
   bool _hasSection(String tag) => widget.sections.any((s) => s.tag == tag);
 
-  /// A one-glance map of every block in the VI, grouped by the catalog category,
-  /// showing the human name + clean-room confidence + decompressed size. Purely
-  /// catalog-driven (blockInfo) — no fabrication.
   List<Widget> _blockInventory() {
     final byCat = <ViBlockCategory, List<BlockComponent>>{};
     for (final component in widget.components) {
@@ -1083,7 +1003,6 @@ class _HexDialog extends StatefulWidget {
   final String tag;
   final List<DecodedSection> sections;
 
-  /// All decoded sections of the VI (for cross-block resolution, e.g. CONP→VCTP).
   final List<DecodedSection> allSections;
 
   @override
@@ -1169,10 +1088,6 @@ class _Section extends StatelessWidget {
   );
 }
 
-/// An honest "what we recovered vs what's still unknown" strip for the Block
-/// Diagram tab, derived entirely from real model counts — never fabricated. It
-/// states what is recovered (objects, structures, nodes, dataflow wires) and
-/// what is not (the wire datatype and packed route geometry).
 class _RecoverySummary extends StatelessWidget {
   const _RecoverySummary(this.model);
   final ViModel model;

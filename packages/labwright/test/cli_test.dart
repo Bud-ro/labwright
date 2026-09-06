@@ -1,6 +1,3 @@
-// `labwright run`: directory resolution, flags-to-defines, exit propagation,
-// and sharding. Scan lives in cli_scan_test.dart; init/restart in
-// cli_lifecycle_test.dart.
 import 'dart:convert';
 import 'dart:io';
 
@@ -17,7 +14,6 @@ const _allTests = {
   'teardown throws',
 };
 
-/// `labwright run <target> --report` into a temp file; returns (exit, report).
 (int, Map<String, Object?>) _runReport(String target, [List<String> extra = const []]) {
   final dir = Directory.systemTemp.createTempSync('lw_');
   try {

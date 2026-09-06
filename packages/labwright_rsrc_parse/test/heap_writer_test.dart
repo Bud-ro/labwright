@@ -3,9 +3,6 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// A synthetic inflated heap body: leading `u32` content-length, then one record
-/// of each model-sourced family (object header, bounds `C4`, `u16` attribute,
-/// typed reference, group close).
 final _body = hx(
   '00000020' // leading u32 content-length (framing, copied)
   '101902fe0009fd0005' // object header: 10 19 02 fe <kind 9> fd <oid 5>       (9 B)
@@ -26,8 +23,6 @@ void main() {
   });
 
   test('a C4 string record models its header plus its retained interior', () {
-    // Leading u32 + `C4 22 03 "ABC"` (a caption: string shape). The header is
-    // reconstructed and the 3-byte string payload is retained byte-faithfully.
     final body = hx('0000000a c42203414243');
     final res = serializeHeapBody(body);
     expect(res.bytes, equals(body));
@@ -37,9 +32,6 @@ void main() {
   });
 
   test('a C4 string record with non-printable bytes still re-emits byte-exact', () {
-    // `C4 22 04` then a 4-byte payload with a control byte (0x01): the display
-    // decode (HeapRecord.text) drops it, but rawText retains every byte so the
-    // record models whole and re-emits exactly.
     final body = hx('0000000b c4220441420143');
     final res = serializeHeapBody(body);
     expect(res.bytes, equals(body));
@@ -49,7 +41,6 @@ void main() {
   });
 
   test('a VCTP body re-serializes byte-exact and models the whole pool', () {
-    // count=2, TD0 (descLen 6), TD1 (descLen 8), top-level list [2](0,1).
     final body = hx(
       '00000002' // u32 count = 2
       '0006 0005 1122' // TD0: descLen 6, interior <flags 00><code 05> 11 22
@@ -69,8 +60,6 @@ void main() {
   });
 
   test('a VCTP body that does not tile stays copied and byte-exact', () {
-    // count claims 3 descriptors but the body holds only one — the grammar
-    // rejects it, so the whole body is copied (byte-exactness preserved).
     final body = hx('00000003 0006 0005 1122');
     final res = serializeHeapBody(body, 'VCTP');
     expect(res.bytes, equals(body));
@@ -80,8 +69,6 @@ void main() {
   });
 
   test('a VICD body re-serializes byte-exact and models the whole descriptor', () {
-    // i386 envelope + a "code" chunk (8 opaque machine-code bytes) + a "CODE"
-    // symbol table with one 4-byte name. codeStart=40, codeSize=8, codeEnd=48.
     final body = hx(
       '28000000' // codeStart = 40
       '69333836' // arch "i386"
@@ -111,8 +98,6 @@ void main() {
   });
 
   test('a VICD body whose CODE table does not tile stays copied and byte-exact', () {
-    // count claims 2 entries but only one fits — the grammar rejects it, so the
-    // whole body is copied (byte-exactness preserved).
     final body = hx(
       '28000000 69333836 08000000 03010000 00000000 636f6465'
       '000000000000000000000000 30000000 5589e583ec109090'
@@ -155,15 +140,12 @@ void main() {
   test('DFDS framing is total on random buffers/contexts and byte-exact when it frames', () {
     expectTotal(3, 3000, 64, (b) {
       final ctx = DfdsContext(vctp: b, tm80: b, verGe10: b.isNotEmpty && b[0].isEven);
-      // Never throws; the split always tiles the body regardless of framing.
       final split = attributeHeapBody(b, 'DFDS', ctx);
       expect(split.modelBytes + split.copiedBytes, b.length);
       expect(split.modelBugs, 0);
       final res = serializeHeapBody(b, 'DFDS', ctx);
       expect(res.bytes, equals(b));
       expect(res.modelBytes + res.copiedBytes, b.length);
-      // When it frames, the whole body is model-sourced; a garbage context tiles
-      // to nothing and the body is copied — either way the re-emission is exact.
       expect(dataSpaceFrames(b, ctx) ? res.copiedBytes : res.modelBytes, 0);
     });
   });

@@ -1,4 +1,3 @@
-// `labwright scan`: AST-driven plug-in lint for suite folders.
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -28,7 +27,6 @@ void main() {
     expect(result.exitCode, 1, reason: out);
     expect(out, contains('1 file(s) not reachable'), reason: out);
     expect(out, contains('ghost.dart'), reason: 'comment/string mentions are not directives');
-    // (reachable file, why it must not be flagged)
     // dart format off
     const plugged = [
       ('via_outside.dart', 'plugged THROUGH a helper outside the scanned folder'),
@@ -48,9 +46,9 @@ void main() {
     expect(exit, 0, reason: '$out\n$err');
     for (final line in [
       'PASS plugged via an outside helper',
-      'PASS renamed test symbol', // lab.test registers like test — aliasing changes nothing
+      'PASS renamed test symbol',
       'PASS tear-off registered test',
-      'PASS conditional io branch', // the VM loads the default conditional branch
+      'PASS conditional io branch',
     ]) {
       expect(out, contains(line));
     }

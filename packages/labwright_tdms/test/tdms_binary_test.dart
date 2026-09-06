@@ -1,6 +1,3 @@
-// Hand-built segment bytes exercise reader paths the TdmsWriter never emits:
-// big-endian, interleaved raw data, raw integer/double types, and DAQmx
-// format-changing scalers.
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -27,7 +24,6 @@ class _B {
     _out.add(u);
   }
 
-  /// One raw element of on-disk type code [dtype] (3=I32, 6=U16, 10=Double).
   void elem(int dtype, num v) {
     switch (dtype) {
       case 3:
@@ -50,7 +46,6 @@ class _B {
   Uint8List take() => _out.toBytes();
 }
 
-/// One-segment file: TDSm tag, always-little ToC, then lead-in tail/meta/raw in [e].
 Uint8List _file(Endian e, int toc, _B meta, _B raw) {
   final m = meta.take(), r = raw.take();
   final tail = _B(e)
@@ -146,7 +141,6 @@ void main() {
         ..u32(0xFFFFFFFF)
         ..u32(1)
         ..u64(c.raw.length)
-        // one raw buffer index: i16 at byte offset [c.offset] within a [stride]-byte scan
         ..u32(1)
         ..u32(3)
         ..u32(0)
@@ -187,8 +181,8 @@ void main() {
     final f = TdmsReader.read(_file(Endian.little, toc, meta, raw));
     // dart format off
     expect(channelsOf(f), {
-      'g/a': [6.0, 11.0, 16.0], // int16 [10,20,30] * 0.5 + 1
-      'g/b': [-1.0, -2.0, -3.0], // unscaled
+      'g/a': [6.0, 11.0, 16.0],
+      'g/b': [-1.0, -2.0, -3.0],
     });
     // dart format on
   });

@@ -4,16 +4,10 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'document_view.dart';
 import 'ui.dart';
 
-/// Recon view for a binary `TOF1` document: a header/facts table, the per-byte
-/// decode-coverage tiers ([BinaryByteCoverage]) of the inflated body, and the
-/// recovered string table in a scrollable list with a visible count. The decoded
-/// sequence/step skeleton is surfaced by the Sequences and Logic tabs.
 class BinaryView extends StatelessWidget {
   const BinaryView({super.key, required this.doc, this.coverage});
   final BinarySeqDocument doc;
 
-  /// Per-byte decode coverage of the inflated body, or null when it was not
-  /// computed (the body did not frame).
   final BinaryByteCoverage? coverage;
 
   @override
@@ -147,7 +141,6 @@ class BinaryView extends StatelessWidget {
   }
 }
 
-/// One labeled proportion of the coverage bar.
 class _Tier {
   const _Tier(this.label, this.bytes, this.color);
   final String label;
@@ -155,10 +148,6 @@ class _Tier {
   final Color color;
 }
 
-/// The per-byte decode-coverage panel for a binary `TOF1` body: a stacked bar
-/// tiling every inflated-body byte into pool / record-semantic / record-
-/// structural / record-undecoded, with a legend (bytes + %) and the record-
-/// region hard numbers. Drawn straight from [BinaryByteCoverage] — no estimate.
 class _CoveragePanel extends StatelessWidget {
   const _CoveragePanel({required this.coverage});
   final BinaryByteCoverage coverage;

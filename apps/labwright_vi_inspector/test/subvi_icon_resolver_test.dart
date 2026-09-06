@@ -3,7 +3,6 @@ import 'dart:io';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 
-/// The corpus root, or null when not fetched (corpus-dependent tests skip).
 Directory? _corpusDir() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
@@ -18,7 +17,6 @@ Directory? _corpusDir() {
   return null;
 }
 
-/// A real icon-bearing corpus VI, or null when the corpus is not fetched.
 File? _iconViFile() {
   final corpus = _corpusDir();
   if (corpus == null) return null;
@@ -41,7 +39,6 @@ void main() {
   test('linker paths resolve targets directly — no directory search', () {
     final corpus = _corpusDir();
     if (corpus == null) return;
-    // This VI's LIbd records relative PTH0 paths into PicoScope2000aLib/.
     final vi = File(
       '${corpus.path}/picotech_picosdk-ni-labview-examples/'
       'picotech-picosdk-ni-labview-examples-dceb711/ps2000a/'
@@ -69,7 +66,6 @@ void main() {
     addTearDown(() => root.deleteSync(recursive: true));
     final proj = Directory('${root.path}/proj/sub')
       ..createSync(recursive: true);
-    // A caller with NO LIbd (junk bytes): everything falls to the ring search.
     final caller = File('${proj.path}/Caller.vi')..writeAsBytesSync([0]);
     File('${proj.path}/Near.vi').writeAsBytesSync(vi.readAsBytesSync());
     final sibling = Directory('${root.path}/proj/lib')

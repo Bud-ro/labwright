@@ -1,10 +1,3 @@
-// CLI for the TestStand → Dart exporter: parses a `.seq` file (XML, INI, or
-// binary TOF1 — binary yields the partial skeleton) and writes the exported
-// Dart source. Run:
-//   dart run tool/export_dart.dart <input.seq> [output.dart] [--e2e]
-// With no output path the generated source prints to stdout; --e2e emits a
-// labwright E2E program (exportSeqFileToLabwright) instead of plain logic —
-// run it with `dart run` or the `labwright` runner, never `dart test`.
 import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';

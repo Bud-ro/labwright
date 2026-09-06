@@ -2,22 +2,8 @@ import 'dart:typed_data';
 
 import 'viparse.dart' show ViFormatException, readViSections;
 
-/// Guard threshold: a declared block count above this is treated as implausible
-/// (corrupt/hostile input) rather than allocated against.
 const _maxPlausibleBlockCount = 100000;
 
-/// The 32-byte RSRC (`.vi`) file header, modeled field-by-field — the first
-/// fully-typed piece of the exporter: every one of the 32 bytes maps to a named
-/// field, so [serialize] reconstructs the header byte-for-byte (no opaque span).
-///
-/// Layout (big-endian), corpus-validated across the 7,523 RSRC-parseable VIs
-/// as a symmetric
-/// `(offset, size)` pair per region:
-///   `[0:6]` magic `RSRC\r\n` · `u16 formatVersion @6` (always 3) ·
-///   `[8:12]` fileType tag (`LVIN` VI / `LVCC` control) · `[12:16]` creator tag
-///   (`LBVW`) · `u32 infoOffset @16` · `u32 infoSize @20` · `u32 dataOffset @24`
-///   (always 32) · `u32 dataSize @28`. With `dataOffset + dataSize == infoOffset`
-///   and `infoOffset + infoSize == fileLength`.
 class ViHeader {
   ViHeader({
     required this.magic,
@@ -30,50 +16,35 @@ class ViHeader {
     required this.dataSize,
   });
 
-  /// `RSRC\r\n` — kept as raw bytes so serialization is exact even if a future
-  /// file deviates.
   final Uint8List magic;
 
-  /// `u16 @6` — the RSRC format version (3 in every observed file).
   final int formatVersion;
 
-  /// `[8:12]` file-type tag bytes (`LVIN` = VI, `LVCC` = control). Raw 4 bytes for
-  /// exact round-trip; see [fileType] for the string.
   final Uint8List fileTypeBytes;
 
-  /// `[12:16]` creator tag bytes (`LBVW`). Raw 4 bytes; see [creator].
   final Uint8List creatorBytes;
 
-  /// `u32 @16` — start of the info area.
   final int infoOffset;
 
-  /// `u32 @20` — size of the info area (`infoOffset + infoSize == fileLength`).
   final int infoSize;
 
-  /// `u32 @24` — start of the data area (always 32, right after this header).
   final int dataOffset;
 
-  /// `u32 @28` — size of the data area (`dataOffset + dataSize == infoOffset`).
   final int dataSize;
 
   String get fileType => String.fromCharCodes(fileTypeBytes);
   String get creator => String.fromCharCodes(creatorBytes);
 
-  /// The fixed 32-byte RSRC file header size.
   static const int byteSize = 32;
 
-  /// The RSRC magic bytes (`RSRC\r\n`) every container/header begins with.
   static const List<int> _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
-  /// Throws [ViFormatException] unless [b] begins with the RSRC [_magic] bytes.
   static void _requireRsrcMagic(Uint8List bytes) {
     for (var i = 0; i < _magic.length; i++) {
       if (bytes[i] != _magic[i]) throw ViFormatException('not an RSRC/.vi file (bad magic)');
     }
   }
 
-  /// Parses the first 32 bytes of [bytes] into a [ViHeader]. Throws
-  /// [ViFormatException] on a too-short or non-RSRC buffer.
   factory ViHeader.parse(Uint8List bytes) {
     if (bytes.length < byteSize) throw ViFormatException('too small for an RSRC header');
     _requireRsrcMagic(bytes);
@@ -90,10 +61,6 @@ class ViHeader {
     );
   }
 
-  /// Returns a copy with the data-area size set to [dataSize] and [infoOffset]
-  /// re-derived from it (`dataOffset + dataSize`, the RSRC region-order
-  /// invariant). The single place the header's cross-region offsets are computed
-  /// from a data-area edit.
   ViHeader withDataSize(int dataSize) => ViHeader(
     magic: magic,
     formatVersion: formatVersion,
@@ -105,8 +72,6 @@ class ViHeader {
     dataSize: dataSize,
   );
 
-  /// Re-emits the 32 header bytes. Byte-identical to the input for a parsed,
-  /// unmodified header — the per-field serialize() contract.
   Uint8List serialize() {
     final out = Uint8List(byteSize);
     final view = ByteData.sublistView(out);
@@ -123,12 +88,6 @@ class ViHeader {
   }
 }
 
-/// The fixed prefix of the info area, `[0, blockListRel)` — modeled field-by-field.
-/// The RSRC format repeats the 32-byte file header at the start of the info area;
-/// after it come [reservedA] (`[0,0,0x20]`), the `blockListRel` pointer
-/// (`u32 @0x2c`; `0x34` in every corpus VI, though the parser accepts any in-range
-/// value), and [reservedB] (the info-relative offset of the trailing VI name).
-/// [serialize] reconstructs the prefix byte-exact.
 class ViInfoSubheader {
   ViInfoSubheader({
     required this.headerCopy,
@@ -137,37 +96,19 @@ class ViInfoSubheader {
     required this.reservedB,
   });
 
-  /// `[0:32]` — a duplicate of the file's [ViHeader] (the RSRC dual-header).
   final ViHeader headerCopy;
 
-  /// `[32:44]` — three `u32`s between the dup header and `blockListRel`.
-  /// Corpus-probed (7,523 VIs): `[u32 0][u32 0][u32 0x20]` — the first two are
-  /// always zero and the third is the constant `0x20` (=32). See [reservedAMarker].
-  /// Kept raw (re-emitted exactly); the constant is not asserted in [parse].
-  // TODO(labwright): identify the `0x20` marker's meaning (a fixed size/version?).
+  // TODO: the third word of reservedA is not decoded.
   final Uint8List reservedA;
 
-  /// `u32 @0x2c` — offset (info-area-relative) where the block list begins.
   final int blockListRel;
 
-  /// `[0x30, blockListRel)` — a `u32` (4 bytes; `blockListRel` is `0x34`
-  /// throughout the corpus). Corpus-probed: this is the **info-area-relative
-  /// offset of the trailing VI-name record** (`[u8 len][name]` at EOF) — it
-  /// equals that offset in all 7,523 VIs (it is the authoritative VI-name locator;
-  /// see [viNameOffset], used by [ViNameTable.parse]). Kept raw to stay byte-exact
-  /// for any non-canonical `blockListRel`.
   final Uint8List reservedB;
 
-  /// The constant marker word of [reservedA] (`u32 @8`, i.e. info `@0x28`); `0x20`
-  /// across the corpus. Null if [reservedA] is not the canonical 12 bytes.
   int? get reservedAMarker => reservedA.length >= 12 ? ByteData.sublistView(reservedA).getUint32(8) : null;
 
-  /// The info-area-relative offset of the trailing VI-name record, read from
-  /// [reservedB] (`u32 @0x30`). Null if [reservedB] is not the canonical 4 bytes.
   int? get viNameOffset => reservedB.length == 4 ? ByteData.sublistView(reservedB).getUint32(0) : null;
 
-  /// Parses the subheader from the start of an [infoArea]. Throws
-  /// [ViFormatException] if the area is too short or `blockListRel` is implausible.
   factory ViInfoSubheader.parse(Uint8List infoArea) {
     if (infoArea.length < 0x30) throw ViFormatException('info area too small for a subheader');
     final view = ByteData.sublistView(infoArea);
@@ -183,8 +124,6 @@ class ViInfoSubheader {
     );
   }
 
-  /// Re-emits the `[0, blockListRel)` prefix, byte-identical to the input for a
-  /// parsed, unmodified subheader.
   Uint8List serialize() {
     final blr = ByteData(4)..setUint32(0, blockListRel);
     return (BytesBuilder()
@@ -196,26 +135,17 @@ class ViInfoSubheader {
   }
 }
 
-/// One 12-byte block-list entry: a resource-block [tag] and the section(s) it
-/// owns. Big-endian `{tag[4], u32 sectionCount-1, u32 descRel}`.
 class ViBlockListEntry {
   ViBlockListEntry({required this.tagBytes, required this.sectionCountMinus1, required this.descRel});
 
-  /// `[0:4]` the block tag bytes (e.g. `LVSR`, `BDHb`, `CONP`). Raw for exact
-  /// round-trip; see [tag].
   final Uint8List tagBytes;
 
-  /// `u32 @4` — the number of sections this block owns, minus one (LabVIEW's
-  /// count-1 convention).
   final int sectionCountMinus1;
 
-  /// `u32 @8` — offset of this block's first section descriptor, relative to the
-  /// block-list count word + 8 (`countPos + 8`).
   final int descRel;
 
   String get tag => String.fromCharCodes(tagBytes);
 
-  /// The fixed 12-byte block-list entry size (`{tag[4], u32 sectionCount-1, u32 descRel}`).
   static const int byteSize = 12;
 
   factory ViBlockListEntry.parse(Uint8List info, int at) {
@@ -235,42 +165,19 @@ class ViBlockListEntry {
   }
 }
 
-/// The info area's **block list**: a `u32 count` followed by contiguous 12-byte
-/// [ViBlockListEntry]s, beginning at `blockListRel`. The directory of every
-/// resource block in the VI.
-///
-/// The stored count is **count minus one**: one further entry follows the
-/// counted run ([finalEntry]), so [allEntries] — not [entries] — is the VI's
-/// block directory. Corpus (7,523 RSRC-parseable VIs): every file carries that
-/// extra entry with a printable tag, `FTAB` 7,201 / `VITS` 322, owning exactly
-/// one section whose descriptor resolves to a real `[u32 len][payload]`,
-/// 7,523/7,523. [serialize] reconstructs the
-/// `[blockListRel, blockListRel + byteLength)` region byte-exact.
 class ViBlockList {
   ViBlockList({required this.entries, this.finalEntry});
 
-  /// The entries covered by the stored `u32 count`.
   final List<ViBlockListEntry> entries;
 
-  /// The entry past the stored count, or null when the 12 bytes after the
-  /// counted run are out of range or carry a non-printable tag (no corpus VI:
-  /// [ViBlockList.parse] recovers it in all 7,523). Its section descriptor is
-  /// stored in 12-byte head form at the start of the name-table tail — see
-  /// [ViNameTable.header].
   final ViBlockListEntry? finalEntry;
 
-  /// Every block-list entry: the counted run plus [finalEntry].
   List<ViBlockListEntry> get allEntries => [...entries, if (finalEntry != null) finalEntry!];
 
-  /// The stored `u32 count` word (one less than [allEntries] length whenever a
-  /// [finalEntry] is present).
   int get count => entries.length;
 
-  /// Total serialized byte length (the `u32 count` + the entry array, [finalEntry] included).
   int get byteLength => 4 + (entries.length + (finalEntry == null ? 0 : 1)) * ViBlockListEntry.byteSize;
 
-  /// Parses the block list at [blockListRel] within [infoArea], including the
-  /// entry past the stored count.
   factory ViBlockList.parse(Uint8List infoArea, int blockListRel) {
     if (blockListRel + 4 > infoArea.length) throw ViFormatException('block list out of range');
     final view = ByteData.sublistView(infoArea);
@@ -288,8 +195,6 @@ class ViBlockList {
     );
   }
 
-  /// Whether the four bytes at [at] are printable ASCII — the block-tag shape
-  /// that separates a real trailing entry from the name-table tail.
   static bool _printableTagAt(Uint8List infoArea, int at) {
     for (var i = at; i < at + 4; i++) {
       if (infoArea[i] < 0x20 || infoArea[i] >= 0x7f) return false;
@@ -297,7 +202,6 @@ class ViBlockList {
     return true;
   }
 
-  /// Re-emits `[u32 count][entries…][finalEntry]`, byte-identical to the parsed region.
   Uint8List serialize() {
     final out = Uint8List(byteLength);
     final view = ByteData.sublistView(out);
@@ -310,13 +214,6 @@ class ViBlockList {
   }
 }
 
-/// One 20-byte info-area section descriptor. The info area holds a contiguous run
-/// of these after the block list; corpus-proven, **every** record is a real
-/// section referenced by a block-list entry (no "name-table rows" exist — all
-/// 278,653 records across the 7,523 RSRC-parseable VIs are referenced, and each
-/// carries a valid
-/// data-area `[u32 len][payload]`). Every byte is captured (the unclassified
-/// words as raw fields with TODOs) so [serialize] reconstructs it byte-exact.
 class ViSectionDescriptor {
   ViSectionDescriptor({
     required this.word0,
@@ -326,58 +223,26 @@ class ViSectionDescriptor {
     required this.word16,
   });
 
-  /// `u32 @0` — **`0` in every one of the 278,653 corpus descriptors** (a
-  /// reserved/unused leading word). // TODO(labwright): confirm it is always reserved.
+  /// TODO: not decoded.
   final int word0;
 
-  /// `u32 @4` — for a section descriptor, the data-area-relative offset
-  /// (`secRel`) of the section's `[u32 len][payload]` bytes.
   final int secRel;
 
-  /// `u32 @8` — `0` in every modern VI (LabVIEW 8+); nonzero ONLY in the legacy
-  /// LV ≤7.x format (the lone LV7 corpus VI, 151 descriptors). So this is an
-  /// old-format field, zero today. // TODO(labwright): decode the LV7-era meaning
-  /// (only one sample; values share a low `0x4E01`).
+  /// TODO: not decoded.
   final int word8;
 
-  /// `u32 @12` — a **1-based index into a VI-wide name table** for the section
-  /// (`0` ⇒ unnamed; non-zero for ~25% of sections). Probed over all 7,523 corpus
-  /// VIs: values are small (global max 360), and distinct sections SHARE an index
-  /// (e.g. a type record and its data-space twin both reference the same name), so
-  /// this is a *shared index*, not an inline byte offset. It is NOT an index into
-  /// the descriptor array (it exceeds the descriptor/section count in ~12% of named
-  /// sections), so the name table is a separate structure.
-  // TODO(labwright): locate the name table's bytes. RULED OUT: the post-descriptor
-  // region (too small); any section payload as a flat `[u32 count][pascal…]` list
-  // (a full-section scan finds no contiguous pascal pool anywhere); and the VCTP
-  // type-name list by index (TRec-format VIs recover no VCTP names, and named-type
-  // count >= maxNameRef in only ~5% of VIs). Likely embedded/interleaved in the
-  // heap object graph or link-info, not a flat table.
+  /// TODO: the name table this index points into is not located.
   final int nameRef;
 
-  /// `u32 @16` — a per-section word, exactly binary across the full corpus:
-  /// `0xFFFFFFFF` for ~98.3% of sections, and `0` for exactly the **LIBN** (4730)
-  /// and **VINS** (40) block sections — both of which are real, data-bearing
-  /// sections (LIBN payloads are owning-library names like `MQTT Server.lvlib…`;
-  /// VINS payloads are entire embedded sub-VIs — a nested `RSRC…LVIN` file). So
-  /// `0` here does NOT mean "not a section"; it co-occurs with those two blocks.
-  // TODO(labwright): decode @16's meaning (a kind/flag distinguishing embedded
-  // LIBN/VINS sections from the VI's own data sections?).
+  /// TODO: not decoded.
   final int word16;
 
-  /// The `@16` value carried by the VI's own data sections (~98.3% of sections);
-  /// LIBN/VINS sections carry `0` instead. Not a section-vs-nonsection flag.
   static const int commonWord16 = 0xFFFFFFFF;
 
-  /// The fixed 20-byte section-descriptor record size.
   static const int byteSize = 20;
 
-  /// Whether this section carries a name (a non-zero [nameRef] index). The name
-  /// itself is not yet resolvable — see [nameRef] — but a caller can already tell
-  /// named sections from anonymous ones.
   bool get isNamed => nameRef != 0;
 
-  /// Parses the 20-byte record (five big-endian `u32`s) at [at] within [info].
   factory ViSectionDescriptor.parse(Uint8List info, int at) {
     if (at < 0 || at + byteSize > info.length) throw ViFormatException('descriptor out of range at $at');
     final view = ByteData.sublistView(info);
@@ -390,8 +255,6 @@ class ViSectionDescriptor {
     );
   }
 
-  /// Returns a copy with [secRel] replaced — used when a data-area edit shifts
-  /// the section this descriptor points at.
   ViSectionDescriptor withSecRel(int secRel) => ViSectionDescriptor(
     word0: word0,
     secRel: secRel,
@@ -400,7 +263,6 @@ class ViSectionDescriptor {
     word16: word16,
   );
 
-  /// Re-emits the 20 bytes (five `u32`s), byte-identical to the parsed record.
   Uint8List serialize() {
     final out = Uint8List(byteSize);
     ByteData.sublistView(out)
@@ -413,62 +275,23 @@ class ViSectionDescriptor {
   }
 }
 
-/// The info area's name-table tail: a small fixed [header] followed by the
-/// **trailing Pascal VI name** at EOF (e.g. `PicoScope5000ExampleStreaming.vi`).
-/// The trailing name is recovered as a typed field. [serialize] reconstructs the
-/// tail byte-exact.
-///
-/// Corpus-probed (7,523 RSRC-parseable VIs): [header] is exactly **12 bytes**
-/// in every VI — the final block-list entry's section descriptor in its stored
-/// head form `[u32 0][u32 secRel][u32 0]`, the only non-zero field being
-/// [headerValue] (see [header]). Its size does NOT scale with the section
-/// `nameRef` indices (it stays 12 bytes even when the max index is 128), so
-/// this tail is NOT the name table that `nameRef` points into — that table is
-/// still unlocated.
 class ViNameTable {
   ViNameTable({required this.header, required this.trailingNameRecord});
 
-  /// Leading bytes of the tail before the trailing VI name. Canonically 12
-  /// bytes — DECODED: the **final block-list entry's section descriptor**,
-  /// truncated to its stored head `[u32 0][u32 secRel][u32 0]` (the stored
-  /// block count is count-1, so the list's final entry — `FTAB`/`VITS` —
-  /// keeps its descriptor here, right after the counted descriptor run; its
-  /// section is the last in the data area, which is why [headerValue] always
-  /// points near the data area's end). See [headerValue].
   final Uint8List header;
 
-  /// The final block-list entry's section `secRel` (`u32 @4` of the canonical
-  /// 12-byte [header]), or null when [header] is not that form. Remapped like
-  /// every other descriptor `secRel` when sections shift
-  /// ([ViInfoArea.withRemappedSecRels] via [withHeaderValue]) — through
-  /// [ViInfoArea.finalEntrySecRel], which first proves the header IS that
-  /// descriptor by its address.
   int? get headerValue => header.length == 12 ? ByteData.sublistView(header).getUint32(4) : null;
 
-  /// A copy with [headerValue] replaced by [secRel] (canonical 12-byte header
-  /// only; the trailing name record is shared).
   ViNameTable withHeaderValue(int secRel) {
     final out = Uint8List.fromList(header);
     ByteData.sublistView(out).setUint32(4, secRel);
     return ViNameTable(header: out, trailingNameRecord: trailingNameRecord);
   }
 
-  /// The `[u8 len][name bytes]` Pascal record at EOF, or empty if no clean
-  /// trailing name is present.
   final Uint8List trailingNameRecord;
 
-  /// The VI name decoded from [trailingNameRecord] (Latin-1: each byte is a code
-  /// point, so accented/Unicode names like `HÜll°` decode correctly), or null.
   String? get trailingName => trailingNameRecord.isEmpty ? null : String.fromCharCodes(trailingNameRecord, 1);
 
-  /// Splits a name-table [tail] into header + trailing Pascal VI name.
-  ///
-  /// When [nameStart] is given (the authoritative within-tail offset of the name
-  /// record, from the subheader's `viNameOffset`/`reservedB`), the record at that
-  /// offset is taken **verbatim** if it is a `[u8 len]` ending exactly at EOF —
-  /// no printable filter, so names with Latin-1/Unicode bytes are recovered, not
-  /// dropped. Otherwise it falls back to scanning largest-first for a `u8 len` +
-  /// `len` printable bytes ending at EOF (everything before is the header).
   factory ViNameTable.parse(Uint8List tail, {int? nameStart}) {
     if (nameStart != null && nameStart >= 0 && nameStart < tail.length) {
       final len = tail[nameStart];
@@ -489,8 +312,6 @@ class ViNameTable {
     );
   }
 
-  /// Index of the `len` byte of the trailing Pascal string (printable, ending at
-  /// EOF), or null if none. Largest match wins so the full name is preferred.
   static int? _trailingPascalStart(Uint8List bytes) {
     final maxLen = bytes.length - 1 < 255 ? bytes.length - 1 : 255;
     for (var len = maxLen; len >= 1; len--) {
@@ -500,7 +321,6 @@ class ViNameTable {
     return null;
   }
 
-  /// Whether every byte of [b] from [from] to the end is printable ASCII.
   static bool _printableRun(Uint8List bytes, int from) {
     for (var i = from; i < bytes.length; i++) {
       if (bytes[i] < 0x20 || bytes[i] >= 0x7f) return false;
@@ -515,39 +335,24 @@ class ViNameTable {
           .toBytes();
 }
 
-/// The 8 bytes between the block list and the first section descriptor. The
-/// 20-byte span once read here starts with the block list's final entry, which
-/// is modeled where it belongs ([ViBlockList.finalEntry]); these are the two
-/// words after it.
-///   * [word0] `@0` — `0` in every corpus VI. // TODO(labwright): identify.
-///   * [flags] `@4` — exactly `0xFFFFFFFF` **iff** the VI carries embedded
-///     `LIBN`/`VINS` sections, else `0` (perfect correlation, 0
-///     counterexamples; see [hasEmbeddedSections] and `readEmbeddedSections`).
-///     Field meaning beyond that correlation not decoded. // TODO(labwright)
-/// Both words are typed fields so [serialize] reconstructs the record byte-exact.
 class ViInfoPreGap {
   ViInfoPreGap({required this.word0, required this.flags});
 
-  /// `u32 @0` — `0` across the corpus. // TODO(labwright): identify.
+  /// TODO: not decoded.
   final int word0;
 
-  /// `u32 @4` — `0xFFFFFFFF` iff the VI has embedded `LIBN`/`VINS` sections, else `0`.
   final int flags;
 
-  /// The record's fixed size in bytes.
   static const int byteSize = 8;
 
-  /// Whether [flags] marks this VI as carrying embedded LIBN/VINS sections.
   bool get hasEmbeddedSections => flags == 0xFFFFFFFF;
 
-  /// Parses the 8-byte record (two big-endian `u32`s) at the start of [bytes].
   factory ViInfoPreGap.parse(Uint8List bytes) {
     if (bytes.length < byteSize) throw ViFormatException('preGap record too short (${bytes.length})');
     final view = ByteData.sublistView(bytes);
     return ViInfoPreGap(word0: view.getUint32(0), flags: view.getUint32(4));
   }
 
-  /// Re-emits the 8 bytes (two `u32`s), byte-identical to the parsed record.
   Uint8List serialize() {
     final out = Uint8List(byteSize);
     ByteData.sublistView(out)
@@ -557,19 +362,6 @@ class ViInfoPreGap {
   }
 }
 
-/// The info area composed as typed regions: the [subheader] (dup header +
-/// `blockListRel`), the [blockList] (resource-block directory, final entry
-/// included), the 8-byte [preGap] record, the [descriptors] table (contiguous
-/// 20-byte records), and the [nameTable] tail (the final entry's descriptor
-/// head + trailing Pascal VI name). [serialize] reconstructs the whole info
-/// area byte-exact.
-///
-/// Corpus-validated: after the block list comes a fixed 8-byte slot, then a
-/// gapless run of `(descMax-descMin)/20` descriptor records, then the name
-/// table — true for 100% of the 7,523 RSRC-parseable corpus VIs. If a
-/// (hypothetical) file doesn't fit that shape, [ViInfoArea.parse] falls back to
-/// keeping the whole remainder in [nameTable] (descriptors empty) so
-/// serialization stays byte-exact regardless.
 class ViInfoArea {
   ViInfoArea({
     required this.subheader,
@@ -582,19 +374,12 @@ class ViInfoArea {
   final ViInfoSubheader subheader;
   final ViBlockList blockList;
 
-  /// The 8-byte [ViInfoPreGap] record between the block list and the first
-  /// descriptor (`null` in the raw-fallback case).
   final ViInfoPreGap? preGap;
 
-  /// The contiguous 20-byte section descriptor records in address order (every
-  /// one is a real block-referenced section). Empty in the fallback case.
   final List<ViSectionDescriptor> descriptors;
 
-  /// The name-table tail (header + trailing VI name), typed. In the raw-fallback
-  /// case this holds everything after the block list.
   final ViNameTable nameTable;
 
-  /// Back-compat view: all bytes after the block list, as raw.
   Uint8List get rest =>
       (BytesBuilder()
             ..add(preGap?.serialize() ?? Uint8List(0))
@@ -604,11 +389,6 @@ class ViInfoArea {
 
   Uint8List _descriptorBytes() => Uint8List.fromList([for (final descriptor in descriptors) ...descriptor.serialize()]);
 
-  /// Scans the counted block-list entries' descriptor references and, if they
-  /// form the canonical gapless run (in bounds, starting right after the 8-byte
-  /// preGap, a whole number of records), returns its `[start, end)` span; else
-  /// null (raw fallback). [ViBlockList.finalEntry] is excluded: its descriptor
-  /// is stored in head form after the run, as the name-table header.
   static ({int start, int end})? _cleanDescriptorRun(
     Uint8List infoArea,
     ViBlockList blockList,
@@ -667,8 +447,6 @@ class ViInfoArea {
     );
   }
 
-  /// Offset within the info area of the name-table tail: the byte after the
-  /// descriptor run. Null in the raw-fallback case (no typed run to end).
   int? get nameTableStart => preGap == null
       ? null
       : subheader.blockListRel +
@@ -676,14 +454,6 @@ class ViInfoArea {
             ViInfoPreGap.byteSize +
             descriptors.length * ViSectionDescriptor.byteSize;
 
-  /// The `secRel` of [ViBlockList.finalEntry]'s section, read from the
-  /// name-table header — but only when that header is **proven** to be the
-  /// entry's descriptor head: the entry's descriptor address
-  /// (`blockListRel + 8 + descRel`) must land exactly on [nameTableStart], and
-  /// the header must have the canonical 12-byte form. Null otherwise, which
-  /// makes [withRemappedSecRels] refuse rather than leave the entry's section
-  /// pointer stale. Corpus: the address lands on the name table in 7,523/7,523
-  /// RSRC-parseable VIs, all with a 12-byte header.
   int? get finalEntrySecRel {
     final entry = blockList.finalEntry;
     final start = nameTableStart;
@@ -692,26 +462,8 @@ class ViInfoArea {
     return nameTable.headerValue;
   }
 
-  /// Returns a copy in which every VI-own descriptor ([ViSectionDescriptor.word16]
-  /// `== commonWord16`) whose `secRel` is a key of [newSecRelByOld] is rebound to
-  /// the mapped value, plus the final block-list entry's `secRel` in the
-  /// name-table header ([finalEntrySecRel]). LIBN/VINS descriptors
-  /// (`word16 == 0`) and secRels absent from the map are left unchanged. An
-  /// identity map returns equivalent descriptors, so an unmodified model
-  /// re-serializes byte-for-byte.
-  ///
-  /// Throws [ViFormatException] when a section whose position actually CHANGES
-  /// is carried by no descriptor and is not [finalEntrySecRel]: nothing in the
-  /// info area would follow it, so writing the file would leave a stale pointer
-  /// behind. Refusing keeps the failure visible instead of emitting a
-  /// coherent-looking, desynced VI. (Entries that map to themselves need no
-  /// fixup, so an identity map never refuses — the byte-exact round-trip of an
-  /// unmodified model holds whatever shape the info area has.)
   ViInfoArea withRemappedSecRels(Map<int, int> newSecRelByOld) {
     if (newSecRelByOld.isEmpty) return this;
-    // The final block-list entry's descriptor head lives at the start of the
-    // name-table tail (see [ViNameTable.header]); its secRel shifts with the
-    // rest.
     final finalSecRel = finalEntrySecRel;
     final accounted = {for (final descriptor in descriptors) descriptor.secRel, if (finalSecRel != null) finalSecRel};
     for (final MapEntry(key: oldSecRel, value: newSecRel) in newSecRelByOld.entries) {
@@ -744,65 +496,25 @@ class ViInfoArea {
           .toBytes();
 }
 
-/// A **lossless** decomposition of an RSRC (`.vi`) container into its three
-/// contiguous regions, plus a byte-exact serializer. This is the foundation for
-/// the VI exporter/editor and the export→import idempotency test: parsing then
-/// serializing an unmodified container must reproduce the original bytes exactly,
-/// which is the strongest end-to-end proof that our container interpretation is
-/// complete (nothing is dropped or misread).
-///
-/// Corpus-validated layout (7,523/7,523 files): the 32-byte header declares
-/// `dataOffset` (@24) and `infoOffset` (@16); the file is exactly
-/// `[0, dataOffset) header` ++ `[dataOffset, infoOffset) data area` ++
-/// `[infoOffset, end) info area` — three ordered, contiguous, non-overlapping
-/// spans (`dataOffset == 32`, `dataOffset + dataSize == infoOffset`). We split on
-/// the declared offsets (not assumptions), so the partition is exact for any
-/// well-ordered container and reconstruction is `header ++ data ++ info`.
-///
-/// Finer structure (sections, padding gaps, info-area descriptors, name table)
-/// lives *within* [dataArea]/[infoArea] and is decomposed by later layers; this
-/// model guarantees the whole-file round-trip those layers build on.
 class ViContainer {
   ViContainer({required this.header, required this.dataArea, required this.infoArea});
 
-  /// `[0, dataOffset)` — the 32-byte RSRC header (and anything before the data
-  /// area, though `dataOffset == 32` in every observed file).
   final Uint8List header;
 
-  /// `[dataOffset, infoOffset)` — the data area: the section payloads
-  /// (`[u32 len][bytes]` each) plus inter-section padding, exactly as stored.
   final Uint8List dataArea;
 
-  /// `[infoOffset, end)` — the info area: the block-info list, 20-byte section
-  /// descriptors, the name table, and the trailing VI name, exactly as stored.
   final Uint8List infoArea;
 
-  /// The fully-typed view of the 32-byte [header] (the first exporter region
-  /// modeled field-by-field). `parsedHeader.serialize()` reproduces [header]
-  /// byte-for-byte; over time the raw [dataArea]/[infoArea] spans become typed
-  /// structs the same way until nothing opaque remains.
   ViHeader get parsedHeader => ViHeader.parse(header);
 
-  /// The typed view of the info area's fixed subheader prefix (the dup header +
-  /// `blockListRel`). Another region modeled toward a fully-typed exporter.
   ViInfoSubheader get parsedInfoSubheader => ViInfoSubheader.parse(infoArea);
 
-  /// The typed view of the info area's block list (the resource-block directory).
   ViBlockList get parsedBlockList => ViBlockList.parse(infoArea, parsedInfoSubheader.blockListRel);
 
-  /// The info area composed as typed regions (subheader + block list + raw tail).
   ViInfoArea get parsedInfoArea => ViInfoArea.parse(infoArea);
 
-  /// Re-emits the whole file from the **typed** model — `ViHeader.serialize()` +
-  /// the (still-raw) data area + `ViInfoArea.serialize()`. Byte-identical to the
-  /// input (and to [toBytes]) for an unmodified container; the proof that the
-  /// typed regions compose losslessly as they replace the raw spans.
   Uint8List serialize() => _concat3(parsedHeader.serialize(), dataArea, parsedInfoArea.serialize());
 
-  /// Splits [bytes] into the three regions on the header's declared offsets.
-  /// Lossless: the regions concatenate back to the input. Throws
-  /// [ViFormatException] on a non-RSRC or mis-ordered container (so a caller can
-  /// distinguish "can't round-trip this" from a silent partial parse).
   factory ViContainer.parse(Uint8List bytes) {
     if (bytes.length < 32) throw ViFormatException('too small to be an RSRC file');
     ViHeader._requireRsrcMagic(bytes);
@@ -821,31 +533,9 @@ class ViContainer {
     );
   }
 
-  /// Re-emits the container as bytes. For a container parsed and left unmodified
-  /// this is byte-identical to the input (the idempotency contract).
   Uint8List toBytes() => _concat3(header, dataArea, infoArea);
 }
 
-/// The whole `.vi` file as a **fully-typed model**. A VI is its [header], an
-/// ordered list of data-area [dataSegments] (length-prefixed sections + padding
-/// gaps), and its typed
-/// [infoArea]. [serialize] reassembles the exact original bytes:
-/// `header.serialize() ++ rebuildDataArea(dataSegments) ++ infoArea.serialize()`.
-///
-/// Corpus-validated: `ViVi.parse(bytes).serialize() == bytes` byte-for-byte for
-/// every VI. The only bytes still held raw are (a) clearly-TODO'd unknown words
-/// inside the typed structs, and (b) each section's compressed heap payload
-/// ([ViSectionData.payload]) — whose *contents* are modeled separately in
-/// `labwright_rsrc_parse`.
-///
-/// [serialize] is the single source of truth for the file's cross-region offset
-/// math: it recomputes each section's `u32` length prefix, the header
-/// `dataSize@28`/`infoOffset@16`, and every VI-own descriptor's `secRel@4` from
-/// the current [dataSegments], so editing a [ViSectionData.payload] in place and
-/// re-serializing yields a coherent file. For an unmodified parsed model the
-/// recompute is the identity (the running section positions equal the stored
-/// `secRel`s and the data-area length is unchanged), preserving the byte-exact
-/// round-trip. [ViExport.editSection] is a thin wrapper over this path.
 class ViVi {
   ViVi({required this.header, required this.dataSegments, required this.infoArea});
 
@@ -862,29 +552,13 @@ class ViVi {
     );
   }
 
-  /// The recovered VI name (from the info-area name table), or null.
   String? get name => infoArea.nameTable.trailingName;
 
-  /// The data-area sections (length-prefixed payloads), in storage order.
   Iterable<ViSectionData> get sections => dataSegments.whereType<ViSectionData>();
 
-  /// Returns a NEW, coherent [ViVi] with the section at [secRel] replaced by
-  /// [newPayload] — the **safe** way to edit. It routes through the corpus-tested
-  /// [ViExport.editSection], which applies every offset fixup (the section's
-  /// length prefix, later sections' bytes + descriptor `secRel`s, and the header
-  /// `dataSize`/`infoOffset`), so the result re-parses and re-serializes exactly.
-  /// (Mutating [dataSegments]/[ViSectionData.payload] in place and re-serializing
-  /// does NOT recompute those offsets and would desync — always use this.)
-  /// Throws [ViFormatException] if [secRel] is not a section start.
   ViVi withSectionEdited({required int secRel, required Uint8List newPayload}) =>
       ViVi.parse(ViExport.editSection(serialize(), secRel: secRel, newPayload: newPayload));
 
-  /// Reassembles the `.vi` bytes, recomputing all cross-region offsets from the
-  /// current model state (see the class doc): the data area is rebuilt with fresh
-  /// section length prefixes, the header's `dataSize`/`infoOffset` are derived
-  /// from its length, and each VI-own descriptor's `secRel` is rebound to its
-  /// section's new data-area position. Byte-identical to the input for an
-  /// unmodified parsed model.
   Uint8List serialize() {
     final data = ViExport.rebuildDataArea(dataSegments);
     final newSecRelByOld = <int, int>{};
@@ -906,33 +580,21 @@ class ViVi {
   }
 }
 
-/// One piece of the data area in storage order: either a [ViSectionData] (a
-/// `[u32 len][payload]` section located by its `secRel`) or a [ViGap] (the
-/// padding bytes between/around sections). Together they tile `[0, dataSize)`.
 sealed class ViDataSegment {
   const ViDataSegment();
 }
 
-/// Padding bytes in the data area, kept verbatim so a rebuild is byte-exact.
 class ViGap extends ViDataSegment {
   const ViGap(this.bytes);
   final Uint8List bytes;
 }
 
-/// A stored section: its data-area-relative offset and its raw payload (the bytes
-/// AFTER the `u32` length prefix). [ViExport.rebuildDataArea] re-prefixes the
-/// length on serialization, so editing [payload] is sufficient to re-export.
 class ViSectionData extends ViDataSegment {
   const ViSectionData({required this.secRel, required this.payload});
   final int secRel;
   final Uint8List payload;
 }
 
-/// Data-area decomposition + reconstruction — the editable layer over the
-/// lossless [ViContainer]. Corpus-validated: sections (located via the info-area
-/// descriptors) plus the gaps between them tile the data area exactly, so
-/// `rebuildDataArea(decomposeDataArea(bytes)) == ViContainer.parse(bytes).dataArea`
-/// byte-for-byte for 100% of VIs — the section-level idempotency contract.
 bool _listEquals(List<int> a, List<int> b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
@@ -941,8 +603,6 @@ bool _listEquals(List<int> a, List<int> b) {
   return true;
 }
 
-/// Concatenates the three regions `a ++ b ++ c` into one buffer — the shared
-/// `header ++ data ++ info` layout used by every container serializer here.
 Uint8List _concat3(Uint8List a, Uint8List b, Uint8List c) {
   final out = Uint8List(a.length + b.length + c.length);
   out
@@ -953,11 +613,6 @@ Uint8List _concat3(Uint8List a, Uint8List b, Uint8List c) {
 }
 
 abstract final class ViExport {
-  /// Decomposes the data area of [viBytes] into ordered sections + gaps. Section
-  /// positions come from the info-area descriptors ([readViSections]) as a sorted
-  /// set of distinct offsets (a section's bytes may be referenced by more than one
-  /// descriptor); the span length is read from the section's own `u32` prefix
-  /// (authoritative).
   static List<ViDataSegment> decomposeDataArea(Uint8List viBytes) {
     final container = ViContainer.parse(viBytes);
     final data = container.dataArea;
@@ -982,10 +637,6 @@ abstract final class ViExport {
     return segs;
   }
 
-  /// Re-emits the data-area bytes from [segments]: gaps verbatim, sections as
-  /// `[u32 len][payload]`. The inverse of [decomposeDataArea] for unmodified
-  /// input; editing a [ViSectionData.payload] changes only that section's bytes
-  /// (the length prefix is recomputed here).
   static Uint8List rebuildDataArea(List<ViDataSegment> segments) {
     final out = BytesBuilder();
     for (final segment in segments) {
@@ -1002,23 +653,6 @@ abstract final class ViExport {
     return out.toBytes();
   }
 
-  /// Replaces the payload of the section at [secRel] with [newPayload] and
-  /// re-serializes the whole `.vi`, applying every offset fixup so the result is
-  /// a valid container that re-parses to the edited content. This is the core of
-  /// the VI editor: change one section's bytes, get back a coherent file.
-  ///
-  /// A raw-bytes API surface over [ViVi]: it decomposes the input, swaps the
-  /// target payload, and delegates all offset math to [ViVi.serialize] (the
-  /// single source of truth), which recomputes the section length prefix, the
-  /// header `dataSize@28`/`infoOffset@16`, and the shifted descriptor `secRel`s.
-  ///
-  /// A no-op edit (`newPayload` equal to the current payload) reproduces the
-  /// input byte-for-byte. Corpus-validated across 7,523 VIs (no-op byte-exact;
-  /// grow and shrink both re-parse with the target updated and all other sections
-  /// byte-identical). Throws [ViFormatException] if [secRel] is not a section
-  /// start in the data area, or if the data area does not cleanly decompose
-  /// (an overlapping/out-of-range/truncated section would desync the descriptor
-  /// fixups) — only already-malformed VIs fail that check.
   static Uint8List editSection(Uint8List viBytes, {required int secRel, required Uint8List newPayload}) {
     final container = ViContainer.parse(viBytes);
     final segs = decomposeDataArea(viBytes);

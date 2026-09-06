@@ -1,6 +1,3 @@
-// Hot reload over the VM service: edited sources re-run in place, and content
-// hashes confine the re-run to modified tests. Each test writes a throwaway
-// suite inside the package (so package: URIs resolve) and edits it live.
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -65,7 +62,6 @@ void main() {
 
       final r1 = await viewer.getJson('/report.json');
 
-      // Edit ONLY alpha's body: alpha is modified, beta and the SETUP are not.
       suite.writeAsStringSync(src(alpha: 'A2', helper: 'H1'));
       expect(await reload(), 1, reason: 'exactly the edited test counts as modified');
       await viewer.line('[Labwright]: hot reload - 1 modified test(s)', timeout: const Duration(seconds: 10));
@@ -76,7 +72,6 @@ void main() {
       expect(testIn(r2, 'beta')['finishedAt'], testIn(r1, 'beta')['finishedAt'], reason: 'unmodified: not re-run');
       expect(testIn(r2, 'alpha')['finishedAt'], isNot(testIn(r1, 'alpha')['finishedAt']), reason: 'modified: re-ran');
 
-      // Edit the shared helper (outside any test body): setup changed -> all.
       suite.writeAsStringSync(src(alpha: 'A2', helper: 'H2'));
       expect(await reload(), 2, reason: 'a setup change conservatively marks every test modified');
       expect((await viewer.getJson('/report.json'))['setupHash'], isNot(r2['setupHash']));

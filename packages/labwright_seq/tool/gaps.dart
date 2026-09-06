@@ -1,7 +1,3 @@
-// Rank the unmodeled `Data`-tree paths across the corpus, so XML/INI model
-// completion work targets the biggest raw masses first. Aggregates
-// `coverageGaps` over every XML (and optionally INI) `.seq` and prints the top
-// paths by total node count. Run: dart run tool/gaps.dart [xml|ini|both] [topN]
 import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
@@ -20,8 +16,6 @@ String _root() {
 void main(List<String> args) {
   final which = args.isEmpty ? 'xml' : args[0];
   final topN = args.length > 1 ? int.parse(args[1]) : 40;
-  // Pass `w` as a third arg to weight each gap path by its raw subtree size
-  // (where the unmodeled mass really is) instead of by raw-root count.
   final weighted = args.length > 2 && args[2] == 'w';
   final dir = Directory(_root());
   final totals = <String, int>{};
