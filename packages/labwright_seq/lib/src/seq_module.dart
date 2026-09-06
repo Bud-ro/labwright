@@ -20,6 +20,10 @@ enum SeqAdapter {
   /// are not yet decoded.
   python,
 
+  /// .NET adapter (`SData.Calls` + `AssemblyPath`/`ClassName`) — invokes a
+  /// chain of members on a .NET class (see [StepModule.dotNetCalls]).
+  dotNet,
+
   /// Sequence Call (`SeqName`/`SFPath`) — calls another sequence.
   sequenceCall,
 
@@ -32,7 +36,7 @@ enum SeqAdapter {
   none,
 
   /// `SData` is present with members, but its adapter record is not yet
-  /// recognized (e.g. .NET/HTBasic/an NI plug-in shape not yet decoded). No such
+  /// recognized (e.g. HTBasic/an NI plug-in shape not yet decoded). No such
   /// step exists in the current corpus — reserved for shapes we have not seen.
   unknown,
 }
@@ -150,6 +154,20 @@ class StepModule {
   /// The virtual-environment the call resolves its interpreter from
   /// (`PythonCall.PythonVirtualEnvironmentPath`); null when none is configured.
   String? get pythonVenvPath => nonEmpty(_pyCall?.prop('PythonVirtualEnvironmentPath')?.scalar);
+
+  /// The .NET assembly the step's call chain loads (`SData.AssemblyPath`, e.g.
+  /// `Knv.Instr\bin\Debug\Knv.Instr.dll`); null for a non-.NET step.
+  String? get assemblyPath => _dataScalar('AssemblyPath');
+
+  /// The .NET class the call chain starts on (`SData.ClassName`, e.g.
+  /// `Knv.Instr.GenericDMM`); null for a non-.NET step.
+  String? get dotNetClassName => _dataScalar('ClassName');
+
+  /// The .NET member-invocation chain (`SData.Calls` rows, in order) — e.g.
+  /// "Use Existing Object" then "Read". Empty for a non-.NET step.
+  List<DotNetCall> get dotNetCalls => [
+    for (final row in raw?.prop('Calls')?.array ?? const <SeqProperty>[]) DotNetCall(row),
+  ];
 
   /// The on-disk source file backing the step's code module (`SData.ModuleSrcPath`,
   /// e.g. `numericTests.c`, `64BitSupport\64BitSupport.cpp`) — the C/C++ source
@@ -387,6 +405,20 @@ class StepModule {
       return StepModule(adapter: SeqAdapter.python, target: callee, raw: sdata);
     }
 
+    if (sdata.prop('Calls') != null || sdata.prop('AssemblyPath') != null) {
+      final cls = nonEmpty(sdata.prop('ClassName')?.scalar);
+      final members = [
+        for (final row in sdata.prop('Calls')?.array ?? const <SeqProperty>[])
+          if (nonEmpty(row.prop('MemberName')?.scalar) != null) row.prop('MemberName')!.scalar!,
+      ];
+      // The last member is the operative invocation (earlier rows select or
+      // construct the object it dispatches on).
+      final target = cls == null && members.isEmpty
+          ? nonEmpty(sdata.prop('AssemblyPath')?.scalar)
+          : [if (cls != null) cls, if (members.isNotEmpty) members.last].join('.');
+      return StepModule(adapter: SeqAdapter.dotNet, target: target, raw: sdata);
+    }
+
     if (sdata.prop('SeqName') != null || sdata.prop('SFPath') != null) {
       final sn = nonEmpty(sdata.prop('SeqName')?.scalar);
       final sf = nonEmpty(sdata.prop('SFPath')?.scalar);
@@ -404,6 +436,35 @@ class StepModule {
 
   @override
   String toString() => 'StepModule(${adapter.name}${target != null ? ': $target' : ''})';
+}
+
+/// One member invocation of a .NET step's call chain (`SData.Calls[n]`): the
+/// class it dispatches on, the member invoked (a constructor, method,
+/// property, or the adapter's "Use Existing Object" selector — the
+/// [memberName] string is self-describing), and the bound arguments. The
+/// `MemberType` code is surfaced verbatim; its NI-internal code→name mapping
+/// is not invented.
+class DotNetCall {
+  DotNetCall(this.raw);
+
+  /// The underlying `Calls` row — full access to every field.
+  final SeqProperty raw;
+
+  /// The .NET class the member dispatches on (`ClassName`); null when absent.
+  String? get className => nonEmpty(raw.prop('ClassName')?.scalar);
+
+  /// The invoked member (`MemberName`), e.g. `Read`, `Visa` (a constructor),
+  /// `Use Existing Object`; null when absent.
+  String? get memberName => nonEmpty(raw.prop('MemberName')?.scalar);
+
+  /// The member-kind code (`MemberType`), verbatim; null when absent.
+  int? get memberTypeCode => int.tryParse(raw.prop('MemberType')?.scalar ?? '');
+
+  /// The arguments this invocation binds (`Params` rows). Rows share the
+  /// [CallParameter] field vocabulary.
+  List<CallParameter> get parameters => [
+    for (final p in raw.prop('Params')?.array ?? const <SeqProperty>[]) CallParameter(p),
+  ];
 }
 
 /// One actual-argument row of a SequenceCall (`SData.ActualArgs.<Param>`):

@@ -13,11 +13,24 @@ SeqFile _fileWith(List<SeqProperty> sequenceProps) => SeqFile(
   ),
 );
 
-SeqProperty _stepWith(String name, {String? typeName, List<SeqProperty> sdata = const []}) => _p(
+SeqProperty _stepWith(
+  String name, {
+  String? typeName,
+  List<SeqProperty> sdata = const [],
+  List<SeqProperty> ts = const [],
+  List<SeqProperty> props = const [],
+}) => _p(
   name,
   type: typeName,
   sub: [
-    _p('TS', sub: [if (sdata.isNotEmpty) _p('SData', sub: sdata)]),
+    _p(
+      'TS',
+      sub: [
+        if (sdata.isNotEmpty) _p('SData', sub: sdata),
+        ...ts,
+      ],
+    ),
+    ...props,
   ],
 );
 
@@ -208,6 +221,220 @@ void main() {
       );
       expect(call(file: 'b.seq').resolvesLocalCall(ownFilePath: 'a.seq'), isFalse);
       expect(call(file: 'b.seq').resolvesLocalCall(), isFalse, reason: 'unknown own path never matches a named file');
+    });
+  });
+
+  group('step payload notes', () {
+    test('limit criterion, flow action, step loop, and status expression surface and disarm', () {
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          steps: [
+            _stepWith(
+              'Voltage OK',
+              typeName: 'NumericLimitTest',
+              ts: [
+                _p('FailAct', value: 'Goto'),
+                _p('FailActTarget', value: '"<Cleanup>"'),
+                _p('LoopType', value: 'PassFailCount'),
+                _p('LoopWhile', value: 'RunState.LoopIndex < 10'),
+                _p('StatusExpr', value: 'Step.Result.Status'),
+              ],
+              props: [
+                _p('Comp', value: 'GELE'),
+                _p('DataSource', value: 'Locals.Voltage'),
+                _p('Limits', sub: [_num('Low', '9'), _num('High', '11')]),
+                _p('Result', sub: [_str('Units', 'V')]),
+              ],
+            ),
+          ],
+        ),
+      ]);
+      final source = exportSeqFileToLabwright(file);
+      expect(source, contains('// checks: Locals.Voltage GELE [low 9, high 11] V'));
+      expect(source, contains('// on fail: Goto -> <Cleanup>'));
+      expect(source, contains('// step loop (PassFailCount): while RunState.LoopIndex < 10'));
+      expect(source, contains('// status expression: Step.Result.Status'));
+      // Loop, jump, and status semantics are stated, not exported — disarmed.
+      expect(source, contains('lw.skipTest('));
+      expect(source, contains('flow action of step "Voltage OK"'));
+      expect(source, contains('per-step looping not exported'));
+      expect(source, contains('status expression of step "Voltage OK" not exported'));
+    });
+
+    test('a status expression of the literal "" is noted but does not disarm', () {
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          locals: [_num('X', '0')],
+          steps: [
+            _stepWith(
+              'Clear status',
+              typeName: 'Statement',
+              ts: [
+                _p('StatusExpr', value: '""'),
+                _p('PostExpr', value: 'Locals.X = 1'),
+              ],
+            ),
+          ],
+        ),
+      ]);
+      final source = exportSeqFileToLabwright(file);
+      expect(source, contains('// status expression: ""'));
+      expect(source, contains('lw.test('), reason: 'a cleared status cannot encode pass/fail logic');
+      expect(source, isNot(contains('lw.skipTest(')));
+    });
+
+    test('a VI call states its connector wiring', () {
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          steps: [
+            _stepWith(
+              'Read DMM',
+              sdata: [
+                _p(
+                  'ViCall',
+                  sub: [
+                    _p('VIPath', value: 'Read.vi'),
+                    SeqProperty(
+                      name: 'Parms',
+                      array: [
+                        _p(
+                          '0',
+                          sub: [
+                            _str('Label', 'VISA resource name'),
+                            _p('ArgVal', value: 'Locals.Session'),
+                          ],
+                        ),
+                        _p('1', sub: [_str('Label', 'unwired input')]),
+                      ],
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ],
+        ),
+      ]);
+      final source = exportSeqFileToDart(file);
+      expect(source, contains('//   VISA resource name <- Locals.Session'));
+      expect(source, isNot(contains('unwired input')), reason: 'a row with no binding and no out direction is silent');
+    });
+
+    test('a .NET call chain is recognized and stated; the throw names the member', () {
+      final step = _stepWith(
+        'DMM Read',
+        sdata: [
+          SeqProperty(
+            name: 'Calls',
+            array: [
+              _p(
+                '0',
+                sub: [
+                  _str('ClassName', 'Knv.Instr.GenericDMM'),
+                  _num('MemberType', '6'),
+                  _str('MemberName', 'Use Existing Object'),
+                ],
+              ),
+              _p(
+                '1',
+                sub: [
+                  _str('ClassName', 'Knv.Instr.GenericDMM'),
+                  _num('MemberType', '1'),
+                  _str('MemberName', 'Read'),
+                ],
+              ),
+            ],
+          ),
+          _p('AssemblyPath', value: r'bin\Knv.Instr.dll'),
+          _p('ClassName', value: 'Knv.Instr.GenericDMM'),
+        ],
+      );
+      final module = Step(step).module;
+      expect(module.adapter, SeqAdapter.dotNet);
+      expect(module.assemblyPath, r'bin\Knv.Instr.dll');
+      expect([for (final call in module.dotNetCalls) call.memberName], ['Use Existing Object', 'Read']);
+      final source = exportSeqFileToLabwright(
+        _fileWith([
+          _seqWith('MainSequence', steps: [step]),
+        ]),
+      );
+      expect(source, contains(r'// .NET assembly: bin\Knv.Instr.dll'));
+      expect(source, contains('// .NET call: Knv.Instr.GenericDMM.Use Existing Object'));
+      expect(source, contains('// .NET call: Knv.Instr.GenericDMM.Read'));
+      expect(source, contains('dotNet call: Knv.Instr.GenericDMM.Read'));
+    });
+
+    test('an async sequence call is stated and disarms', () {
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          steps: [
+            _stepWith(
+              'Spawn monitor',
+              sdata: [
+                _p('SeqName', value: 'Monitor'),
+                _num('ThreadOpt', '1'),
+              ],
+            ),
+            _stepWith(
+              'Do work',
+              typeName: 'Statement',
+              ts: [_p('PostExpr', value: 'Locals.X = 1')],
+            ),
+          ],
+        ),
+        _seqWith('Monitor'),
+      ]);
+      final source = exportSeqFileToLabwright(file);
+      expect(source, contains('// sequence call spawns a new thread in the engine'));
+      expect(source, contains('runs its sequence call in a new thread (not exported)'));
+    });
+
+    test('popup, database, and executable payloads surface as notes', () {
+      final file = _fileWith([
+        _seqWith(
+          'MainSequence',
+          steps: [
+            _stepWith(
+              'Ask operator',
+              typeName: 'MessagePopup',
+              props: [
+                _p('TitleExpr', value: '"Result"'),
+                _p('MessageExpr', value: 'Str(Locals.Reading)'),
+                _p('Button1Label', value: '"OK"'),
+                _p('Button2Label', value: '""'),
+              ],
+            ),
+            _stepWith(
+              'Open statement',
+              typeName: 'NI_OpenSQLStatement',
+              props: [
+                _p('SQLStatement', value: 'Locals.FullSQLStatement'),
+                _p('StatementHandle', value: 'Locals.StatementRef'),
+              ],
+            ),
+            _stepWith(
+              'Run tool',
+              typeName: 'CallExecutable',
+              props: [
+                _p('Executable', value: 'cmd.exe'),
+                _p('Arguments', value: '"cmd /c echo hi"'),
+                _p('WaitCondition', value: 'WAIT_FOR_EXIT'),
+              ],
+            ),
+          ],
+        ),
+      ]);
+      final source = exportSeqFileToDart(file);
+      expect(source, contains('// popup title: "Result"'));
+      expect(source, contains('// popup message: Str(Locals.Reading)'));
+      expect(source, contains('// popup buttons: "OK"'));
+      expect(source, isNot(contains('""')), reason: 'unlabeled buttons are skipped');
+      expect(source, contains('// SQL: Locals.FullSQLStatement'));
+      expect(source, contains('// statement handle: Locals.StatementRef'));
+      expect(source, contains('// runs executable: cmd.exe "cmd /c echo hi" (WAIT_FOR_EXIT)'));
     });
   });
 

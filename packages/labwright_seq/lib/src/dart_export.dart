@@ -25,6 +25,12 @@
 ///    call sites' prototype snapshots.
 ///  * Steps whose type carries no exportable action are kept as comments —
 ///    present, ordered, and labeled, never invented.
+///  * Step payload the export cannot express as running code — the test
+///    criterion (data source, limits, units, status expression), per-step
+///    looping, non-Next flow actions, module argument wiring, and the typed
+///    step-payload fields (popup text, SQL, executables, sync objects, …) —
+///    is stated in comment lines beside the step, verbatim, so the generated
+///    file is a complete textual account of the source semantics.
 ///
 /// [exportSeqFileToLabwright] layers a generated labwright harness on the
 /// same export — one test per root sequence, unimplemented surfaces skip
@@ -103,6 +109,14 @@ class SeqExportStats {
   /// Per-site call-parameter disarms, counted by reason kind
   /// (`unknown parameter`, `type guard`, `by-ref writeback`, …).
   final Map<String, int> siteDisarms = {};
+
+  /// Step-payload comment lines emitted (limits, status expressions,
+  /// flow actions, step loops, popup/SQL/executable/sync fields, …).
+  int payloadNotes = 0;
+
+  /// Module-call argument bindings stated as wiring comments (VI connector
+  /// panes, C/Python parameter rows, .NET call chains).
+  int wiredArgs = 0;
 }
 
 /// A multi-file project export: generated sources by output path.
@@ -2344,8 +2358,204 @@ class _DartExporter {
     }
   }
 
+  /// The step-payload facts the export cannot express as running code, as
+  /// comment texts (verbatim TestStand expressions — never a translation
+  /// guess): the test criterion, status expression, per-step loop, non-Next
+  /// flow actions, error-handling overrides, synchronization/switching, and
+  /// the typed step-payload fields (database, popup, executable, sync
+  /// object, measurement, wait targets).
+  List<String> _stepPayloadNotes(Step step) {
+    final notes = <String>[];
+    final settings = step.settings;
+
+    // What the step tests: the measured/evaluated source, the comparison,
+    // and the limit bounds (expression forms win where the step selects
+    // them), with the recorded units.
+    final limits = step.limits;
+    String? bound(String label, String? value, String? expression, bool? usesExpression) {
+      final text = usesExpression == true ? (expression ?? value) : (value ?? expression);
+      return text == null ? null : '$label $text';
+    }
+
+    if (limits != null) {
+      final bounds = [
+        bound('low', limits.low, limits.lowExpression, limits.usesLowExpression),
+        bound('high', limits.high, limits.highExpression, limits.usesHighExpression),
+        bound('nominal', limits.nominal, limits.nominalExpression, null),
+      ].nonNulls.toList();
+      final comparison = step.usesComparisonExpression == true
+          ? 'comparison by ${limits.comparisonExpression ?? '?'}'
+          : limits.comparison;
+      notes.add(
+        'checks: ${limits.dataSource ?? step.dataSource ?? '(data source unset)'}'
+        '${comparison != null ? ' $comparison' : ''}'
+        '${bounds.isEmpty ? '' : ' [${bounds.join(', ')}]'}'
+        '${limits.thresholdType != null ? ' (${limits.thresholdType})' : ''}'
+        '${step.resultUnits != null ? ' ${step.resultUnits}' : ''}',
+      );
+    } else if (step.dataSource != null) {
+      notes.add('checks: ${step.dataSource}${step.resultUnits != null ? ' (${step.resultUnits})' : ''}');
+    } else if (step.resultUnits != null) {
+      notes.add('result units: ${step.resultUnits}');
+    }
+    if (settings.statusExpression != null) {
+      notes.add('status expression: ${settings.statusExpression}');
+    }
+
+    if (settings.isLooping) {
+      final parts = [
+        if (settings.loopInitialize != null) 'init ${settings.loopInitialize}',
+        if (settings.loopWhile != null) 'while ${settings.loopWhile}',
+        if (settings.loopIncrement != null) 'increment ${settings.loopIncrement}',
+        if (settings.loopStatus != null) 'status ${settings.loopStatus}',
+      ];
+      notes.add('step loop (${settings.loopType}): ${parts.join('; ')}');
+    }
+
+    // Flow actions: a non-Next pass/fail action jumps (targets resolve
+    // through the step-id table to the target step's NAME); the Goto step
+    // type stores its jump as the custom-true target.
+    String jump(String? target) {
+      if (target == null) return '';
+      final name = target.startsWith('ID#:') ? file.stepNameForId(target) : null;
+      return ' -> ${name != null ? 'step "$name"' : target}';
+    }
+
+    if (settings.passAction != null && settings.passAction != 'Next') {
+      notes.add('on pass: ${settings.passAction}${jump(settings.passActionTarget)}');
+    }
+    if (settings.failAction != null && settings.failAction != 'Next') {
+      notes.add('on fail: ${settings.failAction}${jump(settings.failActionTarget)}');
+    }
+    if (step.type == 'Goto' && settings.customTrueTarget != null) {
+      notes.add('goto${jump(settings.customTrueTarget)}');
+    } else if (settings.customExpression != null ||
+        settings.customTrueTarget != null ||
+        settings.customFalseTarget != null) {
+      notes.add(
+        'custom flow: if (${settings.customExpression ?? 'True'}) '
+        '${settings.customTrueAction ?? 'Next'}${jump(settings.customTrueTarget)}'
+        ' else ${settings.customFalseAction ?? 'Next'}${jump(settings.customFalseTarget)}',
+      );
+    }
+
+    if (settings.ignoresRunTimeErrors == true) notes.add('ignores run-time errors');
+    if (settings.failureCausesSequenceFailure == false) {
+      notes.add('failure does NOT fail the sequence');
+    }
+    if (step.suppressesNextResult == true) notes.add("suppresses the next step's result");
+    if (settings.usesMutex == true) {
+      notes.add('acquires mutex${settings.mutexName != null ? ' ${settings.mutexName}' : ''}');
+    }
+    if (settings.switchEnabled == true) {
+      notes.add(
+        'IVI switching: device ${settings.virtualDeviceName ?? '?'}'
+        '${settings.routeGroupConnect != null ? ', connect ${settings.routeGroupConnect}' : ''}'
+        '${settings.routeGroupDisconnect != null ? ', disconnect ${settings.routeGroupDisconnect}' : ''}',
+      );
+    }
+    if (step.stepType != StepType.wait && step.timeoutEnabled == true && step.timeoutExpression != null) {
+      notes.add(
+        'timeout: ${step.timeoutExpression} s'
+        '${step.errorsOnTimeout == true ? ' (error on timeout)' : ''}',
+      );
+    }
+
+    // Wait targets beyond the exported time wait: a referenced sequence
+    // call, thread, or execution.
+    if (step.specifiesBySequenceCall == true && step.referencedSequenceCallName != null) {
+      notes.add('waits for sequence call step "${step.referencedSequenceCallName}"');
+    }
+    if (step.threadReferenceExpression != null) {
+      notes.add('waits for thread: ${step.threadReferenceExpression}');
+    }
+    if (step.executionReferenceExpression != null) {
+      notes.add('waits for execution: ${step.executionReferenceExpression}');
+    }
+
+    if (step.sqlStatement != null) notes.add('SQL: ${step.sqlStatement}');
+    if (step.dbConnectionString != null) notes.add('DB connection: ${step.dbConnectionString}');
+    if (step.statementHandle != null) notes.add('statement handle: ${step.statementHandle}');
+    if (step.databaseHandle != null) notes.add('database handle: ${step.databaseHandle}');
+    if (step.numberOfRecordsSelectedExpression != null) {
+      notes.add('records selected -> ${step.numberOfRecordsSelectedExpression}');
+    }
+
+    if (step.popupTitleExpression != null) notes.add('popup title: ${step.popupTitleExpression}');
+    if (step.popupMessageExpression != null) notes.add('popup message: ${step.popupMessageExpression}');
+    final buttons = step.popupButtonLabelExpressions;
+    if (buttons.isNotEmpty) notes.add('popup buttons: ${buttons.join(' | ')}');
+    if (step.popupShowsResponse == true) {
+      notes.add(
+        'popup collects a response'
+        '${step.popupDefaultResponseExpression != null ? ' (default ${step.popupDefaultResponseExpression})' : ''}',
+      );
+    }
+
+    if (step.executablePath != null) {
+      notes.add(
+        'runs executable: ${step.executablePath}'
+        '${step.executableArguments != null ? ' ${step.executableArguments}' : ''}'
+        '${step.executableWaitCondition != null ? ' (${step.executableWaitCondition})' : ''}',
+      );
+    }
+
+    if (step.syncNameOrReferenceExpression != null) {
+      notes.add(
+        'sync object: ${step.syncNameOrReferenceExpression}'
+        '${step.syncOperationCode != null ? ', operation code ${step.syncOperationCode}' : ''}'
+        '${step.syncLifetimeCode != null ? ', lifetime code ${step.syncLifetimeCode}' : ''}'
+        '${step.syncCreatesIfMissing == true ? ', created if missing' : ''}',
+      );
+    }
+
+    if (step.measurementName != null) notes.add('measurement: ${step.measurementName}');
+    for (final parameter in step.measurementParameters) {
+      final kind = [parameter.direction, parameter.dataType, parameter.typeSpecialization].nonNulls.join(' ');
+      notes.add(
+        'measurement param: ${parameter.name}'
+        '${kind.isEmpty ? '' : ' ($kind)'}'
+        '${parameter.value != null ? ' = ${parameter.value}' : ''}',
+      );
+    }
+    if (step.pinMapPath != null) notes.add('pin map: ${step.pinMapPath}');
+    if (step.description != null) notes.add('description: ${step.description}');
+    return notes;
+  }
+
+  /// Emits [_stepPayloadNotes] and, in E2E mode, disarms the owning root for
+  /// the payloads that change CONTROL FLOW or the pass/fail outcome — a
+  /// per-step loop runs the step N times where the export runs it once, a
+  /// non-Next flow action jumps, and a status expression decides the step's
+  /// status. (A status expression of the literal `""` clears the status and
+  /// cannot encode pass/fail logic — noted, not disarmed.)
+  void _emitPayloadNotes(Step step) {
+    for (final note in _stepPayloadNotes(step)) {
+      _stats.payloadNotes++;
+      _line('// ${_comment(note)}');
+    }
+    if (!asTest) return;
+    final settings = step.settings;
+    if (settings.isLooping) {
+      _markUnported('step "${step.name}" loops (${settings.loopType}) — per-step looping not exported');
+    }
+    final jumps =
+        (settings.passAction != null && settings.passAction != 'Next') ||
+        (settings.failAction != null && settings.failAction != 'Next') ||
+        settings.customTrueTarget != null ||
+        settings.customFalseTarget != null;
+    if (jumps) {
+      _markUnported('flow action of step "${step.name}" (${settings.flowSummary ?? 'custom/goto'}) not exported');
+    }
+    final status = settings.statusExpression;
+    if (status != null && status.trim() != '""') {
+      _markUnported('status expression of step "${step.name}" not exported');
+    }
+  }
+
   void _emitPlainStep(Step step) {
     final settings = step.settings;
+    _emitPayloadNotes(step);
     final precondition = settings.precondition ?? _typePreconditions[step.type];
     if (precondition != null) {
       _line(
@@ -2419,6 +2629,26 @@ class _DartExporter {
       case SeqAdapter.sequenceCall:
         final target = module.sequenceName;
         _stats.callSites++;
+        // Concurrency the export does not model: ThreadOpt 0 runs in the
+        // caller's thread (the exported await IS that); 1/2 spawn a new
+        // thread/execution (twin-named corpus steps pin the codes). Stated,
+        // and the owning test disarms — a plain await serializes what the
+        // engine runs concurrently.
+        final spawns = switch (module.threadOptionCode) {
+          1 => 'a new thread',
+          2 => 'a new execution',
+          _ => null,
+        };
+        if (spawns != null) {
+          _line('// sequence call spawns $spawns in the engine — exported as a plain awaited call');
+          if (asTest) _markUnported('step "${step.name}" runs its sequence call in $spawns (not exported)');
+        }
+        if (module.remoteExecution == true) {
+          _line(
+            '// sequence call executes on remote host ${_comment(module.remoteHost ?? module.remoteHostExpression ?? '?')}',
+          );
+          if (asTest) _markUnported('step "${step.name}" executes its sequence call remotely (not exported)');
+        }
         // Bind to a local sequence ONLY when the call targets the current
         // file (UseCurFile, no file named, or the file's own path) —
         // matching by name alone bound external calls to same-named local
@@ -2504,13 +2734,16 @@ class _DartExporter {
         // stub in E2E mode: the VI is the port target — implementing the
         // stub arms the step (other unported surfaces are inline throws).
         if (asTest) _markUnported(_stubTarget(step, module));
+        _emitModuleNotes(module);
         _line(
           'await ${_stubFor(step, module).name}(); // $name'
           '${step.type != null ? ' [${_comment(step.type!)}]' : ''}',
         );
       case SeqAdapter.cModule:
       case SeqAdapter.python:
+      case SeqAdapter.dotNet:
       case SeqAdapter.unknown:
+        _emitModuleNotes(module);
         if (asTest) {
           _throwLine(step, '${module.adapter.name} call', _stubTarget(step, module));
         } else {
@@ -2549,12 +2782,54 @@ class _DartExporter {
     );
   }
 
+  /// The bound arguments of a code-module call, one comment line each — the
+  /// wiring a stub invocation cannot carry. The arrow encodes the declared
+  /// direction (`<-` in, `->` out, `<->` in/out); rows with neither a bound
+  /// expression nor an out direction (unwired inputs) state nothing.
+  void _emitCallWiring(List<CallParameter> parameters) {
+    for (final parameter in parameters) {
+      final expression = parameter.boundExpression ?? parameter.displayValue;
+      final direction = parameter.direction;
+      if (expression == null && direction != 'out' && direction != 'in/out') continue;
+      _stats.wiredArgs++;
+      final arrow = switch (direction) {
+        'out' => '->',
+        'in/out' => '<->',
+        _ => '<-',
+      };
+      _line(
+        '//   ${_comment(expression != null ? '${parameter.name} $arrow $expression' : '${parameter.name} [$direction]')}',
+      );
+    }
+  }
+
+  /// Module-call knowledge the stub call/throw line cannot carry, as
+  /// comments: the .NET assembly + member-invocation chain, or the bound
+  /// argument rows of the VI connector pane / C / Python parameter list.
+  void _emitModuleNotes(StepModule module) {
+    if (module.adapter == SeqAdapter.dotNet) {
+      if (module.assemblyPath != null) {
+        _line('// .NET assembly: ${_comment(module.assemblyPath!)}');
+      }
+      for (final call in module.dotNetCalls) {
+        _line(
+          '// .NET call: '
+          '${_comment('${call.className ?? module.dotNetClassName ?? '?'}.${call.memberName ?? '?'}')}',
+        );
+        _emitCallWiring(call.parameters);
+      }
+      return;
+    }
+    _emitCallWiring(module.adapter == SeqAdapter.labView ? module.viParameters : module.callParameters);
+  }
+
   /// The module's call target — the path/name a stub or pending marker
   /// records so nothing is silently dropped.
   String _stubTarget(Step step, StepModule module) =>
       module.viPath ??
       module.moduleSourcePath ??
       module.pythonModulePath ??
+      (module.adapter == SeqAdapter.dotNet ? module.target : null) ??
       module.sequenceName ??
       // An expression-form SequenceCall names its target dynamically; keep
       // the expression so the stub says what it would resolve.
