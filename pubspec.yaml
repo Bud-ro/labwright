@@ -13,7 +13,6 @@ workspace:
   - packages/labwright_lv_runtime
   - packages/labwright_vi_transpile
   - packages/labwright_seq
-  - packages/labwright_nidaqmx
   - example/e2e
 
 dev_dependencies:
