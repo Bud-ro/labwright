@@ -343,12 +343,13 @@ bool _isInlinedSubViControl(
 ///   (`0xe0`/`0x0b`/`0x0c`/`0x0d` with a control-kind ancestor) — the control is
 ///   drawn as a single unit, not its internals (`0x0d`'s enum items are already
 ///   propagated up to the control, so suppressing it loses nothing);
-/// - subVI-node internal display sub-parts (`0xe5`) — corpus: 947, all under a
-///   `0xc5` node; they overlap the parent node and would otherwise paint a stray
-///   unknown rectangle over it.
+/// - the polymorphic-call instance selector ([HeapObjectClass.bdPolySelector]) —
+///   corpus: 948, all under a `0xc5` subVI icon node; the strip's own art is not
+///   reference-measured, so it would paint an unknown rectangle at the icon
+///   (TODO: measure the drop-down chrome and draw it).
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   if (o.objectClass == HeapObjectClass.controlChrome || o.objectClass == HeapObjectClass.contentViewport) return true;
-  if (o.kind == 0xe5) return true;
+  if (o.objectClass == HeapObjectClass.bdPolySelector) return true;
   if (o.objectClass == HeapObjectClass.connectorTerminal && o.bounds == null) return true;
   if (o.objectClass == HeapObjectClass.numericDisplay ||
       o.objectClass == HeapObjectClass.controlSubPart ||
@@ -430,12 +431,7 @@ Set<ViHeapObject> nodesWithin(
         bounds.bottom > structureBounds.bottom) {
       continue;
     }
-    if (bounds.left == structureBounds.left &&
-        bounds.top == structureBounds.top &&
-        bounds.right == structureBounds.right &&
-        bounds.bottom == structureBounds.bottom) {
-      continue;
-    }
+    if (bounds == structureBounds) continue;
     out.add(object);
   }
   return out;
@@ -470,24 +466,20 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
     if (structure.category != ViObjectKind.structure) continue;
     final box = structure.absBounds;
     if (box == null || box.width <= 0 || box.height <= 0) continue;
-    final frames = (childrenByOid[structure.oid] ?? const <ViHeapObject>[])
-        .where((c) => c.kind == kViFrameCode)
-        .toList();
+    final frames = diagram.framesOf(structure);
     if (frames.length < 2) continue;
 
     // The stored display index decides outright for the stacked structure
     // kinds — including an absent record, which is render-verified to mean
-    // frame 0. Out-of-range (one corpus outlier) falls through to the
+    // frame 0. An index naming no frame reads null and falls through to the
     // content heuristic below. Flat sequences never reach here: they are a
-    // different class (0xca) whose 0x121 subframes fail the 0x1b filter.
-    if (kMultiFrameStructureClasses.contains(structure.objectClass)) {
-      final visible = structure.visibleFrameIndex;
-      if (visible < frames.length) {
-        for (var i = 0; i < frames.length; i++) {
-          if (i != visible) hideSubtree(frames[i]);
-        }
-        continue;
+    // different class (0xca) whose 0x121 subframes fail the frame filter.
+    final visible = diagram.displayedFrameIndex(structure);
+    if (visible != null) {
+      for (var i = 0; i < frames.length; i++) {
+        if (i != visible) hideSubtree(frames[i]);
       }
+      continue;
     }
 
     // Per frame: how much positioned content sits inside the structure's box
@@ -551,12 +543,12 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
       }
     }
     if (!overlapping) continue;
-    var visible = candidates.first;
+    var fullest = candidates.first;
     for (final i in candidates) {
-      if (inBoxCounts[i] > inBoxCounts[visible]) visible = i;
+      if (inBoxCounts[i] > inBoxCounts[fullest]) fullest = i;
     }
     for (var i = 0; i < frames.length; i++) {
-      if (i != visible) hideSubtree(frames[i]);
+      if (i != fullest) hideSubtree(frames[i]);
     }
   }
   return hidden;
@@ -616,14 +608,9 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
     }
     final boxes = anchors.whereType<HeapRect>().toList();
     if (boxes.length < 2) continue;
-    // All legs on one identical box: nothing to route. (HeapRect has no
-    // operator==, so compare edges.)
+    // All legs on one identical box: nothing to route.
     final first = boxes.first;
-    if (boxes.every(
-      (b) => b.left == first.left && b.top == first.top && b.right == first.right && b.bottom == first.bottom,
-    )) {
-      continue;
-    }
+    if (boxes.every((box) => box == first)) continue;
     out.add(
       patched
           ? ViWire(
@@ -1040,6 +1027,11 @@ const int kTunnelCentreDotFlags = 0x300000;
 /// displayed Disabled frame ([bdDisabledObjectOids] — its chrome then draws
 /// through [dimDisabledFrameRgb]) — for the border-terminal chrome pass
 /// (only [kVerifiedBorderTerminalKinds] draw).
+///
+/// The key is the rect's value, so the several wire legs meeting one terminal
+/// share an entry: corpus-wide the 171,436 (wire, endpoint) attach rects
+/// collapse to 93,256 distinct rectangles, and no two legs on one rectangle
+/// disagree about the entry (0 conflicts).
 Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> bdBorderTerminalKinds(ViDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
   final out = <HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>{};
@@ -1112,10 +1104,9 @@ Set<int> bdDisabledObjectOids(ViDiagram diagram) {
     if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
       continue;
     }
-    final frames = kids.where((k) => k.kind == kViFrameCode).toList();
-    final shown = o.visibleFrameIndex;
-    if (shown >= frames.length) continue;
-    final stack = [frames[shown].oid];
+    final shown = diagram.displayedFrameIndex(o);
+    if (shown == null) continue;
+    final stack = [diagram.framesOf(o)[shown].oid];
     while (stack.isNotEmpty) {
       final oid = stack.removeLast();
       for (final kid in diagram.children(oid)) {

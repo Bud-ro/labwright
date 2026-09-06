@@ -9,12 +9,18 @@
 // Build (done by the test harness):  cc -shared -fPIC -o fake_daqmx.so fake_daqmx.c
 //
 // Conventions mirrored from DAQmx: int32 status (0 ok, <0 error), TaskHandle = void*,
-// bool32 = int32, float64 = double. A physical-channel name containing "fail" makes
-// channel creation return a negative status (to drive the error path).
+// bool32 = int32, float64 = double. Behaviour is steered by the physical-channel name:
+// "fail" makes channel creation return a negative status, "slowstart" makes the first
+// few buffered reads return zero samples (a device whose buffer has nothing yet), and
+// "negcount" makes reads report an impossible negative sample count (a misbehaving
+// driver). `fake_set_read_delay_us` additionally makes every buffered read block, so a
+// caller can cancel while a read is in flight; `fake_stop_count`/`fake_clear_count`
+// prove the task was torn down rather than abandoned.
 
 #include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
+#include <unistd.h>
 
 typedef void* TaskHandle;
 
@@ -27,9 +33,14 @@ typedef struct {
   double rate;
   int32_t sampleMode;
   uint64_t sampsPerChan;
-  int64_t counter; // running sample index for streaming continuity
+  int64_t counter;    // running sample index for streaming continuity
+  int32_t emptyReads; // remaining reads that report zero samples ("slowstart")
+  int32_t negCount;   // report a negative sample count on every read ("negcount")
   char chan[256];
 } FakeTask;
+
+// Buffered reads that return nothing before the ramp starts, for "slowstart" channels.
+static const int32_t kSlowStartEmptyReads = 6;
 
 // Snapshot of the most recent calls, exposed via getters below.
 static double g_ai_min, g_ai_max;
@@ -40,6 +51,8 @@ static int32_t g_write_autostart;
 static double g_rate;
 static int32_t g_sample_mode;
 static uint32_t g_input_buffer;
+static int32_t g_stop_count, g_clear_count;
+static uint32_t g_read_delay_us;
 static const double kMagicScalar = 4.2; // distinguishable scalar-read magic
 
 static const char* kDevNames = "FakeDev1, FakeDev1Mod1";
@@ -57,6 +70,12 @@ int32_t fake_last_write_autostart(void) { return g_write_autostart; }
 double fake_last_rate(void) { return g_rate; }
 int32_t fake_last_sample_mode(void) { return g_sample_mode; }
 uint32_t fake_last_input_buffer(void) { return g_input_buffer; }
+int32_t fake_stop_count(void) { return g_stop_count; }
+int32_t fake_clear_count(void) { return g_clear_count; }
+void fake_reset_counts(void) { g_stop_count = 0; g_clear_count = 0; }
+
+// Makes every buffered read block for this long, standing in for a hardware-paced read.
+void fake_set_read_delay_us(uint32_t us) { g_read_delay_us = us; }
 
 // --- DAQmx surface ---
 int32_t DAQmxCreateTask(const char* name, TaskHandle* taskOut) {
@@ -72,7 +91,9 @@ int32_t DAQmxCreateAIVoltageChan(TaskHandle task, const char* phys, const char* 
   (void)assigned; (void)customScale;
   FakeTask* t = (FakeTask*)task;
   if (t) { t->min = min; t->max = max; t->termCfg = termCfg; t->units = units;
-           strncpy(t->chan, phys ? phys : "", sizeof(t->chan) - 1); }
+           strncpy(t->chan, phys ? phys : "", sizeof(t->chan) - 1);
+           t->emptyReads = (phys && strstr(phys, "slowstart")) ? kSlowStartEmptyReads : 0;
+           t->negCount = (phys && strstr(phys, "negcount")) ? 1 : 0; }
   g_ai_min = min; g_ai_max = max; g_ai_term = termCfg; g_ai_units = units;
   strncpy(g_last_chan, phys ? phys : "", sizeof(g_last_chan) - 1);
   if (phys && strstr(phys, "fail")) return -200279; // exercise the error path
@@ -107,10 +128,33 @@ int32_t DAQmxCfgInputBuffer(TaskHandle task, uint32_t numSampsPerChan) {
 }
 
 int32_t DAQmxStartTask(TaskHandle task) { (void)task; return 0; }
-int32_t DAQmxStopTask(TaskHandle task) { (void)task; return 0; }
+
+int32_t DAQmxStopTask(TaskHandle task) {
+  (void)task;
+  g_stop_count++;
+  return 0;
+}
 
 int32_t DAQmxClearTask(TaskHandle task) {
+  g_clear_count++;
   free((FakeTask*)task);
+  return 0;
+}
+
+// Shared prologue of every buffered read: the artificial blocking latency, the
+// zero-sample warm-up, and the impossible negative count. Returns 1 when it has already
+// written *sampsPerChanRead and the caller should return 0 immediately.
+static int fake_read_prologue(FakeTask* t, int32_t* sampsPerChanRead) {
+  if (g_read_delay_us) usleep(g_read_delay_us);
+  if (t && t->negCount) {
+    if (sampsPerChanRead) *sampsPerChanRead = -1;
+    return 1;
+  }
+  if (t && t->emptyReads > 0) {
+    t->emptyReads--;
+    if (sampsPerChanRead) *sampsPerChanRead = 0;
+    return 1;
+  }
   return 0;
 }
 
@@ -127,6 +171,7 @@ int32_t DAQmxReadAnalogF64(TaskHandle task, int32_t numSampsPerChan, double time
                            int32_t* sampsPerChanRead, int32_t* reserved) {
   (void)timeout; (void)fillMode; (void)reserved;
   FakeTask* t = (FakeTask*)task;
+  if (fake_read_prologue(t, sampsPerChanRead)) return 0;
   int32_t n = numSampsPerChan;
   if ((uint32_t)n > arraySizeInSamps) n = (int32_t)arraySizeInSamps;
   for (int32_t i = 0; i < n; i++) {
@@ -146,6 +191,7 @@ int32_t DAQmxReadAnalogF64(TaskHandle task, int32_t numSampsPerChan, double time
                int32_t* reserved) {                                                         \
     (void)timeout; (void)fillMode; (void)reserved;                                          \
     FakeTask* t = (FakeTask*)task;                                                          \
+    if (fake_read_prologue(t, sampsPerChanRead)) return 0;                                  \
     int32_t n = numSampsPerChan;                                                            \
     if ((uint32_t)n > arraySizeInSamps) n = (int32_t)arraySizeInSamps;                      \
     for (int32_t i = 0; i < n; i++) readArray[i] = (CTYPE)((t ? t->counter : 0) + i);       \

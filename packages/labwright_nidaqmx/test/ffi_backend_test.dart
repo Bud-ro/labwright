@@ -127,5 +127,59 @@ void main() {
       expect(probe.lastInputBuffer, greaterThanOrEqualTo(100000), reason: 'DMA headroom for the high rate');
       await daq.close();
     });
+
+    test('cancelling while a read blocks still stops and clears the task', () async {
+      final daq = open();
+      await Future<void>.delayed(const Duration(milliseconds: 50)); // let earlier workers finish
+      probe.resetTaskCounts();
+      probe.readDelay = const Duration(milliseconds: 100);
+      addTearDown(() => probe.readDelay = Duration.zero);
+      final firstChunk = Completer<void>();
+      final sub = daq.readStream('Dev1/ai0', rateHz: 1000, samplesPerChunk: 8, format: DaqSampleFormat.rawI16).listen((
+        _,
+      ) {
+        if (!firstChunk.isCompleted) firstChunk.complete();
+      });
+      await firstChunk.future;
+      await sub.cancel(); // the worker is blocked in the next read when this lands
+      expect(
+        (probe.stopCount, probe.clearCount),
+        (1, 1),
+        reason: 'the worker ran its own teardown rather than being killed mid-read',
+      );
+      await daq.close();
+    });
+
+    test('reads that report no samples yet neither end nor corrupt the stream', () async {
+      final daq = open();
+      final chunks = await daq
+          .readRawI16Stream('Dev1/ai0slowstart', rateHz: 1000, samplesPerChunk: 16, totalSamples: 32)
+          .toList();
+      expect(chunks.expand((c) => c).toList(), List.generate(32, (i) => i));
+      await daq.close();
+    });
+
+    test('an impossible sample count from the driver errors the stream, then closes it', () async {
+      final daq = open();
+      await expectLater(
+        daq.readStream('Dev1/ai0negcount', rateHz: 1000, samplesPerChunk: 8, format: DaqSampleFormat.rawI16),
+        emitsInOrder([
+          emitsError(
+            isA<DaqmxException>().having((e) => e.status, 'status', DaqmxLocalStatus.streamWorkerFailed.status),
+          ),
+          emitsDone,
+        ]),
+      );
+      await daq.close();
+    });
+
+    test('an unloadable library fails the stream as DaqmxUnavailable, then closes it', () async {
+      final daq = FfiDaqmxBackend(libraryPath: '/nonexistent/libnidaqmx.so');
+      await expectLater(
+        daq.readStream('Dev1/ai0', rateHz: 1000),
+        emitsInOrder([emitsError(isA<DaqmxUnavailable>()), emitsDone]),
+      );
+      await daq.close();
+    });
   });
 }

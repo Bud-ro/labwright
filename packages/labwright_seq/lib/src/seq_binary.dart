@@ -3841,7 +3841,6 @@ class _SequenceRecordWalk {
   final int subpropCount;
   final List<(BinaryTypeField, int)> subProps;
   final int end;
-  bool get complete => subProps.length == subpropCount;
 }
 
 /// Locates and decodes every sequence record with the full subprop walk —

@@ -243,94 +243,105 @@ void main() {
       expect(bdFillColor(ViHeapObject(oid: 3, kind: 0x50, offset: 0)), isNull);
     });
 
-    testWidgets('a decoded foreground colour inks a caption', (tester) async {
-      ViDiagram build({int? fg}) {
-        final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
-          ..category = ViObjectKind.structure
-          ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
-        final constObj = ViHeapObject(oid: 2, kind: 0x51, offset: 0)
-          ..parentOid = 1
-          ..category = ViObjectKind.terminal
-          ..absBounds = const HeapRect(
-            top: 24,
-            left: 24,
-            bottom: 44,
-            right: 200,
-          )
-          ..constText = 'report.txt'
-          ..fgRgb = fg;
-        return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
-      }
+    // A caption's decoded ink colour ([ViHeapObject.fgRgb]).
+    ViDiagram captionDiagram({int? rgb}) {
+      final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = ViObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
+      final constObj = ViHeapObject(oid: 2, kind: 0x51, offset: 0)
+        ..parentOid = 1
+        ..category = ViObjectKind.terminal
+        ..absBounds = const HeapRect(top: 24, left: 24, bottom: 44, right: 200)
+        ..constText = 'report.txt'
+        ..fgRgb = rgb;
+      return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
+    }
 
-      await tester.runAsync(() async {
-        final inked = await rasteriseBlockDiagram(build(fg: 0x1040E0));
-        final plain = await rasteriseBlockDiagram(build());
-        final cmp = await compareToReference(inked!.image, plain!.image);
-        // Same caption text/geometry; only the decoded ink colour differs.
-        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
-      });
-    });
+    // A loop frame's decoded structure tint ([ViHeapObject.structRgb]).
+    ViDiagram framedDiagram({int? rgb}) {
+      final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = ViObjectKind.decoration
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 120, right: 160);
+      final loop = ViHeapObject(oid: 2, kind: 0x21, offset: 0)
+        ..parentOid = 1
+        ..category = ViObjectKind.structure
+        ..absBounds = const HeapRect(top: 16, left: 16, bottom: 104, right: 144)
+        ..structRgb = rgb;
+      return ViDiagram(sectionTag: 'BDHb', objects: [root, loop]);
+    }
 
-    testWidgets('a decoded structure colour changes the frame render', (
-      tester,
-    ) async {
-      ViDiagram build({int? struct}) {
-        final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
-          ..category = ViObjectKind.decoration
-          ..absBounds = const HeapRect(
-            top: 0,
-            left: 0,
-            bottom: 120,
-            right: 160,
+    // A decoration's decoded fill ([ViHeapObject.bgRgb]).
+    ViDiagram decorationDiagram({int? rgb}) {
+      final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = ViObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 120);
+      final deco = ViHeapObject(oid: 2, kind: 0x15, offset: 0)
+        ..parentOid = 1
+        ..category = ViObjectKind.decoration
+        ..absBounds = const HeapRect(top: 20, left: 20, bottom: 60, right: 100)
+        ..bgRgb = rgb;
+      return ViDiagram(sectionTag: 'BDHb', objects: [root, deco]);
+    }
+
+    // 0xffffcc is the recovered LabVIEW sequence/timed structure tint.
+    final colourCases = <(String, int, ViDiagram Function({int? rgb}))>[
+      ('a caption inks fgRgb', 0x1040E0, captionDiagram),
+      ('a loop frame inks structRgb', 0xFFFFCC, framedDiagram),
+      ('a decoration inks bgRgb', 0xE01010, decorationDiagram),
+    ];
+
+    for (final (what, rgb, build) in colourCases) {
+      testWidgets(what, (tester) async {
+        // Each pixel as opaque 0xAARRGGBB; the raster is opaque throughout.
+        Future<Uint32List> packedPixels(BdRaster raster) async {
+          final bytes = (await raster.image.toByteData())!.buffer.asUint8List();
+          final out = Uint32List(bytes.length >> 2);
+          for (var i = 0; i < out.length; i++) {
+            final j = i << 2;
+            out[i] =
+                0xFF000000 |
+                (bytes[j] << 16) |
+                (bytes[j + 1] << 8) |
+                bytes[j + 2];
+          }
+          return out;
+        }
+
+        await tester.runAsync(() async {
+          // Same geometry both ways; only the decoded colour field differs, so
+          // every changed pixel is one the field painted and the exact decoded
+          // value must be among them.
+          final inked = await rasteriseBlockDiagram(build(rgb: rgb));
+          final plain = await rasteriseBlockDiagram(build());
+          expect(inked!.content, plain!.content);
+          final inkedPixels = await packedPixels(inked);
+          final plainPixels = await packedPixels(plain);
+          expect(inkedPixels.length, plainPixels.length);
+          final want = 0xFF000000 | rgb;
+          var changed = 0, changedToWant = 0;
+          for (var i = 0; i < inkedPixels.length; i++) {
+            if (inkedPixels[i] == plainPixels[i]) continue;
+            changed++;
+            if (inkedPixels[i] == want) changedToWant++;
+          }
+          expect(changed, greaterThan(0));
+          expect(
+            changedToWant,
+            greaterThan(0),
+            reason: 'no pixel changed to 0x${want.toRadixString(16)}',
           );
-        final loop = ViHeapObject(oid: 2, kind: 0x21, offset: 0)
-          ..parentOid = 1
-          ..category = ViObjectKind.structure
-          ..absBounds = const HeapRect(
-            top: 16,
-            left: 16,
-            bottom: 104,
-            right: 144,
-          )
-          ..structRgb = struct;
-        return ViDiagram(sectionTag: 'BDHb', objects: [root, loop]);
-      }
-
-      await tester.runAsync(() async {
-        // 0xffffcc — the recovered LabVIEW sequence/timed structure tint.
-        final colored = await rasteriseBlockDiagram(build(struct: 0xFFFFCC));
-        final plain = await rasteriseBlockDiagram(build());
-        final cmp = await compareToReference(colored!.image, plain!.image);
-        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
+          // The colour is the decoded field's doing, not part of the plain
+          // render's palette.
+          expect(
+            plainPixels.contains(want),
+            isFalse,
+            reason:
+                '0x${want.toRadixString(16)} already inked without the '
+                'decoded field',
+          );
+        });
       });
-    });
-
-    testWidgets('a decoded object colour changes the render', (tester) async {
-      ViDiagram build({int? bg}) {
-        final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
-          ..category = ViObjectKind.structure
-          ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 120);
-        final deco = ViHeapObject(oid: 2, kind: 0x15, offset: 0)
-          ..parentOid = 1
-          ..category = ViObjectKind.decoration
-          ..absBounds = const HeapRect(
-            top: 20,
-            left: 20,
-            bottom: 60,
-            right: 100,
-          )
-          ..bgRgb = bg;
-        return ViDiagram(sectionTag: 'BDHb', objects: [root, deco]);
-      }
-
-      await tester.runAsync(() async {
-        final colored = await rasteriseBlockDiagram(build(bg: 0xE01010));
-        final plain = await rasteriseBlockDiagram(build());
-        final cmp = await compareToReference(colored!.image, plain!.image);
-        // Same geometry; the only difference is the decoded decoration colour.
-        expect(cmp.comparison.meanAbsDiff, greaterThan(0));
-      });
-    });
+    }
   });
 
   group('dataflow wire rendering', () {
@@ -728,49 +739,4 @@ void main() {
       });
     });
   });
-
-  // Optional reference-oracle dump: run with
-  //   flutter test test/bd_oracle_test.dart \
-  //     --dart-define=BD_VI=/abs/path/foo.vi \
-  //     --dart-define=BD_REFERENCE=/abs/path/foo.bd.png
-  // Writes build/bd_oracle/<name>.{render,reference,diff}.png for eyeballing.
-  const viPath = String.fromEnvironment('BD_VI');
-  const refPath = String.fromEnvironment('BD_REFERENCE');
-  final refMode = viPath.isNotEmpty && refPath.isNotEmpty;
-  testWidgets('reference oracle dump', (tester) async {
-    final viFile = File(viPath);
-    final refFile = File(refPath);
-    if (!viFile.existsSync() || !refFile.existsSync()) return;
-    final model = buildViModel(viFile.readAsBytesSync());
-    final diagrams = model.blockDiagrams;
-    ViDiagram? diagram;
-    for (final d in diagrams) {
-      if (d.objects.any((o) => o.absBounds != null)) {
-        diagram = d;
-        break;
-      }
-    }
-    if (diagram == null) return;
-    await tester.runAsync(() async {
-      final raster = await rasteriseBlockDiagram(diagram!);
-      final reference = await decodeImage(refFile.readAsBytesSync());
-      final result = await compareToReference(raster!.image, reference);
-      final out = Directory('build/bd_oracle')..createSync(recursive: true);
-      final name = viFile.uri.pathSegments.last;
-      File(
-        '${out.path}/$name.render.png',
-      ).writeAsBytesSync(await imageToPng(result.fitted));
-      File(
-        '${out.path}/$name.reference.png',
-      ).writeAsBytesSync(await imageToPng(result.reference));
-      File(
-        '${out.path}/$name.diff.png',
-      ).writeAsBytesSync(await imageToPng(result.diffImage));
-      // ignore: avoid_print
-      print(
-        'bd_oracle $name: meanAbsDiff=${result.comparison.meanAbsDiff.toStringAsFixed(2)} '
-        'diffFraction=${(result.comparison.diffFraction * 100).toStringAsFixed(1)}%',
-      );
-    });
-  }, skip: !refMode);
 }
