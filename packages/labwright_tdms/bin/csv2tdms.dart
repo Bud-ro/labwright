@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_tdms/labwright_tdms.dart';
 
-/// CLI: `dart run labwright_tdms:csv2tdms <in.csv> [--out f.tdms] [--group G]`
 Future<void> main(List<String> args) async {
   var group = 'Imported';
   String? outPath;

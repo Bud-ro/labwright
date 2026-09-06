@@ -10,8 +10,6 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
   await tester.pumpWidget(MaterialApp(home: Scaffold(body: child)));
 }
 
-/// A hand-built attribution: 100-byte file, half model / half copied at the byte
-/// level; one compressed section inflates 20→80, so the content total is 160.
 WriterAttribution _attr({bool byteExact = true, int bugs = 0}) =>
     WriterAttribution(
       fileLength: 100,
@@ -47,7 +45,6 @@ void main() {
     await _pump(tester, ViCoverageView(attribution: _attr()));
     expect(find.text('Content model'), findsOneWidget);
     expect(find.text('Byte model'), findsOneWidget);
-    // Byte model = 50/100; content model = (50+60)/160 = 68.8%.
     expect(find.text('50.0%'), findsOneWidget);
     expect(find.text('68.8%'), findsOneWidget);
     expect(find.text('byte-exact'), findsOneWidget);

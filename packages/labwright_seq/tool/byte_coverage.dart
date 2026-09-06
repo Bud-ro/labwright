@@ -2,16 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
-/// Binary TOF1 **byte**-coverage scoreboard — the decode campaign's metric.
-///
-/// Walks every binary `.seq` in the fetched corpus and accounts each inflated
-/// body byte via [binaryByteCoverage]: pool (string region), record-region
-/// semantic (twin-validated decode), record-region structural (extent walked,
-/// contents undecoded), record-region undecoded (the true gap). Prints a
-/// per-source table and the corpus total; with `--gaps <n>` also prints the
-/// n largest undecoded spans of the single largest-gap file (prober aid).
-///
-/// Run: `dart run tool/byte_coverage.dart [corpusRoot] [--gaps n]`
 String _defaultCorpusRoot() {
   const pkgRel = 'packages/labwright_seq/corpus';
   var d = Directory.current;

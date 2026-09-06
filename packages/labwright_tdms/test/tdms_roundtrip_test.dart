@@ -1,4 +1,3 @@
-// TdmsWriter -> bytes -> TdmsReader round-trips, plus reader edge inputs.
 import 'dart:typed_data';
 
 import 'package:labwright_tdms/labwright_tdms.dart';

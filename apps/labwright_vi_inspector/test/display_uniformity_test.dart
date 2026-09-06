@@ -24,10 +24,6 @@ Future<ui.Image> _fromRgba(Uint8List rgba, int w, int h) {
   return completer.future;
 }
 
-/// The oracle display path may only produce PHASE-FREE pixels: a 1 px line
-/// keeps one thickness wherever it sits, a checkerboard downscales to one
-/// uniform grey. These tests measure actual output pixels — synthetic first,
-/// then the real crc8 pipeline end to end.
 void main() {
   test(
     'boxDownscale is phase-free: 1px lines and checkerboards land uniform',
@@ -42,8 +38,6 @@ void main() {
         rgba[i] = rgba[i + 1] = rgba[i + 2] = v;
       }
 
-      // A 1px black line at EVERY row parity (y=9 odd-start, y=20 even-start),
-      // and a 1px checkerboard band.
       for (var x = 0; x < w; x++) {
         set(x, 9, 0);
         set(x, 20, 0);
@@ -58,9 +52,6 @@ void main() {
         final out = await boxDownscale(src, k);
         final bytes = (await out.toByteData())!.buffer.asUint8List();
         int lum(int x, int y) => bytes[(y * out.width + x) * 4];
-        // Every downscaled row that intersects a source line must be uniform
-        // across its full width, and the total line "mass" must be conserved
-        // per column (no widening/shrinking anywhere).
         for (final lineY in [9, 20]) {
           final rows = {lineY ~/ k, (lineY + k - 1) ~/ k};
           for (var x = 0; x < out.width; x++) {
@@ -79,10 +70,6 @@ void main() {
             );
           }
         }
-        // The checkerboard invariant: when the checker period (2) divides k,
-        // every block holds the same ink and the region is ONE grey; at odd k
-        // the blocks hold 4/9 vs 5/9 ink — TWO greys in strict alternation
-        // (regular and faithful, unlike phase-dependent widening).
         final vals = <int>{};
         final rows = <List<int>>[];
         for (var y = (30 / k).ceil(); y < 40 ~/ k - 1; y++) {
@@ -162,10 +149,6 @@ void main() {
             greaterThan(0),
             reason: 'empty stamp for $key in ${f.path}',
           );
-          // The alpha hitbox must sit exactly on the stamp: find the
-          // topmost opaque pixel (whatever row it is on) — a hit at its
-          // centre, a miss one pixel above it; and the same for the
-          // leftmost opaque pixel on the horizontal axis.
           final mask = (await art.base.toByteData())!.buffer.asUint8List();
           final aw = art.base.width, ah = art.base.height;
           (int, int)? top, leftmost;
@@ -262,16 +245,10 @@ void main() {
         reference.image.height,
         ss,
       );
-      // Simulate a pane at half logical scale: n=2 -> k = 3*2.
       const n = 2;
       final display = await boxDownscale(fitted3, ss * n);
       final out = (await display.toByteData())!.buffer.asUint8List();
       int lum(int x, int y) => out[(y * display.width + x) * 4];
-      // oid 894 (the U8 conversion): its stamp is KNOWN geometry
-      // ([kPrimIconPlacement]), so the display rows holding its 1 px top
-      // and bottom borders are computable exactly. At n=2 each display row
-      // is the box mean of two logical rows — the border blends with its
-      // neighbour, but UNIFORMLY: any spread along the row is phase error.
       final o = bd.byId[894]!.absBounds!;
       final reg = result.registration;
       final art1608b = icons[1608]!.base;
@@ -290,19 +267,12 @@ void main() {
       final botRow = (stampRef.bottom.toInt() - 1) ~/ n;
       final xs = [
         for (
-          // Clear the chamfered corners (borders descend through the top
-          // rows for ~5 columns each side) so only the flat border mixes.
           var x = (stampRef.left.toInt() + 6 + n - 1) ~/ n;
           x <= (stampRef.right.toInt() - 7) ~/ n;
           x++
         )
           x,
       ];
-      // Only the BOTTOM border blends with a uniform neighbour (canvas
-      // white below); the top border mixes with the icon's own checker
-      // content, so its display row varies legitimately. The synthetic
-      // test above pins the both-parity 1 px line invariant; this pins it
-      // in the real pipeline.
       final bottom = [for (final x in xs) lum(x, botRow)];
       // ignore: avoid_print
       print('U8 bottom border row y=$botRow: $bottom');
@@ -316,17 +286,8 @@ void main() {
       );
       expect(topRow * n, stampRef.top.toInt(), reason: 'row bookkeeping');
 
-      // At the wipe's default integer zooms the display IS the 1:1 raster
-      // (or its whole-pixel upscale), so exactness reduces to the stamp
-      // itself: every opaque pixel of the art must appear in the raster
-      // byte-for-byte at the grid-aligned stamp rect. Zero tolerance.
-      // Two stamps cover the paths: a normal primitive (prim1608) and a
-      // node in a DISABLED frame drawn with the grey-palette variant
-      // (prim1900, oid 3081).
       final rasterPx = (await raster.image.toByteData())!.buffer.asUint8List();
       final refPx = (await reference.image.toByteData())!.buffer.asUint8List();
-      // Our raster / LabVIEW's reference at ABSOLUTE diagram pixel (x,y): the
-      // raster is content-relative, the reference registered by [reg].
       String oursAt(int x, int y) {
         final i =
             ((y - raster.content.top).toInt() * raster.image.width +
@@ -390,16 +351,6 @@ void main() {
         );
       }
 
-      // The U8 conversion's wires now ship a proven [ViWire.routePoints]
-      // polyline, so each connects at its DECODED attach point on the node's
-      // own border — the floored terminal centre, not the old icon-edge
-      // guess. The exit wire (leaving on the node's right) carries the op's
-      // catalogued output colour — integer blue, from [PrimOp.output] — and
-      // the input (arriving on the left) stays string pink from its typed
-      // source terminal. Each is located by its own route's endpoint at the
-      // U8 node box and sampled at that decoded connection column on the two
-      // rows the 1 px stroke half-covers (integer route row and the row
-      // above), and must be BYTE-IDENTICAL to LabVIEW's reference there.
       final u8 = bd.byId[894]!.absBounds!;
       final u8cx = (u8.left + u8.right) / 2;
       ViPoint? exitPt, inputPt;
@@ -415,8 +366,6 @@ void main() {
               a.bottom != u8.bottom) {
             continue;
           }
-          // A two-endpoint route runs endpoint 0 → 1, so endpoint e's own
-          // connection is the matching end of the polyline.
           final pt = e == 0 ? rp.first : rp.last;
           if (pt.x >= u8cx) {
             exitPt = pt;
@@ -442,8 +391,6 @@ void main() {
         'input route @(${inputPt.x},${inputPt.y}) ours=$leftOf '
         'ref=${refColumn(inputPt.x, inputPt.y)}',
       );
-      // The exit wire is integer blue at its decoded connection, byte-exact
-      // against the reference on both covered rows.
       expect(
         rightOf,
         contains('0,0,255'),
@@ -454,16 +401,11 @@ void main() {
         refColumn(exitPt.x, exitPt.y),
         reason: 'exit wire must reproduce the reference at its connection',
       );
-      // 1 px crispness: nothing but pure wire colour and canvas white may
-      // appear in the sampled band — a stroked centreline at integer
-      // coordinates half-covers two rows (solid core + half-tones).
       expect(
         rightOf.difference({'0,0,255', '255,255,255'}),
         isEmpty,
         reason: 'exit wire must be a crisp 1px fill, no half-tones',
       );
-      // The input wire is string pink at its decoded connection, byte-exact
-      // against the reference.
       expect(
         leftOf,
         contains('255,0,255'),
@@ -475,31 +417,12 @@ void main() {
         reason: 'input wire must reproduce the reference at its connection',
       );
 
-      // Border-terminal chrome: every verified-kind terminal (tunnels,
-      // select tunnels, both shift registers, the selector) must render
-      // BYTE-IDENTICAL to LabVIEW's reference at its decoded rect —
-      // borders, fills, glyphs, and wire colours all at once — and hold a
-      // CLEAN 2 px surround band: no ink of ours on pixels the reference
-      // leaves canvas-white (the modeled structure-terminal pass once
-      // double-drew these rects and its anti-aliased ring bled a border of
-      // blended pixels just outside the byte-exact chrome).
-      // Structure-EDGE corridors are excluded from the band: the reference
-      // draws crc8's loop/case borders as a 1 px black line (measured on
-      // struct 164's left border — a single (0,0,0) column at x=263, white
-      // either side) while our structure band is a stylised anti-aliased
-      // stroke reaching ~4 px inside and 1 px outside the frame — a known,
-      // separate infidelity (TODO: measure the border render laws corpus-
-      // wide and draw them byte-faithfully).
+      // TODO: the structure band is not byte-faithful; its edge corridors are excluded from the surround check.
       final structureEdgeRects = [
         for (final o in drawable)
           if (o.category == ViObjectKind.structure) o.absBounds!,
       ];
-      // Modeled structure-terminal boxes (the N/i corner pair and friends)
-      // are likewise excluded, ±1 px for their stroke: which of them
-      // LabVIEW actually shows is a visibility decode still in flight, so a
-      // modeled box the reference hides must not fail the chrome band
-      // (crc8's loop 164 draws its `i` box beside the (263,499) tunnel;
-      // the reference does not).
+      // Modeled structure-terminal boxes are excluded: which ones LabVIEW shows is not decoded.
       final modeledTerminalRects = [
         for (final e in bdStructureTerminals(bd).entries)
           for (final t in e.value)
@@ -511,14 +434,6 @@ void main() {
                 bottom: s.top + t.box.top + t.box.height,
               ),
       ];
-      // Wires without a decoded route are no longer drawn (the synthesized
-      // Manhattan guesser was removed), so no fallback leg can cross a
-      // terminal's surround band — the bleed check below runs with no leg
-      // corridor to exclude.
-      // A case/sequence frame's chrome is a 6px band (1px solid outer + a 5px
-      // hatch), so its innermost hatch row sits 5px inside the edge; the whole
-      // band is structure chrome, not canvas, and is excluded from the bleed
-      // check (which guards the clean interior beyond it).
       bool onStructureEdge(int x, int y) =>
           structureEdgeRects.any(
             (r) =>
@@ -595,16 +510,6 @@ void main() {
       );
       expect(chromeCounts.keys.toSet(), {0x22, 0x2d, 0x27, 0x28, 0x2e});
 
-      // Routed-wire pixels: wires with a PROVEN absolute polyline
-      // ([ViWire.routePoints]) must reproduce the reference BYTE-FOR-BYTE
-      // along the stroke band (route row ±2), away from the endpoints
-      // (chrome and the stylised structure bands, which are not
-      // byte-faithful) and outside every leaf object's box (icons and
-      // terminals legitimately overdraw the runs). The three probes cover the three
-      // stroke laws: sig 403 (scalar boolean — dotted checkerboard), sig
-      // 1831 (scalar int — solid 1 px), sig 921 (dotted with a bend, both
-      // orientations); 403 and 921 also cross sig 917's 2 px vertical, so
-      // the crossing gaps are inside the compared band.
       final leafRects = [
         for (final o in drawable)
           if (o.category != ViObjectKind.structure && o.absBounds != null)
@@ -668,13 +573,6 @@ void main() {
         );
       }
 
-      // Crossing rule at a concrete crossing: sig 403 (earlier-serialized,
-      // dotted green, row 297) × sig 917 (later, 2 px blue vertical whose
-      // route column is 503 — ink columns 502-503). The LATER wire breaks
-      // with a 1 px gap either side of the earlier wire's row; the dot on
-      // (503,297) survives ((x+y) even). Byte-identical to the reference
-      // over the crossing neighbourhood, and the gap shape is asserted
-      // explicitly so a regression names itself.
       String at(
         Uint8List px,
         int imgW,
@@ -714,28 +612,17 @@ void main() {
         (y - raster.content.top).toInt(),
       );
       const blue = '0,0,255', green = '0,102,0', white = '255,255,255';
-      // The later 2 px vertical runs solid above and below ...
       expect(ours(502, 295), blue);
       expect(ours(503, 295), blue);
       expect(ours(502, 299), blue);
       expect(ours(503, 299), blue);
-      // ... breaks for one row either side of the survivor ...
       expect(ours(502, 296), white);
       expect(ours(503, 296), white);
       expect(ours(502, 298), white);
       expect(ours(503, 298), white);
-      // ... and the earlier wire's checkerboard dot survives on the row.
       expect(ours(503, 297), green);
       expect(ours(502, 297), white);
 
-      // The numeric constant oid 3033 (I32 `256`, inside the disabled LUT
-      // frame): its whole 2 px border perimeter must reproduce the
-      // reference byte-for-byte — the (153,153,255) dim of integer blue,
-      // i.e. type colour THROUGH the disabled-frame transform, with no
-      // inner ring (the reference draws constants with the outer border
-      // only). The interior text is our font, not LabVIEW's, so it is
-      // asserted by property instead: some ink, all of it achromatic and
-      // no darker than the (153,153,153) dim of black.
       final constBox = bd.byId[3033]!.absBounds!;
       var borderPx = 0, borderMismatched = 0, dimBlue = 0;
       for (var y = constBox.top; y < constBox.bottom; y++) {
@@ -768,7 +655,6 @@ void main() {
         }
       }
       expect(valueInk, greaterThan(30), reason: 'the 256 literal must draw');
-      // The removed inner ring's corner pixels stay canvas-white.
       for (final (x, y) in [
         (constBox.left + 3, constBox.top + 3),
         (constBox.right - 4, constBox.top + 3),
@@ -778,18 +664,6 @@ void main() {
         expect(oursAt(x, y), white, reason: 'inner-ring pixel ($x,$y)');
       }
 
-      // The one crc8 wire from the "Data in" own-bounds control terminal
-      // (oid 1988) to the 0x2f operator node (oid 902). Its far end is a
-      // plain-node DCO whose implied closing run ENTERS the node, so it ships a
-      // walked [ViWire.routePoints] polyline plus a [ViWire.routeClosingStep],
-      // and the painter extends the terminal segment to the node's drawn ink
-      // edge at the arrival row (not the icon centre). This is a MASKED-WIRE
-      // check: render the diagram again WITHOUT this wire, take the pixels that
-      // change as the wire's own VISIBLE drawn pixels (a run under the far icon
-      // is overdrawn by the art in BOTH renders, so it never enters the mask),
-      // and require (a) every drawn wire pixel is byte-identical to LabVIEW's
-      // reference, and (b) every reference wire-ink pixel of this wire — along
-      // its whole path, up to where the far icon's art begins — is covered.
       final w1988 = wires.singleWhere((w) => w.endpointOids.contains(1988));
       expect(
         w1988.routePoints,
@@ -824,9 +698,6 @@ void main() {
 
       final rp = w1988.routePoints!;
       final cl = raster.content.left.toInt(), ct = raster.content.top.toInt();
-      // The wire's own visible pixels are exactly those the second render
-      // changed; each must reproduce the reference byte-for-byte, and (mask ==
-      // reference) also forbids any ink of ours where the reference is blank.
       final mask = <int>{};
       var maskCount = 0, maskMismatched = 0;
       for (var y = ct; y < ct + raster.image.height; y++) {
@@ -845,20 +716,10 @@ void main() {
         0,
         reason: 'every drawn oid1988 wire pixel must equal the reference',
       );
-      // The wire's solid ink, sampled mid-run on its horizontal leg.
       final wireColor = refAt((rp[0].x + rp[1].x) ~/ 2, rp[0].y);
       expect(wireColor, isNot(canvasWhite), reason: 'the wire leg is inked');
       bool inMask(int x, int y) =>
           mask.contains((y - ct) * raster.image.width + (x - cl));
-      // Coverage: along the decoded geometry (each stored segment, then the
-      // implied closing run to the far art), every reference pixel that is this
-      // wire's solid ink MUST be present in the mask — no reference wire pixel
-      // is left undrawn. The control terminal's chrome (start) and oid902's art
-      // (end) are not the wire's ink and are skipped; where they yield, the
-      // blue must be reproduced.
-      // The endpoint terminal owns the pixels inside its own box — its "Data
-      // in" glyph is the same blue as the wire — so the wire's ink is what runs
-      // OUTSIDE it (the box's chrome is verified separately).
       final termBox = w1988.endpointAnchors[0]!;
       var wireInkCovered = 0;
       void coverAlong(int x, int y) {
@@ -873,11 +734,6 @@ void main() {
           wireInkCovered++;
           return;
         }
-        // A reference wire pixel we did not draw is only acceptable where
-        // ANOTHER wire independently inks it — a crossing, where the wire-free
-        // render already shows the same colour (e.g. the later-serialized wire
-        // gaps around the earlier one, exactly as LabVIEW does). Otherwise it
-        // is a genuine coverage gap.
         expect(
           woAt(x, y),
           wireColor,
@@ -894,9 +750,6 @@ void main() {
           coverAlong(horizontal ? v : a.x, horizontal ? a.y : v);
         }
       }
-      // The implied closing run: from the last decoded bend, step along
-      // routeClosingStep across the far box until the reference stops being
-      // wire ink (oid902's art overdraws the rest).
       final step = w1988.routeClosingStep!;
       final farBox = w1988.endpointAnchors[1]!;
       var cx = rp.last.x + step.dx, cy = rp.last.y + step.dy;
@@ -926,11 +779,6 @@ void main() {
         'oid1988 wire coverage: $wireInkCovered ink px (closing run $closingRun)',
       );
 
-      // The XOR? caption (oid 221) decodes from the scalar-width 0x022 caption
-      // record and renders as text ink above the case structure. LabVIEW's
-      // font differs from the test's Roboto, so a glyph byte-match is
-      // impossible; the caption is asserted by ink presence in its decoded box
-      // and by its ink mass tracking the reference's "XOR?" ink there.
       bool isDark(String rgb) {
         final c = rgb.split(',').map(int.parse).toList();
         return c[0] < 160 && c[1] < 160 && c[2] < 160;
@@ -959,25 +807,12 @@ void main() {
         greaterThan(20),
         reason: 'the XOR? caption must render as text ink',
       );
-      // Luminance mass, not a dark-pixel count: at half logical scale the
-      // reference's hard-cored glyphs average lighter per pixel than the
-      // ink-weight-matched render's wider mid-alpha coverage (the same total
-      // ink in more sub-threshold pixels), so a threshold count diverges
-      // while the summed ink tracks. Measured 19,862/18,870 = 1.053, so the
-      // +-25% band is a floor with room for face variance, not a shrug —
-      // tighten it as the text pass converges.
       expect(
         xorMass / xorRefMass,
         closeTo(1.0, 0.25),
         reason: 'the XOR? ink mass must track the reference caption',
       );
 
-      // Constant feeders (the decoded endpoint constant shells): the
-      // loop-count wires resolve their far endpoint to the DRAWN constant box
-      // (the "8" and two "256" numeric constants) and route to it, not to the
-      // structure edge. Each is a short horizontal span from the constant box
-      // to the count terminal; the reference wires it continuously, and so
-      // does the render.
       bool isInk(String rgb) => rgb != '255,255,255';
       for (final (sig, value) in [(375, 8), (3126, 256), (399, 256)]) {
         final w = wires.firstWhere((w) => w.signalOid == sig);
@@ -1019,20 +854,6 @@ void main() {
     });
   });
 
-  // Branching wires with a proven junction tree ([ViWire.routeTree]) draw
-  // their decoded absolute geometry: every run as an exact origin-relative
-  // polyline (feeding the same stroke and crossing-gap machinery as any leg)
-  // plus a filled disc at each junction. Several closed trees ship per
-  // snippet, but most sit wholly under node/structure boxes (short branches
-  // between adjacent terminals) and expose no pixel to the reference; the
-  // ink law applies to the exposed runs and junction dots only. Each of
-  // Excel_Read_XLSX (a screenshot target) and Read VI Blocks carries exactly
-  // one substantially exposed tree, so the branch-wire verification
-  // aggregates across the two. Every EXPOSED run pixel and junction-dot pixel
-  // — not covered by a node/structure box — must land on wire ink in
-  // LabVIEW's own render (masking node overlaps, ±1 row for the reference's
-  // anti-aliasing — the colour-presence law the wire-band checks use, since
-  // an anti-aliased reference cannot be byte-matched by the crisp render).
   testWidgets('branch-wire routeTree runs + junction dots land on ref ink', (
     tester,
   ) async {
@@ -1071,9 +892,6 @@ void main() {
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
         );
         final reg = result.registration;
-        // Patterned-junction pixels only compare at the capture's derived
-        // wire-cycle phase (screen-anchored patterns, see
-        // [BdRenderStyle.wireCycleOffset]).
         final rephased = (await rasteriseBlockDiagram(
           bd,
           primIcons: icons,
@@ -1099,8 +917,6 @@ void main() {
         final rw = reference.image.width;
         final aw = rephased.image.width, ah = rephased.image.height;
 
-        // Node/structure/text mask: any drawable box, inflated to cover chrome
-        // borders and icon overhang.
         final maskRects = <ui.Rect>[
           for (final o in drawable)
             if (o.absBounds != null)
@@ -1119,8 +935,6 @@ void main() {
           return false;
         }
 
-        // Ink at content pixel (x,y), ±1 row for the reference's anti-aliased
-        // wire edges.
         bool ink(Uint8List px, int stride, int ox, int oy, int x, int y) {
           for (var dy = -1; dy <= 1; dy++) {
             final xx = x + ox, yy = y + oy + dy;
@@ -1176,12 +990,6 @@ void main() {
             '$name branch ${w.signalOid}: run exposed=$runExposed '
             'refInk=$runRefInk rasterInk=$runRasterInk',
           );
-          // A shipped tree whose every run sits under a node/structure box
-          // exposes no pixel to the reference — its geometry is real but
-          // wholly occluded (e.g. a short branch between adjacent terminals),
-          // so there is nothing to overlay. Only a wire that EXPOSES run
-          // pixels carries the ink law; each exposed pixel must land on
-          // reference wire ink and be drawn by the render.
           if (runExposed > 0) {
             exposedWires++;
             expect(
@@ -1196,14 +1004,6 @@ void main() {
               reason: '$name ${w.signalOid}: the render must draw every run',
             );
           }
-          // Junction dots: the filled 5x5 disc (corners clipped) at each
-          // junction. Every EXPOSED disc pixel must be inked in BOTH images —
-          // this catches the off-run cap pixels that only exist because
-          // LabVIEW stamps a dot, not merely because two runs cross. A
-          // junction buried under a node exposes nothing and is skipped, and
-          // so is a solid-2px wire's junction: its measured shape is the
-          // crossing DIAMOND (byte-exact-pinned on crc8 in
-          // bd_snippet_oracle_test), not this disc.
           final sigStyle =
               w.signalType?.renderStyle ?? w.signalType?.renderStyleEstimate;
           if (sigStyle == ViWireRenderStyle.solid2px ||
@@ -1256,19 +1056,12 @@ void main() {
     );
     expect(branchWires, greaterThanOrEqualTo(2));
     expect(junctionDots, greaterThanOrEqualTo(2));
-    // Real teeth: at least two branch wires (one per snippet) expose a
-    // substantial run that the ink law above byte-verified against LabVIEW.
     expect(exposedWires, greaterThanOrEqualTo(2));
     expect(runPixels, greaterThan(2000));
   });
 
   testWidgets('CrispImage shows the base at n:1 and the box-downscaled '
       'supersample below it', (tester) async {
-    // A supersampled pane image has no exact n:1 path of its own: nearest
-    // at a non-multiple ratio decimates its AA (thin, frayed text). At
-    // integer ratios the pane must therefore show the 1:1 base image —
-    // and BELOW 1:1 the opposite, the supersample box-averaged at the
-    // exact display size, where its extra samples are real detail.
     final base = await tester.runAsync(
       () => _fromRgba(Uint8List(10 * 10 * 4)..fillRange(0, 400, 255), 10, 10),
     );
@@ -1293,12 +1086,8 @@ void main() {
       expect(raw.image, same(base), reason: 'pane $size');
     }
 
-    // 4 px of a 10 px logical image: fitPhys 0.4, so the box factor is
-    // supersample * ceil(1/0.4) = 9 and the 30 px supersample lands as a
-    // 3 px raster — neither of the two source images.
     await tester.runAsync(() async {
       await pumpPane(const Size(4, 4));
-      // The downscale is computed on a worker isolate; pump until it lands.
       for (var i = 0; i < 40 && find.byType(RawImage).evaluate().isEmpty; i++) {
         await Future<void>.delayed(const Duration(milliseconds: 5));
         await tester.pump();

@@ -10,10 +10,6 @@ import 'package:test/test.dart';
 
 import 'snippets.dart';
 
-/// Maps every type in every pool of [paths], returning the code sets and the
-/// per-status tallies. Keys: `seen` / `unaccounted` (codes with no bucket at
-/// all) / `rootUnmapped` (the codes an unmapped mapping was attributed to),
-/// and the counters `total` / `mapped` / `internal` / `structuralFailure`.
 Map<String, List<int>> sweepChunk(List<String> paths) {
   final seen = <int>{}, unaccounted = <int>{}, rootUnmapped = <int>{};
   var total = 0, mapped = 0, internal = 0, structuralFailure = 0;
@@ -86,9 +82,6 @@ void main() {
             'type codes ${hex(unaccounted)} appear in the corpus but are neither mapped, '
             'internal, nor on the review list — add them to kUnmappedTypeCodes with a note',
       );
-      // The review list may hold codes the corpus does not contain (a
-      // catalogued type this corpus never uses), but no type may come back
-      // unmapped for an undocumented reason.
       expect(rootUnmapped.difference(kUnmappedTypeCodes.keys.toSet()), isEmpty);
       expect(
         counts[3],

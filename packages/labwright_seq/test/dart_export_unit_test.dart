@@ -76,10 +76,6 @@ SeqProperty _callStep(
   ],
 );
 
-/// Corpus-free unit pins for exporter behaviors small enough to state exactly
-/// — stub naming, the typed SequenceCall lenses, one pin per call-parameter
-/// translation shape, and nullable array parameters. The whole-corpus batched
-/// analyze gate (`export_corpus_test.dart`) covers everything else.
 void main() {
   group('stub naming (extension strip)', () {
     test('a VI stub name drops the .vi extension, case-insensitively', () {
@@ -255,7 +251,6 @@ void main() {
       expect(source, contains('// on fail: Goto -> <Cleanup>'));
       expect(source, contains('// step loop (PassFailCount): while RunState.LoopIndex < 10'));
       expect(source, contains('// status expression: Step.Result.Status'));
-      // Loop, jump, and status semantics are stated, not exported — disarmed.
       expect(source, contains('lw.skipTest('));
       expect(source, contains('flow action of step "Voltage OK"'));
       expect(source, contains('per-step looping not exported'));
@@ -476,8 +471,6 @@ void main() {
         _seqWith('Callee', params: [_str('Label'), _bool('Enabled', 'False'), _num('Count', '0'), _num('Gain', '2.5')]),
       ]);
       final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
-      // Count refines int in both scopes; Gain declares 2.5 so it stays
-      // double, and the exporter widens the int EXPRESSION `1 + 2` losslessly.
       expect(
         source,
         contains('await callee(label: "abc", enabled: true, count: count, gain: (1 + 2).toDouble()); // Run it'),
@@ -713,8 +706,6 @@ void main() {
       ]);
       final project = exportSeqProjectToLabwright({'a.seq': caller, 'b.seq': calleeFile});
       final aSource = project.files['a_seq.dart']!;
-      // Helper.X refines int inside b.seq — the integral binding passes
-      // straight through; the non-integral one is honest, never truncated.
       expect(project.files['b_seq.dart'], contains('Future<void> helper({int x = 0}) async {'));
       expect(aSource, contains('await b_seq.helper(x: 3); // Use helper: external sequence'));
       expect(aSource, contains("await b_seq.helper(x: ts.eval('3.5')); // Break helper: external sequence"));

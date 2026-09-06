@@ -42,7 +42,6 @@ void main() {
     expect(find.text('demo.vi'), findsWidgets);
     expect(find.text('Block diagram (logic)'), findsOneWidget);
     expect(find.text('BDHb'), findsOneWidget);
-    // The loaded VI's path is copyable from the header.
     expect(find.byKey(const Key('copy-path')), findsOneWidget);
   });
 
@@ -154,7 +153,6 @@ void main() {
 
     await tester.tap(find.text('inner.vi'));
     await tester.pump();
-    // Opening the embedded sub-VI loads it (its own name shows in the header).
     expect(find.text('NestedDemo.vi'), findsWidgets);
   });
 
@@ -162,9 +160,6 @@ void main() {
     tester,
   ) async {
     await _pump(tester, const ViInspectorScreen());
-    // A synthetic snippet: a real PNG with the demo VI spliced in as niVI.
-    // Sync IO only: a real dart:io future awaited outside runAsync never
-    // completes under the widget test's fake event loop.
     final dir = Directory.systemTemp.createTempSync('snippet_test');
     addTearDown(() => dir.deleteSync(recursive: true));
     final snippetPath = '${dir.path}/demo_snippet.png';
@@ -187,7 +182,6 @@ void main() {
 
     drop(snippetPath);
     await tester.pump();
-    // The embedded demo VI loads; the snippet reference adds the Oracle tab.
     expect(find.text('demo.vi'), findsWidgets);
     expect(find.text('Oracle'), findsOneWidget);
     expect(
@@ -198,7 +192,6 @@ void main() {
       isTrue,
     );
 
-    // A PNG without an embedded VI is a clean error, not a crash.
     drop(plainPath);
     await tester.pump();
     expect(find.textContaining('no embedded VI'), findsOneWidget);

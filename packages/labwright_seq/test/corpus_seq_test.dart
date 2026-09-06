@@ -10,7 +10,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Counts the instance-override markers (`%INSTOVRD`) anywhere in a tree.
 int _countOverrides(SeqProperty p, [int depth = 0]) {
   if (depth > 50) return 0;
   return p.subProps
@@ -18,8 +17,6 @@ int _countOverrides(SeqProperty p, [int depth = 0]) {
       .fold(p.isInstanceOverride ? 1 : 0, (n, c) => n + _countOverrides(c, depth + 1));
 }
 
-/// Byte-level ASCII substring search — avoids materializing a whole inflated
-/// body as a String (peak memory in corpus sweeps).
 bool _bodyContains(List<int> body, String ascii) {
   final pat = ascii.codeUnits;
   outer:
@@ -32,8 +29,6 @@ bool _bodyContains(List<int> body, String ascii) {
   return false;
 }
 
-/// Per-file size ceiling on coverage accumulation — a runtime bound for a
-/// hypothetical pathological giant, set well above every real corpus file.
 const _maxProbeBytes = 8 * 1024 * 1024;
 
 bool _isExprLike(String s) =>
@@ -43,15 +38,12 @@ bool _isExprLike(String s) =>
     s.contains('"') ||
     (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
 
-/// The counters the `binary_recon` snapshot section pins, by name.
 final _binaryReconCounters =
     'binary binaryWithSequences binaryStepsRecovered binaryTypedSteps binaryModuleSteps withSentinels '
             'totalStrings notLargest isFirst rooted scaffold5Ok realTot realHit fakeTot fakeHit withPath totalPaths '
             'nonAsciiPaths withId withExpr withLit'
         .split(' ');
 
-/// The counters the `xml_ini` snapshot section pins, by name. The set-derived
-/// and coverage measurements are spelled out at the call site.
 final _xmlIniCounters =
     'xmlFiles iniFiles binaryFiles xmlSeqs xmlSteps withAction withMode withModule xmlLocals withLimits '
             'resolvedCalls withIcon mpBlocks mpPinMaps pySteps pyParams pyParamSteps pyBound viSteps viParams '
@@ -65,11 +57,6 @@ final _xmlIniCounters =
             'iniCovFiles iniCovSteps iniCovModule'
         .split(' ');
 
-/// Validates the readers against the real fetched corpus (rosetta excluded —
-/// the twin oracles have their own suite): every XML/INI `.seq` parses into
-/// the shared typed model with pinned recovery counts, every binary `.seq`
-/// parses to the honest PARTIAL model, and the binary recon lenses never
-/// fabricate. Self-skips when the corpus is absent.
 void main() {
   if (!corpusSeqDir.existsSync()) {
     test('teststand corpus', () {}, skip: 'corpus absent — run tool/fetch_seq_corpus.dart');
@@ -102,11 +89,10 @@ void main() {
       final fmt = detectSeqFormat(bytes);
       if (fmt == SeqFormat.binary) {
         tally.bump('binaryFiles');
-        continue; // the binary recon sweep below owns these
+        continue;
       }
       if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
 
-      // ── INI document layer (sections, continuations, raw-line audit) ──
       if (fmt == SeqFormat.ini) {
         tally.bump('iniFiles');
         final doc = parseIniSeqBytes(bytes);
@@ -129,8 +115,6 @@ void main() {
             if (seq.array!.any((s) => s.name.isNotEmpty && s.name != '[0]')) tally.bump('iniNamedSeqs');
           }
         }
-        // Raw text: every in-section data line is `key = value`, and every
-        // ` LineNNNN` continuation fragment is reassembled.
         final text = latin1.decode(bytes, allowInvalid: true);
         var inSection = false;
         for (final raw in const LineSplitter().convert(text)) {
@@ -148,7 +132,6 @@ void main() {
         }
       }
 
-      // ── shared typed model ──
       final SeqFile sf;
       try {
         sf = parseSeqFile(bytes);
@@ -188,7 +171,6 @@ void main() {
         }
       }
 
-      // New-accessor file-level counters.
       if (sf.modelFile != null || sf.contentVersion != null || sf.fileTypeCode != null) tally.bump('fileSettings');
       if (sf.fileGlobals.isNotEmpty) tally.bump('fileGlobals');
 
@@ -313,7 +295,6 @@ void main() {
             }
           }
 
-          // Shared: new-accessor counters.
           if (set.adapterName != null) tally.bump('adapterName');
           if (set.switchEnabled != null || set.canEditCode != null) tally.bump('switchSettings');
           if (step.description != null) tally.bump('stepDesc');
@@ -327,7 +308,6 @@ void main() {
           if (step.sqlStatement != null || step.statementHandle != null) tally.bump('dbStep');
           if (step.limits?.lowExpression != null || step.limits?.comparisonExpression != null) tally.bump('limitExpr');
 
-          // Shared: structured flow control.
           final fc = step.flowControl;
           if (fc != null) {
             localFlow++;
@@ -358,7 +338,6 @@ void main() {
                 break;
             }
           }
-          // Shared: logic-export annotation triggers.
           if ((set.passAction != null && set.passAction != 'Next') ||
               (set.failAction != null && set.failAction != 'Next')) {
             tally.bump('jumpSteps');
@@ -383,7 +362,6 @@ void main() {
       }
       if (arAny) tally.bump('arFiles');
 
-      // One logic export per file covers all four annotation gates.
       if (fileJump || fileLoop || fileExternal || fileParams) {
         final logic = exportSequenceLogic(sf);
         if (fileJump) {
@@ -414,8 +392,6 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
 
-    // Format LAWS — relations between quantities computed in the same pass
-    // (a broken lens, not a corpus change, is the only way these move).
     final laws = <(String, Object?, Object)>[
       ('unknown-format file count', seqs.length - tally['xmlFiles'] - tally['iniFiles'] - tally['binaryFiles'], 0),
       ('XML typed steps (none lost in the lens)', tally['typedSteps'], tally['xmlSteps']),
@@ -464,8 +440,6 @@ void main() {
       expect(actual, want, reason: label);
     }
 
-    // MEASUREMENTS — every recovery/census count, pinned exactly against the
-    // committed snapshot (coverage as raw node counts, not rounded ratios).
     expectCorpusSnapshot('xml_ini', {
       for (final key in _xmlIniCounters) key: tally[key],
       'xmlCovTotal': xmlCov.total,
@@ -505,11 +479,6 @@ void main() {
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       tally.bump('binary');
 
-      // Partial typed model: never throws, no structural tokens as names,
-      // step types from the file's own table, module targets look like
-      // targets. (A sequence whose record walk decoded its group arrays is
-      // walk-corroborated and MAY collide with a structural token — the
-      // corpus has a sandbox sequence literally named `Sequence`.)
       final partial = parseSeqFile(bytes);
       if (partial.sequences.isNotEmpty) tally.bump('binaryWithSequences');
       final partialTypeNames = {for (final t in partial.types) t.name};
@@ -569,7 +538,6 @@ void main() {
         );
       }
 
-      // Framing: record region + ≥2 string segments + leading-word pins.
       final layout = analyzeBinaryBody(bytes);
       if (layout == null) {
         failures.add('${f.path}: no layout');
@@ -589,8 +557,6 @@ void main() {
           failures.add('${f.path}: ${layout.segmentCount} segments');
         }
 
-        // Content-identified name table: carries the core model tokens, is
-        // not (usually) the largest segment, and expressions live outside it.
         final name = binaryNameTable(bytes);
         if (name == null) {
           failures.add('${f.path}: no name table');
@@ -608,7 +574,6 @@ void main() {
             tally.bump('valuesOutsideName');
           }
 
-          // Ordered pool opening with the fixed scaffold.
           final names = [for (final e in name.entries) e.text];
           if (names.isNotEmpty && names.first == 'SequenceFileData') {
             tally.bump('rooted');
@@ -631,8 +596,6 @@ void main() {
             }
           }
 
-          // Object-record triplet: real name indexes hit far above a control
-          // band of fake indexes (a real signal, not noise).
           final nameLen = name.entries.length;
           if (body != null && nameLen > 5) {
             final rr = layout.recordRegionLength.clamp(0, body.length);
@@ -648,7 +611,6 @@ void main() {
         }
       }
 
-      // analyzeBinary matches every individual helper (single-inflate path).
       final a = analyzeBinary(bytes);
       if (a == null) {
         failures.add('${f.path}: analyzeBinary null');
@@ -671,8 +633,6 @@ void main() {
         if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
       }
 
-      // Recovered call-targets, step refs, expressions, literals: each pool
-      // entry satisfies its own predicate and never overlaps another class.
       final paths = binaryModulePaths(bytes);
       for (final p in paths) {
         if (!isBinaryModulePath(p)) failures.add('${f.path}: path $p');
@@ -710,8 +670,6 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(8).join('\n'));
 
-    // Format LAWS: framing/naming shapes that must hold for EVERY binary (or
-    // every rooted pool) — a miss is a lens break, not a corpus change.
     final laws = <(String, Object?, Object)>[
       ('bodies inflated', tally['withBinaryBody'], tally['binary']),
       ('bodies framed', tally['framed'], tally['binary']),
@@ -728,9 +686,6 @@ void main() {
       expect(actual, want, reason: label);
     }
 
-    // MEASUREMENTS — recovery censuses and the triplet-signal counts, pinned
-    // exactly (the real-vs-control separation is reviewable straight from the
-    // realHit/realTot vs fakeHit/fakeTot numbers).
     expectCorpusSnapshot('binary_recon', {
       for (final key in _binaryReconCounters) key: tally[key],
     });
@@ -749,14 +704,13 @@ void main() {
 
     test('64BitIntegersDLL.seq: sparse XML arrays keep their true arrayindex', () {
       final f = pin('Media/64BitSupport/64BitIntegersDLL.seq');
-      if (f == null) return; // pinned file absent from this corpus checkout
+      if (f == null) return;
       final sf = parseSeqFile(f.readAsBytesSync());
       final indexed = <SeqProperty>[];
       collectIndexed(sf.data, indexed);
       for (final t in sf.types) {
         collectIndexed(t, indexed);
       }
-      // The file stores single-element sparse arrays at index [1].
       expect(indexed.where((p) => p.attributes['arrayindex'] == '[1]'), isNotEmpty);
     });
 

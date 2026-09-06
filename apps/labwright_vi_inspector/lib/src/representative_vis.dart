@@ -1,16 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
 
-/// A curated open-source `.vi` with a distinctive feature, fetched from GitHub on
-/// demand (not bundled) so the viewer has quick access to rare/interesting files.
-///
-/// The file lives in a pinned public repo at [repo] (`owner/name`), commit
-/// [commit]; [path] is its repo-relative path. [dependencies] is the VI's
-/// **in-repo transitive subVI closure** (discovered once against the corpus by
-/// following each VI's linker dependency names) — fetched alongside the main
-/// file so subVI icons resolve. Dependencies on NI's own vi.lib / vendor-installed
-/// libraries are not in the repo and cannot be fetched (clean-room); when a VI
-/// has such deps, [missingNote] says so honestly.
 class RepresentativeVi {
   const RepresentativeVi({
     required this.name,
@@ -22,54 +12,35 @@ class RepresentativeVi {
     this.missingNote,
   });
 
-  /// Display name (the file's basename).
   final String name;
 
-  /// One-line description of what makes this VI interesting.
   final String feature;
 
-  /// GitHub `owner/name` of the source repository.
   final String repo;
 
-  /// The pinned commit SHA the file is fetched at.
   final String commit;
 
-  /// The file's repo-relative path (`/`-separated).
   final String path;
 
-  /// Repo-relative paths of the in-repo transitive subVI closure (not including
-  /// [path] itself), fetched so on-node subVI icons resolve.
   final List<String> dependencies;
 
-  /// Honest note about dependencies that are NOT in the repo (NI vi.lib /
-  /// vendor-installed libraries) and therefore cannot be fetched, or null when
-  /// the in-repo closure is complete.
   final String? missingNote;
 
-  /// The `raw.githubusercontent.com` URL of a repo-relative [relPath] at this
-  /// VI's pinned commit. Path segments are percent-encoded (paths have spaces).
   Uri rawUrlOf(String relPath) => Uri.https(
     'raw.githubusercontent.com',
     [repo, commit, ...relPath.split('/')].join('/'),
   );
 
-  /// The main file's raw URL.
   Uri get rawUrl => rawUrlOf(path);
 }
 
-/// Pinned commit SHAs of the source repositories.
 const _tuftsBaxter = 'cef95f1742ad6ce9ef6b733523317750b7a81296';
 const _picotech = 'dceb711c8a7878d64ef5993dc5706644ef397ad0';
 const _viSnippets = '1662bd7365317b0af87bf9f71f2431131231f03d';
 const _labviewViSnippet = '017ab352e24e251c786ad6ff598eacb214e06d05';
 
-/// The tuftsBaxter repo's top folder (spaces intact; encoded by [rawUrlOf]).
 const _ros = 'ROS for LabVIEW Software';
 
-/// The curated set of representative VIs, chosen for distinctive, verified
-/// features (an embedded raw QuickTime image; graphs with many recovered plot
-/// colours; a large block diagram). Dependency closures were discovered once by
-/// walking each VI's linker subVI names against its repo's files.
 const List<RepresentativeVi> kRepresentativeVis = [
   RepresentativeVi(
     name: 'OriginalTest.vi',
@@ -224,9 +195,6 @@ const List<RepresentativeVi> kRepresentativeVis = [
       'ps2000a/PicoScope2000aLib/PicoScope2000aWrapSettings.vi',
     ],
   ),
-  // VI-snippet PNGs: the fetched PNG embeds its source .vi in a niVI chunk
-  // beside LabVIEW's own render of that VI's block diagram, so opening one
-  // also arms the Oracle tab with the paired reference image.
   RepresentativeVi(
     name: 'crc8.png (VI snippet)',
     feature:
@@ -247,8 +215,6 @@ const List<RepresentativeVi> kRepresentativeVis = [
   ),
 ];
 
-/// Fetches the bytes at [url] over HTTPS using [client]. Throws [HttpException]
-/// on a non-200 response.
 Future<Uint8List> _get(HttpClient client, Uri url) async {
   final request = await client.getUrl(url);
   final response = await request.close();
@@ -262,9 +228,6 @@ Future<Uint8List> _get(HttpClient client, Uri url) async {
   return builder.takeBytes();
 }
 
-/// Fetches the bytes of a `.vi` at [url] over HTTPS (no caching — a fresh GET
-/// each time). Throws [HttpException] on a non-200 response. Uses [dart:io]'s
-/// [HttpClient] so no HTTP package dependency is needed.
 Future<Uint8List> fetchViBytes(Uri url) async {
   final client = HttpClient();
   try {
@@ -274,11 +237,6 @@ Future<Uint8List> fetchViBytes(Uri url) async {
   }
 }
 
-/// A fetched representative VI: the main file's [bytes] plus the on-disk
-/// [projectDir] its dependency closure was written into (mirroring the repo's
-/// relative layout), so a project-directory walk resolves subVI icons exactly as
-/// for a locally-opened file. [fetchedDeps] / [failedDeps] report the closure
-/// outcome honestly.
 class FetchedRepresentativeVi {
   const FetchedRepresentativeVi({
     required this.bytes,
@@ -290,7 +248,6 @@ class FetchedRepresentativeVi {
 
   final Uint8List bytes;
 
-  /// Absolute path of the main VI inside [projectDir].
   final String mainPath;
 
   final Directory projectDir;
@@ -298,11 +255,6 @@ class FetchedRepresentativeVi {
   final int failedDeps;
 }
 
-/// Fetches [vi] and its in-repo dependency closure into a fresh temp directory
-/// (no caching): the main file first (its failure is the caller's error), then
-/// the dependencies concurrently ([concurrency] at a time; an individual
-/// dependency failure is tolerated — it only costs that subVI's icon). [fetch]
-/// GETs one URL (injectable for tests; defaults to a shared-client GET).
 Future<FetchedRepresentativeVi> fetchRepresentativeVi(
   RepresentativeVi vi, {
   Future<Uint8List> Function(Uri)? fetch,
@@ -328,7 +280,7 @@ Future<FetchedRepresentativeVi> fetchRepresentativeVi(
             ..writeAsBytesSync(dep);
           ok++;
         } catch (_) {
-          failed++; // enhancement only: a missing dep costs its subVI icon
+          failed++;
         }
       }
     }

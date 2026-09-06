@@ -1,30 +1,3 @@
-/// A **reference-image oracle** for the block-diagram renderer: it rasterises a
-/// decoded [ViDiagram] with the exact same [BdDiagramPainter] the on-screen view
-/// uses, then measures how far that render is from a supplied reference
-/// screenshot (a documentation image of the same VI's LabVIEW block diagram).
-///
-/// The strongest reference is a **VI-snippet PNG** (see `extractSnippetVi`): its
-/// raster is LabVIEW's own render of the very VI embedded in the file, at
-/// 1 diagram unit == 1 px. [decodeReferenceImage] crops the snippet chrome away
-/// and the render is rasterised at that same unit scale, so the pair is
-/// same-VI, same-scale by construction. [comparePlacement] then scores the
-/// decoded geometry (structure/node/terminal boxes) against the reference's
-/// drawn outlines independently of rendering fidelity.
-///
-/// Two comparisons are reported. The [ImageComparison] is a straight per-pixel
-/// absolute difference after the render is letterboxed into the reference's
-/// dimensions — but that metric is minimised by a blank (white) render, so more
-/// drawn content can *raise* it. The [StructuralComparison] corrects for that: it
-/// credits drawn structure by comparing the two images' ink and Sobel-edge masks
-/// as intersection-over-union, so drawing the nodes/wires correctly scores
-/// better, not worse. Before either comparison the render is registered onto the
-/// reference by aligning their drawn-ink bounding boxes (see [inkBoundsOf]), so a
-/// correct render framed at a different crop or scale than the screenshot is not
-/// penalised for the framing. Both are still *coarse* signals — the render is not
-/// pixel-perfect, registration aligns only extents, and the two images differ in
-/// anti-aliasing — so they are progress metrics, not a pass/fail gate, and the
-/// side-by-side + diff visualisation is the primary output for a human to judge
-/// fidelity. No claim of LabVIEW equivalence is made or implied.
 library;
 
 import 'dart:async';
@@ -41,9 +14,6 @@ import 'diagram_view.dart';
 import 'image_clipboard.dart';
 import 'oracle_gif.dart';
 
-/// A rasterised block diagram: the [image] plus the model-space [content]
-/// rectangle and the model-pixel → image-pixel [scale] it was drawn at (so a
-/// caller can map a heap object's bounds back onto the raster).
 class BdRaster {
   const BdRaster({
     required this.image,
@@ -55,8 +25,6 @@ class BdRaster {
   final Rect content;
   final double scale;
 
-  /// [bounds] (absolute diagram coordinates) mapped into this raster's image
-  /// space (content origin subtracted, then scaled).
   Rect modelRect(HeapRect bounds) => Rect.fromLTRB(
     (bounds.left - content.left) * scale,
     (bounds.top - content.top) * scale,
@@ -65,16 +33,6 @@ class BdRaster {
   );
 }
 
-/// Derives a reference capture's [GlobalHatchOffset] for the black case-hatch
-/// lattice ([errorStyle] false) or the error-case stripe lattice (true; a
-/// SEPARATE per-capture phase — one capture measures different phases for the
-/// two lattices). Scores every lattice phase against the reference pixels
-/// inside the case frames' hatch bands. LabVIEW anchors each lattice to its
-/// device/window brush origin at render time — not stored in the .vi and
-/// different per capture — so the phase can only be measured from the capture
-/// itself. Returns [kNoHatchOffset] unless one phase wins decisively (≥75%
-/// pixel agreement and a strict margin over the runner-up), so
-/// content-overdrawn or recoloured bands never force a bogus phase.
 GlobalHatchOffset deriveHatchOffset({
   required ViDiagram diagram,
   required BdRaster raster,
@@ -89,9 +47,6 @@ GlobalHatchOffset deriveHatchOffset({
     for (final object in bdDrawableObjects(diagram)) object.oid,
   };
   final tile = errorStyle ? kBdErrorHatch : kBdStructureHatch;
-  // The stripe lattice depends only on (px+py) mod 4, so its 16 phases
-  // collapse to 4 distinct lattices — searching py too would make every
-  // winner tie its aliases and the margin check reject them all.
   final pyRange = errorStyle ? 1 : 4;
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
@@ -123,7 +78,6 @@ GlobalHatchOffset deriveHatchOffset({
             blue = referenceRgba[i + 2];
         final bool dark;
         if (errorStyle) {
-          // Stripe grey on the green field; anything else is overdraw.
           final isField = green > 200 && red < 200 && blue < 200;
           final isStripe =
               !isField &&
@@ -161,24 +115,10 @@ GlobalHatchOffset deriveHatchOffset({
       }
     }
   }
-  // score = agree − disagree, so ≥75% agreement means score ≥ samples/2.
   if (best < samples ~/ 2 || best == second) return kNoHatchOffset;
   return (x: bestX, y: bestY);
 }
 
-/// Derives a reference capture's [BdRenderStyle.wireCycleOffset] — the mod-4
-/// column shift the capture viewport's pan gives the patterned wire-stroke
-/// cycles ([kBdWireCyclePhase]; the same screen anchoring as the hatch
-/// lattice). Only the `x` component is meaningful: a row-parity pan flip is
-/// identical to a column shift of 2 (the cycles' row term is `2·(y & 1)`
-/// mod 4), so the candidate space is exactly the 4 column shifts. Scores
-/// every clean column of every horizontal patterned leg against the
-/// reference under each candidate. Braid legs are excluded: the
-/// error-cluster braid draws its own weave palette, and telling error from
-/// plain braid here would duplicate the painter's net resolution. Returns
-/// [kNoHatchOffset] unless one shift wins decisively (≥75% bit agreement
-/// and a strict margin), so a diagram without patterned wires keeps the
-/// neutral phase.
 GlobalHatchOffset deriveWireCycleOffset({
   required BdScene scene,
   required BdRaster raster,
@@ -210,9 +150,6 @@ GlobalHatchOffset deriveWireCycleOffset({
     for (final leg in legs) {
       for (var s = 0; s + 1 < leg.length; s++) {
         final a = leg[s], b = leg[s + 1];
-        // VERTICAL string-family runs score the same global texture through
-        // their column masks (ink where `(x + 2·(y&1) + shift) mod 4 != 0`),
-        // so captures without long horizontal patterned runs still derive.
         if (a.x == b.x && (a.y - b.y).abs() >= 14) {
           final vlo = math.min(a.y, b.y) + 3, vhi = math.max(a.y, b.y) - 3;
           int rxOf(num x) =>
@@ -266,7 +203,6 @@ GlobalHatchOffset deriveWireCycleOffset({
         int ryOf(num y) =>
             ((y - raster.content.top) * registration.scale + registration.dy)
                 .round();
-        // The leg's ink colour: the modal non-white pixel over its band.
         final counts = <int, int>{};
         for (var x = lo; x <= hi; x++) {
           for (var bit = -2; bit <= 2; bit++) {
@@ -281,7 +217,6 @@ GlobalHatchOffset deriveWireCycleOffset({
                 .first
                 .key;
         for (var x = lo; x <= hi; x++) {
-          // Columns carrying any third colour are overdrawn — skip them.
           var clean = true;
           for (var bit = -2; bit <= 2; bit++) {
             final c = refPixel(rxOf(x), ryOf(a.y + bit));
@@ -315,14 +250,6 @@ GlobalHatchOffset deriveWireCycleOffset({
   return (x: bestX, y: 0);
 }
 
-/// Rasterises [diagram]'s drawable objects to a [ui.Image] using the shared
-/// [BdDiagramPainter], off-screen (via a [ui.PictureRecorder], no widget tree).
-/// The whole content rectangle is fit within [maxDimension] on its longer side
-/// (then multiplied by [pixelRatio]); the raster is clamped to 8192px. Pass
-/// [scale] to rasterise at an exact model-pixel → image-pixel factor instead
-/// (1.0 matches LabVIEW's own 1 diagram unit == 1 px snippet render, making a
-/// snippet reference comparable without resampling). Returns null when the
-/// diagram has no positioned objects.
 Future<BdRaster?> rasteriseBlockDiagram(
   ViDiagram diagram, {
   int maxDimension = 2000,
@@ -337,12 +264,6 @@ Future<BdRaster?> rasteriseBlockDiagram(
   BdScene? scene,
   BdRenderStyle style = const BdRenderStyle(),
 }) async {
-  // wires defaults to the diagram's visible dataflow wires; pass `const []`
-  // to rasterise the wire-free layout (measuring the before/after delta), or
-  // a pre-built [scene] to reuse its cached analyses across renders.
-  // A scene built here is this call's alone and is released before returning
-  // (its text caches hold native pictures/painters); a caller-supplied scene
-  // outlives the call and stays the caller's to dispose.
   final ownScene = scene == null;
   final activeScene =
       scene ?? BdScene(diagram, wires: wires, drawable: drawable);
@@ -363,25 +284,16 @@ Future<BdRaster?> rasteriseBlockDiagram(
   final longSide = math.max(content.width, content.height);
   var pxScale =
       scale ?? (maxDimension / longSide).clamp(0.01, 8.0) * pixelRatio;
-  // The raster is capped at 8192 px a side; an explicit scale that would
-  // overflow it is reduced so ALL content stays on the canvas (the returned
-  // [BdRaster.scale] is always the factor actually drawn at).
   if (longSide * pxScale > 8192) pxScale = 8192 / longSide;
   final width = (content.width * pxScale).ceil().clamp(1, 8192);
   final height = (content.height * pxScale).ceil().clamp(1, 8192);
 
-  // The raster must be exact on first paint, so a diagram holding a
-  // disabled frame waits for the grey variants (built once, lazily).
   if (activeScene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
     Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
   );
-  // Fill the whole pixel raster with the canvas colour before scaling: the
-  // painter fills only content.size*scale, but the image is ceil()'d, so without
-  // this the <1px right/bottom remainder stays transparent and every ink/luma
-  // comparison would read that transparent strip as ink.
   canvas.drawRect(
     Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
     Paint()..color = kBdCanvas,
@@ -394,8 +306,6 @@ Future<BdRaster?> rasteriseBlockDiagram(
     primIcons: primIcons,
     xnodeFacades: xnodeFacades,
     primIconsGrey: primIconsGreyLoaded(),
-    // The reference renders have a plain white canvas; the interactive
-    // view's alignment-dot grid would break byte-exact comparisons.
     drawDotGrid: false,
     style: style,
   ).paint(canvas, content.size);
@@ -412,8 +322,6 @@ Future<BdRaster?> rasteriseBlockDiagram(
   }
 }
 
-/// The result of an absolute-difference image comparison over two equal-sized
-/// RGBA buffers.
 class ImageComparison {
   const ImageComparison({
     required this.width,
@@ -426,24 +334,13 @@ class ImageComparison {
   final int width;
   final int height;
 
-  /// Mean per-channel absolute difference over the RGB channels of every pixel,
-  /// on a 0..255 scale (0 == identical images).
   final double meanAbsDiff;
 
-  /// Fraction (0..1) of pixels whose strongest channel differs by more than the
-  /// comparison threshold.
   final double diffFraction;
 
-  /// A per-pixel absolute-difference RGBA visualisation (opaque; brighter =
-  /// more different), the same [width]×[height] as the inputs.
   final Uint8List diff;
 }
 
-/// Compares two equal-length RGBA buffers ([width]×[height]×4 bytes each),
-/// returning per-channel mean absolute difference, the fraction of pixels
-/// differing beyond [threshold], and a diff visualisation. Pure + total (asserts
-/// matching sizes). Alpha is ignored in the metric so a transparent-vs-opaque
-/// background does not dominate.
 ImageComparison compareRgba(
   Uint8List a,
   Uint8List b,
@@ -478,21 +375,6 @@ ImageComparison compareRgba(
   );
 }
 
-/// A **structural** comparison of two equal-sized RGBA buffers that credits
-/// drawn content over emptiness — unlike [compareRgba], whose per-pixel diff is
-/// minimised by a blank (white) render.
-///
-/// It derives two masks per image and compares them spatially:
-/// - an **ink** mask: pixels darker than the near-white canvas by more than a
-///   threshold (the drawn boxes, wires, terminals, text);
-/// - an **edge** mask: strong Sobel luminance gradients (the outlines of that
-///   same drawn structure).
-///
-/// The agreement of each mask is reported as intersection-over-union (IoU). More
-/// *correct* drawn structure (nodes in the right place, wires between them)
-/// raises the overlap and therefore the score, so the metric rewards drawing —
-/// the opposite of the whiteness-rewarding pixel diff. It is still a coarse,
-/// origin/scale-approximate progress signal, not a claim of LabVIEW fidelity.
 class StructuralComparison {
   const StructuralComparison({
     required this.inkFractionRender,
@@ -501,36 +383,19 @@ class StructuralComparison {
     required this.edgeIoU,
   });
 
-  /// Fraction (0..1) of the render's pixels that are ink (non-background).
   final double inkFractionRender;
 
-  /// Fraction (0..1) of the reference's pixels that are ink (non-background).
   final double inkFractionReference;
 
-  /// Intersection-over-union of the two ink masks (1 == the drawn regions
-  /// coincide exactly; 0 == they never overlap; 1 when both images are blank).
   final double inkIoU;
 
-  /// Intersection-over-union of the two Sobel edge masks.
   final double edgeIoU;
 
-  /// Combined structural score (0..1, higher = more structurally alike): the
-  /// mean of [inkIoU] and [edgeIoU]. 1.0 for identical images; ~0 when the two
-  /// share no drawn content (e.g. a blank render vs a populated reference).
   double get score => (inkIoU + edgeIoU) / 2;
 }
 
-/// The default Sobel gradient-magnitude threshold above which a pixel counts
-/// as an **edge** — shared by the structural comparison, the translation
-/// refinement and the placement metric so their edge masks agree.
 const int kBdEdgeThreshold = 64;
 
-/// Computes the [StructuralComparison] of two equal-length RGBA buffers
-/// ([width]×[height]×4 bytes each). A pixel is **ink** when its luminance is
-/// darker than white by more than [inkThreshold]; an **edge** when its Sobel
-/// gradient magnitude exceeds [edgeThreshold]. Pass [referenceEdges] when
-/// [b]'s Sobel mask (same threshold) is already computed, to skip that pass.
-/// Pure + total (asserts matching sizes).
 StructuralComparison compareStructural(
   Uint8List a,
   Uint8List b,
@@ -579,7 +444,6 @@ StructuralComparison compareStructural(
   );
 }
 
-/// Per-pixel Rec.601 luminance (0..255) of an RGBA buffer, [pixels] long.
 Uint8List _luma(Uint8List rgba, int pixels) {
   final out = Uint8List(pixels);
   for (var i = 0; i < pixels; i++) {
@@ -589,8 +453,6 @@ Uint8List _luma(Uint8List rgba, int pixels) {
   return out;
 }
 
-/// A binary Sobel edge mask (1 where the gradient magnitude exceeds
-/// [threshold]) over a [width]×[height] luminance plane; the 1-px border is 0.
 Uint8List _sobelMask(Uint8List lum, int width, int height, int threshold) {
   final out = Uint8List(width * height);
   for (var y = 1; y < height - 1; y++) {
@@ -611,11 +473,6 @@ Uint8List _sobelMask(Uint8List lum, int width, int height, int threshold) {
   return out;
 }
 
-/// The similarity map from render pixels to reference pixels the comparison
-/// placed the render with: `referencePx = renderPx * scale + (dx, dy)`.
-/// Identity on the same-size fast path. Lets a caller carry any render-space
-/// rectangle (e.g. a structure frame's bounds) into reference space — the
-/// basis of [comparePlacement].
 class BdRegistration {
   const BdRegistration({
     required this.scale,
@@ -636,9 +493,6 @@ class BdRegistration {
       Rect.fromPoints(map(renderRect.topLeft), map(renderRect.bottomRight));
 }
 
-/// The full output of comparing a rendered block diagram to a reference image:
-/// the rendered raster, the rendered raster letterboxed into the reference's
-/// dimensions, the reference, the [comparison] metrics, and a diff image.
 class BdOracleResult {
   const BdOracleResult({
     required this.rendered,
@@ -657,48 +511,19 @@ class BdOracleResult {
   final ui.Image fitted;
   final ui.Image reference;
 
-  /// The reference's raw RGBA (already read back from the GPU once) and its
-  /// Sobel edge mask at [kBdEdgeThreshold] — shared with [comparePlacement]
-  /// so a caller never re-reads or re-derives them.
   final Uint8List referenceRgba;
   final Uint8List referenceEdges;
 
   final ImageComparison comparison;
 
-  /// The structural (ink + edge IoU) comparison — the metric that credits drawn
-  /// content over emptiness (see [StructuralComparison]).
   final StructuralComparison structural;
   final ui.Image diffImage;
 
-  /// True when [fitted] was placed by **content-bounds registration** (the
-  /// render's ink bounding box scaled + centred onto the reference's, see
-  /// [inkBoundsOf]) rather than a naive centred letterbox. Registration cancels
-  /// the crop/margin/scale mismatch between a clean-room render and a
-  /// documentation screenshot, so a correct render is not penalised for being
-  /// framed differently. False on the same-size fast path or when either image
-  /// has no ink to register on.
   final bool registered;
 
-  /// The render-pixel → reference-pixel map the comparison placed [rendered]
-  /// with (identity on the same-size fast path).
   final BdRegistration registration;
 }
 
-/// Compares a [rendered] block diagram against a [reference] image: the render is
-/// letterboxed (aspect-preserved, centred) into the reference's dimensions, then
-/// diffed pixel-for-pixel. See [ImageComparison] for the honest interpretation of
-/// the metrics.
-///
-/// Pass [lockScale] when the render→reference pixel scale is **known** (a
-/// snippet reference at 1 px per model unit compared against a unit-scale
-/// render: 1.0). Registration then only *translates* — a multi-start,
-/// multi-peak edge-overlap search — instead of deriving a scale from the ink
-/// extents, which a sparse render (e.g. a diagram whose only content is
-/// undrawn text labels) can distort arbitrarily. [anchorRects] (render-space
-/// boxes of the diagram's structures) disambiguate between competing peaks:
-/// repetitive texture (hatched structure borders) can out-score the true
-/// alignment on raw edge hits, but the large, unique structure boxes do not
-/// alias.
 Future<BdOracleResult> compareToReference(
   ui.Image rendered,
   ui.Image reference, {
@@ -713,26 +538,14 @@ Future<BdOracleResult> compareToReference(
   final renderedWidth = rendered.width;
   final renderedHeight = rendered.height;
   final referenceRgba = await _rgbaOf(reference);
-  // The render's own pixels are needed for registration whenever a resample
-  // can happen (see below); read them up front so every pure pixel pass can
-  // run off the UI isolate — the O(pixels) loops (Sobel mask, the
-  // translation search, the RGBA + structural diffs) caused a visible jank
-  // spike when the oracle first opened.
   final skipResample =
       lockScale == null && renderedWidth == width && renderedHeight == height;
-  // A caller re-comparing the SAME geometry (a lattice-rephased re-render
-  // registers where the original did — only pattern phases moved) passes the
-  // first result's registration and reference edge mask back in, and the
-  // whole search is skipped: re-deriving a known answer is pure waste.
   final renderedOwnRgba = skipResample || knownRegistration != null
       ? null
       : await _rgbaOf(rendered);
   final reg = knownRegistration != null && knownReferenceEdges != null
       ? (referenceEdges: knownReferenceEdges, registration: knownRegistration)
       : await Isolate.run(() {
-          // The reference's Sobel edge mask, computed once and shared by the
-          // translation refinement, the structural comparison, and (via the
-          // result) the placement metric — three consumers, one O(pixels) pass.
           final referenceEdges =
               knownReferenceEdges ??
               _sobelMask(
@@ -743,11 +556,6 @@ Future<BdOracleResult> compareToReference(
               );
           BdRegistration? registration = knownRegistration;
           if (registration == null && renderedOwnRgba != null) {
-            // Register the render onto the reference by aligning their drawn-ink
-            // bounding boxes (aspect-preserved scale + centre), so a correct
-            // render at a different crop/scale is credited instead of penalised.
-            // Null when either image has no ink to register on (the caller falls
-            // back to a centred letterbox).
             final srcInk = inkBoundsOf(
               renderedOwnRgba,
               renderedWidth,
@@ -774,11 +582,6 @@ Future<BdOracleResult> compareToReference(
           return (referenceEdges: referenceEdges, registration: registration);
         });
   final referenceEdges = reg.referenceEdges;
-  // Skip the resample when the render already matches the reference exactly, so
-  // an identical pair diffs to a true zero (a same-size letterbox still applies
-  // a sub-pixel filter). Never taken under [lockScale]: equal dimensions do
-  // not imply aligned content, and the locked path owes the caller a real
-  // translation search.
   ui.Image fitted;
   var registered = false;
   var registration = BdRegistration.identity;
@@ -828,9 +631,6 @@ Future<BdOracleResult> compareToReference(
   );
 }
 
-/// Render-space boxes of [diagram]'s drawable structures (excluding the
-/// whole-extent root and sub-glyph frames) — the large, unique anchors that
-/// disambiguate the locked-scale registration between competing edge peaks.
 List<Rect> bdStructureAnchorRects(
   ViDiagram diagram,
   BdRaster raster, {
@@ -852,9 +652,6 @@ List<Rect> bdStructureAnchorRects(
   return out;
 }
 
-/// The block diagram of [model] with the most positioned objects — the one
-/// the Oracle tab renders against a snippet reference (and the corpus sweep
-/// measures). Null when no diagram has a positioned object.
 ViDiagram? bestBlockDiagram(ViModel model) {
   ViDiagram? best;
   var bestCount = 0;
@@ -868,29 +665,16 @@ ViDiagram? bestBlockDiagram(ViModel model) {
   return best;
 }
 
-/// Encodes [image] to PNG bytes (for writing a side-by-side / diff artifact).
 Future<Uint8List> imageToPng(ui.Image image) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
   return data!.buffer.asUint8List();
 }
 
-/// The raw RGBA bytes of [image].
 Future<Uint8List> _rgbaOf(ui.Image image) async {
   final data = await image.toByteData();
   return data!.buffer.asUint8List();
 }
 
-/// Decodes reference-image [bytes], cropping away the snippet chrome (header
-/// strip + dashed frame, see [snippetDiagramInterior]) when the bytes are a
-/// VI-snippet PNG — the remaining pixels are exactly LabVIEW's block-diagram
-/// render of the embedded VI, at 1 diagram unit == 1 px. Non-snippet bytes
-/// decode unchanged.
-///
-/// [snippetCropped] is the single source of truth for whether the returned
-/// image is such a unit-scale diagram: a caller must gate its unit-scale
-/// render + locked-scale registration on it, never on re-detecting the
-/// snippet itself — a snippet too small to crop safely comes back uncropped
-/// (chrome still present) and must be compared generically.
 Future<({ui.Image image, bool snippetCropped})> decodeReferenceImage(
   Uint8List bytes,
 ) async {
@@ -915,7 +699,6 @@ Future<({ui.Image image, bool snippetCropped})> decodeReferenceImage(
   return (image: cropped, snippetCropped: true);
 }
 
-/// Redraws the [src] pixels inside [crop] as their own image (1:1, no filter).
 Future<ui.Image> _cropImage(ui.Image src, Rect crop) async {
   final width = crop.width.round();
   final height = crop.height.round();
@@ -938,44 +721,20 @@ Future<ui.Image> _cropImage(ui.Image src, Rect crop) async {
   }
 }
 
-/// A **placement** comparison: how well the decoded objects' rectangles land on
-/// the reference image's drawn structure, independent of rendering fidelity
-/// (icon art, colours, text) — the signal the ink/edge IoU cannot give, because
-/// those are dominated by how the boxes are *filled*, not where they *are*.
-///
-/// For each measured object rectangle the render's box border is carried into
-/// reference space (raster scale + [BdRegistration]) and scored by **perimeter
-/// edge support**: the fraction of its border pixels lying within [comparePlacement]'s
-/// tolerance of a reference Sobel edge. A correctly placed box traces the
-/// reference's drawn outline (LabVIEW draws structures, nodes and terminals as
-/// bordered rectangles), so support is high; a mis-placed box crosses empty
-/// canvas, so support collapses. Coarse and honest: it certifies *placement
-/// against this reference*, not LabVIEW-equivalent rendering.
 class PlacementComparison {
   const PlacementComparison({required this.perObject, required this.chance});
 
-  /// Per measured object: its oid and perimeter edge support (0..1).
   final List<({int oid, double support})> perObject;
 
-  /// The support a randomly placed border would collect: the fraction of the
-  /// reference's pixels lying within tolerance of an edge. Dense diagrams have
-  /// a high chance rate — raw [meanSupport] must be read against it.
   final double chance;
 
-  /// How many object rectangles were measured.
   int get objects => perObject.length;
 
-  /// Mean perimeter edge support over the measured objects (0..1; 0 when
-  /// nothing was measurable).
   double get meanSupport => perObject.isEmpty
       ? 0
       : perObject.fold(0.0, (sum, entry) => sum + entry.support) /
             perObject.length;
 
-  /// Mean support **in excess of chance**, per object, rescaled so 0 means
-  /// "no better than a randomly placed border on this reference" and 1 means
-  /// "every border pixel on an edge" — the score that ranks placement across
-  /// references of different densities.
   double get excessSupport {
     if (perObject.isEmpty || chance >= 1) return 0;
     var sum = 0.0;
@@ -986,19 +745,6 @@ class PlacementComparison {
   }
 }
 
-/// Measures [PlacementComparison] for [diagram] rendered as [raster] and
-/// compared against a reference of [width]×[height] RGBA bytes
-/// ([referenceRgba]) under the render→reference [registration].
-///
-/// Measured rectangles are the drawable structures, nodes, terminals and
-/// decorations — LabVIEW draws each as a bordered box — at least [minSide]
-/// model units on both sides, excluding free-text label parts
-/// ([kBdTextLabelClasses]: drawn as bare text, no box outline to trace) and any
-/// box spanning (nearly) the whole drawable extent: the decoded root diagram
-/// object has such bounds but LabVIEW draws no border around the diagram
-/// itself. A border sample counts as supported when a reference edge pixel
-/// lies within [tolerance] px (Chebyshev); boxes with too little of their
-/// perimeter inside the reference are skipped.
 PlacementComparison comparePlacement({
   required ViDiagram diagram,
   required BdRaster raster,
@@ -1039,7 +785,6 @@ PlacementComparison comparePlacement({
     if (kBdTextLabelClasses.contains(object.objectClass)) continue;
     final bounds = object.absBounds!;
     if (bounds.width < minSide || bounds.height < minSide) continue;
-    // The whole-extent box (the decoded diagram root): no drawn counterpart.
     if (bounds.width >= extent.width * 0.95 &&
         bounds.height >= extent.height * 0.95) {
       continue;
@@ -1063,15 +808,12 @@ PlacementComparison comparePlacement({
       sample(left, y);
       sample(right, y);
     }
-    // A box mostly outside the reference can't be judged against it.
     if (samples < 8 || samples * 2 < total) continue;
     perObject.add((oid: object.oid, support: hits / samples));
   }
   return PlacementComparison(perObject: perObject, chance: chance);
 }
 
-/// Chebyshev dilation of a binary [mask] by [radius], via a horizontal then a
-/// vertical sliding pass — O(pixels · radius), no per-pixel neighbourhood scan.
 Uint8List _dilate(Uint8List mask, int width, int height, int radius) {
   if (radius <= 0) return mask;
   final horizontal = Uint8List(mask.length);
@@ -1101,13 +843,6 @@ Uint8List _dilate(Uint8List mask, int width, int height, int radius) {
   return out;
 }
 
-/// The tight bounding rectangle of the **ink** (non-background) pixels in an
-/// RGBA buffer, robust to a small fraction of stray outlier ink. A pixel is ink
-/// when it is darker than white by more than [inkThreshold] (the same test the
-/// [StructuralComparison] uses). Each axis is trimmed to the span that holds all
-/// but [trim] of that axis's ink mass from each end, so an isolated speck — a
-/// screenshot's window chrome, a stray anti-aliased pixel — does not stretch the
-/// box. Returns null when the buffer holds no ink. Pure + total; O(pixels).
 Rect? inkBoundsOf(
   Uint8List rgba,
   int width,
@@ -1146,8 +881,6 @@ Rect? inkBoundsOf(
   );
 }
 
-/// The first index of [hist] at which the cumulative sum from the start first
-/// exceeds [cut] (the trimmed lower bound).
 int _trimStart(Uint32List hist, int cut) {
   var acc = 0;
   for (var i = 0; i < hist.length; i++) {
@@ -1157,8 +890,6 @@ int _trimStart(Uint32List hist, int cut) {
   return hist.length - 1;
 }
 
-/// The last index of [hist] at which the cumulative sum from the end first
-/// exceeds [cut] (the trimmed upper bound).
 int _trimEnd(Uint32List hist, int cut) {
   var acc = 0;
   for (var i = hist.length - 1; i >= 0; i--) {
@@ -1168,11 +899,6 @@ int _trimEnd(Uint32List hist, int cut) {
   return 0;
 }
 
-/// The **content-bounds registration**: the similarity map that scales the
-/// render's ink bounding box [srcInk] (aspect-preserved) and centres it onto
-/// the reference ink box [dstInk] — cancelling the crop/margin/scale mismatch
-/// between a clean-room render and a screenshot. Not feature-level
-/// registration; it aligns extents and centres, nothing finer.
 BdRegistration _inkBoundsRegistration(Rect srcInk, Rect dstInk) {
   final scale = math.min(
     dstInk.width / srcInk.width,
@@ -1185,17 +911,6 @@ BdRegistration _inkBoundsRegistration(Rect srcInk, Rect dstInk) {
   );
 }
 
-/// A **translation-only** registration at the fixed render→reference [scale]:
-/// a coarse-to-fine offset search maximising how many of the render's
-/// Sobel-edge pixels land on (near) reference edges — the same agreement
-/// [comparePlacement] samples, so the metric is measured at the globally best
-/// alignment. The search runs from THREE starts — the ink bounding boxes'
-/// centre, top-left and bottom-right alignments — because each start's bias
-/// fails differently: extra ink the other side lacks drags the centre, while
-/// a missing corner element drags one corner but rarely both. Used when the
-/// scale is known by construction (snippet pairs), where fitting a scale from
-/// ink extents would mis-scale the whole frame whenever one side draws
-/// content the other lacks.
 BdRegistration _translationRegistration(
   double scale,
   Rect srcInk,
@@ -1210,15 +925,11 @@ BdRegistration _translationRegistration(
   int edgeThreshold = kBdEdgeThreshold,
   List<Rect> anchorRects = const [],
 }) {
-  // Whole-pixel offsets only: at the locked (typically 1:1) scale a
-  // fractional translation would sub-pixel-blur the redraw, betraying the
-  // no-resampling contract the locked path exists for.
   final base = BdRegistration(
     scale: scale,
     dx: (dstInk.center.dx - scale * srcInk.center.dx).roundToDouble(),
     dy: (dstInk.center.dy - scale * srcInk.center.dy).roundToDouble(),
   );
-  // Sparse render edge samples (strided to a bounded count), pre-scaled.
   final renderPixels = renderWidth * renderHeight;
   final renderEdges = _sobelMask(
     _luma(renderRgba, renderPixels),
@@ -1226,8 +937,7 @@ BdRegistration _translationRegistration(
     renderHeight,
     edgeThreshold,
   );
-  final points = <double>[]; // x0,y0, x1,y1, … in reference scale
-  // Sample at most ~300k candidate positions; edge pixels are a fraction.
+  final points = <double>[];
   final stride = math.max(1, math.sqrt(renderPixels / 300000).ceil());
   for (var y = 0; y < renderHeight; y += stride) {
     final row = y * renderWidth;
@@ -1252,10 +962,6 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
-  // The stride-6 sweep only RANKS cells to seed peaks — a strided subset of
-  // the edge samples ranks them the same way at a fraction of the cost (the
-  // full sample set still scores every refinement and the exact snap). The
-  // subset is at most ~4k points, taken uniformly across the list.
   final int coarseStep = 2 * math.max(1, (points.length ~/ 2) ~/ 4000);
   int coarseHitsAt(double dx, double dy) {
     var hits = 0;
@@ -1268,11 +974,6 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
-  // Multi-start, multi-peak coarse-to-fine. A stride-6 sweep around each
-  // start collects candidate cells; non-maximum suppression keeps the
-  // strongest well-separated PEAKS (repetitive texture — hatched structure
-  // borders — makes edge overlap multi-modal, and the false mode can carry
-  // more raw hits than the true alignment); each peak is refined at 1 px.
   final starts = <(double, double)>{
     (base.dx, base.dy),
     (
@@ -1303,9 +1004,6 @@ BdRegistration _translationRegistration(
   }
   final candidates = <(double, double, int)>[];
   for (final (px, py, _) in peaks) {
-    // Re-score the peak with the FULL sample set before refining: the coarse
-    // rank is subsampled, and mixing the two scales would let any full-set
-    // neighbour beat the peak by construction.
     var bestDx = px, bestDy = py;
     var bestHits = hitsAt(px, py);
     for (var oy = -5; oy <= 5; oy++) {
@@ -1322,11 +1020,6 @@ BdRegistration _translationRegistration(
     candidates.add((bestDx, bestDy, bestHits));
   }
   if (candidates.isEmpty) return base;
-  // Final selection: the diagram's structure boxes are large and unique, so
-  // their perimeter edge support discriminates the true peak — and, in the
-  // sub-pixel snap below, the true whole-pixel offset — where raw hits cannot.
-  // Even a single structure (e.g. a lone while loop) is a strong enough anchor;
-  // with none, raw hits decide.
   if (anchorRects.isNotEmpty) {
     double anchorSupport(double dx, double dy, Uint8List edges) {
       var hits = 0, samples = 0;
@@ -1375,17 +1068,6 @@ BdRegistration _translationRegistration(
 }
 
 extension _ExactSnap on BdRegistration {
-  /// Nudges the registration by up to ±1px to maximise how many of the render's
-  /// edge [points] land EXACTLY on a reference edge (the UN-dilated Sobel map).
-  ///
-  /// The coarse peak search scores overlap through a 1px dilation, which cannot
-  /// tell a pixel-exact alignment from its immediate neighbour, so its integer
-  /// pick can sit a pixel off the truth (most visible on diagrams whose only
-  /// structure is a faint grey loop, where the dilated peak wanders). Scoring
-  /// every edge point un-dilated breaks that tie toward the alignment where the
-  /// whole render — not just structure borders — coincides with the reference.
-  /// Moves only on a strict improvement, so a render with no exact overlap
-  /// anywhere keeps the coarse pick.
   BdRegistration _exactSnap(
     List<double> points,
     Uint8List referenceEdges,
@@ -1418,8 +1100,6 @@ extension _ExactSnap on BdRegistration {
   }
 }
 
-/// The centred aspect-preserved letterbox of [src] into [width]×[height], as a
-/// registration map — the fallback when either image has no ink to register on.
 BdRegistration _letterboxRegistration(ui.Image src, int width, int height) {
   final scale = math.min(width / src.width, height / src.height);
   return BdRegistration(
@@ -1429,9 +1109,6 @@ BdRegistration _letterboxRegistration(ui.Image src, int width, int height) {
   );
 }
 
-/// Redraws [src] into a [width]×[height] canvas under the [registration] map,
-/// over a white background — so a render and a reference of different
-/// sizes/aspects can be diffed on a common grid.
 Future<ui.Image> _redrawRegistered(
   ui.Image src,
   BdRegistration registration,
@@ -1448,8 +1125,6 @@ Future<ui.Image> _redrawRegistered(
     Rect.fromLTWH(0, 0, width.toDouble(), height.toDouble()),
     Paint()..color = background,
   );
-  // A unit-scale, whole-pixel map (the locked snippet path) is a pure blit:
-  // filtering would sub-pixel-blur a render the caller compares losslessly.
   final lossless =
       registration.scale == 1.0 &&
       registration.dx == registration.dx.roundToDouble() &&
@@ -1471,13 +1146,6 @@ Future<ui.Image> _redrawRegistered(
   }
 }
 
-/// A visual block-diagram oracle panel: the clean-room render on the left, an
-/// optional reference screenshot in the middle, and their absolute-difference on
-/// the right, with the [ImageComparison] metrics. When no reference is supplied
-/// it shows only the render and an affordance describing how to drop one in.
-///
-/// This is an inspector/diagnostic surface, not a claim of LabVIEW fidelity: the
-/// metrics are a coarse progress signal (see [compareToReference]).
 class BdOracleView extends StatefulWidget {
   const BdOracleView({
     super.key,
@@ -1487,18 +1155,12 @@ class BdOracleView extends StatefulWidget {
     this.subViIcons = const {},
   });
 
-  /// The block diagram to render.
   final ViDiagram? diagram;
 
-  /// PNG/other-encoded bytes of a reference block-diagram screenshot, or null.
   final Uint8List? referenceBytes;
 
-  /// Longer-side cap for the off-screen raster.
   final int maxDimension;
 
-  /// SubVI-call node icons (oid → icon) to stamp on the render, matching the
-  /// on-screen block-diagram view (resolved by `resolveSubViIconsFor`). Empty by
-  /// default.
   final Map<int, ViLegacyIcon> subViIcons;
 
   @override
@@ -1512,13 +1174,9 @@ class _BdOracleViewState extends State<BdOracleView>
   @override
   void initState() {
     super.initState();
-    // Rebuild the raster once the bundled primitive icons decode; the first
-    // build proceeds without them rather than blocking on asset IO.
     if (primIconsLoaded().isEmpty) {
       loadPrimIcons().then((icons) {
         if (!mounted || icons.isEmpty) return;
-        // _build() returns a Future — start it outside setState (a setState
-        // callback must not return one) and swap the field synchronously.
         _retire(_future);
         final rebuilt = _build();
         setState(() {
@@ -1528,29 +1186,18 @@ class _BdOracleViewState extends State<BdOracleView>
     }
   }
 
-  /// True while a sweep-GIF export is encoding (the button disables so a
-  /// second press cannot start a parallel encode).
   bool _exportingGif = false;
 
-  /// Wipe mode: the registered render and the reference overlaid, split at a
-  /// draggable divider (ours left, LabVIEW right).
   bool _wipe = false;
   double _wipeFraction = 0.5;
   int _wipeBoxK = -1;
   ui.Image? _wipeReference;
   ui.Image? _wipeFitted;
 
-  /// Wipe zoom: 0 = fit (box-averaged overview), else an integer physical
-  /// scale — the only scales at which single-pixel features render without
-  /// parity-dependent splitting, so pixel inspection defaults to 1:1.
   int _wipeZoom = 3;
   final ScrollController _wipeH = ScrollController();
   final ScrollController _wipeV = ScrollController();
 
-  // The comparison (rasterise + decode + multi-peak registration) costs a
-  // noticeable fraction of a second on large VIs; keep the tab's state alive
-  // so revisiting the Oracle tab shows the cached result instead of
-  // recomputing it.
   @override
   bool get wantKeepAlive => true;
 
@@ -1565,8 +1212,6 @@ class _BdOracleViewState extends State<BdOracleView>
     }
   }
 
-  /// Frees and clears the fit-mode box-downscaled pair — on replacement, on
-  /// diagram change (they belong to the old diagram), and at teardown.
   void _resetWipeDownscales() {
     _wipeBoxK = -1;
     _wipeReference?.dispose();
@@ -1584,9 +1229,6 @@ class _BdOracleViewState extends State<BdOracleView>
     super.dispose();
   }
 
-  /// Frees a (possibly still-pending) render's images once it resolves. When the
-  /// widget is still mounted the free is deferred to after the current frame, so
-  /// a `RawImage` that was showing them is out of the tree first.
   void _retire(Future<_OracleData> data) {
     data
         .then((resolved) {
@@ -1606,15 +1248,7 @@ class _BdOracleViewState extends State<BdOracleView>
     if (diagram == null) return const _OracleData();
     final bytes = widget.referenceBytes;
     final reference = bytes == null ? null : await decodeReferenceImage(bytes);
-    // A cropped snippet reference is LabVIEW's own render at 1 model unit ==
-    // 1 px, so the render is rasterised at that exact scale and registered at
-    // the locked render→reference scale — translation-only, never fitted.
-    // decodeReferenceImage's snippetCropped flag drives BOTH decisions, so an
-    // uncroppable snippet falls back to the generic comparison whole.
     final snippet = reference?.snippetCropped ?? false;
-    // One scene for the whole pipeline: its lazy analyses (paint order,
-    // wires, chrome indexes, hidden frames) run once and every rasterise —
-    // initial, rephased, supersampled — reuses them.
     final scene = BdScene(diagram);
     final drawable = scene.drawable;
     final snippetVi = bytes == null ? null : extractSnippetVi(bytes);
@@ -1630,9 +1264,6 @@ class _BdOracleViewState extends State<BdOracleView>
       primIcons: primIconsLoaded(),
       maxDimension: maxDimension,
       scale: scale,
-      // A snippet reference is LabVIEW's crop of the diagram's ink plus a
-      // 2 px margin, so the unit-scale render uses the same margin — matched
-      // dimensions, not just matched scale.
       margin: snippet ? 2 : 40,
       subViIcons: widget.subViIcons,
       xnodeFacades: facades,
@@ -1660,13 +1291,6 @@ class _BdOracleViewState extends State<BdOracleView>
           ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
           : const [],
     );
-    // The reference capture's hatch phases (the black case lattice and the
-    // error-case stripe lattice each carry their own) are brush phases from
-    // the capture environment, not stored in the .vi, so they are measured
-    // from the capture and the render redone at the matching style — the only
-    // path to a 1:1 hatch comparison. Chrome COLOURS stay at the style's
-    // fixed corpus-dominant defaults: a capture from another environment may
-    // read a few shades off, which is reference variance, not render error.
     var style = const BdRenderStyle();
     if (snippet) {
       GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
@@ -1703,8 +1327,6 @@ class _BdOracleViewState extends State<BdOracleView>
           result.fitted.dispose();
           result.diffImage.dispose();
           raster = rephased;
-          // Same geometry, rephased lattices: the first pass's registration
-          // and reference edge mask still hold — no second search.
           result = await compareToReference(
             raster.image,
             reference.image,
@@ -1725,8 +1347,6 @@ class _BdOracleViewState extends State<BdOracleView>
       width: reference.image.width,
       height: reference.image.height,
     );
-    // Display pair: our side re-rendered as vectors at the supersample (real
-    // detail for the downscale), the reference nearest-upscaled to match.
     const ss = kOracleDisplaySupersample;
     final raster3 = await render(
       maxDimension: widget.maxDimension * ss,
@@ -1745,8 +1365,6 @@ class _BdOracleViewState extends State<BdOracleView>
       );
       displayReference = await upscaleNearest(reference.image, ss);
     }
-    // The scene's text caches (recorded pictures, glyph painters) are done:
-    // every render this pipeline needed has been rasterised.
     scene.dispose();
     return _OracleData(
       rendered: raster.image,
@@ -1875,12 +1493,6 @@ class _BdOracleViewState extends State<BdOracleView>
                         Expanded(
                           child: _pane(
                             'Rendered (clean-room)',
-                            // Show the render REGISTERED into the reference
-                            // frame (same placement the wipe overlays), so
-                            // toggling this pane against Reference reveals real
-                            // per-pixel differences — the raw content-framed
-                            // render sits at a different origin and reads as a
-                            // whole-image 1px shift.
                             result != null
                                 ? (data.displayFitted ?? result.fitted)
                                 : (data.displayRendered ?? data.rendered!),
@@ -1926,14 +1538,7 @@ class _BdOracleViewState extends State<BdOracleView>
     );
   }
 
-  /// The wipe comparator: the reference fills the pane and the registered
-  /// render covers it up to [_wipeFraction] of the image width, with a
-  /// draggable divider. Both images share the reference frame, so features
-  /// line up across the divider.
   Widget _wipePane(BdOracleResult result, _OracleData data) {
-    // Source pair: our side supersampled (real vector detail), the reference
-    // nearest-upscaled to match — both at kOracleDisplaySupersample x the
-    // 1:1 comparison images.
     final refImage = data.displayReference ?? result.reference;
     final fitImage = data.displayFitted ?? result.fitted;
     const ss = kOracleDisplaySupersample;
@@ -1945,18 +1550,11 @@ class _BdOracleViewState extends State<BdOracleView>
         color: const Color(0xFF202020),
         child: LayoutBuilder(
           builder: (context, constraints) {
-            // Display ONLY at integer ratios of the 1:1 image — the sole
-            // scales at which every logical pixel maps to the same number of
-            // device pixels (uniform lines, even checkerboards). The fit
-            // snaps DOWN to n:1 nearest, or 1:n via an exact box-average of
-            // the supersampled pair; the remainder letterboxes.
             final dpr = MediaQuery.devicePixelRatioOf(context);
             final fitPhys = math.min(
               constraints.maxWidth * dpr / logicalW,
               constraints.maxHeight * dpr / logicalH,
             );
-            // A collapsed pane makes the minify maths degenerate
-            // ((1/0).ceil() throws); nothing is visible at that size anyway.
             if (fitPhys <= 0 || !fitPhys.isFinite) {
               return const SizedBox.shrink();
             }
@@ -1965,9 +1563,6 @@ class _BdOracleViewState extends State<BdOracleView>
             ui.Image? showRef;
             ui.Image? showFit;
             if (_wipeZoom > 0) {
-              // Integer zoom: the pristine 1:1 pair at z:1 physical —
-              // bit-exact by construction; the pane scrolls to reach the
-              // rest of the diagram.
               dispPhysW = logicalW * _wipeZoom;
               dispPhysH = logicalH * _wipeZoom;
               _wipeBoxK = 0;
@@ -1996,8 +1591,6 @@ class _BdOracleViewState extends State<BdOracleView>
                       _wipeFitted = imgs[1];
                     });
                   } else {
-                    // The ratio moved on (or the view is gone) before this
-                    // pair resolved — free it, nothing will show it.
                     imgs[0].dispose();
                     imgs[1].dispose();
                   }
@@ -2016,9 +1609,6 @@ class _BdOracleViewState extends State<BdOracleView>
             void follow(Offset local) => setState(() {
               _wipeFraction = (local.dx / dispW).clamp(0.0, 1.0);
             });
-            // Laid out at physical-size / dpr, so each image blits exactly
-            // once, 1:1 physical (nearest for the integer upscale; the
-            // box-averaged pair is already at target resolution).
             final content = GestureDetector(
               behavior: HitTestBehavior.opaque,
               onTapDown: (details) => follow(details.localPosition),
@@ -2061,8 +1651,6 @@ class _BdOracleViewState extends State<BdOracleView>
                 dispH <= constraints.maxHeight) {
               return Center(child: content);
             }
-            // Oversized (zoom): scroll on both axes — the divider drag owns
-            // horizontal gestures, so scrolling rides the bars and the wheel.
             return Scrollbar(
               controller: _wipeH,
               thumbVisibility: true,
@@ -2132,12 +1720,6 @@ class _BdOracleViewState extends State<BdOracleView>
     ),
   );
 
-  /// Exports the registered pair as the orange-bar sweep GIF
-  /// ([encodeOracleSweepGif]): our render west of the bar, the reference east
-  /// — both from the 1:1 comparison pair, so they are pixel-aligned. The
-  /// encode runs off the UI isolate; the save destination comes from the OS
-  /// save dialog (matching the file-open flow), and a snackbar reports where
-  /// the file went.
   Future<void> _exportSweepGif(BdOracleResult result) async {
     setState(() => _exportingGif = true);
     final messenger = ScaffoldMessenger.maybeOf(context);
@@ -2179,9 +1761,6 @@ class _BdOracleViewState extends State<BdOracleView>
     }
   }
 
-  /// Copies a pane's [image] to the system clipboard as a PNG. The oracle
-  /// panes pass their [kOracleDisplaySupersample]x display image, so the copy
-  /// matches the wipe-compare's pixel scale.
   Future<void> _copyImage(
     BuildContext context,
     ui.Image image,
@@ -2217,14 +1796,10 @@ class _OracleData {
   final BdOracleResult? result;
   final PlacementComparison? placement;
 
-  /// The wipe/pane images at [kOracleDisplaySupersample]x (see there); the
-  /// 1:1 [result] images remain the metric inputs.
   final ui.Image? displayRendered;
   final ui.Image? displayFitted;
   final ui.Image? displayReference;
 
-  /// Releases the GPU-backed images this render holds (each at most once — the
-  /// result's `rendered` and same-size `fitted` alias other fields).
   void dispose() {
     final seen = <ui.Image>{};
     void disp(ui.Image? image) {
@@ -2245,16 +1820,8 @@ class _OracleData {
   }
 }
 
-/// The oracle's DISPLAY images are rendered at this integer multiple of the
-/// comparison scale and downscaled to the pane — a 1:1 raster minified to a
-/// pane simply has too few source pixels for any filter to save (a 22 px
-/// icon shown at 13 px is destroyed information). Our side re-renders as
-/// vectors at 3x (real detail); the reference bitmap nearest-upscales 3x
-/// (honest block replication) so both wipe halves share one resolution and
-/// one downscale path. The 1:1 images remain the metric inputs.
 const kOracleDisplaySupersample = 3;
 
-/// [src] nearest-upscaled by the integer [factor] — exact block replication.
 Future<ui.Image> upscaleNearest(ui.Image src, int factor) async {
   final recorder = ui.PictureRecorder();
   ui.Canvas(recorder).drawImageRect(
@@ -2274,10 +1841,6 @@ Future<ui.Image> upscaleNearest(ui.Image src, int factor) async {
   );
 }
 
-/// Redraws a supersampled render into the supersampled reference frame under
-/// the 1:1 [registration]: the [factor]-scaled canvas applies the same
-/// logical transform, so the display image aligns with the upscaled
-/// reference exactly where the 1:1 fitted aligns with the 1:1 reference.
 Future<ui.Image> redrawRegisteredSupersampled(
   ui.Image rendered,
   BdRegistration registration,
@@ -2297,15 +1860,11 @@ Future<ui.Image> redrawRegisteredSupersampled(
     ui.Paint()..color = const ui.Color(0xFFFFFFFF),
   );
   canvas.scale(factor.toDouble());
-  // The translate must land on whole 1:1 pixels: a fractional offset slices
-  // logical pixels across box-average boundaries and breaks uniformity.
   canvas.translate(
     registration.dx.roundToDouble(),
     registration.dy.roundToDouble(),
   );
   canvas.scale(registration.scale);
-  // The rendered image is itself [factor]x: draw it at logical (1:1) size —
-  // net 1:1 pixels on the supersampled canvas, sampled exactly.
   canvas.drawImageRect(
     rendered,
     ui.Rect.fromLTWH(
@@ -2320,17 +1879,6 @@ Future<ui.Image> redrawRegisteredSupersampled(
   return recorder.endRecording().toImage(width * factor, height * factor);
 }
 
-/// Exact integer box-average downscale by [k]: every destination pixel is
-/// the unweighted mean of one k x k source block. Phase-free by
-/// construction — a 1 px feature lands identically wherever it sits, so
-/// lines keep one thickness and checkerboards stay even. (Any NON-integer
-/// resample ratio is phase-dependent: some source columns get one
-/// destination pixel and some get two, which is exactly the uneven
-/// checkerboard and the 1.25/0.75 split-line artefact.)
-/// The box factor for showing a [supersample]x [src] at a pane fit of
-/// [fitPhys] (< 1): `supersample * ceil(1/fitPhys)`, clamped so the result
-/// keeps at least one pixel per axis — an extreme squeeze must degrade to a
-/// tiny image, never a zero-dimension one.
 int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
   final k = supersample * (1 / fitPhys).ceil();
   return k.clamp(1, math.min(src.width, src.height));
@@ -2340,19 +1888,10 @@ Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   final data = (await src.toByteData())!;
   final sw = src.width, sh = src.height;
   final bytes = data.buffer.asUint8List();
-  // The averaging is O(source pixels) on multi-megapixel supersampled
-  // rasters — off the UI isolate so pane resizes don't jank.
   final out = await Isolate.run(() => boxDownscaleRgba(bytes, sw, sh, k));
   return imageFromRgba(out.rgba, out.width, out.height);
 }
 
-/// [boxDownscale] on plain bytes: the RGBA buffer [rgba] of a
-/// [width] x [height] image, averaged in [factor] x [factor] blocks, with
-/// the destination size it produced. A factor below 1 or beyond a source
-/// dimension is clamped, so the result always keeps at least one pixel per
-/// axis — an extreme squeeze must degrade to a tiny image, never a
-/// zero-dimension one. Remainder rows/columns past the last whole block are
-/// dropped.
 ({Uint8List rgba, int width, int height}) boxDownscaleRgba(
   Uint8List rgba,
   int width,
@@ -2386,29 +1925,12 @@ Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   return (rgba: out, width: dw, height: dh);
 }
 
-/// Shows [image] crisp at any pane size: at native size or larger it draws
-/// 1:1 with nearest sampling (the raster matches the reference pixel for
-/// pixel — filtering would only blur it); minified it draws an
-/// iteratively-halved downscale at the EXACT display width, so the
-/// compositor never rescales anything.
 class CrispImage extends StatefulWidget {
-  /// [image] displays only at integer ratios of its logical size (see
-  /// [boxDownscale] — the sole phase-free scales): n:1 nearest upscale, or
-  /// 1:n via exact box-averaging, letterboxing the remainder. When the image
-  /// is a supersample of the logical content, pass the factor so ratios
-  /// snap against LOGICAL pixels, and pass [base] — a supersampled image
-  /// has NO exact n:1 path of its own: nearest-drawing it at a non-multiple
-  /// of the supersample decimates (keeps 1 of [supersample]² samples), which
-  /// thins and frays AA text and sheds stray fringe rows under glyphs.
   const CrispImage(this.image, {this.supersample = 1, this.base, super.key});
 
   final ui.Image image;
   final int supersample;
 
-  /// The 1:1 logical-resolution companion of a supersampled [image]: shown
-  /// nearest-upscaled at the integer n:1 ratios (bit-exact pixels, matching
-  /// the wipe comparator's integer zooms), while [image] serves the sub-1:1
-  /// box-average minification, where its extra samples are real detail.
   final ui.Image? base;
 
   @override
@@ -2435,9 +1957,6 @@ class _CrispImageState extends State<CrispImage> {
         constraints.maxWidth * dpr / logicalW,
         constraints.maxHeight * dpr / logicalH,
       );
-      // A collapsed pane (zero constraint axis) makes fitPhys 0 and the
-      // minify maths degenerate ((1/0).ceil() throws); nothing is visible
-      // at that size anyway.
       if (fitPhys <= 0 || !fitPhys.isFinite) return const SizedBox.shrink();
       final double dispPhysW;
       final double dispPhysH;
@@ -2484,8 +2003,6 @@ class _CrispImageState extends State<CrispImage> {
   );
 }
 
-/// Clips its child to the leftmost [fraction] of its width — the moving half
-/// of the oracle's wipe comparator.
 class _LeftFractionClipper extends CustomClipper<Rect> {
   const _LeftFractionClipper(this.fraction);
 

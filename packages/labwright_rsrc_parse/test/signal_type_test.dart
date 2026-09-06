@@ -3,12 +3,8 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-/// Unit pins for the [ViSignalType] wire-type-word decode
-/// (`[flags][depth][element type code]`) on corpus-observed values, and for
-/// the heap capture that surfaces it as [ViWire.signalType].
 void main() {
   test('wire-type word decode', () {
-    // (raw, code, depth, flags, dataType, elementKind, arrayDims, typeKind)
     const cases = <(int, int, int, int, ViDataType?, ViTypeKind?, int?, ViTypeKind?)>[
       (0x103, 0x03, 1, 0, ViDataType.i32, ViTypeKind.numericInt, 0, ViTypeKind.numericInt),
       (0x10a, 0x0a, 1, 0, ViDataType.dbl, ViTypeKind.numericFloat, 0, ViTypeKind.numericFloat),
@@ -17,8 +13,6 @@ void main() {
       (0x232, 0x32, 2, 0, ViDataType.path, ViTypeKind.path, 0, ViTypeKind.path),
       (0x8350, 0x50, 3, 8, ViDataType.cluster, ViTypeKind.cluster, 0, ViTypeKind.cluster),
       (0x351, 0x51, 3, 0, ViDataType.cluster, ViTypeKind.cluster, 0, ViTypeKind.cluster),
-      // A base-less code at the minimum depth is scalar whatever its family
-      // ([kSignalMinScalarDepth]); deeper, its dimensionality stays unknown.
       (0x170, 0x70, 1, 0, ViDataType.refnum, ViTypeKind.refnum, 0, ViTypeKind.refnum),
       (0x8370, 0x70, 3, 8, ViDataType.refnum, ViTypeKind.refnum, null, ViTypeKind.refnum),
       (0x8571, 0x71, 5, 8, ViDataType.refnum, ViTypeKind.refnum, null, ViTypeKind.refnum),
@@ -40,8 +34,6 @@ void main() {
       expect(t.elementKind, elementKind, reason: label);
       expect(t.arrayDims, dims, reason: label);
       expect(t.typeKind, kind, reason: label);
-      // Tristate arrayness: unknown dims (refnum / uncatalogued codes) stay
-      // an honest null, never false.
       expect(t.isArray, dims == null ? null : dims > 0, reason: label);
     }
   });
@@ -53,8 +45,6 @@ void main() {
   });
 
   test('a signal heap object surfaces its wire-type word on the wire', () {
-    // Minimal BD heap: root 0x7e holding one signal 0x17 with a `44 9F`
-    // lastSignalKind record of 0x0203 (array of i32) and two endpoint refs.
     final body = Uint8List.fromList([
       0, 0, 0, 0, // content length word (unused by the walker)
       0x10, 0x19, 0x02, 0xfe, 0x00, 0x7e, 0xfd, 0x00, 0x01, // root
@@ -73,7 +63,6 @@ void main() {
   });
 
   test('a signal with no wire-type record yields honest nulls', () {
-    // Same minimal heap, no `44 9F` record on the signal.
     final body = Uint8List.fromList([
       0, 0, 0, 0,
       0x10, 0x19, 0x02, 0xfe, 0x00, 0x7e, 0xfd, 0x00, 0x01, // root
@@ -89,7 +78,6 @@ void main() {
   });
 
   test('an uncatalogued code yields a word but no family', () {
-    // `44 9F` with 0x83FF: framed and surfaced raw, family honestly null.
     final body = Uint8List.fromList([
       0, 0, 0, 0,
       0x10, 0x19, 0x02, 0xfe, 0x00, 0x7e, 0xfd, 0x00, 0x01, // root

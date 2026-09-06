@@ -3,7 +3,6 @@ import 'dart:convert';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// Instance path of the single Main step every [_stepIni] fixture declares.
 const _p = 'SF.Seq[0].Main[0]';
 
 const _header = '''
@@ -13,18 +12,14 @@ Version = 354
 Type = "SequenceFile"
 ''';
 
-/// A one-object SequenceFile in Rosetta INI form; [body] follows `%NAME = "Data"`.
 String _doc(String body, {String root = '%OBJROOT', String header = _header, String extraRoot = ''}) =>
     '$header\n[DEF, $root]\nSF = SequenceFileData\n$extraRoot[DEF, SF]\nSeq = Objs\n%NAME = "Data"\n$body';
 
-/// A MainSequence with one Main step of [type]; [sections] continues from the
-/// step's own `[DEF, $_p]` section body.
 String _stepIni(String type, String sections) => _doc(
   '[DEF, SF.Seq]\n%[0] = Sequence\n[DEF, SF.Seq[0]]\nMain = Objs\n%NAME = "MainSequence"\n'
   '[DEF, SF.Seq[0].Main]\n%[0] = Step\n%TYPE: %[0] = "$type"\n[DEF, $_p]\n$sections',
 );
 
-/// A step whose TS declares [tsKeys] as Strings, each valued in [values] (or "v").
 String _tsIni(List<String> tsKeys, [List<String>? values]) => _stepIni(
   'Action',
   'TS = Obj\n%NAME = "s"\n[DEF, $_p.TS]\n${tsKeys.map((k) => '$k = String').join('\n')}\n'
@@ -665,10 +660,10 @@ DescriptionFormat Line0002 = "uleDescription\\")"
         ({'%LO': '[1]', '%HI': '[1]'}, 1),
         ({'%LO': '[0]', '%HI': '[0]'}, 1),
         ({'%LO': '[0][0]', '%HI': '[1][7]'}, 16),
-        ({'%LO': '[1]', '%HI': '[2][3]'}, 8), // short %LO pads with 0
-        ({'%HI': '[-1]'}, 0), // unobserved, defensive
-        ({'%LO': '[2]', '%HI': '[1]'}, 0), // unobserved, defensive
-        ({'%LO': '[1]'}, null), // no %HI: no declared length
+        ({'%LO': '[1]', '%HI': '[2][3]'}, 8),
+        ({'%HI': '[-1]'}, 0),
+        ({'%LO': '[2]', '%HI': '[1]'}, 0),
+        ({'%LO': '[1]'}, null),
         (<String, String>{}, null),
       ];
       for (final (attrs, want) in cases) {

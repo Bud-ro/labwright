@@ -8,28 +8,8 @@ import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import '../test/util.dart';
 
-/// Exports the primitive review contact sheet: one row per block-diagram
-/// operation the transpiler has no lowering rule for, showing LabVIEW's own
-/// icon art beside the identity, how much of the corpus it blocks, and a corpus
-/// VI that carries it.
-///
-/// The list is data ([kReviewSheetRows]), measured by the transpiler's
-/// corpus census (`kCorpusPrimReviewList`), ranked by the VIs each identity
-/// blocks. An entry whose icon is not bundled draws its identity on an empty
-/// plate and names the VI to open instead — the class-coded nodes have no
-/// extracted art (see `assets/prim_icons/MANIFEST.md`).
-///
-/// It rasterises icon art, so it runs under the flutter_test harness rather
-/// than as a plain script, from the app package root:
-///
+/// Writes `prim_review_sheet.png` and `prim_review_sheet.txt` under SHEET_DIR:
 ///     flutter test tool/prim_review_sheet.dart --dart-define=SHEET_DIR=<dir>
-///
-/// Both forms are written from the same rows: `prim_review_sheet.png` draws
-/// each identity's icon, and `prim_review_sheet.txt` carries the same table as
-/// text for reading where an image cannot be opened.
-///
-/// The rows' consistency with the icon catalogue is checked in the default
-/// suite by test/prim_review_sheet_test.dart.
 void main() {
   const sheetDir = String.fromEnvironment('SHEET_DIR');
   testWidgets('SHEET_DIR=<dir> exports prim_review_sheet.png', (tester) async {
@@ -52,8 +32,6 @@ void main() {
   });
 }
 
-/// One contact-sheet row: what the identity is, what it costs, and where to
-/// look at it.
 typedef ReviewSheetRow = ({
   String identity,
   int? primResId,
@@ -66,16 +44,6 @@ typedef ReviewSheetRow = ({
   String example,
 });
 
-/// The rows, ranked by the VIs each identity blocks.
-///
-/// `vis` / `nodes` / `sole` are the transpiler's corpus census over 7 508 VIs:
-/// the VIs holding at least one such node, the node instances, and the VIs
-/// whose ONLY unmapped identity it is. `note` states what specifically is not
-/// decoded — the question each row asks.
-///
-/// `sole` counts only PRIMITIVE blockers, so it is an upper bound on what a
-/// rule for the row would buy and never the count of VIs it would make lower.
-/// `kCorpusPrimReviewList` measures how far apart those are.
 const List<ReviewSheetRow> kReviewSheetRows = [
   (
     identity: 'class 0x34 — Bundle',
@@ -482,7 +450,6 @@ const List<ReviewSheetRow> kReviewSheetRows = [
   ),
 ];
 
-/// The sheet as PNG bytes: a header, then one row per [kReviewSheetRows] entry.
 Future<List<int>> _paintSheet(Map<int, PrimIconArt> icons) async {
   const width = 1180.0;
   const rowHeight = 52.0;
@@ -592,10 +559,6 @@ Future<List<int>> _paintSheet(Map<int, PrimIconArt> icons) async {
   return imageToPng(image);
 }
 
-/// [kReviewSheetRows] as plain text — the same table the sheet draws, in the
-/// form that needs no image viewer. Each entry names the identity, its VI /
-/// node / sole counts, what specifically is not decoded, and a corpus VI that
-/// holds one.
 String reviewSheetText() {
   final out = StringBuffer()
     ..writeln(

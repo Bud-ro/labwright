@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// CLI: `dart run labwright_rsrc_parse:inspect <file.vi>` — prints a VI summary.
 Future<void> main(List<String> args) async {
   if (args.isEmpty) {
     stderr.writeln('usage: dart run labwright_rsrc_parse:inspect <file.vi>');

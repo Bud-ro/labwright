@@ -1,22 +1,3 @@
-/// Clean-room, LabVIEW-less reader for LabVIEW `.vi`/`.ctl`/`.llb` files.
-///
-/// Two layers, one package:
-///
-/// 1. **Container + blocks** — [parseVi] turns bytes into a [ViSummary]: file
-///    type, version, the RSRC resource-block inventory, and capability flags
-///    (front panel, block diagram, connector pane, sub-VI links) that summarize
-///    *what a VI is and does*.
-/// 2. **Heap decode → IR** — [decodeSections] inflate the compressed heap
-///    sections, [walkHeapBody] frames the opcode stream, [buildDiagram] recovers
-///    the block diagram as a [ViDiagram] (a nesting tree of [ViHeapObject]s
-///    classified by [ViObjectKind] / typed by [ViTypeKind]), and [buildViModel]
-///    aggregates everything into the read-only [ViModel] IR. The known
-///    heap-record opcodes live in one place: the [HeapOpcode] enhanced enum.
-///
-/// Honest/total throughout; documented limits (e.g. signal wires expose
-/// endpoint binding, geometry and a measured-agreement datatype estimate,
-/// but not direction — see [ViWire]).
-/// Recovering full block-diagram *logic* is ongoing work.
 library;
 
 export 'src/bd_semantics.dart';

@@ -2,12 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Corpus scanner: recursively parses every `.vi`/`.ctl`/`.llb` under a directory
-/// and reports how many parsed, how many were cleanly rejected
-/// (`ViFormatException`), and how many CRASHED — i.e. `parseVi` threw something
-/// other than `ViFormatException`, which is always a bug. Handy for validating the
-/// reader against a folder of real VIs. Exits non-zero if any file crashed.
-///
 /// Usage: `dart run packages/labwright_rsrc_parse/tool/scan_vis.dart <dir>`
 void main(List<String> args) {
   final root = args.isEmpty ? '.' : args.first;

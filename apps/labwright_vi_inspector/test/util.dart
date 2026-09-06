@@ -5,9 +5,6 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// The repo-relative directory [relative] (e.g. the fetched corpus), found by
-/// walking up from the test working directory; null when absent (corpus-backed
-/// tests then skip). One walk shared by every corpus-backed test in the app.
 Directory? repoDir(String relative) {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
@@ -20,12 +17,6 @@ Directory? repoDir(String relative) {
   return null;
 }
 
-/// The snippet references: the tracked flat set under `corpus/snippets`, or —
-/// when a checkout predates it — the same PNGs from the fetched oracle repos.
-/// These carry embedded VIs and are the project's concrete render/parse
-/// feedback loop, so they are committed and CI always has them. Snippet-ness
-/// is decided by extraction, not by listing: plain art PNGs carry no niVI and
-/// are filtered here.
 List<File> snippetCorpusPngs() {
   final tracked = repoDir('packages/labwright_rsrc_parse/corpus/snippets');
   final dirs = tracked != null
@@ -50,9 +41,6 @@ List<File> snippetCorpusPngs() {
   return files..sort((a, b) => a.path.compareTo(b.path));
 }
 
-/// The snippet reference PNG named [pngName] (e.g. `crc8.png`), from the
-/// tracked flat set or — in a checkout that predates it — the fetched oracle
-/// repos. Null when no corpus is present, so corpus-backed tests skip.
 File? snippetPng(String pngName) {
   for (final relative in const [
     'packages/labwright_rsrc_parse/corpus/snippets',
@@ -68,7 +56,6 @@ File? snippetPng(String pngName) {
   return null;
 }
 
-/// Pumps [body] inside MaterialApp/Scaffold at a fixed [view] size.
 Future<void> pumpBody(
   WidgetTester tester,
   Widget body, {
@@ -81,14 +68,6 @@ Future<void> pumpBody(
   await tester.pump();
 }
 
-/// Loads the app's bundled Selawik faces into the test binding under the
-/// family the diagram painter uses, so canvas text rasterises with real
-/// glyphs. Without this every glyph is the test binding's Ahem block — solid
-/// squares that swamp the oracle's ink/edge masks and drag its registration.
-///
-/// Fails loudly when a face is missing: the paths are relative to the working
-/// directory, so a run started elsewhere would otherwise register nothing and
-/// every metric would silently read Ahem's widths.
 Future<void> loadRealTextFont() async {
   final loader = FontLoader('Selawik');
   var faces = 0;
@@ -108,8 +87,6 @@ Future<void> loadRealTextFont() async {
   await loader.load();
 }
 
-/// Splices a `niVI` chunk carrying [vi] into the PNG [png] (before `IEND`),
-/// CRC framed — a synthetic VI-snippet built without LabVIEW.
 Uint8List spliceNiVi(Uint8List png, Uint8List vi) {
   final chunk = Uint8List(12 + vi.length);
   final d = ByteData.sublistView(chunk);
@@ -117,7 +94,7 @@ Uint8List spliceNiVi(Uint8List png, Uint8List vi) {
   chunk.setAll(4, 'niVI'.codeUnits);
   chunk.setAll(8, vi);
   d.setUint32(8 + vi.length, crc32(chunk, 4, 8 + vi.length));
-  final iend = png.length - 12; // [len=0][IEND][crc]
+  final iend = png.length - 12;
   return Uint8List.fromList([
     ...png.sublist(0, iend),
     ...chunk,
@@ -125,7 +102,6 @@ Uint8List spliceNiVi(Uint8List png, Uint8List vi) {
   ]);
 }
 
-// Heap record builders (mirror the videcode bracket model).
 List<int> open(int kind, int oid, {int tag = 0x19}) => [
   0x10,
   tag,
@@ -163,7 +139,6 @@ List<int> enum2e(List<String> items) {
 List<int> childRef(int oid) => [0x14, 0x19, 0x01, 0xfd, oid >> 8, oid & 0xff];
 List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, oid >> 8, oid & 0xff];
 
-/// Frames [records] with the u32 heap content-length header as a section.
 DecodedSection heapSection(
   List<int> records, {
   String tag = 'BDHb',
@@ -180,7 +155,6 @@ DecodedSection heapSection(
 ViModel modelFromRecords(List<int> records) =>
     buildViModelFromDecoded([heapSection(records)]);
 
-/// A ViHeapObject with the commonly-poked fields settable in one call.
 ViHeapObject heapObj(
   int kind, {
   int oid = 1,

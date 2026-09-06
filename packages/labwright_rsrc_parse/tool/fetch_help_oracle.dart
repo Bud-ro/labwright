@@ -1,40 +1,14 @@
-/// Harvests LabVIEW's built-in function reference from archived copies of the
-/// legacy static help and emits it as JSON for use as an identification oracle.
-///
-/// The published reference states, for every built-in function, its name, the
-/// palette that owns it, a prose description, and — via the connector-pane image
-/// map and the parameter table — every terminal's name, direction and wire type.
-/// That is independent ground truth against which the corpus-derived primitive
-/// catalogues can be checked.
-///
-/// Nothing fetched here is written into the repository. Pages, images and the
-/// emitted dataset all land under the cache root (`--cache`, or `$NI_HELP_CACHE`,
-/// default `<tmp>/ni_help_oracle`), matching how the VI corpus itself is fetched
-/// rather than committed.
-///
 /// Usage:
 ///   dart run tool/fetch_help_oracle.dart [--cache=DIR] [--limit=N] [--refresh]
 ///                                        [--delay-ms=N] [--icons]
-///
-/// Every response is cached on disk keyed by URL, so a second run performs no
-/// network I/O. `--refresh` re-fetches the topic index; cached topic pages are
-/// still reused unless their files are removed.
-///
-/// The archive's rate limiter returns HTTP 429 readily; requests are serialized
-/// with a delay between them and retried with exponential backoff.
 library;
 
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
-/// The archive's URL-index API. Queried once with a path prefix to enumerate
-/// every captured topic, which is cheaper and more complete than walking the
-/// table of contents, and avoids the per-URL availability endpoint entirely.
 const _cdxEndpoint = 'http://web.archive.org/cdx/search/cdx';
 
-/// Replay prefix that returns the originally captured bytes rather than a copy
-/// rewritten for archive playback. Formatted with the capture timestamp.
 String _replayUrl(String timestamp, String original) => 'http://web.archive.org/web/${timestamp}id_/$original';
 
 Future<void> main(List<String> args) async {
@@ -122,7 +96,6 @@ class _Options {
   }
 }
 
-/// One archived capture of one help topic.
 class _Capture {
   _Capture({required this.url, required this.timestamp, required this.partNumber, required this.slug});
 
@@ -130,8 +103,6 @@ class _Capture {
   final String timestamp;
   final String partNumber;
 
-  /// The topic's path segment, lowercased. Distinct part numbers spell the same
-  /// topic identically apart from case, so the lowercased slug is the join key.
   final String slug;
 }
 
@@ -142,10 +113,6 @@ class _Index {
   final int captures;
 }
 
-/// Enumerates every archived `glang` topic and keeps one capture per topic,
-/// preferring the newest part number (the trailing revision letter of the help's
-/// part number rises with the LabVIEW release, so a later letter is a later
-/// edition of the same document).
 Future<_Index> _topicIndex(_Cache cache, {required bool refresh}) async {
   final query = Uri.parse(_cdxEndpoint).replace(
     queryParameters: {
@@ -156,8 +123,6 @@ Future<_Index> _topicIndex(_Cache cache, {required bool refresh}) async {
       'filter': 'statuscode:200',
     },
   );
-  // The CDX API takes repeated `filter` parameters; Uri's map form cannot express
-  // that, so the topic-path filter is appended by hand.
   final url = '$query&filter=original:.*/glang/.*';
   final text = await cache.fetchText(url, 'cdx_glang.txt', force: refresh);
   if (text == null) throw StateError('topic index unavailable from $url');
@@ -167,8 +132,6 @@ Future<_Index> _topicIndex(_Cache cache, {required bool refresh}) async {
   for (final line in const LineSplitter().convert(text)) {
     final parts = line.split(' ');
     if (parts.length < 2) continue;
-    // The two groups become cache path segments, so the charset is the one
-    // every captured URL uses and admits no separator or `..`.
     final match = RegExp(r'/help/([\w-]+)/glang/([\w-]+)/?$').firstMatch(parts[0]);
     if (match == null) continue;
     captures++;
@@ -183,16 +146,12 @@ Future<_Index> _topicIndex(_Cache cache, {required bool refresh}) async {
   return _Index(topics, captures);
 }
 
-/// A terminal of a built-in function, as the reference states it.
 class _Terminal {
   _Terminal({required this.name, required this.isInput, required this.wireGlyph, required this.description});
 
   final String name;
   final bool isInput;
 
-  /// Basename of the small image the reference draws beside the terminal. The
-  /// reference uses one image per (direction, wire type) pair, so this string
-  /// distinguishes wire types without asserting what each one means.
   final String wireGlyph;
   final String description;
 
@@ -221,11 +180,8 @@ class _Topic {
   final String slug;
   final String partNumber;
 
-  /// The topic's name with the trailing kind word removed: `Wait (ms)`.
   final String title;
 
-  /// The trailing word of the heading — `Function`, `VI`, `Structure`, ... —
-  /// which separates true block-diagram primitives from library VIs.
   final String kind;
   final String? palette;
   final String? paletteSlug;
@@ -270,33 +226,22 @@ final _connectorPanePattern = RegExp(
   caseSensitive: false,
 );
 
-/// One row of the parameter table: the glyph cell, then the description cell.
 final _terminalRowPattern = RegExp(
   r'<td class="Icon">(.*?)</td>\s*<td[^>]*>(.*?)</td>',
   caseSensitive: false,
   dotAll: true,
 );
 
-/// The terminal anchors in a glyph cell. A row can carry SEVERAL — the
-/// reference merges terminals that share a wire type and a sentence (`x` and
-/// `y` of a binary operation), so the anchors, not the rows, count the arity.
 final _terminalAnchorPattern = RegExp(r'<a name="(Input|Output)\d+"></a>', caseSensitive: false);
 
-/// The wire-type glyph a row draws beside its terminals.
 final _terminalGlyphPattern = RegExp(r'<img src="[^"]*/([^"/]+)\.gif"', caseSensitive: false);
 
-/// A parameter name at the very front of a description cell, with the
-/// conjunction that may join it to the next one. The reference bolds parameter
-/// names in the running prose too, so only the leading run names terminals.
 final _terminalNamePattern = RegExp(
   r'^\s*<strong>(.*?)</strong>\s*(?:(,|and|or)\s*)?',
   caseSensitive: false,
   dotAll: true,
 );
 
-/// Splits `Wait (ms) Function` into title `Wait (ms)` and kind `Function`.
-/// Headings that do not end in a known kind word keep the whole heading as the
-/// title and report an empty kind rather than guessing.
 const _kindWords = ['Function', 'Functions', 'VI', 'VIs', 'Structure', 'Node', 'Constant', 'Method', 'Property'];
 
 _Topic? _parseTopic(_Capture capture, String html) {
@@ -327,9 +272,6 @@ _Topic? _parseTopic(_Capture capture, String html) {
     final cell = row.group(2)!;
     final names = _leadingNames(cell, anchors.length);
     for (var at = 0; at < anchors.length; at++) {
-      // A row that names fewer terminals than it anchors still states the
-      // arity; the unnamed ones are recorded with an empty name rather than
-      // borrowing a sibling's.
       terminals.add(
         _Terminal(
           name: at < names.length ? names[at] : '',
@@ -355,11 +297,6 @@ _Topic? _parseTopic(_Capture capture, String html) {
   );
 }
 
-/// The parameter names heading [cell], at most [limit] of them.
-///
-/// Names run only while each bolded run is joined to the next by a conjunction:
-/// `<b>x</b> and <b>y</b> must be…` names two terminals, while `<b>max(x, y)</b>
-/// is the larger value…` names one and stops.
 List<String> _leadingNames(String cell, int limit) {
   final names = <String>[];
   var rest = cell;
@@ -397,7 +334,6 @@ const _entities = {
   '&ne;': '≠',
 };
 
-/// Strips markup and collapses whitespace, leaving the reference's own wording.
 String _text(String html) {
   var s = html.replaceAll(_tagPattern, ' ');
   _entities.forEach((k, v) => s = s.replaceAll(k, v));
@@ -408,7 +344,6 @@ String _text(String html) {
   return s.replaceAll(RegExp(r'\s+'), ' ').trim();
 }
 
-/// A URL-keyed on-disk cache in front of a deliberately slow HTTP client.
 class _Cache {
   _Cache(this.root, {required this.delay});
 
@@ -432,7 +367,6 @@ class _Cache {
     return body;
   }
 
-  /// Serialized, spaced-out GET with backoff on the archive's rate limiter.
   Future<Uint8List?> _get(String url) async {
     for (var attempt = 0; attempt < 4; attempt++) {
       final since = DateTime.now().difference(_last);

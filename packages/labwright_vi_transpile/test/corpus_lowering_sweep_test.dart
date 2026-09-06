@@ -1,21 +1,3 @@
-/// The lowering sweep: what each tracked VI snippet's block diagram does when
-/// it is lowered, what stands in the way of the rest, and — over the whole
-/// fetched `.vi` corpus — how subVI calls bind and what the two error modes
-/// make of it.
-///
-/// Every half is pinned as data, so progress and regression are equally
-/// visible: a VI that starts lowering, and a VI that stops, both fail here
-/// until the pin is updated to the measured value.
-///
-/// [kSnippetLoweringOutcomes] is the per-VI outcome; [kSnippetPrimReviewList]
-/// is the primitive review list — every operation the corpus uses that has no
-/// lowering rule, with how often it appears; [kCorpusLoweringSweep] is the
-/// whole-corpus tally. Nothing on the review list is guessed at: an entry
-/// leaves it when its identity *and* its operand roles are decoded (see
-/// `kLvMappedPrimOps`), or when a published test vector decides what it
-/// computes (see `kLvProvenPrimResIds`) — never on a reading nothing checks.
-library;
-
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -26,19 +8,6 @@ import 'package:test/test.dart';
 
 import 'snippets.dart';
 
-/// Per snippet, the outcome of lowering its block diagram: `lowered`, or the
-/// [LvRefusalKind] naming the decoded fact that is missing.
-///
-/// The refusals concentrate in three places, and each names real work:
-/// `wireType` — cluster wires whose endpoints resolve no member shape (see
-/// [kSnippetClusterWires]) and the wire codes with no pinned array-depth base;
-/// `primitive` — the review list below; `wireDirection` — the 0.8% of corpus
-/// signals whose endpoints do not resolve exactly one source.
-///
-/// `MD5` is the largest diagram here and it **lowers**: every constant,
-/// structure, wire and node of it reads, and the code it lowers to reproduces
-/// RFC 1321's published digests (`md5_behaviour_test.dart`). [kMd5Blockers] is
-/// the node-level guard that keeps it that way.
 const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassChildren': 'wireType',
   'ClassesInMemory': 'subViCall',
@@ -88,51 +57,12 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'vi_lib_dependency': 'subViCall',
 };
 
-/// The heap class of an **In Place Element Structure** frame
-/// ([HeapObjectClass.bdInPlaceStructure]).
 const int kLvInPlaceElementClass = 0x14d;
 
-/// The In Place Element Structure's **border node** classes — the nodes drawn
-/// on its frame that name the element each access reaches.
-///
-/// Only [kLvDataValueRefBorderClass] is identified. The other three carry the
-/// family's poser reference and sit inside the structure like it does, but
-/// which element access each performs is not recovered, so the parser labels
-/// them by family alone ([ClassConfidence.kindOnly]).
 const Set<int> kLvInPlaceElementBorderClasses = {kLvDataValueRefBorderClass, 0x150, 0x14f, 0x152};
 
-/// The one In Place Element border node whose access IS decoded: the pair that
-/// reads and writes a **data value reference** ([HeapObjectClass.bdNode153]).
 const int kLvDataValueRefBorderClass = 0x153;
 
-/// How far the **In Place Element Structure** is from lowering, and what stands
-/// in the way — the measurement that sizes it as a coverage lever.
-///
-/// The structure is common: `ipe.vis` VIs carry `ipe.structures` of them, and
-/// the `ipe.border.*` counters are the border nodes inside. Containing one is
-/// not the same as being blocked by one, though, and the gap between the two is
-/// the whole point of this census. A lowering refuses at the FIRST thing it
-/// cannot read, so the VIs the structure actually gates are `ipe.blocked` —
-/// every other VI carrying one is already refused by something reached earlier,
-/// and modelling the structure would not move it.
-///
-/// `ipe.blocked` is 27 against `ipe.vis`'s 705, so 96.2% of the VIs that carry
-/// an In Place Element Structure are held up elsewhere — 482 of them by one
-/// cause, a cluster wire whose member types no endpoint resolves
-/// (`clus.why.noneNoCluster`, the corpus's largest single blocker).
-///
-/// The 27 split by whether the structure's own contents are decoded, and they
-/// split against it: `ipe.blocked.undecodedAccess` (22) carry a border node
-/// from [kLvInPlaceElementBorderClasses] whose element access is not recovered,
-/// leaving `ipe.blocked.identifiedOnly` (5) whose border nodes are all the
-/// data-value-reference pair.
-///
-/// 27 is a **lower** bound on the lever, not a ceiling. Attribution follows the
-/// order the lowering does its work, not the order the diagram draws: whole
-/// diagram wire typing runs before any structure is reached, so every VI a wire
-/// blocks is counted against the wire even where the structure would have
-/// blocked it too. Widening any earlier reading moves VIs into this count:
-/// `exceptions.structure` is 113 with `Wait (ms)` lowered and 111 without it.
 const Map<String, int> kCorpusInPlaceElement = {
   'ipe.vis': 705,
   'ipe.structures': 904,
@@ -145,11 +75,6 @@ const Map<String, int> kCorpusInPlaceElement = {
   'ipe.blocked.undecodedAccess': 22,
 };
 
-/// The **primitive review list**: every operation the snippet corpus uses that
-/// has no lowering rule and appears at least [kReviewListFloor] times, with its
-/// occurrence count. An entry keyed by class code is a node whose class is its
-/// identity but whose operation this reader has not named; one keyed by a bare
-/// `primResID` is a node whose id [PrimOp] does not name.
 const Map<String, int> kSnippetPrimReviewList = {
   'Match Pattern (primResID 1535)': 134,
   'node class 0x93': 18,
@@ -163,21 +88,8 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1534 (name not decoded)': 11,
 };
 
-/// Everything `MD5.vi` refuses on, one entry per blocking node. It is
-/// **empty**: every node of the corpus's largest tracked diagram lowers, and
-/// the result is checked against RFC 1321's published digests in
-/// `md5_behaviour_test.dart`.
-///
-/// Kept as a pin because it is the finest-grained regression guard the diagram
-/// affords: a rule that stops reading one node repopulates this map with that
-/// node alone, naming it, where the outcome pin above only says `primitive`.
 const Map<String, int> kMd5Blockers = <String, int>{};
 
-/// How the snippet corpus's **cluster wires** resolve. A cluster wire's member
-/// types are not in its signal word, so they come from the data-space type an
-/// endpoint of the wire resolves ([lvClusterOfEndpoint]) — which is the only
-/// route there is, and covers a minority of wires. Pinned so the coverage
-/// cannot fall silently.
 const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClusterWires = (
   signals: 729,
   resolved: 489,
@@ -185,204 +97,8 @@ const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClu
   unresolved: 208,
 );
 
-/// The snippets whose outcome differs under [LvErrorMode.threaded]. It is
-/// **empty**: the two modes differ only where an error cluster reaches the
-/// connector pane, and no tracked snippet lowers far enough for that to
-/// matter. The corpus does show the difference — see the corpus sweep below,
-/// which is where the mode is measured.
 const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 
-/// How the whole `.vi` corpus's **subVI calls** bind through the connector
-/// pane, and what the two error modes make of the corpus as a whole.
-///
-/// Keys are the counter names [sweepLoweringChunk] tallies. The binding chain
-/// is what proves the pane contract: `term.dirAgree` against `term.dirDisagree`
-/// compares the caller's own wire direction with the callee control's, and
-/// `term.typeAgree` against `term.typeDisagree` compares the two VIs' wire
-/// types — neither is used to *derive* the binding, so both are independent
-/// checks on it. Direction agrees on all 1 345 resolved terminals. Type agrees
-/// on 615 of 620. The five exceptions are read as LabVIEW type relations rather
-/// than as binding contradictions, and the kinds seen among them are an integer
-/// wire reaching a callee `Variant` terminal, which accepts a value of any wire
-/// type, and a wire whose caller-side descriptor NAMES a cluster the callee's
-/// descriptor spells with the same members in the same order under no name —
-/// the name-only difference `clus.paneNameOnly` sizes.
-///
-/// The `cond.*` counters are the While-loop conditional terminal census
-/// ([LvTerminalRole.conditional]): one glyph selector on every drawn terminal
-/// (`cond.glyph192` = `cond` minus `cond.glyphNone`), and two flag bits that
-/// vary without changing anything LabVIEW draws. They size the refusal — a
-/// second glyph value appearing here is the evidence that would settle the
-/// polarity.
-///
-/// The `clus.*` counters are the cluster-wire census: a cluster wire's member
-/// types are not in its signal word, so `clus.one` is how often an endpoint
-/// supplies them, `clus.none` how often none does, and `clus.many` how often
-/// two ends disagree. `clus.viaTypedef` is the share only the typedef unwrap
-/// ([lvClusterBase]) reaches, and `clus.typedefContradicts` the wires where it
-/// adds a shape the bare-cluster reading disagrees with. The `clus.pane*`
-/// counters size the CALLEE side as a second source: `clus.pane.none` is the
-/// unresolved wires it would newly decide, `clus.paneAgrees` against
-/// `clus.paneDisagrees` is how it reproduces the endpoint route where both
-/// speak, and `clus.epTypeIdx` — absent from the pin, so zero — is the
-/// structural reason the caller-side walk stops.
-///
-/// The `clus.kid*` counters score the endpoint's own node-terminal **parts**
-/// the same way, and the `clus.none*` counters partition the wires that
-/// resolve nothing by cause — see [lvClusterOfEndpoint], which owns both
-/// readings' evidence.
-///
-/// The `clusType.*` counters re-score all three on the **Dart type** each
-/// reading maps to instead of on the descriptor's own spelling — the identity
-/// a generated library has, and so the identity the lowering compares by. It
-/// is a different question and a different answer: `clusType.one` (91 829)
-/// exceeds `clus.one` (90 614) because two ends that spell one type under two
-/// control LABELS are one Dart type, and the part route reproduces the
-/// endpoint route on 68 112 of 70 051 wires (97.2%) where `clus.kidAgrees`
-/// scores it at 44 977 of 68 982 (65.2%). `clusType.kidWouldDecide` (38 236) is
-/// what the part route would newly type — the largest single lever on the
-/// corpus — and `clusType.kidDisagrees` (1 939) is why it is measured and not
-/// read: two decoded readings of one wire that name different Dart types, with
-/// nothing decoded saying which is the wire's. `clusType.kidLabelOnly` (1 874)
-/// and `clusType.kidShapeDiffers` (65) split those by kind: all but 65 agree on
-/// every member's own type code and differ in a LABEL — the descriptor's name
-/// or a member's — which is what a nominal class is named from.
-///
-/// The `clusType.pane*` counters do the same to the callee's connector pane,
-/// and are why it is not the second side that would gate the part route. It
-/// resolves one Dart type on 6 300 wires and agrees with the endpoint route on
-/// 5 777 of them (`clusType.paneAgrees`, 91.7%) where the spelling scores it at
-/// 2 626 of 6 277 (41.8%) — a large lift that still leaves 523 contradictions,
-/// of which 518 (`clusType.paneLabelOnly`) are a label difference and 5
-/// (`clusType.paneShapeDiffers`) a member-code one. A cluster crosses a
-/// connector pane on its member types, so the two files' labels need not match
-/// and the callee's terminal is not a reading of the caller's wire's NAME.
-///
-/// Where it agrees it is also not independent. `clusType.paneAtCall*` and
-/// `clusType.paneOffCall*` read the SAME part route at two places on one wire:
-/// at the call node's own terminal, the endpoint the pane is read through, it
-/// contradicts the pane on 39 of 12 252 (0.32%), and at any other endpoint of
-/// the same wire on 372 of 4 677 (7.95%) — the caller-side rate the endpoint
-/// route also scores. A route that tracks one endpoint's stored descriptor
-/// twenty-five times more closely than it tracks itself elsewhere on the same
-/// wire is that descriptor's copy, not a second witness. Nor does what it says
-/// there favour the part route: strip the labels and the off-call part route
-/// still differs from the pane in a member's own type code on 40 of 4 677 wires
-/// (`clusType.paneOffCallShapeDiffers`, 0.86%) where the endpoint route differs
-/// on 5 of 6 300 (0.08%). `clusType.kidChecked` (5 645) against
-/// `clusType.kidUnchecked` (32 591) is the reach either way: the pane sees
-/// 14.8% of what the part route would newly type.
-///
-/// The `clus.why.*` counters partition every one of the 133 106 cluster wires
-/// by what stands between it and a Dart type, `clus.why.typed` (89 559) being
-/// the ones that have one. The rest, largest first: 40 683 whose endpoints
-/// resolve no cluster descriptor though the VI does type objects and the wire's
-/// endpoints do carry a data-space index (`noneNoCluster`); 1 809 + 281 + 4
-/// whose cluster holds a member of a type on the review list (`member.0x54`
-/// waveform, `member.0x33` picture, `member.0xd` extended float); 391 in a VI
-/// where nothing types at all; 176 spelling an enum whose item labels did not
-/// decode; 157 whose ends resolve two different Dart types; 46 reaching no
-/// index at all.
-///
-/// The `foreign.*` counters size the corpus's Call Library Function nodes
-/// ([kLvCallLibraryClass]), refused as `exceptions.foreignCall`;
-/// [kCorpusForeignCalls] counts the distinct libraries and entry points.
-///
-/// The `pane.0x<class>.equal` / `.differs` counters compare a subVI call node's
-/// holder count with its named callee's connector-pane width, over every node
-/// in the corpus. They are what identified `0x124` (30 equal, 0 differing) and
-/// what bounds that evidence: `0x32` differs on 975 of 1 012 and `0x103` on all
-/// 13, so passing the check is not a condition of membership.
-///
-/// The `wt.*` counters attribute the `wireType` refusal of every VI whose own
-/// dataflow build raises one: `wt.<family>` is the family of the wire the
-/// refusal names, `wt.sole.<family>` the VIs carrying no untyped wire of any
-/// other family, and `wt.cause.*` the `clus.why.*` sub-cause for a cluster
-/// wire. `wt.noSignalWord` — absent from the pin, so zero — would be a refusal
-/// naming a signal that carries no type word.
-///
-/// The `decl.*` counters are the generated-declaration census: what a lowering
-/// must declare for the nominal types its cluster wires carry, one registry per
-/// VI. 3 129 of the 7 508 VIs need a declaration at all, and they need 10 437 —
-/// 8 583 cluster classes and 1 854 enums. The shape questions each have a
-/// number: `decl.suffixed` (724) is how often a class name is not the plain
-/// [lvClassName] of its own LabVIEW name because a structurally different type
-/// in the same VI already held it, which is what makes structural identity
-/// rather than the name the thing a declaration is keyed by;
-/// `decl.unnamedMember` (1 213) and `decl.displacedMember` (1 594) are the
-/// members the naming policy has to name or move; `decl.anonymous` (3) is the
-/// enums with no name of their own; and `decl.noItems` (61) is the one shape
-/// that cannot be declared — an enum whose item labels did not decode, which is
-/// refused ([LvRefusalKind.typeDeclaration]) rather than half-written.
-///
-/// The `ref.*` and `flag<n>.*` counters are the refnum-wire census. A refnum
-/// wire's array-depth base is the reference class's, not the type code's, so
-/// `ref.scalar` is the share the depth-1 law ([kSignalMinScalarDepth]) decides
-/// and `ref.undecided` the rest. The `flag<n>.array` / `flag<n>.scalar` pairs
-/// are measured over the codes whose base IS pinned, and are what rules the
-/// flag nibble out as the missing base: every observed flag value carries both
-/// array and non-array wires, so the nibble does not encode array-ness.
-///
-/// The `ref.part.*` / `ref.ep.*` pairs score the two data-space descriptor
-/// routes as a source for that dimensionality ([_refnumDims]), and separate
-/// them sharply. Against the depth-1 law — an oracle neither derives from —
-/// the part route agrees on all 26 796 wires where both speak, with
-/// `ref.part.contradicts` absent from the pin and so zero, while the endpoint
-/// route contradicts it on 1 335 of 15 381 (8.7%), every one of them claiming
-/// an array where the word has no room for a dimension: the auto-indexing
-/// boundary, where the typed endpoint sits on the array side of the tunnel the
-/// wire crosses. `ref.part.split` is likewise absent, so across the 59 228
-/// refnum wires whose parts speak the two ends never state different
-/// dimensionalities. The route would decide 32 432 of the 37 891 undecided
-/// wires (`ref.part.decides`), and the depth base it implies (`ref.part.base*`)
-/// lands on the per-reference-class bases the descriptor's own discriminator
-/// measures (see [kRefnumSubtypeNote]).
-///
-/// That test alone is **one-sided**: every one of those 26 796 wires is scalar,
-/// so it catches a route that invents an array and cannot catch one that misses
-/// a real one. The `ref.pane.*` counters are the second side. A call node's
-/// holders are its pane terminals in pane order, so a refnum wire ending on one
-/// can be read against the CALLEE's own terminal for that pane — a different
-/// route (a terminal's own descriptor rather than a part's) in a different
-/// file. It answers on both rows of the undecided wires (`ref.pane.dims0`
-/// 4 661, `ref.pane.dims1` 177) and reproduces the part route on 4 827 of 4 838
-/// (`ref.pane.vsAgrees`), the 11 disagreements splitting 10 `vsInvented` to 1
-/// `vsMissed`. Its own calibration is `ref.pane.lawAgrees`: on the word's
-/// ground-truth row it agrees 1 869 times with `ref.pane.lawContradicts` absent
-/// from the pin and so zero — unlike the caller-side endpoint walk, which is
-/// wrong 8.7% of the time on that same row and is not read.
-///
-/// The disagreements are not spread. `ref.pane.contraCell.*` breaks them out by
-/// signal-word cell: plain refnum at depth 4 holds 10 of the 11, dissenting on
-/// 10 of the 101 wires the pane tests there, while every other cell agrees
-/// 4 736 of 4 737. That cell is [kLvRefnumContradictedCells] and its 1 494
-/// wires (`ref.part.contradictedCell`) keep the word's refusal; the other
-/// 30 938 (`ref.part.read`) are what the lowering types.
-///
-/// Two other candidate oracles were measured and refuted. **Auto-indexing
-/// tunnels** ([kLvTunnelIndexerCode]) would give a boundary whose two sides
-/// differ by exactly one dimension, but the corpus does not carry it: of the
-/// 4 190 loop tunnels whose refnum-coded OUTER wire the part route types, NOT
-/// ONE inner side resolves a type (4 141 are a refnum-coded wire whose parts
-/// state nothing, 15 a wire of another code, 34 no wire at all) — a structure
-/// border terminal carries no typed part, only a node terminal does.
-/// **LabVIEW's own wire stroke** ([ViSignalTypeRenderStyle]) draws
-/// dimensionality directly, but the shipped catalogue is a pure function of the
-/// same 12 bits [ViSignalType.arrayDims] reads, so it can only restate them:
-/// `render.lawSilent.styleSpeaks` is the wires where a stroke is catalogued and
-/// the depth base is not, and it covers 5 292 of 38 439 — of which
-/// `render.refUndecided.styleSpeaks` shows only 5 028 of the 37 891 refnum
-/// wires (13.3%), every one of them the single depth-2 plain-refnum cell, whose
-/// one catalogued stroke is shared by the 3 969 wires the part route calls
-/// one-dimensional AND the 651 it calls scalar. A stroke constant across a cell
-/// cannot separate readings inside it.
-///
-/// The `idx.*` counters are the Index Array terminal census
-/// ([LvArrayTerminalRole]): `idx.regular` is the nodes reading as
-/// `[array] ([output] [index]×rank)+`, `idx.rank1Index` the index terminals in
-/// a rank-1 group (the shape that lowers), and `idx.groupFirstIndex` /
-/// `idx.groupLastIndex` the delimiters of the higher-rank groups that are
-/// refused for want of a decoded dimension order.
 const Map<String, int> kCorpusLoweringSweep = {
   'call': 2357,
   'call.calleeMissing': 385,
@@ -590,36 +306,6 @@ const Map<String, int> kCorpusLoweringSweep = {
   'wt.sole.refnum': 666,
 };
 
-/// The **corpus** primitive review list: every operation the whole `.vi` corpus
-/// uses that has no lowering rule and that at least [kCorpusReviewListFloor]
-/// VIs carry, ranked by the VIs it blocks.
-///
-/// `vis` is how many of the 7 508 VIs hold at least one node of the identity;
-/// `nodes` is the node instances; `sole` is the VIs whose only unmapped
-/// identity it is — the VIs a lowering rule for it would leave with no
-/// primitive blocker at all. One identity appearing 2 437 times over 378 VIs
-/// (`0xd6`, 25 sole) is worth less than one appearing 406 times over 157, of
-/// which 28 carry nothing else (`0x150`).
-///
-/// **`sole` ranks primitive blockers only, so it is an upper bound on what a
-/// rule buys and never a count of VIs that would start lowering.** `0x153`
-/// heads the column with 337 and none of them would: of the 556 VIs holding
-/// one, 550 refuse [LvRefusalKind.wireType], 5 [LvRefusalKind.structure] and 1
-/// [LvRefusalKind.wireDirection] — every refusal the whole-VI lowering raises
-/// ahead of any primitive.
-///
-/// The snippet review list ([kSnippetPrimReviewList]) is scored over 45
-/// diagrams and ranks differently: `Match Pattern` heads it and is fourth here,
-/// where `0x63` — a quarter of every unmapped node in the corpus — appears
-/// there 83 times.
-///
-/// The list is identity-level, exactly as the snippet one is: a node whose
-/// identity HAS a rule is not counted here however often its own operands fail
-/// to resolve. `exceptions.primitive` in [kCorpusLoweringSweep] is what sizes
-/// those. Nodes that are not operations are off the list entirely: the subVI
-/// call classes ([kSubViCallNodeCodes], which `0x124` joined) and the Call
-/// Library Function node ([kLvCallLibraryClass]), which [kCorpusForeignCalls]
-/// sizes instead.
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
   'node class 0x34': (vis: 805, nodes: 1659, sole: 103),
   'Close Reference (primResID 8011)': (vis: 759, nodes: 3068, sole: 44),
@@ -648,68 +334,30 @@ const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
   'primResID 9113 (name not decoded)': (vis: 152, nodes: 187, sole: 2),
 };
 
-/// The distinct libraries and entry points the corpus's Call Library Function
-/// nodes name; [kCorpusLoweringSweep]'s `foreign.*` counts the nodes.
-///
-/// `entryPoints` is a LOWER bound: the symbol field stores at most 31
-/// characters (84 nodes are at the limit), so two longer names sharing a
-/// prefix collide here.
 const ({int libraries, int entryPoints}) kCorpusForeignCalls = (libraries: 52, entryPoints: 481);
 
-/// The VI count at which a [kCorpusPrimReviewList] entry is pinned
-/// individually; the tail below it is pinned only by [kCorpusPrimTotals].
 const int kCorpusReviewListFloor = 150;
 
-/// The corpus review list's shape: distinct unmapped identities, the node
-/// instances they account for, and the VIs carrying at least one.
 const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 219, nodes: 33998, vis: 15330);
 
-/// The occurrence count at which a review-list entry is pinned individually;
-/// the tail below it is pinned only by [kReviewListTotals].
 const int kReviewListFloor = 10;
 
-/// The review list's shape: how many distinct unmapped identities the snippet
-/// corpus holds, and how many node instances they account for.
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-/// How many VIs lower, and how many DISTINCT Dart sources they emit — the
-/// input to the analyze sweep below. Copies of one VI appear all over the
-/// corpus and lower to the same text, so the analyzer sees each source once.
 const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
 
-/// Lowers every VI in [paths], resolving subVI calls against [index] (a
-/// `file name → path` map over the whole corpus), and tallies both the
-/// connector-pane binding of every call node and the per-mode outcome.
-///
-/// `sources` collects the distinct [LvErrorMode.exceptions] lowerings, which
-/// the analyze sweep runs the analyzer over.
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
 ) {
   final (paths, index) = input;
   final tally = <String, int>{};
   final emitted = <String>{};
-  // The unmapped-primitive census, keyed `<column>|<identity>`: `nodes` is
-  // node instances, `vis` the VIs holding at least one, and `sole` the VIs
-  // whose ONLY unmapped identity it is.
   final prims = <String, int>{};
-  // The distinct library paths and entry points the foreign calls name.
   final foreign = <String>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
-  // The dataflows of ONE entry VI and the callees it reaches, all typed through
-  // that VI's own declaration registry — the scope a generated library has. A
-  // nominal class name is unique within a registry and means nothing across
-  // two, so comparing a caller's wire type with its callee's terminal type
-  // (`term.type*`) is only a statement about the pane binding when both were
-  // named by the same registry.
   var builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
   var registry = LvDeclarations();
-  // The entry VI's own wires that do not type, filled by the censuses below:
-  // per refusing cluster wire the sub-cause, and the set of wire FAMILIES the
-  // VI carries an untyped wire of. Together they attribute the VI's
-  // `wireType` refusal — which family it names, and whether that family is
-  // the whole distance to a typed diagram.
   var clusterWireCause = <int, String>{};
   var untypedFamilies = <String>{};
   LvViUnit? load(String path, String fileName) => units.putIfAbsent(path, () {
@@ -724,8 +372,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     return path == null ? null : load(path, name);
   }
 
-  // A callee's connector-pane width alone, off its `CPMp` block — the pane
-  // census needs no diagram, so it does not pay for one.
   final paneWidths = <String, int?>{};
   int? paneWidth(String name) => paneWidths.putIfAbsent(name.toLowerCase(), () {
     final path = index[name.toLowerCase()];
@@ -776,9 +422,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // The **In Place Element Structure** census (see [kCorpusInPlaceElement]):
-  // how far the structure is from a lowering, measured as the VIs it is the
-  // binding constraint on rather than as the VIs that contain one.
   void censusInPlaceElement(ViDiagram diagram, LvRefusal? refusal) {
     var structures = 0;
     final border = <int>[];
@@ -807,10 +450,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     );
   }
 
-  // The While-loop conditional terminal census (see LvTerminalRole.conditional):
-  // what the file says about a terminal whose polarity decides the loop's exit
-  // test. Counted here so the refusal is backed by a number that moves the
-  // moment a second glyph or a discriminating flag appears in the corpus.
   void censusConditionals(ViDiagram diagram) {
     for (final object in diagram.objects) {
       if (object.kind != LvTerminalRole.conditional.code) continue;
@@ -822,11 +461,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  /// Per endpoint oid in [endpoints], the callee and pane index it is a pane
-  /// terminal of. A call node's holders are its pane terminals in pane order,
-  /// so a wire ending on one can be read against the callee VI's own terminal
-  /// for that pane. Built only for the call nodes [endpoints] actually reaches,
-  /// so the census does not load a callee it has no question for.
   Map<int, (LvViUnit, int)> paneTerminalsOf(ViDiagram diagram, Set<int> endpoints) {
     final paneOf = <int, (LvViUnit, int)>{};
     for (final node in diagram.objects) {
@@ -849,24 +483,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     return paneOf;
   }
 
-  // The cluster-wire census: where a cluster wire's member shape comes from.
-  // `clus.viaTypedef` is the wires only the typedef unwrap ([lvClusterBase])
-  // resolves, and `clus.typedefContradicts` the wires where it adds a shape
-  // the bare-cluster reading disagrees with — the two numbers that say whether
-  // looking through a typedef is worth what it costs.
-  //
-  // The `clus.pane*` / `clusType.pane*` counters measure the CALLEE side as a
-  // second source: a call node's holders are its pane terminals in pane order,
-  // so a cluster wire ending on one can be read against the callee VI's own
-  // terminal for that pane. `clus.epTypeIdx` is the structural reason the
-  // caller-side walk stops where it does.
-  //
-  // The `clus.kid*` counters measure the endpoint's own **part** objects — the
-  // node-terminal parts a bounds-less `0x15` endpoint DCO parents, which do
-  // carry a data-space index where the endpoint itself does not. They score it
-  // exactly as the pane side is scored, and refuse it for the same reason (see
-  // [lvClusterOfEndpoint]). The `clus.none*` counters partition the wires that
-  // resolve nothing by cause, so the size of each blocker is a measured number.
   void censusClusterWires(ViDiagram diagram, List<ViType> pool) {
     final clusterEndpoints = <int>{
       for (final wire in diagram.wires)
@@ -874,16 +490,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     };
     if (clusterEndpoints.isEmpty) return;
     final paneOf = paneTerminalsOf(diagram, clusterEndpoints);
-    // Whether the VI's data-space type indices resolve at all: a VI carrying
-    // no `VCTP` pool, or a `DTHP` too short to declare the heap's index base,
-    // has no object with a resolved type, so no route can reach one.
     final anyTyped = diagram.objects.any((object) => object.resolvedType != null);
     final childrenByOid = diagram.childrenByOid;
-    // What each descriptor becomes in Dart, allocated against one registry per
-    // VI — the scope a generated library has, so two readings hold one
-    // [LvTypeMapping.dartType] exactly when they are one type in that library.
-    // Memoized because a pool descriptor is shared by every object that names
-    // it, and the census asks about it once per wire end.
     final registry = LvDeclarations();
     final mappingOf = <ViType, LvTypeMapping>{};
     LvTypeMapping typeOf(ViType type, List<ViType> owner) =>
@@ -895,9 +503,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       final array = (signal.arrayDims ?? 0) > 0;
       final shapes = <String>{}, bare = <String>{}, viaPane = <String>{}, viaKid = <String>{};
       final ownTypes = <String?>{}, kidTypes = <String?>{}, paneTypes = <String?>{};
-      // The part route's answer split by WHERE the part sits: on the call
-      // node's own terminal, which is the same endpoint the pane is read
-      // through, or on another endpoint of the same wire.
       final kidAtCall = <String?>{}, kidOffCall = <String?>{}, kidOffCallShape = <String>{};
       LvTypeMapping? ownMapping;
       for (final endpoint in wire.endpointOids) {
@@ -910,9 +515,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
         ownMapping ??= mapping;
         ownTypes.add(mapping.dartType);
       }
-      // The endpoint's own node-terminal PARTS: the objects a bounds-less
-      // endpoint DCO parents, which carry the data-space index the endpoint
-      // itself never does.
       for (final endpoint in wire.endpointOids) {
         for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
           final type = array ? part.resolvedElementType : part.resolvedType;
@@ -936,9 +538,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
           final type = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
           if (type == null) continue;
           viaPane.add(lvClusterShape(type, callee.pool));
-          // Named through the CALLER's registry, so two readings hold one
-          // [LvTypeMapping.dartType] exactly when they are one type in one
-          // generated library.
           paneTypes.add(typeOf(type, callee.pool).dartType);
         }
       }
@@ -962,15 +561,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (shapes.length == 1 && viaKid.length == 1) {
         final agrees = shapes.single == viaKid.single;
         bump(agrees ? 'clus.kidAgrees' : 'clus.kidDisagrees');
-        // A disagreement that is the descriptor NAME alone: the two readings
-        // spell identical members under different typedefs.
         if (!agrees && shapes.single.split('|').last == viaKid.single.split('|').last) {
           bump('clus.kidNameOnly');
         }
       }
-      // The same two routes, scored on the DART TYPE each reading maps to
-      // rather than on the descriptor's own spelling — the identity a
-      // generated library has, and the one the lowering compares by.
       final ownCount = switch (ownTypes.length) {
         0 => 'none',
         1 => 'one',
@@ -993,14 +587,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
           bump('clusType.kidWouldNotMap');
         } else {
           bump('clusType.kidWouldDecide');
-          // Whether the pane reaches that wire at all, and so whether anything
-          // decoded can check the type the part route would give it.
           bump(paneTypes.length == 1 ? 'clusType.kidChecked' : 'clusType.kidUnchecked');
         }
       }
-      // The CALLEE's pane terminal, scored the same way. Its calibration is
-      // against the reading the lowering already trusts, and its independence
-      // is the two counters below it.
       if (paneTypes.length == 1) bump('clusType.pane.$ownCount');
       if (ownTypes.length == 1 && paneTypes.length == 1) {
         final agrees = ownTypes.single == paneTypes.single;
@@ -1016,9 +605,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (ownTypes.isEmpty && paneTypes.length == 1) {
         bump(paneTypes.single == null ? 'clusType.paneWouldNotMap' : 'clusType.paneWouldDecide');
       }
-      // Is the pane a second reading, or the caller's own cached copy of the
-      // callee's terminal type? The same part route, read at the call node's
-      // terminal and read anywhere else on the same wire.
       if (paneTypes.length == 1 && kidAtCall.length == 1) {
         bump(kidAtCall.single == paneTypes.single ? 'clusType.paneAtCallAgrees' : 'clusType.paneAtCallDisagrees');
       }
@@ -1033,8 +619,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
           );
         }
       }
-      // Why this wire does not type — one cause per wire, the causes and
-      // `clus.why.typed` partitioning `clus`.
       String causeOfWire() {
         if (ownTypes.isEmpty) {
           if (!anyTyped) return 'noneUntyped';
@@ -1073,15 +657,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // The generated-declaration census: what a lowering has to declare so that
-  // the nominal types its cluster wires carry exist. One registry per VI, the
-  // scope a generated library has, over exactly the wires that resolve a single
-  // member shape — so it is independent of where a VI's lowering refuses.
-  //
-  // `decl.suffixed` is the collision rate the structural identity buys: a
-  // declaration whose class name is not the plain [lvClassName] of its own
-  // LabVIEW name, because a structurally different type in the same VI already
-  // took it. `decl.noItems` is the one shape that cannot be declared at all.
   void censusDeclarations(ViDiagram diagram, List<ViType> pool) {
     final registry = LvDeclarations();
     for (final wire in diagram.wires) {
@@ -1108,9 +683,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (declaration.label == null) bump('decl.anonymous');
       if (declaration.undeclarable != null) bump('decl.noItems');
       if (declaration.fields.any((field) => field.label == null)) bump('decl.unnamedMember');
-      // A member the naming policy had to move: its identifier is not the one
-      // it would take on its own, because an earlier member, or a name every
-      // Dart class inherits, already held it.
       final labels = [for (final field in declaration.fields) field.label];
       final named = LvNaming.declarationFields(labels);
       for (var index = 0; index < labels.length; index++) {
@@ -1119,11 +691,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // The Index Array terminal census ([LvArrayTerminalRole]): the grammar's
-  // regularity, and how much of the corpus the refused higher-rank groups
-  // account for. `idx.dims<n>` is the dimensionality of the array wire, so
-  // `idx.dims2` and above size exactly what a decoded dimension order would
-  // unblock.
   void censusIndexArrays(ViDiagram diagram) {
     final childrenByOid = diagram.childrenByOid;
     for (final node in diagram.objects) {
@@ -1143,29 +710,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // The refnum-wire census, and the flag-nibble refutation behind it
-  // ([kSignalMinScalarDepth]). `ref.scalar` is the share of refnum-coded wires
-  // the depth-1 law decides and `ref.undecided` the rest, whose base is the
-  // reference class's. The `flag<n>.*` pairs are why no other field of the word
-  // supplies that base: every observed flag value carries both array and
-  // non-array wires among the codes whose base IS pinned, so the nibble does
-  // not encode array-ness.
-  //
-  // Three readings of a refnum wire's dimensionality are scored here, each
-  // against the others and against the word where the word decides — the
-  // evidence [lvRefnumWireDims] rests on:
-  //
-  // * `ref.part.*` — the endpoint's node-terminal PARTS, in the wire's own VI.
-  //   This is the route the lowering reads.
-  // * `ref.ep.*` — the endpoint DCO itself, one parent up. Measured and NOT
-  //   read: on the word's ground-truth row it invents an array 1 335 times.
-  // * `ref.pane.*` — the CALLEE's connector-pane terminal where the wire ends
-  //   on a subVI call: a different route (a terminal's own descriptor, not a
-  //   part's) in a different file, and the only one of the three that answers
-  //   on both the scalar and the array row of the undecided wires. `ref.pane.law*`
-  //   is its calibration against the depth-1 law, `ref.pane.vs*` its verdict on
-  //   the part route, and `ref.pane.contraCell*` where the two disagree
-  //   ([kLvRefnumContradictedCells]).
   void censusRefnumWires(ViDiagram diagram) {
     final childrenByOid = diagram.childrenByOid;
     final refnumEndpoints = <int>{
@@ -1180,9 +724,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (kLvWireRefnumCodes.contains(signal.typeCode)) {
         bump('ref');
         bump(dims == null ? 'ref.undecided' : 'ref.scalar');
-        // The three descriptor routes as a source for the dimensionality the
-        // word's missing base withholds, each scored against the other's
-        // answer and against the word where the word decides.
         final viaEndpoint = <int>{}, viaPart = <int>{}, viaPane = <int>{};
         for (final endpoint in wire.endpointOids) {
           var walker = diagram.byId[endpoint];
@@ -1217,24 +758,17 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
         if (dims != null) {
           if (viaPart.length == 1) bump(viaPart.single == dims ? 'ref.part.agrees' : 'ref.part.contradicts');
           if (viaEndpoint.length == 1) bump(viaEndpoint.single == dims ? 'ref.ep.agrees' : 'ref.ep.contradicts');
-          // The pane route's calibration: on the row the word decides, does the
-          // callee's terminal ever invent an array the word says is not there?
           if (viaPane.length == 1) bump(viaPane.single == dims ? 'ref.pane.lawAgrees' : 'ref.pane.lawContradicts');
         } else {
           if (viaPart.length == 1 && viaPane.length == 1) {
             final agrees = viaPart.single == viaPane.single;
             bump(agrees ? 'ref.pane.vsAgrees' : 'ref.pane.vsContradicts');
-            // Both error directions, kept apart: the pane declining an array
-            // the part route reads, and the pane reading one the part route
-            // declines. A one-sided oracle can only ever fill one of these.
             if (!agrees) bump('ref.pane.vs${viaPart.single > viaPane.single ? 'Invented' : 'Missed'}');
             bump(
               'ref.pane.contraCell.${signal.typeCode.toRadixString(16)}_d${signal.depth}'
               '.${agrees ? 'agrees' : 'contradicts'}',
             );
           }
-          // The array row of the undecided wires, which only the pane route
-          // reaches: how many wires it calls one-dimensional at all.
           if (viaPane.length == 1) bump('ref.pane.dims${viaPane.single}');
           if (viaPart.length == 1) {
             bump('ref.part.decides');
@@ -1253,31 +787,15 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       } else if (dims != null) {
         bump('flag${signal.flags}.${dims > 0 ? 'array' : 'scalar'}');
       }
-      // Whether the wire's MEASURED render stroke ([ViSignalTypeRenderStyle])
-      // says anything where the word's array-depth base does not — the whole
-      // question of whether LabVIEW's own drawing can supply the missing
-      // dimensionality. It is a pure function of the same 12 bits
-      // ([ViSignalType.arrayDims] reads), so it can only ever restate them.
       if (dims == null) {
         bump('render.lawSilent.${signal.renderStyle == null ? 'styleMute' : 'styleSpeaks'}');
       }
-      // The non-cluster half of the untyped-family set the refusal
-      // attribution below reads; the cluster half is filled by the cluster
-      // census, which needs an endpoint walk to decide it.
       if (!kLvWireClusterCodes.contains(signal.typeCode) && !mapLvWireType(signal).isMapped) {
         untypedFamilies.add(_wireFamilyName(signal.typeCode));
       }
     }
   }
 
-  /// Which wire family this VI's OWN `wireType` refusal names, and — for a
-  /// cluster wire — which sub-cause of [censusClusterWires]. `wt.sole.*` is the
-  /// VIs carrying no untyped wire of any other family, so the named family is
-  /// the whole distance to a typed diagram.
-  ///
-  /// Read off the VI's own dataflow build rather than off its library
-  /// emission: heap oids repeat across VIs, so a refusal raised in a CALLEE's
-  /// diagram cannot be identified against this one's signals.
   void censusWireTypeRefusal(ViDiagram diagram, LvRefusal refusal) {
     final wire = diagram.wires.where((wire) => wire.signalOid == refusal.oid).firstOrNull;
     final signal = wire?.signalType;
@@ -1299,13 +817,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // The unmapped-primitive census of one diagram: which operations it uses
-  // that [lvPrimHasRule] does not admit, how many nodes each accounts for, and
-  // whether it is the only one the VI carries — the ranking key, since mapping
-  // one identity clears a VI's primitive blockers only when nothing else is
-  // left. Identity-level exactly as the snippet review list is, so a node whose
-  // identity has a rule but whose own operands do not resolve is not counted
-  // here; `exceptions.primitive` is what sizes those.
   void censusPrimitives(ViDiagram diagram) {
     final here = <String, int>{};
     for (final object in diagram.objects) {
@@ -1326,9 +837,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // Per subVI call class, whether a node's holder count equals its named
-  // callee's connector-pane width — over every node in the corpus, not only
-  // the calls an entry VI reaches. See [kCorpusLoweringSweep]'s `pane.*`.
   void censusCallPaneWidths(ViDiagram diagram) {
     for (final node in diagram.objects) {
       if (!kSubViCallNodeCodes.contains(node.kind)) continue;
@@ -1342,7 +850,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     }
   }
 
-  // The **foreign-call census**: what the Call Library Function nodes name.
   void censusForeignCalls(ViDiagram diagram) {
     var here = 0;
     for (final object in diagram.objects) {
@@ -1388,8 +895,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       sources.add(result.source);
       if (mode == LvErrorMode.exceptions && result.source != null) emitted.add(result.source!);
     }
-    // The modes are only allowed to differ where an error cluster reaches the
-    // connector pane, so this counts the VIs the choice actually changes.
     if (sources.every((source) => source != null)) {
       bump(sources.first == sources.last ? 'modes.same' : 'modes.differ');
     }
@@ -1397,9 +902,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
   return (tally: tally, sources: emitted, prims: prims, foreign: foreign);
 }
 
-/// The whole-corpus sweep, run once however many tests read it: it decodes
-/// every VI in the corpus, so paying for it twice would double this file's
-/// runtime.
 Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign})> corpusSweep(
   Directory corpus,
 ) => _corpusSweep ??= _runCorpusSweep(corpus);
@@ -1484,9 +986,6 @@ void main() {
             final selector = node.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
             final outer = selector?.outerPort;
             final type = outer == null ? null : flow.into(outer)?.type;
-            // A Case lowers from its own per-frame range list, or — for a
-            // boolean / error-cluster selector — from the displayed frame's
-            // label and its complement. A structure with neither refuses.
             final twoWay = type != null && (type.isErrorCluster || type.carrier == LvCarrier.boolean);
             if (type != null && !twoWay && node.selectorRanges.isEmpty) {
               bump('caseSelector over ${type.dartType}');
@@ -1538,10 +1037,6 @@ void main() {
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
       expect(measured, {...kCorpusLoweringSweep, ...kCorpusInPlaceElement});
-      // The two independent checks on the pane binding: neither is used to
-      // derive it, so a disagreement would mean the contract is wrong.
-      // Direction admits none; the four type exceptions are attributed in
-      // [kCorpusLoweringSweep]'s doc and pinned exactly by the map above.
       expect(measured['term.dirDisagree'], isNull, reason: 'the pane binding contradicts the caller\'s own direction');
     },
     tags: 'corpus',
@@ -1565,9 +1060,6 @@ void main() {
           '${scratch.path}/lib',
         ], workingDirectory: scratch.path);
         expect(analyzed.exitCode, 0, reason: 'the emitted code is not clean:\n${analyzed.stdout}${analyzed.stderr}');
-        // Analysis covers the static errors; a kernel compile of one entry
-        // importing all of them is the independent check that the emitted
-        // libraries really do link against the runtime.
         final compiled = Process.runSync(_kDart, [
           'compile',
           'kernel',
@@ -1671,23 +1163,10 @@ void main() {
   });
 }
 
-/// The Dart executable running this test — the same SDK the emitted code is
-/// analyzed and compiled with.
 final String _kDart = Platform.resolvedExecutable;
 
-/// The scratch package's name; it is throwaway, so nothing refers to it beyond
-/// the entry point that imports its libraries.
 const String _kScratchPackageName = 'lv_emitted';
 
-/// A throwaway package holding one library per source in [sources], ready for
-/// `dart analyze` and `dart compile`.
-///
-/// Package resolution is this repo's own `package_config.json` with every
-/// relative `rootUri` made absolute, so the emitted code links against the
-/// same `labwright_lv_runtime` the checked-in generated sources do without a
-/// `pub get`. `bin/all.dart` imports every library under a prefix — the
-/// emitted entry points all share a name, and a prefix keeps a batch compile
-/// to one invocation.
 Directory _scratchPackage(Set<String> sources) {
   final dir = Directory.systemTemp.createTempSync('lv_emitted_');
   for (final sub in const ['lib', 'bin', '.dart_tool']) {
@@ -1724,14 +1203,10 @@ Directory _scratchPackage(Set<String> sources) {
     'environment:\n  sdk: ^${runtime['languageVersion']}.0\n'
     'dependencies:\n  $kLvRuntimePackage: any\n',
   );
-  // Goal: emitted code is clean at the lint set a new Dart package gets.
   File('${dir.path}/analysis_options.yaml').writeAsStringSync('include: package:lints/recommended.yaml\n');
   return dir;
 }
 
-/// [node]'s lowering against the wires that reach it, or null when it has
-/// none. The expressions are placeholders: only whether a lowering EXISTS is
-/// asked here, never what it says.
 List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
   List<LvPrimTerminal> terminals(List<int> ports, {required bool isInput}) => [
     for (final port in ports)
@@ -1760,8 +1235,6 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
   );
 }
 
-/// How a refused node is named in [kMd5Blockers]: the operation, the named
-/// class, or the bare `primResID` an unnamed one carries.
 String _blockerKey(LvPrimUnit node) {
   if (node.op case final op?) return '${op.opName} (primResID ${op.id})';
   if (kLvNamedNodeClasses[node.classCode] case final named?) {
@@ -1771,13 +1244,10 @@ String _blockerKey(LvPrimUnit node) {
   return 'node class 0x${node.classCode.toRadixString(16)}';
 }
 
-/// Whether the diagram constant [node] carries a decoded value of [type].
 bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
     ? node.record.constBool != null || node.record.constText != null || node.record.constNumeric != null
     : node.record.constArray != null && node.record.constArrayDims != null;
 
-/// Every cluster-coded signal in [diagram], bucketed by whether its endpoints
-/// resolve one member shape, several, or none.
 ({int signals, int resolved, int disagreeing, int unresolved}) _clusterWires(ViDiagram diagram, List<ViType> pool) {
   var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
   for (final wire in diagram.wires) {
@@ -1800,18 +1270,9 @@ bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
   return (signals: signals, resolved: resolved, disagreeing: disagreeing, unresolved: unresolved);
 }
 
-/// A [lvClusterShape] spelling with every LABEL dropped: the member type codes
-/// alone, in order.
-///
-/// It separates the two things a cluster descriptor states. The codes are what
-/// the wire CARRIES; the labels — the descriptor's own name and its members' —
-/// are what a generated class is NAMED from. Two readings of one wire that
-/// share this string and differ in the full spelling differ only in naming.
 String _clusterMemberCodes(String shape) =>
     shape.split('|').last.split(',').map((member) => member.split(':').first).join(',');
 
-/// Whether [roles] — one Index Array node's terminal role bits in heap order —
-/// reads as `[array] ([output] [index]×rank)+` ([LvArrayTerminalRole]).
 bool _indexArrayShape(List<int> roles) {
   if (roles.isEmpty || roles.first != LvArrayTerminalRole.array) return false;
   var at = 1;
@@ -1835,14 +1296,6 @@ bool _indexArrayShape(List<int> roles) {
   return true;
 }
 
-/// The array dimensionality [object]'s resolved data-space descriptor states
-/// for a REFNUM value — 0 for a bare reference, the array's own dimension count
-/// for an array of them — or null when the descriptor is not a refnum shape.
-///
-/// It is what a refnum wire's dimensionality would come from if it came from a
-/// descriptor rather than from the signal word, whose depth base rides the
-/// reference class ([kSignalMinScalarDepth]). Typedef wrappers are transparent,
-/// exactly as [lvClusterBase] makes them for a cluster.
 int? _refnumDims(ViHeapObject object) {
   ViType? unwrap(ViType? type) {
     for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
@@ -1859,10 +1312,6 @@ int? _refnumDims(ViHeapObject object) {
   return unwrap(object.resolvedElementType)?.kind == ViDataType.refnum ? (own.dimCount ?? 1) : null;
 }
 
-/// A signal word's element type [code] as a family name — the two multi-code
-/// families by name ([kLvWireClusterCodes], [kLvWireRefnumCodes]) and every
-/// other code by its own number, which is how the refusal census groups the
-/// wires a VI cannot type.
 String _wireFamilyName(int code) {
   if (kLvWireClusterCodes.contains(code)) return 'cluster';
   if (kLvWireRefnumCodes.contains(code)) return 'refnum';

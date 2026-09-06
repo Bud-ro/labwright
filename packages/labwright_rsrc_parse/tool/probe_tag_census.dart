@@ -6,30 +6,14 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Census of walked heap records in the **10-bit tag-id space**.
-///
-/// The two header bytes of every heap record decompose as
-/// `byte0 = sizeSpec(3b)<<5 | hasAttrList(1b)<<4 | scope(2b)<<2 | rawTagHi(2b)`,
-/// `byte1 = rawTagLo` — so the "attribute id byte" is only the LOW 8 bits of a
-/// 10-bit raw tag id, and e.g. `C5 E7` (raw 0x1E7) is a different tag than
-/// `44 E7` (raw 0x0E7). This tool re-buckets every walked span by
-/// (tier, scope, rawTagId, sizeSpec) to itemize the non-semantic byte mass in
-/// the true tag space.
-///
-/// Also probes the `64 CB 26` framing special-case: under the header grammar a
-/// `64 CB` record is a leaf with sizeSpec 3 (3 value bytes, 5 total), but
-/// [recordSkip] frames it as 3 bytes total. Re-walk affected sections with the
-/// 5-byte reading and compare walk completeness corpus-wide.
-///
 /// Run: `dart run tool/probe_tag_census.dart [corpusRoot=<pkg>/corpus/vi]`
 
 class _Agg {
   final Map<String, int> tierKeyBytes = {};
   final Map<String, int> tierKeyCount = {};
 
-  // 64 CB 26 experiment.
-  int cb26Sections = 0; // sections containing >=1 `64 cb 26` span
-  int cb26Complete3 = 0, cb26Complete5 = 0; // walk reaches EOF under 3B vs 5B
+  int cb26Sections = 0;
+  int cb26Complete3 = 0, cb26Complete5 = 0;
   int cb26Covered3 = 0, cb26Covered5 = 0, cb26Body = 0;
 
   void bump(Map<String, int> m, String k, int n) => m[k] = (m[k] ?? 0) + n;
@@ -62,7 +46,6 @@ String _tagKey(Uint8List body, int offset, int lead) {
   return '$scopeCh${hasAttrs == 1 ? 'a' : '-'}:${raw.toRadixString(16).padLeft(3, '0')}:$sz';
 }
 
-/// Local re-walk with the `64 cb 26` case read as the grammar-correct 5 bytes.
 ({bool complete, int covered}) _walk5(Uint8List body) {
   final length = body.length;
   var i = 4, covered = 0;

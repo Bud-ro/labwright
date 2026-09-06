@@ -7,15 +7,8 @@ import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import 'util.dart';
 
-/// Exports side-by-side screenshot pairs of the oracle comparison for
-/// eyeballing: per snippet, `<name>_ours.png` (the registered render fitted
-/// into the reference frame) and `<name>_labview.png` (the reference), both
-/// 2x nearest-upscaled so single pixels survive image viewers.
-///
 /// Export is opt-in (it writes files outside the build tree):
 /// `flutter test test/oracle_shots_test.dart --dart-define=SHOT_DIR=<dir>`
-/// with an optional `--dart-define=SHOTS=crc8.png,crc16.png` naming the
-/// snippets (default `crc8.png`; the `.png` suffix may be omitted).
 void main() {
   const shotDir = String.fromEnvironment('SHOT_DIR');
   const shots = String.fromEnvironment('SHOTS', defaultValue: 'crc8.png');

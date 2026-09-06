@@ -6,17 +6,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Round-3 verification for the residual value-kind tags:
-///
-///   0x159 / 0x15A — candidate refListLength / hGrowNodeListLength (the tags
-///     adjacent to the verified 0x158 termListLength): scope, values, and the
-///     structural identities value == `14 19` ref count / value == direct
-///     child count.
-///   0x25E (candidate MinButSize) / 0x12A (candidate termHotPoint) — scope +
-///     packed (s16,s16) plausibility.
-///   0x27E (candidate TunnelType), 0x263 (candidate ParForNumStaticWorkers),
-///   0x119, 0x1B2, 0x1B8, 0x0E0, 0x0E8, 0x144 — scope + value shape.
-///
 /// Run: `dart run tool/probe_tag_verify3.dart [corpusRoot=<pkg>/corpus/vi]`
 
 const Set<int> kTargets = {0x159, 0x15a, 0x25e, 0x12a, 0x27e, 0x263, 0x119, 0x1b2, 0x1b8, 0x0e0, 0x0e8, 0x144};

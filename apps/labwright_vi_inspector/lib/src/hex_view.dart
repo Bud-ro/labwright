@@ -4,14 +4,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'span_annotations.dart';
 
-/// A read-only **hex + parser** view of one decoded resource-block section —
-/// HxD/Wireshark style. The section's bytes are shown as a hex dump on the left,
-/// record-colored; the right panel lists the parsed records (driven by the
-/// clean-room `HeapOpcode` / `HeapObjectClass` / `HeapAttribute` catalogs and the
-/// heap walker). Selecting a record highlights its bytes and shows its decoded
-/// meaning, including typed displays (colour swatches, rectangles, strings,
-/// numbers). Honest by construction: bytes the walker can't frame are shown as
-/// an uncovered gap, never hidden.
 class BlockHexView extends StatefulWidget {
   const BlockHexView({
     super.key,
@@ -21,9 +13,6 @@ class BlockHexView extends StatefulWidget {
 
   final DecodedSection section;
 
-  /// The other decoded sections of the same VI — lets a block resolve a
-  /// cross-reference (e.g. CONP's u16 index into the VCTP type pool). Optional;
-  /// empty when the block is viewed in isolation.
   final List<DecodedSection> siblings;
 
   @override
@@ -119,10 +108,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     super.dispose();
   }
 
-  /// Selects record [i]. Always scrolls the hex dump to the record's bytes; when
-  /// the selection originated from a hex-byte tap ([fromHex]) it also scrolls the
-  /// records list to bring that record into view (and vice-versa is implicit:
-  /// tapping a record row scrolls the hex to its bytes).
   void _select(int recordIndex, {bool fromHex = false}) {
     setState(() => _selected = recordIndex);
     if (recordIndex < 0 || recordIndex >= _records.length) return;
@@ -413,10 +398,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  /// Byte-coverage of a NON-heap block: the fraction of bytes covered by named
-  /// field spans (excluding the explicit "Undecoded" gap spans). Null for heaps
-  /// (they report the record-walk coverage) and for raw/unannotated blocks.
-  /// Drives the honest "% framed" progress readout toward the every-byte goal.
   double? _fieldCoverage() {
     if (_walk != null || _records.isEmpty) return null;
     final total = widget.section.bytes.length;
@@ -429,9 +410,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     return framed / total;
   }
 
-  /// Decoded fields for a non-heap block whose format we parse — label/value
-  /// pairs straight from the viparse decoders (never fabricated; only what a
-  /// decoder actually returns). Empty when the block has no decoder.
   List<MapEntry<String, String>> _parsedBlockSummary() {
     final bytes = widget.section.bytes;
     switch (widget.section.tag) {
@@ -517,7 +495,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     }
   }
 
-  /// The "Parsed · <name>" list header every parsed-section panel opens with.
   List<Widget> _parsedHeader(String name, String subtitle) => [
     Text('Parsed · $name', style: const TextStyle(fontWeight: FontWeight.bold)),
     const SizedBox(height: 2),
@@ -655,11 +632,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  /// Per-byte field spans for a non-heap block whose layout we know, so the hex
-  /// dump is clickable byte-by-byte (mirroring the heap record-walk). Returns []
-  /// for blocks without a field layout (the raw-hex panel is shown instead).
-  /// Whatever spans are produced, [_fillGaps] adds explicit "undecoded" spans so
-  /// EVERY byte is accounted for — coverage is total and the gaps stay visible.
   List<SpanInfo> _fieldSpans(String tag, List<int> bytes) {
     final out = <SpanInfo>[];
     void span(
@@ -1086,8 +1058,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     return _fillGaps(out, bytes.length);
   }
 
-  /// Inserts explicit "undecoded" spans for any byte ranges [fields] leaves
-  /// uncovered (and a trailing tail), so the hex view accounts for every byte.
   List<SpanInfo> _fillGaps(List<SpanInfo> fields, int len) {
     if (fields.isEmpty) return fields;
     fields.sort((a, bytes) => a.offset.compareTo(bytes.offset));
@@ -1124,8 +1094,6 @@ class _BlockHexViewState extends State<BlockHexView> {
       ? '${(byteCount / 1024).toStringAsFixed(1)} KB'
       : '$byteCount B';
 
-  /// Lower-case hex of [bytes]; [spaced] inserts a space between bytes for reading
-  /// (continuous form pastes straight into a hasher — e.g. to check a BDPW hash).
   static String _hex(List<int> bytes, {bool spaced = false}) => bytes
       .map((byte) => byte.toRadixString(16).padLeft(2, '0'))
       .join(spaced ? ' ' : '');
@@ -1140,8 +1108,6 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  /// A copy control for the block's bytes: continuous hex (default), spaced hex,
-  /// and — when a record is selected — just that record's bytes.
   Widget _copyMenu(BuildContext context, Uint8List bytes) {
     final sel = (_selected >= 0 && _selected < _records.length)
         ? _records[_selected]

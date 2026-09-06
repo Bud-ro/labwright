@@ -9,46 +9,12 @@ import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import '../test/bd_wire_mask_test.dart' show kWireInkPalette;
 import '../test/util.dart';
 
-/// The primitive-icon extraction pipeline: the corpus sweep, the per-identity
-/// consensus, and the reproducibility comparison against the committed
-/// assets. Shared by the asset generator (tool/extract_prim_icons.dart) and
-/// the reproducibility test (test/prim_icon_repro_test.dart). It runs under
-/// the flutter_test harness because rasterising a diagram needs a live engine.
-/// Identities the consensus pipeline cannot reach, extracted instead from
-/// NAMED node instances: asset key → the snippet and heap oid of each.
-///
-/// The consensus path needs several samples of an identity that survive
-/// per-pixel voting, and it harvests only from snippets whose whole-diagram
-/// registration clears the placement gate. Three identities satisfy neither
-/// condition: `prim1170` has two corpus instances outside the gate-excluded
-/// snippets and they fuse to their attached wires under generic cleaning,
-/// `prim1537`'s only instance lives in a gate-excluded snippet, and `prim1082`
-/// has ONE instance anywhere in the snippet corpus, so per-pixel voting has
-/// nothing to vote against and the wires the node is drawn attached to survive
-/// into the art.
-///
-/// Naming the instance replaces the statistics: the crop is taken at the
-/// node's own decoded box and cleaned by [_cleanNodeBoxCrop], and where two
-/// instances are named the result must agree byte-for-byte or the key fails.
-/// A named key takes this art over the consensus path's — naming an instance
-/// is the statement that generic harvesting got that key wrong.
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   'prim1082': [(snippet: 'MD5', oid: 6017)],
   'prim1170': [(snippet: 'crc16', oid: 820), (snippet: 'crc16', oid: 619)],
   'prim1537': [(snippet: 'Excel_Cell_to_RowCol', oid: 477)],
 };
 
-/// One padded reference crop of a node box cleaned down to its icon art, with
-/// the art's offset from the box's top-left ([kPrimIconPlacement]'s measure).
-/// Null when nothing survives.
-///
-/// The crop is [w]×[h] RGBA with the node box inset by [pad] on every side.
-/// Cleaning is four steps, each a decoded fact rather than a threshold:
-/// exact [kWireInkPalette] colours are wire ink and are erased; near-white
-/// flooded inward from the crop border is canvas (an icon's own white fill is
-/// enclosed and survives); a surviving component is icon art only if it
-/// reaches the box's centre third or lies wholly inside the box (a wire tail
-/// or a neighbour's ink does neither); what is left is trimmed to its ink.
 ({Uint8List rgba, int w, int h, int dx, int dy})? _cleanNodeBoxCrop(
   Uint8List crop,
   int w,
@@ -165,7 +131,6 @@ bool _sameBytes(Uint8List a, Uint8List b) {
   return true;
 }
 
-/// What one sweep of the snippet corpus produced.
 class PrimIconExtraction {
   const PrimIconExtraction({
     required this.appDir,
@@ -179,36 +144,23 @@ class PrimIconExtraction {
     required this.handKeys,
   });
 
-  /// The app package root and its `assets/prim_icons` directory.
   final String appDir;
   final Directory assetDir;
 
-  /// Per asset key, the extracted art and a description of the samples it came
-  /// from.
   final Map<String, ({img.Image icon, String sources})> pending;
 
-  /// Per asset key that reached no usable art, the reason — extraction never
-  /// drops an identity silently.
   final Map<String, String> failed;
 
-  /// Every asset key observed on a diagram, whether or not art survived.
   final Set<String> observedKeys;
 
-  /// Snippets whose registration fell below the placement threshold, so they
-  /// contributed no samples.
   final List<String> skippedLowQuality;
 
-  /// The master palette every shipped pixel snapped to, ascending.
   final List<int> palette;
 
-  /// The keys the maintainer marked verified (pipeline-reproducible ground
-  /// truth) and verifiedHand (hand-finished, never re-extracted).
   final Set<String> verifiedKeys;
   final Set<String> handKeys;
 }
 
-/// Sweeps the snippet corpus and extracts one art per identity, palette
-/// snapped. Null when no snippet corpus is present.
 Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
   await loadRealTextFont();
   final pngs = snippetCorpusPngs();
@@ -216,9 +168,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
   final appDir = repoDir('apps/labwright_vi_inspector')!.path;
   final assetDir = Directory('$appDir/assets/prim_icons')
     ..createSync(recursive: true);
-  // Asset key -> candidate crops. Keys: 'prim<id>' for primResID-bearing
-  // nodes, 'class<code>' for the single-op primitive classes that carry no
-  // primResID (their class IS the identity — 0x44 etc.).
   const primClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0x185, 0x370};
   final samples =
       <
@@ -227,8 +176,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       >{};
   final skippedLowQuality = <String>[];
   final observedKeys = <String>{};
-  // Targeted crops ([kTargetedIconSamples]): collected by named oid, so
-  // neither the placement gate nor the sample cap applies to them.
   final targeted =
       <
         String,
@@ -252,8 +199,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       );
       if (!result.registered) continue;
       final reg = result.registration;
-      // Only well-registered snippets contribute: a global registration a
-      // few pixels off lands every crop on the wrong pixels.
       final placement = comparePlacement(
         diagram: bd,
         raster: raster,
@@ -267,8 +212,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       final quality = placement.objects == 0 ? 0.0 : placement.excessSupport;
       final refW = reference.image.width, refH = reference.image.height;
       final name = f.uri.pathSegments.last.replaceAll('.png', '');
-      // The registered reference pixels of [bounds] grown by [pad] on
-      // every side, or null when the padded box leaves the reference.
       const pad = 5;
       ({Uint8List rgba, int w, int h})? cropOf(HeapRect bounds) {
         final left =
@@ -300,11 +243,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
 
       for (final o in bd.objects) {
         final b = o.absBounds;
-        // Class-identified prims are growable stacked-terminal nodes
-        // (0x3a/0x44 grow ~8px per terminal): one class carries one art
-        // PER TERMINAL COUNT, so class keys embed the node's arity —
-        // the decoded identity, finer than the box size (0x44 renders
-        // t4 and t5 both at 32x35).
         final key = o.primResId != null
             ? 'prim${o.primResId}'
             : (primClasses.contains(o.kind)
@@ -313,8 +251,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         if (key == null || b == null || b.width <= 0 || b.height <= 0) {
           continue;
         }
-        // Every observed identity stays visible even when no snippet can
-        // contribute pixels for it.
         observedKeys.add(key);
         if (kTargetedIconSamples[key]?.any(
               (s) => s.snippet == name && s.oid == o.oid,
@@ -331,8 +267,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
           }
         }
         if (lowQuality) continue;
-        // A node inside a disable structure renders greyed — its washed
-        // colours would poison the palette.
         var anc = bd.byId[o.parentOid ?? -1];
         var hops = 0;
         var disabled = false;
@@ -363,8 +297,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     return rgba[i] < 240 || rgba[i + 1] < 240 || rgba[i + 2] < 240;
   }
 
-  // Exterior background -> transparent: flood near-white from the image
-  // border inward (interior whites — an icon's fill — stay opaque).
   void floodTransparent(img.Image icon) {
     bool nearWhite(img.Pixel p) => p.r >= 240 && p.g >= 240 && p.b >= 240;
     final iw = icon.width, ih = icon.height;
@@ -387,10 +319,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     }
   }
 
-  // Erases wire tails: ink connected to the left/right crop edge through
-  // pixels whose vertical ink run stays wire-thin (<= 3 px). The walk
-  // stops where the tail meets icon art (outlines run taller), so a wire
-  // fused to a gate erases up to the gate and no further.
   void erodeWireTails(Uint8List rgba, int w, int h) {
     int vrun(int x, int y) {
       var t = y, b = y;
@@ -414,9 +342,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       return r - l + 1;
     }
 
-    // Horizontal wires come in at the left/right edges (wire-thin
-    // vertically); vertical wires at the top/bottom (wire-thin
-    // horizontally).
     final queue = <(int, int, bool)>[];
     for (var y = 0; y < h; y++) {
       for (final x in [0, w - 1]) {
@@ -440,9 +365,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         (x - 1, y, horiz),
         (x, y + 1, horiz),
         (x, y - 1, horiz),
-        // Dashed wires (boolean) alternate ink and gaps: jump up to 3 px
-        // of background along the travel axis so a dash train erases as
-        // one tail; the thinness guard still stops at real art.
         if (horiz) ...[
           (x + 2, y, horiz),
           (x + 3, y, horiz),
@@ -462,9 +384,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     }
   }
 
-  // A VERIFIED icon is the maintainer's ground truth: the generator never
-  // re-extracts or deletes it, whatever the pipeline thinks of its
-  // sources.
   final catalogNow = File(
     '$appDir/lib/src/prim_icon_catalog.dart',
   ).readAsStringSync();
@@ -474,30 +393,22 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     ).allMatches(catalogNow))
       m.group(1)!,
   };
-  // Hand-finished verified art: kept authoritative, never byte-compared
-  // (the pipeline cannot reproduce hand cleanup), never rewritten.
   final handKeys = {
     for (final m in RegExp(
       r"'([a-z0-9_]+)': PrimIconStatus\.verifiedHand,",
     ).allMatches(catalogNow))
       m.group(1)!,
   };
-  // A refactor of the catalog file that broke these regexes would
-  // silently disable the whole contract — the parse must see the map.
   expect(
     RegExp(r"'([a-z0-9_]+)': PrimIconStatus\.").allMatches(catalogNow).length,
     greaterThan(50),
     reason: 'kPrimIconStatus parse came back (near-)empty',
   );
   final pending = <String, ({img.Image icon, String sources})>{};
-  // Extraction NEVER silently drops an identity: failures land here and in
-  // the manifest with their reason.
   final failed = <String, String>{};
   final keys = samples.keys.toList()..sort();
   for (final key in keys) {
     final all = samples[key]!;
-    // Consensus base: the modal sample dimensions (identities render at a
-    // fixed size; a divergent box is a mis-registered crop).
     final dims = <String, int>{};
     for (final s in all) {
       dims['${s.w}x${s.h}'] = (dims['${s.w}x${s.h}'] ?? 0) + 1;
@@ -508,17 +419,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       ..sort((a, b) => b.quality.compareTo(a.quality));
     final w0 = group.first.w, h0 = group.first.h;
 
-    // RECT-BORDERED fast path (the border gate): when a reference crop
-    // shows a COMPLETE dark ring exactly at the node box perimeter, the
-    // icon is that box rect VERBATIM — the reference's own pixels beat
-    // any cleaning, wires attach outside the ring (LabVIEW draws the
-    // icon over them), and a candidate whose ring is broken or whose
-    // rect disagrees with the others is dirt by definition. Ring-exact
-    // rects are grouped byte-identically: prim keys ship the modal
-    // group (their art is globally unique; a minority rect is
-    // overdrawn); a CLASS key with two or more disagreeing rect groups
-    // carries multiple arts under one key (the class is not an
-    // identity) and FAILS rather than shipping any of them.
     const boxPad = 5;
     final bw = w0 - 2 * boxPad, bh = h0 - 2 * boxPad;
     bool ringComplete(Uint8List rgba) {
@@ -564,10 +464,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
           sources: {...?prev?.sources, c.source},
         );
       }
-      // The fg-class captures AA their renders (non-web-safe blends);
-      // a rect group whose pixels are dominantly web-safe outranks a
-      // larger blended group — same dominant-palette rule the terminal
-      // art pipeline uses.
       double webSafe(Uint8List rect) {
         var safe = 0;
         for (var i = 0; i < rect.length; i += 4) {
@@ -587,9 +483,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
               (webSafe(a.rect) >= 0.9 ? 1 : 0);
           return ws != 0 ? ws : b.count.compareTo(a.count);
         });
-      // Only web-safe groups can witness a true multi-art class: the
-      // fg-class captures blend every render (non-web-safe), so their
-      // disagreement with a web-safe group is capture variance.
       final webSafeGroups = ranked.where((g) => webSafe(g.rect) >= 0.9).length;
       if (key.startsWith('class') && webSafeGroups > 1) {
         failed[key] =
@@ -626,12 +519,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       erodeWireTails(smp.rgba, smp.w, smp.h);
     }
 
-    // Align candidate [b] onto anchor [a]; returns (dx, dy, agreement)
-    // where agreement is the matched fraction of the ink union. Two
-    // independently CORRECT crops of the same icon agree; a crop that
-    // landed on a label or a wire (a displaced model box) agrees with
-    // nothing — so the seed is the best-agreeing pair, never a lone
-    // anchor that might itself be junk.
     (int, int, double) alignOnto(
       ({Uint8List rgba, int w, int h, String source, double quality}) a,
       ({Uint8List rgba, int w, int h, String source, double quality}) b,
@@ -680,8 +567,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       return (bx, by, union == 0 ? 0 : match / union);
     }
 
-    // Seed: the pair with the highest mutual agreement (quality-ordered
-    // tiebreak); singletons fall through to the centred-sample fallback.
     var base = group.first;
     var seeded = false;
     if (group.length >= 2) {
@@ -728,14 +613,10 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         final top =
             (votes.entries.toList()..sort((a, b) => b.value - a.value)).first;
         if (aligned.length >= 3 && top.value * 3 < aligned.length * 2) {
-          // No majority: samples disagree here (a wire, a neighbour) —
-          // background.
           consensus[i] = consensus[i + 1] = consensus[i + 2] = 255;
           consensus[i + 3] = 255;
           continue;
         }
-        // Take the base's true colour when it matches the winning bucket,
-        // else the first agreeing sample's (avoids quantisation banding).
         var taken = false;
         for (final a in aligned) {
           final sx = x + a.dx, sy = y + a.dy;
@@ -760,8 +641,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         }
       }
     }
-    // Wire stubs: coloured components touching the left/right edge whose
-    // bounding box is at most 4 px tall are wire runs, not icon art.
     final visited = List<bool>.filled(w0 * h0, false);
     for (final startX in [0, w0 - 1]) {
       for (var startY = 0; startY < h0; startY++) {
@@ -791,10 +670,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         }
       }
     }
-    // Keep only the main ink cluster: the largest connected component
-    // plus components whose 3 px-dilated bounding box touches the kept
-    // cluster (multi-part glyphs chain in; dashed-wire fragments and far
-    // junk in the padded crop drop out).
     void keepMainCluster(Uint8List rgba) {
       final compOf = List<int>.filled(w0 * h0, -1);
       final comps = <({List<int> px, int l, int t, int r, int b})>[];
@@ -846,11 +721,8 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         for (var i = 0; i < comps.length; i++) {
           if (kept.contains(i)) continue;
           final c = comps[i];
-          // Inside the cluster: always keep (glyph dots, inner marks).
           final inside =
               c.l >= kl - 1 && c.r <= kr + 1 && c.t >= kt - 1 && c.b <= kb + 1;
-          // Adjacent AND not wire-like: a dash chain (2-3 px tall) never
-          // joins, so dashed wires cannot ladder into the cluster.
           final adjacent =
               c.l - 2 <= kr && c.r + 2 >= kl && c.t - 2 <= kb && c.b + 2 >= kt;
           final wireLike = (c.b - c.t + 1) <= 3 || (c.r - c.l + 1) <= 1;
@@ -873,9 +745,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     }
 
     keepMainCluster(consensus);
-    // Trim to ink; a consensus that erased everything (heavily disagreeing
-    // samples) falls back to the cleanest single sample so every identity
-    // keeps an icon.
     int l = w0, t = h0, r = -1, btm = -1;
     void measure(Uint8List rgba) {
       l = w0;
@@ -893,11 +762,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       }
     }
 
-    // Fallback selector: per sample, clean it the same way (erosion
-    // already ran; cluster it), then pick the sample whose surviving ink
-    // is largest, covers the crop centre, AND fits the node box (+6 px
-    // growable slack) — a sliver, an off-centre fragment, or a label
-    // crop from a displaced model box never wins.
     Uint8List? centredSingle() {
       var bestInk = 0;
       Uint8List? single;
@@ -906,8 +770,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
         keepMainCluster(copy);
         measure(copy);
         if (r < 0) continue;
-        // A sample whose surviving ink reaches the crop edge is still
-        // fused to a wire — never a salvage candidate.
         if (l == 0 || t == 0 || r == w0 - 1 || btm == h0 - 1) continue;
         final cx = w0 ~/ 2, cy = h0 ~/ 2;
         if (l > cx || r < cx || t > cy || btm < cy) continue;
@@ -944,11 +806,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       failed[key] = 'no ink after cleaning (${group.length} samples)';
       continue;
     }
-    // Surviving consensus ink on the crop edge means a wire fused past
-    // every cleaning stage (a real icon ends >= pad short of the edge):
-    // fall back to the cleanest single sample WITHOUT edge ink; only
-    // when none exists does the key fail — an absent icon beats
-    // shipping the wire.
     if (l == 0 || t == 0 || r == w0 - 1 || btm == h0 - 1) {
       final single = centredSingle();
       if (single == null) {
@@ -977,17 +834,9 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
       }
     }
     floodTransparent(icon);
-    // Physical prior: an icon cannot exceed the node box that draws it
-    // (+6 px for growable-node overflow). A crop that agreed on a LABEL
-    // (near-duplicate VIs share the same displaced model box, so their
-    // identical wrong crops agree perfectly) fails this and is recorded,
-    // never shipped.
     final maxW = w0 - 2 * 5 + 6, maxH = h0 - 2 * 5 + 6;
     var finalIcon = icon;
     if (finalIcon.width > maxW || finalIcon.height > maxH) {
-      // The agreeing configuration was junk (near-duplicate VIs share the
-      // same displaced model box, so identical wrong crops agree): retry
-      // with the strictest single-sample selection before failing.
       final single = centredSingle();
       img.Image? rebuilt;
       if (single != null) {
@@ -1032,13 +881,8 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     );
   }
 
-  // Targeted extraction ([kTargetedIconSamples]): named instances, cleaned
-  // individually, and authoritative over whatever the consensus path made
-  // of the same key.
   for (final entry in kTargetedIconSamples.entries) {
     final key = entry.key;
-    // Declared wrong, so the consensus art does not ship even when the
-    // targeted cut below fails; the key lands on the failure list instead.
     pending.remove(key);
     final crops = targeted[key] ?? const [];
     if (crops.length != entry.value.length) {
@@ -1058,8 +902,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
           'targeted cleaning left no ink on ${crops.length - cleaned.length} of the named instances';
       continue;
     }
-    // Two crops of one identity are the same pixels or the extraction is
-    // carrying something that is not the icon.
     final first = cleaned.first.art;
     final disagreeing = cleaned
         .skip(1)
@@ -1101,13 +943,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     );
   }
 
-  // Master palette: the exact colours that dominate the harvested art —
-  // per 4-bit RGB bucket, the modal exact colour, kept when the bucket
-  // covers at least 0.2% of all opaque pixels; black and white always.
-  // Every pixel snaps to its nearest palette entry: LabVIEW's icon art is
-  // flat-colour, so the snap erases the reference render's anti-aliased
-  // fringe and gives the renderer a closed colour set to remap (an
-  // "inactive" palette later swaps entry-for-entry).
   final bucketCounts = <int, int>{};
   final bucketModal = <int, Map<int, int>>{};
   var opaque = 0;
@@ -1150,8 +985,6 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
     return best;
   }
 
-  // Palette snap happens BEFORE the reproducibility check so verified
-  // comparisons cover the exact bytes that would ship.
   for (final key in pending.keys.toList()..sort()) {
     final e = pending[key]!;
     for (final px in e.icon) {
@@ -1181,18 +1014,11 @@ Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
   );
 }
 
-/// The ways [extraction] failed to reproduce the committed verified assets;
-/// empty when every verified key came back byte-identical.
 List<String> primIconReproErrors(PrimIconExtraction extraction) {
   final outDir = extraction.assetDir;
   final pending = extraction.pending;
   final failed = extraction.failed;
   final verifiedKeys = extraction.verifiedKeys;
-  // REPRODUCIBILITY CONTRACT: a VERIFIED icon is pinned. The pipeline must
-  // either reproduce its committed pixels exactly or produce nothing (art
-  // the maintainer verified by hand ahead of the pipeline — kept and
-  // reported). A DIFFERENT extraction for a verified key fails the suite:
-  // algorithm changes never silently alter verified assets.
   final reproErrors = <String>[];
   for (final key in verifiedKeys) {
     final files = Directory(outDir.path)
@@ -1210,9 +1036,6 @@ List<String> primIconReproErrors(PrimIconExtraction extraction) {
     final committed = img.decodePng(files.first.readAsBytesSync())!;
     final fresh = pending[key]?.icon;
     if (fresh == null) {
-      // A verified key is pipeline-pinned (hand-finished art is
-      // verifiedHand instead): the pipeline no longer extracting it at
-      // all IS a reproducibility regression.
       reproErrors.add(
         '$key is verified but the pipeline produced no extraction '
         '(${failed[key] ?? 'no extraction output'})',

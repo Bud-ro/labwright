@@ -1,4 +1,3 @@
-// BinaryView, PropertiesView, TypesView, and ui style constants.
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_seq/labwright_seq.dart';
@@ -54,8 +53,6 @@ void main() {
       strings: [],
       stringTable: [],
     );
-    // body 1000 = pool 400 + record region 600 (semantic 300, structural 100,
-    // so undecoded 200). Record region: 50% decoded, 66.7% accounted.
     const cov = BinaryByteCoverage(
       bodyBytes: 1000,
       poolBytes: 400,

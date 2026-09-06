@@ -17,9 +17,6 @@ DecodedSection raw(String tag, List<int> bytes) => DecodedSection(
   wasCompressed: false,
 );
 
-/// One BlockHexView expectation row. [one]/[some]/[never] are textContaining
-/// counts; [exact] is find.text == 1; [taps] tap a row then expect its detail
-/// ((tapText, thenText, thenIsExact)).
 class HexCase {
   const HexCase(
     this.name,
@@ -54,10 +51,15 @@ void main() {
     HexCase(
       'heap records get names and typed displays',
       heapSection([
-        ...open(0x50, 1), // numeric control
+        ...open(0x50, 1),
         ...bounds(10, 20, 30, 40),
         ...caption('Hi'),
-        0x84, 0x28, 0xff, 0x12, 0x34, 0x56, // background colour #123456
+        0x84,
+        0x28,
+        0xff,
+        0x12,
+        0x34,
+        0x56,
         ...close(),
       ], compressed: true),
       one: ['Numeric control', 'backgroundColor'],
@@ -88,10 +90,31 @@ void main() {
       'newest decoded forms: prop item name, const value, control min',
       heapSection([
         ...open(0x50, 1),
-        0xc6, 0x31, 0x05, ...'Scale'.codeUnits, // 0x231 propItemName
-        0xc6, 0x6c, 0xff, 0x00, 0x0a, 0x00, 0x00, 0x00, 0x06,
-        ...'Robot!'.codeUnits, // 0x26C constValue
-        0xc6, 0x20, 0x08, 0xbf, 0xf0, 0, 0, 0, 0, 0, 0, // stdNumMin f64 -1.0
+        0xc6,
+        0x31,
+        0x05,
+        ...'Scale'.codeUnits,
+        0xc6,
+        0x6c,
+        0xff,
+        0x00,
+        0x0a,
+        0x00,
+        0x00,
+        0x00,
+        0x06,
+        ...'Robot!'.codeUnits,
+        0xc6,
+        0x20,
+        0x08,
+        0xbf,
+        0xf0,
+        0,
+        0,
+        0,
+        0,
+        0,
+        0,
         ...close(),
       ], compressed: true),
       one: ['propItemName'],
@@ -167,14 +190,26 @@ void main() {
     HexCase(
       'FTAB per-font metric records are framed (12B metric + u32 gaps)',
       raw('FTAB', [
-        0, 1, // ver
-        0, 2, 0, 3, // header constant
-        0, 2, // count = 2
-        0, 0, 0, 40, // nameOffset
-        ...List.filled(12, 0x0f), // metric[0]
-        0, 0, 0, 5, // u32 between fonts
-        ...List.filled(12, 0x0f), // metric[1]
-        3, ...'Foo'.codeUnits, // name table
+        0,
+        1,
+        0,
+        2,
+        0,
+        3,
+        0,
+        2,
+        0,
+        0,
+        0,
+        40,
+        ...List.filled(12, 0x0f),
+        0,
+        0,
+        0,
+        5,
+        ...List.filled(12, 0x0f),
+        3,
+        ...'Foo'.codeUnits,
       ]),
       one: [
         'Header constant',
@@ -209,20 +244,22 @@ void main() {
       'a decoded HLPP block shows its recovered help path',
       raw('HLPP', [
         ...'PTH0'.codeUnits,
-        0, 0, 0, 0x0c, // inner len
-        0, 0, // type
-        0, 1, // count
-        3, ...'doc'.codeUnits,
+        0,
+        0,
+        0,
+        0x0c,
+        0,
+        0,
+        0,
+        1,
+        3,
+        ...'doc'.codeUnits,
       ]),
       exact: ['doc'],
     ),
     HexCase(
       'a VCTP block lists the recovered type pool',
-      raw('VCTP', [
-        0, 0, 0, 2, // count
-        0, 4, 0, 0x0a, // #0 dbl
-        0, 4, 0, 0x21, // #1 boolean
-      ]),
+      raw('VCTP', [0, 0, 0, 2, 0, 4, 0, 0x0a, 0, 4, 0, 0x21]),
       exact: ['2 types'],
       some: ['dbl', 'boolean'],
     ),
@@ -275,8 +312,8 @@ void main() {
   testWidgets('a CONP block resolves its index against the sibling VCTP pool', (
     tester,
   ) async {
-    final vctp = raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21]); // one boolean type
-    final conp = raw('CONP', [0, 1]); // 1-based u16 index
+    final vctp = raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21]);
+    final conp = raw('CONP', [0, 1]);
     await pumpBody(
       tester,
       BlockHexView(section: conp, siblings: [vctp]),

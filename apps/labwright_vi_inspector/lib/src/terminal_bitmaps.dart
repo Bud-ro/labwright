@@ -2,19 +2,6 @@ import 'dart:ui';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// One reference-measured 32×16 border-terminal raster: LabVIEW's standard
-/// control/indicator terminal for a datatype — the coloured double border
-/// (controls) or thin single border (indicators), the datatype glyph
-/// (`U8`/`TF`/`abc`/pagers/…), and the black dataflow-arrow plate with its
-/// two-tone shading.
-///
-/// Rows use five letters: `.` white, `X` black, `B` the datatype's base
-/// colour, `M`/`L` its mid/light plate shades (the base blended toward white
-/// by 20%/60%, snapped to the web-safe palette — measured, and uniform across
-/// every type here). Extracted from the snippet corpus by exact-pixel majority
-/// vote across all clean samples of each (datatype, direction); a type or
-/// direction without an agreeing dominant-palette sample is absent and keeps
-/// the generic frame.
 class BdTerminalArt {
   const BdTerminalArt(this.base, this.mid, this.light, this.rows);
 
@@ -24,8 +11,6 @@ class BdTerminalArt {
   final List<String> rows;
 }
 
-/// The measured terminal art, keyed by (datatype, isIndicator). Enum types
-/// share one art (the ◄ ► pager glyph); [bdTerminalArtFor] folds the widths.
 const Map<(ViDataType, bool), BdTerminalArt> kBdTerminalArt = {
   (
     ViDataType.string,
@@ -470,13 +455,6 @@ const Map<(ViDataType, bool), BdTerminalArt> kBdTerminalArt = {
   ]),
 };
 
-/// ARRAY terminal art, keyed by (ELEMENT datatype, isIndicator): an array
-/// terminal colours and glyphs by its element type (the `[≡]` bracket art in
-/// the element's palette), so the scalar table above cannot serve it.
-/// Reference-measured entries only — a single sample each so far
-/// (Excel_Read_XLSX's `Worksheets` array-of-cluster indicator, magenta
-/// family); other element types / directions keep the generic frame
-/// (TODO: corpus-census array terminals like the scalar table).
 const Map<(ViDataType, bool), BdTerminalArt> kBdArrayTerminalArt = {
   (
     ViDataType.cluster,
@@ -501,8 +479,6 @@ const Map<(ViDataType, bool), BdTerminalArt> kBdArrayTerminalArt = {
   ]),
 };
 
-/// The art for a terminal of [type] in the given direction, folding the enum
-/// widths onto the shared pager art. Null when unmeasured.
 BdTerminalArt? bdTerminalArtFor(ViDataType type, {required bool indicator}) {
   final folded = switch (type) {
     ViDataType.enumU16 || ViDataType.enumU32 => ViDataType.enumU8,
@@ -511,8 +487,6 @@ BdTerminalArt? bdTerminalArtFor(ViDataType type, {required bool indicator}) {
   return kBdTerminalArt[(folded, indicator)];
 }
 
-/// The art for an ARRAY terminal whose element resolved to [elementType], or
-/// null when unmeasured.
 BdTerminalArt? bdArrayTerminalArtFor(
   ViDataType elementType, {
   required bool indicator,

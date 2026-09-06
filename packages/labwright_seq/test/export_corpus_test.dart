@@ -9,14 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Corpus gates for BOTH exporters — TestStand → Dart ([exportSeqFileToDart])
-/// and TestStand → labwright E2E ([exportSeqFileToLabwright]): every parseable
-/// corpus `.seq` exports balanced, honest source; every generated Dart export
-/// passes `dart analyze` in one batch run; the oracle's labwright program and
-/// the most cross-connected multi-file project actually RUN under `dart run`.
-///
-/// Generated files use no `_test.dart` suffix so a stray file can never join
-/// unit-suite discovery; E2E programs are run by explicit path.
 void main() {
   if (!corpusSeqDir.existsSync()) {
     test('exporters (skipped: corpus not fetched)', () {}, skip: true);
@@ -31,13 +23,8 @@ void main() {
       'every Dart export passes dart analyze (one batch run)', () {
     var exported = 0, withViStub = 0, withInlineThrow = 0, withHelpers = 0;
     var withIntLocals = 0, withSkipComments = 0;
-    final stats = SeqExportStats(); // accumulates across every file
+    final stats = SeqExportStats();
     final stubAdapter = RegExp(r'/// Stub for the (\w+) module call');
-    // All plain Dart exports land in one dir; one analyzer invocation checks
-    // them all — the generator's type choices must never reject its own
-    // output. In-package so package:labwright/shims.dart resolves; dynamic
-    // engine state is by design → strict-casts off, as a generated project
-    // ships.
     final genDir = Directory('${pkgRoot.path}/test/.export_gen_batch')..createSync(recursive: true);
     try {
       File(
@@ -48,10 +35,9 @@ void main() {
         try {
           file = parseSeqFile(f.readAsBytesSync());
         } catch (_) {
-          continue; // unparseable files are covered by corpus_seq_test
+          continue;
         }
 
-        // ── Dart exporter ──
         final dartSource = exportSeqFileToDart(file, sourceName: f.path);
         expect(dartSource, isNotEmpty, reason: f.path);
         expect(
@@ -61,16 +47,11 @@ void main() {
         );
         File('${genDir.path}/gen_$exported.dart').writeAsStringSync(dartSource);
 
-        // ── labwright exporter ──
         final source = exportSeqFileToLabwright(file, sourceName: f.path, stats: stats);
         exported++;
-        // Call parameters ARE exported now — the old blanket caveat (and its
-        // blanket disarm) must never resurface.
         expect(source, isNot(contains('(call parameters not exported yet)')), reason: f.path);
         expect('{'.allMatches(source).length, '}'.allMatches(source).length, reason: '${f.path}: unbalanced braces');
         expect('void main() {'.allMatches(source).length, 1, reason: '${f.path}: exactly one generated main');
-        // A file with no sequences registers no tests and drops the unused lw
-        // import; every other file has exactly one.
         expect(
           "import 'package:labwright/labwright.dart' as lw;".allMatches(source).length,
           file.sequences.isEmpty ? 0 : 1,
@@ -83,8 +64,6 @@ void main() {
         } else {
           expect(tests, 0, reason: '${f.path}: no sequences, no tests');
         }
-        // Stub policy: stub FUNCTIONS for VI calls only; DLL/Python/typed-step
-        // surfaces stay inline throws, not stubs.
         for (final m in stubAdapter.allMatches(source)) {
           expect(m.group(1), 'labView', reason: '${f.path}: non-VI adapter got a module-call stub');
         }
@@ -92,7 +71,6 @@ void main() {
         if (source.contains("throw UnimplementedError('")) withInlineThrow++;
         if (RegExp(r'\bint \w+ = ').hasMatch(source)) withIntLocals++;
         if (source.contains('[skipped in source]')) withSkipComments++;
-        // A Skip-mode break/wait must never survive as active code.
         expect(
           source,
           isNot(contains('break; // Break On Terminate')),
@@ -100,9 +78,6 @@ void main() {
         );
       }
 
-      // Exporter gate counts + call-parameter translation censuses, pinned
-      // exactly (per-reason site disarms included so a new disarm kind or a
-      // re-armed cohort is visible in the diff).
       expectCorpusSnapshot('export', {
         'exported': exported,
         'withViStub': withViStub,
@@ -150,8 +125,6 @@ void main() {
       }
     }
     expect(source, contains('UnimplementedError'), reason: 'code-module stubs must be present');
-    // No per-file runtime: engine state is top-level, built-in helpers are
-    // hosted, untranslated expressions land in the ts.eval fallback.
     expect(source, isNot(contains('class TsRuntime')));
     expect(source, contains("import 'package:labwright/shims.dart' as ts;"));
     expect(source, isNot(contains('_eval(')), reason: 'no underscore-prefixed generated helpers remain');
@@ -166,8 +139,6 @@ void main() {
         parseSeqFile(oracle.readAsBytesSync()),
         sourceName: 'OutputVoltage_XML.seq',
       );
-      // The oracle's steps are python/typed — all unported, so the harness
-      // ships it disarmed with the port targets in the TODO.
       expect(source, contains('lw.skipTest('));
       expect(source, contains('rename lw.skipTest -> lw.test'));
       expect(source, contains('python call: teststand_nidcpower.py'));
@@ -193,8 +164,6 @@ void main() {
   test(
     'project export: cross-module calls bind, analyze is clean, dart run exits green',
     () {
-      // The most cross-connected multi-file project in the corpus: 12 parseable
-      // modules whose SequenceCalls reference each other by basename.
       final projDir = Directory(
         '${corpusSeqDir.path}/michael-harhay-arx_CICDUtility/michael-harhay-arx-CICDUtility-02c6c67',
       );
@@ -205,15 +174,11 @@ void main() {
         final rel = f.path.substring(projDir.path.length + 1).replaceAll(r'\', '/');
         try {
           byPath[rel] = parseSeqFile(f.readAsBytesSync());
-        } on FormatException {
-          // Unparseable corpus files are the parser suite's concern.
-        }
+        } on FormatException catch (_) {}
       }
       final project = exportSeqProjectToLabwright(byPath);
       expect(project.files.length, byPath.length + 3, reason: 'one module per input + runtime + main + options');
       expect(project.files.keys, containsAll(['main.dart', 'lw_runtime.dart', 'analysis_options.yaml']));
-      // External SequenceCalls bind to the sibling module's REAL exported
-      // function instead of a stub, passing predicted named arguments.
       final allSource = project.files.values.join('\n');
       final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n]*\);').allMatches(allSource).length;
       final crossCallsWithArgs = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n)][^;\n]*\);').allMatches(allSource).length;

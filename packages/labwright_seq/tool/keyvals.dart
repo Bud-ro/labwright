@@ -1,9 +1,3 @@
-// Report the shape + sample values of nodes at given `Data`-tree paths across the
-// corpus, to drive correct typed modeling (enum vs bool vs string vs container).
-// Paths use the exact form tool/gaps.dart prints, e.g.
-//   Data.Seq.[].Main.[].Measurement.Parameters.[].MessageType
-// where `[]` matches every array element. For each path: className distribution
-// and up to ~8 distinct scalar samples. Run: dart run tool/keyvals.dart <path>...
 import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
@@ -20,9 +14,6 @@ String _root() {
   return 'corpus/seq';
 }
 
-/// Resolve [segs] (path after the root) from [p], emitting (node, concretePath).
-/// A `[]` segment matches every array element; a `*` segment matches every named
-/// child and substitutes the child's name into the reported path.
 List<(SeqProperty, String)> _resolve(SeqProperty p, List<String> segs, String concrete) {
   if (segs.isEmpty) return [(p, concrete)];
   final seg = segs.first, rest = segs.sublist(1);

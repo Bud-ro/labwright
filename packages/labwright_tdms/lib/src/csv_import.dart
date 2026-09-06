@@ -3,10 +3,6 @@ import 'dart:typed_data';
 import 'model.dart';
 import 'writer.dart';
 
-/// Imports CSV into TDMS (the inverse of [tdmsToCsv]). The header row supplies
-/// channel names; each column becomes a double channel under [group]. Blank
-/// cells and ragged rows are tolerated (skipped); non-numeric cells are ignored.
-/// Minimal RFC-4180 quoting (double-quoted fields, `""` escapes a quote).
 Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = ','}) {
   final rows = _parseCsv(csv, delimiter);
   if (rows.isEmpty) return (TdmsWriter()..writeSegment(const [])).toBytes();
@@ -27,10 +23,10 @@ Uint8List csvToTdms(String csv, {String group = 'Imported', String delimiter = '
   return (TdmsWriter()..writeSegment(channels)).toBytes();
 }
 
-const _quote = 0x22; // "
-const _lf = 0x0a; // \n
-const _cr = 0x0d; // \r
-const _comma = 0x2c; // ,
+const _quote = 0x22;
+const _lf = 0x0a;
+const _cr = 0x0d;
+const _comma = 0x2c;
 
 List<List<String>> _parseCsv(String text, String delimiter) {
   final rows = <List<String>>[];

@@ -3,11 +3,6 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Whole-corpus structure probe for decoder-less tags: for each requested tag,
-/// reports size distribution, leading-bytes distribution, printable-run
-/// content, and simple header hypotheses (u16/u32 count vs remaining length).
-/// The evidence base for writing honest decoders.
-///
 /// Run: `dart run tool/probe_tags.dart VITS DSIM LIbd ...`
 String _corpusBase() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
@@ -70,7 +65,6 @@ void main(List<String> args) {
     stdout.writeln('  top sizes: ${topSizes.take(8).map((e) => '${e.key}B x${e.value}').join(', ')}');
     final sample = samples[tag]!;
     if (sample.isEmpty) continue;
-    // leading 16 bytes distribution
     final leads = <String, int>{};
     for (final bytes in sample) {
       final lead = _hex(bytes.sublist(0, bytes.length < 16 ? bytes.length : 16));
@@ -80,7 +74,6 @@ void main(List<String> args) {
     for (final entry in topLeads.take(4)) {
       stdout.writeln('  lead x${entry.value}: ${entry.key}');
     }
-    // count-header hypotheses on a mid-size varied sample
     final varied = sample.where((s) => s.length >= 12).take(200).toList();
     var u32beCount = 0, u32leCount = 0, u16beCount = 0;
     for (final bytes in varied) {
@@ -93,7 +86,6 @@ void main(List<String> args) {
       if (u16be > 0 && u16be < 10000 && (bytes.length - 2) % u16be == 0) u16beCount++;
     }
     stdout.writeln('  count-header fits over ${varied.length}: u32be=$u32beCount u32le=$u32leCount u16be=$u16beCount');
-    // printable content in the largest sample
     final biggest = sample.reduce((a, b) => a.length >= b.length ? a : b);
     stdout.writeln('  strings(${biggest.length}B sample): ${_printableRuns(biggest)}');
     stdout.writeln();

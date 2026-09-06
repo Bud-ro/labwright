@@ -7,7 +7,6 @@ import 'test_util.dart';
 
 const _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
-/// Minimal well-formed RSRC container: 32-byte header ++ data area ++ info area.
 Uint8List _container(List<int> data, List<int> info) {
   final header = Uint8List(32)..setRange(0, 6, _magic);
   ByteData.sublistView(header)
@@ -17,7 +16,6 @@ Uint8List _container(List<int> data, List<int> info) {
   return u8([...header, ...data, ...info]);
 }
 
-/// Stamps the RSRC magic + version 3 + LVIN/LBVW header fields at [at].
 void _stampHeader(Uint8List b, [int at = 0]) {
   b.setRange(at, at + 6, _magic);
   ByteData.sublistView(b, at).setUint16(6, 3);
@@ -25,7 +23,6 @@ void _stampHeader(Uint8List b, [int at = 0]) {
   b.setRange(at + 12, at + 16, 'LBVW'.codeUnits);
 }
 
-/// Minimal well-formed VI: info area = bare subheader (blockListRel 0x34, zero blocks) + name-table bytes.
 Uint8List _minimalVi() {
   final bytes = _container([1, 2, 3, 4], [for (var i = 0; i < 0x34; i++) 0, 0, 0, 0, 0, 7, 7]);
   bytes.setRange(36, 42, _magic);
@@ -138,7 +135,6 @@ void main() {
       expect(withFinal.byteLength, 4 + 2 * 12);
       expect(withFinal.serialize().sublist(0, 4), orderedEquals([0, 0, 0, 1]), reason: 'stored count stays count-1');
 
-      // A name table (leading zero word), not an entry: no tag, no final entry.
       final nameTable = ViBlockList.parse(infoWith(List.filled(12, 0)), 0x34);
       expect((nameTable.finalEntry, nameTable.byteLength, nameTable.allEntries.length), (null, 4 + 12, 1));
       expect(ViBlockList.parse(infoWith(const []), 0x34).finalEntry, isNull, reason: 'out of range');
@@ -263,8 +259,6 @@ void main() {
     });
 
     test('withRemappedSecRels rebinds descriptors + the final entry, and refuses an unaccounted move', () {
-      // Info area: subheader | count=1 | LVSR | FTAB (the entry past the count)
-      // | preGap | one descriptor | name table (the FTAB descriptor's head) | name.
       const descBase = 0x3c, descAt = 0x58, nameTableAt = 0x6c;
       Uint8List infoArea({required int finalDescRel}) {
         final info = Uint8List(nameTableAt + 12 + 5);
@@ -296,8 +290,6 @@ void main() {
         reason: 'a section moved that no descriptor accounts for must refuse, not silently desync',
       );
 
-      // The final entry's descriptor pointing anywhere but the name table is no
-      // proof that the name-table head is that descriptor: the remap refuses.
       final unproven = ViInfoArea.parse(infoArea(finalDescRel: descAt - descBase));
       expect(unproven.finalEntrySecRel, isNull);
       expect(() => unproven.withRemappedSecRels({0x200: 0x240}), throwsA(isA<ViFormatException>()));

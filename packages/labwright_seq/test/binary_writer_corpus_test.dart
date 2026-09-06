@@ -10,12 +10,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// The binary TOF1 writer's corpus gates (`write(parse(x)) == x` over every
-/// corpus binary) and its mutation probes (one targeted model mutation must
-/// change EXACTLY the intended bytes and decoded surface — anything else is
-/// entanglement). Full-file container gates are structural, not byte-exact:
-/// no Dart `ZLibCodec` setting reproduces NI's DEFLATE bytes on any corpus
-/// file, so the gate re-inflates the fresh stream instead.
 void main() {
   if (!corpusSeqDir.existsSync()) {
     test('binary writer corpus gates (skipped: corpus not fetched)', () {}, skip: true);
@@ -47,10 +41,6 @@ void main() {
         failures.add(f.path);
       }
       total = total + model.scoreboard;
-      // An f64 value slot reading as a nonzero SUBNORMAL is an i64 slot
-      // mis-read as a double (no corpus text flavor ever stores a
-      // subnormal numeric text; the oracle twin types such slots Int64) —
-      // the decoder must have taken the i64 read instead.
       for (final v in model.f64Values) {
         if (v != 0 && v.isFinite && v.abs() < 2.2250738585072014e-308) subnormalSlots++;
       }
@@ -78,10 +68,6 @@ void main() {
     expect(bodyExact, binaries);
     expect(containerOk, binaries);
     expect(sizeWords, binaries, reason: 'a header lost its PMCZ size field');
-    // Scoreboard buckets, pinned exactly as raw byte totals: modelBytes +
-    // grammarBytes is the from-model band (should grow), structuralBytes the
-    // retained-structure band and copiedBytes the verbatim band (both should
-    // shrink) — decode progress reads directly off the diff.
     expectCorpusSnapshot('writer', {
       'binaries': binaries,
       'bodyBytes': total.bodyBytes,
@@ -94,8 +80,6 @@ void main() {
   });
 
   test('rosetta binaries: byte-exact bodies with per-file model coverage pinned', () {
-    // Per-file record-region model coverage in permille, pinned exactly —
-    // retention/decode moves on the rosetta oracles show up file by file.
     final metrics = <String, int>{};
     final files = Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>().toList()
       ..sort((a, b) => a.path.compareTo(b.path));
@@ -175,7 +159,6 @@ void main() {
     test('numeric value via its f64 slot: delta is the 8-byte slot and one decoded record', () {
       final bytes = read('rosetta/OutputVoltage_BIN.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
-      // The twin-validated `Priority` default — the only slot holding it.
       const oldValue = 2953567917.0;
       const newValue = 2953567918.0;
       expect(model.f64Sites(oldValue), hasLength(1));
@@ -206,10 +189,6 @@ void main() {
     });
 
     test('typed flag/attr surfaces are mutation-stable: a value mutation leaves every fieldFlags/attrWords intact', () {
-      // The retention move (field flags + attr words re-serialized from the
-      // typed model) must not entangle those words with unrelated content:
-      // mutating a numeric value slot and re-parsing must reproduce the
-      // exact same flags/attr surface on every decoded field.
       final bytes = read('rosetta/OutputVoltage_BIN.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       const oldValue = 2953567917.0;
@@ -239,10 +218,6 @@ void main() {
     });
 
     test('pool[0]-`Obj` generation: a parameter rename mutates exactly its pool entry, decode stays stable', () {
-      // Probes the class-slot-0 decode (pool[0] = 'Obj' generation): after
-      // renaming one parameter via its pool string, the written file must
-      // differ only in that entry, and the re-parsed sequence surface must
-      // show the rename with every other decoded field untouched.
       final bytes = read('michael-harhay-arx_CICDUtility/michael-harhay-arx-CICDUtility-02c6c67/Sequence/iTAC.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       final body = model.writeBody();
@@ -276,8 +251,6 @@ void main() {
     });
 
     test('sequence comment via its pool string: delta is the comment alone', () {
-      // The rosetta binaries' newer record generation carries no comment slot,
-      // so this anchors on an older-generation corpus binary.
       final bytes = read(
         'JavierABH_Elatch-Bench-Test/JavierABH-Elatch-Bench-Test-71012f4/'
         'Sequence/History/Very Old/Elatch-bench - Ford Test.seq',
@@ -310,7 +283,6 @@ void main() {
   });
 }
 
-/// Asserts the diff is non-empty and every span sits inside `[start, end)`.
 void _expectSpansWithin(List<(int, int)> spans, int start, int end) {
   expect(spans, isNotEmpty, reason: 'the mutation must change bytes');
   for (final span in spans) {
@@ -322,7 +294,6 @@ void _expectSpansWithin(List<(int, int)> spans, int start, int end) {
   }
 }
 
-/// Maximal differing byte spans between two equal-length buffers.
 List<(int, int)> _diffSpans(Uint8List a, Uint8List b) {
   final spans = <(int, int)>[];
   var start = -1;
@@ -337,14 +308,11 @@ List<(int, int)> _diffSpans(Uint8List a, Uint8List b) {
   return spans;
 }
 
-/// Every step name of every sequence outline, flattened in order.
 List<String> _stepNamesOf(Uint8List seqBytes) => [
   for (final outline in binarySequenceOutlines(seqBytes))
     for (final step in [...outline.setup, ...outline.main, ...outline.cleanup, ...outline.ungrouped]) step.name,
 ];
 
-/// The multiset line delta between the XML lifts of two binary files — the
-/// full decoded surface, so any perturbed unrelated field shows up here.
 List<String> _liftDelta(Uint8List a, Uint8List b) {
   List<String> lift(Uint8List bytes) =>
       String.fromCharCodes(writeSeqFileXml(binaryToXmlSeqFile(parseSeqFile(bytes)))).split('\n');

@@ -3,9 +3,6 @@ import 'dart:convert';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// Byte-exact writer unit tests. Inputs are written in EXACTLY the writers'
-/// serialization so `write(parse(input)) == input` asserts byte-for-byte; the
-/// whole-corpus gates live in `seq_write_corpus_test.dart`.
 void main() {
   group('writeIniSeq', () {
     String doc(List<String> sections, {String nl = '\n', List<String>? header}) {

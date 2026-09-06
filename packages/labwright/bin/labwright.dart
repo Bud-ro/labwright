@@ -1,42 +1,3 @@
-// The `labwright` CLI — thin sugar over the single-process test library.
-//
-//   labwright run [target] [--seed N|random] [--total-shards N --shard-index I]
-//                 [--port N] [--no-viewer] [--report out.json]
-//                 [--keep-open|--interactive]
-//   labwright scan [dir]
-//   labwright init [dir]
-//
-// run    Executes the suite: spawns exactly ONE `dart run` on the target
-//        (default e2e/main.dart; a directory means its main.dart), mapping
-//        each flag to the matching -Dlabwright.* define. Everything — tests,
-//        viewer, report — happens inside that one process; `dart run
-//        e2e/main.dart` directly is always equivalent (zero child
-//        processes). SIGINT/SIGTERM forward to the child so nothing is
-//        orphaned.
-//   --seed N|random    Run-order seed (`random` mints one and prints it).
-//   --total-shards N   With --shard-index I: run tests whose registration
-//   --shard-index I    index is ≡ I (mod N) — dart test's convention.
-//   --port N           Viewer port (default 1212; 0 = ephemeral).
-//   --no-viewer        Disable the in-process viewer.
-//   --no-identity      Skip the report's content-identity hashes (hot reload
-//                      then conservatively re-runs everything).
-//   --report out.json  Write the machine-readable run report.
-//   --keep-open,       Keep the viewer serving after the run AND accept its
-//   --interactive      control routes — re-run all/failed, run one, stop,
-//                      buttons, seed replay, hot reload (starts
-//                      the VM service; re-runs only content-modified tests) and
-//                      hot RESTART (fresh process via this supervisor — the fix
-//                      for edited test bodies, which are captured closures a
-//                      reload cannot re-map). Two names for one behavior.
-//                      CI exits.
-//
-// scan   Lints the plug-in convention: lists .dart files under the dir
-//        (default e2e/) that are NOT reachable from main.dart via local
-//        imports — tests someone wrote but forgot to plug in. Exits 1 when
-//        any are found, so CI can gate on it.
-//
-// init   Generates the example e2e/ folder (one super simple suite showing
-//        the main.dart plug-in convention). Refuses to overwrite.
 import 'dart:io';
 import 'dart:math';
 
@@ -56,7 +17,6 @@ Future<void> main(List<String> args) async {
     case '--help' || '-h' || 'help':
       stdout.writeln(_usage);
     default:
-      // Bare `labwright path/...` reads as run.
       exitCode = await _run([command, ...rest]);
   }
 }
@@ -69,22 +29,16 @@ usage: labwright run [target] [--seed N|random]
        labwright scan [dir]
        labwright init [dir]''';
 
-// ── run ──────────────────────────────────────────────────────────────────────
-
 Future<int> _run(List<String> args) async {
   final rest = [...args];
   String? target;
   final defines = <String>[];
-  // Lingering (interactive/keep-open) enables the VM service so the viewer's
-  // "hot reload" can reload edited sources in place.
   var linger = false;
   while (rest.isNotEmpty) {
     final arg = rest.removeAt(0);
     switch (arg) {
       case '--seed':
         final raw = rest.isEmpty ? '' : rest.removeAt(0);
-        // `random` mints a fresh seed; it prints at the start of every test
-        // for reproduction.
         final seed = raw == 'random' ? Random().nextInt(1 << 31) : int.tryParse(raw) ?? 0;
         defines.add('-Dlabwright.seed=$seed');
       case '--total-shards':
@@ -134,11 +88,6 @@ Future<int> _run(List<String> args) async {
     return 64;
   }
 
-  // ONE child, sharing our stdio; signals forward so it is never orphaned.
-  // A lingering child may EXIT with the hot-restart sentinel: registered test
-  // bodies are captured closures a VM hot reload cannot re-map, so the viewer's
-  // "Hot restart" asks THIS supervisor for a fresh process (fresh registration,
-  // new captures). The child is told a supervisor is present via a define.
   while (true) {
     final process = await Process.start(
       Platform.resolvedExecutable,
@@ -152,8 +101,6 @@ Future<int> _run(List<String> args) async {
     );
     final signals = [
       ProcessSignal.sigint.watch().listen((_) => process.kill(ProcessSignal.sigint)),
-      // SIGTERM does not exist on Windows — watching it fails with an async
-      // SignalException (errno 50) that would kill the CLI with exit 255.
       if (!Platform.isWindows) ProcessSignal.sigterm.watch().listen((_) => process.kill()),
     ];
     final code = await process.exitCode;
@@ -165,8 +112,6 @@ Future<int> _run(List<String> args) async {
   }
 }
 
-/// Default target: `e2e/main.dart`. A directory means its `main.dart`; a
-/// file is taken as-is.
 String? _resolveTarget(String? target) {
   final candidate = target ?? 'e2e';
   if (FileSystemEntity.isDirectorySync(candidate)) {
@@ -175,8 +120,6 @@ String? _resolveTarget(String? target) {
   }
   return FileSystemEntity.isFileSync(candidate) ? candidate : null;
 }
-
-// ── scan ─────────────────────────────────────────────────────────────────────
 
 int _scan(List<String> args) {
   final dir = args.where((a) => !a.startsWith('-')).firstOrNull ?? 'e2e';
@@ -190,9 +133,6 @@ int _scan(List<String> args) {
       ..writeln('run `labwright init` to generate the example e2e/ folder');
     return 64;
   }
-  // Everything reachable from main.dart, transitively — including THROUGH
-  // files outside the scanned folder (a shared helper outside e2e/ that
-  // imports a module back inside still plugs that module in).
   final reachable = <String>{};
   void visit(File file) {
     final path = file.absolute.uri.normalizePath().toFilePath();
@@ -230,8 +170,6 @@ int _scan(List<String> args) {
   stdout.writeln('plug them in (import + register call) or delete them.');
   return 1;
 }
-
-// ── init ─────────────────────────────────────────────────────────────────────
 
 int _init(List<String> args) {
   final dir = args.where((a) => !a.startsWith('-')).firstOrNull ?? 'e2e';

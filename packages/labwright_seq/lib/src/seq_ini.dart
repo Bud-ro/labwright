@@ -4,75 +4,20 @@ import 'dart:typed_data';
 import 'seq_file.dart';
 import 'seq_format.dart';
 import 'seq_property.dart';
-import 'seq_step.dart';
 
-/// Reader for the **legacy INI** `.seq` encoding (TestStand 3.x–era; some newer
-/// installs still emit it). It is a *plaintext* serialization of the **same
-/// PropertyObject model** the binary `TOF1` and the XML forms encode, which makes
-/// it a readable Rosetta for the binary record tree.
-///
-/// Grammar (confirmed across the 58 INI files in the corpus, versions
-/// 143/354/797/894/920):
-///
-/// ```
-/// [__Header__]                 ← file header: ProductName/ProductVersion/Version/Type/Path/...
-/// ProductName = "TestStand"
-/// Version = 354
-/// Type = "SequenceFile"
-///
-/// [DEF, %OBJROOT]              ← type/member DECLARATIONS for the object at a path
-/// SF = SequenceFileData            member = TypeName
-/// [DEF, SF]
-/// Seq = Objs
-/// %NAME = "Data"                   directive: this object's display name
-///
-/// [SF]                         ← VALUE instance for the object at a path
-/// %HI: Seq = [0]                   directive: array high-index / bounds
-/// %FLG: Seq = 4194304              directive: property flags
-/// Version = "0.0.0.0"              member = value
-/// [DEF, SF.Seq]
-/// %[0] = Sequence                  array-element type declaration
-/// [DEF, SF.Seq[0]]
-/// %NAME = "MainSequence"
-/// ```
-///
-/// Paths nest like the binary name pool (`SF` → `SF.Seq` → `SF.Seq[0]`), where
-/// `SF` is the `%OBJROOT` alias for `SequenceFileData`. [parseIniSeq] parses the
-/// header and section structure (value vs. DEF, path, members, `%`-directives);
-/// [iniDataTree] then assembles the full [SeqProperty] tree from those sections
-/// (type inheritance, arrays, instance overrides, comments) — **fully decoded**
-/// across the corpus (45/45), feeding the same typed lens as the XML form.
-
-/// One `key = value` line of an INI section, VERBATIM: [key] is the full
-/// left-hand side (member name or `%`-directive), [rawValue] is the exact text
-/// after the ` = ` separator — quoting and C-style escapes intact, `KEY LineNNNN`
-/// continuation fragments already rejoined (see `_reassembleEntryList`). The
-/// ordered entry list is a section's writing source of truth: members and
-/// directives INTERLEAVE freely in real files (e.g. `LoadOpt = "..."`
-/// immediately followed by `%FLG: LoadOpt = ...`; 7184 corpus sections
-/// interleave), which the split [IniSection.members]/[IniSection.directives]
-/// maps cannot represent.
 class IniEntry {
   const IniEntry(this.key, this.rawValue);
 
-  /// The full left-hand side: a member name (`Version`), a bare directive
-  /// (`%NAME`), or a scoped directive (`%FLG: Seq`).
   final String key;
 
-  /// The exact right-hand side text: quoted values keep their quotes and
-  /// escapes (`"0.0.0.0"`, `"a\nb"`), bare tokens stay bare (`4194304`).
   final String rawValue;
 
-  /// True when the entry is a `%`-directive rather than a plain member.
   bool get isDirective => key.startsWith('%');
 
   @override
   String toString() => 'IniEntry($key = $rawValue)';
 }
 
-/// One `[...]` block of an INI `.seq`: a value instance (`[path]`), a type
-/// definition (`[DEF, path]`), or an external-adapter data blob
-/// (`[EXTDATA, path, KIND]`, see [extDataKind]).
 class IniSection {
   IniSection({
     required this.isDef,
@@ -82,42 +27,20 @@ class IniSection {
   }) : members = _selectEntries(entries, directives: false),
        directives = _selectEntries(entries, directives: true);
 
-  /// True for a `[DEF, path]` section (member→type declarations); false for a
-  /// `[path]` value instance (member→value).
   final bool isDef;
 
-  /// The object path, e.g. `SF`, `SF.Seq[0]`, or the root alias `%OBJROOT`.
   final String path;
 
-  /// For an `[EXTDATA, path, KIND]` section: the adapter-data kind token —
-  /// corpus-observed kinds are `STRUCT`, `CLUST`, `DNSTRUCT`, `BLVCLUSTER`
-  /// (per-adapter representations of the property at [path]). null for value
-  /// and DEF sections. EXTDATA sections are kept reachable here but are NOT
-  /// part of the property-object data tree ([iniDataTree] skips them); wiring
-  /// them into [SeqProperty] is TODO (writer milestone).
   final String? extDataKind;
 
-  /// True for an `[EXTDATA, path, KIND]` section.
   bool get isExtData => extDataKind != null;
 
-  /// EVERY `key = value` line of the section in DOCUMENT ORDER, members and
-  /// directives interleaved exactly as on disk, values verbatim (continuation
-  /// fragments rejoined). The writer's source of truth; [members] and
-  /// [directives] are derived indexes over it.
   final List<IniEntry> entries;
 
-  /// Plain `member = value` (value section) or `member = TypeName` (DEF section)
-  /// lines, excluding the `%`-directives. Insertion order preserved. Derived
-  /// from [entries] (a duplicate key — unobserved in the corpus — keeps the
-  /// last occurrence here; [entries] retains all).
   final Map<String, String> members;
 
-  /// The `%`-directives, keyed by their full left-hand side, e.g.
-  /// `%NAME`, `%FLG: Seq`, `%HI: Main`, `%TYPE: %[0]`, `%[0]`. Derived from
-  /// [entries] like [members].
   final Map<String, String> directives;
 
-  /// This object's display name (`%NAME = "..."`), unquoted, or null.
   String? get name => _unquote(directives['%NAME']);
 
   @override
@@ -125,14 +48,12 @@ class IniSection {
       'IniSection(${isDef ? 'DEF ' : ''}$path, ${members.length} members, '
       '${directives.length} directives)';
 
-  /// Splits [entries] into the member/directive index for the derived maps.
   static Map<String, String> _selectEntries(List<IniEntry> entries, {required bool directives}) => {
     for (final e in entries)
       if (e.isDirective == directives) e.key: e.rawValue,
   };
 }
 
-/// A parsed legacy INI `.seq`: its header plus every section in document order.
 class IniSeqFile {
   IniSeqFile({
     required this.header,
@@ -141,35 +62,19 @@ class IniSeqFile {
     this.lineTerminator = '\n',
   });
 
-  /// Header recovered from `[__Header__]` (format [SeqFormat.ini]).
   final SeqFileHeader header;
 
-  /// EVERY `[__Header__]` field verbatim (key → raw value, insertion order),
-  /// beyond the few [header] surfaces — e.g. `Path`, `ProductVersion`.
-  /// Continuation lines (`Path Line0001` …) are reassembled the same way as
-  /// section values. Header keys are unique across the corpus, so the ordered
-  /// map is a faithful record of the header block.
   final Map<String, String> headerFields;
 
-  /// The file's line terminator, replayed verbatim by the writer. Corpus:
-  /// 57/58 files use `\n`; exactly one (`KernelTestSequence.seq`) uses `\r\n`;
-  /// none mix terminators.
   final String lineTerminator;
 
-  /// All `[...]` / `[DEF, ...]` / `[EXTDATA, ...]` sections in order (header
-  /// section excluded).
   final List<IniSection> sections;
 
-  /// The `[EXTDATA, path, KIND]` sections, in document order — external
-  /// adapter data blobs, kept reachable but not part of the data tree.
   Iterable<IniSection> get extDataSections => sections.where((s) => s.isExtData);
 }
 
-/// Parses [bytes] of a legacy INI `.seq`. INI files are single-byte (SBCS), so
-/// the bytes are decoded as Latin-1 to avoid choking on non-ASCII in comments.
 IniSeqFile parseIniSeqBytes(Uint8List bytes) => parseIniSeq(latin1.decode(bytes, allowInvalid: true));
 
-/// Parses the text of a legacy INI `.seq` into its header and sections.
 IniSeqFile parseIniSeq(String text) {
   final headerEntries = <IniEntry>[];
   final rawSections = <_RawSection>[];
@@ -192,9 +97,6 @@ IniSeqFile parseIniSeq(String text) {
       var path = isDef ? inner.substring('DEF,'.length).trim() : inner;
       String? extDataKind;
       if (!isDef && inner.startsWith('EXTDATA,')) {
-        // `[EXTDATA, <path>, <KIND>]` — always exactly three comma-separated
-        // parts across the corpus (1829 sections). A malformed header lacking
-        // the kind comma (unobserved) stays a plain value section, defensively.
         final rest = inner.substring('EXTDATA,'.length);
         final kindComma = rest.lastIndexOf(',');
         if (kindComma >= 0) {
@@ -207,8 +109,6 @@ IniSeqFile parseIniSeq(String text) {
       continue;
     }
     final eq = line.indexOf(' = ');
-    // Purely defensive: no corpus INI section line lacks a ' = ' separator
-    // (verified corpus-wide and guarded by a corpus test).
     if (eq < 0) continue;
     final key = line.substring(0, eq).trim();
     final value = line.substring(eq + ' = '.length);
@@ -218,9 +118,6 @@ IniSeqFile parseIniSeq(String text) {
       current.entries.add(IniEntry(key, value));
     }
   }
-  // Values split across `KEY LineNNNN` continuation lines (header fields and
-  // section entries alike) are rejoined in place, at the first fragment's
-  // document position.
   final headerFields = <String, String>{
     for (final e in _reassembleEntryList(headerEntries)) e.key: e.rawValue,
   };
@@ -236,15 +133,10 @@ IniSeqFile parseIniSeq(String text) {
           extDataKind: raw.extDataKind,
         ),
     ],
-    // The corpus never mixes terminators within one file (57 pure-LF, 1 pure
-    // CRLF), so one sniff classifies the whole file.
     lineTerminator: text.contains('\r\n') ? '\r\n' : '\n',
   );
 }
 
-/// Parser scratch for a section whose entries are still accumulating (the
-/// public [IniSection] derives its member/directive indexes at construction,
-/// so it must be built from the final, continuation-rejoined entry list).
 class _RawSection {
   _RawSection({required this.isDef, required this.path, required this.extDataKind});
 
@@ -254,29 +146,8 @@ class _RawSection {
   final List<IniEntry> entries = [];
 }
 
-/// Matches a continuation key: a base key plus a 4-digit ` LineNNNN` suffix.
 final _continuationKey = RegExp(r'^(.+) Line(\d+)$');
 
-/// Reassembles split long values in an ordered [entries] list (a section's
-/// lines or the header block's), returning a new list with each fragment group
-/// collapsed into one entry at the FIRST fragment's position.
-///
-/// NI splits a quoted value whose inner (escaped) text exceeds 120 characters
-/// across continuation lines named `KEY Line0001`, `KEY Line0002`, … — the base
-/// key with a ` LineNNNN` suffix — each holding a separately-quoted 120-char
-/// fragment of the escaped text (the last holds the 1–120-char remainder; an
-/// exact multiple of 120 ends with a full 120-char fragment, never an empty
-/// one). The chunking is escape-BLIND: a `\"`/`\\` pair may straddle a fragment
-/// boundary, so fragments are rejoined on the raw escaped text, never unescaped
-/// individually. This rejoins them, in numeric order, into the single base key
-/// `KEY` whose value is the fragments' inner text concatenated with no
-/// separator and rewrapped in one pair of quotes. Verified across the full
-/// corpus (19820 fragments in 1925 groups: all quoted, all contiguous from
-/// 0001, document-adjacent, never coexisting with a bare base key; every
-/// non-final fragment inner exactly 120 chars; no unsplit quoted inner exceeds
-/// 120; the longest bare value is 23 chars). Single-line values, which never
-/// match the suffix, are left untouched. The inverse split lives in the writer
-/// (`writeIniSeq`).
 List<IniEntry> _reassembleEntryList(List<IniEntry> entries) {
   Map<String, List<(int, String)>>? groups;
   for (final entry in entries) {
@@ -302,11 +173,6 @@ List<IniEntry> _reassembleEntryList(List<IniEntry> entries) {
   return rebuilt;
 }
 
-/// Joins quoted continuation [fragments] into one value: strips each fragment's
-/// surrounding quotes, concatenates the inner text in order, and rewraps in a
-/// single pair of quotes. A fragment lacking surrounding quotes is concatenated
-/// verbatim (unobserved in the corpus, handled defensively); the joined value
-/// stays quoted as long as any fragment was.
 String _joinFragments(Iterable<String> fragments) {
   final buf = StringBuffer();
   var anyQuoted = false;
@@ -322,15 +188,8 @@ String _joinFragments(Iterable<String> fragments) {
   return anyQuoted ? '"$buf"' : buf.toString();
 }
 
-/// Builds a [SeqFileHeader] from a parsed `[__Header__]` map. `Type` →
-/// [SeqFileHeader.fileType], `ProductName` → product, `Version` → fileVersion.
 SeqFileHeader parseIniHeader(String text) => parseIniSeq(text).header;
 
-/// Builds the [SeqFileHeader] a `[__Header__]` field map denotes — the same
-/// mapping [parseIniSeq] applies (`Type` unquoted → fileType, `ProductName`
-/// unquoted → product, `Version` raw → fileVersion). Public so a caller
-/// reconstructing an [IniSeqFile] from retained header fields (the
-/// cross-flavor converter) derives the identical header.
 SeqFileHeader iniHeaderFromFields(Map<String, String> fields) => _headerFrom(fields);
 
 SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
@@ -340,35 +199,12 @@ SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
   fileVersion: h['Version'],
 );
 
-/// Reconstructs the data [SeqProperty] tree from a parsed INI `.seq`, rooted at
-/// the `%OBJROOT` alias that maps to `SequenceFileData` (the file's `Data`
-/// object). Returns null if no such root is found.
-///
-/// This is the bridge onto the shared PropertyObject model: paths like
-/// `SF.Seq[0].Main[0]` become nested objects/arrays. Each object's members and
-/// their declared types come from its `[DEF, path]` section; values from the
-/// `[path]` section; `%NAME` becomes the node name; `Objs`/array members expand
-/// to [SeqProperty.array] from the `member[i]` element paths. Type inheritance
-/// (defaults pulled from a typed object's `[DEF, <Type>]`, instance-wins) and
-/// instance overrides (`%INSTOVRD`) and comments (`%COMMENT`) are modelled — see
-/// [_IniBuilder]. The `%INSTOVRD` flags *bitmask* is kept verbatim (its bit
-/// meanings need NI's PropFlags enum), not yet interpreted.
 SeqProperty? iniDataTree(IniSeqFile doc) {
   final builder = _IniBuilder(doc);
   final rootPath = builder.dataRootPath();
   return rootPath == null ? null : builder.build(rootPath, 'Data', 'SequenceFileData');
 }
 
-/// Reconstructs the type list (`[%TYPES]`) of a parsed INI `.seq` into
-/// [SeqProperty] objects — the INI analogue of XML's `<typelist>`. Each entry of
-/// the `[%TYPES]` section names a top-level type defined by its own
-/// `[DEF, <Type>]`/`[<Type>]` sections. A `[%TYPES]` member VALUE is only the
-/// quoted display name (always equal to the member key across the corpus, 2242
-/// entries); the type's CLASS comes from the root alias DEF (`[DEF, %OBJROOT]`
-/// / `[DEF, %OBJECTS]`, e.g. `Action = StepType`, `TEInf = Obj`) — the same
-/// classname the XML flavor puts on its typedef root. Every corpus `[%TYPES]`
-/// entry resolves there; a missing one (unobserved) yields a null className.
-/// Returns an empty list if `[%TYPES]` is absent.
 List<SeqProperty> iniTypes(IniSeqFile doc) {
   final builder = _IniBuilder(doc);
   final typeList = doc.sections.where((s) => !s.isDef && !s.isExtData && s.path == '%TYPES').firstOrNull;
@@ -379,39 +215,23 @@ List<SeqProperty> iniTypes(IniSeqFile doc) {
   ];
 }
 
-/// One INI path in the section index: the sections addressing it (a
-/// `[DEF, <path>]` type declaration and/or a `[<path>]` value section) plus the
-/// immediate children every indexed path reveals about it. A node also exists
-/// for a path that appears only as an ANCESTOR of a deeper section, which is how
-/// container members implied by a deeper section (a step's `SData`) are found.
 class _IniPathNode {
-  /// The `[DEF, <path>]` section declaring this path's type members.
   IniSection? def;
 
-  /// The `[<path>]` section holding this path's stored values.
   IniSection? values;
 
-  /// Immediate member-name children, in first-seen order.
   final Set<String> members = {};
 
-  /// Array element indices found under this path.
   final Set<int> _elements = {};
 
-  /// [_elements] ascending — computed once, after indexing.
   late final List<int> elementIndices = _elements.toList()..sort();
 
-  /// Whether a section addresses this path directly.
   bool get hasSection => def != null || values != null;
 }
 
-/// Builds [SeqProperty] objects from an INI `.seq`'s path-addressed sections.
 class _IniBuilder {
   _IniBuilder(IniSeqFile doc) {
     for (final section in doc.sections) {
-      // EXTDATA sections are adapter data blobs, not property-object value
-      // sections — indexing them would alias real property paths (their path
-      // component reuses object paths like `Error.Code`) and pollute the path
-      // index. They stay reachable on IniSeqFile.extDataSections.
       if (section.isExtData) continue;
       final node = _nodeAt(section.path);
       if (section.isDef) {
@@ -423,17 +243,10 @@ class _IniBuilder {
     _indexPaths();
   }
 
-  /// Every indexed INI path → its node: the section paths plus every ancestor
-  /// they pass through.
   final Map<String, _IniPathNode> _nodes = {};
 
   _IniPathNode _nodeAt(String path) => _nodes[path] ??= _IniPathNode();
 
-  /// Single pass over the section paths: for every path, register each immediate
-  /// `parent.member` and `parent[index]` edge against its parent. A path's member
-  /// segments are separated by `.`; array elements by `[n]`. Built once so
-  /// per-node child lookups are O(children) instead of re-scanning every path
-  /// (which made [build] O(paths²)).
   void _indexPaths() {
     for (final path in _nodes.keys.toList()) {
       final pathLength = path.length;
@@ -475,15 +288,8 @@ class _IniBuilder {
 
   bool hasPath(String path) => _nodes[path]?.hasSection ?? false;
 
-  /// The root-objects alias sections, in priority order. Newer files declare
-  /// top-level objects under `[DEF, %OBJROOT]`; older ones (e.g. versions 127/143)
-  /// use `[DEF, %OBJECTS]`. Both list `member = TypeName`, including the
-  /// sequence-file root (`SF = SequenceFileData`).
   static const _rootAliases = ['%OBJROOT', '%OBJECTS'];
 
-  /// The data root: the alias member declaring type `SequenceFileData` (e.g.
-  /// `SF = SequenceFileData`) in the first root-objects section that has one, or
-  /// null when absent.
   String? dataRootPath() {
     for (final alias in _rootAliases) {
       final root = _def(alias);
@@ -495,10 +301,6 @@ class _IniBuilder {
     return null;
   }
 
-  /// The declared CLASS of a top-level object [name] from the root alias DEF
-  /// (`SF = SequenceFileData`, `Action = StepType`, `TEInf = Obj`, …), or null
-  /// when no root alias declares it (unobserved for `[%TYPES]` entries: all
-  /// 2242 across the corpus resolve here).
   String? rootAliasClass(String name) {
     for (final alias in _rootAliases) {
       final declared = _def(alias)?.members[name];
@@ -507,44 +309,17 @@ class _IniBuilder {
     return null;
   }
 
-  /// Distinct array indices present under a child path C (keys "C[0]", "C[1]"…),
-  /// sorted ascending.
   List<int> _elementIndices(String childPath) => _nodes[childPath]?.elementIndices ?? const <int>[];
 
-  /// Whether [childPath] is indexed at all — a section addresses it, or a deeper
-  /// section passes through it.
   bool _isContainer(String childPath) => _nodes.containsKey(childPath);
 
-  /// Immediate child member names of [path] discovered from the path set —
-  /// catches container members (e.g. a step's `SData`) implied only by a deeper
-  /// section and not listed in the object's own DEF/value members, in first-seen
-  /// order.
   Iterable<String> _discoveredChildren(String path) => _nodes[path]?.members ?? const <String>{};
 
-  /// Cache of inherited (type-default) member subtrees. The key is the type
-  /// path PLUS the active recursion-guard set ([build]'s `visiting`): the guard
-  /// truncates inheritance when a type is already being expanded, so the same
-  /// type path can legitimately build to a DIFFERENT subtree under a different
-  /// guard state — a bare-path key would leak a truncated build into contexts
-  /// that deserve the full one (or vice versa).
-  ///
-  /// ALIASING INVARIANT: a cache hit shares ONE [SeqProperty] instance across
-  /// every inheriting parent. That is safe only because the built model is
-  /// immutable (all fields final, never mutated after construction); any future
-  /// mutable decoration of the tree must clone instead of alias.
   final Map<String, SeqProperty> _inheritCache = {};
 
-  /// The sound cache key for an inherited [typePath] built under [visiting] —
-  /// the path alone when no guard is active, else the path plus the guard set
-  /// in sorted (order-insensitive) form. Typical repeated builds (e.g. every
-  /// `Action` step inheriting `Action.TS`) share identical guard states, so
-  /// caching still collapses them.
   static String _inheritKey(String typePath, Set<String> visiting) =>
       visiting.isEmpty ? typePath : '$typePath|${(visiting.toList()..sort()).join('|')}';
 
-  /// Splits a member's declared type string into (className, typeName). A
-  /// `"TYPE, X"` reference is a typed object of type X (className null, typeName
-  /// X); anything else is a plain value-kind (className = it, typeName null).
   (String?, String?) _memberType(String? raw) {
     final text = _unquote(raw);
     if (text == null) return (null, null);
@@ -552,70 +327,25 @@ class _IniBuilder {
     return (text, null);
   }
 
-  /// The attribute key under which an instance-override marker is stored on a
-  /// built [SeqProperty] (see [SeqProperty.isInstanceOverride]).
   static const instOverrideAttr = '%INSTOVRD';
 
-  /// The attribute key under which a property's type-level **PropertyFlags**
-  /// bitmask is stored on a built [SeqProperty] (see [SeqProperty.propertyFlags]).
-  /// Sourced from the `%FLG: <member>` directive on the owning object's section.
   static const flagsAttr = '%FLG';
 
-  /// The attribute key under which a member's declared array high-index
-  /// bounds are stored (`%HI: <member> = [63]`) — see
-  /// [SeqProperty.highIndices].
   static const highIndexAttr = '%HI';
 
-  /// The attribute key under which a member's declared array LOW-index
-  /// bounds are stored (`%LO: <member> = [1]`) — see
-  /// [SeqProperty.lowIndices]. Nonzero low bounds are corpus-real
-  /// (`%LO: ColumnList = [1]` + `%HI: ColumnList = [2]` — 2 elements).
   static const lowIndexAttr = '%LO';
 
-  /// The attribute key under which a property's INSTANCE-level flags bitmask
-  /// is stored, from the `%INSTFLG: <member>` / bare own-section `%INSTFLG`
-  /// directives (18k+ corpus lines). Kept verbatim; bit meanings are **not
-  /// yet decoded** (distinct from the type-level [flagsAttr] mask and from
-  /// the override marker [instOverrideAttr]).
   static const instFlagsAttr = '%INSTFLG';
 
-  /// The attribute key under which an array's ELEMENT prototype type is
-  /// stored (a bare `%EPTYPE = TEResult` directive on the array's own
-  /// section) — the type every default element instantiates.
   static const elementTypeAttr = '%EPTYPE';
 
-  /// The attribute key under which an object's free-text comment is stored on a
-  /// built [SeqProperty] (the editor's per-step/per-object note). Sourced from
-  /// the `%COMMENT` directive; stored unquoted.
   static const commentAttr = '%COMMENT';
 
-  /// The attribute key under which a property's numeric display-format string
-  /// is stored, from the bare own-section `%NUMFMT` directive (530 corpus
-  /// lines, all bare — never member-scoped; values `""`, `"%#x"`, `"%i"`).
-  /// Stored unquoted, verbatim (an empty format is kept, not dropped) — the
-  /// INI counterpart of the XML `<numericfmt>` element.
   static const numericFormatAttr = '%NUMFMT';
 
-  /// The attribute key under which a NON-element section's `%NAME` is
-  /// retained. `%NAME` names the node only for ARRAY ELEMENTS (steps,
-  /// sequences — their section key is `[n]`); on a NAMED member or a
-  /// typedef root it is the current ENUM VALUE's label (`NONE`, `TOP`,
-  /// `BLACK` — all 419 named-member and every non-`Data` root `%NAME`
-  /// across the corpus sit on Enum-classed types), and the property's
-  /// real name is its member key. Treating it as the name mislabeled
-  /// enum-typed prototype parameters after their default values.
+  /// `%NAME` on a non-element section is the enum value's label, not the node name.
   static const enumValueAttr = '%NAME';
 
-  /// Builds the property node for a section, producing members in a
-  /// deterministic order: instance `DEF` declarations first (authoritative +
-  /// typed), then value-only members, then members implied by deeper sections,
-  /// then members inherited from the type but never mentioned.
-  ///
-  /// [ownScalar] is the node's scalar value when it lives on the PARENT's
-  /// value section (`member = value`) while the node ALSO has its own section
-  /// — a corpus-real shape (1431 occurrences, e.g. a numeric `Flags` member
-  /// whose own section carries only `%NUMFMT`). Without it the container
-  /// branch dropped the value from the built tree.
   SeqProperty build(
     String path,
     String displayName,
@@ -628,9 +358,6 @@ class _IniBuilder {
     visiting ??= <String>{};
     final def = _def(path);
     final val = _values(path);
-    // `%NAME` names ARRAY ELEMENTS only (their key is positional `[n]`);
-    // elsewhere it is an enum value label ([enumValueAttr]) and the node
-    // keeps its member/root key.
     final isElement = displayName.startsWith('[');
     final nameOverride = val?.name ?? def?.name;
     final name = isElement ? (nameOverride ?? displayName) : displayName;
@@ -668,9 +395,6 @@ class _IniBuilder {
       final (className, typeName) = _memberType(memberTypeOf(memberName));
       final instPath = '$path.$memberName';
       final typePath = typeRoot == null ? null : '$typeRoot.$memberName';
-      // The member's scalar from THIS object's value section (instance wins)
-      // or the type's — needed by the container branches too, since a member
-      // with its own section can still carry its value on the parent.
       String? memberScalar() =>
           _unquote(val?.members[memberName]) ??
           (typeRoot == null ? null : _unquote(_values(typeRoot)?.members[memberName]));
@@ -691,10 +415,6 @@ class _IniBuilder {
       } else if (_isContainer(instPath)) {
         subs.add(build(instPath, memberName, className, typeName, visiting, memberAttrs(memberName), memberScalar()));
       } else if (typePath != null && _isContainer(typePath)) {
-        // Instance-level value entries / member directives are per-instance,
-        // so they must not be baked into the SHARED inherited subtree — the
-        // cache is bypassed when either is present (rare; the common
-        // inherited member has neither and keeps the aliased build).
         final scalar = memberScalar();
         final attrs = memberAttrs(memberName);
         subs.add(
@@ -723,10 +443,6 @@ class _IniBuilder {
     if (inheritGuard) visiting.remove(typeRoot);
 
     final bareOvr = val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
-    // Bare own-section flag masks (`%FLG = N`, `%INSTFLG = N` — value sections
-    // only across the corpus, and never coexisting with the member form on the
-    // owning parent) are retained under the same literal keys as the member
-    // form, so a property's flags read the same either way.
     final bareFlg = val?.directives[flagsAttr] ?? def?.directives[flagsAttr];
     final bareInstFlg = val?.directives[instFlagsAttr] ?? def?.directives[instFlagsAttr];
     final comment = _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
@@ -740,8 +456,6 @@ class _IniBuilder {
       if (comment != null && comment.isNotEmpty) commentAttr: comment,
       if (numericFormat != null) numericFormatAttr: numericFormat,
       if (elementType != null && elementType.isNotEmpty) elementTypeAttr: elementType,
-      // The enum value label a non-element `%NAME` carries — retained,
-      // never dropped (see [enumValueAttr]).
       if (!isElement && nameOverride != null && nameOverride != name) enumValueAttr: nameOverride,
     };
 
@@ -756,10 +470,6 @@ class _IniBuilder {
   }
 }
 
-/// Parses a legacy INI `.seq` into a [SeqFile] so the shared typed lens
-/// ([SeqFile.sequences] / [Sequence] / [Step]) works on it. The data tree comes
-/// from [iniDataTree] and the type list from [iniTypes]. Throws [FormatException]
-/// if the data root cannot be reconstructed (e.g. a file lacking `%OBJROOT`).
 SeqFile parseIniSeqFile(Uint8List bytes) {
   final doc = parseIniSeqBytes(bytes);
   final data = iniDataTree(doc);
@@ -771,36 +481,16 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
   return SeqFile(header: doc.header, types: iniTypes(doc), data: data);
 }
 
-/// Strips one layer of surrounding double quotes from a raw INI value, if
-/// present, and decodes the C-style escapes TestStand writes *inside* a quoted
-/// value — the exact inverse of `escapeIniQuoted`, and the reader's own
-/// decoding (public alias of the internal helper for value-level consumers
-/// such as the cross-flavor converter). Bare (unquoted) values are trimmed and
-/// returned untouched. Returns null for a null input.
 String? unquoteIni(String? raw) => _unquote(raw);
 
-/// Strips one layer of surrounding double quotes, if present, and decodes the
-/// C-style escapes TestStand writes *inside* a quoted value (see [_unescapeIni]).
-/// Returns null for a null input.
 String? _unquote(String? s) {
   if (s == null) return null;
   final trimmed = s.trim();
   return _isQuoted(trimmed) ? _unescapeIni(trimmed.substring(1, trimmed.length - 1)) : trimmed;
 }
 
-/// True when [t] is surrounded by a matching pair of double quotes.
 bool _isQuoted(String text) => text.length >= 2 && text.startsWith('"') && text.endsWith('"');
 
-/// Decodes the C-style escapes TestStand writes inside a *quoted* INI value:
-/// `\\`→`\`, `\"`→`"`, `\n`→newline, `\t`→tab, `\r`→CR. NI always doubles a
-/// literal backslash (`\\`) — verified across the corpus, where the only escape
-/// targets seen are `" n t r \` — so a lone `\n` unambiguously means a newline,
-/// not a path separator. This brings INI string scalars in line with the XML
-/// form (which uses XML entities) so both decode to the same logical text — e.g.
-/// the expression `Locals.M != \"S001\"` reads as `Locals.M != "S001"`.
-/// Processed left-to-right, consuming each pair; an unrecognized `\x` (none seen
-/// in the corpus) is kept verbatim, defensively. Only called on quoted values,
-/// so unquoted bare tokens (numbers, enums) are never touched.
 String _unescapeIni(String text) {
   if (!text.contains(r'\')) return text;
   final buffer = StringBuffer();

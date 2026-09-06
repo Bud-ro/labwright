@@ -3,8 +3,6 @@ import 'dart:convert';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// Unit coverage for the cross-flavor converters; the corpus gates live in
-/// `seq_convert_corpus_test.dart`.
 void main() {
   test('armor codec round-trips arbitrary text into an INI-inert alphabet', () {
     const cases = [
@@ -59,7 +57,6 @@ void main() {
             ),
           ),
           SeqTypelistEntry(protectedData: 'AAECAwQFBgcICQ== obfuscated blob'),
-          // A root-less <typedef/> wrapper: unobserved in the corpus but representable.
           SeqTypelistEntry(attributes: const {'typelistordernum': '2'}),
         ],
         data: SeqProperty(
@@ -68,7 +65,6 @@ void main() {
           className: 'Obj',
           attributes: const {'classname': 'Obj'},
           subProps: [
-            // Names hostile to INI keys/paths and XML tags alike.
             SeqProperty(
               name: 'weird name = x',
               xmlTag: '_NAME_IN_ATTRIBUTE_',
@@ -87,21 +83,16 @@ void main() {
               xmlTag: '_NAME_IN_ATTRIBUTE_',
               attributes: const {'name': '_NAME_IN_ATTRIBUTE_'},
             ),
-            // Duplicate sibling names (segment uniquification).
             SeqProperty(name: 'Dup', xmlTag: 'Dup', scalar: 'first'),
             SeqProperty(name: 'Dup', xmlTag: 'Dup', scalar: 'second'),
-            // className/typeName inconsistent with the attribute map.
             SeqProperty(name: 'Odd', xmlTag: 'Odd', className: 'Num', typeName: 'CustomT'),
-            // Scalars exercising the INI escape set and the armored fallback.
             SeqProperty(name: 'Multiline', xmlTag: 'Multiline', scalar: 'a\nb\t"q"\\end\r'),
             SeqProperty(name: 'NonLatin', xmlTag: 'NonLatin', scalar: 'температура 中'),
             SeqProperty(
               name: 'LongVal',
               xmlTag: 'LongVal',
-              scalar: List.filled(40, '0123456789').join(), // 400 chars: continuation-split territory
+              scalar: List.filled(40, '0123456789').join(),
             ),
-            // A sparse scalar array with element attributes, bounds, a
-            // representation hint, an elemproto, extdata, and numericfmt.
             SeqProperty(
               name: 'Nums',
               xmlTag: 'Nums',
@@ -147,7 +138,6 @@ void main() {
               valueAttributes: const {'lbound': '[0]', 'ubound': '[]'},
               array: const [],
             ),
-            // Empty numericfmt is a real corpus value (`%NUMFMT = ""`).
             SeqProperty(name: 'EmptyFmt', xmlTag: 'EmptyFmt', numericFormat: ''),
           ],
         ),
@@ -198,8 +188,6 @@ void main() {
       '[%TYPES]\nTEInf = "TEInf"',
       '[DEF, TEInf]\nMask = Num',
       '[TEInf]\nMask = 16',
-      // The corpus-native %NUMFMT shape: a bare directive on the member's OWN
-      // section while its value stays on the parent.
       '[TEInf.Mask]\n%NUMFMT = "%#x"',
       '[DEF, SF]\nSeq = Objs\nCols = Nums',
       '[SF]\n%HI: Seq = [0]\n%FLG: Seq = 4194304\n%LO: Cols = [1]\n%HI: Cols = [2]\nVersion = "0.0.0.0"',
@@ -217,19 +205,15 @@ void main() {
       expect(xml.header.format, SeqFormat.xml);
       expect(xml.rootAttributes, {'type': 'SequenceFile', 'fileversion': '354', 'productname': 'TestStand'});
 
-      // %NUMFMT crosses natively into numericFormat (not an attribute).
       final mask = xml.types.single.prop('Mask')!;
       expect(xml.types.single.name, 'TEInf');
       expect((mask.numericFormat, mask.scalar), ('%#x', '16'));
       expect(mask.attributes.containsKey('x-NUMFMT'), isFalse);
 
-      // %HI/%LO become XML value bounds, %FLG rides the x- rename, and the
-      // typed lenses read both spellings.
       final seq = xml.data.prop('Seq')!;
       expect((seq.arrayUBound, seq.arrayLBound), ('[0]', '[0]'));
       expect(seq.propertyFlags, 4194304);
       expect(seq.attributes['x-FLG'], '4194304');
-      // A defaults-only declared array (bounds, no elements) stays a leaf.
       final cols = xml.data.prop('Cols')!;
       expect(cols.isArray, isFalse);
       expect((cols.attributes['x-LO'], cols.attributes['x-HI']), ('[1]', '[2]'));
@@ -237,7 +221,6 @@ void main() {
       expect(cols.lowIndices, [1]);
       expect(cols.declaredArrayLength, 2);
 
-      // %COMMENT survives the rename and the Sequence lens still reads it.
       final main = Sequence(seq.array!.single);
       expect((main.name, main.comment), ('MainSequence', 'does the thing\non two lines'));
 
@@ -246,7 +229,6 @@ void main() {
       final reparsed = parseSeqFile(xmlBytes);
       expect(seqFileDeepEquals(xml, reparsed), isTrue);
 
-      // Byte-exact return, EXTDATA section and all; fixpoint after one hop.
       final back = xmlToIniSeqFile(reparsed);
       expect(writeIniSeq(back), bytes);
       expect(iniDeepEquals(ini, back), isTrue);
@@ -298,11 +280,9 @@ void main() {
       final xml = binaryToXmlSeqFile(binModel);
       expect(xml.rootAttributes![ConvKey.partialDecodeAttr], ConvKey.partialDecodeBinary);
       expect(xml.header.format, SeqFormat.xml);
-      // The %BIN marker rides the rename and still reads as an override.
       final main = xml.data.prop('Seq')!.array!.single;
       expect(main.attributes['x-BINOVERRIDES'], 'true');
       expect(main.isInstanceOverride, isTrue);
-      // The decoded surface survives write → reparse → INI → XML deep-equal.
       expect(seqFileDeepEquals(xml, parseSeqFile(writeSeqFileXml(xml))), isTrue);
       final viaIni = iniToXmlSeqFile(parseIniSeqBytes(writeIniSeq(binaryToIniSeqFile(binModel))));
       expect(seqFileDeepEquals(xml, viaIni), isTrue);

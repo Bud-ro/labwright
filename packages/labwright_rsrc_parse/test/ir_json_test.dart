@@ -9,10 +9,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// JSON IR export ([viModelToJson]) over the WHOLE corpus: determinism, jsonEncode-safety, drawable
-/// coverage, and VCTP type/name/cluster/array/enum recovery. One worker-isolate summary per VI:
-/// summed counters + capped `key•`-prefixed failure diagnostics.
-
 bool _hasNonPrintable(String s) => s.runes.any((c) => c < 0x20 || c >= 0x7f);
 
 (Map<String, int>, List<String>) _summarizeVi(Uint8List bytes, String path) {

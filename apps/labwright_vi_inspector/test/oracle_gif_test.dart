@@ -9,7 +9,6 @@ import 'package:labwright_vi_inspector/src/oracle_gif.dart';
 
 import 'util.dart';
 
-/// [rgba] filled with 0xRRGGBB [color].
 Uint8List _flat(int w, int h, int color) {
   final out = Uint8List(w * h * 4);
   for (var i = 0; i < w * h; i++) {
@@ -28,11 +27,6 @@ int _pixel(img.Image frame, int x, int y) {
 
 void main() {
   test('off-thread encode crosses the isolate boundary', () async {
-    // The UI handler encodes via [encodeOracleSweepGifOffThread]; this
-    // exercises the ACTUAL isolate hop. A closure formed inside a scope
-    // holding any unsendable local (a ui.Image, a messenger) fails
-    // Isolate.run at SEND time — a pure-encoder test never catches that,
-    // so the send path itself is pinned here.
     final gif = await encodeOracleSweepGifOffThread(
       leftRgba: _flat(40, 12, 0xffffff),
       rightRgba: _flat(40, 12, 0x0000ff),
@@ -53,13 +47,9 @@ void main() {
       style: const OracleSweepGifStyle(positions: positions),
     );
     final decoded = img.decodeGif(gif)!;
-    // positions stops out, positions-2 back — the turnaround endpoints are
-    // not duplicated.
     expect(decoded.frames.length, 2 * positions - 2);
     expect((decoded.width, decoded.height), (w, h));
     expect(decoded.loopCount, 0, reason: 'infinite loop');
-    // The sweep goes out and comes back: frame 1 and the last frame share
-    // the same stop.
     for (final (f, stop) in [
       (0, 0.0),
       (1, 0.25),
@@ -82,8 +72,6 @@ void main() {
   test(
     'a size or animation the frames cannot honour throws, in release too',
     () {
-      // The encoder runs inside Isolate.run, where an assert is stripped in
-      // release and the mismatch resurfaces as a bare RangeError.
       for (final (what, call) in [
         (
           'short buffer',
@@ -130,8 +118,6 @@ void main() {
   );
 
   test('box downscale clamps a factor beyond the source to a 1 px floor', () {
-    // A factor past the smaller axis is clamped to it, so the block reads
-    // stay in bounds and each axis keeps at least one pixel.
     for (final (factor, want) in const [
       (2, (2, 1)),
       (9, (2, 1)),
@@ -184,9 +170,6 @@ void main() {
       final decoded = img.decodeGif(gif)!;
       expect(decoded.frames.length, 46);
       expect((decoded.width, decoded.height), (w, h));
-      // Near-lossless palette: the first frame (bar hard left) shows the
-      // reference; at most the rare tail colours off the 256-entry global
-      // palette may shift, never more than 0.1% of pixels.
       final frame = decoded.frames[0];
       var off = 0;
       for (var y = 0; y < h; y++) {

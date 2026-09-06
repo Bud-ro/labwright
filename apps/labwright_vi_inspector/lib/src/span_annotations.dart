@@ -1,7 +1,3 @@
-/// Byte-span annotation model for the hex viewer: classifies each walked
-/// [HeapSpan] of a section into a colored, titled [SpanInfo] (record frames,
-/// attributes, refs, strings, rects), with inline preview widgets for the
-/// decoded payloads.
 library;
 
 import 'dart:typed_data';
@@ -11,7 +7,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'mac_icon_palette.dart';
 
-/// One parsed record for display.
 class SpanInfo {
   SpanInfo({
     required this.offset,
@@ -33,9 +28,6 @@ class SpanInfo {
   final Color? swatch;
   final Widget? display;
 
-  /// A short value shown inline in the record row (right-aligned) — a "preview"
-  /// of the decoded value (e.g. a size/count) so it is legible without selecting
-  /// the row, mirroring the colour swatch for colour records.
   final String? inlinePreview;
 }
 
@@ -319,12 +311,6 @@ class ColorPreview extends StatelessWidget {
   );
 }
 
-/// A typed whole-section display for the VI icon. The recognizable icon is a
-/// plain 24-bit RGB bitmap embedded (uncompressed) in a LabVIEW "picture" stream
-/// — it can appear under several tags (`PICC`/`DSIM`/`FPHb`/…), *not* the
-/// `ICON`/`icl4`/`icl8` resource blocks (those hold unrelated metadata). So this
-/// keys on the bitmap signature in the bytes, not the tag. Returns null when the
-/// section carries no embedded RGB bitmap.
 Widget? iconPreview(Uint8List bytes) {
   final icon = extractRgbIcon(bytes);
   if (icon == null) return null;
@@ -334,8 +320,6 @@ Widget? iconPreview(Uint8List bytes) {
   );
 }
 
-/// Renders a decoded [ViIcon] (24-bit RGB bitmap) at [size]×[size], nearest-
-/// neighbour scaled so the small icon stays crisp.
 class ViIconImage extends StatelessWidget {
   const ViIconImage({super.key, required this.icon, this.size = 160});
   final ViIcon icon;
@@ -415,13 +399,6 @@ class StringPreview extends StatelessWidget {
   );
 }
 
-/// Paints a 32×32 [ViLegacyIcon] scaled to fill the given size, mapping each
-/// stored pixel index through the standard Macintosh icon palette for the icon's
-/// bit depth (see [macIconArgb]): `ICON` (1-bit) → black/white, `icl4` (4-bit) →
-/// the 16-color system palette, `icl8` (8-bit) → the 256-color system palette.
-/// `ICON`/`icl4`/`icl8` store palette indices, not a mask, so a color icon draws
-/// its actual colours. These formats carry no alpha here, so every pixel is drawn
-/// opaque (index 0 is white, the classic icon background).
 class LegacyIconPainter extends CustomPainter {
   LegacyIconPainter(this.icon);
   final ViLegacyIcon icon;
@@ -441,11 +418,6 @@ class LegacyIconPainter extends CustomPainter {
   bool shouldRepaint(LegacyIconPainter old) => !identical(old.icon, icon);
 }
 
-/// Draws [icon]'s 32×32 index grid scaled to fill [rect] (each stored index
-/// mapped through [macIconArgb] for the icon's bit depth), without any border —
-/// so a caller (e.g. a block-diagram subVI node plate) can stamp the icon into an
-/// arbitrary rectangle. Shared with [LegacyIconPainter] so on-canvas subVI icons
-/// and the images gallery draw identical pixels.
 void paintLegacyIcon(Canvas canvas, ViLegacyIcon icon, Rect rect) {
   const dim = 32;
   final cw = rect.width / dim;

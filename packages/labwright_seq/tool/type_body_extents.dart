@@ -1,9 +1,3 @@
-// Grammar-iteration aid for the binary typedef-body decoder: prints each
-// type record's body extent — decoded records with their end offset and
-// the gap to the next record's head (17 = the contiguous preamble), and
-// bailing records with the first uncovered field's offset and its
-// surrounding words pool-resolved (the exact spot to point the prober
-// at). Usage: dart run tool/type_body_extents.dart [file.seq]
 import 'dart:io';
 import 'dart:typed_data';
 

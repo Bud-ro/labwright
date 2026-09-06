@@ -6,8 +6,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// A minimal PNG: signature + the given chunks, each framed with a correct
-/// CRC-32 unless [corruptCrcOf] names its type.
 Uint8List png(List<(String, List<int>)> chunks, {String? corruptCrcOf}) {
   final b = BytesBuilder()..add([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   for (final (type, data) in chunks) {
@@ -95,9 +93,6 @@ void main() {
   });
 
   group('corpus snippets', () {
-    // Both pinned oracle repos: (corpus dir, is-a-snippet predicate by path,
-    // expected snippet count). Non-matching PNGs are the repos' plain art /
-    // screenshots and must extract to nothing.
     final repos = <(String, bool Function(String), int)>[
       (
         'rcpacini_LabVIEW-VI-Snippet',

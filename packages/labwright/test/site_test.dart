@@ -1,8 +1,3 @@
-// The viewer site ships as real files under lib/src/site/ — one page, one
-// stylesheet, one script. These pin the folder's integrity (files reference
-// each other; the JS only touches ids the HTML declares), the serving contract
-// (content types, whitelist-only, bytes identical to disk), and the static
-// editor-link template the goto feature builds on.
 import 'dart:convert';
 import 'dart:io';
 
@@ -76,7 +71,6 @@ void main() {
   test(
     'the viewer serves the site: right content types, disk-identical bytes, whitelist-only',
     () async {
-      // slow fixture: the viewer is up while it runs; no linger banner to await.
       final v = await Viewer.start(
         'test/fixtures/slow_e2e.dart',
         defines: ['-Dlabwright.identity=false', '-Dlabwright.seed=0'],
@@ -93,8 +87,6 @@ void main() {
           expect(res.headers.contentType?.toString(), contains(type));
           expect(await utf8.decodeStream(res), _site(file), reason: '$path serves $file byte-for-byte');
         }
-        // Nothing outside the three site files is reachable — not other assets,
-        // and never anything via a traversal-shaped path.
         for (final path in const [
           '/nope.js',
           '/site/index.html',

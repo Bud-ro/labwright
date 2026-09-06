@@ -1,16 +1,7 @@
-/// Decoders for the small fixed/near-fixed record blocks (passwords,
-/// signatures, section markers, print/icon records, image envelopes, text
-/// records). All total; every field claim is corpus-verified and anything not
-/// yet decoded says so.
-library;
-
 import 'dart:typed_data';
 
 String _hexOf(Uint8List bytes) => bytes.map((b) => b.toRadixString(16).padLeft(2, '0')).join();
 
-/// Inverse of [_hexOf]: packs a lowercase hex string back into its bytes. The
-/// digest/signature models store their opaque value as hex, so [serialize]
-/// reconstructs the exact on-disk bytes from that faithful encoding.
 Uint8List _bytesFromHex(String hex) {
   final out = Uint8List(hex.length ~/ 2);
   for (var i = 0; i < out.length; i++) {
@@ -19,26 +10,16 @@ Uint8List _bytesFromHex(String hex) {
   return out;
 }
 
-/// A decoded `BDPW` **block-diagram password record**: three 16-byte MD5
-/// digests (48 B in 7538/7539 corpus sections; one legacy 32 B = two digests).
-/// The first digest is MD5 of the password (`d41d8cd9…` = MD5("") when no
-/// password is set); the second and third are salted/derived digests whose
-/// exact derivation is not re-derived here.
 class ViPasswordRecord {
   const ViPasswordRecord({required this.passwordHash, required this.extraHashes});
 
-  /// Hex MD5 of the password ("" hash when unprotected).
   final String passwordHash;
 
-  /// The remaining 16-byte digests (1–2 of them).
   final List<String> extraHashes;
 
-  /// Whether this is the well-known MD5("") — i.e. no password set.
+  /// MD5 of the empty string.
   bool get isUnprotected => passwordHash == 'd41d8cd98f00b204e9800998ecf8427e';
 
-  /// Re-emits the record: the password digest followed by the derived digests,
-  /// 16 bytes each. Reproduces the stored body exactly (the digests are the
-  /// whole block; each is an opaque identity value retained verbatim).
   Uint8List serialize() {
     final digests = [passwordHash, ...extraHashes];
     final out = Uint8List(digests.length * 16);
@@ -49,7 +30,6 @@ class ViPasswordRecord {
   }
 }
 
-/// Decodes a `BDPW` record; null unless the body is 2–3 whole digests.
 ViPasswordRecord? decodePasswordRecord(Uint8List bytes) {
   if (bytes.length != 48 && bytes.length != 32) return null;
   return ViPasswordRecord(
@@ -60,30 +40,20 @@ ViPasswordRecord? decodePasswordRecord(Uint8List bytes) {
   );
 }
 
-/// A decoded 16-byte signature block (`RTSG` run-time signature, `OBSG` object
-/// signature, `CCSG` compiled-code signature, and the signature half of
-/// `SCSR`): an opaque identity value. The *format* (a single 16-byte
-/// digest/GUID) is decoded; the derivation is not.
 class ViSignature {
   const ViSignature({required this.hex});
   final String hex;
 
-  /// Re-emits the 16 signature bytes (the whole block is this opaque value).
   Uint8List serialize() => _bytesFromHex(hex);
 }
 
-/// Decodes a 16-byte signature block (`RTSG`, `OBSG`, `CCSG`); null unless
-/// exactly 16 bytes.
 ViSignature? decodeRuntimeSignature(Uint8List bytes) => bytes.length == 16 ? ViSignature(hex: _hexOf(bytes)) : null;
 
-/// A decoded `SCSR` record: a u32 marker (0x01000000 across the corpus) plus a
-/// 16-byte signature.
 class ViScsrRecord {
   const ViScsrRecord({required this.marker, required this.signature});
   final int marker;
   final ViSignature signature;
 
-  /// Re-emits `[u32 marker][16-byte signature]` — the 20-byte record.
   Uint8List serialize() {
     final out = Uint8List(20);
     ByteData.sublistView(out).setUint32(0, marker);
@@ -92,7 +62,6 @@ class ViScsrRecord {
   }
 }
 
-/// Decodes an `SCSR` record; null unless exactly 20 bytes.
 ViScsrRecord? decodeScsrRecord(Uint8List bytes) {
   if (bytes.length != 20) return null;
   return ViScsrRecord(
@@ -101,18 +70,11 @@ ViScsrRecord? decodeScsrRecord(Uint8List bytes) {
   );
 }
 
-/// A decoded `PICC` **icon placement record**: exactly 12 bytes = six
-/// big-endian u16s (3283/3283 in corpus). Fields 2–5 read as a rect whose
-/// corner pairs share coordinates across the corpus samples; the leading pair
-/// is an id/flags word and a constant 1.
 class ViIconPlacement {
   const ViIconPlacement({required this.words});
 
-  /// The six u16 fields: [id, one, top, left, bottom, right] (field roles per
-  /// corpus-sample geometry; not confirmed against a rendering).
   final List<int> words;
 
-  /// Re-emits the six big-endian u16 fields — the 12-byte record.
   Uint8List serialize() {
     final out = Uint8List(12);
     final d = ByteData.sublistView(out);
@@ -123,34 +85,21 @@ class ViIconPlacement {
   }
 }
 
-/// Decodes a `PICC` record; null unless exactly 12 bytes.
 ViIconPlacement? decodeIconPlacement(Uint8List bytes) {
   if (bytes.length != 12) return null;
   final view = ByteData.sublistView(bytes);
   return ViIconPlacement(words: [for (var i = 0; i < 6; i++) view.getUint16(2 * i)]);
 }
 
-/// A byte-exact `PRT ` **print record**: a fixed-length print-settings record
-/// (128 B, rarely 132/136; every corpus instance a whole number of big-endian
-/// u32 words, 3859/3859) read as its word grid. The version byte is at offset 4
-/// — the high byte of `words[1]` (0x01 in the default form); [isDefaultLayout]
-/// flags the all-default record (every word but that version byte zero). The
-/// print-setting fields (margins, orientation, scale) are retained verbatim as
-/// grid words — their semantics are not decoded — so [serialize] reproduces the
-/// record exactly.
 class ViPrintRecord {
   const ViPrintRecord({required this.words});
 
-  /// The record's big-endian u32 words, in order (`length ~/ 4` of them).
   final List<int> words;
 
-  /// The record length in bytes.
   int get length => words.length * 4;
 
-  /// The version byte at offset 4 (the high byte of `words[1]`; 0x01 default).
   int get version => words.length > 1 ? (words[1] >> 24) & 0xff : 0;
 
-  /// True when every word but the offset-4 version byte is zero.
   bool get isDefaultLayout {
     for (var i = 0; i < words.length; i++) {
       final w = i == 1 ? words[i] & 0x00ffffff : words[i];
@@ -159,7 +108,6 @@ class ViPrintRecord {
     return true;
   }
 
-  /// Re-emits the big-endian u32 words in order — the whole record.
   Uint8List serialize() {
     final out = Uint8List(words.length * 4);
     final d = ByteData.sublistView(out);
@@ -170,23 +118,17 @@ class ViPrintRecord {
   }
 }
 
-/// Decodes a `PRT ` record as its big-endian u32 word grid; null when the body
-/// is empty or not a whole number of u32 words. Total.
 ViPrintRecord? decodePrintRecord(Uint8List bytes) {
   if (bytes.isEmpty || bytes.length % 4 != 0) return null;
   final view = ByteData.sublistView(bytes);
   return ViPrintRecord(words: [for (var i = 0; i < bytes.length; i += 4) view.getUint32(i)]);
 }
 
-/// A decoded `BDSE`/`FPSE` section marker: a single big-endian u32
-/// (7535/7582; the rare 8-byte form carries a second word).
 class ViSectionMarker {
   const ViSectionMarker({required this.value, required this.extraWord});
   final int value;
   final int? extraWord;
 
-  /// Re-emits the marker as one big-endian u32, plus the second word when the
-  /// 8-byte form carries one — reproducing the stored body.
   Uint8List serialize() {
     final extra = extraWord;
     final out = Uint8List(extra == null ? 4 : 8);
@@ -197,7 +139,6 @@ class ViSectionMarker {
   }
 }
 
-/// Decodes a `BDSE`/`FPSE` marker; null unless 4 or 8 bytes.
 ViSectionMarker? decodeSectionMarker(Uint8List bytes) {
   if (bytes.length != 4 && bytes.length != 8) return null;
   final view = ByteData.sublistView(bytes);
@@ -207,12 +148,10 @@ ViSectionMarker? decodeSectionMarker(Uint8List bytes) {
   );
 }
 
-/// A decoded `MUID` modified-UID: a single big-endian u32, varied per VI.
 class ViModifiedUid {
   const ViModifiedUid({required this.value});
   final int value;
 
-  /// Re-emits the 4-byte big-endian u32.
   Uint8List serialize() {
     final out = Uint8List(4);
     ByteData.sublistView(out).setUint32(0, value);
@@ -220,18 +159,13 @@ class ViModifiedUid {
   }
 }
 
-/// Decodes a `MUID`; null unless exactly 4 bytes.
 ViModifiedUid? decodeModifiedUid(Uint8List bytes) =>
     bytes.length == 4 ? ViModifiedUid(value: ByteData.sublistView(bytes).getUint32(0)) : null;
 
-/// A decoded `BDEx`/`FPEx` extended-state record: a run of big-endian u32
-/// flag words (4–32 B forms dominate, longer tails exist; bit meanings not
-/// yet decoded).
 class ViExtendedState {
   const ViExtendedState({required this.words});
   final List<int> words;
 
-  /// Re-emits the big-endian u32 words in order — the whole record.
   Uint8List serialize() {
     final out = Uint8List(words.length * 4);
     final d = ByteData.sublistView(out);
@@ -242,7 +176,6 @@ class ViExtendedState {
   }
 }
 
-/// Decodes a `BDEx`/`FPEx` record; null unless a whole number of u32s.
 ViExtendedState? decodeExtendedState(Uint8List bytes) {
   if (bytes.isEmpty || bytes.length % 4 != 0) return null;
   final view = ByteData.sublistView(bytes);
@@ -251,8 +184,6 @@ ViExtendedState? decodeExtendedState(Uint8List bytes) {
   );
 }
 
-/// Decodes a `TITL` Pascal-string VI title; null when the length byte
-/// overruns or the text is not printable.
 String? decodeTitle(Uint8List bytes) {
   if (bytes.isEmpty) return null;
   final len = bytes[0];
@@ -263,15 +194,10 @@ String? decodeTitle(Uint8List bytes) {
   return String.fromCharCodes(bytes.sublist(1, 1 + len));
 }
 
-/// A decoded `TITL` VI-title record retained losslessly: a `u8` length prefix
-/// followed by exactly that many text bytes (the record is `1 + length` bytes).
-/// Unlike [decodeTitle] the [text] bytes are kept verbatim — non-printable bytes
-/// survive — so [serialize] reproduces the record exactly.
 class ViTitleRaw {
   const ViTitleRaw({required this.text});
   final Uint8List text;
 
-  /// Re-emits `[u8 length][text]` — the whole record.
   Uint8List serialize() {
     final out = Uint8List(1 + text.length);
     out[0] = text.length;
@@ -280,30 +206,19 @@ class ViTitleRaw {
   }
 }
 
-/// Decodes a `TITL` record losslessly; null unless the `u8` length prefix names
-/// exactly the remaining bytes (`1 + length == body length`).
 ViTitleRaw? decodeTitleRaw(Uint8List bytes) {
   if (bytes.isEmpty || 1 + bytes[0] != bytes.length) return null;
   return ViTitleRaw(text: Uint8List.sublistView(bytes, 1));
 }
 
-/// A decoded fixed-size all-zero constant record (`GCPR` 13 B, `VPDP` 4 B):
-/// bodies that are byte-constant (all zero) across the whole corpus. Decoding =
-/// verifying the expected constant; [matchesCorpusConstant] is false for a
-/// never-seen non-zero variant so drift is loud, not silent.
 class ViConstantRecord {
   const ViConstantRecord({required this.length, required this.matchesCorpusConstant});
   final int length;
   final bool matchesCorpusConstant;
 
-  /// Re-emits the all-zero constant body when this record matched it, else null
-  /// (a never-seen non-zero variant is not reconstructed from this summary).
-  /// The decoders set [matchesCorpusConstant] only for an all-zero body, so the
-  /// emitted zeros reproduce it exactly.
   Uint8List? serialize() => matchesCorpusConstant ? Uint8List(length) : null;
 }
 
-/// Decodes a `GCPR` record (13 zero bytes across the corpus).
 ViConstantRecord? decodeGcprRecord(Uint8List bytes) {
   if (bytes.length != 13) return null;
   return ViConstantRecord(
@@ -312,7 +227,6 @@ ViConstantRecord? decodeGcprRecord(Uint8List bytes) {
   );
 }
 
-/// Decodes a `VPDP` record (4 zero bytes across the corpus).
 ViConstantRecord? decodeVpdpRecord(Uint8List bytes) {
   if (bytes.length != 4) return null;
   return ViConstantRecord(
@@ -321,17 +235,10 @@ ViConstantRecord? decodeVpdpRecord(Uint8List bytes) {
   );
 }
 
-/// A decoded big-endian `u32` **word grid**: the block body read as a run of
-/// big-endian `u32` words. `DLDR`, `CNST`, and `LPIN` bodies are word grids —
-/// `DLDR` a fixed seven-word grid (its first word is 1 in 3470/3471 corpus
-/// instances, the remaining words are per-VI), `CNST` and `LPIN` variable-length
-/// grids of offset-like values. The words' semantics are not decoded; retaining
-/// them re-emits the body exactly.
 class ViWordGrid {
   const ViWordGrid({required this.words});
   final List<int> words;
 
-  /// Re-emits the big-endian `u32` words in order — the whole body.
   Uint8List serialize() {
     final out = Uint8List(words.length * 4);
     final d = ByteData.sublistView(out);
@@ -342,10 +249,6 @@ class ViWordGrid {
   }
 }
 
-/// Decodes a big-endian `u32` word grid; null unless the body is a non-empty
-/// whole number of `u32` words. When [words] is non-null the body must be
-/// exactly that many words, so an off-size variant stays copied rather than
-/// silently reshaped.
 ViWordGrid? decodeWordGrid(Uint8List bytes, {int? words}) {
   if (bytes.isEmpty || bytes.length % 4 != 0) return null;
   if (words != null && bytes.length != words * 4) return null;
@@ -353,18 +256,12 @@ ViWordGrid? decodeWordGrid(Uint8List bytes, {int? words}) {
   return ViWordGrid(words: [for (var at = 0; at < bytes.length; at += 4) view.getUint32(at)]);
 }
 
-/// Decodes a `DLDR` record as its fixed seven-word `u32` grid; null unless
-/// exactly 28 bytes.
 ViWordGrid? decodeDldrRecord(Uint8List bytes) => decodeWordGrid(bytes, words: 7);
 
-/// A decoded `CPD2` connector-pane-data record: a single big-endian `u16` (a
-/// fixed 2-byte body across the corpus). Its meaning is not decoded; retaining
-/// the value re-emits the body.
 class ViU16Record {
   const ViU16Record({required this.value});
   final int value;
 
-  /// Re-emits the 2-byte big-endian `u16`.
   Uint8List serialize() {
     final out = Uint8List(2);
     ByteData.sublistView(out).setUint16(0, value);
@@ -372,21 +269,13 @@ class ViU16Record {
   }
 }
 
-/// Decodes a `CPD2` record; null unless exactly 2 bytes.
 ViU16Record? decodeCpd2Record(Uint8List bytes) =>
     bytes.length == 2 ? ViU16Record(value: ByteData.sublistView(bytes).getUint16(0)) : null;
 
-/// A decoded big-endian `u16` **word grid**: the block body read as a run of
-/// big-endian `u16` words. `FPTD` (front-panel type descriptors) bodies are u16
-/// grids — a single `u16` index in the common 2-byte form, a longer table in the
-/// larger form; every corpus instance is a whole number of u16 words
-/// (3879/3879). The words' semantics are not decoded; retaining them re-emits
-/// the body exactly.
 class ViU16Grid {
   const ViU16Grid({required this.words});
   final List<int> words;
 
-  /// Re-emits the big-endian `u16` words in order — the whole body.
   Uint8List serialize() {
     final out = Uint8List(words.length * 2);
     final d = ByteData.sublistView(out);
@@ -397,41 +286,23 @@ class ViU16Grid {
   }
 }
 
-/// Decodes a big-endian `u16` word grid; null unless the body is a non-empty
-/// whole number of `u16` words. Total.
 ViU16Grid? decodeU16Grid(Uint8List bytes) {
   if (bytes.isEmpty || bytes.length % 2 != 0) return null;
   final view = ByteData.sublistView(bytes);
   return ViU16Grid(words: [for (var at = 0; at < bytes.length; at += 2) view.getUint16(at)]);
 }
 
-/// The fixed `TRec` header length: 72 bytes precede the text-run region on every
-/// corpus instance (3144/3144). Its coordinate/flag words (bounding rects, type
-/// bytes) are not decoded; they are retained verbatim.
 const _trecHeaderLen = 72;
 
-/// A byte-exact `TRec` **text record**: a fixed 72-byte header followed by zero
-/// or more `[u32 len][len bytes]` text runs (the front-panel object's
-/// description and tip strings) packed to the block end. The 72-byte header
-/// (leading flag words + bounding-rect coordinates) is retained verbatim as an
-/// opaque leaf; the run region is framed by its length prefixes. Reading runs
-/// from offset 72 lands exactly on the block end for every corpus instance
-/// (3144/3144), so [serialize] reproduces the record exactly.
 class ViTextRecord {
   const ViTextRecord({required this.header, required this.runs});
 
-  /// The fixed 72-byte header bytes, retained verbatim.
   final Uint8List header;
 
-  /// Each length-prefixed run's payload bytes, in order (the `[u32 len]` prefix
-  /// is regenerated on [serialize]).
   final List<Uint8List> runs;
 
-  /// The record length in bytes.
   int get length => header.length + runs.fold(0, (a, r) => a + 4 + r.length);
 
-  /// The printable run payloads decoded as text (the description/tip strings);
-  /// a binary run is skipped. Diagnostic — [serialize] uses [runs] verbatim.
   List<String> get texts {
     final out = <String>[];
     for (final r in runs) {
@@ -447,7 +318,6 @@ class ViTextRecord {
     return out;
   }
 
-  /// Re-emits `[header][ (u32 len, payload) … ]` — the whole record.
   Uint8List serialize() {
     final out = Uint8List(length);
     out.setRange(0, header.length, header);
@@ -463,9 +333,6 @@ class ViTextRecord {
   }
 }
 
-/// Decodes a `TRec` into a byte-exact [ViTextRecord]; null when shorter than the
-/// 72-byte header or the `[u32 len][bytes]` run walk does not tile the body
-/// exactly to its end. Total.
 ViTextRecord? decodeTextRecord(Uint8List bytes) {
   if (bytes.length < _trecHeaderLen) return null;
   final view = ByteData.sublistView(bytes);
@@ -482,9 +349,6 @@ ViTextRecord? decodeTextRecord(Uint8List bytes) {
   return ViTextRecord(header: Uint8List.sublistView(bytes, 0, _trecHeaderLen), runs: runs);
 }
 
-/// A decoded QuickDraw `PICT` (version 2) envelope: the picture bounds rect
-/// from the header (`[u16 size][rect: 4 x u16 top/left/bottom/right]` then the
-/// `00 11 02 ff` version-2 opcode). Opcode stream content is standard PICT.
 class ViPictImage {
   const ViPictImage({
     required this.top,
@@ -499,11 +363,9 @@ class ViPictImage {
   int get height => bottom - top;
 }
 
-/// Decodes a `PICT` envelope; null when the v2 version opcode is absent.
 ViPictImage? decodePictEnvelope(Uint8List bytes) {
   if (bytes.length < 14) return null;
   final view = ByteData.sublistView(bytes);
-  // [u16 size(legacy, often 0)][rect][version op 0x0011 0x02ff]
   if (view.getUint16(10) != 0x0011 || view.getUint16(12) != 0x02ff) return null;
   return ViPictImage(
     top: view.getUint16(2),
@@ -514,9 +376,6 @@ ViPictImage? decodePictEnvelope(Uint8List bytes) {
   );
 }
 
-/// A decoded Windows `WEMF` enhanced-metafile envelope: the EMR_HEADER fields
-/// (little-endian) — bounds/frame rectangles and the ` EMF` signature at
-/// offset 40. Record stream content is standard EMF.
 class ViEmfImage {
   const ViEmfImage({required this.boundsRight, required this.boundsBottom, required this.byteLength});
   final int boundsRight;
@@ -524,11 +383,10 @@ class ViEmfImage {
   final int byteLength;
 }
 
-/// Decodes a `WEMF` envelope; null when the EMR_HEADER/signature is absent.
 ViEmfImage? decodeEmfEnvelope(Uint8List bytes) {
   if (bytes.length < 48) return null;
   final view = ByteData.sublistView(bytes);
-  if (view.getUint32(0, Endian.little) != 1) return null; // EMR_HEADER
+  if (view.getUint32(0, Endian.little) != 1) return null;
   if (String.fromCharCodes(bytes.sublist(40, 44)) != ' EMF') return null;
   return ViEmfImage(
     boundsRight: view.getUint32(16, Endian.little),

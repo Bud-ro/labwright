@@ -9,41 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Writer-layer corpus laws + scoreboard, for the `.vi` writer at both the byte
-/// and the content (inflated) level.
-///
-/// Per VI, run once in a worker isolate ([corpusParallel]):
-///   1. **Scoreboard attribution** ([attributeVi]) — partitions every byte into
-///      model vs copied AND every content byte (compressed sections at inflated
-///      size) into content-model vs content-copied. Asserted as LAWS:
-///      `modelBytes + copiedBytes == fileLength`, `contentModelBytes +
-///      contentCopiedBytes == contentTotalBytes`, and `byteExact == parseable`.
-///      The aggregate byte totals per category are MEASUREMENTS, pinned in
-///      `corpus/snapshot.json` (`writer` section) — both the byte-model and the
-///      content-model numerators live there.
-///   2. **Per-block round-trip** — for every block type with a byte-exact writer
-///      ([hasBlockWriter]), every corpus instance must re-serialize identically
-///      ([serializeBlockPayload] non-null). Asserted N/N per tag; the instance
-///      counts are MEASUREMENTS in the snapshot.
-///   3. **Content-exact + heap writer** — every compressed section's inflated
-///      content re-emits byte-exact from the heap model ([serializeHeapBody],
-///      LAW), the heap model has zero reconstruction bugs (LAW), and re-deflating
-///      each section with a standard zlib stream preserves its content (the
-///      "compatible zlib" proof, N/N). A sampled WIRING test then re-deflates a
-///      whole container and requires it to re-parse and stay content-exact
-///      ([viContentExact]) — the identity and re-deflated writer are both proven
-///      content-exact there.
-///   4. **Image nested content** — every PNG-bearing DSIM/MNGI image inflates
-///      its IDAT to a raster ([imageRasterRoundTrips]) and its compressed
-///      ancillary chunks (iCCP/zTXt/iTXt) to their profiles/text
-///      ([imageAncillaryRoundTrips]); each survives a standard-zlib round-trip
-///      (N/N LAWs). The content scoreboard counts that inflated content in place
-///      of the compressed streams (see the [WriterAttribution] `image*`
-///      categories), so the content total reaches one level deeper than the
-///      container's zlib heaps.
-
-/// Block tags whose payload writer re-serializes **every** corpus instance
-/// byte-exact (asserted N/N below).
 const _fullTags = [
   'icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers', 'STRG', 'HIST', //
   'MUID', 'BDSE', 'FPSE', 'BDEx', 'FPEx', 'IPSR', 'PICC', 'CPMp', 'GCPR', //
@@ -52,9 +17,6 @@ const _fullTags = [
   'CCST', 'CPST', 'CPSP', 'BDTS',
 ];
 
-/// Block tags whose payload writer re-serializes a **subset** of corpus
-/// instances (the modelable form); the rest carry an undecoded interior and
-/// stay copied. The exact/inst split is pinned as a measurement (not a law).
 const _partialTags = ['VITS', 'DTHP', 'CONP', 'CPC2', 'LVSR', 'LIbd', 'LIvi', 'LIfp', 'LIds', 'TM80'];
 
 bool _bytesEqual(Uint8List a, Uint8List b) {
@@ -75,7 +37,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     if (diags.length < 8) diags.add('$key• $base: $msg');
   }
 
-  // Scoreboard attribution + the tiling law.
   try {
     final a = attributeVi(bytes);
     n('files');
@@ -97,7 +58,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     n('cat.gap', a.gapBytes);
     n('cat.compressed', a.compressedPayloadBytes);
     n('cat.untyped', a.untypedPayloadBytes);
-    // Content level (compressed sections at inflated size).
     if (a.contentModelBytes + a.contentCopiedBytes == a.contentTotalBytes) {
       n('contentLawOk');
     } else {
@@ -113,17 +73,12 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     n('heap.model', a.heapModelBytes);
     n('heap.copied', a.heapCopiedBytes);
     n('heapModelBugs', a.heapModelBugs);
-    // Image PNG content level (compressed IDAT + ancillary streams swapped for inflated content).
     n('image.compressed', a.imageCompressedBytes);
     n('image.inflated', a.imageInflatedBytes);
     n('image.inflatedModel', a.imageInflatedModelBytes);
     n('image.inflatedCopied', a.imageInflatedCopiedBytes);
   } catch (_) {}
 
-  // Heap-writer byte-exactness + the re-deflate "compatible zlib" proof, per
-  // compressed section (deduped by secRel). Content-exactness of the identity
-  // serialize() is implied by byteExact; it is proven under re-deflation — where
-  // stored bytes DO change — by the sampled WIRING test below.
   try {
     final seen = <int>{};
     for (final s in readViSections(bytes)) {
@@ -134,20 +89,12 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
         n('inflateFail');
         continue;
       }
-      // Byte-exactness of the heap re-emission, verified without materializing
-      // the output buffer: the walk tiles the body and every modeled record was
-      // verified against the original (modelBugs == 0), so the re-emission —
-      // verified-model prefixes ++ original-copied slices — equals the body.
-      // (The explicit bytes == body proof over serializeHeapBody is the unit
-      // test; here the allocation-free split keeps the corpus sweep lean.)
       final split = attributeHeapBody(inflated, s.tag);
       if (split.modelBytes + split.copiedBytes == inflated.length && split.modelBugs == 0) {
         n('heapByteExact');
       } else {
         bad('heap', 'heap re-emission not byte-exact for ${s.tag}');
       }
-      // Re-deflate proof from the already-inflated buffer (avoids re-inflating):
-      // inflate(deflate(x)) == x, the "compatible zlib" evidence.
       final round = inflateHeapPayload(deflateHeapPayload(inflated));
       if (round != null && _bytesEqual(round, inflated)) {
         n('reDeflateOk');
@@ -157,11 +104,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
-  // DFDS default-data-space framing census: how many DFDS sections tile exactly
-  // under the flattened-value walk ([dataSpaceFrames]) with the VI's VCTP/TM80
-  // context, and how many DFDS bytes that covers. The framed subset re-emits
-  // byte-exact via the same walk ([serializeHeapBody] with the context); the
-  // rest (LVVariant / MeasureData default values) stay copied. Counts pinned.
   try {
     final secs = readViSections(bytes);
     Uint8List? vctp;
@@ -185,7 +127,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
       if (dataSpaceFrames(inflated, ctx)) {
         n('dfds.frames');
         n('dfds.framedBytes', inflated.length);
-        // The framed walk re-emits byte-exact (the retained flattened values).
         final res = serializeHeapBody(inflated, 'DFDS', ctx);
         if (_bytesEqual(res.bytes, inflated) && res.copiedBytes == 0) {
           n('dfds.exact');
@@ -196,14 +137,8 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
-  // Per-block round-trip census. Dedup by secRel (a payload referenced by
-  // several descriptors is one span in the data area).
   try {
     final secs = readViSections(bytes);
-    // The `LI*` link-info writer sizes its version-gated per-entry fields from
-    // the file's save version (see [serializeBlockPayload]); pass it so the
-    // census credits the version-dependent tiling forms, matching the
-    // scoreboard's attribution path.
     final ver = versionWordFromSections(secs);
     final seen = <int>{};
     for (final s in secs) {
@@ -218,9 +153,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
-  // Image-block (DSIM/MNGI) framing census: every framed instance re-emits
-  // byte-exact ([decodeImageBlock]), splitting reproduced framing/geometry +
-  // uncompressed interiors (model) from compressed streams + trailer (copied).
   try {
     final seen = <int>{};
     for (final s in readViSections(bytes)) {
@@ -237,12 +169,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
       n('${s.tag}.copied', img.copiedBytes);
       n('img.chunks', img.pngChunks);
       n('img.crcVerified', img.crcVerified);
-      // Nested-content raster proof: a PNG-bearing image inflates its IDAT to a
-      // raster that survives a standard-zlib round-trip (the "compatible zlib"
-      // evidence, one level deeper than the container heap). Counts pinned; the
-      // round-trip census is asserted N/N as a LAW below.
-      // Ancillary nested-deflate streams (iCCP/zTXt/compressed iTXt): each
-      // inflates and re-deflates to the same content through standard zlib.
       final anc = imageAncillaryRoundTrips(s.tag, s.bytes);
       n('img.ancillary', anc.count);
       n('img.ancillaryRoundTrip', anc.ok);
@@ -261,10 +187,6 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
     }
   } catch (_) {}
 
-  // Metafile-block (PICT/WEMF) framing census: every framed instance re-emits
-  // byte-exact ([frameMetafile]), splitting reconstructed element/record framing
-  // (model) from retained opaque leaves (copied). The element/record walk tiles
-  // the whole block to its terminator on the last byte.
   try {
     final seen = <int>{};
     for (final s in readViSections(bytes)) {
@@ -356,10 +278,6 @@ void main() {
   });
 
   test('WIRING: a compressed section re-emitted from re-deflated content stays valid and content-exact', () {
-    // Deliverable-2 container-level proof on a small sample: replace every
-    // compressed heap section's stored payload with a fresh standard-zlib stream
-    // carrying the SAME inflated content, let the writer recompute all offsets,
-    // and require the result to re-parse and stay content-exact with the input.
     var checked = 0;
     for (final f in all.take(15)) {
       final bytes = Uint8List.fromList(f.readAsBytesSync());
@@ -379,13 +297,9 @@ void main() {
       }
       if (!changed) continue;
       checked++;
-      // The identity writer is content-exact (implied by byteExact, checked here
-      // on the sample rather than over the whole sweep).
       expect(viContentExact(bytes, vi.serialize()), isTrue, reason: 'identity serialize not content-exact: ${f.path}');
       final reBytes = ViVi(header: vi.header, dataSegments: segs, infoArea: vi.infoArea).serialize();
       expect(() => ViVi.parse(reBytes), returnsNormally, reason: 're-deflated container did not re-parse: ${f.path}');
-      // The re-deflated container carries the same content through different
-      // stored bytes (a standard zlib stream, not NI's), yet stays content-exact.
       expect(viContentExact(bytes, reBytes), isTrue, reason: 're-deflated container not content-exact: ${f.path}');
     }
     expect(checked, greaterThan(0), reason: 'no sampled VI had an inflatable compressed section');
@@ -423,9 +337,6 @@ void main() {
 
   for (final tag in const ['PICT', 'WEMF']) {
     test('METAFILE: every $tag block frames and re-emits byte-exact (N/N, counts pinned)', () {
-      // Every corpus PICT/WEMF tiles element-by-element to its terminator on the
-      // last byte and re-emits byte-exact ([frameMetafile]); the framed count
-      // equals the instance count (N/N) and the model/copied split is pinned.
       expect(cnt('$tag.exact'), cnt('$tag.inst'), reason: 'a $tag did not frame byte-exact: ${D('meta')}');
       expect(cnt('$tag.inst'), greaterThan(0), reason: 'no $tag instances found — census stale?');
     });
@@ -437,9 +348,6 @@ void main() {
   });
 
   test('IMAGE: every PNG-bearing image raster round-trips through standard zlib (compatible zlib)', () {
-    // Nested content-exact proof: inflate(deflate(inflate(IDAT))) == inflate(IDAT)
-    // for every DSIM/MNGI PNG. The inflated raster is the modeled content that
-    // replaces the compressed IDAT in the content total.
     expect(
       cnt('img.rasterRoundTrip'),
       cnt('img.pngRaster'),
@@ -449,8 +357,6 @@ void main() {
   });
 
   test('PROOF: every PNG ancillary stream (iCCP/zTXt/iTXt) round-trips through standard zlib', () {
-    // Nested content-exact proof for the compressed ancillary chunks, parallel
-    // to the raster proof above: inflate(deflate(inflate(stream))) == inflate.
     expect(
       cnt('img.ancillaryRoundTrip'),
       cnt('img.ancillary'),
@@ -461,9 +367,6 @@ void main() {
   });
 
   test('LAW: contentModel counts the inflated raster in place of the compressed IDAT', () {
-    // The compressed IDAT swapped out of the content total equals the summed
-    // per-image compressedContentBytes; the inflated raster swapped in is all
-    // modeled (imageInflated == imageInflatedModel, no copied raster fraction).
     expect(cnt('image.inflatedCopied'), 0, reason: 'a PNG raster was counted copied at the content level');
     expect(
       cnt('image.inflated'),
@@ -479,10 +382,6 @@ void main() {
   });
 
   test('writer scoreboard measurements match the committed snapshot exactly', () {
-    // MEASUREMENTS: whole-corpus byte totals per model/copied category, the
-    // byte-exact/law populations, and per-typed-block instance/byte/exact
-    // counts. Deterministic over the pinned corpus, so pinned exactly; the LAW
-    // tests above hold the invariants (tiling, byte-exactness) at their limits.
     expectCorpusSnapshot('writer', {
       for (final e in C.entries)
         if (!e.key.startsWith('bad:')) e.key: e.value,

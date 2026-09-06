@@ -6,8 +6,6 @@ import 'package:labwright_seq_inspector/src/document_view.dart';
 import 'package:labwright_seq_inspector/src/property_outline.dart';
 import 'package:labwright_seq_inspector/src/sequence_outline.dart';
 
-/// Locates the gitignored corpus (packages/labwright_seq/corpus/seq) by
-/// walking up from CWD; self-skips when absent.
 Directory _corpusSeqDir() {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
@@ -26,8 +24,6 @@ Directory _corpusSeqDir() {
   return Directory('corpus/seq');
 }
 
-/// Drives every real `.seq` through the app path (SeqDocument.parse → view
-/// helpers) asserting nothing throws and each variant is sane.
 void main() {
   final corpus = _corpusSeqDir();
   if (!corpus.existsSync()) {
@@ -77,8 +73,6 @@ void main() {
             binary++;
             expect(doc.header.format, SeqFormat.binary, reason: f.path);
             expect(binaryHeaderRows(doc), isNotEmpty, reason: f.path);
-            // The partial typed model must survive the same helper path the
-            // typed tabs use (may be sequence-less, but must not throw).
             final partial = doc.partialFile;
             if (partial != null) {
               partialTyped++;

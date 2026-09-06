@@ -2,7 +2,6 @@ import 'dart:io';
 
 import 'package:labwright_tdms/labwright_tdms.dart';
 
-/// CLI: `dart run labwright_tdms:tdms2csv <file.tdms> [--out out.csv] [--delim ,]`
 Future<void> main(List<String> args) async {
   var delimiter = ',';
   String? outPath;

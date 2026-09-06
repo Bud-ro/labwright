@@ -14,7 +14,6 @@ void main() {
       (hx('10 18 02 fe 0000 0000 00'), 9),
       (hx('10 e1 01 fb 0000'), 6),
       (hx('14 19 01 fd 0000'), 6),
-      // FD value-escape (fd 80 00 <u32>) makes a 10-byte record (heap record-size desync fix)
       (hx('14 19 01 fd 8000 0000 846f'), 10),
       (hx('10 19 01 fd 8000 0001 36de'), 10),
       (hx('08 55'), 2),
@@ -23,14 +22,12 @@ void main() {
       (hx('44 00 00 00'), 4),
       (hx('45 e7 02 08'), 4),
       (hx('64 cb 00 00 00'), 5),
-      // 64 CB is a u24 objFlags leaf; the 3-byte special case was refuted by the EOF-balance probe
       (hx('64 cb 26 84 20'), 5),
       (hx('86 20 00 00 00 00'), 6),
       (hx('85 14 db 3d 11 75'), 6),
       (hx('e4 21'), 2),
       (hx('04 59'), 2),
       (hx('99 00 00'), null),
-      // 0x25 is a fixed 3-byte record; the 25 2d form is NOT a counted list
       (hx('25 2d 03 08 19'), 3),
       (hx('c6 5a ff 0004 01020304'), 9),
       ([0xc6, 0x31, 0x05, ...'Scale'.codeUnits], 8),
@@ -98,7 +95,7 @@ void main() {
       (0x053, HeapRefKind.ddoRef),
       (0x113, HeapRefKind.srcDCORef),
       (0x28a, HeapRefKind.attachmentRef),
-      (0x034, HeapRefKind.objectRef), // resolving-but-unnamed raw tag falls back to the generic objectRef
+      (0x034, HeapRefKind.objectRef),
     ];
     for (final (raw, kind) in kinds) {
       expect(HeapRefKind.fromRaw(raw), kind, reason: '0x${raw.toRadixString(16)}');
@@ -108,8 +105,6 @@ void main() {
     expect(decodeHeapRef(hx('14 53 01 fd 0009'), 0)!.kind, HeapRefKind.ddoRef, reason: 'cross-heap display ref');
     expect(decodeHeapRef(hx('16 8a 01 fd 0007'), 0)!.kind, HeapRefKind.attachmentRef);
     expect(decodeHeapRef(hx('14 53 01 fe 0009'), 0), isNull, reason: 'fe carries a class-code literal, not an oid');
-    // The 32-bit oid escape `fd 80 00 <u32>` decodes to a 10-byte ref carrying
-    // the full u32 oid (0x8000+ ids that would overflow the compact u16 slot).
     final esc = decodeHeapRef(hx('15 77 01 fd 8000 0000 0100'), 0)!;
     expect((esc.kind, esc.targetOid, esc.length), (HeapRefKind.fromRaw(0x177), 0x100, 10));
     expect(decodeHeapRef(hx('10 19 02 fe 0000'), 0), isNull, reason: 'not a leaf-with-attrs record');

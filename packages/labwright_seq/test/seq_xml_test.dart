@@ -4,8 +4,6 @@ import 'dart:typed_data';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-/// The standard file scaffold: header → [typelist] → Data > Seq > one
-/// MainSequence whose subprops are [seqSubprops] (+ [dataExtra] Data siblings).
 String _file(String seqSubprops, {String typelist = '<typelist/>', String dataExtra = ''}) =>
     '<?xml version="1.0" encoding="UTF-8"?>\n'
     "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand' productversion='2019'>"
@@ -26,7 +24,6 @@ String _ts(String inner) => "<TS classname='Obj'><subprops>$inner</subprops></TS
 String _el(String tag, String cls, [String? value]) =>
     "<$tag classname='$cls'>${value == null ? '<value/>' : '<value>$value</value>'}</$tag>";
 
-/// An anonymous `_NAME_IN_ATTRIBUTE_` object array element.
 String _anon(String subprops) =>
     "<_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>$subprops</subprops></_NAME_IN_ATTRIBUTE_>";
 
@@ -54,7 +51,6 @@ final _cModuleTs = _ts(
   '</subprops></Call></subprops></SData>',
 );
 
-/// The kitchen-sink fixture mirroring the real TestStand shape.
 final _seqXml = _file(
   "<Setup classname='Objs'><value lbound='[0]' ubound='[]'/></Setup>"
   '${_main([
@@ -69,7 +65,6 @@ final _seqXml = _file(
   typelist: "<typelist><typedef><Expression classname='ExprValue'><value/></Expression></typedef></typelist>",
 );
 
-/// One sequence calling itself (intra-file SequenceCall).
 final _seqCallXml = _file(
   _main([
     _step(
@@ -223,8 +218,6 @@ void main() {
   });
 
   group('Additional Results recording spec', () {
-    // A call parameter's AdditionalResults container: entries carry a gating
-    // Condition plus the not-yet-decoded Flags/CheckedState siblings.
     final addlXml = _file(
       _main([
         _step(
@@ -297,8 +290,6 @@ void main() {
   });
 
   group('Python adapter call parameters', () {
-    // The Python form binds under SData.PythonCall.Parameters with
-    // ArgumentValue (not the C adapter's ArgVal) and no Direction.
     final pyCallXml = _file(
       _main([
         _step(
@@ -535,8 +526,6 @@ void main() {
   });
 
   group('flow-control structured-logic export', () {
-    // NI_Flow_* steps open/close blocks; the branch/loop expressions are flat
-    // direct children (ConditionExpr / ArrayExpr / ArrayElementExpr).
     final flowXml = _file(
       _main([
         _step('NI_Flow_If', 'If', _el('ConditionExpr', 'ExprValue', 'Locals.X &gt; 0')),

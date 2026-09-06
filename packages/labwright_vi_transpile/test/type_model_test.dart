@@ -9,7 +9,6 @@ import 'snippets.dart';
 
 void main() {
   test('numeric widths: carrier, renormalizing expression, storage list', () {
-    // (kind, carrier, wrap('a + b'), typed list)
     const rows = <(LvNumericKind, String, String, String)>[
       (LvNumericKind.u8, 'int', '(a + b) & 0xFF', 'Uint8List'),
       (LvNumericKind.u16, 'int', '(a + b) & 0xFFFF', 'Uint16List'),
@@ -29,11 +28,9 @@ void main() {
         reason: kind.glyph,
       );
     }
-    // The wrap expressions must actually hold on the carrier.
     expect(0xFFFFFFFF + 1 & 0xFFFFFFFF, 0, reason: 'U32 addition truncates at 32 bits');
     expect(0xFF << 56 >> 56, -1, reason: 'I8 0xFF sign-extends to -1');
 
-    // Only the kinds that cannot renormalize carry hazards.
     expect(
       {for (final kind in LvNumericKind.values) kind: kind.hazards.length},
       {
@@ -52,7 +49,6 @@ void main() {
   });
 
   test('leaf types map to their Dart carriers; review-list codes stay unmapped', () {
-    // (descriptor, expected Dart type or null when the code is on the review list)
     final rows = <(List<int>, String?)>[
       (scalar(TypeCode.voidType), 'void'),
       (scalar(TypeCode.boolean), 'bool'),
@@ -80,7 +76,6 @@ void main() {
       );
       if (expected == null) expect(mapping.note, isNotNull, reason: 'every unmapped entry states why');
     }
-    // Descriptors that are not dataflow values are their own bucket.
     for (final code in [TypeCode.function, TypeCode.ptr, TypeCode.repeatedBlock, TypeCode.alignmentMarker]) {
       expect(mapLvType(poolOf([scalar(code)]).single, const []).status, LvMapStatus.internal);
     }
@@ -88,7 +83,6 @@ void main() {
   });
 
   test('arrays: exact-width storage per element, flat N-D, builder grows then freezes', () {
-    // (element code, dims, Dart type)
     const rows = <(int, int, String)>[
       (TypeCode.u8, 1, 'Uint8List'),
       (TypeCode.i32, 1, 'Int32List'),
@@ -106,12 +100,10 @@ void main() {
       final types = poolOf([scalar(element), array(0, dims)]);
       expect(mapLvType(types[1], types).dartType, expected, reason: '${dims}D of 0x${element.toRadixString(16)}');
     }
-    // An unmapped element leaves the whole array unmapped, with the reason.
     final ext = poolOf([scalar(TypeCode.ext), array(0, 1)]);
     expect(mapLvType(ext[1], ext).status, LvMapStatus.unmapped);
     expect(mapLvType(ext[1], ext).note, contains('80-bit'));
 
-    // Growth: append into a growable list, convert once at the boundary.
     const u8Element = LvTypeMapping.mapped(LvCarrier.integer, numeric: LvNumericKind.u8);
     const stringElement = LvTypeMapping.mapped(LvCarrier.text);
     expect(lvArrayBuilderType(u8Element), 'List<int>');
@@ -127,7 +119,6 @@ void main() {
     ]);
     expect(mapLvType(named[2], named).dartType, 'MotorState');
 
-    // Anonymous + every member named and distinct → a named record.
     final rec = poolOf([
       scalar(TypeCode.dbl, name: 'volts'),
       scalar(TypeCode.string, name: 'Serial Number'),
@@ -135,7 +126,6 @@ void main() {
     ]);
     expect(mapLvType(rec[2], rec).dartType, '({double volts, String serialNumber})');
 
-    // Anonymous with unnamed or colliding members → a positional record.
     final positional = poolOf([
       scalar(TypeCode.dbl),
       scalar(TypeCode.i32),
@@ -149,7 +139,6 @@ void main() {
     ]);
     expect(mapLvType(collide[2], collide).dartType, '(double, int)');
 
-    // A member with no representation makes the cluster unmapped, not a guess.
     final withExt = poolOf([
       scalar(TypeCode.ext),
       cluster([0], name: 'Reading'),
@@ -158,8 +147,6 @@ void main() {
   });
 
   test('a nominal type carries the declaration a library must write for it', () {
-    // A named cluster over a named enum: one class, one enum, the class's field
-    // typed by the enum, and the enum before the class that names it.
     final types = poolOf([
       enumeration(['Off', 'On'], name: 'Mode'),
       scalar(TypeCode.dbl, name: 'volts'),
@@ -193,8 +180,6 @@ final double volts;
   });
 
   test('declaration naming: unnamed, inherited and colliding members all resolve', () {
-    // (member labels, field identifiers) — the naming policy's whole job on a
-    // generated class.
     const rows = <(List<String?>, List<String>)>[
       ([null, 'volts'], ['member', 'volts']),
       (['a', 'A'], ['a', 'a2']),
@@ -213,8 +198,6 @@ final double volts;
       cluster([0], name: label),
     ]);
     final registry = LvDeclarations();
-    // The same structure twice is one declaration under one name; a different
-    // structure wanting that name is suffixed rather than merged.
     final first = named(TypeCode.dbl, 'Reading');
     final again = named(TypeCode.dbl, 'Reading');
     final other = named(TypeCode.i32, 'Reading');
@@ -222,12 +205,10 @@ final double volts;
     expect(mapLvType(again[1], again, 0, registry).dartType, 'Reading');
     expect(mapLvType(other[1], other, 0, registry).dartType, 'Reading2');
     expect(registry.all.length, 2);
-    // A name the emitted file already spells is skipped the same way.
     final shadow = named(TypeCode.dbl, 'String');
     expect(mapLvType(shadow[1], shadow, 0, registry).dartType, 'String2');
     expect(kLvReservedTypeNames, containsAll(<String>['String', 'Uint8List', LvRuntimeType.error]));
 
-    // An enum whose item labels did not decode has no declaration to write.
     final blank = poolOf([enumeration(const [], name: 'Mode')]);
     final mapping = mapLvType(blank.single, blank, 0, LvDeclarations());
     expect(mapping.declarations.single.undeclarable, isNotNull);
@@ -235,7 +216,6 @@ final double volts;
   });
 
   test('typedefs are nominal over a cluster or enum, transparent over a scalar', () {
-    // (base descriptor, typedef name, Dart type)
     final rows = <(List<int>, String, String)>[
       ([0x40, TypeCode.u64], 'Tick Count', 'int'),
       ([0x40, TypeCode.string], 'Device Name', 'String'),
@@ -247,14 +227,11 @@ final double volts;
       expect(mapLvType(types.single, types).dartType, expected, reason: name);
       expect(types.single.typedefBase, isNotNull);
     }
-    // No inline base recovered → unmapped, never assumed.
     final bare = poolOf([scalar(TypeCode.typeDef)]);
     expect(mapLvType(bare.single, bare).status, LvMapStatus.unmapped);
   });
 
   test('error clusters need both the member types and the member names', () {
-    // (member codes, member names, is an error cluster) — rows drawn from the
-    // corpus census of {boolean, integer, string} clusters.
     final rows = <(List<int>, List<String?>, bool)>[
       ([TypeCode.boolean, TypeCode.i32, TypeCode.string], ['status', 'code', 'source'], true),
       ([TypeCode.boolean, TypeCode.u32, TypeCode.string], ['status', 'code', 'source'], true),
@@ -292,21 +269,16 @@ final double volts;
     expect(threaded.throwsLvError, isFalse);
     expect(threaded.elided, isEmpty);
 
-    // A VI with no error cluster reads the same either way.
     const plain = [LvTerminal('bytes', dbl)];
     for (final mode in LvErrorMode.values) {
       expect(lvSignature(plain, mode).throwsLvError, isFalse);
     }
 
-    // The value an elided `error in` starts from, and an elided `error out`
-    // reads back, is the runtime's own cleared cluster.
     expect(LvRuntimeType.clearedError, '${LvRuntimeType.error}.none');
     expect(lvTypeNeedsRuntime(err), isTrue);
   });
 
   test('both imports follow the carrier, not the spelling', () {
-    // (pool, the last entry's Dart type, whether a file spelling it imports
-    // the runtime, whether it imports `dart:typed_data`)
     final rows = <(List<List<int>>, String, bool, bool)>[
       ([scalar(TypeCode.boolean)], 'bool', false, false),
       ([scalar(TypeCode.path)], 'LvPath', true, false),
@@ -335,9 +307,6 @@ final double volts;
         false,
         true,
       ),
-      // A class whose NAME spells a runtime type's or a typed list's is not
-      // one of them, and neither is an array of it. A name a generated
-      // declaration may not take is suffixed away from it.
       (
         [
           scalar(TypeCode.dbl, name: 'volts'),
@@ -392,8 +361,6 @@ final double volts;
   });
 
   test('only a bare error cluster is the wire an error mode acts on', () {
-    // (member codes, array dimensions, is the error wire) — an array of error
-    // clusters is ordinary data and keeps its place in every signature.
     final rows = <(List<int>, int, bool)>[
       ([TypeCode.boolean, TypeCode.i32, TypeCode.string], 0, true),
       ([TypeCode.boolean, TypeCode.i32, TypeCode.string], 1, false),
@@ -444,22 +411,20 @@ final double volts;
   });
 
   test('wire type words: element carrier, dimensionality, whole-wire type', () {
-    // (raw signal word, dims, whole-wire Dart type or null when unmapped) —
-    // words read off crc8.vi's own signals and the families beside them.
     const rows = <(int, int, String?)>[
-      (0x0105, 0, 'int'), // U8 scalar
-      (0x4105, 0, 'int'), // the same, other flag nibble
-      (0x0205, 1, 'Uint8List'), // array of U8
-      (0x0305, 2, 'LvArrayNd<Uint8List>'), // 2-D array of U8
-      (0x0103, 0, 'int'), // I32 scalar
-      (0x0107, 0, 'int'), // U32 scalar
+      (0x0105, 0, 'int'),
+      (0x4105, 0, 'int'),
+      (0x0205, 1, 'Uint8List'),
+      (0x0305, 2, 'LvArrayNd<Uint8List>'),
+      (0x0103, 0, 'int'),
+      (0x0107, 0, 'int'),
       (0x0121, 0, 'bool'),
       (0x0221, 1, 'List<bool>'),
       (0x0230, 0, 'String'),
-      (0x010a, 0, 'double'), // DBL
-      (0x0150, 0, null), // cluster: members are not on the wire
-      (0x0132, 0, null), // path: no declared runtime carrier
-      (0x0153, 0, null), // variant
+      (0x010a, 0, 'double'),
+      (0x0150, 0, null),
+      (0x0132, 0, null),
+      (0x0153, 0, null),
     ];
     for (final (raw, dims, dartType) in rows) {
       final wire = mapLvWireType(ViSignalType(raw));
@@ -472,12 +437,10 @@ final double volts;
   });
 
   test('a refnum wire takes its array wrapping from the dimensionality it is given', () {
-    // (signal word, dims from the data space, Dart type). The word carries the
-    // reference family and a depth; only the dims decide the wrapping.
     const rows = <(int, int, String)>[
-      (0x0270, 0, LvRuntimeType.refnum), // depth-2 plain refnum read as scalar
-      (0x0270, 1, 'List<${LvRuntimeType.refnum}>'), // ...and as a 1-D array
-      (0x0371, 0, LvRuntimeType.refnum), // the inner-typed form
+      (0x0270, 0, LvRuntimeType.refnum),
+      (0x0270, 1, 'List<${LvRuntimeType.refnum}>'),
+      (0x0371, 0, LvRuntimeType.refnum),
       (0x0571, 1, 'List<${LvRuntimeType.refnum}>'),
       (0x0470, 2, 'LvArrayNd<List<${LvRuntimeType.refnum}>>'),
     ];
@@ -488,11 +451,6 @@ final double volts;
   });
 
   test('a refnum wire the signal word leaves open takes its dimensionality from the endpoint parts', () {
-    // Per snippet, the wires whose refnum word carries no array-depth base,
-    // keyed `<code>_d<depth>-><dims>` with `refused` where nothing decides
-    // them: the parts state nothing (`71_d5`), or the cell is one the
-    // corroborating pane route contradicts ([kLvRefnumContradictedCells],
-    // `70_d4`).
     const rows = <String, Map<String, int>>{
       'ClassChildren': {'70_d3->0': 6, '70_d4->refused': 2},
       'Page1': {'70_d3->0': 2, '71_d5->0': 7, '71_d5->refused': 4},
@@ -515,39 +473,23 @@ final double volts;
   });
 
   test('a primitive lowers from its wire types, and a hazardous carrier refuses', () {
-    // (op, input signal words, output word, statement or null when refused).
-    // Inputs are drawn top-down in list order, so `a0` is the first operand of
-    // an ordered node.
-    // Signal words: 0x0105 U8 scalar, 0x0102 I16, 0x0107 U32, 0x0108 U64,
-    // 0x0109 SGL, 0x010a DBL, 0x0121 boolean, 0x0230 string, 0x0205 array of
-    // U8.
     const rows = <(PrimOp, List<int>, int, String?)>[
-      // Ordered arithmetic and comparison: the upper operand is the first.
       (PrimOp.subtract, [0x0107, 0x0107], 0x0107, 'final int e0 = (a0 - a1) & 0xFFFFFFFF;'),
       (PrimOp.greater, [0x0105, 0x0105], 0x0121, 'final bool e0 = a0 > a1;'),
       (PrimOp.less, [0x010a, 0x010a], 0x0121, 'final bool e0 = a0 < a1;'),
-      // A U64's carrier is signed, so an ordered comparison on it is wrong.
       (PrimOp.greater, [0x0108, 0x0108], 0x0121, null),
-      // An ordered comparison of strings needs LabVIEW's collation.
       (PrimOp.less, [0x0230, 0x0230], 0x0121, null),
-      // Divide yields a floating result, integer operands widening into it.
       (PrimOp.divide, [0x0107, 0x0107], 0x010a, 'final double e0 = a0.toDouble() / a1.toDouble();'),
       (PrimOp.divide, [0x0109, 0x0109], 0x0109, 'final double e0 = (Float32List(1)..[0] = a0 / a1)[0];'),
-      // An integer-typed Divide result would need LabVIEW's coercion rounding.
       (PrimOp.divide, [0x0107, 0x0107], 0x0107, null),
-      // The field swaps: a 16-bit operand holds one byte pair, a 32-bit one
-      // holds one word pair, and a narrower operand holds neither.
       (PrimOp.swapBytes, [0x0102], 0x0102, 'final int e0 = (lvSwapBytes(a0)) << 48 >> 48;'),
       (PrimOp.swapWords, [0x0107], 0x0107, 'final int e0 = (lvSwapWords(a0)) & 0xFFFFFFFF;'),
       (PrimOp.swapBytes, [0x0105], 0x0105, null),
       (PrimOp.swapWords, [0x0102], 0x0102, null),
-      // The 64-bit conversions.
       (PrimOp.toQuadInteger, [0x0107], 0x0104, 'final int e0 = lvToI64(a0);'),
       (PrimOp.toUnsignedQuadInteger, [0x0107], 0x0108, 'final int e0 = lvToU64(a0);'),
       (PrimOp.equal, [0x0105, 0x0105], 0x0121, 'final bool e0 = a0 == a1;'),
       (PrimOp.notEqual, [0x0230, 0x0230], 0x0121, 'final bool e0 = a0 != a1;'),
-      // A U64's carrier is signed, so ordered comparisons on it are wrong —
-      // but equality reads the same bits either way.
       (PrimOp.equal, [0x0108, 0x0108], 0x0121, 'final bool e0 = a0 == a1;'),
       (PrimOp.greaterThanZero, [0x0108], 0x0121, null),
       (PrimOp.lessThanZero, [0x0107], 0x0121, 'final bool e0 = a0 < 0;'),
@@ -558,20 +500,11 @@ final double volts;
       (PrimOp.emptyStringPath, [0x0230], 0x0121, 'final bool e0 = a0.isEmpty;'),
       (PrimOp.stringLength, [0x0230], 0x0103, 'final int e0 = a0.length;'),
       (PrimOp.arraySize, [0x0205], 0x0103, 'final int e0 = a0.length;'),
-      // Select: the middle operand chooses, and the upper one is the true case.
       (PrimOp.select, [0x0230, 0x0121, 0x0230], 0x0230, 'final String e0 = a1 ? a0 : a2;'),
-      // …and with no boolean operand nothing says which terminal selects.
       (PrimOp.select, [0x0105, 0x0105, 0x0105], 0x0105, null),
-      // Shapes the rules do not cover: a path operand (whose emptiness test is
-      // not the string one) and the higher-rank Array Size that yields a
-      // vector of sizes.
-      // A path carrier defines no `==`, so Dart would compare identities.
       (PrimOp.equal, [0x0132, 0x0132], 0x0121, null),
       (PrimOp.emptyStringPath, [0x0132], 0x0121, null),
       (PrimOp.arraySize, [0x0305], 0x0203, null),
-      // Wait (ms): one integer operand in, the U32 millisecond timer out. A
-      // float operand is a terminal coercion with no decided rounding, and a
-      // result wire of another width is not what the node yields.
       (PrimOp.waitMs, [0x0107], 0x0107, 'final int e0 = lvWaitMs(a0);'),
       (PrimOp.waitMs, [0x0103], 0x0107, 'final int e0 = lvWaitMs(a0);'),
       (PrimOp.waitMs, [0x010a], 0x0107, null),
@@ -599,8 +532,6 @@ final double volts;
   });
 
   test('a wait still elapses when nothing consumes the timer it returns', () {
-    // The elapsed time IS the operation, so an unwired result must leave the
-    // call standing rather than take it away.
     List<String>? lower({required bool consumed}) => lvPrimLowering(
       LvPrimCall(
         op: PrimOp.waitMs,
@@ -624,9 +555,6 @@ final double volts;
   });
 
   test('a scalar primitive wired to arrays lowers as a map over their elements', () {
-    // (name, op, input signal words, output word, statements or null when
-    // refused). 0x0205 is a 1-D U8 array, 0x0206 U16, 0x0207 U32, 0x0221
-    // boolean, 0x0305 a 2-D U8 array.
     final rows = <(String, PrimOp, List<int>, int, List<String>?)>[
       (
         'unary over one array',
@@ -671,13 +599,8 @@ final double volts;
           'final List<bool> e0 = builder;',
         ],
       ),
-      // An array beside a scalar is LabVIEW's broadcast, whose per-index value
-      // the file does not state.
       ('an array beside a scalar', PrimOp.multiply, [0x0205, 0x0105], 0x0205, null),
-      // Rank 2 needs the array's own dimension order.
       ('rank 2', PrimOp.swapBytes, [0x0305], 0x0305, null),
-      // The scalar rule still has to hold: a U64 comparison misreads its
-      // carrier whether or not it is wrapped in a loop.
       ('the scalar rule refuses', PrimOp.greater, [0x0208, 0x0208], 0x0221, null),
     ];
     for (final (name, op, inputs, output, expected) in rows) {
@@ -700,8 +623,6 @@ final double volts;
   });
 
   test('a variadic node takes its operands in the order it draws them', () {
-    // (name, class code, input words, output word, statements or null). Inputs
-    // are listed top-down, so the first entry is the uppermost terminal.
     final rows = <(String, int, List<int>, int, List<String>?)>[
       (
         'Concatenate Strings joins top-down',
@@ -710,8 +631,6 @@ final double volts;
         0x0230,
         [r"final String e0 = '$a0$a1$a2';"],
       ),
-      // An array of strings would concatenate its own elements here, which the
-      // depth reading does not distinguish from a scalar operand's role.
       ('an array operand', kLvConcatenateStringsClass, [0x0230, 0x0330], 0x0230, null),
       (
         'Build Array appends each scalar operand',
@@ -734,11 +653,8 @@ final double volts;
         0x0330,
         ['final List<String> e0 = <String>[a0, a1];'],
       ),
-      // Two dimensions below the result has no reading, and a rank-2 result
-      // needs the array's own dimension order.
       ('two dimensions below', kLvBuildArrayClass, [0x0105], 0x0305, null),
       ('a rank-2 result', kLvBuildArrayClass, [0x0205, 0x0205], 0x0305, null),
-      // An operand of another element type is not this array's.
       ('a mismatched element', kLvBuildArrayClass, [0x0105, 0x0230], 0x0205, null),
     ];
     for (final (name, classCode, inputs, output, expected) in rows) {
@@ -761,9 +677,6 @@ final double volts;
   });
 
   test('a variadic node with an unwired operand states no value for it', () {
-    // An input LabVIEW leaves unwired reads as a SOURCE, so it lands among the
-    // node's output ports; the operand it would carry is a default the file
-    // does not state, and the node is refused.
     final type = mapLvWireType(const ViSignalType(0x0230));
     final call = LvPrimCall(
       op: null,
@@ -782,9 +695,6 @@ final double volts;
   });
 
   test('an ordered operation reads its operands off the drawn order, not the heap order', () {
-    // Two U32 inputs, the heap order fixed and the DRAWN order flipped between
-    // the rows: the first operand follows the geometry both times, and a node
-    // whose terminals share a row states no order at all.
     const rows = <(String, Map<int, int>, String?)>[
       ('port 0 drawn upper', {0: 10, 1: 40}, 'final int e0 = (a0 - a1) & 0xFFFFFFFF;'),
       ('port 1 drawn upper', {0: 40, 1: 10}, 'final int e0 = (a1 - a0) & 0xFFFFFFFF;'),
@@ -811,8 +721,6 @@ final double volts;
   });
 
   test('Quotient & Remainder binds each result to the output it is drawn beside', () {
-    // The quotient is the LOWER output and the remainder the upper; an output
-    // nothing consumes never reaches the terminal list and binds to `_`.
     const rows = <(String, List<int>, List<String?>, List<String>)>[
       ('both results used', [8, 9], ['rem', 'quo'], ['final (quo, rem) = lvQuotientRemainder(a1, a0);']),
       ('quotient only', [8, 9], [null, 'quo'], ['final (quo, _) = lvQuotientRemainder(a1, a0);']),
@@ -824,8 +732,6 @@ final double volts;
       final call = LvPrimCall(
         op: PrimOp.quotientRemainder,
         classCode: 0x2f,
-        // Heap order is the reverse of the drawn order on a primitive node, so
-        // the dividend is `a1` and the divisor `a0`.
         inputs: [
           for (var at = 0; at < 2; at++) LvPrimTerminal(port: at, type: type, roleFlags: 0, expression: 'a$at'),
         ],
@@ -845,10 +751,6 @@ final double volts;
   });
 
   test('Index Array lowers a rank-1 group per output and refuses the rest', () {
-    // (name, input roles, output roles, statements or null when refused).
-    // Roles are read off the corpus shapes in LvArrayTerminalRole; the array
-    // wire is 1-D U8 and every index and element is a U8 scalar, so only the
-    // roles decide the outcome.
     const array = LvArrayTerminalRole.array;
     const index = LvArrayTerminalRole.singleIndex;
     const first = LvArrayTerminalRole.groupFirst;
@@ -869,11 +771,9 @@ final double volts;
           'final int e3 = a0[a4];',
         ],
       ),
-      // A rank-2 group: the dimension order is not decoded.
       ('rank 2', [array, first, last], [out], null),
       ('rank 2, first index only', [array, first], [out], null),
       ('rank 2, last index only', [array, last], [out], null),
-      // Shapes that do not read as the grammar at all.
       ('no array terminal', [index, index], [out], null),
       ('index without an output', [array, index, index], [out], null),
       ('grown output first', [array, index], [grown], null),
@@ -901,8 +801,6 @@ final double volts;
   });
 
   test('Float32List narrowing is what SGL arithmetic needs', () {
-    // 0.1 + 0.2 at binary32 differs from the binary64 result LabVIEW would not
-    // produce for a SGL wire.
     const sum = 0.1 + 0.2;
     final narrowed = (Float32List(1)..[0] = sum)[0];
     expect(narrowed, isNot(sum));

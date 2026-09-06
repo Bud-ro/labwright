@@ -1,9 +1,6 @@
 import 'dart:convert';
 import 'dart:typed_data';
 
-/// A minimal XML SequenceFile (BOM + header) with one MainSequence whose Main
-/// group holds [steps] (`<value><Step…/></value>` fragments); [extra] lands
-/// after the Seq container (e.g. FileGlobalDefaults).
 Uint8List seqXml({
   String steps = '',
   String extra = '',
@@ -24,33 +21,26 @@ Uint8List seqXml({
   ),
 ]);
 
-/// One step for [seqXml]'s `steps`, with optional raw `<subprops>` body.
 String step(String typename, String name, [String subprops = '']) =>
     "<value><Step typename='$typename' name='$name'>"
     "${subprops.isEmpty ? '' : '<subprops>$subprops</subprops>'}"
     '</Step></value>';
 
-/// `<name classname='cls'><value>v</value></name>`; classname omitted if null.
 String prop(String name, String v, [String? cls]) =>
     "<$name${cls == null ? '' : " classname='$cls'"}><value>$v</value></$name>";
 
-/// `<name classname='cls'><subprops>body</subprops></name>`.
 String obj(String name, String body, {String cls = 'Obj'}) =>
     "<$name classname='$cls'><subprops>$body</subprops></$name>";
 
-/// A sized array of pre-rendered entries, each wrapped in `<value>`.
 String objs(String name, List<String> values, {String cls = 'Objs'}) =>
     "<$name classname='$cls'><value lbound='[0]' ubound='[${values.length}]'>"
     '${values.map((v) => '<value>$v</value>').join()}</value></$name>';
 
-/// A step's `TS` engine-settings container.
 String ts(String body) => obj('TS', body);
 
-/// A step's `TS > SData` module container of class [cls].
 String sdata(String body, {String cls = 'Obj'}) =>
     ts(obj('SData', body, cls: cls));
 
-/// A `_NAME_IN_ATTRIBUTE_` list-entry object.
 String entry(String body) =>
     "<_NAME_IN_ATTRIBUTE_ name='' classname='Obj'><subprops>$body"
     '</subprops></_NAME_IN_ATTRIBUTE_>';

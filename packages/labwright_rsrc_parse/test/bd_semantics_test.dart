@@ -3,14 +3,11 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-/// A `0x4f` member reference `14 4F 01 FD <u16 oid>`.
 List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
 
-/// The block diagram [records] decode to, through the whole model build.
 ViDiagram bdOf(List<int> records) =>
     buildViModelFromDecoded([dsec(heapBody(records), tag: 'BDHb')]).blockDiagrams.first;
 
-/// A [ViHeapObject] with the fields these tests poke settable in one call.
 ViHeapObject heapObj(
   int kind, {
   int oid = 1,
@@ -27,25 +24,20 @@ ViHeapObject heapObj(
   return object;
 }
 
-/// A block diagram whose subVI-call node's connector-pane control has been
-/// spliced into the heap (an inlined/malleable subVI): a `0x51` control terminal
-/// nested under a `0x13` const-DCO inside a `0x15` structural record, carrying a
-/// named `0x0a` caption child — plus a bare unnamed `0x50` constant terminal in
-/// the same subtree. Only the bare constant is a top-level diagram object.
 final inlinedSubViControlBd = <int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
   ...open(0x1b, 2, tag: 0x1a),
   ...open(0x15, 3, tag: 0x1b),
   ...open(0x13, 4, tag: 0x1c),
-  ...open(0x51, 5, tag: 0x1d), // named inlined subVI connector control
+  ...open(0x51, 5, tag: 0x1d),
   ...bounds(200, 200, 220, 300),
   ...open(0x0a, 6, tag: 0x1e),
   ...bounds(180, 200, 197, 285),
   ...caption('Requirement ID'),
   ...close(0x1e),
   ...close(0x1d),
-  ...open(0x50, 7, tag: 0x1d), // bare unnamed diagram constant
+  ...open(0x50, 7, tag: 0x1d),
   ...bounds(120, 120, 140, 160),
   ...close(0x1d),
   ...close(0x1c),
@@ -54,11 +46,6 @@ final inlinedSubViControlBd = <int>[
   ...close(),
 ];
 
-/// A scalar numeric diagram constant: a `0x50` value carrier under a `0x13`
-/// `bDConstDCO`, whose `0x0a` name child carries a caption but is HIDDEN
-/// (objFlags bit `0x08`) — the profile of an `x`/`y` constant. LabVIEW paints
-/// the constant box (the hidden name is not drawn), so it must stay in the
-/// drawn set even though its caption is now decoded.
 final hiddenLabeledConstantBd = <int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
@@ -68,16 +55,13 @@ final hiddenLabeledConstantBd = <int>[
   ...open(0x0a, 4, tag: 0x1c),
   ...bounds(100, 120, 117, 130),
   ...caption('x'),
-  ...attrU32(0xcb, 0x08), // objFlags bit 0x08 hides the label
+  ...attrU32(0xcb, 0x08),
   ...close(0x1c),
   ...close(0x1b),
   ...close(0x1a),
   ...close(),
 ];
 
-/// A stacked case structure (`0x2c`) with three overlapping `0x1b` frames,
-/// each holding one node at the same in-box spot, plus the given attribute
-/// records on the structure itself.
 List<int> stackedCaseBd(List<int> structAttrs) => <int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
@@ -132,17 +116,11 @@ void main() {
 
   test('inlined subVI connector controls are excluded; bare constants kept', () {
     final oids = bdDrawableObjects(bdOf(inlinedSubViControlBd)).map((o) => o.oid).toSet();
-    // The named 0x51 connector-pane control (spliced from an inlined subVI) is
-    // not this diagram's top-level object and is dropped from the drawn set.
     expect(oids, isNot(contains(5)));
-    // The bare unnamed numeric constant is a real diagram object and is kept.
     expect(oids, contains(7));
   });
 
   test('a numeric constant with a hidden name label is kept, not treated as inlined', () {
-    // The exclusion keys on a *visible* connector-pane name; a diagram
-    // constant's own name is hidden by default, so the decoded scalar caption
-    // must not delete the constant (regression: `x`/`y` constants).
     final diagram = bdOf(hiddenLabeledConstantBd);
     final namePart = diagram.byId[4]!;
     expect(namePart.label, 'x', reason: 'the scalar caption is decoded on the name part');
@@ -166,13 +144,19 @@ void main() {
   test('membersOf resolves declared members to DRAWN objects only', () {
     final diagram = buildDiagram(
       heapBody(<int>[
-        ...open(0x7e, 1), ...bounds(0, 0, 400, 400),
-        ...open(0x53, 2, tag: 0x1a), ...bounds(10, 10, 200, 200),
+        ...open(0x7e, 1),
+        ...bounds(0, 0, 400, 400),
+        ...open(0x53, 2, tag: 0x1a),
+        ...bounds(10, 10, 200, 200),
         ...childRef(9),
-        ...memberRef(10), // scaffolding, not drawn
-        ...childRef(11), // never declared
-        ...open(0x50, 9, tag: 0x1b), ...bounds(20, 20, 37, 100), ...close(0x1b),
-        ...open(0x09, 10, tag: 0x1c), ...bounds(40, 40, 57, 100), ...close(0x1c),
+        ...memberRef(10),
+        ...childRef(11),
+        ...open(0x50, 9, tag: 0x1b),
+        ...bounds(20, 20, 37, 100),
+        ...close(0x1b),
+        ...open(0x09, 10, tag: 0x1c),
+        ...bounds(40, 40, 57, 100),
+        ...close(0x1c),
         ...close(0x1a),
         ...close(),
       ]),
@@ -236,9 +220,9 @@ void main() {
         struct(0x21),
         struct(0x21),
         struct(0x2c),
-        struct(0x7e), // diagram root: excluded (not control flow)
+        struct(0x7e),
         heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
-        heapObj(0x2f, oid: 11, cat: ViObjectKind.node), // unlabeled primitive
+        heapObj(0x2f, oid: 11, cat: ViObjectKind.node),
       ]);
       expect(outline.structuresByClass[HeapObjectClass.bdWhileLoop], 2);
       expect(outline.structuresByClass[HeapObjectClass.bdStructureFrame], 1);

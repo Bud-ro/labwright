@@ -6,10 +6,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Where do incomplete heap walks stop? Aggregates, per stopped section: the
-/// stopping lead byte, the un-walked byte mass, the section tag, and a hex
-/// context sample — the itemization of the `1 - deliberatelyParsed` tail.
-///
 /// Run: `dart run tool/probe_walk_stops.dart [corpusRoot=<pkg>/corpus/vi]`
 
 class _Agg {

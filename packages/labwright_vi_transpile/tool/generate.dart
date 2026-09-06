@@ -1,18 +1,3 @@
-/// Lowers a `.vi` file, or a VI-snippet PNG, to a Dart source file.
-///
-/// ```
-/// dart run tool/generate.dart [--subvis=<dir>] [--errors=threaded]
-///     <input.vi|input.png> [output.dart]
-/// ```
-///
-/// Without an output path the source goes to stdout. `--subvis` names a
-/// directory searched recursively for the `.vi` files the diagram calls, so a
-/// VI and everything it calls lower into one library; without it a subVI call
-/// is refused. `--errors=threaded` keeps error clusters as values instead of
-/// eliding them (see [LvErrorMode]). A diagram that cannot be lowered prints
-/// its refusal and exits non-zero — the generator never writes partial code.
-library;
-
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -67,9 +52,6 @@ LvViUnit? _unitOf(File file, String fileName) => _cache.putIfAbsent(file.path, (
   return LvViUnit.fromSections(decodeSections(Uint8List.fromList(vi)), fileName: fileName);
 });
 
-/// Every `.vi` under [root], keyed by its lower-cased file name. The first of
-/// a repeated name wins, so a search directory with two copies of a VI resolves
-/// deterministically.
 Map<String, File> _index(Directory root) {
   final found = <String, File>{};
   if (!root.existsSync()) return found;

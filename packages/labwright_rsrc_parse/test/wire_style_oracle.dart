@@ -1,9 +1,3 @@
-/// Render-oracle machinery for the wire render-style census
-/// (`wire_render_style_census_test.dart`): decodes a VI-snippet PNG's raster,
-/// registers the decoded block diagram onto it (1 diagram unit == 1 px plus a
-/// per-snippet offset), reconstructs each signal's straight runs, and
-/// classifies the pixel pattern along every run. Pure measurement — the
-/// mapping being validated lives in `lib/src/wire_render.dart`.
 library;
 
 import 'dart:io';
@@ -11,12 +5,8 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// A decoded RGBA8888 raster.
 typedef Raster = ({int width, int height, Uint8List rgba});
 
-/// Minimal PNG raster decode to RGBA8888 (row-major, 4 bytes/px).
-/// Supports bit depth 8, colour types 0/2/3/4/6, no interlace — the whole
-/// snippet corpus. Throws on anything else (the census counts those).
 Raster decodePngRaster(Uint8List png) {
   final view = ByteData.sublistView(png);
   var i = 8;
@@ -113,7 +103,6 @@ int _paeth(int a, int b, int c) {
   return pb <= pc ? b : c;
 }
 
-/// The snippet PNGs of the render-oracle corpora, path-sorted.
 List<File> listSnippetPngs(Directory corpusViDir) {
   if (!corpusViDir.existsSync()) return const [];
   return [
@@ -125,8 +114,6 @@ List<File> listSnippetPngs(Directory corpusViDir) {
   ]..sort((a, b) => a.path.compareTo(b.path));
 }
 
-/// Whether the object with [oid] sits in the DISPLAYED frame of every
-/// stacked multi-frame ancestor (a hidden-frame object is not rendered).
 bool objectVisibleInRender(ViDiagram bd, int oid) {
   var o = bd.byId[oid];
   for (var i = 0; o != null && i < 64; i++) {
@@ -146,20 +133,10 @@ bool objectVisibleInRender(ViDiagram bd, int oid) {
   return true;
 }
 
-/// The reference interior rectangle of a snippet raster (half-open).
 typedef Interior = ({int left, int top, int right, int bottom});
 
-/// A diagram→raster registration: diagram (x, y) renders at raster pixel
-/// `(x - dx + interior.left, y - dy + interior.top)`.
 typedef Registration = ({int dx, int dy, int score, int max, bool leafMode});
 
-/// Registers a decoded diagram onto its reference raster: coarse per-axis
-/// 1-D correlation of all visible bounded-object edges against the
-/// reference's per-column/per-row ink counts, then a ±8 2-D refine scored on
-/// structure-frame perimeters (LabVIEW draws loop/case/disable borders
-/// exactly on their decoded absolute bounds) — or, in diagrams without
-/// structures, on leaf-object perimeters (`leafMode`, a weaker ceiling: node
-/// glyphs are not border boxes).
 Registration registerDiagram(ViDiagram bd, Raster raster, Interior interior) {
   final w = interior.right - interior.left, h = interior.bottom - interior.top;
   if (w <= 0 || h <= 0) return (dx: 0, dy: 0, score: 0, max: 1, leafMode: false);
@@ -208,7 +185,6 @@ Registration registerDiagram(ViDiagram bd, Raster raster, Interior interior) {
 
   final dx0 = best1d(xEdges, colInk), dy0 = best1d(yEdges, rowInk);
 
-  // Refine + verify: structure-frame perimeters, else leaf perimeters.
   var ringPts = <(int, int)>[];
   for (final o in bd.objects) {
     final r = o.absBounds;
@@ -225,7 +201,7 @@ Registration registerDiagram(ViDiagram bd, Raster raster, Interior interior) {
     for (final o in bd.objects) {
       final r = o.absBounds;
       if (r == null || r.width < 8 || r.height < 8 || r.width > 80 || r.height > 80) continue;
-      if (o.kind == 0x0a || o.kind == 0x95) continue; // labels carry no border ink
+      if (o.kind == 0x0a || o.kind == 0x95) continue;
       if (!objectVisibleInRender(bd, o.oid)) continue;
       _addPerimeter(ringPts, r);
     }
@@ -261,40 +237,22 @@ void _addPerimeter(List<(int, int)> pts, HeapRect r) {
   }
 }
 
-/// One straight axis-aligned wire run scheduled for pixel sampling.
 class WireRun {
   WireRun(this.sigOid, this.horizontal, this.axisPos, this.lo, this.hi);
   final int sigOid;
   final bool horizontal;
 
-  /// The run's row (horizontal) or column (vertical), diagram coordinates.
   final int axisPos;
 
-  /// Extent along the run, diagram coordinates.
   final int lo, hi;
 
-  /// Classifier verdict: a recognized style name, `unclassified` (an
-  /// unrecognized but periodic cycle), `aperiodic`, `blank`, or `unsampled`.
   String? style;
 
-  /// Modal wire colour (`0xRRGGBB`), when dominant along the run.
   int? color;
 }
 
-/// The straight runs of every visible 2-endpoint signal: aligned-endpoint
-/// bend-less wires plus the segments of stored `0x1e7` routes walked from
-/// the first endpoint's attach rect with the stored [ViWireRoute.direction]
-/// (dropped when the route fails to close on the far endpoint within
-/// tolerance). Routes are walkable from the FIRST endpoint only — the walk
-/// origin the table encodes — so a wire whose sole attach rect sits on the
-/// second endpoint contributes no runs.
 List<WireRun> wireRuns(ViDiagram bd) {
   final runs = <WireRun>[];
-  // Every constant value shell in the diagram: a wire's terminal runs reach
-  // under their own shell (the attach point is the shell's CENTRE), and a
-  // wire routed past ANOTHER constant is drawn beneath its box — either way
-  // the box's border/text pixels are not wire style, so shell spans are cut
-  // out of every run (splitting a run an occluder crosses mid-span).
   final shells = <HeapRect>[
     for (final w in bd.wires)
       for (final oid in w.endpointOids)
@@ -308,8 +266,6 @@ List<WireRun> wireRuns(ViDiagram bd) {
     final a = rects[0]!, b = rects[1]!;
     final candidates = <WireRun>[];
     if (w.route == null || w.route!.segmentLengths.isEmpty) {
-      // No stored bends (no table, or the 1/2-point straight tables): a
-      // single run between aligned attach centres.
       final cyA = a.top + a.height ~/ 2, cyB = b.top + b.height ~/ 2;
       final cxA = a.left + a.width ~/ 2, cxB = b.left + b.width ~/ 2;
       if (cyA == cyB) {
@@ -331,12 +287,6 @@ List<WireRun> wireRuns(ViDiagram bd) {
   return runs;
 }
 
-/// [run] with every [rects] span cut out — 0, 1 or more sub-runs (a rect at a
-/// run's end trims it; one crossing mid-span splits it; one swallowing it
-/// drops it). Rects not crossing the run's band on the perpendicular axis do
-/// not cut. A 1-unit margin keeps the sampled pixels off the box border, and
-/// sub-runs shorter than 2 units are dropped like their [wireRuns] parents.
-/// Public for the unit suite (`wire_run_clip_test.dart`).
 List<WireRun> clipRunOutOfRects(WireRun run, List<HeapRect> rects) {
   var spans = <(int, int)>[(run.lo, run.hi)];
   for (final rect in rects) {
@@ -364,12 +314,6 @@ List<WireRun> clipRunOutOfRects(WireRun run, List<HeapRect> rects) {
   ];
 }
 
-/// Reconstructs a routed wire's polyline from attach-rect centre [a] toward
-/// [b] — first segment per the stored [ViWireRoute.direction], axes
-/// alternating, joint signs from the stored route, final leg implied —
-/// returning its runs, or null when the implied closing leg misses [b]'s
-/// centre row/column by more than 3 units (attach rects here may be coarse
-/// owner boxes, so exact closure is not demanded).
 List<WireRun>? _routeRuns(ViWire w, HeapRect a, HeapRect b) {
   final route = w.route!;
   final direction = route.direction;
@@ -410,10 +354,6 @@ List<WireRun>? _routeRuns(ViWire w, HeapRect a, HeapRect b) {
   return runs;
 }
 
-/// Samples and classifies [run] against the registered raster: sets
-/// [WireRun.color] (modal colour when it wins ≥70% of the non-background
-/// votes on the centre 3 rows) and [WireRun.style] (see [classifyCycle];
-/// runs shorter than 14 units get colour only).
 void sampleRun(WireRun run, Raster raster, Interior interior, Registration reg) {
   int pxX(int diagX) => diagX - reg.dx + interior.left;
   int pxY(int diagY) => diagY - reg.dy + interior.top;
@@ -446,7 +386,7 @@ void sampleRun(WireRun run, Raster raster, Interior interior, Registration reg) 
     votes += e.value;
   }
   if (ranked.first.value * 10 >= votes * 7) run.color = wireColor;
-  if (run.hi - run.lo < 14) return; // too short to classify — colour only
+  if (run.hi - run.lo < 14) return;
 
   final masks = <int, int>{};
   var clean = 0, total = 0;
@@ -481,10 +421,6 @@ void sampleRun(WireRun run, Raster raster, Interior interior, Registration reg) 
   run.style = classifyCycle(masks, coverage: clean / total);
 }
 
-/// The recognized column cycles (rotation-canonical, 5-bit masks low-row
-/// first) → style names matching [ViWireRenderStyle]. Owned here so the
-/// census maps measured pixels to the shipped catalogue in exactly one
-/// place.
 const recognizedCycles = <String, String>{
   'p1:00100': 'solid1px',
   'p1:00110': 'solid2px',
@@ -506,20 +442,6 @@ const recognizedCycles = <String, String>{
   'p8:00010,01010,00010,01110,01000,01010,01000,01110': 'weave',
 };
 
-/// Classifies a run's per-column ink masks: finds the smallest period whose
-/// positional agreement is ≥95%, canonicalizes the cycle by rotation, and
-/// maps recognized cycles to their style names ([recognizedCycles]); an
-/// unrecognized cycle reads `unclassified:<cycle>`, no period `aperiodic`.
-///
-/// [coverage] is the run's clean-column fraction. A multi-column cycle
-/// (period ≥ 2) is only trusted at coverage ≥ 0.8: contamination drops whole
-/// columns, and PHASE-CORRELATED drops (a crossing or overlap recurring on
-/// the cycle's pitch) can erase one phase of a longer cycle and alias it
-/// onto a shorter one — e.g. a chain-link run whose single-dot phase is
-/// gone reads as the dense braid. Such a run returns `lowcover:<verdict>`
-/// and is tallied by the census, never styled. Period-1 cycles are
-/// drop-immune (every surviving column shows the full mask) and classify at
-/// any coverage the caller admits.
 String classifyCycle(Map<int, int> masks, {double coverage = 1.0}) {
   final xs = masks.keys.toList()..sort();
   int? period;

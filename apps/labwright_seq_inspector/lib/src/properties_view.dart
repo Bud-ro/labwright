@@ -3,16 +3,10 @@ import 'package:flutter/material.dart';
 import 'property_outline.dart';
 import 'ui.dart';
 
-/// The Properties tab: a lazy, expandable tree over the raw PropertyObject
-/// model ([PropertyNode]), with a search box that filters by name, type, value,
-/// or attributes while keeping matching nodes' ancestors. Each node shows its
-/// name, type/kind, attributes, and — for leaves — the scalar value.
 class PropertiesView extends StatefulWidget {
   const PropertiesView({super.key, required this.root, this.searchFocusNode});
   final PropertyNode root;
 
-  /// Optional focus node for the search field (so a parent shortcut can focus
-  /// it, e.g. Ctrl/Cmd+F).
   final FocusNode? searchFocusNode;
 
   @override
@@ -63,9 +57,7 @@ class _PropertiesViewState extends State<PropertiesView> {
           child: filtered == null
               ? const Center(child: Text('No matching properties.'))
               : ListView(
-                  // Forces a rebuild on query change so ExpansionTiles pick up the new
-                  // force-expanded state while filtering; removing this silently
-                  // breaks filter expansion.
+                  // A new key per query: ExpansionTile reads initiallyExpanded only on creation.
                   key: ValueKey(_query),
                   padding: const EdgeInsets.all(8),
                   children: [
@@ -178,8 +170,6 @@ class PropertyTile extends StatelessWidget {
     );
   }
 
-  /// Renders a synthetic binary-decoder marker as a human-readable chip;
-  /// passes ordinary XML attributes through as `key=value`.
   static String _chipLabel(String key, String value) => switch (key) {
     '%BINELEMENTSPEC' => 'element type: $value bytes undecoded',
     '%BININTRINSIC' => 'intrinsic type id $value',
@@ -188,11 +178,6 @@ class PropertyTile extends StatelessWidget {
     _ => '$key=$value',
   };
 
-  /// Attribute chips deliberately exclude the `classname`/`typename` keys
-  /// (already surfaced via `node.typeLabel`) and the `%BINOVERRIDES`
-  /// marker (surfaced as the "⋄ overridden" badge). The remaining
-  /// synthetic `%BIN*` markers are rendered as readable labels rather
-  /// than raw sentinel keys.
   Widget? _subtitle(ThemeData theme) {
     if (node.attributes.isEmpty) return null;
     final shown = node.attributes.entries

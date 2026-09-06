@@ -10,13 +10,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Per-VI feature snapshot, EXACT-match, against the `groups`/`errors` of
-/// corpus/snapshot.json (written by tool/snapshot.dart over the WHOLE corpus):
-/// every VI's front-panel/block-diagram object counts and resource-block set
-/// must equal the committed values — a drop is a regression, a gain is an
-/// improvement to regenerate and review as a diff. This is what catches "a VI
-/// went from something to nothing" (and pins "something to more" too). Skips
-/// when corpus or snapshot is absent; skips comparison under the regen tool.
 typedef _Snap = ({String path, bool error, int fp, int bd, List<String> blocks});
 
 _Snap _summarizeVi(Uint8List bytes, String path) {
@@ -43,15 +36,12 @@ void main() {
     return;
   }
   if (snapshotUpdateMode) {
-    // tool/snapshot.dart re-measures the per-file groups itself; comparing
-    // against the stale committed file mid-regeneration would be circular.
     test('corpus feature snapshot (skipped: snapshot regeneration in progress)', () {}, skip: true);
     return;
   }
 
   final root = '${corpusViDir.path}/';
   final byKey = {for (final f in all) f.path.substring(root.length).replaceAll('\\', '/'): f.path};
-  // The snapshot groups files by block-set; flatten back to per-file expectations.
   final snapJson = jsonDecode(snapFile.readAsStringSync()) as Map;
   final snap = <String, Map<String, dynamic>>{};
   for (final g in (snapJson['groups'] as List).cast<Map<String, dynamic>>()) {
@@ -74,7 +64,7 @@ void main() {
     final diffs = <String>[];
     for (final MapEntry(key: key, value: want) in snap.entries) {
       final s = byPath[byKey[key]];
-      if (s == null) continue; // partial checkout: absent files are not comparable
+      if (s == null) continue;
       if (want.containsKey('error')) {
         if (!s.error) diffs.add('$key: now decodes (was a snapshotted decode error)');
         continue;

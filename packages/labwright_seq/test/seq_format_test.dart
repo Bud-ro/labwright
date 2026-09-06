@@ -6,7 +6,6 @@ import 'package:test/test.dart';
 
 Uint8List _b(List<int> xs) => Uint8List.fromList(xs);
 
-/// `TOF1` magic + 6 reserved bytes + a NUL-terminated file-type token at 0x0A.
 Uint8List _binary(String fileType) =>
     _b([...ascii.encode('TOF1'), 0, 0, 0, 0, 0, 0, ...ascii.encode(fileType), 0, ...List.filled(32, 0)]);
 

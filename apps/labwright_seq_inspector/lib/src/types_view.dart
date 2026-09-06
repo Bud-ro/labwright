@@ -4,16 +4,9 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'properties_view.dart';
 import 'property_outline.dart';
 
-/// The Types tab: the file's custom **type palette** (`SeqFile.types`) — the
-/// data/step types a sequence file defines or references. Each type is rendered
-/// as an expandable [PropertyTile] (so its members, type-inheritance and
-/// `⋄ overridden` markers show, same as the Properties tab), in a virtualized
-/// list so files with thousands of types stay responsive. A search box filters
-/// by type name / class. Shows nothing fabricated — an empty palette says so.
 class TypesView extends StatefulWidget {
   const TypesView({super.key, required this.types, this.searchFocusNode});
 
-  /// The file's type list, in document order. May be empty.
   final List<SeqProperty> types;
   final FocusNode? searchFocusNode;
 
@@ -90,9 +83,7 @@ class _TypesViewState extends State<TypesView> {
           child: shown.isEmpty
               ? const Center(child: Text('No matching types.'))
               : ListView.builder(
-                  // Forces a rebuild on query change so ExpansionTiles pick up the new
-                  // force-expanded state while filtering; removing this silently
-                  // breaks filter expansion.
+                  // A new key per query: ExpansionTile reads initiallyExpanded only on creation.
                   key: ValueKey(_query),
                   padding: const EdgeInsets.all(8),
                   itemCount: shown.length,

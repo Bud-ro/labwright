@@ -4,10 +4,6 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'sequence_outline.dart';
 import 'ui.dart';
 
-/// Chip color per module adapter. A new code-bearing adapter that lacks a color
-/// is caught by the unit test rather than silently rendering as the fallback.
-/// The flow-control adapters ([SeqAdapter.none]/[SeqAdapter.unknown]) are
-/// intentionally absent and render with [adapterFallbackColor].
 const Map<SeqAdapter, Color> adapterColors = {
   SeqAdapter.labView: Colors.teal,
   SeqAdapter.sequenceCall: Colors.deepPurple,
@@ -16,15 +12,11 @@ const Map<SeqAdapter, Color> adapterColors = {
   SeqAdapter.dotNet: Colors.indigo,
 };
 
-/// Chip color for adapters with no assigned color (see [adapterColors]).
 const adapterFallbackColor = Colors.blueGrey;
 
-/// The chip color for [adapter], falling back to [adapterFallbackColor].
 Color adapterColor(SeqAdapter adapter) =>
     adapterColors[adapter] ?? adapterFallbackColor;
 
-/// The Sequences tab: a tree of sequences → Setup/Main/Cleanup groups → steps.
-/// In-file SequenceCall steps are tappable and jump to the called sequence.
 class SequencesView extends StatefulWidget {
   const SequencesView({
     super.key,
@@ -34,11 +26,8 @@ class SequencesView extends StatefulWidget {
   });
   final SeqOutline outline;
 
-  /// Optional focus node for the search field (so a parent shortcut can focus
-  /// it, e.g. Ctrl/Cmd+F).
   final FocusNode? searchFocusNode;
 
-  /// The file's type-list count, surfaced in the summary header when given.
   final int? typeCount;
 
   @override
@@ -50,8 +39,6 @@ class _SequencesViewState extends State<SequencesView> {
   final _searchController = TextEditingController();
   String _query = '';
 
-  /// Keys and expansion state, indexed by ORIGINAL outline position so jump
-  /// targets stay valid regardless of what the filter currently shows.
   late List<GlobalKey> _keys;
   late List<bool> _expanded;
 
@@ -69,8 +56,6 @@ class _SequencesViewState extends State<SequencesView> {
 
   void _resetState() {
     final sequenceCount = widget.outline.sequences.length;
-    // Indexed by ORIGINAL outline position (not filtered position) so jump
-    // targets stay correct while a filter is applied.
     _keys = List.generate(sequenceCount, (_) => GlobalKey());
     _expanded = List.generate(sequenceCount, (i) => i == 0);
   }
@@ -152,9 +137,7 @@ class _SequencesViewState extends State<SequencesView> {
               ? const Center(child: Text('No matching sequences.'))
               : ListView.builder(
                   controller: _scroll,
-                  // Forces a rebuild on query change so ExpansionTiles pick up the new
-                  // force-expanded state while filtering; removing this silently
-                  // breaks filter expansion.
+                  // A new key per query: ExpansionTile reads initiallyExpanded only on creation.
                   key: ValueKey(_query),
                   itemCount: shown.length,
                   itemBuilder: (context, i) {
@@ -358,9 +341,6 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  /// The step's set expressions (precondition / pre / post / status / loop-while)
-  /// as dim monospace `label: expression` rows — they can be long, so they get
-  /// their own lines rather than chips.
   Widget _expressions(BuildContext context, List<(String, String)> rows) {
     final theme = Theme.of(context);
     return Padding(
@@ -391,8 +371,6 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  /// The module call's bound arguments as a `name (dir) → expr` mini-table,
-  /// mirroring [_limitsTable] — the editor's "Module > Parameters" view.
   Widget _argsTable(BuildContext context, List<CallArgOutline> args) {
     final theme = Theme.of(context);
     const color = Colors.deepPurple;
@@ -447,8 +425,6 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  /// A measurement step's typed parameters as arg `name (dir) → type = value`
-  /// mini-table, mirroring [_argsTable] — the editor's measurement "Parameters".
   Widget _paramsTable(
     BuildContext context,
     List<MeasurementParamOutline> params,
@@ -506,8 +482,6 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  /// A LabVIEW VI call's connector pane as a `#conn label → type ←expr`
-  /// mini-table, mirroring [_argsTable] — the editor's "VI > connector pane".
   Widget _connectorTable(
     BuildContext context,
     List<ConnectorParamOutline> params,
@@ -565,9 +539,6 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  /// A file-level card listing the Semiconductor-Test-System resources the
-  /// sequence depends on (pin map + spec/levels/timing/pattern files) — the
-  /// structured view of `SeqFile.measurementPlugIns` (also in the Dump tab).
   Widget _pluginsCard(BuildContext context, MeasurementPluginsOutline mp) {
     final theme = Theme.of(context);
     const color = Colors.green;

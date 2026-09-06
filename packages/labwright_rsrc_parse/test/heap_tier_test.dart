@@ -4,8 +4,6 @@ import 'package:test/test.dart';
 import 'test_util.dart';
 
 void main() {
-  // Each crafted record is graded standalone by heapDecodeTier (the single source of truth for the
-  // 3-tier coverage metric): (name, bytes, tier, valueKindPayloadBytes, enclosingKind).
   final rows = <(String, List<int>, HeapDecodeTier, int, int)>[
     ('object header', hx('10 19 02 fe 0050 fd 002a'), HeapDecodeTier.semantic, 0, -1),
     ('group close', hx('08 55'), HeapDecodeTier.semantic, 0, -1),

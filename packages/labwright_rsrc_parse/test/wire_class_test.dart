@@ -9,8 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'test_util.dart';
 
-/// The `0x1d` wire-segment class ([HeapObjectClass.bdWire]) is BD-only and its own-level rect is a
-/// degenerate (line-like) Manhattan run. Samples a corpus slice per run to stay fast.
 void main() {
   final all = corpusVis();
   if (all.isEmpty) {
@@ -58,7 +56,6 @@ void main() {
       for (final diagram in model.blockDiagrams) {
         for (final object in diagram.objects) {
           if (object.kind != 0x17) continue;
-          // A signal is classified as a wire and carries no bounds of its own.
           expect(object.category, ViObjectKind.wire);
           if (object.absBounds != null) withOwnBounds++;
         }
@@ -86,9 +83,7 @@ void main() {
     expect(wireObjects, signals, reason: 'one ViWire per signal object');
     expect(fpSignals, 0, reason: 'signals are a BD-only class (0 FP)');
     expect(withOwnBounds, 0, reason: 'signals carry no bounds of their own');
-    // Corpus-wide the 14 19 childRefs resolve 100% to a bounded owner.
     expect(anchorsResolved, endpoints, reason: 'every endpoint resolves to an anchor ($anchorsResolved/$endpoints)');
-    // 91% of signals hold exactly two endpoints (source + sink).
     expect(twoEndpoints, greaterThan(signals * 0.7), reason: 'most wires are two-endpoint ($twoEndpoints/$signals)');
   });
 
@@ -96,10 +91,6 @@ void main() {
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
     if (!corpusOrSkip(crc8, what: 'crc8 snippet')) return;
     final diagram = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
-    // endpoint oid -> absolute attach rect (t, l, b, r): the for-loop N terminal
-    // (top-left corner), left-border tunnels of the outer and inner loops, the
-    // case selector, and both shift registers — six distinct positions on the
-    // outer loop (158,375..495,543), the inner loop, and the case frame.
     const wants = {
       88: (375, 158, 391, 174),
       98: (499, 158, 508, 167),
@@ -116,8 +107,6 @@ void main() {
   });
 
   test('endpoint attach rects: border-exact on the frame ring, interior minority inside', () {
-    // The < 8.6 legacy coordinate space returns null attach rects at the API
-    // level, so 8.6+ v8 files are exercised and pre-8.6 contribute nothing.
     var structFramed = 0, onBorder = 0, interior = 0;
     for (final file in all.take(300)) {
       final ViModel model;
@@ -130,8 +119,6 @@ void main() {
         for (final wire in diagram.wires) {
           for (var i = 0; i < wire.endpointOids.length; i++) {
             final pos = wire.endpointAttachRects[i];
-            // Constant endpoints carry attach rects without a terminal
-            // (endpointConstantBounds); this census is about terminal rects.
             final terminal = diagram.endpointTerminal(wire.endpointOids[i]);
             if (pos == null || terminal == null) continue;
             final frame = _boundedOwner(diagram, terminal.oid);
@@ -153,13 +140,10 @@ void main() {
       structFramed,
       reason: 'every rect on the ring or fully inside ($onBorder + $interior / $structFramed)',
     );
-    // Corpus-wide the border-exact share is 99.09%; the remainder are interior
-    // terminals (e.g. a loop's conditional terminal).
     expect(onBorder, greaterThan(structFramed * 0.95), reason: 'border-exact dominates ($onBorder/$structFramed)');
   });
 }
 
-/// The nearest positional ancestor of [oid] (itself included) with bounds.
 ViHeapObject? _boundedOwner(ViDiagram d, int oid) {
   var object = d.byId[oid];
   final seen = <int>{};
@@ -170,7 +154,6 @@ ViHeapObject? _boundedOwner(ViDiagram d, int oid) {
   return null;
 }
 
-/// Whether [pos] crosses [frame]'s border ring (an edge line passes through it).
 bool _touchesRing(HeapRect pos, HeapRect frame) {
   bool spans(int line, int lo, int hi) => line >= lo && line <= hi;
   return spans(frame.left, pos.left, pos.right) ||

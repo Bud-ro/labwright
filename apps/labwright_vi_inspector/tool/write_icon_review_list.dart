@@ -7,13 +7,7 @@ import 'package:labwright_vi_inspector/src/prim_icon_catalog.dart';
 
 import '../test/util.dart';
 
-/// Writes the reviewer's run-down list: per snippet, the primitive icon keys
-/// that appear on its diagram, with each key's op name and current review
-/// status — so verifying a snippet verifies a known set of catalog entries.
-///
-/// It decodes snippet art, so it runs under the flutter_test harness rather
-/// than as a plain script, from the app package root:
-///
+/// Writes the per-snippet primitive icon key review list:
 ///     flutter test tool/write_icon_review_list.dart --dart-define=PRIM_REVIEW_LIST=1
 void main() {
   const enabled = String.fromEnvironment('PRIM_REVIEW_LIST');

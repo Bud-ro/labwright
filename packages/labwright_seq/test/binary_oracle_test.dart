@@ -8,15 +8,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Rosetta-twin validation of the binary decoder: each `*_BIN.seq` is the same
-/// sequence as its XML/python twin (`OutputVoltage_{BIN,XML}` is CONTENT-exact,
-/// the others are toolchain twins), so everything the binary decodes must
-/// equal what the XML parse materializes. Whole-corpus honesty sweeps live in
-/// `binary_sweep_test.dart`.
-///
-/// Twin pairing is by shared prefix before the toolchain tag: the binary is
-/// `<prefix>_labview_BIN.seq` or `<prefix>_BIN.seq`, the model twin
-/// `<prefix>_python_XML.seq` / `<prefix>_XML.seq` / `<prefix>_python.seq`.
 File? _twin(Directory dir, String binName) {
   final prefix = binName.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
   for (final suffix in ['_python_XML.seq', '_XML.seq', '_python.seq']) {
@@ -26,7 +17,6 @@ File? _twin(Directory dir, String binName) {
   return null;
 }
 
-/// `<PropName ...><value>V</value>` occurrences grouped by property name.
 Map<String, Set<String>> _xmlValues(String xml) {
   final out = <String, Set<String>>{};
   final re = RegExp(r'<([A-Za-z_][A-Za-z0-9_]*)\b[^>]*>\s*<value>([^<]*)</value>');
@@ -74,10 +64,6 @@ void main() {
     var pairs = 0, headsCompared = 0, decodedBodies = 0, bodyExtents = 0;
     var anchors = 0, twinnedSequences = 0;
 
-    // Compares a decoded binary field against its XML-twin subprop, recursing
-    // into plain nested declarations (toolchain-stable). Override subsets and
-    // typed references are compared shallowly here; the content-exact oracle
-    // tests below pin them at full depth.
     void compareField(String path, BinaryTypeField got, SeqProperty want) {
       expect(got.name, want.name, reason: '$path field name');
       final intrinsic = got.typeNameEngineIntrinsic;
@@ -123,8 +109,6 @@ void main() {
       final twinFile = parseSeqFile(twin.readAsBytesSync());
       pairs++;
 
-      // Sequence NAMES equal the twin's; step COUNTS match (only the
-      // content-exact oracle has identical step NAMES — pinned below).
       expect(
         binarySequenceNames(bytes),
         twinFile.sequences.map((s) => s.name).toList(),
@@ -134,7 +118,6 @@ void main() {
       expect(stepNames, isNotEmpty, reason: name);
       expect(stepNames.length, _xmlStepNames(twinFile).length, reason: '$name: step count ($stepNames)');
 
-      // Byte-coverage invariants and the per-file semantic floor.
       final cov = binaryByteCoverage(bytes)!;
       expect(
         cov.recordSemanticBytes + cov.recordStructuralBytes + cov.recordUndecodedBytes,
@@ -143,13 +126,8 @@ void main() {
       );
       expect(cov.recordSemanticRatio, greaterThanOrEqualTo(0.70), reason: '$name: semantic floor');
 
-      // Aligned type-index base 0, and it must be a CORRECT alignment: every
-      // decoded anchor field resolves to Expression under it (a give-up 0
-      // would mis-resolve to a wrong record and surface here).
       expect(binaryTypeIndexBase(bytes), 0, reason: '$name must be aligned');
 
-      // Type-record HEADS + BODIES against the twin's root typedefs; save
-      // timestamps/version stamps legitimately differ between toolchains.
       final twinByName = {for (final t in twinFile.types) t.name: t};
       const saveDependent = {'timestamp', 'typeversion', 'typelastmodversion', 'typeminprodversion'};
       void anchorWalk(List<BinaryTypeField> fs) {
@@ -182,14 +160,11 @@ void main() {
         });
       }
 
-      // Every typedef body decodes end-to-end (zero bailing bodies).
       for (final extent in binaryTypeBodyExtents(bytes)) {
         bodyExtents++;
         expect(extent.bail, isNull, reason: '$name ${extent.name} bails at ${extent.bail}');
       }
 
-      // Sequence-record walk: all three group arrays decode, agree with the
-      // independently scan-assembled step lists, and honor declared bounds.
       final outlines = binarySequenceOutlines(bytes);
       expect(outlines, hasLength(1), reason: name);
       final o = outlines.single;
@@ -212,8 +187,6 @@ void main() {
         }
       }
 
-      // Typed-model sequences: locals/parameters (name:type), post-group
-      // scalars, requirement links, and RTS children match the twin.
       final binFile = parseSeqFile(bytes);
       final xmlByName = {for (final s in twinFile.sequences) s.name: s};
       for (final bs in binFile.sequences) {
@@ -265,7 +238,6 @@ void main() {
     expect(twinnedSequences, greaterThanOrEqualTo(5));
   });
 
-  // ── Content-exact oracle: OutputVoltage_{BIN,XML} ──
   final binBytes = oracleBinFile.readAsBytesSync();
   final binFile = parseSeqFile(binBytes);
   final xmlFile = parseSeqFile(oracleXmlFile.readAsBytesSync());
@@ -302,8 +274,6 @@ void main() {
   });
 
   test('oracle: recovered types are honest — every name is a twin typedef/typename', () {
-    // A raw substring check would let short fabricated tokens ride inside
-    // longer attribute names, so match against the twin's type vocabulary.
     expect(binFile.types.length, 25);
     final xmlText = oracleXmlFile.readAsStringSync();
     final twinTypeNames = <String>{
@@ -321,7 +291,7 @@ void main() {
     var compared = 0;
     for (final type in binFile.types) {
       final twin = twinByName[type.name];
-      if (twin == null) continue; // step-stored typedefs live off-typelist
+      if (twin == null) continue;
       compared++;
       expect(type.className, twin.className, reason: '${type.name}: classname');
       type.attributes.forEach((key, value) {
@@ -337,16 +307,12 @@ void main() {
     void compare(String path, SeqProperty got, SeqProperty want) {
       expect(got.name, want.name, reason: '$path: name');
       expect(got.className, want.className, reason: '$path: classname');
-      // Inline custom instances and intrinsically-typed arrays legitimately
-      // carry no typename (engine-intrinsic types are not serialized).
       if (got.typeName != null ||
           (got.attributes[BinAttr.overrides] == null && got.attributes[BinAttr.intrinsic] == null)) {
         expect(got.typeName, want.typeName, reason: '$path: typename');
       }
       expect(got.scalar, want.scalar, reason: '$path: value');
       expect(got.array == null, want.array == null, reason: '$path: array-ness');
-      // Anti-fabrication: a populated twin array must be MARKED undecoded,
-      // never flattened to a decoded-empty array.
       if (want.array != null && want.array!.isNotEmpty) {
         expect(
           got.attributes[BinAttr.arrayUndecoded],
@@ -355,8 +321,6 @@ void main() {
         );
       }
       if (got.attributes[BinAttr.overrides] == 'true') {
-        // An inline custom instance serializes ONLY its overrides — a subset
-        // of the twin's materialized fields, matching where valued.
         final wantByName = {for (final w in want.subProps) w.name: w};
         for (final child in got.subProps) {
           final twinChild = wantByName[child.name];
@@ -368,8 +332,6 @@ void main() {
         expect(got.subProps.length, lessThanOrEqualTo(want.subProps.length), reason: '$path: overrides are a subset');
         return;
       }
-      // Plain declarations recurse; typed default-instance REFERENCES carry
-      // no children (the binary stores only the ref).
       if (got.subProps.isNotEmpty || (got.typeName == null && want.subProps.isNotEmpty)) {
         expect(got.subProps.length, want.subProps.length, reason: '$path: child count');
         for (var i = 0; i < got.subProps.length; i++) {
@@ -415,9 +377,6 @@ void main() {
         reason: '${xs.name}: RTS children (name:class=value)',
       );
     }
-    // Concretely: one implicit ResultList local, no parameters, results
-    // recorded with failure action 2, and a 15-field RTS whose Priority and
-    // entry-point expressions decode exactly.
     expect(binFile.sequences.single.locals.map((l) => l.name), ['ResultList']);
     expect(binFile.sequences.single.parameters, isEmpty);
     expect(binFile.sequences.single.recordsResults, isTrue);
@@ -436,7 +395,7 @@ void main() {
       for (var j = 0; j < bSteps.length; j++) {
         final decoded =
             bSteps[j].raw.prop('TS')?.subProps.where((p) => p.name != 'SData').toList() ?? const <SeqProperty>[];
-        if (decoded.isEmpty) continue; // TS not decoded for this step: honest, not fabricated
+        if (decoded.isEmpty) continue;
         final twinByName = {
           for (final p in xSteps[j].raw.prop('TS')?.subProps ?? const <SeqProperty>[]) p.name: p,
         };
@@ -511,14 +470,12 @@ void main() {
     });
 
     test('every decoded value matches the content-exact XML twin (membership)', () {
-      // A flat scan cannot pin WHICH occurrence of a duplicated name it is,
-      // so membership — not position — is the honest check.
       var checked = 0, confirmed = 0;
       final unmatched = <String>[];
       for (final record in records) {
         if (record.value == null) continue;
         final xmlForName = xmlValues[record.name];
-        if (xmlForName == null) continue; // nested-only / absent name: not checkable here
+        if (xmlForName == null) continue;
         checked++;
         if (xmlForName.contains(_asXmlText(record.value))) {
           confirmed++;
@@ -553,8 +510,6 @@ void main() {
         final binEl = binParams.array![i];
         final xmlEl = xmlParams.array![i];
         expect(binEl.typeName, xmlEl.typeName, reason: 'element $i typename');
-        // The binary stores the element's SERIALIZED SUBSET (defaults are
-        // omitted); every stored field must match the twin exactly.
         expect(binEl.subProps, isNotEmpty, reason: 'element $i decoded no fields');
         for (final field in binEl.subProps) {
           final twin = xmlEl.prop(field.name);
@@ -567,8 +522,6 @@ void main() {
     });
 
     test('i64 Num values decode through the typedef representation context', () {
-      // Plain [0x2] Nums whose i64 encoding is implied by
-      // NI_MeasurementParameter's typedef — an f64 read yields a denormal.
       final params = stepOf(binFile, 'Output voltage test').raw.prop('Measurement')!.prop('Parameters')!;
       expect(
         [for (final el in params.array!) el.prop('ID')!.scalar],
@@ -577,13 +530,6 @@ void main() {
     });
 
     test('deep Type-node ID slots decode as integers via the subnormal signature', () {
-      // The parameter elements' nested Type descriptors carry their own
-      // i64-stored `ID` Nums with NO representation context in reach (the
-      // element type rides an elemproto the walk does not resolve); the
-      // subnormal-signature read recovers them — the twin stores
-      // `<ID classname='Num'><value representation='Int64'>N</value>`
-      // (small integers), never a subnormal double text (0 subnormal
-      // numeric texts across every XML/INI corpus file).
       List<String> deepIds(SeqProperty p) => [
         if (p.name == 'ID' && p.className == 'Num' && p.scalar != null) p.scalar!,
         for (final c in p.subProps) ...deepIds(c),
@@ -601,8 +547,6 @@ void main() {
       final enumParam = params.array!.firstWhere((el) => el.prop('Name')?.scalar == 'measurement_type');
       final members = enumParam.prop('EnumDefinition')!.array!;
       expect(members.map((m) => m.name).toList(), ['DC_VOLTS', 'AC_VOLTS']);
-      // DC_VOLTS stores no value (inherits the 0 default); AC_VOLTS stores
-      // the twin's Int64 1 with the explicit representation.
       expect(members[0].scalar, isNull);
       expect(members[1].scalar, '1');
       expect(members[1].valueAttributes['representation'], 'Int64');
@@ -630,7 +574,6 @@ void main() {
         'ID',
         'TypeSpecialization',
       ]);
-      // The 0x800 representation words the twin materializes as UInt64/Int64.
       expect(
         fields.firstWhere((f) => f.name == 'Dimension').numericRepresentation,
         BinaryNumericRepresentation.uint64.code,
@@ -657,8 +600,6 @@ void main() {
       expect(parameters.children, hasLength(twinParameters.length));
       for (var i = 0; i < twinParameters.length; i++) {
         for (final field in ['Name', 'Direction', 'Type', 'ID', 'TypeSpecialization']) {
-          // Assert the field DECODED before comparing: a null-safe compare of
-          // two absent values would pass vacuously.
           final got = child(parameters.children[i], field);
           expect(got, isNotNull, reason: 'parameter $i missing decoded field $field');
           expect(got!.value, twinParameters[i].prop(field)?.scalar, reason: 'parameter $i $field');
@@ -678,10 +619,6 @@ void main() {
   });
 
   test('cross-format substep oracle: binary NI_Wait Substeps match the XML typedef', () {
-    // Two INDEPENDENT corpus files materialize the same engine-versioned
-    // NI_Wait step type — one XML, one binary. The substep decode must
-    // reproduce the XML side value-for-value (names, typenames, Ids, module
-    // LibPath/Func bindings).
     final files = corpusSeqDir.listSync(recursive: true).whereType<File>().toList();
     File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
     final xmlPin = pin('Server/ExampleFiles/TraceExecution.seq');
@@ -691,8 +628,6 @@ void main() {
 
     final xmlWait = parseSeqFile(xmlPin!.readAsBytesSync()).types.where((t) => t.name == 'NI_Wait').first;
     final xmlSubsteps = xmlWait.prop('Substeps')!.array!;
-    // Value-less slots are dropped: the XML side materializes every member,
-    // the binary stores the override subset — only set values exist on both.
     List<String> xmlPairs(SeqProperty p) => [
       if (const {'Id', 'LibPath', 'Func'}.contains(p.name) && (p.scalar ?? '').isNotEmpty) '${p.name}=${p.scalar}',
       for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) ...xmlPairs(c),
@@ -717,6 +652,6 @@ void main() {
         reason: 'substep ${binSubsteps[i].name}: Id/LibPath/Func values',
       );
     }
-    expect(binSubsteps, hasLength(3)); // OnNewStep, Post, Edit
+    expect(binSubsteps, hasLength(3));
   });
 }

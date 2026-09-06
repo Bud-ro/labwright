@@ -1,6 +1,3 @@
-// csvToTdms / tdmsToCsv: table-driven conversions plus a robustness fuzz —
-// csvToTdms parses arbitrary user files, so it must never throw and its output
-// must always be readable TDMS.
 import 'dart:math';
 
 import 'package:labwright_tdms/labwright_tdms.dart';

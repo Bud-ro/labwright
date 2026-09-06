@@ -10,14 +10,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// Whole-corpus invariants over `buildViModel` (determinism, structural sanity, mutation fuzz) plus
-/// per-tag section laws (LVSR/CONP/TM80/STRG/DTHP/HIST/HLPP/FTAB/icons/vers/signatures/id tables).
-/// Zero-tolerance laws are asserted directly; every measured census (the former render/naming/layout
-/// and per-tag rate floors, as raw numerator/denominator counts) is asserted EXACTLY against the
-/// `invariants` section of corpus/snapshot.json. Everything is computed ONCE per VI in a worker
-/// isolate ([corpusParallel]); the tests assert on the aggregated counters. Skipped when the corpus
-/// is absent.
-
 bool _bytesEq(Uint8List a, Uint8List b) {
   if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
@@ -31,12 +23,8 @@ const _sigLen = {'RTSG': 16, 'OBSG': 16, 'CCSG': 16, 'SCSR': 20, 'MUID': 4};
 const _constLen = {'VPDP': 4, 'DLDR': 28, 'GCPR': 13};
 const _iconLen = {'icl8': 1024, 'icl4': 512, 'ICON': 128};
 
-/// Deterministic byte-flip iterations per VI: every VI is fuzzed, so a small count already out-covers
-/// a big per-seed loop.
 const _fuzzIters = 2;
 
-/// Per-VI result: summed counters, distinct signature bodies, capped `key•`-prefixed diagnostics,
-/// object kinds seen, and record-heap head tags.
 typedef _Summ = (Map<String, int>, Map<String, Set<String>>, List<String>, Set<int>, Set<String>);
 
 String _sig(ViModel m) {
@@ -59,14 +47,12 @@ bool _inside(HeapRect o, int cx, int cy) => cx >= o.left && cx <= o.right && cy 
 bool _heapLead(int x) => x == 0xc4 || (x >= 0x08 && x <= 0x13);
 bool _wild(HeapRect r) => [r.left, r.top, r.right, r.bottom].any((c) => c < -200000 || c > 200000);
 
-/// A real C4 record-heap opens with a u32 content-length == len-4 followed by a group-open/C4 lead.
 bool _structuralHeap(List<int> b) {
   if (b.length < 8) return false;
   final declared = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
   return declared == b.length - 4 && _heapLead(b[4]);
 }
 
-/// True when the runes are empty, all printable ([moreThan] null), or printable above the fraction.
 bool _printableRun(Iterable<int> runes, {bool asciiOnly = true, double? moreThan}) {
   var printable = 0, total = 0;
   for (final c in runes) {
@@ -92,7 +78,6 @@ _Summ _summarize(Uint8List bytes, String path) {
     for (final t in [..._constLen.keys, 'RTSG', 'OBSG', 'CCSG', 'SCSR']) t: <String>{},
   };
 
-  // ---- per-tag section laws (independent of the model build) ----
   List<ViSection>? secs;
   List<DecodedSection>? dsecs;
   try {
@@ -203,7 +188,6 @@ _Summ _summarize(Uint8List bytes, String path) {
         n('tmTotal');
         if (m.framesExactly) {
           n('tmFramed');
-          // A framed map must re-emit byte-exact from its decoded fields.
           final re = reserializeTypeMap(d.bytes);
           if (re == null || re.length != d.bytes.length || !_bytesEq(re, d.bytes)) n('tmReemitBad');
         }
@@ -233,7 +217,6 @@ _Summ _summarize(Uint8List bytes, String path) {
     }
   }
 
-  // ---- model-based invariants (neutral when the model build throws — the non-RSRC fixture) ----
   ViModel? m;
   try {
     m = buildViModel(bytes);
@@ -244,8 +227,6 @@ _Summ _summarize(Uint8List bytes, String path) {
     if (_sig(m) != _sig(buildViModel(bytes))) bad('nondet', path);
   } catch (_) {}
 
-  // The DTHP header's `[count][firstTopLevelIndex]` run vs the VCTP top-level
-  // list and the heap indices that address it (see decodeDataTypeHeap).
   final decodedSections = dsecs;
   if (decodedSections != null) {
     Uint8List? bodyOf(String tag) => decodedSections.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
@@ -337,7 +318,6 @@ _Summ _summarize(Uint8List bytes, String path) {
     }
   }
 
-  // Record-heap census (BLOCK CATALOG ↔ corpus), gated on a successful model build.
   try {
     for (final s in decodeSections(bytes)) {
       final isCatHeap = isRecordHeapTag(s.tag);
@@ -468,13 +448,6 @@ void main() {
   });
 
   test('section-law and model censuses match the committed snapshot exactly', () {
-    // Every counter [_summarize] accumulates (render/naming/layout pairs,
-    // per-tag law numerators/denominators, heap-catalog populations) plus the
-    // per-tag distinct-body counts and the object-kind/head-tag population
-    // sizes — pinned exactly. The former floor gates (bdTyped/bdVisible,
-    // subviNamed/subviTotal, verMatch/verTotal, sized:*/cnt:*, …) are read
-    // straight off the numerator/denominator pairs in the diff. `bad:*` keys
-    // are excluded: the law tests above pin them at zero.
     expectCorpusSnapshot('invariants', {
       for (final e in C.entries)
         if (!e.key.startsWith('bad:')) e.key: e.value,

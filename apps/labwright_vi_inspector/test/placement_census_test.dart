@@ -8,23 +8,8 @@ import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import 'util.dart';
 
-/// Measures where LabVIEW places each primitive's icon art within its node
-/// box, by exact-matching every bundled asset's opaque pixels (normal and
-/// disabled-grey palettes) against the reference renders across the whole
-/// snippet corpus, then rewrites `kPrimIconPlacement` from the census.
-///
-/// Registration is normalised per snippet from its UNAMBIGUOUS matches
-/// (art exactly filling its box has one possible position, so any offset
-/// there is the snippet's own registration bias, not a placement signal).
-/// A key with conflicting placements across instances fails the run — a
-/// placement is only recorded when unanimous.
-///
 /// Opt-in (it writes into lib/):
 /// `flutter test test/placement_census_test.dart --dart-define=PRIM_PLACEMENT_CENSUS=1`
-///
-/// A comma-separated key list in place of `1` re-measures only those
-/// identities and leaves every other row of the table as it was, so one
-/// re-cut asset's placement lands on its own.
 void main() {
   const enabled = String.fromEnvironment('PRIM_PLACEMENT_CENSUS');
   testWidgets(
@@ -52,7 +37,6 @@ void main() {
           greyBytes[e.key] = (await e.value.base.toByteData())!.buffer
               .asUint8List();
         }
-        // key -> in-box placement -> instance count
         final census = <String, Map<(int, int), int>>{};
         for (final f in pngs) {
           final bytes = f.readAsBytesSync();
@@ -87,8 +71,6 @@ void main() {
               .asUint8List();
           final rw = reference.image.width;
           final rh = reference.image.height;
-          // (key, boxOffset) hits for this snippet, plus the unambiguous ones
-          // that vote for the snippet's registration bias.
           final hits = <(String, int, int, int, int)>[];
           final bias = <(int, int), int>{};
           for (final o in drawable) {
@@ -100,7 +82,6 @@ void main() {
             if (art == null) continue;
             final aw = art.base.width, ah = art.base.height;
             final bw = b.right - b.left, bh = b.bottom - b.top;
-            // Search window around the box-centred prediction in ref coords.
             final cx = (b.left - raster.content.left + reg.dx).round();
             final cy = (b.top - raster.content.top + reg.dy).round();
             final px0 = cx + ((bw - aw) / 2).floor();
@@ -138,20 +119,12 @@ void main() {
           }
           reference.image.dispose();
           raster.image.dispose();
-          // No art-fills-box anchor in a snippet: its hits enter the
-          // census unnormalised (bias 0,0) — a registration bias there
-          // would surface as a placement conflict with anchored snippets
-          // and fail the run.
           final snipBias = bias.isEmpty
               ? (0, 0)
               : (bias.entries.toList()
                       ..sort((a, b) => b.value.compareTo(a.value)))
                     .first
                     .key;
-          // An exact opaque-pixel match of a whole icon is never accidental:
-          // every hit is a real placement (a junk-laden crop simply records
-          // where its junk-laden pixels sit, which is where they must render
-          // until the asset is redone).
           for (final (kn, boxDx, boxDy, _, _) in hits) {
             final place = (boxDx - snipBias.$1, boxDy - snipBias.$2);
             (census[kn] ??= {})[place] = (census[kn]![place] ?? 0) + 1;
@@ -178,8 +151,6 @@ void main() {
             "  '$kn': (dx: ${e.key.$1}, dy: ${e.key.$2}), // x${e.value}",
           );
         }
-        // A sweep that silently found almost nothing (corpus missing, a
-        // matcher regression) must not overwrite the committed table.
         expect(
           entries.length,
           greaterThan(40),
@@ -199,9 +170,6 @@ void main() {
         const endMark = '// GENERATED-PLACEMENT-END';
         final begin = existing.indexOf(beginMark) + beginMark.length;
         final end = existing.indexOf(endMark);
-        // A key list re-measures only those identities, so one asset's
-        // placement is reviewable without the instance-count churn every
-        // other key's sample selection produces.
         final only = enabled == '1'
             ? const <String>{}
             : enabled.split(',').map((key) => key.trim()).toSet();
@@ -231,8 +199,6 @@ void main() {
   );
 }
 
-/// The rows of [committed] — the placement table's current body — with the
-/// entries naming a key in [only] replaced by the matching rows of [fresh].
 List<String> _rowsWithReplacements(
   String committed,
   List<String> fresh,

@@ -5,44 +5,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// VI corpus **coverage** report — the honest, complete scorecard for "how much
-/// of a `.vi` do we understand?".
-///
-/// The north star (CLAUDE.md) is *total understanding of every byte*. That goal
-/// is decomposed into independent axes, each a real 0–100% where 100% means that
-/// axis is genuinely done — and the set is laid out up front so reaching 100% on
-/// one is never "okay, now part 2". The format is fully understood IFF every axis
-/// below is 100%. See `packages/labwright_rsrc_parse/COVERAGE.md` for the full
-/// taxonomy.
-///
-///   parseOk%           — VIs whose RSRC container parses (reader totality).
-///   decodeOk%          — VIs whose compressed sections all inflate.
-///   containerExact%    — VIs whose container serializes back byte-identically
-///                        (round-trip). 100% ⟺ the container wrapper is understood.
-///   blocksIdentified%  — block instances whose 4-char tag is catalogued (vs an
-///                        unknown tag). 100% ⟺ every block is identified by type.
-///   blockBytesDecoded% — block-content bytes (inflated) belonging to a block type
-///                        that has a decoder. 100% ⟺ every block has decode logic
-///                        (byte-weighted). This is the "how much is left" headline.
-///   Heap internals (refine blockBytesDecoded for the C4 record heaps, the bulk):
-///   heapFramed%        — heap body bytes inside a deliberately-framed record.
-///   heapSemantic%      — heap body bytes whose meaning AND value/content are
-///                        decoded. A record with a catalogued role but an
-///                        undecoded payload interior (a container-width
-///                        attribute) counts only its header/framing bytes here;
-///                        the payload bytes count value-kind-known.
-///   heapComplete%      — heaps walked exactly to EOF.
-///
-/// The numbers are never hand-maintained: this tool computes them over the WHOLE
-/// corpus and writes a gitignored `corpus/vi/REPORT.md` scorecard (plus the
-/// stdout table). The committed regression gate for the same axes lives in
-/// `corpus/snapshot.json` as raw counts — regenerate it with
-/// `tool/snapshot.dart`; `corpus_coverage_test.dart` asserts it exactly.
-///
 /// Run: `dart run tool/coverage.dart [corpusRoot=<package>/corpus/vi]`
-///
-/// The gitignored corpus checkout lives under the package's `corpus/vi/`
-/// (resolved by the shared [corpusBaseDir]).
 
 class _Stat {
   int vis = 0, parseOk = 0, decOk = 0, containerExact = 0;
@@ -51,8 +14,6 @@ class _Stat {
   int blockInstances = 0, blocksIdentified = 0;
   int blockBytes = 0, blockBytesDecoded = 0;
 
-  // Writer scoreboard: whole-file byte attribution (model vs copied) and the
-  // byte-exact re-serialization count, from [attributeVi].
   int fileBytes = 0, writerExact = 0, writerFiles = 0;
   int wHeader = 0, wInfoStruct = 0, wSecPrefix = 0, wTypedPayload = 0, wAlignPad = 0;
   int wInfoRaw = 0, wGap = 0, wCompressed = 0, wUntyped = 0;
@@ -171,7 +132,6 @@ bool _listEq(List<int> a, List<int> b) {
 
 String _pct(double v) => (v * 100).toStringAsFixed(1);
 
-/// One-line writer-scoreboard summary for stdout.
 String _writerSummary(_Stat s) =>
     'WRITER ${s.writerExact}/${s.writerFiles} byte-exact · '
     'model ${_pct(s.modelPct)}% · copied ${_pct(s.copiedPct)}% '
@@ -181,9 +141,6 @@ String _writerSummary(_Stat s) =>
 void main(List<String> args) {
   final root = args.isNotEmpty ? args[0] : '${corpusBaseDir().path}/vi';
   final rootDir = Directory(root);
-  // One recursive, symlink-free enumeration (the same [listCorpusVis] the corpus
-  // tests use), grouped by source = the first path segment under the root. A
-  // `.vi` directly under the root has no source dir and is not counted.
   final bySource = <String, List<File>>{};
   final prefix = '${rootDir.path}/';
   for (final f in listCorpusVis(rootDir)) {

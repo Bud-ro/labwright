@@ -1,18 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-/// Read-only **content-model fidelity** view for a `.vi`, driven by the writer
-/// scoreboard ([attributeVi] → [WriterAttribution]). It makes the writer's
-/// reconstruction visible: how much of the file is emitted from a typed,
-/// understood model versus copied verbatim, at two levels — the raw **byte**
-/// model (stored file bytes) and the **content** model (compressed heap sections
-/// counted at their inflated size, since LabVIEW reads them through zlib) — plus
-/// the byte-exact round-trip status and a per-category byte breakdown.
 class ViCoverageView extends StatelessWidget {
   const ViCoverageView({super.key, required this.attribution});
 
-  /// The byte attribution for the loaded VI, or null when it could not be
-  /// computed (a non-RSRC container, or an error during attribution).
   final WriterAttribution? attribution;
 
   @override
@@ -302,7 +293,6 @@ class ViCoverageView extends StatelessWidget {
       : '$byteCount B';
 }
 
-/// One labeled proportion of a stacked bar.
 class _Seg {
   const _Seg(this.label, this.bytes, this.color);
   final String label;
@@ -310,7 +300,6 @@ class _Seg {
   final Color color;
 }
 
-/// A titled stacked proportion bar with a legend of its segments (bytes + %).
 class _BarSection extends StatelessWidget {
   const _BarSection({
     required this.title,

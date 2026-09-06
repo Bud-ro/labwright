@@ -34,7 +34,6 @@ Uint8List _idtab(List<int> entries) {
   return b.buffer.asUint8List();
 }
 
-/// A 2×2 24-bpp icon section in the validated header form (flags 0, w/h 2, depth 24, doubled rect 2×2).
 Uint8List _iconSection(List<int> pixels) {
   final b = Uint8List(40 + pixels.length);
   b[5] = 2;
@@ -77,8 +76,6 @@ void main() {
     expect((t.version, t.fontCount, t.nameTableOffset), (1, 2, 16));
     expect(t.names, ['Segoe UI', 'Tahoma']);
     expect(t.entries, isEmpty, reason: 'name table at 16 != 8 + 2*16, so no record framing');
-    // Record-framed table: one 16-byte record [nameOff size flags style weight
-    // resolvedSize metricA metricB] then its Pascal name at the recorded offset.
     final framed = u8([
       0,
       1,
@@ -182,8 +179,6 @@ void main() {
   });
 
   test('decodeTypeMap (TM80): variable-field [count][indexShift][flags] walk + byte-exact re-emit', () {
-    // count=3, indexShift=4. Flags 0xd000/0xd001 have bit15 set so they use the
-    // 4-byte u2p2 form (8000_xxxx); 0x2000 fits the 2-byte form.
     const body = '0003 0004 8000d000 2000 8000d001';
     final m = decodeTypeMap(hx(body))!;
     expect((m.framesExactly, m.indexShift, m.rawLength), (true, 4, 14));
@@ -191,8 +186,6 @@ void main() {
     expect(reserializeTypeMap(hx(body)), hx(body));
     expect(typeMapFrames(hx(body)), isTrue);
 
-    // count==0 -> no indexShift/entries; trailing bytes leave it unframed (the
-    // older inline-TD form starts with 0x0000), so it does not re-emit.
     final inline = decodeTypeMap(hx('0000 0021 0008'))!;
     expect(inline.framesExactly, isFalse);
     expect(inline.entries, isEmpty);
@@ -268,7 +261,6 @@ void main() {
     expect((t.entries[0].offset, t.entries[0].value, t.entries[0].kind), (0x41, 9, 1));
     expect((t.entries[1].offset, t.entries[1].value, t.entries[1].kind), (0x118, 0x10, 3));
     expect(t.serialize(), body, reason: 'byte-exact inverse');
-    // Over-large count reads only what is available (never over-reads).
     final lying = Uint8List(4 + 9)..[3] = 99;
     expect(decodeAlignTable(lying)!.entries.length, 1);
     expect(decodeAlignTable(u8([0, 1])), isNull);
@@ -455,13 +447,10 @@ void main() {
 
   group('block-payload writers (byte-exact serialize inverses)', () {
     test('ViLegacyIcon.serialize re-packs 8/4/1 bpp exactly (inverse of decode)', () {
-      // 8 bpp: 1024 palette indices copied verbatim.
       final icl8 = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 7) & 0xff]);
       expect(decodeLegacyIcon(icl8, 8)!.serialize(), icl8);
-      // 4 bpp: 512 bytes, two nibbles each.
       final icl4 = Uint8List.fromList([for (var i = 0; i < 512; i++) (i * 13) & 0xff]);
       expect(decodeLegacyIcon(icl4, 4)!.serialize(), icl4);
-      // 1 bpp: 128 bytes, eight MSB-first bits each.
       final icon = Uint8List.fromList([for (var i = 0; i < 128; i++) (i * 29) & 0xff]);
       expect(decodeLegacyIcon(icon, 1)!.serialize(), icon);
     });
@@ -478,13 +467,12 @@ void main() {
       expect(decodeStringBlockRaw(body)!.serialize(), body);
       final empty = _strg('');
       expect(decodeStringBlockRaw(empty)!.serialize(), empty);
-      // Non-UTF-8 bytes survive verbatim (the lossy text decoder would not).
       final raw = u8([0, 0, 0, 3, 0xff, 0x00, 0x80]);
       expect(decodeStringBlockRaw(raw)!.serialize(), raw);
     });
 
     test('ViHistory.serialize re-emits the fixed 40-byte ten-word record', () {
-      final body = _lvsr(40, b0: 2); // reuse a 40-byte builder; contents are u32 words
+      final body = _lvsr(40, b0: 2);
       expect(decodeHistory(body)!.serialize(), body);
     });
 
@@ -498,28 +486,22 @@ void main() {
     });
 
     test('ViWordGrid/ViTitleRaw/constant/signature writers re-emit their bodies exactly', () {
-      // DLDR: fixed seven-word u32 grid; off-size stays copied.
       final dldr = u8([0, 0, 0, 1, ...List.filled(24, 0)]);
       expect(decodeDldrRecord(dldr)!.serialize(), dldr);
       expect(decodeDldrRecord(u8([0, 0, 0, 1])), isNull, reason: 'not seven words');
-      // CNST/LPIN: variable u32 grids (multiples of 4); a non-multiple stays copied.
       final grid = u8([0, 0, 3, 0xae, 0, 0, 3, 0xc4, 0, 0, 5, 9]);
       expect(decodeWordGrid(grid)!.serialize(), grid);
       expect(decodeWordGrid(u8([1, 2, 3])), isNull);
       expect(decodeWordGrid(u8([])), isNull);
-      // VPDP: 4-byte all-zero constant; a non-zero body is not modeled.
       expect(decodeVpdpRecord(u8([0, 0, 0, 0]))!.serialize(), u8([0, 0, 0, 0]));
       expect(decodeVpdpRecord(u8([0, 0, 0, 1]))!.serialize(), isNull);
-      // TITL: [u8 len][text]; non-printable text survives, a length mismatch is rejected.
       final titl = u8([3, 0xff, 0x00, 0x41]);
       expect(decodeTitleRaw(titl)!.serialize(), titl);
       expect(decodeTitleRaw(u8([5, 1, 2])), isNull, reason: 'length overruns');
-      // OBSG/CCSG: a 16-byte opaque identity value.
       final sig = Uint8List.fromList([for (var i = 0; i < 16; i++) (i * 11) & 0xff]);
       expect(serializeBlockPayload('OBSG', sig), sig);
       expect(serializeBlockPayload('CCSG', sig), sig);
       expect(serializeBlockPayload('OBSG', u8([1, 2, 3])), isNull);
-      // COUT: fixed three-word u32 grid; CPD2: a fixed 2-byte u16.
       final cout = u8([0, 0, 0, 1, 0xe2, 0x4d, 0x4e, 0x32, 0xb4, 0x55, 0xad, 0xf7]);
       expect(serializeBlockPayload('COUT', cout), cout);
       expect(serializeBlockPayload('COUT', u8([0, 0, 0, 1])), isNull, reason: 'not three words');
@@ -533,29 +515,19 @@ void main() {
       final suid = _idtab([7, 8, 9]);
       expect(serializeBlockPayload('SUID', suid), suid);
       expect(hasBlockWriter('BNID'), isTrue);
-      // LVSR is a word-aligned record: a whole number of u32 words round-trips.
       expect(hasBlockWriter('LVSR'), isTrue);
       final lvsr = u8([1, 2, 3, 4, 5, 6, 7, 8]);
       expect(serializeBlockPayload('LVSR', lvsr), lvsr);
-      // A non-word-aligned LVSR body is not modeled, so it stays copied.
       expect(serializeBlockPayload('LVSR', u8([1, 2, 3, 4, 5])), isNull);
-      // BDPW is a whole number of 16-byte digests: a 48-byte body round-trips,
-      // a wrong-sized one is not modeled and stays copied.
       expect(hasBlockWriter('BDPW'), isTrue);
       final bdpw = Uint8List.fromList([for (var i = 0; i < 48; i++) (i * 5) & 0xff]);
       expect(serializeBlockPayload('BDPW', bdpw), bdpw);
       expect(serializeBlockPayload('BDPW', u8([1, 2, 3, 4])), isNull);
-      // MUID is a single u32; a LI* section is model-sourced only when it holds
-      // at most one entry (deterministically bounded) — an empty LIvi round-trips.
       expect(serializeBlockPayload('MUID', u8([0x12, 0x34, 0x56, 0x78])), u8([0x12, 0x34, 0x56, 0x78]));
       final emptyLi = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3]);
       expect(serializeBlockPayload('LIvi', emptyLi), emptyLi);
-      // A two-entry LI* section is not deterministically separable, so it stays copied.
       expect(serializeBlockPayload('LIvi', u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3])), isNull);
-      // Wrong-sized icon body: decode fails, so no model-sourced bytes.
       expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
-      // Id table with trailing bytes past 4+4*count: re-serialization is shorter,
-      // so the guard rejects it and the payload stays copied.
       expect(serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])), isNull);
     });
 
@@ -564,7 +536,6 @@ void main() {
       final t = decodeIdTable(body)!;
       final mutated = ViIdTable(rawLength: t.rawLength, count: t.count, entries: [...t.entries]..[2] = 0x11223344);
       final out = mutated.serialize();
-      // Re-parse confirms the mutation took and nothing else moved.
       final re = decodeIdTable(out)!;
       expect(re.entries, [10, 20, 0x11223344, 40]);
       expect(out.length, body.length);

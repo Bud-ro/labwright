@@ -1,37 +1,8 @@
-/// The **declaration writer**: an [LvTypeDecl] as Dart source.
-///
-/// A lowered library spells nominal types — a named cluster's class, a named
-/// enum's `enum` — and this is where those declarations are written, so that
-/// nothing the emitter produces refers to a name the file does not carry.
-///
-/// Two shapes, and the file format decides both:
-///
-/// - a **cluster** becomes a class of `final` fields with a `const` constructor
-///   taking every one by name. A cluster is a value with a fixed member list;
-///   nothing about it changes after construction, and the descriptor states no
-///   default for any member, so there is no unnamed or optional form to write.
-/// - an **enum** becomes a Dart `enum`. The descriptor's interior is
-///   `[u16 count]` then `count × [u8 len][chars]` — item labels in order and no
-///   value word anywhere — so an item's value is its ordinal, which is exactly
-///   a Dart enum's `index`. A class of named integer constants would carry the
-///   same information and lose the exhaustiveness a `switch` over an enum gets.
-///
-/// The one declaration that cannot be written is an enum whose item labels did
-/// not decode ([LvTypeDecl.undeclarable]): a Dart `enum` must have a member.
-library;
-
 import 'naming.dart';
 import 'type_map.dart';
 
-/// [decl] as Dart source — a class for a cluster, an `enum` for an enum.
-///
-/// The declaration is complete: every field is typed and every enum member
-/// named, so a file carrying it compiles. Callers must have refused already on
-/// [LvTypeDecl.undeclarable].
 String lvDeclarationSource(LvTypeDecl decl) => decl.isEnum ? _enumSource(decl) : _classSource(decl);
 
-/// Every declaration reachable from [roots], each one before anything that
-/// names it, with duplicates removed — the order a file writes them in.
 List<LvTypeDecl> lvDeclarationClosure(Iterable<LvTypeDecl> roots) {
   final seen = <LvTypeDecl>{};
   final ordered = <LvTypeDecl>[];
@@ -87,10 +58,6 @@ String _enumSource(LvTypeDecl decl) {
   return out.toString();
 }
 
-/// [label] as one line of doc-comment text, quoted — or a stated absence.
-///
-/// A LabVIEW name is free text: it may hold newlines, backticks or bytes
-/// outside printable ASCII, none of which a `///` line can carry as they are.
 String _doc(String? label) {
   if (label == null) return 'with no name of its own';
   final collapsed = label.replaceAll(RegExp(r'\s+'), ' ').trim();

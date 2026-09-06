@@ -1,4 +1,3 @@
-// `labwright init` scaffolding and the CLI hot-restart supervisor.
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -30,8 +29,6 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('hot restart: the CLI supervisor respawns a fresh suite on the same port', () async {
-    // A fixed free port: restart must rebind the SAME port so the page's
-    // EventSource reconnects (probe-close race is acceptable in a test).
     final probe = await ServerSocket.bind(InternetAddress.loopbackIPv4, 0);
     final port = probe.port;
     await probe.close();
@@ -46,8 +43,6 @@ void main() {
       await v.ready();
       expect((await v.post('/restart')).$1, 202, reason: 'a supervised suite accepts the restart');
 
-      // The supervisor notices the sentinel exit and a FRESH suite comes up on
-      // the same port (fresh registration = the whole fix for edited bodies).
       await v.line('hot restart - starting a fresh suite process', timeout: const Duration(seconds: 30));
       await v.line('View results and re-run tests at', nth: 2);
       final state = await v.settle((s) => s['done'] == true, tolerateErrors: true);

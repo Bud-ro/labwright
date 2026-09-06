@@ -4,14 +4,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'corpus_base.dart';
 
-/// Per-tag totals of DECODER-LESS block bytes across the whole corpus — the
-/// worklist for driving the coverage tool's decBytes% axis to 100%. For each
-/// section (decompressed), attributes its byte count to its tag; prints tags
-/// with no registered decoder, largest first, with their catalog note.
-///
 /// Run: `dart run tool/undecoded_bytes.dart [corpusDir]`
-/// Default corpusDir resolved by the shared [corpusBaseDir]; enumeration via
-/// [listCorpusVis] (recursive, symlinks excluded).
 void main(List<String> args) {
   final dir = Directory(args.isNotEmpty ? args[0] : '${corpusBaseDir().path}/vi');
   if (!dir.existsSync()) {

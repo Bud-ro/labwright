@@ -1,38 +1,11 @@
 part of 'seq_binary.dart';
 
-// ─────────────── decode metrics: pure folds of the recorded stream ───────────────
-//
-// Every binary-decode metric — the byte-coverage tier accounting, the
-// undecoded-span census, and the writer scoreboard — is computed HERE, as a
-// pure fold of the typed decode stream one production pass records into a
-// [_RecordingDecodeSink] (see [_decodeBody]). The parsers emit only that
-// stream; nothing in this file re-reads body bytes. The writer serializes
-// from the SAME stream ([_buildWritePlan] over [_RecordingDecodeSink.ops]),
-// so the coverage tiers and the writer's copy-vs-serialize splits cannot
-// drift apart.
-
-/// Per-byte accounting tiers for the record region (see [BinaryByteCoverage]).
-/// Higher wins when decode claims overlap.
 const _tierUndecoded = 0;
 
-/// Extent walked by a measured shape, contents not decoded (element-type spec
-/// blobs, extdata block payloads, the inter-record preamble, the leading recon
-/// words).
 const _tierStructural = 1;
 
-/// Consumed by a twin-validated decode (type heads/bodies, sequence records,
-/// step references, module pairs, leaf property records, …).
 const _tierSemantic = 2;
 
-/// Folds a recorded decode stream's tier claims into the per-byte tier map of
-/// a record region of [recordRegionLength] bytes.
-///
-/// Claims never downgrade (a byte two decodes claim keeps the higher tier);
-/// demotions then downgrade [_tierSemantic] bytes to [_tierStructural] — the
-/// blob extents a successful parse walked whose contents are not decoded.
-/// Bytes outside any committed claim stay [_tierUndecoded]: a blob demotion
-/// can never upgrade bytes nothing accounts for. Spans are clamped to the
-/// region, so an oversized claim cannot mark past it.
 Uint8List _tiersOfStream(_RecordingDecodeSink stream, int recordRegionLength) {
   final tiers = Uint8List(recordRegionLength);
   for (final (start, end, tier) in stream.claims) {
@@ -52,33 +25,6 @@ Uint8List _tiersOfStream(_RecordingDecodeSink stream, int recordRegionLength) {
   return tiers;
 }
 
-/// How much of a binary TOF1 file's **inflated body bytes** the decoder
-/// accounts for — the byte-level scoreboard of the binary decode campaign
-/// (the analog of the RSRC heap-body tiering; [SeqCoverage] is the
-/// node-level metric for the parsed tree).
-///
-/// Every inflated-body byte lands in exactly one bucket:
-///
-///  * **pool** ([poolBytes]) — the string region: the ordered NUL-terminated
-///    string pool. Its structure and contents are fully read
-///    ([_orderedStringPool] is total over the region: every byte is string
-///    content or a NUL separator), and every decoded record resolves its
-///    names/values through it by index — twin-validated through every decoded
-///    value. Reported as its own bucket so the record-region numbers cannot
-///    be flattered by pool mass.
-///  * **record-region semantic** ([recordSemanticBytes]) — consumed by a
-///    twin-validated decode: type-record heads and decoded bodies, sequence
-///    declarations/records, leading/tail subprops, step references and their
-///    `TS` nodes, module name→value pairs, and old-format leaf property
-///    records.
-///  * **record-region structural** ([recordStructuralBytes]) — extent walked
-///    by a measured shape, contents deliberately not decoded: element-type
-///    spec blobs ([BinaryTypeField.elementSpecBytes]), extdata block
-///    payloads, the fixed inter-record preamble ([_typeRecordPreambleBytes]),
-///    the leading recon words, and the undecoded head word of word-4-triple
-///    type records.
-///  * **record-region undecoded** ([recordUndecodedBytes]) — everything else:
-///    bytes no decode claims. The campaign drives this to zero.
 class BinaryByteCoverage {
   const BinaryByteCoverage({
     required this.bodyBytes,
@@ -87,38 +33,27 @@ class BinaryByteCoverage {
     required this.recordStructuralBytes,
   });
 
-  /// Total inflated-body size in bytes.
   final int bodyBytes;
 
-  /// String-region (ordered NUL string pool) bytes — fully read; see class doc.
   final int poolBytes;
 
-  /// Record-region bytes consumed by twin-validated decodes.
   final int recordSemanticBytes;
 
-  /// Record-region bytes whose extent is walked but contents undecoded.
   final int recordStructuralBytes;
 
-  /// Record-region size ([bodyBytes] − [poolBytes]).
   int get recordRegionBytes => bodyBytes - poolBytes;
 
-  /// Record-region bytes nothing accounts for — the true gap.
   int get recordUndecodedBytes => recordRegionBytes - recordSemanticBytes - recordStructuralBytes;
 
-  /// Decoded fraction of the record region alone (the hard number).
   double get recordSemanticRatio => recordRegionBytes == 0 ? 0 : recordSemanticBytes / recordRegionBytes;
 
-  /// Accounted (semantic + structural) fraction of the record region.
   double get recordAccountedRatio =>
       recordRegionBytes == 0 ? 0 : (recordSemanticBytes + recordStructuralBytes) / recordRegionBytes;
 
-  /// Decoded fraction of the whole body (record-region semantic + pool).
   double get bodySemanticRatio => bodyBytes == 0 ? 0 : (recordSemanticBytes + poolBytes) / bodyBytes;
 
-  /// Accounted fraction of the whole body (everything but [recordUndecodedBytes]).
   double get bodyAccountedRatio => bodyBytes == 0 ? 0 : (bodyBytes - recordUndecodedBytes) / bodyBytes;
 
-  /// Aggregation over a corpus.
   BinaryByteCoverage operator +(BinaryByteCoverage other) => BinaryByteCoverage(
     bodyBytes: bodyBytes + other.bodyBytes,
     poolBytes: poolBytes + other.poolBytes,
@@ -127,11 +62,6 @@ class BinaryByteCoverage {
   );
 }
 
-/// Measures [BinaryByteCoverage] for a binary TOF1 `.seq` — every inflated
-/// body byte accounted to pool / semantic / structural / undecoded (see the
-/// class doc for the tier definitions and what marks each), folded from the
-/// recorded decode stream. Returns null when [seqBytes] is not an inflatable
-/// binary file or the body does not frame.
 BinaryByteCoverage? binaryByteCoverage(Uint8List seqBytes) {
   final decoded = _decodeSeq(seqBytes);
   if (decoded == null) return null;
@@ -153,11 +83,6 @@ BinaryByteCoverage? binaryByteCoverage(Uint8List seqBytes) {
   );
 }
 
-/// The UNDECODED record-region byte spans of a binary TOF1 file, as
-/// `(start, end)` offsets into the inflated body, largest-first capped to
-/// [max] — the diagnostic map of where [BinaryByteCoverage.recordUndecodedBytes]
-/// mass sits (point the prober at the biggest spans). Returns `[]` when the
-/// file is not an inflatable binary or does not frame.
 List<(int, int)> binaryUndecodedSpans(Uint8List seqBytes, {int max = 50}) {
   final decoded = _decodeSeq(seqBytes);
   if (decoded == null) return const [];
@@ -176,10 +101,6 @@ List<(int, int)> binaryUndecodedSpans(Uint8List seqBytes, {int max = 50}) {
   return spans.length > max ? spans.sublist(0, max) : spans;
 }
 
-/// The writer scoreboard for one file (or, summed with [+], a corpus): how
-/// many inflated-body bytes were written FROM THE MODEL versus re-emitted
-/// from retained structure versus copied verbatim — the writer-side mirror
-/// of [BinaryByteCoverage].
 class BinaryWriteScoreboard {
   const BinaryWriteScoreboard({
     required this.bodyBytes,
@@ -190,45 +111,26 @@ class BinaryWriteScoreboard {
     required this.copiedBytes,
   });
 
-  /// Total inflated-body size in bytes.
   final int bodyBytes;
 
-  /// String-region bytes — always written from the model pool.
   final int poolBytes;
 
-  /// Record-region bytes emitted from model content (pool references,
-  /// counts, type refs, head fields, field-flags/attr words the typed
-  /// model surfaces, inline f64/i64/bool values).
   final int modelBytes;
 
-  /// Record-region bytes emitted as GRAMMAR-DETERMINED constants the
-  /// decode verified (framing zeros, record delimiters, terminators,
-  /// alignment pads, form sentinels) — fully decoded framing, re-emitted
-  /// from grammar knowledge alone.
   final int grammarBytes;
 
-  /// Record-region bytes re-emitted from retained wire structure — words
-  /// the grammar accepted without decoding and the typed model does not
-  /// yet carry.
   final int structuralBytes;
 
-  /// Record-region bytes copied verbatim (undecoded spans, spec/extdata
-  /// blobs, inter-record preambles).
   final int copiedBytes;
 
   int get recordRegionBytes => bodyBytes - poolBytes;
 
-  /// Record-region bytes the writer emits WITHOUT the retained region:
-  /// model content plus grammar-determined constants.
   int get fromModelBytes => modelBytes + grammarBytes;
 
-  /// From-model ([fromModelBytes]) fraction of the record region.
   double get recordModelRatio => recordRegionBytes == 0 ? 0 : fromModelBytes / recordRegionBytes;
 
-  /// From-model fraction of the whole body (pool counts as model).
   double get bodyModelRatio => bodyBytes == 0 ? 0 : (fromModelBytes + poolBytes) / bodyBytes;
 
-  /// Copied-verbatim fraction of the whole body.
   double get bodyCopiedRatio => bodyBytes == 0 ? 0 : copiedBytes / bodyBytes;
 
   BinaryWriteScoreboard operator +(BinaryWriteScoreboard other) => BinaryWriteScoreboard(
@@ -248,16 +150,6 @@ class BinaryWriteScoreboard {
       'bodyModel=${(bodyModelRatio * 100).toStringAsFixed(1)}%)';
 }
 
-/// Folds a record-region write [plan] into its [BinaryWriteScoreboard]:
-/// each op's bytes accounted by its value provenance ([_OpSource]), plus
-/// the pool region ([poolBytes], always model-written) on top of the
-/// record region.
-///
-/// One wire special case: [_WirePrimitive.copy] ops land in
-/// [BinaryWriteScoreboard.copiedBytes], not
-/// [BinaryWriteScoreboard.structuralBytes] — both carry struct provenance,
-/// but the scoreboard keeps verbatim byte-range copies distinct from struct
-/// values the writer re-emits word-by-word.
 BinaryWriteScoreboard _planScoreboard(List<_WriteOp> plan, {required int recordRegionBytes, required int poolBytes}) {
   var model = 0, grammar = 0, structural = 0, copied = 0;
   for (final op in plan) {

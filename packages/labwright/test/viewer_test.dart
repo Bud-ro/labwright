@@ -1,5 +1,3 @@
-// The in-process viewer and its interactive control plane, driven over HTTP
-// against real suite child processes (see harness.dart).
 import 'dart:async';
 import 'dart:convert';
 import 'dart:io';
@@ -72,8 +70,6 @@ void main() {
       final (badCode, _) = await v.post('/button', {'index': 9});
       expect(badCode, 409, reason: 'an out-of-range index is a clean rejection');
 
-      // The action's execution — including its log() lines — landed in the Log
-      // feed; a fresh SSE client replays the history in a `hist` reset frame.
       final got = Completer<List<Map<String, Object?>>>();
       final sub = await v.events((event, data) {
         if (event == 'hist' && data['reset'] == true && !got.isCompleted) {
@@ -93,8 +89,6 @@ void main() {
   test('goto link + seed replay: absolute source locations, editorLink template, reseed', () async {
     final v = await Viewer.start('test/fixtures/green_e2e.dart', defines: [_interactive, ..._green]);
     try {
-      // Registration file:line is ABSOLUTE — the page concatenates it straight
-      // into the client-side vscode:// goto link (no server route involved).
       final state = await v.state();
       final rail = testIn(state, 'rail comes up');
       expect('${rail['file']}', endsWith('green_e2e.dart'));
@@ -122,11 +116,11 @@ void main() {
       final first = await settleAt('passed');
       expect(testsOf(first).single['change'], isNull, reason: 'no prior run to diff against');
 
-      await v.post('/button', {'index': 0}); // break the bench
+      await v.post('/button', {'index': 0});
       await v.post('/run');
       expect(testsOf(await settleAt('failed')).single['change'], 'newFail');
 
-      await v.post('/button', {'index': 1}); // fix the bench
+      await v.post('/button', {'index': 1});
       await v.post('/run');
       final fixed = testsOf(await settleAt('passed')).single;
       expect(fixed['change'], 'newPass');
@@ -167,8 +161,6 @@ void main() {
       expect(started, lessThanOrEqualTo(finished));
       expect((rail['logs'] as List).first, containsPair('t', isA<int>()));
 
-      // A log line during a run arrives as a small `log` DELTA ({name, t, m}),
-      // not a full-state rebroadcast per line.
       await v.post('/run');
       final delta = await logDelta.future.timeout(const Duration(seconds: 30));
       expect(delta['name'], 'rail comes up');
@@ -186,8 +178,6 @@ void main() {
       final before = await v.state();
       expect(testIn(before, 'fast follower')['status'], 'passed');
 
-      // Re-run, then Stop while the 800ms 'slow gate' is in flight: the slow
-      // test must finish, and 'fast follower' must never be touched.
       expect((await v.post('/run')).$1, 202);
       expect((await v.post('/stop')).$1, 202);
       final after = await v.settle((s) => s['busy'] == false && s['done'] == true);
@@ -202,8 +192,6 @@ void main() {
 
       expect((await v.post('/reseed')).$1, 409, reason: 'reseed without a seed is rejected, not silently seed 0');
 
-      // Requests that don't look like the page's own are 403 before any route
-      // logic: a cross-site Origin, or a no-preflight non-JSON content type.
       expect((await v.post('/stop', const {}, 'https://evil.example')).$1, 403);
       expect((await v.post('/stop', const {}, null, ContentType.text)).$1, 403);
       expect((await v.post('/stop', const {}, 'http://localhost:${v.port}')).$1, 202, reason: 'same-host is welcome');
@@ -213,7 +201,6 @@ void main() {
   }, timeout: _t2);
 
   test('a non-interactive viewer is read-only: a control POST answers 503', () async {
-    // slow fixture: the viewer is up while it runs; no linger banner to await.
     final v = await Viewer.start('test/fixtures/slow_e2e.dart', defines: _green, awaitReady: false);
     try {
       expect((await v.post('/stop')).$1, 503, reason: 'without interactive/keepOpen no route is wired at all');

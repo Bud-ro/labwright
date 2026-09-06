@@ -6,8 +6,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/types_view.dart';
 import 'package:labwright_vi_inspector/src/vctp_view.dart';
 
-/// A minimal well-framed VCTP body (count=1, one i32 descriptor, empty top-level
-/// list) — enough to enable the bytes↔types toggle.
 final Uint8List _vctpBody = Uint8List.fromList(const [
   0x00, 0x00, 0x00, 0x01, //
   0x00, 0x04, 0x00, 0x03,
@@ -89,7 +87,6 @@ void main() {
       tester,
       ViTypesView(model: _modelWithTypes(), vctpBytes: _vctpBody),
     );
-    // Listing shown first; no correlation view yet.
     expect(find.byType(SelectableText), findsOneWidget);
     expect(find.byType(VctpCorrelationView), findsNothing);
 

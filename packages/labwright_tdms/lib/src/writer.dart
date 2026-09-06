@@ -4,9 +4,6 @@ import 'dart:typed_data';
 import 'format.dart';
 import 'model.dart';
 
-/// Writes TDMS bytes. Each [writeSegment] call appends one segment that
-/// re-declares its objects (a valid, simple form of streaming): call it
-/// repeatedly to append more samples to the same channels.
 class TdmsWriter {
   final BytesBuilder _output = BytesBuilder();
 
@@ -18,8 +15,6 @@ class TdmsWriter {
     final channelList = channels.toList();
     final groupNames = {for (final channel in channelList) channel.group}.toList();
 
-    // Metadata block: the object list — root, then each group, then each
-    // channel with its raw-data index (type / dimension / value count).
     final metadata = BytesBuilder();
     _writeU32(metadata, 1 + groupNames.length + channelList.length);
 
@@ -45,7 +40,6 @@ class TdmsWriter {
       _writeProperties(metadata, channel.properties);
     }
 
-    // Raw-data block: each channel's samples, contiguous (not interleaved).
     final rawData = BytesBuilder();
     for (final channel in channelList) {
       for (final value in channel.data) {
@@ -88,15 +82,12 @@ void _writeF64(BytesBuilder out, double value) {
   out.add(encoded.buffer.asUint8List());
 }
 
-/// Writes a length-prefixed UTF-8 string (u32 byte length, then the bytes).
 void _writeString(BytesBuilder out, String text) {
   final utf8Bytes = utf8.encode(text);
   _writeU32(out, utf8Bytes.length);
   out.add(utf8Bytes);
 }
 
-/// Encodes one raw channel sample of [type] (little-endian). Integers take
-/// `value.toInt()`. String/bool/timestamp channels are not supported.
 void _writeSample(BytesBuilder out, TdsType type, double value) {
   final encoded = ByteData(8);
   switch (type) {
@@ -162,8 +153,6 @@ void _writeProperty(BytesBuilder out, String name, Object value) {
   }
 }
 
-// Object paths quote each segment in single quotes, escaping embedded quotes
-// by doubling them: /'group'/'channel'.
 String _escapeQuotes(String name) => name.replaceAll("'", "''");
 String _groupObjectPath(String group) => "/'${_escapeQuotes(group)}'";
 String _channelObjectPath(String group, String channel) => "/'${_escapeQuotes(group)}'/'${_escapeQuotes(channel)}'";

@@ -1,24 +1,3 @@
-/// The behavioural proof: the Dart lowered from `crc8.vi`'s block diagram
-/// computes the same bytes as an independent CRC-8, over the whole published
-/// parameter catalogue.
-///
-/// Two pins, so neither side can drift alone:
-///
-/// - [crc8Reference] is checked against the **published check values** — the
-///   CRC of `123456789` each catalogued CRC-8 is defined to produce — so the
-///   reference is anchored to the algorithms' public definition, not to the
-///   VI.
-/// - The generated [crc8] is then compared to that reference over every
-///   catalogue entry and a spread of messages. Byte-exact agreement is what
-///   proves the lowering.
-///
-/// One ordering difference is visible here and is deliberate: the VI applies
-/// its Xor Out **before** the output reflection, where the published model
-/// reflects first. The two coincide exactly when the output is not reflected
-/// or the Xor Out is zero, which every catalogued CRC-8 satisfies — asserted
-/// below so the untested corner cannot be forgotten.
-library;
-
 import 'dart:convert';
 import 'dart:io';
 
@@ -28,13 +7,7 @@ import 'package:test/test.dart';
 import 'generated/crc8.g.dart';
 import 'snippets.dart';
 
-/// One published CRC-8 parameter set with the check value its definition
-/// fixes: the CRC of the nine ASCII bytes `123456789`.
 typedef Crc8Variant = ({String name, int poly, int init, bool refIn, bool refOut, int xorOut, int check});
-
-/// The catalogued CRC-8 algorithms. Names and parameters are the public
-/// register-transfer ("Rocksoft") model's; `check` is each algorithm's
-/// defined check value.
 const List<Crc8Variant> kCrc8Catalogue = [
   (name: 'CRC-8', poly: 0x07, init: 0x00, refIn: false, refOut: false, xorOut: 0x00, check: 0xF4),
   (name: 'CRC-8/CDMA2000', poly: 0x9B, init: 0xFF, refIn: false, refOut: false, xorOut: 0x00, check: 0xDA),
@@ -47,11 +20,6 @@ const List<Crc8Variant> kCrc8Catalogue = [
   (name: 'CRC-8/ROHC', poly: 0x07, init: 0xFF, refIn: true, refOut: true, xorOut: 0x00, check: 0xD0),
   (name: 'CRC-8/WCDMA', poly: 0x9B, init: 0x00, refIn: true, refOut: true, xorOut: 0x00, check: 0x25),
 ];
-
-/// A bit-at-a-time CRC-8 by the public parameter model: the register starts at
-/// `init`, each message byte (reflected first when `refIn`) is folded in and
-/// shifted eight times against `poly`, and the result is reflected when
-/// `refOut` and finally XORed with `xorOut`.
 int crc8Reference(
   List<int> message, {
   required int poly,
@@ -79,9 +47,6 @@ int _reverseBits(int byte) {
   return out;
 }
 
-/// The messages every variant is compared over: the empty string, the
-/// catalogue's own check string, every single byte value, and a spread of
-/// lengths that crosses the loop's boundaries.
 List<List<int>> messages() => [
   const <int>[],
   latin1.encode('123456789'),
@@ -111,10 +76,6 @@ void main() {
   });
 
   test('no catalogued CRC-8 reflects its output and applies a non-zero Xor Out', () {
-    // Where both hold, the VI's order (Xor Out, then reflect) and the
-    // published model's (reflect, then Xor Out) would disagree, and this
-    // corpus cannot say which LabVIEW's authors intended. The catalogue holds
-    // no such variant, so the comparison below is exact everywhere it runs.
     for (final variant in kCrc8Catalogue) {
       expect(variant.refOut && variant.xorOut != 0, isFalse, reason: variant.name);
     }
@@ -159,8 +120,6 @@ void main() {
       pool: vi.pool,
     );
     expect(result.refusal, isNull, reason: 'crc8.vi must lower');
-    // Compared with newlines normalised: the emitter always writes \n, while a
-    // Windows checkout hands the committed file back as \r\n.
     final committed = File(
       '${Directory(_testDir()).path}/generated/crc8.g.dart',
     ).readAsStringSync().replaceAll('\r\n', '\n');
@@ -172,7 +131,6 @@ void main() {
   });
 }
 
-/// This package's `test/` directory, whichever directory the runner started in.
 String _testDir() {
   for (final candidate in const ['test', 'packages/labwright_vi_transpile/test']) {
     if (Directory(candidate).existsSync()) return candidate;

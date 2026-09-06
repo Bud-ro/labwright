@@ -6,25 +6,8 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'prim_icon_extraction.dart';
 
-/// Generates the app's primitive-icon assets from LabVIEW's own renders:
-/// every snippet is registered against its embedded reference, each primitive
-/// node's box is cut from the REFERENCE pixels, the cleanest sample per
-/// primResID is trimmed to its ink and its exterior background made
-/// transparent, and the result lands in `assets/prim_icons/prim<id>.png` for
-/// the node painter to stamp (and for hand-editing — the PNGs carry alpha).
-///
-/// It rasterises diagrams, so it runs under the flutter_test harness rather
-/// than as a plain script, from the app package root:
-///
+/// Writes `assets/prim_icons/prim<id>.png` from the snippet references:
 ///     flutter test tool/extract_prim_icons.dart --dart-define=EXTRACT_PRIM_ICONS=1
-///
-/// A comma-separated key list in place of `1` re-cuts only those identities —
-/// their assets and their manifest rows — and leaves every other asset, row
-/// and the review catalog untouched, so one icon's change is reviewable
-/// without the churn a whole sweep's sample selection produces.
-///
-/// The reproducibility contract this generator must satisfy runs in the
-/// default suite as test/prim_icon_repro_test.dart.
 void main() {
   const enabled = String.fromEnvironment('EXTRACT_PRIM_ICONS');
   testWidgets('regenerate the primitive icon assets', (tester) async {
@@ -68,11 +51,6 @@ void main() {
       '\nPalette (${paletteList.length} colours — every icon pixel is one of '
       'these): ${paletteList.map((c) => '#${c.toRadixString(16).padLeft(6, '0')}').join(' ')}\n',
     );
-    // A key list re-cuts exactly those identities and leaves every other
-    // committed asset, the manifest's other rows and the review catalog
-    // alone — one identity's art is reviewable on its own, and a sweep that
-    // rewrites all of them buries the change under the churn every other
-    // key's sample selection produces.
     final only = enabled == '1'
         ? const <String>{}
         : enabled.split(',').map((key) => key.trim()).toSet();
@@ -80,9 +58,6 @@ void main() {
       if (only.isNotEmpty && !only.contains(key)) continue;
       final e = pending[key]!;
       if (verifiedKeys.contains(key) || handKeys.contains(key)) {
-        // The committed verified asset stays authoritative (byte-identity
-        // proven above for pipeline-verified keys; hand-finished art is
-        // authoritative by definition); nothing to write.
         manifest.writeln(
           '| $key | (verified — committed asset authoritative) | | ${e.sources} |',
         );
@@ -129,9 +104,6 @@ void main() {
         'placement gate): ${skippedLowQuality.toSet().join(', ')}\n',
       );
     }
-    // A stale asset for a key that no longer extracts (and is not
-    // verified) would stamp silently with no manifest row — remove it. The
-    // removal is loud: it lands in the manifest's failure list above.
     for (final f in Directory(outDir.path).listSync().whereType<File>()) {
       final m = RegExp(
         r'((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
@@ -163,7 +135,6 @@ void main() {
       return;
     }
 
-    // Regenerate the review catalog, preserving the maintainer's statuses.
     final catalogFile = File('$appDir/lib/src/prim_icon_catalog.dart');
     final existing = catalogFile.readAsStringSync();
     final oldStatus = {
@@ -172,10 +143,6 @@ void main() {
       ).allMatches(existing))
         m.group(1)!: m.group(2)!,
     };
-    // Maintainer ground truth NEVER falls out of the catalog: a
-    // verified / hand-finished / rejected key keeps its entry even when
-    // this sweep observed no sample for it (dropping one once made a
-    // later run's handKeys parse miss it and reap its asset).
     final allKeys = {
       ...pending.keys,
       ...failed.keys,
@@ -206,12 +173,6 @@ void main() {
   });
 }
 
-/// [committed] with the asset rows naming a key in [only] replaced by the
-/// matching rows of [fresh] — a re-cut of one identity leaves every other row
-/// of the manifest exactly as it was.
-///
-/// A row is `| <file> | <label> | <size> | <sources> |`, and its key is the
-/// file name's `prim<id>` / `class<code>_t<n>` stem.
 String _manifestWithRowsReplaced(
   String committed,
   String fresh,

@@ -1,8 +1,3 @@
-/// The runtime's own laws, as tables: a conversion renormalizes to its width
-/// and nothing else, a rotation moves exactly one bit through the carry, and a
-/// row-major offset addresses what its dimensions say.
-library;
-
 import 'dart:typed_data';
 
 import 'package:labwright_lv_runtime/labwright_lv_runtime.dart';
@@ -62,8 +57,6 @@ void main() {
   });
 
   test('swapping words then bytes reverses all four bytes of a 32-bit value', () {
-    // The composition LabVIEW diagrams use to change a 32-bit word's byte
-    // order; it holds only because each swap is per-field.
     for (final value in const [0x12345678, 0xDEADBEEF, 0x00000001, 0xFFFFFFFF]) {
       final bytes = Uint8List(4)..buffer.asByteData().setUint32(0, value);
       final reversed = ByteData.sublistView(Uint8List.fromList(bytes.reversed.toList())).getUint32(0);
@@ -119,8 +112,6 @@ void main() {
       expect(lvFlatOfInt(row.value, row.bits), row.bytes, reason: row.name);
       expect(lvIntOfFlat(Uint8List.fromList(row.bytes), row.bits), row.value, reason: row.name);
     }
-    // No length prefix on a string and no dimension vector on an array: the
-    // bytes are the elements and nothing else.
     expect(lvFlatOfString('AB'), <int>[0x41, 0x42]);
     expect(lvStringOfFlat(Uint8List.fromList(const <int>[0x41, 0x42])), 'AB');
     expect(lvFlatOfIntList(const <int>[0x0102, 0x0304], 16), <int>[0x01, 0x02, 0x03, 0x04]);
@@ -157,14 +148,11 @@ void main() {
   });
 
   test('a cast whose bytes do not fill the target raises rather than inventing one', () {
-    // TODO(lv-typecast-size): the rule LabVIEW applies here is not decoded.
     expect(() => lvIntOfFlat(Uint8List(3), 32), throwsArgumentError);
     expect(() => lvIntListOfFlat(Uint8List(5), 16), throwsArgumentError);
   });
 
   test('a quotient floors, whatever the operands sign', () {
-    // The reference names the results `floor(x/y)` and `x-y*floor(x/y)`, which
-    // Dart's truncating `~/` does not give on its own.
     const cases = <({int dividend, int divisor, int quotient, int remainder})>[
       (dividend: 7, divisor: 2, quotient: 3, remainder: 1),
       (dividend: -7, divisor: 2, quotient: -4, remainder: 1),

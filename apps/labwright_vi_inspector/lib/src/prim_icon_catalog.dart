@@ -1,25 +1,3 @@
-/// Review state of the bundled primitive icon assets (assets/prim_icons/).
-///
-/// Every extracted identity gets an entry — extraction NEVER silently drops
-/// or hides an id; one that produced no usable asset still appears in
-/// `assets/prim_icons/MANIFEST.md` with the reason. Statuses are the
-/// maintainer's incremental verdicts:
-///
-/// - [PrimIconStatus.verified] — eyeballed against a VI render; stamped.
-/// - [PrimIconStatus.verifiedHand] — eyeballed and confirmed, but the pixels
-///   are hand-finished (wires shaved, junk cleared) rather than raw pipeline
-///   output, so the reproducibility contract keeps the committed asset
-///   authoritative instead of byte-comparing it against a fresh extraction.
-/// - [PrimIconStatus.unverified] — extracted but not yet reviewed; stamped
-///   (that is how it gets reviewed in context) and labelled in the detail
-///   card.
-/// - [PrimIconStatus.rejected] — reviewed and wrong; never stamped (the node
-///   falls back to the plate + operator glyph) until a better extraction or
-///   a hand-drawn replacement lands.
-///
-/// The generator (`tool/extract_prim_icons.dart`) rewrites the entry
-/// list when assets regenerate but PRESERVES the statuses recorded here;
-/// only new keys default to [PrimIconStatus.unverified].
 enum PrimIconStatus { verified, verifiedHand, unverified, rejected }
 
 // GENERATED-ENTRIES-BEGIN (tool/extract_prim_icons.dart rewrites this block;
@@ -138,19 +116,6 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
 };
 // GENERATED-ENTRIES-END
 
-/// Where each icon's art sits within its node box, as the art top-left's
-/// offset from the box top-left — MEASURED, not derived: each entry is the
-/// unanimous position at which the asset's opaque pixels byte-match
-/// LabVIEW's own reference render, censused across every snippet instance
-/// (the trailing count). Placement is a fixed per-primitive property; no
-/// centering rule reproduces it (25x11 art sits at x=3 in `prim1608` but
-/// x=4 in `prim1142`). A negative offset is art overhanging the box
-/// (`prim1162`'s 32x37 rises 5 px above it). Keys without an entry fall
-/// back to floor-centring until an instance appears in the corpus to
-/// measure.
-///
-/// Regenerate with
-/// `flutter test test/placement_census_test.dart --dart-define=PRIM_PLACEMENT_CENSUS=1`.
 // GENERATED-PLACEMENT-BEGIN
 const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1050': (dx: 6, dy: 6), // x1

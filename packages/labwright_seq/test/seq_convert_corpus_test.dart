@@ -9,15 +9,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-/// Corpus gates for the cross-flavor converters — every loop must retain 100%
-/// of the information its source model carries:
-///  * INI → XML → INI and XML → INI → XML: byte-exact, with deep-equal
-///    intermediates and a fixpoint after the first hop;
-///  * binary → XML/INI: the binary reader is a PARTIAL decoder, so the gate
-///    asserts retention of exactly the decoded surface, marked partial; a
-///    body that does not inflate refuses with [FormatException] — refusal is
-///    honest, fabrication is not.
-/// Counts are pinned so a corpus refresh consciously extends the gates.
 const _pinnedIniSeqCount = 45;
 const _pinnedXmlSeqCount = 42;
 const _pinnedBinarySeqCount = 297;
@@ -57,12 +48,6 @@ void main() {
   });
 
   test('iniDataTree keeps instance directives on an inherited container member', () {
-    // The byte-exact trip rides the verbatim x-ini-source channel, bypassing
-    // the decoded data tree — so the inheritance expansion's load-bearing
-    // case is pinned inline (the corpus lost its exemplar in a purge): a
-    // member that is a container ONLY through its inherited type, with an
-    // instance-level %HI on one of two instances. The shared inherited-subtree
-    // cache must not serve `signalB` the directive-less copy `signalA` cached.
     const fixture = '''
 [__Header__]
 ProductName = "TestStand"
@@ -150,7 +135,7 @@ Attr = Num
       try {
         bin = parseSeqFile(bytes);
       } on FormatException {
-        refused++; // no inflatable body: refusal, not fabrication
+        refused++;
         continue;
       }
       final xml = binaryToXmlSeqFile(bin);
@@ -159,9 +144,6 @@ Attr = Num
         ConvKey.partialDecodeBinary,
         reason: '${f.path}: binary-derived output must be marked partial',
       );
-      // Compare against the SOURCE decode directly (not just the reparse): a
-      // converter that dropped or fabricated a node/scalar/type diverges here
-      // even while staying self-consistent through the loops below.
       expect(_surface(xml.data), _surface(bin.data), reason: '${f.path}: lifted data surface must match the decode');
       expect(xml.types.length, bin.types.length, reason: '${f.path}: type count must match the decode');
       for (var i = 0; i < bin.types.length; i++) {
@@ -186,10 +168,6 @@ Attr = Num
   });
 }
 
-/// A structural fingerprint of a property's DECODED surface, independent of
-/// the XML decoration the lift adds (synthesized tags, `% → x-` renames,
-/// array `<value>` bounds). `%NUMFMT` is normalized because the lift promotes
-/// it to the dedicated [SeqProperty.numericFormat] field.
 Object? _surface(SeqProperty p) => [
   p.name,
   p.className,

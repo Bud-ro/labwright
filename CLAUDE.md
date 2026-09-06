@@ -36,6 +36,11 @@ The RSRC reader and TestStand readers are most pressing here.
   work. Make it objective, non-contextual, pithy, and useful. The same rule
   applies to doc comments and other kinds of comments: they describe the code
   as it is, never the session, review, or brief that produced it.
+- **Comments:** the source carries none, beyond lint/format directives, bare
+  trailing `//` formatter hints, one-line TODOs marking undecoded byte ranges,
+  and the rare fact the code cannot state that the decoder or a test
+  corroborates. Names, enums, types and tests carry the meaning; corpus
+  statistics, rationale and history do not belong in source.
 - **Cleanliness** Keep `dart analyze` clean and the relevant test suites green
   before committing. Run `./format.sh` (a thin wrapper over `dart format .`)
   so hand/agent edits match VS Code's format-on-save and diffs stay noise-free.

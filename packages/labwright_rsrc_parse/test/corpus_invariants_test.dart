@@ -9,12 +9,6 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
-/// RSRC-container-layer corpus invariants: cross-consistency between parseVi and readViSections,
-/// byte-exact typed round-trips (container/header/subheader/block list/descriptors/ViVi/data area),
-/// info-area structure laws, and section-edit coherence. All checks for a VI run ONCE in a worker
-/// isolate ([corpusParallel]); each law test asserts on the aggregate counters/diagnostics, and the
-/// measured censuses are asserted EXACTLY against the `container` section of corpus/snapshot.json.
-
 const _descBaseAfterCount = 8;
 const _sectionDescriptorBytes = 20;
 const _rsrcHeaderBytes = 32;
@@ -34,7 +28,6 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
   return true;
 }
 
-/// Per-VI counters + capped diagnostics (each diagnostic prefixed by its check key).
 (Map<String, int>, List<String>) _inv(Uint8List bytes, String path) {
   final c = <String, int>{};
   final diags = <String>[];
@@ -193,14 +186,10 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
       if (pg.hasEmbeddedSections != hasEmbedded || (pg.flags != 0xFFFFFFFF && pg.flags != 0)) {
         bad('preGapFlags', 'flags=0x${pg.flags.toRadixString(16)} embedded=$hasEmbedded');
       }
-      // The final entry's descriptor is stored in head form as the name-table
-      // header; the remap path only trusts it when the address proves it.
       if (ia.finalEntrySecRel == null) bad('finalEntryDesc', 'final entry descriptor not at the name table');
       if (fe.tag == 'FTAB' || fe.tag == 'VITS') {
         final blocks = parseVi(bytes).blocks.toSet();
         n('anti.checked');
-        // The entry past the stored count (the count is count-1) must reach the
-        // block reader as a block.
         if (!blocks.contains(fe.tag)) bad('finalEntry', 'final entry ${fe.tag} not read as a block');
       }
     }
@@ -408,7 +397,6 @@ void main() {
     diags = [];
     for (final (counts, d) in res) {
       counts.forEach((k, v) {
-        // max-semantics keys carry running maxima; everything else sums.
         C[k] = k.startsWith('nt.max') || k == 'desc.maxNameRef' || k == 'info.maxLen'
             ? (v > (C[k] ?? 0) ? v : (C[k] ?? 0))
             : (C[k] ?? 0) + v;
@@ -536,13 +524,6 @@ void main() {
   });
 
   test('container-layer censuses match the committed snapshot exactly', () {
-    // Every counter [_inv] accumulates — round-trip populations, info-area
-    // peel/anti-correlation/trailing-name recoveries, subVI-name yields, the
-    // legacy word8 population, and the corpus maxima (`nt.max*`,
-    // `desc.maxNameRef`, `info.maxLen`) — pinned exactly. The former rate
-    // floors (peel ~90%, anti ~95%, trailing-name ~85%, subVI-names ~60%,
-    // word8 <2%) are read straight off the pairs in the diff. `bad:*` keys
-    // are excluded: the law tests above pin them at zero.
     expectCorpusSnapshot('container', {
       for (final e in C.entries)
         if (!e.key.startsWith('bad:')) e.key: e.value,

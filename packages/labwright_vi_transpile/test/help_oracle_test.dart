@@ -1,30 +1,7 @@
-/// The published function reference's own statement of the terminals every
-/// primitive in the catalogue draws — the independent check on [PrimOp].
-///
-/// [PrimOp] names primitives from what the corpus shows: a node caption, a
-/// palette neighbour, a glyph read off the icon. The reference is a separate
-/// statement of the same names, so joining the two by name tests every entry at
-/// once. `tool/help_oracle_match.dart` performs the join against the harvest
-/// `labwright_rsrc_parse`'s `tool/fetch_help_oracle.dart` produces; what is
-/// checked in here is the join's ANSWER, so the corroboration is reproducible
-/// without the network and moves visibly when either side changes.
-///
-/// Keyed by [PrimOp.opName]. The value is the reference's terminal list in the
-/// order it states them, `|` separated, each prefixed `<` for an input and `>`
-/// for an output — so it carries the arity, the direction of each terminal and
-/// the reference's own name for it, which is what an operand-role decision
-/// needs and what the corpus never spells out. A terminal the reference anchors
-/// without naming carries an empty name.
-///
-/// Nothing else of the reference is reproduced: no descriptions, no images.
-library;
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 import 'package:test/test.dart';
 
-/// Every catalogue name the reference also carries, with the terminals it
-/// states for it.
 const Map<String, String> kHelpOracleTerminals = {
   'Add': '<x|<y|>x+y',
   'Subtract': '<x|<y|>x-y',
@@ -156,9 +133,6 @@ const Map<String, String> kHelpOracleTerminals = {
   'Empty Array?': '<array|>empty?',
   'Flatten To JSON': '<enable LabVIEW extensions|<anything|<error in|>JSON string|>error out',
 };
-
-/// The catalogue names the reference does NOT carry — leads to re-examine
-/// rather than entries that are quietly assumed correct.
 const Set<String> kHelpOracleUncorroborated = {'File Dialog', 'VISA Lock'};
 
 void main() {
@@ -171,8 +145,6 @@ void main() {
   });
 
   test('every primitive with a lowering rule is one the reference corroborates', () {
-    // A rule reading a different number of terminals is reading a different
-    // node, so the arity is the part of the digest a rule is answerable to.
     for (final op in kLvMappedPrimOps) {
       expect(kHelpOracleTerminals[op.opName], isNotNull, reason: '${op.id} ${op.opName}');
     }
