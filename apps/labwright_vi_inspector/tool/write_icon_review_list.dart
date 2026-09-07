@@ -17,7 +17,6 @@ void main() {
       return;
     }
     final pngs = snippetCorpusPngs();
-    if (pngs.isEmpty) return;
     final out = StringBuffer(
       '# Icon review run-down\n\n'
       'Per snippet, the primitive icon keys on its diagram (dedup within the\n'

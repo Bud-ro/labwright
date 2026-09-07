@@ -132,14 +132,9 @@ void main() {
   testWidgets('corpus pair exports a faithful sweep GIF within budget', (
     tester,
   ) async {
-    final pngs = snippetCorpusPngs().where((f) => f.path.endsWith('/crc8.png'));
-    if (pngs.isEmpty) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
     await loadRealTextFont();
     await tester.runAsync(() async {
-      final bytes = pngs.first.readAsBytesSync();
+      final bytes = snippetPng('crc8.png').readAsBytesSync();
       final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
       final raster = (await rasteriseBlockDiagram(
         bd,

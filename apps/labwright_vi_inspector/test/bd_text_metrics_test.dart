@@ -42,10 +42,6 @@ void main() {
   for (final entry in cases.entries) {
     testWidgets('${entry.key} painted text metrics', (tester) async {
       final f = snippetPng(entry.key);
-      if (f == null) {
-        markTestSkipped('corpus not fetched');
-        return;
-      }
       final viBytes = extractSnippetVi(f.readAsBytesSync())!;
       final bd = bestBlockDiagram(buildViModel(viBytes))!;
       final scene = BdScene(bd)..recordPaintedText = true;

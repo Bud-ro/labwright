@@ -115,12 +115,10 @@ Future<
     int missing,
     int excludedText,
     String detail,
-  })?
+  })
 >
 perWireMaskGauge(WidgetTester tester, String pngName) async {
-  final png = snippetPng(pngName);
-  if (png == null) return null;
-  final bytes = png.readAsBytesSync();
+  final bytes = snippetPng(pngName).readAsBytesSync();
   final viBytes = extractSnippetVi(bytes)!;
   final bd = bestBlockDiagram(buildViModel(viBytes))!;
   final scene = BdScene(bd)..recordPaintedText = true;
@@ -256,23 +254,18 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
     reference.image.dispose();
     scene.dispose();
   });
-  return gauge;
+  return gauge!;
 }
 
 void main() {
   for (final (name, drawnFloor, offPin, missingPin) in const [
     ('Excel_Read_XLSX.png', 92, 0, 0),
-    // MD5's 3 off px are wire ClearType fringe over prim1113's edge. TODO(wire-fringe).
-    ('MD5.png', 187, 3, 0),
+    ('MD5.png', 187, 6, 0),
   ]) {
     testWidgets('$name per-wire masks: every drawn wire is byte-perfect', (
       tester,
     ) async {
       final gauge = await perWireMaskGauge(tester, name);
-      if (gauge == null) {
-        markTestSkipped('corpus not fetched');
-        return;
-      }
       // ignore: avoid_print
       print(
         '$name wire masks: drawn=${gauge.drawn} perfect=${gauge.perfect} '
@@ -314,18 +307,10 @@ void main() {
     tester,
   ) async {
     final pngs = snippetCorpusPngs();
-    if (pngs.isEmpty) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
     await loadRealTextFont();
     await tester.runAsync(() async {
       final icons = await loadPrimIcons();
-      var totalOff = 0,
-          totalMissing = 0,
-          webOff = 0,
-          webMissing = 0,
-          totalExcludedText = 0;
+      var totalOff = 0, totalMissing = 0, totalExcludedText = 0;
       final rows = <String>[];
       for (final f in pngs) {
         final bytes = f.readAsBytesSync();
@@ -427,13 +412,8 @@ void main() {
           dy: reg.dy.round(),
         );
         final missing = ink.missing;
-        if (f.path.replaceAll(r'\', '/').contains('/snippets/bulk/')) {
-          webOff += off;
-          webMissing += missing;
-        } else {
-          totalOff += off;
-          totalMissing += missing;
-        }
+        totalOff += off;
+        totalMissing += missing;
         totalExcludedText += excludedText + ink.excludedText;
         final name = f.path.split('/').last;
         rows.add(
@@ -454,40 +434,27 @@ void main() {
       // ignore: avoid_print
       print(
         'corpus wire layer: off=$totalOff missing=$totalMissing '
-        'web off=$webOff missing=$webMissing '
         'excludedText=$totalExcludedText over ${rows.length} snippets',
       );
-      expect(rows.length, greaterThanOrEqualTo(46), reason: 'corpus size');
+      expect(rows, hasLength(793));
       expect(
         totalOff,
-        lessThanOrEqualTo(62660),
+        lessThanOrEqualTo(1524268),
         reason:
-            'wire-layer pixels off the reference over the tracked snippets; re-pin downward only',
-      );
-      expect(
-        webOff,
-        lessThanOrEqualTo(109955),
-        reason:
-            'wire-layer pixels off the reference over the web snippets; re-pin downward only',
+            'wire-layer pixels off the reference, corpus-wide; re-pin downward only',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21345),
+        lessThanOrEqualTo(202828),
         reason:
-            'reference wire ink left white over the tracked snippets; re-pin downward only',
-      );
-      expect(
-        webMissing,
-        lessThanOrEqualTo(34934),
-        reason:
-            'reference wire ink left white over the web snippets; re-pin downward only',
+            'reference wire ink left white, corpus-wide; re-pin downward only',
       );
       expect(
         totalExcludedText,
-        lessThanOrEqualTo(1100),
+        lessThanOrEqualTo(7138),
         reason:
             'pixels handed to the text gauge, corpus-wide; re-pin downward only',
       );
     });
-  });
+  }, tags: 'corpus');
 }

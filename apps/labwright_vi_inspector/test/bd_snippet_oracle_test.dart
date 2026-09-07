@@ -82,7 +82,7 @@ void main() {
       'crc32.png': [
         ('slack-2615', 291, 702, 34, 11),
         ('slack-2396', 736, 523, 29, 15),
-        ('slack-3742', 1000, 517, 29, 25),
+        ('slack-3742', 1014, 517, 15, 25),
       ],
       'Excel_Read_XLSX.png': [
         ('filmstrip-top', 1000, 851, 31, 10),
@@ -129,13 +129,7 @@ void main() {
         ('disable-top', 770, 1008, 24, 1),
       ],
     };
-    final pngs = snippetCorpusPngs().where(
-      (f) => expected.keys.any((n) => f.path.endsWith('/' + n)),
-    );
-    if (pngs.length < expected.length) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
+    final pngs = expected.keys.map(snippetPng);
     await loadRealTextFont();
     await tester.runAsync(() async {
       for (final f in pngs) {
@@ -197,13 +191,7 @@ void main() {
       'fg.png': ((x: 0, y: 2), 128, 0.95),
       'MD5.png': ((x: 2, y: 2), 5720, 0.95),
     };
-    final pngs = snippetCorpusPngs().where(
-      (f) => expected.keys.any((n) => f.path.endsWith('/$n')),
-    );
-    if (pngs.length < expected.length) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
+    final pngs = expected.keys.map(snippetPng);
     await loadRealTextFont();
     await tester.runAsync(() async {
       for (final f in pngs) {
@@ -298,13 +286,7 @@ void main() {
       ],
       'Config_Escape.png': [(ViDataType.enumU8, false)],
     };
-    final pngs = snippetCorpusPngs().where(
-      (f) => expected.keys.any((n) => f.path.endsWith('/' + n)),
-    );
-    if (pngs.length < expected.length) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
+    final pngs = expected.keys.map(snippetPng);
     await loadRealTextFont();
     await tester.runAsync(() async {
       for (final f in pngs) {
@@ -381,13 +363,7 @@ void main() {
       'GetCurrentDirectory.png': ((x: 0, y: 0), (x: 2, y: 0), 2380, 0.95),
       'Read VI Blocks.png': ((x: 3, y: 0), (x: 1, y: 0), 8715, 0.95),
     };
-    final pngs = snippetCorpusPngs().where(
-      (f) => expected.keys.any((n) => f.path.endsWith('/$n')),
-    );
-    if (pngs.length < expected.length) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
+    final pngs = expected.keys.map(snippetPng);
     await loadRealTextFont();
     await tester.runAsync(() async {
       for (final f in pngs) {
@@ -553,8 +529,6 @@ void main() {
   });
 
   group('snippet corpus sweep', () {
-    final pngs = snippetCorpusPngs();
-
     const floors = <String, double>{
       'fg.png': 0.92,
       'sub_vi_missing.png': 0.92,
@@ -605,9 +579,9 @@ void main() {
     testWidgets('every snippet compares; placement ranks true placement', (
       tester,
     ) async {
-      if (pngs.isEmpty) return;
+      final pngs = snippetCorpusPngs();
       await loadRealTextFont();
-      expect(pngs, hasLength(fetchedSnippetCollection() == null ? 46 : 157));
+      expect(pngs, hasLength(793));
       var placementSum = 0.0, shiftedSum = 0.0, measured = 0;
       await tester.runAsync(() async {
         for (final f in pngs) {
@@ -685,6 +659,6 @@ void main() {
         greaterThan(shiftedSum / measured + 0.1),
         reason: 'placement no longer ranks above a displaced control',
       );
-    });
+    }, tags: 'corpus');
   });
 }

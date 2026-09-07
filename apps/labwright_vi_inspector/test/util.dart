@@ -17,100 +17,27 @@ Directory? repoDir(String relative) {
   return null;
 }
 
-const kOracleSnippetDirs = {
-  'labviewwiki',
-  'hampel-soft',
-  'erdos-miller',
-  'frc-docs',
-  'wikimedia-commons',
-};
+Directory snippetCorpusDir() =>
+    repoDir('packages/labwright_rsrc_parse/corpus/snippets')!;
 
-const kOracleNiKbSnippets = {
-  'snippet_frame.png',
-  'prepopulated_structures.png',
-  'vi_templates_undefined_wire.png',
-  'code_that_goes_together.png',
-  'preconfigured_vi_calls.png',
-  'sample_input_data.png',
-  'customized_comments.png',
-};
-
-Directory? fetchedSnippetCollection() {
-  final bulk = repoDir('packages/labwright_rsrc_parse/corpus/snippets/bulk');
-  if (bulk == null) return null;
-  for (final dir in bulk.listSync(recursive: true).whereType<Directory>()) {
-    if (File('${dir.path}/manifest.json').existsSync()) return dir;
-  }
-  return null;
-}
-
-bool _isCuratedWebSnippet(File f, Directory collection) {
-  final rel = f.path
-      .substring(collection.path.length + 1)
-      .replaceAll(r'\', '/');
-  final parts = rel.split('/');
-  if (parts.length != 2) return false;
-  return kOracleSnippetDirs.contains(parts[0]) ||
-      (parts[0] == 'ni-kb' && kOracleNiKbSnippets.contains(parts[1]));
-}
-
-List<File> snippetCorpusPngs({bool includeWeb = true}) {
-  final tracked = repoDir('packages/labwright_rsrc_parse/corpus/snippets');
-  final files = <File>[];
-  if (tracked != null) {
-    files.addAll(
-      tracked.listSync().whereType<File>().where(
-        (f) => f.path.endsWith('.png'),
-      ),
-    );
-  } else {
-    for (final repo in const [
-      'rcpacini_LabVIEW-VI-Snippet',
-      'rcpacini_VI-Snippets',
-    ]) {
-      final dir = repoDir('packages/labwright_rsrc_parse/corpus/vi/$repo');
-      if (dir != null)
-        files.addAll(
-          dir
-              .listSync(recursive: true)
-              .whereType<File>()
-              .where((f) => f.path.endsWith('.png')),
-        );
-    }
-  }
-  final collection = includeWeb ? fetchedSnippetCollection() : null;
-  if (collection != null) {
-    files.addAll(
-      collection
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where(
-            (f) =>
-                f.path.endsWith('.png') && _isCuratedWebSnippet(f, collection),
-          ),
-    );
-  }
-  return files
-      .where((f) => extractSnippetVi(f.readAsBytesSync()) != null)
+List<File> snippetCorpusPngs() {
+  final root = snippetCorpusDir();
+  return [
+        ...root.listSync().whereType<File>(),
+        ...Directory(
+          '${root.path}/bulk',
+        ).listSync(recursive: true).whereType<File>(),
+      ]
+      .where(
+        (f) =>
+            f.path.endsWith('.png') &&
+            extractSnippetVi(f.readAsBytesSync()) != null,
+      )
       .toList()
     ..sort((a, b) => a.path.compareTo(b.path));
 }
 
-File? snippetPng(String pngName) {
-  for (final relative in const [
-    'packages/labwright_rsrc_parse/corpus/snippets',
-    'packages/labwright_rsrc_parse/corpus/snippets/bulk',
-    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_LabVIEW-VI-Snippet',
-  ]) {
-    final dir = repoDir(relative);
-    if (dir == null) continue;
-    for (final file in dir.listSync(recursive: true).whereType<File>()) {
-      if (file.path.endsWith('/$pngName')) return file;
-    }
-  }
-  return null;
-}
+File snippetPng(String pngName) => File('${snippetCorpusDir().path}/$pngName');
 
 Future<void> pumpBody(
   WidgetTester tester,
