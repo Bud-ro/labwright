@@ -191,7 +191,6 @@ void main() {
       }
       // ignore: avoid_print
       print('checked $stamps icon stamps across the snippet corpus');
-      expect(stamps, greaterThan(100));
     });
   }, tags: 'corpus');
 

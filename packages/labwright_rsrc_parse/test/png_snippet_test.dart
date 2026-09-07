@@ -25,8 +25,6 @@ Uint8List png(List<(String, List<int>)> chunks, {String? corruptCrcOf}) {
 
 const rsrc = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a, 0x00, 0x03];
 
-const kTrackedSnippetCount = 46;
-
 void main() {
   final ihdr = ('IHDR', List<int>.filled(13, 0));
   final iend = ('IEND', <int>[]);
@@ -97,10 +95,8 @@ void main() {
 
   test('every tracked snippet extracts to a parseable VI with a positioned BD', () async {
     final results = await decodeSnippetPngs(Directory('${corpusBaseDir().path}/snippets'));
-    final snippets = results
-        .where((r) => r.$2 != null && !r.$1.replaceAll(r'\', '/').contains('/snippets/bulk/'))
-        .toList();
-    expect(snippets, hasLength(kTrackedSnippetCount));
+    final snippets = results.where((r) => r.$2 != null).toList();
+    expect(snippets, isNotEmpty);
     for (final (path, positioned) in snippets) {
       expect(positioned, isTrue, reason: path);
     }

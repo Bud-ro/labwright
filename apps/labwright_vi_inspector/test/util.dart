@@ -21,13 +21,11 @@ Directory snippetCorpusDir() =>
     repoDir('packages/labwright_rsrc_parse/corpus/snippets')!;
 
 List<File> snippetCorpusPngs() {
-  final root = snippetCorpusDir();
-  return [
-        ...root.listSync().whereType<File>(),
-        ...Directory(
-          '${root.path}/bulk',
-        ).listSync(recursive: true).whereType<File>(),
-      ]
+  final tracked = snippetCorpusDir().listSync().whereType<File>();
+  final fetched = repoDir(
+    'packages/labwright_rsrc_parse/corpus/vi',
+  )!.listSync(recursive: true).whereType<File>();
+  return [...tracked, ...fetched]
       .where(
         (f) =>
             f.path.endsWith('.png') &&

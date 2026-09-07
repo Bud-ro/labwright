@@ -45,16 +45,15 @@ pool, not suite concurrency. If memory regresses, profile a single heavy suite
     and block-diagram object counts), asserted exactly by
     `corpus_snapshot_test.dart`.
 
-## Web snippets (fetched)
+## Snippets
 
-`snippets/bulk/` (gitignored) holds the [vi-snippets](https://github.com/Bud-ro/vi-snippets)
-collection: VI snippet PNGs from public web pages with an explicit license or
-reuse grant, byte-identical to the published images, with attribution in its
-`manifest.json` and `LICENSES.md`. `snippets/sources.json` pins the commit;
-`dart run packages/labwright_rsrc_parse/tool/fetch_snippets.dart` downloads
-the tarball and checks the file count. No snippet bytes are committed here.
-Tests that read it, like every test that reads the fetched VI corpus, are
-tagged `corpus` and run only in CI's `corpus` job.
+VI snippets are PNGs that embed their `.vi` in a `niVI` chunk beside LabVIEW's
+own render of the block diagram, so each one is a paired render oracle. The
+fetched corpus holds them like any other source: `sources.json` entries with
+`keep: [".png"]` (the rcpacini snippet repositories and the
+[vi-snippets](https://github.com/Bud-ro/vi-snippets) collection of web-harvested
+snippets with an explicit license or reuse grant, attribution in its manifest).
+`snippets/` tracks 46 of them so the untagged render tests run without a fetch.
 
 ## Fetched samples (gitignored)
 

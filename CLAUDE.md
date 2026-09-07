@@ -62,9 +62,8 @@ You can also specify a specific package. The apps aren't under the workspace so
 you'll need to analyze/test them separately.
 
 Tests that read fetched data are tagged `corpus` and assume the data is there:
-run the three fetch tools (`packages/labwright_rsrc_parse/tool/fetch_corpus.dart`,
-`packages/labwright_seq/tool/fetch_seq_corpus.dart`,
-`packages/labwright_rsrc_parse/tool/fetch_snippets.dart`) and then
+run the two fetch tools (`packages/labwright_rsrc_parse/tool/fetch_corpus.dart`,
+`packages/labwright_seq/tool/fetch_seq_corpus.dart`) and then
 `dart test -t corpus` / `flutter test --tags corpus`; without the data run
 `dart test -x corpus` / `flutter test --exclude-tags corpus`, which is what
 CI's regular jobs do. CI's `corpus` job runs only the tagged tests.

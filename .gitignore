@@ -30,8 +30,6 @@ zig-out/
 # The snippet references ARE tracked: they carry embedded VIs and are the
 # project's only concrete render/parse feedback loop, so CI must have them.
 !/packages/labwright_rsrc_parse/corpus/snippets/
-# Snippet collection - `dart run packages/labwright_rsrc_parse/tool/fetch_snippets.dart`
-/packages/labwright_rsrc_parse/corpus/snippets/bulk/
 /packages/labwright_seq/corpus/seq/
 
 # Claude Junk

@@ -77,14 +77,12 @@ jobs:
           path: |
             packages/labwright_rsrc_parse/corpus/vi
             packages/labwright_seq/corpus/seq
-            packages/labwright_rsrc_parse/corpus/snippets/bulk
-          key: corpus-${{ hashFiles('packages/labwright_rsrc_parse/corpus/sources.json', 'packages/labwright_seq/corpus/seq-sources.json', 'packages/labwright_rsrc_parse/corpus/snippets/sources.json') }}
+          key: corpus-${{ hashFiles('packages/labwright_rsrc_parse/corpus/sources.json', 'packages/labwright_seq/corpus/seq-sources.json') }}
 
       - name: fetch the corpora
         run: |
           dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart
           dart run packages/labwright_seq/tool/fetch_seq_corpus.dart
-          dart run packages/labwright_rsrc_parse/tool/fetch_snippets.dart
 
       - name: corpus tests
         shell: bash

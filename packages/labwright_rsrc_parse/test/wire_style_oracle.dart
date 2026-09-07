@@ -103,16 +103,13 @@ int _paeth(int a, int b, int c) {
   return pb <= pc ? b : c;
 }
 
-List<File> listSnippetPngs(Directory corpusViDir) {
-  if (!corpusViDir.existsSync()) return const [];
-  return [
-    for (final d in const ['rcpacini_VI-Snippets', 'rcpacini_LabVIEW-VI-Snippet'])
-      if (Directory('${corpusViDir.path}/$d').existsSync())
-        ...Directory(
-          '${corpusViDir.path}/$d',
-        ).listSync(recursive: true, followLinks: false).whereType<File>().where((f) => f.path.endsWith('.png')),
-  ]..sort((a, b) => a.path.compareTo(b.path));
-}
+List<File> listSnippetPngs(Directory corpusViDir) =>
+    corpusViDir
+        .listSync(recursive: true, followLinks: false)
+        .whereType<File>()
+        .where((f) => f.path.endsWith('.png') && extractSnippetVi(f.readAsBytesSync()) != null)
+        .toList()
+      ..sort((a, b) => a.path.compareTo(b.path));
 
 bool objectVisibleInRender(ViDiagram bd, int oid) {
   var o = bd.byId[oid];

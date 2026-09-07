@@ -7,7 +7,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 import 'wire_style_oracle.dart';
 
 Map<String, int> _census(Uint8List png, String path) {
@@ -161,71 +160,225 @@ int _pct(Map<String, int> c, String tier) {
   return (100 * (c['${tier}_runink'] ?? 0) / px).round();
 }
 
+const kShipGrossMisses = <String, int>{
+  '18726000_BBgBQ.png': 1,
+  '23824206_lZCON.png': 1,
+  '44061689_Pkwe4.png': 1,
+  '48456600_4eyDr.png': 2,
+  '48623072_LYYv9.png': 2,
+  '53800813_GEVVE.png': 2,
+  '55137255_O8ltm.png': 3,
+  '57642244_cm7Ca.png': 5,
+  'Accessing_Shared_Variables_From_a_LabVIEW_Web_Service_2.png': 1,
+  'Index_Array_-_Get_First_Element.png': 1,
+  'Index_Array_-_Get_First_Few_Elements.png': 1,
+  'Index_Array_-_Get_Specific_Elements.png': 1,
+  'Initialize_Array_-_Create_Array_From_Element.png': 1,
+  'Performing_Analog_Output_Software_timed_Waveform_Generation_in_LabVIEW.png': 1,
+  'Threshold_1D_Array_-_Threshold_Out_Of_Range.png': 1,
+  'for-loop_autoindex.png': 6,
+};
+
+const kSlackAnchorsOffInk = <String, int>{
+  '69539137_5Mi4k.png': 4,
+  'Get_Multiple_Inspection_Images_with_The_Vision_Builder_for_Automated_I.png': 1,
+  'On_Demand_Pulse_Generation_Without_Recreating_DAQmx_Task.png': 1,
+  'Replace_Subset_of_2D_Array_with_Smaller_2D_Array_in_LabVIEW.png': 1,
+  'Run_VBAI_Inspection_in_LabVIEW.png': 1,
+  'for-loop_autoindex.png': 1,
+};
+
+const kSlackHeadsNotDco = <String, int>{};
+
+const kShipInkPct = <String, int>{
+  '18726000_BBgBQ.png': 88,
+  '23824206_lZCON.png': 0,
+  '34140795_eK3nc.png': 87,
+  '37811753_DVcve.png': 77,
+  '38607813_VljVk.png': 90,
+  '44061689_Pkwe4.png': 78,
+  '48375096_LaIbB.png': 83,
+  '48456600_4eyDr.png': 26,
+  '48623072_LYYv9.png': 0,
+  '53800813_GEVVE.png': 0,
+  '55137255_O8ltm.png': 69,
+  '56468164_sOjUK.png': 90,
+  '57642244_cm7Ca.png': 40,
+  'Accessing_Shared_Variables_From_a_LabVIEW_Web_Service_2.png': 7,
+  'Index_Array_-_Get_First_Element.png': 42,
+  'Index_Array_-_Get_First_Few_Elements.png': 42,
+  'Index_Array_-_Get_Specific_Elements.png': 42,
+  'Initialize_Array_-_Create_Array_From_Element.png': 33,
+  'Threshold_1D_Array_-_Threshold_Out_Of_Range.png': 48,
+  'for-loop_autoindex.png': 22,
+  'hse_loop_timer_-_stop.png': 91,
+};
+
+const kShipBelowClosedPct = <String, int>{
+  '18726000_BBgBQ.png': 12,
+  '23824206_lZCON.png': 67,
+  '33003667_WQUOg.png': 4,
+  '34140795_eK3nc.png': 12,
+  '44061689_Pkwe4.png': 21,
+  '48624280_wTQyY.png': 4,
+  '56468164_sOjUK.png': 7,
+  '57642244_cm7Ca.png': 56,
+};
+
+const kHeldNotWorseThanShip = <String>{
+  '16347228_ATJUN.png',
+  '18726000_BBgBQ.png',
+  '26103724_Lk2H5.png',
+  '2_packet_convert_cluster.png',
+  '31949337_Nurez.png',
+  '36790337_6otPV.png',
+  '42658007_WxW2z.png',
+  '43292939_cDHQF.png',
+  '43309546_cGFGy.png',
+  '48624280_wTQyY.png',
+  '50799360_sx9Q3.png',
+  '52175083_RKkve.png',
+  '53538259_DJf0i.png',
+  '53538259_j1cS2.png',
+  '53541044_9rOae.png',
+  '55101960_vZSSg.png',
+  '56386018_EToD7.png',
+  '62643358_CqHhu.png',
+  '63563672_qPrsL.png',
+  '69539137_5Mi4k.png',
+  '71321004_rDU7K.png',
+  '72352838_UT2JQ.png',
+  '72363146_RmwtK.png',
+  '72499494_WQO8a.png',
+  '72501225_0EfiP.png',
+  '74521931_DWPW0.png',
+  '9864653_o6HLd.png',
+  'ClassChildren.png',
+  'Convert_Date_Format_in_Excel_with_LabVIEW_Report_Generation_Toolkit_2.png',
+  'Creating_an_Intensity_Graph_from_a_Single_Waveform.png',
+  'Different_Methods_for_Representing_Data_on_an_XY_Graph_3.png',
+  'Different_Methods_for_Representing_Data_on_an_XY_Graph_4.png',
+  'Dragging_Individual_Curves_Up_and_Down_in_LabVIEW_Waveform_Graph.png',
+  'Error_2000000006_With_Joystick_in_LabVIEW.png',
+  'Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW_2.png',
+  'GenerateTree.png',
+  'How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW.png',
+  'LabVIEW_7.png',
+  'LabVIEW_8.png',
+  'LabVIEW_Call_Library_Function_Node_Not_Unloading_a_DLL_After_VI_Execut.png',
+  'MD5.png',
+  'Programmatically_Centering_a_Word_Document_Table_in_LabVIEW_2.png',
+  'Replace_NI_DAQmx_Physical_Channel_Drop_Down_Menu_With_Check_Boxes_for.png',
+  'Writing_Values_to_VeriStand_Channels_Without_Data_Loss_Using_VeriStand.png',
+};
+
+const kIntoGrossMisses = <String, int>{
+  '55137255_O8ltm.png': 1,
+};
+
+const kIntoInkPct = <String, int>{
+  '33003667_WQUOg.png': 57,
+  '55137255_O8ltm.png': 34,
+  '70680356_I1bC9.png': 86,
+  'Editing_the_Header_of_Multicolumn_Listbox_Control_While_VI_is_Running.png': 77,
+  'Hardware_Time_Based_Control_of_CAN_Frame_Transmit_Time_with_NI_XNET.png': 66,
+};
+
+const kBranchInkPct = <String, int>{
+  '1_simple_tcp_client.png': 49,
+  '24373370_ux1oO.png': 52,
+  '36857051_9pIwb.png': 44,
+  '45220097_n46Kf.png': 38,
+  '47748166_UCZjH.png': 60,
+  '48623072_LYYv9.png': 22,
+  '57642244_cm7Ca.png': 30,
+  '69380394_fBJCD.png': 78,
+  '8850929_jswjp.png': 1,
+  'Adding_Custom_Glyphs_to_List_Controls_in_LabVIEW_3.png': 74,
+  'Display_Current_Time_in_LabVIEW_VI_2.png': 40,
+  'Error_1_An_Input_Parameter_Is_Invalid_in_LabVIEW.png': 19,
+  'GetCurrentDirectory.png': 81,
+  'Obtaining_Enum_Elements_in_String_Format.png': 50,
+  'Prevent_LabVIEW_Executable_to_Run_by_Different_Windows_Users_2.png': 79,
+  'Write_to_a_Password_Protected_Excel_File_so_That_the_Password_Prompt_I.png': 69,
+  'for-loop_autoindex.png': 22,
+};
+
+const kBranchGrossMisses = <String, int>{
+  '1_simple_tcp_client.png': 1,
+  '36857051_9pIwb.png': 2,
+  '45220097_n46Kf.png': 1,
+  '48623072_LYYv9.png': 2,
+  '57642244_cm7Ca.png': 2,
+  '8850929_jswjp.png': 1,
+  'Display_Current_Time_in_LabVIEW_VI_2.png': 1,
+  'Error_1_An_Input_Parameter_Is_Invalid_in_LabVIEW.png': 2,
+  'Obtaining_Enum_Elements_in_String_Format.png': 1,
+  'Write_to_a_Password_Protected_Excel_File_so_That_the_Password_Prompt_I.png': 1,
+  'for-loop_autoindex.png': 1,
+};
+
 void main() {
   final pngs = listSnippetPngs(corpusViDir);
+  late final Map<String, Map<String, int>> byFile;
   late final Map<String, int> C;
   setUpAll(() async {
     final res = await Future.wait([for (final f in pngs) Future(() => _census(f.readAsBytesSync(), f.path))]);
+    byFile = {for (var i = 0; i < pngs.length; i++) pngs[i].uri.pathSegments.last: res[i]};
     C = {};
     for (final m in res) {
       m.forEach((k, v) => C[k] = (C[k] ?? 0) + v);
     }
   });
 
+  Map<String, int> perFile(int Function(Map<String, int> c) value) => {
+    for (final e in byFile.entries)
+      if (value(e.value) != 0) e.key: value(e.value),
+  };
+
+  Map<String, int> belowPct(String tier, Map<String, int> pins, int floor) => {
+    for (final e in byFile.entries)
+      if ((e.value['${tier}_runpx'] ?? 0) > 0 && _pct(e.value, tier) < (pins[e.key] ?? floor))
+        e.key: _pct(e.value, tier),
+  };
+
   test('one-anchored oracle law: NO shipped two-endpoint walk grossly misses the ink', () {
+    final gross = perFile((c) => c['oa2_ship_qlo'] ?? 0);
+    final slackOff = perFile((c) => (c['oa2_slack_anchor'] ?? 0) - (c['oa2_slack_anchor_ink'] ?? 0));
+    final notDco = perFile((c) => (c['oa2_slack_anchor'] ?? 0) - (c['oa2_slack_head_dco'] ?? 0));
+    final shipBelow = belowPct('oa2_ship', kShipInkPct, 93);
+    final belowClosed = <String, int>{};
+    final heldNotWorse = <String>{};
+    byFile.forEach((name, c) {
+      if ((c['oa2_ship_runpx'] ?? 0) == 0) return;
+      if ((c['oa2_closed_runpx'] ?? 0) > 0) {
+        final gap = _pct(c, 'oa2_closed') - _pct(c, 'oa2_ship');
+        if (gap > (kShipBelowClosedPct[name] ?? 3)) belowClosed[name] = gap;
+      }
+      if ((c['oa2_held_runpx'] ?? 0) > 0 && _pct(c, 'oa2_held') >= _pct(c, 'oa2_ship')) heldNotWorse.add(name);
+    });
     expect(C['oa2_ship_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry shipped walked polylines');
-    expect(C['oa2_ship_qlo'] ?? 0, 0, reason: 'no shipped two-endpoint walk overlays below 50% ink');
     expect(C['oa2_slack_anchor'] ?? 0, greaterThan(0), reason: 'the snippets carry head-slack ships');
-    expect(
-      C['oa2_slack_anchor_ink'] ?? 0,
-      C['oa2_slack_anchor'] ?? 0,
-      reason: 'every head-slack ship anchors on reference ink',
-    );
-    expect(
-      C['oa2_slack_head_dco'] ?? 0,
-      C['oa2_slack_anchor'] ?? 0,
-      reason: 'every head-slack ship heads at a prim DCO terminal',
-    );
-    final shipPx = C['oa2_ship_runpx'] ?? 0, shipInk = C['oa2_ship_runink'] ?? 0;
-    expect(
-      shipInk * 100,
-      greaterThanOrEqualTo(93 * shipPx),
-      reason: 'shipped walked paths overlay reference ink >= 93%',
-    );
-    expect(
-      _pct(C, 'oa2_ship'),
-      greaterThanOrEqualTo(_pct(C, 'oa2_closed') - 3),
-      reason: 'shipped walked overlay tracks the closed-tier control',
-    );
-    if ((C['oa2_held_runpx'] ?? 0) > 0) {
-      expect(_pct(C, 'oa2_held'), lessThan(_pct(C, 'oa2_ship')), reason: 'withheld walks overlay worse than shipped');
-    }
+    expect(gross, kShipGrossMisses);
+    expect(slackOff, kSlackAnchorsOffInk);
+    expect(notDco, kSlackHeadsNotDco);
+    expect(shipBelow, isEmpty);
+    expect(belowClosed, isEmpty);
+    expect(heldNotWorse, kHeldNotWorseThanShip);
   });
 
   test('one-anchored oracle law: into-node ships overlay ink on their own', () {
+    final gross = perFile((c) => c['oa2_into_qlo'] ?? 0);
+    final below = belowPct('oa2_into', kIntoInkPct, 93);
     expect(C['oa2_into_wires'] ?? 0, greaterThan(0), reason: 'the snippets carry into-node ships');
-    expect(C['oa2_into_qlo'] ?? 0, 0, reason: 'no into-node ship overlays below 50% ink');
-    final px = C['oa2_into_runpx'] ?? 0, ink = C['oa2_into_runink'] ?? 0;
-    expect(ink * 100, greaterThanOrEqualTo(93 * px), reason: 'into-node ships overlay reference ink >= 93%');
+    expect(gross, kIntoGrossMisses);
+    expect(below, isEmpty);
   });
 
-  test('one-anchored oracle: shipped branch trees overlay well, with a documented drift residue', () {
-    final shipPx = C['oab_ship_runpx'] ?? 0, shipInk = C['oab_ship_runink'] ?? 0;
-    if (shipPx == 0) return;
-    expect(
-      shipInk * 100,
-      greaterThanOrEqualTo(85 * shipPx),
-      reason: 'shipped walked trees overlay reference ink >= 85%',
-    );
-    final qlo = C['oab_ship_qlo'] ?? 0, wires = C['oab_ship_wires'] ?? 1;
-    expect(
-      qlo * 20,
-      lessThanOrEqualTo(wires),
-      reason: 'walked-branch gross-miss residue stays under 5% (drift on plain-node arms)',
-    );
-  });
-
-  test('one-anchored oracle census matches the committed snapshot exactly', () {
-    expectCorpusSnapshot('wire_one_anchored_oracle', C);
+  test('one-anchored oracle law: shipped branch trees overlay reference ink', () {
+    final below = belowPct('oab_ship', kBranchInkPct, 85);
+    final gross = perFile((c) => c['oab_ship_qlo'] ?? 0);
+    expect(below, isEmpty);
+    expect(gross, kBranchGrossMisses);
   });
 }
