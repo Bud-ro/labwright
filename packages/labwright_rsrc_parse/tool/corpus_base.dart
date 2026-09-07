@@ -1,6 +1,8 @@
 import 'dart:convert';
 import 'dart:io';
 
+import 'package:archive/archive.dart';
+
 Directory corpusBaseDir() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var dir = Directory.current;
@@ -48,33 +50,22 @@ Future<bool> ghTarball(String repo, String commit, String tarPath) async {
 }
 
 Future<int> extractSelected(String tarPath, String destPath, List<String> keepExts) async {
-  final listing = await Process.run('tar', ['tzf', tarPath]);
-  if (listing.exitCode != 0) {
-    stderr.writeln('  tar list failed: ${listing.stderr}');
+  final Archive archive;
+  try {
+    archive = TarDecoder().decodeBytes(const GZipDecoder().decodeBytes(File(tarPath).readAsBytesSync()));
+  } catch (e) {
+    stderr.writeln('  tarball decode failed: $e');
     return -1;
   }
-  final members = (listing.stdout as String)
-      .split('\n')
-      .where((p) => p.isNotEmpty && keepExts.any((e) => p.toLowerCase().endsWith(e)))
-      .toList();
-  if (members.isEmpty) return 0;
-  final proc = await Process.start('tar', [
-    'xzf',
-    tarPath,
-    '-C',
-    destPath,
-    '--null',
-    '--files-from=-',
-    '--no-wildcards',
-  ]);
-  final errFuture = proc.stderr.transform(utf8.decoder).join();
-  proc.stdin.add(utf8.encode(members.map((m) => '$m${String.fromCharCode(0)}').join()));
-  await proc.stdin.close();
-  final code = await proc.exitCode;
-  final err = await errFuture;
-  if (code != 0) {
-    stderr.writeln('  tar extract failed ($code): ${err.trim()}');
-    return -1;
+  var count = 0;
+  for (final entry in archive) {
+    if (!entry.isFile) continue;
+    final name = entry.name.toLowerCase();
+    if (!keepExts.any(name.endsWith)) continue;
+    final out = File('$destPath/${entry.name}');
+    out.parent.createSync(recursive: true);
+    out.writeAsBytesSync(entry.content);
+    count++;
   }
-  return members.length;
+  return count;
 }

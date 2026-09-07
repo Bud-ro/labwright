@@ -427,7 +427,7 @@ void main() {
           dy: reg.dy.round(),
         );
         final missing = ink.missing;
-        if (f.path.contains('/snippets/bulk/')) {
+        if (f.path.replaceAll(r'\', '/').contains('/snippets/bulk/')) {
           webOff += off;
           webMissing += missing;
         } else {

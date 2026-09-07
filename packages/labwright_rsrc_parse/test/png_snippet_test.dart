@@ -146,7 +146,9 @@ void main() {
 
     test('every tracked snippet extracts to a parseable VI with a positioned BD', () async {
       final results = await decodeAll(Directory('${corpusBaseDir().path}/snippets'));
-      final snippets = results.where((r) => r.$2 != null && !r.$1.contains('/snippets/bulk/')).toList();
+      final snippets = results
+          .where((r) => r.$2 != null && !r.$1.replaceAll(r'\', '/').contains('/snippets/bulk/'))
+          .toList();
       expect(snippets, hasLength(kTrackedSnippetCount));
       for (final (path, positioned) in snippets) {
         expect(positioned, isTrue, reason: path);
