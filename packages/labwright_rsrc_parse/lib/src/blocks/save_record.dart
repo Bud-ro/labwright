@@ -8,6 +8,22 @@ const List<int> emptyPasswordHash = [
   0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e,
 ];
 
+/// Bits of the `u16` flag word at offset 4 of `LVSR`.
+enum ViSaveFlag {
+  /// `0x0800`: last saved by an evaluation-license LabVIEW, whose block-diagram
+  /// images carry the "LabVIEW Evaluation Software" watermark.
+  evaluationLicense(0x0800),
+
+  /// `0x1000`: last saved by a Home or Student edition, whose block-diagram
+  /// images carry the "Student Edition" watermark.
+  homeStudentEdition(0x1000)
+  ;
+
+  const ViSaveFlag(this.mask);
+
+  final int mask;
+}
+
 class ViSaveRecord {
   const ViSaveRecord({
     required this.rawLength,
@@ -15,11 +31,19 @@ class ViSaveRecord {
     required this.versionMinor,
     required this.stage,
     required this.build,
+    this.saveFlagWord = 0,
     this.blockDiagramPasswordHash,
     this.secondaryHash,
   });
 
   final int rawLength;
+
+  final int saveFlagWord;
+
+  Set<ViSaveFlag> get saveFlags => {
+    for (final flag in ViSaveFlag.values)
+      if (saveFlagWord & flag.mask != 0) flag,
+  };
 
   final int versionMajor;
 
@@ -41,9 +65,10 @@ class ViSaveRecord {
   }
 
   static const String unknownNote =
-      'Undecoded: small flag/count words near the start (@36 = -1 sentinel, '
-      '@68, @72), three 16-byte id/checksum fields (@52, @80, @120), and the '
-      'exact role of the secondary @144 hash.';
+      'Undecoded: the @4 flag word beyond bits 0x0800 and 0x1000, the '
+      'small flag/count words near the start (@36 = -1 sentinel, @68, @72), '
+      'three 16-byte id/checksum fields (@52, @80, @120), and the exact role '
+      'of the secondary @144 hash.';
 }
 
 ViSaveRecord? decodeSaveRecord(Uint8List bytes) {
@@ -55,6 +80,7 @@ ViSaveRecord? decodeSaveRecord(Uint8List bytes) {
     versionMinor: versionWord.minor,
     stage: versionWord.stage,
     build: versionWord.build,
+    saveFlagWord: bytes.length >= 6 ? ByteData.sublistView(bytes).getUint16(4) : 0,
     blockDiagramPasswordHash: bytes.length >= 112 ? List.unmodifiable(bytes.sublist(96, 112)) : null,
     secondaryHash: bytes.length >= 160 ? List.unmodifiable(bytes.sublist(144, 160)) : null,
   );
