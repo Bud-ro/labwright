@@ -16,7 +16,9 @@ Future<void> main(List<String> args) async {
   final pkgRoot = sources.parent.parent.path;
   final dest = positional.isNotEmpty ? positional.first : '$pkgRoot/corpus/seq';
 
-  final list = (jsonDecode(sources.readAsStringSync())['sources'] as List).cast<Map<String, dynamic>>();
+  final catalog = jsonDecode(sources.readAsStringSync()) as Map<String, dynamic>;
+  final list = (catalog['sources'] as List).cast<Map<String, dynamic>>();
+  final rosetta = (catalog['rosetta'] as List).cast<Map<String, dynamic>>();
 
   Directory(dest).createSync(recursive: true);
   stdout.writeln('seq corpus dest: $dest  (${list.length} sources from ${sources.path})');
@@ -49,6 +51,23 @@ Future<void> main(List<String> args) async {
     fetched++;
     seqTotal += extracted;
     stdout.writeln('  ok ($extracted corpus files; ${_countSeq(out)} .seq)');
+  }
+
+  for (final r in rosetta) {
+    final file = File('$dest/rosetta/${r['file']}');
+    if (fileMatches(file, r['sha256'] as String)) continue;
+    stdout.writeln('fetch rosetta/${r['file']} from ${r['repo']} @ ${(r['commit'] as String).substring(0, 12)}');
+    if (await fetchRawFile(
+      r['repo'] as String,
+      r['commit'] as String,
+      r['path'] as String,
+      r['sha256'] as String,
+      file,
+    )) {
+      fetched++;
+    } else {
+      failed++;
+    }
   }
 
   final grand = _countSeq(Directory(dest));

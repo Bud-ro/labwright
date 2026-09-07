@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 
 import 'package:archive/archive.dart';
+import 'package:crypto/crypto.dart';
 
 Directory corpusBaseDir() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
@@ -69,3 +70,33 @@ Future<int> extractSelected(String tarPath, String destPath, List<String> keepEx
   }
   return count;
 }
+
+Future<bool> fetchRawFile(String repo, String commit, String path, String sha256Hex, File to) async {
+  final client = HttpClient();
+  try {
+    final encoded = path.split('/').map(Uri.encodeComponent).join('/');
+    final request = await client.getUrl(Uri.parse('https://raw.githubusercontent.com/$repo/$commit/$encoded'));
+    final response = await request.close();
+    if (response.statusCode != 200) {
+      stderr.writeln('  HTTP ${response.statusCode} for $repo/$commit/$path');
+      return false;
+    }
+    final bytes = await response.fold<List<int>>(<int>[], (acc, chunk) => acc..addAll(chunk));
+    final digest = sha256.convert(bytes).toString();
+    if (digest != sha256Hex) {
+      stderr.writeln('  sha256 mismatch for $path: got $digest');
+      return false;
+    }
+    to.parent.createSync(recursive: true);
+    to.writeAsBytesSync(bytes);
+    return true;
+  } catch (e) {
+    stderr.writeln('  download failed: $e');
+    return false;
+  } finally {
+    client.close();
+  }
+}
+
+bool fileMatches(File file, String sha256Hex) =>
+    file.existsSync() && sha256.convert(file.readAsBytesSync()).toString() == sha256Hex;

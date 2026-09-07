@@ -506,5 +506,119 @@
       "encoding": "binary-TOF1",
       "note": "Discovered via crawl (repo/code search); 1 .seq (1 content-unique at add time)."
     }
+  ],
+  "rosetta": [
+    {
+      "file": "DmmHAL_labview_BIN.seq",
+      "repo": "NI-Measurement-Plug-Ins/abstraction-layer-labview",
+      "commit": "cc8d3e4f7814d6bc519459fee79285f86bb432db",
+      "path": "Source/HAL Implementation/DmmMeasurementHAL.seq",
+      "sha256": "4794a7a05a457490f30dca96c8f1365f3b08d690d25ffbf820b055efdac0e483"
+    },
+    {
+      "file": "DmmHAL_python_XML.seq",
+      "repo": "NI-Measurement-Plug-Ins/abstraction-layer-python",
+      "commit": "b1e30c9310bd89fbd60d6a28541790e8ab458dfe",
+      "path": "source/demo_files/DmmMeasurementHAL.seq",
+      "sha256": "91cd82cc706d3f8fbd8f7ac64e42362c8a6146d3c5a7fffa4b34069827fc7f89"
+    },
+    {
+      "file": "NIDCPower_labview_XML.seq",
+      "repo": "ni/measurement-plugin-labview",
+      "commit": "8229e64d0375c5b22bab7a5a74f1311af7698146",
+      "path": "Source/Example Measurements/NI-DCPower Source DC Voltage/NIDCPowerSourceDCVoltage_example.seq",
+      "sha256": "03625296924bf3d5d04606f9dd4cb28a72c4f503ec2938bf04db6ee9c2e7b137"
+    },
+    {
+      "file": "NIDCPower_python.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/nidcpower_source_dc_voltage/NIDCPowerSourceDCVoltage_example.seq",
+      "sha256": "acaec3a30310e7753d4d30b821e6e2d533b3758df9e3edaed6477304bacfe1b4"
+    },
+    {
+      "file": "NIDigitalSPI_python.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/nidigital_spi/NIDigitalSPI_example.seq",
+      "sha256": "bd5b1161aa747a546d105e7581dc41c22725899d9203ce4ddda8b2c0a12012d4"
+    },
+    {
+      "file": "NIDmm_labview_BIN.seq",
+      "repo": "ni/measurement-plugin-labview",
+      "commit": "8229e64d0375c5b22bab7a5a74f1311af7698146",
+      "path": "Source/Example Measurements/NI-DMM Measurement/NIDmmMeasurement_example.seq",
+      "sha256": "592d5b8a83bff8565621c886cf2859a28383a195f0d3200a1b42b8f2ef470890"
+    },
+    {
+      "file": "NIDmm_python_XML.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/nidmm_measurement/NIDmmMeasurement_example.seq",
+      "sha256": "c08d9f1c9f45548412a43452987140be25c217005931858702e6085078fec84c"
+    },
+    {
+      "file": "NIFgen_labview_BIN.seq",
+      "repo": "ni/measurement-plugin-labview",
+      "commit": "8229e64d0375c5b22bab7a5a74f1311af7698146",
+      "path": "Source/Example Measurements/NI-FGEN Standard Function/NIFgenStandardFunction_example.seq",
+      "sha256": "7304a1cc08c8d990dd43f1882fddfa9eb1e99505c0fd260b418ec27971cb5d9e"
+    },
+    {
+      "file": "NIFgen_python_XML.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/nifgen_standard_function/NIFgenStandardFunction_example.seq",
+      "sha256": "66d1b3ea79c62668fdabf8dfe98164c75204e50d5256576a0ca64986054e4b21"
+    },
+    {
+      "file": "NIScope_labview_BIN.seq",
+      "repo": "ni/measurement-plugin-labview",
+      "commit": "8229e64d0375c5b22bab7a5a74f1311af7698146",
+      "path": "Source/Example Measurements/NI-SCOPE Acquire Waveform/NIScopeAcquireWaveform_example.seq",
+      "sha256": "dbf0abf452bc84dd4ec13c27b96cbb2e337bc83f0f668546149b06569d875046"
+    },
+    {
+      "file": "NIScope_python_XML.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/niscope_acquire_waveform/NIScopeAcquireWaveform_example.seq",
+      "sha256": "bfac73cd5102ee77f74a2023611014d337aa1ef083e76f46660c738a6d6f3520"
+    },
+    {
+      "file": "NIVisa_python.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/nivisa_dmm_measurement/NIVisaDmmMeasurement_example.seq",
+      "sha256": "89e14cdffb1e07602fdc69445ea8018c2254ec1569ed42b889cd2b41ee2532a9"
+    },
+    {
+      "file": "OutputVoltage_BIN.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "1eea63096f4638eee77eb840adea85763c94286b",
+      "path": "examples/output_voltage_measurement/OutputVoltageMeasurement_example.seq",
+      "sha256": "5552d30ca5e93b9c44bf309e2a1468b724fd1da7b4795752ddc54843e8b607bc"
+    },
+    {
+      "file": "OutputVoltage_XML.seq",
+      "repo": "ni/measurement-plugin-python",
+      "commit": "145feccdee6e7163f6527af3c4d4d79f23857ad4",
+      "path": "examples/output_voltage_measurement/OutputVoltageMeasurement_example.seq",
+      "sha256": "716125d536968c0d1d55a970251ce75f305c1892ab179ba5ed5b55d10d2f91b0"
+    },
+    {
+      "file": "SmuFAL_labview_BIN.seq",
+      "repo": "NI-Measurement-Plug-Ins/abstraction-layer-labview",
+      "commit": "cc8d3e4f7814d6bc519459fee79285f86bb432db",
+      "path": "Source/FAL Implementation/SourceMeasureDCVoltageFAL.seq",
+      "sha256": "993940aae8ccde5bb6c1e702fbc4b6fba12578804ec75d7a038e8c7d5108b8b7"
+    },
+    {
+      "file": "SmuFAL_python_XML.seq",
+      "repo": "NI-Measurement-Plug-Ins/abstraction-layer-python",
+      "commit": "b1e30c9310bd89fbd60d6a28541790e8ab458dfe",
+      "path": "source/demo_files/SourceMeasureDCVoltageFAL.seq",
+      "sha256": "f452da0137bdd4dc5082ebe02bc41b99f9cfe7679b4ef92de87a9e4a371c4271"
+    }
   ]
 }
