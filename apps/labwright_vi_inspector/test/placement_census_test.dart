@@ -21,7 +21,7 @@ void main() {
         );
         return;
       }
-      final pngs = snippetCorpusPngs();
+      final pngs = snippetCorpusPngs(includeWeb: false);
       if (pngs.isEmpty) return;
       await loadRealTextFont();
       await tester.runAsync(() async {

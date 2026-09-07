@@ -1,0 +1,11 @@
+{
+ "description": "Pinned snippet collections fetched by tool/fetch_snippets.dart into corpus/snippets/bulk/ (gitignored): the GitHub tarball at the pinned commit, PNGs and manifest extracted, file count checked.",
+ "sources": [
+  {
+   "repo": "Bud-ro/vi-snippets",
+   "commit": "03f6778b16157fbff74e982d46585e7c8082172b",
+   "files": 747,
+   "note": "permissively licensed VI snippets from across the web, byte-identical to the published images, with attribution"
+  }
+ ]
+}

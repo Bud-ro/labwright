@@ -1,9 +1,11 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import '../tool/corpus_base.dart';
 import 'corpus_dirs.dart';
 
 Uint8List png(List<(String, List<int>)> chunks, {String? corruptCrcOf}) {
@@ -23,6 +25,8 @@ Uint8List png(List<(String, List<int>)> chunks, {String? corruptCrcOf}) {
 }
 
 const rsrc = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a, 0x00, 0x03];
+
+const kTrackedSnippetCount = 46;
 
 void main() {
   final ihdr = ('IHDR', List<int>.filled(13, 0));
@@ -125,6 +129,46 @@ void main() {
         }
         for (final f in pngs.where((f) => !inSnippets(f))) {
           expect(extractSnippetVi(f.readAsBytesSync()), isNull, reason: f.path);
+        }
+      }
+    });
+
+    Future<List<(String, bool?)>> decodeAll(Directory dir) async {
+      final pngs = dir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.png')).toList()
+        ..sort((a, b) => a.path.compareTo(b.path));
+      return corpusParallel(pngs, (bytes, path) {
+        final vi = extractSnippetVi(bytes);
+        if (vi == null) return (path, null);
+        final positioned = buildViModel(vi).blockDiagrams.any((d) => d.objects.any((o) => o.absBounds != null));
+        return (path, positioned);
+      });
+    }
+
+    test('every tracked snippet extracts to a parseable VI with a positioned BD', () async {
+      final results = await decodeAll(Directory('${corpusBaseDir().path}/snippets'));
+      final snippets = results.where((r) => r.$2 != null && !r.$1.contains('/snippets/bulk/')).toList();
+      expect(snippets, hasLength(kTrackedSnippetCount));
+      for (final (path, positioned) in snippets) {
+        expect(positioned, isTrue, reason: path);
+      }
+    });
+
+    test('every fetched snippet collection extracts to a parseable VI with a positioned BD', () async {
+      final snippets = Directory('${corpusBaseDir().path}/snippets');
+      final sources = (jsonDecode(File('${snippets.path}/sources.json').readAsStringSync())['sources'] as List)
+          .cast<Map<String, dynamic>>();
+      for (final source in sources) {
+        final repo = source['repo'] as String;
+        final dir = Directory('${snippets.path}/bulk/${repo.replaceAll('/', '_')}');
+        if (!dir.existsSync()) {
+          markTestSkipped('$repo not fetched');
+          continue;
+        }
+        final results = await decodeAll(dir);
+        final decoded = results.where((r) => r.$2 != null).toList();
+        expect(decoded, hasLength(source['files']), reason: repo);
+        for (final (path, positioned) in decoded) {
+          expect(positioned, isTrue, reason: path);
         }
       }
     });

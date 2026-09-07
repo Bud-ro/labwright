@@ -45,6 +45,17 @@ pool, not suite concurrency. If memory regresses, profile a single heavy suite
     and block-diagram object counts), asserted exactly by
     `corpus_snapshot_test.dart`.
 
+## Web snippets (fetched)
+
+`snippets/bulk/` (gitignored) holds the [vi-snippets](https://github.com/Bud-ro/vi-snippets)
+collection: VI snippet PNGs from public web pages with an explicit license or
+reuse grant, byte-identical to the published images, with attribution in its
+`manifest.json` and `LICENSES.md`. `snippets/sources.json` pins the commit;
+`dart run packages/labwright_rsrc_parse/tool/fetch_snippets.dart` downloads
+the tarball and checks the file count. No snippet bytes are committed here.
+The render oracles sweep the tracked snippets plus the collection's curated
+directories; the decode test walks the whole collection.
+
 ## Fetched samples (gitignored)
 
 - `vi/` — `dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart`

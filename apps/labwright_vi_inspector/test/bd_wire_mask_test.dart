@@ -321,7 +321,11 @@ void main() {
     await loadRealTextFont();
     await tester.runAsync(() async {
       final icons = await loadPrimIcons();
-      var totalOff = 0, totalMissing = 0, totalExcludedText = 0;
+      var totalOff = 0,
+          totalMissing = 0,
+          webOff = 0,
+          webMissing = 0,
+          totalExcludedText = 0;
       final rows = <String>[];
       for (final f in pngs) {
         final bytes = f.readAsBytesSync();
@@ -423,8 +427,13 @@ void main() {
           dy: reg.dy.round(),
         );
         final missing = ink.missing;
-        totalOff += off;
-        totalMissing += missing;
+        if (f.path.contains('/snippets/bulk/')) {
+          webOff += off;
+          webMissing += missing;
+        } else {
+          totalOff += off;
+          totalMissing += missing;
+        }
         totalExcludedText += excludedText + ink.excludedText;
         final name = f.path.split('/').last;
         rows.add(
@@ -445,83 +454,39 @@ void main() {
       // ignore: avoid_print
       print(
         'corpus wire layer: off=$totalOff missing=$totalMissing '
+        'web off=$webOff missing=$webMissing '
         'excludedText=$totalExcludedText over ${rows.length} snippets',
       );
       expect(rows.length, greaterThanOrEqualTo(46), reason: 'corpus size');
       expect(
         totalOff,
-        lessThanOrEqualTo(71239),
+        lessThanOrEqualTo(62660),
         reason:
-            'wire-layer pixels off the reference, corpus-wide — re-pin '
-            'DOWNWARD as decodes land, never up. (The into-icon arrival '
-            'law — stop at the arrival line\'s opaque art edge, never '
-            'overrun to the ink centre or against the closing direction — '
-            'plus the junction first-beyond-row lattice took this 71,915 '
-            '-> 71,825; the indexing-tunnel ring law took it -> 71,475; '
-            'handing glyph-fringe pixels inside painted text runs to the '
-            'text gauge -> 71,148; the whole-pixel text boxes then '
-            'EXPOSED 3 net px the wider fractional boxes had masked — '
-            'the crc trio each draw one 0x0000ff px beside the '
-            '`bytes`/`8-bits` labels where the reference is white, a '
-            'pre-existing wire overrun, offset by a 9 px ClassChildren '
-            'improvement -> 71,151; the FTAB font-run decode (bold only '
-            'where a weight-1000 entry says so) -> 71,150; the into-DCO '
-            'leg trim — a leg attached inside a value display starts at '
-            'the window furniture, not the stored attach under the '
-            'transparent label gap -> 71,140; the label-anchor laws '
-            '(0x800000 inset, boxW-1 centring, row-cell floor) -> 71,137. '
-            'Then the in-text exclusion was narrowed to the BLEND pixels '
-            'it can justify, which uncovered 102 px the whole-rect '
-            'version had absorbed: 71,137 -> 71,239, no render change.) '
-            'TODO(gauge-debt): those 102 px are real wire defects, not '
-            'gauge noise — ClassChildren 60 (a magenta string wire drawn '
-            'across the `\\.[Ll][Vv][Cc]…` constant\'s glyph row where '
-            'the reference has none), Excel_Cell_to_Value 29, large 11 '
-            '(the AA capture\'s 0x007f7f path wire vs our 0x006666), '
-            'Pages 2. Fix them in the wire campaign and re-pin down.',
+            'wire-layer pixels off the reference over the tracked snippets; re-pin downward only',
+      );
+      expect(
+        webOff,
+        lessThanOrEqualTo(109955),
+        reason:
+            'wire-layer pixels off the reference over the web snippets; re-pin downward only',
       );
       expect(
         totalMissing,
-        lessThanOrEqualTo(21807),
+        lessThanOrEqualTo(21345),
         reason:
-            'reference wire ink left white, corpus-wide — the undrawn/'
-            'misrouted budget; re-pin DOWNWARD as routing lands, never up. '
-            '(The icon-asset repairs — foreign fragments '
-            'lopped, baked wires erased, full-box crops trimmed to their '
-            'ink — took this 22,046 -> 22,035; the prim-origin/'
-            'uncatalogued 3-point tiers, the container-face runs, and the '
-            'Logical Shift terminal row -> 21,906; the array-shell wrap '
-            'arrival face -> 21,872; the metric-matched text pass '
-            'covering value-cell ink -> 21,807; bold style-run labels '
-            '-> 21,802; the whole-pixel text boxes exposed 3 reference px '
-            '(Pages, crc32_lookup_table) the wider fractional boxes had '
-            'masked -> 21,805; the FTAB-sized 21 px heading '
-            '(crc32_lookup_table, ink-bbox exact at 16 em) exposed 4 '
-            'black glyph px of its own text the mis-sized small-bold box '
-            'had masked — text-layer accuracy, not wire routing '
-            '-> 21,809; the label-anchor laws\' corrected runs cover 2 '
-            'more reference px -> 21,807. Narrowing the in-text exclusion '
-            'to provable ClearType fringe moved this by 0: the whole-rect '
-            'version was masking exactly 2 px corpus-wide, both fringe, '
-            'both still excluded and both reported in excludedText — so '
-            'every step above is a render change, none is masking.)',
+            'reference wire ink left white over the tracked snippets; re-pin downward only',
+      );
+      expect(
+        webMissing,
+        lessThanOrEqualTo(34934),
+        reason:
+            'reference wire ink left white over the web snippets; re-pin downward only',
       );
       expect(
         totalExcludedText,
-        lessThanOrEqualTo(437),
+        lessThanOrEqualTo(1100),
         reason:
-            'pixels handed to the text gauge — 435 glyph-AA blends on the '
-            'off side, 2 reference ClearType fringes on the missing side. '
-            'A rising bucket means the wire gauges are measuring less of '
-            'the render, so it is pinned like the gauges themselves. '
-            '(433 -> 435 when prim1537 gained a real asset: its art is '
-            '29x13 inside a 32x32 node box, so the box margin the '
-            'fabricated full-box plate used to ink is now honest canvas, '
-            'and 2 Excel_Cell_to_RowCol string-wire pixels there stopped '
-            'being accidentally covered. off and missing are unchanged. '
-            'TODO(gauge-debt): those 2 px are a real wire-coverage gap '
-            'the plate was hiding — fix them in the wire campaign and '
-            're-pin down.)',
+            'pixels handed to the text gauge, corpus-wide; re-pin downward only',
       );
     });
   });

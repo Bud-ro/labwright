@@ -607,7 +607,7 @@ void main() {
     ) async {
       if (pngs.isEmpty) return;
       await loadRealTextFont();
-      expect(pngs, hasLength(46));
+      expect(pngs, hasLength(fetchedSnippetCollection() == null ? 46 : 157));
       var placementSum = 0.0, shiftedSum = 0.0, measured = 0;
       await tester.runAsync(() async {
         for (final f in pngs) {
