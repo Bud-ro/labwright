@@ -11,11 +11,6 @@ import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
 void main() {
-  if (!corpusSeqDir.existsSync()) {
-    test('binary writer corpus gates (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
-
   test('whole corpus: write(parse(f)) reproduces every inflated body byte-exactly', () {
     var binaries = 0, bodyExact = 0, containerOk = 0, sizeWords = 0, subnormalSlots = 0;
     var total = const BinaryWriteScoreboard(

@@ -1028,11 +1028,10 @@ void main() {
     );
   });
 
-  final corpus = corpusViDir();
   test(
     'subVI calls bind through the connector pane, and both error modes sweep the corpus',
     () async {
-      final measured = (await corpusSweep(corpus!)).tally;
+      final measured = (await corpusSweep(corpusViDir())).tally;
       printOnFailure(
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
@@ -1040,13 +1039,12 @@ void main() {
       expect(measured['term.dirDisagree'], isNull, reason: 'the pane binding contradicts the caller\'s own direction');
     },
     tags: 'corpus',
-    skip: corpus == null ? 'corpus not fetched' : null,
   );
 
   test(
     'every emitted library analyzes clean at the recommended lint set, and compiles',
     () async {
-      final swept = await corpusSweep(corpus!);
+      final swept = await corpusSweep(corpusViDir());
       expect(
         (vis: swept.tally['exceptions.lowered'], sources: swept.sources.length),
         kEmittedSources,
@@ -1077,13 +1075,12 @@ void main() {
       }
     },
     tags: 'corpus',
-    skip: corpus == null ? 'corpus not fetched' : null,
   );
 
   test(
     'the corpus primitive review list is exactly what the whole corpus holds',
     () async {
-      final prims = (await corpusSweep(corpus!)).prims;
+      final prims = (await corpusSweep(corpusViDir())).prims;
       final identities = <String>{for (final key in prims.keys) key.split('|').skip(1).join('|')};
       final measured = <String, ({int vis, int nodes, int sole})>{
         for (final identity in identities)
@@ -1120,13 +1117,12 @@ void main() {
       );
     },
     tags: 'corpus',
-    skip: corpus == null ? 'corpus not fetched' : null,
   );
 
   test(
     'every Call Library Function node names the library and entry point it calls',
     () async {
-      final swept = await corpusSweep(corpus!);
+      final swept = await corpusSweep(corpusViDir());
       final measured = (
         libraries: swept.foreign.where((entry) => entry.startsWith('lib|')).length,
         entryPoints: swept.foreign.where((entry) => entry.startsWith('entry|')).length,
@@ -1135,7 +1131,6 @@ void main() {
       expect(measured, kCorpusForeignCalls);
     },
     tags: 'corpus',
-    skip: corpus == null ? 'corpus not fetched' : null,
   );
 
   test('the primitive review list is exactly what the snippet corpus holds', () {

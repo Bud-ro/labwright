@@ -205,10 +205,6 @@ _Cov _covSumm(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('corpus coverage (skipped: corpus not fetched — run tool/fetch_corpus.dart)', () {}, skip: true);
-    return;
-  }
   late final List<_Cov> C;
   late final int Function(String) S;
   setUpAll(() async {

@@ -193,10 +193,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('selector-range census (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> counts;
   setUpAll(() async {

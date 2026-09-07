@@ -10,11 +10,6 @@ import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
 
 void main() {
-  if (!corpusSeqDir.existsSync()) {
-    test('exporters (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
-
   final seqs = corpusSeqDir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.seq')).toList()
     ..sort((a, b) => a.path.compareTo(b.path));
   final pkgRoot = corpusSeqDir.parent.parent;

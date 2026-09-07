@@ -364,10 +364,6 @@ _Summ _summarize(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('invariants (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
   late final Map<String, int> C;
   late final Map<String, Set<String>> bodies;
   late final List<String> diags;

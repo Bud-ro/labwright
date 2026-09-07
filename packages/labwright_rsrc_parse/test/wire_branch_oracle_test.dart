@@ -87,10 +87,6 @@ Map<String, int> _census(Uint8List png, String path) {
 
 void main() {
   final pngs = listSnippetPngs(corpusViDir);
-  if (pngs.isEmpty) {
-    test('wire branch oracle (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
   late final Map<String, int> C;
   setUpAll(() async {
     final res = await Future.wait([for (final f in pngs) Future(() => _census(f.readAsBytesSync(), f.path))]);

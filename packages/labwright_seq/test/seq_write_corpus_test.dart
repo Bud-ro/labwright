@@ -13,11 +13,6 @@ const _pinnedIniSeqCount = 45;
 const _pinnedXmlSeqCount = 42;
 
 void main() {
-  if (!corpusSeqDir.existsSync()) {
-    test('seq writer corpus round-trip', () {}, skip: 'corpus absent — run tool/fetch_seq_corpus.dart');
-    return;
-  }
-
   final seqs =
       corpusSeqDir
           .listSync(recursive: true)

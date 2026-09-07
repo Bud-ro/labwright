@@ -2,6 +2,8 @@ import 'dart:io';
 import 'dart:isolate';
 import 'dart:typed_data';
 
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+
 import '../tool/corpus_base.dart';
 
 final Directory corpusViDir = Directory('${corpusBaseDir().path}/vi');
@@ -28,4 +30,15 @@ Future<List<R>> corpusParallel<R>(List<File> files, R Function(Uint8List bytes, 
     chunks.map((chunk) => Isolate.run(() => [for (final p in chunk) perFile(File(p).readAsBytesSync(), p)])),
   );
   return [for (final r in results) ...r];
+}
+
+Future<List<(String, bool?)>> decodeSnippetPngs(Directory dir) async {
+  final pngs = dir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.png')).toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+  return corpusParallel(pngs, (bytes, path) {
+    final vi = extractSnippetVi(bytes);
+    if (vi == null) return (path, null);
+    final positioned = buildViModel(vi).blockDiagrams.any((d) => d.objects.any((o) => o.absBounds != null));
+    return (path, positioned);
+  });
 }

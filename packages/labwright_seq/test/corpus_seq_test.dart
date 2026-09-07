@@ -58,11 +58,6 @@ final _xmlIniCounters =
         .split(' ');
 
 void main() {
-  if (!corpusSeqDir.existsSync()) {
-    test('teststand corpus', () {}, skip: 'corpus absent — run tool/fetch_seq_corpus.dart');
-    return;
-  }
-
   final seqs =
       corpusSeqDir
           .listSync(recursive: true)

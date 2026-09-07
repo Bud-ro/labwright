@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -69,12 +68,6 @@ List<int> attrU16(int id, int value) => [0x44, id, ...be16(value)];
 List<int> attrU24(int id, int value) => [0x64, id, (value >> 16) & 0xff, ...be16(value)];
 
 List<int> attrU32(int id, int value) => [0x84, id, ...be16(value >> 16), ...be16(value)];
-
-bool corpusOrSkip(FileSystemEntity entity, {String what = 'corpus'}) {
-  if (entity.existsSync()) return true;
-  markTestSkipped('$what not fetched');
-  return false;
-}
 
 void expectTotal(int seed, int iters, int maxLen, void Function(Uint8List) probe) {
   final rng = Random(seed);

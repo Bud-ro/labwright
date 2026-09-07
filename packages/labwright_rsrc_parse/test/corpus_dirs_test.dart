@@ -7,10 +7,6 @@ import 'corpus_dirs.dart';
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('corpus enumeration (skipped: corpus not fetched — run tool/fetch_corpus.dart)', () {}, skip: true);
-    return;
-  }
 
   test('corpusVis yields each VI exactly once (no symlink duplicates)', () {
     final canonical = <String>{};

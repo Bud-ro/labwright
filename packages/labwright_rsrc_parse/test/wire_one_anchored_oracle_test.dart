@@ -163,10 +163,6 @@ int _pct(Map<String, int> c, String tier) {
 
 void main() {
   final pngs = listSnippetPngs(corpusViDir);
-  if (pngs.isEmpty) {
-    test('wire one-anchored oracle (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
   late final Map<String, int> C;
   setUpAll(() async {
     final res = await Future.wait([for (final f in pngs) Future(() => _census(f.readAsBytesSync(), f.path))]);

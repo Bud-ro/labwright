@@ -43,7 +43,7 @@ ViDiagram snippetDiagram(String name) => snippetVi(name).diagram;
 
 String snippetName(File file) => file.uri.pathSegments.last.replaceAll(RegExp(r'\.png$'), '');
 
-Directory? corpusViDir() {
+Directory corpusViDir() {
   var dir = Directory.current;
   for (var depth = 0; depth < 8; depth++) {
     for (final relative in const ['packages/labwright_rsrc_parse/corpus', '../labwright_rsrc_parse/corpus']) {
@@ -54,7 +54,7 @@ Directory? corpusViDir() {
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  return null;
+  throw StateError('the VI corpus is not fetched');
 }
 
 List<String> corpusViPaths(Directory corpus) =>

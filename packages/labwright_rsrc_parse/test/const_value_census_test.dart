@@ -185,10 +185,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('BD-constant value census (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> C;
   setUpAll(() async {

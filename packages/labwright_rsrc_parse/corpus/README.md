@@ -53,8 +53,8 @@ reuse grant, byte-identical to the published images, with attribution in its
 `manifest.json` and `LICENSES.md`. `snippets/sources.json` pins the commit;
 `dart run packages/labwright_rsrc_parse/tool/fetch_snippets.dart` downloads
 the tarball and checks the file count. No snippet bytes are committed here.
-The render oracles sweep the tracked snippets plus the collection's curated
-directories; the decode test walks the whole collection.
+Tests that read it, like every test that reads the fetched VI corpus, are
+tagged `corpus` and run only in CI's `corpus` job.
 
 ## Fetched samples (gitignored)
 

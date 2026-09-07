@@ -31,10 +31,6 @@ _Snap _summarizeVi(Uint8List bytes, String path) {
 void main() {
   final all = corpusVis();
   final snapFile = corpusSnapshotFile();
-  if (all.isEmpty || !snapFile.existsSync()) {
-    test('corpus feature snapshot (skipped: corpus/snapshot not present)', () {}, skip: true);
-    return;
-  }
   if (snapshotUpdateMode) {
     test('corpus feature snapshot (skipped: snapshot regeneration in progress)', () {}, skip: true);
     return;

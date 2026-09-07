@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -26,15 +29,6 @@ Directory _corpusSeqDir() {
 
 void main() {
   final corpus = _corpusSeqDir();
-  if (!corpus.existsSync()) {
-    test(
-      'teststand corpus smoke',
-      () {},
-      skip: 'corpus absent — run tool/fetch_seq_corpus.dart',
-    );
-    return;
-  }
-
   final seqs =
       corpus
           .listSync(recursive: true)

@@ -9,7 +9,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 import 'snapshot_check.dart';
-import 'test_util.dart';
 
 int? _flatWidth(ViDataType kind) => switch (kind) {
   ViDataType.i8 || ViDataType.u8 || ViDataType.enumU8 => 1,
@@ -177,10 +176,6 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('loop terminal census (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
   test('structure-terminal glyph + constant-endpoint corpus census', () async {
     final merged = <String, int>{};
     for (final c in await corpusParallel(all, _census)) {
@@ -191,7 +186,6 @@ void main() {
 
   test('crc8: N feeders resolve to their constant boxes; hidden i glyphs decode', () {
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
-    if (!corpusOrSkip(crc8, what: 'crc8 snippet')) return;
     final d = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
 
     const glyphs = {

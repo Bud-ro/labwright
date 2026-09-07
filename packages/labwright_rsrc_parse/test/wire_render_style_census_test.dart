@@ -246,10 +246,6 @@ String? _predictedName(String cell) {
 
 void main() {
   final pngs = listSnippetPngs(corpusViDir);
-  if (pngs.isEmpty) {
-    test('wire render-style census (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> C;
   setUpAll(() async {

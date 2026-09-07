@@ -469,10 +469,6 @@ const _lawKeys = {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('wire route census (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> C;
   setUpAll(() async {

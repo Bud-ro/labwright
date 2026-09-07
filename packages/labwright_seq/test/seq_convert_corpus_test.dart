@@ -14,11 +14,6 @@ const _pinnedXmlSeqCount = 42;
 const _pinnedBinarySeqCount = 297;
 
 void main() {
-  if (!corpusSeqDir.existsSync()) {
-    test('cross-flavor corpus gates (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
-
   final byFormat = <SeqFormat, List<File>>{};
   final files = corpusSeqDir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.seq')).toList()
     ..sort((a, b) => a.path.compareTo(b.path));
