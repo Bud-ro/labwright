@@ -163,7 +163,7 @@ Attr = Num
   });
 }
 
-Object? _surface(SeqProperty p) => [
+List<Object?> _surface(SeqProperty p) => [
   p.name,
   p.className,
   p.typeName,
@@ -171,6 +171,12 @@ Object? _surface(SeqProperty p) => [
   p.numericFormat ?? p.attributes['%NUMFMT'],
   p.extData,
   [for (final c in p.subProps) _surface(c)],
-  p.array == null ? null : [for (final e in p.array!) _surface(e)],
-  p.elemProto == null ? null : _surface(p.elemProto!),
+  switch (p.array) {
+    final array? => [for (final e in array) _surface(e)],
+    _ => null,
+  },
+  switch (p.elemProto) {
+    final elemProto? => _surface(elemProto),
+    _ => null,
+  },
 ];
