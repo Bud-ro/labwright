@@ -258,15 +258,15 @@ const kHdrRestyleCells = <String>{
 const kObjfRestyleCells = <String>{};
 
 const kCrossSurvivorLater = <String, int>{
-  '56187411_LLjIg.png': 4,
+  '18726000_BBgBQ.png': 4,
 };
 
 const kDisabledPaletteMismatches = <String, int>{
-  '22422494_ke7nR.png': 1,
-  'Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW.png': 3,
-  'Event_Structure_Does_Not_Capture_the_Value_Change_Event_of_an_Indicato.png': 1,
-  'Reinitializing_a_Shift_Register_Without_Stopping_the_VI.png': 1,
-  'VI_2.png': 1,
+  'Configuring_G_Web_Applications_to_Use_Web_Service_Security_Permissions.png': 3,
+  'How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW.png': 1,
+  'ReverseBitsVim.png': 1,
+  'crc16.png': 1,
+  'crc32.png': 1,
   'crc8.png': 1,
 };
 

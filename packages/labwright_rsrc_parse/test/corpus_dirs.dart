@@ -29,7 +29,7 @@ Future<List<R>> corpusParallel<R>(List<File> files, R Function(Uint8List bytes, 
   final results = await Future.wait(
     chunks.map((chunk) => Isolate.run(() => [for (final p in chunk) perFile(File(p).readAsBytesSync(), p)])),
   );
-  return [for (final r in results) ...r];
+  return [for (var i = 0; i < paths.length; i++) results[i % n][i ~/ n]];
 }
 
 Future<List<(String, bool?)>> decodeSnippetPngs(Directory dir) async {
