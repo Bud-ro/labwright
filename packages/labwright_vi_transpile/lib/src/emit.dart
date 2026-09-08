@@ -57,15 +57,17 @@ typedef LvViResolver = LvViUnit? Function(String fileName);
   try {
     library.emit(entry, entryName: functionName);
     return (source: library.assemble(), refusal: null);
-  } on LvRefusedException catch (error) {
-    return (source: null, refusal: error.refusal);
+  } on LvRefusedException catch (e) {
+    return (source: null, refusal: e.refusal);
   }
 }
 
 class _Port {
-  const _Port({required this.terminal, required this.name, required this.type});
+  const _Port({required this.terminal, required this.source, required this.name, required this.type});
 
   final int terminal;
+
+  final int source;
 
   final String name;
 
@@ -88,7 +90,7 @@ class _Callable {
 
   final Set<int> elided = <int>{};
 
-  String? source;
+  late final String source;
 
   String get returnType => switch (results.length) {
     0 => 'void',
@@ -117,24 +119,21 @@ class _Library {
   final Set<String> takenNames = <String>{};
 
   void emit(LvViUnit unit, {required String entryName}) {
-    final entry = declare(unit, name: entryName);
+    declare(unit, name: entryName);
     // Callees declared while a body runs append to `functions`; index over it.
     for (var i = 0; i < functions.length; i++) {
       final callable = functions[i];
-      callable.source ??= _FunctionEmitter(this, callable).run();
+      callable.source = _FunctionEmitter(this, callable).run();
     }
-    assert(entry.source != null);
   }
 
   _Callable declare(LvViUnit unit, {String? name}) {
     final key = unit.fileName.toLowerCase();
     if (byFile[key] case final existing?) return existing;
-    final built = buildLvDataflow(unit.diagram, pool: unit.pool, declarations: declarations);
-    if (built.refusal case final refusal?) throw LvRefusedException(refusal);
     final callable = _Callable(
       unit: unit,
       functionName: _uniqueName(name ?? lvFieldName(unit.fileName.replaceAll(RegExp(r'\.\w+$'), ''))),
-      flow: built.dataflow!,
+      flow: lvDataflowOf(unit.diagram, pool: unit.pool, declarations: declarations),
     );
     byFile[key] = callable;
     functions.add(callable);
@@ -172,7 +171,12 @@ class _Library {
         callable.elided.add(control.oid);
         continue;
       }
-      final port = _Port(terminal: control.oid, name: callable.names.parameter(control.name), type: edge.type);
+      final port = _Port(
+        terminal: control.oid,
+        source: edge.source,
+        name: callable.names.parameter(control.name),
+        type: edge.type,
+      );
       callable.parameters.add(port);
       callable.byTerminal[control.oid] = port;
       noteImportsFor(edge.type);
@@ -190,7 +194,12 @@ class _Library {
         callable.elided.add(indicator.oid);
         continue;
       }
-      final port = _Port(terminal: indicator.oid, name: callable.names.resultField(indicator.name), type: edge.type);
+      final port = _Port(
+        terminal: indicator.oid,
+        source: edge.source,
+        name: callable.names.resultField(indicator.name),
+        type: edge.type,
+      );
       callable.results.add(port);
       callable.byTerminal[indicator.oid] = port;
       noteImportsFor(edge.type);
@@ -213,7 +222,7 @@ class _Library {
   }
 
   String assemble() {
-    final bodies = functions.map((function) => function.source ?? '').join('\n');
+    final bodies = functions.map((function) => function.source).join('\n');
     final constants = [
       for (final entry in fileConstants.entries)
         if (RegExp('\\b${entry.key}\\b').hasMatch(bodies)) entry.value,
@@ -302,18 +311,21 @@ class _FunctionEmitter {
     for (final parameter in callable.parameters) {
       valueOf[parameter.terminal] = parameter.name;
     }
-    final thrown = <int>[];
+    final thrown = <({int terminal, int source})>[];
     for (final terminal in callable.elided) {
       if (flow.outOf(terminal) != null) {
         library.imports.add(kLvRuntimeImport);
         valueOf[terminal] = LvRuntimeType.clearedError;
-      } else if (flow.into(terminal) != null) {
-        thrown.add(terminal);
+      } else if (flow.into(terminal) case final edge?) {
+        thrown.add((terminal: terminal, source: edge.source));
       }
     }
-    _emitRegion(flow.root, {for (final result in callable.results) result.terminal, ...thrown});
-    for (final terminal in thrown) {
-      final value = _bound(flow.into(terminal)!.source, terminal);
+    _emitRegion(flow.root, {
+      for (final result in callable.results) result.terminal,
+      for (final error in thrown) error.terminal,
+    });
+    for (final error in thrown) {
+      final value = _bound(error.source, error.terminal);
       body.writeln('if ($value.status) throw $value;');
     }
 
@@ -322,10 +334,10 @@ class _FunctionEmitter {
     ];
     final returnStatement = switch (callable.results.length) {
       0 => '',
-      1 => 'return ${_bound(flow.into(callable.results.single.terminal)!.source, callable.results.single.terminal)};',
+      1 => 'return ${_bound(callable.results.single.source, callable.results.single.terminal)};',
       _ =>
         'return (${[
-          for (final result in callable.results) '${result.name}: ${_bound(flow.into(result.terminal)!.source, result.terminal)}',
+          for (final result in callable.results) '${result.name}: ${_bound(result.source, result.terminal)}',
         ].join(', ')});',
     };
     final source = StringBuffer()
@@ -366,8 +378,9 @@ class _FunctionEmitter {
       final edge = flow.into(port);
       if (edge == null) continue;
       final owner = flow.ownerOfPort[edge.source];
-      final unit = owner == null ? null : byOid[owner];
-      if (unit == null || !live.add(owner!)) continue;
+      if (owner == null) continue;
+      final unit = byOid[owner];
+      if (unit == null || !live.add(owner)) continue;
       pending.addAll(unit.inputPorts);
     }
     return live;
@@ -592,7 +605,7 @@ class _FunctionEmitter {
       );
     }
 
-    _Port? portFor(int paneIndex, int holder, {required bool isInput}) {
+    _Port? portFor(int paneIndex, LvEdge edge) {
       final terminal = callee.paneTerminal(paneIndex);
       if (terminal == null) {
         lvRefuse(
@@ -612,7 +625,6 @@ class _FunctionEmitter {
           oid: unit.oid,
         );
       }
-      final edge = isInput ? flow.into(holder)! : flow.outOf(holder)!;
       if (port.type.dartType != edge.type.dartType) {
         lvRefuse(
           LvRefusalKind.subViCall,
@@ -628,14 +640,15 @@ class _FunctionEmitter {
     for (final holder in unit.inputPorts) {
       final edge = flow.into(holder);
       if (edge == null) continue;
-      final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: true);
+      final port = portFor(unit.paneIndexOf(holder)!, edge);
       if (port == null) continue;
       arguments.add('${port.name}: ${_bound(edge.source, unit.oid)}');
     }
     final wanted = <int, _Port>{};
     for (final holder in unit.outputPorts) {
-      if (flow.outOf(holder) == null) continue;
-      final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: false);
+      final edge = flow.outOf(holder);
+      if (edge == null) continue;
+      final port = portFor(unit.paneIndexOf(holder)!, edge);
       if (port == null) {
         library.imports.add(kLvRuntimeImport);
         valueOf[holder] = LvRuntimeType.clearedError;
@@ -731,13 +744,15 @@ class _FunctionEmitter {
     }
     final frame = unit.frames.single;
     final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
-    final indexedInputs = <({LvStructTerminal terminal, String array})>[];
-    final indexedOutputs = <({LvStructTerminal terminal, String builder, LvWireType type})>[];
+    final indexedInputs = <({LvStructTerminal terminal, int inner, String array, LvWireType type})>[];
+    final indexedOutputs = <({LvStructTerminal terminal, int inner, int outer, String builder, LvWireType type})>[];
 
     for (final tunnel in tunnels) {
       final inner = tunnel.innerPorts[frame.frameOid];
       if (inner == null) continue;
-      if (tunnel.outerPort != null && _typeAt(tunnel.outerPort!) == null) continue;
+      final outerPort = tunnel.outerPort;
+      final outerType = outerPort == null ? null : _typeAt(outerPort);
+      if (outerPort != null && outerType == null) continue;
       if (tunnel.outerIsSink) {
         final outer = _outerValue(tunnel);
         if (outer == null) {
@@ -750,13 +765,13 @@ class _FunctionEmitter {
         }
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
         _checkIndexedRank(tunnel, inner);
-        final outerType = _typeAt(tunnel.outerPort!)!;
-        final array = lvIsAtomic(outer) ? outer : names.wire(outerType);
+        final indexed = outerType!;
+        final array = lvIsAtomic(outer) ? outer : names.wire(indexed);
         if (array != outer) {
-          library.noteImportsFor(outerType);
-          body.writeln('final ${outerType.dartType} $array = $outer;');
+          library.noteImportsFor(indexed);
+          body.writeln('final ${indexed.dartType} $array = $outer;');
         }
-        indexedInputs.add((terminal: tunnel, array: array));
+        indexedInputs.add((terminal: tunnel, inner: inner, array: array, type: indexed));
         continue;
       }
       if (!tunnel.autoIndexing) {
@@ -774,14 +789,14 @@ class _FunctionEmitter {
       final builder = names.role(LvNameRole.builder);
       library.noteImportsFor(type);
       body.writeln('final ${lvArrayBuilderType(type.element)} $builder = <${type.element.dartType}>[];');
-      indexedOutputs.add((terminal: tunnel, builder: builder, type: type));
+      indexedOutputs.add((terminal: tunnel, inner: inner, outer: tunnel.outerPort!, builder: builder, type: type));
     }
 
     final carried = _emitShiftRegisters(unit, frame.frameOid);
     final bounds = <String>[
       if (unit.terminals.where((terminal) => terminal.role == LvTerminalRole.count).firstOrNull case final count?)
         if (_outerValue(count) case final value?) value,
-      for (final input in indexedInputs) '${input.array}.${_indexedLength(input.terminal)}',
+      for (final input in indexedInputs) '${input.array}.${input.type.dims > 1 ? 'outerLength' : 'length'}',
     ];
     if (bounds.isEmpty) {
       lvRefuse(
@@ -807,16 +822,13 @@ class _FunctionEmitter {
       if (terminal.innerPorts[frame.frameOid] case final port?) valueOf[port] = iteration;
     }
     for (final input in indexedInputs) {
-      final inner = input.terminal.innerPorts[frame.frameOid]!;
-      if (flow.outOf(inner) == null) continue;
-      final type = _typeAt(inner)!;
-      library.noteImportsFor(type);
+      final edge = flow.outOf(input.inner);
+      if (edge == null) continue;
+      library.noteImportsFor(edge.type);
       final element = names.role(LvNameRole.element);
-      final read = _typeAt(input.terminal.outerPort!)!.dims > 1
-          ? '${input.array}.rowAt($iteration)'
-          : '${input.array}[$iteration]';
-      body.writeln('final ${type.dartType} $element = $read;');
-      valueOf[inner] = element;
+      final read = input.type.dims > 1 ? '${input.array}.rowAt($iteration)' : '${input.array}[$iteration]';
+      body.writeln('final ${edge.type.dartType} $element = $read;');
+      valueOf[input.inner] = element;
     }
 
     _emitRegion(frame, _frameExits(unit, frame.frameOid));
@@ -834,8 +846,7 @@ class _FunctionEmitter {
       body.writeln('${register.name} = ${_bound(edge.source, register.terminal.oid)};');
     }
     for (final output in indexedOutputs) {
-      final inner = output.terminal.innerPorts[frame.frameOid];
-      final edge = inner == null ? null : flow.into(inner);
+      final edge = flow.into(output.inner);
       if (edge == null) {
         lvRefuse(
           LvRefusalKind.unwiredTerminal,
@@ -851,7 +862,7 @@ class _FunctionEmitter {
       final name = names.wire(output.type);
       library.noteImportsFor(output.type);
       body.writeln('final ${output.type.dartType} $name = ${lvArrayFreeze(output.type.element, output.builder)};');
-      valueOf[output.terminal.outerPort!] = name;
+      valueOf[output.outer] = name;
     }
     for (final register in carried) {
       if (register.rightOuter case final port?) valueOf[port] = register.name;
@@ -866,7 +877,9 @@ class _FunctionEmitter {
       if (left == null) {
         lvRefuse(LvRefusalKind.structure, 'a right shift register names no left partner', oid: right.oid);
       }
-      if (left.outerPort == null || _typeAt(left.outerPort!) == null) continue;
+      final outerPort = left.outerPort;
+      final type = outerPort == null ? null : _typeAt(outerPort);
+      if (type == null) continue;
       final initial = _outerValue(left);
       if (initial == null) {
         lvRefuse(
@@ -876,7 +889,6 @@ class _FunctionEmitter {
           oid: left.oid,
         );
       }
-      final type = _typeAt(left.outerPort!)!;
       final name = names.role(LvNameRole.carried);
       library.noteImportsFor(type);
       body.writeln('${type.dartType} $name = $initial;');
@@ -885,8 +897,6 @@ class _FunctionEmitter {
     }
     return carried;
   }
-
-  String _indexedLength(LvStructTerminal tunnel) => _typeAt(tunnel.outerPort!)!.dims > 1 ? 'outerLength' : 'length';
 
   void _checkIndexedRank(LvStructTerminal tunnel, int innerPort) {
     final inner = _typeAt(innerPort);
@@ -900,7 +910,8 @@ class _FunctionEmitter {
   }
 
   void _checkTunnelDims(LvStructTerminal tunnel, int structureOid, {required int drop}) {
-    final outer = tunnel.outerPort == null ? null : _typeAt(tunnel.outerPort!);
+    final outerPort = tunnel.outerPort;
+    final outer = outerPort == null ? null : _typeAt(outerPort);
     final innerPorts = tunnel.innerPorts.values.map(_typeAt).whereType<LvWireType>();
     for (final inner in innerPorts) {
       if (outer != null && outer.dims - inner.dims != drop) {
@@ -916,10 +927,11 @@ class _FunctionEmitter {
 
   void _emitCase(LvStructUnit unit) {
     final selector = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.selector).firstOrNull;
-    if (selector == null || selector.outerPort == null) {
+    final selectorPort = selector?.outerPort;
+    if (selectorPort == null) {
       lvRefuse(LvRefusalKind.caseSelector, 'a Case structure has no selector terminal', oid: unit.oid);
     }
-    final selectorEdge = flow.into(selector.outerPort!);
+    final selectorEdge = flow.into(selectorPort);
     if (selectorEdge == null) {
       lvRefuse(LvRefusalKind.unwiredTerminal, 'a Case structure\'s selector receives no wire', oid: unit.oid);
     }
@@ -1002,11 +1014,11 @@ class _FunctionEmitter {
       (guards[range.frame] ??= <String>[]).add(guard);
     }
     final outputs = _declareCaseOutputs(unit);
-    for (final frame in guards.keys) {
-      final tests = guards[frame]!;
+    for (final frame in guards.entries) {
+      final tests = frame.value;
       final guard = tests.length == 1 ? tests.single : tests.map((test) => '($test)').join(' || ');
-      body.writeln('${frame == guards.keys.first ? 'if' : '} else if'} ($guard) {');
-      _emitCaseFrame(unit, frame, outputs, selectorValue);
+      body.writeln('${frame.key == guards.keys.first ? 'if' : '} else if'} ($guard) {');
+      _emitCaseFrame(unit, frame.key, outputs, selectorValue);
     }
     body.writeln(guards.isEmpty ? '{' : '} else {');
     _emitCaseFrame(unit, unit.defaultFrame, outputs, selectorValue);
@@ -1039,8 +1051,10 @@ class _FunctionEmitter {
     for (final tunnel in unit.terminals) {
       if (tunnel.role != LvTerminalRole.caseTunnel || tunnel.outerIsSink) continue;
       final port = tunnel.outerPort;
-      if (port == null || flow.outOf(port) == null) continue;
-      final type = _typeAt(port)!;
+      if (port == null) continue;
+      final edge = flow.outOf(port);
+      if (edge == null) continue;
+      final type = edge.type;
       final name = names.role(LvNameRole.branch);
       library.noteImportsFor(type);
       body.writeln('final ${type.dartType} $name;');
