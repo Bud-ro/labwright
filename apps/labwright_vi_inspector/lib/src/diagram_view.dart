@@ -795,7 +795,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   if (key == null) return null;
   var termIdx = -1;
   var at = 0;
-  for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
+  for (final c in diagram.children(parentOid)) {
     if (c.kind != kNodeEndpointDcoKind) continue;
     if (c.oid == head.oid) {
       termIdx = at;
@@ -1944,8 +1944,7 @@ class BdDiagramPainter extends CustomPainter {
   void _paintTerminal(Canvas canvas, ViHeapObject object, Rect rect) {
     var box = rect;
     if (constValues[object.oid] != null) {
-      final kids =
-          scene.diagram.childrenByOid[object.oid] ?? const <ViHeapObject>[];
+      final kids = scene.diagram.children(object.oid);
       final named = kids.any(
         (c) =>
             c.objectClass == HeapObjectClass.controlLabel &&

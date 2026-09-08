@@ -52,6 +52,7 @@ class _BlockHexViewState extends State<BlockHexView> {
       try {
         final walk = walkHeapBody(bytes);
         _walk = walk;
+        final stoppedAt = walk.stoppedAtOffset;
         _records = [
           if (bytes.length >= 4)
             SpanInfo(
@@ -67,20 +68,19 @@ class _BlockHexViewState extends State<BlockHexView> {
             ),
           for (final span in walk.spans)
             classifySpan(bytes, span, widget.section.tag),
-          if (walk.stoppedAtOffset != null &&
-              walk.stoppedAtOffset! < bytes.length)
+          if (stoppedAt != null && stoppedAt < bytes.length)
             SpanInfo(
-              offset: walk.stoppedAtOffset!,
-              length: bytes.length - walk.stoppedAtOffset!,
-              lead: walk.stoppedLead ?? bytes[walk.stoppedAtOffset!],
+              offset: stoppedAt,
+              length: bytes.length - stoppedAt,
+              lead: walk.stoppedLead ?? bytes[stoppedAt],
               color: spanColorUnframed,
               title:
                   'Unframed tail (lead 0x${(walk.stoppedLead ?? 0).toRadixString(16)})',
               detail:
                   'The record walk stopped here: this lead byte\'s record family is not yet '
-                  'decoded, so the remaining ${bytes.length - walk.stoppedAtOffset!} bytes are not '
+                  'decoded, so the remaining ${bytes.length - stoppedAt} bytes are not '
                   'individually framed. They are preserved — decoding this family is the open frontier.',
-              inlinePreview: '${bytes.length - walk.stoppedAtOffset!} B',
+              inlinePreview: '${bytes.length - stoppedAt} B',
             ),
         ];
       } catch (_) {
@@ -137,6 +137,12 @@ class _BlockHexViewState extends State<BlockHexView> {
     final bytes = widget.section.bytes;
     final rows = (bytes.length + 15) ~/ 16;
     final fieldCov = _fieldCoverage();
+    final walk = _walk;
+    final walkNote = walk == null || walk.complete
+        ? ''
+        : ' · walk stopped at 0x${walk.stoppedAtOffset!.toRadixString(16)}'
+              ' (lead 0x${walk.stoppedLead!.toRadixString(16)}),'
+              ' ${(walk.coverage * 100).toStringAsFixed(0)}% framed';
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -156,13 +162,13 @@ class _BlockHexViewState extends State<BlockHexView> {
                 child: Text(
                   '${_fmt(bytes.length)} ${widget.section.wasCompressed ? '(inflated)' : ''} · '
                   '${_records.isEmpty ? 'raw bytes (no record framing)' : '${_records.length} records'}'
-                  '${_walk != null && !_walk!.complete ? ' · walk stopped at 0x${_walk!.stoppedAtOffset!.toRadixString(16)} (lead 0x${_walk!.stoppedLead!.toRadixString(16)}), ${(_walk!.coverage * 100).toStringAsFixed(0)}% framed' : ''}'
+                  '$walkNote'
                   '${fieldCov != null ? ' · ${(fieldCov * 100).toStringAsFixed(0)}% framed' : ''}',
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     color:
-                        (_walk != null && !_walk!.complete) ||
+                        walkNote.isNotEmpty ||
                             (fieldCov != null && fieldCov < 1.0)
                         ? Colors.orange
                         : Colors.grey,
@@ -450,10 +456,13 @@ class _BlockHexViewState extends State<BlockHexView> {
         final idx = pane.typeIndex;
         if (idx != null && idx >= 1 && idx <= pool.length) {
           final type = pool[idx - 1];
-          final name = type.name != null && type.name!.isNotEmpty
-              ? " '${type.name}'"
-              : '';
-          out.add(MapEntry('Conpane type', '${typeLabel(type, pool)}$name'));
+          final name = type.name ?? '';
+          out.add(
+            MapEntry(
+              'Conpane type',
+              '${typeLabel(type, pool)}${name.isEmpty ? '' : " '$name'"}',
+            ),
+          );
         }
         return out;
       case 'HLPP':
@@ -532,9 +541,9 @@ class _BlockHexViewState extends State<BlockHexView> {
                         text: typeLabel(type, types),
                         style: const TextStyle(fontSize: 12.5),
                       ),
-                      if (type.name != null && type.name!.isNotEmpty)
+                      if (type.name case final name? when name.isNotEmpty)
                         TextSpan(
-                          text: "  '${type.name}'",
+                          text: "  '$name'",
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Color(0xFF4C8C4C),
@@ -813,8 +822,9 @@ class _BlockHexViewState extends State<BlockHexView> {
             final pool = typePoolFromDecoded(widget.siblings);
             if (idx >= 1 && idx <= pool.length) {
               final type = pool[idx - 1];
+              final name = type.name ?? '';
               resolved =
-                  ' → ${typeLabel(type, pool)}${type.name != null && type.name!.isNotEmpty ? " '${type.name}'" : ''}';
+                  ' → ${typeLabel(type, pool)}${name.isEmpty ? '' : " '$name'"}';
             }
           }
           span(
