@@ -159,7 +159,7 @@ extension _StructurePass on BdDiagramPainter {
           ? null
           : bdDecodedColor(object.structRgb)) {
         null => null,
-        final c => _dimFor(object.oid, c),
+        final color => _dimFor(object.oid, color),
       };
       final terminals =
           structureTerminals[object.oid] ?? const <({HeapRect box, int bmp})>[];
@@ -200,72 +200,7 @@ extension _StructurePass on BdDiagramPainter {
         case HeapObjectClass.bdSequenceFrame:
           break;
         case HeapObjectClass.bdDisableStructure:
-          final showsDisabled = scene.diagram
-              .children(object.oid)
-              .any(
-                (k) =>
-                    k.objectClass == HeapObjectClass.bdSelectorLabel &&
-                    k.label?.trim().toLowerCase() == 'disabled',
-              );
-          if (showsDisabled) {
-            final grey = _solidNoAa(
-              _dimFor(object.oid, const Color(0xFF999999)),
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.top, rect.width, 1),
-              grey,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
-              grey,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.left, rect.top, 1, rect.height),
-              grey,
-            );
-            canvas.drawRect(
-              Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
-              grey,
-            );
-          } else {
-            final black = _solidNoAa(_dimFor(object.oid, Colors.black));
-            final hatchPts = <double>[];
-            void hatchCell(double x, double y) {
-              final rx = (x - rect.left).round() & 3;
-              final ry = ((y - rect.top).round() + 1) & 3;
-              if (kBdStructureHatch[ry][rx] == '#') {
-                hatchPts
-                  ..add(x + 0.5)
-                  ..add(y + 0.5);
-              }
-            }
-
-            for (var y = rect.top; y < rect.bottom; y++) {
-              for (var k = 0; k < 3; k++) {
-                hatchCell(rect.left + k, y);
-                hatchCell(rect.right - 3 + k, y);
-              }
-            }
-            for (var y = rect.bottom - 3; y < rect.bottom; y++) {
-              for (var x = rect.left + 3; x < rect.right - 3; x++) {
-                hatchCell(x, y);
-              }
-            }
-            _drawCellPoints(
-              canvas,
-              hatchPts,
-              _dimFor(object.oid, const Color(0xFF777777)),
-            );
-            canvas.drawRect(
-              Rect.fromLTRB(
-                rect.left + 3,
-                rect.top,
-                rect.right - 3,
-                rect.top + 1,
-              ),
-              black,
-            );
-          }
+          _drawDisableStructureFrame(canvas, rect, object);
         default:
           final frame =
               structColor ??
@@ -302,6 +237,66 @@ extension _StructurePass on BdDiagramPainter {
     }
   }
 
+  void _drawDisableStructureFrame(
+    Canvas canvas,
+    Rect rect,
+    ViHeapObject structure,
+  ) {
+    final showsDisabled = scene.diagram
+        .children(structure.oid)
+        .any(
+          (child) =>
+              child.objectClass == HeapObjectClass.bdSelectorLabel &&
+              child.label?.trim().toLowerCase() == 'disabled',
+        );
+    if (showsDisabled) {
+      final grey = _solidNoAa(_dimFor(structure.oid, const Color(0xFF999999)));
+      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, rect.width, 1), grey);
+      canvas.drawRect(
+        Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
+        grey,
+      );
+      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, 1, rect.height), grey);
+      canvas.drawRect(
+        Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
+        grey,
+      );
+    } else {
+      final black = _solidNoAa(_dimFor(structure.oid, Colors.black));
+      final hatchCells = <double>[];
+      void hatchCell(double column, double row) {
+        final tileColumn = (column - rect.left).round() & 3;
+        final tileRow = ((row - rect.top).round() + 1) & 3;
+        if (kBdStructureHatch[tileRow][tileColumn] == '#') {
+          hatchCells
+            ..add(column + 0.5)
+            ..add(row + 0.5);
+        }
+      }
+
+      for (var row = rect.top; row < rect.bottom; row++) {
+        for (var edgeColumn = 0; edgeColumn < 3; edgeColumn++) {
+          hatchCell(rect.left + edgeColumn, row);
+          hatchCell(rect.right - 3 + edgeColumn, row);
+        }
+      }
+      for (var row = rect.bottom - 3; row < rect.bottom; row++) {
+        for (var column = rect.left + 3; column < rect.right - 3; column++) {
+          hatchCell(column, row);
+        }
+      }
+      _drawCellPoints(
+        canvas,
+        hatchCells,
+        _dimFor(structure.oid, const Color(0xFF777777)),
+      );
+      canvas.drawRect(
+        Rect.fromLTRB(rect.left + 3, rect.top, rect.right - 3, rect.top + 1),
+        black,
+      );
+    }
+  }
+
   void _paintCaseSelectorStrips(Canvas canvas, List<ViHeapObject> solids) {
     for (final object in solids) {
       if (object.objectClass == HeapObjectClass.bdSelectorLabel)
@@ -330,85 +325,120 @@ extension _StructurePass on BdDiagramPainter {
     final blackFill = _solidNoAa(black);
     final greyFill = _solidNoAa(grey);
     final whiteFill = _solidNoAa(Colors.white);
-    void px(Paint paint, double x, double y, [double w = 1, double h = 1]) {
-      canvas.drawRect(Rect.fromLTWH(x, y, w, h), paint);
-    }
-
-    final l = rect.left, t = rect.top, r = rect.right, b = rect.bottom;
-    final w = rect.width;
-    for (final top in [true, false]) {
-      final y0 = top ? t : b - 10;
-      final rows = top
+    final left = rect.left,
+        top = rect.top,
+        right = rect.right,
+        bottom = rect.bottom;
+    final width = rect.width;
+    for (final atTop in [true, false]) {
+      final y0 = atTop ? top : bottom - 10;
+      final rows = atTop
           ? [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
           : [9, 8, 7, 6, 5, 4, 3, 2, 1, 0];
-      px(blackFill, l, y0 + rows[0], w);
-      px(greyFill, l, y0 + rows[1], w);
-      px(greyFill, l, y0 + rows[8], w);
-      px(blackFill, l, y0 + rows[9], w);
+      _fillPixels(canvas, blackFill, left, y0 + rows[0], width);
+      _fillPixels(canvas, greyFill, left, y0 + rows[1], width);
+      _fillPixels(canvas, greyFill, left, y0 + rows[8], width);
+      _fillPixels(canvas, blackFill, left, y0 + rows[9], width);
       for (final holeRow in [rows[2], rows[7]]) {
-        px(greyFill, l, y0 + holeRow, w);
+        _fillPixels(canvas, greyFill, left, y0 + holeRow, width);
       }
       for (final sideRow in [rows[3], rows[4], rows[5], rows[6]]) {
-        px(greyFill, l, y0 + sideRow, w);
+        _fillPixels(canvas, greyFill, left, y0 + sideRow, width);
       }
-      for (var hx = 9.0; hx + 6 <= w; hx += 12) {
+      for (var holeX = 9.0; holeX + 6 <= width; holeX += 12) {
         for (final holeRow in [rows[2], rows[7]]) {
-          px(blackFill, l + hx, y0 + holeRow, 6);
+          _fillPixels(canvas, blackFill, left + holeX, y0 + holeRow, 6);
         }
         for (final sideRow in [rows[3], rows[4], rows[5], rows[6]]) {
-          px(blackFill, l + hx, y0 + sideRow);
-          px(whiteFill, l + hx + 1, y0 + sideRow, 4);
-          px(blackFill, l + hx + 5, y0 + sideRow);
+          _fillPixels(canvas, blackFill, left + holeX, y0 + sideRow);
+          _fillPixels(canvas, whiteFill, left + holeX + 1, y0 + sideRow, 4);
+          _fillPixels(canvas, blackFill, left + holeX + 5, y0 + sideRow);
         }
       }
     }
-    final innerTop = t + 10, innerBottom = b - 10;
+    final innerTop = top + 10, innerBottom = bottom - 10;
     final sideH = innerBottom - innerTop;
     if (sideH > 0) {
-      px(greyFill, l + 2, t + 1, 3, b - t - 2);
-      px(blackFill, l + 5, innerTop, 1, sideH);
-      px(blackFill, r - 6, innerTop, 1, sideH);
-      px(greyFill, r - 5, t + 1, 3, b - t - 2);
-      for (var y = t + 1; y < b - 1; y++) {
-        final greyFirst = (((y + origin.dy).round() + 1) ~/ 2).isOdd;
-        px(greyFirst ? greyFill : blackFill, l, y.toDouble());
-        px(greyFirst ? blackFill : greyFill, l + 1, y.toDouble());
-        px(greyFirst ? blackFill : greyFill, r - 2, y.toDouble());
-        px(greyFirst ? greyFill : blackFill, r - 1, y.toDouble());
+      _fillPixels(canvas, greyFill, left + 2, top + 1, 3, bottom - top - 2);
+      _fillPixels(canvas, blackFill, left + 5, innerTop, 1, sideH);
+      _fillPixels(canvas, blackFill, right - 6, innerTop, 1, sideH);
+      _fillPixels(canvas, greyFill, right - 5, top + 1, 3, bottom - top - 2);
+      for (var row = top + 1; row < bottom - 1; row++) {
+        final greyFirst = (((row + origin.dy).round() + 1) ~/ 2).isOdd;
+        _fillPixels(
+          canvas,
+          greyFirst ? greyFill : blackFill,
+          left,
+          row.toDouble(),
+        );
+        _fillPixels(
+          canvas,
+          greyFirst ? blackFill : greyFill,
+          left + 1,
+          row.toDouble(),
+        );
+        _fillPixels(
+          canvas,
+          greyFirst ? blackFill : greyFill,
+          right - 2,
+          row.toDouble(),
+        );
+        _fillPixels(
+          canvas,
+          greyFirst ? greyFill : blackFill,
+          right - 1,
+          row.toDouble(),
+        );
       }
-      for (final top in [true, false]) {
-        final holeTop = top ? t + 3 : b - 7;
-        final capTop = top ? t + 2 : b - 8;
-        px(whiteFill, l + 1, holeTop, 1, 4);
-        px(blackFill, l + 2, capTop, 1, 6);
-        px(blackFill, l + 1, capTop, 2);
-        px(blackFill, l + 1, capTop + 5, 2);
-        px(whiteFill, r - 4, holeTop, 3, 4);
-        px(blackFill, r - 5, capTop, 1, 6);
-        px(blackFill, r - 5, capTop, 4);
-        px(blackFill, r - 5, capTop + 5, 4);
+      for (final atTop in [true, false]) {
+        final holeTop = atTop ? top + 3 : bottom - 7;
+        final capTop = atTop ? top + 2 : bottom - 8;
+        _fillPixels(canvas, whiteFill, left + 1, holeTop, 1, 4);
+        _fillPixels(canvas, blackFill, left + 2, capTop, 1, 6);
+        _fillPixels(canvas, blackFill, left + 1, capTop, 2);
+        _fillPixels(canvas, blackFill, left + 1, capTop + 5, 2);
+        _fillPixels(canvas, whiteFill, right - 4, holeTop, 3, 4);
+        _fillPixels(canvas, blackFill, right - 5, capTop, 1, 6);
+        _fillPixels(canvas, blackFill, right - 5, capTop, 4);
+        _fillPixels(canvas, blackFill, right - 5, capTop + 5, 4);
       }
-      var cum = 0.0;
+      var framesWidth = 0.0;
       final frames = scene.diagram
           .children(seq.oid)
           .where(
-            (c) =>
-                c.objectClass == HeapObjectClass.bdSequenceFrame &&
-                c.absBounds != null,
+            (child) =>
+                child.objectClass == HeapObjectClass.bdSequenceFrame &&
+                child.absBounds != null,
           )
           .toList();
-      for (var i = 0; i + 1 < frames.length; i++) {
-        cum += frames[i].absBounds!.right - frames[i].absBounds!.left;
-        px(blackFill, l + cum - 6, innerTop, 1, sideH);
-        px(greyFill, l + cum - 5, innerTop - 1, 5, sideH + 2);
-        px(blackFill, l + cum, innerTop, 1, sideH);
+      for (var frameIndex = 0; frameIndex + 1 < frames.length; frameIndex++) {
+        framesWidth +=
+            frames[frameIndex].absBounds!.right -
+            frames[frameIndex].absBounds!.left;
+        _fillPixels(
+          canvas,
+          blackFill,
+          left + framesWidth - 6,
+          innerTop,
+          1,
+          sideH,
+        );
+        _fillPixels(
+          canvas,
+          greyFill,
+          left + framesWidth - 5,
+          innerTop - 1,
+          5,
+          sideH + 2,
+        );
+        _fillPixels(canvas, blackFill, left + framesWidth, innerTop, 1, sideH);
       }
     }
   }
 
   void _drawBorderTerminalChrome(
     Canvas canvas,
-    Rect t,
+    Rect box,
     ({int kind, bool hollow, bool centreDot, bool disabled}) info,
     Color wireColor,
   ) {
@@ -421,29 +451,36 @@ extension _StructurePass on BdDiagramPainter {
     switch (kind) {
       case 0x22 || 0x2d || 0x2a || 0xcb || 0xce:
         if (info.hollow) {
-          canvas.drawRect(t, _solidNoAa(creamColor));
-          if (t.width == 9 && t.height == 9) {
+          canvas.drawRect(box, _solidNoAa(creamColor));
+          if (box.width == 9 && box.height == 9) {
             const ring = ['xx.xx', 'x...x', 'x...x', 'x...x', 'xx.xx'];
-            _stampBitmap(canvas, noAa, ring, t.left + 2, t.top + 2, on: 'x');
+            _stampBitmap(
+              canvas,
+              noAa,
+              ring,
+              box.left + 2,
+              box.top + 2,
+              on: 'x',
+            );
           }
         } else {
-          canvas.drawRect(t, noAa);
-          if (info.centreDot && t.width >= 7 && t.height >= 7) {
-            final cx = t.left + (t.width - 3) / 2;
-            final cy = t.top + (t.height - 3) / 2;
+          canvas.drawRect(box, noAa);
+          if (info.centreDot && box.width >= 7 && box.height >= 7) {
+            final dotLeft = box.left + (box.width - 3) / 2;
+            final dotTop = box.top + (box.height - 3) / 2;
             canvas.drawRect(
-              Rect.fromLTWH(cx, cy, 3, 3),
+              Rect.fromLTWH(dotLeft, dotTop, 3, 3),
               _solidNoAa(Colors.white),
             );
-            canvas.drawRect(Rect.fromLTWH(cx + 1, cy + 1, 1, 1), noAa);
+            canvas.drawRect(Rect.fromLTWH(dotLeft + 1, dotTop + 1, 1, 1), noAa);
           }
         }
         canvas.drawRect(
           Rect.fromLTRB(
-            t.left + 0.5,
-            t.top + 0.5,
-            t.right - 0.5,
-            t.bottom - 0.5,
+            box.left + 0.5,
+            box.top + 0.5,
+            box.right - 0.5,
+            box.bottom - 0.5,
           ),
           Paint()
             ..color = ringColor
@@ -452,17 +489,17 @@ extension _StructurePass on BdDiagramPainter {
             ..isAntiAlias = false,
         );
       case 0x27 || 0x28:
-        canvas.drawRect(t, noAa);
-        canvas.drawRect(t.deflate(2), _solidNoAa(creamColor));
-        if (t.width == 16 && t.height == 12) {
+        canvas.drawRect(box, noAa);
+        canvas.drawRect(box.deflate(2), _solidNoAa(creamColor));
+        if (box.width == 16 && box.height == 12) {
           final down = kind == 0x27;
-          for (var i = 0; i < 5; i++) {
-            final width = down ? 10 - 2 * i : 2 + 2 * i;
-            final row = (down ? 2 + i : 1 + i).toDouble();
+          for (var line = 0; line < 5; line++) {
+            final width = down ? 10 - 2 * line : 2 + 2 * line;
+            final row = (down ? 2 + line : 1 + line).toDouble();
             canvas.drawRect(
               Rect.fromLTWH(
-                t.left + 2 + (12 - width) / 2,
-                t.top + 2 + row,
+                box.left + 2 + (12 - width) / 2,
+                box.top + 2 + row,
                 width.toDouble(),
                 1,
               ),
@@ -471,9 +508,9 @@ extension _StructurePass on BdDiagramPainter {
           }
         }
       case 0x2e:
-        canvas.drawRect(t, noAa);
-        canvas.drawRect(t.deflate(1), _solidNoAa(creamColor));
-        if (t.width == 8 && t.height == 12) {
+        canvas.drawRect(box, noAa);
+        canvas.drawRect(box.deflate(1), _solidNoAa(creamColor));
+        if (box.width == 8 && box.height == 12) {
           const glyph = [
             '......',
             '..xx..',
@@ -486,7 +523,7 @@ extension _StructurePass on BdDiagramPainter {
             '..x...',
             '......',
           ];
-          _stampBitmap(canvas, noAa, glyph, t.left + 1, t.top + 1, on: 'x');
+          _stampBitmap(canvas, noAa, glyph, box.left + 1, box.top + 1, on: 'x');
         }
     }
   }
@@ -497,61 +534,67 @@ extension _StructurePass on BdDiagramPainter {
     Color? tint, {
     bool disabled = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
     final grey = tint ?? dim(style.whileBandGrey);
-    final l = rect.left.round(), t = rect.top.round();
-    final r = rect.right.round(), b = rect.bottom.round();
+    final left = rect.left.round(), top = rect.top.round();
+    final right = rect.right.round(), bottom = rect.bottom.round();
     const band = _kWhileBand;
-    final aw = _kWhileArrow.first.length, ah = _kWhileArrow.length;
-    final ax0 = r - aw, ay0 = b - ah;
+    final arrowWidth = _kWhileArrow.first.length,
+        arrowHeight = _kWhileArrow.length;
+    final arrowLeft = right - arrowWidth, arrowTop = bottom - arrowHeight;
 
-    final pts = <double>[];
-    void add(int x, int y) => pts
-      ..add(x + 0.5)
-      ..add(y + 0.5);
+    final greyCells = <double>[];
+    void addCell(int column, int row) => greyCells
+      ..add(column + 0.5)
+      ..add(row + 0.5);
 
-    void cell(int x, int y) {
-      final dt = y - t, db = b - 1 - y;
-      final dl = x - l, dr = r - 1 - x;
-      if (x >= ax0 && y >= ay0) return;
-      bool grey1;
-      if (dt < band && dl < band) {
-        grey1 = _kWhileCornerTL[dt][dl] == '#';
-      } else if (dt < band && dr < band) {
-        grey1 = _kWhileCornerTR[dt][dr] == '#';
-      } else if (db < band && dl < band) {
-        grey1 = _kWhileCornerBL[db][dl] == '#';
+    void cell(int column, int row) {
+      final fromTop = row - top, fromBottom = bottom - 1 - row;
+      final fromLeft = column - left, fromRight = right - 1 - column;
+      if (column >= arrowLeft && row >= arrowTop) return;
+      final bool isGrey;
+      if (fromTop < band && fromLeft < band) {
+        isGrey = _kWhileCornerTL[fromTop][fromLeft] == '#';
+      } else if (fromTop < band && fromRight < band) {
+        isGrey = _kWhileCornerTR[fromTop][fromRight] == '#';
+      } else if (fromBottom < band && fromLeft < band) {
+        isGrey = _kWhileCornerBL[fromBottom][fromLeft] == '#';
       } else {
-        grey1 = true;
+        isGrey = true;
       }
-      if (grey1) add(x, y);
+      if (isGrey) addCell(column, row);
     }
 
-    final bandBottom = math.max(b - band, t + band);
-    for (var y = t; y < math.min(t + band, b); y++) {
-      for (var x = l; x < r; x++) {
-        cell(x, y);
+    final bandBottom = math.max(bottom - band, top + band);
+    for (var row = top; row < math.min(top + band, bottom); row++) {
+      for (var column = left; column < right; column++) {
+        cell(column, row);
       }
     }
-    for (var y = bandBottom; y < b; y++) {
-      for (var x = l; x < r; x++) {
-        cell(x, y);
+    for (var row = bandBottom; row < bottom; row++) {
+      for (var column = left; column < right; column++) {
+        cell(column, row);
       }
     }
-    for (var y = t + band; y < bandBottom; y++) {
-      for (var x = l; x < math.min(l + band, r); x++) {
-        cell(x, y);
+    for (var row = top + band; row < bandBottom; row++) {
+      for (var column = left; column < math.min(left + band, right); column++) {
+        cell(column, row);
       }
-      for (var x = math.max(r - band, l + band); x < r; x++) {
-        cell(x, y);
+      for (
+        var column = math.max(right - band, left + band);
+        column < right;
+        column++
+      ) {
+        cell(column, row);
       }
     }
-    for (var ry = 0; ry < ah; ry++) {
-      for (var rx = 0; rx < aw; rx++) {
-        if (_kWhileArrow[ry][rx] == '#') add(ax0 + rx, ay0 + ry);
+    for (var arrowRow = 0; arrowRow < arrowHeight; arrowRow++) {
+      for (var arrowColumn = 0; arrowColumn < arrowWidth; arrowColumn++) {
+        if (_kWhileArrow[arrowRow][arrowColumn] == '#')
+          addCell(arrowLeft + arrowColumn, arrowTop + arrowRow);
       }
     }
-    _drawCellPoints(canvas, pts, grey);
+    _drawCellPoints(canvas, greyCells, grey);
   }
 
   void _drawForLoopBorder(Canvas canvas, Rect rect, {bool disabled = false}) {
@@ -559,33 +602,32 @@ extension _StructurePass on BdDiagramPainter {
         ? bdDimDisabled(const Color(0xFF000000))
         : const Color(0xFF000000);
     final paint = _solidNoAa(ink);
-    final l = rect.left.roundToDouble();
-    final t = rect.top.roundToDouble();
-    final r = rect.right.roundToDouble();
-    final b = rect.bottom.roundToDouble();
-    void px(double x, double y) =>
-        canvas.drawRect(Rect.fromLTRB(x, y, x + 1, y + 1), paint);
-    void hline(double x0, double x1, double y) =>
-        canvas.drawRect(Rect.fromLTRB(x0, y, x1 + 1, y + 1), paint);
-    void vline(double x, double y0, double y1) =>
-        canvas.drawRect(Rect.fromLTRB(x, y0, x + 1, y1 + 1), paint);
+    final left = rect.left.roundToDouble();
+    final top = rect.top.roundToDouble();
+    final right = rect.right.roundToDouble();
+    final bottom = rect.bottom.roundToDouble();
+    void px(double x, double y) => _fillPixels(canvas, paint, x, y);
+    void hline(double startX, double endX, double atY) =>
+        _hline(canvas, paint, startX, endX, atY);
+    void vline(double atX, double startY, double endY) =>
+        _vline(canvas, paint, atX, startY, endY);
 
     const fold = _kForLoopFold;
-    final backRight = r - 5, backBottom = b - 5;
-    hline(l, backRight, t);
-    vline(l, t, backBottom);
-    vline(backRight, t, backBottom - fold);
-    hline(l, backRight - fold, backBottom);
+    final backRight = right - 5, backBottom = bottom - 5;
+    hline(left, backRight, top);
+    vline(left, top, backBottom);
+    vline(backRight, top, backBottom - fold);
+    hline(left, backRight - fold, backBottom);
     hline(backRight - fold, backRight, backBottom - fold);
     vline(backRight - fold, backBottom - fold, backBottom);
-    for (var i = 1; i < fold; i++) {
-      px(backRight - i, backBottom - fold + i);
+    for (var step = 1; step < fold; step++) {
+      px(backRight - step, backBottom - fold + step);
     }
-    for (final o in const [2.0, 4.0]) {
-      hline(l + o, backRight + o, backBottom + o);
-      vline(backRight + o, t + o, backBottom + o);
-      hline(backRight + o - 2, backRight + o, t + o);
-      px(l + o, backBottom + o - 1);
+    for (final shadow in const [2.0, 4.0]) {
+      hline(left + shadow, backRight + shadow, backBottom + shadow);
+      vline(backRight + shadow, top + shadow, backBottom + shadow);
+      hline(backRight + shadow - 2, backRight + shadow, top + shadow);
+      px(left + shadow, backBottom + shadow - 1);
     }
   }
 
@@ -597,68 +639,86 @@ extension _StructurePass on BdDiagramPainter {
     bool disabled = false,
     bool error = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
     final paint = _solidNoAa(dim(const Color(0xFF000000)));
-    final l = rect.left.round(), t = rect.top.round();
-    final w = rect.width.round(), h = rect.height.round();
-    if (w < 2 || h < 2) return;
+    final left = rect.left.round(), top = rect.top.round();
+    final width = rect.width.round(), height = rect.height.round();
+    if (width < 2 || height < 2) return;
     canvas.drawRect(
-      Rect.fromLTWH(l.toDouble(), t.toDouble(), w.toDouble(), 1),
+      Rect.fromLTWH(left.toDouble(), top.toDouble(), width.toDouble(), 1),
       paint,
     );
     canvas.drawRect(
-      Rect.fromLTWH(l.toDouble(), (t + h - 1).toDouble(), w.toDouble(), 1),
+      Rect.fromLTWH(
+        left.toDouble(),
+        (top + height - 1).toDouble(),
+        width.toDouble(),
+        1,
+      ),
       paint,
     );
     canvas.drawRect(
-      Rect.fromLTWH(l.toDouble(), t.toDouble(), 1, h.toDouble()),
+      Rect.fromLTWH(left.toDouble(), top.toDouble(), 1, height.toDouble()),
       paint,
     );
     canvas.drawRect(
-      Rect.fromLTWH((l + w - 1).toDouble(), t.toDouble(), 1, h.toDouble()),
+      Rect.fromLTWH(
+        (left + width - 1).toDouble(),
+        top.toDouble(),
+        1,
+        height.toDouble(),
+      ),
       paint,
     );
     final tile = error ? kBdErrorHatch : kBdStructureHatch;
     final offset = error ? style.errorHatchOffset : style.hatchOffset;
     final band = <double>[];
     final field = error ? <double>[] : null;
-    void cell(int i, int j) {
-      final d = math.min(math.min(i, j), math.min(w - 1 - i, h - 1 - j));
-      if (d < 1 || d > kBdHatchBand) return;
-      if (tile[(absTop + j + offset.y) & 3][(absLeft + i + offset.x) & 3] ==
+    void cell(int column, int row) {
+      final inset = math.min(
+        math.min(column, row),
+        math.min(width - 1 - column, height - 1 - row),
+      );
+      if (inset < 1 || inset > kBdHatchBand) return;
+      if (tile[(absTop + row + offset.y) & 3][(absLeft + column + offset.x) &
+              3] ==
           '#') {
         band
-          ..add(l + i + 0.5)
-          ..add(t + j + 0.5);
+          ..add(left + column + 0.5)
+          ..add(top + row + 0.5);
       } else {
         field
-          ?..add(l + i + 0.5)
-          ..add(t + j + 0.5);
+          ?..add(left + column + 0.5)
+          ..add(top + row + 0.5);
       }
     }
 
-    final sideTop = math.min(kBdHatchBand + 1, h);
-    final sideBottom = math.max(h - 1 - kBdHatchBand, sideTop);
-    for (var j = 0; j < sideTop; j++) {
-      for (var i = 0; i < w; i++) {
-        cell(i, j);
+    final sideTop = math.min(kBdHatchBand + 1, height);
+    final sideBottom = math.max(height - 1 - kBdHatchBand, sideTop);
+    for (var row = 0; row < sideTop; row++) {
+      for (var column = 0; column < width; column++) {
+        cell(column, row);
       }
     }
-    for (var j = sideBottom; j < h; j++) {
-      for (var i = 0; i < w; i++) {
-        cell(i, j);
+    for (var row = sideBottom; row < height; row++) {
+      for (var column = 0; column < width; column++) {
+        cell(column, row);
       }
     }
-    for (var j = sideTop; j < sideBottom; j++) {
-      for (var i = 0; i < math.min(kBdHatchBand + 1, w); i++) {
-        cell(i, j);
+    for (var row = sideTop; row < sideBottom; row++) {
+      for (
+        var column = 0;
+        column < math.min(kBdHatchBand + 1, width);
+        column++
+      ) {
+        cell(column, row);
       }
       for (
-        var i = math.max(w - 1 - kBdHatchBand, kBdHatchBand + 1);
-        i < w;
-        i++
+        var column = math.max(width - 1 - kBdHatchBand, kBdHatchBand + 1);
+        column < width;
+        column++
       ) {
-        cell(i, j);
+        cell(column, row);
       }
     }
     if (field != null) {
@@ -677,7 +737,8 @@ extension _StructurePass on BdDiagramPainter {
     required bool disabled,
     required int oid,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : _dimFor(oid, c);
+    Color dim(Color color) =>
+        disabled ? bdDimDisabled(color) : _dimFor(oid, color);
     canvas.drawRect(
       Rect.fromLTWH(rect.left + 1, rect.bottom - 10, 21, 9),
       _solidNoAa(dim(Colors.white)),
@@ -696,22 +757,15 @@ extension _StructurePass on BdDiagramPainter {
     Rect box, {
     bool disabled = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
     final inks = {
       'G': _solidNoAa(dim(style.booleanGreen)),
       'c': _solidNoAa(dim(kBdTerminalFill)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
       'R': _solidNoAa(dim(const Color(0xFFFF0000))),
     };
-    for (final e in inks.entries) {
-      _stampBitmap(
-        canvas,
-        e.value,
-        _stopTerminal,
-        box.left,
-        box.top,
-        on: e.key,
-      );
+    for (final MapEntry(key: symbol, value: ink) in inks.entries) {
+      _stampBitmap(canvas, ink, _stopTerminal, box.left, box.top, on: symbol);
     }
   }
 
@@ -721,7 +775,7 @@ extension _StructurePass on BdDiagramPainter {
     BdTerminalArt art, {
     bool disabled = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
     final inks = {
       'B': _solidNoAa(dim(art.base)),
@@ -729,8 +783,8 @@ extension _StructurePass on BdDiagramPainter {
       'L': _solidNoAa(dim(art.light)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
     };
-    for (final e in inks.entries) {
-      _stampBitmap(canvas, e.value, art.rows, box.left, box.top, on: e.key);
+    for (final MapEntry(key: symbol, value: ink) in inks.entries) {
+      _stampBitmap(canvas, ink, art.rows, box.left, box.top, on: symbol);
     }
   }
 
@@ -740,16 +794,16 @@ extension _StructurePass on BdDiagramPainter {
     ({(int, int) origin, List<String> rows}) glyph, {
     bool disabled = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
     final ink = _solidNoAa(dim(const Color(0xFF0000FF)));
-    final l = box.left.roundToDouble(), t = box.top.roundToDouble();
+    final left = box.left.roundToDouble(), top = box.top.roundToDouble();
     canvas.drawRect(box, _solidNoAa(dim(kBdTerminalFill)));
-    canvas.drawRect(Rect.fromLTWH(l, t, 16, 2), ink);
-    canvas.drawRect(Rect.fromLTWH(l, t + 14, 16, 2), ink);
-    canvas.drawRect(Rect.fromLTWH(l, t, 2, 16), ink);
-    canvas.drawRect(Rect.fromLTWH(l + 14, t, 2, 16), ink);
-    final (ox, oy) = glyph.origin;
-    _stampBitmap(canvas, ink, glyph.rows, l + ox, t + oy);
+    canvas.drawRect(Rect.fromLTWH(left, top, 16, 2), ink);
+    canvas.drawRect(Rect.fromLTWH(left, top + 14, 16, 2), ink);
+    canvas.drawRect(Rect.fromLTWH(left, top, 2, 16), ink);
+    canvas.drawRect(Rect.fromLTWH(left + 14, top, 2, 16), ink);
+    final (glyphLeft, glyphTop) = glyph.origin;
+    _stampBitmap(canvas, ink, glyph.rows, left + glyphLeft, top + glyphTop);
   }
 
   void _drawStructureTerminals(
@@ -846,26 +900,21 @@ extension _StructurePass on BdDiagramPainter {
 
   void _drawCaseSelector(Canvas canvas, Rect rect) {
     final ink = _solidNoAa(Colors.black);
-    final l = rect.left.roundToDouble(), t = rect.top.roundToDouble();
-    final r = rect.right.roundToDouble();
-    final bottom = t + 16;
-    final left = l - 8, right = r + 18;
-    void hline(double x0, double x1, double y) =>
-        canvas.drawRect(Rect.fromLTRB(x0, y, x1 + 1, y + 1), ink);
-    void vline(double x, double y0, double y1) =>
-        canvas.drawRect(Rect.fromLTRB(x, y0, x + 1, y1 + 1), ink);
+    final labelLeft = rect.left.roundToDouble(), top = rect.top.roundToDouble();
+    final labelRight = rect.right.roundToDouble();
+    final bottom = top + 16;
+    final boxLeft = labelLeft - 8, boxRight = labelRight + 18;
     canvas.drawRect(
-      Rect.fromLTRB(left, t, right + 1, bottom + 1),
+      Rect.fromLTRB(boxLeft, top, boxRight + 1, bottom + 1),
       _solidNoAa(Colors.white),
     );
-    hline(left, right, t);
-    hline(left, right, bottom);
-    vline(left, t, bottom);
-    vline(l, t, bottom);
-    vline(r + 10, t, bottom);
-    vline(right, t, bottom);
-    _stampBitmap(canvas, ink, _selectorLeftPager, l - 7, t + 5);
-    _stampBitmap(canvas, ink, _selectorDropdown, r + 1, t + 6);
-    _stampBitmap(canvas, ink, _selectorRightPager, r + 11, t + 5);
+    _hline(canvas, ink, boxLeft, boxRight, top);
+    _hline(canvas, ink, boxLeft, boxRight, bottom);
+    for (final atX in [boxLeft, labelLeft, labelRight + 10, boxRight]) {
+      _vline(canvas, ink, atX, top, bottom);
+    }
+    _stampBitmap(canvas, ink, _selectorLeftPager, labelLeft - 7, top + 5);
+    _stampBitmap(canvas, ink, _selectorDropdown, labelRight + 1, top + 6);
+    _stampBitmap(canvas, ink, _selectorRightPager, labelRight + 11, top + 5);
   }
 }

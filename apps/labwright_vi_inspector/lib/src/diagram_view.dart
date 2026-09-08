@@ -1556,6 +1556,31 @@ void _drawCellPoints(Canvas canvas, List<double> centres, Color color) {
   );
 }
 
+void _fillPixels(
+  Canvas canvas,
+  Paint paint,
+  double left,
+  double top, [
+  double width = 1,
+  double height = 1,
+]) => canvas.drawRect(Rect.fromLTWH(left, top, width, height), paint);
+
+void _hline(
+  Canvas canvas,
+  Paint paint,
+  double startX,
+  double endX,
+  double atY,
+) => canvas.drawRect(Rect.fromLTRB(startX, atY, endX + 1, atY + 1), paint);
+
+void _vline(
+  Canvas canvas,
+  Paint paint,
+  double atX,
+  double startY,
+  double endY,
+) => canvas.drawRect(Rect.fromLTRB(atX, startY, atX + 1, endY + 1), paint);
+
 void _stampBitmap(
   Canvas canvas,
   Paint paint,
