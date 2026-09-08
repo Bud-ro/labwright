@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart';
 Directory corpusBaseDir() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
+  for (var depth = 0; depth < 8; depth++) {
     for (final rel in const [pkgRel, 'corpus']) {
       if (File('${dir.path}/$rel/sources.json').existsSync()) {
         return Directory('${dir.path}/$rel');
@@ -25,17 +25,79 @@ List<File> listCorpusVis(Directory root) {
   return root
       .listSync(recursive: true, followLinks: false)
       .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
+      .where((file) => file.path.toLowerCase().endsWith('.vi'))
       .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+    ..sort((left, right) => left.path.compareTo(right.path));
+}
+
+File? findCatalog(String fileName) {
+  var dir = File.fromUri(Platform.script).parent;
+  for (var depth = 0; depth < 8; depth++) {
+    final candidate = File('${dir.path}/corpus/$fileName');
+    if (candidate.existsSync()) return candidate;
+    final parent = dir.parent;
+    if (parent.path == dir.path) break;
+    dir = parent;
+  }
+  final cwd = File('corpus/$fileName');
+  return cwd.existsSync() ? cwd : null;
+}
+
+int countFiles(Directory root, String extension) => root
+    .listSync(recursive: true)
+    .whereType<File>()
+    .where((file) => file.path.toLowerCase().endsWith(extension))
+    .length;
+
+class FetchTally {
+  int fetched = 0;
+  int skipped = 0;
+  int failed = 0;
+  int files = 0;
+
+  @override
+  String toString() => 'fetched=$fetched skipped=$skipped failed=$failed (this run +$files files)';
+}
+
+Future<FetchTally> fetchSources(List<Map<String, dynamic>> sources, String dest, List<String> keepExts) async {
+  final tally = FetchTally();
+  for (final source in sources) {
+    final repo = source['repo'] as String;
+    final commit = source['commit'] as String;
+    final out = Directory('$dest/${repo.replaceAll('/', '_')}');
+    if (out.existsSync() && out.listSync().isNotEmpty) {
+      stdout.writeln('skip  $repo (already present)');
+      tally.skipped++;
+      continue;
+    }
+    out.createSync(recursive: true);
+    final tar = '${out.path}.tar.gz';
+    stdout.writeln('fetch $repo @ ${commit.substring(0, 12)}');
+    if (!await ghTarball(repo, commit, tar)) {
+      tally.failed++;
+      if (File(tar).existsSync()) File(tar).deleteSync();
+      continue;
+    }
+    final keep = (source['keep'] as List?)?.cast<String>() ?? keepExts;
+    final extracted = await extractSelected(tar, out.path, keep);
+    File(tar).deleteSync();
+    if (extracted < 0) {
+      tally.failed++;
+      continue;
+    }
+    tally.fetched++;
+    tally.files += extracted;
+    stdout.writeln('  ok ($extracted files)');
+  }
+  return tally;
 }
 
 Future<bool> ghTarball(String repo, String commit, String tarPath) async {
   final Process proc;
   try {
     proc = await Process.start('gh', ['api', 'repos/$repo/tarball/$commit']);
-  } on ProcessException catch (e) {
-    stderr.writeln('  gh not runnable: ${e.message} (is the GitHub CLI installed + authenticated?)');
+  } on ProcessException catch (error) {
+    stderr.writeln('  gh not runnable: ${error.message} (is the GitHub CLI installed + authenticated?)');
     return false;
   }
   final sink = File(tarPath).openWrite();
@@ -54,8 +116,8 @@ Future<int> extractSelected(String tarPath, String destPath, List<String> keepEx
   final Archive archive;
   try {
     archive = TarDecoder().decodeBytes(const GZipDecoder().decodeBytes(File(tarPath).readAsBytesSync()));
-  } catch (e) {
-    stderr.writeln('  tarball decode failed: $e');
+  } catch (error) {
+    stderr.writeln('  tarball decode failed: $error');
     return -1;
   }
   var count = 0;
@@ -90,8 +152,8 @@ Future<bool> fetchRawFile(String repo, String commit, String path, String sha256
     to.parent.createSync(recursive: true);
     to.writeAsBytesSync(bytes);
     return true;
-  } catch (e) {
-    stderr.writeln('  download failed: $e');
+  } catch (error) {
+    stderr.writeln('  download failed: $error');
     return false;
   } finally {
     client.close();
