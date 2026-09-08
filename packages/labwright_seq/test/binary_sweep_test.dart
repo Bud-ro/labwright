@@ -56,15 +56,6 @@ final _binarySweepCounters =
         .split(' ');
 
 void main() {
-  if (!corpusSeqDir.existsSync()) {
-    test(
-      'binary corpus sweep (skipped: corpus not fetched)',
-      () {},
-      skip: 'corpus absent — run tool/fetch_seq_corpus.dart',
-    );
-    return;
-  }
-
   final files =
       corpusSeqDir
           .listSync(recursive: true)

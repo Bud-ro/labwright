@@ -23,8 +23,6 @@ jobs:
         with:
           sdk: 3.11.3
 
-      # One workspace resolution, check formatting, analyze the whole tree,
-      # then test each package.
       - run: dart pub get
       - name: check formatting
         shell: bash
@@ -36,7 +34,7 @@ jobs:
           for p in packages/* example/e2e; do
             if [ -d "$p/test" ]; then
               echo "== $p =="
-              ( cd "$p" && dart test ) || exit 1
+              ( cd "$p" && dart test -x corpus ) || exit 1
             fi
           done
 
@@ -50,13 +48,50 @@ jobs:
         with:
           channel: stable
 
-      # Each app is a standalone Flutter package; analyze + test it headlessly.
       - name: analyze + test apps
         shell: bash
         run: |
           for app in apps/*/; do
             if [ -f "$app/pubspec.yaml" ]; then
               echo "== $app =="
-              ( cd "$app" && flutter pub get && flutter analyze && flutter test ) || exit 1
+              ( cd "$app" && flutter pub get && flutter analyze && flutter test --exclude-tags corpus ) || exit 1
             fi
+          done
+
+  corpus:
+    name: corpus
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+
+      - run: dart pub get
+
+      - uses: actions/cache@v4
+        with:
+          path: |
+            packages/labwright_rsrc_parse/corpus/vi
+            packages/labwright_seq/corpus/seq
+          key: corpus-${{ hashFiles('packages/labwright_rsrc_parse/corpus/sources.json', 'packages/labwright_seq/corpus/seq-sources.json') }}
+
+      - name: fetch the corpora
+        run: |
+          dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart
+          dart run packages/labwright_seq/tool/fetch_seq_corpus.dart
+
+      - name: corpus tests
+        shell: bash
+        run: |
+          for p in packages/labwright_rsrc_parse packages/labwright_seq packages/labwright_vi_transpile; do
+            echo "== $p =="
+            ( cd "$p" && dart test -t corpus ) || exit 1
+          done
+          for app in apps/*/; do
+            echo "== $app =="
+            ( cd "$app" && flutter pub get && flutter test --tags corpus ) || exit 1
           done

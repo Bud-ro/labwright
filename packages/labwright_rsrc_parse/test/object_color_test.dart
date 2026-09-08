@@ -71,10 +71,6 @@ List<int> _tally(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('object colours (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   test('object colours decode and land on drawable objects', () async {
     final tallies = await corpusParallel(all, _tally);

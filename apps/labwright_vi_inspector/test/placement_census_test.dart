@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:io';
 import 'dart:typed_data';
 
@@ -22,7 +25,6 @@ void main() {
         return;
       }
       final pngs = snippetCorpusPngs();
-      if (pngs.isEmpty) return;
       await loadRealTextFont();
       await tester.runAsync(() async {
         final icons = await loadPrimIcons();

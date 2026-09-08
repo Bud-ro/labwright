@@ -11,10 +11,6 @@ import 'snapshot_check.dart';
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('aux block decoders (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   final probes = <String, List<(String, bool Function(Uint8List))>>{
     'CPMp': [('CPMp', (b) => decodeConnectorPaneMap(b) != null)],

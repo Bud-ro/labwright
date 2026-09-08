@@ -43,11 +43,6 @@ void main() {
   final rosetta = Directory('${corpusSeqDir.path}/rosetta');
   final oracleBinFile = File('${rosetta.path}/OutputVoltage_BIN.seq');
   final oracleXmlFile = File('${rosetta.path}/OutputVoltage_XML.seq');
-  if (!oracleBinFile.existsSync() || !oracleXmlFile.existsSync()) {
-    test('binary oracle (skipped: Rosetta corpus not fetched)', () {}, skip: true);
-    return;
-  }
-
   final binaries = rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq')).toList()
     ..sort((a, b) => a.path.compareTo(b.path));
 

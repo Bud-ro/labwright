@@ -221,10 +221,6 @@ const _lawKeys = {'depthOutOfRange', 'flagsLow2Set', 'oversizedTypeWord'};
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('signal wire-type census (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> C;
   setUpAll(() async {

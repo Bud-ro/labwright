@@ -17,44 +17,25 @@ Directory? repoDir(String relative) {
   return null;
 }
 
+Directory snippetCorpusDir() =>
+    repoDir('packages/labwright_rsrc_parse/corpus/snippets')!;
+
 List<File> snippetCorpusPngs() {
-  final tracked = repoDir('packages/labwright_rsrc_parse/corpus/snippets');
-  final dirs = tracked != null
-      ? [tracked]
-      : [
-          for (final repo in const [
-            'rcpacini_LabVIEW-VI-Snippet',
-            'rcpacini_VI-Snippets',
-          ])
-            repoDir('packages/labwright_rsrc_parse/corpus/vi/$repo'),
-        ].whereType<Directory>();
-  final files = <File>[];
-  for (final dir in dirs) {
-    files.addAll(
-      dir
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.endsWith('.png'))
-          .where((f) => extractSnippetVi(f.readAsBytesSync()) != null),
-    );
-  }
-  return files..sort((a, b) => a.path.compareTo(b.path));
+  final tracked = snippetCorpusDir().listSync().whereType<File>();
+  final fetched = repoDir(
+    'packages/labwright_rsrc_parse/corpus/vi',
+  )!.listSync(recursive: true).whereType<File>();
+  return [...tracked, ...fetched]
+      .where(
+        (f) =>
+            f.path.endsWith('.png') &&
+            extractSnippetVi(f.readAsBytesSync()) != null,
+      )
+      .toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
 }
 
-File? snippetPng(String pngName) {
-  for (final relative in const [
-    'packages/labwright_rsrc_parse/corpus/snippets',
-    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_VI-Snippets',
-    'packages/labwright_rsrc_parse/corpus/vi/rcpacini_LabVIEW-VI-Snippet',
-  ]) {
-    final dir = repoDir(relative);
-    if (dir == null) continue;
-    for (final file in dir.listSync(recursive: true).whereType<File>()) {
-      if (file.path.endsWith('/$pngName')) return file;
-    }
-  }
-  return null;
-}
+File snippetPng(String pngName) => File('${snippetCorpusDir().path}/$pngName');
 
 Future<void> pumpBody(
   WidgetTester tester,

@@ -16,10 +16,6 @@ void main() {
       return;
     }
     final extraction = await extractPrimIcons(tester);
-    if (extraction == null) {
-      markTestSkipped('snippet corpus not fetched');
-      return;
-    }
     final appDir = extraction.appDir;
     final outDir = extraction.assetDir;
     final pending = extraction.pending;

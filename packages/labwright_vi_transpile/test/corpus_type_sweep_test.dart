@@ -48,8 +48,7 @@ Map<String, List<int>> sweepChunk(List<String> paths) {
 }
 
 void main() {
-  final corpus = corpusViDir();
-  final vis = corpus == null ? const <String>[] : corpusViPaths(corpus);
+  final vis = corpusViPaths(corpusViDir());
 
   test(
     'every VCTP type code in the corpus is either modelled or on the documented review list',
@@ -94,6 +93,5 @@ void main() {
         'review-list roots hit: ${hex(rootUnmapped)}',
       );
     },
-    skip: corpus == null ? 'corpus not fetched' : null,
   );
 }

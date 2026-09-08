@@ -213,10 +213,6 @@ void main() {
     for (final f in corpusVis())
       if (!isNonRsrcFixture(f.path)) f,
   ];
-  if (all.isEmpty) {
-    test('writer scoreboard (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> C;
   late final List<String> diags;

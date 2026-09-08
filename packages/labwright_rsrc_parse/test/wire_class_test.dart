@@ -7,14 +7,9 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'test_util.dart';
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('wire class invariants (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   test('0x1d objects are BD-only wire segments with line-like bounds', () {
     var bdWires = 0, fpWires = 0, withBounds = 0, lineLike = 0;
@@ -89,7 +84,6 @@ void main() {
 
   test('endpoint terminal bounds: crc8 tunnels pin to their structure borders', () {
     final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
-    if (!corpusOrSkip(crc8, what: 'crc8 snippet')) return;
     final diagram = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
     const wants = {
       88: (375, 158, 391, 174),

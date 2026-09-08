@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -20,10 +23,6 @@ void main() {
       return;
     }
     final pngs = snippetCorpusPngs();
-    if (pngs.isEmpty) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
     await loadRealTextFont();
     final wanted = [
       for (final name in shots.split(','))

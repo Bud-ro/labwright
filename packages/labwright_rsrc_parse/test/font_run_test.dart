@@ -1,10 +1,12 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'test_util.dart';
 
 void main() {
   const cases = <(String, int, int, bool, int, String?)>[
@@ -18,7 +20,6 @@ void main() {
     ('Read VI Blocks.png', 2729, 3, false, 15, 'Courier New'),
   ];
   test('heap font runs resolve against the FTAB (fontId + 3 law)', () {
-    if (!corpusOrSkip(corpusViDir)) return;
     final byName = <String, File>{};
     for (final f in corpusViDir.listSync(recursive: true).whereType<File>()) {
       if (f.path.endsWith('.png')) byName[f.path.split('/').last] = f;

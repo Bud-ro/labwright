@@ -1,20 +1,3 @@
 tags:
   corpus:
-    # Tests that require the fetched VI corpus (tool/fetch_corpus.dart → the
-    # gitignored <package>/corpus/vi/). They self-skip when the corpus is absent,
-    # so CI stays green without it. They iterate the WHOLE corpus (~7.5k VIs, no
-    # sampling tier); the heavy per-VI work runs through corpusParallel
-    # (test/corpus_dirs.dart) — a bounded pool of worker isolates, each holding
-    # one VI's working set at a time, returning small per-VI summaries.
-    #
-    # Memory model (measured 2026-07): full suite ~1.9 GB peak RSS, dominated by
-    # suite compilation, not corpus data; `-j1` does NOT lower the peak (same
-    # RSS, 1.7x slower) because the parallelism that matters is the per-suite
-    # isolate pool. Keep sweeps streaming (no whole-corpus byte/model
-    # accumulation) and the pool bound intact — see corpus/README.md.
-    #
-    # Timeout is scaled, not absolute: every suite sweeps the same corpus
-    # concurrently, so one suite's wall time moves with how many corpus
-    # suites the run loads — the default 30 s flakes under full-suite
-    # contention (observed on object_color_test).
     timeout: 3x

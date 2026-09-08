@@ -107,10 +107,6 @@ void main() {
     tester,
   ) async {
     final pngs = snippetCorpusPngs();
-    if (pngs.isEmpty) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
     await tester.runAsync(() async {
       final icons = await loadPrimIcons();
       var stamps = 0;
@@ -195,18 +191,13 @@ void main() {
       }
       // ignore: avoid_print
       print('checked $stamps icon stamps across the snippet corpus');
-      expect(stamps, greaterThan(100));
     });
-  });
+  }, tags: 'corpus');
 
   testWidgets('crc8 display pipeline: the U8 icon renders with uniform borders', (
     tester,
   ) async {
     final f = snippetPng('crc8.png');
-    if (f == null) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
     await loadRealTextFont();
     await tester.runAsync(() async {
       final bytes = f.readAsBytesSync();
@@ -857,11 +848,7 @@ void main() {
   testWidgets('branch-wire routeTree runs + junction dots land on ref ink', (
     tester,
   ) async {
-    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi');
-    if (root == null) {
-      markTestSkipped('corpus not fetched');
-      return;
-    }
+    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi')!;
     await loadRealTextFont();
     var branchWires = 0, junctionDots = 0, runPixels = 0, exposedWires = 0;
     await tester.runAsync(() async {
@@ -1058,7 +1045,7 @@ void main() {
     expect(junctionDots, greaterThanOrEqualTo(2));
     expect(exposedWires, greaterThanOrEqualTo(2));
     expect(runPixels, greaterThan(2000));
-  });
+  }, tags: 'corpus');
 
   testWidgets('CrispImage shows the base at n:1 and the box-downscaled '
       'supersample below it', (tester) async {

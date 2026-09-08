@@ -384,10 +384,6 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('viparse corpus invariants (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
 
   late final Map<String, int> C;
   late final List<String> diags;

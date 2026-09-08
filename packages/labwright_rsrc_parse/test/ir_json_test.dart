@@ -97,10 +97,6 @@ bool _hasNonPrintable(String s) => s.runes.any((c) => c < 0x20 || c >= 0x7f);
 
 void main() {
   final all = corpusVis();
-  if (all.isEmpty) {
-    test('IR JSON corpus tests (skipped: corpus not fetched)', () {}, skip: true);
-    return;
-  }
   late final Map<String, int> C;
   late final List<String> diags;
   setUpAll(() async {

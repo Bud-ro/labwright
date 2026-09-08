@@ -93,7 +93,6 @@ void main() {
     }
   });
 
-  final corpus = corpusViDir();
   test(
     'the checked-in generated sources are exactly what the three block diagrams lower to',
     () {
@@ -102,7 +101,7 @@ void main() {
         ('Calculate CRC.vi', 'modbusCrc16', 'modbus_crc16.g.dart'),
         ('Calc CRC-16.vi', 'calcCrc16', 'modbus_crc16_table.g.dart'),
       ]) {
-        final path = corpusViPaths(corpus!).firstWhere((path) => path.endsWith(fileName));
+        final path = corpusViPaths(corpusViDir()).firstWhere((path) => path.endsWith(fileName));
         final unit = LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);
         final result = emitLvLibrary(unit!, functionName: functionName, sourceNote: fileName);
         expect(result.refusal, isNull, reason: '$fileName must lower');
@@ -111,7 +110,6 @@ void main() {
       }
     },
     tags: 'corpus',
-    skip: corpus == null ? 'corpus not fetched' : null,
   );
 }
 

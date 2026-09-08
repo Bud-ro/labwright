@@ -161,10 +161,9 @@ class PrimIconExtraction {
   final Set<String> handKeys;
 }
 
-Future<PrimIconExtraction?> extractPrimIcons(WidgetTester tester) async {
+Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
   await loadRealTextFont();
   final pngs = snippetCorpusPngs();
-  if (pngs.isEmpty) return null;
   final appDir = repoDir('apps/labwright_vi_inspector')!.path;
   final assetDir = Directory('$appDir/assets/prim_icons')
     ..createSync(recursive: true);

@@ -11,11 +11,12 @@ Uint8List _strg(String text) {
   return u8([0, 0, 0, body.length, ...body]);
 }
 
-Uint8List _lvsr(int len, {int b0 = 0x20, int b1 = 0, List<int>? hash96, List<int>? hash144}) {
+Uint8List _lvsr(int len, {int b0 = 0x20, int b1 = 0, int flags = 0, List<int>? hash96, List<int>? hash144}) {
   final b = Uint8List(len);
   b[0] = b0;
   b[1] = b1;
   b[2] = 0x80;
+  if (len >= 6) ByteData.sublistView(b).setUint16(4, flags);
   if (len >= 112) b.setAll(96, hash96 ?? emptyPasswordHash);
   if (len >= 160) b.setAll(144, hash144 ?? emptyPasswordHash);
   return b;
@@ -151,6 +152,22 @@ void main() {
       expect(decodeSaveRecord(_lvsr(160, b0: 0x09))!.versionMajor, 9);
       final v85 = decodeSaveRecord(_lvsr(160, b0: 0x08, b1: 0x50))!;
       expect((v85.versionMajor, v85.versionMinor, v85.version), (8, 5, '8.5'), reason: 'minor guard: not BCD(0x50)');
+    });
+
+    test('names the evaluation and home/student bits of the @4 flag word', () {
+      final cases = <(int, Set<ViSaveFlag>)>[
+        (0x0000, {}),
+        (0x0800, {ViSaveFlag.evaluationLicense}),
+        (0x1000, {ViSaveFlag.homeStudentEdition}),
+        (0x5000, {ViSaveFlag.homeStudentEdition}),
+        (0x1800, {ViSaveFlag.evaluationLicense, ViSaveFlag.homeStudentEdition}),
+      ];
+      for (final (word, flags) in cases) {
+        final r = decodeSaveRecord(_lvsr(160, flags: word))!;
+        expect(r.saveFlagWord, word);
+        expect(r.saveFlags, flags, reason: word.toRadixString(16));
+      }
+      expect(decodeSaveRecord(hx('16008000'))!.saveFlags, isEmpty, reason: 'a 4-byte record has no flag word');
     });
 
     test('reads the @96 password hash and the independent @144 secondary hash', () {
