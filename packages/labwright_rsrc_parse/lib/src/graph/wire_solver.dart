@@ -1,38 +1,88 @@
 part of '../graph.dart';
 
+typedef _RoutedPoints = ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack});
+
+typedef _RoutedTree = ({ViWireRouteTree tree, WireRouteFidelity fidelity});
+
+_RoutedPoints _closedPoints(List<ViPoint> points) =>
+    (points: points, fidelity: WireRouteFidelity.closed, closingStep: null, headSlack: null);
+
+_RoutedPoints _walkedPoints(({List<ViPoint> points, ViStep? closingStep, ViStep? headSlack}) walk) =>
+    (points: walk.points, fidelity: WireRouteFidelity.walked, closingStep: walk.closingStep, headSlack: walk.headSlack);
+
+class _WireEndpoint {
+  const _WireEndpoint({
+    required this.oid,
+    required this.anchor,
+    required this.attachRect,
+    required this.attach,
+    required this.altAttach,
+    required this.stripTarget,
+    required this.dcoChildAttach,
+  });
+
+  final int oid;
+
+  final HeapRect? anchor;
+
+  final HeapRect? attachRect;
+
+  final ViPoint? attach;
+
+  final ViPoint? altAttach;
+
+  final ViPoint? stripTarget;
+
+  final ({List<ViPoint> candidates, bool wideRow})? dcoChildAttach;
+
+  bool get isAnchored => attach != null;
+
+  List<ViPoint> get sources => [?attach, ?altAttach];
+
+  List<ViPoint> get targets => [?stripTarget, ?attach, ?altAttach];
+
+  bool get usesDcoChild => attach == null && (dcoChildAttach?.candidates.isNotEmpty ?? false);
+
+  List<ViPoint> get dcoChildCandidates => dcoChildAttach?.candidates ?? const [];
+}
+
+bool _leavesReach(List<ViPoint> leaves, List<List<ViPoint>> candidatesPerEndpoint) {
+  final remaining = <ViPoint, int>{};
+  for (final leaf in leaves) {
+    remaining.update(leaf, (count) => count + 1, ifAbsent: () => 1);
+  }
+  for (final candidates in candidatesPerEndpoint) {
+    if (candidates.isEmpty) continue;
+    ViPoint? match;
+    for (final candidate in candidates) {
+      if (remaining.containsKey(candidate)) {
+        match = candidate;
+        break;
+      }
+    }
+    if (match == null) return false;
+    final count = remaining[match]!;
+    if (count == 1) {
+      remaining.remove(match);
+    } else {
+      remaining[match] = count - 1;
+    }
+  }
+  return true;
+}
+
 extension on ViDiagram {
-  ViWire _buildWire(ViHeapObject object) {
-    final raw = object.wireTableRaw;
+  ViWire _buildWire(ViHeapObject signal) {
+    final raw = signal.wireTableRaw;
     final route = raw == null ? null : decodeWireRoute(raw);
-    final branchRoute = raw == null || object.refs.length < 3 ? null : decodeWireBranchRoute(raw);
-    final constantBounds = [for (final oid in object.refs) endpointConstantBounds(oid)];
-    final attachRects = [
-      for (var i = 0; i < object.refs.length; i++) endpointTerminalBounds(object.refs[i]) ?? constantBounds[i],
-    ];
-    final attachPoints = [
-      for (var i = 0; i < object.refs.length; i++) _attachPointFrom(attachRects[i], object.refs[i]),
-    ];
-    final altAttachPoints = [
-      for (var i = 0; i < object.refs.length; i++)
-        switch (endpointConstantElementBounds(object.refs[i])) {
-          null => null,
-          final elem => attachPoints[i] == null ? null : _attachPointFrom(elem, object.refs[i]),
-        },
-    ];
-    final stripTargets = [
-      for (var i = 0; i < object.refs.length; i++) _stripFarTarget(object.refs[i], attachRects[i], attachPoints[i]),
-    ];
-    final anchors = [
-      for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
-    ];
-    final points = route == null || object.refs.length != 2
-        ? null
-        : _routePointsFor(route, object.refs, attachPoints, anchors, altAttachPoints, stripTargets);
+    final branchRoute = raw == null || signal.refs.length < 3 ? null : decodeWireBranchRoute(raw);
+    final endpoints = [for (final oid in signal.refs) _endpoint(oid)];
+    final points = route == null || endpoints.length != 2 ? null : _routePointsFor(route, endpoints);
     return ViWire(
-      signalOid: object.oid,
-      endpointOids: List<int>.of(object.refs),
-      endpointAnchors: anchors,
-      endpointAttachRects: attachRects,
+      signalOid: signal.oid,
+      endpointOids: List<int>.of(signal.refs),
+      endpointAnchors: [for (final endpoint in endpoints) endpoint.anchor],
+      endpointAttachRects: [for (final endpoint in endpoints) endpoint.attachRect],
       route: route,
       routePoints: points?.points,
       routePointsFidelity: points?.fidelity,
@@ -41,122 +91,85 @@ extension on ViDiagram {
       branchRoute: branchRoute,
       routeTreeBuilder: branchRoute == null
           ? null
-          : () =>
-                _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]) ??
-                _dcoChildRouteTree(branchRoute, object.refs, attachPoints, altAttachPoints, stripTargets),
-      signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
+          : () => _shippableRouteTree(branchRoute, endpoints) ?? _dcoChildRouteTree(branchRoute, endpoints),
+      signalType: signal.lastSignalKind == null ? null : ViSignalType(signal.lastSignalKind!),
     );
   }
 
-  ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack})? _routePointsFor(
-    ViWireRoute route,
-    List<int> refs,
-    List<ViPoint?> attachPoints,
-    List<HeapRect?> anchors,
-    List<ViPoint?> altAttachPoints,
-    List<ViPoint?> stripTargets,
-  ) {
-    for (final pair in [
-      (attachPoints[0], stripTargets[1]),
-      (altAttachPoints[0], stripTargets[1]),
-      (attachPoints[0], attachPoints[1]),
-      (altAttachPoints[0], attachPoints[1]),
-      (attachPoints[0], altAttachPoints[1]),
-      (altAttachPoints[0], altAttachPoints[1]),
-    ]) {
-      final closed = ViDiagram._closedRoutePoints(route, pair.$1, pair.$2);
-      if (closed != null) {
-        return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null, headSlack: null);
-      }
-    }
-    final int anchoredIndex;
-    if (attachPoints[0] != null && attachPoints[1] == null) {
-      anchoredIndex = 0;
-    } else if (attachPoints[1] != null && attachPoints[0] == null) {
-      anchoredIndex = 1;
-    } else {
-      return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
-    }
-    if (_exactAttach(refs[anchoredIndex])) {
-      final farBox = anchors[1 - anchoredIndex];
-      if (farBox != null) {
-        final walked = walkOneAnchoredRoute(
-          route,
-          anchor: attachPoints[anchoredIndex]!,
-          anchoredIndex: anchoredIndex,
-          farBox: farBox,
-        );
-        if (walked != null) {
-          return (
-            points: walked.points,
-            fidelity: WireRouteFidelity.walked,
-            closingStep: walked.closingStep,
-            headSlack: walked.headSlack,
-          );
-        }
-      }
-    }
-    return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
+  _WireEndpoint _endpoint(int oid) {
+    final constantBounds = endpointConstantBounds(oid);
+    final attachRect = endpointTerminalBounds(oid) ?? constantBounds;
+    final attach = _attachPointFrom(attachRect, oid);
+    final elementBounds = endpointConstantElementBounds(oid);
+    return _WireEndpoint(
+      oid: oid,
+      anchor: constantBounds ?? _boundedOwnerBounds(oid),
+      attachRect: attachRect,
+      attach: attach,
+      altAttach: elementBounds == null || attach == null ? null : _attachPointFrom(elementBounds, oid),
+      stripTarget: _stripFarTarget(oid, attachRect, attach),
+      dcoChildAttach: dcoChildTerminalAttach(oid),
+    );
   }
 
-  ({List<ViPoint> points, WireRouteFidelity fidelity, ViStep? closingStep, ViStep? headSlack})? _dcoChildTierPoints(
-    ViWireRoute route,
-    List<int> refs,
-    List<ViPoint?> attachPoints,
-    List<ViPoint?> altAttachPoints,
-    List<ViPoint?> stripTargets,
-    List<HeapRect?> anchors,
-  ) {
-    final fallback = [for (final oid in refs) dcoChildTerminalAttach(oid)];
-    final usesFallback = [
-      for (var i = 0; i < 2; i++) attachPoints[i] == null && (fallback[i]?.candidates.isNotEmpty ?? false),
-    ];
-    if (!usesFallback[0] && !usesFallback[1]) return null;
-    final sourceCandidates = usesFallback[0]
-        ? fallback[0]!.candidates
-        : [
-            if (attachPoints[0] != null) attachPoints[0]!,
-            if (altAttachPoints[0] != null) altAttachPoints[0]!,
-          ];
-    final targetCandidates = usesFallback[1]
-        ? fallback[1]!.candidates
-        : [
-            if (stripTargets[1] != null) stripTargets[1]!,
-            if (attachPoints[1] != null) attachPoints[1]!,
-            if (altAttachPoints[1] != null) altAttachPoints[1]!,
-          ];
-    for (final source in sourceCandidates) {
-      for (final target in targetCandidates) {
+  _RoutedPoints? _routePointsFor(ViWireRoute route, List<_WireEndpoint> endpoints) {
+    final (start, end) = (endpoints[0], endpoints[1]);
+    for (final target in end.targets) {
+      for (final source in start.sources) {
         final closed = ViDiagram._closedRoutePoints(route, source, target);
-        if (closed != null) {
-          return (points: closed, fidelity: WireRouteFidelity.closed, closingStep: null, headSlack: null);
-        }
+        if (closed != null) return _closedPoints(closed);
       }
     }
     final int anchoredIndex;
-    if (usesFallback[0] && (fallback[0]?.wideRow ?? false) && attachPoints[1] == null) {
+    if (start.isAnchored && !end.isAnchored) {
       anchoredIndex = 0;
-    } else if (usesFallback[1] && (fallback[1]?.wideRow ?? false) && attachPoints[0] == null) {
+    } else if (end.isAnchored && !start.isAnchored) {
+      anchoredIndex = 1;
+    } else {
+      return _dcoChildTierPoints(route, endpoints);
+    }
+    final anchored = endpoints[anchoredIndex];
+    final farBox = endpoints[1 - anchoredIndex].anchor;
+    if (_exactAttach(anchored.oid) && farBox != null) {
+      final walked = walkOneAnchoredRoute(
+        route,
+        anchor: anchored.attach!,
+        anchoredIndex: anchoredIndex,
+        farBox: farBox,
+      );
+      if (walked != null) return _walkedPoints(walked);
+    }
+    return _dcoChildTierPoints(route, endpoints);
+  }
+
+  _RoutedPoints? _dcoChildTierPoints(ViWireRoute route, List<_WireEndpoint> endpoints) {
+    final (start, end) = (endpoints[0], endpoints[1]);
+    if (!start.usesDcoChild && !end.usesDcoChild) return null;
+    final sources = start.usesDcoChild ? start.dcoChildCandidates : start.sources;
+    final targets = end.usesDcoChild ? end.dcoChildCandidates : end.targets;
+    for (final source in sources) {
+      for (final target in targets) {
+        final closed = ViDiagram._closedRoutePoints(route, source, target);
+        if (closed != null) return _closedPoints(closed);
+      }
+    }
+    final int anchoredIndex;
+    if (start.usesDcoChild && start.dcoChildAttach!.wideRow && !end.isAnchored) {
+      anchoredIndex = 0;
+    } else if (end.usesDcoChild && end.dcoChildAttach!.wideRow && !start.isAnchored) {
       anchoredIndex = 1;
     } else {
       return null;
     }
-    final farBox = anchors[1 - anchoredIndex];
+    final farBox = endpoints[1 - anchoredIndex].anchor;
     if (farBox == null) return null;
     final walked = walkOneAnchoredRoute(
       route,
-      anchor: fallback[anchoredIndex]!.candidates.first,
+      anchor: endpoints[anchoredIndex].dcoChildCandidates.first,
       anchoredIndex: anchoredIndex,
       farBox: farBox,
     );
-    return walked == null
-        ? null
-        : (
-            points: walked.points,
-            fidelity: WireRouteFidelity.walked,
-            closingStep: walked.closingStep,
-            headSlack: walked.headSlack,
-          );
+    return walked == null ? null : _walkedPoints(walked);
   }
 
   bool _exactAttach(int oid) {
@@ -167,119 +180,41 @@ extension on ViDiagram {
     return frame != null && frame.category == ViObjectKind.structure;
   }
 
-  static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _shippableRouteTree(
-    ViWireBranchRoute route,
-    List<ViPoint?> attachPoints,
-    List<ViPoint?> altAttachPoints,
-    List<ViPoint?> stripTargets,
-    HeapRect? headBox,
-  ) {
-    if (attachPoints.length < 3) return null;
-    if (attachPoints[0] == null) {
-      return _reverseSolvedRouteTree(route, attachPoints, altAttachPoints, stripTargets, headBox);
-    }
-    for (final origin in [attachPoints[0], altAttachPoints[0]]) {
-      if (origin == null) continue;
+  static _RoutedTree? _shippableRouteTree(ViWireBranchRoute route, List<_WireEndpoint> endpoints) {
+    if (endpoints.length < 3) return null;
+    final head = endpoints[0];
+    if (!head.isAnchored) return _reverseSolvedRouteTree(route, endpoints);
+    final tails = endpoints.sublist(1);
+    final candidates = [for (final endpoint in tails) endpoint.targets];
+    final fidelity = tails.every((endpoint) => endpoint.isAnchored)
+        ? WireRouteFidelity.closed
+        : WireRouteFidelity.walked;
+    for (final origin in head.sources) {
       final tree = walkWireBranchRoute(route, origin);
-      final leaves = tree.leaves;
-      if (leaves.length != attachPoints.length - 1) continue;
-      final remaining = <ViPoint, int>{};
-      for (final leaf in leaves) {
-        remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
-      }
-      var fullyAnchored = true;
-      var contradiction = false;
-      for (var i = 1; i < attachPoints.length; i++) {
-        if (attachPoints[i] == null) {
-          fullyAnchored = false;
-          continue;
-        }
-        ViPoint? match;
-        for (final candidate in [stripTargets[i], attachPoints[i], altAttachPoints[i]]) {
-          if (candidate != null && remaining.containsKey(candidate)) {
-            match = candidate;
-            break;
-          }
-        }
-        if (match == null) {
-          contradiction = true;
-          break;
-        }
-        final count = remaining[match]!;
-        if (count == 1) {
-          remaining.remove(match);
-        } else {
-          remaining[match] = count - 1;
-        }
-      }
-      if (contradiction) continue;
-      return (tree: tree, fidelity: fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked);
+      if (tree.leaves.length != tails.length) continue;
+      if (_leavesReach(tree.leaves, candidates)) return (tree: tree, fidelity: fidelity);
     }
     return null;
   }
 
-  static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _reverseSolvedRouteTree(
-    ViWireBranchRoute route,
-    List<ViPoint?> attachPoints,
-    List<ViPoint?> altAttachPoints,
-    List<ViPoint?> stripTargets,
-    HeapRect? headBox,
-  ) {
+  static _RoutedTree? _reverseSolvedRouteTree(ViWireBranchRoute route, List<_WireEndpoint> endpoints) {
+    final headBox = endpoints[0].anchor;
     if (headBox == null) return null;
-    final local = walkWireBranchRoute(route, (x: 0, y: 0));
-    final leaves = local.leaves;
-    if (leaves.length != attachPoints.length - 1) return null;
-    List<ViPoint> candidatesOf(int i) => [
-      for (final p in [stripTargets[i], attachPoints[i], altAttachPoints[i]])
-        if (p != null) p,
-    ];
-    bool closesAll(ViPoint origin) {
-      final remaining = <ViPoint, int>{};
-      for (final leaf in leaves) {
-        final p = (x: leaf.x + origin.x, y: leaf.y + origin.y);
-        remaining.update(p, (c) => c + 1, ifAbsent: () => 1);
-      }
-      for (var i = 1; i < attachPoints.length; i++) {
-        if (attachPoints[i] == null) continue;
-        ViPoint? match;
-        for (final candidate in candidatesOf(i)) {
-          if (remaining.containsKey(candidate)) {
-            match = candidate;
-            break;
-          }
-        }
-        if (match == null) return false;
-        final count = remaining[match]!;
-        if (count == 1) {
-          remaining.remove(match);
-        } else {
-          remaining[match] = count - 1;
-        }
-      }
-      return true;
-    }
-
-    int? seed;
-    for (var i = 1; i < attachPoints.length; i++) {
-      if (attachPoints[i] != null) {
-        seed = i;
-        break;
-      }
-    }
+    final tails = endpoints.sublist(1);
+    final leaves = walkWireBranchRoute(route, (x: 0, y: 0)).leaves;
+    if (leaves.length != tails.length) return null;
+    final seed = tails.where((endpoint) => endpoint.isAnchored).firstOrNull;
     if (seed == null) return null;
-    final candidates = <ViPoint>{
+    final origins = <ViPoint>{
       for (final leaf in leaves)
-        for (final p in candidatesOf(seed)) (x: p.x - leaf.x, y: p.y - leaf.y),
+        for (final candidate in seed.targets) (x: candidate.x - leaf.x, y: candidate.y - leaf.y),
     };
+    final candidates = [for (final endpoint in tails) endpoint.targets];
     ViPoint? solved;
-    for (final origin in candidates) {
-      if (origin.x < headBox.left ||
-          origin.x >= headBox.right ||
-          origin.y < headBox.top ||
-          origin.y >= headBox.bottom) {
-        continue;
-      }
-      if (!closesAll(origin)) continue;
+    for (final origin in origins) {
+      if (!headBox.containsPoint(origin.x, origin.y)) continue;
+      final placed = [for (final leaf in leaves) (x: leaf.x + origin.x, y: leaf.y + origin.y)];
+      if (!_leavesReach(placed, candidates)) continue;
       if (solved != null) return null;
       solved = origin;
     }
@@ -287,50 +222,19 @@ extension on ViDiagram {
     return (tree: walkWireBranchRoute(route, solved), fidelity: WireRouteFidelity.walked);
   }
 
-  ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _dcoChildRouteTree(
-    ViWireBranchRoute route,
-    List<int> refs,
-    List<ViPoint?> attachPoints,
-    List<ViPoint?> altAttachPoints,
-    List<ViPoint?> stripTargets,
-  ) {
-    if (attachPoints.length < 3 || attachPoints[0] != null) return null;
-    final origins = dcoChildTerminalAttach(refs[0])?.candidates;
+  _RoutedTree? _dcoChildRouteTree(ViWireBranchRoute route, List<_WireEndpoint> endpoints) {
+    if (endpoints.length < 3 || endpoints[0].isAnchored) return null;
+    final origins = endpoints[0].dcoChildAttach?.candidates;
     if (origins == null) return null;
+    final tails = endpoints.sublist(1);
+    final candidates = [
+      for (final endpoint in tails) [...endpoint.targets, ...endpoint.dcoChildCandidates],
+    ];
+    if (candidates.any((list) => list.isEmpty)) return null;
     for (final origin in origins) {
       final tree = walkWireBranchRoute(route, origin);
-      final leaves = tree.leaves;
-      if (leaves.length != attachPoints.length - 1) continue;
-      final remaining = <ViPoint, int>{};
-      for (final leaf in leaves) {
-        remaining.update(leaf, (c) => c + 1, ifAbsent: () => 1);
-      }
-      var closed = true;
-      for (var i = 1; i < attachPoints.length; i++) {
-        ViPoint? match;
-        for (final candidate in [
-          stripTargets[i],
-          attachPoints[i],
-          altAttachPoints[i],
-          ...?dcoChildTerminalAttach(refs[i])?.candidates,
-        ]) {
-          if (candidate != null && remaining.containsKey(candidate)) {
-            match = candidate;
-            break;
-          }
-        }
-        if (match == null) {
-          closed = false;
-          break;
-        }
-        final count = remaining[match]!;
-        if (count == 1) {
-          remaining.remove(match);
-        } else {
-          remaining[match] = count - 1;
-        }
-      }
-      if (closed) return (tree: tree, fidelity: WireRouteFidelity.closed);
+      if (tree.leaves.length != tails.length) continue;
+      if (_leavesReach(tree.leaves, candidates)) return (tree: tree, fidelity: WireRouteFidelity.closed);
     }
     return null;
   }

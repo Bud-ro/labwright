@@ -759,6 +759,8 @@ class HeapRect {
 
   bool get isValid => bottom >= top && right >= left;
 
+  bool containsPoint(int x, int y) => x >= left && x < right && y >= top && y < bottom;
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

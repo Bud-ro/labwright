@@ -322,6 +322,32 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   );
 }
 
+enum _Axis {
+  x,
+  y
+  ;
+
+  int along(ViPoint point) => this == x ? point.x : point.y;
+
+  int cross(ViPoint point) => this == x ? point.y : point.x;
+
+  int alongLow(HeapRect box) => this == x ? box.left : box.top;
+
+  int alongHigh(HeapRect box) => this == x ? box.right : box.bottom;
+
+  int crossLow(HeapRect box) => this == x ? box.top : box.left;
+
+  int crossHigh(HeapRect box) => this == x ? box.bottom : box.right;
+
+  bool alongInside(HeapRect box, int along) => along >= alongLow(box) && along < alongHigh(box);
+
+  bool crossInside(HeapRect box, int cross) => cross >= crossLow(box) && cross < crossHigh(box);
+
+  ViPoint point({required int along, required int cross}) => this == x ? (x: along, y: cross) : (x: cross, y: along);
+
+  ViStep step(int sign) => this == x ? (dx: sign, dy: 0) : (dx: 0, dy: sign);
+}
+
 ({List<ViPoint> points, ViStep? closingStep, ViStep? headSlack})? walkOneAnchoredRoute(
   ViWireRoute route, {
   required ViPoint anchor,
@@ -329,79 +355,59 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   required HeapRect farBox,
 }) {
   if (route.pointCount < 2) return null;
+  return anchoredIndex == 0
+      ? _walkFromAnchor(route, anchor: anchor, farBox: farBox)
+      : _walkIntoAnchor(route, anchor: anchor, farBox: farBox);
+}
 
-  if (anchoredIndex == 0) {
-    final walk = walkRouteBends(route, origin: anchor);
-    if (walk == null) return null;
-    final pts = walk.points;
-    final closingSign = walk.closingSign;
-    final tail = pts.last;
-    final ViPoint terminus;
-    if (walk.closingHorizontal) {
-      if (tail.y < farBox.top || tail.y >= farBox.bottom) return null;
-      final tx = closingSign > 0 ? farBox.left : farBox.right - 1;
-      if ((tx - tail.x) * closingSign < 0) {
-        final ahead = tail.x + closingSign;
-        if (pts.length < 2 ||
-            tail.x < farBox.left ||
-            tail.x >= farBox.right ||
-            ahead < farBox.left ||
-            ahead >= farBox.right) {
-          return null;
-        }
-        return (points: pts, closingStep: (dx: closingSign, dy: 0), headSlack: null);
-      }
-      terminus = (x: tx, y: tail.y);
-    } else {
-      if (tail.x < farBox.left || tail.x >= farBox.right) return null;
-      final ty = closingSign > 0 ? farBox.top : farBox.bottom - 1;
-      if ((ty - tail.y) * closingSign < 0) {
-        final ahead = tail.y + closingSign;
-        if (pts.length < 2 ||
-            tail.y < farBox.top ||
-            tail.y >= farBox.bottom ||
-            ahead < farBox.top ||
-            ahead >= farBox.bottom) {
-          return null;
-        }
-        return (points: pts, closingStep: (dx: 0, dy: closingSign), headSlack: null);
-      }
-      terminus = (x: tail.x, y: ty);
+({List<ViPoint> points, ViStep? closingStep, ViStep? headSlack})? _walkFromAnchor(
+  ViWireRoute route, {
+  required ViPoint anchor,
+  required HeapRect farBox,
+}) {
+  final walk = walkRouteBends(route, origin: anchor);
+  if (walk == null) return null;
+  final points = walk.points;
+  final closingSign = walk.closingSign;
+  final tail = points.last;
+  final axis = walk.closingHorizontal ? _Axis.x : _Axis.y;
+  if (!axis.crossInside(farBox, axis.cross(tail))) return null;
+  final nearEdge = closingSign > 0 ? axis.alongLow(farBox) : axis.alongHigh(farBox) - 1;
+  if ((nearEdge - axis.along(tail)) * closingSign < 0) {
+    final ahead = axis.along(tail) + closingSign;
+    if (points.length < 2 || !axis.alongInside(farBox, axis.along(tail)) || !axis.alongInside(farBox, ahead)) {
+      return null;
     }
-    if (terminus != tail) pts.add(terminus);
-    return (points: pts, closingStep: null, headSlack: null);
+    return (points: points, closingStep: axis.step(closingSign), headSlack: null);
   }
+  final terminus = axis.point(along: nearEdge, cross: axis.cross(tail));
+  if (terminus != tail) points.add(terminus);
+  return (points: points, closingStep: null, headSlack: null);
+}
 
+({List<ViPoint> points, ViStep? closingStep, ViStep? headSlack})? _walkIntoAnchor(
+  ViWireRoute route, {
+  required ViPoint anchor,
+  required HeapRect farBox,
+}) {
   final walk = walkRouteBends(route);
   if (walk == null) return null;
   final local = walk.points;
   final lastBend = local.last;
-  final closingHorizontal = walk.closingHorizontal;
   final closingSign = walk.closingSign;
-  final seg0Sign = walk.direction.dx + walk.direction.dy;
-  if (walk.direction.isHorizontal != closingHorizontal) return null;
-  final int tx, ty;
-  if (closingHorizontal) {
-    ty = anchor.y - lastBend.y;
-    if (ty < farBox.top || ty >= farBox.bottom) return null;
-    tx = seg0Sign > 0 ? farBox.right - 1 : farBox.left;
-  } else {
-    tx = anchor.x - lastBend.x;
-    if (tx < farBox.left || tx >= farBox.right) return null;
-    ty = seg0Sign > 0 ? farBox.bottom - 1 : farBox.top;
+  final headSign = walk.direction.dx + walk.direction.dy;
+  if (walk.direction.isHorizontal != walk.closingHorizontal) return null;
+  final axis = walk.closingHorizontal ? _Axis.x : _Axis.y;
+  final crossShift = axis.cross(anchor) - axis.cross(lastBend);
+  if (!axis.crossInside(farBox, crossShift)) return null;
+  final alongShift = headSign > 0 ? axis.alongHigh(farBox) - 1 : axis.alongLow(farBox);
+  final shift = axis.point(along: alongShift, cross: crossShift);
+  final points = [for (final point in local) (x: point.x + shift.x, y: point.y + shift.y)];
+  final tail = points.last;
+  if (axis.cross(tail) != axis.cross(anchor) || (axis.along(anchor) - axis.along(tail)) * closingSign < 0) {
+    return null;
   }
-  final pts = [for (final p in local) (x: p.x + tx, y: p.y + ty)];
-  final tail = pts.last;
-  if (closingHorizontal) {
-    if (tail.y != anchor.y || (anchor.x - tail.x) * closingSign < 0) return null;
-  } else {
-    if (tail.x != anchor.x || (anchor.y - tail.y) * closingSign < 0) return null;
-  }
-  final headSlack = route.segmentLengths.isEmpty
-      ? null
-      : closingHorizontal
-      ? (dx: -seg0Sign, dy: 0)
-      : (dx: 0, dy: -seg0Sign);
-  if (anchor != tail || headSlack != null) pts.add(anchor);
-  return (points: pts, closingStep: null, headSlack: headSlack);
+  final headSlack = route.segmentLengths.isEmpty ? null : axis.step(-headSign);
+  if (anchor != tail || headSlack != null) points.add(anchor);
+  return (points: points, closingStep: null, headSlack: headSlack);
 }
