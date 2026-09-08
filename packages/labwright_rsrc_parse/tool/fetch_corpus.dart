@@ -8,7 +8,8 @@ import 'corpus_base.dart';
 Future<void> main(List<String> args) async {
   final catalog = findCatalog('sources.json');
   final dest = args.firstOrNull ?? '${catalog.parent.path}/vi';
-  final sources = (jsonDecode(catalog.readAsStringSync())['sources'] as List).cast<Map<String, dynamic>>();
+  final catalogJson = jsonDecode(catalog.readAsStringSync()) as Map<String, dynamic>;
+  final sources = (catalogJson['sources'] as List).cast<Map<String, dynamic>>();
   Directory(dest).createSync(recursive: true);
   stdout.writeln('corpus dest: $dest  (${sources.length} sources from ${catalog.path})');
   final tally = await fetchSources(sources, dest, const ['.vi']);

@@ -72,8 +72,8 @@ class ViSaveRecord {
 }
 
 ViSaveRecord? decodeSaveRecord(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final versionWord = decodeVersionWord(bytes)!;
+  final versionWord = decodeVersionWord(bytes);
+  if (versionWord == null) return null;
   return ViSaveRecord(
     rawLength: bytes.length,
     versionMajor: versionWord.major,

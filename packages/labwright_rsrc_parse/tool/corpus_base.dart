@@ -17,7 +17,7 @@ Directory corpusBaseDir() {
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  return Directory('corpus');
+  throw StateError('no corpus/sources.json at or above ${Directory.current.path}');
 }
 
 List<File> listCorpusVis(Directory root) {
@@ -37,7 +37,7 @@ File findCatalog(String fileName) {
     if (candidate.existsSync()) return candidate;
     dir = dir.parent;
   }
-  return File('corpus/$fileName');
+  throw StateError('no corpus/$fileName at or above ${Platform.script}');
 }
 
 int countFiles(Directory root, String extension) => root

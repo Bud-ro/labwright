@@ -465,6 +465,7 @@ class ViInfoArea {
   ViInfoArea withRemappedSecRels(Map<int, int> newSecRelByOld) {
     if (newSecRelByOld.isEmpty) return this;
     final finalSecRel = finalEntrySecRel;
+    final newFinalSecRel = finalSecRel == null ? null : newSecRelByOld[finalSecRel];
     final accounted = {for (final descriptor in descriptors) descriptor.secRel, if (finalSecRel != null) finalSecRel};
     for (final MapEntry(key: oldSecRel, value: newSecRel) in newSecRelByOld.entries) {
       if (newSecRel != oldSecRel && !accounted.contains(oldSecRel)) {
@@ -477,14 +478,13 @@ class ViInfoArea {
       preGap: preGap,
       descriptors: [
         for (final descriptor in descriptors)
-          if (descriptor.word16 == ViSectionDescriptor.commonWord16 && newSecRelByOld.containsKey(descriptor.secRel))
-            descriptor.withSecRel(newSecRelByOld[descriptor.secRel]!)
+          if (newSecRelByOld[descriptor.secRel] case final newSecRel?
+              when descriptor.word16 == ViSectionDescriptor.commonWord16)
+            descriptor.withSecRel(newSecRel)
           else
             descriptor,
       ],
-      nameTable: finalSecRel != null && newSecRelByOld.containsKey(finalSecRel)
-          ? nameTable.withHeaderValue(newSecRelByOld[finalSecRel]!)
-          : nameTable,
+      nameTable: newFinalSecRel == null ? nameTable : nameTable.withHeaderValue(newFinalSecRel),
     );
   }
 

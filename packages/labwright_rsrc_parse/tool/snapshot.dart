@@ -7,6 +7,12 @@ import 'corpus_base.dart';
 
 /// Run: `dart run tool/snapshot.dart [corpusDir]` (writes `<pkg>/corpus/snapshot.json`)
 
+typedef _Counts = ({String name, int fp, int bd});
+
+typedef _Group = ({List<String> blocks, List<_Counts> files});
+
+typedef _Failure = ({String name, String error});
+
 void main(List<String> args) {
   final base = corpusBaseDir().path;
   final dir = Directory(args.isNotEmpty ? args[0] : '$base/vi');
@@ -17,61 +23,59 @@ void main(List<String> args) {
   final vis = listCorpusVis(dir);
 
   final root = '${dir.path}/';
-  final files = <String, List<Map<String, dynamic>>>{};
-  final blockSet = <String, List<String>>{};
-  final errors = <Map<String, dynamic>>[];
-  for (final f in vis) {
-    final name = f.path.startsWith(root) ? f.path.substring(root.length).replaceAll('\\', '/') : f.path;
+  final groups = <String, _Group>{};
+  final errors = <_Failure>[];
+  for (final file in vis) {
+    final name = file.path.startsWith(root) ? file.path.substring(root.length).replaceAll('\\', '/') : file.path;
     try {
-      final bytes = f.readAsBytesSync();
+      final bytes = file.readAsBytesSync();
       final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
-      final m = buildViModel(bytes);
-      final gk = blocks.join(',');
-      blockSet[gk] = blocks;
-      (files[gk] ??= []).add({
-        'name': name,
-        'fp': m.frontPanelDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
-        'bd': m.blockDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
-      });
+      final model = buildViModel(bytes);
+      (groups[blocks.join(',')] ??= (blocks: blocks, files: [])).files.add((
+        name: name,
+        fp: model.frontPanelDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
+        bd: model.blockDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
+      ));
     } catch (e) {
-      errors.add({'name': name, 'error': e.toString()});
+      errors.add((name: name, error: e.toString()));
     }
   }
-  final groupKeys = blockSet.keys.toList()..sort();
-  for (final list in files.values) {
-    list.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+  final ordered = groups.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+  for (final entry in ordered) {
+    entry.value.files.sort((a, b) => a.name.compareTo(b.name));
   }
-  errors.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
+  errors.sort((a, b) => a.name.compareTo(b.name));
 
   final buf = StringBuffer()
     ..writeln('{')
     ..writeln('  "generatedBy": "packages/labwright_rsrc_parse/tool/snapshot.dart",')
     ..writeln('  "groups": [');
-  for (var gi = 0; gi < groupKeys.length; gi++) {
-    final gk = groupKeys[gi];
-    final gtail = gi == groupKeys.length - 1 ? '' : ',';
+  for (var gi = 0; gi < ordered.length; gi++) {
+    final group = ordered[gi].value;
     buf
       ..writeln('    {')
-      ..writeln('      "blocks": ${jsonEncode(blockSet[gk])},')
+      ..writeln('      "blocks": ${jsonEncode(group.blocks)},')
       ..writeln('      "files": [');
-    final list = files[gk]!;
-    for (var fi = 0; fi < list.length; fi++) {
-      buf.writeln('        ${jsonEncode(list[fi])}${fi == list.length - 1 ? '' : ','}');
+    for (var fi = 0; fi < group.files.length; fi++) {
+      final file = group.files[fi];
+      final row = jsonEncode({'name': file.name, 'fp': file.fp, 'bd': file.bd});
+      buf.writeln('        $row${fi == group.files.length - 1 ? '' : ','}');
     }
     buf
       ..writeln('      ]')
-      ..writeln('    }$gtail');
+      ..writeln('    }${gi == ordered.length - 1 ? '' : ','}');
   }
   buf
     ..writeln('  ],')
     ..writeln('  "errors": [');
   for (var ei = 0; ei < errors.length; ei++) {
-    buf.writeln('    ${jsonEncode(errors[ei])}${ei == errors.length - 1 ? '' : ','}');
+    final row = jsonEncode({'name': errors[ei].name, 'error': errors[ei].error});
+    buf.writeln('    $row${ei == errors.length - 1 ? '' : ','}');
   }
   buf
     ..writeln('  ]')
     ..writeln('}');
   File('$base/snapshot.json').writeAsStringSync(buf.toString());
-  final nFiles = files.values.fold<int>(0, (a, g) => a + g.length);
-  stdout.writeln('snapshot: $nFiles VIs in ${groupKeys.length} block-set groups · ${errors.length} errors');
+  final nFiles = groups.values.fold<int>(0, (a, g) => a + g.files.length);
+  stdout.writeln('snapshot: $nFiles VIs in ${groups.length} block-set groups · ${errors.length} errors');
 }

@@ -47,7 +47,7 @@ void _putU32(Uint8List b, int at, int v) {
 class _Modeled {
   const _Modeled(this.prefix, this.length, {this.expected = false, this.retained = 0});
 
-  final Uint8List? prefix;
+  final Uint8List prefix;
 
   final int length;
 
@@ -56,7 +56,7 @@ class _Modeled {
   final int retained;
 }
 
-const _Modeled _nothing = _Modeled(null, 0);
+final _Modeled _nothing = _Modeled(Uint8List(0), 0);
 
 bool _c4RetainsInterior(HeapShape shape) => switch (shape) {
   HeapShape.string || HeapShape.stringTable || HeapShape.helpText || HeapShape.path || HeapShape.container => true,
@@ -273,10 +273,9 @@ HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsCont
 }
 
 int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
-  final prefix = m.prefix;
-  if (prefix == null || m.length == 0) return 0;
+  if (m.length == 0) return 0;
   for (var i = 0; i < m.length; i++) {
-    if (prefix[i] != body[offset + i]) return 0;
+    if (m.prefix[i] != body[offset + i]) return 0;
   }
   return m.length + m.retained;
 }
@@ -332,7 +331,7 @@ HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag, DfdsConte
     if (m.length > 0 && modelLen == 0 && m.expected) bugs++;
 
     if (modelLen > 0) {
-      out.add(m.prefix!);
+      out.add(m.prefix);
       if (m.retained > 0) {
         out.add(Uint8List.sublistView(body, offset + m.length, offset + m.length + m.retained));
       }

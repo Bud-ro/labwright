@@ -26,7 +26,7 @@ ViConnectorPane? decodeConnectorPane(Uint8List bytes) {
   final inline = bytes.length != 2;
   return ViConnectorPane(
     rawLength: bytes.length,
-    typeIndex: inline ? null : (bytes[0] << 8) | bytes[1],
+    typeIndex: inline ? null : ByteData.sublistView(bytes).getUint16(0),
     isInline: inline,
   );
 }

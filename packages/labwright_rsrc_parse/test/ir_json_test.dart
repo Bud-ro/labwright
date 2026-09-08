@@ -45,7 +45,7 @@ bool _hasNonPrintable(String s) => s.runes.any((c) => c < 0x20 || c >= 0x7f);
   for (final d in [...model.blockDiagrams, ...model.frontPanelDiagrams]) {
     n('diagrams');
     final json = viDiagramToJson(d);
-    final emitted = (json['objects'] as List).map((o) => (o as Map)['oid'] as int).toSet();
+    final emitted = (json['objects'] as List<Map<String, Object?>>).map((o) => o['oid'] as int).toSet();
     final missing = d.nodes.where((o) => !emitted.contains(o.oid));
     if (missing.isNotEmpty) {
       bad('drawable', 'MISSING ${missing.first.oid} in $name/${d.sectionTag}');
