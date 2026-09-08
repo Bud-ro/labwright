@@ -47,7 +47,7 @@ GlobalHatchOffset deriveHatchOffset({
     for (final object in bdDrawableObjects(diagram)) object.oid,
   };
   final tile = errorStyle ? kBdErrorHatch : kBdStructureHatch;
-  final pyRange = errorStyle ? 1 : 4;
+  final phaseRows = errorStyle ? 1 : 4;
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
   for (final frame in diagram.objects) {
@@ -58,24 +58,30 @@ GlobalHatchOffset deriveHatchOffset({
     if (errorOids.contains(frame.oid) != errorStyle) continue;
     final bounds = frame.absBounds;
     if (bounds == null) continue;
-    for (var y = bounds.top; y <= bounds.bottom; y++) {
-      for (var x = bounds.left; x <= bounds.right; x++) {
+    for (var modelY = bounds.top; modelY <= bounds.bottom; modelY++) {
+      for (var modelX = bounds.left; modelX <= bounds.right; modelX++) {
         final inset = math.min(
-          math.min(x - bounds.left, bounds.right - x),
-          math.min(y - bounds.top, bounds.bottom - y),
+          math.min(modelX - bounds.left, bounds.right - modelX),
+          math.min(modelY - bounds.top, bounds.bottom - modelY),
         );
         if (inset < 1 || inset > kBdHatchBand) continue;
-        final rx =
-            ((x - raster.content.left) * registration.scale + registration.dx)
+        final referenceX =
+            ((modelX - raster.content.left) * registration.scale +
+                    registration.dx)
                 .round();
-        final ry =
-            ((y - raster.content.top) * registration.scale + registration.dy)
+        final referenceY =
+            ((modelY - raster.content.top) * registration.scale +
+                    registration.dy)
                 .round();
-        if (rx < 0 || ry < 0 || rx >= width || ry >= height) continue;
-        final i = (ry * width + rx) * 4;
-        final red = referenceRgba[i],
-            green = referenceRgba[i + 1],
-            blue = referenceRgba[i + 2];
+        if (referenceX < 0 ||
+            referenceY < 0 ||
+            referenceX >= width ||
+            referenceY >= height)
+          continue;
+        final byteIndex = (referenceY * width + referenceX) * 4;
+        final red = referenceRgba[byteIndex],
+            green = referenceRgba[byteIndex + 1],
+            blue = referenceRgba[byteIndex + 2];
         final bool dark;
         if (errorStyle) {
           final isField = green > 200 && red < 200 && blue < 200;
@@ -91,10 +97,11 @@ GlobalHatchOffset deriveHatchOffset({
           dark = (red + green + blue) ~/ 3 < 110;
         }
         samples++;
-        for (var py = 0; py < pyRange; py++) {
-          for (var px = 0; px < 4; px++) {
-            final ink = tile[(y + py) & 3][(x + px) & 3] == '#';
-            score[py][px] += ink == dark ? 1 : -1;
+        for (var phaseY = 0; phaseY < phaseRows; phaseY++) {
+          for (var phaseX = 0; phaseX < 4; phaseX++) {
+            final ink =
+                tile[(modelY + phaseY) & 3][(modelX + phaseX) & 3] == '#';
+            score[phaseY][phaseX] += ink == dark ? 1 : -1;
           }
         }
       }
@@ -102,14 +109,14 @@ GlobalHatchOffset deriveHatchOffset({
   }
   if (samples == 0) return kNoHatchOffset;
   var bestX = 0, bestY = 0, best = -samples - 1, second = -samples - 1;
-  for (var py = 0; py < pyRange; py++) {
-    for (var px = 0; px < 4; px++) {
-      final cellScore = score[py][px];
+  for (var phaseY = 0; phaseY < phaseRows; phaseY++) {
+    for (var phaseX = 0; phaseX < 4; phaseX++) {
+      final cellScore = score[phaseY][phaseX];
       if (cellScore > best) {
         second = best;
         best = cellScore;
-        bestX = px;
-        bestY = py;
+        bestX = phaseX;
+        bestY = phaseY;
       } else if (cellScore > second) {
         second = cellScore;
       }
@@ -127,13 +134,25 @@ GlobalHatchOffset deriveWireCycleOffset({
   required int width,
   required int height,
 }) {
-  int refPixel(int rx, int ry) {
-    if (rx < 0 || ry < 0 || rx >= width || ry >= height) return -1;
-    final i = (ry * width + rx) * 4;
-    return (referenceRgba[i] << 16) |
-        (referenceRgba[i + 1] << 8) |
-        referenceRgba[i + 2];
+  int refPixel(int referenceX, int referenceY) {
+    if (referenceX < 0 ||
+        referenceY < 0 ||
+        referenceX >= width ||
+        referenceY >= height) {
+      return -1;
+    }
+    final byteIndex = (referenceY * width + referenceX) * 4;
+    return (referenceRgba[byteIndex] << 16) |
+        (referenceRgba[byteIndex + 1] << 8) |
+        referenceRgba[byteIndex + 2];
   }
+
+  int referenceX(num modelX) =>
+      ((modelX - raster.content.left) * registration.scale + registration.dx)
+          .round();
+  int referenceY(num modelY) =>
+      ((modelY - raster.content.top) * registration.scale + registration.dy)
+          .round();
 
   final score = List.filled(4, 0);
   var samples = 0;
@@ -143,92 +162,76 @@ GlobalHatchOffset deriveWireCycleOffset({
     final cycle = kBdWireStrokeCycles[style];
     final stylePhase = kBdWireCyclePhase[style];
     if (cycle == null || stylePhase == null || cycle.length != 4) continue;
+    final bands = switch (style) {
+      ViWireRenderStyle.zigzag => const [-1, 0],
+      ViWireRenderStyle.chainLink => const [-1, 0, 1],
+      _ => const [-2, -1, 0, 1],
+    };
     final legs = <List<ViPoint>>[
-      if (wire.routePoints case final p? when p.length >= 2) p,
+      if (wire.routePoints case final points? when points.length >= 2) points,
       ...?wire.routeTree?.polylines,
     ];
     for (final leg in legs) {
-      for (var s = 0; s + 1 < leg.length; s++) {
-        final a = leg[s], b = leg[s + 1];
-        if (a.x == b.x && (a.y - b.y).abs() >= 14) {
-          final vlo = math.min(a.y, b.y) + 3, vhi = math.max(a.y, b.y) - 3;
-          int rxOf(num x) =>
-              ((x - raster.content.left) * registration.scale + registration.dx)
-                  .round();
-          int ryOf(num y) =>
-              ((y - raster.content.top) * registration.scale + registration.dy)
-                  .round();
-          final bands = switch (style) {
-            ViWireRenderStyle.zigzag => const [-1, 0],
-            ViWireRenderStyle.chainLink => const [-1, 0, 1],
-            _ => const [-2, -1, 0, 1],
-          };
-          final counts = <int, int>{};
-          for (var y = vlo; y <= vhi; y++) {
-            for (var bit = -2; bit <= 2; bit++) {
-              final c = refPixel(rxOf(a.x + bit), ryOf(y));
-              if (c != 0xffffff && c != -1) counts[c] = (counts[c] ?? 0) + 1;
-            }
-          }
-          if (counts.isEmpty) continue;
-          final ink =
-              (counts.entries.toList()
-                    ..sort((p, q) => q.value.compareTo(p.value)))
-                  .first
-                  .key;
-          for (var y = vlo; y <= vhi; y++) {
-            var clean = true;
-            for (var bit = -2; bit <= 2; bit++) {
-              final c = refPixel(rxOf(a.x + bit), ryOf(y));
-              if (c != 0xffffff && c != ink) clean = false;
-            }
-            if (!clean) continue;
-            samples += bands.length;
-            for (var cand = 0; cand < 4; cand++) {
-              for (final band in bands) {
-                final x = a.x + band;
-                final predicted = (x + ((y & 1) << 1) + cand) % 4 != 0;
-                final observed = refPixel(rxOf(x), ryOf(y)) == ink;
-                score[cand] += predicted == observed ? 1 : -1;
-              }
-            }
-          }
-          continue;
-        }
-        if (a.y != b.y || (a.x - b.x).abs() < 14) continue;
-        final lo = math.min(a.x, b.x) + 3, hi = math.max(a.x, b.x) - 3;
-        int rxOf(num x) =>
-            ((x - raster.content.left) * registration.scale + registration.dx)
-                .round();
-        int ryOf(num y) =>
-            ((y - raster.content.top) * registration.scale + registration.dy)
-                .round();
+      for (var segment = 0; segment + 1 < leg.length; segment++) {
+        final legStart = leg[segment], legEnd = leg[segment + 1];
+        final vertical = legStart.x == legEnd.x;
+        if (!vertical && legStart.y != legEnd.y) continue;
+        final (spanStart, spanEnd) = vertical
+            ? (legStart.y, legEnd.y)
+            : (legStart.x, legEnd.x);
+        if ((spanStart - spanEnd).abs() < 14) continue;
+        final alongStart = math.min(spanStart, spanEnd) + 3;
+        final alongEnd = math.max(spanStart, spanEnd) - 3;
+        int crossPixel(int along, int offset) => vertical
+            ? refPixel(referenceX(legStart.x + offset), referenceY(along))
+            : refPixel(referenceX(along), referenceY(legStart.y + offset));
         final counts = <int, int>{};
-        for (var x = lo; x <= hi; x++) {
-          for (var bit = -2; bit <= 2; bit++) {
-            final c = refPixel(rxOf(x), ryOf(a.y + bit));
-            if (c != 0xffffff && c != -1) counts[c] = (counts[c] ?? 0) + 1;
+        for (var along = alongStart; along <= alongEnd; along++) {
+          for (var offset = -2; offset <= 2; offset++) {
+            final colour = crossPixel(along, offset);
+            if (colour != 0xffffff && colour != -1) {
+              counts[colour] = (counts[colour] ?? 0) + 1;
+            }
           }
         }
         if (counts.isEmpty) continue;
         final ink =
-            (counts.entries.toList()
-                  ..sort((p, q) => q.value.compareTo(p.value)))
+            (counts.entries.toList()..sort(
+                  (first, second) => second.value.compareTo(first.value),
+                ))
                 .first
                 .key;
-        for (var x = lo; x <= hi; x++) {
+        for (var along = alongStart; along <= alongEnd; along++) {
           var clean = true;
-          for (var bit = -2; bit <= 2; bit++) {
-            final c = refPixel(rxOf(x), ryOf(a.y + bit));
-            if (c != 0xffffff && c != ink) clean = false;
+          for (var offset = -2; offset <= 2; offset++) {
+            final colour = crossPixel(along, offset);
+            if (colour != 0xffffff && colour != ink) clean = false;
           }
           if (!clean) continue;
-          samples += 5;
-          for (var px = 0; px < 4; px++) {
-            final mask = cycle[(x + ((a.y & 1) << 1) + stylePhase + px) % 4];
-            for (var bit = 0; bit < 5; bit++) {
-              final inked = refPixel(rxOf(x), ryOf(a.y + bit - 2)) == ink;
-              score[px] += inked == ((mask >> bit) & 1 != 0) ? 1 : -1;
+          if (vertical) {
+            samples += bands.length;
+            for (var candidate = 0; candidate < 4; candidate++) {
+              for (final band in bands) {
+                final predicted =
+                    (legStart.x + band + ((along & 1) << 1) + candidate) % 4 !=
+                    0;
+                final observed = crossPixel(along, band) == ink;
+                score[candidate] += predicted == observed ? 1 : -1;
+              }
+            }
+          } else {
+            samples += 5;
+            for (var candidate = 0; candidate < 4; candidate++) {
+              final mask =
+                  cycle[(along +
+                          ((legStart.y & 1) << 1) +
+                          stylePhase +
+                          candidate) %
+                      4];
+              for (var bit = 0; bit < 5; bit++) {
+                final inked = crossPixel(along, bit - 2) == ink;
+                score[candidate] += inked == ((mask >> bit) & 1 != 0) ? 1 : -1;
+              }
             }
           }
         }
@@ -237,13 +240,13 @@ GlobalHatchOffset deriveWireCycleOffset({
   }
   if (samples == 0) return kNoHatchOffset;
   var bestX = 0, best = -samples - 1, second = -samples - 1;
-  for (var px = 0; px < 4; px++) {
-    if (score[px] > best) {
+  for (var candidate = 0; candidate < 4; candidate++) {
+    if (score[candidate] > best) {
       second = best;
-      best = score[px];
-      bestX = px;
-    } else if (score[px] > second) {
-      second = score[px];
+      best = score[candidate];
+      bestX = candidate;
+    } else if (score[candidate] > second) {
+      second = score[candidate];
     }
   }
   if (best < samples ~/ 2 || best == second) return kNoHatchOffset;
@@ -341,28 +344,28 @@ class ImageComparison {
 }
 
 ImageComparison compareRgba(
-  Uint8List a,
-  Uint8List b,
+  Uint8List render,
+  Uint8List reference,
   int width,
   int height, {
   int threshold = 16,
 }) {
-  assert(a.length == b.length, 'buffers differ in length');
-  assert(a.length == width * height * 4, 'buffer is not width*height*4');
-  final diff = Uint8List(a.length);
+  assert(render.length == reference.length, 'buffers differ in length');
+  assert(render.length == width * height * 4, 'buffer is not width*height*4');
+  final diff = Uint8List(render.length);
   var sum = 0;
   var changed = 0;
-  for (var i = 0; i < a.length; i += 4) {
-    final dr = (a[i] - b[i]).abs();
-    final dg = (a[i + 1] - b[i + 1]).abs();
-    final db = (a[i + 2] - b[i + 2]).abs();
-    sum += dr + dg + db;
-    final maxChannel = math.max(dr, math.max(dg, db));
+  for (var byteIndex = 0; byteIndex < render.length; byteIndex += 4) {
+    final deltaRed = (render[byteIndex] - reference[byteIndex]).abs();
+    final deltaGreen = (render[byteIndex + 1] - reference[byteIndex + 1]).abs();
+    final deltaBlue = (render[byteIndex + 2] - reference[byteIndex + 2]).abs();
+    sum += deltaRed + deltaGreen + deltaBlue;
+    final maxChannel = math.max(deltaRed, math.max(deltaGreen, deltaBlue));
     if (maxChannel > threshold) changed++;
-    diff[i] = dr;
-    diff[i + 1] = dg;
-    diff[i + 2] = db;
-    diff[i + 3] = 0xff;
+    diff[byteIndex] = deltaRed;
+    diff[byteIndex + 1] = deltaGreen;
+    diff[byteIndex + 2] = deltaBlue;
+    diff[byteIndex + 3] = 0xff;
   }
   final pixels = width * height;
   return ImageComparison(
@@ -396,48 +399,48 @@ class StructuralComparison {
 const int kBdEdgeThreshold = 64;
 
 StructuralComparison compareStructural(
-  Uint8List a,
-  Uint8List b,
+  Uint8List render,
+  Uint8List reference,
   int width,
   int height, {
   int inkThreshold = 12,
   int edgeThreshold = kBdEdgeThreshold,
   Uint8List? referenceEdges,
 }) {
-  assert(a.length == b.length, 'buffers differ in length');
-  assert(a.length == width * height * 4, 'buffer is not width*height*4');
+  assert(render.length == reference.length, 'buffers differ in length');
+  assert(render.length == width * height * 4, 'buffer is not width*height*4');
   final pixels = width * height;
-  final lumA = _luma(a, pixels);
-  final lumB = _luma(b, pixels);
+  final renderLuma = _luma(render, pixels);
+  final referenceLuma = _luma(reference, pixels);
 
-  var inkA = 0, inkB = 0, inkInter = 0, inkUnion = 0;
-  for (var i = 0; i < pixels; i++) {
-    final ia = 255 - lumA[i] > inkThreshold;
-    final ib = 255 - lumB[i] > inkThreshold;
-    if (ia) inkA++;
-    if (ib) inkB++;
-    if (ia || ib) {
+  var renderInkCount = 0, referenceInkCount = 0, inkInter = 0, inkUnion = 0;
+  for (var pixel = 0; pixel < pixels; pixel++) {
+    final renderInk = 255 - renderLuma[pixel] > inkThreshold;
+    final referenceInk = 255 - referenceLuma[pixel] > inkThreshold;
+    if (renderInk) renderInkCount++;
+    if (referenceInk) referenceInkCount++;
+    if (renderInk || referenceInk) {
       inkUnion++;
-      if (ia && ib) inkInter++;
+      if (renderInk && referenceInk) inkInter++;
     }
   }
 
-  final edgeA = _sobelMask(lumA, width, height, edgeThreshold);
-  final edgeB =
-      referenceEdges ?? _sobelMask(lumB, width, height, edgeThreshold);
+  final renderEdgeMask = _sobelMask(renderLuma, width, height, edgeThreshold);
+  final referenceEdgeMask =
+      referenceEdges ?? _sobelMask(referenceLuma, width, height, edgeThreshold);
   var edgeInter = 0, edgeUnion = 0;
-  for (var i = 0; i < pixels; i++) {
-    final ea = edgeA[i] != 0;
-    final eb = edgeB[i] != 0;
-    if (ea || eb) {
+  for (var pixel = 0; pixel < pixels; pixel++) {
+    final renderEdge = renderEdgeMask[pixel] != 0;
+    final referenceEdge = referenceEdgeMask[pixel] != 0;
+    if (renderEdge || referenceEdge) {
       edgeUnion++;
-      if (ea && eb) edgeInter++;
+      if (renderEdge && referenceEdge) edgeInter++;
     }
   }
 
   return StructuralComparison(
-    inkFractionRender: pixels == 0 ? 0 : inkA / pixels,
-    inkFractionReference: pixels == 0 ? 0 : inkB / pixels,
+    inkFractionRender: pixels == 0 ? 0 : renderInkCount / pixels,
+    inkFractionReference: pixels == 0 ? 0 : referenceInkCount / pixels,
     inkIoU: inkUnion == 0 ? 1 : inkInter / inkUnion,
     edgeIoU: edgeUnion == 0 ? 1 : edgeInter / edgeUnion,
   );
@@ -445,28 +448,36 @@ StructuralComparison compareStructural(
 
 Uint8List _luma(Uint8List rgba, int pixels) {
   final out = Uint8List(pixels);
-  for (var i = 0; i < pixels; i++) {
-    final j = i * 4;
-    out[i] = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+  for (var pixel = 0; pixel < pixels; pixel++) {
+    final byteIndex = pixel * 4;
+    out[pixel] =
+        (rgba[byteIndex] * 77 +
+            rgba[byteIndex + 1] * 150 +
+            rgba[byteIndex + 2] * 29) >>
+        8;
   }
   return out;
 }
 
 Uint8List _sobelMask(Uint8List lum, int width, int height, int threshold) {
   final out = Uint8List(width * height);
-  for (var y = 1; y < height - 1; y++) {
-    for (var x = 1; x < width - 1; x++) {
-      final i = y * width + x;
-      final tl = lum[i - width - 1],
-          tt = lum[i - width],
-          tr = lum[i - width + 1];
-      final ll = lum[i - 1], rr = lum[i + 1];
-      final bl = lum[i + width - 1],
-          bb = lum[i + width],
-          br = lum[i + width + 1];
-      final gx = (tr + 2 * rr + br) - (tl + 2 * ll + bl);
-      final gy = (bl + 2 * bb + br) - (tl + 2 * tt + tr);
-      if (gx.abs() + gy.abs() > threshold) out[i] = 1;
+  for (var row = 1; row < height - 1; row++) {
+    for (var column = 1; column < width - 1; column++) {
+      final index = row * width + column;
+      final topLeft = lum[index - width - 1],
+          top = lum[index - width],
+          topRight = lum[index - width + 1];
+      final left = lum[index - 1], right = lum[index + 1];
+      final bottomLeft = lum[index + width - 1],
+          bottom = lum[index + width],
+          bottomRight = lum[index + width + 1];
+      final gradientX =
+          (topRight + 2 * right + bottomRight) -
+          (topLeft + 2 * left + bottomLeft);
+      final gradientY =
+          (bottomLeft + 2 * bottom + bottomRight) -
+          (topLeft + 2 * top + topRight);
+      if (gradientX.abs() + gradientY.abs() > threshold) out[index] = 1;
     }
   }
   return out;
@@ -766,8 +777,8 @@ PlacementComparison comparePlacement({
     tolerance,
   );
   var edgePixels = 0;
-  for (var i = 0; i < edges.length; i++) {
-    edgePixels += edges[i];
+  for (var index = 0; index < edges.length; index++) {
+    edgePixels += edges[index];
   }
   final chance = pixels == 0 ? 0.0 : edgePixels / pixels;
 
@@ -790,22 +801,26 @@ PlacementComparison comparePlacement({
     }
     final refRect = registration.mapRect(raster.modelRect(bounds));
     var hits = 0, samples = 0, total = 0;
-    void sample(int x, int y) {
+    void sample(int referenceX, int referenceY) {
       total++;
-      if (x < 0 || y < 0 || x >= width || y >= height) return;
+      if (referenceX < 0 ||
+          referenceY < 0 ||
+          referenceX >= width ||
+          referenceY >= height)
+        return;
       samples++;
-      if (edges[y * width + x] != 0) hits++;
+      if (edges[referenceY * width + referenceX] != 0) hits++;
     }
 
     final left = refRect.left.round(), right = refRect.right.round();
     final top = refRect.top.round(), bottom = refRect.bottom.round();
-    for (var x = left; x <= right; x++) {
-      sample(x, top);
-      sample(x, bottom);
+    for (var referenceX = left; referenceX <= right; referenceX++) {
+      sample(referenceX, top);
+      sample(referenceX, bottom);
     }
-    for (var y = top + 1; y < bottom; y++) {
-      sample(left, y);
-      sample(right, y);
+    for (var referenceY = top + 1; referenceY < bottom; referenceY++) {
+      sample(left, referenceY);
+      sample(right, referenceY);
     }
     if (samples < 8 || samples * 2 < total) continue;
     perObject.add((oid: object.oid, support: hits / samples));
@@ -816,26 +831,26 @@ PlacementComparison comparePlacement({
 Uint8List _dilate(Uint8List mask, int width, int height, int radius) {
   if (radius <= 0) return mask;
   final horizontal = Uint8List(mask.length);
-  for (var y = 0; y < height; y++) {
-    final row = y * width;
-    for (var x = 0; x < width; x++) {
-      if (mask[row + x] == 0) continue;
-      final from = math.max(0, x - radius),
-          to = math.min(width - 1, x + radius);
-      for (var i = from; i <= to; i++) {
-        horizontal[row + i] = 1;
+  for (var row = 0; row < height; row++) {
+    final rowBase = row * width;
+    for (var column = 0; column < width; column++) {
+      if (mask[rowBase + column] == 0) continue;
+      final from = math.max(0, column - radius),
+          to = math.min(width - 1, column + radius);
+      for (var index = from; index <= to; index++) {
+        horizontal[rowBase + index] = 1;
       }
     }
   }
   final out = Uint8List(mask.length);
-  for (var y = 0; y < height; y++) {
-    final row = y * width;
-    for (var x = 0; x < width; x++) {
-      if (horizontal[row + x] == 0) continue;
-      final from = math.max(0, y - radius),
-          to = math.min(height - 1, y + radius);
-      for (var i = from; i <= to; i++) {
-        out[i * width + x] = 1;
+  for (var row = 0; row < height; row++) {
+    final rowBase = row * width;
+    for (var column = 0; column < width; column++) {
+      if (horizontal[rowBase + column] == 0) continue;
+      final from = math.max(0, row - radius),
+          to = math.min(height - 1, row + radius);
+      for (var index = from; index <= to; index++) {
+        out[index * width + column] = 1;
       }
     }
   }
@@ -850,25 +865,29 @@ Rect? inkBoundsOf(
   double trim = 0.01,
 }) {
   assert(rgba.length == width * height * 4, 'buffer is not width*height*4');
-  final cols = Uint32List(width);
+  final columns = Uint32List(width);
   final rows = Uint32List(height);
   var total = 0;
-  for (var y = 0; y < height; y++) {
-    final rowBase = y * width;
-    for (var x = 0; x < width; x++) {
-      final j = (rowBase + x) * 4;
-      final lum = (rgba[j] * 77 + rgba[j + 1] * 150 + rgba[j + 2] * 29) >> 8;
+  for (var row = 0; row < height; row++) {
+    final rowBase = row * width;
+    for (var column = 0; column < width; column++) {
+      final byteIndex = (rowBase + column) * 4;
+      final lum =
+          (rgba[byteIndex] * 77 +
+              rgba[byteIndex + 1] * 150 +
+              rgba[byteIndex + 2] * 29) >>
+          8;
       if (255 - lum > inkThreshold) {
-        cols[x]++;
-        rows[y]++;
+        columns[column]++;
+        rows[row]++;
         total++;
       }
     }
   }
   if (total == 0) return null;
   final cut = (total * trim).floor();
-  final left = _trimStart(cols, cut);
-  final right = _trimEnd(cols, cut);
+  final left = _trimStart(columns, cut);
+  final right = _trimEnd(columns, cut);
   final top = _trimStart(rows, cut);
   final bottom = _trimEnd(rows, cut);
   if (right < left || bottom < top) return null;
@@ -882,18 +901,18 @@ Rect? inkBoundsOf(
 
 int _trimStart(Uint32List hist, int cut) {
   var acc = 0;
-  for (var i = 0; i < hist.length; i++) {
-    acc += hist[i];
-    if (acc > cut) return i;
+  for (var bin = 0; bin < hist.length; bin++) {
+    acc += hist[bin];
+    if (acc > cut) return bin;
   }
   return hist.length - 1;
 }
 
 int _trimEnd(Uint32List hist, int cut) {
   var acc = 0;
-  for (var i = hist.length - 1; i >= 0; i--) {
-    acc += hist[i];
-    if (acc > cut) return i;
+  for (var bin = hist.length - 1; bin >= 0; bin--) {
+    acc += hist[bin];
+    if (acc > cut) return bin;
   }
   return 0;
 }
@@ -938,13 +957,17 @@ BdRegistration _translationRegistration(
   );
   final points = <double>[];
   final stride = math.max(1, math.sqrt(renderPixels / 300000).ceil());
-  for (var y = 0; y < renderHeight; y += stride) {
-    final row = y * renderWidth;
-    for (var x = 0; x < renderWidth; x += stride) {
-      if (renderEdges[row + x] != 0) {
+  for (var renderRow = 0; renderRow < renderHeight; renderRow += stride) {
+    final rowBase = renderRow * renderWidth;
+    for (
+      var renderColumn = 0;
+      renderColumn < renderWidth;
+      renderColumn += stride
+    ) {
+      if (renderEdges[rowBase + renderColumn] != 0) {
         points
-          ..add(x * scale)
-          ..add(y * scale);
+          ..add(renderColumn * scale)
+          ..add(renderRow * scale);
       }
     }
   }
@@ -952,11 +975,15 @@ BdRegistration _translationRegistration(
   final nearEdges = _dilate(referenceEdges, width, height, 1);
   int hitsAt(double dx, double dy) {
     var hits = 0;
-    for (var i = 0; i < points.length; i += 2) {
-      final x = (points[i] + dx).round();
-      final y = (points[i + 1] + dy).round();
-      if (x < 0 || y < 0 || x >= width || y >= height) continue;
-      hits += nearEdges[y * width + x];
+    for (var pointIndex = 0; pointIndex < points.length; pointIndex += 2) {
+      final referenceX = (points[pointIndex] + dx).round();
+      final referenceY = (points[pointIndex + 1] + dy).round();
+      if (referenceX < 0 ||
+          referenceY < 0 ||
+          referenceX >= width ||
+          referenceY >= height)
+        continue;
+      hits += nearEdges[referenceY * width + referenceX];
     }
     return hits;
   }
@@ -964,11 +991,19 @@ BdRegistration _translationRegistration(
   final int coarseStep = 2 * math.max(1, (points.length ~/ 2) ~/ 4000);
   int coarseHitsAt(double dx, double dy) {
     var hits = 0;
-    for (var i = 0; i < points.length; i += coarseStep) {
-      final x = (points[i] + dx).round();
-      final y = (points[i + 1] + dy).round();
-      if (x < 0 || y < 0 || x >= width || y >= height) continue;
-      hits += nearEdges[y * width + x];
+    for (
+      var pointIndex = 0;
+      pointIndex < points.length;
+      pointIndex += coarseStep
+    ) {
+      final referenceX = (points[pointIndex] + dx).round();
+      final referenceY = (points[pointIndex + 1] + dy).round();
+      if (referenceX < 0 ||
+          referenceY < 0 ||
+          referenceX >= width ||
+          referenceY >= height)
+        continue;
+      hits += nearEdges[referenceY * width + referenceX];
     }
     return hits;
   }
@@ -985,34 +1020,39 @@ BdRegistration _translationRegistration(
     ),
   };
   final cells = <(double, double, int)>[];
-  for (final (sx, sy) in starts) {
-    for (var oy = -searchRadius; oy <= searchRadius; oy += 6) {
-      for (var ox = -searchRadius; ox <= searchRadius; ox += 6) {
-        cells.add((sx + ox, sy + oy, coarseHitsAt(sx + ox, sy + oy)));
+  for (final (startX, startY) in starts) {
+    for (var offsetY = -searchRadius; offsetY <= searchRadius; offsetY += 6) {
+      for (var offsetX = -searchRadius; offsetX <= searchRadius; offsetX += 6) {
+        cells.add((
+          startX + offsetX,
+          startY + offsetY,
+          coarseHitsAt(startX + offsetX, startY + offsetY),
+        ));
       }
     }
   }
-  cells.sort((a, b) => b.$3.compareTo(a.$3));
+  cells.sort((first, second) => second.$3.compareTo(first.$3));
   final peaks = <(double, double, int)>[];
   for (final cell in cells) {
     if (peaks.length >= 8) break;
     final farEnough = peaks.every(
-      (p) => math.max((p.$1 - cell.$1).abs(), (p.$2 - cell.$2).abs()) >= 12,
+      (peak) =>
+          math.max((peak.$1 - cell.$1).abs(), (peak.$2 - cell.$2).abs()) >= 12,
     );
     if (farEnough) peaks.add(cell);
   }
   final candidates = <(double, double, int)>[];
-  for (final (px, py, _) in peaks) {
-    var bestDx = px, bestDy = py;
-    var bestHits = hitsAt(px, py);
-    for (var oy = -5; oy <= 5; oy++) {
-      for (var ox = -5; ox <= 5; ox++) {
-        if (ox == 0 && oy == 0) continue;
-        final hits = hitsAt(px + ox, py + oy);
+  for (final (peakX, peakY, _) in peaks) {
+    var bestDx = peakX, bestDy = peakY;
+    var bestHits = hitsAt(peakX, peakY);
+    for (var offsetY = -5; offsetY <= 5; offsetY++) {
+      for (var offsetX = -5; offsetX <= 5; offsetX++) {
+        if (offsetX == 0 && offsetY == 0) continue;
+        final hits = hitsAt(peakX + offsetX, peakY + offsetY);
         if (hits > bestHits) {
           bestHits = hits;
-          bestDx = px + ox;
-          bestDy = py + oy;
+          bestDx = peakX + offsetX;
+          bestDy = peakY + offsetY;
         }
       }
     }
@@ -1022,21 +1062,34 @@ BdRegistration _translationRegistration(
   if (anchorRects.isNotEmpty) {
     double anchorSupport(double dx, double dy, Uint8List edges) {
       var hits = 0, samples = 0;
-      void sample(double fx, double fy) {
-        final x = (fx * scale + dx).round(), y = (fy * scale + dy).round();
-        if (x < 0 || y < 0 || x >= width || y >= height) return;
+      void sample(double renderX, double renderY) {
+        final referenceX = (renderX * scale + dx).round(),
+            referenceY = (renderY * scale + dy).round();
+        if (referenceX < 0 ||
+            referenceY < 0 ||
+            referenceX >= width ||
+            referenceY >= height)
+          return;
         samples++;
-        hits += edges[y * width + x];
+        hits += edges[referenceY * width + referenceX];
       }
 
       for (final rect in anchorRects) {
-        for (var x = rect.left; x <= rect.right; x += 2) {
-          sample(x, rect.top);
-          sample(x, rect.bottom);
+        for (
+          var referenceX = rect.left;
+          referenceX <= rect.right;
+          referenceX += 2
+        ) {
+          sample(referenceX, rect.top);
+          sample(referenceX, rect.bottom);
         }
-        for (var y = rect.top + 2; y < rect.bottom; y += 2) {
-          sample(rect.left, y);
-          sample(rect.right, y);
+        for (
+          var referenceY = rect.top + 2;
+          referenceY < rect.bottom;
+          referenceY += 2
+        ) {
+          sample(rect.left, referenceY);
+          sample(rect.right, referenceY);
         }
       }
       return samples == 0 ? 0 : hits / samples;
@@ -1044,11 +1097,11 @@ BdRegistration _translationRegistration(
 
     var best = candidates.first;
     var bestScore = anchorSupport(best.$1, best.$2, nearEdges);
-    for (final cand in candidates.skip(1)) {
-      final score = anchorSupport(cand.$1, cand.$2, nearEdges);
+    for (final candidate in candidates.skip(1)) {
+      final score = anchorSupport(candidate.$1, candidate.$2, nearEdges);
       if (score > bestScore + 1e-9 ||
-          (score > bestScore - 1e-9 && cand.$3 > best.$3)) {
-        best = cand;
+          (score > bestScore - 1e-9 && candidate.$3 > best.$3)) {
+        best = candidate;
         bestScore = score;
       }
     }
@@ -1058,7 +1111,7 @@ BdRegistration _translationRegistration(
       dy: best.$2,
     )._exactSnap(points, referenceEdges, width, height);
   }
-  candidates.sort((a, b) => b.$3.compareTo(a.$3));
+  candidates.sort((first, second) => second.$3.compareTo(first.$3));
   return BdRegistration(
     scale: scale,
     dx: candidates.first.$1,
@@ -1073,29 +1126,34 @@ extension _ExactSnap on BdRegistration {
     int width,
     int height,
   ) {
-    int exactHits(double ex, double ey) {
+    int exactHits(double shiftX, double shiftY) {
       var hits = 0;
-      for (var i = 0; i < points.length; i += 2) {
-        final x = (points[i] + ex).round(), y = (points[i + 1] + ey).round();
-        if (x < 0 || y < 0 || x >= width || y >= height) continue;
-        hits += referenceEdges[y * width + x];
+      for (var pointIndex = 0; pointIndex < points.length; pointIndex += 2) {
+        final referenceX = (points[pointIndex] + shiftX).round(),
+            referenceY = (points[pointIndex + 1] + shiftY).round();
+        if (referenceX < 0 ||
+            referenceY < 0 ||
+            referenceX >= width ||
+            referenceY >= height)
+          continue;
+        hits += referenceEdges[referenceY * width + referenceX];
       }
       return hits;
     }
 
-    var bx = dx, by = dy, best = exactHits(dx, dy);
-    for (var oy = -1; oy <= 1; oy++) {
-      for (var ox = -1; ox <= 1; ox++) {
-        if (ox == 0 && oy == 0) continue;
-        final hits = exactHits(dx + ox, dy + oy);
+    var bestDx = dx, bestDy = dy, best = exactHits(dx, dy);
+    for (var offsetY = -1; offsetY <= 1; offsetY++) {
+      for (var offsetX = -1; offsetX <= 1; offsetX++) {
+        if (offsetX == 0 && offsetY == 0) continue;
+        final hits = exactHits(dx + offsetX, dy + offsetY);
         if (hits > best) {
           best = hits;
-          bx = dx + ox;
-          by = dy + oy;
+          bestDx = dx + offsetX;
+          bestDy = dy + offsetY;
         }
       }
     }
-    return BdRegistration(scale: scale, dx: bx, dy: by);
+    return BdRegistration(scale: scale, dx: bestDx, dy: bestDy);
   }
 }
 
@@ -1568,21 +1626,21 @@ class _BdOracleViewState extends State<BdOracleView>
               showRef = result.reference;
               showFit = result.fitted;
             } else if (fitPhys >= 1) {
-              final n = fitPhys.floor();
-              dispPhysW = logicalW * n;
-              dispPhysH = logicalH * n;
+              final integerZoom = fitPhys.floor();
+              dispPhysW = logicalW * integerZoom;
+              dispPhysH = logicalH * integerZoom;
               _wipeBoxK = 0;
               showRef = result.reference;
               showFit = result.fitted;
             } else {
-              final k = boxDownscaleFactor(refImage, ss, fitPhys);
-              if (k != _wipeBoxK) {
-                _wipeBoxK = k;
+              final factor = boxDownscaleFactor(refImage, ss, fitPhys);
+              if (factor != _wipeBoxK) {
+                _wipeBoxK = factor;
                 Future.wait([
-                  boxDownscale(refImage, k),
-                  boxDownscale(fitImage, k),
+                  boxDownscale(refImage, factor),
+                  boxDownscale(fitImage, factor),
                 ]).then((imgs) {
-                  if (mounted && _wipeBoxK == k) {
+                  if (mounted && _wipeBoxK == factor) {
                     _wipeReference?.dispose();
                     _wipeFitted?.dispose();
                     setState(() {
@@ -1595,8 +1653,8 @@ class _BdOracleViewState extends State<BdOracleView>
                   }
                 });
               }
-              dispPhysW = (refImage.width ~/ k).toDouble();
-              dispPhysH = (refImage.height ~/ k).toDouble();
+              dispPhysW = (refImage.width ~/ factor).toDouble();
+              dispPhysH = (refImage.height ~/ factor).toDouble();
               showRef = _wipeReference;
               showFit = _wipeFitted;
             }
@@ -1767,14 +1825,16 @@ class _BdOracleViewState extends State<BdOracleView>
   ) async {
     final messenger = ScaffoldMessenger.maybeOf(context);
     final png = await image.toByteData(format: ui.ImageByteFormat.png);
-    var ok = false;
+    var copied = false;
     if (png != null) {
-      ok = await const SystemImageClipboard().copyPng(png.buffer.asUint8List());
+      copied = await const SystemImageClipboard().copyPng(
+        png.buffer.asUint8List(),
+      );
     }
     messenger?.showSnackBar(
       SnackBar(
         content: Text(
-          ok ? 'Copied $what (3×) to clipboard' : 'Could not copy $what',
+          copied ? 'Copied $what (3×) to clipboard' : 'Could not copy $what',
         ),
         duration: const Duration(seconds: 2),
       ),
@@ -1879,15 +1939,17 @@ Future<ui.Image> redrawRegisteredSupersampled(
 }
 
 int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
-  final k = supersample * (1 / fitPhys).ceil();
-  return k.clamp(1, math.min(src.width, src.height));
+  final factor = supersample * (1 / fitPhys).ceil();
+  return factor.clamp(1, math.min(src.width, src.height));
 }
 
-Future<ui.Image> boxDownscale(ui.Image src, int k) async {
+Future<ui.Image> boxDownscale(ui.Image src, int factor) async {
   final data = (await src.toByteData())!;
-  final sw = src.width, sh = src.height;
+  final sourceWidth = src.width, sourceHeight = src.height;
   final bytes = data.buffer.asUint8List();
-  final out = await Isolate.run(() => boxDownscaleRgba(bytes, sw, sh, k));
+  final out = await Isolate.run(
+    () => boxDownscaleRgba(bytes, sourceWidth, sourceHeight, factor),
+  );
   return imageFromRgba(out.rgba, out.width, out.height);
 }
 
@@ -1898,30 +1960,35 @@ Future<ui.Image> boxDownscale(ui.Image src, int k) async {
   int factor,
 ) {
   final blockK = math.max(1, math.min(factor, math.min(width, height)));
-  final dw = math.max(1, width ~/ blockK), dh = math.max(1, height ~/ blockK);
-  final out = Uint8List(dw * dh * 4);
-  final n = blockK * blockK;
-  for (var y = 0; y < dh; y++) {
-    for (var x = 0; x < dw; x++) {
-      var r = 0, g = 0, b = 0, a = 0;
-      for (var sy = y * blockK; sy < y * blockK + blockK; sy++) {
-        var i = (sy * width + x * blockK) * 4;
-        for (var sx = 0; sx < blockK; sx++) {
-          r += rgba[i];
-          g += rgba[i + 1];
-          b += rgba[i + 2];
-          a += rgba[i + 3];
-          i += 4;
+  final outWidth = math.max(1, width ~/ blockK),
+      outHeight = math.max(1, height ~/ blockK);
+  final out = Uint8List(outWidth * outHeight * 4);
+  final blockPixels = blockK * blockK;
+  for (var row = 0; row < outHeight; row++) {
+    for (var column = 0; column < outWidth; column++) {
+      var red = 0, green = 0, blue = 0, alpha = 0;
+      for (
+        var sourceRow = row * blockK;
+        sourceRow < row * blockK + blockK;
+        sourceRow++
+      ) {
+        var byteIndex = (sourceRow * width + column * blockK) * 4;
+        for (var sourceColumn = 0; sourceColumn < blockK; sourceColumn++) {
+          red += rgba[byteIndex];
+          green += rgba[byteIndex + 1];
+          blue += rgba[byteIndex + 2];
+          alpha += rgba[byteIndex + 3];
+          byteIndex += 4;
         }
       }
-      final j = (y * dw + x) * 4;
-      out[j] = r ~/ n;
-      out[j + 1] = g ~/ n;
-      out[j + 2] = b ~/ n;
-      out[j + 3] = a ~/ n;
+      final outIndex = (row * outWidth + column) * 4;
+      out[outIndex] = red ~/ blockPixels;
+      out[outIndex + 1] = green ~/ blockPixels;
+      out[outIndex + 2] = blue ~/ blockPixels;
+      out[outIndex + 3] = alpha ~/ blockPixels;
     }
   }
-  return (rgba: out, width: dw, height: dh);
+  return (rgba: out, width: outWidth, height: outHeight);
 }
 
 class CrispImage extends StatefulWidget {
@@ -1961,18 +2028,22 @@ class _CrispImageState extends State<CrispImage> {
       final double dispPhysH;
       ui.Image? shown;
       if (fitPhys >= 1) {
-        final n = fitPhys.floor();
-        dispPhysW = logicalW * n;
-        dispPhysH = logicalH * n;
+        final integerZoom = fitPhys.floor();
+        dispPhysW = logicalW * integerZoom;
+        dispPhysH = logicalH * integerZoom;
         shown = widget.base ?? widget.image;
       } else {
-        final k = boxDownscaleFactor(widget.image, widget.supersample, fitPhys);
-        if (k != _boxK) {
-          _boxK = k;
-          boxDownscale(widget.image, k).then((img) {
+        final factor = boxDownscaleFactor(
+          widget.image,
+          widget.supersample,
+          fitPhys,
+        );
+        if (factor != _boxK) {
+          _boxK = factor;
+          boxDownscale(widget.image, factor).then((img) {
             if (!mounted) {
               img.dispose();
-            } else if (_boxK == k) {
+            } else if (_boxK == factor) {
               _scaled?.dispose();
               setState(() => _scaled = img);
             } else {
@@ -1980,8 +2051,8 @@ class _CrispImageState extends State<CrispImage> {
             }
           });
         }
-        dispPhysW = (widget.image.width ~/ k).toDouble();
-        dispPhysH = (widget.image.height ~/ k).toDouble();
+        dispPhysW = (widget.image.width ~/ factor).toDouble();
+        dispPhysH = (widget.image.height ~/ factor).toDouble();
         shown = _scaled;
       }
       if (shown == null) {
