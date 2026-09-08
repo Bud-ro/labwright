@@ -39,17 +39,17 @@ class SeqProjectExport {
 }
 
 SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
-  String norm(String p) => p.replaceAll(r'\', '/');
-  String baseOf(String p) => norm(p).split('/').last;
-  String stemOf(String p) {
-    final b = baseOf(p);
-    return b.toLowerCase().endsWith('.seq') ? b.substring(0, b.length - 4) : b;
+  String norm(String path) => path.replaceAll(r'\', '/');
+  String baseOf(String path) => norm(path).split('/').last;
+  String stemOf(String path) {
+    final base = baseOf(path);
+    return base.toLowerCase().endsWith('.seq') ? base.substring(0, base.length - 4) : base;
   }
 
   String snake(String text) {
     final cleaned = text
         .replaceAll(RegExp('[^A-Za-z0-9]+'), '_')
-        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (m) => '${m.group(1)}_${m.group(2)}')
+        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (match) => '${match.group(1)}_${match.group(2)}')
         .toLowerCase()
         .replaceAll(RegExp('_+'), '_')
         .replaceAll(RegExp(r'^_|_$'), '');
@@ -70,8 +70,8 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     fnOf[key] = _sequenceFnTable(file, taken);
     final scopes = _sequenceScopeTable(file, taken, sourceName: key);
     final byName = <String, _SeqScope>{};
-    for (var i = 0; i < file.sequences.length; i++) {
-      byName.putIfAbsent(file.sequences[i].name, () => scopes[i]);
+    for (var sequenceIndex = 0; sequenceIndex < file.sequences.length; sequenceIndex++) {
+      byName.putIfAbsent(file.sequences[sequenceIndex].name, () => scopes[sequenceIndex]);
     }
     scopeByNameOf[key] = byName;
   }
@@ -81,9 +81,9 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     (lowerByBase[baseOf(key).toLowerCase()] ??= []).add(key);
   }
   String dirOf(String key) {
-    final n = norm(key);
-    final cut = n.lastIndexOf('/');
-    return cut < 0 ? '' : n.substring(0, cut);
+    final normalized = norm(key);
+    final cut = normalized.lastIndexOf('/');
+    return cut < 0 ? '' : normalized.substring(0, cut);
   }
 
   String joinNorm(String dir, String rel) {
@@ -112,8 +112,8 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     if (candidates == null) return null;
     if (candidates.length == 1) return candidates.single;
     final sameDir = [
-      for (final c in candidates)
-        if (dirOf(c) == dirOf(callerKey)) c,
+      for (final candidate in candidates)
+        if (dirOf(candidate) == dirOf(callerKey)) candidate,
     ];
     return sameDir.length == 1 ? sameDir.single : null;
   }
@@ -122,20 +122,23 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
   final importsOf = <String, Set<String>>{};
   final externallyCalledOf = <String, Set<String>>{};
   for (final key in ordered) {
-    for (final seq in byPath[key]!.sequences) {
-      for (final st in seq.steps) {
-        final m = st.module;
-        if (m.adapter != SeqAdapter.sequenceCall) continue;
-        if (m.specifiesByExpression == true) continue;
-        final sf = m.sequenceFile;
-        final target = m.sequenceName;
-        if (sf == null || target == null) continue;
-        final targetKey = resolveTargetFile(key, sf);
+    for (final sequence in byPath[key]!.sequences) {
+      for (final step in sequence.steps) {
+        final module = step.module;
+        if (module.adapter != SeqAdapter.sequenceCall) continue;
+        if (module.specifiesByExpression == true) continue;
+        final sequenceFile = module.sequenceFile;
+        final target = module.sequenceName;
+        if (sequenceFile == null || target == null) continue;
+        final targetKey = resolveTargetFile(key, sequenceFile);
         if (targetKey == null || targetKey == key) continue;
-        final fn = fnOf[targetKey]![target];
-        if (fn == null) continue;
+        final functionName = fnOf[targetKey]![target];
+        if (functionName == null) continue;
         final prefix = moduleOf[targetKey]!;
-        (resolvedOf[key] ??= {})[(sf, target)] = (fn: '$prefix.$fn', scope: scopeByNameOf[targetKey]![target]!);
+        (resolvedOf[key] ??= {})[(sequenceFile, target)] = (
+          functionName: '$prefix.$functionName',
+          scope: scopeByNameOf[targetKey]![target]!,
+        );
         (importsOf[key] ??= {}).add(targetKey);
         (externallyCalledOf[targetKey] ??= {}).add(target);
       }
@@ -214,9 +217,9 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
       asTest: true,
       registerName: 'register',
       extraImports: extra,
-      resolveExternalCall: (m) {
-        final (sf, name) = (m.sequenceFile, m.sequenceName);
-        return sf == null || name == null ? null : resolved[(sf, name)];
+      resolveExternalCall: (module) {
+        final (sequenceFile, name) = (module.sequenceFile, module.sequenceName);
+        return sequenceFile == null || name == null ? null : resolved[(sequenceFile, name)];
       },
       externallyCalled: externallyCalledOf[key] ?? const <String>{},
       stationGlobalNames: stationUnion,
@@ -318,32 +321,32 @@ String dartIdentifier(String name, {bool capitalize = false}) {
     for (final chunk in name.split(RegExp(r'[^A-Za-z0-9]+')))
       if (chunk.isNotEmpty)
         ...chunk
-            .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (m) => '${m.group(1)} ${m.group(2)}')
-            .replaceAllMapped(RegExp(r'([A-Z]+)([A-Z][a-z])'), (m) => '${m.group(1)} ${m.group(2)}')
+            .replaceAllMapped(RegExp(r'([a-z0-9])([A-Z])'), (match) => '${match.group(1)} ${match.group(2)}')
+            .replaceAllMapped(RegExp(r'([A-Z]+)([A-Z][a-z])'), (match) => '${match.group(1)} ${match.group(2)}')
             .split(' ')
-            .where((w) => w.isNotEmpty),
+            .where((piece) => piece.isNotEmpty),
   ];
   if (words.isEmpty) return capitalize ? 'Unnamed' : 'unnamed';
   final buffer = StringBuffer();
-  for (var i = 0; i < words.length; i++) {
-    final word = words[i].toLowerCase();
-    if (i == 0 && !capitalize) {
+  for (var wordIndex = 0; wordIndex < words.length; wordIndex++) {
+    final word = words[wordIndex].toLowerCase();
+    if (wordIndex == 0 && !capitalize) {
       buffer.write(word);
     } else {
       buffer.write(word[0].toUpperCase() + word.substring(1));
     }
   }
-  var id = buffer.toString();
-  if (RegExp(r'^[0-9]').hasMatch(id)) id = 'v$id';
-  if (_dartReserved.contains(id)) id = '$id\$';
-  return id;
+  var identifier = buffer.toString();
+  if (RegExp(r'^[0-9]').hasMatch(identifier)) identifier = 'v$identifier';
+  if (_dartReserved.contains(identifier)) identifier = '$identifier\$';
+  return identifier;
 }
 
 String _uniqueName(String base, Set<String> taken) {
   var name = base;
-  var n = 2;
+  var suffix = 2;
   while (!taken.add(name)) {
-    name = '$base${n++}';
+    name = '$base${suffix++}';
   }
   return name;
 }
@@ -372,27 +375,27 @@ Map<String, String> _sequenceFnTable(SeqFile file, Set<String> taken) {
 List<(String, bool)> _segments(String text) {
   final out = <(String, bool)>[];
   var start = 0;
-  var i = 0;
-  while (i < text.length) {
-    final c = text[i];
-    if (c == '"' || c == "'") {
-      if (i > start) out.add((text.substring(start, i), false));
-      final quote = c;
-      var j = i + 1;
-      while (j < text.length) {
-        if (text[j] == r'\') {
-          j += 2;
+  var cursor = 0;
+  while (cursor < text.length) {
+    final char = text[cursor];
+    if (char == '"' || char == "'") {
+      if (cursor > start) out.add((text.substring(start, cursor), false));
+      final quote = char;
+      var quoteEnd = cursor + 1;
+      while (quoteEnd < text.length) {
+        if (text[quoteEnd] == r'\') {
+          quoteEnd += 2;
           continue;
         }
-        if (text[j] == quote) break;
-        j++;
+        if (text[quoteEnd] == quote) break;
+        quoteEnd++;
       }
-      j = j < text.length ? j + 1 : text.length;
-      out.add((text.substring(i, j), true));
-      start = j;
-      i = j;
+      quoteEnd = quoteEnd < text.length ? quoteEnd + 1 : text.length;
+      out.add((text.substring(cursor, quoteEnd), true));
+      start = quoteEnd;
+      cursor = quoteEnd;
     } else {
-      i++;
+      cursor++;
     }
   }
   if (start < text.length) out.add((text.substring(start), false));
@@ -401,39 +404,39 @@ List<(String, bool)> _segments(String text) {
 
 String _stripComments(String text) {
   final out = StringBuffer();
-  var i = 0;
-  while (i < text.length) {
-    final c = text[i];
-    if (c == '"' || c == "'") {
-      out.write(c);
-      i++;
-      while (i < text.length) {
-        out.write(text[i]);
-        if (text[i] == r'\') {
-          if (i + 1 < text.length) out.write(text[i + 1]);
-          i += 2;
+  var cursor = 0;
+  while (cursor < text.length) {
+    final char = text[cursor];
+    if (char == '"' || char == "'") {
+      out.write(char);
+      cursor++;
+      while (cursor < text.length) {
+        out.write(text[cursor]);
+        if (text[cursor] == r'\') {
+          if (cursor + 1 < text.length) out.write(text[cursor + 1]);
+          cursor += 2;
           continue;
         }
-        final closed = text[i] == c;
-        i++;
+        final closed = text[cursor] == char;
+        cursor++;
         if (closed) break;
       }
       continue;
     }
-    if (c == '/' && i + 1 < text.length && text[i + 1] == '/') {
-      while (i < text.length && text[i] != '\n' && text[i] != '\r') {
-        i++;
+    if (char == '/' && cursor + 1 < text.length && text[cursor + 1] == '/') {
+      while (cursor < text.length && text[cursor] != '\n' && text[cursor] != '\r') {
+        cursor++;
       }
       continue;
     }
-    if (c == '/' && i + 1 < text.length && text[i + 1] == '*') {
-      final end = text.indexOf('*/', i + 2);
+    if (char == '/' && cursor + 1 < text.length && text[cursor + 1] == '*') {
+      final end = text.indexOf('*/', cursor + 2);
       out.write(' ');
-      i = end < 0 ? text.length : end + 2;
+      cursor = end < 0 ? text.length : end + 2;
       continue;
     }
-    out.write(c);
-    i++;
+    out.write(char);
+    cursor++;
   }
   return out.toString();
 }
@@ -441,18 +444,21 @@ String _stripComments(String text) {
 String _stripNoValidation(String text) {
   const marker = '#NoValidation(';
   var result = text;
-  var at = result.indexOf(marker);
-  while (at >= 0) {
+  var markerAt = result.indexOf(marker);
+  while (markerAt >= 0) {
     var depth = 1;
-    var i = at + marker.length;
-    while (i < result.length && depth > 0) {
-      if (result[i] == '(') depth++;
-      if (result[i] == ')') depth--;
-      i++;
+    var cursor = markerAt + marker.length;
+    while (cursor < result.length && depth > 0) {
+      if (result[cursor] == '(') depth++;
+      if (result[cursor] == ')') depth--;
+      cursor++;
     }
     if (depth != 0) return text;
-    result = result.substring(0, at) + result.substring(at + marker.length, i - 1) + result.substring(i);
-    at = result.indexOf(marker);
+    result =
+        result.substring(0, markerAt) +
+        result.substring(markerAt + marker.length, cursor - 1) +
+        result.substring(cursor);
+    markerAt = result.indexOf(marker);
   }
   return result;
 }
@@ -464,16 +470,16 @@ List<String> _splitTopLevelCommas(String text) {
   var consumed = 0;
   for (final (segment, isString) in _segments(text)) {
     if (!isString) {
-      for (var i = 0; i < segment.length; i++) {
-        switch (segment[i]) {
+      for (var charIndex = 0; charIndex < segment.length; charIndex++) {
+        switch (segment[charIndex]) {
           case '(' || '[' || '{':
             depth++;
           case ')' || ']' || '}':
             depth--;
           case ',':
             if (depth <= 0) {
-              parts.add(text.substring(start, consumed + i));
-              start = consumed + i + 1;
+              parts.add(text.substring(start, consumed + charIndex));
+              start = consumed + charIndex + 1;
             }
         }
       }
@@ -487,17 +493,17 @@ List<String> _splitTopLevelCommas(String text) {
 List<String>? _rawStmtPieces(String raw) {
   final cleaned = _stripNoValidation(_stripComments(raw));
   final parts = _splitTopLevelCommas(cleaned);
-  bool balanced(String p) {
-    var d = 0;
-    for (final (seg, isString) in _segments(p)) {
+  bool balanced(String piece) {
+    var depth = 0;
+    for (final (segment, isString) in _segments(piece)) {
       if (isString) continue;
-      for (var i = 0; i < seg.length; i++) {
-        if (seg[i] == '(' || seg[i] == '[' || seg[i] == '{') d++;
-        if (seg[i] == ')' || seg[i] == ']' || seg[i] == '}') d--;
-        if (d < 0) return false;
+      for (var charIndex = 0; charIndex < segment.length; charIndex++) {
+        if (segment[charIndex] == '(' || segment[charIndex] == '[' || segment[charIndex] == '{') depth++;
+        if (segment[charIndex] == ')' || segment[charIndex] == ']' || segment[charIndex] == '}') depth--;
+        if (depth < 0) return false;
       }
     }
-    return d == 0 && '"'.allMatches(p.replaceAll(r'\"', '')).length.isEven;
+    return depth == 0 && '"'.allMatches(piece.replaceAll(r'\"', '')).length.isEven;
   }
 
   if (parts.length > 1 && !parts.every(balanced)) {
@@ -525,33 +531,33 @@ enum _DartSlot {
   bool get isScalar => this != list && this != untyped;
 }
 
-(_DartSlot, String)? _scalarType(SeqVariable v) => switch (v.raw.valueClass) {
+(_DartSlot, String)? _scalarType(SeqVariable variable) => switch (variable.raw.valueClass) {
   SeqValueClass.number => (_DartSlot.number, '0'),
   SeqValueClass.boolean => (_DartSlot.flag, 'false'),
   SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path => (_DartSlot.text, "''"),
   _ => null,
 };
 
-bool _isArrayVar(SeqVariable v) => v.raw.array != null || (v.raw.valueClass?.isArray ?? false);
+bool _isArrayVar(SeqVariable variable) => variable.raw.array != null || (variable.raw.valueClass?.isArray ?? false);
 
-String _escape(String s) => s
+String _escape(String text) => text
     .replaceAll(r'\', r'\\')
     .replaceAll("'", r"\'")
     .replaceAll(r'$', r'\$')
     .replaceAll('\n', r'\n')
     .replaceAll('\r', r'\r');
 
-String _scalarInit(SeqVariable v, _DartSlot type, String zero) {
-  final value = v.value;
+String _scalarInit(SeqVariable variable, _DartSlot type, String zero) {
+  final value = variable.value;
   if (value == null) return zero;
   switch (type) {
     case _DartSlot.integer:
-      final i = num.tryParse(value);
-      return i == null ? zero : i.toInt().toString();
+      final parsed = num.tryParse(value);
+      return parsed == null ? zero : parsed.toInt().toString();
     case _DartSlot.number:
-      final n = _parseTsNum(value);
-      if (n == null) return zero;
-      return _numLiteral(n);
+      final number = _parseTsNum(value);
+      if (number == null) return zero;
+      return _numLiteral(number);
     case _DartSlot.flag:
       final lower = value.toLowerCase();
       if (lower == 'true') return 'true';
@@ -562,20 +568,20 @@ String _scalarInit(SeqVariable v, _DartSlot type, String zero) {
   }
 }
 
-_DartSlot _stubParamType(SeqVariable p) {
-  final scalar = _scalarType(p);
+_DartSlot _stubParamType(SeqVariable parameter) {
+  final scalar = _scalarType(parameter);
   if (scalar != null) return scalar.$1;
-  return _isArrayVar(p) ? _DartSlot.list : _DartSlot.untyped;
+  return _isArrayVar(parameter) ? _DartSlot.list : _DartSlot.untyped;
 }
 
-String _stubParamDecl(SeqVariable p, String id) {
-  final scalar = _scalarType(p);
+String _stubParamDecl(SeqVariable parameter, String identifier) {
+  final scalar = _scalarType(parameter);
   if (scalar != null) {
     final (type, zero) = scalar;
-    return '${type.source} $id = ${_scalarInit(p, type, zero)}';
+    return '${type.source} $identifier = ${_scalarInit(parameter, type, zero)}';
   }
-  if (_isArrayVar(p)) return 'List<dynamic>? $id';
-  return 'dynamic $id';
+  if (_isArrayVar(parameter)) return 'List<dynamic>? $identifier';
+  return 'dynamic $identifier';
 }
 
 bool _isVariablePath(String raw) => RegExp(
@@ -615,35 +621,39 @@ class _StubInfo {
   void note(StepModule module) {
     final proto = module.prototypeParameters;
     if (proto.isNotEmpty) {
-      final shape = [for (final p in proto) '${p.name.toLowerCase()}|${p.raw.className}'];
+      final shape = [for (final parameter in proto) '${parameter.name.toLowerCase()}|${parameter.raw.className}'];
       if (_protoShape == null) {
         _protoShape = shape;
       } else if (_protoShape!.join('\u0000') != shape.join('\u0000')) {
         _agree = false;
       }
-      for (final p in proto) {
-        _claim(p.name);
-        _protoVarOf.putIfAbsent(p.name.toLowerCase(), () => p);
+      for (final parameter in proto) {
+        _claim(parameter.name);
+        _protoVarOf.putIfAbsent(parameter.name.toLowerCase(), () => parameter);
       }
     } else if (module.sequenceArguments.isNotEmpty) {
       _agree = false;
     }
-    for (final a in module.sequenceArguments) {
-      _claim(a.name);
+    for (final argument in module.sequenceArguments) {
+      _claim(argument.name);
     }
   }
 
-  Map<String, ({String id, _DartSlot type})> paramTableFor(StepModule module) {
+  Map<String, ({String identifier, _DartSlot type})> paramTableFor(StepModule module) {
     final proto = module.prototypeParameters;
     if (proto.isNotEmpty) {
       return {
-        for (final p in proto) p.name.toLowerCase(): (id: _idOf[p.name.toLowerCase()]!, type: _stubParamType(p)),
+        for (final parameter in proto)
+          parameter.name.toLowerCase(): (
+            identifier: _idOf[parameter.name.toLowerCase()]!,
+            type: _stubParamType(parameter),
+          ),
       };
     }
     return {
-      for (final a in module.sequenceArguments)
-        if (_idOf.containsKey(a.name.toLowerCase()))
-          a.name.toLowerCase(): (id: _idOf[a.name.toLowerCase()]!, type: _DartSlot.untyped),
+      for (final argument in module.sequenceArguments)
+        if (_idOf.containsKey(argument.name.toLowerCase()))
+          argument.name.toLowerCase(): (identifier: _idOf[argument.name.toLowerCase()]!, type: _DartSlot.untyped),
     };
   }
 
@@ -658,11 +668,11 @@ class _StubInfo {
           ),
       ];
     }
-    return [for (final id in _idOf.values) 'dynamic $id'];
+    return [for (final identifier in _idOf.values) 'dynamic $identifier'];
   }
 }
 
-typedef _ResolvedCall = ({String fn, _SeqScope scope});
+typedef _ResolvedCall = ({String functionName, _SeqScope scope});
 
 class _SeqScope {
   _SeqScope({
@@ -685,7 +695,7 @@ class _SeqScope {
   final Set<String> writtenParams;
 
   late final Map<String, String> paramIdOfLower = {
-    for (final e in paramIds.entries) e.key.toLowerCase(): e.value,
+    for (final entry in paramIds.entries) entry.key.toLowerCase(): entry.value,
   };
 
   late final Set<String> allIds = {...paramIds.values, ...localIds.values};
@@ -697,21 +707,22 @@ List<_SeqScope> _sequenceScopeTable(SeqFile file, Set<String> taken, {String? so
     final used = <String>{...taken};
     final seenParams = <String>{};
     final emittedParams = [
-      for (final p in sequence.parameters)
-        if (seenParams.add(p.name)) p,
+      for (final parameter in sequence.parameters)
+        if (seenParams.add(parameter.name)) parameter,
     ];
-    final paramIds = {for (final p in emittedParams) p.name: _uniqueName(dartIdentifier(p.name), used)};
+    final paramIds = {
+      for (final parameter in emittedParams) parameter.name: _uniqueName(dartIdentifier(parameter.name), used),
+    };
     final seenLocals = <String>{};
     final emittedLocals = [
       for (final local in sequence.locals)
-        // ResultList is an implicit engine local, not user state.
         if (local.name != 'ResultList' && seenLocals.add(local.name)) local,
     ];
-    final localIds = {for (final l in emittedLocals) l.name: _uniqueName(dartIdentifier(l.name), used)};
-    _DartSlot typeOf(SeqVariable v) {
-      final scalar = _scalarType(v);
+    final localIds = {for (final local in emittedLocals) local.name: _uniqueName(dartIdentifier(local.name), used)};
+    _DartSlot typeOf(SeqVariable variable) {
+      final scalar = _scalarType(variable);
       if (scalar != null) return scalar.$1;
-      return _isArrayVar(v) ? _DartSlot.list : _DartSlot.untyped;
+      return _isArrayVar(variable) ? _DartSlot.list : _DartSlot.untyped;
     }
 
     scopes.add(
@@ -721,8 +732,8 @@ List<_SeqScope> _sequenceScopeTable(SeqFile file, Set<String> taken, {String? so
         paramIds: paramIds,
         localIds: localIds,
         idTypes: {
-          for (final p in emittedParams) paramIds[p.name]!: typeOf(p),
-          for (final l in emittedLocals) localIds[l.name]!: typeOf(l),
+          for (final parameter in emittedParams) paramIds[parameter.name]!: typeOf(parameter),
+          for (final local in emittedLocals) localIds[local.name]!: typeOf(local),
         },
         writtenParams: _writtenParameterNames(sequence),
       ),
@@ -734,11 +745,11 @@ List<_SeqScope> _sequenceScopeTable(SeqFile file, Set<String> taken, {String? so
 
 Set<String> _writtenParameterNames(Sequence sequence) {
   final names = <String>{};
-  final re = RegExp(r'Parameters\.([A-Za-z_][A-Za-z0-9_]*)\s*([-+*/]?=)(?!=)', caseSensitive: false);
+  final assignmentPattern = RegExp(r'Parameters\.([A-Za-z_][A-Za-z0-9_]*)\s*([-+*/]?=)(?!=)', caseSensitive: false);
   void scan(String? raw) {
     if (raw == null) return;
-    for (final m in re.allMatches(raw)) {
-      names.add(m.group(1)!.toLowerCase());
+    for (final match in assignmentPattern.allMatches(raw)) {
+      names.add(match.group(1)!.toLowerCase());
     }
   }
 
@@ -763,20 +774,20 @@ Set<String> _writtenParameterNames(Sequence sequence) {
 }
 
 void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
-  bool integralDefault(SeqVariable v) {
-    final value = v.value;
+  bool integralDefault(SeqVariable variable) {
+    final value = variable.value;
     if (value == null) return true;
-    final n = num.tryParse(value);
-    return n != null && n % 1 == 0 && n.abs() < _maxExactIntDouble;
+    final number = num.tryParse(value);
+    return number != null && number % 1 == 0 && number.abs() < _maxExactIntDouble;
   }
 
   final candidates = <(_SeqScope, String)>{};
   for (final scope in scopes) {
     void seed(List<SeqVariable> list, Map<String, String> ids) {
-      for (final v in list) {
-        final id = ids[v.name];
-        if (id != null && scope.idTypes[id] == _DartSlot.number && integralDefault(v)) {
-          candidates.add((scope, id));
+      for (final variable in list) {
+        final identifier = ids[variable.name];
+        if (identifier != null && scope.idTypes[identifier] == _DartSlot.number && integralDefault(variable)) {
+          candidates.add((scope, identifier));
         }
       }
     }
@@ -791,8 +802,8 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
     scopeByName.putIfAbsent(file.sequences[i].name, () => scopes[i]);
   }
 
-  String? idOf(_SeqScope s, String root, String name) =>
-      root.toLowerCase() == 'locals' ? s.localIds[name] : s.paramIds[name];
+  String? idOf(_SeqScope owner, String root, String name) =>
+      root.toLowerCase() == 'locals' ? owner.localIds[name] : owner.paramIds[name];
 
   final refRe = RegExp(r'(Locals|Parameters)\.([A-Za-z_][A-Za-z0-9_]*)', caseSensitive: false);
   final assigns = <(_SeqScope, String, String?, _SeqScope)>[];
@@ -802,20 +813,20 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
     caseSensitive: false,
     dotAll: true,
   );
-  for (var i = 0; i < scopes.length; i++) {
-    final scope = scopes[i];
+  for (var sequenceIndex = 0; sequenceIndex < scopes.length; sequenceIndex++) {
+    final scope = scopes[sequenceIndex];
     void scan(String? raw) {
       if (raw == null) return;
       for (final piece in _rawStmtPieces(raw) ?? [raw]) {
-        final m = assignRe.firstMatch(piece);
-        if (m == null) continue;
-        final id = idOf(scope, m.group(1)!, m.group(2)!);
-        if (id == null) continue;
-        assigns.add((scope, id, m.group(3) == '/=' ? null : m.group(4)!, scope));
+        final match = assignRe.firstMatch(piece);
+        if (match == null) continue;
+        final identifier = idOf(scope, match.group(1)!, match.group(2)!);
+        if (identifier == null) continue;
+        assigns.add((scope, identifier, match.group(3) == '/=' ? null : match.group(4)!, scope));
       }
     }
 
-    for (final step in file.sequences[i].steps) {
+    for (final step in file.sequences[sequenceIndex].steps) {
       scan(step.settings.preExpression);
       scan(step.settings.postExpression);
       final flow = step.flowControl;
@@ -824,9 +835,9 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
         scan(flow.increment);
         final element = flow.arrayElement;
         if (element != null) {
-          final m = refRe.firstMatch(element);
-          final id = m != null ? idOf(scope, m.group(1)!, m.group(2)!) : null;
-          if (id != null) candidates.remove((scope, id));
+          final match = refRe.firstMatch(element);
+          final identifier = match != null ? idOf(scope, match.group(1)!, match.group(2)!) : null;
+          if (identifier != null) candidates.remove((scope, identifier));
         }
       }
       final module = step.module;
@@ -838,18 +849,18 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
         for (final arg in module.sequenceArguments) {
           if (arg.usesDefault == true) continue;
           final expr = arg.expression;
-          final id = callee.paramIdOfLower[arg.name.toLowerCase()];
-          if (expr == null || id == null) continue;
-          assigns.add((callee, id, expr, scope));
+          final identifier = callee.paramIdOfLower[arg.name.toLowerCase()];
+          if (expr == null || identifier == null) continue;
+          assigns.add((callee, identifier, expr, scope));
         }
       }
     }
   }
 
   bool intExpr(String rhs, _SeqScope reader) {
-    for (final m in refRe.allMatches(rhs)) {
-      final id = idOf(reader, m.group(1)!, m.group(2)!);
-      if (id == null || !candidates.contains((reader, id))) return false;
+    for (final match in refRe.allMatches(rhs)) {
+      final identifier = idOf(reader, match.group(1)!, match.group(2)!);
+      if (identifier == null || !candidates.contains((reader, identifier))) return false;
     }
     final rest = rhs.replaceAll(refRe, '0');
     return rest.trim().isNotEmpty && RegExp(r'^(?:\s|[()+\-*]|0x[0-9A-Fa-f]+|\d+(?![\d.eE]))+$').hasMatch(rest);
@@ -858,15 +869,15 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
   var changed = true;
   while (changed) {
     changed = false;
-    for (final (target, id, rhs, reader) in assigns) {
-      if (candidates.contains((target, id))) {
+    for (final (target, identifier, rhs, reader) in assigns) {
+      if (candidates.contains((target, identifier))) {
         if (rhs == null || !intExpr(rhs, reader)) {
-          candidates.remove((target, id));
+          candidates.remove((target, identifier));
           changed = true;
         }
-      } else if (target.idTypes[id] == _DartSlot.number && rhs != null) {
+      } else if (target.idTypes[identifier] == _DartSlot.number && rhs != null) {
         final refs = [
-          for (final m in refRe.allMatches(rhs)) idOf(reader, m.group(1)!, m.group(2)!),
+          for (final match in refRe.allMatches(rhs)) idOf(reader, match.group(1)!, match.group(2)!),
         ].whereType<String>();
         if (refs.isNotEmpty && intExpr(rhs, reader)) {
           for (final ref in refs) {
@@ -876,8 +887,8 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
       }
     }
   }
-  for (final (scope, id) in candidates) {
-    scope.idTypes[id] = _DartSlot.integer;
+  for (final (scope, identifier) in candidates) {
+    scope.idTypes[identifier] = _DartSlot.integer;
   }
 }
 
@@ -887,44 +898,48 @@ String _withoutUnusedImport(String source, String importLine, RegExp usage) {
 }
 
 String _withoutLineComments(String source) {
-  final sb = StringBuffer();
+  final buffer = StringBuffer();
   for (final line in source.split('\n')) {
     var inString = false;
     var cut = line.length;
-    for (var i = 0; i < line.length; i++) {
-      final c = line.codeUnitAt(i);
-      if (inString && c == 0x5C /* \ */ ) {
-        i++;
-      } else if (c == 0x27 /* ' */ ) {
+    for (var charIndex = 0; charIndex < line.length; charIndex++) {
+      final codeUnit = line.codeUnitAt(charIndex);
+      if (inString && codeUnit == 0x5C /* \ */ ) {
+        charIndex++;
+      } else if (codeUnit == 0x27 /* ' */ ) {
         inString = !inString;
-      } else if (!inString && c == 0x2F /* / */ && i + 1 < line.length && line.codeUnitAt(i + 1) == 0x2F) {
-        cut = i;
+      } else if (!inString &&
+          codeUnit == 0x2F /* / */ &&
+          charIndex + 1 < line.length &&
+          line.codeUnitAt(charIndex + 1) == 0x2F) {
+        cut = charIndex;
         break;
       }
     }
-    sb.writeln(line.substring(0, cut));
+    buffer.writeln(line.substring(0, cut));
   }
-  return sb.toString();
+  return buffer.toString();
 }
 
 /// 2^53, above which a double no longer represents every integer exactly.
 const int _maxExactIntDouble = 9007199254740992;
 
-String _numLiteral(num n) => n is int && n.abs() < _maxExactIntDouble ? n.toString() : n.toDouble().toString();
+String _numLiteral(num value) =>
+    value is int && value.abs() < _maxExactIntDouble ? value.toString() : value.toDouble().toString();
 
 final RegExp _i64SuffixLiteral = RegExp(r'(?<![\w.$])(\d+|0[xX][0-9a-fA-F]+)u?i64\b');
 
 num? _parseTsNum(String text) {
-  final t = text.trim();
-  final direct = num.tryParse(t);
+  final trimmed = text.trim();
+  final direct = num.tryParse(trimmed);
   if (direct != null) return direct;
-  final m = RegExp(r'^-?(\d+|0[xX][0-9a-fA-F]+)u?i64$').firstMatch(t);
-  if (m == null) return null;
-  final digits = num.tryParse(m.group(1)!);
-  return digits == null ? null : (t.startsWith('-') ? -digits : digits);
+  final match = RegExp(r'^-?(\d+|0[xX][0-9a-fA-F]+)u?i64$').firstMatch(trimmed);
+  if (match == null) return null;
+  final digits = num.tryParse(match.group(1)!);
+  return digits == null ? null : (trimmed.startsWith('-') ? -digits : digits);
 }
 
-String _comment(String s) => s.replaceAll(RegExp(r'[\r\n]+'), ' | ').trim();
+String _comment(String text) => text.replaceAll(RegExp(r'[\r\n]+'), ' | ').trim();
 
 String _unportableFieldLine(String name) =>
     '// not a Dart field name — reachable only by porting its uses: ${_comment(name)}';
@@ -945,16 +960,16 @@ bool _validGlobalFieldName(String name) =>
 
 Set<String> _collectStationGlobalRefs(SeqFile file) {
   final names = <String>{};
-  final re = RegExp(r'StationGlobals\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)(\s*\()?', caseSensitive: false);
+  final referencePattern = RegExp(r'StationGlobals\s*\.\s*([A-Za-z_][A-Za-z0-9_]*)(\s*\()?', caseSensitive: false);
   void scan(String? raw) {
     if (raw == null) return;
-    for (final m in re.allMatches(raw)) {
-      if (m.group(2) == null) names.add(m.group(1)!);
+    for (final match in referencePattern.allMatches(raw)) {
+      if (match.group(2) == null) names.add(match.group(1)!);
     }
   }
 
-  for (final seq in file.sequences) {
-    for (final step in seq.steps) {
+  for (final sequence in file.sequences) {
+    for (final step in sequence.steps) {
       scan(step.settings.precondition);
       scan(step.settings.preExpression);
       scan(step.settings.postExpression);
@@ -1062,9 +1077,9 @@ class _DartExporter {
   final Map<(SeqAdapter, String), _StubInfo> _stubs = {};
 
   late final Map<String, String> _typePreconditions = {
-    for (final t in file.typeDefs)
-      if ((t.raw.prop('TS')?.prop('PreCond')?.scalar ?? '').isNotEmpty)
-        t.name: t.raw.prop('TS')!.prop('PreCond')!.scalar!,
+    for (final typeDef in file.typeDefs)
+      if ((typeDef.raw.prop('TS')?.prop('PreCond')?.scalar ?? '').isNotEmpty)
+        typeDef.name: typeDef.raw.prop('TS')!.prop('PreCond')!.scalar!,
   };
 
   void _line(String text) {
@@ -1110,12 +1125,12 @@ class _DartExporter {
     _sequenceFnNames.addAll(_sequenceFnTable(file, _topLevelNames));
     _scopes = _sequenceScopeTable(file, _topLevelNames, sourceName: sourceName);
     _scopeByName = {};
-    for (var i = 0; i < file.sequences.length; i++) {
-      _scopeByName.putIfAbsent(file.sequences[i].name, () => _scopes[i]);
+    for (var sequenceIndex = 0; sequenceIndex < file.sequences.length; sequenceIndex++) {
+      _scopeByName.putIfAbsent(file.sequences[sequenceIndex].name, () => _scopes[sequenceIndex]);
     }
     _allScopeIds = {for (final scope in _scopes) ...scope.allIds};
-    for (var i = 0; i < file.sequences.length; i++) {
-      _emitSequence(file.sequences[i], _scopes[i]);
+    for (var sequenceIndex = 0; sequenceIndex < file.sequences.length; sequenceIndex++) {
+      _emitSequence(file.sequences[sequenceIndex], _scopes[sequenceIndex]);
     }
     _emitStubs();
     _emitRuntime();
@@ -1198,9 +1213,9 @@ class _DartExporter {
         continue;
       }
       var code = segment;
-      for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\.').allMatches(code)) {
-        final precededByDot = m.start > 0 && code.substring(m.start - 1, m.start) == '.';
-        final root = m.group(1)!;
+      for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\.').allMatches(code)) {
+        final precededByDot = match.start > 0 && code.substring(match.start - 1, match.start) == '.';
+        final root = match.group(1)!;
         if (!precededByDot && !_variableRoots.containsKey(root) && root != 'Locals' && root != 'Parameters') {
           return _evalFallback(raw);
         }
@@ -1210,7 +1225,7 @@ class _DartExporter {
           .replaceAll(RegExp(r'\bTrue\b'), 'true')
           .replaceAll(RegExp(r'\bFalse\b'), 'false')
           .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null')
-          .replaceAllMapped(_i64SuffixLiteral, (m) => m.group(1)!);
+          .replaceAllMapped(_i64SuffixLiteral, (match) => match.group(1)!);
       var undeclared = false;
       for (final (root, ids) in [
         ('Locals', _localIds),
@@ -1218,14 +1233,14 @@ class _DartExporter {
       ]) {
         code = code.replaceAllMapped(
           RegExp('\\b$root\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (m) {
-            final segments = m.group(1)!.split('.');
-            final id = ids[segments.first];
-            if (id == null) {
+          (match) {
+            final segments = match.group(1)!.split('.');
+            final identifier = ids[segments.first];
+            if (identifier == null) {
               undeclared = true;
-              return m.group(0)!;
+              return match.group(0)!;
             }
-            return segments.length == 1 ? id : '$id.${segments.sublist(1).join('.')}';
+            return segments.length == 1 ? identifier : '$identifier.${segments.sublist(1).join('.')}';
           },
         );
       }
@@ -1233,7 +1248,7 @@ class _DartExporter {
       for (final entry in _variableRoots.entries) {
         code = code.replaceAllMapped(
           RegExp('\\b${entry.key}\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (m) => '${entry.value}.${m.group(1)!}',
+          (match) => '${entry.value}.${match.group(1)!}',
         );
       }
       var unknownGlobal = false;
@@ -1242,16 +1257,16 @@ class _DartExporter {
           r'\b(fileGlobals|stationGlobals)\.'
           r'([A-Za-z_][A-Za-z0-9_]*)(\s*\()?',
         ),
-        (m) {
-          final isFile = m.group(1) == 'fileGlobals';
-          final declared = (isFile ? _fileGlobalCanon : _stationGlobalCanon)[m.group(2)!.toLowerCase()];
-          final call = m.group(3);
+        (match) {
+          final isFile = match.group(1) == 'fileGlobals';
+          final declared = (isFile ? _fileGlobalCanon : _stationGlobalCanon)[match.group(2)!.toLowerCase()];
+          final call = match.group(3);
           final type = declared == null ? null : (isFile ? _fileGlobalTypes[declared] : _DartSlot.untyped);
           if (declared == null || (call != null && type != _DartSlot.untyped)) {
             unknownGlobal = true;
-            return m.group(0)!;
+            return match.group(0)!;
           }
-          return '${m.group(1)}.$declared${call ?? ''}';
+          return '${match.group(1)}.$declared${call ?? ''}';
         },
       );
       if (unknownGlobal) return _evalFallback(raw);
@@ -1275,14 +1290,14 @@ class _DartExporter {
       if (RegExp(r'[.+\-*/<>=&|!,]\s*$').hasMatch(code)) {
         return _evalFallback(raw);
       }
-      for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(').allMatches(code)) {
-        if (_idTypes.containsKey(m.group(1)) && _idTypes[m.group(1)] != _DartSlot.untyped) {
+      for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(').allMatches(code)) {
+        if (_idTypes.containsKey(match.group(1)) && _idTypes[match.group(1)] != _DartSlot.untyped) {
           return _evalFallback(raw);
         }
       }
-      for (final m in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
-        for (final idm in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(m.group(1)!)) {
-          if (_idTypes[idm.group(0)] == _DartSlot.number) return _evalFallback(raw);
+      for (final match in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
+        for (final identifierMatch in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(match.group(1)!)) {
+          if (_idTypes[identifierMatch.group(0)] == _DartSlot.number) return _evalFallback(raw);
         }
       }
       const knownBare = {
@@ -1298,14 +1313,14 @@ class _DartExporter {
       };
       const generatedName = '__LWELEMENT__';
       final codeSansKeys = code.replaceAll(RegExp(r"'[^']*'"), '');
-      for (final m in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b').allMatches(codeSansKeys)) {
-        final id = m.group(1)!;
-        final precededByDot = m.start > 0 && codeSansKeys.substring(m.start - 1, m.start) == '.';
+      for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b').allMatches(codeSansKeys)) {
+        final identifier = match.group(1)!;
+        final precededByDot = match.start > 0 && codeSansKeys.substring(match.start - 1, match.start) == '.';
         if (precededByDot) continue;
-        if (!knownBare.contains(id) &&
-            id != generatedName &&
-            !_localIds.containsValue(id) &&
-            !_paramIds.containsValue(id)) {
+        if (!knownBare.contains(identifier) &&
+            identifier != generatedName &&
+            !_localIds.containsValue(identifier) &&
+            !_paramIds.containsValue(identifier)) {
           return _evalFallback(raw);
         }
       }
@@ -1317,46 +1332,47 @@ class _DartExporter {
   String _evalFallback(String raw) => "ts.eval('${_escape(raw)}')";
 
   String _cond(String raw) {
-    final e = _expr(raw);
-    if (e.startsWith('ts.eval(')) return 'ts.cond${e.substring(7)}';
-    if (_staticallyBool(e)) return e;
-    if (_idTypes[e] == _DartSlot.number || _idTypes[e] == _DartSlot.integer) return '$e != 0';
-    return 'ts.truthy($e)';
+    final translated = _expr(raw);
+    if (translated.startsWith('ts.eval(')) return 'ts.cond${translated.substring(7)}';
+    if (_staticallyBool(translated)) return translated;
+    final numeric = _idTypes[translated] == _DartSlot.number || _idTypes[translated] == _DartSlot.integer;
+    if (numeric) return '$translated != 0';
+    return 'ts.truthy($translated)';
   }
 
-  bool _staticallyBool(String e) {
-    if (e.startsWith('ts.eval(')) return false;
-    if (e == 'true' || e == 'false') return true;
-    if (_idTypes[e] == _DartSlot.flag) return true;
-    if (e.startsWith('!')) return true;
+  bool _staticallyBool(String expression) {
+    if (expression.startsWith('ts.eval(')) return false;
+    if (expression == 'true' || expression == 'false') return true;
+    if (_idTypes[expression] == _DartSlot.flag) return true;
+    if (expression.startsWith('!')) return true;
     var depth = 0;
     String? topOp;
-    for (final (segment, isString) in _segments(e)) {
+    for (final (segment, isString) in _segments(expression)) {
       if (isString) continue;
-      for (var i = 0; i < segment.length; i++) {
-        final c = segment[i];
-        if (c == '(' || c == '[') depth++;
-        if (c == ')' || c == ']') depth--;
+      for (var charIndex = 0; charIndex < segment.length; charIndex++) {
+        final char = segment[charIndex];
+        if (char == '(' || char == '[') depth++;
+        if (char == ')' || char == ']') depth--;
         if (depth > 0) continue;
-        if (c == '&' && i + 1 < segment.length && segment[i + 1] == '&') {
+        if (char == '&' && charIndex + 1 < segment.length && segment[charIndex + 1] == '&') {
           return true;
         }
-        if (c == '|' && i + 1 < segment.length && segment[i + 1] == '|') {
+        if (char == '|' && charIndex + 1 < segment.length && segment[charIndex + 1] == '|') {
           return true;
         }
-        if ((c == '=' || c == '!') && i + 1 < segment.length && segment[i + 1] == '=') {
+        if ((char == '=' || char == '!') && charIndex + 1 < segment.length && segment[charIndex + 1] == '=') {
           topOp ??= '==';
         }
-        if (c == '<' || c == '>') topOp ??= '<';
+        if (char == '<' || char == '>') topOp ??= '<';
       }
     }
     if (topOp == '==') return true;
     if (topOp == '<') {
-      final lead = RegExp(r'^\(?\s*([A-Za-z_][A-Za-z0-9_]*|[0-9.]+)').firstMatch(e)?.group(1);
+      final lead = RegExp(r'^\(?\s*([A-Za-z_][A-Za-z0-9_]*|[0-9.]+)').firstMatch(expression)?.group(1);
       if (lead == null) return false;
       if (RegExp(r'^[0-9.]').hasMatch(lead)) return true;
-      final t = _idTypes[lead];
-      return t != null && t.isScalar;
+      final leadType = _idTypes[lead];
+      return leadType != null && leadType.isScalar;
     }
     return false;
   }
@@ -1377,7 +1393,7 @@ class _DartExporter {
     _idTypes = scope.idTypes;
 
     final params = [
-      for (final p in emittedParams) _paramDecl(p, _paramIds[p.name]!),
+      for (final parameter in emittedParams) _paramDecl(parameter, _paramIds[parameter.name]!),
     ];
     _out.writeln(
       'Future<void> $fnName('
@@ -1386,9 +1402,9 @@ class _DartExporter {
     _indent = 1;
 
     var arrayPreamble = false;
-    for (final p in emittedParams) {
-      if (_scalarType(p) == null && _isArrayVar(p)) {
-        _line('${_paramIds[p.name]!} ??= ${_arrayInit(p)};${_typeComment(p)}');
+    for (final parameter in emittedParams) {
+      if (_scalarType(parameter) == null && _isArrayVar(parameter)) {
+        _line('${_paramIds[parameter.name]!} ??= ${_arrayInit(parameter)};${_typeComment(parameter)}');
         arrayPreamble = true;
       }
     }
@@ -1400,8 +1416,8 @@ class _DartExporter {
     if (emittedLocals.isNotEmpty) _line('');
 
     final nonEmptyGroups = [
-      for (final g in StepGroup.values)
-        if (sequence.stepsIn(g).isNotEmpty) g,
+      for (final group in StepGroup.values)
+        if (sequence.stepsIn(group).isNotEmpty) group,
     ];
     if (nonEmptyGroups.isEmpty) {
       _line('// (no steps in the source sequence)');
@@ -1423,55 +1439,55 @@ class _DartExporter {
   }
 
   String _typeComment(SeqVariable v, {String? rawDefault}) {
-    final t = v.type;
-    final c = v.comment;
+    final type = v.type;
+    final comment = v.comment;
     final parts = [
-      if (t != null) t,
+      if (type != null) type,
       if (rawDefault != null) "default: ${_comment(rawDefault)}",
-      if (c != null) _comment(c),
+      if (comment != null) _comment(comment),
     ];
     if (parts.isEmpty) return '';
     return ' // ${parts.join(' — ')}';
   }
 
-  (_DartSlot, String, String)? _scalarDecl(SeqVariable v, String id) {
-    final scalar = _scalarType(v);
+  (_DartSlot, String, String)? _scalarDecl(SeqVariable variable, String identifier) {
+    final scalar = _scalarType(variable);
     if (scalar == null) return null;
     var (type, zero) = scalar;
-    if (type == _DartSlot.number && _idTypes[id] == _DartSlot.integer) type = _DartSlot.integer;
-    return (type, zero, _scalarInit(v, type, zero));
+    if (type == _DartSlot.number && _idTypes[identifier] == _DartSlot.integer) type = _DartSlot.integer;
+    return (type, zero, _scalarInit(variable, type, zero));
   }
 
-  String _paramDecl(SeqVariable p, String id) {
-    final scalar = _scalarDecl(p, id);
+  String _paramDecl(SeqVariable parameter, String identifier) {
+    final scalar = _scalarDecl(parameter, identifier);
     if (scalar != null) {
       final (type, _, init) = scalar;
-      return '${type.source} $id = $init';
+      return '${type.source} $identifier = $init';
     }
-    if (_isArrayVar(p)) return 'List<dynamic>? $id';
-    return 'dynamic $id';
+    if (_isArrayVar(parameter)) return 'List<dynamic>? $identifier';
+    return 'dynamic $identifier';
   }
 
-  String _localDecl(SeqVariable local, String id) {
-    final scalar = _scalarDecl(local, id);
+  String _localDecl(SeqVariable local, String identifier) {
+    final scalar = _scalarDecl(local, identifier);
     if (scalar != null) {
       final (type, zero, init) = scalar;
       final fellBack = local.value != null && init == zero && type != _DartSlot.text;
-      return '${type.source} $id = $init;'
+      return '${type.source} $identifier = $init;'
           '${_typeComment(local, rawDefault: fellBack ? local.value : null)}';
     }
     if (_isArrayVar(local)) {
-      return 'List<dynamic> $id = ${_arrayInit(local)};${_typeComment(local)}';
+      return 'List<dynamic> $identifier = ${_arrayInit(local)};${_typeComment(local)}';
     }
-    final cls = local.raw.valueClass;
-    if (cls == SeqValueClass.reference || (cls == null && local.raw.subProps.isEmpty)) {
-      return 'dynamic $id;${_typeComment(local)}';
+    final valueClass = local.raw.valueClass;
+    if (valueClass == SeqValueClass.reference || (valueClass == null && local.raw.subProps.isEmpty)) {
+      return 'dynamic $identifier;${_typeComment(local)}';
     }
-    return 'dynamic $id = ${_propObjInit(local.raw, {})};'
+    return 'dynamic $identifier = ${_propObjInit(local.raw, {})};'
         '${_typeComment(local)}';
   }
 
-  String _arrayInit(SeqVariable v) => _listInit(v.raw, {});
+  String _arrayInit(SeqVariable variable) => _listInit(variable.raw, {});
 
   void _emitSteps(List<Step> steps) {
     final open = <_OpenBlock>[];
@@ -1485,8 +1501,8 @@ class _DartExporter {
     };
 
     _OpenBlock? innermost(bool Function(FlowKind) test) {
-      for (var i = open.length - 1; i >= 0; i--) {
-        if (test(open[i].kind)) return open[i];
+      for (var blockIndex = open.length - 1; blockIndex >= 0; blockIndex--) {
+        if (test(open[blockIndex].kind)) return open[blockIndex];
       }
       return null;
     }
@@ -1676,7 +1692,7 @@ class _DartExporter {
           _line('var ${selectVars[selectCounter]!.matched} = false;');
           open.add(_openBlock(flow.kind, selectId: selectCounter));
         case FlowKind.caseBlock:
-          final select = innermost((k) => k == FlowKind.selectBlock)?.selectId ?? 0;
+          final select = innermost((kind) => kind == FlowKind.selectBlock)?.selectId ?? 0;
           if (select == 0) {
             _line(
               '// $rawName: Case without an open Select (unbalanced source) '
@@ -1706,7 +1722,7 @@ class _DartExporter {
           }
           closeBlock(open.removeLast(), note: nameNote);
         case FlowKind.breakStmt:
-          final target = innermost((k) => k == FlowKind.selectBlock || loopKinds.contains(k));
+          final target = innermost((kind) => kind == FlowKind.selectBlock || loopKinds.contains(kind));
           if (target == null) {
             _line(
               '// $rawName: Break with no enclosing loop/select — kept as a '
@@ -1760,17 +1776,17 @@ class _DartExporter {
   String _exprStatement(String raw) {
     final translated = _expr(raw);
     if (translated.startsWith('ts.eval(')) return translated;
-    final m = RegExp(
+    final match = RegExp(
       r'^((?:fileGlobals|stationGlobals)\.)?'
       r'([A-Za-z_][A-Za-z0-9_]*)\s*=(?![=])',
     ).firstMatch(translated);
-    if (m != null) {
-      final lhsType = switch (m.group(1)) {
-        'fileGlobals.' => _fileGlobalTypes[m.group(2)],
+    if (match != null) {
+      final lhsType = switch (match.group(1)) {
+        'fileGlobals.' => _fileGlobalTypes[match.group(2)],
         'stationGlobals.' => _DartSlot.untyped,
-        _ => _idTypes[m.group(2)],
+        _ => _idTypes[match.group(2)],
       };
-      if (_kindMismatch(lhsType, translated.substring(m.end).trim())) {
+      if (_kindMismatch(lhsType, translated.substring(match.end).trim())) {
         return _evalFallback(raw);
       }
     }
@@ -1794,11 +1810,11 @@ class _DartExporter {
     };
   }
 
-  bool _staticallyIntExpr(String e) {
-    if (e.contains("'") || e.contains('"')) return false;
-    final sansHex = e.replaceAll(RegExp('0x[0-9A-Fa-f]+'), '0');
-    for (final m in RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*').allMatches(sansHex)) {
-      if (_idTypes[m.group(0)] != _DartSlot.integer) return false;
+  bool _staticallyIntExpr(String expression) {
+    if (expression.contains("'") || expression.contains('"')) return false;
+    final sansHex = expression.replaceAll(RegExp('0x[0-9A-Fa-f]+'), '0');
+    for (final match in RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*').allMatches(sansHex)) {
+      if (_idTypes[match.group(0)] != _DartSlot.integer) return false;
     }
     final rest = sansHex.replaceAll(RegExp(r'[A-Za-z_][A-Za-z0-9_\$]*'), '0');
     return rest.trim().isNotEmpty && RegExp(r'^[0-9\s()+\-*]+$').hasMatch(rest);
@@ -1808,17 +1824,17 @@ class _DartExporter {
     final pieces = _rawStmtPieces(raw);
     if (pieces == null) return [_exprStatement(raw)];
     final out = <String>[
-      for (final p in pieces)
-        if (p.trim().isNotEmpty) _exprStatement(p),
+      for (final piece in pieces)
+        if (piece.trim().isNotEmpty) _exprStatement(piece),
     ];
     return out.isEmpty ? [_exprStatement(raw)] : out;
   }
 
   void _emitStmt(String raw, String note) {
     final parts = _stmtParts(raw);
-    for (var i = 0; i < parts.length; i++) {
-      final suffix = note.isEmpty ? '' : (i == 0 ? ' // $note' : ' // $note (cont.)');
-      _line('${parts[i]};$suffix');
+    for (var partIndex = 0; partIndex < parts.length; partIndex++) {
+      final suffix = note.isEmpty ? '' : (partIndex == 0 ? ' // $note' : ' // $note (cont.)');
+      _line('${parts[partIndex]};$suffix');
     }
   }
 
@@ -2045,13 +2061,13 @@ class _DartExporter {
         final literal = timeout != null ? num.tryParse(timeout.trim()) : null;
         final waitNote = name == 'Wait' ? '' : ' // $name';
         if (literal != null) {
-          final ms = (literal * 1000).round();
+          final milliseconds = (literal * 1000).round();
           _line(
-            ms % 1000 == 0
+            milliseconds % 1000 == 0
                 ? 'await Future<void>.delayed('
-                      'const Duration(seconds: ${ms ~/ 1000}));$waitNote'
+                      'const Duration(seconds: ${milliseconds ~/ 1000}));$waitNote'
                 : 'await Future<void>.delayed('
-                      'const Duration(milliseconds: $ms));$waitNote',
+                      'const Duration(milliseconds: $milliseconds));$waitNote',
           );
         } else if (timeout != null) {
           _line(
@@ -2123,7 +2139,7 @@ class _DartExporter {
                 writtenParams: resolved.scope.writtenParams,
               ).text;
             }
-            _line('await ${resolved.fn}($argsText); // $name: external sequence');
+            _line('await ${resolved.functionName}($argsText); // $name: external sequence');
           } else {
             if (asTest) {
               _markUnported('external sequence: ${_stubTarget(step, module)}');
@@ -2229,14 +2245,15 @@ class _DartExporter {
       module.sequenceNameExpression ??
       step.name;
 
-  Map<String, ({String id, _DartSlot type})> _scopeParamTable(_SeqScope scope) => {
-    for (final e in scope.paramIds.entries) e.key.toLowerCase(): (id: e.value, type: scope.idTypes[e.value]!),
+  Map<String, ({String identifier, _DartSlot type})> _scopeParamTable(_SeqScope scope) => {
+    for (final entry in scope.paramIds.entries)
+      entry.key.toLowerCase(): (identifier: entry.value, type: scope.idTypes[entry.value]!),
   };
 
   ({String text, bool disarmed}) _renderCallArgs(
     StepModule module, {
     required String calleeLabel,
-    required Map<String, ({String id, _DartSlot type})> params,
+    required Map<String, ({String identifier, _DartSlot type})> params,
     Set<String> writtenParams = const {},
   }) {
     final parts = <String>[];
@@ -2287,7 +2304,7 @@ class _DartExporter {
         _stats.siteDisarms['by-ref writeback'] = (_stats.siteDisarms['by-ref writeback'] ?? 0) + 1;
         _markUnported('by-ref writeback of parameter ${arg.name} of sequence $calleeLabel not exported');
       }
-      parts.add('${param.id}: $value');
+      parts.add('${param.identifier}: $value');
     }
     return (text: parts.join(', '), disarmed: disarmed);
   }
@@ -2373,17 +2390,17 @@ class _DartExporter {
       }
     }
     var roots = [
-      for (final s in file.sequences)
-        if (!called.contains(s.name) && !externallyCalled.contains(s.name)) s,
+      for (final sequence in file.sequences)
+        if (!called.contains(sequence.name) && !externallyCalled.contains(sequence.name)) sequence,
     ];
     if (roots.isEmpty) roots = file.sequences;
 
-    final byName = {for (final s in file.sequences) s.name: s};
+    final byName = {for (final sequence in file.sequences) sequence.name: sequence};
     Set<String> reach(String name) {
       final seen = <String>{};
-      void visit(String at) {
-        if (!seen.add(at)) return;
-        callTargets[at]?.forEach(visit);
+      void visit(String current) {
+        if (!seen.add(current)) return;
+        callTargets[current]?.forEach(visit);
       }
 
       visit(name);
@@ -2410,10 +2427,10 @@ class _DartExporter {
         }
         unported.addAll(_seqUnported[name] ?? const {});
       }
-      for (final p in root.parameters) {
-        if (_scalarType(p) == null && !_isArrayVar(p)) {
+      for (final parameter in root.parameters) {
+        if (_scalarType(parameter) == null && !_isArrayVar(parameter)) {
           unported.add(
-            "root parameter '${p.name}' is an engine object "
+            "root parameter '${parameter.name}' is an engine object "
             '(nothing binds it when run as a test)',
           );
         }
@@ -2421,7 +2438,7 @@ class _DartExporter {
       final reqArg = reqs.isEmpty
           ? ''
           : ' requirements: '
-                "[${reqs.map((r) => "'${_escape(r)}'").join(', ')}],";
+                "[${reqs.map((requirement) => "'${_escape(requirement)}'").join(', ')}],";
       final fnName = _sequenceFnNames[root.name]!;
       if (unported.isNotEmpty) {
         _out.writeln(
@@ -2518,7 +2535,7 @@ class _DartExporter {
   }
 
   late final Map<String, SeqType> _typeByName = {
-    for (final t in file.typeDefs) t.name: t,
+    for (final typeDef in file.typeDefs) typeDef.name: typeDef,
   };
 
   final Map<String, String> _fileGlobalCanon = {};
@@ -2531,14 +2548,14 @@ class _DartExporter {
 
   void _buildGlobals() {
     final defaults = file.data.prop('FileGlobalDefaults');
-    for (final c in defaults?.subProps ?? const <SeqProperty>[]) {
-      if (!_validGlobalFieldName(c.name) || _fileGlobalCanon.containsKey(c.name.toLowerCase())) {
-        _fileGlobalSkipped.add(c.name);
+    for (final global in defaults?.subProps ?? const <SeqProperty>[]) {
+      if (!_validGlobalFieldName(global.name) || _fileGlobalCanon.containsKey(global.name.toLowerCase())) {
+        _fileGlobalSkipped.add(global.name);
         continue;
       }
-      _fileGlobalCanon[c.name.toLowerCase()] = c.name;
-      final (type, decl) = _globalField(c);
-      _fileGlobalTypes[c.name] = type;
+      _fileGlobalCanon[global.name.toLowerCase()] = global.name;
+      final (type, decl) = _globalField(global);
+      _fileGlobalTypes[global.name] = type;
       _fileGlobalDecls.add(decl);
     }
     final names = (stationGlobalNames.isEmpty ? _collectStationGlobalRefs(file) : stationGlobalNames).toList()..sort();
@@ -2551,18 +2568,18 @@ class _DartExporter {
     }
   }
 
-  (_DartSlot, String) _globalField(SeqProperty c) {
-    final name = c.name;
-    final note = ' // ${c.typeName ?? c.className ?? 'value'}';
-    final cls = c.valueClass;
-    if (c.array != null || c.declaredArrayLength != null || (cls?.isArray ?? false)) {
-      return (_DartSlot.list, 'List<dynamic> $name = ${_listInit(c, {})};$note');
+  (_DartSlot, String) _globalField(SeqProperty property) {
+    final name = property.name;
+    final note = ' // ${property.typeName ?? property.className ?? 'value'}';
+    final valueClass = property.valueClass;
+    if (property.array != null || property.declaredArrayLength != null || (valueClass?.isArray ?? false)) {
+      return (_DartSlot.list, 'List<dynamic> $name = ${_listInit(property, {})};$note');
     }
-    final scalar = c.scalar;
-    switch (cls) {
+    final scalar = property.scalar;
+    switch (valueClass) {
       case SeqValueClass.number:
-        final n = num.tryParse(scalar ?? '');
-        return (_DartSlot.number, 'double $name = ${n == null ? '0' : _numLiteral(n)};$note');
+        final number = num.tryParse(scalar ?? '');
+        return (_DartSlot.number, 'double $name = ${number == null ? '0' : _numLiteral(number)};$note');
       case SeqValueClass.boolean:
         return (_DartSlot.flag, 'bool $name = ${scalar?.toLowerCase() == 'true'};$note');
       case SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path:
@@ -2570,50 +2587,50 @@ class _DartExporter {
       case SeqValueClass.reference:
         return (_DartSlot.untyped, 'dynamic $name;$note');
       default:
-        return (_DartSlot.untyped, 'dynamic $name = ${_propObjInit(c, {})};$note');
+        return (_DartSlot.untyped, 'dynamic $name = ${_propObjInit(property, {})};$note');
     }
   }
 
-  String _propObjInit(SeqProperty p, Set<String> seenTypes) {
-    final children = p.subProps;
+  String _propObjInit(SeqProperty property, Set<String> seenTypes) {
+    final children = property.subProps;
     if (children.isEmpty) {
-      return _typeOrEmpty(p.typeName ?? p.className, seenTypes);
+      return _typeOrEmpty(property.typeName ?? property.className, seenTypes);
     }
     final parts = [
-      for (final c in children) "'${_escape(c.name)}': ${_propValue(c, seenTypes)}",
+      for (final child in children) "'${_escape(child.name)}': ${_propValue(child, seenTypes)}",
     ];
     return 'ts.PropObj({${parts.join(', ')}})';
   }
 
   String _typeOrEmpty(String? className, Set<String> seenTypes) {
-    final t = className != null ? _typeByName[className] : null;
-    if (t == null || !seenTypes.add(className!)) return 'ts.PropObj()';
-    final init = _propObjInit(t.raw, seenTypes);
+    final typeDef = className != null ? _typeByName[className] : null;
+    if (typeDef == null || !seenTypes.add(className!)) return 'ts.PropObj()';
+    final init = _propObjInit(typeDef.raw, seenTypes);
     seenTypes.remove(className);
     return init;
   }
 
-  String _propValue(SeqProperty c, Set<String> seenTypes) {
-    if (c.array != null || c.declaredArrayLength != null) {
-      return _listInit(c, seenTypes);
+  String _propValue(SeqProperty property, Set<String> seenTypes) {
+    if (property.array != null || property.declaredArrayLength != null) {
+      return _listInit(property, seenTypes);
     }
-    final scalar = c.scalar;
-    final cls = c.valueClass;
+    final scalar = property.scalar;
+    final valueClass = property.valueClass;
     if (scalar != null) {
-      return switch (cls) {
+      return switch (valueClass) {
         SeqValueClass.number => num.tryParse(scalar)?.toString() ?? "'${_escape(scalar)}'",
         SeqValueClass.boolean => scalar.toLowerCase() == 'true' ? 'true' : 'false',
         _ => "'${_escape(scalar)}'",
       };
     }
-    if (c.subProps.isNotEmpty) return _propObjInit(c, seenTypes);
-    return switch (cls) {
+    if (property.subProps.isNotEmpty) return _propObjInit(property, seenTypes);
+    return switch (valueClass) {
       SeqValueClass.number => '0',
       SeqValueClass.boolean => 'false',
       SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path => "''",
       SeqValueClass.reference => 'null',
-      final k? when k.isArray => '<dynamic>[]',
-      _ => switch (c.typeName ?? c.className) {
+      final arrayClass? when arrayClass.isArray => '<dynamic>[]',
+      _ => switch (property.typeName ?? property.className) {
         null => 'null',
         final type => _typeOrEmpty(type, seenTypes),
       },
@@ -2628,14 +2645,14 @@ class _DartExporter {
       final zero = _elementZero(owner, seenTypes);
       final overrides = <(int, String)>[];
       var placeable = true;
-      for (final e in elements) {
-        final m = RegExp(r'^\[(\d+)\]$').firstMatch(e.name);
-        final index = m != null ? int.parse(m.group(1)!) : -1;
+      for (final element in elements) {
+        final match = RegExp(r'^\[(\d+)\]$').firstMatch(element.name);
+        final index = match != null ? int.parse(match.group(1)!) : -1;
         if (index < 0 || index >= declared) {
           placeable = false;
           break;
         }
-        final value = _propValue(e, seenTypes);
+        final value = _propValue(element, seenTypes);
         if (value != 'null' || zero == 'null') overrides.add((index, value));
       }
       if (placeable) {
@@ -2644,14 +2661,14 @@ class _DartExporter {
                   'growable: true)'
             : 'List<dynamic>.filled($declared, $zero, growable: true)';
         if (overrides.isEmpty) return base;
-        final sets = [for (final (i, v) in overrides) '..[$i] = $v'].join();
+        final sets = [for (final (index, value) in overrides) '..[$index] = $value'].join();
         return '($base$sets)';
       }
     }
     if (elements.isEmpty) return '<dynamic>[]';
-    final parts = [for (final e in elements) _propValue(e, seenTypes)];
+    final parts = [for (final element in elements) _propValue(element, seenTypes)];
     final first = parts.first;
-    if (parts.length > 8 && !first.startsWith('ts.PropObj') && parts.every((p) => p == first)) {
+    if (parts.length > 8 && !first.startsWith('ts.PropObj') && parts.every((part) => part == first)) {
       return 'List<dynamic>.filled(${parts.length}, $first, growable: true)';
     }
     return '<dynamic>[${parts.join(', ')}]';
