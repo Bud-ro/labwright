@@ -276,30 +276,26 @@ void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord
   );
   var consumed = _PropRecordField.value.offset;
   final rem = record.length - consumed;
-  if (kind >= _propScalarKind) {
+  final leafType = record.leafType;
+  final valueBytes = leafType.valueBytes;
+  if (kind >= _propScalarKind && valueBytes > 0 && (rem == valueBytes || rem == valueBytes + _propTerminatorWidth)) {
     final valueAt = o + consumed;
-    switch (record.typeName) {
-      case 'Str' || 'Path' || 'Expr':
-        if (rem == _u32Bytes || rem == _u32Bytes + _propTerminatorWidth) {
-          final word = view.getUint32(valueAt, Endian.little);
-          if (record.value != null) {
-            ops.poolRef(valueAt, word);
-          } else {
-            ops.u32(valueAt, word, _OpSource.struct);
-          }
-          consumed += _u32Bytes;
+    switch (leafType) {
+      case PropertyLeafType.string || PropertyLeafType.path || PropertyLeafType.expression:
+        final word = view.getUint32(valueAt, Endian.little);
+        if (record.value != null) {
+          ops.poolRef(valueAt, word);
+        } else {
+          ops.u32(valueAt, word, _OpSource.struct);
         }
-      case 'Bool':
-        if (rem == 1 || rem == 1 + _propTerminatorWidth) {
-          ops.byte(valueAt, view.getUint8(valueAt), _OpSource.model);
-          consumed += 1;
-        }
-      case 'Num':
-        if (rem == _f64Bytes || rem == _f64Bytes + _propTerminatorWidth) {
-          ops.f64(valueAt, view.getFloat64(valueAt, Endian.little));
-          consumed += _f64Bytes;
-        }
+      case PropertyLeafType.boolean:
+        ops.byte(valueAt, view.getUint8(valueAt), _OpSource.model);
+      case PropertyLeafType.number:
+        ops.f64(valueAt, view.getFloat64(valueAt, Endian.little));
+      case PropertyLeafType.object || PropertyLeafType.objects:
+        break;
     }
+    consumed += valueBytes;
   }
   if (record.length == consumed + _propTerminatorWidth) {
     ops.byte(o + consumed, 0, _OpSource.grammar);
