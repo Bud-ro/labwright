@@ -26,7 +26,7 @@ final String pkgRoot = Directory('packages/labwright').existsSync() ? 'packages/
   try {
     final path = '${dir.path}/report.json';
     final (exit, out, _) = runSuite(file, defines: ['-Dlabwright.report=$path', ...defines], identity: identity);
-    return (exit, out, (jsonDecode(File(path).readAsStringSync()) as Map).cast<String, Object?>());
+    return (exit, out, jsonMap(File(path).readAsStringSync()));
   } finally {
     dir.deleteSync(recursive: true);
   }
@@ -35,8 +35,16 @@ final String pkgRoot = Directory('packages/labwright').existsSync() ? 'packages/
 ProcessResult cli(List<String> args) =>
     Process.runSync(Platform.resolvedExecutable, ['run', 'bin/labwright.dart', ...args], workingDirectory: pkgRoot);
 
-List<Map<String, Object?>> testsOf(Map<String, Object?> reportOrState) =>
-    (reportOrState['tests'] as List).cast<Map<String, Object?>>();
+Map<String, Object?> jsonMap(String text) => jsonDecode(text) as Map<String, Object?>;
+
+List<Map<String, Object?>> testsOf(Map<String, Object?> reportOrState) => [
+  for (final test in reportOrState['tests'] as List) test as Map<String, Object?>,
+];
+
+List<Object?>? logsOf(Map<String, Object?> record) {
+  final logs = record['logs'];
+  return logs == null ? null : [for (final line in logs as List) (line as Map<String, Object?>)['m']];
+}
 
 Map<String, Object?> testIn(Map<String, Object?> reportOrState, String name) =>
     testsOf(reportOrState).firstWhere((t) => t['name'] == name);
@@ -107,8 +115,7 @@ class Viewer {
     return (res.statusCode, await utf8.decodeStream(res));
   }
 
-  Future<Map<String, Object?>> getJson(String path) async =>
-      ((jsonDecode((await get(path)).$2)) as Map).cast<String, Object?>();
+  Future<Map<String, Object?>> getJson(String path) async => jsonMap((await get(path)).$2);
 
   Future<Map<String, Object?>> state() => getJson('/state.json');
 
@@ -126,7 +133,7 @@ class Viewer {
     final text = await utf8.decodeStream(res);
     Map<String, Object?>? decoded;
     try {
-      decoded = (jsonDecode(text) as Map).cast<String, Object?>();
+      decoded = jsonMap(text);
     } catch (_) {
       decoded = null;
     }
@@ -161,7 +168,7 @@ class Viewer {
         final dataLine = frame.split('\n').firstWhere((l) => l.startsWith('data: '), orElse: () => '');
         if (event == null || dataLine.isEmpty) continue;
         try {
-          onFrame(event, (jsonDecode(dataLine.substring(6)) as Map).cast<String, Object?>());
+          onFrame(event, jsonMap(dataLine.substring(6)));
         } catch (_) {}
       }
     });

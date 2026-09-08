@@ -30,8 +30,12 @@ void main() {
     expect(tests[1]['status'], 'passed');
     expect(tests[2]['status'], 'error', reason: 'a non-TestFailure escape is an error, not a failure');
     expect('${tests[2]['detail']}', contains('relay stuck'));
-    final req9 = ((report['requirements'] as Map)['REQ-9'] as List).cast<Map<String, Object?>>();
-    expect(req9.single['status'], 'failed', reason: 'the requirements trace maps IDs to test statuses');
+    final req9 = (report['requirements'] as Map<String, Object?>)['REQ-9'] as List;
+    expect(
+      (req9.single as Map<String, Object?>)['status'],
+      'failed',
+      reason: 'the requirements trace maps IDs to test statuses',
+    );
     expect(out, contains('RUN  trip threshold'), reason: 'the start line names the test, nothing else');
   });
 

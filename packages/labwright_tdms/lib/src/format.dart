@@ -1,4 +1,4 @@
-const List<int> leadInTag = [0x54, 0x44, 0x53, 0x6D];
+const int leadInTagTdsm = 0x6D534454;
 
 /// 4713 is TDMS v2.0.
 const int tdmsFormatVersion = 4713;

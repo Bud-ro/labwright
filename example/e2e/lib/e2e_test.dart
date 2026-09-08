@@ -77,7 +77,7 @@ class TestRecord {
 
   Set<String> get requirements => {
     for (final m in measurements)
-      if (m.requirement != null) m.requirement!,
+      if (m.requirement case final requirement?) requirement,
   };
 
   Uint8List toTdmsBytes() {
@@ -90,7 +90,7 @@ class TestRecord {
           properties: {
             'units': m.limit.unit.symbol,
             'outcome': m.inLimit ? 'pass' : 'fail',
-            if (m.requirement != null) 'requirement': m.requirement!,
+            if (m.requirement case final requirement?) 'requirement': requirement,
           },
         ),
     ];
