@@ -1,4 +1,3 @@
-import 'dart:convert';
 import 'dart:io';
 
 import 'package:test/test.dart';
@@ -20,7 +19,7 @@ const _allTests = {
     final path = '${dir.path}/report.json';
     final result = cli(['run', target, '--no-viewer', '--no-identity', '--report', path, ...extra]);
     expect(result.exitCode, anyOf(0, 1), reason: 'crashed ($target $extra):\n${result.stdout}\n${result.stderr}');
-    return (result.exitCode, (jsonDecode(File(path).readAsStringSync()) as Map).cast<String, Object?>());
+    return (result.exitCode, jsonMap(File(path).readAsStringSync()));
   } finally {
     dir.deleteSync(recursive: true);
   }
@@ -36,8 +35,8 @@ void main() {
       _allTests,
       reason: 'the plugged-in modules registered into ONE process',
     );
-    final req9 = ((report['requirements'] as Map)['REQ-9'] as List).cast<Map<String, Object?>>();
-    expect(req9.single['status'], 'failed');
+    final req9 = (report['requirements'] as Map<String, Object?>)['REQ-9'] as List;
+    expect((req9.single as Map<String, Object?>)['status'], 'failed');
   }, timeout: const Timeout(Duration(minutes: 2)));
 
   test('run + shards + seed: the shards partition the suite, none missed', () {

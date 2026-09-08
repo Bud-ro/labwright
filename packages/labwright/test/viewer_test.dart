@@ -16,12 +16,12 @@ void main() {
     try {
       final (stateCode, stateBody) = await v.get('/state.json');
       expect(stateCode, 200);
-      final state = (jsonDecode(stateBody) as Map).cast<String, Object?>();
+      final state = jsonMap(stateBody);
       expect(state['done'], true);
       final tests = testsOf(state);
       expect(tests, hasLength(3));
       expect(
-        (tests.first['logs'] as List).map((l) => (l as Map)['m']),
+        logsOf(tests.first),
         ['applying power'],
         reason: 'logs (timestamped {t,m}) attach to their test for the viewer',
       );
@@ -73,13 +73,13 @@ void main() {
       final got = Completer<List<Map<String, Object?>>>();
       final sub = await v.events((event, data) {
         if (event == 'hist' && data['reset'] == true && !got.isCompleted) {
-          got.complete((data['entries'] as List).cast<Map<String, Object?>>());
+          got.complete([for (final entry in data['entries'] as List) entry as Map<String, Object?>]);
         }
       });
       final entries = await got.future.timeout(const Duration(seconds: 30));
       final record = entries.firstWhere((e) => e['name'] == 'button: reset rig');
       expect(record['status'], 'passed');
-      expect((record['logs'] as List).map((l) => (l as Map)['m']), ['rig reset']);
+      expect(logsOf(record), ['rig reset']);
       await sub.cancel();
     } finally {
       await v.close();
@@ -128,7 +128,7 @@ void main() {
 
       final rep = await v.getRes('/report.json');
       expect(rep.headers.value('content-disposition'), contains('labwright-report.json'));
-      final report = (jsonDecode(await utf8.decodeStream(rep)) as Map).cast<String, Object?>();
+      final report = jsonMap(await utf8.decodeStream(rep));
       expect(report.containsKey('requirements'), isTrue, reason: 'the report carries the requirements trace');
       expect(report.containsKey('buttons'), isFalse, reason: 'buttons are viewer-only');
     } finally {
@@ -146,8 +146,10 @@ void main() {
         if (event == 'log' && !logDelta.isCompleted) logDelta.complete(data);
       });
 
-      final entries = ((await hist.future.timeout(const Duration(seconds: 30)))['entries'] as List)
-          .cast<Map<String, Object?>>();
+      final entries = [
+        for (final entry in (await hist.future.timeout(const Duration(seconds: 30)))['entries'] as List)
+          entry as Map<String, Object?>,
+      ];
       expect(entries.map((e) => e['name']).toSet(), {
         'rail comes up',
         'ripple in limits',
@@ -155,7 +157,7 @@ void main() {
       }, reason: 'the first run recorded one execution per test');
       expect(entries.every((e) => e['run'] == 1), isTrue, reason: 'all from the first pass');
       final rail = entries.firstWhere((e) => e['name'] == 'rail comes up');
-      expect((rail['logs'] as List).map((l) => (l as Map)['m']), ['applying power']);
+      expect(logsOf(rail), ['applying power']);
       final queued = rail['queuedAt'] as int, started = rail['startedAt'] as int, finished = rail['finishedAt'] as int;
       expect(queued, lessThanOrEqualTo(started), reason: 'wall-clock stamps flow through in order');
       expect(started, lessThanOrEqualTo(finished));
