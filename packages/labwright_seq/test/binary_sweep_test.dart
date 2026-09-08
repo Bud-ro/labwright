@@ -57,7 +57,8 @@ void main() {
           .where((f) => f.path.toLowerCase().endsWith('.seq'))
           .toList()
         ..sort((a, b) => a.path.compareTo(b.path));
-  File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
+  Iterable<File> matching(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix));
+  File pin(String suffix) => matching(suffix).firstOrNull ?? (throw StateError('pinned corpus file missing: $suffix'));
 
   int? boundCount(String? lb, String? ub) {
     if (lb == null || ub == null || ub == '[]') return null;
@@ -258,14 +259,14 @@ void main() {
     };
     var checked = 0;
     expected.forEach((suffix, base) {
-      final f = pin(suffix);
+      final f = matching(suffix).firstOrNull;
       if (f == null) return;
       checked++;
       expect(binaryTypeIndexBase(f.readAsBytesSync()), base, reason: '$suffix type-index base');
     });
     expect(checked, greaterThanOrEqualTo(4), reason: 'too few cohort files present to guard the recovery');
 
-    final f = pin('teststand/Sequence File 1.seq');
+    final f = matching('teststand/Sequence File 1.seq').firstOrNull;
     if (f == null) return;
     final bytes = f.readAsBytesSync();
     var anchors = 0;
@@ -295,14 +296,13 @@ void main() {
       'Solar_Panel Controller/Solar_panel_main.seq',
     ];
 
-    List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix)!.readAsBytesSync());
+    List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix).readAsBytesSync());
 
     test('pinned files are present (guards silent skips after a corpus rename)', () {
-      expect(pinnedSuffixes.where((s) => pin(s) != null).length, pinnedSuffixes.length);
+      expect([for (final suffix in pinnedSuffixes) pin(suffix).path], hasLength(pinnedSuffixes.length));
     });
 
     test('DHA5x5_STTE_CalibrationSequence.seq: record-walk-only discovery (no declaration paths)', () {
-      if (pin(pinnedSuffixes[0]) == null) return;
       final outlines = outlinesOf(pinnedSuffixes[0]);
       final verify = outlines.firstWhere((o) => o.name == 'VerifyCalibration');
       final main = verify.groupArrays.firstWhere((g) => g.name == 'Main');
@@ -317,7 +317,6 @@ void main() {
     });
 
     test('Test Sequence.seq: a genuine sequence NAMED `Sequence` (walk-corroborated)', () {
-      if (pin(pinnedSuffixes[1]) == null) return;
       final seq = outlinesOf(pinnedSuffixes[1]).where((o) => o.name == 'Sequence').single;
       final step = seq.groupArrays.firstWhere((g) => g.name == 'Main').children.single;
       expect((step.name, step.typeName), ('Subseq', 'DanfossStringValueTest'));
@@ -325,7 +324,6 @@ void main() {
     });
 
     test('BenchmarkTest.seq: expression-array elements (DataSourceArray) decode', () {
-      if (pin(pinnedSuffixes[2]) == null) return;
       final main = outlinesOf(
         pinnedSuffixes[2],
       ).firstWhere((o) => o.name == 'MainSequence').groupArrays.firstWhere((g) => g.name == 'Main');
@@ -346,7 +344,6 @@ void main() {
     });
 
     test('Elatch-bench Backup.seq: comment-slot record head decodes', () {
-      if (pin(pinnedSuffixes[3]) == null) return;
       final outlines = outlinesOf(pinnedSuffixes[3]);
       expect(
         outlines.firstWhere((o) => o.name == 'MainSequence').comment,
@@ -357,7 +354,6 @@ void main() {
     });
 
     test('iTAC.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode', () {
-      if (pin(pinnedSuffixes[4]) == null) return;
       final outlines = outlinesOf(pinnedSuffixes[4]);
       expect(outlines.map((o) => o.name), contains('Connect'));
       final connect = outlines.firstWhere((o) => o.name == 'Connect');
@@ -379,8 +375,7 @@ void main() {
     });
 
     test('Solar_panel_main.seq: pool[0]-`Obj` generation — NI_Wait typedef body decodes through its substeps', () {
-      if (pin(pinnedSuffixes[5]) == null) return;
-      final records = binaryTypeRecords(pin(pinnedSuffixes[5])!.readAsBytesSync());
+      final records = binaryTypeRecords(pin(pinnedSuffixes[5]).readAsBytesSync());
       final wait = records.firstWhere((r) => r.name == 'NI_Wait');
       expect(wait.undecodedBody, isFalse);
       final substeps = wait.fields!.firstWhere((f) => f.name == 'Substeps');

@@ -3,6 +3,7 @@ library;
 
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -437,15 +438,16 @@ void main() {
     final tally = Tally();
     final failures = <String>[];
 
-    int u32(List<int> b, int i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
-    bool tripletExists(List<int> body, int rr, int idx) {
+    bool tripletExists(ByteData body, int rr, int idx) {
       for (var i = 0; i + 12 <= rr; i++) {
-        if (u32(body, i) != idx) continue;
-        final field = u32(body, i + 4);
-        final count = u32(body, i + 8);
+        if (body.getUint32(i, Endian.little) != idx) continue;
+        final field = body.getUint32(i + 4, Endian.little);
+        final count = body.getUint32(i + 8, Endian.little);
         if (field < 1 || field > 100000) continue;
         if (count < 1 || count > 1000) continue;
-        if (i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff) return true;
+        if (i < 4) return true;
+        final previous = body.getUint32(i - 4, Endian.little);
+        if (previous == 0 || previous == 0xffffffff) return true;
       }
       return false;
     }
@@ -575,14 +577,15 @@ void main() {
 
           final nameLen = name.entries.length;
           if (body != null && nameLen > 5) {
+            final view = ByteData.sublistView(body);
             final rr = layout.recordRegionLength.clamp(0, body.length);
             for (var idx = 5; idx < nameLen; idx++) {
               tally.bump('realTot');
-              if (tripletExists(body, rr, idx)) tally.bump('realHit');
+              if (tripletExists(view, rr, idx)) tally.bump('realHit');
             }
             for (var k = 0; k < nameLen - 5; k++) {
               tally.bump('fakeTot');
-              if (tripletExists(body, rr, nameLen + 1 + k)) tally.bump('fakeHit');
+              if (tripletExists(view, rr, nameLen + 1 + k)) tally.bump('fakeHit');
             }
           }
         }

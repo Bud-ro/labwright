@@ -15,9 +15,9 @@ Uint8List _tof1(List<int> bodyBytes, {int pad = 0x100}) => Uint8List.fromList(
       .toBytes(),
 );
 
-List<int> _f64le(double v) => (ByteData(8)..setFloat64(0, v, Endian.little)).buffer.asUint8List();
+Uint8List _f64le(double v) => (ByteData(8)..setFloat64(0, v, Endian.little)).buffer.asUint8List();
 
-List<int> _u32le(int v) => [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
+Uint8List _u32le(int v) => (ByteData(4)..setUint32(0, v, Endian.little)).buffer.asUint8List();
 
 List<int> _nulPool(List<String> names) => [
   for (final n in names) ...[...ascii.encode(n), 0],

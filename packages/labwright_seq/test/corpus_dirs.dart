@@ -13,7 +13,7 @@ Directory _corpusSeqRoot() {
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  return Directory('corpus/seq');
+  throw StateError('no seq corpus above ${Directory.current.path} (run tool/fetch_seq_corpus.dart)');
 }
 
 final Directory corpusSeqDir = _corpusSeqRoot();
@@ -41,7 +41,7 @@ class Tally {
 
   Map<String, int> nonzero(String name) => {
     for (final MapEntry(key: path, value: counts) in _byFile.entries)
-      if ((counts[name] ?? 0) != 0) path: counts[name]!,
+      if (counts[name] case final count? when count != 0) path: count,
   };
 
   Map<String, int> mismatches(String left, String right) => {

@@ -615,20 +615,21 @@ void main() {
 
   test('cross-format substep oracle: binary NI_Wait Substeps match the XML typedef', () {
     final files = corpusSeqDir.listSync(recursive: true).whereType<File>().toList();
-    File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
+    File pin(String suffix) => files.firstWhere(
+      (f) => f.path.replaceAll(r'\', '/').endsWith(suffix),
+      orElse: () => throw StateError('substep oracle pin missing — rename/partial checkout? $suffix'),
+    );
     final xmlPin = pin('Server/ExampleFiles/TraceExecution.seq');
     final binPin = pin('Tests/Sequence File 1.seq');
-    expect(xmlPin, isNotNull, reason: 'substep oracle XML pin missing — rename/partial checkout?');
-    expect(binPin, isNotNull, reason: 'substep oracle binary pin missing — rename/partial checkout?');
 
-    final xmlWait = parseSeqFile(xmlPin!.readAsBytesSync()).types.where((t) => t.name == 'NI_Wait').first;
+    final xmlWait = parseSeqFile(xmlPin.readAsBytesSync()).types.where((t) => t.name == 'NI_Wait').first;
     final xmlSubsteps = xmlWait.prop('Substeps')!.array!;
     List<String> xmlPairs(SeqProperty p) => [
       if (const {'Id', 'LibPath', 'Func'}.contains(p.name) && (p.scalar ?? '').isNotEmpty) '${p.name}=${p.scalar}',
       for (final c in p.subProps.followedBy(p.array ?? const <SeqProperty>[])) ...xmlPairs(c),
     ];
 
-    final binWait = binaryTypeRecords(binPin!.readAsBytesSync()).where((r) => r.name == 'NI_Wait').first;
+    final binWait = binaryTypeRecords(binPin.readAsBytesSync()).where((r) => r.name == 'NI_Wait').first;
     final binSubsteps = binWait.fields!.where((f) => f.name == 'Substeps').first.children;
     List<String> binPairs(BinaryTypeField f) => [
       if (const {'Id', 'LibPath', 'Func'}.contains(f.name) && (f.value ?? '').isNotEmpty) '${f.name}=${f.value}',
