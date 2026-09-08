@@ -10,13 +10,14 @@ typedef VctpSpan = ({int offset, int length, ViType type});
 List<VctpSpan> vctpTypeSpans(Uint8List body) {
   final types = decodeTypePool(body);
   if (types.isEmpty || body.length < 8) return const [];
-  final count = readU32be(body, 0);
+  final data = ByteData.sublistView(body);
+  final count = data.getUint32(0);
   if (count <= 0) return const [];
   final out = <VctpSpan>[];
   var off = 4;
   for (var i = 0; i < count && i < types.length; i++) {
     if (off + 4 > body.length) break;
-    final descLen = readU16be(body, off);
+    final descLen = data.getUint16(off);
     if (descLen < 4 || off + descLen > body.length) break;
     out.add((offset: off, length: descLen, type: types[i]));
     off += descLen;
