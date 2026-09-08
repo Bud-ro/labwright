@@ -47,11 +47,11 @@ extension _NodePass on BdDiagramPainter {
       final bounds = deco.absBounds!;
       for (final other in backdropCandidates) {
         if (identical(other, deco)) continue;
-        final b = other.absBounds!;
-        if (b.left >= bounds.left &&
-            b.top >= bounds.top &&
-            b.right <= bounds.right &&
-            b.bottom <= bounds.bottom) {
+        final otherBounds = other.absBounds!;
+        if (otherBounds.left >= bounds.left &&
+            otherBounds.top >= bounds.top &&
+            otherBounds.right <= bounds.right &&
+            otherBounds.bottom <= bounds.bottom) {
           return true;
         }
       }
@@ -124,18 +124,18 @@ extension _NodePass on BdDiagramPainter {
       final kids =
           scene.diagram.childrenByOid[object.oid] ?? const <ViHeapObject>[];
       final named = kids.any(
-        (c) =>
-            c.objectClass == HeapObjectClass.controlLabel &&
-            !c.isLabelHidden &&
-            (c.label?.trim().isNotEmpty ?? false),
+        (child) =>
+            child.objectClass == HeapObjectClass.controlLabel &&
+            !child.isLabelHidden &&
+            (child.label?.trim().isNotEmpty ?? false),
       );
       if (named) {
-        for (final c in kids) {
-          final b = c.absBounds;
-          if (c.objectClass == HeapObjectClass.controlChrome &&
-              b != null &&
-              b.right > b.left) {
-            box = _toCanvas(b);
+        for (final child in kids) {
+          final bounds = child.absBounds;
+          if (child.objectClass == HeapObjectClass.controlChrome &&
+              bounds != null &&
+              bounds.right > bounds.left) {
+            box = _toCanvas(bounds);
             break;
           }
         }
@@ -261,31 +261,7 @@ extension _NodePass on BdDiagramPainter {
       );
     }
     if (object.isIndicator != null && box.height >= 12 && box.width >= 12) {
-      final indicator = object.isIndicator == true;
-      final cy = box.center.dy;
-      final double tipX;
-      if (indicator) {
-        tipX = box.left + 7;
-      } else {
-        tipX = box.right - 3;
-      }
-      final shade = Rect.fromLTRB(
-        indicator ? box.left + 3 : box.right - 10,
-        box.top + 4,
-        indicator ? box.left + 10 : box.right - 3,
-        box.bottom - 4,
-      );
-      canvas.drawRect(shade, Paint()..color = tint.withValues(alpha: 0.25));
-      final tri = Path()
-        ..moveTo(tipX - 3, cy - 3.5)
-        ..lineTo(tipX, cy)
-        ..lineTo(tipX - 3, cy + 3.5)
-        ..close();
-      canvas.drawPath(
-        tri,
-        Paint()
-          ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.87),
-      );
+      _paintTerminalArrow(canvas, object, box, tint);
     }
     var hasRadixMarker = false;
     if (constValue != null) {
@@ -304,15 +280,15 @@ extension _NodePass on BdDiagramPainter {
                 )
                 .firstOrNull;
       if (marker != null && radixPart != null) {
-        final (dx, dy, rows) = marker;
+        final (markerDx, markerDy, markerRows) = marker;
         final corner = _toCanvas(radixPart.absBounds!).topLeft;
         hasRadixMarker = true;
         _stampBitmap(
           canvas,
           _solidNoAa(tint),
-          rows,
-          corner.dx + dx,
-          corner.dy + dy,
+          markerRows,
+          corner.dx + markerDx,
+          corner.dy + markerDy,
         );
       }
     }
@@ -347,6 +323,34 @@ extension _NodePass on BdDiagramPainter {
       );
       _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
     }
+  }
+
+  void _paintTerminalArrow(
+    Canvas canvas,
+    ViHeapObject object,
+    Rect box,
+    Color tint,
+  ) {
+    final indicator = object.isIndicator == true;
+    final centreY = box.center.dy;
+    final tipX = indicator ? box.left + 7 : box.right - 3;
+    final shade = Rect.fromLTRB(
+      indicator ? box.left + 3 : box.right - 10,
+      box.top + 4,
+      indicator ? box.left + 10 : box.right - 3,
+      box.bottom - 4,
+    );
+    canvas.drawRect(shade, Paint()..color = tint.withValues(alpha: 0.25));
+    final arrow = Path()
+      ..moveTo(tipX - 3, centreY - 3.5)
+      ..lineTo(tipX, centreY)
+      ..lineTo(tipX - 3, centreY + 3.5)
+      ..close();
+    canvas.drawPath(
+      arrow,
+      Paint()
+        ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.87),
+    );
   }
 
   void _paintNode(
@@ -401,45 +405,13 @@ extension _NodePass on BdDiagramPainter {
       final corners =
           (ladderId == null ? null : _primIconPixels[ladderId]?.cornerAa) ??
           const <int>{};
-      for (final artIndex in corners) {
-        final artWidth = primIcon.base.width;
-        final cornerX = dst.left + artIndex % artWidth;
-        final cornerY = dst.top + artIndex ~/ artWidth;
-        var beneathCorner = false;
-        Color? restore;
-        for (final prior in stampedPrimIcons.reversed) {
-          final localX = (cornerX - prior.dst.left).round();
-          final localY = (cornerY - prior.dst.top).round();
-          final priorArt = _primIconPixels[prior.id];
-          if (priorArt == null ||
-              localX < 0 ||
-              localY < 0 ||
-              localX >= priorArt.width ||
-              localY >= priorArt.height) {
-            continue;
-          }
-          final priorIndex = localY * priorArt.width + localX;
-          if (priorArt.alpha[priorIndex] == 0) continue;
-          if (priorArt.cornerAa.contains(priorIndex)) {
-            beneathCorner = true;
-            continue;
-          }
-          restore = Color.fromARGB(
-            0xff,
-            priorArt.rgba[priorIndex * 4],
-            priorArt.rgba[priorIndex * 4 + 1],
-            priorArt.rgba[priorIndex * 4 + 2],
-          );
-          break;
-        }
-        final rung = restore ?? (beneathCorner ? _kCornerAaRung2 : null);
-        if (rung != null) {
-          canvas.drawRect(
-            Rect.fromLTWH(cornerX, cornerY, 1, 1),
-            _solidNoAa(rung),
-          );
-        }
-      }
+      _restoreCornerAa(
+        canvas,
+        dst,
+        primIcon.base.width,
+        corners,
+        stampedPrimIcons,
+      );
       if (ladderId != null) {
         stampedPrimIcons.add((dst: dst, id: ladderId));
       }
@@ -453,16 +425,10 @@ extension _NodePass on BdDiagramPainter {
       canvas.drawRect(rect, Paint()..color = fill);
     }
     if (primIcon == null) {
-      final ring = _solidNoAa(_dimFor(object.oid, Colors.black));
-      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, rect.width, 1), ring);
-      canvas.drawRect(
-        Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
-        ring,
-      );
-      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, 1, rect.height), ring);
-      canvas.drawRect(
-        Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
-        ring,
+      _strokePixelFrame(
+        canvas,
+        rect,
+        _solidNoAa(_dimFor(object.oid, Colors.black)),
       );
     }
     final glyph = icon == null && primIcon == null && object.primResId != null
@@ -479,6 +445,53 @@ extension _NodePass on BdDiagramPainter {
     }
   }
 
+  void _restoreCornerAa(
+    Canvas canvas,
+    Rect dst,
+    int artWidth,
+    Set<int> corners,
+    List<({Rect dst, int id})> stampedPrimIcons,
+  ) {
+    for (final artIndex in corners) {
+      final cornerX = dst.left + artIndex % artWidth;
+      final cornerY = dst.top + artIndex ~/ artWidth;
+      var beneathCorner = false;
+      Color? restore;
+      for (final prior in stampedPrimIcons.reversed) {
+        final localX = (cornerX - prior.dst.left).round();
+        final localY = (cornerY - prior.dst.top).round();
+        final priorArt = _primIconPixels[prior.id];
+        if (priorArt == null ||
+            localX < 0 ||
+            localY < 0 ||
+            localX >= priorArt.width ||
+            localY >= priorArt.height) {
+          continue;
+        }
+        final priorIndex = localY * priorArt.width + localX;
+        if (priorArt.alpha[priorIndex] == 0) continue;
+        if (priorArt.cornerAa.contains(priorIndex)) {
+          beneathCorner = true;
+          continue;
+        }
+        restore = Color.fromARGB(
+          0xff,
+          priorArt.rgba[priorIndex * 4],
+          priorArt.rgba[priorIndex * 4 + 1],
+          priorArt.rgba[priorIndex * 4 + 2],
+        );
+        break;
+      }
+      final rung = restore ?? (beneathCorner ? _kCornerAaRung2 : null);
+      if (rung != null) {
+        canvas.drawRect(
+          Rect.fromLTWH(cornerX, cornerY, 1, 1),
+          _solidNoAa(rung),
+        );
+      }
+    }
+  }
+
   void _paintGrowableNode(Canvas canvas, ViHeapObject object, Rect rect) {
     canvas.drawRect(
       rect,
@@ -491,18 +504,18 @@ extension _NodePass on BdDiagramPainter {
     final rows = <HeapRect>[];
     final rowTerms = <(ViHeapObject, HeapRect)>[];
     final cells = <HeapRect>[];
-    final nodeH = object.absBounds!.bottom - object.absBounds!.top;
-    final nodeW = object.absBounds!.right - object.absBounds!.left;
+    final nodeHeight = object.absBounds!.bottom - object.absBounds!.top;
+    final nodeWidth = object.absBounds!.right - object.absBounds!.left;
     for (final dco in scene.diagram.children(object.oid)) {
       if (dco.kind != kNodeEndpointDcoKind) continue;
-      for (final t in scene.diagram.children(dco.oid)) {
-        final tb = t.termBounds;
-        if (t.kind != 0x62 || tb == null) continue;
-        if (tb.height >= nodeH) {
-          cells.add(tb);
+      for (final terminal in scene.diagram.children(dco.oid)) {
+        final terminalBounds = terminal.termBounds;
+        if (terminal.kind != 0x62 || terminalBounds == null) continue;
+        if (terminalBounds.height >= nodeHeight) {
+          cells.add(terminalBounds);
         } else {
-          rows.add(tb);
-          rowTerms.add((t, tb));
+          rows.add(terminalBounds);
+          rowTerms.add((terminal, terminalBounds));
         }
       }
     }
@@ -513,20 +526,20 @@ extension _NodePass on BdDiagramPainter {
       ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
       ..isAntiAlias = false;
     rows.sort((a, b) => a.top.compareTo(b.top));
-    for (var i = 0; i + 1 < rows.length; i++) {
-      if (rows[i].bottom != rows[i + 1].top) continue;
+    for (var row = 0; row + 1 < rows.length; row++) {
+      if (rows[row].bottom != rows[row + 1].top) continue;
       canvas.drawRect(
         Rect.fromLTWH(
-          rect.left + rows[i].left + 1,
-          rect.top + rows[i].bottom,
-          (rows[i].right - rows[i].left - 2).toDouble(),
+          rect.left + rows[row].left + 1,
+          rect.top + rows[row].bottom,
+          (rows[row].right - rows[row].left - 2).toDouble(),
           1,
         ),
         black,
       );
     }
     for (final cell in cells) {
-      final leftSide = cell.left < nodeW - cell.right;
+      final leftSide = cell.left < nodeWidth - cell.right;
       if (leftSide) {
         canvas.drawRect(
           Rect.fromLTRB(
@@ -546,15 +559,18 @@ extension _NodePass on BdDiagramPainter {
           ),
           black,
         );
-        final cy = rect.top + (nodeH ~/ 2);
-        canvas.drawRect(Rect.fromLTWH(rect.left + 1, cy - 1.0, 6, 3), black);
-        for (var i = 0; i < 4; i++) {
+        final centreY = rect.top + (nodeHeight ~/ 2);
+        canvas.drawRect(
+          Rect.fromLTWH(rect.left + 1, centreY - 1.0, 6, 3),
+          black,
+        );
+        for (var step = 0; step < 4; step++) {
           canvas.drawRect(
             Rect.fromLTWH(
-              rect.left + 7 + i,
-              cy - 3.0 + i,
+              rect.left + 7 + step,
+              centreY - 3.0 + step,
               1,
-              (7 - 2 * i).toDouble(),
+              (7 - 2 * step).toDouble(),
             ),
             black,
           );
@@ -562,22 +578,22 @@ extension _NodePass on BdDiagramPainter {
       } else {
         final rowsRight = rows.isEmpty ? cell.left : rows.first.right;
         final top = rect.top + 1;
-        final h = rect.height - 2;
+        final height = rect.height - 2;
         canvas.drawRect(
           Rect.fromLTRB(
             rect.left + rowsRight,
             top,
             rect.left + cell.right - 1,
-            top + h,
+            top + height,
           ),
           cream,
         );
         canvas.drawRect(
-          Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, h),
+          Rect.fromLTWH(rect.left + rowsRight - 1, top, 1, height),
           black,
         );
         canvas.drawRect(
-          Rect.fromLTWH(rect.left + cell.left - 1, top, 1, h),
+          Rect.fromLTWH(rect.left + cell.left - 1, top, 1, height),
           black,
         );
         const arrowRows = [
@@ -589,11 +605,11 @@ extension _NodePass on BdDiagramPainter {
           '.#####.....##..',
           '...........#...',
         ];
-        final arrowTop = rect.top + (nodeH ~/ 2) - 3;
+        final arrowTop = rect.top + (nodeHeight ~/ 2) - 3;
         _stampBitmap(canvas, black, arrowRows, rect.left + rowsRight, arrowTop);
       }
     }
-    for (final (term, tb) in rowTerms) {
+    for (final (term, terminalBounds) in rowTerms) {
       final name = term.typeName?.trim();
       if (name == null || name.isEmpty) continue;
       final elementKind = term.typeKind == ViTypeKind.array
@@ -603,10 +619,10 @@ extension _NodePass on BdDiagramPainter {
           ? labviewTypeColor(_typeKindOfDataType(elementKind))
           : labviewTypeColor(term.typeKind);
       final cell = Rect.fromLTRB(
-        rect.left + tb.left + 1,
-        rect.top + tb.top,
-        rect.left + tb.right - 1,
-        rect.top + tb.bottom,
+        rect.left + terminalBounds.left + 1,
+        rect.top + terminalBounds.top,
+        rect.left + terminalBounds.right - 1,
+        rect.top + terminalBounds.bottom,
       );
       final run = _layoutText(
         name,
@@ -618,14 +634,14 @@ extension _NodePass on BdDiagramPainter {
   }
 
   void _paintPlainSolid(Canvas canvas, ViHeapObject object, Rect rect) {
-    final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
+    final rounded = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
     final fill = _dimFor(
       object.oid,
       bdFillColor(object) ?? _objectColor(object),
     );
-    canvas.drawRRect(rr, Paint()..color = fill.withValues(alpha: 0.92));
+    canvas.drawRRect(rounded, Paint()..color = fill.withValues(alpha: 0.92));
     canvas.drawRRect(
-      rr,
+      rounded,
       Paint()
         ..color = _dimFor(object.oid, Colors.black).withValues(alpha: 0.5)
         ..style = PaintingStyle.stroke
@@ -637,26 +653,21 @@ extension _NodePass on BdDiagramPainter {
     final children = scene.diagram.children(shell.oid).toList();
     ViTypeKind elementType = ViTypeKind.unknown;
     ViHeapObject? element;
-    for (final c in children) {
-      if (c.objectClass != HeapObjectClass.numericControl) continue;
-      if (c.typeKind != ViTypeKind.unknown) elementType = c.typeKind;
-      if (c.absBounds != null &&
-          (element == null || c.absBounds!.right > element.absBounds!.right)) {
-        element = c;
+    for (final child in children) {
+      if (child.objectClass != HeapObjectClass.numericControl) continue;
+      if (child.typeKind != ViTypeKind.unknown) elementType = child.typeKind;
+      if (child.absBounds != null &&
+          (element == null ||
+              child.absBounds!.right > element.absBounds!.right)) {
+        element = child;
       }
     }
     final tint = _dimFor(shell.oid, labviewTypeColor(elementType));
     final fill = _solidNoAa(tint);
-    void border(HeapRect b) {
-      final l = (b.left - origin.dx).toDouble();
-      final t = (b.top - origin.dy).toDouble();
-      final w = (b.right - b.left).toDouble();
-      final h = (b.bottom - b.top).toDouble();
-      if (w <= 0 || h <= 0) return;
-      canvas.drawRect(Rect.fromLTWH(l, t, w, 1), fill);
-      canvas.drawRect(Rect.fromLTWH(l, t + h - 1, w, 1), fill);
-      canvas.drawRect(Rect.fromLTWH(l, t, 1, h), fill);
-      canvas.drawRect(Rect.fromLTWH(l + w - 1, t, 1, h), fill);
+    void border(HeapRect bounds) {
+      final frame = _toCanvas(bounds);
+      if (frame.width <= 0 || frame.height <= 0) return;
+      _strokePixelFrame(canvas, frame, fill);
     }
 
     bool contains(HeapRect outer, HeapRect inner) =>
@@ -665,32 +676,24 @@ extension _NodePass on BdDiagramPainter {
         outer.right >= inner.right &&
         outer.bottom >= inner.bottom;
     final white = _solidNoAa(Colors.white);
-    for (final b in bdArrayShellWrapRects(scene.diagram, shell.oid)) {
-      canvas.drawRect(
-        Rect.fromLTWH(
-          (b.left - origin.dx).toDouble(),
-          (b.top - origin.dy).toDouble(),
-          (b.right - b.left).toDouble(),
-          (b.bottom - b.top).toDouble(),
-        ),
-        white,
-      );
-      border(b);
+    for (final wrap in bdArrayShellWrapRects(scene.diagram, shell.oid)) {
+      canvas.drawRect(_toCanvas(wrap), white);
+      border(wrap);
     }
-    for (final c in children) {
-      final b = c.absBounds;
-      if (c.objectClass == HeapObjectClass.numericControl &&
-          b != null &&
-          !identical(c, element)) {
-        for (final part in scene.diagram.children(c.oid)) {
-          final pb = part.absBounds;
-          if (pb == null) continue;
+    for (final child in children) {
+      final bounds = child.absBounds;
+      if (child.objectClass == HeapObjectClass.numericControl &&
+          bounds != null &&
+          !identical(child, element)) {
+        for (final part in scene.diagram.children(child.oid)) {
+          final partBounds = part.absBounds;
+          if (partBounds == null) continue;
           if (part.objectClass == HeapObjectClass.controlSubPart ||
               part.objectClass == HeapObjectClass.controlChrome)
-            border(pb);
+            border(partBounds);
           if (part.objectClass == HeapObjectClass.controlChrome &&
-              pb.width >= 10 &&
-              pb.height >= 12) {
+              partBounds.width >= 10 &&
+              partBounds.height >= 12) {
             final indexText = '${shell.arrayIndex ?? 0}';
             final run = _layoutText(
               indexText,
@@ -701,20 +704,22 @@ extension _NodePass on BdDiagramPainter {
               canvas,
               run,
               Offset(
-                (pb.left + 2 - origin.dx).toDouble(),
-                bdCentredTextTop(_toCanvas(pb), run.height),
+                (partBounds.left + 2 - origin.dx).toDouble(),
+                bdCentredTextTop(_toCanvas(partBounds), run.height),
               ),
             );
           }
           if (part.objectClass == HeapObjectClass.controlSubPart) {
-            final up = pb.top == b.top;
-            final cx = (pb.left + 3 - origin.dx).toDouble();
-            for (var i = 0; i < 4; i++) {
-              final half = [0, 1, 1, 2][i];
-              final row = up ? pb.top + 2 + i : pb.bottom - 4 - i;
+            final up = partBounds.top == bounds.top;
+            final centreX = (partBounds.left + 3 - origin.dx).toDouble();
+            for (var step = 0; step < 4; step++) {
+              final half = [0, 1, 1, 2][step];
+              final row = up
+                  ? partBounds.top + 2 + step
+                  : partBounds.bottom - 4 - step;
               canvas.drawRect(
                 Rect.fromLTWH(
-                  cx - half,
+                  centreX - half,
                   (row - origin.dy).toDouble(),
                   2.0 * half + 1,
                   1,
@@ -728,24 +733,24 @@ extension _NodePass on BdDiagramPainter {
     }
     if (element == null) return;
     final cell = element.absBounds!;
-    final cellW = cell.width, cellH = cell.height;
-    if (cellW <= 0 || cellH <= 0) return;
+    final cellWidth = cell.width, cellHeight = cell.height;
+    if (cellWidth <= 0 || cellHeight <= 0) return;
     HeapRect grid = cell;
     var gridArea = 1 << 60;
-    for (final c in children) {
-      final b = c.absBounds;
-      if (c.objectClass != HeapObjectClass.controlChrome ||
-          b == null ||
-          !contains(b, cell))
+    for (final child in children) {
+      final bounds = child.absBounds;
+      if (child.objectClass != HeapObjectClass.controlChrome ||
+          bounds == null ||
+          !contains(bounds, cell))
         continue;
-      final area = b.width * b.height;
+      final area = bounds.width * bounds.height;
       if (area < gridArea) {
-        grid = b;
+        grid = bounds;
         gridArea = area;
       }
     }
-    final cols = math.max(1, grid.width ~/ cellW);
-    final rows = math.max(1, grid.height ~/ cellH);
+    final columns = math.max(1, grid.width ~/ cellWidth);
+    final rows = math.max(1, grid.height ~/ cellHeight);
     final holder = scene.diagram.byId[shell.parentOid ?? -1];
     final values = holder?.objectClass == HeapObjectClass.bdConstDco
         ? holder!.constArray
@@ -766,25 +771,25 @@ extension _NodePass on BdDiagramPainter {
     final windowStart = dims != null && dims.length >= 2
         ? 0
         : (shell.arrayIndex ?? 0);
-    for (var j = 0; j < rows; j++) {
-      for (var i = 0; i < cols; i++) {
+    for (var row = 0; row < rows; row++) {
+      for (var column = 0; column < columns; column++) {
         final index = dims != null && dims.length >= 2
-            ? j * dims.last + i
-            : windowStart + i + j;
+            ? row * dims.last + column
+            : windowStart + column + row;
         final value =
             values != null &&
                 index < values.length &&
-                (dims == null || dims.length < 2 || i < dims.last)
+                (dims == null || dims.length < 2 || column < dims.last)
             ? values[index]
             : null;
         _drawArrayCell(
           canvas,
           shellOid: shell.oid,
           cell: Rect.fromLTWH(
-            (grid.left + i * cellW - origin.dx).toDouble(),
-            (grid.top + j * cellH - origin.dy).toDouble(),
-            cellW.toDouble(),
-            cellH.toDouble(),
+            (grid.left + column * cellWidth - origin.dx).toDouble(),
+            (grid.top + row * cellHeight - origin.dy).toDouble(),
+            cellWidth.toDouble(),
+            cellHeight.toDouble(),
           ),
           tint: tint,
           value: value,
@@ -817,50 +822,21 @@ extension _NodePass on BdDiagramPainter {
       cell.bottom + 1,
     );
     canvas.drawRect(outer, Paint()..color = Colors.white);
-    final ringFill = _solidNoAa(empty ? bdDimDisabled(tint) : tint);
-    canvas.drawRect(
-      Rect.fromLTWH(outer.left, outer.top, outer.width, 3),
-      ringFill,
+    _strokePixelFrame(
+      canvas,
+      outer,
+      _solidNoAa(empty ? bdDimDisabled(tint) : tint),
+      3,
     );
-    canvas.drawRect(
-      Rect.fromLTWH(outer.left, outer.bottom - 3, outer.width, 3),
-      ringFill,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(outer.left, outer.top, 3, outer.height),
-      ringFill,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(outer.right - 3, outer.top, 3, outer.height),
-      ringFill,
-    );
-    if (empty) {
-      final pure = _solidNoAa(tint);
-      canvas.drawRect(
-        Rect.fromLTWH(outer.left, outer.top, outer.width, 1),
-        pure,
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(outer.left, outer.bottom - 1, outer.width, 1),
-        pure,
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(outer.left, outer.top, 1, outer.height),
-        pure,
-      );
-      canvas.drawRect(
-        Rect.fromLTWH(outer.right - 1, outer.top, 1, outer.height),
-        pure,
-      );
-    }
+    if (empty) _strokePixelFrame(canvas, outer, _solidNoAa(tint));
     if (marker != null && (value != null || empty)) {
-      final (gx, gy, glyphRows) = marker;
+      final (glyphDx, glyphDy, glyphRows) = marker;
       _stampBitmap(
         canvas,
         _solidNoAa(empty ? bdDimDisabled(tint) : tint),
         glyphRows,
-        cell.left + radixDx + gx,
-        cell.top + radixDy + gy,
+        cell.left + radixDx + glyphDx,
+        cell.top + radixDy + glyphDy,
       );
     }
     final text = value != null
@@ -891,7 +867,7 @@ extension _NodePass on BdDiagramPainter {
     bool value, {
     bool disabled = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
     _stampBitmap(
       canvas,

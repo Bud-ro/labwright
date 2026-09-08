@@ -1581,6 +1581,30 @@ void _vline(
   double endY,
 ) => canvas.drawRect(Rect.fromLTRB(atX, startY, atX + 1, endY + 1), paint);
 
+void _strokePixelFrame(
+  Canvas canvas,
+  Rect rect,
+  Paint paint, [
+  double thickness = 1,
+]) {
+  canvas.drawRect(
+    Rect.fromLTWH(rect.left, rect.top, rect.width, thickness),
+    paint,
+  );
+  canvas.drawRect(
+    Rect.fromLTWH(rect.left, rect.bottom - thickness, rect.width, thickness),
+    paint,
+  );
+  canvas.drawRect(
+    Rect.fromLTWH(rect.left, rect.top, thickness, rect.height),
+    paint,
+  );
+  canvas.drawRect(
+    Rect.fromLTWH(rect.right - thickness, rect.top, thickness, rect.height),
+    paint,
+  );
+}
+
 void _stampBitmap(
   Canvas canvas,
   Paint paint,

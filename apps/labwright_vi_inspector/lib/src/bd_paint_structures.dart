@@ -251,16 +251,7 @@ extension _StructurePass on BdDiagramPainter {
         );
     if (showsDisabled) {
       final grey = _solidNoAa(_dimFor(structure.oid, const Color(0xFF999999)));
-      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, rect.width, 1), grey);
-      canvas.drawRect(
-        Rect.fromLTWH(rect.left, rect.bottom - 1, rect.width, 1),
-        grey,
-      );
-      canvas.drawRect(Rect.fromLTWH(rect.left, rect.top, 1, rect.height), grey);
-      canvas.drawRect(
-        Rect.fromLTWH(rect.right - 1, rect.top, 1, rect.height),
-        grey,
-      );
+      _strokePixelFrame(canvas, rect, grey);
     } else {
       final black = _solidNoAa(_dimFor(structure.oid, Colors.black));
       final hatchCells = <double>[];
@@ -644,28 +635,12 @@ extension _StructurePass on BdDiagramPainter {
     final left = rect.left.round(), top = rect.top.round();
     final width = rect.width.round(), height = rect.height.round();
     if (width < 2 || height < 2) return;
-    canvas.drawRect(
-      Rect.fromLTWH(left.toDouble(), top.toDouble(), width.toDouble(), 1),
-      paint,
-    );
-    canvas.drawRect(
+    _strokePixelFrame(
+      canvas,
       Rect.fromLTWH(
         left.toDouble(),
-        (top + height - 1).toDouble(),
-        width.toDouble(),
-        1,
-      ),
-      paint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(left.toDouble(), top.toDouble(), 1, height.toDouble()),
-      paint,
-    );
-    canvas.drawRect(
-      Rect.fromLTWH(
-        (left + width - 1).toDouble(),
         top.toDouble(),
-        1,
+        width.toDouble(),
         height.toDouble(),
       ),
       paint,
