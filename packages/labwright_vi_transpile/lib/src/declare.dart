@@ -29,15 +29,15 @@ String _classSource(LvTypeDecl decl) {
       'const ${decl.name}('
       '${names.isEmpty ? '' : '{${[for (final name in names) 'required this.$name'].join(', ')}}'});',
     );
-  for (var index = 0; index < decl.fields.length; index++) {
-    final label = decl.fields[index].label;
+  for (var i = 0; i < decl.fields.length; i++) {
+    final label = decl.fields[i].label;
     out.writeln();
     if (label == null) {
-      out.writeln('/// Member ${index + 1}; the descriptor carries no name for it.');
-    } else if (label != names[index]) {
+      out.writeln('/// Member ${i + 1}; the descriptor carries no name for it.');
+    } else if (label != names[i]) {
       out.writeln('/// ${_doc(label)}');
     }
-    out.writeln('final ${decl.fields[index].type.dartType} ${names[index]};');
+    out.writeln('final ${decl.fields[i].type.dartType} ${names[i]};');
   }
   out.writeln('}');
   return out.toString();
@@ -50,9 +50,9 @@ String _enumSource(LvTypeDecl decl) {
     ..writeln('/// value the wire carries: the descriptor states the item labels in order')
     ..writeln('/// and no value of its own for any of them.')
     ..writeln('enum ${decl.name} {');
-  for (var index = 0; index < names.length; index++) {
-    if (decl.items[index] != names[index]) out.writeln('/// ${_doc(decl.items[index])}');
-    out.writeln('${names[index]}${index == names.length - 1 ? '' : ','}');
+  for (var i = 0; i < names.length; i++) {
+    if (decl.items[i] != names[i]) out.writeln('/// ${_doc(decl.items[i])}');
+    out.writeln('${names[i]}${i == names.length - 1 ? '' : ','}');
   }
   out.writeln('}');
   return out.toString();

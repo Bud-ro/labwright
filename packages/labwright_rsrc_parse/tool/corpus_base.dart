@@ -7,7 +7,7 @@ import 'package:crypto/crypto.dart';
 Directory corpusBaseDir() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
   var dir = Directory.current;
-  for (var depth = 0; depth < 8; depth++) {
+  for (var i = 0; i < 8; i++) {
     for (final rel in const [pkgRel, 'corpus']) {
       if (File('${dir.path}/$rel/sources.json').existsSync()) {
         return Directory('${dir.path}/$rel');
@@ -30,17 +30,14 @@ List<File> listCorpusVis(Directory root) {
     ..sort((left, right) => left.path.compareTo(right.path));
 }
 
-File? findCatalog(String fileName) {
+File findCatalog(String fileName) {
   var dir = File.fromUri(Platform.script).parent;
-  for (var depth = 0; depth < 8; depth++) {
+  for (var i = 0; i < 8; i++) {
     final candidate = File('${dir.path}/corpus/$fileName');
     if (candidate.existsSync()) return candidate;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
+    dir = dir.parent;
   }
-  final cwd = File('corpus/$fileName');
-  return cwd.existsSync() ? cwd : null;
+  return File('corpus/$fileName');
 }
 
 int countFiles(Directory root, String extension) => root
@@ -96,8 +93,8 @@ Future<bool> ghTarball(String repo, String commit, String tarPath) async {
   final Process proc;
   try {
     proc = await Process.start('gh', ['api', 'repos/$repo/tarball/$commit']);
-  } on ProcessException catch (error) {
-    stderr.writeln('  gh not runnable: ${error.message} (is the GitHub CLI installed + authenticated?)');
+  } on ProcessException catch (e) {
+    stderr.writeln('  gh not runnable: ${e.message} (is the GitHub CLI installed + authenticated?)');
     return false;
   }
   final sink = File(tarPath).openWrite();
@@ -116,8 +113,8 @@ Future<int> extractSelected(String tarPath, String destPath, List<String> keepEx
   final Archive archive;
   try {
     archive = TarDecoder().decodeBytes(const GZipDecoder().decodeBytes(File(tarPath).readAsBytesSync()));
-  } catch (error) {
-    stderr.writeln('  tarball decode failed: $error');
+  } catch (e) {
+    stderr.writeln('  tarball decode failed: $e');
     return -1;
   }
   var count = 0;
@@ -152,8 +149,8 @@ Future<bool> fetchRawFile(String repo, String commit, String path, String sha256
     to.parent.createSync(recursive: true);
     to.writeAsBytesSync(bytes);
     return true;
-  } catch (error) {
-    stderr.writeln('  download failed: $error');
+  } catch (e) {
+    stderr.writeln('  download failed: $e');
     return false;
   } finally {
     client.close();

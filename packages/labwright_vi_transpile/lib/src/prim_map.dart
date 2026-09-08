@@ -610,10 +610,10 @@ LvTypeDecl? _clusterDecl(LvWireType type) {
 int? _soleFieldIndex(LvTypeDecl declaration, String? label) {
   if (label == null) return null;
   int? found;
-  for (var index = 0; index < declaration.fields.length; index++) {
-    if (declaration.fields[index].label != label) continue;
+  for (var i = 0; i < declaration.fields.length; i++) {
+    if (declaration.fields[i].label != label) continue;
     if (found != null) return null;
-    found = index;
+    found = i;
   }
   return found;
 }
@@ -632,14 +632,14 @@ List<String>? _unbundle(LvPrimCall call) {
   if (ordered == null || ordered.length != declaration.fields.length) return null;
   final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
   final statements = <String>[];
-  for (var index = 0; index < ordered.length; index++) {
-    final result = LvPrimCall._terminalAt(call.outputs, ordered[index]);
+  for (var i = 0; i < ordered.length; i++) {
+    final result = LvPrimCall._terminalAt(call.outputs, ordered[i]);
     if (result == null) continue;
-    if (!_memberMatches(declaration, index, result.type)) return null;
-    if (result.memberName != null && result.memberName != declaration.fields[index].label) return null;
+    if (!_memberMatches(declaration, i, result.type)) return null;
+    if (result.memberName != null && result.memberName != declaration.fields[i].label) return null;
     statements.add(
-      'final ${declaration.fields[index].type.dartType} ${result.expression} = '
-      '${source.expression}.${names[index]};',
+      'final ${declaration.fields[i].type.dartType} ${result.expression} = '
+      '${source.expression}.${names[i]};',
     );
   }
   return statements;
@@ -699,8 +699,8 @@ List<String>? _bundleByName(LvPrimCall call) {
   }
   final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
   final arguments = [
-    for (var index = 0; index < declaration.fields.length; index++)
-      '${names[index]}: ${written[index]?.expression ?? '$carrier.${names[index]}'}',
+    for (var i = 0; i < declaration.fields.length; i++)
+      '${names[i]}: ${written[i]?.expression ?? '$carrier.${names[i]}'}',
   ];
   return statements..add('final ${declaration.name} $name = ${declaration.name}(${arguments.join(', ')});');
 }

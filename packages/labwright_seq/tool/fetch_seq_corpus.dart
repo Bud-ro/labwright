@@ -7,11 +7,6 @@ import '../../labwright_rsrc_parse/tool/corpus_base.dart';
 ///   dart run tool/fetch_seq_corpus.dart [destRoot]
 Future<void> main(List<String> args) async {
   final catalog = findCatalog('seq-sources.json');
-  if (catalog == null) {
-    stderr.writeln('error: could not locate corpus/seq-sources.json (run from within the repo)');
-    exitCode = 1;
-    return;
-  }
   final dest = args.firstOrNull ?? '${catalog.parent.path}/seq';
   final entries = jsonDecode(catalog.readAsStringSync()) as Map<String, dynamic>;
   final sources = (entries['sources'] as List).cast<Map<String, dynamic>>();

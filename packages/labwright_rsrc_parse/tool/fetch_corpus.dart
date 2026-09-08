@@ -7,11 +7,6 @@ import 'corpus_base.dart';
 ///   dart run tool/fetch_corpus.dart [destRoot]
 Future<void> main(List<String> args) async {
   final catalog = findCatalog('sources.json');
-  if (catalog == null) {
-    stderr.writeln('error: could not locate corpus/sources.json (run from within the repo)');
-    exitCode = 1;
-    return;
-  }
   final dest = args.firstOrNull ?? '${catalog.parent.path}/vi';
   final sources = (jsonDecode(catalog.readAsStringSync())['sources'] as List).cast<Map<String, dynamic>>();
   Directory(dest).createSync(recursive: true);

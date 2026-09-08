@@ -362,7 +362,7 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
   if (label != null && lvClassName(label).isNotEmpty) {
     final className = lvClassName(label);
     final fields = [
-      for (var index = 0; index < members.length; index++) LvDeclField(label: members[index].name, type: mapped[index]),
+      for (var i = 0; i < members.length; i++) LvDeclField(label: members[i].name, type: mapped[i]),
     ];
     final signature =
         'C:$className|${[for (final field in fields) '${field.label ?? ''}:${field.type.dartType}'].join(',')}';
@@ -400,7 +400,7 @@ String lvRecordType(List<ViType> members, List<LvTypeMapping> mapped) {
   final names = [for (final member in members) lvFieldName(member.name ?? '')];
   final named = names.every((name) => name.isNotEmpty) && names.toSet().length == names.length;
   if (!named) return '(${[for (final field in mapped) field.dartType!].join(', ')})';
-  return '({${[for (var index = 0; index < mapped.length; index++) '${mapped[index].dartType} ${names[index]}'].join(', ')}})';
+  return '({${[for (var i = 0; i < mapped.length; i++) '${mapped[i].dartType} ${names[i]}'].join(', ')}})';
 }
 
 LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
@@ -431,9 +431,9 @@ bool isLvErrorCluster(ViType type, List<ViType> pool) {
     [TypeCode.string],
   ];
   const names = ['status', 'code', 'source'];
-  for (var index = 0; index < 3; index++) {
-    if (!shape[index].contains(members[index].code)) return false;
-    if (members[index].name?.toLowerCase() != names[index]) return false;
+  for (var i = 0; i < 3; i++) {
+    if (!shape[i].contains(members[i].code)) return false;
+    if (members[i].name?.toLowerCase() != names[i]) return false;
   }
   return true;
 }

@@ -119,8 +119,8 @@ class _Library {
   void emit(LvViUnit unit, {required String entryName}) {
     final entry = declare(unit, name: entryName);
     // Callees declared while a body runs append to `functions`; index over it.
-    for (var index = 0; index < functions.length; index++) {
-      final callable = functions[index];
+    for (var i = 0; i < functions.length; i++) {
+      final callable = functions[i];
       callable.source ??= _FunctionEmitter(this, callable).run();
     }
     assert(entry.source != null);
@@ -250,9 +250,9 @@ class _Library {
         ..writeln(constant)
         ..writeln();
     }
-    for (var index = 0; index < functions.length; index++) {
-      if (index > 0) file.writeln();
-      file.write(functions[index].source);
+    for (var i = 0; i < functions.length; i++) {
+      if (i > 0) file.writeln();
+      file.write(functions[i].source);
     }
     return DartFormatter(
       languageVersion: DartFormatter.latestLanguageVersion,
