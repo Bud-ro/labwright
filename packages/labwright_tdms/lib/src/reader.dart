@@ -16,8 +16,7 @@ abstract final class TdmsReader {
 
     while (cursor.remaining >= leadInByteLength) {
       cursor.endian = Endian.little;
-      final tag = cursor.bytes(4);
-      if (!_bytesEqual(tag, leadInTag)) break;
+      if (cursor.u32() != leadInTagTdsm) break;
       final tocMask = cursor.u32();
       cursor.endian = TocFlag.bigEndian.isSetIn(tocMask) ? Endian.big : Endian.little;
       cursor.u32(); // format version
@@ -134,7 +133,6 @@ abstract final class TdmsReader {
 }
 
 class _ObjectState {
-  _ObjectState();
   int dataTypeCode = 0;
   int valueCount = 0;
 
@@ -182,13 +180,6 @@ class _ByteCursor {
   void skip(int count) {
     _need(count);
     position += count;
-  }
-
-  Uint8List bytes(int count) {
-    _need(count);
-    final slice = _bytes.sublist(position, position + count);
-    position += count;
-    return slice;
   }
 
   int i8() {
@@ -276,7 +267,6 @@ class _ByteCursor {
   }
 }
 
-int _elementWidth(int dataTypeCode) => TdsType.fromCode(dataTypeCode)?.width ?? -1;
 double _readSample(_ByteCursor cursor, int dataTypeCode) {
   switch (TdsType.fromCode(dataTypeCode)) {
     case TdsType.i8:
@@ -371,8 +361,8 @@ void _readContiguousSamples(_ByteCursor cursor, _ObjectState object) {
     return;
   }
 
-  final width = _elementWidth(dataTypeCode);
-  if (width <= 0) throw TdmsFormatException('unsupported channel data type $dataTypeCode');
+  final width = TdsType.fromCode(dataTypeCode)?.width;
+  if (width == null || width <= 0) throw TdmsFormatException('unsupported channel data type $dataTypeCode');
   if (valueCount > cursor.remaining ~/ width) {
     throw TdmsFormatException('raw-data count $valueCount exceeds remaining ${cursor.remaining} bytes');
   }
@@ -388,8 +378,8 @@ void _readInterleavedSamples(_ByteCursor cursor, List<_ObjectState> objects) {
     if (object.dataTypeCode == TdsType.string.code) {
       throw TdmsFormatException('interleaved string data is not supported');
     }
-    final width = _elementWidth(object.dataTypeCode);
-    if (width <= 0) {
+    final width = TdsType.fromCode(object.dataTypeCode)?.width;
+    if (width == null || width <= 0) {
       throw TdmsFormatException('unsupported channel data type ${object.dataTypeCode}');
     }
     bytesPerSample += width;
@@ -471,12 +461,12 @@ void _readDaqmxSamples(_ByteCursor cursor, List<_ObjectState> objects, int rawDa
     final scale = _daqmxLinearScale(object);
     for (var sample = 0; sample < sampleCount; sample++) {
       final rawValue = cursor.intAt(rawDataStart + sample * strideBytes + object.daqmxByteOffset, width);
-      object.samples.add(scale.apply ? rawValue * scale.slope + scale.intercept : rawValue.toDouble());
+      object.samples.add(scale == null ? rawValue.toDouble() : rawValue * scale.slope + scale.intercept);
     }
   }
 }
 
-({double slope, double intercept, bool apply}) _daqmxLinearScale(_ObjectState object) {
+({double slope, double intercept})? _daqmxLinearScale(_ObjectState object) {
   final slopeKeyPattern = RegExp(r'^NI_Scale\[(\d+)\]_Linear_Slope$');
   double? slope;
   var intercept = 0.0;
@@ -492,19 +482,11 @@ void _readDaqmxSamples(_ByteCursor cursor, List<_ObjectState> objects, int rawDa
     final interceptValue = object.properties['NI_Scale[$scaleIndex]_Linear_Y_Intercept'];
     intercept = interceptValue is num ? interceptValue.toDouble() : 0.0;
   }
-  final apply = slope != null && object.properties['NI_Scaling_Status'] == 'unscaled';
-  return (slope: slope ?? 1.0, intercept: intercept, apply: apply);
+  if (slope == null || object.properties['NI_Scaling_Status'] != 'unscaled') return null;
+  return (slope: slope, intercept: intercept);
 }
 
 final RegExp _quotedSegmentPattern = RegExp("'((?:[^']|'')*)'");
 List<String> _parseObjectPath(String path) => [
   for (final match in _quotedSegmentPattern.allMatches(path)) match.group(1)!.replaceAll("''", "'"),
 ];
-
-bool _bytesEqual(List<int> a, List<int> b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
-}
