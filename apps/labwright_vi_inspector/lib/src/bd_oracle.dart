@@ -306,7 +306,6 @@ Future<BdRaster?> rasteriseBlockDiagram(
     primIcons: primIcons,
     xnodeFacades: xnodeFacades,
     primIconsGrey: primIconsGreyLoaded(),
-    drawDotGrid: false,
     style: style,
   ).paint(canvas, content.size);
   final picture = recorder.endRecording();
