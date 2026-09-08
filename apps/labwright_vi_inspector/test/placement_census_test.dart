@@ -165,7 +165,7 @@ void main() {
               'non-unanimous placements (fix the assets or the model):\n'
               '${conflicts.join('\n')}',
         );
-        final appDir = repoDir('apps/labwright_vi_inspector')!.path;
+        final appDir = repoDir('apps/labwright_vi_inspector').path;
         final catalogFile = File('$appDir/lib/src/prim_icon_catalog.dart');
         final existing = catalogFile.readAsStringSync();
         const beginMark = '// GENERATED-PLACEMENT-BEGIN\n';

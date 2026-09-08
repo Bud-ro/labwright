@@ -21,15 +21,15 @@ class ViInspectorScreen extends StatefulWidget {
   const ViInspectorScreen({
     super.key,
     this.initial,
-    this.initialSource,
+    this.initialSource = '',
     this.initialVersion,
-    this.initialStrings,
-    this.initialComponents,
+    this.initialStrings = const [],
+    this.initialComponents = const [],
     this.initialModel,
-    this.initialLibraryNames,
-    this.initialEmbeddedVis,
+    this.initialLibraryNames = const [],
+    this.initialEmbeddedVis = const [],
     this.initialAttribution,
-    this.initialImages,
+    this.initialImages = const ViImages(),
     this.fetchBytes = fetchViBytes,
   });
 
@@ -37,23 +37,23 @@ class ViInspectorScreen extends StatefulWidget {
 
   final ViSummary? initial;
 
-  final String? initialSource;
+  final String initialSource;
 
   final ViVersionInfo? initialVersion;
 
-  final List<String>? initialStrings;
+  final List<String> initialStrings;
 
-  final List<BlockComponent>? initialComponents;
+  final List<BlockComponent> initialComponents;
 
   final ViModel? initialModel;
 
-  final List<String>? initialLibraryNames;
+  final List<String> initialLibraryNames;
 
-  final List<ViEmbeddedVi>? initialEmbeddedVis;
+  final List<ViEmbeddedVi> initialEmbeddedVis;
 
   final WriterAttribution? initialAttribution;
 
-  final ViImages? initialImages;
+  final ViImages initialImages;
 
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
@@ -86,15 +86,15 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   void initState() {
     super.initState();
     _summary = widget.initial;
-    _source = widget.initialSource ?? '';
+    _source = widget.initialSource;
     _version = widget.initialVersion;
-    _strings = widget.initialStrings ?? const [];
-    _components = widget.initialComponents ?? const [];
+    _strings = widget.initialStrings;
+    _components = widget.initialComponents;
     _model = widget.initialModel;
-    _libraryNames = widget.initialLibraryNames ?? const [];
-    _embeddedVis = widget.initialEmbeddedVis ?? const [];
+    _libraryNames = widget.initialLibraryNames;
+    _embeddedVis = widget.initialEmbeddedVis;
     _attribution = widget.initialAttribution;
-    _images = widget.initialImages ?? const ViImages();
+    _images = widget.initialImages;
   }
 
   void _loadBytes(
@@ -252,15 +252,19 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       type: FileType.custom,
       allowedExtensions: const ['vi', 'ctl', 'llb', 'png'],
     );
-    if (!mounted) return;
-    final files = result?.files ?? const [];
-    if (files.isNotEmpty && files.first.path != null)
-      _loadPath(files.first.path!);
+    if (!mounted || result == null || result.files.isEmpty) return;
+    final path = result.files.first.path;
+    if (path != null) _loadPath(path);
   }
 
   @override
   Widget build(BuildContext context) {
     final icon = bestLegacyIcon(_images);
+    final summary = _summary;
+    final error = _error;
+    final model = _model;
+    final name = summary?.name;
+    final snippetPng = _snippetPng;
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),
@@ -289,9 +293,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                           ),
                         ),
                 ),
-                if (_summary?.name != null)
+                if (name != null)
                   Text(
-                    _summary!.name!,
+                    name,
                     style: const TextStyle(
                       fontSize: 16,
                       fontWeight: FontWeight.bold,
@@ -406,12 +410,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                     borderRadius: BorderRadius.circular(8),
                   ),
                   padding: const EdgeInsets.all(8),
-                  child: _error != null
-                      ? _ErrorCard(_error!)
-                      : _summary == null
+                  child: error != null
+                      ? _ErrorCard(error)
+                      : summary == null
                       ? _Empty(dragging: _dragging)
                       : DefaultTabController(
-                          length: _snippetPng == null ? 6 : 7,
+                          length: snippetPng == null ? 6 : 7,
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.stretch,
                             children: [
@@ -424,7 +428,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                   const Tab(text: 'Types'),
                                   const Tab(text: 'Images'),
                                   const Tab(text: 'Coverage'),
-                                  if (_snippetPng != null)
+                                  if (snippetPng != null)
                                     const Tab(text: 'Oracle'),
                                 ],
                               ),
@@ -433,7 +437,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                 child: TabBarView(
                                   children: [
                                     _SummaryView(
-                                      summary: _summary!,
+                                      summary: summary,
                                       source: _source,
                                       version: _version,
                                       strings: _strings,
@@ -452,26 +456,26 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       },
                                     ),
                                     ViDiagramView(
-                                      key: ValueKey('fp:$_model'),
-                                      diagrams: _model?.frontPanelDiagrams,
+                                      key: ValueKey('fp:$model'),
+                                      diagrams: model?.frontPanelDiagrams,
                                       emptyHint:
                                           'No front-panel objects recovered in this file.',
                                       isFrontPanel: true,
                                     ),
                                     Column(
                                       children: [
-                                        if (_model != null) ...[
-                                          _RecoverySummary(_model!),
+                                        if (model != null) ...[
+                                          _RecoverySummary(model),
                                           const Divider(height: 1),
                                         ],
                                         Expanded(
                                           child: ViDiagramView(
-                                            key: ValueKey('bd:$_model'),
-                                            diagrams: _model?.blockDiagrams,
+                                            key: ValueKey('bd:$model'),
+                                            diagrams: model?.blockDiagrams,
                                             emptyHint:
                                                 'No block-diagram objects recovered in this file.',
                                             subViNames:
-                                                _model?.subViNames ?? const [],
+                                                model?.subViNames ?? const [],
                                             viImages: _images,
                                             subViIconResolver:
                                                 _subViIconResolver,
@@ -481,8 +485,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       ],
                                     ),
                                     ViTypesView(
-                                      key: ValueKey('types:$_model'),
-                                      model: _model,
+                                      key: ValueKey('types:$model'),
+                                      model: model,
                                       vctpBytes: _vctpBytes(),
                                     ),
                                     ViImagesView(
@@ -495,13 +499,13 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       ),
                                       attribution: _attribution,
                                     ),
-                                    if (_snippetPng != null)
+                                    if (snippetPng != null)
                                       BdOracleView(
-                                        key: ValueKey('oracle:$_model'),
-                                        diagram: _model == null
+                                        key: ValueKey('oracle:$model'),
+                                        diagram: model == null
                                             ? null
-                                            : bestBlockDiagram(_model!),
-                                        referenceBytes: _snippetPng,
+                                            : bestBlockDiagram(model),
+                                        referenceBytes: snippetPng,
                                       ),
                                   ],
                                 ),
@@ -574,7 +578,7 @@ class _SummaryView extends StatefulWidget {
     this.model,
     this.libraryNames = const [],
     this.embeddedVis = const [],
-    this.onOpenEmbedded,
+    required this.onOpenEmbedded,
   });
   final ViSummary summary;
   final String source;
@@ -589,7 +593,7 @@ class _SummaryView extends StatefulWidget {
 
   final List<ViEmbeddedVi> embeddedVis;
 
-  final void Function(ViEmbeddedVi)? onOpenEmbedded;
+  final void Function(ViEmbeddedVi) onOpenEmbedded;
 
   @override
   State<_SummaryView> createState() => _SummaryViewState();
@@ -615,6 +619,7 @@ class _SummaryViewState extends State<_SummaryView> {
   Widget build(BuildContext context) {
     final summary = widget.summary;
     final version = widget.version;
+    final model = widget.model;
     final hasDecoded =
         version != null && (version.version != null || version.title != null);
     final needle = _filter.trim().toLowerCase();
@@ -648,33 +653,32 @@ class _SummaryViewState extends State<_SummaryView> {
           const SizedBox(height: 16),
         ],
 
-        if (widget.model?.subViNames.isNotEmpty ?? false) ...[
+        if (model != null && model.subViNames.isNotEmpty) ...[
           Text(
-            'SubVIs called (${widget.model!.subViNames.length})',
+            'SubVIs called (${model.subViNames.length})',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
           Text(
-            widget.model!.subViNames.take(40).join(', ') +
-                (widget.model!.subViNames.length > 40
-                    ? ', … (+${widget.model!.subViNames.length - 40} more)'
+            model.subViNames.take(40).join(', ') +
+                (model.subViNames.length > 40
+                    ? ', … (+${model.subViNames.length - 40} more)'
                     : ''),
             style: const TextStyle(fontSize: 12),
           ),
           const SizedBox(height: 16),
         ],
 
-        if (widget.model != null && widget.model!.types.isNotEmpty) ...[
+        if (model != null && model.types.isNotEmpty) ...[
           Builder(
             builder: (context) {
-              final viModel = widget.model!;
-              final hist = typeKindHistogram(viModel.types);
-              final named = namedTypes(viModel.types).length;
+              final hist = typeKindHistogram(model.types);
+              final named = namedTypes(model.types).length;
               return Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
-                    'Data types (${viModel.types.length}${named > 0 ? ', $named named' : ''})',
+                    'Data types (${model.types.length}${named > 0 ? ', $named named' : ''})',
                     style: const TextStyle(fontWeight: FontWeight.bold),
                   ),
                   const SizedBox(height: 4),
@@ -716,13 +720,12 @@ class _SummaryViewState extends State<_SummaryView> {
           for (final vi in widget.embeddedVis.take(60))
             Builder(
               builder: (context) {
-                final clean =
-                    vi.name != null && vi.name!.toLowerCase().endsWith('.vi');
-                final label = clean ? vi.name! : '(name not recovered)';
-                final openable =
-                    vi.bytes != null && widget.onOpenEmbedded != null;
+                final name = vi.name ?? '';
+                final clean = name.toLowerCase().endsWith('.vi');
+                final label = clean ? name : '(name not recovered)';
+                final openable = vi.bytes != null;
                 return InkWell(
-                  onTap: openable ? () => widget.onOpenEmbedded!(vi) : null,
+                  onTap: openable ? () => widget.onOpenEmbedded(vi) : null,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
@@ -1037,7 +1040,9 @@ class _HexDialogState extends State<_HexDialog> {
                 DropdownButton<int>(
                   value: _idx,
                   isDense: true,
-                  onChanged: (value) => setState(() => _idx = value ?? 0),
+                  onChanged: (value) {
+                    if (value != null) setState(() => _idx = value);
+                  },
                   items: [
                     for (var i = 0; i < widget.sections.length; i++)
                       DropdownMenuItem(

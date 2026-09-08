@@ -848,7 +848,7 @@ void main() {
   testWidgets('branch-wire routeTree runs + junction dots land on ref ink', (
     tester,
   ) async {
-    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi')!;
+    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi');
     await loadRealTextFont();
     var branchWires = 0, junctionDots = 0, runPixels = 0, exposedWires = 0;
     await tester.runAsync(() async {

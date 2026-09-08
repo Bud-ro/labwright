@@ -49,7 +49,7 @@ List<String> _diverseSample(Directory corpus) {
 }
 
 void main() {
-  final corpus = repoDir('packages/labwright_rsrc_parse/corpus/vi')!;
+  final corpus = repoDir('packages/labwright_rsrc_parse/corpus/vi');
   final outDir = Directory('build/render_snapshots')
     ..createSync(recursive: true);
 
