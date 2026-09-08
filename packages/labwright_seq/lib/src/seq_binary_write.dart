@@ -74,6 +74,8 @@ class _DecodeSink {
   void f64(int at, double value) {}
 
   void i64(int at, int value) {}
+
+  void blob(int start, int end) {}
 }
 
 class _RecordingDecodeSink extends _DecodeSink {
@@ -125,6 +127,11 @@ class _RecordingDecodeSink extends _DecodeSink {
 
   @override
   void i64(int at, int value) => ops.add(_WriteOp(at, _WirePrimitive.i64, _OpSource.model, value));
+
+  final blobSpans = <(int, int)>[];
+
+  @override
+  void blob(int start, int end) => blobSpans.add((start, end));
 }
 
 class BinarySeqWriteModel {

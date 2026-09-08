@@ -749,28 +749,6 @@ const _unvaluedScalarClasses = {
 
 const _boundedArrayClasses = {SeqValueClass.numbers, SeqValueClass.strings, SeqValueClass.objects};
 
-List<BinaryTypeField>? _typeFieldsAt(
-  Uint8List body,
-  ByteData view,
-  List<String> pool,
-  int after,
-  int recordRegionLength,
-  List<BinaryTypeRecord> table, [
-  int? endBoundary,
-  int? typeIndexBase,
-]) => _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary, typeIndexBase).parse(after);
-
-List<(String, int, int)> binaryElementSpecSites(Uint8List seqBytes) {
-  _TypeBodyParser.debugSpecSites.clear();
-  _TypeBodyParser.debugCollectSpecs = true;
-  try {
-    binaryTypeRecords(seqBytes);
-  } finally {
-    _TypeBodyParser.debugCollectSpecs = false;
-  }
-  return List.of(_TypeBodyParser.debugSpecSites);
-}
-
 /// TODO: the 17-byte inter-record preamble is not decoded.
 const _typeRecordPreambleBytes = 17;
 
@@ -1289,7 +1267,7 @@ class _TypeBodyParser {
       if (count <= _typeMaxExtBlocks) {
         final end = _extBlocksFrom(p + _u32Bytes, count);
         if (end != null && end + _u32Bytes <= recordRegionLength && _u32(end) == 0) {
-          if (debugCollectSpecs) debugExtSpans.add((p, end));
+          ops.blob(p, end);
           for (var q = from; q < p; q += _u32Bytes) {
             ops.u32(q, _u32(q), _OpSource.struct);
           }
@@ -1317,14 +1295,9 @@ class _TypeBodyParser {
     return p + 5 * _u32Bytes;
   }
 
-  static int? debugLastFieldOffset;
+  int? lastFieldOffset;
 
-  static int? debugLastEndOffset;
-
-  static bool debugCollectSpecs = false;
-  static final List<(String, int, int)> debugSpecSites = [];
-
-  static final List<(int, int)> debugExtSpans = [];
+  int? lastEndOffset;
 
   List<(BinaryTypeField, int)> parseLeadingSubProps(int at, int max, Set<String> groupNames) {
     _usedSpec = false;
@@ -1347,51 +1320,44 @@ class _TypeBodyParser {
     return fields;
   }
 
-  BinaryTypeField? parseFieldAt(int at) {
+  (BinaryTypeField, int)? parseFieldAt(int at) {
     _usedSpec = false;
     _depth = 0;
     final parsed = _field(at);
-    if (parsed == null) return null;
-    debugLastEndOffset = parsed.$2;
-    return parsed.$1;
+    if (parsed != null) lastEndOffset = parsed.$2;
+    return parsed;
   }
 
-  int? lastStepTsEnd;
-
-  List<BinaryTypeField> parseStepTs(int at) {
-    lastStepTsEnd = null;
-    if (at + 5 * _u32Bytes > recordRegionLength) return const [];
+  ({List<BinaryTypeField> fields, int? end}) parseStepTs(int at) {
+    const none = (fields: <BinaryTypeField>[], end: null);
+    if (at + 5 * _u32Bytes > recordRegionLength) return none;
     if (_u32(at) != 0 || _u32(at + _u32Bytes) != 0 || _u32(at + 2 * _u32Bytes) != _recordDelimiter) {
-      return const [];
+      return none;
     }
-    if (_tok(_u32(at + 3 * _u32Bytes)) != 'TS') return const [];
-    final mFull = ops.mark();
-    final full = parseFieldAt(at);
-    if (full != null && full.name == 'TS' && full.children.isNotEmpty) {
-      lastStepTsEnd = debugLastEndOffset;
-      return full.children;
+    if (_tok(_u32(at + 3 * _u32Bytes)) != 'TS') return none;
+    final fullMark = ops.mark();
+    if (parseFieldAt(at) case (final full, final end) when full.name == 'TS' && full.children.isNotEmpty) {
+      return (fields: full.children, end: end);
     }
-    ops.rollback(mFull);
-    final mId = ops.mark();
-    final idField = parseFieldAt(at + 5 * _u32Bytes);
-    if (idField != null &&
-        idField.valueClass == SeqValueClass.string &&
-        idField.name == 'Id' &&
-        (idField.value?.startsWith('ID#:') ?? false)) {
+    ops.rollback(fullMark);
+    final idMark = ops.mark();
+    if (parseFieldAt(at + 5 * _u32Bytes) case (final idField, final end)
+        when idField.valueClass == SeqValueClass.string &&
+            idField.name == 'Id' &&
+            (idField.value?.startsWith('ID#:') ?? false)) {
       ops.u32(at, 0, _OpSource.grammar);
       ops.u32(at + _u32Bytes, 0, _OpSource.grammar);
       ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
       ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
       ops.u32(at + 4 * _u32Bytes, _u32(at + 4 * _u32Bytes), _OpSource.model);
-      lastStepTsEnd = debugLastEndOffset;
-      return [idField];
+      return (fields: [idField], end: end);
     }
-    ops.rollback(mId);
-    return const [];
+    ops.rollback(idMark);
+    return none;
   }
 
   List<BinaryTypeField>? parse(int after) {
-    debugLastFieldOffset = null;
+    lastFieldOffset = null;
     _usedSpec = false;
     if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
       return null;
@@ -1416,9 +1382,7 @@ class _TypeBodyParser {
           ops.u32(extEnd, subCount, _OpSource.model);
           parsed = _fields(extEnd + _u32Bytes, subCount);
           if (parsed == null) ops.rollback(rollbackMark);
-          if (parsed != null && debugCollectSpecs) {
-            debugExtSpans.add((after + _u32Bytes, extEnd));
-          }
+          if (parsed != null) ops.blob(after + _u32Bytes, extEnd);
         }
       }
     }
@@ -1431,7 +1395,7 @@ class _TypeBodyParser {
     }
     final boundary = bodyEndBoundary;
     if (_usedSpec && boundary != null && parsed.$2 > boundary) return _blockBail(rollbackMark);
-    debugLastEndOffset = parsed.$2;
+    lastEndOffset = parsed.$2;
     return parsed.$1;
   }
 
@@ -1466,19 +1430,11 @@ class _TypeBodyParser {
     }
   }
 
-  static const _debugTrace = bool.fromEnvironment('labwright.seq.trace');
-
   (List<BinaryTypeField>, int)? _fieldsInner(int from, int count) {
     var at = from;
     final fields = <BinaryTypeField>[];
     for (var i = 0; i < count; i++) {
       final field = _field(at);
-      if (_debugTrace) {
-        // ignore: avoid_print
-        print(
-          '${'  ' * _depth}$at ${field == null ? 'FAIL' : '${field.$1.className}:${field.$1.name} -> ${field.$2}'}',
-        );
-      }
       if (field == null) return null;
       at = field.$2;
       var specBytes = 0;
@@ -1500,9 +1456,7 @@ class _TypeBodyParser {
         }
       }
       if (specBytes > 0) {
-        if (debugCollectSpecs) {
-          debugSpecSites.add((field.$1.name, field.$2, specBytes));
-        }
+        ops.blob(field.$2, field.$2 + specBytes);
         fields.add(field.$1.withElementSpecBytes(specBytes));
       } else {
         fields.add(field.$1);
@@ -1512,7 +1466,7 @@ class _TypeBodyParser {
   }
 
   (BinaryTypeField, int)? _field(int at) {
-    debugLastFieldOffset = at;
+    lastFieldOffset = at;
     return _trial(() => _fieldParse(at));
   }
 
@@ -1995,7 +1949,7 @@ class _TypeBodyParser {
         if (ubound == '[]') {
           final proto = _elemProtoTail(after);
           if (proto != null) {
-            if (debugCollectSpecs) debugSpecSites.add((name, after, proto.$2 - after));
+            ops.blob(after, proto.$2);
             ops.copy(after, proto.$2);
             return (
               BinaryTypeField(
@@ -2387,7 +2341,7 @@ List<BinaryTypeRecord> _typeRecordsFromBody(
     final bodyAt = bodyOffsets[i];
     if (bodyAt == null) continue;
     final boundary = i + 1 < headAts.length ? headAts[i + 1] - _u32Bytes - _typeRecordPreambleBytes : null;
-    final fields = _typeFieldsAt(body, view, pool, bodyAt, recordRegionLength, result, boundary, typeIndexBase);
+    final fields = _TypeBodyParser(view, pool, recordRegionLength, result, boundary, typeIndexBase).parse(bodyAt);
     result[i] = BinaryTypeRecord(
       name: records[i].name,
       className: records[i].className,
@@ -2434,8 +2388,8 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})> binaryTypeBod
       name: record.name,
       headAt: headOffsets[record.name] ?? -1,
       bodyAt: bodyAt,
-      end: ok ? _TypeBodyParser.debugLastEndOffset : null,
-      bail: ok ? null : _TypeBodyParser.debugLastFieldOffset ?? -1,
+      end: ok ? parser.lastEndOffset : null,
+      bail: ok ? null : parser.lastFieldOffset ?? -1,
     ));
   }
   return extents;
@@ -2543,8 +2497,9 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
     while (subProps.length < count) {
       final i = subProps.length;
       final mField = sink.mark();
-      final field = parser.parseFieldAt(cur);
-      if (field == null) break;
+      final parsed = parser.parseFieldAt(cur);
+      if (parsed == null) break;
+      final (field, fieldEnd) = parsed;
       var gated = false;
       if (i < _sequenceSubPropHead.length) {
         gated = field.name != _sequenceSubPropHead[i];
@@ -2561,7 +2516,7 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
         sink.rollback(mField);
         break;
       }
-      cur = _TypeBodyParser.debugLastEndOffset!;
+      cur = fieldEnd;
       subProps.add((field, cur));
       if (_stepGroupNames.contains(field.name) &&
           ((!field.isEmptyArray && field.children.isEmpty) || field.partialArray)) {
@@ -2782,7 +2737,7 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   for (var i = 0; i < found.length; i++) {
     final (at, name, typeIndex) = found[i];
     final spanEnd = i + 1 < found.length ? found[i + 1].$1 : recordRegionLength;
-    final tsSubProps = _stepTsSubProps(tsParser, at + 4 * _u32Bytes);
+    final (fields: tsSubProps, end: tsEnd) = tsParser.parseStepTs(at + 4 * _u32Bytes);
     sink.claim(at, at + 4 * _u32Bytes, _tierSemantic);
     sink.poolRef(at, wordAt(at));
     final typeWord = wordAt(at + _u32Bytes);
@@ -2793,17 +2748,17 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     }
     sink.poolRef(at + 2 * _u32Bytes, wordAt(at + 2 * _u32Bytes));
     sink.poolRef(at + 3 * _u32Bytes, wordAt(at + 3 * _u32Bytes));
-    if (tsSubProps.isNotEmpty && tsParser.lastStepTsEnd != null) {
-      sink.claim(at + 4 * _u32Bytes, tsParser.lastStepTsEnd!, _tierSemantic);
+    if (tsSubProps.isNotEmpty && tsEnd != null) {
+      sink.claim(at + 4 * _u32Bytes, tsEnd, _tierSemantic);
     }
     final dataSubProps = <BinaryTypeField>[];
-    if (tsSubProps.isNotEmpty && tsParser.lastStepTsEnd != null) {
-      var cur = tsParser.lastStepTsEnd!;
+    if (tsSubProps.isNotEmpty && tsEnd != null) {
+      var cur = tsEnd;
       while (cur < spanEnd) {
         final mData = sink.mark();
-        final field = tsParser.parseFieldAt(cur);
-        if (field == null) break;
-        final fieldEnd = _TypeBodyParser.debugLastEndOffset!;
+        final parsed = tsParser.parseFieldAt(cur);
+        if (parsed == null) break;
+        final (field, fieldEnd) = parsed;
         if (!_stepDataSubPropNames.contains(field.name) || fieldEnd > spanEnd) {
           sink.rollback(mData);
           break;
@@ -2936,16 +2891,16 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
       if (!classIdx.contains(u32(at + 2 * _u32Bytes))) continue;
       if (!nameIdx.contains(u32(at + 3 * _u32Bytes))) continue;
       final mAnchor = sink.mark();
-      final field = parser.parseFieldAt(at);
-      if (field == null) continue;
+      final parsed = parser.parseFieldAt(at);
+      if (parsed == null) continue;
+      final (field, fieldEnd) = parsed;
       final owner = ownerOf(at);
       final seen = seenPerOwner.putIfAbsent(owner, () => <String>{});
       if (!spec.accepts(field) || !seen.add(spec.name)) {
         sink.rollback(mAnchor);
         continue;
       }
-      final fieldEnd = _TypeBodyParser.debugLastEndOffset;
-      if (fieldEnd != null) sink.claim(at, fieldEnd, _tierSemantic);
+      sink.claim(at, fieldEnd, _tierSemantic);
       result.putIfAbsent(owner, () => <BinaryTypeField>[]).add(field);
     }
   }
@@ -2976,8 +2931,6 @@ final _tailSubProps = <_TailSubProp>[
     (f) => f.name == 'RTS' && f.valueClass == SeqValueClass.object && f.children.isNotEmpty,
   ),
 ];
-
-List<BinaryTypeField> _stepTsSubProps(_TypeBodyParser parser, int at) => parser.parseStepTs(at);
 
 Map<String, List<BinaryTypeField>> _sequenceLeadingSubProps(
   Uint8List body,
@@ -3258,134 +3211,81 @@ _BodyDecode? _decodeBody(Uint8List body) {
     decodeBodies: false,
   );
   final typeIndexBase = deriveTypeIndexBase(view, pool, recordRegionLength, records);
-  final blobSpans = <(int, int)>[];
-  _TypeBodyParser.debugSpecSites.clear();
-  _TypeBodyParser.debugExtSpans.clear();
-  _TypeBodyParser.debugCollectSpecs = true;
-  try {
-    for (var i = 0; i < records.length; i++) {
-      final record = records[i];
-      final headAt = headOffsets[record.name];
-      final tripleAt = tripleOffsets[record.name];
-      if (headAt == null || tripleAt == null) continue;
-      final bodyAt = bodyOffsets[record.name];
-      final headStart = headAt >= _u32Bytes ? headAt - _u32Bytes : headAt;
-      sink.claim(headStart, headAt + _typeStampOffset + _u32Bytes, _tierSemantic);
-      if (tripleAt > _typeStampOffset + _u32Bytes) {
-        sink.claim(headAt + _typeStampOffset + _u32Bytes, headAt + tripleAt, _tierStructural);
-      }
-      final headEnd = bodyAt ?? headAt + tripleAt + _typeVersionTripleWords * _u32Bytes;
-      sink.claim(headAt + tripleAt, headEnd, _tierSemantic);
-      if (headAt >= _u32Bytes) {
-        final classWord = view.getUint32(headAt - _u32Bytes, Endian.little);
-        if (classWord > 0 && classWord < pool.length && pool[classWord].isNotEmpty) {
-          sink.poolRef(headAt - _u32Bytes, classWord);
-        } else {
-          sink.u32(headAt - _u32Bytes, classWord, _OpSource.struct);
-        }
-      }
-      sink.poolRef(headAt, view.getUint32(headAt, Endian.little));
-      sink.u32(headAt + _u32Bytes, record.typeCategory, _OpSource.model);
-      sink.u32(headAt + _typeStampOffset, record.timestamp, _OpSource.model);
-      if (tripleAt > _typeStampOffset + _u32Bytes) {
-        sink.copy(headAt + _typeStampOffset + _u32Bytes, headAt + tripleAt);
-      }
-      for (var v = 0; v < _typeVersionTripleWords; v++) {
-        final wordAt = headAt + tripleAt + v * _u32Bytes;
-        sink.poolRef(wordAt, view.getUint32(wordAt, Endian.little));
-      }
-      final tailAt = headAt + tripleAt + _typeVersionTripleWords * _u32Bytes;
-      if (bodyAt != null &&
-          bodyAt >= _u32Bytes &&
-          view.getUint32(bodyAt - _u32Bytes, Endian.little) == _recordDelimiter) {
-        final flagsEnd = tailAt + record.flags.length * _u32Bytes;
-        for (var q = tailAt; q + _u32Bytes <= headEnd; q += _u32Bytes) {
-          final word = view.getUint32(q, Endian.little);
-          if (q < flagsEnd) {
-            sink.u32(q, word, _OpSource.model);
-          } else if (word == 0 || word == _recordDelimiter) {
-            sink.u32(q, word, _OpSource.grammar);
-          } else {
-            sink.u32(q, word, _OpSource.struct);
-          }
-        }
-      } else if (bodyAt != null) {
-        sink.u32(tailAt, 1, _OpSource.grammar);
-        sink.poolRef(tailAt + _u32Bytes, view.getUint32(tailAt + _u32Bytes, Endian.little));
-      }
-      final nextHeadAt = i + 1 < records.length ? headOffsets[records[i + 1].name] : null;
-      if (nextHeadAt != null && nextHeadAt >= _u32Bytes + _typeRecordPreambleBytes) {
-        sink.claim(nextHeadAt - _u32Bytes - _typeRecordPreambleBytes, nextHeadAt - _u32Bytes, _tierStructural);
-        sink.copy(nextHeadAt - _u32Bytes - _typeRecordPreambleBytes, nextHeadAt - _u32Bytes);
-      }
-      if (bodyAt == null) continue;
-      final boundary = nextHeadAt != null ? nextHeadAt - _u32Bytes - _typeRecordPreambleBytes : null;
-      final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary, typeIndexBase)..ops = sink;
-      final mBody = sink.mark();
-      if (parser.parse(bodyAt) != null) {
-        sink.claim(bodyAt, _TypeBodyParser.debugLastEndOffset!, _tierSemantic);
+  for (var i = 0; i < records.length; i++) {
+    final record = records[i];
+    final headAt = headOffsets[record.name];
+    final tripleAt = tripleOffsets[record.name];
+    if (headAt == null || tripleAt == null) continue;
+    final bodyAt = bodyOffsets[record.name];
+    final headStart = headAt >= _u32Bytes ? headAt - _u32Bytes : headAt;
+    sink.claim(headStart, headAt + _typeStampOffset + _u32Bytes, _tierSemantic);
+    if (tripleAt > _typeStampOffset + _u32Bytes) {
+      sink.claim(headAt + _typeStampOffset + _u32Bytes, headAt + tripleAt, _tierStructural);
+    }
+    final headEnd = bodyAt ?? headAt + tripleAt + _typeVersionTripleWords * _u32Bytes;
+    sink.claim(headAt + tripleAt, headEnd, _tierSemantic);
+    if (headAt >= _u32Bytes) {
+      final classWord = view.getUint32(headAt - _u32Bytes, Endian.little);
+      if (classWord > 0 && classWord < pool.length && pool[classWord].isNotEmpty) {
+        sink.poolRef(headAt - _u32Bytes, classWord);
       } else {
-        sink.rollback(mBody);
+        sink.u32(headAt - _u32Bytes, classWord, _OpSource.struct);
       }
     }
-
-    _sequenceOutlinesFromBody(
-      body,
-      recordRegionLength,
-      pool,
-      [
-        for (final record in records) record.name,
-      ],
-      records,
-      sink,
-    );
-
-    for (final (_, start, length) in _TypeBodyParser.debugSpecSites) {
-      blobSpans.add((start, start + length));
+    sink.poolRef(headAt, view.getUint32(headAt, Endian.little));
+    sink.u32(headAt + _u32Bytes, record.typeCategory, _OpSource.model);
+    sink.u32(headAt + _typeStampOffset, record.timestamp, _OpSource.model);
+    if (tripleAt > _typeStampOffset + _u32Bytes) {
+      sink.copy(headAt + _typeStampOffset + _u32Bytes, headAt + tripleAt);
     }
-    blobSpans.addAll(_TypeBodyParser.debugExtSpans);
-  } finally {
-    _TypeBodyParser.debugCollectSpecs = false;
-    _TypeBodyParser.debugSpecSites.clear();
-    _TypeBodyParser.debugExtSpans.clear();
+    for (var v = 0; v < _typeVersionTripleWords; v++) {
+      final wordAt = headAt + tripleAt + v * _u32Bytes;
+      sink.poolRef(wordAt, view.getUint32(wordAt, Endian.little));
+    }
+    final tailAt = headAt + tripleAt + _typeVersionTripleWords * _u32Bytes;
+    if (bodyAt != null &&
+        bodyAt >= _u32Bytes &&
+        view.getUint32(bodyAt - _u32Bytes, Endian.little) == _recordDelimiter) {
+      final flagsEnd = tailAt + record.flags.length * _u32Bytes;
+      for (var q = tailAt; q + _u32Bytes <= headEnd; q += _u32Bytes) {
+        final word = view.getUint32(q, Endian.little);
+        if (q < flagsEnd) {
+          sink.u32(q, word, _OpSource.model);
+        } else if (word == 0 || word == _recordDelimiter) {
+          sink.u32(q, word, _OpSource.grammar);
+        } else {
+          sink.u32(q, word, _OpSource.struct);
+        }
+      }
+    } else if (bodyAt != null) {
+      sink.u32(tailAt, 1, _OpSource.grammar);
+      sink.poolRef(tailAt + _u32Bytes, view.getUint32(tailAt + _u32Bytes, Endian.little));
+    }
+    final nextHeadAt = i + 1 < records.length ? headOffsets[records[i + 1].name] : null;
+    if (nextHeadAt != null && nextHeadAt >= _u32Bytes + _typeRecordPreambleBytes) {
+      sink.claim(nextHeadAt - _u32Bytes - _typeRecordPreambleBytes, nextHeadAt - _u32Bytes, _tierStructural);
+      sink.copy(nextHeadAt - _u32Bytes - _typeRecordPreambleBytes, nextHeadAt - _u32Bytes);
+    }
+    if (bodyAt == null) continue;
+    final boundary = nextHeadAt != null ? nextHeadAt - _u32Bytes - _typeRecordPreambleBytes : null;
+    final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary, typeIndexBase)..ops = sink;
+    final mBody = sink.mark();
+    if (parser.parse(bodyAt) != null) {
+      sink.claim(bodyAt, parser.lastEndOffset!, _tierSemantic);
+    } else {
+      sink.rollback(mBody);
+    }
   }
+
+  _sequenceOutlinesFromBody(body, recordRegionLength, pool, [for (final record in records) record.name], records, sink);
 
   for (final record in _propertyRecordsFromBody(body, recordRegionLength, pool)) {
     sink.claim(record.offset, record.offset + record.length, _tierSemantic);
     _leafPropertyRecordOps(sink, view, record);
   }
 
-  for (final (start, end) in blobSpans) {
+  for (final (start, end) in sink.blobSpans) {
     sink.demote(start, end);
   }
   return _BodyDecode(body, recordRegionLength, pool, sink);
-}
-
-(BinaryTypeField, int)? binaryFieldAt(Uint8List seqBytes, int at) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return null;
-  final recordRegionLength = _recordRegionBoundary(body);
-  if (recordRegionLength == null) return null;
-  final pool = _orderedStringPool(body, recordRegionLength);
-  if (pool.isEmpty) return null;
-  final view = ByteData.sublistView(body);
-  final table = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
-  final field = parser.parseFieldAt(at);
-  if (field == null) return null;
-  return (field, _TypeBodyParser.debugLastEndOffset!);
-}
-
-int? binaryFieldBailOffset(Uint8List seqBytes, int at) {
-  final body = inflateBinaryBody(seqBytes);
-  if (body == null) return null;
-  final recordRegionLength = _recordRegionBoundary(body);
-  if (recordRegionLength == null) return null;
-  final pool = _orderedStringPool(body, recordRegionLength);
-  if (pool.isEmpty) return null;
-  final view = ByteData.sublistView(body);
-  final table = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
-  if (parser.parseFieldAt(at) != null) return null;
-  return _TypeBodyParser.debugLastFieldOffset;
 }
