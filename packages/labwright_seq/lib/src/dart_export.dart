@@ -1212,121 +1212,127 @@ class _DartExporter {
         rebuilt.write(segment.replaceAll('\$', r'\$'));
         continue;
       }
-      var code = segment;
-      for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\.').allMatches(code)) {
-        final precededByDot = match.start > 0 && code.substring(match.start - 1, match.start) == '.';
-        final root = match.group(1)!;
-        if (!precededByDot && !_variableRoots.containsKey(root) && root != 'Locals' && root != 'Parameters') {
-          return _evalFallback(raw);
-        }
-      }
-      if (RegExp(r'\*\s*[A-Za-z_]').hasMatch(code)) return _evalFallback(raw);
-      code = code
-          .replaceAll(RegExp(r'\bTrue\b'), 'true')
-          .replaceAll(RegExp(r'\bFalse\b'), 'false')
-          .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null')
-          .replaceAllMapped(_i64SuffixLiteral, (match) => match.group(1)!);
-      var undeclared = false;
-      for (final (root, ids) in [
-        ('Locals', _localIds),
-        ('Parameters', _paramIds),
-      ]) {
-        code = code.replaceAllMapped(
-          RegExp('\\b$root\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (match) {
-            final segments = match.group(1)!.split('.');
-            final identifier = ids[segments.first];
-            if (identifier == null) {
-              undeclared = true;
-              return match.group(0)!;
-            }
-            return segments.length == 1 ? identifier : '$identifier.${segments.sublist(1).join('.')}';
-          },
-        );
-      }
-      if (undeclared) return _evalFallback(raw);
-      for (final entry in _variableRoots.entries) {
-        code = code.replaceAllMapped(
-          RegExp('\\b${entry.key}\\.([A-Za-z_][A-Za-z0-9_.]*)'),
-          (match) => '${entry.value}.${match.group(1)!}',
-        );
-      }
-      var unknownGlobal = false;
-      code = code.replaceAllMapped(
-        RegExp(
-          r'\b(fileGlobals|stationGlobals)\.'
-          r'([A-Za-z_][A-Za-z0-9_]*)(\s*\()?',
-        ),
-        (match) {
-          final isFile = match.group(1) == 'fileGlobals';
-          final declared = (isFile ? _fileGlobalCanon : _stationGlobalCanon)[match.group(2)!.toLowerCase()];
-          final call = match.group(3);
-          final type = declared == null ? null : (isFile ? _fileGlobalTypes[declared] : _DartSlot.untyped);
-          if (declared == null || (call != null && type != _DartSlot.untyped)) {
-            unknownGlobal = true;
-            return match.group(0)!;
-          }
-          return '${match.group(1)}.$declared${call ?? ''}';
-        },
-      );
-      if (unknownGlobal) return _evalFallback(raw);
-      for (final entry in {
-        ..._builtinCalls,
-        'Random': asTest ? 'lw.rand' : 'ts.rand',
-      }.entries) {
-        code = code.replaceAllMapped(
-          RegExp('(?<![.A-Za-z0-9_])${entry.key}\\s*\\('),
-          (_) => '${entry.value}(',
-        );
-      }
-      final masked = code.replaceAll('&&', '  ').replaceAll('||', '  ');
-      if (masked.contains('&') || masked.contains('|')) {
-        return _evalFallback(raw);
-      }
-      if (!_dartSafeExpression.hasMatch(code) || _testStandOnly.hasMatch(code)) {
-        return _evalFallback(raw);
-      }
-      code = code.replaceAll(RegExp(r'\s*[\r\n]+\s*'), ' ');
-      if (RegExp(r'[.+\-*/<>=&|!,]\s*$').hasMatch(code)) {
-        return _evalFallback(raw);
-      }
-      for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(').allMatches(code)) {
-        if (_idTypes.containsKey(match.group(1)) && _idTypes[match.group(1)] != _DartSlot.untyped) {
-          return _evalFallback(raw);
-        }
-      }
-      for (final match in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
-        for (final identifierMatch in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(match.group(1)!)) {
-          if (_idTypes[identifierMatch.group(0)] == _DartSlot.number) return _evalFallback(raw);
-        }
-      }
-      const knownBare = {
-        'true',
-        'false',
-        'null',
-        'ts',
-        'lw',
-        'fileGlobals',
-        'stationGlobals',
-        'runState',
-        'step',
-      };
-      const generatedName = '__LWELEMENT__';
-      final codeSansKeys = code.replaceAll(RegExp(r"'[^']*'"), '');
-      for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b').allMatches(codeSansKeys)) {
-        final identifier = match.group(1)!;
-        final precededByDot = match.start > 0 && codeSansKeys.substring(match.start - 1, match.start) == '.';
-        if (precededByDot) continue;
-        if (!knownBare.contains(identifier) &&
-            identifier != generatedName &&
-            !_localIds.containsValue(identifier) &&
-            !_paramIds.containsValue(identifier)) {
-          return _evalFallback(raw);
-        }
-      }
+      final code = _translateSegment(segment);
+      if (code == null) return _evalFallback(raw);
       rebuilt.write(code);
     }
     return rebuilt.toString();
+  }
+
+  String? _translateSegment(String segment) {
+    var code = segment;
+    for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\s*\.').allMatches(code)) {
+      final precededByDot = match.start > 0 && code.substring(match.start - 1, match.start) == '.';
+      final root = match.group(1)!;
+      if (!precededByDot && !_variableRoots.containsKey(root) && root != 'Locals' && root != 'Parameters') {
+        return null;
+      }
+    }
+    if (RegExp(r'\*\s*[A-Za-z_]').hasMatch(code)) return null;
+    code = code
+        .replaceAll(RegExp(r'\bTrue\b'), 'true')
+        .replaceAll(RegExp(r'\bFalse\b'), 'false')
+        .replaceAll(RegExp(r'(?<!\.)\bNothing\b'), 'null')
+        .replaceAllMapped(_i64SuffixLiteral, (match) => match.group(1)!);
+    var undeclared = false;
+    for (final (root, ids) in [
+      ('Locals', _localIds),
+      ('Parameters', _paramIds),
+    ]) {
+      code = code.replaceAllMapped(
+        RegExp('\\b$root\\.([A-Za-z_][A-Za-z0-9_.]*)'),
+        (match) {
+          final segments = match.group(1)!.split('.');
+          final identifier = ids[segments.first];
+          if (identifier == null) {
+            undeclared = true;
+            return match.group(0)!;
+          }
+          return segments.length == 1 ? identifier : '$identifier.${segments.sublist(1).join('.')}';
+        },
+      );
+    }
+    if (undeclared) return null;
+    for (final entry in _variableRoots.entries) {
+      code = code.replaceAllMapped(
+        RegExp('\\b${entry.key}\\.([A-Za-z_][A-Za-z0-9_.]*)'),
+        (match) => '${entry.value}.${match.group(1)!}',
+      );
+    }
+    var unknownGlobal = false;
+    code = code.replaceAllMapped(
+      RegExp(
+        r'\b(fileGlobals|stationGlobals)\.'
+        r'([A-Za-z_][A-Za-z0-9_]*)(\s*\()?',
+      ),
+      (match) {
+        final isFile = match.group(1) == 'fileGlobals';
+        final declared = (isFile ? _fileGlobalCanon : _stationGlobalCanon)[match.group(2)!.toLowerCase()];
+        final call = match.group(3);
+        final type = declared == null ? null : (isFile ? _fileGlobalTypes[declared] : _DartSlot.untyped);
+        if (declared == null || (call != null && type != _DartSlot.untyped)) {
+          unknownGlobal = true;
+          return match.group(0)!;
+        }
+        return '${match.group(1)}.$declared${call ?? ''}';
+      },
+    );
+    if (unknownGlobal) return null;
+    for (final entry in {
+      ..._builtinCalls,
+      'Random': asTest ? 'lw.rand' : 'ts.rand',
+    }.entries) {
+      code = code.replaceAllMapped(
+        RegExp('(?<![.A-Za-z0-9_])${entry.key}\\s*\\('),
+        (_) => '${entry.value}(',
+      );
+    }
+    final masked = code.replaceAll('&&', '  ').replaceAll('||', '  ');
+    if (masked.contains('&') || masked.contains('|')) {
+      return null;
+    }
+    if (!_dartSafeExpression.hasMatch(code) || _testStandOnly.hasMatch(code)) {
+      return null;
+    }
+    code = code.replaceAll(RegExp(r'\s*[\r\n]+\s*'), ' ');
+    if (RegExp(r'[.+\-*/<>=&|!,]\s*$').hasMatch(code)) {
+      return null;
+    }
+    for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_][A-Za-z0-9_.]*\s*\(').allMatches(code)) {
+      if (_idTypes.containsKey(match.group(1)) && _idTypes[match.group(1)] != _DartSlot.untyped) {
+        return null;
+      }
+    }
+    for (final match in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
+      for (final identifierMatch in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(match.group(1)!)) {
+        if (_idTypes[identifierMatch.group(0)] == _DartSlot.number) return null;
+      }
+    }
+    const knownBare = {
+      'true',
+      'false',
+      'null',
+      'ts',
+      'lw',
+      'fileGlobals',
+      'stationGlobals',
+      'runState',
+      'step',
+    };
+    const generatedName = '__LWELEMENT__';
+    final codeSansKeys = code.replaceAll(RegExp(r"'[^']*'"), '');
+    for (final match in RegExp(r'\b([A-Za-z_][A-Za-z0-9_]*)\b').allMatches(codeSansKeys)) {
+      final identifier = match.group(1)!;
+      final precededByDot = match.start > 0 && codeSansKeys.substring(match.start - 1, match.start) == '.';
+      if (precededByDot) continue;
+      if (!knownBare.contains(identifier) &&
+          identifier != generatedName &&
+          !_localIds.containsValue(identifier) &&
+          !_paramIds.containsValue(identifier)) {
+        return null;
+      }
+    }
+    return code;
   }
 
   String _evalFallback(String raw) => "ts.eval('${_escape(raw)}')";
@@ -1545,20 +1551,21 @@ class _DartExporter {
         }
       }
       final mode = step.settings.mode;
+      final runMode = step.settings.runMode;
       var modeNote = '';
       if (!step.settings.isNormalMode) {
         final structural = flow != null && flow.kind != FlowKind.breakStmt && flow.kind != FlowKind.continueStmt;
         if (!structural) {
-          if (mode == 'Fail' && asTest) {
+          if (runMode == StepRunMode.fail && asTest) {
             _markUnported(
               'force-fail step "${step.name}" '
               '(status semantics not exported)',
             );
           }
-          final what = switch (mode) {
-            'Skip' => 'skipped',
-            'Pass' => 'force-pass',
-            'Fail' => 'force-fail',
+          final what = switch (runMode) {
+            StepRunMode.skip => 'skipped',
+            StepRunMode.pass => 'force-pass',
+            StepRunMode.fail => 'force-fail',
             _ => 'mode $mode',
           };
           _line('// [$what in source] $rawName');
@@ -1889,10 +1896,10 @@ class _DartExporter {
       return ' -> ${name != null ? 'step "$name"' : target}';
     }
 
-    if (settings.passAction != null && settings.passAction != 'Next') {
+    if (settings.passAction != null && settings.passFlowAction != StepFlowAction.next) {
       notes.add('on pass: ${settings.passAction}${jump(settings.passActionTarget)}');
     }
-    if (settings.failAction != null && settings.failAction != 'Next') {
+    if (settings.failAction != null && settings.failFlowAction != StepFlowAction.next) {
       notes.add('on fail: ${settings.failAction}${jump(settings.failActionTarget)}');
     }
     if (step.type == 'Goto' && settings.customTrueTarget != null) {
@@ -2000,8 +2007,8 @@ class _DartExporter {
       _markUnported('step "${step.name}" loops (${settings.loopType}) — per-step looping not exported');
     }
     final jumps =
-        (settings.passAction != null && settings.passAction != 'Next') ||
-        (settings.failAction != null && settings.failAction != 'Next') ||
+        (settings.passAction != null && settings.passFlowAction != StepFlowAction.next) ||
+        (settings.failAction != null && settings.failFlowAction != StepFlowAction.next) ||
         settings.customTrueTarget != null ||
         settings.customFalseTarget != null;
     if (jumps) {
@@ -2057,109 +2064,14 @@ class _DartExporter {
         _line('// label: $name');
         return;
       case StepType.wait:
-        final timeout = step.timeoutExpression ?? step.waitTimeExpression;
-        final literal = timeout != null ? num.tryParse(timeout.trim()) : null;
-        final waitNote = name == 'Wait' ? '' : ' // $name';
-        if (literal != null) {
-          final milliseconds = (literal * 1000).round();
-          _line(
-            milliseconds % 1000 == 0
-                ? 'await Future<void>.delayed('
-                      'const Duration(seconds: ${milliseconds ~/ 1000}));$waitNote'
-                : 'await Future<void>.delayed('
-                      'const Duration(milliseconds: $milliseconds));$waitNote',
-          );
-        } else if (timeout != null) {
-          _line(
-            'await Future<void>.delayed(Duration('
-            'microseconds: ((${_expr(timeout)}) * 1e6).round()));'
-            '$waitNote',
-          );
-        } else {
-          _line('// $name: Wait with no time expression');
-        }
+        _emitWaitStep(step, name);
         return;
       case _:
     }
 
     switch (module.adapter) {
       case SeqAdapter.sequenceCall:
-        final target = module.sequenceName;
-        _stats.callSites++;
-        final spawns = switch (module.threadOptionCode) {
-          1 => 'a new thread',
-          2 => 'a new execution',
-          _ => null,
-        };
-        if (spawns != null) {
-          _line('// sequence call spawns $spawns in the engine — exported as a plain awaited call');
-          if (asTest) _markUnported('step "${step.name}" runs its sequence call in $spawns (not exported)');
-        }
-        if (module.remoteExecution == true) {
-          _line(
-            '// sequence call executes on remote host ${_comment(module.remoteHost ?? module.remoteHostExpression ?? '?')}',
-          );
-          if (asTest) _markUnported('step "${step.name}" executes its sequence call remotely (not exported)');
-        }
-        final inFileFn = module.resolvesLocalCall(ownFilePath: sourceName) && target != null
-            ? _sequenceFnNames[target]
-            : null;
-        if (inFileFn != null) {
-          final scope = _scopeByName[target]!;
-          var argsText = '';
-          if (module.sequenceArguments.isNotEmpty) {
-            _stats.boundSites++;
-            _stats.localBoundSites++;
-            final (:text, :disarmed) = _renderCallArgs(
-              module,
-              calleeLabel: target!,
-              params: _scopeParamTable(scope),
-              writtenParams: scope.writtenParams,
-            );
-            argsText = text;
-            if (!disarmed) _stats.localBoundSitesRearmed++;
-          }
-          _line('await $inFileFn($argsText); // $name');
-        } else {
-          final resolved = resolveExternalCall?.call(module);
-          if (resolved != null) {
-            if (asTest) {
-              _markUnported(
-                'cross-file sequence '
-                '${_stubTarget(step, module)} (see its module TODOs)',
-              );
-            }
-            var argsText = '';
-            if (module.sequenceArguments.isNotEmpty) {
-              _stats.boundSites++;
-              argsText = _renderCallArgs(
-                module,
-                calleeLabel: target ?? _stubTarget(step, module),
-                params: _scopeParamTable(resolved.scope),
-                writtenParams: resolved.scope.writtenParams,
-              ).text;
-            }
-            _line('await ${resolved.functionName}($argsText); // $name: external sequence');
-          } else {
-            if (asTest) {
-              _markUnported('external sequence: ${_stubTarget(step, module)}');
-            }
-            final stub = _stubFor(step, module);
-            var argsText = '';
-            if (module.specifiesByExpression != true && module.sequenceArguments.isNotEmpty) {
-              _stats.boundSites++;
-              argsText = _renderCallArgs(
-                module,
-                calleeLabel: target ?? _stubTarget(step, module),
-                params: stub.paramTableFor(module),
-              ).text;
-            }
-            _line(
-              'await ${stub.name}($argsText); // $name: '
-              'external sequence call',
-            );
-          }
-        }
+        _emitSequenceCall(step, module, name);
       case SeqAdapter.labView:
         if (asTest) _markUnported(_stubTarget(step, module));
         _emitModuleNotes(module);
@@ -2193,6 +2105,109 @@ class _DartExporter {
     }
   }
 
+  void _emitWaitStep(Step step, String name) {
+    final timeout = step.timeoutExpression ?? step.waitTimeExpression;
+    final literal = timeout != null ? num.tryParse(timeout.trim()) : null;
+    final waitNote = name == 'Wait' ? '' : ' // $name';
+    if (literal != null) {
+      final milliseconds = (literal * 1000).round();
+      _line(
+        milliseconds % 1000 == 0
+            ? 'await Future<void>.delayed('
+                  'const Duration(seconds: ${milliseconds ~/ 1000}));$waitNote'
+            : 'await Future<void>.delayed('
+                  'const Duration(milliseconds: $milliseconds));$waitNote',
+      );
+    } else if (timeout != null) {
+      _line(
+        'await Future<void>.delayed(Duration('
+        'microseconds: ((${_expr(timeout)}) * 1e6).round()));'
+        '$waitNote',
+      );
+    } else {
+      _line('// $name: Wait with no time expression');
+    }
+  }
+
+  void _emitSequenceCall(Step step, StepModule module, String name) {
+    final target = module.sequenceName;
+    _stats.callSites++;
+    final spawns = switch (module.threadOption) {
+      SequenceCallThreadOption.newThread => 'a new thread',
+      SequenceCallThreadOption.newExecution => 'a new execution',
+      null => null,
+    };
+    if (spawns != null) {
+      _line('// sequence call spawns $spawns in the engine — exported as a plain awaited call');
+      if (asTest) _markUnported('step "${step.name}" runs its sequence call in $spawns (not exported)');
+    }
+    if (module.remoteExecution == true) {
+      _line(
+        '// sequence call executes on remote host ${_comment(module.remoteHost ?? module.remoteHostExpression ?? '?')}',
+      );
+      if (asTest) _markUnported('step "${step.name}" executes its sequence call remotely (not exported)');
+    }
+    final inFileFn = module.resolvesLocalCall(ownFilePath: sourceName) && target != null
+        ? _sequenceFnNames[target]
+        : null;
+    if (inFileFn != null) {
+      final scope = _scopeByName[target]!;
+      var argsText = '';
+      if (module.sequenceArguments.isNotEmpty) {
+        _stats.boundSites++;
+        _stats.localBoundSites++;
+        final (:text, :disarmed) = _renderCallArgs(
+          module,
+          calleeLabel: target!,
+          params: _scopeParamTable(scope),
+          writtenParams: scope.writtenParams,
+        );
+        argsText = text;
+        if (!disarmed) _stats.localBoundSitesRearmed++;
+      }
+      _line('await $inFileFn($argsText); // $name');
+    } else {
+      final resolved = resolveExternalCall?.call(module);
+      if (resolved != null) {
+        if (asTest) {
+          _markUnported(
+            'cross-file sequence '
+            '${_stubTarget(step, module)} (see its module TODOs)',
+          );
+        }
+        var argsText = '';
+        if (module.sequenceArguments.isNotEmpty) {
+          _stats.boundSites++;
+          argsText = _renderCallArgs(
+            module,
+            calleeLabel: target ?? _stubTarget(step, module),
+            params: _scopeParamTable(resolved.scope),
+            writtenParams: resolved.scope.writtenParams,
+          ).text;
+        }
+        _line('await ${resolved.functionName}($argsText); // $name: external sequence');
+      } else {
+        if (asTest) {
+          _markUnported('external sequence: ${_stubTarget(step, module)}');
+        }
+        final stub = _stubFor(step, module);
+        var argsText = '';
+        if (module.specifiesByExpression != true && module.sequenceArguments.isNotEmpty) {
+          _stats.boundSites++;
+          argsText = _renderCallArgs(
+            module,
+            calleeLabel: target ?? _stubTarget(step, module),
+            params: stub.paramTableFor(module),
+          ).text;
+        }
+        _line(
+          'await ${stub.name}($argsText); // $name: '
+          'external sequence call',
+        );
+      }
+    }
+  }
+
   void _throwLine(Step step, String kind, String target) {
     _markUnported('$kind: $target');
     _line(
@@ -2205,16 +2220,17 @@ class _DartExporter {
   void _emitCallWiring(List<CallParameter> parameters) {
     for (final parameter in parameters) {
       final expression = parameter.boundExpression ?? parameter.displayValue;
-      final direction = parameter.direction;
-      if (expression == null && direction != 'out' && direction != 'in/out') continue;
+      final direction = parameter.directionKind;
+      final writesBack = direction == CallParameterDirection.output || direction == CallParameterDirection.inOut;
+      if (expression == null && !writesBack) continue;
       _stats.wiredArgs++;
       final arrow = switch (direction) {
-        'out' => '->',
-        'in/out' => '<->',
+        CallParameterDirection.output => '->',
+        CallParameterDirection.inOut => '<->',
         _ => '<-',
       };
       _line(
-        '//   ${_comment(expression != null ? '${parameter.name} $arrow $expression' : '${parameter.name} [$direction]')}',
+        '//   ${_comment(expression != null ? '${parameter.name} $arrow $expression' : '${parameter.name} [${direction?.label}]')}',
       );
     }
   }

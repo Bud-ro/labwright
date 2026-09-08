@@ -18,6 +18,25 @@ enum SeqAdapter {
   unknown,
 }
 
+/// Values of a sequence call's `ThreadOpt` property.
+enum SequenceCallThreadOption {
+  newThread(1),
+
+  newExecution(2)
+  ;
+
+  const SequenceCallThreadOption(this.code);
+
+  final int code;
+
+  static SequenceCallThreadOption? ofCode(int? code) {
+    for (final value in values) {
+      if (value.code == code) return value;
+    }
+    return null;
+  }
+}
+
 class StepModule {
   StepModule({
     required this.adapter,
@@ -135,6 +154,8 @@ class StepModule {
   }
 
   int? get threadOptionCode => _dataInt('ThreadOpt');
+
+  SequenceCallThreadOption? get threadOption => SequenceCallThreadOption.ofCode(threadOptionCode);
 
   int? get executionModelOptionCode => _dataInt('ExecModelOpt');
 
@@ -306,6 +327,29 @@ class SequenceCallArgument {
           : ''})';
 }
 
+/// Values of a call parameter's `Direction` property.
+enum CallParameterDirection {
+  input('1', 'in'),
+
+  output('2', 'out'),
+
+  inOut('3', 'in/out')
+  ;
+
+  const CallParameterDirection(this.code, this.label);
+
+  final String code;
+
+  final String label;
+
+  static CallParameterDirection? ofCode(String? code) {
+    for (final value in values) {
+      if (value.code == code) return value;
+    }
+    return null;
+  }
+}
+
 class CallParameter {
   CallParameter(this.raw);
 
@@ -321,12 +365,9 @@ class CallParameter {
 
   String? get directionCode => nonEmpty(raw.prop('Direction')?.scalar);
 
-  String? get direction => switch (directionCode) {
-    '1' => 'in',
-    '2' => 'out',
-    '3' => 'in/out',
-    _ => null,
-  };
+  CallParameterDirection? get directionKind => CallParameterDirection.ofCode(directionCode);
+
+  String? get direction => directionKind?.label;
 
   int? _int(String key) => int.tryParse(nonEmpty(raw.prop(key)?.scalar) ?? '');
 

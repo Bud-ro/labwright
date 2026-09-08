@@ -368,6 +368,56 @@ class StepLimits {
   String toString() => 'StepLimits($summary)';
 }
 
+/// Values of a step's `TS.Mode` property.
+enum StepRunMode {
+  normal('Normal'),
+
+  /// The step is not executed.
+  skip('Skip'),
+
+  /// The step reports Passed regardless of its result.
+  pass('Pass'),
+
+  /// The step reports Failed regardless of its result.
+  fail('Fail')
+  ;
+
+  const StepRunMode(this.wire);
+
+  final String wire;
+
+  static StepRunMode? ofWire(String? token) {
+    for (final value in values) {
+      if (value.wire == token) return value;
+    }
+    return null;
+  }
+}
+
+/// Values of a step's `TS.PassAct`, `TS.FailAct`, `TS.CustTrueAct` and
+/// `TS.CustFalseAct` properties.
+enum StepFlowAction {
+  next('Next'),
+
+  goto('Goto'),
+
+  gotoStep('GotoStep'),
+
+  terminate('Terminate')
+  ;
+
+  const StepFlowAction(this.wire);
+
+  final String wire;
+
+  static StepFlowAction? ofWire(String? token) {
+    for (final value in values) {
+      if (value.wire == token) return value;
+    }
+    return null;
+  }
+}
+
 class StepSettings {
   StepSettings(this._ts);
 
@@ -378,6 +428,8 @@ class StepSettings {
   String? get mode => _scalar('Mode');
 
   bool get isNormalMode => mode == null || mode == 'Normal';
+
+  StepRunMode? get runMode => StepRunMode.ofWire(mode);
 
   String? get loadOption => _scalar('LoadOpt');
 
@@ -408,6 +460,10 @@ class StepSettings {
   String? get passAction => _scalar('PassAct');
 
   String? get failAction => _scalar('FailAct');
+
+  StepFlowAction? get passFlowAction => StepFlowAction.ofWire(passAction);
+
+  StepFlowAction? get failFlowAction => StepFlowAction.ofWire(failAction);
 
   String? get passActionTarget => _flowTarget('PassActTarget');
 
