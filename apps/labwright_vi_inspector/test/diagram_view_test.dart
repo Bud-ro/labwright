@@ -68,7 +68,7 @@ void main() {
   test('remapPrimIcon substitutes palette colours, preserves alpha', () async {
     final icon = await _tinyIcon();
     final remapped = await remapPrimIcon(icon, {0x000000: 0x777777});
-    final data = (await remapped.toByteData())!.buffer.asUint8List();
+    final data = await rgbaOf(remapped);
     expect(data.sublist(0, 4), [0x77, 0x77, 0x77, 255]);
     expect(data[7], 0, reason: 'transparent pixel stays transparent');
   });

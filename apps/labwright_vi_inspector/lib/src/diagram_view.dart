@@ -1001,6 +1001,9 @@ Future<Map<int, ui.Image>> loadXnodeFacades(
   return xnodeFacadesFromSections(sections, diagram);
 }
 
+Future<Uint8List> rgbaOf(ui.Image image) async =>
+    (await image.toByteData())!.buffer.asUint8List();
+
 Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
   final completer = Completer<ui.Image>();
   ui.decodeImageFromPixels(

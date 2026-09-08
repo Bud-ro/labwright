@@ -32,12 +32,10 @@ void main() {
         final artBytes = <int, Uint8List>{};
         final greyBytes = <int, Uint8List>{};
         for (final e in icons.entries) {
-          artBytes[e.key] = (await e.value.base.toByteData())!.buffer
-              .asUint8List();
+          artBytes[e.key] = await rgbaOf(e.value.base);
         }
         for (final e in grey.entries) {
-          greyBytes[e.key] = (await e.value.base.toByteData())!.buffer
-              .asUint8List();
+          greyBytes[e.key] = await rgbaOf(e.value.base);
         }
         final census = <String, Map<(int, int), int>>{};
         for (final f in pngs) {
@@ -69,8 +67,7 @@ void main() {
             anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
           );
           final reg = result.registration;
-          final refPx = (await reference.image.toByteData())!.buffer
-              .asUint8List();
+          final refPx = await rgbaOf(reference.image);
           final rw = reference.image.width;
           final rh = reference.image.height;
           final hits = <(String, int, int, int, int)>[];
