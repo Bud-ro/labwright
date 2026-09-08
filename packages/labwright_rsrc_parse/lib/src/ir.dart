@@ -99,7 +99,7 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
   };
 
   final out = <ViObject>[];
-  HeapRecord? lastBounds;
+  HeapRect? lastBounds;
   var lastBoundsIdx = -1;
   String? section;
   var idx = 0;
@@ -114,28 +114,29 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
       lastBounds = null;
       lastBoundsIdx = -1;
     }
-    final inRange = lastBounds != null && idx - lastBoundsIdx <= maxRecordGap;
-    if (record.kind == HeapOpcode.bounds && record.bounds != null) {
-      lastBounds = record;
+    final pendingBounds = idx - lastBoundsIdx <= maxRecordGap ? lastBounds : null;
+    final recordBounds = record.bounds;
+    if (record.kind == HeapOpcode.bounds && recordBounds != null) {
+      lastBounds = recordBounds;
       lastBoundsIdx = idx;
-    } else if (record.kind == HeapOpcode.caption && inRange) {
+    } else if (record.kind == HeapOpcode.caption && pendingBounds != null) {
       final cap = record.text;
       if (cap != null) {
         attach(
           ViObject(
             sectionTag: record.sectionTag,
-            bounds: lastBounds!.bounds!,
+            bounds: pendingBounds,
             caption: cap,
           ),
         );
       }
-    } else if (record.kind == HeapOpcode.stringTable && inRange) {
+    } else if (record.kind == HeapOpcode.stringTable && pendingBounds != null) {
       final table = framed['${record.sectionTag}@${record.offset + record.headerLength}'];
       if (table != null) {
         attach(
           ViObject(
             sectionTag: record.sectionTag,
-            bounds: lastBounds!.bounds!,
+            bounds: pendingBounds,
             labels: table.strings,
           ),
         );
