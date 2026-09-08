@@ -76,9 +76,9 @@ class LvPrimCall {
 
   final LvNaming names;
 
-  LvPrimTerminal? inputWithRole(int flags) => _single(inputs.where((t) => t.roleFlags == flags));
+  LvPrimTerminal? inputWithRole(int flags) => _single(inputs.where((terminal) => terminal.roleFlags == flags));
 
-  LvPrimTerminal? outputWithRole(int flags) => _single(outputs.where((t) => t.roleFlags == flags));
+  LvPrimTerminal? outputWithRole(int flags) => _single(outputs.where((terminal) => terminal.roleFlags == flags));
 
   bool get hasSoleSourceTerminal => outputPorts.length == 1;
 
@@ -127,261 +127,132 @@ class LvPrimCall {
   }
 }
 
-const Set<PrimOp> kLvMappedPrimOps = {
-  PrimOp.exclusiveOr,
-  PrimOp.and,
-  PrimOp.or,
-  PrimOp.add,
-  PrimOp.multiply,
-  PrimOp.subtract,
-  PrimOp.divide,
-  PrimOp.quotientRemainder,
-  PrimOp.equal,
-  PrimOp.notEqual,
-  PrimOp.greater,
-  PrimOp.less,
-  PrimOp.not,
-  PrimOp.increment,
-  PrimOp.decrement,
-  PrimOp.equalToZero,
-  PrimOp.notEqualToZero,
-  PrimOp.greaterThanZero,
-  PrimOp.lessThanZero,
-  PrimOp.greaterOrEqualToZero,
-  PrimOp.lessOrEqualToZero,
-  PrimOp.emptyStringPath,
-  PrimOp.stringLength,
-  PrimOp.arraySize,
-  PrimOp.reverse1dArray,
-  PrimOp.emptyArray,
-  PrimOp.addArrayElements,
-  PrimOp.toSinglePrecisionFloat,
-  PrimOp.toDoublePrecisionFloat,
-  PrimOp.toByteInteger,
-  PrimOp.toWordInteger,
-  PrimOp.toLongInteger,
-  PrimOp.toUnsignedByteInteger,
-  PrimOp.toUnsignedWordInteger,
-  PrimOp.toUnsignedLongInteger,
-  PrimOp.toQuadInteger,
-  PrimOp.toUnsignedQuadInteger,
-  PrimOp.stringToByteArray,
-  PrimOp.byteArrayToString,
-  PrimOp.stringSubset,
-  PrimOp.toLowerCase,
-  PrimOp.rotateLeftWithCarry,
-  PrimOp.rotateRightWithCarry,
-  PrimOp.swapBytes,
-  PrimOp.swapWords,
-  PrimOp.select,
-  PrimOp.logicalShift,
-  PrimOp.typeCast,
-  PrimOp.notANumberPathRefnum,
-  PrimOp.waitMs,
-};
+typedef LvLowering = List<String>? Function(LvPrimCall call);
 
-const Map<int, ({String name, int captions, LvClassNameBasis basis})> kLvNamedNodeClasses = {
-  kLvIndexArrayClass: (name: 'Index Array', captions: 27, basis: LvClassNameBasis.captions),
-  kLvReplaceArraySubsetClass: (name: 'Replace Array Subset', captions: 10, basis: LvClassNameBasis.captions),
-  kLvBundleClass: (name: 'Bundle', captions: 26, basis: LvClassNameBasis.captions),
-  kLvUnbundleClass: (name: 'Unbundle', captions: 25, basis: LvClassNameBasis.captions),
-  kLvBuildArrayClass: (name: 'Build Array', captions: 74, basis: LvClassNameBasis.captions),
-  kLvConcatenateStringsClass: (name: 'Concatenate Strings', captions: 32, basis: LvClassNameBasis.captions),
-  kLvCompoundArithmeticClass: (name: 'Compound Arithmetic', captions: 14, basis: LvClassNameBasis.captions),
-  0x92: (name: 'Scan From String', captions: 3, basis: LvClassNameBasis.captions),
-  0x93: (name: 'Format Into String', captions: 37, basis: LvClassNameBasis.captions),
-  0x105: (name: 'Match Regular Expression', captions: 4, basis: LvClassNameBasis.captions),
-  0xbd: (name: 'Delete From Array', captions: 7, basis: LvClassNameBasis.captions),
-  kLvMergeErrorsClass: (name: 'Merge Errors', captions: 113, basis: LvClassNameBasis.captions),
-  kLvInitializeArrayClass: (name: 'Initialize Array', captions: 3, basis: LvClassNameBasis.terminalGrammar),
-};
+enum LvClassNameBasis { captions, terminalGrammar }
 
-enum LvClassNameBasis {
-  captions,
+/// Block-diagram node classes the transpiler names, by heap object class code.
+enum LvNodeClass {
+  indexArray(0x44, 'Index Array'),
+  replaceArraySubset(0xb9, 'Replace Array Subset'),
+  bundle(0x34, 'Bundle'),
+  unbundle(0x36, 'Unbundle'),
+  buildArray(0x3a, 'Build Array'),
+  concatenateStrings(0x3e, 'Concatenate Strings'),
+  compoundArithmetic(0x6c, 'Compound Arithmetic'),
+  scanFromString(0x92, 'Scan From String'),
+  formatIntoString(0x93, 'Format Into String'),
+  matchRegularExpression(0x105, 'Match Regular Expression'),
+  deleteFromArray(0xbd, 'Delete From Array'),
+  mergeErrors(0x172, 'Merge Errors'),
+  initializeArray(0x114, 'Initialize Array', basis: LvClassNameBasis.terminalGrammar),
+  byName(0x63, 'Bundle/Unbundle By Name', basis: LvClassNameBasis.terminalGrammar)
+  ;
 
-  terminalGrammar,
+  const LvNodeClass(this.code, this.title, {this.basis = LvClassNameBasis.captions});
+
+  final int code;
+
+  final String title;
+
+  final LvClassNameBasis basis;
+
+  static LvNodeClass? ofCode(int code) => _byCode[code];
+
+  static final Map<int, LvNodeClass> _byCode = {for (final nodeClass in values) nodeClass.code: nodeClass};
 }
-
-const Set<int> kLvMappedPrimClasses = {
-  kLvIndexArrayClass,
-  kLvReplaceArraySubsetClass,
-  kLvBuildArrayClass,
-  kLvConcatenateStringsClass,
-  kLvUnbundleClass,
-  kLvMergeErrorsClass,
-  kLvByNameClass,
-  kLvCompoundArithmeticClass,
-  kLvInitializeArrayClass,
-};
-
-const Set<int> kLvProvenPrimResIds = {kLvRotatePrimResId, kLvHexStringPrimResId};
 
 const int kLvRotatePrimResId = 1082;
 
 const int kLvHexStringPrimResId = 1181;
 
-bool lvPrimHasRule({PrimOp? op, required int classCode, int? primResId}) => op == null
-    ? kLvMappedPrimClasses.contains(classCode) || kLvProvenPrimResIds.contains(primResId)
-    : kLvMappedPrimOps.contains(op);
+final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
+  PrimOp.exclusiveOr: (call) => _binaryCommutative(call, '^'),
+  PrimOp.and: (call) => _binaryCommutative(call, '&'),
+  PrimOp.or: (call) => _binaryCommutative(call, '|'),
+  PrimOp.add: (call) => _binaryCommutative(call, '+'),
+  PrimOp.multiply: (call) => _binaryCommutative(call, '*'),
+  PrimOp.subtract: (call) => _binaryOrdered(call, '-'),
+  PrimOp.divide: _divide,
+  PrimOp.quotientRemainder: _quotientRemainder,
+  PrimOp.equal: (call) => _binaryPredicate(call, '=='),
+  PrimOp.notEqual: (call) => _binaryPredicate(call, '!='),
+  PrimOp.greater: (call) => _orderedPredicate(call, '>'),
+  PrimOp.less: (call) => _orderedPredicate(call, '<'),
+  PrimOp.not: _not,
+  PrimOp.increment: (call) => _unaryNumeric(call, '+ 1'),
+  PrimOp.decrement: (call) => _unaryNumeric(call, '- 1'),
+  PrimOp.equalToZero: (call) => _comparedToZero(call, '=='),
+  PrimOp.notEqualToZero: (call) => _comparedToZero(call, '!='),
+  PrimOp.greaterThanZero: (call) => _comparedToZero(call, '>'),
+  PrimOp.lessThanZero: (call) => _comparedToZero(call, '<'),
+  PrimOp.greaterOrEqualToZero: (call) => _comparedToZero(call, '>='),
+  PrimOp.lessOrEqualToZero: (call) => _comparedToZero(call, '<='),
+  PrimOp.emptyStringPath: _isEmpty,
+  PrimOp.stringLength: (call) => _unaryOfString(call, 'length', LvCarrier.integer),
+  PrimOp.arraySize: _arraySize,
+  PrimOp.reverse1dArray: _reverse1dArray,
+  PrimOp.emptyArray: _emptyArray,
+  PrimOp.addArrayElements: _addArrayElements,
+  PrimOp.toSinglePrecisionFloat: _floatConversion,
+  PrimOp.toDoublePrecisionFloat: _floatConversion,
+  PrimOp.toByteInteger: _integerConversion,
+  PrimOp.toWordInteger: _integerConversion,
+  PrimOp.toLongInteger: _integerConversion,
+  PrimOp.toUnsignedByteInteger: _integerConversion,
+  PrimOp.toUnsignedWordInteger: _integerConversion,
+  PrimOp.toUnsignedLongInteger: _integerConversion,
+  PrimOp.toQuadInteger: _integerConversion,
+  PrimOp.toUnsignedQuadInteger: _integerConversion,
+  PrimOp.stringToByteArray: (call) => _byteArrayConversion(call, encode: true),
+  PrimOp.byteArrayToString: (call) => _byteArrayConversion(call, encode: false),
+  PrimOp.rotateLeftWithCarry: (call) => _rotateWithCarry(call, left: true),
+  PrimOp.rotateRightWithCarry: (call) => _rotateWithCarry(call, left: false),
+  PrimOp.swapBytes: (call) => _swap(call, LvRuntimeCall.swapBytes, fieldPairBits: 16),
+  PrimOp.swapWords: (call) => _swap(call, LvRuntimeCall.swapWords, fieldPairBits: 32),
+  PrimOp.select: _select,
+  PrimOp.logicalShift: _logicalShift,
+  PrimOp.typeCast: _typeCast,
+  PrimOp.notANumberPathRefnum: _isNotANumber,
+  PrimOp.stringSubset: _stringSubset,
+  PrimOp.toLowerCase: _toLowerCase,
+  PrimOp.waitMs: _waitMs,
+};
+
+final Map<LvNodeClass, LvLowering> kLvNodeClassLowerings = {
+  LvNodeClass.indexArray: _indexArray,
+  LvNodeClass.replaceArraySubset: _replaceArraySubset,
+  LvNodeClass.buildArray: _buildArray,
+  LvNodeClass.concatenateStrings: _concatenateStrings,
+  LvNodeClass.unbundle: _unbundle,
+  LvNodeClass.mergeErrors: _mergeErrors,
+  LvNodeClass.byName: _byName,
+  LvNodeClass.compoundArithmetic: _compoundArithmetic,
+  LvNodeClass.initializeArray: _initializeArray,
+};
+
+final Map<int, LvLowering> kLvPrimResIdLowerings = {
+  kLvRotatePrimResId: _rotate,
+  kLvHexStringPrimResId: _hexString,
+};
+
+final Set<PrimOp> kLvMappedPrimOps = kLvPrimOpLowerings.keys.toSet();
+
+LvLowering? lvPrimRule({PrimOp? op, required int classCode, int? primResId}) {
+  if (op != null) return kLvPrimOpLowerings[op];
+  return kLvNodeClassLowerings[LvNodeClass.ofCode(classCode)] ?? kLvPrimResIdLowerings[primResId];
+}
+
+bool lvPrimHasRule({PrimOp? op, required int classCode, int? primResId}) =>
+    lvPrimRule(op: op, classCode: classCode, primResId: primResId) != null;
 
 List<String>? lvPrimLowering(LvPrimCall call) {
   if (!lvPrimHasRule(op: call.op, classCode: call.classCode, primResId: call.primResId)) return null;
   return _lowerDirect(call) ?? _elementwise(call);
 }
 
-List<String>? _lowerDirect(LvPrimCall call) {
-  switch (call.op) {
-    case PrimOp.exclusiveOr:
-      return _binaryCommutative(call, '^');
-    case PrimOp.and:
-      return _binaryCommutative(call, '&');
-    case PrimOp.or:
-      return _binaryCommutative(call, '|');
-    case PrimOp.add:
-      return _binaryCommutative(call, '+');
-    case PrimOp.multiply:
-      return _binaryCommutative(call, '*');
-
-    case PrimOp.subtract:
-      return _binaryOrdered(call, '-');
-    case PrimOp.divide:
-      return _divide(call);
-    case PrimOp.quotientRemainder:
-      return _quotientRemainder(call);
-
-    case PrimOp.equal:
-      return _binaryPredicate(call, '==');
-    case PrimOp.notEqual:
-      return _binaryPredicate(call, '!=');
-
-    case PrimOp.greater:
-      return _orderedPredicate(call, '>');
-    case PrimOp.less:
-      return _orderedPredicate(call, '<');
-
-    case PrimOp.not:
-      return _not(call);
-    case PrimOp.increment:
-      return _unaryNumeric(call, '+ 1');
-    case PrimOp.decrement:
-      return _unaryNumeric(call, '- 1');
-
-    case PrimOp.equalToZero:
-      return _comparedToZero(call, '==');
-    case PrimOp.notEqualToZero:
-      return _comparedToZero(call, '!=');
-    case PrimOp.greaterThanZero:
-      return _comparedToZero(call, '>');
-    case PrimOp.lessThanZero:
-      return _comparedToZero(call, '<');
-    case PrimOp.greaterOrEqualToZero:
-      return _comparedToZero(call, '>=');
-    case PrimOp.lessOrEqualToZero:
-      return _comparedToZero(call, '<=');
-
-    case PrimOp.emptyStringPath:
-      return _isEmpty(call);
-    case PrimOp.stringLength:
-      return _unaryOfString(call, 'length', LvCarrier.integer);
-    case PrimOp.arraySize:
-      return _arraySize(call);
-    case PrimOp.reverse1dArray:
-      return _reverse1dArray(call);
-    case PrimOp.emptyArray:
-      return _emptyArray(call);
-    case PrimOp.addArrayElements:
-      return _addArrayElements(call);
-
-    case PrimOp.toSinglePrecisionFloat:
-    case PrimOp.toDoublePrecisionFloat:
-      return _floatConversion(call);
-
-    case PrimOp.toByteInteger:
-    case PrimOp.toWordInteger:
-    case PrimOp.toLongInteger:
-    case PrimOp.toUnsignedByteInteger:
-    case PrimOp.toUnsignedWordInteger:
-    case PrimOp.toUnsignedLongInteger:
-    case PrimOp.toQuadInteger:
-    case PrimOp.toUnsignedQuadInteger:
-      return _integerConversion(call);
-
-    case PrimOp.stringToByteArray:
-      return _byteArrayConversion(call, encode: true);
-    case PrimOp.byteArrayToString:
-      return _byteArrayConversion(call, encode: false);
-
-    case PrimOp.rotateLeftWithCarry:
-      return _rotateWithCarry(call, left: true);
-    case PrimOp.rotateRightWithCarry:
-      return _rotateWithCarry(call, left: false);
-
-    case PrimOp.swapBytes:
-      return _swap(call, LvRuntimeCall.swapBytes, fieldPairBits: 16);
-    case PrimOp.swapWords:
-      return _swap(call, LvRuntimeCall.swapWords, fieldPairBits: 32);
-
-    case PrimOp.select:
-      return _select(call);
-
-    case PrimOp.logicalShift:
-      return _logicalShift(call);
-
-    case PrimOp.typeCast:
-      return _typeCast(call);
-
-    case PrimOp.notANumberPathRefnum:
-      return _isNotANumber(call);
-
-    case PrimOp.stringSubset:
-      return _stringSubset(call);
-
-    case PrimOp.toLowerCase:
-      return _toLowerCase(call);
-
-    case PrimOp.waitMs:
-      return _waitMs(call);
-
-    case null:
-      switch (call.primResId) {
-        case kLvRotatePrimResId:
-          return _rotate(call);
-        case kLvHexStringPrimResId:
-          return _hexString(call);
-      }
-
-    case _:
-      break;
-  }
-  if (call.classCode == kLvIndexArrayClass) return _indexArray(call);
-  if (call.classCode == kLvReplaceArraySubsetClass) return _replaceArraySubset(call);
-  if (call.classCode == kLvBuildArrayClass) return _buildArray(call);
-  if (call.classCode == kLvConcatenateStringsClass) return _concatenateStrings(call);
-  if (call.classCode == kLvUnbundleClass) return _unbundle(call);
-  if (call.classCode == kLvMergeErrorsClass) return _mergeErrors(call);
-  if (call.classCode == kLvByNameClass) return _byName(call);
-  if (call.classCode == kLvCompoundArithmeticClass) return _compoundArithmetic(call);
-  if (call.classCode == kLvInitializeArrayClass) return _initializeArray(call);
-  return null;
-}
-
-const int kLvIndexArrayClass = 0x44;
-
-const int kLvReplaceArraySubsetClass = 0xb9;
-
-const int kLvBuildArrayClass = 0x3a;
-
-const int kLvConcatenateStringsClass = 0x3e;
-
-const int kLvUnbundleClass = 0x36;
-
-const int kLvBundleClass = 0x34;
-
-const int kLvMergeErrorsClass = 0x172;
-
-const int kLvCompoundArithmeticClass = 0x6c;
-
-const int kLvInitializeArrayClass = 0x114;
+List<String>? _lowerDirect(LvPrimCall call) =>
+    lvPrimRule(op: call.op, classCode: call.classCode, primResId: call.primResId)?.call(call);
 
 abstract final class LvInitializeArrayRole {
   static const int element = 0x20000;
@@ -421,8 +292,6 @@ const Map<LvCompoundMode, String> kLvLoweredCompoundModes = {
 
 const int kLvCompoundInversionBit = 0x10000;
 
-const int kLvByNameClass = 0x63;
-
 const int kLvByNameUnbundlesBit = 0x10000;
 
 String lvPrimUnmappedReason(LvPrimCall call) {
@@ -438,15 +307,16 @@ String lvPrimUnmappedReason(LvPrimCall call) {
     return 'primitive ${op.opName} (primResID ${op.id}) has no decided lowering: '
         'its operand roles are not established from the terminal records';
   }
-  if (call.classCode == kLvIndexArrayClass || call.classCode == kLvReplaceArraySubsetClass) {
+  final nodeClass = LvNodeClass.ofCode(call.classCode);
+  if (nodeClass == LvNodeClass.indexArray || nodeClass == LvNodeClass.replaceArraySubset) {
     return 'class 0x${call.classCode.toRadixString(16)} node is not the 1-D shape whose '
         'terminal roles the corpus pins (${call.inputs.length} inputs, '
         '${call.outputs.length} outputs, role bits '
         '${[
-          for (final t in [...call.inputs, ...call.outputs]) '0x${t.roleFlags.toRadixString(16)}',
+          for (final terminal in [...call.inputs, ...call.outputs]) '0x${terminal.roleFlags.toRadixString(16)}',
         ].join('/')})';
   }
-  if (call.classCode == kLvByNameClass) {
+  if (nodeClass == LvNodeClass.byName) {
     if (call.nodeFlags == null) {
       return 'Bundle/Unbundle By Name (class 0x${call.classCode.toRadixString(16)}) carries no '
           'flags word, and [kLvByNameUnbundlesBit] is the only reading that separates the two';
@@ -461,7 +331,7 @@ String lvPrimUnmappedReason(LvPrimCall call) {
         '${members.where((terminal) => terminal.memberName == null).length} of ${members.length} '
         'member terminals name no member on their own record';
   }
-  if (call.classCode == kLvCompoundArithmeticClass) {
+  if (nodeClass == LvNodeClass.compoundArithmetic) {
     final mode = LvCompoundMode.ofNodeFlags(call.nodeFlags);
     if (mode == null || !kLvLoweredCompoundModes.containsKey(mode)) {
       final selects = call.nodeFlags == null
@@ -471,36 +341,38 @@ String lvPrimUnmappedReason(LvPrimCall call) {
           '${mode == null ? '' : ' (${mode.opName})'}, which no published test vector decides, '
           'and a wrong reduction is a silently wrong value';
     }
-    final inverted = [...call.inputs, ...call.outputs].where((t) => t.roleFlags & kLvCompoundInversionBit != 0);
+    final inverted = [
+      ...call.inputs,
+      ...call.outputs,
+    ].where((terminal) => terminal.roleFlags & kLvCompoundInversionBit != 0);
     if (inverted.isNotEmpty) {
       return 'Compound Arithmetic (class 0x${call.classCode.toRadixString(16)}) carries the '
           'per-terminal inversion bit on ${inverted.length} of ${call.inputs.length + call.outputs.length} '
           'terminals, and which state the bit names is not decoded';
     }
   }
-  if (kLvNamedNodeClasses[call.classCode] case final named?) {
-    if (kLvMappedPrimClasses.contains(call.classCode)) {
-      return 'class 0x${call.classCode.toRadixString(16)} is ${named.name} and its '
+  if (nodeClass != null) {
+    if (kLvNodeClassLowerings.containsKey(nodeClass)) {
+      return 'class 0x${call.classCode.toRadixString(16)} is ${nodeClass.title} and its '
           'operand roles are decoded, but this node is outside the shape that '
           'lowers (${call.inputs.length} wired inputs, ${call.outputs.length} of '
           '${call.outputPorts.length} outputs consumed, terminal types '
           '${[
-            for (final t in [...call.inputs, ...call.outputs]) t.type.dartType ?? '?',
+            for (final terminal in [...call.inputs, ...call.outputs]) terminal.type.dartType ?? '?',
           ].join('/')})';
     }
-    return 'class 0x${call.classCode.toRadixString(16)} is ${named.name} '
-        '(${named.captions} corpus captions), but which terminal is which '
-        'argument is not established from the terminal records';
+    return 'class 0x${call.classCode.toRadixString(16)} is ${nodeClass.title}, but which '
+        'terminal is which argument is not established from the terminal records';
   }
   if (call.primResId case final id?) {
-    if (kLvProvenPrimResIds.contains(id)) {
+    if (kLvPrimResIdLowerings.containsKey(id)) {
       return 'primResID $id is not named anywhere in the corpus; what it computes is '
           'established for the shapes a published test vector exercises '
-          '(see kLvProvenPrimResIds), and this node is outside them '
+          '(see kLvPrimResIdLowerings), and this node is outside them '
           '(${call.inputs.length} wired inputs, ${call.outputs.length} of '
           '${call.outputPorts.length} outputs consumed, terminal types '
           '${[
-            for (final t in [...call.inputs, ...call.outputs]) t.type.dartType ?? '?',
+            for (final terminal in [...call.inputs, ...call.outputs]) terminal.type.dartType ?? '?',
           ].join('/')})';
     }
     return 'primResID $id on node class 0x${call.classCode.toRadixString(16)} is '
@@ -820,7 +692,7 @@ List<String>? _bundleByName(LvPrimCall call) {
   if (name == null) return const [];
   final statements = <String>[];
   var carrier = base.expression!;
-  if (!_isAtomic(carrier) && written.length < declaration.fields.length) {
+  if (!lvIsAtomic(carrier) && written.length < declaration.fields.length) {
     final local = call.names.wire(base.type);
     statements.add('final ${declaration.name} $local = $carrier;');
     carrier = local;
@@ -863,7 +735,7 @@ String _interpolated(String? expression) =>
     RegExp(r'^[A-Za-z_]\w*$').hasMatch(expression!) ? '\$$expression' : '\${$expression}';
 
 List<String>? _elementwise(LvPrimCall call) {
-  if (call.op == null && !kLvProvenPrimResIds.contains(call.primResId)) return null;
+  if (call.op == null && !kLvPrimResIdLowerings.containsKey(call.primResId)) return null;
   if (call.op == PrimOp.typeCast || call.inputs.isEmpty) return null;
   final terminals = [...call.inputs, ...call.outputs];
   if (terminals.any((terminal) => terminal.type.dims != 1)) return null;
@@ -872,7 +744,7 @@ List<String>? _elementwise(LvPrimCall call) {
   final arrayOf = <int, String>{};
   for (final operand in call.inputs) {
     final expression = operand.expression!;
-    if (_isAtomic(expression)) {
+    if (lvIsAtomic(expression)) {
       arrayOf[operand.port] = expression;
       continue;
     }
@@ -1132,10 +1004,11 @@ List<String>? _rotateWithCarry(LvPrimCall call, {required bool left}) {
 }
 
 LvPrimTerminal? _onlyNumeric(List<LvPrimTerminal> terminals) =>
-    LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.numeric != null));
+    LvPrimCall._single(terminals.where((terminal) => terminal.type.dims == 0 && terminal.type.numeric != null));
 
-LvPrimTerminal? _onlyBoolean(List<LvPrimTerminal> terminals) =>
-    LvPrimCall._single(terminals.where((t) => t.type.dims == 0 && t.type.carrier == LvCarrier.boolean));
+LvPrimTerminal? _onlyBoolean(List<LvPrimTerminal> terminals) => LvPrimCall._single(
+  terminals.where((terminal) => terminal.type.dims == 0 && terminal.type.carrier == LvCarrier.boolean),
+);
 
 List<String>? _indexArray(LvPrimCall call) {
   if (call.outputs.isEmpty || call.inputs.length != call.outputs.length + 1) {
@@ -1315,7 +1188,5 @@ String lvWrapped(LvWireType type, String expression) {
 String lvWrapExpression(LvNumericKind kind, String expression) {
   if (!kind.needsWrap) return expression;
   final wrapped = kind.wrap(expression);
-  return _isAtomic(expression) ? wrapped.replaceFirst('($expression)', expression) : wrapped;
+  return lvIsAtomic(expression) ? wrapped.replaceFirst('($expression)', expression) : wrapped;
 }
-
-bool _isAtomic(String expression) => RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$|^-?\d+$').hasMatch(expression);

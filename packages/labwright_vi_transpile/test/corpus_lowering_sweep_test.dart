@@ -694,7 +694,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
   void censusIndexArrays(ViDiagram diagram) {
     final childrenByOid = diagram.childrenByOid;
     for (final node in diagram.objects) {
-      if (node.kind != kLvIndexArrayClass) continue;
+      if (node.kind != LvNodeClass.indexArray.code) continue;
       bump('idx');
       final roles = [
         for (final holder in childrenByOid[node.oid] ?? const <ViHeapObject>[])
@@ -1232,8 +1232,8 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
 
 String _blockerKey(LvPrimUnit node) {
   if (node.op case final op?) return '${op.opName} (primResID ${op.id})';
-  if (kLvNamedNodeClasses[node.classCode] case final named?) {
-    return '${named.name} (class 0x${node.classCode.toRadixString(16)})';
+  if (LvNodeClass.ofCode(node.classCode) case final nodeClass?) {
+    return '${nodeClass.title} (class 0x${node.classCode.toRadixString(16)})';
   }
   if (node.primResId case final id?) return 'primResID $id';
   return 'node class 0x${node.classCode.toRadixString(16)}';
