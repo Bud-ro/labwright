@@ -41,7 +41,7 @@ class IniSection {
 
   final Map<String, String> directives;
 
-  String? get name => _unquote(directives['%NAME']);
+  String? get name => unquoteIni(directives['%NAME']);
 
   @override
   String toString() =>
@@ -194,8 +194,8 @@ SeqFileHeader iniHeaderFromFields(Map<String, String> fields) => _headerFrom(fie
 
 SeqFileHeader _headerFrom(Map<String, String> h) => SeqFileHeader(
   format: SeqFormat.ini,
-  fileType: _unquote(h['Type']),
-  productName: _unquote(h['ProductName']),
+  fileType: unquoteIni(h['Type']),
+  productName: unquoteIni(h['ProductName']),
   fileVersion: h['Version'],
 );
 
@@ -304,7 +304,7 @@ class _IniBuilder {
   String? rootAliasClass(String name) {
     for (final alias in _rootAliases) {
       final declared = _def(alias)?.members[name];
-      if (declared != null) return _unquote(declared);
+      if (declared != null) return unquoteIni(declared);
     }
     return null;
   }
@@ -321,7 +321,7 @@ class _IniBuilder {
       visiting.isEmpty ? typePath : '$typePath|${(visiting.toList()..sort()).join('|')}';
 
   (String?, String?) _memberType(String? raw) {
-    final text = _unquote(raw);
+    final text = unquoteIni(raw);
     if (text == null) return (null, null);
     if (text.startsWith('TYPE, ')) return (null, text.substring('TYPE, '.length).trim());
     return (text, null);
@@ -376,11 +376,17 @@ class _IniBuilder {
       };
     }
 
-    final typeRoot = (declaredTypeName != null && declaredTypeName != path && _def(declaredTypeName) != null)
-        ? declaredTypeName
-        : null;
-    final inheritGuard = typeRoot != null && visiting.add(typeRoot);
-    final typeDefMembers = inheritGuard ? _def(typeRoot)!.members : const <String, String>{};
+    String? typeRoot;
+    var inheritGuard = false;
+    var typeDefMembers = const <String, String>{};
+    if (declaredTypeName != null && declaredTypeName != path) {
+      final typeDef = _def(declaredTypeName);
+      if (typeDef != null) {
+        typeRoot = declaredTypeName;
+        inheritGuard = visiting.add(declaredTypeName);
+        if (inheritGuard) typeDefMembers = typeDef.members;
+      }
+    }
     String? memberTypeOf(String memberName) => def?.members[memberName] ?? typeDefMembers[memberName];
 
     final memberOrder = <String>{
@@ -396,8 +402,8 @@ class _IniBuilder {
       final instPath = '$path.$memberName';
       final typePath = typeRoot == null ? null : '$typeRoot.$memberName';
       String? memberScalar() =>
-          _unquote(val?.members[memberName]) ??
-          (typeRoot == null ? null : _unquote(_values(typeRoot)?.members[memberName]));
+          unquoteIni(val?.members[memberName]) ??
+          (typeRoot == null ? null : unquoteIni(_values(typeRoot)?.members[memberName]));
       final elems = _elementIndices(instPath);
       if (elems.isNotEmpty) {
         final arrDef = _def(instPath);
@@ -407,7 +413,7 @@ class _IniBuilder {
               '$instPath[$item]',
               '[$item]',
               arrDef?.directives['%[$item]'],
-              _unquote(arrDef?.directives['%TYPE: %[$item]']),
+              unquoteIni(arrDef?.directives['%TYPE: %[$item]']),
               visiting,
             ),
         ];
@@ -445,9 +451,9 @@ class _IniBuilder {
     final bareOvr = val?.directives[instOverrideAttr] ?? def?.directives[instOverrideAttr];
     final bareFlg = val?.directives[flagsAttr] ?? def?.directives[flagsAttr];
     final bareInstFlg = val?.directives[instFlagsAttr] ?? def?.directives[instFlagsAttr];
-    final comment = _unquote(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
-    final numericFormat = _unquote(val?.directives[numericFormatAttr] ?? def?.directives[numericFormatAttr]);
-    final elementType = _unquote(val?.directives[elementTypeAttr] ?? def?.directives[elementTypeAttr]);
+    final comment = unquoteIni(val?.directives[commentAttr] ?? def?.directives[commentAttr]);
+    final numericFormat = unquoteIni(val?.directives[numericFormatAttr] ?? def?.directives[numericFormatAttr]);
+    final elementType = unquoteIni(val?.directives[elementTypeAttr] ?? def?.directives[elementTypeAttr]);
     final attrs = <String, String>{
       ...ownAttributes,
       if (bareOvr != null) instOverrideAttr: bareOvr,
@@ -481,11 +487,10 @@ SeqFile parseIniSeqFile(Uint8List bytes) {
   return SeqFile(header: doc.header, types: iniTypes(doc), data: data);
 }
 
-String? unquoteIni(String? raw) => _unquote(raw);
+String? unquoteIni(String? raw) => raw == null ? null : unquoteIniText(raw);
 
-String? _unquote(String? s) {
-  if (s == null) return null;
-  final trimmed = s.trim();
+String unquoteIniText(String raw) {
+  final trimmed = raw.trim();
   return _isQuoted(trimmed) ? _unescapeIni(trimmed.substring(1, trimmed.length - 1)) : trimmed;
 }
 
