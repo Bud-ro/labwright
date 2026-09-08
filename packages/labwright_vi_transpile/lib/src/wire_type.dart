@@ -14,6 +14,11 @@ class LvWireType {
 
   LvNumericKind? get numeric => element.numeric;
 
+  bool get isInteger {
+    final kind = element.numeric;
+    return kind != null && !kind.isFloat;
+  }
+
   bool get isMapped => value.isMapped;
 
   List<LvTypeDecl> get declarations => value.declarations;

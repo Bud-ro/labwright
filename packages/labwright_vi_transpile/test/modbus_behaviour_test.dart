@@ -102,8 +102,8 @@ void main() {
         ('Calc CRC-16.vi', 'calcCrc16', 'modbus_crc16_table.g.dart'),
       ]) {
         final path = corpusViPaths(corpusViDir()).firstWhere((path) => path.endsWith(fileName));
-        final unit = LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);
-        final result = emitLvLibrary(unit!, functionName: functionName, sourceNote: fileName);
+        final unit = LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName)!;
+        final result = emitLvLibrary(unit, functionName: functionName, sourceNote: fileName);
         expect(result.refusal, isNull, reason: '$fileName must lower');
         final committed = File('${_testDir()}/generated/$generated').readAsStringSync().replaceAll('\r\n', '\n');
         expect(result.source, committed, reason: 'regenerate $generated after changing the emitter');

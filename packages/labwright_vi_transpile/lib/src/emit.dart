@@ -437,21 +437,22 @@ class _FunctionEmitter {
     }
     final values = record.constArray;
     final dims = record.constArrayDims;
-    if (values == null || dims == null || dims.length != type.dims || type.numeric == null) {
+    final kind = type.numeric;
+    if (values == null || dims == null || dims.length != type.dims || kind == null) {
       lvRefuse(
         LvRefusalKind.constantValue,
         'diagram constant of ${type.dims}-D type ${type.dartType} carries no decoded value',
         oid: unit.oid,
       );
     }
-    valueOf[unit.port] = _hoistArrayConstant(unit, type, values, dims);
+    valueOf[unit.port] = _hoistArrayConstant(unit, type, kind, values, dims);
   }
 
-  String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
+  String _hoistArrayConstant(LvConstUnit unit, LvWireType type, LvNumericKind kind, List<num> values, List<int> dims) {
     library.noteImportsFor(type);
     final name = names.fileConstant(unit.label);
     final shape = dims.join(' × ');
-    final flat = _typedListLiteral(values, type);
+    final flat = _typedListLiteral(values, type, kind);
     final initializer = dims.length <= 1
         ? flat
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
@@ -459,7 +460,7 @@ class _FunctionEmitter {
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
     final declaration =
         '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
-        '$shape ${type.numeric!.glyph} elements.\n'
+        '$shape ${kind.glyph} elements.\n'
         'final ${type.dartType} $name = $initializer;';
     library.fileConstants[name] = initializer.contains('\n')
         ? '// dart format off\n$declaration\n// dart format on'
@@ -467,8 +468,7 @@ class _FunctionEmitter {
     return name;
   }
 
-  String _typedListLiteral(List<num> values, LvWireType type) {
-    final kind = type.numeric!;
+  String _typedListLiteral(List<num> values, LvWireType type, LvNumericKind kind) {
     if (values.isNotEmpty && values.every((value) => value == 0)) {
       return '${type.elementListType}(${values.length})';
     }
@@ -785,11 +785,11 @@ class _FunctionEmitter {
       }
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
       _checkIndexedRank(tunnel, inner);
-      final type = _typeAt(tunnel.outerPort!)!;
+      final type = _typeAt(outerPort!)!;
       final builder = names.role(LvNameRole.builder);
       library.noteImportsFor(type);
       body.writeln('final ${lvArrayBuilderType(type.element)} $builder = <${type.element.dartType}>[];');
-      indexedOutputs.add((terminal: tunnel, inner: inner, outer: tunnel.outerPort!, builder: builder, type: type));
+      indexedOutputs.add((terminal: tunnel, inner: inner, outer: outerPort, builder: builder, type: type));
     }
 
     final carried = _emitShiftRegisters(unit, frame.frameOid);
@@ -1034,7 +1034,7 @@ class _FunctionEmitter {
       if (text.codeUnits.any((code) => code < 0x20 || code > 0x7e)) return null;
       return '$selectorValue == ${_stringLiteral(text)}';
     }
-    if (type.numeric == null || type.numeric!.isFloat) return null;
+    if (!type.isInteger) return null;
     if (range.isSingle) return '$selectorValue == ${range.low}';
     if (range.isClosed) return '$selectorValue >= ${range.low} && $selectorValue <= ${range.high}';
     if (range.lowBound == ViSelectorBound.inclusive && range.highBound == ViSelectorBound.unbounded) {
