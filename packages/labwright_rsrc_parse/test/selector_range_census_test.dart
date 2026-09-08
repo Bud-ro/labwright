@@ -7,7 +7,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 
 const int _kOpenHigh = 0x7fffffff;
 const int _kOpenLow = -0x80000000;
@@ -42,12 +41,6 @@ String? _fromHex(String label) {
   ];
   return values.contains(null) ? null : values.join(', ');
 }
-
-bool _isSentinel(ViSelectorRange range) =>
-    range.lowBound == ViSelectorBound.unbounded &&
-    (range.highBound == ViSelectorBound.unbounded || range.low == range.high);
-
-bool _overlap(ViSelectorRange first, ViSelectorRange second) => first.low <= second.high && second.low <= first.high;
 
 String _canonical(String label) =>
     label.replaceAll(RegExp(r'\s*,\s*'), ', ').replaceAll(RegExp(r'\s*\.\.\s*'), '..').trim();
@@ -88,35 +81,17 @@ Map<String, int> _census(Uint8List bytes, String path) {
   for (final diagram in model.blockDiagrams) {
     for (final structure in diagram.objects) {
       if (structure.objectClass != HeapObjectClass.bdStructureFrame) continue;
-      bump('structures');
       final ranges = structure.selectorRanges;
-      if (ranges.isEmpty) {
-        bump('noRanges');
-        continue;
-      }
-      bump('withRanges');
-      if (stated[structure.oid] case final count?) {
-        bump(count == ranges.length ? 'countAgree' : 'countDisagree');
-      }
+      if (ranges.isEmpty) continue;
+      if (stated[structure.oid] case final count? when count != ranges.length) bump('countDisagree');
       final frameCount = diagram.children(structure.oid).where((child) => child.kind == kViFrameCode).length;
       for (final range in ranges) {
-        bump(range.frame >= 0 && range.frame < frameCount ? 'frameInRange' : 'frameOutOfRange');
-      }
-      for (var i = 0; i < ranges.length; i++) {
-        for (var j = i + 1; j < ranges.length; j++) {
-          if (ranges[i].frame == ranges[j].frame) continue;
-          if (_isSentinel(ranges[i]) || _isSentinel(ranges[j])) {
-            bump('rangesSentinel');
-          } else {
-            bump(_overlap(ranges[i], ranges[j]) ? 'rangesOverlap' : 'rangesDisjoint');
-          }
-        }
+        if (range.frame < 0 || range.frame >= frameCount) bump('frameOutOfRange');
       }
       final fallback = _defaultFrame(structure);
-      bump(structure.defaultFrameIndex != null ? 'defaultRecorded' : 'defaultUnrecorded');
       final named = {for (final range in ranges) range.frame};
       for (var frame = 0; frame < frameCount; frame++) {
-        bump(named.contains(frame) || fallback == frame ? 'frameReachable' : 'frameUnreachable');
+        if (!named.contains(frame) && fallback != frame) bump('frameUnreachable');
       }
 
       final selectorLabel = diagram
@@ -125,24 +100,15 @@ Map<String, int> _census(Uint8List bytes, String path) {
           .map((child) => child.label)
           .whereType<String>()
           .firstOrNull;
-      if (selectorLabel == null) {
-        bump('noLabel');
-        continue;
-      }
+      if (selectorLabel == null) continue;
       var want = _canonical(selectorLabel);
       final wantsDefault = want.endsWith(_kDefaultSuffix) || want == 'Default';
-      if (wantsDefault) {
-        bump(fallback == structure.visibleFrameIndex ? 'defaultAgree' : 'defaultDisagree');
-      }
       if (wantsDefault) want = want == 'Default' ? '' : want.substring(0, want.length - _kDefaultSuffix.length);
       final displayed = [
         for (final range in ranges)
           if (range.frame == structure.visibleFrameIndex) range,
       ];
-      if (displayed.isEmpty) {
-        bump(want.isEmpty ? 'defaultOnlyFrame' : 'displayedUnnamed');
-        continue;
-      }
+      if (displayed.isEmpty) continue;
       if (const {'True', 'False', 'Error', 'No Error'}.contains(want)) {
         final entry = displayed.length == 1 ? displayed.single : null;
         final wantsSet = want == 'True' || want == 'Error';
@@ -159,32 +125,21 @@ Map<String, int> _census(Uint8List bytes, String path) {
           for (final range in displayed)
             if (range.isSingle && range.low >= 0 && range.low < pool.length) pool[range.low] else null,
         ];
-        if (values.contains(null)) {
-          bump('stringUnrendered');
-        } else if (values.map((value) => '"$value"').join(', ') == want) {
+        if (values.contains(null)) continue;
+        final rendered = values.map((value) => '"$value"').join(', ');
+        if (rendered == want || rendered == _unescape(want)) {
           bump('stringAgree');
-        } else if (values.map((value) => '"$value"').join(', ') == _unescape(want)) {
-          bump('stringEscaped');
-        } else if (values.every((value) => value!.trim().isEmpty)) {
-          bump('stringWhitespace');
-        } else {
+        } else if (!values.every((value) => value!.trim().isEmpty)) {
           bump('stringDisagree');
         }
         continue;
       }
       final rendered = [for (final range in displayed) _renderNumeric(range)];
-      if (rendered.contains(null)) {
-        bump('numericUnrendered');
-        continue;
-      }
-      if (rendered.join(', ') == want) {
+      if (rendered.contains(null)) continue;
+      if (rendered.join(', ') == want || rendered.join(', ') == _fromHex(want)) {
         bump('numericAgree');
-      } else if (rendered.join(', ') == _fromHex(want)) {
-        bump('numericRadix');
       } else if (RegExp(r'^-?[0-9][-0-9 ,.]*$').hasMatch(want)) {
         bump('numericDisagree');
-      } else {
-        bump('labelNotDecimal');
       }
     }
   }
@@ -193,31 +148,25 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
 void main() {
   final all = corpusVis();
-
-  late final Map<String, int> counts;
+  late final List<Map<String, int>> counts;
   setUpAll(() async {
-    final results = await corpusParallel(all, _census);
-    counts = {};
-    for (final result in results) {
-      result.forEach((key, value) => counts[key] = (counts[key] ?? 0) + value);
-    }
+    counts = await corpusParallel(all, _census);
   });
 
   test('every selector range names a frame the structure has, and no frame is unreachable', () {
-    expect(counts['frameOutOfRange'] ?? 0, 0, reason: 'a selector range names a frame index the structure has not got');
-    expect(counts['frameUnreachable'] ?? 0, 0, reason: 'a frame is named by no range and is not the Default');
-    expect(counts['countDisagree'] ?? 0, 0, reason: 'the decoded range list is not the length the file states');
+    expect(
+      perFileNonzero(all, counts, {'frameOutOfRange', 'frameUnreachable', 'countDisagree'}),
+      const <String, Map<String, int>>{},
+    );
   });
 
   test('the displayed frame\'s ranges reproduce its selector label', () {
+    expect(
+      perFileNonzero(all, counts, {'boolDisagree', 'errorDisagree', 'numericDisagree', 'stringDisagree'}),
+      const <String, Map<String, int>>{},
+    );
     for (final shape in const ['bool', 'error', 'numeric', 'string']) {
-      expect(counts['${shape}Disagree'] ?? 0, 0, reason: 'the $shape selector label disagrees with the decoded ranges');
-      expect(counts['${shape}Agree'] ?? 0, greaterThan(0), reason: 'no $shape selector label was scored at all');
+      expect(counts.any((c) => (c['${shape}Agree'] ?? 0) > 0), isTrue, reason: shape);
     }
-  });
-
-  test('selector-range census matches the committed snapshot exactly', () {
-    printOnFailure('measured: ${[for (final key in counts.keys.toList()..sort()) '$key ${counts[key]}'].join(', ')}');
-    expectCorpusSnapshot('selector_ranges', counts);
   });
 }

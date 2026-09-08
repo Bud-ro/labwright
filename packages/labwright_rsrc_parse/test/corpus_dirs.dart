@@ -14,6 +14,24 @@ List<File> corpusVis() => _allVisCache ??= listCorpusVis(corpusViDir);
 
 File corpusSnapshotFile() => File('${corpusBaseDir().path}/snapshot.json');
 
+const snapshotRegenCommand = 'dart run packages/labwright_rsrc_parse/tool/snapshot.dart';
+
+String corpusRelativePath(String path) {
+  final root = '${corpusViDir.path}/';
+  final normalized = path.replaceAll(r'\', '/');
+  return normalized.startsWith(root) ? normalized.substring(root.length) : normalized;
+}
+
+Map<String, Map<String, int>> perFileNonzero(List<File> files, List<Map<String, int>> counts, Iterable<String> keys) =>
+    {
+      for (var i = 0; i < files.length; i++)
+        if (keys.any((k) => (counts[i][k] ?? 0) != 0))
+          corpusRelativePath(files[i].path): {
+            for (final k in keys)
+              if ((counts[i][k] ?? 0) != 0) k: counts[i][k]!,
+          },
+    };
+
 bool isNonRsrcFixture(String path) => path.replaceAll(r'\', '/').endsWith('/rust-proxy/test_data/test.vi');
 
 int get _workers => (Platform.numberOfProcessors - 2).clamp(1, 16);

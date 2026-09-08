@@ -18,4 +18,32 @@ Directory _corpusSeqRoot() {
 
 final Directory corpusSeqDir = _corpusSeqRoot();
 
-File corpusSeqSnapshotFile() => File('${corpusSeqDir.parent.path}/snapshot.json');
+String corpusSeqRelativePath(String path) {
+  final root = '${corpusSeqDir.path}/';
+  final normalized = path.replaceAll(r'\', '/');
+  return normalized.startsWith(root) ? normalized.substring(root.length) : normalized;
+}
+
+class Tally {
+  final Map<String, int> _counts = {};
+  final Map<String, Map<String, int>> _byFile = {};
+  String? file;
+
+  void bump(String name, [int by = 1]) {
+    _counts[name] = (_counts[name] ?? 0) + by;
+    final f = file;
+    if (f != null) (_byFile[f] ??= {})[name] = ((_byFile[f] ??= {})[name] ?? 0) + by;
+  }
+
+  int operator [](String name) => _counts[name] ?? 0;
+
+  Map<String, int> nonzero(String name) => {
+    for (final e in _byFile.entries)
+      if ((e.value[name] ?? 0) != 0) e.key: e.value[name]!,
+  };
+
+  Map<String, int> mismatches(String a, String b) => {
+    for (final e in _byFile.entries)
+      if ((e.value[a] ?? 0) != (e.value[b] ?? 0)) e.key: (e.value[a] ?? 0) - (e.value[b] ?? 0),
+  };
+}

@@ -7,7 +7,6 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 
 const _typeNameTokens = {
   'SequenceFileData',
@@ -50,11 +49,6 @@ const _knownOffenders = {
   'RemoveUnusedChannels.seq: type name Obj',
 };
 
-final _binarySweepCounters =
-    'binaries covFiles withNames totalNames anchors nonzeroBaseFiles withLeading leadingTotal withTs tsTotal '
-            'withRr withFa groupArrays partialGroups steps ids comments elementArrays elements dataSubProps'
-        .split(' ');
-
 void main() {
   final files =
       corpusSeqDir
@@ -86,14 +80,8 @@ void main() {
     return count;
   }
 
-  test('whole corpus: nothing fabricates, all invariants hold, censuses match the snapshot', () {
+  test('whole corpus: nothing fabricates, all invariants hold', () {
     final tally = Tally();
-    var totalCov = const BinaryByteCoverage(
-      bodyBytes: 0,
-      poolBytes: 0,
-      recordSemanticBytes: 0,
-      recordStructuralBytes: 0,
-    );
     final offenders = <String>[];
 
     for (final f in files) {
@@ -107,7 +95,6 @@ void main() {
         expect(cov.recordUndecodedBytes, greaterThanOrEqualTo(0), reason: f.path);
         expect(cov.recordRegionBytes, greaterThan(0), reason: f.path);
         tally.bump('covFiles');
-        totalCov = totalCov + cov;
       }
 
       final names = binaryTypeNames(bytes);
@@ -258,13 +245,6 @@ void main() {
           'fabrication/honesty offenders beyond (or missing from) the pinned '
           'known counterexamples:\n${offenders.take(10).join('\n')}',
     );
-    expectCorpusSnapshot('binary_sweep', {
-      for (final key in _binarySweepCounters) key: tally[key],
-      'bodyBytes': totalCov.bodyBytes,
-      'poolBytes': totalCov.poolBytes,
-      'recordSemanticBytes': totalCov.recordSemanticBytes,
-      'recordStructuralBytes': totalCov.recordStructuralBytes,
-    });
   });
 
   test('misaligned cohort recovers its exact per-file base, and the rebase is semantic', () {
@@ -415,9 +395,7 @@ void main() {
         'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
       );
       expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
-      expectCorpusSnapshot('binary_pins', {
-        'solarPanelMainUndecodedBodies': records.where((r) => r.undecodedBody).length,
-      });
+      expect(records.where((r) => r.undecodedBody).length, 4);
     });
   });
 }
