@@ -1913,7 +1913,7 @@ class BdDiagramPainter extends CustomPainter {
       final rect = _rectOf(object);
       if (kBdTextLabelClasses.contains(object.objectClass)) {
         if (object.objectClass == HeapObjectClass.bdSelectorLabel) continue;
-        final holder = scene.diagram.byId[object.parentOid ?? -1];
+        final holder = scene.diagram.byId[object.parentOid];
         final backed =
             holder?.kind == 0x1b ||
             (holder?.objectClass == HeapObjectClass.caseOrSequence &&
@@ -1964,9 +1964,11 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
-    final constHolder = scene.diagram.byId[object.parentOid ?? -1];
-    final boolValue = constHolder?.objectClass == HeapObjectClass.bdConstDco
-        ? constHolder!.constBool
+    final constHolder = scene.diagram.byId[object.parentOid];
+    final boolValue =
+        constHolder != null &&
+            constHolder.objectClass == HeapObjectClass.bdConstDco
+        ? constHolder.constBool
         : null;
     if (boolValue != null && box.width == 16 && box.height == 14) {
       _drawBoolConstant(
@@ -2010,7 +2012,7 @@ class BdDiagramPainter extends CustomPainter {
     );
     final border = typed ? tint : _dimFor(object.oid, const Color(0xFF5A5A5A));
     final constValue = constValues[object.oid];
-    final shellParent = scene.diagram.byId[object.parentOid ?? -1];
+    final shellParent = scene.diagram.byId[object.parentOid];
     if (object.objectClass == HeapObjectClass.numericControl &&
         shellParent?.objectClass == HeapObjectClass.caseOrSequence) {
       return;
@@ -2831,10 +2833,11 @@ class BdDiagramPainter extends CustomPainter {
         scene.diagram,
         wire.endpointOids[0],
       );
-      if (headTerminal?.x != null && headTerminal?.y != null) {
+      final headX = headTerminal?.x, headY = headTerminal?.y;
+      if (headX != null && headY != null) {
         final tree = walkWireBranchRoute(wire.branchRoute!, (
-          x: headTerminal!.x!,
-          y: headTerminal.y!,
+          x: headX,
+          y: headY,
         ));
         final leaves = tree.leaves;
         var closed = leaves.length == wire.endpointOids.length - 1;
@@ -3038,10 +3041,11 @@ class BdDiagramPainter extends CustomPainter {
             ?.candidates;
         if (candidates == null || !candidates.contains(abs)) continue;
         final term = bdPrimTerminalOf(scene.diagram, oid);
-        if (term?.x == null || term?.y == null) continue;
+        final termX = term?.x, termY = term?.y;
+        if (termX == null || termY == null) continue;
         final delta = Offset(
-          (term!.x! - abs.x).toDouble(),
-          (term.y! - abs.y).toDouble(),
+          (termX - abs.x).toDouble(),
+          (termY - abs.y).toDouble(),
         );
         if (delta == Offset.zero) continue;
         if (reanchor == null) {
@@ -3431,16 +3435,14 @@ class BdDiagramPainter extends CustomPainter {
     }
     final route = wire.route!;
     final headTerminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[0]);
+    final headX = headTerminal?.x, headY = headTerminal?.y;
     final headAttach = wire.endpointAttachRects[0];
-    if (headTerminal?.x != null &&
-        headTerminal?.y != null &&
+    if (headX != null &&
+        headY != null &&
         (headAttach == null ||
             headAttach.right <= headAttach.left ||
             headAttach.bottom <= headAttach.top)) {
-      final walk = walkRouteBends(
-        route,
-        origin: (x: headTerminal!.x!, y: headTerminal.y!),
-      )!;
+      final walk = walkRouteBends(route, origin: (x: headX, y: headY))!;
       final bends = walk.points;
       final lastBend = bends.last;
       final closingHorizontal = walk.closingHorizontal;
@@ -4036,13 +4038,13 @@ class BdDiagramPainter extends CustomPainter {
     }
     final cols = math.max(1, grid.width ~/ cellW);
     final rows = math.max(1, grid.height ~/ cellH);
-    final holder = scene.diagram.byId[shell.parentOid ?? -1];
-    final values = holder?.objectClass == HeapObjectClass.bdConstDco
-        ? holder!.constArray
+    final holder = scene.diagram.byId[shell.parentOid];
+    final constHolder =
+        holder != null && holder.objectClass == HeapObjectClass.bdConstDco
+        ? holder
         : null;
-    final dims = holder?.objectClass == HeapObjectClass.bdConstDco
-        ? holder!.constArrayDims
-        : null;
+    final values = constHolder?.constArray;
+    final dims = constHolder?.constArrayDims;
     final format = bdDisplayFormatOf(scene.diagram, element.oid);
     final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
     var radixDx = 2, radixDy = 3;
@@ -5129,7 +5131,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
     canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
     canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
-    if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass !=
+    if (scene.diagram.byId[object.parentOid]?.objectClass !=
         HeapObjectClass.bdConstDco) {
       return;
     }

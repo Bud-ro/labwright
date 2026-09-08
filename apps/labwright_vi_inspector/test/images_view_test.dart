@@ -6,6 +6,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/image_clipboard.dart';
 import 'package:labwright_vi_inspector/src/images_view.dart';
 import 'package:labwright_vi_inspector/src/mac_icon_palette.dart';
@@ -70,11 +71,10 @@ Future<({Uint8List rgba, int stride})> _renderIcon(
   await tester.pump();
   late Uint8List rgba;
   await tester.runAsync(() async {
-    final boundary =
-        key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
-    final image = await boundary.toImage();
-    final data = await image.toByteData();
-    rgba = data!.buffer.asUint8List();
+    final boundary = tester.renderObject<RenderRepaintBoundary>(
+      find.byKey(key),
+    );
+    rgba = await rgbaOf(await boundary.toImage());
   });
   return (rgba: rgba, stride: dim * cell);
 }
