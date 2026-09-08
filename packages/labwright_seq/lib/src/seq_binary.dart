@@ -408,27 +408,24 @@ List<BinaryNamedRecord> _namedRecordsFromBody(Uint8List body, int recordRegionLe
   if (relToName.isEmpty) return const [];
 
   final view = ByteData.sublistView(body);
-  final counts = <String, int>{};
-  final tags = <String, Set<int>>{};
+  final tags = <String, List<int>>{};
   final wordCount = recordRegionLength ~/ _u32Bytes;
   for (var wordIndex = 1; wordIndex + 1 < wordCount; wordIndex++) {
     final off = view.getUint32(wordIndex * _u32Bytes, Endian.little);
     if (off == 0) continue;
     final name = relToName[off];
     if (name == null || name.isEmpty || !_isNameLike(name)) continue;
-    counts.update(name, (v) => v + 1, ifAbsent: () => 1);
-    (tags[name] ??= <int>{}).add(view.getUint32((wordIndex - 1) * _u32Bytes, Endian.little));
+    (tags[name] ??= <int>[]).add(view.getUint32((wordIndex - 1) * _u32Bytes, Endian.little));
   }
 
   final out = <BinaryNamedRecord>[];
-  for (final entry in counts.entries) {
-    final tagSet = tags[entry.key]!;
-    if (entry.value < 2 || tagSet.length != 1) continue;
+  for (final MapEntry(key: name, value: tagWords) in tags.entries) {
+    if (tagWords.length < 2 || tagWords.any((tag) => tag != tagWords.first)) continue;
     out.add(
       BinaryNamedRecord(
-        name: entry.key,
-        count: entry.value,
-        rawTag: tagSet.single,
+        name: name,
+        count: tagWords.length,
+        rawTag: tagWords.first,
       ),
     );
   }
@@ -758,7 +755,7 @@ List<BinaryTypeField>? _typeFieldsAt(
   List<BinaryTypeRecord> table, [
   int? endBoundary,
   int? typeIndexBase,
-]) => _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary, typeIndexBase).parse(after);
+]) => _TypeBodyParser(view, pool, recordRegionLength, table, endBoundary, typeIndexBase).parse(after)?.$1;
 
 List<(String, int, int)> binaryElementSpecSites(Uint8List seqBytes) {
   _TypeBodyParser.debugSpecSites.clear();
@@ -1319,8 +1316,6 @@ class _TypeBodyParser {
 
   static int? debugLastFieldOffset;
 
-  static int? debugLastEndOffset;
-
   static bool debugCollectSpecs = false;
   static final List<(String, int, int)> debugSpecSites = [];
 
@@ -1347,13 +1342,10 @@ class _TypeBodyParser {
     return fields;
   }
 
-  BinaryTypeField? parseFieldAt(int at) {
+  (BinaryTypeField, int)? parseFieldAt(int at) {
     _usedSpec = false;
     _depth = 0;
-    final parsed = _field(at);
-    if (parsed == null) return null;
-    debugLastEndOffset = parsed.$2;
-    return parsed.$1;
+    return _field(at);
   }
 
   int? lastStepTsEnd;
@@ -1367,30 +1359,30 @@ class _TypeBodyParser {
     if (_tok(_u32(at + 3 * _u32Bytes)) != 'TS') return const [];
     final mFull = ops.mark();
     final full = parseFieldAt(at);
-    if (full != null && full.name == 'TS' && full.children.isNotEmpty) {
-      lastStepTsEnd = debugLastEndOffset;
-      return full.children;
+    if (full case (final field, final end) when field.name == 'TS' && field.children.isNotEmpty) {
+      lastStepTsEnd = end;
+      return field.children;
     }
     ops.rollback(mFull);
     final mId = ops.mark();
-    final idField = parseFieldAt(at + 5 * _u32Bytes);
-    if (idField != null &&
-        idField.valueClass == SeqValueClass.string &&
-        idField.name == 'Id' &&
-        (idField.value?.startsWith('ID#:') ?? false)) {
+    final parsedId = parseFieldAt(at + 5 * _u32Bytes);
+    if (parsedId case (final idField, final end)
+        when idField.valueClass == SeqValueClass.string &&
+            idField.name == 'Id' &&
+            (idField.value?.startsWith('ID#:') ?? false)) {
       ops.u32(at, 0, _OpSource.grammar);
       ops.u32(at + _u32Bytes, 0, _OpSource.grammar);
       ops.u32(at + 2 * _u32Bytes, _recordDelimiter, _OpSource.grammar);
       ops.poolRef(at + 3 * _u32Bytes, _u32(at + 3 * _u32Bytes));
       ops.u32(at + 4 * _u32Bytes, _u32(at + 4 * _u32Bytes), _OpSource.model);
-      lastStepTsEnd = debugLastEndOffset;
+      lastStepTsEnd = end;
       return [idField];
     }
     ops.rollback(mId);
     return const [];
   }
 
-  List<BinaryTypeField>? parse(int after) {
+  (List<BinaryTypeField>, int)? parse(int after) {
     debugLastFieldOffset = null;
     _usedSpec = false;
     if (after + 2 * _u32Bytes > recordRegionLength || _u32(after) != 0) {
@@ -1431,8 +1423,7 @@ class _TypeBodyParser {
     }
     final boundary = bodyEndBoundary;
     if (_usedSpec && boundary != null && parsed.$2 > boundary) return _blockBail(rollbackMark);
-    debugLastEndOffset = parsed.$2;
-    return parsed.$1;
+    return parsed;
   }
 
   (List<BinaryTypeField>, int)? _fieldsUntil(int from, int boundary) {
@@ -2429,13 +2420,13 @@ List<({String name, int headAt, int bodyAt, int? end, int? bail})> binaryTypeBod
         ? (headOffsets[records[i + 1].name] ?? 0) - _u32Bytes - _typeRecordPreambleBytes
         : null;
     final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary, typeIndexBase);
-    final ok = parser.parse(bodyAt) != null;
+    final parsed = parser.parse(bodyAt);
     extents.add((
       name: record.name,
       headAt: headOffsets[record.name] ?? -1,
       bodyAt: bodyAt,
-      end: ok ? _TypeBodyParser.debugLastEndOffset : null,
-      bail: ok ? null : _TypeBodyParser.debugLastFieldOffset ?? -1,
+      end: parsed?.$2,
+      bail: parsed != null ? null : _TypeBodyParser.debugLastFieldOffset ?? -1,
     ));
   }
   return extents;
@@ -2543,8 +2534,9 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
     while (subProps.length < count) {
       final i = subProps.length;
       final mField = sink.mark();
-      final field = parser.parseFieldAt(cur);
-      if (field == null) break;
+      final parsed = parser.parseFieldAt(cur);
+      if (parsed == null) break;
+      final (field, fieldEnd) = parsed;
       var gated = false;
       if (i < _sequenceSubPropHead.length) {
         gated = field.name != _sequenceSubPropHead[i];
@@ -2561,7 +2553,7 @@ List<_SequenceRecordWalk> _sequenceRecordWalks(
         sink.rollback(mField);
         break;
       }
-      cur = _TypeBodyParser.debugLastEndOffset!;
+      cur = fieldEnd;
       subProps.add((field, cur));
       if (_stepGroupNames.contains(field.name) &&
           ((!field.isEmptyArray && field.children.isEmpty) || field.partialArray)) {
@@ -2654,6 +2646,13 @@ class BinaryStepRef {
   @override
   String toString() => 'BinaryStepRef($name${typeName != null ? ': $typeName' : ''})';
 }
+
+typedef _StepBuckets = ({
+  List<BinaryStepRef> setup,
+  List<BinaryStepRef> main,
+  List<BinaryStepRef> cleanup,
+  List<BinaryStepRef> ungrouped,
+});
 
 class BinarySequenceOutline {
   const BinarySequenceOutline({
@@ -2793,17 +2792,16 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
     }
     sink.poolRef(at + 2 * _u32Bytes, wordAt(at + 2 * _u32Bytes));
     sink.poolRef(at + 3 * _u32Bytes, wordAt(at + 3 * _u32Bytes));
-    if (tsSubProps.isNotEmpty && tsParser.lastStepTsEnd != null) {
-      sink.claim(at + 4 * _u32Bytes, tsParser.lastStepTsEnd!, _tierSemantic);
-    }
     final dataSubProps = <BinaryTypeField>[];
-    if (tsSubProps.isNotEmpty && tsParser.lastStepTsEnd != null) {
-      var cur = tsParser.lastStepTsEnd!;
+    final tsEnd = tsParser.lastStepTsEnd;
+    if (tsSubProps.isNotEmpty && tsEnd != null) {
+      sink.claim(at + 4 * _u32Bytes, tsEnd, _tierSemantic);
+      var cur = tsEnd;
       while (cur < spanEnd) {
         final mData = sink.mark();
-        final field = tsParser.parseFieldAt(cur);
-        if (field == null) break;
-        final fieldEnd = _TypeBodyParser.debugLastEndOffset!;
+        final parsed = tsParser.parseFieldAt(cur);
+        if (parsed == null) break;
+        final (field, fieldEnd) = parsed;
         if (!_stepDataSubPropNames.contains(field.name) || fieldEnd > spanEnd) {
           sink.rollback(mData);
           break;
@@ -2828,31 +2826,38 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
   }
 
   sequenceDecls.sort((a, b) => a.$1.compareTo(b.$1));
-  final outlines = {
-    for (final (_, name) in sequenceDecls) name: {for (final group in StepGroup.values) group: <BinaryStepRef>[]},
-  };
-  String sequenceAt(int offset) {
-    var owner = sequenceDecls.first.$2;
-    for (final (declOffset, name) in sequenceDecls) {
-      if (declOffset < offset) owner = name;
+  final outlines = <String, _StepBuckets>{};
+  final declBuckets = [
+    for (final (declOffset, name) in sequenceDecls)
+      (
+        offset: declOffset,
+        buckets: outlines[name] ??= (setup: [], main: [], cleanup: [], ungrouped: []),
+      ),
+  ];
+  _StepBuckets bucketsAt(int offset) {
+    var owner = declBuckets.first.buckets;
+    for (final decl in declBuckets) {
+      if (decl.offset < offset) owner = decl.buckets;
     }
     return owner;
   }
 
-  final ungrouped = <String, List<BinaryStepRef>>{
-    for (final (_, name) in sequenceDecls) name: <BinaryStepRef>[],
-  };
   for (final (stepOffset, step) in steps) {
     StepGroup? group;
     for (final (markerOffset, markerGroup) in markers) {
       if (markerOffset < stepOffset) group = markerGroup;
     }
-    final owner = sequenceAt(stepOffset);
-    if (group == null) {
-      ungrouped[owner]!.add(step);
-      continue;
+    final owner = bucketsAt(stepOffset);
+    switch (group) {
+      case null:
+        owner.ungrouped.add(step);
+      case StepGroup.setup:
+        owner.setup.add(step);
+      case StepGroup.main:
+        owner.main.add(step);
+      case StepGroup.cleanup:
+        owner.cleanup.add(step);
     }
-    outlines[owner]![group]!.add(step);
   }
 
   final leading = _sequenceLeadingSubProps(
@@ -2879,24 +2884,22 @@ List<BinarySequenceOutline> _sequenceOutlinesFromBody(
         if (_stepGroupNames.contains(field.name)) field,
     ];
     if (walked.isNotEmpty) groups[walk.name] = walked;
-    if (walk.comment != null) comments[walk.name] = walk.comment!;
+    if (walk.comment case final comment?) comments[walk.name] = comment;
   }
 
-  final seenNames = <String>{};
   return [
-    for (final (_, name) in sequenceDecls)
-      if (seenNames.add(name))
-        BinarySequenceOutline(
-          name: name,
-          setup: outlines[name]![StepGroup.setup]!,
-          main: outlines[name]![StepGroup.main]!,
-          cleanup: outlines[name]![StepGroup.cleanup]!,
-          ungrouped: ungrouped[name]!,
-          leadingSubProps: leading[name] ?? const [],
-          tailSubProps: tail[name] ?? const [],
-          comment: comments[name],
-          groupArrays: groups[name] ?? const [],
-        ),
+    for (final MapEntry(key: name, value: buckets) in outlines.entries)
+      BinarySequenceOutline(
+        name: name,
+        setup: buckets.setup,
+        main: buckets.main,
+        cleanup: buckets.cleanup,
+        ungrouped: buckets.ungrouped,
+        leadingSubProps: leading[name] ?? const [],
+        tailSubProps: tail[name] ?? const [],
+        comment: comments[name],
+        groupArrays: groups[name] ?? const [],
+      ),
   ];
 }
 
@@ -2936,16 +2939,16 @@ Map<String, List<BinaryTypeField>> _sequenceTailSubProps(
       if (!classIdx.contains(u32(at + 2 * _u32Bytes))) continue;
       if (!nameIdx.contains(u32(at + 3 * _u32Bytes))) continue;
       final mAnchor = sink.mark();
-      final field = parser.parseFieldAt(at);
-      if (field == null) continue;
+      final parsed = parser.parseFieldAt(at);
+      if (parsed == null) continue;
+      final (field, fieldEnd) = parsed;
       final owner = ownerOf(at);
       final seen = seenPerOwner.putIfAbsent(owner, () => <String>{});
       if (!spec.accepts(field) || !seen.add(spec.name)) {
         sink.rollback(mAnchor);
         continue;
       }
-      final fieldEnd = _TypeBodyParser.debugLastEndOffset;
-      if (fieldEnd != null) sink.claim(at, fieldEnd, _tierSemantic);
+      sink.claim(at, fieldEnd, _tierSemantic);
       result.putIfAbsent(owner, () => <BinaryTypeField>[]).add(field);
     }
   }
@@ -3322,10 +3325,11 @@ _BodyDecode? _decodeBody(Uint8List body) {
       final boundary = nextHeadAt != null ? nextHeadAt - _u32Bytes - _typeRecordPreambleBytes : null;
       final parser = _TypeBodyParser(view, pool, recordRegionLength, records, boundary, typeIndexBase)..ops = sink;
       final mBody = sink.mark();
-      if (parser.parse(bodyAt) != null) {
-        sink.claim(bodyAt, _TypeBodyParser.debugLastEndOffset!, _tierSemantic);
-      } else {
+      final parsed = parser.parse(bodyAt);
+      if (parsed == null) {
         sink.rollback(mBody);
+      } else {
+        sink.claim(bodyAt, parsed.$2, _tierSemantic);
       }
     }
 
@@ -3370,10 +3374,7 @@ _BodyDecode? _decodeBody(Uint8List body) {
   if (pool.isEmpty) return null;
   final view = ByteData.sublistView(body);
   final table = _typeRecordsFromBody(body, recordRegionLength, sharedPool: pool);
-  final parser = _TypeBodyParser(view, pool, recordRegionLength, table);
-  final field = parser.parseFieldAt(at);
-  if (field == null) return null;
-  return (field, _TypeBodyParser.debugLastEndOffset!);
+  return _TypeBodyParser(view, pool, recordRegionLength, table).parseFieldAt(at);
 }
 
 int? binaryFieldBailOffset(Uint8List seqBytes, int at) {

@@ -58,8 +58,9 @@ void main(List<String> args) {
     ..writeln('| source | XML .seq | sequences | steps | modeled | total | model% |')
     ..writeln('|---|--:|--:|--:|--:|--:|--:|');
   stdout.writeln('source                              xml  seqs steps  modeled  total  model%');
-  for (final src in bySource.keys.toList()..sort()) {
-    final s = _measure(bySource[src]!, SeqFormat.xml);
+  final sorted = bySource.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
+  for (final MapEntry(key: src, value: sourceFiles) in sorted) {
+    final s = _measure(sourceFiles, SeqFormat.xml);
     overall
       ..files += s.files
       ..seqs += s.seqs

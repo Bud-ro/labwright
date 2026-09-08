@@ -60,7 +60,7 @@ enum SeqValueClass {
     for (final cls in values)
       if (cls != other) ...{
         cls.wire: cls,
-        if (cls.alias != null) cls.alias!: cls,
+        if (cls.alias case final alias?) alias: cls,
       },
   };
 
@@ -200,13 +200,15 @@ class SeqProperty {
   SeqProperty? at(List<String> names) => names.fold<SeqProperty?>(this, (cur, n) => cur?.prop(n));
 
   @override
-  String toString() =>
-      'SeqProperty($name, class=$className${typeName != null ? ', type=$typeName' : ''}, '
-      '${isArray
-          ? '[${array!.length}]'
-          : scalar != null
-          ? 'scalar'
-          : '{${subProps.length}}'})';
+  String toString() {
+    final elements = array;
+    final shape = elements != null
+        ? '[${elements.length}]'
+        : scalar != null
+        ? 'scalar'
+        : '{${subProps.length}}';
+    return 'SeqProperty($name, class=$className${typeName != null ? ', type=$typeName' : ''}, $shape)';
+  }
 }
 
 XmlElement? childElement(XmlElement e, String name) => childElementsNamed(e, name).firstOrNull;

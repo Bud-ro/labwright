@@ -32,6 +32,15 @@ class SeqExportStats {
   int wiredArgs = 0;
 }
 
+typedef _ExportModule = ({
+  String path,
+  SeqFile file,
+  String module,
+  Map<String, String> fnNames,
+  Map<String, _SeqScope> scopeByName,
+  Set<String> stationRefs,
+});
+
 class SeqProjectExport {
   const SeqProjectExport({required this.files});
 
@@ -56,29 +65,31 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     return cleaned.isEmpty ? 'module' : cleaned;
   }
 
-  final ordered = byPath.keys.toList()..sort();
+  final ordered = byPath.entries.toList()..sort((a, b) => a.key.compareTo(b.key));
   final takenStems = <String>{};
-  final moduleOf = {
-    for (final key in ordered) key: '${_uniqueName(snake(stemOf(key)), takenStems)}_seq',
-  };
-
-  final fnOf = <String, Map<String, String>>{};
-  final scopeByNameOf = <String, Map<String, _SeqScope>>{};
-  for (final key in ordered) {
+  final modules = <_ExportModule>[];
+  for (final MapEntry(key: path, value: file) in ordered) {
+    final module = '${_uniqueName(snake(stemOf(path)), takenStems)}_seq';
     final taken = _reservedTopLevelNames(asTest: true, registerName: 'register');
-    final file = byPath[key]!;
-    fnOf[key] = _sequenceFnTable(file, taken);
-    final scopes = _sequenceScopeTable(file, taken, sourceName: key);
-    final byName = <String, _SeqScope>{};
+    final fnNames = _sequenceFnTable(file, taken);
+    final scopes = _sequenceScopeTable(file, taken, sourceName: path);
+    final scopeByName = <String, _SeqScope>{};
     for (var i = 0; i < file.sequences.length; i++) {
-      byName.putIfAbsent(file.sequences[i].name, () => scopes[i]);
+      scopeByName.putIfAbsent(file.sequences[i].name, () => scopes[i]);
     }
-    scopeByNameOf[key] = byName;
+    modules.add((
+      path: path,
+      file: file,
+      module: module,
+      fnNames: fnNames,
+      scopeByName: scopeByName,
+      stationRefs: _collectStationGlobalRefs(file),
+    ));
   }
 
-  final lowerByBase = <String, List<String>>{};
-  for (final key in ordered) {
-    (lowerByBase[baseOf(key).toLowerCase()] ??= []).add(key);
+  final lowerByBase = <String, List<_ExportModule>>{};
+  for (final module in modules) {
+    (lowerByBase[baseOf(module.path).toLowerCase()] ??= []).add(module);
   }
   String dirOf(String key) {
     final n = norm(key);
@@ -103,26 +114,26 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     return out.join('/');
   }
 
-  String? resolveTargetFile(String callerKey, String sfPath) {
+  _ExportModule? resolveTargetFile(String callerKey, String sfPath) {
     final exact = joinNorm(dirOf(callerKey), sfPath);
-    for (final key in ordered) {
-      if (norm(key).toLowerCase() == exact.toLowerCase()) return key;
+    for (final module in modules) {
+      if (norm(module.path).toLowerCase() == exact.toLowerCase()) return module;
     }
     final candidates = lowerByBase[baseOf(sfPath).toLowerCase()];
     if (candidates == null) return null;
     if (candidates.length == 1) return candidates.single;
     final sameDir = [
       for (final c in candidates)
-        if (dirOf(c) == dirOf(callerKey)) c,
+        if (dirOf(c.path) == dirOf(callerKey)) c,
     ];
     return sameDir.length == 1 ? sameDir.single : null;
   }
 
   final resolvedOf = <String, Map<(String, String), _ResolvedCall>>{};
-  final importsOf = <String, Set<String>>{};
+  final importsOf = <String, Map<String, String>>{};
   final externallyCalledOf = <String, Set<String>>{};
-  for (final key in ordered) {
-    for (final seq in byPath[key]!.sequences) {
+  for (final caller in modules) {
+    for (final seq in caller.file.sequences) {
       for (final st in seq.steps) {
         final m = st.module;
         if (m.adapter != SeqAdapter.sequenceCall) continue;
@@ -130,34 +141,33 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         final sf = m.sequenceFile;
         final target = m.sequenceName;
         if (sf == null || target == null) continue;
-        final targetKey = resolveTargetFile(key, sf);
-        if (targetKey == null || targetKey == key) continue;
-        final fn = fnOf[targetKey]![target];
+        final callee = resolveTargetFile(caller.path, sf);
+        if (callee == null || callee.path == caller.path) continue;
+        final fn = callee.fnNames[target];
         if (fn == null) continue;
-        final prefix = moduleOf[targetKey]!;
-        (resolvedOf[key] ??= {})[(sf, target)] = (fn: '$prefix.$fn', scope: scopeByNameOf[targetKey]![target]!);
-        (importsOf[key] ??= {}).add(targetKey);
-        (externallyCalledOf[targetKey] ??= {}).add(target);
+        (resolvedOf[caller.path] ??= {})[(sf, target)] = (
+          fn: '${callee.module}.$fn',
+          scope: callee.scopeByName[target]!,
+        );
+        (importsOf[caller.path] ??= {})[callee.path] = callee.module;
+        (externallyCalledOf[callee.path] ??= {}).add(target);
       }
     }
   }
 
-  final stationRefsOf = {
-    for (final key in ordered) key: _collectStationGlobalRefs(byPath[key]!),
-  };
   final stationUnion = <String>{
-    for (final refs in stationRefsOf.values) ...refs,
+    for (final module in modules) ...module.stationRefs,
   };
   final referencing = [
-    for (final key in ordered)
-      if (stationRefsOf[key]!.isNotEmpty) key,
+    for (final module in modules)
+      if (module.stationRefs.isNotEmpty) module,
   ];
   final sharedStation = referencing.length > 1;
-  final stationOwner = referencing.length == 1 ? referencing.first : null;
+  final stationOwner = referencing.length == 1 ? referencing.single : null;
   final stationHome = sharedStation
       ? 'lw_runtime.dart'
       : stationOwner != null
-      ? '${moduleOf[stationOwner]!}.dart'
+      ? '${stationOwner.module}.dart'
       : 'lw_runtime.dart';
 
   final files = <String, String>{};
@@ -200,17 +210,17 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
   }
 
   final registers = <String>[];
-  for (final key in ordered) {
-    final module = moduleOf[key]!;
+  for (final module in modules) {
+    final imports = importsOf[module.path] ?? const <String, String>{};
+    final sortedDeps = imports.keys.toList()..sort();
     final extra = <String>[
-      if (sharedStation && stationRefsOf[key]!.isNotEmpty) "import 'lw_runtime.dart';",
-      for (final dep in (importsOf[key] ?? const <String>{}).toList()..sort())
-        "import '${moduleOf[dep]!}.dart' as ${moduleOf[dep]!};",
+      if (sharedStation && module.stationRefs.isNotEmpty) "import 'lw_runtime.dart';",
+      for (final dep in sortedDeps) "import '${imports[dep]}.dart' as ${imports[dep]};",
     ];
-    final resolved = resolvedOf[key] ?? const <(String, String), _ResolvedCall>{};
-    files['$module.dart'] = _DartExporter(
-      byPath[key]!,
-      sourceName: key,
+    final resolved = resolvedOf[module.path] ?? const <(String, String), _ResolvedCall>{};
+    var source = _DartExporter(
+      module.file,
+      sourceName: module.path,
       asTest: true,
       registerName: 'register',
       extraImports: extra,
@@ -218,25 +228,21 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         final (sf, name) = (m.sequenceFile, m.sequenceName);
         return sf == null || name == null ? null : resolved[(sf, name)];
       },
-      externallyCalled: externallyCalledOf[key] ?? const <String>{},
+      externallyCalled: externallyCalledOf[module.path] ?? const <String>{},
       stationGlobalNames: stationUnion,
-      hostStationGlobals: !sharedStation && key == stationOwner,
+      hostStationGlobals: !sharedStation && module.path == stationOwner?.path,
       stationGlobalsHome: stationHome,
     ).export();
-    files['$module.dart'] = _withoutUnusedImport(
-      files['$module.dart']!,
-      "import 'lw_runtime.dart';\n",
-      RegExp(r'stationGlobals'),
-    );
-    for (final dep in importsOf[key] ?? const <String>{}) {
-      final depModule = moduleOf[dep]!;
-      files['$module.dart'] = _withoutUnusedImport(
-        files['$module.dart']!,
+    source = _withoutUnusedImport(source, "import 'lw_runtime.dart';\n", RegExp(r'stationGlobals'));
+    for (final depModule in imports.values) {
+      source = _withoutUnusedImport(
+        source,
         "import '$depModule.dart' as $depModule;\n",
         RegExp('(?<![\\w\\\$.])$depModule\\.'),
       );
     }
-    registers.add(module);
+    files['${module.module}.dart'] = source;
+    registers.add(module.module);
   }
 
   files['main.dart'] = [
@@ -616,9 +622,10 @@ class _StubInfo {
     final proto = module.prototypeParameters;
     if (proto.isNotEmpty) {
       final shape = [for (final p in proto) '${p.name.toLowerCase()}|${p.raw.className}'];
-      if (_protoShape == null) {
+      final current = _protoShape;
+      if (current == null) {
         _protoShape = shape;
-      } else if (_protoShape!.join('\u0000') != shape.join('\u0000')) {
+      } else if (current.join('\u0000') != shape.join('\u0000')) {
         _agree = false;
       }
       for (final p in proto) {
@@ -649,9 +656,10 @@ class _StubInfo {
 
   List<String> signatureDecls() {
     if (!isSeq || _idOf.isEmpty) return const [];
-    if (typed) {
+    final shape = typed ? _protoShape : null;
+    if (shape != null) {
       return [
-        for (final key in _protoShape!)
+        for (final key in shape)
           _stubParamDecl(
             _protoVarOf[key.substring(0, key.indexOf('|'))]!,
             _idOf[key.substring(0, key.indexOf('|'))]!,
@@ -1063,8 +1071,8 @@ class _DartExporter {
 
   late final Map<String, String> _typePreconditions = {
     for (final t in file.typeDefs)
-      if ((t.raw.prop('TS')?.prop('PreCond')?.scalar ?? '').isNotEmpty)
-        t.name: t.raw.prop('TS')!.prop('PreCond')!.scalar!,
+      if (t.raw.prop('TS')?.prop('PreCond')?.scalar case final precondition? when precondition.isNotEmpty)
+        t.name: precondition,
   };
 
   void _line(String text) {
@@ -1663,17 +1671,14 @@ class _DartExporter {
           open.add(_openBlock(flow.kind));
         case FlowKind.selectBlock:
           selectCounter++;
-          selectVars[selectCounter] = (
+          final selectVar = selectVars[selectCounter] = (
             value: _claimId('select$selectCounter'),
             matched: _claimId('matched$selectCounter'),
           );
           _line('sel$selectCounter: {$nameNote');
           _indent++;
-          _line(
-            'final ${selectVars[selectCounter]!.value} = '
-            '${_expr(flow.itemExpression ?? 'null')};',
-          );
-          _line('var ${selectVars[selectCounter]!.matched} = false;');
+          _line('final ${selectVar.value} = ${_expr(flow.itemExpression ?? 'null')};');
+          _line('var ${selectVar.matched} = false;');
           open.add(_openBlock(flow.kind, selectId: selectCounter));
         case FlowKind.caseBlock:
           final select = innermost((k) => k == FlowKind.selectBlock)?.selectId ?? 0;
@@ -2586,8 +2591,9 @@ class _DartExporter {
   }
 
   String _typeOrEmpty(String? className, Set<String> seenTypes) {
-    final t = className != null ? _typeByName[className] : null;
-    if (t == null || !seenTypes.add(className!)) return 'ts.PropObj()';
+    if (className == null) return 'ts.PropObj()';
+    final t = _typeByName[className];
+    if (t == null || !seenTypes.add(className)) return 'ts.PropObj()';
     final init = _propObjInit(t.raw, seenTypes);
     seenTypes.remove(className);
     return init;

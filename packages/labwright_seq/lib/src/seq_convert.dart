@@ -284,7 +284,10 @@ SeqProperty _xmlReady(SeqProperty p, Map<SeqProperty, SeqProperty> memo) {
     array: array == null ? null : [for (final element in array) _xmlReady(element, memo)],
     subProps: [for (final child in p.subProps) _xmlReady(child, memo)],
     valueAttributes: valueAttrs,
-    elemProto: p.elemProto == null ? null : _xmlReady(p.elemProto!, memo),
+    elemProto: switch (p.elemProto) {
+      final elemProto? => _xmlReady(elemProto, memo),
+      _ => null,
+    },
     extData: p.extData,
     numericFormat: numericFormat,
     xmlComment: p.xmlComment,
@@ -409,8 +412,8 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
           : IniEntry(ConvKey.numericFmtArmored, _quotedRaw(armorText(numericFormat))),
     );
   }
-  if (p.xmlComment != null) {
-    valueEntries.add(IniEntry(ConvKey.nodeComment, _quotedRaw(armorText(p.xmlComment!))));
+  if (p.xmlComment case final xmlComment?) {
+    valueEntries.add(IniEntry(ConvKey.nodeComment, _quotedRaw(armorText(xmlComment))));
   }
   final array = p.array;
   if (array != null) {
@@ -460,9 +463,17 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
       }
     }
   }
-  if (p.elemProto != null) {
-    _emitNode(p.elemProto!, '$path.${ConvKey.elemProtoSegment}', out, scalarOnParent: false);
+  if (p.elemProto case final elemProto?) {
+    _emitNode(elemProto, '$path.${ConvKey.elemProtoSegment}', out, scalarOnParent: false);
   }
+}
+
+String _reserveTypePath(SeqProperty? root, int index, Set<String> usedPaths) {
+  var candidate = root != null && _bareToken.hasMatch(root.name) ? root.name : 'T$index';
+  while (!usedPaths.add(candidate)) {
+    candidate = '${candidate}_';
+  }
+  return candidate;
 }
 
 IniSeqFile _iniFromXml(SeqFile file) {
@@ -475,50 +486,38 @@ IniSeqFile _iniFromXml(SeqFile file) {
       : (file.types.isNotEmpty ? ConvKey.typelistFromTypes : null);
 
   final headerFields = <String, String>{
-    if (header.productName != null && _latin1Clean(header.productName!))
-      'ProductName': escapeIniQuoted(header.productName!),
-    if (header.fileVersion != null && _bareToken.hasMatch(header.fileVersion!)) 'Version': header.fileVersion!,
-    if (header.fileType != null && _latin1Clean(header.fileType!)) 'Type': escapeIniQuoted(header.fileType!),
+    if (header.productName case final productName? when _latin1Clean(productName))
+      'ProductName': escapeIniQuoted(productName),
+    if (header.fileVersion case final fileVersion? when _bareToken.hasMatch(fileVersion)) 'Version': fileVersion,
+    if (header.fileType case final fileType? when _latin1Clean(fileType)) 'Type': escapeIniQuoted(fileType),
     ConvKey.hdrMarker: '1',
     ConvKey.hdrTrio: _quotedRaw(
       _armorMap({
-        if (header.fileType != null) 't': header.fileType!,
-        if (header.productName != null) 'p': header.productName!,
-        if (header.fileVersion != null) 'v': header.fileVersion!,
+        if (header.fileType case final fileType?) 't': fileType,
+        if (header.productName case final productName?) 'p': productName,
+        if (header.fileVersion case final fileVersion?) 'v': fileVersion,
       }),
     ),
-    if (file.rootAttributes != null) ConvKey.hdrRootAttrs: _quotedRaw(_armorMap(file.rootAttributes!)),
+    if (file.rootAttributes case final rootAttributes?) ConvKey.hdrRootAttrs: _quotedRaw(_armorMap(rootAttributes)),
     if (typelistMark != null) ConvKey.hdrTypelist: typelistMark,
     if (file.newline == '\r\n') ConvKey.hdrEol: ConvKey.iniEolCrlf,
   };
 
   final sections = <IniSection>[];
 
-  final typePaths = <String?>[];
   final usedPaths = <String>{ConvKey.dataPath};
-  if (entries != null) {
-    for (var i = 0; i < entries.length; i++) {
-      if (entries[i].isProtected) {
-        typePaths.add(null);
-        continue;
-      }
-      final root = entries[i].root;
-      var candidate = (root != null && _bareToken.hasMatch(root.name)) ? root.name : 'T$i';
-      while (!usedPaths.add(candidate)) {
-        candidate = '${candidate}_';
-      }
-      typePaths.add(candidate);
-    }
-  }
+  final typeRows = [
+    for (final (index, entry) in (entries ?? const <SeqTypelistEntry>[]).indexed)
+      (index: index, entry: entry, path: entry.isProtected ? null : _reserveTypePath(entry.root, index, usedPaths)),
+  ];
   sections.add(
     IniSection(
       isDef: true,
       path: ConvKey.objRootPath,
       entries: [
         const IniEntry(ConvKey.dataPath, 'SequenceFileData'),
-        if (entries != null)
-          for (var i = 0; i < entries.length; i++)
-            if (entries[i].root != null && typePaths[i] != null) IniEntry(typePaths[i]!, _declText(entries[i].root!)),
+        for (final row in typeRows)
+          if ((row.path, row.entry.root) case (final path?, final root?)) IniEntry(path, _declText(root)),
       ],
     ),
   );
@@ -529,25 +528,23 @@ IniSeqFile _iniFromXml(SeqFile file) {
         isDef: false,
         path: ConvKey.typesPath,
         entries: [
-          for (var i = 0; i < entries.length; i++)
-            if (entries[i].isProtected)
-              IniEntry('${ConvKey.typeProtected}: $i', _quotedRaw(armorText(entries[i].protectedData!)))
-            else ...[
-              IniEntry(
-                typePaths[i]!,
-                entries[i].root != null && _latin1Clean(entries[i].root!.name)
-                    ? escapeIniQuoted(entries[i].root!.name)
-                    : '""',
-              ),
-              IniEntry('${ConvKey.typeAttrs}: ${typePaths[i]!}', _quotedRaw(_armorMap(entries[i].attributes))),
+          for (final row in typeRows)
+            if (row.entry.protectedData case final protectedData?)
+              IniEntry('${ConvKey.typeProtected}: ${row.index}', _quotedRaw(armorText(protectedData)))
+            else if (row.path case final path?) ...[
+              IniEntry(path, switch (row.entry.root) {
+                final root? when _latin1Clean(root.name) => escapeIniQuoted(root.name),
+                _ => '""',
+              }),
+              IniEntry('${ConvKey.typeAttrs}: $path', _quotedRaw(_armorMap(row.entry.attributes))),
             ],
         ],
       ),
     );
-    for (var i = 0; i < entries.length; i++) {
-      final root = entries[i].root;
-      final typePath = typePaths[i];
-      if (root != null && typePath != null) _emitNode(root, typePath, sections, scalarOnParent: false);
+    for (final row in typeRows) {
+      if ((row.path, row.entry.root) case (final path?, final root?)) {
+        _emitNode(root, path, sections, scalarOnParent: false);
+      }
     }
   }
 
@@ -576,15 +573,16 @@ SeqFile _xmlFromReservedIni(IniSeqFile doc) {
   final typelistMark = doc.headerFields[ConvKey.hdrTypelist];
   if (typelistMark != null) {
     final listSection = vals[ConvKey.typesPath];
+    final listDirectives = listSection?.directives ?? const <String, String>{};
     final rebuilt = <SeqTypelistEntry>[];
     for (final entry in listSection?.entries ?? const <IniEntry>[]) {
       if (entry.key.startsWith('${ConvKey.typeProtected}: ')) {
-        rebuilt.add(SeqTypelistEntry(protectedData: unarmorText(unquoteIni(entry.rawValue)!)));
+        rebuilt.add(SeqTypelistEntry(protectedData: unarmorText(unquoteIniText(entry.rawValue))));
       } else if (!entry.isDirective) {
         final path = entry.key;
         rebuilt.add(
           SeqTypelistEntry(
-            attributes: _unarmorMap(unquoteIni(listSection!.directives['${ConvKey.typeAttrs}: $path']) ?? ''),
+            attributes: _unarmorMap(unquoteIni(listDirectives['${ConvKey.typeAttrs}: $path']) ?? ''),
             root: vals.containsKey(path) ? _rebuildNode(path, null, defs, vals) : null,
           ),
         );
@@ -592,7 +590,7 @@ SeqFile _xmlFromReservedIni(IniSeqFile doc) {
     }
     types = [
       for (final entry in rebuilt)
-        if (entry.root != null) entry.root!,
+        if (entry.root case final root?) root,
     ];
     typelistEntries = typelistMark == ConvKey.typelistReal ? rebuilt : null;
   }
@@ -606,7 +604,7 @@ SeqFile _xmlFromReservedIni(IniSeqFile doc) {
     ),
     types: types,
     typelistEntries: typelistEntries,
-    rootAttributes: rootAttrsRaw == null ? null : _unarmorMap(unquoteIni(rootAttrsRaw)!),
+    rootAttributes: rootAttrsRaw == null ? null : _unarmorMap(unquoteIniText(rootAttrsRaw)),
     data: _rebuildNode(ConvKey.dataPath, null, defs, vals),
     newline: doc.headerFields[ConvKey.hdrEol] == ConvKey.iniEolCrlf ? '\r\n' : '\n',
   );
@@ -620,7 +618,7 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
   final dir = val.directives;
   String? armored(String key) {
     final raw = dir[key];
-    return raw == null ? null : unarmorText(unquoteIni(raw)!);
+    return raw == null ? null : unarmorText(unquoteIniText(raw));
   }
 
   final name = armored(ConvKey.nodeName);
@@ -631,9 +629,9 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
   var className = attrs['classname'];
   var typeName = attrs['typename'] ?? attrs['xsi:type'];
   final classOverride = dir[ConvKey.nodeClassName];
-  if (classOverride != null) className = _unarmorNullable(unquoteIni(classOverride)!);
+  if (classOverride != null) className = _unarmorNullable(unquoteIniText(classOverride));
   final typeOverride = dir[ConvKey.nodeTypeName];
-  if (typeOverride != null) typeName = _unarmorNullable(unquoteIni(typeOverride)!);
+  if (typeOverride != null) typeName = _unarmorNullable(unquoteIniText(typeOverride));
 
   final scalar = scalarRaw != null ? unquoteIni(scalarRaw) : armored(ConvKey.nodeScalar);
   final numericFormat = dir.containsKey(ConvKey.numericFmt)
@@ -665,8 +663,10 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
   }
 
   final extData = <Map<String, String>>[];
-  for (var j = 0; dir.containsKey('${ConvKey.nodeExtData}: $j'); j++) {
-    extData.add(_unarmorMap(unquoteIni(dir['${ConvKey.nodeExtData}: $j'])!));
+  for (var j = 0; ; j++) {
+    final raw = dir['${ConvKey.nodeExtData}: $j'];
+    if (raw == null) break;
+    extData.add(_unarmorMap(unquoteIniText(raw)));
   }
 
   return SeqProperty(
@@ -678,9 +678,10 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
     scalar: scalar,
     array: array,
     subProps: subProps,
-    valueAttributes: dir.containsKey(ConvKey.nodeValueAttrs)
-        ? _unarmorMap(unquoteIni(dir[ConvKey.nodeValueAttrs])!)
-        : const {},
+    valueAttributes: switch (dir[ConvKey.nodeValueAttrs]) {
+      final raw? => _unarmorMap(unquoteIniText(raw)),
+      _ => const {},
+    },
     elemProto: dir.containsKey(ConvKey.nodeElemProto)
         ? _rebuildNode('$path.${ConvKey.elemProtoSegment}', null, defs, vals)
         : null,
