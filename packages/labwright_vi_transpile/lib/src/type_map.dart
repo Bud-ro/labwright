@@ -398,9 +398,9 @@ LvTypeMapping _mapEnum(ViType type, String? label, LvDeclarations? declarations)
 
 String lvRecordType(List<ViType> members, List<LvTypeMapping> mapped) {
   final names = [for (final member in members) lvFieldName(member.name ?? '')];
-  final named = names.every((n) => n.isNotEmpty) && names.toSet().length == names.length;
+  final named = names.every((name) => name.isNotEmpty) && names.toSet().length == names.length;
   if (!named) return '(${[for (final field in mapped) field.dartType!].join(', ')})';
-  return '({${[for (var i = 0; i < mapped.length; i++) '${mapped[i].dartType} ${names[i]}'].join(', ')}})';
+  return '({${[for (var index = 0; index < mapped.length; index++) '${mapped[index].dartType} ${names[index]}'].join(', ')}})';
 }
 
 LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
@@ -431,16 +431,16 @@ bool isLvErrorCluster(ViType type, List<ViType> pool) {
     [TypeCode.string],
   ];
   const names = ['status', 'code', 'source'];
-  for (var i = 0; i < 3; i++) {
-    if (!shape[i].contains(members[i].code)) return false;
-    if (members[i].name?.toLowerCase() != names[i]) return false;
+  for (var index = 0; index < 3; index++) {
+    if (!shape[index].contains(members[index].code)) return false;
+    if (members[index].name?.toLowerCase() != names[index]) return false;
   }
   return true;
 }
 
 String lvClassName(String raw) {
-  final words = raw.split(RegExp(r'[^A-Za-z0-9]+')).where((w) => w.isNotEmpty);
-  final joined = words.map((w) => w[0].toUpperCase() + (w.length == 1 ? '' : w.substring(1).toLowerCase())).join();
+  final words = raw.split(RegExp(r'[^A-Za-z0-9]+')).where((word) => word.isNotEmpty);
+  final joined = words.map((word) => word[0].toUpperCase() + word.substring(1).toLowerCase()).join();
   if (joined.isEmpty) return '';
   return _startsWithDigit(joined) ? 'Lv$joined' : joined;
 }
@@ -452,7 +452,7 @@ String lvFieldName(String raw) {
   return kLvDartReservedWords.contains(lower) ? '\$$lower' : lower;
 }
 
-bool _startsWithDigit(String s) => s.codeUnitAt(0) >= 0x30 && s.codeUnitAt(0) <= 0x39;
+bool _startsWithDigit(String text) => text.codeUnitAt(0) >= 0x30 && text.codeUnitAt(0) <= 0x39;
 
 const Set<String> kLvDartReservedWords = {
   'assert', 'break', 'case', 'catch', 'class', 'const', 'continue', 'default', 'do', 'else', 'enum', 'extends', //
