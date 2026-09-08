@@ -59,21 +59,21 @@ class _DecodeSink {
 
   int mark() => 0;
 
-  void rollback(int m) {}
+  void rollback(int marker) {}
 
-  void rollbackTailFrom(int m, int offsetBoundary) {}
+  void rollbackTailFrom(int marker, int offsetBoundary) {}
 
-  void copy(int from, int to) {}
+  void copy(int from, int end) {}
 
-  void poolRef(int at, int index) {}
+  void poolRef(int offset, int index) {}
 
-  void u32(int at, int value, _OpSource source) {}
+  void u32(int offset, int value, _OpSource source) {}
 
-  void byte(int at, int value, _OpSource source) {}
+  void byte(int offset, int value, _OpSource source) {}
 
-  void f64(int at, double value) {}
+  void f64(int offset, double value) {}
 
-  void i64(int at, int value) {}
+  void i64(int offset, int value) {}
 
   void blob(int start, int end) {}
 }
@@ -95,38 +95,38 @@ class _RecordingDecodeSink extends _DecodeSink {
   int mark() => ops.length;
 
   @override
-  void rollback(int m) {
-    if (ops.length > m) ops.length = m;
+  void rollback(int marker) {
+    if (ops.length > marker) ops.length = marker;
   }
 
   @override
-  void rollbackTailFrom(int m, int offsetBoundary) {
-    var w = m;
-    for (var r = m; r < ops.length; r++) {
-      if (ops[r].offset < offsetBoundary) ops[w++] = ops[r];
+  void rollbackTailFrom(int marker, int offsetBoundary) {
+    var kept = marker;
+    for (var readIndex = marker; readIndex < ops.length; readIndex++) {
+      if (ops[readIndex].offset < offsetBoundary) ops[kept++] = ops[readIndex];
     }
-    ops.length = w;
+    ops.length = kept;
   }
 
   @override
-  void copy(int from, int to) {
-    if (to > from) ops.add(_WriteOp.copy(from, to));
+  void copy(int from, int end) {
+    if (end > from) ops.add(_WriteOp.copy(from, end));
   }
 
   @override
-  void poolRef(int at, int index) => ops.add(_WriteOp(at, _WirePrimitive.poolRef, _OpSource.model, index));
+  void poolRef(int offset, int index) => ops.add(_WriteOp(offset, _WirePrimitive.poolRef, _OpSource.model, index));
 
   @override
-  void u32(int at, int value, _OpSource source) => ops.add(_WriteOp(at, _WirePrimitive.u32, source, value));
+  void u32(int offset, int value, _OpSource source) => ops.add(_WriteOp(offset, _WirePrimitive.u32, source, value));
 
   @override
-  void byte(int at, int value, _OpSource source) => ops.add(_WriteOp(at, _WirePrimitive.byte, source, value));
+  void byte(int offset, int value, _OpSource source) => ops.add(_WriteOp(offset, _WirePrimitive.byte, source, value));
 
   @override
-  void f64(int at, double value) => ops.add(_WriteOp(at, _WirePrimitive.f64, _OpSource.model, 0, value));
+  void f64(int offset, double value) => ops.add(_WriteOp(offset, _WirePrimitive.f64, _OpSource.model, 0, value));
 
   @override
-  void i64(int at, int value) => ops.add(_WriteOp(at, _WirePrimitive.i64, _OpSource.model, value));
+  void i64(int offset, int value) => ops.add(_WriteOp(offset, _WirePrimitive.i64, _OpSource.model, value));
 
   final blobSpans = <(int, int)>[];
 
@@ -170,29 +170,29 @@ class BinarySeqWriteModel {
   }
 
   (int, int) poolEntryRange(int index) {
-    var at = recordRegion.length;
-    for (var i = 0; i < index; i++) {
-      at += pool[i].length + 1;
+    var offset = recordRegion.length;
+    for (var poolIndex = 0; poolIndex < index; poolIndex++) {
+      offset += pool[poolIndex].length + 1;
     }
-    return (at, at + pool[index].length);
+    return (offset, offset + pool[index].length);
   }
 
-  int replacePoolEntry(String from, String to) {
+  int replacePoolEntry(String from, String replacement) {
     var replaced = 0;
-    for (var i = 0; i < pool.length; i++) {
-      if (pool[i] == from) {
-        pool[i] = to;
+    for (var poolIndex = 0; poolIndex < pool.length; poolIndex++) {
+      if (pool[poolIndex] == from) {
+        pool[poolIndex] = replacement;
         replaced++;
       }
     }
     return replaced;
   }
 
-  int replaceF64(double from, double to) {
+  int replaceF64(double from, double replacement) {
     var replaced = 0;
-    for (final op in _plan) {
-      if (op.primitive == _WirePrimitive.f64 && op.doubleValue == from) {
-        op.doubleValue = to;
+    for (final operation in _plan) {
+      if (operation.primitive == _WirePrimitive.f64 && operation.doubleValue == from) {
+        operation.doubleValue = replacement;
         replaced++;
       }
     }
@@ -200,43 +200,43 @@ class BinarySeqWriteModel {
   }
 
   List<int> f64Sites(double value) => [
-    for (final op in _plan)
-      if (op.primitive == _WirePrimitive.f64 && op.doubleValue == value) op.offset,
+    for (final operation in _plan)
+      if (operation.primitive == _WirePrimitive.f64 && operation.doubleValue == value) operation.offset,
   ];
 
   List<double> get f64Values => [
-    for (final op in _plan)
-      if (op.primitive == _WirePrimitive.f64) op.doubleValue,
+    for (final operation in _plan)
+      if (operation.primitive == _WirePrimitive.f64) operation.doubleValue,
   ];
 
   Uint8List writeBody() {
     final out = Uint8List(recordRegion.length + _poolByteLength);
     final view = ByteData.sublistView(out);
-    for (final op in _plan) {
-      switch (op.primitive) {
+    for (final operation in _plan) {
+      switch (operation.primitive) {
         case _WirePrimitive.copy:
-          out.setRange(op.offset, op.intValue, recordRegion, op.offset);
+          out.setRange(operation.offset, operation.intValue, recordRegion, operation.offset);
         case _WirePrimitive.poolRef || _WirePrimitive.u32:
-          view.setUint32(op.offset, op.intValue, Endian.little);
+          view.setUint32(operation.offset, operation.intValue, Endian.little);
         case _WirePrimitive.f64:
-          view.setFloat64(op.offset, op.doubleValue, Endian.little);
+          view.setFloat64(operation.offset, operation.doubleValue, Endian.little);
         case _WirePrimitive.i64:
-          view.setInt64(op.offset, op.intValue, Endian.little);
+          view.setInt64(operation.offset, operation.intValue, Endian.little);
         case _WirePrimitive.byte:
-          out[op.offset] = op.intValue;
+          out[operation.offset] = operation.intValue;
       }
     }
-    var at = recordRegion.length;
-    for (var i = 0; i < pool.length; i++) {
-      final entry = pool[i];
-      for (var c = 0; c < entry.length; c++) {
-        final unit = entry.codeUnitAt(c);
+    var offset = recordRegion.length;
+    for (var poolIndex = 0; poolIndex < pool.length; poolIndex++) {
+      final entry = pool[poolIndex];
+      for (var charIndex = 0; charIndex < entry.length; charIndex++) {
+        final unit = entry.codeUnitAt(charIndex);
         if (unit > 0xff) {
-          throw ArgumentError('pool entry $i is not byte-valued: $entry');
+          throw ArgumentError('pool entry $poolIndex is not byte-valued: $entry');
         }
-        out[at++] = unit;
+        out[offset++] = unit;
       }
-      if (at < out.length) out[at++] = 0;
+      if (offset < out.length) out[offset++] = 0;
     }
     return out;
   }
@@ -259,27 +259,27 @@ class BinarySeqWriteModel {
 }
 
 void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord record) {
-  final o = record.offset;
-  ops.byte(o, record.lead, _OpSource.model);
-  ops.byte(o + 1, record.flagsByte, _OpSource.model);
-  ops.u32(o + _PropRecordField.zeroA.offset, 0, _OpSource.grammar);
+  final offset = record.offset;
+  ops.byte(offset, record.lead, _OpSource.model);
+  ops.byte(offset + 1, record.flagsByte, _OpSource.model);
+  ops.u32(offset + _PropRecordField.zeroA.offset, 0, _OpSource.grammar);
   final kind = record.kind;
-  ops.u32(o + _PropRecordField.kind.offset, kind, _OpSource.model);
-  ops.u32(o + _PropRecordField.zeroB.offset, 0, _OpSource.grammar);
+  ops.u32(offset + _PropRecordField.kind.offset, kind, _OpSource.model);
+  ops.u32(offset + _PropRecordField.zeroB.offset, 0, _OpSource.grammar);
   ops.poolRef(
-    o + _PropRecordField.typeNameIndex.offset,
-    view.getUint32(o + _PropRecordField.typeNameIndex.offset, Endian.little),
+    offset + _PropRecordField.typeNameIndex.offset,
+    view.getUint32(offset + _PropRecordField.typeNameIndex.offset, Endian.little),
   );
   ops.poolRef(
-    o + _PropRecordField.nameIndex.offset,
-    view.getUint32(o + _PropRecordField.nameIndex.offset, Endian.little),
+    offset + _PropRecordField.nameIndex.offset,
+    view.getUint32(offset + _PropRecordField.nameIndex.offset, Endian.little),
   );
   var consumed = _PropRecordField.value.offset;
   final rem = record.length - consumed;
   final leafType = record.leafType;
   final valueBytes = leafType.valueBytes;
   if (kind >= _propScalarKind && valueBytes > 0 && (rem == valueBytes || rem == valueBytes + _propTerminatorWidth)) {
-    final valueAt = o + consumed;
+    final valueAt = offset + consumed;
     switch (leafType) {
       case PropertyLeafType.string || PropertyLeafType.path || PropertyLeafType.expression:
         final word = view.getUint32(valueAt, Endian.little);
@@ -298,19 +298,19 @@ void _leafPropertyRecordOps(_DecodeSink ops, ByteData view, BinaryPropertyRecord
     consumed += valueBytes;
   }
   if (record.length == consumed + _propTerminatorWidth) {
-    ops.byte(o + consumed, 0, _OpSource.grammar);
-    ops.byte(o + consumed + 1, 0, _OpSource.grammar);
+    ops.byte(offset + consumed, 0, _OpSource.grammar);
+    ops.byte(offset + consumed + 1, 0, _OpSource.grammar);
   }
 }
 
 (int, Uint8List)? _locateAndInflateBody(Uint8List bytes) {
   if (detectSeqFormat(bytes) != SeqFormat.binary) return null;
-  for (var i = 0; i + 1 < bytes.length; i++) {
-    if (bytes[i] != _zlibCmf) continue;
-    if (!ZlibFlag.isKnown(bytes[i + 1])) continue;
+  for (var streamStart = 0; streamStart + 1 < bytes.length; streamStart++) {
+    if (bytes[streamStart] != _zlibCmf) continue;
+    if (!ZlibFlag.isKnown(bytes[streamStart + 1])) continue;
     try {
-      final out = _inflateCapped(Uint8List.sublistView(bytes, i));
-      if (out != null && out.length > _minInflatedBytes) return (i, out);
+      final out = _inflateCapped(Uint8List.sublistView(bytes, streamStart));
+      if (out != null && out.length > _minInflatedBytes) return (streamStart, out);
     } catch (_) {}
   }
   return null;
@@ -347,20 +347,20 @@ BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
 }
 
 List<_WriteOp> _buildWritePlan(List<_WriteOp> ops, int boundary) {
-  final indexed = List<int>.generate(ops.length, (i) => i);
-  indexed.sort((a, b) {
-    final byOffset = ops[a].offset.compareTo(ops[b].offset);
-    return byOffset != 0 ? byOffset : a.compareTo(b);
+  final indexed = List<int>.generate(ops.length, (index) => index);
+  indexed.sort((left, right) {
+    final byOffset = ops[left].offset.compareTo(ops[right].offset);
+    return byOffset != 0 ? byOffset : left.compareTo(right);
   });
   final plan = <_WriteOp>[];
   var cursor = 0;
-  for (final i in indexed) {
-    final op = ops[i];
-    if (op.offset < cursor) continue;
-    final end = op.offset + op.length;
+  for (final opIndex in indexed) {
+    final operation = ops[opIndex];
+    if (operation.offset < cursor) continue;
+    final end = operation.offset + operation.length;
     if (end > boundary) continue;
-    if (op.offset > cursor) plan.add(_WriteOp.copy(cursor, op.offset));
-    plan.add(op);
+    if (operation.offset > cursor) plan.add(_WriteOp.copy(cursor, operation.offset));
+    plan.add(operation);
     cursor = end;
   }
   if (cursor < boundary) plan.add(_WriteOp.copy(cursor, boundary));

@@ -96,7 +96,7 @@ SeqFile iniToXmlSeqFile(IniSeqFile doc) {
   }
   final memo = Map<SeqProperty, SeqProperty>.identity();
   final types = [for (final type in iniTypes(doc)) _xmlReady(type, memo)];
-  final hasTypes = doc.sections.any((s) => !s.isDef && !s.isExtData && s.path == '%TYPES');
+  final hasTypes = doc.sections.any((section) => !section.isDef && !section.isExtData && section.path == '%TYPES');
   final readyData = _xmlReady(data, memo);
   final header = doc.header;
   return SeqFile(
@@ -158,7 +158,7 @@ IniSeqFile binaryToIniSeqFile(SeqFile file) => xmlToIniSeqFile(binaryToXmlSeqFil
 
 String armorText(String text) {
   const hex = '0123456789ABCDEF';
-  final sb = StringBuffer();
+  final buffer = StringBuffer();
   for (final byte in utf8.encode(text)) {
     final safe =
         byte > 0x20 &&
@@ -169,54 +169,54 @@ String armorText(String text) {
         byte != 0x22 /* " */ &&
         byte != 0x5C /* \ */;
     if (safe) {
-      sb.writeCharCode(byte);
+      buffer.writeCharCode(byte);
     } else {
-      sb
+      buffer
         ..write('%')
         ..write(hex[byte >> 4])
         ..write(hex[byte & 0xF]);
     }
   }
-  return sb.toString();
+  return buffer.toString();
 }
 
 String unarmorText(String armored) {
   final bytes = <int>[];
-  for (var i = 0; i < armored.length; i++) {
-    final c = armored.codeUnitAt(i);
-    if (c == 0x25 && i + 2 < armored.length) {
-      final hi = _hexDigit(armored.codeUnitAt(i + 1));
-      final lo = _hexDigit(armored.codeUnitAt(i + 2));
-      if (hi >= 0 && lo >= 0) {
-        bytes.add((hi << 4) | lo);
-        i += 2;
+  for (var cursor = 0; cursor < armored.length; cursor++) {
+    final codeUnit = armored.codeUnitAt(cursor);
+    if (codeUnit == 0x25 && cursor + 2 < armored.length) {
+      final highNibble = _hexDigit(armored.codeUnitAt(cursor + 1));
+      final lowNibble = _hexDigit(armored.codeUnitAt(cursor + 2));
+      if (highNibble >= 0 && lowNibble >= 0) {
+        bytes.add((highNibble << 4) | lowNibble);
+        cursor += 2;
         continue;
       }
     }
-    bytes.add(c);
+    bytes.add(codeUnit);
   }
   return utf8.decode(bytes, allowMalformed: true);
 }
 
-int _hexDigit(int c) {
-  if (c >= 0x30 && c <= 0x39) return c - 0x30;
-  if (c >= 0x41 && c <= 0x46) return c - 0x41 + 10;
-  if (c >= 0x61 && c <= 0x66) return c - 0x61 + 10;
+int _hexDigit(int codeUnit) {
+  if (codeUnit >= 0x30 && codeUnit <= 0x39) return codeUnit - 0x30;
+  if (codeUnit >= 0x41 && codeUnit <= 0x46) return codeUnit - 0x41 + 10;
+  if (codeUnit >= 0x61 && codeUnit <= 0x66) return codeUnit - 0x61 + 10;
   return -1;
 }
 
 String _armorMap(Map<String, String> map) =>
-    [for (final e in map.entries) '${armorText(e.key)}=${armorText(e.value)}'].join('&');
+    [for (final entry in map.entries) '${armorText(entry.key)}=${armorText(entry.value)}'].join('&');
 
 Map<String, String> _unarmorMap(String encoded) {
   if (encoded.isEmpty) return {};
   final out = <String, String>{};
   for (final pair in encoded.split('&')) {
-    final eq = pair.indexOf('=');
-    if (eq < 0) {
+    final equalsAt = pair.indexOf('=');
+    if (equalsAt < 0) {
       out[unarmorText(pair)] = '';
     } else {
-      out[unarmorText(pair.substring(0, eq))] = unarmorText(pair.substring(eq + 1));
+      out[unarmorText(pair.substring(0, equalsAt))] = unarmorText(pair.substring(equalsAt + 1));
     }
   }
   return out;
@@ -229,8 +229,8 @@ String? _unarmorNullable(String encoded) => encoded.startsWith('1') ? unarmorTex
 String _quotedRaw(String armoredToken) => '"$armoredToken"';
 
 bool _latin1Clean(String text) {
-  for (final c in text.codeUnits) {
-    if (c > 0xFF) return false;
+  for (final codeUnit in text.codeUnits) {
+    if (codeUnit > 0xFF) return false;
   }
   return true;
 }
@@ -245,17 +245,17 @@ Map<String, String> _nameAttrs(String name) => {
   if (_tagFor(name) == _nameInAttributeTag && name.isNotEmpty) 'name': name,
 };
 
-SeqProperty _xmlReady(SeqProperty p, Map<SeqProperty, SeqProperty> memo) {
-  final done = memo[p];
+SeqProperty _xmlReady(SeqProperty property, Map<SeqProperty, SeqProperty> memo) {
+  final done = memo[property];
   if (done != null) return done;
 
   final attrs = <String, String>{
-    ..._nameAttrs(p.name),
-    if (p.className != null) 'classname': p.className!,
-    if (p.typeName != null) 'typename': p.typeName!,
+    ..._nameAttrs(property.name),
+    if (property.className != null) 'classname': property.className!,
+    if (property.typeName != null) 'typename': property.typeName!,
   };
-  var numericFormat = p.numericFormat;
-  p.attributes.forEach((key, value) {
+  var numericFormat = property.numericFormat;
+  property.attributes.forEach((key, value) {
     if (key == ConvKey.numericFmt && numericFormat == null) {
       numericFormat = value;
       return;
@@ -263,33 +263,33 @@ SeqProperty _xmlReady(SeqProperty p, Map<SeqProperty, SeqProperty> memo) {
     attrs[key.startsWith('%') ? '${ConvKey.directiveAttrPrefix}${key.substring(1)}' : key] = value;
   });
 
-  final array = p.array;
-  var valueAttrs = p.valueAttributes;
+  final array = property.array;
+  var valueAttrs = property.valueAttributes;
   if (array != null && !valueAttrs.containsKey('lbound') && !valueAttrs.containsKey('ubound')) {
-    final loRaw = p.attributes['%LO'];
-    final lo = loRaw == null ? 0 : (int.tryParse(RegExp(r'-?\d+').firstMatch(loRaw)?.group(0) ?? '') ?? 0);
+    final loRaw = property.attributes['%LO'];
+    final lowerBound = loRaw == null ? 0 : (int.tryParse(RegExp(r'-?\d+').firstMatch(loRaw)?.group(0) ?? '') ?? 0);
     valueAttrs = {
       'lbound': loRaw ?? '[0]',
-      'ubound': p.attributes['%HI'] ?? (array.isEmpty ? '[]' : '[${lo + array.length - 1}]'),
+      'ubound': property.attributes['%HI'] ?? (array.isEmpty ? '[]' : '[${lowerBound + array.length - 1}]'),
     };
   }
 
   final out = SeqProperty(
-    name: p.name,
-    xmlTag: p.xmlTag ?? _tagFor(p.name),
-    className: p.className,
-    typeName: p.typeName,
+    name: property.name,
+    xmlTag: property.xmlTag ?? _tagFor(property.name),
+    className: property.className,
+    typeName: property.typeName,
     attributes: attrs,
-    scalar: p.scalar,
+    scalar: property.scalar,
     array: array == null ? null : [for (final element in array) _xmlReady(element, memo)],
-    subProps: [for (final child in p.subProps) _xmlReady(child, memo)],
+    subProps: [for (final child in property.subProps) _xmlReady(child, memo)],
     valueAttributes: valueAttrs,
-    elemProto: p.elemProto == null ? null : _xmlReady(p.elemProto!, memo),
-    extData: p.extData,
+    elemProto: property.elemProto == null ? null : _xmlReady(property.elemProto!, memo),
+    extData: property.extData,
     numericFormat: numericFormat,
-    xmlComment: p.xmlComment,
+    xmlComment: property.xmlComment,
   );
-  memo[p] = out;
+  memo[property] = out;
   return out;
 }
 
@@ -337,19 +337,20 @@ bool _isIniChannel(SeqProperty channel) =>
 
 IniSeqFile _iniFromChannel(SeqProperty channel) {
   final headerFields = <String, String>{
-    for (final e in channel.prop(ConvKey.iniChannelHeader)?.subProps ?? const <SeqProperty>[]) e.name: e.scalar ?? '',
+    for (final field in channel.prop(ConvKey.iniChannelHeader)?.subProps ?? const <SeqProperty>[])
+      field.name: field.scalar ?? '',
   };
   return IniSeqFile(
     header: iniHeaderFromFields(headerFields),
     headerFields: headerFields,
     lineTerminator: channel.attributes[ConvKey.iniEolAttr] == ConvKey.iniEolCrlf ? '\r\n' : '\n',
     sections: [
-      for (final s in channel.prop(ConvKey.iniChannelSections)?.subProps ?? const <SeqProperty>[])
+      for (final section in channel.prop(ConvKey.iniChannelSections)?.subProps ?? const <SeqProperty>[])
         IniSection(
-          isDef: s.attributes[ConvKey.iniKindAttr] == ConvKey.iniKindDef,
-          path: s.name,
-          extDataKind: s.attributes[ConvKey.iniExtAttr],
-          entries: [for (final e in s.subProps) IniEntry(e.name, e.scalar ?? '')],
+          isDef: section.attributes[ConvKey.iniKindAttr] == ConvKey.iniKindDef,
+          path: section.name,
+          extDataKind: section.attributes[ConvKey.iniExtAttr],
+          entries: [for (final entry in section.subProps) IniEntry(entry.name, entry.scalar ?? '')],
         ),
     ],
   );
@@ -357,10 +358,10 @@ IniSeqFile _iniFromChannel(SeqProperty channel) {
 
 final _bareToken = RegExp(r'^[A-Za-z_][A-Za-z0-9_]*$');
 
-String _declText(SeqProperty p) {
-  final typeName = p.typeName;
+String _declText(SeqProperty property) {
+  final typeName = property.typeName;
   if (typeName != null && _latin1Clean(typeName)) return escapeIniQuoted('TYPE, $typeName');
-  final className = p.className;
+  final className = property.className;
   if (className != null && _bareToken.hasMatch(className)) return className;
   if (className != null && _latin1Clean(className)) return escapeIniQuoted(className);
   return 'Obj';
@@ -369,9 +370,9 @@ String _declText(SeqProperty p) {
 List<String> _childSegments(List<SeqProperty> children) {
   final used = <String>{};
   final segs = <String>[];
-  for (var i = 0; i < children.length; i++) {
-    final name = children[i].name;
-    var seg = _bareToken.hasMatch(name) ? name : 'C$i';
+  for (var childIndex = 0; childIndex < children.length; childIndex++) {
+    final name = children[childIndex].name;
+    var seg = _bareToken.hasMatch(name) ? name : 'C$childIndex';
     while (!used.add(seg)) {
       seg = '${seg}_';
     }
@@ -383,25 +384,26 @@ List<String> _childSegments(List<SeqProperty> children) {
 bool _isScalarElement(SeqProperty element) =>
     element.xmlTag == null && element.name.isEmpty && element.subProps.isEmpty && element.array == null;
 
-void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool scalarOnParent}) {
-  final children = p.subProps;
+void _emitNode(SeqProperty property, String path, List<IniSection> out, {required bool scalarOnParent}) {
+  final children = property.subProps;
   final segs = _childSegments(children);
 
   final valueEntries = <IniEntry>[
-    IniEntry(ConvKey.nodeName, _quotedRaw(armorText(p.name))),
-    if (p.xmlTag != null) IniEntry(ConvKey.nodeTag, _quotedRaw(armorText(p.xmlTag!))),
-    IniEntry(ConvKey.nodeAttrs, _quotedRaw(_armorMap(p.attributes))),
-    if (p.className != p.attributes['classname'])
-      IniEntry(ConvKey.nodeClassName, _quotedRaw(_armorNullable(p.className))),
-    if (p.typeName != (p.attributes['typename'] ?? p.attributes['xsi:type']))
-      IniEntry(ConvKey.nodeTypeName, _quotedRaw(_armorNullable(p.typeName))),
-    if (p.valueAttributes.isNotEmpty) IniEntry(ConvKey.nodeValueAttrs, _quotedRaw(_armorMap(p.valueAttributes))),
+    IniEntry(ConvKey.nodeName, _quotedRaw(armorText(property.name))),
+    if (property.xmlTag != null) IniEntry(ConvKey.nodeTag, _quotedRaw(armorText(property.xmlTag!))),
+    IniEntry(ConvKey.nodeAttrs, _quotedRaw(_armorMap(property.attributes))),
+    if (property.className != property.attributes['classname'])
+      IniEntry(ConvKey.nodeClassName, _quotedRaw(_armorNullable(property.className))),
+    if (property.typeName != (property.attributes['typename'] ?? property.attributes['xsi:type']))
+      IniEntry(ConvKey.nodeTypeName, _quotedRaw(_armorNullable(property.typeName))),
+    if (property.valueAttributes.isNotEmpty)
+      IniEntry(ConvKey.nodeValueAttrs, _quotedRaw(_armorMap(property.valueAttributes))),
   ];
-  final scalar = p.scalar;
+  final scalar = property.scalar;
   if (scalar != null && !scalarOnParent) {
     valueEntries.add(IniEntry(ConvKey.nodeScalar, _quotedRaw(armorText(scalar))));
   }
-  final numericFormat = p.numericFormat;
+  final numericFormat = property.numericFormat;
   if (numericFormat != null) {
     valueEntries.add(
       _latin1Clean(numericFormat)
@@ -409,33 +411,37 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
           : IniEntry(ConvKey.numericFmtArmored, _quotedRaw(armorText(numericFormat))),
     );
   }
-  if (p.xmlComment != null) {
-    valueEntries.add(IniEntry(ConvKey.nodeComment, _quotedRaw(armorText(p.xmlComment!))));
+  if (property.xmlComment != null) {
+    valueEntries.add(IniEntry(ConvKey.nodeComment, _quotedRaw(armorText(property.xmlComment!))));
   }
-  final array = p.array;
+  final array = property.array;
   if (array != null) {
     valueEntries.add(IniEntry(ConvKey.nodeArrayLength, '${array.length}'));
-    for (var i = 0; i < array.length; i++) {
-      final element = array[i];
+    for (var elementIndex = 0; elementIndex < array.length; elementIndex++) {
+      final element = array[elementIndex];
       if (_isScalarElement(element)) {
-        valueEntries.add(IniEntry('${ConvKey.nodeScalarElem}: $i', _quotedRaw(armorText(element.scalar ?? ''))));
+        valueEntries.add(
+          IniEntry('${ConvKey.nodeScalarElem}: $elementIndex', _quotedRaw(armorText(element.scalar ?? ''))),
+        );
         if (element.attributes.isNotEmpty) {
-          valueEntries.add(IniEntry('${ConvKey.nodeScalarElemAttrs}: $i', _quotedRaw(_armorMap(element.attributes))));
+          valueEntries.add(
+            IniEntry('${ConvKey.nodeScalarElemAttrs}: $elementIndex', _quotedRaw(_armorMap(element.attributes))),
+          );
         }
       }
     }
   }
-  if (p.elemProto != null) valueEntries.add(const IniEntry(ConvKey.nodeElemProto, '1'));
-  for (var j = 0; j < p.extData.length; j++) {
-    valueEntries.add(IniEntry('${ConvKey.nodeExtData}: $j', _quotedRaw(_armorMap(p.extData[j]))));
+  if (property.elemProto != null) valueEntries.add(const IniEntry(ConvKey.nodeElemProto, '1'));
+  for (var extIndex = 0; extIndex < property.extData.length; extIndex++) {
+    valueEntries.add(IniEntry('${ConvKey.nodeExtData}: $extIndex', _quotedRaw(_armorMap(property.extData[extIndex]))));
   }
 
   final scalarOnParentByChild = List<bool>.filled(children.length, false);
-  for (var i = 0; i < children.length; i++) {
-    final childScalar = children[i].scalar;
+  for (var childIndex = 0; childIndex < children.length; childIndex++) {
+    final childScalar = children[childIndex].scalar;
     if (childScalar != null && _latin1Clean(childScalar)) {
-      valueEntries.add(IniEntry(segs[i], escapeIniQuoted(childScalar)));
-      scalarOnParentByChild[i] = true;
+      valueEntries.add(IniEntry(segs[childIndex], escapeIniQuoted(childScalar)));
+      scalarOnParentByChild[childIndex] = true;
     }
   }
 
@@ -444,24 +450,32 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
       IniSection(
         isDef: true,
         path: path,
-        entries: [for (var i = 0; i < children.length; i++) IniEntry(segs[i], _declText(children[i]))],
+        entries: [
+          for (var childIndex = 0; childIndex < children.length; childIndex++)
+            IniEntry(segs[childIndex], _declText(children[childIndex])),
+        ],
       ),
     );
   }
   out.add(IniSection(isDef: false, path: path, entries: valueEntries));
 
-  for (var i = 0; i < children.length; i++) {
-    _emitNode(children[i], '$path.${segs[i]}', out, scalarOnParent: scalarOnParentByChild[i]);
+  for (var childIndex = 0; childIndex < children.length; childIndex++) {
+    _emitNode(
+      children[childIndex],
+      '$path.${segs[childIndex]}',
+      out,
+      scalarOnParent: scalarOnParentByChild[childIndex],
+    );
   }
   if (array != null) {
-    for (var i = 0; i < array.length; i++) {
-      if (!_isScalarElement(array[i])) {
-        _emitNode(array[i], '$path[$i]', out, scalarOnParent: false);
+    for (var elementIndex = 0; elementIndex < array.length; elementIndex++) {
+      if (!_isScalarElement(array[elementIndex])) {
+        _emitNode(array[elementIndex], '$path[$elementIndex]', out, scalarOnParent: false);
       }
     }
   }
-  if (p.elemProto != null) {
-    _emitNode(p.elemProto!, '$path.${ConvKey.elemProtoSegment}', out, scalarOnParent: false);
+  if (property.elemProto != null) {
+    _emitNode(property.elemProto!, '$path.${ConvKey.elemProtoSegment}', out, scalarOnParent: false);
   }
 }
 
@@ -497,13 +511,13 @@ IniSeqFile _iniFromXml(SeqFile file) {
   final typePaths = <String?>[];
   final usedPaths = <String>{ConvKey.dataPath};
   if (entries != null) {
-    for (var i = 0; i < entries.length; i++) {
-      if (entries[i].isProtected) {
+    for (var entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      if (entries[entryIndex].isProtected) {
         typePaths.add(null);
         continue;
       }
-      final root = entries[i].root;
-      var candidate = (root != null && _bareToken.hasMatch(root.name)) ? root.name : 'T$i';
+      final root = entries[entryIndex].root;
+      var candidate = (root != null && _bareToken.hasMatch(root.name)) ? root.name : 'T$entryIndex';
       while (!usedPaths.add(candidate)) {
         candidate = '${candidate}_';
       }
@@ -517,8 +531,9 @@ IniSeqFile _iniFromXml(SeqFile file) {
       entries: [
         const IniEntry(ConvKey.dataPath, 'SequenceFileData'),
         if (entries != null)
-          for (var i = 0; i < entries.length; i++)
-            if (entries[i].root != null && typePaths[i] != null) IniEntry(typePaths[i]!, _declText(entries[i].root!)),
+          for (var entryIndex = 0; entryIndex < entries.length; entryIndex++)
+            if (entries[entryIndex].root != null && typePaths[entryIndex] != null)
+              IniEntry(typePaths[entryIndex]!, _declText(entries[entryIndex].root!)),
       ],
     ),
   );
@@ -529,24 +544,30 @@ IniSeqFile _iniFromXml(SeqFile file) {
         isDef: false,
         path: ConvKey.typesPath,
         entries: [
-          for (var i = 0; i < entries.length; i++)
-            if (entries[i].isProtected)
-              IniEntry('${ConvKey.typeProtected}: $i', _quotedRaw(armorText(entries[i].protectedData!)))
+          for (var entryIndex = 0; entryIndex < entries.length; entryIndex++)
+            if (entries[entryIndex].isProtected)
+              IniEntry(
+                '${ConvKey.typeProtected}: $entryIndex',
+                _quotedRaw(armorText(entries[entryIndex].protectedData!)),
+              )
             else ...[
               IniEntry(
-                typePaths[i]!,
-                entries[i].root != null && _latin1Clean(entries[i].root!.name)
-                    ? escapeIniQuoted(entries[i].root!.name)
+                typePaths[entryIndex]!,
+                entries[entryIndex].root != null && _latin1Clean(entries[entryIndex].root!.name)
+                    ? escapeIniQuoted(entries[entryIndex].root!.name)
                     : '""',
               ),
-              IniEntry('${ConvKey.typeAttrs}: ${typePaths[i]!}', _quotedRaw(_armorMap(entries[i].attributes))),
+              IniEntry(
+                '${ConvKey.typeAttrs}: ${typePaths[entryIndex]!}',
+                _quotedRaw(_armorMap(entries[entryIndex].attributes)),
+              ),
             ],
         ],
       ),
     );
-    for (var i = 0; i < entries.length; i++) {
-      final root = entries[i].root;
-      final typePath = typePaths[i];
+    for (var entryIndex = 0; entryIndex < entries.length; entryIndex++) {
+      final root = entries[entryIndex].root;
+      final typePath = typePaths[entryIndex];
       if (root != null && typePath != null) _emitNode(root, typePath, sections, scalarOnParent: false);
     }
   }
@@ -652,21 +673,21 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
   if (lengthRaw != null) {
     final length = int.parse(lengthRaw.trim());
     array = [
-      for (var i = 0; i < length; i++)
-        if (dir.containsKey('${ConvKey.nodeScalarElem}: $i'))
+      for (var elementIndex = 0; elementIndex < length; elementIndex++)
+        if (dir.containsKey('${ConvKey.nodeScalarElem}: $elementIndex'))
           SeqProperty(
             name: '',
-            scalar: armored('${ConvKey.nodeScalarElem}: $i'),
-            attributes: _unarmorMap(unquoteIni(dir['${ConvKey.nodeScalarElemAttrs}: $i']) ?? ''),
+            scalar: armored('${ConvKey.nodeScalarElem}: $elementIndex'),
+            attributes: _unarmorMap(unquoteIni(dir['${ConvKey.nodeScalarElemAttrs}: $elementIndex']) ?? ''),
           )
         else
-          _rebuildNode('$path[$i]', null, defs, vals),
+          _rebuildNode('$path[$elementIndex]', null, defs, vals),
     ];
   }
 
   final extData = <Map<String, String>>[];
-  for (var j = 0; dir.containsKey('${ConvKey.nodeExtData}: $j'); j++) {
-    extData.add(_unarmorMap(unquoteIni(dir['${ConvKey.nodeExtData}: $j'])!));
+  for (var extIndex = 0; dir.containsKey('${ConvKey.nodeExtData}: $extIndex'); extIndex++) {
+    extData.add(_unarmorMap(unquoteIni(dir['${ConvKey.nodeExtData}: $extIndex'])!));
   }
 
   return SeqProperty(
