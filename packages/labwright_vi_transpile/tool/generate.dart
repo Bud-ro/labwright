@@ -22,7 +22,8 @@ void main(List<String> args) {
     stderr.writeln('$name: no block diagram heap with content');
     exit(1);
   }
-  final library = options.containsKey('--subvis') ? _index(Directory(options['--subvis']!)) : const <String, File>{};
+  final subVis = options['--subvis'];
+  final library = subVis == null ? const <String, File>{} : _index(Directory(subVis));
   final result = emitLvLibrary(
     unit,
     functionName: lvFieldName(stem),
@@ -33,14 +34,15 @@ void main(List<String> args) {
       return file == null ? null : _unitOf(file, fileName);
     },
   );
-  if (result.refusal case final refusal?) {
-    stderr.writeln('$name: $refusal');
+  final source = result.source;
+  if (source == null) {
+    stderr.writeln('$name: ${result.refusal}');
     exit(1);
   }
   if (positional.length == 2) {
-    File(positional[1]).writeAsStringSync(result.source!);
+    File(positional[1]).writeAsStringSync(source);
   } else {
-    stdout.write(result.source);
+    stdout.write(source);
   }
 }
 

@@ -15,9 +15,8 @@ Future<void> main(List<String> args) async {
     return;
   }
 
-  final topics = [
-    for (final raw in jsonDecode(file.readAsStringSync())['topics'] as List) _Topic(raw as Map<String, dynamic>),
-  ];
+  final dataset = jsonDecode(file.readAsStringSync()) as Map<String, dynamic>;
+  final topics = [for (final raw in dataset['topics'] as List<dynamic>) _Topic(raw as Map<String, dynamic>)];
   final byName = <String, _Topic>{};
   for (final topic in topics) {
     final existing = byName[_key(topic.title)];
@@ -49,10 +48,9 @@ Future<void> main(List<String> args) async {
 
   stdout.writeln('\n== named, corroborated, and still without a lowering rule ==');
   stdout.writeln('   (the reference states the terminals a rule needs)');
-  final needing = matched.keys.where((op) => !kLvMappedPrimOps.contains(op)).toList()
-    ..sort((a, b) => a.id.compareTo(b.id));
-  for (final op in needing) {
-    final topic = matched[op]!;
+  final needing = matched.entries.where((entry) => !kLvMappedPrimOps.contains(entry.key)).toList()
+    ..sort((a, b) => a.key.id.compareTo(b.key.id));
+  for (final MapEntry(key: op, value: topic) in needing) {
     stdout.writeln('  ${op.id}  ${op.opName}  [${op.basis.name}]  palette: ${topic.palette ?? '-'}');
     for (final terminal in topic.terminals) {
       stdout.writeln('        ${terminal.isInput ? 'in ' : 'out'}  ${terminal.name}  (${terminal.wireGlyph})');
@@ -77,9 +75,9 @@ Future<void> main(List<String> args) async {
 
   stdout.writeln('\n== the arity the reference states for the ops that DO have a rule ==');
   stdout.writeln('   (a rule reading a different number of terminals is reading a different node)');
-  final ruled = matched.keys.where(kLvMappedPrimOps.contains).toList()..sort((a, b) => a.id.compareTo(b.id));
-  for (final op in ruled) {
-    final topic = matched[op]!;
+  final ruled = matched.entries.where((entry) => kLvMappedPrimOps.contains(entry.key)).toList()
+    ..sort((a, b) => a.key.id.compareTo(b.key.id));
+  for (final MapEntry(key: op, value: topic) in ruled) {
     stdout.writeln(
       '  ${op.id.toString().padRight(6)}${op.opName.padRight(30)} ${topic.inputs} in, ${topic.outputs} out'
       '   ${topic.terminals.map((t) => t.name).join(' | ')}',
