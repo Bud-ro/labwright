@@ -62,9 +62,6 @@ typedef LvViResolver = LvViUnit? Function(String fileName);
   }
 }
 
-Never _refuse(LvRefusalKind kind, String detail, {int? oid}) =>
-    throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
-
 class _Port {
   const _Port({required this.terminal, required this.name, required this.type});
 
@@ -164,7 +161,7 @@ class _Library {
     for (final control in controls) {
       final edge = callable.flow.outOf(control.oid);
       if (edge == null) {
-        _refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'connector-pane control "${control.name ?? 'unnamed'}" drives no wire, '
           'so the diagram states no type for it',
@@ -183,7 +180,7 @@ class _Library {
     for (final indicator in indicators) {
       final edge = callable.flow.into(indicator.oid);
       if (edge == null) {
-        _refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'connector-pane indicator "${indicator.name ?? 'unnamed'}" receives no wire',
           oid: indicator.oid,
@@ -277,12 +274,10 @@ class _FunctionEmitter {
   final StringBuffer body = StringBuffer();
   final Map<int, String> valueOf = <int, String>{};
 
-  Never refuse(LvRefusalKind kind, String detail, {int? oid}) => _refuse(kind, detail, oid: oid);
-
   String _bound(int port, int oid) {
     final expression = valueOf[port];
     if (expression == null) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.unboundValue,
         'a live terminal reads a wire whose producer the lowering did not emit, '
         'so the region\'s execution order does not define the value',
@@ -294,8 +289,8 @@ class _FunctionEmitter {
 
   String run() {
     for (final node in callable.unit.diagram.objects) {
-      if (node.kind == kLvCallLibraryClass) {
-        refuse(LvRefusalKind.foreignCall, lvForeignCallDetail(node), oid: node.oid);
+      if (node.kind == HeapObjectClass.bdCallLibrary.code) {
+        lvRefuse(LvRefusalKind.foreignCall, lvForeignCallDetail(node), oid: node.oid);
       }
     }
     for (final parameter in callable.parameters) {
@@ -379,7 +374,7 @@ class _FunctionEmitter {
       final mark = state[unit.oid];
       if (mark == 2) return;
       if (mark == 1) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.cycle,
           'the region\'s dataflow feeds back into this unit without passing a '
           'shift register, so it has no execution order',
@@ -412,7 +407,7 @@ class _FunctionEmitter {
     if (type.dims == 0) {
       final literal = _scalarLiteral(record, type);
       if (literal == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.constantValue,
           'diagram constant of type ${type.dartType} carries no decoded value',
           oid: unit.oid,
@@ -424,7 +419,7 @@ class _FunctionEmitter {
     final values = record.constArray;
     final dims = record.constArrayDims;
     if (values == null || dims == null || dims.length != type.dims || type.numeric == null) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.constantValue,
         'diagram constant of ${type.dims}-D type ${type.dartType} carries no decoded value',
         oid: unit.oid,
@@ -534,7 +529,7 @@ class _FunctionEmitter {
     LvPrimTerminal terminal(int port, {required bool isInput}) {
       final edge = isInput ? flow.into(port) : flow.outOf(port);
       if (edge == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'a live node terminal carries no wire, so its type is not decoded',
           oid: unit.oid,
@@ -568,7 +563,7 @@ class _FunctionEmitter {
     );
     final statements = lvPrimLowering(call);
     if (statements == null) {
-      refuse(LvRefusalKind.primitive, lvPrimUnmappedReason(call), oid: unit.oid);
+      lvRefuse(LvRefusalKind.primitive, lvPrimUnmappedReason(call), oid: unit.oid);
     }
     for (final statement in statements) {
       body.writeln(statement);
@@ -582,7 +577,7 @@ class _FunctionEmitter {
     final callee = _resolveCallee(unit);
     final target = library.declare(callee);
     if (callee.paneMap.length != unit.panePorts.length) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.subViCall,
         'the call node draws ${unit.panePorts.length} connector-pane terminals but '
         '"${callee.fileName}" has a ${callee.paneMap.length}-terminal pane, so the '
@@ -594,7 +589,7 @@ class _FunctionEmitter {
     _Port? portFor(int paneIndex, int holder, {required bool isInput}) {
       final terminal = callee.paneTerminal(paneIndex);
       if (terminal == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.subViCall,
           'connector-pane terminal $paneIndex of "${callee.fileName}" is wired here but '
           'names no panel data item that a block-diagram terminal draws',
@@ -604,7 +599,7 @@ class _FunctionEmitter {
       if (target.elided.contains(terminal.oid)) return null;
       final port = target.byTerminal[terminal.oid];
       if (port == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.subViCall,
           'connector-pane terminal $paneIndex of "${callee.fileName}" is wired here but '
           'is not part of the callee\'s signature',
@@ -613,7 +608,7 @@ class _FunctionEmitter {
       }
       final edge = isInput ? flow.into(holder)! : flow.outOf(holder)!;
       if (port.type.dartType != edge.type.dartType) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.subViCall,
           'the wire at connector-pane terminal $paneIndex carries ${edge.type.dartType}, '
           'but "${callee.fileName}" declares ${port.type.dartType} there',
@@ -669,7 +664,7 @@ class _FunctionEmitter {
   LvViUnit _resolveCallee(LvSubViUnit unit) {
     final name = unit.calleeName;
     if (name == null) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.subViCall,
         'node class 0x${unit.classCode.toRadixString(16)} calls a VI whose file name '
         'the diagram does not state, so the callee cannot be identified',
@@ -678,10 +673,10 @@ class _FunctionEmitter {
     }
     final callee = library.resolve?.call(name);
     if (callee == null) {
-      refuse(LvRefusalKind.subViCall, 'the called VI "$name" was not supplied to the lowering', oid: unit.oid);
+      lvRefuse(LvRefusalKind.subViCall, 'the called VI "$name" was not supplied to the lowering', oid: unit.oid);
     }
     if (callee.paneMap.isEmpty) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.subViCall,
         'the called VI "$name" carries no connector-pane map, so which of its '
         'controls each call terminal feeds is not decoded',
@@ -700,7 +695,7 @@ class _FunctionEmitter {
       case LvStructureKind.disableStructure:
         _emitDisable(unit);
       case LvStructureKind.whileLoop:
-        refuse(
+        lvRefuse(
           LvRefusalKind.structure,
           'a While loop\'s conditional terminal carries a stop-if-true / '
           'continue-if-true polarity that no decoded field distinguishes '
@@ -726,7 +721,7 @@ class _FunctionEmitter {
 
   void _emitForLoop(LvStructUnit unit) {
     if (unit.frames.length != 1) {
-      refuse(LvRefusalKind.structure, 'a For loop has ${unit.frames.length} frames, not one', oid: unit.oid);
+      lvRefuse(LvRefusalKind.structure, 'a For loop has ${unit.frames.length} frames, not one', oid: unit.oid);
     }
     final frame = unit.frames.single;
     final tunnels = unit.terminals.where((t) => t.role == LvTerminalRole.loopTunnel).toList();
@@ -740,7 +735,7 @@ class _FunctionEmitter {
       if (tunnel.outerIsSink) {
         final outer = _outerValue(tunnel);
         if (outer == null) {
-          refuse(LvRefusalKind.unwiredTerminal, 'a For loop input tunnel receives no wire', oid: tunnel.oid);
+          lvRefuse(LvRefusalKind.unwiredTerminal, 'a For loop input tunnel receives no wire', oid: tunnel.oid);
         }
         if (!tunnel.autoIndexing) {
           _checkTunnelDims(tunnel, unit.oid, drop: 0);
@@ -759,7 +754,7 @@ class _FunctionEmitter {
         continue;
       }
       if (!tunnel.autoIndexing) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.structure,
           'a For loop\'s non-indexing output tunnel carries the last iteration\'s '
           'value, or the element type\'s default when the loop runs zero times; '
@@ -783,7 +778,7 @@ class _FunctionEmitter {
       for (final input in indexedInputs) '${input.array}.${_indexedLength(input.terminal)}',
     ];
     if (bounds.isEmpty) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.unwiredTerminal,
         'a For loop with neither a wired count terminal nor an auto-indexing '
         'input tunnel states no iteration count',
@@ -824,7 +819,7 @@ class _FunctionEmitter {
       final inner = register.terminal.innerPorts[frame.frameOid];
       final edge = inner == null ? null : flow.into(inner);
       if (edge == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'a shift register is not written inside the loop',
           oid: register.terminal.oid,
@@ -836,7 +831,7 @@ class _FunctionEmitter {
       final inner = output.terminal.innerPorts[frame.frameOid];
       final edge = inner == null ? null : flow.into(inner);
       if (edge == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'an auto-indexing output tunnel is not written inside the loop',
           oid: output.terminal.oid,
@@ -866,12 +861,12 @@ class _FunctionEmitter {
       if (right.role != LvTerminalRole.rightShiftRegister) continue;
       final left = unit.terminals.where((t) => t.oid == right.partnerOid).firstOrNull;
       if (left == null) {
-        refuse(LvRefusalKind.structure, 'a right shift register names no left partner', oid: right.oid);
+        lvRefuse(LvRefusalKind.structure, 'a right shift register names no left partner', oid: right.oid);
       }
       if (left.outerPort == null || _typeAt(left.outerPort!) == null) continue;
       final initial = _outerValue(left);
       if (initial == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'a shift register has no initial value wired in, and the element '
           'type\'s default is not decoded',
@@ -893,7 +888,7 @@ class _FunctionEmitter {
   void _checkIndexedRank(LvStructTerminal tunnel, int innerPort) {
     final inner = _typeAt(innerPort);
     if (inner == null || inner.dims < 2) return;
-    refuse(
+    lvRefuse(
       LvRefusalKind.tunnelIndexing,
       'the tunnel auto-indexes an array whose slice is itself ${inner.dims}-dimensional, '
       'and the dimension vector that slice carries is not decoded',
@@ -906,7 +901,7 @@ class _FunctionEmitter {
     final innerPorts = tunnel.innerPorts.values.map(_typeAt).whereType<LvWireType>();
     for (final inner in innerPorts) {
       if (outer != null && outer.dims - inner.dims != drop) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.tunnelIndexing,
           'the tunnel\'s auto-indexing flag says it drops $drop dimension(s), but '
           'its sides carry ${outer.dims} and ${inner.dims}',
@@ -919,14 +914,14 @@ class _FunctionEmitter {
   void _emitCase(LvStructUnit unit) {
     final selector = unit.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
     if (selector == null || selector.outerPort == null) {
-      refuse(LvRefusalKind.caseSelector, 'a Case structure has no selector terminal', oid: unit.oid);
+      lvRefuse(LvRefusalKind.caseSelector, 'a Case structure has no selector terminal', oid: unit.oid);
     }
     final selectorEdge = flow.into(selector.outerPort!);
     if (selectorEdge == null) {
-      refuse(LvRefusalKind.unwiredTerminal, 'a Case structure\'s selector receives no wire', oid: unit.oid);
+      lvRefuse(LvRefusalKind.unwiredTerminal, 'a Case structure\'s selector receives no wire', oid: unit.oid);
     }
     if (unit.displayedFrame >= unit.frames.length) {
-      refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
+      lvRefuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
     }
     if (selectorEdge.type.isErrorCluster || selectorEdge.type.carrier == LvCarrier.boolean) {
       _emitTwoWayCase(unit, selectorEdge);
@@ -938,7 +933,7 @@ class _FunctionEmitter {
   void _emitTwoWayCase(LvStructUnit unit, LvEdge selectorEdge) {
     final onError = selectorEdge.type.isErrorCluster;
     if (unit.frames.length != 2) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.caseSelector,
         'a Case over ${onError ? 'an error-cluster' : 'a boolean'} selector has '
         '${unit.frames.length} frames, not the two its selector can take',
@@ -949,7 +944,7 @@ class _FunctionEmitter {
     final trueLabel = onError ? LvCaseLabel.error : LvCaseLabel.isTrue;
     final falseLabel = onError ? LvCaseLabel.noError : LvCaseLabel.isFalse;
     if (displayed != trueLabel && displayed != falseLabel) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.caseSelector,
         'the displayed frame\'s case value reads "${unit.displayedCase}", which is '
         'neither "${trueLabel.label}" nor "${falseLabel.label}"',
@@ -969,7 +964,7 @@ class _FunctionEmitter {
   void _emitRangeCase(LvStructUnit unit, LvEdge selectorEdge) {
     final type = selectorEdge.type;
     if (unit.selectorRanges.isEmpty) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.caseSelector,
         'a Case over a ${type.dartType} selector carries no range list, so only '
         'the displayed frame\'s value ("${unit.displayedCase}") is stated',
@@ -977,13 +972,13 @@ class _FunctionEmitter {
       );
     }
     if (unit.defaultFrame >= unit.frames.length) {
-      refuse(LvRefusalKind.caseSelector, 'the Default frame index is out of range', oid: unit.oid);
+      lvRefuse(LvRefusalKind.caseSelector, 'the Default frame index is out of range', oid: unit.oid);
     }
     final selectorValue = _bound(selectorEdge.source, unit.oid);
     final guards = <int, List<String>>{};
     for (final range in unit.selectorRanges) {
       if (range.frame < 0 || range.frame >= unit.frames.length) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.caseSelector,
           'a selector range names frame ${range.frame}, which does not exist',
           oid: unit.oid,
@@ -992,7 +987,7 @@ class _FunctionEmitter {
       if (range.frame == unit.defaultFrame) continue;
       final guard = _rangeGuard(range, selectorValue, unit, type);
       if (guard == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.caseSelector,
           'a selector range over a ${type.dartType} selector is stated as '
           '${range.low}..${range.high} with bound modes '
@@ -1065,7 +1060,7 @@ class _FunctionEmitter {
       final inner = output.terminal.innerPorts[frame.frameOid];
       final edge = inner == null ? null : flow.into(inner);
       if (edge == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.unwiredTerminal,
           'a Case output tunnel is unwired in one frame; the value LabVIEW '
           'substitutes there is not decoded',
@@ -1073,7 +1068,7 @@ class _FunctionEmitter {
         );
       }
       if (edge.type.dartType != output.type.dartType) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.tunnelCoercion,
           'a Case output tunnel carries ${output.type.dartType} outside and '
           '${edge.type.dartType} in one frame, and the coercion LabVIEW applies '
@@ -1095,7 +1090,7 @@ class _FunctionEmitter {
       }
       final outer = _outerValue(terminal);
       if (outer == null) {
-        refuse(LvRefusalKind.unwiredTerminal, 'a frame reads a tunnel that receives no wire', oid: terminal.oid);
+        lvRefuse(LvRefusalKind.unwiredTerminal, 'a frame reads a tunnel that receives no wire', oid: terminal.oid);
       }
       valueOf[inner] = outer;
     }
@@ -1104,7 +1099,7 @@ class _FunctionEmitter {
   void _emitDisable(LvStructUnit unit) {
     final displayed = unit.displayedDisable;
     if (unit.frames.length != 2 || displayed == LvDisableFrame.other) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.caseSelector,
         'a Diagram Disable structure runs its Enabled frame alone; the file '
         'names only the displayed frame ("${unit.displayedCase}"), so which of '
@@ -1115,7 +1110,7 @@ class _FunctionEmitter {
     }
     final enabled = displayed == LvDisableFrame.enabled ? unit.displayedFrame : 1 - unit.displayedFrame;
     if (enabled >= unit.frames.length) {
-      refuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
+      lvRefuse(LvRefusalKind.caseSelector, 'the displayed frame index is out of range', oid: unit.oid);
     }
     final frame = unit.frames[enabled];
     _bindFrameInputs(unit, frame.frameOid, null);
@@ -1127,7 +1122,7 @@ class _FunctionEmitter {
       final edge = inner == null ? null : flow.into(inner);
       if (port == null || flow.outOf(port) == null) continue;
       if (edge == null) {
-        refuse(LvRefusalKind.unwiredTerminal, 'a disable-structure output tunnel is unwired', oid: tunnel.oid);
+        lvRefuse(LvRefusalKind.unwiredTerminal, 'a disable-structure output tunnel is unwired', oid: tunnel.oid);
       }
       valueOf[port] = _bound(edge.source, tunnel.oid);
     }
