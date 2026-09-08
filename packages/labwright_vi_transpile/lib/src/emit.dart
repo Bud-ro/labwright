@@ -206,9 +206,9 @@ class _Library {
     if (lvTypeNeedsRuntime(type)) imports.add(kLvRuntimeImport);
   }
 
-  static int _byDrawnPosition(LvInterfaceUnit a, LvInterfaceUnit b) {
-    final one = a.bounds, two = b.bounds;
-    if (one == null || two == null) return a.oid.compareTo(b.oid);
+  static int _byDrawnPosition(LvInterfaceUnit left, LvInterfaceUnit right) {
+    final one = left.bounds, two = right.bounds;
+    if (one == null || two == null) return left.oid.compareTo(right.oid);
     return one.top != two.top ? one.top.compareTo(two.top) : one.left.compareTo(two.left);
   }
 
@@ -261,6 +261,12 @@ class _Library {
     ).format(file.toString());
   }
 }
+
+enum _Visit { onStack, emitted }
+
+typedef _TunnelValue = ({LvStructTerminal terminal, String name, LvWireType type});
+
+typedef _ShiftRegister = ({LvStructTerminal terminal, String name, int? rightOuter});
 
 class _FunctionEmitter {
   _FunctionEmitter(this.library, this.callable);
@@ -369,11 +375,11 @@ class _FunctionEmitter {
 
   List<LvUnit> _ordered(LvRegion region, Map<int, LvUnit> byOid, Set<int> live) {
     final ordered = <LvUnit>[];
-    final state = <int, int>{}; // 1 = on the stack, 2 = emitted
+    final state = <int, _Visit>{};
     void visit(LvUnit unit) {
       final mark = state[unit.oid];
-      if (mark == 2) return;
-      if (mark == 1) {
+      if (mark == _Visit.emitted) return;
+      if (mark == _Visit.onStack) {
         lvRefuse(
           LvRefusalKind.cycle,
           'the region\'s dataflow feeds back into this unit without passing a '
@@ -381,7 +387,7 @@ class _FunctionEmitter {
           oid: unit.oid,
         );
       }
-      state[unit.oid] = 1;
+      state[unit.oid] = _Visit.onStack;
       for (final port in unit.inputPorts) {
         final edge = flow.into(port);
         if (edge == null) continue;
@@ -389,7 +395,7 @@ class _FunctionEmitter {
         final producer = owner == null || owner == unit.oid ? null : byOid[owner];
         if (producer != null && live.contains(owner)) visit(producer);
       }
-      state[unit.oid] = 2;
+      state[unit.oid] = _Visit.emitted;
       ordered.add(unit);
     }
 
@@ -724,7 +730,7 @@ class _FunctionEmitter {
       lvRefuse(LvRefusalKind.structure, 'a For loop has ${unit.frames.length} frames, not one', oid: unit.oid);
     }
     final frame = unit.frames.single;
-    final tunnels = unit.terminals.where((t) => t.role == LvTerminalRole.loopTunnel).toList();
+    final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
     final indexedInputs = <({LvStructTerminal terminal, String array})>[];
     final indexedOutputs = <({LvStructTerminal terminal, String builder, LvWireType type})>[];
 
@@ -745,7 +751,7 @@ class _FunctionEmitter {
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
         _checkIndexedRank(tunnel, inner);
         final outerType = _typeAt(tunnel.outerPort!)!;
-        final array = _atomic(outer) ? outer : names.wire(outerType);
+        final array = lvIsAtomic(outer) ? outer : names.wire(outerType);
         if (array != outer) {
           library.noteImportsFor(outerType);
           body.writeln('final ${outerType.dartType} $array = $outer;');
@@ -773,7 +779,7 @@ class _FunctionEmitter {
 
     final carried = _emitShiftRegisters(unit, frame.frameOid);
     final bounds = <String>[
-      if (unit.terminals.where((t) => t.role == LvTerminalRole.count).firstOrNull case final count?)
+      if (unit.terminals.where((terminal) => terminal.role == LvTerminalRole.count).firstOrNull case final count?)
         if (_outerValue(count) case final value?) value,
       for (final input in indexedInputs) '${input.array}.${_indexedLength(input.terminal)}',
     ];
@@ -852,14 +858,11 @@ class _FunctionEmitter {
     }
   }
 
-  List<({LvStructTerminal terminal, String name, int? rightOuter})> _emitShiftRegisters(
-    LvStructUnit unit,
-    int frameOid,
-  ) {
-    final carried = <({LvStructTerminal terminal, String name, int? rightOuter})>[];
+  List<_ShiftRegister> _emitShiftRegisters(LvStructUnit unit, int frameOid) {
+    final carried = <_ShiftRegister>[];
     for (final right in unit.terminals) {
       if (right.role != LvTerminalRole.rightShiftRegister) continue;
-      final left = unit.terminals.where((t) => t.oid == right.partnerOid).firstOrNull;
+      final left = unit.terminals.where((terminal) => terminal.oid == right.partnerOid).firstOrNull;
       if (left == null) {
         lvRefuse(LvRefusalKind.structure, 'a right shift register names no left partner', oid: right.oid);
       }
@@ -912,7 +915,7 @@ class _FunctionEmitter {
   }
 
   void _emitCase(LvStructUnit unit) {
-    final selector = unit.terminals.where((t) => t.role == LvTerminalRole.selector).firstOrNull;
+    final selector = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.selector).firstOrNull;
     if (selector == null || selector.outerPort == null) {
       lvRefuse(LvRefusalKind.caseSelector, 'a Case structure has no selector terminal', oid: unit.oid);
     }
@@ -1031,8 +1034,8 @@ class _FunctionEmitter {
     return null;
   }
 
-  List<({LvStructTerminal terminal, String name, LvWireType type})> _declareCaseOutputs(LvStructUnit unit) {
-    final outputs = <({LvStructTerminal terminal, String name, LvWireType type})>[];
+  List<_TunnelValue> _declareCaseOutputs(LvStructUnit unit) {
+    final outputs = <_TunnelValue>[];
     for (final tunnel in unit.terminals) {
       if (tunnel.role != LvTerminalRole.caseTunnel || tunnel.outerIsSink) continue;
       final port = tunnel.outerPort;
@@ -1050,7 +1053,7 @@ class _FunctionEmitter {
   void _emitCaseFrame(
     LvStructUnit unit,
     int frameIndex,
-    List<({LvStructTerminal terminal, String name, LvWireType type})> outputs,
+    List<_TunnelValue> outputs,
     String? selectorValue,
   ) {
     final frame = unit.frames[frameIndex];
@@ -1127,6 +1130,4 @@ class _FunctionEmitter {
       valueOf[port] = _bound(edge.source, tunnel.oid);
     }
   }
-
-  static bool _atomic(String expression) => RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$').hasMatch(expression);
 }
