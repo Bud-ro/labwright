@@ -575,7 +575,7 @@ class _FunctionEmitter {
       body.writeln(statement);
     }
     for (final output in outputs) {
-      valueOf[output.port] = output.expression!;
+      valueOf[output.port] = output.expression;
     }
   }
 

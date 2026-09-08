@@ -37,7 +37,7 @@ class LvPrimTerminal {
 
   final int roleFlags;
 
-  final String? expression;
+  final String expression;
 
   final String? memberName;
 }
@@ -386,7 +386,6 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   final out = call.outputs.single;
   if (out.type.dims != 0 || call.inputs.any((operand) => operand.type.dims != 0)) return null;
   final name = out.expression;
-  if (name == null) return const [];
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
@@ -399,7 +398,6 @@ List<String>? _binaryOrdered(LvPrimCall call, String operator) {
   if (out.type.dims != 0 || operands.$1.type.dims != 0 || operands.$2.type.dims != 0) return null;
   if (_hazardous(out.type, operator)) return null;
   final name = out.expression;
-  if (name == null) return const [];
   final body = '${operands.$1.expression} $operator ${operands.$2.expression}';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
@@ -415,9 +413,8 @@ List<String>? _divide(LvPrimCall call) {
     if (operand.type.dims != 0 || operand.type.numeric == null) return null;
     if (_hazardous(operand.type, 'toDouble')) return null;
   }
-  if (name == null) return const [];
   String widened(LvPrimTerminal operand) =>
-      operand.type.numeric!.isFloat ? operand.expression! : '${operand.expression}.toDouble()';
+      operand.type.numeric!.isFloat ? operand.expression : '${operand.expression}.toDouble()';
   final body = '${widened(operands.$1)} / ${widened(operands.$2)}';
   if (out.type.numeric == LvNumericKind.sgl) call.requireImport('dart:typed_data');
   return ['final double $name = ${lvWrapped(out.type, body)};'];
@@ -434,7 +431,6 @@ List<String>? _orderedPredicate(LvPrimCall call, String operator) {
     if (_hazardous(operand.type, operator)) return null;
   }
   final name = out.expression;
-  if (name == null) return const [];
   return ['final bool $name = ${operands.$1.expression} $operator ${operands.$2.expression};'];
 }
 
@@ -465,7 +461,6 @@ List<String>? _swap(LvPrimCall call, String runtimeCall, {required int fieldPair
   if (kind == null || kind.isFloat || kind.bits < fieldPairBits) return null;
   if (source.type.numeric != kind) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return ['final int $name = ${lvWrapped(out.type, '$runtimeCall(${source.expression})')};'];
 }
@@ -480,7 +475,6 @@ List<String>? _select(LvPrimCall call) {
   if (whenTrue.type.dartType != out.type.dartType || whenFalse.type.dartType != out.type.dartType) return null;
   if (whenTrue.type.dims != out.type.dims || whenFalse.type.dims != out.type.dims) return null;
   final name = out.expression;
-  if (name == null) return const [];
   return [
     'final ${out.type.dartType} $name = '
         '${selector.expression} ? ${whenTrue.expression} : ${whenFalse.expression};',
@@ -498,7 +492,6 @@ List<String>? _logicalShift(LvPrimCall call) {
   if (value.type.dims != 0 || value.type.numeric != kind) return null;
   if (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   final shifted = '${LvRuntimeCall.logicalShift}(${value.expression}, ${count.expression}, ${kind.bits})';
   return ['final int $name = ${lvWrapped(out.type, shifted)};'];
@@ -523,7 +516,6 @@ List<String>? _typeCast(LvPrimCall call) {
   final result = _valueOfFlat(out.type, bytes);
   if (result == null) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   if (out.type.dims == 1 && out.type.numeric != null) call.requireImport('dart:typed_data');
   return ['final ${out.type.dartType} $name = $result;'];
@@ -572,13 +564,12 @@ List<String>? _buildArray(LvPrimCall call) {
       case 0:
         pieces.add('...${operand.expression}');
       case 1:
-        pieces.add(operand.expression!);
+        pieces.add(operand.expression);
       case _:
         return null;
     }
   }
   final name = out.expression;
-  if (name == null) return const [];
   if (out.type.numeric != null) call.requireImport('dart:typed_data');
   final built = lvArrayFreeze(element, '<${element.dartType}>[${pieces.join(', ')}]');
   return ['final ${out.type.dartType} $name = $built;'];
@@ -594,7 +585,6 @@ List<String>? _concatenateStrings(LvPrimCall call) {
     if (operand.type.dims != 0 || operand.type.carrier != LvCarrier.text) return null;
   }
   final name = out.expression;
-  if (name == null) return const [];
   final operands = [for (final operand in ordered) operand.expression];
   final joined = operands.length == 1 ? operands.single : "'${operands.map(_interpolated).join()}'";
   return ['final String $name = $joined;'];
@@ -689,9 +679,8 @@ List<String>? _bundleByName(LvPrimCall call) {
   final base = bases.single;
   if (base.type.dartType != declaration.name) return null;
   final name = result.expression;
-  if (name == null) return const [];
   final statements = <String>[];
-  var carrier = base.expression!;
+  var carrier = base.expression;
   if (!lvIsAtomic(carrier) && written.length < declaration.fields.length) {
     final local = call.names.wire(base.type);
     statements.add('final ${declaration.name} $local = $carrier;');
@@ -712,7 +701,6 @@ List<String>? _mergeErrors(LvPrimCall call) {
   final result = call.outputs.single;
   if (!result.type.isErrorCluster || ordered.any((operand) => !operand.type.isErrorCluster)) return null;
   final name = result.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   final operands = [for (final operand in ordered) operand.expression].join(', ');
   return [
@@ -727,12 +715,11 @@ List<String>? _isNotANumber(LvPrimCall call) {
   if (source.type.dims != 0 || !(source.type.numeric?.isFloat ?? false)) return null;
   if (result.type.dims != 0 || result.type.carrier != LvCarrier.boolean) return null;
   final name = result.expression;
-  if (name == null) return const [];
   return ['final bool $name = ${source.expression}.isNaN;'];
 }
 
-String _interpolated(String? expression) =>
-    RegExp(r'^[A-Za-z_]\w*$').hasMatch(expression!) ? '\$$expression' : '\${$expression}';
+String _interpolated(String expression) =>
+    RegExp(r'^[A-Za-z_]\w*$').hasMatch(expression) ? '\$$expression' : '\${$expression}';
 
 List<String>? _elementwise(LvPrimCall call) {
   if (call.op == null && !kLvPrimResIdLowerings.containsKey(call.primResId)) return null;
@@ -741,40 +728,40 @@ List<String>? _elementwise(LvPrimCall call) {
   if (terminals.any((terminal) => terminal.type.dims != 1)) return null;
 
   final prologue = <String>[];
-  final arrayOf = <int, String>{};
+  final arrays = <String>[];
   for (final operand in call.inputs) {
-    final expression = operand.expression!;
+    final expression = operand.expression;
     if (lvIsAtomic(expression)) {
-      arrayOf[operand.port] = expression;
+      arrays.add(expression);
       continue;
     }
     final local = call.names.wire(operand.type);
     prologue.add('final ${operand.type.dartType} $local = $expression;');
-    arrayOf[operand.port] = local;
+    arrays.add(local);
   }
 
   final index = call.names.loopIndex();
-  final scalarOf = <int, String>{};
+  final scalars = [for (final result in call.outputs) call.names.wire(result.type.scalar)];
   final scalar = LvPrimCall(
     op: call.op,
     primResId: call.primResId,
     classCode: call.classCode,
     inputs: [
-      for (final operand in call.inputs)
+      for (final (i, operand) in call.inputs.indexed)
         LvPrimTerminal(
           port: operand.port,
           type: operand.type.scalar,
           roleFlags: operand.roleFlags,
-          expression: '${arrayOf[operand.port]}[$index]',
+          expression: '${arrays[i]}[$index]',
         ),
     ],
     outputs: [
-      for (final result in call.outputs)
+      for (final (i, result) in call.outputs.indexed)
         LvPrimTerminal(
           port: result.port,
           type: result.type.scalar,
           roleFlags: result.roleFlags,
-          expression: scalarOf[result.port] = call.names.wire(result.type.scalar),
+          expression: scalars[i],
         ),
     ],
     outputPorts: call.outputPorts,
@@ -786,14 +773,14 @@ List<String>? _elementwise(LvPrimCall call) {
   final body = _lowerDirect(scalar);
   if (body == null) return null;
 
-  final builderOf = <int, String>{};
+  final builders = <String>[];
   final statements = [...prologue];
   for (final result in call.outputs) {
     final builder = call.names.role(LvNameRole.builder);
-    builderOf[result.port] = builder;
+    builders.add(builder);
     statements.add('final ${lvArrayBuilderType(result.type.element)} $builder = <${result.type.element.dartType}>[];');
   }
-  final lengths = [for (final operand in call.inputs) '${arrayOf[operand.port]}.length'];
+  final lengths = [for (final array in arrays) '$array.length'];
   String bound;
   if (lengths.length == 1) {
     bound = lengths.single;
@@ -805,11 +792,11 @@ List<String>? _elementwise(LvPrimCall call) {
   statements
     ..add('for (var $index = 0; $index < $bound; $index++) {')
     ..addAll(body)
-    ..addAll([for (final result in call.outputs) '${builderOf[result.port]}.add(${scalarOf[result.port]});'])
+    ..addAll([for (final (i, _) in call.outputs.indexed) '${builders[i]}.add(${scalars[i]});'])
     ..add('}');
-  for (final result in call.outputs) {
+  for (final (i, result) in call.outputs.indexed) {
     if (result.type.numeric != null) call.requireImport('dart:typed_data');
-    final frozen = lvArrayFreeze(result.type.element, builderOf[result.port]!);
+    final frozen = lvArrayFreeze(result.type.element, builders[i]);
     statements.add('final ${result.type.dartType} ${result.expression} = $frozen;');
   }
   return statements;
@@ -825,7 +812,6 @@ List<String>? _binaryPredicate(LvPrimCall call, String operator) {
   if (left.type.carrier != right.type.carrier) return null;
   if (out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
-  if (name == null) return const [];
   return ['final bool $name = ${left.expression} $operator ${right.expression};'];
 }
 
@@ -836,7 +822,6 @@ List<String>? _comparedToZero(LvPrimCall call, String operator) {
   if (_hazardous(source.type, operator)) return null;
   if (out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
-  if (name == null) return const [];
   final zero = source.type.numeric!.isFloat ? '0.0' : '0';
   return ['final bool $name = ${source.expression} $operator $zero;'];
 }
@@ -847,7 +832,6 @@ List<String>? _isEmpty(LvPrimCall call) {
   if (source.type.dims != 0 || out.type.carrier != LvCarrier.boolean) return null;
   if (source.type.carrier != LvCarrier.text && source.type.carrier != LvCarrier.path) return null;
   final name = out.expression;
-  if (name == null) return const [];
   return ['final bool $name = ${source.expression}.isEmpty;'];
 }
 
@@ -857,7 +841,6 @@ List<String>? _reverse1dArray(LvPrimCall call) {
   if (source.type.dims != 1 || out.type.dims != 1) return null;
   if (source.type.dartType != out.type.dartType) return null;
   final name = out.expression;
-  if (name == null) return const [];
   if (out.type.numeric != null) call.requireImport('dart:typed_data');
   final reversed = lvArrayFreeze(out.type.element, '${source.expression}.reversed.toList()');
   return ['final ${out.type.dartType} $name = $reversed;'];
@@ -868,7 +851,6 @@ List<String>? _emptyArray(LvPrimCall call) {
   final source = call.inputs.single, out = call.outputs.single;
   if (source.type.dims != 1 || out.type.dims != 0 || out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
-  if (name == null) return const [];
   return ['final bool $name = ${source.expression}.isEmpty;'];
 }
 
@@ -880,7 +862,6 @@ List<String>? _addArrayElements(LvPrimCall call) {
   if (kind == null || kind.hazards.isNotEmpty) return null;
   if (source.type.element.dartType != out.type.dartType) return null;
   final name = out.expression;
-  if (name == null) return const [];
   final total = call.names.role(LvNameRole.value);
   final element = call.names.role(LvNameRole.element);
   final step = lvWrapExpression(kind, '$total + $element');
@@ -898,7 +879,6 @@ List<String>? _unaryOfString(LvPrimCall call, String member, LvCarrier result) {
   if (source.type.dims != 0 || source.type.carrier != LvCarrier.text) return null;
   if (out.type.carrier != result) return null;
   final name = out.expression;
-  if (name == null) return const [];
   return ['final ${result.dartType} $name = ${source.expression}.$member;'];
 }
 
@@ -908,7 +888,6 @@ List<String>? _arraySize(LvPrimCall call) {
   if (source.type.dims != 1 || out.type.dims != 0) return null;
   if (out.type.numeric == null || out.type.numeric!.isFloat) return null;
   final name = out.expression;
-  if (name == null) return const [];
   return ['final int $name = ${source.expression}.length;'];
 }
 
@@ -922,12 +901,10 @@ List<String>? _not(LvPrimCall call) {
   if (source.type.dartType != out.type.dartType) return null;
   final name = out.expression;
   if (out.type.carrier == LvCarrier.boolean) {
-    if (name == null) return const [];
     return ['final bool $name = !${source.expression};'];
   }
   final kind = out.type.numeric;
   if (kind == null || kind.isFloat) return null;
-  if (name == null) return const [];
   return ['final int $name = ${lvWrapped(out.type, '~${source.expression}')};'];
 }
 
@@ -937,7 +914,6 @@ List<String>? _unaryNumeric(LvPrimCall call, String suffix) {
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   if (out.type.numeric == null) return null;
   final name = out.expression;
-  if (name == null) return const [];
   final body = '${source.expression} $suffix';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
@@ -950,7 +926,6 @@ List<String>? _integerConversion(LvPrimCall call) {
   if (source.type.numeric == null || source.type.numeric!.isFloat) return null;
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return ['final int $name = ${LvRuntimeCall.integerConversion(target)}(${source.expression});'];
 }
@@ -963,9 +938,8 @@ List<String>? _floatConversion(LvPrimCall call) {
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   if (_hazardous(source.type, 'toDouble')) return null;
   final name = out.expression;
-  if (name == null) return const [];
   if (target == LvNumericKind.sgl) call.requireImport('dart:typed_data');
-  final widened = from.isFloat ? source.expression! : '${source.expression}.toDouble()';
+  final widened = from.isFloat ? source.expression : '${source.expression}.toDouble()';
   return ['final double $name = ${lvWrapped(out.type, widened)};'];
 }
 
@@ -976,7 +950,6 @@ List<String>? _byteArrayConversion(LvPrimCall call, {required bool encode}) {
   if (!encode && (source.type.dims != 1 || out.type.dims != 0)) return null;
   if (out.type.numeric != null && out.type.numeric != LvNumericKind.u8) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport('dart:convert');
   if (encode) {
     call.requireImport('dart:typed_data');
@@ -994,11 +967,10 @@ List<String>? _rotateWithCarry(LvPrimCall call, {required bool left}) {
   }
   final kind = rotated.type.numeric;
   if (kind == null || kind.isFloat || value.type.numeric != kind) return null;
-  if (rotated.expression == null && carryOut.expression == null) return const [];
   call.requireImport(kLvRuntimeImport);
   final rotate = left ? LvRuntimeCall.rotateLeftWithCarry : LvRuntimeCall.rotateRightWithCarry;
   return [
-    'final (${rotated.expression ?? '_'}, ${carryOut.expression ?? '_'}) = '
+    'final (${rotated.expression}, ${carryOut.expression}) = '
         '$rotate(${value.expression}, ${carryIn.expression}, ${kind.bits});',
   ];
 }
@@ -1026,7 +998,6 @@ List<String>? _indexArray(LvPrimCall call) {
     if (out.roleFlags != expectedRole) return null;
     if (index.type.dims != 0 || out.type.dims != 0) return null;
     final name = out.expression;
-    if (name == null) return null;
     statements.add('final ${out.type.dartType} $name = ${array.expression}[${index.expression}];');
   }
   return statements;
@@ -1044,7 +1015,6 @@ List<String>? _replaceArraySubset(LvPrimCall call) {
   if (array.type.dims != 1 || index.type.dims != 0) return null;
   if (element.type.dims != 0 || out.type.dims != 1) return null;
   final name = out.expression;
-  if (name == null) return const [];
   final storage = out.type.elementListType;
   return [
     'final $storage $name = $storage.fromList(${array.expression})..[${index.expression}] = ${element.expression};',
@@ -1068,7 +1038,6 @@ List<String>? _compoundArithmetic(LvPrimCall call) {
     if (operand.type.dims != 0 || operand.type.numeric != kind) return null;
   }
   final name = out.expression;
-  if (name == null) return const [];
   final body = [for (final operand in ordered) operand.expression].join(' $operator ');
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
 }
@@ -1083,7 +1052,6 @@ List<String>? _initializeArray(LvPrimCall call) {
   if (element.type.dartType != out.type.element.dartType) return null;
   if (size.type.dims != 0 || size.type.numeric == null || size.type.numeric!.isFloat) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   if (out.type.numeric != null) call.requireImport('dart:typed_data');
   final filled =
@@ -1112,7 +1080,6 @@ List<String>? _stringSubset(LvPrimCall call) {
     if (_hazardous(count.type, '<')) return null;
   }
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   final arguments = [string.expression, offset.expression, if (length != null) length.expression];
   return ['final String $name = ${LvRuntimeCall.stringSubset}(${arguments.join(', ')});'];
@@ -1124,7 +1091,6 @@ List<String>? _toLowerCase(LvPrimCall call) {
   if (source.type.dims != 0 || source.type.carrier != LvCarrier.text) return null;
   if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return ['final String $name = ${LvRuntimeCall.toLowerCase}(${source.expression});'];
 }
@@ -1140,8 +1106,7 @@ List<String>? _waitMs(LvPrimCall call) {
 
   call.requireImport(kLvRuntimeImport);
   final wait = '${LvRuntimeCall.waitMs}(${source.expression})';
-  final name = out?.expression;
-  return [if (name == null) '$wait;' else 'final ${out!.type.dartType} $name = $wait;'];
+  return [if (out == null) '$wait;' else 'final ${out.type.dartType} ${out.expression} = $wait;'];
 }
 
 List<String>? _rotate(LvPrimCall call) {
@@ -1155,7 +1120,6 @@ List<String>? _rotate(LvPrimCall call) {
   if (value.type.dims != 0 || value.type.numeric != kind) return null;
   if (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   final rotated = '${LvRuntimeCall.rotate}(${value.expression}, ${count.expression}, ${kind.bits})';
   return ['final int $name = ${lvWrapped(out.type, rotated)};'];
@@ -1172,7 +1136,6 @@ List<String>? _hexString(LvPrimCall call) {
   if (kind == null || kind.isFloat || kind.bits != 32 || value.type.dims != 0) return null;
   if (width.type.dims != 0 || width.type.numeric == null || width.type.numeric!.isFloat) return null;
   final name = out.expression;
-  if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
   return [
     'final String $name = '
