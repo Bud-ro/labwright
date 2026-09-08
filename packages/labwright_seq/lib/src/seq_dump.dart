@@ -277,11 +277,11 @@ String _dumpStep(Step step, SeqFile file) {
   }
   String resolveTarget(String target) => target.startsWith('ID#:') ? (file.stepNameForId(target) ?? target) : target;
   if (settings.customExpression != null) notes.add('cust-cond ${settings.customExpression}');
-  if (settings.customTrueTarget != null) {
-    notes.add('cust-true→${resolveTarget(settings.customTrueTarget!)}');
+  if (settings.customTrueTarget case final target?) {
+    notes.add('cust-true→${resolveTarget(target)}');
   }
-  if (settings.customFalseTarget != null) {
-    notes.add('cust-false→${resolveTarget(settings.customFalseTarget!)}');
+  if (settings.customFalseTarget case final target?) {
+    notes.add('cust-false→${resolveTarget(target)}');
   }
   if (settings.isLooping) {
     final lp = <String>[];

@@ -714,10 +714,8 @@ Map<String, int> coverageGaps(SeqFile file, {bool weightBySubtree = false}) {
     for (final child in node.subProps) {
       walk(child, '$path.${child.name}');
     }
-    if (node.array != null) {
-      for (final child in node.array!) {
-        walk(child, '$path.[]');
-      }
+    for (final child in node.array ?? const <SeqProperty>[]) {
+      walk(child, '$path.[]');
     }
   }
 

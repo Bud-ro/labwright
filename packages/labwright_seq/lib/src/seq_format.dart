@@ -112,21 +112,23 @@ class SeqFileHeader {
       'product=$productName, version=$fileVersion)';
 }
 
-final _attr = <String, RegExp>{
-  for (final name in ['type', 'fileversion', 'productname']) name: RegExp("\\s$name=['\"]([^'\"]*)['\"]"),
-};
+RegExp _attrPattern(String name) => RegExp("\\s$name=['\"]([^'\"]*)['\"]");
+
+final _typeAttr = _attrPattern('type');
+final _fileVersionAttr = _attrPattern('fileversion');
+final _productNameAttr = _attrPattern('productname');
 
 SeqFileHeader detectSeqHeader(Uint8List bytes) {
   final fmt = detectSeqFormat(bytes);
   switch (fmt) {
     case SeqFormat.xml:
       final head = _asciiPeek(bytes, 0, _headerScanLen);
-      String? attr(String name) => _attr[name]!.firstMatch(head)?.group(1);
+      String? attr(RegExp pattern) => pattern.firstMatch(head)?.group(1);
       return SeqFileHeader(
         format: fmt,
-        fileType: attr('type'),
-        productName: attr('productname'),
-        fileVersion: attr('fileversion'),
+        fileType: attr(_typeAttr),
+        productName: attr(_productNameAttr),
+        fileVersion: attr(_fileVersionAttr),
       );
     case SeqFormat.ini:
       return parseIniHeader(_asciiPeek(bytes, 0, _headerScanLen));

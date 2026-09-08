@@ -32,11 +32,12 @@ Uint8List writeSeqFileXml(SeqFile file) {
       }
       sb.write('\t\t<typedef');
       _writeAttributes(sb, entry.attributes);
-      if (entry.root == null) {
+      final root = entry.root;
+      if (root == null) {
         sb.write('/>\n');
       } else {
         sb.write('>\n');
-        _writeProperty(sb, entry.root!, 3);
+        _writeProperty(sb, root, 3);
         sb.write('\t\t</typedef>\n');
       }
     }
@@ -86,19 +87,19 @@ void _writeProperty(StringBuffer sb, SeqProperty p, int depth) {
     return;
   }
   sb.write('>\n');
-  if (p.xmlComment != null) {
+  if (p.xmlComment case final comment?) {
     sb
       ..write(indent)
       ..write('\t<comment>')
-      ..write(_escapeText(p.xmlComment!))
+      ..write(_escapeText(comment))
       ..write('</comment>\n');
   }
   if (hasValue) _writeValue(sb, p, depth + 1);
-  if (p.numericFormat != null) {
+  if (p.numericFormat case final format?) {
     sb
       ..write(indent)
       ..write('\t<numericfmt>')
-      ..write(_escapeText(p.numericFormat!))
+      ..write(_escapeText(format))
       ..write('</numericfmt>\n');
   }
   for (final ext in p.extData) {

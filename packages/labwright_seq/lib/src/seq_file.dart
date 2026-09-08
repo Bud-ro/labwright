@@ -92,8 +92,9 @@ class SeqFile {
 
   Sequence? resolveCall(Step step) {
     final module = step.module;
-    if (module.adapter != SeqAdapter.sequenceCall || module.sequenceName == null) return null;
-    return sequence(module.sequenceName!);
+    if (module.adapter != SeqAdapter.sequenceCall) return null;
+    final name = module.sequenceName;
+    return name == null ? null : sequence(name);
   }
 
   @override
@@ -274,9 +275,8 @@ SeqFile _parseXml(Uint8List bytes) {
   return SeqFile(
     header: detectSeqHeader(bytes),
     types: [
-      if (entries != null)
-        for (final entry in entries)
-          if (entry.root != null) entry.root!,
+      for (final entry in entries ?? const <SeqTypelistEntry>[])
+        if (entry.root case final root?) root,
     ],
     data: buildProperty(dataEl),
     typelistEntries: entries,
@@ -395,8 +395,9 @@ abstract final class BinAttr {
 
 SeqProperty _typeFieldProp(BinaryTypeField field) {
   final elementsDecoded = field.isArray && field.children.isNotEmpty;
-  final representation = field.numericRepresentation != null && field.value != null
-      ? BinaryNumericRepresentation.of(field.numericRepresentation!)
+  final numericRepresentation = field.numericRepresentation;
+  final representation = numericRepresentation != null && field.value != null
+      ? BinaryNumericRepresentation.of(numericRepresentation)
       : null;
   return SeqProperty(
     name: field.name,
@@ -407,17 +408,17 @@ SeqProperty _typeFieldProp(BinaryTypeField field) {
         ? (elementsDecoded ? [for (final child in field.children) _typeFieldProp(child)] : const [])
         : null,
     valueAttributes: {
-      if (field.arrayLBound != null) 'lbound': field.arrayLBound!,
-      if (field.arrayUBound != null) 'ubound': field.arrayUBound!,
+      if (field.arrayLBound case final lbound?) 'lbound': lbound,
+      if (field.arrayUBound case final ubound?) 'ubound': ubound,
       if (representation != null) 'representation': representation.xmlName,
     },
     attributes: {
       if (field.instanceOverrides) BinAttr.overrides: 'true',
-      if (field.elementSpecBytes != null) BinAttr.elementSpec: '${field.elementSpecBytes}',
-      if (field.intrinsicTypeId != null) BinAttr.intrinsic: '${field.intrinsicTypeId}',
-      if (field.isArray && !field.isEmptyArray && !elementsDecoded) BinAttr.arrayUndecoded: field.arrayUBound!,
-      if (field.numericRepresentation != null && representation == null)
-        BinAttr.numericRep: '${field.numericRepresentation}',
+      if (field.elementSpecBytes case final bytes?) BinAttr.elementSpec: '$bytes',
+      if (field.intrinsicTypeId case final id?) BinAttr.intrinsic: '$id',
+      if (field.arrayUBound case final ubound? when !field.isEmptyArray && !elementsDecoded)
+        BinAttr.arrayUndecoded: ubound,
+      if (numericRepresentation != null && representation == null) BinAttr.numericRep: '$numericRepresentation',
     },
     subProps: [
       if (!elementsDecoded)
