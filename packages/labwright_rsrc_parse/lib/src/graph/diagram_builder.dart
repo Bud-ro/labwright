@@ -281,8 +281,8 @@ class _DiagramBuild {
 
   void applyFrameRecord(ViHeapObject object, HeapRecord frame) {
     c4ops[object]!.add(frame.opcode);
-    switch (frame.opcode) {
-      case 0x2d:
+    switch (frame.kind) {
+      case HeapOpcode.bounds:
         final bounds = frame.bounds;
         if (object.bounds == null && bounds != null) {
           object.bounds = bounds;
@@ -292,23 +292,25 @@ class _DiagramBuild {
           absLeft[object] = left;
           object.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
         }
-      case 0x22:
+      case HeapOpcode.caption:
         object.label ??= frame.text;
-      case 0x1f:
+      case HeapOpcode.size:
         object.termCount++;
-      case 0x74:
+      case HeapOpcode.formatString:
         formatPayloads[object] ??= frame.payload;
-      case 0x2e:
+      case HeapOpcode.stringTable:
         if (object.items.isEmpty) object.items = _parseEnumItems(frame.payload);
-      case 0x19:
+      case HeapOpcode.description:
         object.helpText ??= frame.descriptionText;
-      case 0x27:
+      case HeapOpcode.plotName:
         final text = frame.text ?? frame.path ?? frame.descriptionText;
         if (text != null && text.isNotEmpty) object.plotNames = [...object.plotNames, text];
-      case 0xa4:
+      case HeapOpcode.path:
         if (object.objectClass == HeapObjectClass.bdCallLibrary) object.foreignLibraryPath ??= frame.path;
-      case 0xc4:
+      case HeapOpcode.symbolName:
         if (object.objectClass == HeapObjectClass.bdCallLibrary) object.foreignEntryPoint ??= frame.text;
+      default:
+        break;
     }
   }
 
