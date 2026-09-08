@@ -11,7 +11,6 @@ abstract final class TdmsReader {
   static TdmsFile read(Uint8List bytes) {
     final cursor = _ByteCursor(bytes);
     final objectsByPath = <String, _ObjectState>{};
-    final pathOrder = <String>[];
     final activeObjects = <_ObjectState>[];
 
     while (cursor.remaining >= leadInByteLength) {
@@ -32,10 +31,7 @@ abstract final class TdmsReader {
         final objectCount = cursor.u32();
         for (var i = 0; i < objectCount; i++) {
           final path = cursor.string();
-          final object = objectsByPath.putIfAbsent(path, () {
-            pathOrder.add(path);
-            return _ObjectState();
-          });
+          final object = objectsByPath.putIfAbsent(path, _ObjectState.new);
           final rawDataIndex = cursor.u32();
           var carriesRawData = true;
           if (rawDataIndex == noRawDataIndex) {
@@ -91,43 +87,31 @@ abstract final class TdmsReader {
       cursor.position = segmentBodyStart + nextSegmentOffset;
     }
 
-    return _assembleFile(objectsByPath, pathOrder);
+    return _assembleFile(objectsByPath);
   }
 
-  static TdmsFile _assembleFile(Map<String, _ObjectState> objectsByPath, List<String> pathOrder) {
+  static TdmsFile _assembleFile(Map<String, _ObjectState> objectsByPath) {
     final rootProperties = objectsByPath['/']?.properties ?? <String, Object>{};
-    final groupOrder = <String>[];
     final groupProperties = <String, Map<String, Object>>{};
     final channelsByGroup = <String, List<TdmsChannelData>>{};
 
-    void ensureGroup(String groupName) {
-      if (!channelsByGroup.containsKey(groupName)) {
-        channelsByGroup[groupName] = [];
-        groupOrder.add(groupName);
-      }
-    }
+    List<TdmsChannelData> channelsOf(String groupName) =>
+        channelsByGroup.putIfAbsent(groupName, () => <TdmsChannelData>[]);
 
-    for (final path in pathOrder) {
+    for (final MapEntry(key: path, value: object) in objectsByPath.entries) {
       if (path == '/') continue;
       final names = _parseObjectPath(path);
       if (names.length == 1) {
-        ensureGroup(names[0]);
-        groupProperties[names[0]] = objectsByPath[path]!.properties;
+        channelsOf(names[0]);
+        groupProperties[names[0]] = object.properties;
       } else if (names.length == 2) {
-        final groupName = names[0];
-        ensureGroup(groupName);
-        final object = objectsByPath[path]!;
-        channelsByGroup[groupName]!.add(TdmsChannelData(groupName, names[1], object.properties, object.samples));
+        channelsOf(names[0]).add(TdmsChannelData(names[0], names[1], object.properties, object.samples));
       }
     }
 
     return TdmsFile(rootProperties, [
-      for (final groupName in groupOrder)
-        TdmsGroup(
-          groupName,
-          groupProperties[groupName] ?? <String, Object>{},
-          channelsByGroup[groupName]!,
-        ),
+      for (final MapEntry(key: groupName, value: channels) in channelsByGroup.entries)
+        TdmsGroup(groupName, groupProperties[groupName] ?? <String, Object>{}, channels),
     ]);
   }
 }
