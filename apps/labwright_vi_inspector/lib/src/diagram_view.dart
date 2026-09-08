@@ -334,8 +334,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   );
 
   void _selectAt(Offset local, List<ViHeapObject> objects, Rect content) {
-    final x = local.dx + content.left;
-    final y = local.dy + content.top;
+    final hitX = local.dx + content.left;
+    final hitY = local.dy + content.top;
     ViHeapObject? hit;
     var bestArea = double.infinity;
     for (final object in objects) {
@@ -356,8 +356,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         right = math.max(right, stamp.right);
         bottom = math.max(bottom, stamp.bottom);
       }
-      if (x >= left && x <= right && y >= top && y <= bottom) {
-        if (!primIconHit(object, x, y)) continue;
+      if (hitX >= left && hitX <= right && hitY >= top && hitY <= bottom) {
+        if (!primIconHit(object, hitX, hitY)) continue;
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
@@ -387,10 +387,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           viewport.height / content.height,
         ) *
         0.94;
-    final tx = (viewport.width - content.width * scale) / 2;
-    final ty = (viewport.height - content.height * scale) / 2;
+    final translateX = (viewport.width - content.width * scale) / 2;
+    final translateY = (viewport.height - content.height * scale) / 2;
     _transform.value = Matrix4.identity()
-      ..translateByDouble(tx, ty, 0, 1)
+      ..translateByDouble(translateX, translateY, 0, 1)
       ..scaleByDouble(scale, scale, 1, 1);
     setState(() => _anchorScale = scale.clamp(0.02, 16.0));
     _fitted = true;
@@ -738,10 +738,10 @@ String? _primDetail(ViHeapObject object) {
   final iconPart =
       'icon $name${status == null ? ' (no asset)' : ' ${status.name}'}';
   if (object.primResId != null) {
-    final op = PrimOp.fromId(object.primResId!);
-    final opPart = op == null
+    final primOp = PrimOp.fromId(object.primResId!);
+    final opPart = primOp == null
         ? 'primResID ${object.primResId} (uncatalogued — numeric id only)'
-        : 'primResID ${object.primResId} = ${op.opName} (${op.basis == PrimNameBasis.corpusLabel ? 'corpus-labelled' : 'adjacency-inferred'})';
+        : 'primResID ${object.primResId} = ${primOp.opName} (${primOp.basis == PrimNameBasis.corpusLabel ? 'corpus-labelled' : 'adjacency-inferred'})';
     return '$opPart · $iconPart';
   }
   return 'class 0x${object.kind.toRadixString(16)} single-op identity '
@@ -767,21 +767,22 @@ PrimIconArt? primIconArtFor(
   if (key >= 0) return icons[key];
   final terms = diagram
       .children(object.oid)
-      .where((c) => c.kind == kNodeEndpointDcoKind)
+      .where((child) => child.kind == kNodeEndpointDcoKind)
       .length;
   final variant = icons[classVariantIconKey(object.kind, terms)];
   if (variant != null) {
-    final b = object.absBounds;
-    if (b != null &&
-        variant.base.width == b.width &&
-        variant.base.height == b.height) {
+    final bounds = object.absBounds;
+    if (bounds != null &&
+        variant.base.width == bounds.width &&
+        variant.base.height == bounds.height) {
       return variant;
     }
   }
   final legacy = icons[key];
-  final b = object.absBounds;
-  if (legacy == null || b == null) return legacy;
-  return legacy.base.width == b.width && legacy.base.height == b.height
+  final bounds = object.absBounds;
+  if (legacy == null || bounds == null) return legacy;
+  return legacy.base.width == bounds.width &&
+          legacy.base.height == bounds.height
       ? legacy
       : null;
 }
@@ -823,18 +824,24 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   if (parent == null || box == null) return null;
   final key = primIconKeyOf(parent);
   if (key == null) return null;
-  var termIdx = -1;
-  var at = 0;
-  for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
-    if (c.kind != kNodeEndpointDcoKind) continue;
-    if (c.oid == head.oid) {
-      termIdx = at;
+  var terminalIndex = -1;
+  var ordinal = 0;
+  for (final child
+      in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
+    if (child.kind != kNodeEndpointDcoKind) continue;
+    if (child.oid == head.oid) {
+      terminalIndex = ordinal;
       break;
     }
-    at++;
+    ordinal++;
   }
-  if (termIdx < 0) return null;
-  final sizedKey = (key, termIdx, box.right - box.left, box.bottom - box.top);
+  if (terminalIndex < 0) return null;
+  final sizedKey = (
+    key,
+    terminalIndex,
+    box.right - box.left,
+    box.bottom - box.top,
+  );
   final offset = _kBdPrimTerminals[sizedKey] ?? kBdPrimTerminalCensus[sizedKey];
   if (offset == null) return null;
   return (
@@ -864,7 +871,7 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
     }
     final bytes = await rootBundle.load(asset);
     final image = await decodeImage(bytes.buffer.asUint8List());
-    final id = match.group(1) == 'prim'
+    final iconKey = match.group(1) == 'prim'
         ? int.parse(match.group(2)!)
         : (sized
               ? classVariantIconKey(
@@ -875,22 +882,22 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
     final rgba = await image.toByteData();
     if (rgba != null) {
       final alpha = Uint8List(image.width * image.height);
-      for (var i = 0; i < alpha.length; i++) {
-        alpha[i] = rgba.getUint8(i * 4 + 3);
+      for (var index = 0; index < alpha.length; index++) {
+        alpha[index] = rgba.getUint8(index * 4 + 3);
       }
       final pixels = Uint8List.fromList(
         rgba.buffer.asUint8List(rgba.offsetInBytes, rgba.lengthInBytes),
       );
       final corners = <int>{};
       var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
-      for (var y = 0; y < image.height; y++) {
-        for (var x = 0; x < image.width; x++) {
-          final artIndex = y * image.width + x;
+      for (var row = 0; row < image.height; row++) {
+        for (var column = 0; column < image.width; column++) {
+          final artIndex = row * image.width + column;
           if (alpha[artIndex] == 0) continue;
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
+          if (column < minX) minX = column;
+          if (row < minY) minY = row;
+          if (column > maxX) maxX = column;
+          if (row > maxY) maxY = row;
           if (alpha[artIndex] != 255) continue;
           final byteIndex = artIndex * 4;
           if (pixels[byteIndex] != 0xdd ||
@@ -899,10 +906,10 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
             continue;
           }
           final onEdge =
-              x == 0 ||
-              y == 0 ||
-              x == image.width - 1 ||
-              y == image.height - 1 ||
+              column == 0 ||
+              row == 0 ||
+              column == image.width - 1 ||
+              row == image.height - 1 ||
               alpha[artIndex - 1] == 0 ||
               alpha[artIndex + 1] == 0 ||
               alpha[artIndex - image.width] == 0 ||
@@ -910,7 +917,7 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
           if (onEdge) corners.add(artIndex);
         }
       }
-      _primIconPixels[id] = _PrimIconPixels(
+      _primIconPixels[iconKey] = _PrimIconPixels(
         width: image.width,
         height: image.height,
         alpha: alpha,
@@ -926,7 +933,7 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
             : null,
       );
     }
-    icons[id] = await _prescaledArt(image);
+    icons[iconKey] = await _prescaledArt(image);
   }
   return _primIconsSync = icons;
 }();
@@ -959,11 +966,13 @@ Map<int, PrimIconArt> _primIconsSync = const {};
 Map<int, PrimIconArt> _primIconsGreySync = const {};
 
 void _greyDisabledPalette(Uint8List rgba) {
-  for (var i = 0; i < rgba.length; i += 4) {
-    if (rgba[i + 3] == 0) continue;
-    final light = (rgba[i] + rgba[i + 1] + rgba[i + 2]) >= 3 * 204;
-    final v = light ? 255 : 170;
-    rgba[i] = rgba[i + 1] = rgba[i + 2] = v;
+  for (var byteIndex = 0; byteIndex < rgba.length; byteIndex += 4) {
+    if (rgba[byteIndex + 3] == 0) continue;
+    final light =
+        (rgba[byteIndex] + rgba[byteIndex + 1] + rgba[byteIndex + 2]) >=
+        3 * 204;
+    final grey = light ? 255 : 170;
+    rgba[byteIndex] = rgba[byteIndex + 1] = rgba[byteIndex + 2] = grey;
   }
 }
 
@@ -980,22 +989,23 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
   ViDiagram diagram,
 ) async {
   final xnodes = [
-    for (final o in diagram.objects)
-      if (o.kind == 0x105 && o.absBounds != null) o,
+    for (final object in diagram.objects)
+      if (object.kind == 0x105 && object.absBounds != null) object,
   ];
   if (xnodes.isEmpty) return const {};
   final dsims = [
-    for (final s in sections)
-      if (s.tag == 'DSIM') s,
+    for (final section in sections)
+      if (section.tag == 'DSIM') section,
   ];
   final out = <int, ui.Image>{};
-  for (var k = 0; k < xnodes.length && k < dsims.length; k++) {
-    final payload = dsims[k].bytes;
+  for (var index = 0; index < xnodes.length && index < dsims.length; index++) {
+    final payload = dsims[index].bytes;
     if (payload.length < 54) continue;
     final png = decodePngEnvelope(payload, 46);
     if (png == null || 46 + png.byteLength > payload.length) continue;
-    final b = xnodes[k].absBounds!;
-    if (png.width != b.right - b.left || png.height != b.bottom - b.top) {
+    final bounds = xnodes[index].absBounds!;
+    if (png.width != bounds.right - bounds.left ||
+        png.height != bounds.bottom - bounds.top) {
       continue;
     }
     final codec = await ui.instantiateImageCodec(
@@ -1005,12 +1015,15 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
     final data = await frame.image.toByteData();
     frame.image.dispose();
     if (data == null) continue;
-    final px = Uint8List.fromList(data.buffer.asUint8List());
-    for (var i = 0; i < px.length; i += 4) {
-      final magenta = px[i] == 255 && px[i + 1] == 0 && px[i + 2] == 255;
-      px[i + 3] = magenta ? 0 : 255 - px[i + 3];
+    final pixels = Uint8List.fromList(data.buffer.asUint8List());
+    for (var byteIndex = 0; byteIndex < pixels.length; byteIndex += 4) {
+      final magenta =
+          pixels[byteIndex] == 255 &&
+          pixels[byteIndex + 1] == 0 &&
+          pixels[byteIndex + 2] == 255;
+      pixels[byteIndex + 3] = magenta ? 0 : 255 - pixels[byteIndex + 3];
     }
-    out[xnodes[k].oid] = await imageFromRgba(px, png.width, png.height);
+    out[xnodes[index].oid] = await imageFromRgba(pixels, png.width, png.height);
   }
   return out;
 }
@@ -1019,7 +1032,9 @@ Future<Map<int, ui.Image>> loadXnodeFacades(
   Uint8List viBytes,
   ViDiagram diagram,
 ) async {
-  if (!diagram.objects.any((o) => o.kind == 0x105 && o.absBounds != null)) {
+  if (!diagram.objects.any(
+    (object) => object.kind == 0x105 && object.absBounds != null,
+  )) {
     return const {};
   }
   List<DecodedSection> sections;
@@ -1047,13 +1062,17 @@ Future<Map<int, PrimIconArt>> ensurePrimIconsGrey() =>
     _primIconsGrey ??= () async {
       final icons = await loadPrimIcons();
       final grey = <int, PrimIconArt>{};
-      for (final e in icons.entries) {
-        final rgba = await e.value.base.toByteData();
+      for (final entry in icons.entries) {
+        final rgba = await entry.value.base.toByteData();
         if (rgba == null) continue;
         final greyPx = Uint8List.fromList(rgba.buffer.asUint8List());
         _greyDisabledPalette(greyPx);
-        grey[e.key] = await _prescaledArt(
-          await imageFromRgba(greyPx, e.value.base.width, e.value.base.height),
+        grey[entry.key] = await _prescaledArt(
+          await imageFromRgba(
+            greyPx,
+            entry.value.base.width,
+            entry.value.base.height,
+          ),
         );
       }
       return _primIconsGreySync = grey;
@@ -1064,14 +1083,16 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
   final data = await icon.toByteData();
   if (data == null) return icon;
   final rgba = Uint8List.fromList(data.buffer.asUint8List());
-  for (var i = 0; i + 3 < rgba.length; i += 4) {
-    if (rgba[i + 3] == 0) continue;
+  for (var byteIndex = 0; byteIndex + 3 < rgba.length; byteIndex += 4) {
+    if (rgba[byteIndex + 3] == 0) continue;
     final mapped =
-        rgbMapping[(rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]];
+        rgbMapping[(rgba[byteIndex] << 16) |
+            (rgba[byteIndex + 1] << 8) |
+            rgba[byteIndex + 2]];
     if (mapped == null) continue;
-    rgba[i] = (mapped >> 16) & 0xff;
-    rgba[i + 1] = (mapped >> 8) & 0xff;
-    rgba[i + 2] = mapped & 0xff;
+    rgba[byteIndex] = (mapped >> 16) & 0xff;
+    rgba[byteIndex + 1] = (mapped >> 8) & 0xff;
+    rgba[byteIndex + 2] = mapped & 0xff;
   }
   return imageFromRgba(rgba, icon.width, icon.height);
 }
@@ -1127,28 +1148,31 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
 int? loadedPrimIconIdOf(ViHeapObject object) {
   final key = primIconKeyOf(object);
   if (key == null || key >= 0) return key;
-  final b = object.absBounds;
-  if (b == null) return key;
-  for (var t = 0; t <= 15; t++) {
-    final id = classVariantIconKey(object.kind, t);
-    final art = _primIconPixels[id];
-    if (art != null && art.width == b.width && art.height == b.height) {
-      return id;
+  final bounds = object.absBounds;
+  if (bounds == null) return key;
+  for (var terminalCount = 0; terminalCount <= 15; terminalCount++) {
+    final variantKey = classVariantIconKey(object.kind, terminalCount);
+    final art = _primIconPixels[variantKey];
+    if (art != null &&
+        art.width == bounds.width &&
+        art.height == bounds.height) {
+      return variantKey;
     }
   }
   final legacy = _primIconPixels[key];
   if (legacy != null &&
-      (legacy.width != b.width || legacy.height != b.height)) {
+      (legacy.width != bounds.width || legacy.height != bounds.height)) {
     return null;
   }
   return key;
 }
 
 bool primIconHit(ViHeapObject object, double x, double y) {
-  final id = loadedPrimIconIdOf(object);
-  final art = id == null ? null : _primIconPixels[id];
+  final iconKey = loadedPrimIconIdOf(object);
+  final art = iconKey == null ? null : _primIconPixels[iconKey];
   final bounds = object.absBounds;
-  if (art == null || bounds == null || _primIconsSync[id] == null) return true;
+  if (art == null || bounds == null || _primIconsSync[iconKey] == null)
+    return true;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
       bounds.left.toDouble(),
@@ -1158,12 +1182,13 @@ bool primIconHit(ViHeapObject object, double x, double y) {
     ),
     art.width,
     art.height,
-    key: id,
+    key: iconKey,
   );
-  final ix = (x - stamp.left).floor();
-  final iy = (y - stamp.top).floor();
-  if (ix < 0 || iy < 0 || ix >= art.width || iy >= art.height) return false;
-  return art.alpha[iy * art.width + ix] > 0;
+  final artX = (x - stamp.left).floor();
+  final artY = (y - stamp.top).floor();
+  if (artX < 0 || artY < 0 || artX >= art.width || artY >= art.height)
+    return false;
+  return art.alpha[artY * art.width + artX] > 0;
 }
 
 int? primIconInkEdge(
@@ -1172,45 +1197,47 @@ int? primIconInkEdge(
   required int cross,
   required int sign,
 }) {
-  final id = loadedPrimIconIdOf(object);
-  final art = id == null ? null : _primIconPixels[id];
-  final b = object.absBounds;
-  if (art == null || b == null) return null;
+  final iconKey = loadedPrimIconIdOf(object);
+  final art = iconKey == null ? null : _primIconPixels[iconKey];
+  final bounds = object.absBounds;
+  if (art == null || bounds == null) return null;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
-      b.left.toDouble(),
-      b.top.toDouble(),
-      b.right.toDouble(),
-      b.bottom.toDouble(),
+      bounds.left.toDouble(),
+      bounds.top.toDouble(),
+      bounds.right.toDouble(),
+      bounds.bottom.toDouble(),
     ),
     art.width,
     art.height,
-    key: id,
+    key: iconKey,
   );
   if (horizontal) {
-    final iy = (cross - stamp.top).floor();
-    if (iy < 0 || iy >= art.height) return null;
-    final base = iy * art.width;
+    final artY = (cross - stamp.top).floor();
+    if (artY < 0 || artY >= art.height) return null;
+    final base = artY * art.width;
     if (sign >= 0) {
-      for (var ix = 0; ix < art.width; ix++) {
-        if (art.alpha[base + ix] > 0) return stamp.left.floor() + ix;
+      for (var artX = 0; artX < art.width; artX++) {
+        if (art.alpha[base + artX] > 0) return stamp.left.floor() + artX;
       }
     } else {
-      for (var ix = art.width - 1; ix >= 0; ix--) {
-        if (art.alpha[base + ix] > 0) return stamp.left.floor() + ix + 1;
+      for (var artX = art.width - 1; artX >= 0; artX--) {
+        if (art.alpha[base + artX] > 0) return stamp.left.floor() + artX + 1;
       }
     }
     return null;
   }
-  final ix = (cross - stamp.left).floor();
-  if (ix < 0 || ix >= art.width) return null;
+  final artX = (cross - stamp.left).floor();
+  if (artX < 0 || artX >= art.width) return null;
   if (sign >= 0) {
-    for (var iy = 0; iy < art.height; iy++) {
-      if (art.alpha[iy * art.width + ix] > 0) return stamp.top.floor() + iy;
+    for (var artY = 0; artY < art.height; artY++) {
+      if (art.alpha[artY * art.width + artX] > 0)
+        return stamp.top.floor() + artY;
     }
   } else {
-    for (var iy = art.height - 1; iy >= 0; iy--) {
-      if (art.alpha[iy * art.width + ix] > 0) return stamp.top.floor() + iy + 1;
+    for (var artY = art.height - 1; artY >= 0; artY--) {
+      if (art.alpha[artY * art.width + artX] > 0)
+        return stamp.top.floor() + artY + 1;
     }
   }
   return null;
@@ -1451,34 +1478,35 @@ class BdDiagramPainter extends CustomPainter {
     if (style.dotGrid) _drawDotGrid(canvas, size);
 
     final structures = objects
-        .where((o) => o.category == ViObjectKind.structure)
+        .where((object) => object.category == ViObjectKind.structure)
         .toList();
     final decorations = objects
-        .where((o) => o.category == ViObjectKind.decoration)
+        .where((object) => object.category == ViObjectKind.decoration)
         .toList();
     final wires = objects
-        .where((o) => o.category == ViObjectKind.wire)
+        .where((object) => object.category == ViObjectKind.wire)
         .toList();
     final solids =
         objects
             .where(
-              (o) =>
-                  o.category != ViObjectKind.structure &&
-                  o.category != ViObjectKind.decoration &&
-                  o.category != ViObjectKind.wire,
+              (object) =>
+                  object.category != ViObjectKind.structure &&
+                  object.category != ViObjectKind.decoration &&
+                  object.category != ViObjectKind.wire,
             )
             .toList()
           ..sort(
-            (a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(
-              a.absBounds!.width * a.absBounds!.height,
-            ),
+            (first, second) =>
+                (second.absBounds!.width * second.absBounds!.height).compareTo(
+                  first.absBounds!.width * first.absBounds!.height,
+                ),
           );
 
     final arrayShellOids = {
-      for (final o in objects)
-        if (o.objectClass == HeapObjectClass.numericControl &&
-            o.parentOid != null)
-          o.parentOid!,
+      for (final object in objects)
+        if (object.objectClass == HeapObjectClass.numericControl &&
+            object.parentOid != null)
+          object.parentOid!,
     };
     final tunnelSquares =
         <
@@ -1515,9 +1543,9 @@ class BdDiagramPainter extends CustomPainter {
     final cells = (size.width / stepPx) * (size.height / stepPx);
     final step = cells > maxDots ? stepPx * (cells / maxDots) : stepPx;
     final dot = Paint()..color = kBdGridDot;
-    for (var x = 0.0; x < size.width; x += step) {
-      for (var y = 0.0; y < size.height; y += step) {
-        canvas.drawCircle(Offset(x, y), 0.5, dot);
+    for (var dotX = 0.0; dotX < size.width; dotX += step) {
+      for (var dotY = 0.0; dotY < size.height; dotY += step) {
+        canvas.drawCircle(Offset(dotX, dotY), 0.5, dot);
       }
     }
   }
@@ -1613,10 +1641,10 @@ void _stampBitmap(
   double top, {
   String on = '#',
 }) {
-  for (var y = 0; y < rows.length; y++) {
-    for (var x = 0; x < rows[y].length; x++) {
-      if (rows[y][x] != on) continue;
-      canvas.drawRect(Rect.fromLTWH(left + x, top + y, 1, 1), paint);
+  for (var row = 0; row < rows.length; row++) {
+    for (var column = 0; column < rows[row].length; column++) {
+      if (rows[row][column] != on) continue;
+      _fillPixels(canvas, paint, left + column, top + row);
     }
   }
 }
@@ -1654,13 +1682,13 @@ class _OverlayPainter extends CustomPainter {
   void paint(Canvas canvas, Size size) {
     canvas.scale(canvasScale);
     if (members.isNotEmpty) {
-      final mp = Paint()
+      final memberPaint = Paint()
         ..color = const Color(0xFFEF6C00)
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
       for (final member in members) {
         if (member.absBounds != null)
-          canvas.drawRect(_rectOf(member).inflate(1.5), mp);
+          canvas.drawRect(_rectOf(member).inflate(1.5), memberPaint);
       }
     }
     final sel = selected;
@@ -1823,7 +1851,7 @@ class _BdOutline extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final structs = outline.structuresByClass.entries.toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
+      ..sort((first, second) => second.value.compareTo(first.value));
     final labeledNodes = outline.labeledNodes;
     if (structs.isEmpty &&
         labeledNodes.isEmpty &&
@@ -1923,9 +1951,10 @@ class _ViImageStrip extends StatelessWidget {
   EmbeddedLegacyIcon? get _bestIcon {
     const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
     if (images.icons.isEmpty) return null;
-    return ([
-      ...images.icons,
-    ]..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9))).first;
+    return ([...images.icons]..sort(
+          (first, second) => (order[first.tag] ?? 9).compareTo(order[second.tag] ?? 9),
+        ))
+        .first;
   }
 
   @override

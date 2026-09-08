@@ -10,9 +10,9 @@ bool _polylineUnderNodes(List<Offset> points, List<Rect> cover) {
     final runHi = horizontal
         ? math.max(start.dx, end.dx)
         : math.max(start.dy, end.dy);
-    var at = runLo;
+    var cursor = runLo;
     var progressed = true;
-    while (at <= runHi && progressed) {
+    while (cursor <= runHi && progressed) {
       progressed = false;
       for (final box in cover) {
         final crossOk = horizontal
@@ -22,13 +22,13 @@ bool _polylineUnderNodes(List<Offset> points, List<Rect> cover) {
         final (boxLo, boxHi) = horizontal
             ? (box.left, box.right)
             : (box.top, box.bottom);
-        if (boxLo <= at + 1 && boxHi > at) {
-          at = boxHi;
+        if (boxLo <= cursor + 1 && boxHi > cursor) {
+          cursor = boxHi;
           progressed = true;
         }
       }
     }
-    if (at <= runHi) return false;
+    if (cursor <= runHi) return false;
   }
   return points.isNotEmpty;
 }
@@ -1281,10 +1281,7 @@ extension _WirePass on BdDiagramPainter {
                   junction.dx.floor() == bendX && junction.dy.floor() == cross,
             );
             if (!isJunction) {
-              canvas.drawRect(
-                Rect.fromLTWH(farX * 1.0, cross * 1.0, 1, 1),
-                fill,
-              );
+              _fillPixels(canvas, fill, farX * 1.0, cross * 1.0);
             }
           }
         }
@@ -1329,70 +1326,32 @@ extension _WirePass on BdDiagramPainter {
     ViWireRenderStyle? style,
     bool errorBraid = false,
   }) {
-    final cx = center.dx.floorToDouble();
-    final cy = center.dy.floorToDouble();
-    final ox = origin.dx.round(), oy = origin.dy.round();
+    final centreX = center.dx.floorToDouble();
+    final centreY = center.dy.floorToDouble();
+    final originX = origin.dx.round(), originY = origin.dy.round();
     final (bandLo, bandHi) = band;
     if (style == ViWireRenderStyle.braid) {
       if (errorBraid) {
-        final olive = _solidNoAa(const Color(0xFF666600));
-        final yellow = _solidNoAa(const Color(0xFFFFFF00));
-        final black = _solidNoAa(Colors.black);
-        const rows = ['o###o', '###W#', 'WWWWW', 'WWWWW', 'o###o', '.ooo.'];
-        for (var r = 0; r < rows.length; r++) {
-          for (var c = 0; c < 5; c++) {
-            final ch = rows[r][c];
-            if (ch == '.') continue;
-            final x = (cx + ox - 2 + c).toInt(), y = (cy + oy - 2 + r).toInt();
-            final paint = ch == 'o'
-                ? olive
-                : ch == '#'
-                ? black
-                : ((x + y + 1) % 4 < 2 ? yellow : black);
-            canvas.drawRect(Rect.fromLTWH(cx - 2 + c, cy - 2 + r, 1, 1), paint);
-          }
-        }
+        _drawErrorBraidDot(canvas, centreX, centreY);
       } else {
-        final white = _solidNoAa(Colors.white);
-        const taper = [
-          '...###...',
-          '..#####..',
-          '#########',
-          '.........',
-          '#########',
-          '..#####..',
-          '...###...',
-        ];
-        for (var r = 0; r < taper.length; r++) {
-          final dy = r - 3;
-          for (var c = 0; c < 9; c++) {
-            if (taper[r][c] == '.') continue;
-            final dx = c - 4;
-            final x = (cx + ox + dx).toInt(), y = (cy + oy + dy).toInt();
-            final flank = dy == -1 || dy == 1;
-            final hole = flank && dx.abs() <= 1 && (x + y) % 4 % 3 == 0;
-            canvas.drawRect(
-              Rect.fromLTWH(cx + dx, cy + dy, 1, 1),
-              hole ? white : fill,
-            );
-          }
-        }
+        _drawBraidDot(canvas, centreX, centreY, fill);
       }
       return;
     }
     final cycle = style == null ? null : kBdWireStrokeCycles[style];
     final phaseBase = style == null ? null : kBdWireCyclePhase[style];
     final capture = this.style.wireCycleOffset;
-    bool punched(int cxp, int cyp) {
-      final x = cxp + ox, y = cyp + oy;
+    bool punched(int canvasX, int canvasY) {
+      final absX = canvasX + originX, absY = canvasY + originY;
       if (style == ViWireRenderStyle.dotted ||
           style == ViWireRenderStyle.dottedAlternating) {
-        return (x + y).isOdd;
+        return (absX + absY).isOdd;
       }
       if (cycle == null || phaseBase == null || cycle.length != 4) {
         return false;
       }
-      return (x + (((y + capture.y) & 1) << 1) + phaseBase + capture.x) % 4 ==
+      return (absX + (((absY + capture.y) & 1) << 1) + phaseBase + capture.x) %
+              4 ==
           0;
     }
 
@@ -1400,45 +1359,105 @@ extension _WirePass on BdDiagramPainter {
         style == ViWireRenderStyle.solid2px ||
         (bandLo == -1 && bandHi == 0 && cycle != null && cycle.length == 4);
     if (!diamond) {
-      for (var dy = -2; dy <= 2; dy++) {
-        for (var dx = -2; dx <= 2; dx++) {
-          if (dx.abs() == 2 && dy.abs() == 2) continue;
-          final x = (cx + dx).toInt(), y = (cy + dy).toInt();
-          if (style != ViWireRenderStyle.solid1px && punched(x, y)) continue;
-          canvas.drawRect(Rect.fromLTWH(cx + dx, cy + dy, 1, 1), fill);
+      for (var offsetY = -2; offsetY <= 2; offsetY++) {
+        for (var offsetX = -2; offsetX <= 2; offsetX++) {
+          if (offsetX.abs() == 2 && offsetY.abs() == 2) continue;
+          final absX = (centreX + offsetX).toInt(),
+              absY = (centreY + offsetY).toInt();
+          if (style != ViWireRenderStyle.solid1px && punched(absX, absY))
+            continue;
+          _fillPixels(canvas, fill, centreX + offsetX, centreY + offsetY);
         }
       }
       return;
     }
-    for (var dy = bandLo - 2; dy <= bandHi + 2; dy++) {
-      final outside = dy < bandLo
-          ? bandLo - dy
-          : dy > bandHi
-          ? dy - bandHi
+    for (var offsetY = bandLo - 2; offsetY <= bandHi + 2; offsetY++) {
+      final outside = offsetY < bandLo
+          ? bandLo - offsetY
+          : offsetY > bandHi
+          ? offsetY - bandHi
           : 0;
       final reach = 2 - outside;
-      final left = cx + bandLo - reach;
+      final left = centreX + bandLo - reach;
       final width = bandHi - bandLo + 1 + 2 * reach;
       if (style == ViWireRenderStyle.solid2px) {
         canvas.drawRect(
-          Rect.fromLTWH(left, cy + dy, width.toDouble(), 1),
+          Rect.fromLTWH(left, centreY + offsetY, width.toDouble(), 1),
           fill,
         );
         continue;
       }
-      for (var i = 0; i < width; i++) {
-        final x = (left + i).toInt(), y = (cy + dy).toInt();
-        final dx = x - cx.toInt();
+      for (var step = 0; step < width; step++) {
+        final absX = (left + step).toInt(), absY = (centreY + offsetY).toInt();
+        final offsetX = absX - centreX.toInt();
         bool hole;
-        if (dy >= bandLo && dy <= bandHi) {
-          hole = dx >= -2 && dx <= 1 && punched(x, y);
-        } else if (dy == bandLo - 1 || dy == bandHi + 1) {
-          hole = dx >= bandLo && dx <= bandHi && punched(x, y);
+        if (offsetY >= bandLo && offsetY <= bandHi) {
+          hole = offsetX >= -2 && offsetX <= 1 && punched(absX, absY);
+        } else if (offsetY == bandLo - 1 || offsetY == bandHi + 1) {
+          hole = offsetX >= bandLo && offsetX <= bandHi && punched(absX, absY);
         } else {
           hole = false;
         }
         if (hole) continue;
-        canvas.drawRect(Rect.fromLTWH(left + i, cy + dy, 1, 1), fill);
+        _fillPixels(canvas, fill, left + step, centreY + offsetY);
+      }
+    }
+  }
+
+  void _drawErrorBraidDot(Canvas canvas, double centreX, double centreY) {
+    final olive = _solidNoAa(const Color(0xFF666600));
+    final yellow = _solidNoAa(const Color(0xFFFFFF00));
+    final black = _solidNoAa(Colors.black);
+    final originX = origin.dx.round(), originY = origin.dy.round();
+    const rows = ['o###o', '###W#', 'WWWWW', 'WWWWW', 'o###o', '.ooo.'];
+    for (var row = 0; row < rows.length; row++) {
+      for (var column = 0; column < 5; column++) {
+        final cell = rows[row][column];
+        if (cell == '.') continue;
+        final absX = (centreX + originX - 2 + column).toInt();
+        final absY = (centreY + originY - 2 + row).toInt();
+        final paint = cell == 'o'
+            ? olive
+            : cell == '#'
+            ? black
+            : ((absX + absY + 1) % 4 < 2 ? yellow : black);
+        _fillPixels(canvas, paint, centreX - 2 + column, centreY - 2 + row);
+      }
+    }
+  }
+
+  void _drawBraidDot(
+    Canvas canvas,
+    double centreX,
+    double centreY,
+    Paint fill,
+  ) {
+    final white = _solidNoAa(Colors.white);
+    final originX = origin.dx.round(), originY = origin.dy.round();
+    const taper = [
+      '...###...',
+      '..#####..',
+      '#########',
+      '.........',
+      '#########',
+      '..#####..',
+      '...###...',
+    ];
+    for (var row = 0; row < taper.length; row++) {
+      final offsetY = row - 3;
+      for (var column = 0; column < 9; column++) {
+        if (taper[row][column] == '.') continue;
+        final offsetX = column - 4;
+        final absX = (centreX + originX + offsetX).toInt();
+        final absY = (centreY + originY + offsetY).toInt();
+        final flank = offsetY == -1 || offsetY == 1;
+        final hole = flank && offsetX.abs() <= 1 && (absX + absY) % 4 % 3 == 0;
+        _fillPixels(
+          canvas,
+          hole ? white : fill,
+          centreX + offsetX,
+          centreY + offsetY,
+        );
       }
     }
   }
@@ -1448,29 +1467,29 @@ extension _WirePass on BdDiagramPainter {
     Paint fill,
     ViWireRenderStyle style,
     bool horizontal,
-    int lo,
-    int hi,
+    int runStart,
+    int runEnd,
     int cross,
     List<(int, int)> gaps, {
     bool errorBraid = false,
   }) {
-    gaps.sort((x, y) => x.$1.compareTo(y.$1));
-    var v = lo;
-    for (final (gLo, gHi) in [...gaps, (hi + 1, hi + 1)]) {
-      final end = math.min(hi, gLo - 1);
-      if (v <= end) {
+    gaps.sort((left, right) => left.$1.compareTo(right.$1));
+    var cursor = runStart;
+    for (final (gapStart, gapEnd) in [...gaps, (runEnd + 1, runEnd + 1)]) {
+      final end = math.min(runEnd, gapStart - 1);
+      if (cursor <= end) {
         _strokeRun(
           canvas,
           fill,
           style,
           horizontal,
-          v,
+          cursor,
           end,
           cross,
           errorBraid: errorBraid,
         );
       }
-      if (gHi + 1 > v) v = gHi + 1;
+      if (gapEnd + 1 > cursor) cursor = gapEnd + 1;
     }
   }
 
@@ -1479,41 +1498,41 @@ extension _WirePass on BdDiagramPainter {
     Paint fill,
     ViWireRenderStyle style,
     bool horizontal,
-    int lo,
-    int hi,
+    int runStart,
+    int runEnd,
     int cross, {
     bool errorBraid = false,
   }) {
-    final ox = origin.dx.round(), oy = origin.dy.round();
+    final originX = origin.dx.round(), originY = origin.dy.round();
     final captureX = this.style.wireCycleOffset.x;
-    Rect px(int along, int band) => horizontal
+    Rect pixel(int along, int band) => horizontal
         ? Rect.fromLTWH(along.toDouble(), (cross + band).toDouble(), 1, 1)
         : Rect.fromLTWH((cross + band).toDouble(), along.toDouble(), 1, 1);
     Rect span(int bandLo, int bandHi) => horizontal
         ? Rect.fromLTRB(
-            lo.toDouble(),
+            runStart.toDouble(),
             (cross + bandLo).toDouble(),
-            hi + 1.0,
+            runEnd + 1.0,
             cross + bandHi + 1.0,
           )
         : Rect.fromLTRB(
             (cross + bandLo).toDouble(),
-            lo.toDouble(),
+            runStart.toDouble(),
             cross + bandHi + 1.0,
-            hi + 1.0,
+            runEnd + 1.0,
           );
-    (int, int) abs(int along, int band) {
+    (int, int) absolute(int along, int band) {
       final canvasX = horizontal ? along : cross + band;
       final canvasY = horizontal ? cross + band : along;
-      return (canvasX + ox, canvasY + oy);
+      return (canvasX + originX, canvasY + originY);
     }
 
-    bool stringTextureInk(int x, int y) =>
-        (x + ((y & 1) << 1) + captureX) % 4 != 0;
+    bool stringTextureInk(int absX, int absY) =>
+        (absX + ((absY & 1) << 1) + captureX) % 4 != 0;
 
-    bool braidTextureInk(int x, int y) {
-      final m = (x + y) % 4;
-      return m == 1 || m == 2;
+    bool braidTextureInk(int absX, int absY) {
+      final phase = (absX + absY) % 4;
+      return phase == 1 || phase == 2;
     }
 
     switch (style) {
@@ -1525,15 +1544,15 @@ extension _WirePass on BdDiagramPainter {
         canvas.drawRect(span(-1, -1), fill);
         canvas.drawRect(span(1, 1), fill);
       case ViWireRenderStyle.dotted:
-        for (var v = lo; v <= hi; v++) {
-          final (x, y) = abs(v, 0);
-          if ((x + y).isEven) canvas.drawRect(px(v, 0), fill);
+        for (var along = runStart; along <= runEnd; along++) {
+          final (absX, absY) = absolute(along, 0);
+          if ((absX + absY).isEven) canvas.drawRect(pixel(along, 0), fill);
         }
       case ViWireRenderStyle.dottedAlternating:
-        for (var v = lo; v <= hi; v++) {
+        for (var along = runStart; along <= runEnd; along++) {
           for (final band in const [-1, 0]) {
-            final (x, y) = abs(v, band);
-            if ((x + y).isEven) canvas.drawRect(px(v, band), fill);
+            final (absX, absY) = absolute(along, band);
+            if ((absX + absY).isEven) canvas.drawRect(pixel(along, band), fill);
           }
         }
       case ViWireRenderStyle.zigzag ||
@@ -1544,10 +1563,11 @@ extension _WirePass on BdDiagramPainter {
           ViWireRenderStyle.chainLink => (-1, 1),
           _ => (-2, 1),
         };
-        for (var v = lo; v <= hi; v++) {
+        for (var along = runStart; along <= runEnd; along++) {
           for (var band = bandLo; band <= bandHi; band++) {
-            final (x, y) = abs(v, band);
-            if (stringTextureInk(x, y)) canvas.drawRect(px(v, band), fill);
+            final (absX, absY) = absolute(along, band);
+            if (stringTextureInk(absX, absY))
+              canvas.drawRect(pixel(along, band), fill);
           }
         }
       case ViWireRenderStyle.braid when errorBraid:
@@ -1556,27 +1576,31 @@ extension _WirePass on BdDiagramPainter {
         final black = _solidNoAa(Colors.black);
         canvas.drawRect(span(-1, -1), olive);
         canvas.drawRect(span(1, 1), olive);
-        for (var v = lo; v <= hi; v++) {
-          final (x, y) = abs(v, 0);
-          canvas.drawRect(px(v, 0), braidTextureInk(x, y) ? black : yellow);
+        for (var along = runStart; along <= runEnd; along++) {
+          final (absX, absY) = absolute(along, 0);
+          canvas.drawRect(
+            pixel(along, 0),
+            braidTextureInk(absX, absY) ? black : yellow,
+          );
         }
       case ViWireRenderStyle.braid:
         canvas.drawRect(span(-1, -1), fill);
         canvas.drawRect(span(1, 1), fill);
-        for (var v = lo; v <= hi; v++) {
-          final (x, y) = abs(v, 0);
+        for (var along = runStart; along <= runEnd; along++) {
+          final (absX, absY) = absolute(along, 0);
           final ink = horizontal
-              ? (x + ((y & 1) << 1) + captureX) % 4 >= 2
-              : braidTextureInk(x, y);
-          if (ink) canvas.drawRect(px(v, 0), fill);
+              ? (absX + ((absY & 1) << 1) + captureX) % 4 >= 2
+              : braidTextureInk(absX, absY);
+          if (ink) canvas.drawRect(pixel(along, 0), fill);
         }
       case ViWireRenderStyle.braidWide:
         canvas.drawRect(span(-2, -2), fill);
         canvas.drawRect(span(1, 1), fill);
-        for (var v = lo; v <= hi; v++) {
+        for (var along = runStart; along <= runEnd; along++) {
           for (final band in const [-1, 0]) {
-            final (x, y) = abs(v, band);
-            if (braidTextureInk(x, y)) canvas.drawRect(px(v, band), fill);
+            final (absX, absY) = absolute(along, band);
+            if (braidTextureInk(absX, absY))
+              canvas.drawRect(pixel(along, band), fill);
           }
         }
       default:
@@ -1585,12 +1609,12 @@ extension _WirePass on BdDiagramPainter {
           canvas.drawRect(span(0, 0), fill);
           return;
         }
-        for (var v = lo; v <= hi; v++) {
-          final (x, y) = abs(v, 0);
-          final mask = cycle[(x + ((y & 1) << 1) + 1) % cycle.length];
+        for (var along = runStart; along <= runEnd; along++) {
+          final (absX, absY) = absolute(along, 0);
+          final mask = cycle[(absX + ((absY & 1) << 1) + 1) % cycle.length];
           for (var bit = 0; bit < 5; bit++) {
             if ((mask >> bit) & 1 != 0) {
-              canvas.drawRect(px(v, bit - 2), fill);
+              canvas.drawRect(pixel(along, bit - 2), fill);
             }
           }
         }
