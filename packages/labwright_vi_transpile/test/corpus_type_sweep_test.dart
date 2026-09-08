@@ -10,7 +10,17 @@ import 'package:test/test.dart';
 
 import 'snippets.dart';
 
-Map<String, List<int>> sweepChunk(List<String> paths) {
+typedef TypeSweep = ({
+  Set<int> seen,
+  Set<int> unaccounted,
+  Set<int> rootUnmapped,
+  int total,
+  int mapped,
+  int internal,
+  int structuralFailure,
+});
+
+TypeSweep sweepChunk(List<String> paths) {
   final seen = <int>{}, unaccounted = <int>{}, rootUnmapped = <int>{};
   var total = 0, mapped = 0, internal = 0, structuralFailure = 0;
   for (final path in paths) {
@@ -39,12 +49,15 @@ Map<String, List<int>> sweepChunk(List<String> paths) {
       }
     }
   }
-  return {
-    'seen': seen.toList(),
-    'unaccounted': unaccounted.toList(),
-    'rootUnmapped': rootUnmapped.toList(),
-    'counts': [total, mapped, internal, structuralFailure],
-  };
+  return (
+    seen: seen,
+    unaccounted: unaccounted,
+    rootUnmapped: rootUnmapped,
+    total: total,
+    mapped: mapped,
+    internal: internal,
+    structuralFailure: structuralFailure,
+  );
 }
 
 void main() {
@@ -60,20 +73,21 @@ void main() {
       }
       final results = await Future.wait(chunks.map((chunk) => Isolate.run(() => sweepChunk(chunk))));
       final seen = <int>{}, rootUnmapped = <int>{}, unaccounted = <int>{};
-      final counts = List.filled(4, 0);
+      var total = 0, mapped = 0, internal = 0, structuralFailure = 0;
       for (final result in results) {
-        seen.addAll(result['seen']!);
-        rootUnmapped.addAll(result['rootUnmapped']!);
-        unaccounted.addAll(result['unaccounted']!);
-        for (var i = 0; i < counts.length; i++) {
-          counts[i] += result['counts']![i];
-        }
+        seen.addAll(result.seen);
+        rootUnmapped.addAll(result.rootUnmapped);
+        unaccounted.addAll(result.unaccounted);
+        total += result.total;
+        mapped += result.mapped;
+        internal += result.internal;
+        structuralFailure += result.structuralFailure;
       }
       String hex(Set<int> codes) => (codes.toList()..sort()).map((c) => '0x${c.toRadixString(16)}').join(', ');
 
       expect(vis.length, greaterThan(7000), reason: 'the sweep must actually see the corpus');
       expect(seen.length, greaterThan(30), reason: 'the corpus exercises the breadth of the code space');
-      expect(counts[0], greaterThan(500000), reason: 'every descriptor of every pool is mapped');
+      expect(total, greaterThan(500000), reason: 'every descriptor of every pool is mapped');
       expect(
         unaccounted,
         isEmpty,
@@ -83,13 +97,13 @@ void main() {
       );
       expect(rootUnmapped.difference(kUnmappedTypeCodes.keys.toSet()), isEmpty);
       expect(
-        counts[3],
+        structuralFailure,
         lessThan(100),
         reason: 'a descriptor that does not frame is the rare exception, not a mapping strategy',
       );
       printOnFailure(
-        'descriptors ${counts[0]}: mapped ${counts[1]}, internal ${counts[2]}, '
-        'structural failure ${counts[3]}\ncodes seen: ${hex(seen)}\n'
+        'descriptors $total: mapped $mapped, internal $internal, '
+        'structural failure $structuralFailure\ncodes seen: ${hex(seen)}\n'
         'review-list roots hit: ${hex(rootUnmapped)}',
       );
     },

@@ -409,15 +409,18 @@ class LvDataflow {
   LvEdge? outOf(int port) => edgeBySource[port];
 }
 
+LvDataflow lvDataflowOf(ViDiagram diagram, {List<ViType> pool = const [], LvDeclarations? declarations}) =>
+    _Builder(diagram, pool, declarations ?? LvDeclarations()).build();
+
 ({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(
   ViDiagram diagram, {
   List<ViType> pool = const [],
   LvDeclarations? declarations,
 }) {
   try {
-    return (dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations()).build(), refusal: null);
-  } on LvRefusedException catch (error) {
-    return (dataflow: null, refusal: error.refusal);
+    return (dataflow: lvDataflowOf(diagram, pool: pool, declarations: declarations), refusal: null);
+  } on LvRefusedException catch (e) {
+    return (dataflow: null, refusal: e.refusal);
   }
 }
 
@@ -429,6 +432,8 @@ class _Builder {
   final LvDeclarations declarations;
   final Map<int, ViHeapObject> byId;
   final Map<int, List<ViHeapObject>> childrenOf;
+
+  List<ViHeapObject> children(int oid) => childrenOf[oid] ?? const <ViHeapObject>[];
 
   final edgeBySink = <int, LvEdge>{};
   final edgeBySource = <int, LvEdge>{};
@@ -451,7 +456,7 @@ class _Builder {
   int _rootFrame() {
     for (final object in diagram.objects) {
       if (object.parentOid == null) {
-        final frame = childrenOf[object.oid]?.where((child) => child.kind == kViFrameCode).firstOrNull;
+        final frame = children(object.oid).where((child) => child.kind == kViFrameCode).firstOrNull;
         if (frame != null) return frame.oid;
       }
     }
@@ -552,7 +557,7 @@ class _Builder {
 
   LvRegion _region(int frameOid) {
     final units = <LvUnit>[];
-    for (final child in childrenOf[frameOid] ?? const <ViHeapObject>[]) {
+    for (final child in children(frameOid)) {
       switch (child.category) {
         case ViObjectKind.node:
           units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
@@ -575,7 +580,7 @@ class _Builder {
   LvSubViUnit _subViUnit(ViHeapObject node) {
     final ports = <int>[];
     final inputs = <int>[], outputs = <int>[];
-    for (final holder in childrenOf[node.oid] ?? const <ViHeapObject>[]) {
+    for (final holder in children(node.oid)) {
       if (holder.kind != kNodeEndpointDcoKind) continue;
       ownerOfPort[holder.oid] = node.oid;
       ports.add(holder.oid);
@@ -598,15 +603,16 @@ class _Builder {
   }
 
   LvPrimUnit _primUnit(ViHeapObject node) {
+    final primResId = node.primResId;
     final inputs = <int>[], outputs = <int>[];
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
     final memberName = <int, String>{};
-    for (final holder in childrenOf[node.oid] ?? const <ViHeapObject>[]) {
+    for (final holder in children(node.oid)) {
       if (holder.kind != kNodeEndpointDcoKind) continue;
       ownerOfPort[holder.oid] = node.oid;
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
-      final record = (childrenOf[holder.oid] ?? const <ViHeapObject>[]).firstOrNull;
+      final record = children(holder.oid).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
       if (record?.typeName case final name?) memberName[holder.oid] = name;
       final attach = diagram.dcoChildTerminalAttach(holder.oid);
@@ -615,8 +621,8 @@ class _Builder {
     return LvPrimUnit(
       oid: node.oid,
       classCode: node.kind,
-      op: node.primResId == null ? null : PrimOp.fromId(node.primResId!),
-      primResId: node.primResId,
+      op: primResId == null ? null : PrimOp.fromId(primResId),
+      primResId: primResId,
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
@@ -629,7 +635,7 @@ class _Builder {
 
   List<LvUnit> _wireRecordUnits(ViHeapObject record) {
     final units = <LvUnit>[];
-    for (final child in childrenOf[record.oid] ?? const <ViHeapObject>[]) {
+    for (final child in children(record.oid)) {
       if (child.kind == HeapObjectClass.bdLeaf.code) {
         ownerOfPort[child.oid] = child.oid;
         units.add(
@@ -644,9 +650,7 @@ class _Builder {
       }
       if (child.kind != kNodeEndpointDcoKind) continue;
       if (child.memberOids.isNotEmpty) continue;
-      final constant = childrenOf[child.oid]
-          ?.where((child) => child.kind == HeapObjectClass.bdConstDco.code)
-          .firstOrNull;
+      final constant = children(child.oid).where((child) => child.kind == HeapObjectClass.bdConstDco.code).firstOrNull;
       if (constant == null) {
         lvRefuse(
           LvRefusalKind.endpointBinding,
@@ -668,8 +672,8 @@ class _Builder {
   }
 
   String? _constantLabel(ViHeapObject constant) {
-    for (final shell in childrenOf[constant.oid] ?? const <ViHeapObject>[]) {
-      for (final part in childrenOf[shell.oid] ?? const <ViHeapObject>[]) {
+    for (final shell in children(constant.oid)) {
+      for (final part in children(shell.oid)) {
         if (part.kind == HeapObjectClass.controlLabel.code) {
           final text = part.label?.trim();
           if (text != null && text.isNotEmpty) return text;
@@ -690,7 +694,7 @@ class _Builder {
       );
     }
     final frames = [
-      for (final child in childrenOf[structure.oid] ?? const <ViHeapObject>[])
+      for (final child in children(structure.oid))
         if (child.kind == kViFrameCode) child.oid,
     ];
     final terminals = <LvStructTerminal>[];
@@ -721,15 +725,15 @@ class _Builder {
           role: role,
           outerPort: outer,
           innerPorts: inner,
-          autoIndexing: lvTunnelAutoIndexes(childrenOf[terminal.oid] ?? const <ViHeapObject>[]),
+          autoIndexing: lvTunnelAutoIndexes(children(terminal.oid)),
           partnerOid: partner,
           outerIsSink: outer != null && _isSink(outer),
         ),
       );
     }
-    final label = childrenOf[structure.oid]
-        ?.where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code)
-        .firstOrNull;
+    final label = children(
+      structure.oid,
+    ).where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code).firstOrNull;
     return LvStructUnit(
       oid: structure.oid,
       kind: kind,
@@ -744,13 +748,13 @@ class _Builder {
   }
 
   Iterable<ViHeapObject> _terminalRecords(ViHeapObject structure) sync* {
-    for (final child in childrenOf[structure.oid] ?? const <ViHeapObject>[]) {
+    for (final child in children(structure.oid)) {
       if (LvTerminalRole.ofCode(child.kind) != null) {
         yield child;
         continue;
       }
       if (child.kind != kNodeEndpointDcoKind) continue;
-      for (final grand in childrenOf[child.oid] ?? const <ViHeapObject>[]) {
+      for (final grand in children(child.oid)) {
         if (LvTerminalRole.ofCode(grand.kind) != null) yield grand;
       }
     }
