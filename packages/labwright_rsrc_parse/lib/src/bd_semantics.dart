@@ -124,10 +124,10 @@ const Set<HeapObjectClass> kBdTextLabelClasses = {
 String structureBadge(ViHeapObject object) =>
     object.objectClass == HeapObjectClass.unknown ? 'Structure' : object.objectClass.label;
 
-String? wireframeAnnotation(ViHeapObject o) {
-  if (o.category == ViObjectKind.structure) return structureBadge(o);
-  final label = o.label;
-  final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
+String? wireframeAnnotation(ViHeapObject object) {
+  if (object.category == ViObjectKind.structure) return structureBadge(object);
+  final label = object.label;
+  final type = object.typeKind == ViTypeKind.unknown ? null : object.typeKind.name;
   if (label != null && type != null) return '$label · $type';
   return label ?? type;
 }
@@ -186,12 +186,12 @@ const Set<HeapObjectClass> _controlTerminalDrawClasses = {
 };
 
 bool _isInlinedSubViControl(
-  ViHeapObject o,
+  ViHeapObject object,
   Map<int, ViHeapObject> byId,
   Map<int, List<ViHeapObject>> childrenByOid,
 ) {
-  if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
-  var parentOid = o.parentOid;
+  if (!_controlTerminalDrawClasses.contains(object.objectClass)) return false;
+  var parentOid = object.parentOid;
   final seen = <int>{};
   var underConstOrStruct = false;
   while (parentOid != null && seen.add(parentOid)) {
@@ -199,7 +199,7 @@ bool _isInlinedSubViControl(
     if (parent == null) break;
     if (parent.objectClass == HeapObjectClass.bdConstDco || parent.kind == kNodeEndpointDcoKind) {
       if (parent.objectClass == HeapObjectClass.bdConstDco &&
-          o.typeKind == ViTypeKind.numericInt &&
+          object.typeKind == ViTypeKind.numericInt &&
           (parent.constNumeric != null || parent.constBool != null || parent.constText != null)) {
         return false;
       }
@@ -209,22 +209,28 @@ bool _isInlinedSubViControl(
     parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
-  final kids = childrenByOid[o.oid];
+  final kids = childrenByOid[object.oid];
   if (kids == null) return false;
   return kids.any(
-    (c) => c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
+    (kid) =>
+        kid.objectClass == HeapObjectClass.controlLabel &&
+        !kid.isLabelHidden &&
+        (kid.label?.trim().isNotEmpty ?? false),
   );
 }
 
-bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
-  if (o.objectClass == HeapObjectClass.controlChrome || o.objectClass == HeapObjectClass.contentViewport) return true;
-  if (o.objectClass == HeapObjectClass.bdPolySelector) return true;
-  if (o.objectClass == HeapObjectClass.connectorTerminal && o.bounds == null) return true;
-  if (o.objectClass == HeapObjectClass.numericDisplay ||
-      o.objectClass == HeapObjectClass.controlSubPart ||
-      o.objectClass == HeapObjectClass.nodeTerminalCluster ||
-      o.objectClass == HeapObjectClass.enumItemList) {
-    var parentOid = o.parentOid;
+bool _isScaffolding(ViHeapObject object, Map<int, ViHeapObject> byId) {
+  if (object.objectClass == HeapObjectClass.controlChrome ||
+      object.objectClass == HeapObjectClass.contentViewport ||
+      object.objectClass == HeapObjectClass.bdPolySelector) {
+    return true;
+  }
+  if (object.objectClass == HeapObjectClass.connectorTerminal && object.bounds == null) return true;
+  if (object.objectClass == HeapObjectClass.numericDisplay ||
+      object.objectClass == HeapObjectClass.controlSubPart ||
+      object.objectClass == HeapObjectClass.nodeTerminalCluster ||
+      object.objectClass == HeapObjectClass.enumItemList) {
+    var parentOid = object.parentOid;
     var depth = 0;
     while (parentOid != null && depth < 64) {
       final parent = byId[parentOid];
@@ -235,7 +241,7 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
     }
   }
   {
-    var parentOid = o.parentOid;
+    var parentOid = object.parentOid;
     var depth = 0;
     while (parentOid != null && depth < 8) {
       final parent = byId[parentOid];
@@ -253,11 +259,13 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
   return false;
 }
 
-Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
-  if (o == null) return const {};
+Set<ViHeapObject> membersOf(ViHeapObject? owner, Map<int, ViHeapObject> byId) {
+  if (owner == null) return const {};
   return {
-    for (final oid in o.memberOids)
-      if (byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, byId)) m,
+    for (final oid in owner.memberOids)
+      if (byId[oid] case final member?
+          when member.absBounds != null && !identical(member, owner) && !_isScaffolding(member, byId))
+        member,
   };
 }
 
@@ -317,20 +325,23 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
     final inBoxBoxes = <HeapRect?>[];
     for (final frame in frames) {
       var count = 0;
-      var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
-      void visit(ViHeapObject o) {
-        final bounds = o.absBounds;
+      var minLeft = 1 << 30, minTop = 1 << 30, maxRight = -(1 << 30), maxBottom = -(1 << 30);
+      void visit(ViHeapObject object) {
+        final bounds = object.absBounds;
         if (bounds != null && bounds.width > 0 && bounds.height > 0) {
-          final cx = (bounds.left + bounds.right) / 2, cy = (bounds.top + bounds.bottom) / 2;
-          if (cx >= box.left - 8 && cx <= box.right + 8 && cy >= box.top - 8 && cy <= box.bottom + 8) {
+          final centreX = (bounds.left + bounds.right) / 2, centreY = (bounds.top + bounds.bottom) / 2;
+          if (centreX >= box.left - 8 &&
+              centreX <= box.right + 8 &&
+              centreY >= box.top - 8 &&
+              centreY <= box.bottom + 8) {
             count++;
-            if (bounds.left < l) l = bounds.left;
-            if (bounds.top < t) t = bounds.top;
-            if (bounds.right > r) r = bounds.right;
-            if (bounds.bottom > b) b = bounds.bottom;
+            if (bounds.left < minLeft) minLeft = bounds.left;
+            if (bounds.top < minTop) minTop = bounds.top;
+            if (bounds.right > maxRight) maxRight = bounds.right;
+            if (bounds.bottom > maxBottom) maxBottom = bounds.bottom;
           }
         }
-        for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
+        for (final child in childrenByOid[object.oid] ?? const <ViHeapObject>[]) {
           visit(child);
         }
       }
@@ -338,7 +349,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
       visit(frame);
       inBoxCounts.add(count);
       inBoxBoxes.add(
-        count == 0 ? null : HeapRect(top: t, left: l, bottom: b, right: r),
+        count == 0 ? null : HeapRect(top: minTop, left: minLeft, bottom: maxBottom, right: maxRight),
       );
     }
     final candidates = [
@@ -370,8 +381,8 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
     }
     if (!overlapping) continue;
     var fullest = candidates.first;
-    for (final i in candidates) {
-      if (inBoxCounts[i] > inBoxCounts[fullest]) fullest = i;
+    for (final candidate in candidates) {
+      if (inBoxCounts[candidate] > inBoxCounts[fullest]) fullest = candidate;
     }
     for (var i = 0; i < frames.length; i++) {
       if (i != fullest) hideSubtree(frames[i]);
@@ -544,7 +555,8 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
   }
   final box = anchor;
   if (box == null) return false;
-  bool outside(HeapRect b) => b.right <= box.left || b.left >= box.right || b.bottom <= box.top || b.top >= box.bottom;
+  bool outside(HeapRect rect) =>
+      rect.right <= box.left || rect.left >= box.right || rect.bottom <= box.top || rect.top >= box.bottom;
   for (final ancestor in chain) {
     final bounds = ancestor.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
@@ -689,19 +701,19 @@ Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> bdBorder
   for (final wire in wires) {
     final dims = wire.signalType?.arrayDims;
     if (dims == null) continue;
-    for (var e = 0; e < wire.endpointOids.length; e++) {
-      final attach = e < wire.endpointAttachRects.length ? wire.endpointAttachRects[e] : null;
+    for (var endpoint = 0; endpoint < wire.endpointOids.length; endpoint++) {
+      final attach = endpoint < wire.endpointAttachRects.length ? wire.endpointAttachRects[endpoint] : null;
       if (attach == null) continue;
-      final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
+      final terminal = diagram.endpointTerminal(wire.endpointOids[endpoint]);
       if (terminal == null) continue;
       dimsByTerminal.putIfAbsent(terminal.oid, () => {}).add(dims);
     }
   }
   for (final wire in wires) {
-    for (var e = 0; e < wire.endpointOids.length; e++) {
-      final attach = e < wire.endpointAttachRects.length ? wire.endpointAttachRects[e] : null;
+    for (var endpoint = 0; endpoint < wire.endpointOids.length; endpoint++) {
+      final attach = endpoint < wire.endpointAttachRects.length ? wire.endpointAttachRects[endpoint] : null;
       if (attach == null) continue;
-      final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
+      final terminal = diagram.endpointTerminal(wire.endpointOids[endpoint]);
       if (terminal != null && kVerifiedBorderTerminalKinds.contains(terminal.kind)) {
         out[attach] = (
           kind: terminal.kind,
@@ -717,28 +729,31 @@ Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> bdBorder
 }
 
 Set<int> bdErrorCaseOids(ViDiagram diagram) => {
-  for (final o in diagram.objects)
-    if (o.objectClass == HeapObjectClass.bdStructureFrame &&
+  for (final frame in diagram.objects)
+    if (frame.objectClass == HeapObjectClass.bdStructureFrame &&
         diagram
-            .children(o.oid)
+            .children(frame.oid)
             .any(
-              (k) => k.objectClass == HeapObjectClass.bdSelectorLabel && k.label?.trim() == 'No Error',
+              (kid) => kid.objectClass == HeapObjectClass.bdSelectorLabel && kid.label?.trim() == 'No Error',
             ))
-      o.oid,
+      frame.oid,
 };
 
 Set<int> bdDisabledObjectOids(ViDiagram diagram) {
   final out = <int>{};
-  for (final o in diagram.objects) {
-    if (o.objectClass != HeapObjectClass.bdDisableStructure) continue;
-    final kids = diagram.children(o.oid).toList();
-    final selector = kids.firstWhere((k) => k.objectClass == HeapObjectClass.bdSelectorLabel, orElse: () => o);
-    if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
+  for (final structure in diagram.objects) {
+    if (structure.objectClass != HeapObjectClass.bdDisableStructure) continue;
+    final kids = diagram.children(structure.oid).toList();
+    final selector = kids.firstWhere(
+      (kid) => kid.objectClass == HeapObjectClass.bdSelectorLabel,
+      orElse: () => structure,
+    );
+    if (identical(selector, structure) || selector.label?.trim().toLowerCase() != 'disabled') {
       continue;
     }
-    final shown = diagram.displayedFrameIndex(o);
+    final shown = diagram.displayedFrameIndex(structure);
     if (shown == null) continue;
-    final stack = [diagram.framesOf(o)[shown].oid];
+    final stack = [diagram.framesOf(structure)[shown].oid];
     while (stack.isNotEmpty) {
       final oid = stack.removeLast();
       for (final kid in diagram.children(oid)) {

@@ -123,15 +123,15 @@ enum HeapAttrKind {
 }
 
 enum HeapAttrWidth {
-  u8,
+  u8(scalarBytes: 1),
 
-  u16,
+  u16(scalarBytes: 2),
 
-  u24,
+  u24(scalarBytes: 3),
 
-  rgb,
+  rgb(scalarBytes: 4),
 
-  flag,
+  flag(scalarBytes: 0),
 
   f64,
 
@@ -139,7 +139,21 @@ enum HeapAttrWidth {
 
   rect,
 
-  container,
+  container
+  ;
+
+  const HeapAttrWidth({this.scalarBytes});
+
+  final int? scalarBytes;
+
+  static HeapAttrWidth? ofScalarNibble(int nibble) => switch (nibble) {
+    0x0 || 0xe => flag,
+    0x2 => u8,
+    0x4 => u16,
+    0x6 => u24,
+    0x8 => rgb,
+    _ => null,
+  };
 }
 
 enum AttrConfidence {
@@ -435,32 +449,38 @@ const Set<int> _asciiIntRaws = {0x022, 0x0c4};
 
 bool _isPrintableAscii(int byte) => byte >= 0x20 && byte < 0x7f;
 
-String? _asciiFromInt(int v) {
-  if (v <= 0) return null;
+String? _asciiFromInt(int packed) {
+  if (packed <= 0) return null;
   final chars = <int>[];
-  for (var x = v; x > 0; x >>= 8) {
-    final b = x & 0xff;
-    if (!_isPrintableAscii(b)) return null;
-    chars.add(b);
+  for (var rest = packed; rest > 0; rest >>= 8) {
+    final byte = rest & 0xff;
+    if (!_isPrintableAscii(byte)) return null;
+    chars.add(byte);
   }
   return String.fromCharCodes(chars.reversed);
 }
 
-const Map<int, int> _attrNibbleValueBytes = {0x0: 0, 0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
+int _bigEndianAt(Uint8List body, int offset, int count) {
+  var value = 0;
+  for (var index = 0; index < count; index++) {
+    value = (value << 8) | body[offset + index];
+  }
+  return value;
+}
 
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
-  final op = body[offset];
-  final id = body[offset + 1];
-  final raw = ((op & 3) << 8) | id;
+  final opcode = body[offset];
+  final attrId = body[offset + 1];
+  final raw = ((opcode & 3) << 8) | attrId;
 
-  if (op == 0xc6 && offset + 3 <= body.length && _inlineStringRaws.contains(raw) && body[offset + 2] != 0xff) {
+  if (opcode == 0xc6 && offset + 3 <= body.length && _inlineStringRaws.contains(raw) && body[offset + 2] != 0xff) {
     final len = body[offset + 2];
     if (offset + 3 + len <= body.length) {
       final text = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where(_isPrintableAscii));
       return HeapAttr(
         attribute: HeapAttribute.fromRaw(raw),
-        id: id,
+        id: attrId,
         rawTag: raw,
         width: HeapAttrWidth.blob,
         value: text,
@@ -470,13 +490,13 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
+  if ((opcode == 0xc5 || opcode == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
     if (_rectPayloadRaws.contains(raw)) {
       final rect = HeapRect.fromPayload(body.sublist(offset + 3, offset + 11));
       if (rect != null) {
         return HeapAttr(
           attribute: HeapAttribute.fromRaw(raw),
-          id: id,
+          id: attrId,
           rawTag: raw,
           width: HeapAttrWidth.rect,
           value: rect,
@@ -488,7 +508,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       final value = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
       return HeapAttr(
         attribute: HeapAttribute.fromRaw(raw),
-        id: id,
+        id: attrId,
         rawTag: raw,
         width: HeapAttrWidth.f64,
         value: value,
@@ -498,7 +518,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  if (op == 0xc6 && offset + 5 <= body.length && body[offset + 2] == 0xff) {
+  if (opcode == 0xc6 && offset + 5 <= body.length && body[offset + 2] == 0xff) {
     final len = (body[offset + 3] << 8) | body[offset + 4];
     final end = offset + 5 + len;
     if (end <= body.length && len >= 4) {
@@ -509,7 +529,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       if (bytes.isNotEmpty && chars.length / bytes.length >= 0.9) {
         return HeapAttr(
           attribute: HeapAttribute.fromRaw(raw),
-          id: id,
+          id: attrId,
           rawTag: raw,
           width: HeapAttrWidth.blob,
           value: String.fromCharCodes(chars),
@@ -520,7 +540,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  if (op == 0xc6 && offset + 3 <= body.length && _u32StringRaws.contains(raw)) {
+  if (opcode == 0xc6 && offset + 3 <= body.length && _u32StringRaws.contains(raw)) {
     final len = body[offset + 2];
     if (len != 0xff && len != 0x08 && len >= 5 && offset + 3 + len <= body.length) {
       final payloadStart = offset + 3;
@@ -531,7 +551,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         if (bytes.every(_isPrintableAscii)) {
           return HeapAttr(
             attribute: HeapAttribute.fromRaw(raw),
-            id: id,
+            id: attrId,
             rawTag: raw,
             width: HeapAttrWidth.blob,
             value: String.fromCharCodes(bytes),
@@ -543,11 +563,11 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     }
   }
 
-  if (op == 0xc5 || op == 0xc6) {
+  if (opcode == 0xc5 || opcode == 0xc6) {
     if (offset + 3 > body.length) return null;
     var headerLen = 3;
     var len = body[offset + 2];
-    if (op == 0xc6 && len == 0xff) {
+    if (opcode == 0xc6 && len == 0xff) {
       if (offset + 5 > body.length) return null;
       headerLen = 5;
       len = (body[offset + 3] << 8) | body[offset + 4];
@@ -555,7 +575,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     if (offset + headerLen + len > body.length) return null;
     return HeapAttr(
       attribute: HeapAttribute.fromRaw(raw),
-      id: id,
+      id: attrId,
       rawTag: raw,
       width: HeapAttrWidth.container,
       value: len > 0 ? body[offset + headerLen] : 0,
@@ -564,43 +584,21 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     );
   }
 
-  final lo = op & 0xf, hi = op >> 4;
-  if (lo == 4 || lo == 5 || lo == 6) {
-    final valueBytes = _attrNibbleValueBytes[hi];
-    if (valueBytes == null) return null;
-    if (hi == 0x0 && op != 0x04 && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
+  final lowNibble = opcode & 0xf, highNibble = opcode >> 4;
+  if (lowNibble == 4 || lowNibble == 5 || lowNibble == 6) {
+    final width = HeapAttrWidth.ofScalarNibble(highNibble);
+    if (width == null) return null;
+    if (highNibble == 0x0 && opcode != 0x04 && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
       return null;
     }
-    final valEnd = offset + 2 + valueBytes;
-    if (valEnd > body.length) return null;
-    HeapAttrWidth width;
-    Object value;
-    switch (hi) {
-      case 0x0:
-        width = HeapAttrWidth.flag;
-        value = 0;
-      case 0x2:
-        width = HeapAttrWidth.u8;
-        value = body[offset + 2];
-      case 0x4:
-        width = HeapAttrWidth.u16;
-        value = (body[offset + 2] << 8) | body[offset + 3];
-      case 0x6:
-        width = HeapAttrWidth.u24;
-        value = (body[offset + 2] << 16) | (body[offset + 3] << 8) | body[offset + 4];
-      case 0x8:
-        width = HeapAttrWidth.rgb;
-        value = (body[offset + 2] << 24) | (body[offset + 3] << 16) | (body[offset + 4] << 8) | body[offset + 5];
-      default:
-        width = HeapAttrWidth.flag;
-        value = 1;
-    }
+    final valueBytes = width.scalarBytes!;
+    if (offset + 2 + valueBytes > body.length) return null;
     return HeapAttr(
       attribute: HeapAttribute.fromRaw(raw),
-      id: id,
+      id: attrId,
       rawTag: raw,
       width: width,
-      value: value,
+      value: highNibble == 0xe ? 1 : _bigEndianAt(body, offset + 2, valueBytes),
       length: 2 + valueBytes,
     );
   }
@@ -659,14 +657,15 @@ class HeapRecord {
     }
 
     final runs = <String>[];
-    var i = 0;
-    while (i < payload.length) {
-      final len = payload[i];
-      if (len >= 6 && i + 1 + len <= payload.length && payload.sublist(i + 1, i + 1 + len).every(isTextByte)) {
-        runs.add(String.fromCharCodes(payload.sublist(i + 1, i + 1 + len)));
-        i += 1 + len;
+    var cursor = 0;
+    while (cursor < payload.length) {
+      final len = payload[cursor];
+      final end = cursor + 1 + len;
+      if (len >= 6 && end <= payload.length && payload.sublist(cursor + 1, end).every(isTextByte)) {
+        runs.add(String.fromCharCodes(payload.sublist(cursor + 1, end)));
+        cursor = end;
       } else {
-        i++;
+        cursor++;
       }
     }
     return runs.isEmpty ? null : runs.join('\n');
@@ -680,14 +679,14 @@ class HeapRecord {
     }
     final nComp = (bytes[10] << 8) | bytes[11];
     final parts = <String>[];
-    var i = 12;
-    for (var componentIndex = 0; componentIndex < nComp && i < bytes.length; componentIndex++) {
-      final len = bytes[i];
-      if (i + 1 + len > bytes.length) break;
-      final part = bytes.sublist(i + 1, i + 1 + len);
+    var cursor = 12;
+    for (var componentIndex = 0; componentIndex < nComp && cursor < bytes.length; componentIndex++) {
+      final len = bytes[cursor];
+      if (cursor + 1 + len > bytes.length) break;
+      final part = bytes.sublist(cursor + 1, cursor + 1 + len);
       if (part.any((byte) => byte < 32 || byte >= 127)) break;
       parts.add(String.fromCharCodes(part));
-      i += 1 + len;
+      cursor += 1 + len;
     }
     return parts.isEmpty ? null : parts.join('/');
   }
@@ -701,15 +700,15 @@ class HeapRecord {
 List<HeapRecord> scanC4Records(Uint8List heapBytes, String sectionTag) {
   final out = <HeapRecord>[];
   final length = heapBytes.length;
-  var i = 0;
-  while (i < length) {
-    final frame = c4FrameAt(heapBytes, i, sectionTag);
+  var cursor = 0;
+  while (cursor < length) {
+    final frame = c4FrameAt(heapBytes, cursor, sectionTag);
     if (frame != null) {
       out.add(frame);
-      i += frame.byteLength;
+      cursor += frame.byteLength;
       continue;
     }
-    i++;
+    cursor++;
   }
   return out;
 }
@@ -717,7 +716,7 @@ List<HeapRecord> scanC4Records(Uint8List heapBytes, String sectionTag) {
 HeapRecord? c4FrameAt(Uint8List heapBytes, int offset, String sectionTag) {
   final length = heapBytes.length;
   if (offset + 3 > length || heapBytes[offset] != kHeapRecordPrefix) return null;
-  final op = heapBytes[offset + 1];
+  final opcode = heapBytes[offset + 1];
   final lenByte = heapBytes[offset + 2];
   int headerLen;
   int len;
@@ -733,7 +732,7 @@ HeapRecord? c4FrameAt(Uint8List heapBytes, int offset, String sectionTag) {
   return HeapRecord(
     sectionTag: sectionTag,
     offset: offset,
-    opcode: op,
+    opcode: opcode,
     payload: Uint8List.sublistView(heapBytes, offset + headerLen, offset + headerLen + len),
     headerLength: headerLen,
   );
@@ -964,8 +963,8 @@ class HeapPropertyValue {
 HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
   if (_isObjectHeader(body, offset)) return null;
-  final op = body[offset], subop = body[offset + 1];
-  final token = HeapPropertyToken.lookup(op, subop);
+  final opcode = body[offset], subop = body[offset + 1];
+  final token = HeapPropertyToken.lookup(opcode, subop);
   if (token == null) return null;
   if (token.form == PropTokenForm.selector) {
     return HeapPropertyValue(token: token, value: null, length: 2);
@@ -1112,9 +1111,9 @@ HeapTierGrade heapDecodeTier(Uint8List body, int offset, int lead, String sectio
     }
     return semantic;
   }
-  final pv = decodeHeapPropertyToken(body, offset);
-  if (pv != null) {
-    return pv.token.confidence == AttrConfidence.kindOnly ? valueKindKnown : semantic;
+  final property = decodeHeapPropertyToken(body, offset);
+  if (property != null) {
+    return property.token.confidence == AttrConfidence.kindOnly ? valueKindKnown : semantic;
   }
   if (lead >> 4 == 1 && recordSkip(body, offset) == 2) return valueKindKnown;
   return framed;
@@ -1177,8 +1176,8 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
 int? recordSkip(Uint8List heapBytes, int offset) {
   final length = heapBytes.length;
   if (offset >= length) return null;
-  final op = heapBytes[offset];
-  switch (op) {
+  final opcode = heapBytes[offset];
+  switch (opcode) {
     case 0xc4:
       if (offset + 3 > length) return null;
       final lenByte = heapBytes[offset + 2];
@@ -1204,14 +1203,13 @@ int? recordSkip(Uint8List heapBytes, int offset) {
         return (offset + 5 <= length) ? 5 + ((heapBytes[offset + 3] << 8) | heapBytes[offset + 4]) : null;
       }
   }
-  final lo = op & 0x0f;
-  if ((lo == 4 || lo == 5 || lo == 6) && op >> 4 != 0) {
-    if (op >> 4 == 0xc) return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
-    final valueBytes = _attrNibbleValueBytes[op >> 4];
+  final lowNibble = opcode & 0x0f, highNibble = opcode >> 4;
+  if ((lowNibble == 4 || lowNibble == 5 || lowNibble == 6) && highNibble != 0) {
+    if (highNibble == 0xc) return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
+    final valueBytes = HeapAttrWidth.ofScalarNibble(highNibble)?.scalarBytes;
     if (valueBytes != null) return 2 + valueBytes;
   }
-  final hi = op >> 4;
-  if (hi == 0 || hi == 1) {
+  if (highNibble == 0 || highNibble == 1) {
     return (offset + 4 <= length && isHeapTypeTag(heapBytes[offset + 3])) ? _typedList(heapBytes, offset) : 2;
   }
   return null;

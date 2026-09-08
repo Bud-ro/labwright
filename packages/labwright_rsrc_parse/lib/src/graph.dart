@@ -40,7 +40,7 @@ class ViDiagram {
 
   late final Map<int, ViHeapObject> byId = {for (final object in objects) object.oid: object};
 
-  Iterable<ViHeapObject> get roots => objects.where((o) => o.parentOid == null);
+  Iterable<ViHeapObject> get roots => objects.where((object) => object.parentOid == null);
 
   Iterable<ViHeapObject> children(int oid) => childrenByOid[oid] ?? const <ViHeapObject>[];
 
@@ -59,7 +59,7 @@ class ViDiagram {
     return index < frames ? index : null;
   }
 
-  Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
+  Iterable<ViHeapObject> get nodes => objects.where((object) => object.absBounds != null);
 
   late final List<ViWire> wires = [
     for (final object in objects)

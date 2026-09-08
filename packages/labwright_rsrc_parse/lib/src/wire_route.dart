@@ -118,14 +118,14 @@ class ViWireRoute {
 }
 
 List<int>? _decodeLengthTail(Uint8List table, int start) {
-  var i = start;
+  var cursor = start;
   final lengths = <int>[];
-  while (i < table.length) {
-    var value = table[i++];
+  while (cursor < table.length) {
+    var value = table[cursor++];
     if (value == 0xff) {
-      if (i + 1 >= table.length) return null;
-      value = (table[i] << 8) | table[i + 1];
-      i += 2;
+      if (cursor + 1 >= table.length) return null;
+      value = (table[cursor] << 8) | table[cursor + 1];
+      cursor += 2;
     }
     lengths.add(value);
   }
@@ -135,26 +135,26 @@ List<int>? _decodeLengthTail(Uint8List table, int start) {
 // TODO: a residue of two-endpoint tables opening with the up code carries two trailing bytes this grammar does not explain.
 ViWireRoute? decodeWireRoute(Uint8List table) {
   if (table.isEmpty) return null;
-  final n = table[0];
-  if (n == 1) {
+  final pointCount = table[0];
+  if (pointCount == 1) {
     if (table.length != 1) return null;
     return ViWireRoute(pointCount: 1, direction: null, segmentLengths: const [], jointSigns: const []);
   }
-  if (n < 2 || table.length < 2) return null;
+  if (pointCount < 2 || table.length < 2) return null;
   final direction = WireRouteDirection.fromCode(table[1]);
   if (direction == null) return null;
-  var i = 2;
+  var cursor = 2;
   final signs = <int>[];
-  for (var k = 0; k < n - 2; k++) {
-    if (i >= table.length) return null;
-    final m = table[i++];
-    if (m != 0 && m != 1) return null;
-    signs.add(m == 0 ? 1 : -1);
+  for (var joint = 0; joint < pointCount - 2; joint++) {
+    if (cursor >= table.length) return null;
+    final signCode = table[cursor++];
+    if (signCode != 0 && signCode != 1) return null;
+    signs.add(signCode == 0 ? 1 : -1);
   }
-  final lengths = _decodeLengthTail(table, i);
+  final lengths = _decodeLengthTail(table, cursor);
   if (lengths == null) return null;
-  if (lengths.length != n - 2) return null;
-  return ViWireRoute(pointCount: n, direction: direction, segmentLengths: lengths, jointSigns: signs);
+  if (lengths.length != pointCount - 2) return null;
+  return ViWireRoute(pointCount: pointCount, direction: direction, segmentLengths: lengths, jointSigns: signs);
 }
 
 enum WireRouteJunction {
@@ -194,31 +194,31 @@ class ViWireBranchRoute {
 
 ViWireBranchRoute? decodeWireBranchRoute(Uint8List table) {
   if (table.length < 2 || table[1] != 0) return null;
-  final n = table[0];
-  if (n < 2 || table.length < 1 + n) return null;
-  final modes = Uint8List.sublistView(table, 2, 1 + n);
+  final pointCount = table[0];
+  if (pointCount < 2 || table.length < 1 + pointCount) return null;
+  final modes = Uint8List.sublistView(table, 2, 1 + pointCount);
   final first = modes[0];
   if (first == 0 || first > 0x0f) return null;
   var pending = _bitCount(first) - 1;
-  for (var k = 1; k < modes.length; k++) {
-    final m = modes[k];
-    if (m == 0 || m == 1) continue;
-    if (m == ViWireBranchRoute.popCode) {
+  for (var index = 1; index < modes.length; index++) {
+    final mode = modes[index];
+    if (mode == 0 || mode == 1) continue;
+    if (mode == ViWireBranchRoute.popCode) {
       if (pending == 0) return null;
       pending--;
       continue;
     }
-    final junction = WireRouteJunction.fromCode(m);
+    final junction = WireRouteJunction.fromCode(mode);
     if (junction == null) return null;
     pending += junction.outgoing.length - 1;
   }
   if (pending != 0) return null;
-  final lengths = _decodeLengthTail(table, 1 + n);
-  if (lengths == null || lengths.length != n - 1) return null;
-  return ViWireBranchRoute._(pointCount: n, modes: modes, segmentLengths: lengths);
+  final lengths = _decodeLengthTail(table, 1 + pointCount);
+  if (lengths == null || lengths.length != pointCount - 1) return null;
+  return ViWireBranchRoute._(pointCount: pointCount, modes: modes, segmentLengths: lengths);
 }
 
-int _bitCount(int v) => (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1);
+int _bitCount(int bits) => (bits & 1) + ((bits >> 1) & 1) + ((bits >> 2) & 1) + ((bits >> 3) & 1);
 
 class ViWireRouteTree {
   ViWireRouteTree({required this.polylines, required this.junctions});
@@ -239,28 +239,28 @@ ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
   var run = <ViPoint>[start];
   var pos = start;
   WireRouteDirection? prev;
-  for (var k = 0; k < modes.length; k++) {
-    final m = modes[k];
+  for (var index = 0; index < modes.length; index++) {
+    final mode = modes[index];
     final WireRouteDirection direction;
-    if (k == 0) {
-      final oneHot = WireRouteDirection.fromCode(m);
+    if (index == 0) {
+      final oneHot = WireRouteDirection.fromCode(mode);
       if (oneHot != null) {
         direction = oneHot;
       } else {
         final dirs = [
-          for (final d in WireRouteDirection.values)
-            if (m & d.code != 0) d,
+          for (final candidate in WireRouteDirection.values)
+            if (mode & candidate.code != 0) candidate,
         ]..sort((a, b) => a.code.compareTo(b.code));
         direction = dirs.first;
         stack.add((pos, dirs.sublist(1)));
         junctionPoints.add(pos);
       }
-    } else if (m == 0 || m == 1) {
-      final positive = m == 0;
+    } else if (mode == 0 || mode == 1) {
+      final positive = mode == 0;
       direction = prev!.isHorizontal
           ? (positive ? WireRouteDirection.down : WireRouteDirection.up)
           : (positive ? WireRouteDirection.right : WireRouteDirection.left);
-    } else if (m == ViWireBranchRoute.popCode) {
+    } else if (mode == ViWireBranchRoute.popCode) {
       polylines.add(run);
       while (stack.last.$2.isEmpty) {
         stack.removeLast();
@@ -272,13 +272,14 @@ ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
     } else {
       final blocked = _reverse(prev!);
       final dirs = [
-        for (final d in WireRouteJunction.fromCode(m)!.outgoing) d == blocked ? WireRouteDirection.left : d,
+        for (final candidate in WireRouteJunction.fromCode(mode)!.outgoing)
+          candidate == blocked ? WireRouteDirection.left : candidate,
       ];
       direction = dirs.first;
       stack.add((pos, dirs.sublist(1)));
       junctionPoints.add(pos);
     }
-    pos = (x: pos.x + direction.dx * lengths[k], y: pos.y + direction.dy * lengths[k]);
+    pos = (x: pos.x + direction.dx * lengths[index], y: pos.y + direction.dy * lengths[index]);
     run.add(pos);
     prev = direction;
   }
@@ -304,12 +305,12 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   var sign = direction.dx + direction.dy;
   final lengths = route.segmentLengths;
   final points = <ViPoint>[origin];
-  for (var k = 0; k < lengths.length; k++) {
-    if (k > 0) sign = route.jointSigns[k - 1];
+  for (var segment = 0; segment < lengths.length; segment++) {
+    if (segment > 0) sign = route.jointSigns[segment - 1];
     if (horizontal) {
-      x += lengths[k] * sign;
+      x += lengths[segment] * sign;
     } else {
-      y += lengths[k] * sign;
+      y += lengths[segment] * sign;
     }
     points.add((x: x, y: y));
     horizontal = !horizontal;

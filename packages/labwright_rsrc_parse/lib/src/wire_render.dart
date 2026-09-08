@@ -74,9 +74,8 @@ extension ViSignalTypeRenderStyle on ViSignalType {
     final measured = renderStyle;
     if (measured != null) return measured;
     final code = typeCode;
-    final d = depth;
     if (_isNumericCode(code)) {
-      return switch (d) {
+      return switch (depth) {
         1 => ViWireRenderStyle.solid1px,
         2 => ViWireRenderStyle.solid2px,
         3 => ViWireRenderStyle.hollowDouble,
@@ -84,14 +83,14 @@ extension ViSignalTypeRenderStyle on ViSignalType {
       };
     }
     if (code == TypeCode.boolean) {
-      return switch (d) {
+      return switch (depth) {
         1 => ViWireRenderStyle.dotted,
         2 => ViWireRenderStyle.dottedAlternating,
         _ => null,
       };
     }
     if (code == TypeCode.string || code == TypeCode.path || code == TypeCode.tag) {
-      return switch (d) {
+      return switch (depth) {
         2 => ViWireRenderStyle.zigzag,
         3 => ViWireRenderStyle.chainLink,
         4 => ViWireRenderStyle.chainLinkWide,
@@ -99,20 +98,20 @@ extension ViSignalTypeRenderStyle on ViSignalType {
       };
     }
     if (code == TypeCode.cluster) {
-      return switch (d) {
+      return switch (depth) {
         3 => ViWireRenderStyle.braid,
         4 => ViWireRenderStyle.braidWide,
         _ => null,
       };
     }
     if (code == ViSignalType.clusterVariantCode) {
-      return d == 4 ? ViWireRenderStyle.braidDenseWide : null;
+      return depth == 4 ? ViWireRenderStyle.braidDenseWide : null;
     }
     if (code == TypeCode.variant) {
-      return d == 3 ? ViWireRenderStyle.braidDense : null;
+      return depth == 3 ? ViWireRenderStyle.braidDense : null;
     }
     if (code == TypeCode.refnum || code == ViSignalType.typedRefnumCode) {
-      return switch (d) {
+      return switch (depth) {
         1 => ViWireRenderStyle.solid1px,
         2 => ViWireRenderStyle.solid2px,
         _ => null,
@@ -123,6 +122,6 @@ extension ViSignalTypeRenderStyle on ViSignalType {
 }
 
 int dimDisabledFrameRgb(int rgb) {
-  int dim(int c) => min(255, 153 + (c >> 1));
+  int dim(int channel) => min(255, 153 + (channel >> 1));
   return (dim((rgb >> 16) & 0xff) << 16) | (dim((rgb >> 8) & 0xff) << 8) | dim(rgb & 0xff);
 }

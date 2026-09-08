@@ -15,24 +15,15 @@ const int _structureAreaCap = 20000;
 
 const int _ancestorSearchDepth = 12;
 
-int? _attrScalarBytes(HeapAttrWidth width) => switch (width) {
-  HeapAttrWidth.flag => 0,
-  HeapAttrWidth.u8 => 1,
-  HeapAttrWidth.u16 => 2,
-  HeapAttrWidth.u24 => 3,
-  HeapAttrWidth.rgb => 4,
-  _ => null,
-};
-
 int _signedAtWidth(int value, HeapAttrWidth width) {
-  final bytes = _attrScalarBytes(width);
+  final bytes = width.scalarBytes;
   return bytes == null || bytes == 0 ? value : value.toSigned(8 * bytes);
 }
 
 Uint8List? _attrFlatBytes(HeapAttr record) {
   final raw = record.rawValueBytes;
   if (raw != null) return raw;
-  final scalarBytes = _attrScalarBytes(record.width);
+  final scalarBytes = record.width.scalarBytes;
   final value = record.asInt;
   if (scalarBytes == null || scalarBytes == 0 || value == null) return null;
   return _bigEndianBytes(value, scalarBytes);
@@ -40,8 +31,8 @@ Uint8List? _attrFlatBytes(HeapAttr record) {
 
 Uint8List _bigEndianBytes(int value, int count) {
   final out = Uint8List(count);
-  for (var i = 0; i < count; i++) {
-    out[i] = (value >> (8 * (count - 1 - i))) & 0xff;
+  for (var index = 0; index < count; index++) {
+    out[index] = (value >> (8 * (count - 1 - index))) & 0xff;
   }
   return out;
 }
@@ -56,7 +47,7 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
   final attr = decodeHeapAttr(body, offset);
   final value = attr?.asInt;
   if (value == null) return null;
-  final chars = _bigEndianBytes(value, _attrScalarBytes(attr!.width) ?? 0);
+  final chars = _bigEndianBytes(value, attr!.width.scalarBytes ?? 0);
   return String.fromCharCodes(chars.skipWhile((char) => char == 0));
 }
 
@@ -333,11 +324,11 @@ class _DiagramBuild {
         if (text != null && text.isNotEmpty) object.constText ??= text;
         if (objectClass == HeapObjectClass.bdConstDco && object.constValueRaw == null) {
           object.constValueRaw = _attrFlatBytes(attr);
-          object.constValueScalar = _attrScalarBytes(attr.width) != null;
+          object.constValueScalar = attr.width.scalarBytes != null;
         }
       case HeapAttribute.shortText:
         final text = attr.asciiText;
-        if (text != null && text.length == _attrScalarBytes(attr.width)) object.label ??= text;
+        if (text != null && text.length == attr.width.scalarBytes) object.label ??= text;
       case HeapAttribute.formatStyle:
         final bytes = _attrFlatBytes(attr);
         if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every(_isPrintableAscii)) {

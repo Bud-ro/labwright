@@ -55,7 +55,7 @@ Object? decodeBdConstantValue({
     case HeapObjectClass.stringOrArrayControl:
       if (raw != null && raw.length == 8) {
         final strLen = ByteData.sublistView(raw).getUint32(0);
-        if (strLen == 4 && raw.skip(4).every((b) => b >= 0x20 && b < 0x7f)) {
+        if (strLen == 4 && raw.skip(4).every((byte) => byte >= 0x20 && byte < 0x7f)) {
           return String.fromCharCodes(raw, 4);
         }
       }
@@ -147,7 +147,7 @@ void _typedBdConstDecode(ViHeapObject object) {
   final elementSize = _flatNumericSize(element.kind);
   if (elementSize == null || flat.length < 4 * dimCount) return;
   final view = ByteData.sublistView(flat);
-  final dims = [for (var d = 0; d < dimCount; d++) view.getUint32(4 * d)];
+  final dims = [for (var dim = 0; dim < dimCount; dim++) view.getUint32(4 * dim)];
   var count = 1;
   for (final dim in dims) {
     count *= dim;
@@ -163,10 +163,10 @@ void _typedBdConstDecode(ViHeapObject object) {
 
 void decodeBdConstValues(ViDiagram diagram) {
   final nodeKids = _childrenByParentOid(diagram.objects);
-  bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
-    if (o.items.isNotEmpty) return true;
+  bool subtreeHasItems(ViHeapObject object, [int depth = 0]) {
+    if (object.items.isNotEmpty) return true;
     if (depth >= 16) return false;
-    for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
+    for (final kid in nodeKids[object.oid] ?? const <ViHeapObject>[]) {
       if (subtreeHasItems(kid, depth + 1)) return true;
     }
     return false;

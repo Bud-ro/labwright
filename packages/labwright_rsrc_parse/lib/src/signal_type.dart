@@ -24,8 +24,8 @@ class ViSignalType {
   };
 
   ViTypeKind? get elementKind {
-    final t = dataType;
-    return t == null ? null : typeKindOfDataType(t);
+    final type = dataType;
+    return type == null ? null : typeKindOfDataType(type);
   }
 
   int? get arrayDims {

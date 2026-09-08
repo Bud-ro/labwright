@@ -424,15 +424,16 @@ const kMultiFrameStructureClasses = {
   HeapObjectClass.bdStackedSequence,
 };
 
-String _fmtNum(double v) => v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
+String _fmtNum(double value) =>
+    value == value.roundToDouble() && value.abs() < 1e15 ? value.toInt().toString() : value.toString();
 
 String? formatControlRange(double? min, double? max) {
   if (min?.isNaN == true || max?.isNaN == true) return null;
-  final lo = (min != null && min.isFinite) ? min : null;
-  final hi = (max != null && max.isFinite) ? max : null;
-  if (lo == null && hi == null) return null;
-  if (lo != null && hi != null) return lo >= hi ? null : '${_fmtNum(lo)} … ${_fmtNum(hi)}';
-  return lo != null ? '≥ ${_fmtNum(lo)}' : '≤ ${_fmtNum(hi!)}';
+  final low = (min != null && min.isFinite) ? min : null;
+  final high = (max != null && max.isFinite) ? max : null;
+  if (low == null && high == null) return null;
+  if (low != null && high != null) return low >= high ? null : '${_fmtNum(low)} … ${_fmtNum(high)}';
+  return low != null ? '≥ ${_fmtNum(low)}' : '≤ ${_fmtNum(high!)}';
 }
 
 String stripHelpMarkup(String helpText) {

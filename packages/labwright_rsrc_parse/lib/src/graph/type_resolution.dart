@@ -53,10 +53,10 @@ void _resolveTypeIndices({
   if (pool.isEmpty || table.isEmpty || base == null) return;
 
   ViType? resolve(int base, int index) {
-    final ti = base + index;
-    if (ti < 0 || ti >= table.length) return null;
-    final pi = table[ti];
-    return pi >= 0 && pi < pool.length ? pool[pi] : null;
+    final tableIndex = base + index;
+    if (tableIndex < 0 || tableIndex >= table.length) return null;
+    final poolIndex = table[tableIndex];
+    return poolIndex >= 0 && poolIndex < pool.length ? pool[poolIndex] : null;
   }
 
   for (final diagram in diagrams) {
