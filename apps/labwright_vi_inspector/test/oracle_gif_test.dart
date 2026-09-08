@@ -150,7 +150,7 @@ void main() {
         anchorRects: bdStructureAnchorRects(bd, raster),
       );
       final w = reference.image.width, h = reference.image.height;
-      final fitted = (await result.fitted.toByteData())!.buffer.asUint8List();
+      final fitted = await rgbaOf(result.fitted);
       final gif = encodeOracleSweepGif(
         leftRgba: fitted,
         rightRgba: result.referenceRgba,

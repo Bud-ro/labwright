@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-Directory? repoDir(String relative) {
+Directory repoDir(String relative) {
   var dir = Directory.current;
   for (var i = 0; i < 8; i++) {
     final candidate = Directory('${dir.path}/$relative');
@@ -14,17 +14,17 @@ Directory? repoDir(String relative) {
     if (parent.path == dir.path) break;
     dir = parent;
   }
-  return null;
+  throw StateError('no $relative at or above ${Directory.current.path}');
 }
 
 Directory snippetCorpusDir() =>
-    repoDir('packages/labwright_rsrc_parse/corpus/snippets')!;
+    repoDir('packages/labwright_rsrc_parse/corpus/snippets');
 
 List<File> snippetCorpusPngs() {
   final tracked = snippetCorpusDir().listSync().whereType<File>();
   final fetched = repoDir(
     'packages/labwright_rsrc_parse/corpus/vi',
-  )!.listSync(recursive: true).whereType<File>();
+  ).listSync(recursive: true).whereType<File>();
   return [...tracked, ...fetched]
       .where(
         (f) =>

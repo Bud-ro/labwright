@@ -67,30 +67,14 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   bool _shelfOpen = true;
 
-  late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
-  late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
-
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, PrimIconArt> _primIcons = const {};
   Map<int, ui.Image> _xnodeFacades = const {};
 
-  late final BdScene? _scene = switch (_diagram) {
+  late final BdScene? _scene = switch (_largestDiagram(widget.diagrams)) {
     null => null,
     final diagram => BdScene(diagram),
   };
-  List<ViHeapObject> get _drawable => _scene?.drawable ?? const [];
-  Rect get _content => _scene?.content ?? Rect.zero;
-  late final Map<ViObjectKind, int> _counts = _computeCounts();
-
-  late final _outline = computeBdOutline(_drawable);
-
-  Map<ViObjectKind, int> _computeCounts() {
-    final countsByKind = <ViObjectKind, int>{};
-    for (final object in _drawable) {
-      countsByKind[object.category] = (countsByKind[object.category] ?? 0) + 1;
-    }
-    return countsByKind;
-  }
 
   @override
   void initState() {
@@ -99,8 +83,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     loadPrimIcons().then((icons) {
       if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
     });
-    if (_diagram != null && widget.sections.isNotEmpty) {
-      xnodeFacadesFromSections(widget.sections, _diagram).then((facades) {
+    final scene = _scene;
+    if (scene == null) return;
+    if (widget.sections.isNotEmpty) {
+      xnodeFacadesFromSections(widget.sections, scene.diagram).then((facades) {
         if (!mounted) {
           for (final image in facades.values) {
             image.dispose();
@@ -110,7 +96,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         if (facades.isNotEmpty) setState(() => _xnodeFacades = facades);
       });
     }
-    if (_scene?.disabledOids.isNotEmpty ?? false) {
+    if (scene.disabledOids.isNotEmpty) {
       ensurePrimIconsGrey().then((grey) {
         if (mounted && grey.isNotEmpty) setState(() {});
       });
@@ -118,7 +104,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   }
 
   Future<void> _resolveIcons() async {
-    final diagram = _diagram;
+    final diagram = _scene?.diagram;
     final resolver = widget.subViIconResolver;
     if (diagram == null || widget.isFrontPanel || resolver == null) return;
     final wanted = subViWantedNames(diagram);
@@ -146,7 +132,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_diagram == null) {
+    final scene = _scene;
+    if (scene == null) {
       return Center(
         child: Padding(
           padding: const EdgeInsets.all(24),
@@ -158,7 +145,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         ),
       );
     }
-    if (_drawable.isEmpty) {
+    if (scene.drawable.isEmpty) {
       return const Center(
         child: Text(
           'Diagram has no positioned objects.',
@@ -167,20 +154,20 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       );
     }
 
-    final content = _content;
+    final content = scene.content;
     _lastContent = content;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _toolbar(_drawable.length),
+        _toolbar(scene.drawable.length),
         const SizedBox(height: 4),
         Expanded(
           child: Row(
             crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Expanded(child: _diagramStack(content, _scene!.ordered)),
-              if (_shelfOpen) _shelf(),
+              Expanded(child: _diagramStack(content, scene)),
+              if (_shelfOpen) _shelf(scene),
             ],
           ),
         ),
@@ -188,7 +175,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     );
   }
 
-  Widget _shelf() => SizedBox(
+  Widget _shelf(BdScene scene) => SizedBox(
     width: 250,
     child: ListView(
       padding: const EdgeInsets.only(left: 8),
@@ -201,7 +188,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           spacing: 6,
           runSpacing: 6,
           children: [
-            for (final entry in _counts.entries)
+            for (final entry in scene.kindCounts.entries)
               _LegendChip(
                 color: _kindColor(entry.key),
                 label: '${entry.key.name} ${entry.value}',
@@ -209,12 +196,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           ],
         ),
         const SizedBox(height: 8),
-        _BdOutline(outline: _outline, linkedSubVis: widget.subViNames),
+        _BdOutline(outline: scene.outline, linkedSubVis: widget.subViNames),
       ],
     ),
   );
 
-  Widget _diagramStack(Rect content, List<ViHeapObject> ordered) {
+  Widget _diagramStack(Rect content, BdScene scene) {
     return Stack(
       children: [
         Positioned.fill(
@@ -249,7 +236,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           behavior: HitTestBehavior.opaque,
                           onTapDown: (details) => _selectAt(
                             details.localPosition / _anchorScale,
-                            ordered,
+                            scene,
                             content,
                           ),
                           child: CustomPaint(
@@ -258,7 +245,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               content.height * _anchorScale,
                             ),
                             painter: BdDiagramPainter(
-                              scene: _scene!,
+                              scene: scene,
                               origin: content.topLeft,
                               subViIcons: _subViIcons,
                               xnodeFacades: _xnodeFacades,
@@ -325,12 +312,12 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     ],
   );
 
-  void _selectAt(Offset local, List<ViHeapObject> objects, Rect content) {
+  void _selectAt(Offset local, BdScene scene, Rect content) {
     final x = local.dx + content.left;
     final y = local.dy + content.top;
     ViHeapObject? hit;
     var bestArea = double.infinity;
-    for (final object in objects) {
+    for (final object in scene.ordered) {
       final bounds = object.absBounds!;
       var left = bounds.left.toDouble(), top = bounds.top.toDouble();
       var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
@@ -360,8 +347,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     setState(() {
       _selected = hit;
       _members = hit != null && hit.category == ViObjectKind.structure
-          ? nodesWithin(hit, _drawable)
-          : membersOf(hit, _byId);
+          ? nodesWithin(hit, scene.drawable)
+          : membersOf(hit, scene.diagram.byId);
     });
   }
 
@@ -808,7 +795,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
   if (key == null) return null;
   var termIdx = -1;
   var at = 0;
-  for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
+  for (final c in diagram.children(parentOid)) {
     if (c.kind != kNodeEndpointDcoKind) continue;
     if (c.oid == head.oid) {
       termIdx = at;
@@ -830,31 +817,31 @@ const kPrimIconPrescale = 4;
 
 typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
 
+final _kPrimIconAsset = RegExp(
+  r'assets/prim_icons/(prim|class)(\d+)(?:_t(\d+))?(?:_[a-z0-9-]+)?\.png$',
+);
+
 Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
   final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
-    final match = RegExp(
-      r'assets/prim_icons/(prim|class)(\d+)(?:_t(\d+))?(?:_[a-z0-9-]+)?\.png$',
-    ).firstMatch(asset);
+    final match = _kPrimIconAsset.firstMatch(asset);
     if (match == null) continue;
-    final sized = match.group(3) != null;
-    final statusKey =
-        '${match.group(1)}${match.group(2)}'
-        '${sized ? '_t${match.group(3)}' : ''}';
+    final family = match.group(1)!;
+    final digits = match.group(2)!;
+    final variant = match.group(3);
+    final statusKey = '$family$digits${variant == null ? '' : '_t$variant'}';
     if (kPrimIconStatus[statusKey] == PrimIconStatus.rejected) {
       continue;
     }
     final bytes = await rootBundle.load(asset);
     final image = await decodeImage(bytes.buffer.asUint8List());
-    final id = match.group(1) == 'prim'
-        ? int.parse(match.group(2)!)
-        : (sized
-              ? classVariantIconKey(
-                  int.parse(match.group(2)!),
-                  int.parse(match.group(3)!),
-                )
-              : -int.parse(match.group(2)!));
+    final number = int.parse(digits);
+    final id = family == 'prim'
+        ? number
+        : (variant == null
+              ? -number
+              : classVariantIconKey(number, int.parse(variant)));
     final rgba = await image.toByteData();
     if (rgba != null) {
       final alpha = Uint8List(image.width * image.height);
@@ -1013,6 +1000,9 @@ Future<Map<int, ui.Image>> loadXnodeFacades(
   }
   return xnodeFacadesFromSections(sections, diagram);
 }
+
+Future<Uint8List> rgbaOf(ui.Image image) async =>
+    (await image.toByteData())!.buffer.asUint8List();
 
 Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
   final completer = Completer<ui.Image>();
@@ -1257,6 +1247,14 @@ class BdScene {
   late final Rect content = drawable.isEmpty
       ? Rect.zero
       : bdContentRect(drawable, includeWires: false);
+
+  late final Map<ViObjectKind, int> kindCounts = drawable.fold(
+    <ViObjectKind, int>{},
+    (counts, object) =>
+        counts..update(object.category, (n) => n + 1, ifAbsent: () => 1),
+  );
+
+  late final outline = computeBdOutline(drawable);
 
   final Map<BdRunKey, BdTextRun> textLayoutCache = {};
 
@@ -1915,7 +1913,7 @@ class BdDiagramPainter extends CustomPainter {
       final rect = _rectOf(object);
       if (kBdTextLabelClasses.contains(object.objectClass)) {
         if (object.objectClass == HeapObjectClass.bdSelectorLabel) continue;
-        final holder = scene.diagram.byId[object.parentOid ?? -1];
+        final holder = scene.diagram.byId[object.parentOid];
         final backed =
             holder?.kind == 0x1b ||
             (holder?.objectClass == HeapObjectClass.caseOrSequence &&
@@ -1946,8 +1944,7 @@ class BdDiagramPainter extends CustomPainter {
   void _paintTerminal(Canvas canvas, ViHeapObject object, Rect rect) {
     var box = rect;
     if (constValues[object.oid] != null) {
-      final kids =
-          scene.diagram.childrenByOid[object.oid] ?? const <ViHeapObject>[];
+      final kids = scene.diagram.children(object.oid);
       final named = kids.any(
         (c) =>
             c.objectClass == HeapObjectClass.controlLabel &&
@@ -1966,9 +1963,11 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
-    final constHolder = scene.diagram.byId[object.parentOid ?? -1];
-    final boolValue = constHolder?.objectClass == HeapObjectClass.bdConstDco
-        ? constHolder!.constBool
+    final constHolder = scene.diagram.byId[object.parentOid];
+    final boolValue =
+        constHolder != null &&
+            constHolder.objectClass == HeapObjectClass.bdConstDco
+        ? constHolder.constBool
         : null;
     if (boolValue != null && box.width == 16 && box.height == 14) {
       _drawBoolConstant(
@@ -2012,7 +2011,7 @@ class BdDiagramPainter extends CustomPainter {
     );
     final border = typed ? tint : _dimFor(object.oid, const Color(0xFF5A5A5A));
     final constValue = constValues[object.oid];
-    final shellParent = scene.diagram.byId[object.parentOid ?? -1];
+    final shellParent = scene.diagram.byId[object.parentOid];
     if (object.objectClass == HeapObjectClass.numericControl &&
         shellParent?.objectClass == HeapObjectClass.caseOrSequence) {
       return;
@@ -2833,10 +2832,11 @@ class BdDiagramPainter extends CustomPainter {
         scene.diagram,
         wire.endpointOids[0],
       );
-      if (headTerminal?.x != null && headTerminal?.y != null) {
+      final headX = headTerminal?.x, headY = headTerminal?.y;
+      if (headX != null && headY != null) {
         final tree = walkWireBranchRoute(wire.branchRoute!, (
-          x: headTerminal!.x!,
-          y: headTerminal.y!,
+          x: headX,
+          y: headY,
         ));
         final leaves = tree.leaves;
         var closed = leaves.length == wire.endpointOids.length - 1;
@@ -3040,10 +3040,11 @@ class BdDiagramPainter extends CustomPainter {
             ?.candidates;
         if (candidates == null || !candidates.contains(abs)) continue;
         final term = bdPrimTerminalOf(scene.diagram, oid);
-        if (term?.x == null || term?.y == null) continue;
+        final termX = term?.x, termY = term?.y;
+        if (termX == null || termY == null) continue;
         final delta = Offset(
-          (term!.x! - abs.x).toDouble(),
-          (term.y! - abs.y).toDouble(),
+          (termX - abs.x).toDouble(),
+          (termY - abs.y).toDouble(),
         );
         if (delta == Offset.zero) continue;
         if (reanchor == null) {
@@ -3433,16 +3434,14 @@ class BdDiagramPainter extends CustomPainter {
     }
     final route = wire.route!;
     final headTerminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[0]);
+    final headX = headTerminal?.x, headY = headTerminal?.y;
     final headAttach = wire.endpointAttachRects[0];
-    if (headTerminal?.x != null &&
-        headTerminal?.y != null &&
+    if (headX != null &&
+        headY != null &&
         (headAttach == null ||
             headAttach.right <= headAttach.left ||
             headAttach.bottom <= headAttach.top)) {
-      final walk = walkRouteBends(
-        route,
-        origin: (x: headTerminal!.x!, y: headTerminal.y!),
-      )!;
+      final walk = walkRouteBends(route, origin: (x: headX, y: headY))!;
       final bends = walk.points;
       final lastBend = bends.last;
       final closingHorizontal = walk.closingHorizontal;
@@ -4038,13 +4037,13 @@ class BdDiagramPainter extends CustomPainter {
     }
     final cols = math.max(1, grid.width ~/ cellW);
     final rows = math.max(1, grid.height ~/ cellH);
-    final holder = scene.diagram.byId[shell.parentOid ?? -1];
-    final values = holder?.objectClass == HeapObjectClass.bdConstDco
-        ? holder!.constArray
+    final holder = scene.diagram.byId[shell.parentOid];
+    final constHolder =
+        holder != null && holder.objectClass == HeapObjectClass.bdConstDco
+        ? holder
         : null;
-    final dims = holder?.objectClass == HeapObjectClass.bdConstDco
-        ? holder!.constArrayDims
-        : null;
+    final values = constHolder?.constArray;
+    final dims = constHolder?.constArrayDims;
     final format = bdDisplayFormatOf(scene.diagram, element.oid);
     final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
     var radixDx = 2, radixDy = 3;
@@ -5131,7 +5130,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
     canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
     canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
-    if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass !=
+    if (scene.diagram.byId[object.parentOid]?.objectClass !=
         HeapObjectClass.bdConstDco) {
       return;
     }

@@ -31,13 +31,6 @@ class SpanInfo {
   final String? inlinePreview;
 }
 
-int readU16be(List<int> bytes, int at) => (bytes[at] << 8) | bytes[at + 1];
-int readU32be(List<int> bytes, int at) =>
-    (bytes[at] << 24) |
-    (bytes[at + 1] << 16) |
-    (bytes[at + 2] << 8) |
-    bytes[at + 3];
-
 const spanColorHeader = Color(0xFFD08BB0);
 const spanColorUnframed = Color(0xFFE57373);
 const spanColorObject = Color(0xFF9E7BE0);
@@ -75,8 +68,8 @@ SpanInfo classifySpan(Uint8List bytes, HeapSpan span, String tag) {
       bytes[offset + 2] == 0x02 &&
       bytes[offset + 3] == 0xfe &&
       bytes[offset + 6] == 0xfd) {
-    final kind = readU16be(bytes, offset + 4),
-        oid = readU16be(bytes, offset + 7);
+    final data = ByteData.sublistView(bytes);
+    final kind = data.getUint16(offset + 4), oid = data.getUint16(offset + 7);
     final cls = HeapObjectClass.fromCode(kind);
     final conf = cls.confidence == ClassConfidence.confirmed
         ? ''

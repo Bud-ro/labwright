@@ -275,7 +275,7 @@ void main() {
     for (final (what, rgb, build) in colourCases) {
       testWidgets(what, (tester) async {
         Future<Uint32List> packedPixels(BdRaster raster) async {
-          final bytes = (await raster.image.toByteData())!.buffer.asUint8List();
+          final bytes = await rgbaOf(raster.image);
           final out = Uint32List(bytes.length >> 2);
           for (var i = 0; i < out.length; i++) {
             final j = i << 2;
@@ -417,10 +417,8 @@ void main() {
         );
         expect(withNode!.content, withoutNode!.content);
 
-        final nodeBytes = (await withNode.image.toByteData())!.buffer
-            .asUint8List();
-        final wireBytes = (await withoutNode.image.toByteData())!.buffer
-            .asUint8List();
+        final nodeBytes = await rgbaOf(withNode.image);
+        final wireBytes = await rgbaOf(withoutNode.image);
         final i = centrePixel(withNode);
         expect(nodeBytes[i], greaterThan(150));
         expect(wireBytes[i], lessThan(120));

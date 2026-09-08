@@ -164,7 +164,7 @@ class PrimIconExtraction {
 Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
   await loadRealTextFont();
   final pngs = snippetCorpusPngs();
-  final appDir = repoDir('apps/labwright_vi_inspector')!.path;
+  final appDir = repoDir('apps/labwright_vi_inspector').path;
   final assetDir = Directory('$appDir/assets/prim_icons')
     ..createSync(recursive: true);
   const primClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0x185, 0x370};
@@ -266,7 +266,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           }
         }
         if (lowQuality) continue;
-        var anc = bd.byId[o.parentOid ?? -1];
+        var anc = bd.byId[o.parentOid];
         var hops = 0;
         var disabled = false;
         while (anc != null && hops++ < 12) {
@@ -274,7 +274,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             disabled = true;
             break;
           }
-          anc = bd.byId[anc.parentOid ?? -1];
+          anc = bd.byId[anc.parentOid];
         }
         if (disabled) continue;
         if ((samples[key]?.length ?? 0) >= 8) continue;
@@ -405,9 +405,9 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
   );
   final pending = <String, ({img.Image icon, String sources})>{};
   final failed = <String, String>{};
-  final keys = samples.keys.toList()..sort();
-  for (final key in keys) {
-    final all = samples[key]!;
+  final sampled = samples.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
+  for (final MapEntry(key: key, value: all) in sampled) {
     final dims = <String, int>{};
     for (final s in all) {
       dims['${s.w}x${s.h}'] = (dims['${s.w}x${s.h}'] ?? 0) + 1;
@@ -942,7 +942,6 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     );
   }
 
-  final bucketCounts = <int, int>{};
   final bucketModal = <int, Map<int, int>>{};
   var opaque = 0;
   for (final e in pending.values) {
@@ -954,18 +953,16 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           ((px.r.toInt() >> 4) << 8) |
           ((px.g.toInt() >> 4) << 4) |
           (px.b.toInt() >> 4);
-      bucketCounts[bucket] = (bucketCounts[bucket] ?? 0) + 1;
       final modal = bucketModal[bucket] ??= {};
       modal[rgb] = (modal[rgb] ?? 0) + 1;
     }
   }
   final palette = <int>{0x000000, 0xffffff};
-  for (final e in bucketCounts.entries) {
-    if (e.value * 500 < opaque) continue;
+  for (final modal in bucketModal.values) {
+    final count = modal.values.reduce((a, b) => a + b);
+    if (count * 500 < opaque) continue;
     palette.add(
-      (bucketModal[e.key]!.entries.toList()..sort((a, b) => b.value - a.value))
-          .first
-          .key,
+      (modal.entries.toList()..sort((a, b) => b.value - a.value)).first.key,
     );
   }
   final paletteList = palette.toList()..sort();
@@ -984,8 +981,9 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     return best;
   }
 
-  for (final key in pending.keys.toList()..sort()) {
-    final e = pending[key]!;
+  final ordered = pending.entries.toList()
+    ..sort((a, b) => a.key.compareTo(b.key));
+  for (final MapEntry(value: e) in ordered) {
     for (final px in e.icon) {
       if (px.a == 0) continue;
       final c = snap(px.r.toInt(), px.g.toInt(), px.b.toInt());

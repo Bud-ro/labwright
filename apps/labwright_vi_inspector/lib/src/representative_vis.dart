@@ -260,40 +260,52 @@ Future<FetchedRepresentativeVi> fetchRepresentativeVi(
   Future<Uint8List> Function(Uri)? fetch,
   int concurrency = 8,
 }) async {
-  final client = fetch == null ? HttpClient() : null;
-  final get = fetch ?? (url) => _get(client!, url);
+  if (fetch != null) return _fetchRepresentativeVi(vi, fetch, concurrency);
+  final client = HttpClient();
   try {
-    final bytes = await get(vi.rawUrl);
-    final dir = Directory.systemTemp.createTempSync('labwright_rep_vi_');
-    File('${dir.path}/${vi.path}')
-      ..parent.createSync(recursive: true)
-      ..writeAsBytesSync(bytes);
-    var ok = 0, failed = 0;
-    final pending = [...vi.dependencies];
-    Future<void> worker() async {
-      while (pending.isNotEmpty) {
-        final rel = pending.removeLast();
-        try {
-          final dep = await get(vi.rawUrlOf(rel));
-          File('${dir.path}/$rel')
-            ..parent.createSync(recursive: true)
-            ..writeAsBytesSync(dep);
-          ok++;
-        } catch (_) {
-          failed++;
-        }
-      }
-    }
-
-    await Future.wait([for (var i = 0; i < concurrency; i++) worker()]);
-    return FetchedRepresentativeVi(
-      bytes: bytes,
-      mainPath: '${dir.path}/${vi.path}',
-      projectDir: dir,
-      fetchedDeps: ok,
-      failedDeps: failed,
+    return await _fetchRepresentativeVi(
+      vi,
+      (url) => _get(client, url),
+      concurrency,
     );
   } finally {
-    client?.close();
+    client.close();
   }
+}
+
+Future<FetchedRepresentativeVi> _fetchRepresentativeVi(
+  RepresentativeVi vi,
+  Future<Uint8List> Function(Uri) get,
+  int concurrency,
+) async {
+  final bytes = await get(vi.rawUrl);
+  final dir = Directory.systemTemp.createTempSync('labwright_rep_vi_');
+  File('${dir.path}/${vi.path}')
+    ..parent.createSync(recursive: true)
+    ..writeAsBytesSync(bytes);
+  var ok = 0, failed = 0;
+  final pending = [...vi.dependencies];
+  Future<void> worker() async {
+    while (pending.isNotEmpty) {
+      final rel = pending.removeLast();
+      try {
+        final dep = await get(vi.rawUrlOf(rel));
+        File('${dir.path}/$rel')
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(dep);
+        ok++;
+      } catch (_) {
+        failed++;
+      }
+    }
+  }
+
+  await Future.wait([for (var i = 0; i < concurrency; i++) worker()]);
+  return FetchedRepresentativeVi(
+    bytes: bytes,
+    mainPath: '${dir.path}/${vi.path}',
+    projectDir: dir,
+    fetchedDeps: ok,
+    failedDeps: failed,
+  );
 }

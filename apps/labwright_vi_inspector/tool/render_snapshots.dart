@@ -49,7 +49,7 @@ List<String> _diverseSample(Directory corpus) {
 }
 
 void main() {
-  final corpus = repoDir('packages/labwright_rsrc_parse/corpus/vi')!;
+  final corpus = repoDir('packages/labwright_rsrc_parse/corpus/vi');
   final outDir = Directory('build/render_snapshots')
     ..createSync(recursive: true);
 
@@ -105,8 +105,9 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
         await tester.pump(const Duration(milliseconds: 50));
         final pumpMs = lap();
-        final boundary =
-            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final boundary = tester.renderObject<RenderRepaintBoundary>(
+          find.byKey(key),
+        );
         await tester.runAsync(() async {
           final image = await boundary.toImage();
           final rasterMs = lap();

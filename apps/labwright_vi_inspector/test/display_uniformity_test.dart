@@ -50,7 +50,7 @@ void main() {
       final src = await _fromRgba(rgba, w, h);
       for (final k in [2, 3, 4]) {
         final out = await boxDownscale(src, k);
-        final bytes = (await out.toByteData())!.buffer.asUint8List();
+        final bytes = await rgbaOf(out);
         int lum(int x, int y) => bytes[(y * out.width + x) * 4];
         for (final lineY in [9, 20]) {
           final rows = {lineY ~/ k, (lineY + k - 1) ~/ k};
@@ -145,7 +145,7 @@ void main() {
             greaterThan(0),
             reason: 'empty stamp for $key in ${f.path}',
           );
-          final mask = (await art.base.toByteData())!.buffer.asUint8List();
+          final mask = await rgbaOf(art.base);
           final aw = art.base.width, ah = art.base.height;
           (int, int)? top, leftmost;
           for (var y = 0; y < ah && top == null; y++) {
@@ -238,7 +238,7 @@ void main() {
       );
       const n = 2;
       final display = await boxDownscale(fitted3, ss * n);
-      final out = (await display.toByteData())!.buffer.asUint8List();
+      final out = await rgbaOf(display);
       int lum(int x, int y) => out[(y * display.width + x) * 4];
       final o = bd.byId[894]!.absBounds!;
       final reg = result.registration;
@@ -277,8 +277,8 @@ void main() {
       );
       expect(topRow * n, stampRef.top.toInt(), reason: 'row bookkeeping');
 
-      final rasterPx = (await raster.image.toByteData())!.buffer.asUint8List();
-      final refPx = (await reference.image.toByteData())!.buffer.asUint8List();
+      final rasterPx = await rgbaOf(raster.image);
+      final refPx = await rgbaOf(reference.image);
       String oursAt(int x, int y) {
         final i =
             ((y - raster.content.top).toInt() * raster.image.width +
@@ -312,7 +312,7 @@ void main() {
           art.height,
           key: key,
         );
-        final artPx = (await art.toByteData())!.buffer.asUint8List();
+        final artPx = await rgbaOf(art);
         var opaque = 0, mismatched = 0;
         for (var y = 0; y < art.height; y++) {
           for (var x = 0; x < art.width; x++) {
@@ -678,7 +678,7 @@ void main() {
         drawable: drawable,
       ))!;
       expect(without.content, raster.content, reason: 'same content frame');
-      final woPx = (await without.image.toByteData())!.buffer.asUint8List();
+      final woPx = await rgbaOf(without.image);
       String woAt(int x, int y) {
         final i =
             ((y - raster.content.top).toInt() * without.image.width +
@@ -848,7 +848,7 @@ void main() {
   testWidgets('branch-wire routeTree runs + junction dots land on ref ink', (
     tester,
   ) async {
-    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi')!;
+    final root = repoDir('packages/labwright_rsrc_parse/corpus/vi');
     await loadRealTextFont();
     var branchWires = 0, junctionDots = 0, runPixels = 0, exposedWires = 0;
     await tester.runAsync(() async {
@@ -897,10 +897,8 @@ void main() {
             ),
           ),
         ))!;
-        final refPx = (await reference.image.toByteData())!.buffer
-            .asUint8List();
-        final rasterPx = (await rephased.image.toByteData())!.buffer
-            .asUint8List();
+        final refPx = await rgbaOf(reference.image);
+        final rasterPx = await rgbaOf(rephased.image);
         final rw = reference.image.width;
         final aw = rephased.image.width, ah = rephased.image.height;
 

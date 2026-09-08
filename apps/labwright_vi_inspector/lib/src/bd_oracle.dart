@@ -1386,7 +1386,8 @@ class _BdOracleViewState extends State<BdOracleView>
           return const Center(child: CircularProgressIndicator());
         }
         final data = snapshot.data ?? const _OracleData();
-        if (data.rendered == null) {
+        final rendered = data.rendered;
+        if (rendered == null) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(24),
@@ -1495,19 +1496,17 @@ class _BdOracleViewState extends State<BdOracleView>
                             'Rendered (clean-room)',
                             result != null
                                 ? (data.displayFitted ?? result.fitted)
-                                : (data.displayRendered ?? data.rendered!),
+                                : (data.displayRendered ?? rendered),
                             supersample:
                                 (result != null
                                     ? data.displayFitted != null
                                     : data.displayRendered != null)
                                 ? kOracleDisplaySupersample
                                 : 1,
-                            base: result != null
-                                ? result.fitted
-                                : data.rendered,
+                            base: result != null ? result.fitted : rendered,
                             copyImage: result != null
                                 ? (data.displayFitted ?? result.fitted)
-                                : (data.displayRendered ?? data.rendered),
+                                : (data.displayRendered ?? rendered),
                             copyLabel: 'Rendered',
                           ),
                         ),
@@ -1726,7 +1725,7 @@ class _BdOracleViewState extends State<BdOracleView>
     try {
       final width = result.reference.width;
       final height = result.reference.height;
-      final fitted = (await result.fitted.toByteData())!.buffer.asUint8List();
+      final fitted = await rgbaOf(result.fitted);
       final reference = result.referenceRgba;
       final gif = await encodeOracleSweepGifOffThread(
         leftRgba: fitted,
@@ -1885,9 +1884,8 @@ int boxDownscaleFactor(ui.Image src, int supersample, double fitPhys) {
 }
 
 Future<ui.Image> boxDownscale(ui.Image src, int k) async {
-  final data = (await src.toByteData())!;
   final sw = src.width, sh = src.height;
-  final bytes = data.buffer.asUint8List();
+  final bytes = await rgbaOf(src);
   final out = await Isolate.run(() => boxDownscaleRgba(bytes, sw, sh, k));
   return imageFromRgba(out.rgba, out.width, out.height);
 }

@@ -53,14 +53,16 @@ void main() {
               : ''}';
     }
 
-    for (final name in keysBySnippet.keys.toList()..sort()) {
-      final keys = keysBySnippet[name]!.toList()..sort();
-      out.writeln('\n## $name\n');
+    final bySnippet = keysBySnippet.entries.toList()
+      ..sort((a, b) => a.key.compareTo(b.key));
+    for (final snippet in bySnippet) {
+      final keys = snippet.value.toList()..sort();
+      out.writeln('\n## ${snippet.key}\n');
       for (final key in keys) {
         out.writeln('- ${describe(key)}');
       }
     }
-    final appDir = repoDir('apps/labwright_vi_inspector')!.path;
+    final appDir = repoDir('apps/labwright_vi_inspector').path;
     File(
       '$appDir/assets/prim_icons/REVIEW.md',
     ).writeAsStringSync(out.toString());

@@ -161,7 +161,7 @@ void main() {
         final reg = result.registration;
         final w = result.reference.width;
         final refB = result.referenceRgba;
-        final ourB = (await result.fitted.toByteData())!.buffer.asUint8List();
+        final ourB = await rgbaOf(result.fitted);
         for (final (label, x0, y0, bw, bh) in expected[name]!) {
           var diff = 0;
           for (var y = y0; y < y0 + bh; y++) {
@@ -238,7 +238,7 @@ void main() {
         final (raster2, result2) = await render(derived);
         final w = result2.reference.width, h = result2.reference.height;
         final refB = result2.referenceRgba;
-        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
+        final ourB = await rgbaOf(result2.fitted);
         bool dark(Uint8List im, int x, int y) {
           final i = (y * w + x) * 4;
           return (im[i] + im[i + 1] + im[i + 2]) ~/ 3 < 110;
@@ -317,7 +317,7 @@ void main() {
         final reg = result.registration;
         final w = result.reference.width;
         final refB = result.referenceRgba;
-        final ourB = (await result.fitted.toByteData())!.buffer.asUint8List();
+        final ourB = await rgbaOf(result.fitted);
         for (final (dataType, indicator) in expected[name]!) {
           var bestDiff = 1 << 30;
           for (final o in scene.drawable) {
@@ -421,7 +421,7 @@ void main() {
         final (raster2, result2) = await render(black, error);
         final w = result2.reference.width, h = result2.reference.height;
         final refB = result2.referenceRgba;
-        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
+        final ourB = await rgbaOf(result2.fitted);
         String cls(Uint8List im, int x, int y) {
           final i = (y * w + x) * 4;
           final r = im[i], g = im[i + 1], bl = im[i + 2];
@@ -512,7 +512,7 @@ void main() {
         scale: 1.0,
         margin: 2,
       ))!;
-      final rgba = (await raster.image.toByteData())!.buffer.asUint8List();
+      final rgba = await rgbaOf(raster.image);
       PlacementComparison at(double dx) => comparePlacement(
         diagram: diagram,
         raster: raster,

@@ -172,7 +172,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
     final rw = reference.image.width;
     final rh = reference.image.height;
     final refB = result.referenceRgba;
-    final basePx = (await rephased.image.toByteData())!.buffer.asUint8List();
+    final basePx = await rgbaOf(rephased.image);
     final iw = rephased.image.width, ih = rephased.image.height;
 
     int refPixel(int rx, int ry) {
@@ -203,7 +203,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
         drawable: scene.drawable,
         style: style,
       ))!;
-      final woPx = (await without.image.toByteData())!.buffer.asUint8List();
+      final woPx = await rgbaOf(without.image);
       var maskCount = 0, off = 0;
       for (var y = 0; y < ih; y++) {
         for (var x = 0; x < iw; x++) {
