@@ -64,7 +64,7 @@ class MeasurementPluginsOutline {
       );
 
   List<(String, String)> get rows => [
-    if (pinMap != null) ('Pin map', pinMap!),
+    if (pinMap case final path?) ('Pin map', path),
     if (specifications.isNotEmpty)
       ('Specifications', specifications.join(', ')),
     if (levels.isNotEmpty) ('Levels', levels.join(', ')),

@@ -169,7 +169,7 @@ void main() {
     final s = seq.groups.single.steps.single;
     expect(s.name, 'S1');
     expect(s.type, 'Statement');
-    expect(s.isInFileCall, isFalse);
+    expect(s.callTargetIndex, isNull);
     expect(s.summary, contains('S1 [Statement]'));
     expect(s.runMode, isNull, reason: 'default run mode is not noteworthy');
     expect(s.summary, isNot(contains('mode')));

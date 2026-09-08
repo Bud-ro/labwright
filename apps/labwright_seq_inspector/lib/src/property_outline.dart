@@ -53,16 +53,13 @@ class PropertyNode {
 
   String get label => name.isEmpty ? '(unnamed)' : name;
 
-  String get typeLabel {
-    final parts = <String>[];
-    if (className != null) {
-      parts.add(isArray ? '$className[${children.length}]' : className!);
-    } else if (isArray) {
-      parts.add('[${children.length}]');
-    }
-    if (typeName != null) parts.add(typeName!);
-    return parts.join(' · ');
-  }
+  String get typeLabel => [
+    if (className case final name?)
+      isArray ? '$name[${children.length}]' : name
+    else if (isArray)
+      '[${children.length}]',
+    if (typeName case final name?) name,
+  ].join(' · ');
 }
 
 PropertyNode propertyTree(SeqFile file) => PropertyNode.of(file.data);
