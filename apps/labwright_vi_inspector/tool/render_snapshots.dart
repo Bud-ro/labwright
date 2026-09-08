@@ -105,8 +105,9 @@ void main() {
         await tester.pump(const Duration(milliseconds: 50));
         await tester.pump(const Duration(milliseconds: 50));
         final pumpMs = lap();
-        final boundary =
-            key.currentContext!.findRenderObject()! as RenderRepaintBoundary;
+        final boundary = tester.renderObject<RenderRepaintBoundary>(
+          find.byKey(key),
+        );
         await tester.runAsync(() async {
           final image = await boundary.toImage();
           final rasterMs = lap();

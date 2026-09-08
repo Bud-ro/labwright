@@ -46,16 +46,17 @@ void main() {
         final slack = wire.routeHeadSlack;
         final points = wire.routePoints;
         if (slack == null || points == null || points.isEmpty) continue;
-        ViHeapObject? dco;
+        ViHeapObject? endpoint;
         for (final oid in wire.endpointOids) {
           final o = diagram.byId[oid];
           if (o != null && o.kind == 0x15 && o.absBounds == null) {
-            dco = o;
+            endpoint = o;
             break;
           }
         }
+        final dco = endpoint;
         if (dco == null) continue;
-        final node = diagram.byId[dco.parentOid ?? -1];
+        final node = diagram.byId[dco.parentOid];
         final box = node?.absBounds;
         if (node == null || box == null || box.width <= 0 || box.height <= 0) {
           continue;
@@ -64,7 +65,7 @@ void main() {
           for (final c in diagram.children(node.oid))
             if (c.kind == 0x15) c,
         ];
-        final termIdx = dcos.indexWhere((c) => c.oid == dco!.oid);
+        final termIdx = dcos.indexWhere((c) => c.oid == dco.oid);
         if (termIdx < 0) continue;
         final key = (
           node.primResId ?? -node.kind,
@@ -111,25 +112,23 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalCensus = {
 ''');
   var shipped = 0, axisConflicts = 0;
   for (final key in keys) {
-    int? unanimous(Map<int, int>? obs) {
+    ({int offset, int count})? unanimous(Map<int, int>? obs) {
       if (obs == null || obs.isEmpty) return null;
       if (obs.length > 1) {
         axisConflicts++;
         return null;
       }
-      return obs.keys.single;
+      return (offset: obs.keys.single, count: obs.values.single);
     }
 
-    final xs = xObs[key], ys = yObs[key];
-    final dx = unanimous(xs);
-    final dy = unanimous(ys);
-    if (dx == null && dy == null) continue;
+    final x = unanimous(xObs[key]);
+    final y = unanimous(yObs[key]);
+    if (x == null && y == null) continue;
     shipped++;
-    final xCount = dx == null ? 0 : xs!.values.single;
-    final yCount = dy == null ? 0 : ys!.values.single;
     out.writeln(
       '  (${key.$1}, ${key.$2}, ${key.$3}, ${key.$4}): '
-      '(dx: $dx, dy: $dy), // x$xCount y$yCount',
+      '(dx: ${x?.offset}, dy: ${y?.offset}), '
+      '// x${x?.count ?? 0} y${y?.count ?? 0}',
     );
   }
   out.writeln('};');
