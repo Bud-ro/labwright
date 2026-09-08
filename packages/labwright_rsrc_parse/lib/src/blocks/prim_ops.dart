@@ -1,4 +1,4 @@
-import '../graph.dart' show ViTypeKind;
+import '../diagram_object.dart' show ViTypeKind;
 
 enum PrimNameBasis {
   corpusLabel,
