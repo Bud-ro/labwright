@@ -1386,7 +1386,8 @@ class _BdOracleViewState extends State<BdOracleView>
           return const Center(child: CircularProgressIndicator());
         }
         final data = snapshot.data ?? const _OracleData();
-        if (data.rendered == null) {
+        final rendered = data.rendered;
+        if (rendered == null) {
           return const Center(
             child: Padding(
               padding: EdgeInsets.all(24),
@@ -1495,19 +1496,17 @@ class _BdOracleViewState extends State<BdOracleView>
                             'Rendered (clean-room)',
                             result != null
                                 ? (data.displayFitted ?? result.fitted)
-                                : (data.displayRendered ?? data.rendered!),
+                                : (data.displayRendered ?? rendered),
                             supersample:
                                 (result != null
                                     ? data.displayFitted != null
                                     : data.displayRendered != null)
                                 ? kOracleDisplaySupersample
                                 : 1,
-                            base: result != null
-                                ? result.fitted
-                                : data.rendered,
+                            base: result != null ? result.fitted : rendered,
                             copyImage: result != null
                                 ? (data.displayFitted ?? result.fitted)
-                                : (data.displayRendered ?? data.rendered),
+                                : (data.displayRendered ?? rendered),
                             copyLabel: 'Rendered',
                           ),
                         ),

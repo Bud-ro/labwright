@@ -278,6 +278,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
   Widget _typeRow(int i) {
     final span = _spans[i];
     final type = span.type;
+    final name = type.name ?? '';
     final selected = i == _selected;
     final extra = type.enumItems.isNotEmpty
         ? '${type.enumItems.length} items'
@@ -320,9 +321,9 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
                 TextSpan(
                   children: [
                     TextSpan(text: type.kind.name),
-                    if (type.name != null && type.name!.isNotEmpty)
+                    if (name.isNotEmpty)
                       TextSpan(
-                        text: "  '${type.name}'",
+                        text: "  '$name'",
                         style: const TextStyle(color: Color(0xFF4C8C4C)),
                       ),
                   ],
@@ -354,6 +355,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
 
   Widget _detail(VctpSpan span) {
     final type = span.type;
+    final name = type.name ?? '';
     final field = _selectedByte >= 0 ? _fieldAt(span, _selectedByte) : '';
     return Container(
       width: double.infinity,
@@ -366,7 +368,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
         children: [
           Text(
             'Descriptor #${type.index} · ${type.kind.name}'
-            '${type.name != null && type.name!.isNotEmpty ? " '${type.name}'" : ''}',
+            '${name.isEmpty ? '' : " '$name'"}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
