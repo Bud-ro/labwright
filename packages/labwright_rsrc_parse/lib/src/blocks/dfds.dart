@@ -131,8 +131,10 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
       {
         if (o + 10 > b.length) return null;
         final n = view.getUint32(o + 4);
-        final cf = _fixedExtent(pool, _offOf(pool, view.getUint16(o + 8)) ?? -1, depth + 1);
-        if (cf == null || n > 0x7fffffff) return null;
+        final clientOff = _offOf(pool, view.getUint16(o + 8));
+        if (clientOff == null || n > 0x7fffffff) return null;
+        final cf = _fixedExtent(pool, clientOff, depth + 1);
+        if (cf == null) return null;
         return n * cf;
       }
     case TypeCode.cluster:
@@ -142,7 +144,9 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
         if (o + 6 + n * 2 > b.length) return null;
         var total = 0;
         for (var m = 0; m < n; m++) {
-          final s = _fixedExtent(pool, _offOf(pool, view.getUint16(o + 6 + m * 2)) ?? -1, depth + 1);
+          final memberOff = _offOf(pool, view.getUint16(o + 6 + m * 2));
+          if (memberOff == null) return null;
+          final s = _fixedExtent(pool, memberOff, depth + 1);
           if (s == null) return null;
           total += s;
         }

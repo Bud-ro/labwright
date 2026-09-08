@@ -404,23 +404,48 @@ class HeapAttr {
     _ => attribute.kind,
   };
 
-  int? get asInt => value is int ? value as int : null;
+  int? get asInt => switch (value) {
+    final int number => number,
+    _ => null,
+  };
 
-  double? get asDouble => value is double ? value as double : null;
+  double? get asDouble => switch (value) {
+    final double number => number,
+    _ => null,
+  };
 
-  String? get asString => value is String ? value as String : null;
+  String? get asString => switch (value) {
+    final String text => text,
+    _ => null,
+  };
 
-  String? get asciiText => _asciiIntRaws.contains(rawTag) && value is int ? _asciiFromInt(value as int) : null;
+  String? get asciiText => switch (value) {
+    final int number when _asciiIntRaws.contains(rawTag) => _asciiFromInt(number),
+    _ => null,
+  };
 
-  HeapRect? get asRect => value is HeapRect ? value as HeapRect : null;
+  HeapRect? get asRect => switch (value) {
+    final HeapRect rect => rect,
+    _ => null,
+  };
 
-  ({int a, int b})? get asPoint => kind == HeapAttrKind.point && width == HeapAttrWidth.rgb && value is int
-      ? (a: ((value as int) >> 16).toSigned(16), b: ((value as int) & 0xffff).toSigned(16))
-      : null;
+  ({int a, int b})? get asPoint => switch (value) {
+    final int number when kind == HeapAttrKind.point && width == HeapAttrWidth.rgb => (
+      a: (number >> 16).toSigned(16),
+      b: (number & 0xffff).toSigned(16),
+    ),
+    _ => null,
+  };
 
-  int? get rgb => kind == HeapAttrKind.color && value is int ? (value as int) & 0xffffff : null;
+  int? get rgb => switch (value) {
+    final int number when kind == HeapAttrKind.color => number & 0xffffff,
+    _ => null,
+  };
 
-  bool get isTransparent => rgb == 0 && (value as int) >>> 24 == 0x01;
+  bool get isTransparent => switch (value) {
+    final int number => rgb == 0 && number >>> 24 == 0x01,
+    _ => false,
+  };
 }
 
 const Set<int> _rectPayloadRaws = {0x129, 0x163, 0x164, 0x275};
