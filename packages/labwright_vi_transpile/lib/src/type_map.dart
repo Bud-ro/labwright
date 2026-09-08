@@ -339,8 +339,10 @@ String lvArrayDartType(LvTypeMapping element, int dimCount) {
 
 String lvArrayBuilderType(LvTypeMapping element) => 'List<${element.dartType}>';
 
-String lvArrayFreeze(LvTypeMapping element, String builder) =>
-    element.numeric == null ? builder : '${element.numeric!.typedListType}.fromList($builder)';
+String lvArrayFreeze(LvTypeMapping element, String builder) {
+  final kind = element.numeric;
+  return kind == null ? builder : '${kind.typedListType}.fromList($builder)';
+}
 
 LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int depth, LvDeclarations? declarations) {
   if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvCarrier.error);

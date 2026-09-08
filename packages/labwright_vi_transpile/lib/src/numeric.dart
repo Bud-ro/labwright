@@ -94,7 +94,8 @@ enum LvNumericKind {
       return bits == 64 ? expression : '(Float32List(1)..[0] = $expression)[0]';
     }
     if (bits == 64) return expression;
-    if (!signed) return '($expression) & ${maskLiteral!}';
+    final mask = maskLiteral;
+    if (mask != null) return '($expression) & $mask';
     return '($expression) << ${64 - bits} >> ${64 - bits}';
   }
 
