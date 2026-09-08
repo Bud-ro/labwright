@@ -19,32 +19,34 @@ class ViTypeMap {
 
 typedef _Var = ({int value, int next, int width});
 
-_Var? _readVar(Uint8List b, int off) {
-  if (off + 2 > b.length) return null;
-  final hi = (b[off] << 8) | b[off + 1];
+_Var? _readVar(ByteData b, int off) {
+  if (off + 2 > b.lengthInBytes) return null;
+  final hi = b.getUint16(off);
   if ((hi & 0x8000) == 0) return (value: hi, next: off + 2, width: 2);
-  if (off + 4 > b.length) return null;
-  final lo = (b[off + 2] << 8) | b[off + 3];
-  return (value: ((hi & 0x7fff) << 16) | lo, next: off + 4, width: 4);
+  if (off + 4 > b.lengthInBytes) return null;
+  return (value: b.getUint32(off) & 0x7fffffff, next: off + 4, width: 4);
 }
 
 void _writeVar(BytesBuilder out, int value, int width) {
+  final bytes = Uint8List(width);
+  final view = ByteData.sublistView(bytes);
   if (width == 2) {
-    out.add([value >> 8, value & 0xff]);
+    view.setUint16(0, value);
   } else {
-    final hi = 0x8000 | (value >> 16);
-    out.add([hi >> 8, hi & 0xff, (value >> 8) & 0xff, value & 0xff]);
+    view.setUint32(0, 0x80000000 | value);
   }
+  out.add(bytes);
 }
 
 ViTypeMap? decodeTypeMap(Uint8List bytes) {
-  final c = _readVar(bytes, 0);
+  final view = ByteData.sublistView(bytes);
+  final c = _readVar(view, 0);
   if (c == null) return null;
   final count = c.value;
   var off = c.next;
   var indexShift = 0;
   if (count > 0) {
-    final s = _readVar(bytes, off);
+    final s = _readVar(view, off);
     if (s == null) {
       return ViTypeMap(rawLength: bytes.length, framesExactly: false, indexShift: 0, entries: const []);
     }
@@ -54,7 +56,7 @@ ViTypeMap? decodeTypeMap(Uint8List bytes) {
   final entries = <int>[];
   var ran = true;
   for (var i = 0; i < count; i++) {
-    final e = _readVar(bytes, off);
+    final e = _readVar(view, off);
     if (e == null) {
       ran = false;
       break;
@@ -71,17 +73,18 @@ ViTypeMap? decodeTypeMap(Uint8List bytes) {
 }
 
 bool typeMapFrames(Uint8List body) {
-  final c = _readVar(body, 0);
+  final view = ByteData.sublistView(body);
+  final c = _readVar(view, 0);
   if (c == null) return false;
   final count = c.value;
   var off = c.next;
   if (count > 0) {
-    final s = _readVar(body, off);
+    final s = _readVar(view, off);
     if (s == null) return false;
     off = s.next;
   }
   for (var i = 0; i < count; i++) {
-    final e = _readVar(body, off);
+    final e = _readVar(view, off);
     if (e == null) return false;
     off = e.next;
   }
@@ -89,20 +92,21 @@ bool typeMapFrames(Uint8List body) {
 }
 
 Uint8List? reserializeTypeMap(Uint8List body) {
-  final c = _readVar(body, 0);
+  final view = ByteData.sublistView(body);
+  final c = _readVar(view, 0);
   if (c == null) return null;
   final count = c.value;
   final out = BytesBuilder(copy: false);
   _writeVar(out, c.value, c.width);
   var off = c.next;
   if (count > 0) {
-    final s = _readVar(body, off);
+    final s = _readVar(view, off);
     if (s == null) return null;
     _writeVar(out, s.value, s.width);
     off = s.next;
   }
   for (var i = 0; i < count; i++) {
-    final e = _readVar(body, off);
+    final e = _readVar(view, off);
     if (e == null) return null;
     _writeVar(out, e.value, e.width);
     off = e.next;

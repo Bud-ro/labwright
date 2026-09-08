@@ -450,6 +450,7 @@ const Map<int, int> _attrNibbleValueBytes = {0x0: 0, 0x2: 1, 0x4: 2, 0x6: 3, 0x8
 
 HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
+  final view = ByteData.sublistView(body);
   final op = body[offset];
   final id = body[offset + 1];
   final raw = ((op & 3) << 8) | id;
@@ -472,7 +473,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
 
   if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
     if (_rectPayloadRaws.contains(raw)) {
-      final rect = HeapRect.fromPayload(body.sublist(offset + 3, offset + 11));
+      final rect = HeapRect.fromPayload(Uint8List.sublistView(body, offset + 3, offset + 11));
       if (rect != null) {
         return HeapAttr(
           attribute: HeapAttribute.fromRaw(raw),
@@ -485,7 +486,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
       }
     }
     if (_f64PayloadRaws.contains(raw)) {
-      final value = ByteData.sublistView(body, offset + 3, offset + 11).getFloat64(0);
+      final value = view.getFloat64(offset + 3);
       return HeapAttr(
         attribute: HeapAttribute.fromRaw(raw),
         id: id,
@@ -499,10 +500,10 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
   }
 
   if (op == 0xc6 && offset + 5 <= body.length && body[offset + 2] == 0xff) {
-    final len = (body[offset + 3] << 8) | body[offset + 4];
+    final len = view.getUint16(offset + 3);
     final end = offset + 5 + len;
     if (end <= body.length && len >= 4) {
-      final strLen = ByteData.sublistView(body, offset + 5, offset + 9).getUint32(0);
+      final strLen = view.getUint32(offset + 5);
       final from = offset + 9, to = (from + strLen) <= end ? from + strLen : end;
       final bytes = body.sublist(from, to);
       final chars = bytes.where(_isPrintableAscii).toList();
@@ -524,7 +525,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     final len = body[offset + 2];
     if (len != 0xff && len != 0x08 && len >= 5 && offset + 3 + len <= body.length) {
       final payloadStart = offset + 3;
-      final strLen = ByteData.sublistView(body, payloadStart, payloadStart + 4).getUint32(0);
+      final strLen = view.getUint32(payloadStart);
       final slack = len - (strLen + 4);
       if (strLen >= 1 && slack >= 0 && !(strLen <= 2 && slack >= 8)) {
         final bytes = body.sublist(payloadStart + 4, payloadStart + 4 + strLen);
@@ -550,7 +551,7 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
     if (op == 0xc6 && len == 0xff) {
       if (offset + 5 > body.length) return null;
       headerLen = 5;
-      len = (body[offset + 3] << 8) | body[offset + 4];
+      len = view.getUint16(offset + 3);
     }
     if (offset + headerLen + len > body.length) return null;
     return HeapAttr(
@@ -584,13 +585,13 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
         value = body[offset + 2];
       case 0x4:
         width = HeapAttrWidth.u16;
-        value = (body[offset + 2] << 8) | body[offset + 3];
+        value = view.getUint16(offset + 2);
       case 0x6:
         width = HeapAttrWidth.u24;
-        value = (body[offset + 2] << 16) | (body[offset + 3] << 8) | body[offset + 4];
+        value = (view.getUint16(offset + 2) << 8) | body[offset + 4];
       case 0x8:
         width = HeapAttrWidth.rgb;
-        value = (body[offset + 2] << 24) | (body[offset + 3] << 16) | (body[offset + 4] << 8) | body[offset + 5];
+        value = view.getUint32(offset + 2);
       default:
         width = HeapAttrWidth.flag;
         value = 1;
@@ -678,7 +679,7 @@ class HeapRecord {
     if (bytes.length < 12 || bytes[0] != 0x50 || bytes[1] != 0x54 || bytes[2] != 0x48 || bytes[3] != 0x30) {
       return null;
     }
-    final nComp = (bytes[10] << 8) | bytes[11];
+    final nComp = ByteData.sublistView(bytes).getUint16(10);
     final parts = <String>[];
     var i = 12;
     for (var componentIndex = 0; componentIndex < nComp && i < bytes.length; componentIndex++) {
@@ -724,7 +725,7 @@ HeapRecord? c4FrameAt(Uint8List heapBytes, int offset, String sectionTag) {
   if (lenByte == 0xff) {
     if (offset + 5 > length) return null;
     headerLen = 5;
-    len = (heapBytes[offset + 3] << 8) | heapBytes[offset + 4];
+    len = ByteData.sublistView(heapBytes).getUint16(offset + 3);
   } else {
     headerLen = 3;
     len = lenByte;
@@ -941,12 +942,12 @@ bool _isObjectHeader(Uint8List body, int offset) =>
 
 ({int kind, int oid, int length})? heapObjectHeaderAt(Uint8List body, int offset) {
   if (!_isObjectHeader(body, offset)) return null;
-  final kind = (body[offset + 4] << 8) | body[offset + 5];
+  final view = ByteData.sublistView(body);
+  final kind = view.getUint16(offset + 4);
   if ((body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length) {
-    final oid = (body[offset + 9] << 24) | (body[offset + 10] << 16) | (body[offset + 11] << 8) | body[offset + 12];
-    return (kind: kind, oid: oid, length: 13);
+    return (kind: kind, oid: view.getUint32(offset + 9), length: 13);
   }
-  return (kind: kind, oid: (body[offset + 7] << 8) | body[offset + 8], length: 9);
+  return (kind: kind, oid: view.getUint16(offset + 7), length: 9);
 }
 
 class HeapPropertyValue {
@@ -973,15 +974,14 @@ HeapPropertyValue? decodeHeapPropertyToken(Uint8List body, int offset) {
   if (len == null) return null;
   final count = body[offset + 2];
   final tag = body[offset + 3];
+  final view = ByteData.sublistView(body);
   int? value;
   if (count == 0) {
     value = null;
   } else if (tag == 0xfd && offset + 5 <= body.length && (body[offset + 4] & 0x80) != 0) {
-    value = offset + 10 <= body.length
-        ? (body[offset + 6] << 24) | (body[offset + 7] << 16) | (body[offset + 8] << 8) | body[offset + 9]
-        : null;
+    value = offset + 10 <= body.length ? view.getUint32(offset + 6) : null;
   } else if ((tag == 0xfb || tag == 0xfe || tag == 0xfd) && offset + 6 <= body.length) {
-    value = (body[offset + 4] << 8) | body[offset + 5];
+    value = view.getUint16(offset + 4);
   }
   return HeapPropertyValue(token: token, value: value, length: len);
 }
@@ -1046,12 +1046,12 @@ HeapRef? decodeHeapRef(Uint8List body, int offset) {
   if (lead < 0x14 || lead > 0x17) return null;
   if (body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
   final raw = ((lead & 3) << 8) | body[offset + 1];
+  final view = ByteData.sublistView(body);
   if ((body[offset + 4] & 0x80) != 0) {
     if (offset + 10 > body.length) return null;
-    final oid = (body[offset + 6] << 24) | (body[offset + 7] << 16) | (body[offset + 8] << 8) | body[offset + 9];
-    return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: oid, length: 10);
+    return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: view.getUint32(offset + 6), length: 10);
   }
-  return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: (body[offset + 4] << 8) | body[offset + 5], length: 6);
+  return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: view.getUint16(offset + 4), length: 6);
 }
 
 enum HeapDecodeTier {
@@ -1182,7 +1182,7 @@ int? recordSkip(Uint8List heapBytes, int offset) {
       final lenByte = heapBytes[offset + 2];
       if (lenByte == 0xff) {
         if (offset + 5 > length) return null;
-        return 5 + ((heapBytes[offset + 3] << 8) | heapBytes[offset + 4]);
+        return 5 + ByteData.sublistView(heapBytes).getUint16(offset + 3);
       }
       return 3 + lenByte;
     case 0x14:
@@ -1199,7 +1199,7 @@ int? recordSkip(Uint8List heapBytes, int offset) {
       return (offset + 2 <= length && heapBytes[offset + 1] == 0xfe) ? 7 : null;
     case 0xc6:
       if (offset + 3 <= length && heapBytes[offset + 2] == 0xff) {
-        return (offset + 5 <= length) ? 5 + ((heapBytes[offset + 3] << 8) | heapBytes[offset + 4]) : null;
+        return (offset + 5 <= length) ? 5 + ByteData.sublistView(heapBytes).getUint16(offset + 3) : null;
       }
   }
   final lo = op & 0x0f;

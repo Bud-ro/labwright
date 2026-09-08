@@ -38,10 +38,11 @@ class ViDataTypeHeap {
 ViDataTypeHeap? decodeDataTypeHeap(Uint8List bytes) {
   if (bytes.length < 4) return null;
   final extended = bytes.length > 4;
+  final view = ByteData.sublistView(bytes);
   return ViDataTypeHeap(
     rawLength: bytes.length,
-    heapTypeCount: (bytes[0] << 8) | bytes[1],
-    firstTopLevelIndex: (bytes[2] << 8) | bytes[3],
+    heapTypeCount: view.getUint16(0),
+    firstTopLevelIndex: view.getUint16(2),
     isExtended: extended,
     names: extended ? _scanNames(bytes, 4) : const [],
   );

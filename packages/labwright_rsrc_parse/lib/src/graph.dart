@@ -743,7 +743,7 @@ List<int>? _decodeLengthTail(Uint8List table, int start) {
     var value = table[i++];
     if (value == 0xff) {
       if (i + 1 >= table.length) return null;
-      value = (table[i] << 8) | table[i + 1];
+      value = ByteData.sublistView(table).getUint16(i);
       i += 2;
     }
     lengths.add(value);

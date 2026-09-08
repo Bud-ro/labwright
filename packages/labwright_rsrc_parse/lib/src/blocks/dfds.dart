@@ -14,24 +14,23 @@ class DfdsContext {
 }
 
 class _Pool {
-  _Pool(this.body, this.descOff, this.topLevel);
+  _Pool(this.body, this.descOff, this.topLevel) : view = ByteData.sublistView(body);
   final Uint8List body;
+  final ByteData view;
   final List<int> descOff;
   final List<int> topLevel;
 }
 
-int _u16(Uint8List b, int o) => (b[o] << 8) | b[o + 1];
-int _u32(Uint8List b, int o) => (b[o] << 24) | (b[o + 1] << 16) | (b[o + 2] << 8) | b[o + 3];
-
 _Pool? _parsePool(Uint8List body) {
   if (body.length < 6) return null;
-  final count = _u32(body, 0);
+  final view = ByteData.sublistView(body);
+  final count = view.getUint32(0);
   if (count <= 0 || count > 200000) return null;
   final descOff = <int>[];
   var off = 4;
   for (var i = 0; i < count; i++) {
     if (off + 4 > body.length) return null;
-    final descLen = _u16(body, off);
+    final descLen = view.getUint16(off);
     if (descLen < 4 || off + descLen > body.length) return null;
     descOff.add(off);
     off += descLen;
@@ -39,15 +38,15 @@ _Pool? _parsePool(Uint8List body) {
   var p = off;
   int? readVar() {
     if (p + 2 > body.length) return null;
-    final hi = _u16(body, p);
+    final hi = view.getUint16(p);
     if ((hi & 0x8000) == 0) {
       p += 2;
       return hi;
     }
     if (p + 4 > body.length) return null;
-    final lo = _u16(body, p + 2);
+    final wide = view.getUint32(p) & 0x7fffffff;
     p += 4;
-    return ((hi & 0x7fff) << 16) | lo;
+    return wide;
   }
 
   final tlCount = readVar();
@@ -81,6 +80,7 @@ bool _specialElement(int idx, int flags, bool verGe10) {
 int? _fixedExtent(_Pool pool, int o, int depth) {
   if (depth > 200 || o < 0 || o + 4 > pool.body.length) return null;
   final b = pool.body;
+  final view = pool.view;
   switch (b[o + 3]) {
     case TypeCode.voidType:
     case TypeCode.voidBlock:
@@ -126,23 +126,23 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
     case TypeCode.block:
     case TypeCode.alignedBlock:
       if (o + 8 > b.length) return null;
-      return _u32(b, o + 4);
+      return view.getUint32(o + 4);
     case TypeCode.repeatedBlock:
       {
         if (o + 10 > b.length) return null;
-        final n = _u32(b, o + 4);
-        final cf = _fixedExtent(pool, _offOf(pool, _u16(b, o + 8)) ?? -1, depth + 1);
+        final n = view.getUint32(o + 4);
+        final cf = _fixedExtent(pool, _offOf(pool, view.getUint16(o + 8)) ?? -1, depth + 1);
         if (cf == null || n > 0x7fffffff) return null;
         return n * cf;
       }
     case TypeCode.cluster:
       {
         if (o + 6 > b.length) return null;
-        final n = _u16(b, o + 4);
+        final n = view.getUint16(o + 4);
         if (o + 6 + n * 2 > b.length) return null;
         var total = 0;
         for (var m = 0; m < n; m++) {
-          final s = _fixedExtent(pool, _offOf(pool, _u16(b, o + 6 + m * 2)) ?? -1, depth + 1);
+          final s = _fixedExtent(pool, _offOf(pool, view.getUint16(o + 6 + m * 2)) ?? -1, depth + 1);
           if (s == null) return null;
           total += s;
         }
@@ -158,41 +158,42 @@ int? _fixedExtent(_Pool pool, int o, int depth) {
   }
 }
 
-int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
+int? _extent(_Pool pool, int o, ByteData dfds, int dfdsOff, int depth) {
   if (depth > 400 || o < 0 || o + 4 > pool.body.length) return null;
   final fixed = _fixedExtent(pool, o, depth);
   if (fixed != null) return fixed;
   final b = pool.body;
+  final view = pool.view;
   switch (b[o + 3]) {
     case TypeCode.string:
     case TypeCode.picture:
     case TypeCode.tag:
-      if (dfdsOff + 4 > dfds.length) return null;
-      return 4 + _u32(dfds, dfdsOff);
+      if (dfdsOff + 4 > dfds.lengthInBytes) return null;
+      return 4 + dfds.getUint32(dfdsOff);
     case TypeCode.path:
-      if (dfdsOff + 8 > dfds.length) return null;
-      return 8 + _u32(dfds, dfdsOff + 4);
+      if (dfdsOff + 8 > dfds.lengthInBytes) return null;
+      return 8 + dfds.getUint32(dfdsOff + 4);
     case TypeCode.array:
       {
         if (o + 6 > b.length) return null;
-        final ndim = _u16(b, o + 4);
+        final ndim = view.getUint16(o + 4);
         if (ndim < 1 || ndim > 64) return null;
         final elemPos = o + 6 + ndim * 4;
         if (elemPos + 2 > b.length) return null;
-        final elemOff = _offOf(pool, _u16(b, elemPos));
+        final elemOff = _offOf(pool, view.getUint16(elemPos));
         if (elemOff == null) return null;
         var total = 1;
         var consumed = 0;
         for (var k = 0; k < ndim; k++) {
-          if (dfdsOff + consumed + 4 > dfds.length) return null;
-          total *= _u32(dfds, dfdsOff + consumed) & 0x7fffffff;
+          if (dfdsOff + consumed + 4 > dfds.lengthInBytes) return null;
+          total *= dfds.getUint32(dfdsOff + consumed) & 0x7fffffff;
           consumed += 4;
           if (total > 0x7fffffff) return null;
         }
         final ef = _fixedExtent(pool, elemOff, depth + 1);
         if (ef != null) {
           final bodyLen = total * ef;
-          if (dfdsOff + consumed + bodyLen > dfds.length) return null;
+          if (dfdsOff + consumed + bodyLen > dfds.lengthInBytes) return null;
           return consumed + bodyLen;
         }
         for (var i = 0; i < total; i++) {
@@ -205,11 +206,11 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
     case TypeCode.cluster:
       {
         if (o + 6 > b.length) return null;
-        final n = _u16(b, o + 4);
+        final n = view.getUint16(o + 4);
         if (o + 6 + n * 2 > b.length) return null;
         var consumed = 0;
         for (var m = 0; m < n; m++) {
-          final mo = _offOf(pool, _u16(b, o + 6 + m * 2));
+          final mo = _offOf(pool, view.getUint16(o + 6 + m * 2));
           if (mo == null) return null;
           final e = _extent(pool, mo, dfds, dfdsOff + consumed, depth + 1);
           if (e == null) return null;
@@ -220,8 +221,8 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
     case TypeCode.repeatedBlock:
       {
         if (o + 10 > b.length) return null;
-        final n = _u32(b, o + 4);
-        final clientOff = _offOf(pool, _u16(b, o + 8));
+        final n = view.getUint32(o + 4);
+        final clientOff = _offOf(pool, view.getUint16(o + 8));
         if (clientOff == null || n > 0x7fffffff) return null;
         var consumed = 0;
         for (var i = 0; i < n; i++) {
@@ -244,7 +245,7 @@ int? _extent(_Pool pool, int o, Uint8List dfds, int dfdsOff, int depth) {
 int? _typedefNested(_Pool pool, int o) {
   final b = pool.body;
   if (o + 12 > b.length) return null;
-  final nameCount = _u32(b, o + 8);
+  final nameCount = pool.view.getUint32(o + 8);
   if (nameCount > 100000) return null;
   var p = o + 12;
   for (var i = 0; i < nameCount; i++) {
@@ -252,7 +253,7 @@ int? _typedefNested(_Pool pool, int o) {
     p += 1 + b[p];
   }
   if (p + 4 > b.length) return null;
-  final nlen = _u16(b, p);
+  final nlen = pool.view.getUint16(p);
   if (nlen < 4 || p + nlen > b.length) return null;
   return p;
 }
@@ -273,6 +274,7 @@ int? _walk(Uint8List dfds, DfdsContext ctx, [void Function(int tlPos, int off, i
   final tm = decodeTypeMap(ctx.tm80);
   if (tm == null || !tm.framesExactly) return null;
 
+  final dfdsView = ByteData.sublistView(dfds);
   var off = 0;
   for (var i = 0; i < tm.entries.length; i++) {
     final flags = tm.entries[i];
@@ -283,13 +285,13 @@ int? _walk(Uint8List dfds, DfdsContext ctx, [void Function(int tlPos, int off, i
     if (descOff == null) return null;
 
     if (_hasSave(flags)) {
-      final e = _extent(pool, descOff, dfds, off, 0);
+      final e = _extent(pool, descOff, dfdsView, off, 0);
       if (e == null || off + e > dfds.length) return null;
       onValue?.call(tlPos, off, e);
       off += e;
     } else if (pool.body[descOff + 3] == TypeCode.cluster && (flags & _tmSpecial) != 0) {
       if (descOff + 6 > pool.body.length) return null;
-      final n = _u16(pool.body, descOff + 4);
+      final n = pool.view.getUint16(descOff + 4);
       if (descOff + 6 + n * 2 > pool.body.length) return null;
       var skipNext = (flags & (1 << 9)) != 0;
       for (var m = 0; m < n; m++) {
@@ -298,9 +300,9 @@ int? _walk(Uint8List dfds, DfdsContext ctx, [void Function(int tlPos, int off, i
           skipNext = false;
           continue;
         }
-        final mo = _offOf(pool, _u16(pool.body, descOff + 6 + m * 2));
+        final mo = _offOf(pool, pool.view.getUint16(descOff + 6 + m * 2));
         if (mo == null) return null;
-        final e = _extent(pool, mo, dfds, off, 0);
+        final e = _extent(pool, mo, dfdsView, off, 0);
         if (e == null || off + e > dfds.length) return null;
         off += e;
       }
