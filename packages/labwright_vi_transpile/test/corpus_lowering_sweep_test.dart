@@ -392,8 +392,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
 
   void bindCall(LvDataflow flow, LvSubViUnit call) {
     bump('call');
-    if (call.calleeName == null) return bump('call.unnamed');
-    final callee = resolve(call.calleeName!);
+    final calleeName = call.calleeName;
+    if (calleeName == null) return bump('call.unnamed');
+    final callee = resolve(calleeName);
     if (callee == null) return bump('call.calleeMissing');
     if (callee.paneMap.isEmpty) return bump('call.noPaneMap');
     if (callee.paneMap.length != call.panePorts.length) return bump('call.paneWidthMismatch');
@@ -402,7 +403,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     for (var pane = 0; pane < call.panePorts.length; pane++) {
       final holder = call.panePorts[pane];
       final into = flow.into(holder), outOf = flow.outOf(holder);
-      if (into == null && outOf == null) continue;
+      final wire = into ?? outOf;
+      if (wire == null) continue;
       bump('term.wired');
       final terminal = callee.paneTerminal(pane);
       if (terminal == null) {
@@ -418,7 +420,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
         bump('term.calleeUntyped');
         continue;
       }
-      bump(declared.dartType == (into ?? outOf)!.type.dartType ? 'term.typeAgree' : 'term.typeDisagree');
+      bump(declared.dartType == wire.type.dartType ? 'term.typeAgree' : 'term.typeDisagree');
     }
   }
 
@@ -518,8 +520,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       for (final endpoint in wire.endpointOids) {
         for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
           final type = array ? part.resolvedElementType : part.resolvedType;
-          if (lvClusterBase(type) == null) continue;
-          final shape = lvClusterShape(type!, pool);
+          if (type == null || lvClusterBase(type) == null) continue;
+          final shape = lvClusterShape(type, pool);
           viaKid.add(shape);
           final mapped = typeOf(type, pool).dartType;
           kidTypes.add(mapped);
@@ -620,7 +622,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
         }
       }
       String causeOfWire() {
-        if (ownTypes.isEmpty) {
+        final mapping = ownMapping;
+        if (mapping == null) {
           if (!anyTyped) return 'noneUntyped';
           final anyIndex = wire.endpointOids.any(
             (endpoint) => [
@@ -631,7 +634,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
           return anyIndex ? 'noneNoCluster' : 'noneNoIndex';
         }
         if (ownTypes.length > 1) return 'typesDisagree';
-        final mapping = ownMapping!;
         if (mapping.dartType == null) {
           final code = mapping.unmappedCode;
           return code == null ? 'descriptor' : 'member.0x${code.toRadixString(16)}';
@@ -678,9 +680,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     for (final declaration in declarations) {
       bump('decl');
       bump(declaration.isEnum ? 'decl.enum' : 'decl.cluster');
-      final preferred = declaration.label == null ? LvRuntimeType.anonymousEnum : lvClassName(declaration.label!);
+      final label = declaration.label;
+      final preferred = label == null ? LvRuntimeType.anonymousEnum : lvClassName(label);
       if (declaration.name != preferred) bump('decl.suffixed');
-      if (declaration.label == null) bump('decl.anonymous');
+      if (label == null) bump('decl.anonymous');
       if (declaration.undeclarable != null) bump('decl.noItems');
       if (declaration.fields.any((field) => field.label == null)) bump('decl.unnamedMember');
       final labels = [for (final field in declaration.fields) field.label];
@@ -798,12 +801,13 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
 
   void censusWireTypeRefusal(ViDiagram diagram, LvRefusal refusal) {
     final wire = diagram.wires.where((wire) => wire.signalOid == refusal.oid).firstOrNull;
-    final signal = wire?.signalType;
+    if (wire == null) return bump('wt.noSignalWord');
+    final signal = wire.signalType;
     if (signal == null) return bump('wt.noSignalWord');
     final family = _wireFamilyName(signal.typeCode);
     bump('wt.$family');
     if (untypedFamilies.length == 1) bump('wt.sole.$family');
-    if (clusterWireCause[wire!.signalOid] case final cause?) bump('wt.cause.$cause');
+    if (clusterWireCause[wire.signalOid] case final cause?) bump('wt.cause.$cause');
   }
 
   void walk(LvDataflow flow, LvRegion region) {
@@ -823,8 +827,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (object.category != ViObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
       if (object.kind == HeapObjectClass.bdCallLibrary.code) continue;
-      final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
-      if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
+      final primResId = object.primResId;
+      final op = primResId == null ? null : PrimOp.fromId(primResId);
+      if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
       final key = _reviewKey(op, object);
       here[key] = (here[key] ?? 0) + 1;
     }
@@ -893,7 +898,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       final result = emitLvLibrary(unit, functionName: 'lowered', errorMode: mode, resolveSubVi: resolve);
       bump('${mode.name}.${result.refusal?.kind.name ?? 'lowered'}');
       sources.add(result.source);
-      if (mode == LvErrorMode.exceptions && result.source != null) emitted.add(result.source!);
+      if (mode == LvErrorMode.exceptions) {
+        if (result.source case final source?) emitted.add(source);
+      }
     }
     if (sources.every((source) => source != null)) {
       bump(sources.first == sources.last ? 'modes.same' : 'modes.differ');
@@ -976,7 +983,7 @@ void main() {
 
   test('MD5 refuses on exactly the nodes it is pinned to refuse on', () {
     final vi = snippetVi('MD5');
-    final flow = buildLvDataflow(vi.diagram, pool: vi.pool).dataflow!;
+    final flow = lvDataflowOf(vi.diagram, pool: vi.pool);
     final measured = <String, int>{};
     void bump(String key) => measured[key] = (measured[key] ?? 0) + 1;
     void walk(LvRegion region) {
@@ -1090,19 +1097,19 @@ void main() {
             sole: prims['sole|$identity'] ?? 0,
           ),
       };
-      final ranked = identities.toList()
+      final ranked = measured.entries.toList()
         ..sort((a, b) {
-          final byVis = measured[b]!.vis.compareTo(measured[a]!.vis);
-          return byVis != 0 ? byVis : a.compareTo(b);
+          final byVis = b.value.vis.compareTo(a.value.vis);
+          return byVis != 0 ? byVis : a.key.compareTo(b.key);
         });
       final frequent = <String, ({int vis, int nodes, int sole})>{
-        for (final identity in ranked)
-          if (measured[identity]!.vis >= kCorpusReviewListFloor) identity: measured[identity]!,
+        for (final entry in ranked)
+          if (entry.value.vis >= kCorpusReviewListFloor) entry.key: entry.value,
       };
       printOnFailure(
         'measured:\n${[
-          for (final identity in ranked) "  '$identity': (vis: ${measured[identity]!.vis}, "
-                'nodes: ${measured[identity]!.nodes}, sole: ${measured[identity]!.sole}),',
+          for (final entry in ranked) "  '${entry.key}': (vis: ${entry.value.vis}, "
+                'nodes: ${entry.value.nodes}, sole: ${entry.value.sole}),',
         ].join('\n')}',
       );
       expect(frequent, kCorpusPrimReviewList);
@@ -1139,8 +1146,9 @@ void main() {
       for (final object in snippetDiagram(snippetName(file)).objects) {
         if (object.category != ViObjectKind.node) continue;
         if (kSubViCallNodeCodes.contains(object.kind)) continue;
-        final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
-        if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
+        final primResId = object.primResId;
+        final op = primResId == null ? null : PrimOp.fromId(primResId);
+        if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
         final key = _reviewKey(op, object);
         counts[key] = (counts[key] ?? 0) + 1;
       }
@@ -1181,9 +1189,9 @@ Directory _scratchPackage(Set<String> sources) {
 
   final configUri = Isolate.packageConfigSync!;
   final config = jsonDecode(File.fromUri(configUri).readAsStringSync()) as Map<String, dynamic>;
-  final packages = (config['packages']! as List<dynamic>).cast<Map<String, dynamic>>();
+  final packages = (config['packages'] as List<dynamic>).cast<Map<String, dynamic>>();
   for (final package in packages) {
-    package['rootUri'] = configUri.resolve(package['rootUri']! as String).toString();
+    package['rootUri'] = configUri.resolve(package['rootUri'] as String).toString();
   }
   final runtime = packages.firstWhere((package) => package['name'] == kLvRuntimePackage);
   packages.add({
