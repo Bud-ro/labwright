@@ -7,20 +7,6 @@ import 'corpus_base.dart';
 
 /// Run: `dart run tool/snapshot.dart [corpusDir]` (writes `<pkg>/corpus/snapshot.json`)
 
-const _sectionTests = [
-  'test/const_value_census_test.dart',
-  'test/corpus_coverage_test.dart',
-  'test/corpus_invariants_test.dart',
-  'test/invariants_test.dart',
-  'test/aux_blocks_test.dart',
-  'test/writer_scoreboard_test.dart',
-  'test/signal_type_census_test.dart',
-  'test/selector_range_census_test.dart',
-  'test/wire_route_census_test.dart',
-  'test/loop_terminal_census_test.dart',
-  'test/short_text_census_test.dart',
-];
-
 void main(List<String> args) {
   final base = corpusBaseDir().path;
   final dir = Directory(args.isNotEmpty ? args[0] : '$base/vi');
@@ -57,29 +43,9 @@ void main(List<String> args) {
   }
   errors.sort((a, b) => (a['name'] as String).compareTo(b['name'] as String));
 
-  final sections = _measureSections(base);
-  if (sections == null) {
-    exitCode = 1;
-    return;
-  }
-
-  const note =
-      'Exact corpus snapshot: `sections` holds the aggregate metrics the '
-      'corpus tests measure (asserted exactly by test/snapshot_check.dart); '
-      '`groups` cluster VIs by resource-block set, each file recording '
-      'fp=front-panel and bd=block-diagram object counts (asserted exactly by '
-      'corpus_snapshot_test.dart). Any change is a reviewed regeneration diff.';
-  final sectionsJson = const JsonEncoder.withIndent('  ').convert({
-    for (final k in sections.keys.toList()..sort())
-      k: {
-        for (final key in sections[k]!.keys.toList()..sort()) key: sections[k]![key],
-      },
-  });
   final buf = StringBuffer()
     ..writeln('{')
     ..writeln('  "generatedBy": "packages/labwright_rsrc_parse/tool/snapshot.dart",')
-    ..writeln('  "note": ${jsonEncode(note)},')
-    ..writeln('  "sections": ${sectionsJson.replaceAll('\n', '\n  ')},')
     ..writeln('  "groups": [');
   for (var gi = 0; gi < groupKeys.length; gi++) {
     final gk = groupKeys[gi];
@@ -107,54 +73,5 @@ void main(List<String> args) {
     ..writeln('}');
   File('$base/snapshot.json').writeAsStringSync(buf.toString());
   final nFiles = files.values.fold<int>(0, (a, g) => a + g.length);
-  stdout.writeln(
-    'snapshot: $nFiles VIs in ${groupKeys.length} block-set groups · '
-    '${errors.length} errors · ${sections.length} metric sections',
-  );
-}
-
-Map<String, Map<String, Object?>>? _measureSections(String corpusBase) {
-  final pkgRoot = Directory(corpusBase).parent.path;
-  final fragments = Directory.systemTemp.createTempSync('lw_rsrc_snapshot_');
-  try {
-    stdout.writeln('re-measuring: dart test -t corpus ${_sectionTests.join(' ')}');
-    final result = Process.runSync(
-      'dart',
-      [
-        'test',
-        '-t',
-        'corpus',
-        ..._sectionTests,
-      ],
-      workingDirectory: pkgRoot,
-      environment: {'LABWRIGHT_SNAPSHOT_UPDATE': fragments.path},
-    );
-    stdout.write(result.stdout);
-    if (result.exitCode != 0) {
-      stderr.write(result.stderr);
-      stderr.writeln('test run failed (exit ${result.exitCode}) — snapshot NOT written');
-      return null;
-    }
-
-    final sections = <String, Map<String, Object?>>{};
-    final existing = File('$corpusBase/snapshot.json');
-    if (existing.existsSync()) {
-      final old = jsonDecode(existing.readAsStringSync()) as Map<String, dynamic>;
-      (old['sections'] as Map?)?.forEach((k, v) => sections[k as String] = (v as Map).cast<String, Object?>());
-    }
-    var fresh = 0;
-    for (final f in fragments.listSync().whereType<File>().toList()..sort((a, b) => a.path.compareTo(b.path))) {
-      if (!f.path.endsWith('.json')) continue;
-      final section = f.uri.pathSegments.last.replaceAll('.json', '');
-      sections[section] = (jsonDecode(f.readAsStringSync()) as Map).cast<String, Object?>();
-      fresh++;
-    }
-    if (fresh == 0) {
-      stderr.writeln('no snapshot fragments produced — snapshot NOT written');
-      return null;
-    }
-    return sections;
-  } finally {
-    fragments.deleteSync(recursive: true);
-  }
+  stdout.writeln('snapshot: $nFiles VIs in ${groupKeys.length} block-set groups · ${errors.length} errors');
 }

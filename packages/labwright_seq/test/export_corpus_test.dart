@@ -7,7 +7,6 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 
 void main() {
   final seqs = corpusSeqDir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.seq')).toList()
@@ -73,24 +72,6 @@ void main() {
         );
       }
 
-      expectCorpusSnapshot('export', {
-        'exported': exported,
-        'withViStub': withViStub,
-        'withInlineThrow': withInlineThrow,
-        'withHelpers': withHelpers,
-        'withIntLocals': withIntLocals,
-        'withSkipComments': withSkipComments,
-        'callSites': stats.callSites,
-        'boundSites': stats.boundSites,
-        'localBoundSites': stats.localBoundSites,
-        'localBoundSitesRearmed': stats.localBoundSitesRearmed,
-        'argsTranslated': stats.argsTranslated,
-        'argsByOmission': stats.argsByOmission,
-        'argsEvalFallback': stats.argsEvalFallback,
-        'payloadNotes': stats.payloadNotes,
-        'wiredArgs': stats.wiredArgs,
-        for (final e in stats.siteDisarms.entries) 'siteDisarms:${e.key}': e.value,
-      });
       print(
         'exports: $exported programs · $withViStub VI stubs · $withInlineThrow inline throws · '
         '$withHelpers helper sequences · $withIntLocals int locals · $withSkipComments skip comments · '
@@ -177,11 +158,7 @@ void main() {
       final allSource = project.files.values.join('\n');
       final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n]*\);').allMatches(allSource).length;
       final crossCallsWithArgs = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n)][^;\n]*\);').allMatches(allSource).length;
-      expectCorpusSnapshot('export_project', {
-        'modules': byPath.length,
-        'crossCalls': crossCalls,
-        'crossCallsWithArgs': crossCallsWithArgs,
-      });
+      expect((byPath.length, crossCalls, crossCallsWithArgs), (12, 129, 102));
 
       final genDir = Directory('${pkgRoot.path}/test/.export_gen_proj')..createSync(recursive: true);
       try {

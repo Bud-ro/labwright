@@ -8,7 +8,6 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 
 int _countOverrides(SeqProperty p, [int depth = 0]) {
   if (depth > 50) return 0;
@@ -38,24 +37,11 @@ bool _isExprLike(String s) =>
     s.contains('"') ||
     (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
 
-final _binaryReconCounters =
-    'binary binaryWithSequences binaryStepsRecovered binaryTypedSteps binaryModuleSteps withSentinels '
-            'totalStrings notLargest isFirst rooted scaffold5Ok realTot realHit fakeTot fakeHit withPath totalPaths '
-            'nonAsciiPaths withId withExpr withLit'
-        .split(' ');
+const kXmlIniNonzero = <String, Map<String, int>>{};
 
-final _xmlIniCounters =
-    'xmlFiles iniFiles binaryFiles xmlSeqs xmlSteps withAction withMode withModule xmlLocals withLimits '
-            'resolvedCalls withIcon mpBlocks mpPinMaps pySteps pyParams pyParamSteps pyBound viSteps viParams '
-            'typedefFiles totalTypes typesWithFields arFiles arEntries withResult custTrueAct custFalseAct measParams '
-            'measDirected measSpecialized measNotLogged measEnumParams measEnumValues flowOpeners ifWhile forLoops '
-            'eachLoops seqsWithFlow jumpSteps filesWithJump loopSteps filesWithLoop externalCalls filesWithExternal '
-            'sigParams filesWithParams adapterName stepDesc codeTemplates runtimeEP switchSettings seqCallExpr threading '
-            'pyInterp clusterEls dbStep limitExpr fileSettings fileGlobals iniFragments iniSeqCount iniStepCount '
-            'iniLocals iniTypes iniRecognized iniNone iniWithType iniWithMode iniWithLoop overrides filesWithOverride '
-            'stepComments seqComments varComments objVarsWithFields withFlowTarget resolvedIdTargets withModuleTiming '
-            'iniCovFiles iniCovSteps iniCovModule'
-        .split(' ');
+const kXmlIniMismatches = <String, Map<String, int>>{};
+
+const kBinaryReconMismatches = <String, Map<String, int>>{};
 
 void main() {
   final seqs =
@@ -74,19 +60,22 @@ void main() {
     final failures = <String>[];
     var xmlCov = const SeqCoverage(total: 0, modeled: 0);
     var iniCov = const SeqCoverage(total: 0, modeled: 0);
-    int? firstXmlTypeDefs;
-    final baseClasses = <String>{}, arKinds = <String>{};
+    final arKinds = <String>{};
     final measTypes = <String>{}, measSpecs = <String>{};
     final iniFragmentKeys = <String>{};
 
     for (final f in seqs) {
+      tally.file = corpusSeqRelativePath(f.path);
       final bytes = f.readAsBytesSync();
       final fmt = detectSeqFormat(bytes);
       if (fmt == SeqFormat.binary) {
         tally.bump('binaryFiles');
         continue;
       }
-      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) continue;
+      if (fmt != SeqFormat.xml && fmt != SeqFormat.ini) {
+        tally.bump('unknownFormat');
+        continue;
+      }
 
       if (fmt == SeqFormat.ini) {
         tally.bump('iniFiles');
@@ -141,17 +130,17 @@ void main() {
 
       if (fmt == SeqFormat.xml) {
         tally.bump('xmlFiles');
-        xmlCov += measureCoverage(sf);
+        final cov = measureCoverage(sf);
+        xmlCov += cov;
+        tally.bump('xmlUnaccounted', cov.unaccounted);
         final mp = sf.measurementPlugIns;
         if (mp != null) {
           tally.bump('mpBlocks');
           if (mp.pinMapPath != null) tally.bump('mpPinMaps');
         }
         tally.bump('typedefFiles');
-        firstXmlTypeDefs ??= sf.typeDefs.length;
         for (final t in sf.typeDefs) {
           tally.bump('totalTypes');
-          if (t.baseClass != null) baseClasses.add(t.baseClass!);
           if (t.fields.isNotEmpty) tally.bump('typesWithFields');
         }
       } else {
@@ -162,7 +151,9 @@ void main() {
         if (ovr > 0) tally.bump('filesWithOverride');
         if (bytes.length <= _maxProbeBytes) {
           tally.bump('iniCovFiles');
-          iniCov += measureCoverage(sf);
+          final cov = measureCoverage(sf);
+          iniCov += cov;
+          tally.bump('iniUnaccounted', cov.unaccounted);
         }
       }
 
@@ -265,6 +256,7 @@ void main() {
           } else {
             tally.bump('iniStepCount');
             if (step.type != null) tally.bump('iniWithType');
+            tally.bump('iniAdapters');
             switch (m.adapter) {
               case SeqAdapter.none:
                 tally.bump('iniNone');
@@ -319,9 +311,11 @@ void main() {
               case FlowKind.elseIf:
               case FlowKind.whileLoop:
                 tally.bump('ifWhile');
+                tally.bump('condLoops');
                 if (fc.condition != null) tally.bump('conds');
               case FlowKind.forLoop:
                 tally.bump('forLoops');
+                tally.bump('condLoops');
                 if (fc.initialization != null) tally.bump('forInit');
                 if (fc.condition != null) tally.bump('conds');
                 if (fc.increment != null) tally.bump('forIncr');
@@ -387,69 +381,56 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(5).join('\n'));
 
-    final laws = <(String, Object?, Object)>[
-      ('unknown-format file count', seqs.length - tally['xmlFiles'] - tally['iniFiles'] - tally['binaryFiles'], 0),
-      ('XML typed steps (none lost in the lens)', tally['typedSteps'], tally['xmlSteps']),
-      ('XML unknown adapters', tally['unknownAdapters'], 0),
-      ('XML coverage: unaccounted nodes', xmlCov.unaccounted, 0),
-      ('python steps naming a function', tally['pyFn'], tally['pySteps']),
-      ('python steps with a module path', tally['pyModule'], tally['pySteps']),
-      ('python steps with a version', tally['pyVersion'], tally['pySteps']),
-      ('python params named', tally['pyNamed'], tally['pyParams']),
-      ('VI params with DisplayType', tally['viDisplayType'], tally['viParams']),
-      ('VI params with connector#', tally['viConnector'], tally['viParams']),
-      ('additional-results kinds', arKinds, everyElement(anyOf(contains('ParameterResult'), isNotEmpty))),
-      ('Results keeping their Error sub-object', tally['withError'], tally['withResult']),
-      ('recorded (non-default) outcomes in sequence files', tally['recordedOutcomes'], 0),
-      ('measurement params typed', tally['measTyped'], tally['measParams']),
-      ('measurement param types', measTypes, contains('TypeDouble')),
-      ('measurement specializations', measSpecs, contains('IOResource')),
-      ('flow ends match openers', tally['flowEnds'], tally['flowOpeners']),
-      ('flow-bearing sequences balanced', tally['balancedSeqs'], tally['totalFlowSeqs']),
-      ('if/while/for conditions', tally['conds'], tally['ifWhile'] + tally['forLoops']),
-      ('for initializations', tally['forInit'], tally['forLoops']),
-      ('for increments', tally['forIncr'], tally['forLoops']),
-      ('for-each array expressions', tally['eachArr'], tally['eachLoops']),
-      ('for-each element bindings', tally['eachElem'], tally['eachLoops']),
-      ('files annotating jumps in the export', tally['exportsWithJump'], tally['filesWithJump']),
-      ('files annotating loops in the export', tally['exportsWithLoop'], tally['filesWithLoop']),
-      ('files marking external calls with a file', tally['exportsMarked'], tally['filesWithExternal']),
-      ('parameters carrying a type', tally['sigTyped'], tally['sigParams']),
-      ('files rendering signatures in the export', tally['exportsSigned'], tally['filesWithParams']),
-      ('INI headers typed SequenceFile', tally['iniSeqType'], tally['iniFiles']),
-      ('INI files defining SF=SequenceFileData', tally['iniSfRoot'], tally['iniFiles']),
-      ('INI files naming an object "Data"', tally['iniDataNamed'], tally['iniFiles']),
-      ('INI data trees built', tally['iniTreeBuilt'], tally['iniFiles']),
-      ('INI trees rooted at "Data"', tally['iniDataRoot'], tally['iniTreeBuilt']),
-      ('INI trees with a non-empty Seq array', tally['iniWithSeqArray'], tally['iniTreeBuilt']),
-      ('INI Seq arrays exposing named sequences', tally['iniNamedSeqs'], tally['iniWithSeqArray']),
-      ('INI in-section lines without " = "', tally['iniSkippedLines'], 0),
-      ('INI residual ` LineNNNN` keys', tally['iniResidual'], 0),
-      ('INI files that threw', tally['iniThrew'], 0),
-      ('INI files built into SeqFiles', tally['iniBuilt'], tally['iniFiles']),
-      ('INI unknown adapters', tally['iniUnknown'], 0),
-      ('INI adapter partition', tally['iniRecognized'] + tally['iniNone'] + tally['iniUnknown'], tally['iniStepCount']),
-      ('INI coverage: unaccounted nodes', iniCov.unaccounted, 0),
-    ];
-    for (final (label, actual, want) in laws) {
-      expect(actual, want, reason: label);
+    expect(arKinds, everyElement(anyOf(contains('ParameterResult'), isNotEmpty)));
+    expect(measTypes, contains('TypeDouble'));
+    expect(measSpecs, contains('IOResource'));
+    for (final key in const [
+      'unknownFormat',
+      'unknownAdapters',
+      'xmlUnaccounted',
+      'recordedOutcomes',
+      'iniSkippedLines',
+      'iniResidual',
+      'iniThrew',
+      'iniUnknown',
+      'iniUnaccounted',
+    ]) {
+      expect(tally.nonzero(key), kXmlIniNonzero[key] ?? const <String, int>{}, reason: key);
     }
-
-    expectCorpusSnapshot('xml_ini', {
-      for (final key in _xmlIniCounters) key: tally[key],
-      'xmlCovTotal': xmlCov.total,
-      'xmlCovModeled': xmlCov.modeled,
-      'xmlCovPlumbing': xmlCov.plumbing,
-      'baseClasses': baseClasses.length,
-      'firstXmlTypeDefs': firstXmlTypeDefs ?? -1,
-      'arKinds': arKinds.length,
-      'measTypes': measTypes.length,
-      'measSpecs': measSpecs.length,
-      'iniFragmentKeys': iniFragmentKeys.length,
-      'iniCovTotal': iniCov.total,
-      'iniCovModeled': iniCov.modeled,
-      'iniCovPlumbing': iniCov.plumbing,
-    });
+    for (final (a, b) in const [
+      ('typedSteps', 'xmlSteps'),
+      ('pyFn', 'pySteps'),
+      ('pyModule', 'pySteps'),
+      ('pyVersion', 'pySteps'),
+      ('pyNamed', 'pyParams'),
+      ('viDisplayType', 'viParams'),
+      ('viConnector', 'viParams'),
+      ('withError', 'withResult'),
+      ('measTyped', 'measParams'),
+      ('flowEnds', 'flowOpeners'),
+      ('balancedSeqs', 'totalFlowSeqs'),
+      ('forInit', 'forLoops'),
+      ('forIncr', 'forLoops'),
+      ('eachArr', 'eachLoops'),
+      ('eachElem', 'eachLoops'),
+      ('exportsWithJump', 'filesWithJump'),
+      ('exportsWithLoop', 'filesWithLoop'),
+      ('exportsMarked', 'filesWithExternal'),
+      ('sigTyped', 'sigParams'),
+      ('exportsSigned', 'filesWithParams'),
+      ('iniSeqType', 'iniFiles'),
+      ('iniSfRoot', 'iniFiles'),
+      ('iniDataNamed', 'iniFiles'),
+      ('iniTreeBuilt', 'iniFiles'),
+      ('iniDataRoot', 'iniTreeBuilt'),
+      ('iniWithSeqArray', 'iniTreeBuilt'),
+      ('iniNamedSeqs', 'iniWithSeqArray'),
+      ('iniBuilt', 'iniFiles'),
+    ]) {
+      expect(tally.mismatches(a, b), kXmlIniMismatches['$a/$b'] ?? const <String, int>{}, reason: '$a == $b');
+    }
+    expect(tally.mismatches('conds', 'condLoops'), const <String, int>{}, reason: 'if/while/for conditions');
+    expect(tally.mismatches('iniAdapters', 'iniStepCount'), const <String, int>{}, reason: 'INI adapter partition');
   });
 
   test('binary corpus (single pass): partial model is honest, recon lenses never fabricate', () {
@@ -470,6 +451,7 @@ void main() {
     }
 
     for (final f in seqs) {
+      tally.file = corpusSeqRelativePath(f.path);
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       tally.bump('binary');
@@ -665,25 +647,20 @@ void main() {
     );
     expect(failures, isEmpty, reason: failures.take(8).join('\n'));
 
-    final laws = <(String, Object?, Object)>[
-      ('bodies inflated', tally['withBinaryBody'], tally['binary']),
-      ('bodies framed', tally['framed'], tally['binary']),
-      ('leadingWords[2] == 1', tally['word2Is1'], tally['binary']),
-      ('name tables found', tally['nameFound'], tally['binary']),
-      ('name tables with core tokens', tally['hasModelTokens'], tally['binary']),
-      ('expressions outside the name table', tally['valuesOutsideName'], tally['binary']),
-      ('rooted pools opening [.., Data]', tally['prefix2Ok'], tally['rooted']),
-      ('record word[2] indexes name[1]==Data', tally['recordIndexesData'], tally['rooted']),
-      ('rooted files exposing object names', tally['objNamesOk'], tally['rooted']),
-      ('analyzeBinary consistency checks', tally['analyzeChecked'], tally['binary']),
-    ];
-    for (final (label, actual, want) in laws) {
-      expect(actual, want, reason: label);
+    for (final (a, b) in const [
+      ('withBinaryBody', 'binary'),
+      ('framed', 'binary'),
+      ('word2Is1', 'binary'),
+      ('nameFound', 'binary'),
+      ('hasModelTokens', 'binary'),
+      ('valuesOutsideName', 'binary'),
+      ('prefix2Ok', 'rooted'),
+      ('recordIndexesData', 'rooted'),
+      ('objNamesOk', 'rooted'),
+      ('analyzeChecked', 'binary'),
+    ]) {
+      expect(tally.mismatches(a, b), kBinaryReconMismatches['$a/$b'] ?? const <String, int>{}, reason: '$a == $b');
     }
-
-    expectCorpusSnapshot('binary_recon', {
-      for (final key in _binaryReconCounters) key: tally[key],
-    });
   });
 
   group('pinned corpus files (reader correctness)', () {

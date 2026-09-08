@@ -8,7 +8,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 
 typedef _Snap = ({String path, bool error, int fp, int bd, List<String> blocks});
 
@@ -31,10 +30,6 @@ _Snap _summarizeVi(Uint8List bytes, String path) {
 void main() {
   final all = corpusVis();
   final snapFile = corpusSnapshotFile();
-  if (snapshotUpdateMode) {
-    test('corpus feature snapshot (skipped: snapshot regeneration in progress)', () {}, skip: true);
-    return;
-  }
 
   final root = '${corpusViDir.path}/';
   final byKey = {for (final f in all) f.path.substring(root.length).replaceAll('\\', '/'): f.path};

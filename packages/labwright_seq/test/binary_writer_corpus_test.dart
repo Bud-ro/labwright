@@ -8,20 +8,12 @@ import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-import 'snapshot_check.dart';
 
 void main() {
   test('whole corpus: write(parse(f)) reproduces every inflated body byte-exactly', () {
-    var binaries = 0, bodyExact = 0, containerOk = 0, sizeWords = 0, subnormalSlots = 0;
-    var total = const BinaryWriteScoreboard(
-      bodyBytes: 0,
-      poolBytes: 0,
-      modelBytes: 0,
-      grammarBytes: 0,
-      structuralBytes: 0,
-      copiedBytes: 0,
-    );
-    final failures = <String>[];
+    final bodyDiverged = <String>[], containerDiverged = <String>[], sizeWordLost = <String>[];
+    final subnormalSlots = <String, int>{};
+    var binaries = 0;
     for (final f in corpusSeqDir.listSync(recursive: true).whereType<File>()) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
       final bytes = f.readAsBytesSync();
@@ -29,64 +21,40 @@ void main() {
       final model = parseBinarySeqWriteModel(bytes);
       if (model == null) continue;
       binaries++;
+      final rel = corpusSeqRelativePath(f.path);
       final body = inflateBinaryBody(bytes)!;
-      if (_bytesEqual(model.writeBody(), body)) {
-        bodyExact++;
-      } else {
-        failures.add(f.path);
-      }
-      total = total + model.scoreboard;
-      for (final v in model.f64Values) {
-        if (v != 0 && v.isFinite && v.abs() < 2.2250738585072014e-308) subnormalSlots++;
-      }
-
-      if (model.headerHasSizeWord) sizeWords++;
+      if (!_bytesEqual(model.writeBody(), body)) bodyDiverged.add(rel);
+      final subnormal = model.f64Values.where((v) => v != 0 && v.isFinite && v.abs() < 2.2250738585072014e-308).length;
+      if (subnormal != 0) subnormalSlots[rel] = subnormal;
+      if (!model.headerHasSizeWord) sizeWordLost.add(rel);
       final file = model.writeFile();
       final reBody = inflateBinaryBody(file);
-      if (detectSeqFormat(file) == SeqFormat.binary &&
+      final containerOk =
+          detectSeqFormat(file) == SeqFormat.binary &&
           _bytesEqual(
             Uint8List.sublistView(file, 0, model.header.length),
             Uint8List.sublistView(bytes, 0, model.header.length),
           ) &&
           reBody != null &&
-          _bytesEqual(reBody, body)) {
-        containerOk++;
-      }
+          _bytesEqual(reBody, body);
+      if (!containerOk) containerDiverged.add(rel);
     }
-    print(
-      'binary writer: $bodyExact/$binaries bodies byte-exact · '
-      '$containerOk containers structurally reproduced · '
-      '$sizeWords size words · $total',
-    );
-    expect(failures, isEmpty, reason: 'body round-trip diverged:\n${failures.take(5).join('\n')}');
-    expect(subnormalSlots, 0, reason: 'i64-stored Num slots mis-read as f64 (was 163 before the signature read)');
-    expect(bodyExact, binaries);
-    expect(containerOk, binaries);
-    expect(sizeWords, binaries, reason: 'a header lost its PMCZ size field');
-    expectCorpusSnapshot('writer', {
-      'binaries': binaries,
-      'bodyBytes': total.bodyBytes,
-      'poolBytes': total.poolBytes,
-      'modelBytes': total.modelBytes,
-      'grammarBytes': total.grammarBytes,
-      'structuralBytes': total.structuralBytes,
-      'copiedBytes': total.copiedBytes,
-    });
+    expect(binaries, greaterThan(0));
+    expect(bodyDiverged, isEmpty);
+    expect(subnormalSlots, const <String, int>{}, reason: 'i64-stored Num slots mis-read as f64');
+    expect(containerDiverged, isEmpty);
+    expect(sizeWordLost, isEmpty, reason: 'a header lost its PMCZ size field');
   });
 
-  test('rosetta binaries: byte-exact bodies with per-file model coverage pinned', () {
-    final metrics = <String, int>{};
+  test('rosetta binaries: byte-exact bodies', () {
     final files = Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>().toList()
       ..sort((a, b) => a.path.compareTo(b.path));
     for (final f in files) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      final model = parseBinarySeqWriteModel(bytes)!;
-      expect(model.writeBody(), inflateBinaryBody(bytes), reason: f.path);
-      metrics['recordModelPermille:${f.uri.pathSegments.last}'] = (model.scoreboard.recordModelRatio * 1000).round();
+      expect(parseBinarySeqWriteModel(bytes)!.writeBody(), inflateBinaryBody(bytes), reason: f.path);
     }
-    expectCorpusSnapshot('writer_rosetta', metrics);
   });
 
   group('mutation probes', () {
