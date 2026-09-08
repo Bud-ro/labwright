@@ -56,17 +56,26 @@ const _kForLoopFold = 8.0;
 
 const _loopBlue = Color(0xFF0033CC);
 
-const _bmpIteration = 1;
+/// Border terminal bitmaps (`termBmp`) that structures draw on their frames.
+enum BdStructureTerminal {
+  iteration(1),
+  count(2),
+  leftShiftRegister(3),
+  rightShiftRegister(4),
+  caseSelector(5),
+  conditional(192);
 
-const _bmpCount = 2;
+  const BdStructureTerminal(this.bmp);
 
-const _bmpLeftShiftRegister = 3;
+  final int bmp;
 
-const _bmpRightShiftRegister = 4;
-
-const _bmpCaseSelector = 5;
-
-const _bmpConditional = 192;
+  static BdStructureTerminal? fromBmp(int bmp) {
+    for (final terminal in values) {
+      if (terminal.bmp == bmp) return terminal;
+    }
+    return null;
+  }
+}
 
 const _forLoopNGlyph = (
   origin: (4, 3),
@@ -750,34 +759,35 @@ extension _StructurePass on BdDiagramPainter {
     Set<Rect> chromeOwnedRects = const {},
     bool disabled = false,
   }) {
-    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    for (final t in terminals) {
+    Color dim(Color color) => disabled ? bdDimDisabled(color) : color;
+    for (final terminal in terminals) {
       final box = Rect.fromLTWH(
-        frame.left + t.box.left,
-        frame.top + t.box.top,
-        t.box.width.toDouble(),
-        t.box.height.toDouble(),
+        frame.left + terminal.box.left,
+        frame.top + terminal.box.top,
+        terminal.box.width.toDouble(),
+        terminal.box.height.toDouble(),
       );
       if (chromeOwnedRects.contains(box)) continue;
-      if (box.width == 16 &&
-          box.height == 16 &&
-          (t.bmp == _bmpCount || t.bmp == _bmpIteration)) {
+      final kind = BdStructureTerminal.fromBmp(terminal.bmp);
+      final glyphSized = box.width == 16 && box.height == 16;
+      if (glyphSized &&
+          (kind == BdStructureTerminal.count ||
+              kind == BdStructureTerminal.iteration)) {
         _drawLoopGlyphTerminal(
           canvas,
           box,
-          t.bmp == _bmpCount ? _forLoopNGlyph : _forLoopIGlyph,
+          kind == BdStructureTerminal.count ? _forLoopNGlyph : _forLoopIGlyph,
           disabled: disabled,
         );
         continue;
       }
-      if (box.width == 16 && box.height == 16 && t.bmp == _bmpConditional) {
+      if (glyphSized && kind == BdStructureTerminal.conditional) {
         _drawConditionalTerminal(canvas, box, disabled: disabled);
         continue;
       }
-      final border = switch (t.bmp) {
-        _bmpConditional => dim(const Color(0xFF007F00)),
-        _ => dim(_loopBlue),
-      };
+      final border = kind == BdStructureTerminal.conditional
+          ? dim(const Color(0xFF007F00))
+          : dim(_loopBlue);
       canvas.drawRect(box, Paint()..color = Colors.white);
       canvas.drawRect(
         box,
@@ -786,45 +796,50 @@ extension _StructurePass on BdDiagramPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 1.4,
       );
-      switch (t.bmp) {
-        case _bmpIteration:
+      final centre = box.center;
+      switch (kind) {
+        case BdStructureTerminal.iteration:
           _drawGlyphText(canvas, box, 'i', dim(_loopBlue));
-        case _bmpCount:
+        case BdStructureTerminal.count:
           _drawGlyphText(canvas, box, 'N', dim(_loopBlue));
-        case _bmpCaseSelector:
+        case BdStructureTerminal.caseSelector:
           _drawGlyphText(canvas, box, '?', border);
-        case _bmpLeftShiftRegister || _bmpRightShiftRegister:
-          final c = box.center;
-          final tri = t.bmp == _bmpLeftShiftRegister
-              ? (Path()
-                  ..moveTo(c.dx - 4, c.dy - 3)
-                  ..lineTo(c.dx + 4, c.dy - 3)
-                  ..lineTo(c.dx, c.dy + 4)
-                  ..close())
-              : (Path()
-                  ..moveTo(c.dx - 4, c.dy + 3)
-                  ..lineTo(c.dx + 4, c.dy + 3)
-                  ..lineTo(c.dx, c.dy - 4)
-                  ..close());
+        case BdStructureTerminal.leftShiftRegister ||
+            BdStructureTerminal.rightShiftRegister:
+          final pointsDown = kind == BdStructureTerminal.leftShiftRegister;
+          final baseY = pointsDown ? centre.dy - 3 : centre.dy + 3;
+          final tipY = pointsDown ? centre.dy + 4 : centre.dy - 4;
+          final triangle = Path()
+            ..moveTo(centre.dx - 4, baseY)
+            ..lineTo(centre.dx + 4, baseY)
+            ..lineTo(centre.dx, tipY)
+            ..close();
           canvas.drawPath(
-            tri,
+            triangle,
             Paint()..color = dim(Colors.black).withValues(alpha: 0.87),
           );
-        case _bmpConditional:
-          final c = box.center;
-          const r = 5.0;
-          final path = Path();
-          for (var k = 0; k < 8; k++) {
-            final a = (k * 45 + 22.5) * math.pi / 180;
-            final p = Offset(c.dx + r * math.cos(a), c.dy + r * math.sin(a));
-            if (k == 0) {
-              path.moveTo(p.dx, p.dy);
+        case BdStructureTerminal.conditional:
+          const radius = 5.0;
+          final octagon = Path();
+          for (var vertex = 0; vertex < 8; vertex++) {
+            final angle = (vertex * 45 + 22.5) * math.pi / 180;
+            final point = Offset(
+              centre.dx + radius * math.cos(angle),
+              centre.dy + radius * math.sin(angle),
+            );
+            if (vertex == 0) {
+              octagon.moveTo(point.dx, point.dy);
             } else {
-              path.lineTo(p.dx, p.dy);
+              octagon.lineTo(point.dx, point.dy);
             }
           }
-          path.close();
-          canvas.drawPath(path, Paint()..color = dim(const Color(0xFFCC0000)));
+          octagon.close();
+          canvas.drawPath(
+            octagon,
+            Paint()..color = dim(const Color(0xFFCC0000)),
+          );
+        case null:
+          break;
       }
     }
   }
