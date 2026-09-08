@@ -52,6 +52,11 @@ const Set<String> kLvReservedMemberNames = {
   'values',
 };
 
+final RegExp _atomicExpression = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$|^-?\d+$');
+
+/// An identifier or an integer literal: safe to repeat without aliasing into a local.
+bool lvIsAtomic(String expression) => _atomicExpression.hasMatch(expression);
+
 class LvNaming {
   final Set<String> _used = <String>{};
   final Set<String> _fields = <String>{};

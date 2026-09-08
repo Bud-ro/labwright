@@ -60,16 +60,18 @@ Future<void> main(List<String> args) async {
     if (topic.terminals.isEmpty) stdout.writeln('        (the topic states no terminal table)');
   }
   stdout.writeln('\n== node classes the corpus names, checked against the reference ==');
-  for (final entry in kLvNamedNodeClasses.entries) {
-    final topic = byName[_key(entry.value.name)];
-    final rule = kLvMappedPrimClasses.contains(entry.key) ? 'has a rule' : 'NO RULE';
+  for (final nodeClass in LvNodeClass.values) {
+    final topic = byName[_key(nodeClass.title)];
+    final rule = kLvNodeClassLowerings.containsKey(nodeClass) ? 'has a rule' : 'NO RULE';
     if (topic == null) {
-      stdout.writeln('  0x${entry.key.toRadixString(16)}  ${entry.value.name}  [$rule]  — the reference has no topic');
+      stdout.writeln(
+        '  0x${nodeClass.code.toRadixString(16)}  ${nodeClass.title}  [$rule]  — the reference has no topic',
+      );
       continue;
     }
     stdout.writeln(
-      '  0x${entry.key.toRadixString(16)}  ${entry.value.name}  [$rule]  '
-      '${topic.inputs} in, ${topic.outputs} out   ${topic.terminals.map((t) => t.name).join(' | ')}',
+      '  0x${nodeClass.code.toRadixString(16)}  ${nodeClass.title}  [$rule]  '
+      '${topic.inputs} in, ${topic.outputs} out   ${topic.terminals.map((terminal) => terminal.name).join(' | ')}',
     );
   }
 

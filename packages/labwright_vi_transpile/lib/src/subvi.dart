@@ -1,9 +1,6 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'dataflow_ir.dart';
 import 'emit.dart';
-
-const int kLvPanelDataItemCode = 0x12;
 
 class LvViUnit {
   LvViUnit({
@@ -60,11 +57,11 @@ List<int?> lvConnectorPaneMap(Iterable<DecodedSection> sections) {
 List<ViHeapObject> lvPanelDataItems(ViModel model) => <ViHeapObject>[
   for (final panel in model.frontPanelDiagrams)
     for (final object in panel.objects)
-      if (object.kind == kLvPanelDataItemCode && object.typeDescIdx != null) object,
+      if (object.kind == HeapObjectClass.node.code && object.typeDescIdx != null) object,
 ]..sort((a, b) => b.typeDescIdx!.compareTo(a.typeDescIdx!));
 
 Map<int, ViHeapObject> lvTerminalsOfDataItems(ViDiagram diagram) => {
   for (final object in diagram.objects)
-    if (object.kind == kLvInterfaceTerminalCode)
+    if (object.kind == HeapObjectClass.bdLeaf.code)
       for (final ref in object.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]) ref: object,
 };

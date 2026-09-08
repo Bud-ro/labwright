@@ -471,7 +471,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) continue;
       final ports = [
         for (final holder in diagram.children(node.oid))
-          if (holder.kind == kLvHolderCode) holder.oid,
+          if (holder.kind == kNodeEndpointDcoKind) holder.oid,
       ];
       if (!ports.any(endpoints.contains)) continue;
       final callee = resolve(name);
@@ -694,11 +694,11 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
   void censusIndexArrays(ViDiagram diagram) {
     final childrenByOid = diagram.childrenByOid;
     for (final node in diagram.objects) {
-      if (node.kind != kLvIndexArrayClass) continue;
+      if (node.kind != LvNodeClass.indexArray.code) continue;
       bump('idx');
       final roles = [
         for (final holder in childrenByOid[node.oid] ?? const <ViHeapObject>[])
-          if (holder.kind == kLvHolderCode)
+          if (holder.kind == kNodeEndpointDcoKind)
             (childrenByOid[holder.oid] ?? const <ViHeapObject>[]).firstOrNull?.objFlags ?? 0,
       ];
       bump(_indexArrayShape(roles) ? 'idx.regular' : 'idx.irregular');
@@ -822,7 +822,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
     for (final object in diagram.objects) {
       if (object.category != ViObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
-      if (object.kind == kLvCallLibraryClass) continue;
+      if (object.kind == HeapObjectClass.bdCallLibrary.code) continue;
       final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
       if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
       final key = _reviewKey(op, object);
@@ -844,7 +844,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
       if (name == null || !(name.endsWith('.vi') || name.endsWith('.vim'))) continue;
       final width = paneWidth(name);
       if (width == null || width == 0) continue;
-      final holders = diagram.children(node.oid).where((kid) => kid.kind == kLvHolderCode).length;
+      final holders = diagram.children(node.oid).where((kid) => kid.kind == kNodeEndpointDcoKind).length;
       final tag = 'pane.0x${node.kind.toRadixString(16)}';
       bump(holders == width ? '$tag.equal' : '$tag.differs');
     }
@@ -853,7 +853,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 228, sources: 78);
   void censusForeignCalls(ViDiagram diagram) {
     var here = 0;
     for (final object in diagram.objects) {
-      if (object.kind != kLvCallLibraryClass) continue;
+      if (object.kind != HeapObjectClass.bdCallLibrary.code) continue;
       here++;
       bump('foreign.node');
       final library = object.foreignLibraryPath;
@@ -1232,8 +1232,8 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
 
 String _blockerKey(LvPrimUnit node) {
   if (node.op case final op?) return '${op.opName} (primResID ${op.id})';
-  if (kLvNamedNodeClasses[node.classCode] case final named?) {
-    return '${named.name} (class 0x${node.classCode.toRadixString(16)})';
+  if (LvNodeClass.ofCode(node.classCode) case final nodeClass?) {
+    return '${nodeClass.title} (class 0x${node.classCode.toRadixString(16)})';
   }
   if (node.primResId case final id?) return 'primResID $id';
   return 'node class 0x${node.classCode.toRadixString(16)}';

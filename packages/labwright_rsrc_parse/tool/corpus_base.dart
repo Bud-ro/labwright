@@ -25,9 +25,68 @@ List<File> listCorpusVis(Directory root) {
   return root
       .listSync(recursive: true, followLinks: false)
       .whereType<File>()
-      .where((f) => f.path.toLowerCase().endsWith('.vi'))
+      .where((file) => file.path.toLowerCase().endsWith('.vi'))
       .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
+    ..sort((left, right) => left.path.compareTo(right.path));
+}
+
+File findCatalog(String fileName) {
+  var dir = File.fromUri(Platform.script).parent;
+  for (var i = 0; i < 8; i++) {
+    final candidate = File('${dir.path}/corpus/$fileName');
+    if (candidate.existsSync()) return candidate;
+    dir = dir.parent;
+  }
+  return File('corpus/$fileName');
+}
+
+int countFiles(Directory root, String extension) => root
+    .listSync(recursive: true)
+    .whereType<File>()
+    .where((file) => file.path.toLowerCase().endsWith(extension))
+    .length;
+
+class FetchTally {
+  int fetched = 0;
+  int skipped = 0;
+  int failed = 0;
+  int files = 0;
+
+  @override
+  String toString() => 'fetched=$fetched skipped=$skipped failed=$failed (this run +$files files)';
+}
+
+Future<FetchTally> fetchSources(List<Map<String, dynamic>> sources, String dest, List<String> keepExts) async {
+  final tally = FetchTally();
+  for (final source in sources) {
+    final repo = source['repo'] as String;
+    final commit = source['commit'] as String;
+    final out = Directory('$dest/${repo.replaceAll('/', '_')}');
+    if (out.existsSync() && out.listSync().isNotEmpty) {
+      stdout.writeln('skip  $repo (already present)');
+      tally.skipped++;
+      continue;
+    }
+    out.createSync(recursive: true);
+    final tar = '${out.path}.tar.gz';
+    stdout.writeln('fetch $repo @ ${commit.substring(0, 12)}');
+    if (!await ghTarball(repo, commit, tar)) {
+      tally.failed++;
+      if (File(tar).existsSync()) File(tar).deleteSync();
+      continue;
+    }
+    final keep = (source['keep'] as List?)?.cast<String>() ?? keepExts;
+    final extracted = await extractSelected(tar, out.path, keep);
+    File(tar).deleteSync();
+    if (extracted < 0) {
+      tally.failed++;
+      continue;
+    }
+    tally.fetched++;
+    tally.files += extracted;
+    stdout.writeln('  ok ($extracted files)');
+  }
+  return tally;
 }
 
 Future<bool> ghTarball(String repo, String commit, String tarPath) async {

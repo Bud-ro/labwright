@@ -626,36 +626,36 @@ final double volts;
     final rows = <(String, int, List<int>, int, List<String>?)>[
       (
         'Concatenate Strings joins top-down',
-        kLvConcatenateStringsClass,
+        LvNodeClass.concatenateStrings.code,
         [0x0230, 0x0230, 0x0230],
         0x0230,
         [r"final String e0 = '$a0$a1$a2';"],
       ),
-      ('an array operand', kLvConcatenateStringsClass, [0x0230, 0x0330], 0x0230, null),
+      ('an array operand', LvNodeClass.concatenateStrings.code, [0x0230, 0x0330], 0x0230, null),
       (
         'Build Array appends each scalar operand',
-        kLvBuildArrayClass,
+        LvNodeClass.buildArray.code,
         [0x0105, 0x0105],
         0x0205,
         ['final Uint8List e0 = Uint8List.fromList(<int>[a0, a1]);'],
       ),
       (
         'an operand level with the result is spliced in whole',
-        kLvBuildArrayClass,
+        LvNodeClass.buildArray.code,
         [0x0205, 0x0105, 0x0205],
         0x0205,
         ['final Uint8List e0 = Uint8List.fromList(<int>[...a0, a1, ...a2]);'],
       ),
       (
         'a non-numeric element keeps its List storage',
-        kLvBuildArrayClass,
+        LvNodeClass.buildArray.code,
         [0x0230, 0x0230],
         0x0330,
         ['final List<String> e0 = <String>[a0, a1];'],
       ),
-      ('two dimensions below', kLvBuildArrayClass, [0x0105], 0x0305, null),
-      ('a rank-2 result', kLvBuildArrayClass, [0x0205, 0x0205], 0x0305, null),
-      ('a mismatched element', kLvBuildArrayClass, [0x0105, 0x0230], 0x0205, null),
+      ('two dimensions below', LvNodeClass.buildArray.code, [0x0105], 0x0305, null),
+      ('a rank-2 result', LvNodeClass.buildArray.code, [0x0205, 0x0205], 0x0305, null),
+      ('a mismatched element', LvNodeClass.buildArray.code, [0x0105, 0x0230], 0x0205, null),
     ];
     for (final (name, classCode, inputs, output, expected) in rows) {
       final call = LvPrimCall(
@@ -680,7 +680,7 @@ final double volts;
     final type = mapLvWireType(const ViSignalType(0x0230));
     final call = LvPrimCall(
       op: null,
-      classCode: kLvConcatenateStringsClass,
+      classCode: LvNodeClass.concatenateStrings.code,
       inputs: [
         for (var at = 0; at < 2; at++) LvPrimTerminal(port: at, type: type, roleFlags: 0, expression: 'a$at'),
       ],
@@ -787,7 +787,7 @@ final double volts;
       );
       final call = LvPrimCall(
         op: null,
-        classCode: kLvIndexArrayClass,
+        classCode: LvNodeClass.indexArray.code,
         inputs: [for (var at = 0; at < inputRoles.length; at++) terminal(inputRoles[at], at, isInput: true)],
         outputs: [for (var at = 0; at < outputRoles.length; at++) terminal(outputRoles[at], at, isInput: false)],
         outputPorts: [for (var at = 0; at < outputRoles.length; at++) at],

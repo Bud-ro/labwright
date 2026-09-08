@@ -7,7 +7,7 @@ import 'wire_type.dart';
 const int kLvSinkEndpointFlag = 0x8000;
 
 bool lvEndpointIsSink(ViHeapObject object) {
-  if (object.kind == kLvInterfaceTerminalCode) {
+  if (object.kind == HeapObjectClass.bdLeaf.code) {
     if (object.isIndicator case final indicator?) return indicator;
   }
   return ((object.objFlags ?? 0) & kLvSinkEndpointFlag) != 0;
@@ -17,16 +17,6 @@ const int kLvTunnelIndexerCode = 0x23;
 
 bool lvTunnelAutoIndexes(Iterable<ViHeapObject> children) =>
     children.any((child) => child.kind == kLvTunnelIndexerCode && (child.objFlags ?? 0) != 0);
-
-const int kLvFrameCode = 0x1b;
-
-const int kLvHolderCode = 0x15;
-
-const int kLvConstantCode = 0x13;
-
-const int kLvInterfaceTerminalCode = 0x16;
-
-const int kLvSelectorLabelCode = 0x95;
 
 enum LvStructureKind {
   forLoop(0x20),
@@ -132,6 +122,9 @@ class LvRefusedException implements Exception {
   String toString() => 'LvRefusedException($refusal)';
 }
 
+Never lvRefuse(LvRefusalKind kind, String detail, {int? oid}) =>
+    throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
+
 class LvEdge {
   const LvEdge({required this.signalOid, required this.source, required this.sinks, required this.type});
 
@@ -194,8 +187,6 @@ class LvPrimUnit extends LvUnit {
 
   final Map<int, String> portMemberName;
 }
-
-const int kLvCallLibraryClass = 0x6a;
 
 String lvForeignCallDetail(ViHeapObject node) {
   final entry = node.foreignEntryPoint;
@@ -431,21 +422,18 @@ class LvDataflow {
 }
 
 class _Builder {
-  _Builder(this.diagram, this.pool, this.declarations) : byId = diagram.byId, kids = diagram.childrenByOid;
+  _Builder(this.diagram, this.pool, this.declarations) : byId = diagram.byId, childrenOf = diagram.childrenByOid;
 
   final ViDiagram diagram;
   final List<ViType> pool;
   final LvDeclarations declarations;
   final Map<int, ViHeapObject> byId;
-  final Map<int, List<ViHeapObject>> kids;
+  final Map<int, List<ViHeapObject>> childrenOf;
 
   final edgeBySink = <int, LvEdge>{};
   final edgeBySource = <int, LvEdge>{};
   final ownerOfPort = <int, int>{};
   final sinkPorts = <int>{};
-
-  Never refuse(LvRefusalKind kind, String detail, {int? oid}) =>
-      throw LvRefusedException(LvRefusal(kind, detail, oid: oid));
 
   LvDataflow build() {
     final rootFrame = _rootFrame();
@@ -463,17 +451,17 @@ class _Builder {
   int _rootFrame() {
     for (final object in diagram.objects) {
       if (object.parentOid == null) {
-        final frame = kids[object.oid]?.where((k) => k.kind == kLvFrameCode).firstOrNull;
+        final frame = childrenOf[object.oid]?.where((child) => child.kind == kViFrameCode).firstOrNull;
         if (frame != null) return frame.oid;
       }
     }
-    refuse(LvRefusalKind.noDiagram, 'the diagram has no top-level frame');
+    lvRefuse(LvRefusalKind.noDiagram, 'the diagram has no top-level frame');
   }
 
   bool _isSink(int oid) {
     final holder = byId[oid];
     if (holder == null) {
-      refuse(LvRefusalKind.endpointBinding, 'signal endpoint $oid resolves to no heap object', oid: oid);
+      lvRefuse(LvRefusalKind.endpointBinding, 'signal endpoint $oid resolves to no heap object', oid: oid);
     }
     return lvEndpointIsSink(holder);
   }
@@ -485,7 +473,7 @@ class _Builder {
           if (!_isSink(oid)) oid,
       ];
       if (sources.length != 1) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.wireDirection,
           'signal has ${sources.length} source endpoints among ${wire.endpointOids.length}; '
           'exactly one endpoint must read as a producer ([lvEndpointIsSink])',
@@ -494,15 +482,15 @@ class _Builder {
       }
       final signal = wire.signalType;
       if (signal == null) {
-        refuse(LvRefusalKind.wireType, 'signal carries no decoded type word', oid: wire.signalOid);
+        lvRefuse(LvRefusalKind.wireType, 'signal carries no decoded type word', oid: wire.signalOid);
       }
       final type = _wireType(wire, signal);
       if (!type.isMapped) {
-        refuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
+        lvRefuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
       }
       for (final declaration in lvDeclarationClosure(type.declarations)) {
         if (declaration.undeclarable case final why?) {
-          refuse(
+          lvRefuse(
             LvRefusalKind.typeDeclaration,
             'the wire\'s type spells ${declaration.name}, and $why',
             oid: wire.signalOid,
@@ -539,7 +527,7 @@ class _Builder {
     final readings = [for (final cluster in resolved) lvClusterWireType(signal, cluster, pool, declarations)];
     final types = {for (final reading in readings) reading.dartType};
     if (types.length != 1) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.wireType,
         'the wire\'s endpoints resolve ${types.length} different Dart types, '
         'so the value it carries is not decided',
@@ -556,7 +544,7 @@ class _Builder {
       if (parent == null) return null;
       final object = byId[parent];
       if (object == null) return null;
-      if (object.kind == kLvFrameCode) return object.oid;
+      if (object.kind == kViFrameCode) return object.oid;
       current = object;
     }
     return null;
@@ -564,14 +552,14 @@ class _Builder {
 
   LvRegion _region(int frameOid) {
     final units = <LvUnit>[];
-    for (final child in kids[frameOid] ?? const <ViHeapObject>[]) {
+    for (final child in childrenOf[frameOid] ?? const <ViHeapObject>[]) {
       switch (child.category) {
         case ViObjectKind.node:
           units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
         case ViObjectKind.structure:
           units.add(_structUnit(child));
         case _:
-          if (child.kind == 0x1d) units.addAll(_wireRecordUnits(child));
+          if (child.kind == HeapObjectClass.bdWire.code) units.addAll(_wireRecordUnits(child));
       }
     }
     final edges = [
@@ -587,8 +575,8 @@ class _Builder {
   LvSubViUnit _subViUnit(ViHeapObject node) {
     final ports = <int>[];
     final inputs = <int>[], outputs = <int>[];
-    for (final holder in kids[node.oid] ?? const <ViHeapObject>[]) {
-      if (holder.kind != kLvHolderCode) continue;
+    for (final holder in childrenOf[node.oid] ?? const <ViHeapObject>[]) {
+      if (holder.kind != kNodeEndpointDcoKind) continue;
       ownerOfPort[holder.oid] = node.oid;
       ports.add(holder.oid);
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
@@ -614,11 +602,11 @@ class _Builder {
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
     final memberName = <int, String>{};
-    for (final holder in kids[node.oid] ?? const <ViHeapObject>[]) {
-      if (holder.kind != kLvHolderCode) continue;
+    for (final holder in childrenOf[node.oid] ?? const <ViHeapObject>[]) {
+      if (holder.kind != kNodeEndpointDcoKind) continue;
       ownerOfPort[holder.oid] = node.oid;
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
-      final record = (kids[holder.oid] ?? const <ViHeapObject>[]).firstOrNull;
+      final record = (childrenOf[holder.oid] ?? const <ViHeapObject>[]).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
       if (record?.typeName case final name?) memberName[holder.oid] = name;
       final attach = diagram.dcoChildTerminalAttach(holder.oid);
@@ -641,8 +629,8 @@ class _Builder {
 
   List<LvUnit> _wireRecordUnits(ViHeapObject record) {
     final units = <LvUnit>[];
-    for (final child in kids[record.oid] ?? const <ViHeapObject>[]) {
-      if (child.kind == kLvInterfaceTerminalCode) {
+    for (final child in childrenOf[record.oid] ?? const <ViHeapObject>[]) {
+      if (child.kind == HeapObjectClass.bdLeaf.code) {
         ownerOfPort[child.oid] = child.oid;
         units.add(
           LvInterfaceUnit(
@@ -654,11 +642,13 @@ class _Builder {
         );
         continue;
       }
-      if (child.kind != kLvHolderCode) continue;
+      if (child.kind != kNodeEndpointDcoKind) continue;
       if (child.memberOids.isNotEmpty) continue;
-      final constant = kids[child.oid]?.where((k) => k.kind == kLvConstantCode).firstOrNull;
+      final constant = childrenOf[child.oid]
+          ?.where((child) => child.kind == HeapObjectClass.bdConstDco.code)
+          .firstOrNull;
       if (constant == null) {
-        refuse(
+        lvRefuse(
           LvRefusalKind.endpointBinding,
           'endpoint holder binds neither a constant nor a structure terminal',
           oid: child.oid,
@@ -678,9 +668,9 @@ class _Builder {
   }
 
   String? _constantLabel(ViHeapObject constant) {
-    for (final shell in kids[constant.oid] ?? const <ViHeapObject>[]) {
-      for (final part in kids[shell.oid] ?? const <ViHeapObject>[]) {
-        if (part.kind == 0xa) {
+    for (final shell in childrenOf[constant.oid] ?? const <ViHeapObject>[]) {
+      for (final part in childrenOf[shell.oid] ?? const <ViHeapObject>[]) {
+        if (part.kind == HeapObjectClass.controlLabel.code) {
           final text = part.label?.trim();
           if (text != null && text.isNotEmpty) return text;
         }
@@ -692,7 +682,7 @@ class _Builder {
   LvStructUnit _structUnit(ViHeapObject structure) {
     final kind = LvStructureKind.ofCode(structure.kind);
     if (kind == null) {
-      refuse(
+      lvRefuse(
         LvRefusalKind.structure,
         'structure class 0x${structure.kind.toRadixString(16)} '
         '(${structure.objectClass.label}) has no modelled control flow',
@@ -700,8 +690,8 @@ class _Builder {
       );
     }
     final frames = [
-      for (final child in kids[structure.oid] ?? const <ViHeapObject>[])
-        if (child.kind == kLvFrameCode) child.oid,
+      for (final child in childrenOf[structure.oid] ?? const <ViHeapObject>[])
+        if (child.kind == kViFrameCode) child.oid,
     ];
     final terminals = <LvStructTerminal>[];
     for (final terminal in _terminalRecords(structure)) {
@@ -713,7 +703,7 @@ class _Builder {
       for (final member in terminal.memberOids) {
         final object = byId[member];
         if (object == null) continue;
-        if (object.kind != kLvHolderCode) {
+        if (object.kind != kNodeEndpointDcoKind) {
           if (LvTerminalRole.ofCode(object.kind) != null) partner = object.oid;
           continue;
         }
@@ -731,13 +721,15 @@ class _Builder {
           role: role,
           outerPort: outer,
           innerPorts: inner,
-          autoIndexing: lvTunnelAutoIndexes(kids[terminal.oid] ?? const <ViHeapObject>[]),
+          autoIndexing: lvTunnelAutoIndexes(childrenOf[terminal.oid] ?? const <ViHeapObject>[]),
           partnerOid: partner,
           outerIsSink: outer != null && _isSink(outer),
         ),
       );
     }
-    final label = kids[structure.oid]?.where((k) => k.kind == kLvSelectorLabelCode).firstOrNull;
+    final label = childrenOf[structure.oid]
+        ?.where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code)
+        .firstOrNull;
     return LvStructUnit(
       oid: structure.oid,
       kind: kind,
@@ -752,13 +744,13 @@ class _Builder {
   }
 
   Iterable<ViHeapObject> _terminalRecords(ViHeapObject structure) sync* {
-    for (final child in kids[structure.oid] ?? const <ViHeapObject>[]) {
+    for (final child in childrenOf[structure.oid] ?? const <ViHeapObject>[]) {
       if (LvTerminalRole.ofCode(child.kind) != null) {
         yield child;
         continue;
       }
-      if (child.kind != kLvHolderCode) continue;
-      for (final grand in kids[child.oid] ?? const <ViHeapObject>[]) {
+      if (child.kind != kNodeEndpointDcoKind) continue;
+      for (final grand in childrenOf[child.oid] ?? const <ViHeapObject>[]) {
         if (LvTerminalRole.ofCode(grand.kind) != null) yield grand;
       }
     }

@@ -31,19 +31,21 @@ class Tally {
 
   void bump(String name, [int by = 1]) {
     _counts[name] = (_counts[name] ?? 0) + by;
-    final f = file;
-    if (f != null) (_byFile[f] ??= {})[name] = ((_byFile[f] ??= {})[name] ?? 0) + by;
+    final current = file;
+    if (current == null) return;
+    final counts = _byFile[current] ??= {};
+    counts[name] = (counts[name] ?? 0) + by;
   }
 
   int operator [](String name) => _counts[name] ?? 0;
 
   Map<String, int> nonzero(String name) => {
-    for (final e in _byFile.entries)
-      if ((e.value[name] ?? 0) != 0) e.key: e.value[name]!,
+    for (final MapEntry(key: path, value: counts) in _byFile.entries)
+      if ((counts[name] ?? 0) != 0) path: counts[name]!,
   };
 
-  Map<String, int> mismatches(String a, String b) => {
-    for (final e in _byFile.entries)
-      if ((e.value[a] ?? 0) != (e.value[b] ?? 0)) e.key: (e.value[a] ?? 0) - (e.value[b] ?? 0),
+  Map<String, int> mismatches(String left, String right) => {
+    for (final MapEntry(key: path, value: counts) in _byFile.entries)
+      if ((counts[left] ?? 0) != (counts[right] ?? 0)) path: (counts[left] ?? 0) - (counts[right] ?? 0),
   };
 }
