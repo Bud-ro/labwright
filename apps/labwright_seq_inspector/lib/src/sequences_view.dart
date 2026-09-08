@@ -192,10 +192,12 @@ class _SequencesViewState extends State<SequencesView> {
                               ),
                             ),
                           ),
-                        _vars(context, 'Parameters', seq.parameters),
-                        _vars(context, 'Locals', seq.locals),
+                        if (seq.parameters.isNotEmpty)
+                          _vars(context, 'Parameters', seq.parameters),
+                        if (seq.locals.isNotEmpty)
+                          _vars(context, 'Locals', seq.locals),
                         for (final group in seq.groups) _group(context, group),
-                      ].whereType<Widget>().toList(),
+                      ],
                     );
                   },
                 ),
@@ -204,8 +206,7 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  Widget? _vars(BuildContext context, String label, List<VarOutline> vars) {
-    if (vars.isEmpty) return null;
+  Widget _vars(BuildContext context, String label, List<VarOutline> vars) {
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 4),
       child: Column(
@@ -330,12 +331,21 @@ class _SequencesViewState extends State<SequencesView> {
               padding: const EdgeInsets.only(top: 4),
               child: Wrap(spacing: 6, runSpacing: 4, children: chips),
             ),
-          if (limitRows.isNotEmpty) _limitsTable(context, limitRows),
-          if (s.callArgs.isNotEmpty) _argsTable(context, s.callArgs),
+          if (limitRows.isNotEmpty)
+            _rowsCard(context, 'Limits', Colors.indigo, limitRows),
+          if (s.callArgs.isNotEmpty)
+            _rowsCard(context, 'Arguments', Colors.deepPurple, [
+              for (final arg in s.callArgs) (arg.label, arg.value),
+            ]),
           if (s.measurementParams.isNotEmpty)
-            _paramsTable(context, s.measurementParams),
+            _rowsCard(context, 'Parameters', Colors.teal, [
+              for (final param in s.measurementParams)
+                (param.label, param.cell),
+            ]),
           if (s.connectorParams.isNotEmpty)
-            _connectorTable(context, s.connectorParams),
+            _rowsCard(context, 'Connector pane', Colors.blue, [
+              for (final param in s.connectorParams) (param.label, param.cell),
+            ]),
           if (s.expressions.isNotEmpty) _expressions(context, s.expressions),
         ],
       ),
@@ -372,9 +382,12 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  Widget _argsTable(BuildContext context, List<CallArgOutline> args) {
-    final theme = Theme.of(context);
-    const color = Colors.deepPurple;
+  Widget _rowsCard(
+    BuildContext context,
+    String title,
+    Color color,
+    List<(String, String)> rows,
+  ) {
     return Container(
       margin: const EdgeInsets.only(top: 6, left: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -386,157 +399,43 @@ class _SequencesViewState extends State<SequencesView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Arguments',
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: color),
           ),
           const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final arg in args)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        arg.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(arg.value, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
+          _rowsTable(context, rows),
         ],
       ),
     );
   }
 
-  Widget _paramsTable(
-    BuildContext context,
-    List<MeasurementParamOutline> params,
-  ) {
+  Widget _rowsTable(BuildContext context, List<(String, String)> rows) {
     final theme = Theme.of(context);
-    const color = Colors.teal;
-    return Container(
-      margin: const EdgeInsets.only(top: 6, left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(cornerRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Parameters',
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
-          ),
-          const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+    return Table(
+      columnWidths: const {0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        for (final (label, value) in rows)
+          TableRow(
             children: [
-              for (final param in params)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        param.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(param.cell, style: monoStyle),
-                    ),
-                  ],
+              Padding(
+                padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.hintColor,
+                  ),
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: Text(value, style: monoStyle),
+              ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _connectorTable(
-    BuildContext context,
-    List<ConnectorParamOutline> params,
-  ) {
-    final theme = Theme.of(context);
-    const color = Colors.blue;
-    return Container(
-      margin: const EdgeInsets.only(top: 6, left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(cornerRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Connector pane',
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
-          ),
-          const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final param in params)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        param.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(param.cell, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -564,90 +463,7 @@ class _SequencesViewState extends State<SequencesView> {
             ],
           ),
           const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final (label, value) in mp.rows)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(value, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _limitsTable(BuildContext context, List<(String, String)> rows) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(top: 6, left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.indigo.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(cornerRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Limits',
-            style: theme.textTheme.labelSmall?.copyWith(color: Colors.indigo),
-          ),
-          const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final (label, value) in rows)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(value, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
+          _rowsTable(context, mp.rows),
         ],
       ),
     );
