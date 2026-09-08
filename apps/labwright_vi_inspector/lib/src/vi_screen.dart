@@ -211,32 +211,35 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     );
   }
 
-  Future<void> _openRepresentative(RepresentativeVi vi) async {
+  Future<void> _openRepresentative(RepresentativeVi representative) async {
     if (_fetchingRep != null) return;
-    setState(() => _fetchingRep = vi.name);
+    setState(() => _fetchingRep = representative.name);
     final previous = _repProjectDir;
     try {
-      final fetched = await fetchRepresentativeVi(vi, fetch: widget.fetchBytes);
+      final fetched = await fetchRepresentativeVi(
+        representative,
+        fetch: widget.fetchBytes,
+      );
       if (!mounted) return;
       _repProjectDir = fetched.projectDir;
-      final deps = vi.dependencies.isEmpty
+      final deps = representative.dependencies.isEmpty
           ? ''
           : ' (+${fetched.fetchedDeps} subVIs'
                 '${fetched.failedDeps > 0 ? ', ${fetched.failedDeps} failed' : ''})';
       final mainPath = fetched.mainPath;
-      final levelsUp = vi.path.split('/').length - 1;
+      final levelsUp = representative.path.split('/').length - 1;
       _loadBytes(
         fetched.bytes,
-        'GitHub: ${vi.repo} · ${vi.name}${deps}',
+        'GitHub: ${representative.repo} · ${representative.name}${deps}',
         subViIconResolver: (wanted) =>
             resolveSubViIconsFor(mainPath, wanted, levelsUp: levelsUp),
       );
-    } catch (e) {
+    } catch (error) {
       if (!mounted) return;
       setState(() {
         _summary = null;
-        _error = 'Could not fetch ${vi.name}: $e';
-        _source = vi.rawUrl.toString();
+        _error = 'Could not fetch ${representative.name}: $error';
+        _source = representative.rawUrl.toString();
       });
     } finally {
       if (mounted) setState(() => _fetchingRep = null);
@@ -328,12 +331,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                 ),
                 MenuAnchor(
                   menuChildren: [
-                    for (final vi in kRepresentativeVis)
+                    for (final representative in kRepresentativeVis)
                       MenuItemButton(
                         onPressed: _fetchingRep == null
-                            ? () => _openRepresentative(vi)
+                            ? () => _openRepresentative(representative)
                             : null,
-                        leadingIcon: _fetchingRep == vi.name
+                        leadingIcon: _fetchingRep == representative.name
                             ? const SizedBox(
                                 width: 16,
                                 height: 16,
@@ -351,12 +354,12 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                             crossAxisAlignment: CrossAxisAlignment.start,
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Text(vi.name),
+                              Text(representative.name),
                               Text(
-                                vi.feature +
-                                    (vi.missingNote == null
+                                representative.feature +
+                                    (representative.missingNote == null
                                         ? ''
-                                        : ' · ${vi.missingNote}'),
+                                        : ' · ${representative.missingNote}'),
                                 style: const TextStyle(
                                   fontSize: 11,
                                   color: Colors.grey,
@@ -679,7 +682,9 @@ class _SummaryViewState extends State<_SummaryView> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    hist.entries.map((e) => '${e.key}:${e.value}').join('  '),
+                    hist.entries
+                        .map((entry) => '${entry.key}:${entry.value}')
+                        .join('  '),
                     style: const TextStyle(fontSize: 12, color: Colors.grey),
                   ),
                 ],
@@ -713,16 +718,19 @@ class _SummaryViewState extends State<_SummaryView> {
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
           const SizedBox(height: 4),
-          for (final vi in widget.embeddedVis.take(60))
+          for (final embedded in widget.embeddedVis.take(60))
             Builder(
               builder: (context) {
                 final clean =
-                    vi.name != null && vi.name!.toLowerCase().endsWith('.vi');
-                final label = clean ? vi.name! : '(name not recovered)';
+                    embedded.name != null &&
+                    embedded.name!.toLowerCase().endsWith('.vi');
+                final label = clean ? embedded.name! : '(name not recovered)';
                 final openable =
-                    vi.bytes != null && widget.onOpenEmbedded != null;
+                    embedded.bytes != null && widget.onOpenEmbedded != null;
                 return InkWell(
-                  onTap: openable ? () => widget.onOpenEmbedded!(vi) : null,
+                  onTap: openable
+                      ? () => widget.onOpenEmbedded!(embedded)
+                      : null,
                   child: Padding(
                     padding: const EdgeInsets.symmetric(vertical: 4),
                     child: Row(
@@ -750,7 +758,7 @@ class _SummaryViewState extends State<_SummaryView> {
                           ),
                         ),
                         Text(
-                          _fmtSize(vi.sizeBytes),
+                          _fmtSize(embedded.sizeBytes),
                           style: const TextStyle(
                             fontSize: 11,
                             color: Colors.grey,
@@ -902,14 +910,16 @@ class _SummaryViewState extends State<_SummaryView> {
     );
   }
 
-  bool _hasSection(String tag) => widget.sections.any((s) => s.tag == tag);
+  bool _hasSection(String tag) =>
+      widget.sections.any((section) => section.tag == tag);
 
   List<Widget> _blockInventory() {
     final byCat = <ViBlockCategory, List<BlockComponent>>{};
     for (final component in widget.components) {
       (byCat[blockInfo(component.tag).category] ??= []).add(component);
     }
-    final cats = byCat.keys.toList()..sort((a, b) => a.name.compareTo(b.name));
+    final cats = byCat.keys.toList()
+      ..sort((first, second) => first.name.compareTo(second.name));
     final rows = <Widget>[];
     for (final cat in cats) {
       rows.add(
@@ -925,7 +935,8 @@ class _SummaryViewState extends State<_SummaryView> {
           ),
         ),
       );
-      final items = byCat[cat]!..sort((a, b) => a.tag.compareTo(b.tag));
+      final items = byCat[cat]!
+        ..sort((first, second) => first.tag.compareTo(second.tag));
       for (final item in items) {
         final info = blockInfo(item.tag);
         final label = item.sectionCount > 1
@@ -946,7 +957,7 @@ class _SummaryViewState extends State<_SummaryView> {
     final matches = [
       for (final section in widget.sections)
         if (section.tag == tag) section,
-    ]..sort((a, b) => b.length.compareTo(a.length));
+    ]..sort((first, second) => second.length.compareTo(first.length));
     if (matches.isEmpty) return;
     showDialog<void>(
       context: context,
@@ -1039,11 +1050,11 @@ class _HexDialogState extends State<_HexDialog> {
                   isDense: true,
                   onChanged: (value) => setState(() => _idx = value ?? 0),
                   items: [
-                    for (var i = 0; i < widget.sections.length; i++)
+                    for (var index = 0; index < widget.sections.length; index++)
                       DropdownMenuItem(
-                        value: i,
+                        value: index,
                         child: Text(
-                          'section ${widget.sections[i].index} (${widget.sections[i].length} B)',
+                          'section ${widget.sections[index].index} (${widget.sections[index].length} B)',
                         ),
                       ),
                   ],
@@ -1098,13 +1109,15 @@ class _RecoverySummary extends StatelessWidget {
       for (final diagram in model.blockDiagrams) ...diagram.objects,
     ];
     final classified = objs
-        .where((o) => o.category != ViObjectKind.unknown)
+        .where((object) => object.category != ViObjectKind.unknown)
         .length;
     final unknown = objs.length - classified;
     final structures = objs
-        .where((o) => o.category == ViObjectKind.structure)
+        .where((object) => object.category == ViObjectKind.structure)
         .length;
-    final nodes = objs.where((o) => o.category == ViObjectKind.node).length;
+    final nodes = objs
+        .where((object) => object.category == ViObjectKind.node)
+        .length;
     final parts = <String>[
       '${objs.length} BD objects',
       '$classified classified / $unknown unknown',

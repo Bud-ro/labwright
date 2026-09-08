@@ -61,8 +61,8 @@ extension _TextPass on BdDiagramPainter {
     int? maxLines,
   }) {
     var lineCount = 1;
-    for (var i = 0; i < text.length; i++) {
-      if (text.codeUnitAt(i) == 0x0a) lineCount++;
+    for (var charIndex = 0; charIndex < text.length; charIndex++) {
+      if (text.codeUnitAt(charIndex) == 0x0a) lineCount++;
     }
     if (maxLines != null && maxLines < lineCount) lineCount = maxLines;
     final key = (
@@ -85,7 +85,7 @@ extension _TextPass on BdDiagramPainter {
     for (final dimPass in [true, false]) {
       var lineTop = 0.0;
       for (var line = 0; line < lineCount; line++) {
-        var x = 0.0;
+        var penX = 0.0;
         for (final rune in lines[line].runes) {
           final slot = _glyph(
             String.fromCharCode(rune),
@@ -95,13 +95,13 @@ extension _TextPass on BdDiagramPainter {
             fontStyle,
           );
           final pen = Offset(
-            x,
+            penX,
             lineTop + slot.baseline.roundToDouble() - slot.baseline,
           );
           (dimPass ? slot.dim : slot.main).paint(canvas, pen);
-          x += slot.advance;
+          penX += slot.advance;
         }
-        width = math.max(width, x);
+        width = math.max(width, penX);
         lineTop += lineHeight;
       }
     }
@@ -144,7 +144,7 @@ extension _TextPass on BdDiagramPainter {
   }
 
   void _paintCaptions(Canvas canvas) {
-    final byOid = {for (final o in objects) o.oid: o};
+    final byOid = {for (final object in objects) object.oid: object};
     for (final object in objects) {
       if (kBdTextLabelClasses.contains(object.objectClass)) {
         if (object.isLabelHidden) continue;

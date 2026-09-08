@@ -525,7 +525,7 @@ extension _NodePass on BdDiagramPainter {
     final cream = Paint()
       ..color = _dimFor(object.oid, const Color(0xFFFFFFCC))
       ..isAntiAlias = false;
-    rows.sort((a, b) => a.top.compareTo(b.top));
+    rows.sort((first, second) => first.top.compareTo(second.top));
     for (var row = 0; row + 1 < rows.length; row++) {
       if (rows[row].bottom != rows[row + 1].top) continue;
       canvas.drawRect(
@@ -710,11 +710,11 @@ extension _NodePass on BdDiagramPainter {
             );
           }
           if (part.objectClass == HeapObjectClass.controlSubPart) {
-            final up = partBounds.top == bounds.top;
+            final growsUp = partBounds.top == bounds.top;
             final centreX = (partBounds.left + 3 - origin.dx).toDouble();
             for (var step = 0; step < 4; step++) {
               final half = [0, 1, 1, 2][step];
-              final row = up
+              final row = growsUp
                   ? partBounds.top + 2 + step
                   : partBounds.bottom - 4 - step;
               canvas.drawRect(

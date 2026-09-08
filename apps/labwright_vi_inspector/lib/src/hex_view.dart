@@ -89,14 +89,14 @@ class _BlockHexViewState extends State<BlockHexView> {
       _records = _fieldSpans(widget.section.tag, bytes);
     }
     _byteToRecord = List<int>.filled(bytes.length, -1);
-    for (var i = 0; i < _records.length; i++) {
-      final record = _records[i];
+    for (var recordIndex = 0; recordIndex < _records.length; recordIndex++) {
+      final record = _records[recordIndex];
       for (
         var byteOffset = record.offset;
         byteOffset < record.offset + record.length && byteOffset < bytes.length;
         byteOffset++
       ) {
-        _byteToRecord[byteOffset] = i;
+        _byteToRecord[byteOffset] = recordIndex;
       }
     }
   }
@@ -242,17 +242,17 @@ class _BlockHexViewState extends State<BlockHexView> {
     const asciiStart = _offW + 16 * _cellW + _gap;
     return GestureDetector(
       behavior: HitTestBehavior.opaque,
-      onTapDown: (d) {
-        final dx = d.localPosition.dx;
-        int? off;
-        if (dx >= hexStart && dx < hexStart + 16 * _cellW) {
-          off = base + ((dx - hexStart) ~/ _cellW);
-        } else if (dx >= asciiStart && dx < asciiStart + 16 * _asciiW) {
-          off = base + ((dx - asciiStart) ~/ _asciiW);
+      onTapDown: (details) {
+        final tapX = details.localPosition.dx;
+        int? offset;
+        if (tapX >= hexStart && tapX < hexStart + 16 * _cellW) {
+          offset = base + ((tapX - hexStart) ~/ _cellW);
+        } else if (tapX >= asciiStart && tapX < asciiStart + 16 * _asciiW) {
+          offset = base + ((tapX - asciiStart) ~/ _asciiW);
         }
-        if (off != null && off >= 0 && off < bytes.length) {
-          final ri = _byteToRecord[off];
-          if (ri >= 0) _select(ri, fromHex: true);
+        if (offset != null && offset >= 0 && offset < bytes.length) {
+          final recordIndex = _byteToRecord[offset];
+          if (recordIndex >= 0) _select(recordIndex, fromHex: true);
         }
       },
       child: Row(
@@ -268,9 +268,11 @@ class _BlockHexViewState extends State<BlockHexView> {
               ),
             ),
           ),
-          for (var i = 0; i < 16; i++) _cell(bytes, base + i, hex: true),
+          for (var column = 0; column < 16; column++)
+            _cell(bytes, base + column, hex: true),
           const SizedBox(width: _gap),
-          for (var i = 0; i < 16; i++) _cell(bytes, base + i, hex: false),
+          for (var column = 0; column < 16; column++)
+            _cell(bytes, base + column, hex: false),
         ],
       ),
     );
@@ -278,9 +280,11 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   Widget _cell(List<int> bytes, int offset, {required bool hex}) {
     if (offset >= bytes.length) return SizedBox(width: hex ? _cellW : _asciiW);
-    final ri = _byteToRecord[offset];
-    final color = ri < 0 ? const Color(0xFF6E6E6E) : _records[ri].color;
-    final sel = ri >= 0 && ri == _selected;
+    final recordIndex = _byteToRecord[offset];
+    final color = recordIndex < 0
+        ? const Color(0xFF6E6E6E)
+        : _records[recordIndex].color;
+    final selected = recordIndex >= 0 && recordIndex == _selected;
     final byte = bytes[offset];
     final text = hex
         ? bytes[offset].toRadixString(16).padLeft(2, '0')
@@ -288,12 +292,12 @@ class _BlockHexViewState extends State<BlockHexView> {
     return Container(
       width: hex ? _cellW : _asciiW,
       alignment: Alignment.center,
-      color: sel ? color.withValues(alpha: 0.30) : null,
+      color: selected ? color.withValues(alpha: 0.30) : null,
       child: Text(
         text,
         maxLines: 1,
         style: TextStyle(
-          color: sel ? Colors.white : color,
+          color: selected ? Colors.white : color,
           fontFamily: 'monospace',
           fontSize: 12.5,
           height: 1.35,
@@ -479,17 +483,20 @@ class _BlockHexViewState extends State<BlockHexView> {
                 MapEntry('Revision entries', '${history.entryCount}'),
               ];
       case 'FTAB':
-        final ft = decodeFontTable(bytes);
-        if (ft == null) return const [];
+        final fontTable = decodeFontTable(bytes);
+        if (fontTable == null) return const [];
         return [
-          MapEntry('Fonts', '${ft.fontCount}'),
-          if (ft.names.isNotEmpty) MapEntry('Names', ft.names.join(', ')),
+          MapEntry('Fonts', '${fontTable.fontCount}'),
+          if (fontTable.names.isNotEmpty)
+            MapEntry('Names', fontTable.names.join(', ')),
         ];
       case 'NUID':
       case 'SUID':
       case 'BNID':
-        final it = decodeIdTable(bytes);
-        return it == null ? const [] : [MapEntry('Id count', '${it.count}')];
+        final idTable = decodeIdTable(bytes);
+        return idTable == null
+            ? const []
+            : [MapEntry('Id count', '${idTable.count}')];
       default:
         return const [];
     }
@@ -635,20 +642,20 @@ class _BlockHexViewState extends State<BlockHexView> {
   List<SpanInfo> _fieldSpans(String tag, List<int> bytes) {
     final out = <SpanInfo>[];
     void span(
-      int off,
+      int offset,
       int len,
-      Color c,
+      Color color,
       String title,
       String detail, {
       String? preview,
     }) {
-      if (len <= 0 || off < 0 || off + len > bytes.length) return;
+      if (len <= 0 || offset < 0 || offset + len > bytes.length) return;
       out.add(
         SpanInfo(
-          offset: off,
+          offset: offset,
           length: len,
-          lead: bytes[off],
-          color: c,
+          lead: bytes[offset],
+          color: color,
           title: title,
           detail: detail,
           inlinePreview: preview,
@@ -658,7 +665,7 @@ class _BlockHexViewState extends State<BlockHexView> {
 
     switch (tag) {
       case 'vers':
-        final vw = bytes is Uint8List
+        final versionWord = bytes is Uint8List
             ? decodeVersionWord(bytes)
             : decodeVersionWord(Uint8List.fromList(bytes));
         span(
@@ -667,9 +674,9 @@ class _BlockHexViewState extends State<BlockHexView> {
           spanColorObject,
           'Version word (u32)',
           'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
-          preview: vw == null
+          preview: versionWord == null
               ? '0x${readU32be(bytes, 0).toRadixString(16)}'
-              : 'v${vw.version}',
+              : 'v${versionWord.version}',
         );
       case 'STRG':
       case 'HLPT':
@@ -701,14 +708,18 @@ class _BlockHexViewState extends State<BlockHexView> {
             '$count u32 id entries follow ([u32 count][count u32]).',
             preview: '$count',
           );
-          for (var i = 0; i < count && 4 + 4 * i + 4 <= bytes.length; i++) {
+          for (
+            var index = 0;
+            index < count && 4 + 4 * index + 4 <= bytes.length;
+            index++
+          ) {
             span(
-              4 + 4 * i,
+              4 + 4 * index,
               4,
               spanColorObject,
-              'id[$i] (u32)',
+              'id[$index] (u32)',
               'An opaque UID/handle value (role not yet decoded).',
-              preview: '0x${readU32be(bytes, 4 + 4 * i).toRadixString(16)}',
+              preview: '0x${readU32be(bytes, 4 + 4 * index).toRadixString(16)}',
             );
           }
         }
@@ -866,21 +877,21 @@ class _BlockHexViewState extends State<BlockHexView> {
           final count = readU16be(bytes, 6);
           if (nameOff >= 12 && nameOff <= bytes.length && count > 0) {
             var pos = 12;
-            for (var i = 0; i < count && pos + 12 <= nameOff; i++) {
+            for (var index = 0; index < count && pos + 12 <= nameOff; index++) {
               span(
                 pos,
                 12,
                 spanColorObject,
-                'Font[$i] metric record (12B)',
+                'Font[$index] metric record (12B)',
                 'Per-font size/style metrics; inner fields not yet decoded.',
               );
               pos += 12;
-              if (i < count - 1 && pos + 4 <= nameOff) {
+              if (index < count - 1 && pos + 4 <= nameOff) {
                 span(
                   pos,
                   4,
                   spanColorGroup,
-                  'Font[$i] u32 field',
+                  'Font[$index] u32 field',
                   'A 4-byte value between font records (role not yet decoded).',
                   preview: '${readU32be(bytes, pos)}',
                 );
@@ -993,13 +1004,13 @@ class _BlockHexViewState extends State<BlockHexView> {
             preview: '$count',
           );
           var pos = 4;
-          for (var i = 0; i < count && pos < bytes.length; i++) {
+          for (var index = 0; index < count && pos < bytes.length; index++) {
             final nameLen = bytes[pos];
             span(
               pos,
               1,
               spanColorObject,
-              'entry[$i] length (u8)',
+              'entry[$index] length (u8)',
               'Length of the label string that follows.',
               preview: '$nameLen',
             );
@@ -1008,7 +1019,7 @@ class _BlockHexViewState extends State<BlockHexView> {
                 pos + 1,
                 nameLen,
                 spanColorRect,
-                'entry[$i] (ASCII)',
+                'entry[$index] (ASCII)',
                 'A boolean/comparison/report label.',
                 preview: String.fromCharCodes(
                   bytes.sublist(pos + 1, pos + 1 + nameLen),

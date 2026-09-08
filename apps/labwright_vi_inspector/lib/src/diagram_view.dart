@@ -402,7 +402,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     var bestN = -1;
     for (final diagram in diagrams) {
       final placedCount = diagram.objects
-          .where((o) => o.absBounds != null)
+          .where((object) => object.absBounds != null)
           .length;
       if (placedCount > bestN) {
         bestN = placedCount;
@@ -511,7 +511,7 @@ bool _isErrorClusterMembers(List<ViType> members) =>
 
 Color _clusterTint(List<ViType> members) => _isErrorClusterMembers(members)
     ? const Color(0xFF666600)
-    : members.any((m) => !_isNumericDataType(m.kind))
+    : members.any((member) => !_isNumericDataType(member.kind))
     ? const Color(0xFFFF00FF)
     : labviewTypeColor(ViTypeKind.cluster);
 
@@ -1952,7 +1952,8 @@ class _ViImageStrip extends StatelessWidget {
     const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
     if (images.icons.isEmpty) return null;
     return ([...images.icons]..sort(
-          (first, second) => (order[first.tag] ?? 9).compareTo(order[second.tag] ?? 9),
+          (first, second) =>
+              (order[first.tag] ?? 9).compareTo(order[second.tag] ?? 9),
         ))
         .first;
   }

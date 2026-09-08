@@ -666,7 +666,9 @@ ViDiagram? bestBlockDiagram(ViModel model) {
   ViDiagram? best;
   var bestCount = 0;
   for (final diagram in model.blockDiagrams) {
-    final count = diagram.objects.where((o) => o.absBounds != null).length;
+    final count = diagram.objects
+        .where((object) => object.absBounds != null)
+        .length;
     if (count > bestCount) {
       best = diagram;
       bestCount = count;
