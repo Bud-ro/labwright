@@ -38,11 +38,11 @@ class Viewer {
     }
     switch (request.uri.path) {
       case '/' || '/index.html':
-        _serveSite(request, 'index.html');
+        _serveSite(request, SiteAsset.html);
       case '/style.css':
-        _serveSite(request, 'style.css');
+        _serveSite(request, SiteAsset.css);
       case '/app.js':
-        _serveSite(request, 'app.js');
+        _serveSite(request, SiteAsset.js);
       case '/state.json':
         request.response
           ..headers.contentType = ContentType.json
@@ -75,17 +75,10 @@ class Viewer {
     }
   }
 
-  void _serveSite(HttpRequest request, String name) {
-    final content = _siteFile(name);
-    if (content == null) {
-      request.response
-        ..statusCode = HttpStatus.notFound
-        ..close();
-      return;
-    }
+  void _serveSite(HttpRequest request, SiteAsset asset) {
     request.response
-      ..headers.contentType = ContentType.parse(_siteTypes[name]!)
-      ..write(content)
+      ..headers.contentType = ContentType.parse(asset.contentType)
+      ..write(_siteFile(asset))
       ..close();
   }
 
@@ -118,7 +111,7 @@ class Viewer {
     int status;
     try {
       final raw = await utf8.decoder.bind(request).join();
-      final body = (jsonDecode(raw.isEmpty ? '{}' : raw) as Map).cast<String, Object?>();
+      final body = jsonDecode(raw.isEmpty ? '{}' : raw) as Map<String, Object?>;
       result = await handler(body);
       status = result['accepted'] == true ? HttpStatus.accepted : HttpStatus.conflict;
     } catch (e) {
@@ -163,23 +156,23 @@ String editorLinkTemplate({required bool isWindows, String? wslDistro}) {
   return isWindows ? 'vscode://file/{file}:{line}' : 'vscode://file{file}:{line}';
 }
 
-const Map<String, String> _siteTypes = {
-  'index.html': 'text/html; charset=utf-8',
-  'style.css': 'text/css; charset=utf-8',
-  'app.js': 'text/javascript; charset=utf-8',
-};
+enum SiteAsset {
+  html('index.html', 'text/html; charset=utf-8'),
+  css('style.css', 'text/css; charset=utf-8'),
+  js('app.js', 'text/javascript; charset=utf-8')
+  ;
 
-final Map<String, String> _siteCache = {};
+  const SiteAsset(this.fileName, this.contentType);
 
-String? _siteFile(String name) {
-  final cached = _siteCache[name];
-  if (cached != null) return cached;
-  try {
-    final uri = Isolate.resolvePackageUriSync(Uri.parse('package:labwright/src/site/$name'));
-    if (uri == null) throw StateError('package config cannot resolve labwright');
-    return _siteCache[name] = File.fromUri(uri).readAsStringSync();
-  } catch (e) {
-    stderr.writeln('[Labwright]: viewer asset $name unavailable: $e');
-    return null;
-  }
+  final String fileName;
+  final String contentType;
+}
+
+final Map<SiteAsset, String> _siteCache = {};
+
+String _siteFile(SiteAsset asset) {
+  final packageUri = Uri.parse('package:labwright/src/site/${asset.fileName}');
+  return _siteCache[asset] ??= File.fromUri(
+    Isolate.resolvePackageUriSync(packageUri) ?? (throw StateError('package config cannot resolve $packageUri')),
+  ).readAsStringSync();
 }

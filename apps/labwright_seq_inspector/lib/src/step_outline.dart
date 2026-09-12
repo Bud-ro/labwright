@@ -64,8 +64,6 @@ class StepOutline {
 
   final List<String> notes;
 
-  bool get isInFileCall => callTargetIndex != null;
-
   ({String label, String tooltip})? get targetDisplay {
     final targetText = target;
     if (targetText == null) return null;
@@ -102,11 +100,11 @@ class StepOutline {
     String resolveTarget(String target) => target.startsWith('ID#:')
         ? (file.stepNameForId(target) ?? target)
         : target;
-    if (settings.customTrueTarget != null) {
-      notes.add('cust-true→${resolveTarget(settings.customTrueTarget!)}');
+    if (settings.customTrueTarget case final target?) {
+      notes.add('cust-true→${resolveTarget(target)}');
     }
-    if (settings.customFalseTarget != null) {
-      notes.add('cust-false→${resolveTarget(settings.customFalseTarget!)}');
+    if (settings.customFalseTarget case final target?) {
+      notes.add('cust-false→${resolveTarget(target)}');
     }
     if (module.adapter == SeqAdapter.labView) {
       final lv = <String>[];
@@ -160,24 +158,18 @@ class StepOutline {
     }
 
     final expressions = <(String, String)>[
-      if (settings.precondition != null)
-        ('Precondition', settings.precondition!),
-      if (settings.customExpression != null)
-        ('Custom condition', settings.customExpression!),
-      if (settings.preExpression != null)
-        ('Pre-expression', settings.preExpression!),
-      if (settings.postExpression != null)
-        ('Post-expression', settings.postExpression!),
-      if (settings.statusExpression != null)
-        ('Status', settings.statusExpression!),
-      if (settings.loopInitialize != null)
-        ('Loop init', settings.loopInitialize!),
-      if (settings.loopWhile != null) ('Loop while', settings.loopWhile!),
-      if (settings.loopIncrement != null)
-        ('Loop increment', settings.loopIncrement!),
-      if (settings.loopStatus != null) ('Loop status', settings.loopStatus!),
+      if (settings.precondition case final e?) ('Precondition', e),
+      if (settings.customExpression case final e?) ('Custom condition', e),
+      if (settings.preExpression case final e?) ('Pre-expression', e),
+      if (settings.postExpression case final e?) ('Post-expression', e),
+      if (settings.statusExpression case final e?) ('Status', e),
+      if (settings.loopInitialize case final e?) ('Loop init', e),
+      if (settings.loopWhile case final e?) ('Loop while', e),
+      if (settings.loopIncrement case final e?) ('Loop increment', e),
+      if (settings.loopStatus case final e?) ('Loop status', e),
     ];
 
+    final limits = step.limits;
     return StepOutline(
       name: step.name,
       type: step.type ?? '?',
@@ -185,8 +177,8 @@ class StepOutline {
       target: target,
       callTargetIndex: callTargetIndex,
       externalCall: externalCall,
-      limits: step.limits?.summary,
-      limitsDetail: step.limits != null ? LimitsOutline.of(step.limits!) : null,
+      limits: limits?.summary,
+      limitsDetail: limits == null ? null : LimitsOutline.of(limits),
       units: step.resultUnits,
       dataSource: step.dataSource,
       runMode: runMode,
@@ -210,9 +202,10 @@ class StepOutline {
   }
 
   String get summary {
+    final adapter = this.adapter;
     final out = StringBuffer('$name [$type]');
     if (flowHeader != null) out.write('  {flow: $flowHeader}');
-    if (adapter != null) out.write(' -> ${adapter!.name}: $target');
+    if (adapter != null) out.write(' -> ${adapter.name}: $target');
     if (limits != null) {
       out.write('  {limits $limits${units != null ? ' $units' : ''}}');
     } else if (units != null) {
@@ -360,8 +353,10 @@ class MeasurementParamOutline {
     return '{$shown$more}';
   }
 
-  String get label =>
-      direction != null ? '$name (${direction!.toLowerCase()})' : name;
+  String get label => switch (direction) {
+    final direction? => '$name (${direction.toLowerCase()})',
+    null => name,
+  };
 
   String get cell {
     final out = StringBuffer();
@@ -377,8 +372,9 @@ class MeasurementParamOutline {
   }
 
   String get line {
+    final direction = this.direction;
     final out = StringBuffer(name);
-    if (direction != null) out.write(' ${direction!.toLowerCase()}');
+    if (direction != null) out.write(' ${direction.toLowerCase()}');
     if (dataType != null) {
       out.write(' $dataType');
       if (typeSpecialization != null) out.write(' ($typeSpecialization)');
@@ -430,12 +426,12 @@ class LimitsOutline {
   );
 
   List<(String, String)> get rows => [
-    if (comparison != null) ('Comparison', comparison!),
-    if (low != null) ('Low', low!),
-    if (high != null) ('High', high!),
-    if (nominal != null) ('Nominal', nominal!),
-    if (thresholdType != null) ('Threshold', thresholdType!),
-    if (dataSource != null) ('Data source', dataSource!),
+    if (comparison case final value?) ('Comparison', value),
+    if (low case final value?) ('Low', value),
+    if (high case final value?) ('High', value),
+    if (nominal case final value?) ('Nominal', value),
+    if (thresholdType case final value?) ('Threshold', value),
+    if (dataSource case final value?) ('Data source', value),
   ];
 }
 

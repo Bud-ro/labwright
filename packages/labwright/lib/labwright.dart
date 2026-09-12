@@ -240,8 +240,11 @@ Future<_SuiteHashes?> _tryComputeHashes() async {
       result.first,
       errors.first.then((e) => throw StateError('$e')),
     ]).timeout(const Duration(minutes: 2));
-    final decoded = (jsonDecode(raw as String) as Map).cast<String, Object?>();
-    return _SuiteHashes(decoded['setupHash'] as String, (decoded['sites'] as Map).cast<String, String>());
+    final decoded = jsonDecode(raw as String) as Map<String, Object?>;
+    final sites = decoded['sites'] as Map<String, Object?>;
+    return _SuiteHashes(decoded['setupHash'] as String, {
+      for (final MapEntry(:key, :value) in sites.entries) key: value as String,
+    });
   } catch (e) {
     stderr.writeln('$_tag source hashing unavailable: $e');
     return null;
@@ -377,14 +380,14 @@ Future<void> _runAll() async {
   if (_activeSeed != 0) stdout.writeln('$_tag seed $_activeSeed');
 
   if (_viewerEnabled) {
-    _viewer = await Viewer.start(_port, _state);
-    if (_viewer != null) {
-      if (_linger) _viewer!.actions = _actions;
-      _viewer!.report = _report;
-      _viewer!.history = () => _history;
+    final viewer = _viewer = await Viewer.start(_port, _state);
+    if (viewer != null) {
+      if (_linger) viewer.actions = _actions;
+      viewer.report = _report;
+      viewer.history = () => _history;
 
       stdout.writeln(
-        '$_tag viewer on http://localhost:${_viewer!.port}'
+        '$_tag viewer on http://localhost:${viewer.port}'
         '${totalShards > 1 ? ' - shard $shardIndex of $totalShards '
                   '(${_selected.length} of ${_registry.length})' : ''}',
       );
@@ -393,15 +396,16 @@ Future<void> _runAll() async {
 
   await _execute(_selected);
 
-  if (_linger && _viewer != null) {
+  final viewer = _viewer;
+  if (_linger && viewer != null) {
     _suiteHashes ??= await _tryComputeHashes();
     stdout.writeln(
       '$_tag View results and re-run tests at '
-      'http://localhost:${_viewer!.port}. Ctrl + C to exit --interactive '
+      'http://localhost:${viewer.port}. Ctrl + C to exit --interactive '
       'mode.',
     );
   } else {
-    await _viewer?.close();
+    await viewer?.close();
   }
 }
 
@@ -670,16 +674,19 @@ Map<String, Object?> _report() {
       requirements.putIfAbsent(req, () => []).add({'test': t.name, 'status': t.status.name});
     }
   }
+  final hashes = _suiteHashes;
+  final tests = <Map<String, Object?>>[];
+  for (final t in _selected) {
+    final json = t.toJson();
+    if (t.logs.isNotEmpty) json['logs'] = [for (final l in t.logs) l.message];
+    final hash = hashes?.testHash(t.file, t.line);
+    if (hash != null) json['hash'] = hash;
+    tests.add(json);
+  }
   final state = _state()
     ..remove('buttons')
-    ..remove('editorLink');
-  final hashes = _suiteHashes;
-  for (final t in (state['tests'] as List).cast<Map<String, Object?>>()) {
-    final logs = t['logs'];
-    if (logs is List) t['logs'] = [for (final l in logs) (l as Map)['m']];
-    final hash = hashes?.testHash(t['file'] as String?, t['line'] as int?);
-    if (hash != null) t['hash'] = hash;
-  }
+    ..remove('editorLink')
+    ..['tests'] = tests;
   return {
     ...state,
     if (hashes != null) 'setupHash': hashes.setupHash,

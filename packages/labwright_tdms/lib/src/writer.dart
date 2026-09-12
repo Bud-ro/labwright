@@ -50,7 +50,7 @@ class TdmsWriter {
     final metadataBytes = metadata.toBytes();
     final rawDataBytes = rawData.toBytes();
 
-    _output.add(Uint8List.fromList(leadInTag));
+    _writeU32(_output, leadInTagTdsm);
     _writeU32(_output, TocFlag.metaData.mask | TocFlag.newObjList.mask | TocFlag.rawData.mask);
     _writeU32(_output, tdmsFormatVersion);
     _writeU64(_output, metadataBytes.length + rawDataBytes.length);

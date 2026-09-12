@@ -98,15 +98,12 @@ SuiteHashes computeSuiteHashes(String entryPath) {
           tokens.addByte(0x0A);
         }
       }
-      final key = '$path:${site.startLine}';
-      final existing = bySite.containsKey(key);
-      if (!existing) bySite[key] = sha1.convert(tokens.takeBytes()).toString();
+      bySite.putIfAbsent('$path:${site.startLine}', () => sha1.convert(tokens.takeBytes()).toString());
     }
     var excluded = -1;
     for (var t = result.unit.beginToken; !t.isEof; t = t.next!) {
-      final inside = sites.any((s) => t.offset >= s.offset && t.end <= s.end);
-      if (inside) {
-        final owner = sites.indexWhere((s) => t.offset >= s.offset && t.end <= s.end);
+      final owner = sites.indexWhere((s) => t.offset >= s.offset && t.end <= s.end);
+      if (owner >= 0) {
         if (owner != excluded) {
           excluded = owner;
           setup.add(utf8.encode('\x00test-site\n'));

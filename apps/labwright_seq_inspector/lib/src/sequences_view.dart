@@ -107,8 +107,8 @@ class _SequencesViewState extends State<SequencesView> {
             ),
           ),
         ),
-        if (widget.outline.plugins != null)
-          _pluginsCard(context, widget.outline.plugins!),
+        if (widget.outline.plugins case final plugins?)
+          _pluginsCard(context, plugins),
         Padding(
           padding: const EdgeInsets.fromLTRB(8, 6, 8, 4),
           child: TextField(
@@ -160,10 +160,10 @@ class _SequencesViewState extends State<SequencesView> {
                             '${seq.parameters.isNotEmpty ? ' · ${seq.parameters.length} params' : ''}'
                             '${seq.locals.isNotEmpty ? ' · ${seq.locals.length} locals' : ''}',
                           ),
-                          if (seq.comment != null &&
-                              !(filtering || _expanded[orig]))
+                          if (seq.comment case final comment?
+                              when !(filtering || _expanded[orig]))
                             Text(
-                              seq.comment!,
+                              comment,
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                               style: TextStyle(
@@ -178,13 +178,13 @@ class _SequencesViewState extends State<SequencesView> {
                         bottom: 8,
                       ),
                       children: [
-                        if (seq.comment != null)
+                        if (seq.comment case final comment?)
                           Padding(
                             padding: const EdgeInsets.only(top: 2, bottom: 6),
                             child: Align(
                               alignment: Alignment.centerLeft,
                               child: Text(
-                                seq.comment!,
+                                comment,
                                 style: TextStyle(
                                   fontStyle: FontStyle.italic,
                                   color: Theme.of(context).hintColor,
@@ -192,10 +192,12 @@ class _SequencesViewState extends State<SequencesView> {
                               ),
                             ),
                           ),
-                        _vars(context, 'Parameters', seq.parameters),
-                        _vars(context, 'Locals', seq.locals),
+                        if (seq.parameters.isNotEmpty)
+                          _vars(context, 'Parameters', seq.parameters),
+                        if (seq.locals.isNotEmpty)
+                          _vars(context, 'Locals', seq.locals),
                         for (final group in seq.groups) _group(context, group),
-                      ].whereType<Widget>().toList(),
+                      ],
                     );
                   },
                 ),
@@ -204,8 +206,7 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  Widget? _vars(BuildContext context, String label, List<VarOutline> vars) {
-    if (vars.isEmpty) return null;
+  Widget _vars(BuildContext context, String label, List<VarOutline> vars) {
     return Padding(
       padding: const EdgeInsets.only(top: 4, bottom: 4),
       child: Column(
@@ -256,26 +257,27 @@ class _SequencesViewState extends State<SequencesView> {
     } else if (adapter != null) {
       chips.add(_chip(context, adapter.name, adapterColor(adapter)));
     }
-    if (s.isInFileCall) {
+    if (s.callTargetIndex case final target?) {
       chips.add(
         ActionChip(
           label: const Text('→ go to sequence'),
           visualDensity: VisualDensity.compact,
-          onPressed: () => _jumpTo(s.callTargetIndex!),
+          onPressed: () => _jumpTo(target),
         ),
       );
-    } else if (s.externalCall != null) {
+    } else if (s.externalCall case final external?) {
       chips.add(
         _chip(
           context,
-          s.externalCall!.isEmpty ? 'external' : 'external: ${s.externalCall}',
+          external.isEmpty ? 'external' : 'external: $external',
           Colors.orange,
         ),
       );
     }
+    final units = s.units;
     final limitRows = [
       ...?s.limitsDetail?.rows,
-      if (s.units != null && s.limitsDetail != null) ('Units', s.units!),
+      if (units != null && s.limitsDetail != null) ('Units', units),
     ];
     if (s.limits != null && limitRows.isEmpty) {
       chips.add(_chip(context, 'limits ${s.limits}', Colors.indigo));
@@ -289,8 +291,8 @@ class _SequencesViewState extends State<SequencesView> {
     for (final note in s.notes) {
       chips.add(_chip(context, note, Colors.blueGrey));
     }
-    if (s.flowHeader != null) {
-      chips.insert(0, _chip(context, s.flowHeader!, Colors.teal));
+    if (s.flowHeader case final header?) {
+      chips.insert(0, _chip(context, header, Colors.teal));
     }
 
     return Padding(
@@ -313,11 +315,11 @@ class _SequencesViewState extends State<SequencesView> {
               ],
             ),
           ),
-          if (s.comment != null)
+          if (s.comment case final comment?)
             Padding(
               padding: const EdgeInsets.only(top: 2),
               child: Text(
-                s.comment!,
+                comment,
                 style: TextStyle(
                   fontStyle: FontStyle.italic,
                   color: Theme.of(context).hintColor,
@@ -329,12 +331,21 @@ class _SequencesViewState extends State<SequencesView> {
               padding: const EdgeInsets.only(top: 4),
               child: Wrap(spacing: 6, runSpacing: 4, children: chips),
             ),
-          if (limitRows.isNotEmpty) _limitsTable(context, limitRows),
-          if (s.callArgs.isNotEmpty) _argsTable(context, s.callArgs),
+          if (limitRows.isNotEmpty)
+            _rowsCard(context, 'Limits', Colors.indigo, limitRows),
+          if (s.callArgs.isNotEmpty)
+            _rowsCard(context, 'Arguments', Colors.deepPurple, [
+              for (final arg in s.callArgs) (arg.label, arg.value),
+            ]),
           if (s.measurementParams.isNotEmpty)
-            _paramsTable(context, s.measurementParams),
+            _rowsCard(context, 'Parameters', Colors.teal, [
+              for (final param in s.measurementParams)
+                (param.label, param.cell),
+            ]),
           if (s.connectorParams.isNotEmpty)
-            _connectorTable(context, s.connectorParams),
+            _rowsCard(context, 'Connector pane', Colors.blue, [
+              for (final param in s.connectorParams) (param.label, param.cell),
+            ]),
           if (s.expressions.isNotEmpty) _expressions(context, s.expressions),
         ],
       ),
@@ -371,9 +382,12 @@ class _SequencesViewState extends State<SequencesView> {
     );
   }
 
-  Widget _argsTable(BuildContext context, List<CallArgOutline> args) {
-    final theme = Theme.of(context);
-    const color = Colors.deepPurple;
+  Widget _rowsCard(
+    BuildContext context,
+    String title,
+    Color color,
+    List<(String, String)> rows,
+  ) {
     return Container(
       margin: const EdgeInsets.only(top: 6, left: 4),
       padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
@@ -385,157 +399,43 @@ class _SequencesViewState extends State<SequencesView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Arguments',
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
+            title,
+            style: Theme.of(
+              context,
+            ).textTheme.labelSmall?.copyWith(color: color),
           ),
           const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final arg in args)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        arg.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(arg.value, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
+          _rowsTable(context, rows),
         ],
       ),
     );
   }
 
-  Widget _paramsTable(
-    BuildContext context,
-    List<MeasurementParamOutline> params,
-  ) {
+  Widget _rowsTable(BuildContext context, List<(String, String)> rows) {
     final theme = Theme.of(context);
-    const color = Colors.teal;
-    return Container(
-      margin: const EdgeInsets.only(top: 6, left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(cornerRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Parameters',
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
-          ),
-          const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+    return Table(
+      columnWidths: const {0: IntrinsicColumnWidth(), 1: FlexColumnWidth()},
+      defaultVerticalAlignment: TableCellVerticalAlignment.middle,
+      children: [
+        for (final (label, value) in rows)
+          TableRow(
             children: [
-              for (final param in params)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        param.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(param.cell, style: monoStyle),
-                    ),
-                  ],
+              Padding(
+                padding: const EdgeInsets.only(right: 16, top: 1, bottom: 1),
+                child: Text(
+                  label,
+                  style: theme.textTheme.bodySmall?.copyWith(
+                    color: theme.hintColor,
+                  ),
                 ),
+              ),
+              Padding(
+                padding: const EdgeInsets.symmetric(vertical: 1),
+                child: Text(value, style: monoStyle),
+              ),
             ],
           ),
-        ],
-      ),
-    );
-  }
-
-  Widget _connectorTable(
-    BuildContext context,
-    List<ConnectorParamOutline> params,
-  ) {
-    final theme = Theme.of(context);
-    const color = Colors.blue;
-    return Container(
-      margin: const EdgeInsets.only(top: 6, left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: color.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(cornerRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Connector pane',
-            style: theme.textTheme.labelSmall?.copyWith(color: color),
-          ),
-          const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final param in params)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        param.label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(param.cell, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ],
-      ),
+      ],
     );
   }
 
@@ -563,90 +463,7 @@ class _SequencesViewState extends State<SequencesView> {
             ],
           ),
           const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final (label, value) in mp.rows)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(value, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _limitsTable(BuildContext context, List<(String, String)> rows) {
-    final theme = Theme.of(context);
-    return Container(
-      margin: const EdgeInsets.only(top: 6, left: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
-      decoration: BoxDecoration(
-        color: Colors.indigo.withValues(alpha: 0.08),
-        borderRadius: BorderRadius.circular(cornerRadius),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'Limits',
-            style: theme.textTheme.labelSmall?.copyWith(color: Colors.indigo),
-          ),
-          const SizedBox(height: 2),
-          Table(
-            columnWidths: const {
-              0: IntrinsicColumnWidth(),
-              1: FlexColumnWidth(),
-            },
-            defaultVerticalAlignment: TableCellVerticalAlignment.middle,
-            children: [
-              for (final (label, value) in rows)
-                TableRow(
-                  children: [
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        right: 16,
-                        top: 1,
-                        bottom: 1,
-                      ),
-                      child: Text(
-                        label,
-                        style: theme.textTheme.bodySmall?.copyWith(
-                          color: theme.hintColor,
-                        ),
-                      ),
-                    ),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(vertical: 1),
-                      child: Text(value, style: monoStyle),
-                    ),
-                  ],
-                ),
-            ],
-          ),
+          _rowsTable(context, mp.rows),
         ],
       ),
     );

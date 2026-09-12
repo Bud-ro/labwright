@@ -21,8 +21,7 @@ void main() {
         defines: ['-Dlabwright.interactive=true', '-Dlabwright.identity=false'],
         vmService: true,
       );
-      List<Object?>? logsIn(Map<String, Object?> s) =>
-          (testsOf(s).single['logs'] as List?)?.map((l) => (l as Map)['m']).toList();
+      List<Object?>? logsIn(Map<String, Object?> s) => logsOf(testsOf(s).single);
       expect(logsIn(await v.settle((s) => s['busy'] == false)), ['MARKER_A']);
 
       suite.writeAsStringSync(src('MARKER_B'));

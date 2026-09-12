@@ -62,7 +62,7 @@ class _InspectorPageState extends State<InspectorPage> {
   void initState() {
     super.initState();
     _loadRecent();
-    if (widget.initialPath != null) _loadPath(widget.initialPath!);
+    if (widget.initialPath case final path?) _loadPath(path);
   }
 
   Future<void> _loadRecent() async {
@@ -97,7 +97,7 @@ class _InspectorPageState extends State<InspectorPage> {
     if (tabIndex == 4) _typesSearchFocus.requestFocus();
   }
 
-  void _loadBytes(String path, Uint8List bytes, {bool remember = true}) {
+  void _loadBytes(String path, Uint8List bytes) {
     setState(() {
       _path = path;
       _error = null;
@@ -111,7 +111,7 @@ class _InspectorPageState extends State<InspectorPage> {
         _binaryCoverage = null;
         _error = '$e';
       }
-      if (remember && File(path).existsSync()) {
+      if (File(path).existsSync()) {
         _recent = addRecent(_recent, path);
         _saveRecent();
       }
@@ -135,33 +135,17 @@ class _InspectorPageState extends State<InspectorPage> {
     final res = await FilePicker.pickFiles(withData: true);
     final file = res?.files.single;
     if (file == null) return;
+    final path = file.path;
     final bytes =
-        file.bytes ??
-        (file.path != null ? File(file.path!).readAsBytesSync() : null);
-    if (bytes != null) _loadBytes(file.path ?? file.name, bytes);
+        file.bytes ?? (path == null ? null : File(path).readAsBytesSync());
+    if (bytes != null) _loadBytes(path ?? file.name, bytes);
   }
 
   @override
   Widget build(BuildContext context) {
     final doc = _doc;
-    final file = switch (doc) {
-      StructuredSeqDocument() => doc.file,
-      BinarySeqDocument() => doc.partialFile,
-      _ => null,
-    };
-    final outline = file != null ? SeqOutline.of(file) : null;
-    final tree = file != null ? propertyTree(file) : null;
-    final coverage = file == null
-        ? null
-        : doc is BinarySeqDocument
-        ? 'binary TOF1 · partial typed model (sequences + typed steps + '
-              'modules + typedef heads and decoded bodies; a body marked '
-              'undecoded, and populated-array element values, are not yet '
-              'decoded)'
-        : coverageLabel(measureCoverage(file));
-    final types = file?.types ?? const <SeqProperty>[];
-    final typeCount = file?.types.length;
-    final hasTypes = types.isNotEmpty;
+    final file = _fileOf(doc);
+    final hasTypes = file != null && file.types.isNotEmpty;
     return DefaultTabController(
       length: file != null ? (hasTypes ? 5 : 4) : 1,
       child: Builder(
@@ -199,9 +183,11 @@ class _InspectorPageState extends State<InspectorPage> {
                   bottom: TabBar(
                     tabs: [
                       const Tab(text: 'Dump'),
-                      if (file != null) const Tab(text: 'Logic'),
-                      if (file != null) const Tab(text: 'Sequences'),
-                      if (file != null) const Tab(text: 'Properties'),
+                      if (file != null) ...[
+                        const Tab(text: 'Logic'),
+                        const Tab(text: 'Sequences'),
+                        const Tab(text: 'Properties'),
+                      ],
                       if (hasTypes) const Tab(text: 'Types'),
                     ],
                   ),
@@ -211,7 +197,7 @@ class _InspectorPageState extends State<InspectorPage> {
                     final file = d.files.isNotEmpty ? d.files.first : null;
                     if (file != null) _loadPath(file.path);
                   },
-                  child: _body(doc, outline, tree, coverage, typeCount, types),
+                  child: _body(doc, file),
                 ),
               ),
             ),
@@ -247,27 +233,12 @@ class _InspectorPageState extends State<InspectorPage> {
     );
   }
 
-  Widget _body(
-    SeqDocument? doc,
-    SeqOutline? outline,
-    PropertyNode? tree,
-    String? coverage,
-    int? typeCount,
-    List<SeqProperty> types,
-  ) {
-    if (_error != null) {
+  Widget _body(SeqDocument? doc, SeqFile? file) {
+    if (_error case final error?) {
       return Center(
-        child: Text(
-          'Error: $_error',
-          style: const TextStyle(color: Colors.red),
-        ),
+        child: Text('Error: $error', style: const TextStyle(color: Colors.red)),
       );
     }
-    final file = switch (doc) {
-      StructuredSeqDocument() => doc.file,
-      BinarySeqDocument() => doc.partialFile,
-      _ => null,
-    };
     if (doc == null) {
       return Center(
         child: Column(
@@ -300,13 +271,21 @@ class _InspectorPageState extends State<InspectorPage> {
         ),
       );
     }
+    final coverage = file == null
+        ? null
+        : doc is BinarySeqDocument
+        ? 'binary TOF1 · partial typed model (sequences + typed steps + '
+              'modules + typedef heads and decoded bodies; a body marked '
+              'undecoded, and populated-array element values, are not yet '
+              'decoded)'
+        : coverageLabel(measureCoverage(file));
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        if (_path != null)
+        if (_path case final path?)
           Padding(
             padding: const EdgeInsets.fromLTRB(8, 8, 8, 2),
-            child: Text(_path!, style: Theme.of(context).textTheme.bodySmall),
+            child: Text(path, style: Theme.of(context).textTheme.bodySmall),
           ),
         if (coverage != null)
           Padding(
@@ -336,26 +315,35 @@ class _InspectorPageState extends State<InspectorPage> {
                 BinaryView(doc: doc, coverage: _binaryCoverage)
               else
                 _dumpTab(doc),
-              if (file != null) _logicTab(file),
-              if (outline != null)
+              if (file != null) ...[
+                _logicTab(file),
                 SequencesView(
-                  outline: outline,
+                  outline: SeqOutline.of(file),
                   searchFocusNode: _sequencesSearchFocus,
-                  typeCount: typeCount,
+                  typeCount: file.types.length,
                 ),
-              if (tree != null)
                 PropertiesView(
-                  root: tree,
+                  root: propertyTree(file),
                   searchFocusNode: _propertiesSearchFocus,
                 ),
-              if (types.isNotEmpty)
-                TypesView(types: types, searchFocusNode: _typesSearchFocus),
+                if (file.types.isNotEmpty)
+                  TypesView(
+                    types: file.types,
+                    searchFocusNode: _typesSearchFocus,
+                  ),
+              ],
             ],
           ),
         ),
       ],
     );
   }
+
+  static SeqFile? _fileOf(SeqDocument? doc) => switch (doc) {
+    StructuredSeqDocument() => doc.file,
+    BinarySeqDocument() => doc.partialFile,
+    _ => null,
+  };
 
   Widget _dumpTab(SeqDocument doc) => _monoTextTab(documentText(doc), 'dump');
 
