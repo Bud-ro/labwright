@@ -152,7 +152,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
         attribution = null;
       }
       try {
-        images = extractViImages(sections);
+        images = viImagesOf(sections);
       } catch (_) {
         images = const ViImages();
       }
@@ -260,7 +260,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final icon = bestLegacyIcon(_images);
+    final icon = _images.bestIcon;
     return Scaffold(
       body: Padding(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 8),

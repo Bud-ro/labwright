@@ -11,7 +11,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'bd_text_font.dart';
 import 'terminal_bitmaps.dart';
 
-import 'images_view.dart';
 import 'prim_icon_catalog.dart';
 import 'span_annotations.dart';
 
@@ -5418,27 +5417,19 @@ class _ViImageStrip extends StatelessWidget {
   const _ViImageStrip(this.images);
   final ViImages images;
 
-  EmbeddedLegacyIcon? get _bestIcon {
-    const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
-    if (images.icons.isEmpty) return null;
-    return ([
-      ...images.icons,
-    ]..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9))).first;
-  }
-
   @override
   Widget build(BuildContext context) {
-    final icon = _bestIcon;
+    final icon = images.bestIcon;
     return Padding(
       padding: const EdgeInsets.only(bottom: 4),
       child: Row(
         children: [
           if (icon != null)
             _tile(
-              'VI icon (${icon.tag})',
+              'VI icon (${icon.depth.tag})',
               CustomPaint(
                 size: const Size(36, 36),
-                painter: LegacyIconPainter(icon.icon),
+                painter: LegacyIconPainter(icon),
               ),
               tooltip:
                   "This VI's own 32×32 icon — what a caller's subVI node shows "
