@@ -11,6 +11,8 @@ import 'corpus_dirs.dart';
 
 typedef _Snap = ({String path, bool error, int fp, int bd, List<String> blocks});
 
+typedef _Want = ({bool error, int fp, int bd, Set<String> blocks});
+
 _Snap _summarizeVi(Uint8List bytes, String path) {
   try {
     final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
@@ -33,16 +35,16 @@ void main() {
 
   final root = '${corpusViDir.path}/';
   final byKey = {for (final f in all) f.path.substring(root.length).replaceAll('\\', '/'): f.path};
-  final snapJson = jsonDecode(snapFile.readAsStringSync()) as Map;
-  final snap = <String, Map<String, dynamic>>{};
-  for (final g in (snapJson['groups'] as List).cast<Map<String, dynamic>>()) {
-    final blocks = (g['blocks'] as List).cast<String>();
-    for (final f in (g['files'] as List).cast<Map<String, dynamic>>()) {
-      snap[f['name'] as String] = {'fp': f['fp'], 'bd': f['bd'], 'blocks': blocks};
+  final snapJson = jsonDecode(snapFile.readAsStringSync()) as Map<String, dynamic>;
+  final snap = <String, _Want>{};
+  for (final group in (snapJson['groups'] as List).cast<Map<String, dynamic>>()) {
+    final blocks = (group['blocks'] as List).cast<String>().toSet();
+    for (final file in (group['files'] as List).cast<Map<String, dynamic>>()) {
+      snap[file['name'] as String] = (error: false, fp: file['fp'] as int, bd: file['bd'] as int, blocks: blocks);
     }
   }
-  for (final e in ((snapJson['errors'] as List?) ?? const []).cast<Map<String, dynamic>>()) {
-    snap[e['name'] as String] = {'error': e['error']};
+  for (final failure in (snapJson['errors'] as List).cast<Map<String, dynamic>>()) {
+    snap[failure['name'] as String] = (error: true, fp: 0, bd: 0, blocks: const <String>{});
   }
 
   late final Map<String, _Snap> byPath;
@@ -56,7 +58,7 @@ void main() {
     for (final MapEntry(key: key, value: want) in snap.entries) {
       final s = byPath[byKey[key]];
       if (s == null) continue;
-      if (want.containsKey('error')) {
+      if (want.error) {
         if (!s.error) diffs.add('$key: now decodes (was a snapshotted decode error)');
         continue;
       }
@@ -64,12 +66,11 @@ void main() {
         diffs.add('$key: now throws on decode (was decodable)');
         continue;
       }
-      if (s.fp != (want['fp'] as int)) diffs.add('$key: front-panel ${want['fp']} -> ${s.fp}');
-      if (s.bd != (want['bd'] as int)) diffs.add('$key: block-diagram ${want['bd']} -> ${s.bd}');
+      if (s.fp != want.fp) diffs.add('$key: front-panel ${want.fp} -> ${s.fp}');
+      if (s.bd != want.bd) diffs.add('$key: block-diagram ${want.bd} -> ${s.bd}');
       final have = s.blocks.toSet();
-      final wantBlocks = ((want['blocks'] as List?) ?? const []).cast<String>().toSet();
-      final lost = wantBlocks.difference(have).toList()..sort();
-      final gained = have.difference(wantBlocks).toList()..sort();
+      final lost = want.blocks.difference(have).toList()..sort();
+      final gained = have.difference(want.blocks).toList()..sort();
       if (lost.isNotEmpty) diffs.add('$key: lost blocks $lost');
       if (gained.isNotEmpty) diffs.add('$key: gained blocks $gained');
     }

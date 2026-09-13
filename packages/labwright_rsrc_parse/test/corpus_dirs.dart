@@ -22,15 +22,17 @@ String corpusRelativePath(String path) {
   return normalized.startsWith(root) ? normalized.substring(root.length) : normalized;
 }
 
-Map<String, Map<String, int>> perFileNonzero(List<File> files, List<Map<String, int>> counts, Iterable<String> keys) =>
-    {
-      for (var i = 0; i < files.length; i++)
-        if (keys.any((k) => (counts[i][k] ?? 0) != 0))
-          corpusRelativePath(files[i].path): {
-            for (final k in keys)
-              if ((counts[i][k] ?? 0) != 0) k: counts[i][k]!,
-          },
+Map<String, Map<String, int>> perFileNonzero(List<File> files, List<Map<String, int>> counts, Iterable<String> keys) {
+  final out = <String, Map<String, int>>{};
+  for (var i = 0; i < files.length; i++) {
+    final nonzero = {
+      for (final key in keys)
+        if (counts[i][key] case final count? when count != 0) key: count,
     };
+    if (nonzero.isNotEmpty) out[corpusRelativePath(files[i].path)] = nonzero;
+  }
+  return out;
+}
 
 bool isNonRsrcFixture(String path) => path.replaceAll(r'\', '/').endsWith('/rust-proxy/test_data/test.vi');
 

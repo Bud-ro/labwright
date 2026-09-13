@@ -153,7 +153,7 @@ List<HeapStringTable> heapStringTablesFromDecoded(
   if (bytes[start + 2] == 0xff) {
     if (start + 5 > byteCount) return null;
     headerLen = 5;
-    payloadLen = (bytes[start + 3] << 8) | bytes[start + 4];
+    payloadLen = ByteData.sublistView(bytes).getUint16(start + 3);
   } else {
     headerLen = 3;
     payloadLen = bytes[start + 2];

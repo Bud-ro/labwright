@@ -75,8 +75,8 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
   }
   final attr = decodeHeapAttr(body, offset);
   final value = attr?.asInt;
-  if (value == null) return null;
-  final bytes = switch (attr!.width) {
+  if (attr == null || value == null) return null;
+  final bytes = switch (attr.width) {
     HeapAttrWidth.u8 => 1,
     HeapAttrWidth.u16 => 2,
     HeapAttrWidth.u24 => 3,
@@ -245,7 +245,10 @@ class ViHeapObject {
 
   int? primResId;
 
-  String? get primName => primResId == null ? null : PrimOp.fromId(primResId!)?.opName;
+  String? get primName {
+    final id = primResId;
+    return id == null ? null : PrimOp.fromId(id)?.opName;
+  }
 
   String? foreignLibraryPath;
 
@@ -740,7 +743,7 @@ List<int>? _decodeLengthTail(Uint8List table, int start) {
     var value = table[i++];
     if (value == 0xff) {
       if (i + 1 >= table.length) return null;
-      value = (table[i] << 8) | table[i + 1];
+      value = ByteData.sublistView(table).getUint16(i);
       i += 2;
     }
     lengths.add(value);
@@ -854,7 +857,7 @@ ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
   final stack = <(ViPoint, List<WireRouteDirection>)>[];
   var run = <ViPoint>[start];
   var pos = start;
-  WireRouteDirection? prev;
+  late WireRouteDirection prev;
   for (var k = 0; k < modes.length; k++) {
     final m = modes[k];
     final WireRouteDirection direction;
@@ -873,7 +876,7 @@ ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
       }
     } else if (m == 0 || m == 1) {
       final positive = m == 0;
-      direction = prev!.isHorizontal
+      direction = prev.isHorizontal
           ? (positive ? WireRouteDirection.down : WireRouteDirection.up)
           : (positive ? WireRouteDirection.right : WireRouteDirection.left);
     } else if (m == ViWireBranchRoute.popCode) {
@@ -886,7 +889,7 @@ ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
       run = <ViPoint>[pos];
       direction = dirs.removeAt(0);
     } else {
-      final blocked = _reverse(prev!);
+      final blocked = _reverse(prev);
       final dirs = [
         for (final d in WireRouteJunction.fromCode(m)!.outgoing) d == blocked ? WireRouteDirection.left : d,
       ];
@@ -1094,6 +1097,7 @@ class ViDiagram {
     final anchors = [
       for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
     ];
+    final signalKind = object.lastSignalKind;
     final points = route == null || object.refs.length != 2
         ? null
         : _routePointsFor(route, object.refs, attachPoints, anchors, altAttachPoints, stripTargets);
@@ -1113,7 +1117,7 @@ class ViDiagram {
           : () =>
                 _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]) ??
                 _dcoChildRouteTree(branchRoute, object.refs, attachPoints, altAttachPoints, stripTargets),
-      signalType: object.lastSignalKind == null ? null : ViSignalType(object.lastSignalKind!),
+      signalType: signalKind == null ? null : ViSignalType(signalKind),
     );
   }
 
@@ -1139,10 +1143,14 @@ class ViDiagram {
       }
     }
     final int anchoredIndex;
-    if (attachPoints[0] != null && attachPoints[1] == null) {
+    final ViPoint anchorPoint;
+    final head = attachPoints[0], tail = attachPoints[1];
+    if (head != null && tail == null) {
       anchoredIndex = 0;
-    } else if (attachPoints[1] != null && attachPoints[0] == null) {
+      anchorPoint = head;
+    } else if (tail != null && head == null) {
       anchoredIndex = 1;
+      anchorPoint = tail;
     } else {
       return _dcoChildTierPoints(route, refs, attachPoints, altAttachPoints, stripTargets, anchors);
     }
@@ -1151,7 +1159,7 @@ class ViDiagram {
       if (farBox != null) {
         final walked = walkOneAnchoredRoute(
           route,
-          anchor: attachPoints[anchoredIndex]!,
+          anchor: anchorPoint,
           anchoredIndex: anchoredIndex,
           farBox: farBox,
         );
@@ -1231,7 +1239,8 @@ class ViDiagram {
   bool _exactAttach(int oid) {
     final terminal = endpointTerminal(oid);
     if (terminal == null) return endpointConstantBounds(oid) == null;
-    final parent = terminal.parentOid == null ? null : byId[terminal.parentOid!];
+    final parentOid = terminal.parentOid;
+    final parent = parentOid == null ? null : byId[parentOid];
     final frame = parent == null ? null : _boundedOwnerObject(parent);
     return frame != null && frame.category == ViObjectKind.structure;
   }
@@ -1274,12 +1283,7 @@ class ViDiagram {
           contradiction = true;
           break;
         }
-        final count = remaining[match]!;
-        if (count == 1) {
-          remaining.remove(match);
-        } else {
-          remaining[match] = count - 1;
-        }
+        if (remaining.update(match, (count) => count - 1) == 0) remaining.remove(match);
       }
       if (contradiction) continue;
       return (tree: tree, fidelity: fullyAnchored ? WireRouteFidelity.closed : WireRouteFidelity.walked);
@@ -1318,12 +1322,7 @@ class ViDiagram {
           }
         }
         if (match == null) return false;
-        final count = remaining[match]!;
-        if (count == 1) {
-          remaining.remove(match);
-        } else {
-          remaining[match] = count - 1;
-        }
+        if (remaining.update(match, (count) => count - 1) == 0) remaining.remove(match);
       }
       return true;
     }
@@ -1392,12 +1391,7 @@ class ViDiagram {
           closed = false;
           break;
         }
-        final count = remaining[match]!;
-        if (count == 1) {
-          remaining.remove(match);
-        } else {
-          remaining[match] = count - 1;
-        }
+        if (remaining.update(match, (count) => count - 1) == 0) remaining.remove(match);
       }
       if (closed) return (tree: tree, fidelity: WireRouteFidelity.closed);
     }
@@ -1790,7 +1784,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       }
     },
     onGroupClose: (groupTag, cur) {
-      if (selectorOwner != null) {
+      final owner = selectorOwner;
+      if (owner != null) {
         if (selectorEntryOpen && selectorGroupDepth == 2) {
           selectorRanges.add(
             ViSelectorRange(
@@ -1805,9 +1800,9 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
         if (--selectorGroupDepth == 0) {
           if (selectorInPool) {
-            if (selectorOwner!.selectorStrings.isEmpty) selectorOwner!.selectorStrings = selectorStrings;
-          } else if (selectorOwner!.selectorRanges.isEmpty) {
-            selectorOwner!.selectorRanges = selectorRanges;
+            if (owner.selectorStrings.isEmpty) owner.selectorStrings = selectorStrings;
+          } else if (owner.selectorRanges.isEmpty) {
+            owner.selectorRanges = selectorRanges;
           }
           selectorOwner = null;
           selectorInPool = false;
@@ -1816,15 +1811,16 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (arrayIndexOwner != null && --arrayIndexGroupDepth == 0) {
         arrayIndexOwner = null;
       }
-      if (styleRunOwner == null) return;
+      final runOwner = styleRunOwner;
+      if (runOwner == null) return;
       styleRunGroupDepth--;
       if (styleRunOpen && styleRunGroupDepth == 1) {
         styleRuns.add((start: styleRunStart, fontId: styleRunFontId));
         styleRunOpen = false;
       }
       if (styleRunGroupDepth == 0) {
-        if (styleRuns.isNotEmpty && styleRunOwner!.textStyleRuns.isEmpty) {
-          styleRunOwner!.textStyleRuns = styleRuns;
+        if (styleRuns.isNotEmpty && runOwner.textStyleRuns.isEmpty) {
+          runOwner.textStyleRuns = styleRuns;
         }
         styleRunOwner = null;
       }
@@ -1853,8 +1849,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         } else if (selectorEntryOpen) {
           final attr = decodeHeapAttr(body, offset);
           final value = attr?.asInt;
-          if (value != null) {
-            final tag = attr!.rawTag;
+          if (attr != null && value != null) {
+            final tag = attr.rawTag;
             if (tag == SelectorRangeAttr.low.raw) {
               entryLow = _signedAtWidth(value, attr.width);
               return;
@@ -1878,19 +1874,20 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           }
         }
       }
-      if (arrayIndexOwner != null && identical(cur, arrayIndexOwner)) {
+      final indexOwner = arrayIndexOwner;
+      if (indexOwner != null && identical(cur, indexOwner)) {
         final attr = decodeHeapAttr(body, offset);
         final value = attr?.asInt;
-        if (value != null && attr!.rawTag == HeapAttribute.arrayElemValue.raw) {
-          arrayIndexOwner!.arrayIndex = value;
+        if (value != null && attr != null && attr.rawTag == HeapAttribute.arrayElemValue.raw) {
+          indexOwner.arrayIndex = value;
           return;
         }
       }
       if (styleRunOpen && identical(cur, styleRunOwner)) {
         final attr = decodeHeapAttr(body, offset);
         final value = attr?.asInt;
-        if (value != null) {
-          if (attr!.rawTag == FontRunAttr.start.raw) {
+        if (attr != null && value != null) {
+          if (attr.rawTag == FontRunAttr.start.raw) {
             styleRunStart = value;
             return;
           }
@@ -1903,11 +1900,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (lead == kHeapRecordPrefix) {
         final rec = c4FrameAt(body, offset, sectionTag);
         if (rec == null) return;
-        c4ops[cur]!.add(rec.opcode);
+        (c4ops[cur] ??= <int>{}).add(rec.opcode);
         switch (rec.opcode) {
           case 0x2d:
-            if (cur.bounds == null && rec.bounds != null) {
-              final bounds = rec.bounds!;
+            final recBounds = rec.bounds;
+            if (cur.bounds == null && recBounds != null) {
+              final bounds = recBounds;
               cur.bounds = bounds;
               final top = (absTop[cur] ?? 0) + bounds.top;
               final left = (absLeft[cur] ?? 0) + bounds.left;
@@ -2073,9 +2071,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     for (final frame in childrenOf[object] ?? const <ViHeapObject>[]) {
       final local = frame.bounds;
       final abs = frame.absBounds;
-      if (frame.objectClass != HeapObjectClass.bdSequenceFrame || local == null || abs == null) continue;
-      final dTop = object.absBounds!.top + local.top - abs.top;
-      final dLeft = object.absBounds!.left + local.left - abs.left;
+      final owner = object.absBounds;
+      if (frame.objectClass != HeapObjectClass.bdSequenceFrame || local == null || abs == null || owner == null) {
+        continue;
+      }
+      final dTop = owner.top + local.top - abs.top;
+      final dLeft = owner.left + local.left - abs.left;
       if (dTop != 0 || dLeft != 0) shiftSubtree(frame, dTop, dLeft);
     }
   }
@@ -2325,16 +2326,18 @@ void _resolveTypeIndices({
       object.resolvedType = type;
       final elementIndex = type.elementIndex;
       if (type.kind == ViDataType.array && elementIndex != null && elementIndex >= 0 && elementIndex < pool.length) {
-        object.resolvedElementType = pool[elementIndex];
-        if (object.resolvedElementType!.kind == ViDataType.cluster) {
-          object.resolvedElementMembers = clusterFields(object.resolvedElementType!, pool);
+        final elementType = pool[elementIndex];
+        object.resolvedElementType = elementType;
+        if (elementType.kind == ViDataType.cluster) {
+          object.resolvedElementMembers = clusterFields(elementType, pool);
         }
       }
       if (type.kind == ViDataType.cluster) {
         object.resolvedMembers = clusterFields(type, pool);
       }
-      if (type.name != null && type.name!.trim().isNotEmpty) {
-        object.typeName ??= type.name!.trim();
+      final typeName = type.name?.trim();
+      if (typeName != null && typeName.isNotEmpty) {
+        object.typeName ??= typeName;
       }
     }
   }

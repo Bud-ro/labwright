@@ -206,26 +206,27 @@ class ViType {
 
 List<ViType> decodeTypePool(Uint8List body) {
   if (body.length < 8) return const [];
-  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  final view = ByteData.sublistView(body);
+  final count = view.getUint32(0);
   if (count <= 0 || count > 200000) return const [];
   final out = <ViType>[];
   var off = 4;
   for (var i = 0; i < count; i++) {
     if (off + 4 > body.length) break;
-    final descLen = (body[off] << 8) | body[off + 1];
+    final descLen = view.getUint16(off);
     if (descLen < 4 || off + descLen > body.length) break;
-    out.add(_decodeDescriptor(body, off, descLen, count, i));
+    out.add(_decodeDescriptor(view, off, descLen, count, i));
     off += descLen;
   }
   return out;
 }
 
-ViType _decodeDescriptor(Uint8List body, int off, int descLen, int poolCount, int index, [int depth = 0]) {
-  final code = body[off + 3];
+ViType _decodeDescriptor(ByteData body, int off, int descLen, int poolCount, int index, [int depth = 0]) {
+  final code = body.getUint8(off + 3);
   final kind = _typeCodes[code] ?? ViDataType.unknown;
   final members = kind == ViDataType.cluster ? _clusterMembers(body, off, descLen, poolCount) : const <int>[];
   final elementIndex = kind == ViDataType.array ? _arrayElement(body, off, descLen, poolCount) : null;
-  final dimCount = elementIndex == null || off + 6 > body.length ? null : (body[off + 4] << 8) | body[off + 5];
+  final dimCount = elementIndex == null || off + 6 > body.lengthInBytes ? null : body.getUint16(off + 4);
   final isEnum = kind == ViDataType.enumU8 || kind == ViDataType.enumU16 || kind == ViDataType.enumU32;
   final enumItems = isEnum ? _enumItems(body, off, descLen) : const <String>[];
   final nameStart = _nameRegionStart(body, off, kind, members, elementIndex, enumItems);
@@ -244,75 +245,75 @@ ViType _decodeDescriptor(Uint8List body, int off, int descLen, int poolCount, in
 
 const int kInlineTypeIndex = -1;
 
-int? _typedefBaseStart(Uint8List bytes, int off, int descLen) {
+int? _typedefBaseStart(ByteData bytes, int off, int descLen) {
   final end = off + descLen;
   if (off + 12 > end) return null;
-  final componentCount = (bytes[off + 8] << 24) | (bytes[off + 9] << 16) | (bytes[off + 10] << 8) | bytes[off + 11];
-  if (componentCount < 0 || componentCount > 32) return null;
+  final componentCount = bytes.getUint32(off + 8);
+  if (componentCount > 32) return null;
   var pos = off + 12;
   for (var i = 0; i < componentCount; i++) {
     if (pos >= end) return null;
-    pos += 1 + bytes[pos];
+    pos += 1 + bytes.getUint8(pos);
     if (pos > end) return null;
   }
   return pos + 4 <= end ? pos : null;
 }
 
 /// TODO: the inline base's length word exceeds its extent by 4; not decoded.
-ViType? _typedefBase(Uint8List bytes, int off, int descLen, int poolCount, int depth) {
+ViType? _typedefBase(ByteData bytes, int off, int descLen, int poolCount, int depth) {
   final start = _typedefBaseStart(bytes, off, descLen);
   if (start == null) return null;
   final remaining = off + descLen - start;
-  final declared = (bytes[start] << 8) | bytes[start + 1];
+  final declared = bytes.getUint16(start);
   if (declared - 4 != remaining) return null;
   return _decodeDescriptor(bytes, start, remaining, poolCount, kInlineTypeIndex, depth + 1);
 }
 
 List<int> decodeTypeTable(Uint8List body) {
   if (body.length < 8) return const [];
-  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  final view = ByteData.sublistView(body);
+  final count = view.getUint32(0);
   if (count <= 0 || count > 200000) return const [];
   var off = 4;
   for (var i = 0; i < count; i++) {
     if (off + 2 > body.length) return const [];
-    final descLen = (body[off] << 8) | body[off + 1];
+    final descLen = view.getUint16(off);
     if (descLen < 4 || off + descLen > body.length) return const [];
     off += descLen;
   }
   if (off + 2 > body.length) return const [];
-  final n = (body[off] << 8) | body[off + 1];
+  final n = view.getUint16(off);
   if (n <= 0 || off + 2 + n * 2 > body.length) return const [];
   final out = <int>[];
   for (var i = 0; i < n; i++) {
-    final idx = (body[off + 2 + i * 2] << 8) | body[off + 3 + i * 2];
+    final idx = view.getUint16(off + 2 + i * 2);
     if (idx >= count) return const [];
     out.add(idx);
   }
   return out;
 }
 
-List<int> _clusterMembers(Uint8List bytes, int off, int descLen, int poolCount) {
-  if (off + 6 > bytes.length) return const [];
-  final memberCount = (bytes[off + 4] << 8) | bytes[off + 5];
+List<int> _clusterMembers(ByteData bytes, int off, int descLen, int poolCount) {
+  if (off + 6 > bytes.lengthInBytes) return const [];
+  final memberCount = bytes.getUint16(off + 4);
   if (memberCount <= 0 || memberCount > 512) return const [];
   if (6 + memberCount * 2 > descLen) return const [];
   final out = <int>[];
   for (var memberIndex = 0; memberIndex < memberCount; memberIndex++) {
-    final pos = off + 6 + memberIndex * 2;
-    final idx = (bytes[pos] << 8) | bytes[pos + 1];
+    final idx = bytes.getUint16(off + 6 + memberIndex * 2);
     if (idx >= poolCount) return const [];
     out.add(idx);
   }
   return out;
 }
 
-int? _arrayElement(Uint8List bytes, int off, int descLen, int poolCount) {
-  if (off + 6 > bytes.length) return null;
-  final numDims = (bytes[off + 4] << 8) | bytes[off + 5];
+int? _arrayElement(ByteData bytes, int off, int descLen, int poolCount) {
+  if (off + 6 > bytes.lengthInBytes) return null;
+  final numDims = bytes.getUint16(off + 4);
   if (numDims < 1 || numDims > 8) return null;
   final elementIndexPos = off + 6 + numDims * 4;
   if (elementIndexPos + 2 > off + descLen) return null;
-  final idx = (bytes[elementIndexPos] << 8) | bytes[elementIndexPos + 1];
+  final idx = bytes.getUint16(elementIndexPos);
   if (idx >= poolCount) return null;
   return idx;
 }
@@ -368,19 +369,20 @@ int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {
 
 const int kDataSpaceInitTableBytes = 51 * 4;
 
-List<String> _enumItems(Uint8List bytes, int off, int descLen) {
-  if (off + 6 > bytes.length) return const [];
-  final numItems = (bytes[off + 4] << 8) | bytes[off + 5];
+List<String> _enumItems(ByteData bytes, int off, int descLen) {
+  if (off + 6 > bytes.lengthInBytes) return const [];
+  final numItems = bytes.getUint16(off + 4);
   if (numItems < 1 || numItems > 256) return const [];
   final out = <String>[];
   var pos = off + 6;
   final endPos = off + descLen;
   for (var itemIndex = 0; itemIndex < numItems; itemIndex++) {
     if (pos >= endPos) return const [];
-    final len = bytes[pos];
+    final len = bytes.getUint8(pos);
     if (len < 1 || pos + 1 + len > endPos) return const [];
-    if (bytes.getRange(pos + 1, pos + 1 + len).any((c) => c < 0x20 || c >= 0x7f)) return const [];
-    out.add(String.fromCharCodes(bytes, pos + 1, pos + 1 + len));
+    final item = Uint8List.sublistView(bytes, pos + 1, pos + 1 + len);
+    if (item.any((c) => c < 0x20 || c >= 0x7f)) return const [];
+    out.add(String.fromCharCodes(item));
     pos += 1 + len;
   }
   return out;
@@ -399,17 +401,17 @@ String typeLabel(ViType t, List<ViType> types) {
   return t.kind.name;
 }
 
-String? _trailingName(Uint8List bytes, int start, int end) {
+String? _trailingName(ByteData bytes, int start, int end) {
   for (final nameEnd in [end, end - 1]) {
     if (nameEnd <= start) continue;
     for (var len = 2; len <= 63; len++) {
       final lenPos = nameEnd - len - 1;
       if (lenPos < start) break;
-      if (bytes[lenPos] != len) continue;
+      if (bytes.getUint8(lenPos) != len) continue;
       var ok = true;
       var letters = 0;
       for (var i = lenPos + 1; i < nameEnd; i++) {
-        final byte = bytes[i];
+        final byte = bytes.getUint8(i);
         if (byte < 0x20 || byte >= 0x7f) {
           ok = false;
           break;
@@ -417,7 +419,7 @@ String? _trailingName(Uint8List bytes, int start, int end) {
         if ((byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a)) letters++;
       }
       if (ok && (letters >= 2 || letters * 2 >= len)) {
-        return String.fromCharCodes(bytes.sublist(lenPos + 1, nameEnd));
+        return String.fromCharCodes(Uint8List.sublistView(bytes, lenPos + 1, nameEnd));
       }
     }
   }
@@ -425,7 +427,7 @@ String? _trailingName(Uint8List bytes, int start, int end) {
 }
 
 int _nameRegionStart(
-  Uint8List bytes,
+  ByteData bytes,
   int off,
   ViDataType kind,
   List<int> members,
@@ -436,8 +438,7 @@ int _nameRegionStart(
     return off + 6 + members.length * 2;
   }
   if (kind == ViDataType.array && elementIndex != null) {
-    final numDims = (bytes[off + 4] << 8) | bytes[off + 5];
-    return off + 6 + numDims * 4 + 2;
+    return off + 6 + bytes.getUint16(off + 4) * 4 + 2;
   }
   if (enumItems.isNotEmpty) {
     return off + 6 + enumItems.fold<int>(0, (s, it) => s + 1 + it.length);
@@ -447,7 +448,8 @@ int _nameRegionStart(
 
 Uint8List? reserializeTypePool(Uint8List body) {
   if (body.length < 6) return null;
-  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  final source = ByteData.sublistView(body);
+  final count = source.getUint32(0);
   if (count <= 0 || count > 200000) return null;
   final out = Uint8List(body.length);
   final view = ByteData.sublistView(out);
@@ -455,36 +457,37 @@ Uint8List? reserializeTypePool(Uint8List body) {
   var off = 4;
   for (var i = 0; i < count; i++) {
     if (off + 4 > body.length) return null;
-    final descLen = (body[off] << 8) | body[off + 1];
+    final descLen = source.getUint16(off);
     if (descLen < 4 || off + descLen > body.length) return null;
     view.setUint16(off, descLen);
     out.setRange(off + 2, off + descLen, body, off + 2);
     off += descLen;
   }
   if (off + 2 > body.length) return null;
-  final tlCount = (body[off] << 8) | body[off + 1];
+  final tlCount = source.getUint16(off);
   if (off + 2 + tlCount * 2 != body.length) return null;
   view.setUint16(off, tlCount);
   for (var e = 0; e < tlCount; e++) {
     final p = off + 2 + e * 2;
-    view.setUint16(p, (body[p] << 8) | body[p + 1]);
+    view.setUint16(p, source.getUint16(p));
   }
   return out;
 }
 
 bool typePoolFrames(Uint8List body) {
   if (body.length < 6) return false;
-  final count = (body[0] << 24) | (body[1] << 16) | (body[2] << 8) | body[3];
+  final view = ByteData.sublistView(body);
+  final count = view.getUint32(0);
   if (count <= 0 || count > 200000) return false;
   var off = 4;
   for (var i = 0; i < count; i++) {
     if (off + 4 > body.length) return false;
-    final descLen = (body[off] << 8) | body[off + 1];
+    final descLen = view.getUint16(off);
     if (descLen < 4 || off + descLen > body.length) return false;
     off += descLen;
   }
   if (off + 2 > body.length) return false;
-  final tlCount = (body[off] << 8) | body[off + 1];
+  final tlCount = view.getUint16(off);
   return off + 2 + tlCount * 2 == body.length;
 }
 

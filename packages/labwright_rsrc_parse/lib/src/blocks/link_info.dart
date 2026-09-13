@@ -171,8 +171,9 @@ bool _tilesFrom(Uint8List bytes, ViVersionWord? version, int count, int start, i
 }
 
 class _LiCursor {
-  _LiCursor(this.b, this.major, this.minor, this.patch);
+  _LiCursor(this.b, this.major, this.minor, this.patch) : view = ByteData.sublistView(b);
   final Uint8List b;
+  final ByteData view;
   final int major, minor, patch;
   int p = 0;
   bool ok = true;
@@ -200,7 +201,7 @@ class _LiCursor {
       ok = false;
       return 0;
     }
-    final v = (b[p] << 8) | b[p + 1];
+    final v = view.getUint16(p);
     p += 2;
     return v;
   }
@@ -210,7 +211,7 @@ class _LiCursor {
       ok = false;
       return 0;
     }
-    final v = (b[p] << 24) | (b[p + 1] << 16) | (b[p + 2] << 8) | b[p + 3];
+    final v = view.getUint32(p);
     p += 4;
     return v;
   }

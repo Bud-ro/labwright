@@ -41,8 +41,9 @@ void main() {
           'symbolNames/libraryPaths are absent here because this model has no heap records.',
     );
 
-    final emittedNode = ((json['blockDiagrams'] as List).first as Map)['objects'] as List;
-    final nodeKeys = (emittedNode.first as Map).keys.cast<String>().toSet();
+    final emittedNode =
+        (json['blockDiagrams'] as List<Map<String, Object?>>).first['objects'] as List<Map<String, Object?>>;
+    final nodeKeys = emittedNode.first.keys.toSet();
     expect(
       nodeKeys,
       {
@@ -66,7 +67,7 @@ void main() {
       },
       reason: 'node key set changed (IR shape) — update this golden expectation',
     );
-    expect(((emittedNode.first as Map)['class'] as Map).keys.cast<String>().toSet(), {
+    expect((emittedNode.first['class'] as Map<String, Object?>).keys.toSet(), {
       'label',
       'category',
       'confidence',
@@ -92,8 +93,9 @@ void main() {
     );
 
     final json = viModelToJson(model);
-    final emitted = ((json['blockDiagrams'] as List).first as Map)['objects'] as List;
-    final keys = (emitted.first as Map).keys;
+    final emitted =
+        (json['blockDiagrams'] as List<Map<String, Object?>>).first['objects'] as List<Map<String, Object?>>;
+    final keys = emitted.first.keys;
     expect(keys, isNot(contains('controlMin')));
     expect(keys, isNot(contains('controlMax')));
     expect(
@@ -117,10 +119,10 @@ void main() {
     );
     final json = viModelToJson(model);
     expect(json['connectorPaneTypeIndex'], 2, reason: '1-based index into the type pool -> the cluster');
-    final terms = json['connectorPaneTerminals'] as List;
+    final terms = json['connectorPaneTerminals'] as List<Map<String, Object?>>;
     expect(terms, hasLength(1), reason: "the cluster's one member");
-    expect((terms.first as Map)['kind'], 'dbl');
-    expect((terms.first as Map)['name'], 'Threshold');
+    expect(terms.first['kind'], 'dbl');
+    expect(terms.first['name'], 'Threshold');
     expect(() => jsonEncode(json), returnsNormally);
   });
 }

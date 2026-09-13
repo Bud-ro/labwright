@@ -116,7 +116,8 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
   DfdsContext? dfdsContextFor(int secRel) {
     final vctp = vctpBody;
     if (vctp == null || tm80BySection.isEmpty) return null;
-    final tm80 = tm80BySection[secIndexBySecRel[secRel]] ?? tm80BySection.values.first;
+    final sectionIndex = secIndexBySecRel[secRel];
+    final tm80 = (sectionIndex == null ? null : tm80BySection[sectionIndex]) ?? tm80BySection.values.first;
     return DfdsContext(vctp: vctp, tm80: tm80, verGe10: verGe10);
   }
 

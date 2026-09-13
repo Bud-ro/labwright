@@ -40,10 +40,9 @@ String _sig(ViModel m) {
 bool _heapLead(int x) => x == 0xc4 || (x >= 0x08 && x <= 0x13);
 bool _wild(HeapRect r) => [r.left, r.top, r.right, r.bottom].any((c) => c < -200000 || c > 200000);
 
-bool _structuralHeap(List<int> b) {
+bool _structuralHeap(Uint8List b) {
   if (b.length < 8) return false;
-  final declared = (b[0] << 24) | (b[1] << 16) | (b[2] << 8) | b[3];
-  return declared == b.length - 4 && _heapLead(b[4]);
+  return ByteData.sublistView(b).getUint32(0) == b.length - 4 && _heapLead(b[4]);
 }
 
 bool _printable(Iterable<int> runes) => runes.every((c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f));

@@ -38,12 +38,10 @@ class ViConnectorPaneMap {
 
   Uint8List serialize() {
     final out = Uint8List(2 + 2 * terminals.length);
-    out[0] = terminals.length & 0xff;
-    out[1] = (terminals.length >> 8) & 0xff;
+    final view = ByteData.sublistView(out);
+    view.setUint16(0, terminals.length, Endian.little);
     for (var i = 0; i < terminals.length; i++) {
-      final value = terminals[i] ?? 0xFFFF;
-      out[2 + 2 * i] = value & 0xff;
-      out[3 + 2 * i] = (value >> 8) & 0xff;
+      view.setUint16(2 + 2 * i, terminals[i] ?? 0xFFFF, Endian.little);
     }
     return out;
   }
@@ -51,11 +49,12 @@ class ViConnectorPaneMap {
 
 ViConnectorPaneMap? decodeConnectorPaneMap(Uint8List bytes) {
   if (bytes.length < 2) return null;
-  final count = bytes[0] | (bytes[1] << 8);
+  final view = ByteData.sublistView(bytes);
+  final count = view.getUint16(0, Endian.little);
   if (2 + 2 * count != bytes.length) return null;
   final terminals = <int?>[];
   for (var i = 0; i < count; i++) {
-    final value = bytes[2 + 2 * i] | (bytes[3 + 2 * i] << 8);
+    final value = view.getUint16(2 + 2 * i, Endian.little);
     terminals.add(value == 0xFFFF ? null : value);
   }
   return ViConnectorPaneMap(terminals: terminals);
