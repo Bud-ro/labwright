@@ -258,6 +258,56 @@ void main() {
     expect(() => decodeLinkInfo(u8([0, 1, 2, 3])), throwsA(isA<AssertionError>()));
   });
 
+  test('decodeLinkInfo walks each entry kind to the terminator under its saving version', () {
+    const zero4 = [0, 0, 0, 0];
+    const pth0 = [
+      ...[0x50, 0x54, 0x48, 0x30],
+      ...zero4,
+    ];
+    const basic = [...zero4, ...pth0, ...zero4];
+    const basicLegacy = [...zero4, ...pth0];
+    const apiCache = [...zero4, ...zero4, 0, 0, 0, ...zero4];
+    const classAB = [0, 0, 0, 1, 1, 0x41, ...pth0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0x42, ...pth0];
+    final rows = <(String, String, List<int>)>[
+      ('20008000', 'TCPI', [...basic, ...apiCache, ...zero4, 0, 0, 0, 0, 1, ...classAB, ...zero4]),
+      ('20008000', 'AXVT', [...basic, ...zero4, 0, 0, 0, ...zero4, ...zero4, ...List.filled(40, 0)]),
+      (
+        '13008000',
+        'RCFL',
+        [...basic, ...zero4, ...zero4, ...zero4, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 0, 0x20, 0, 1, 0, 0, ...zero4],
+      ),
+      ('13008000', 'RVPI', [...basic, ...apiCache]),
+      (
+        '08208000',
+        'DNDA',
+        [
+          ...basicLegacy,
+          0,
+          0,
+          ...List.filled(24, 0),
+          ...zero4,
+          ...List.filled(8, 0),
+          1,
+          0x61,
+          1,
+          0x62,
+          1,
+          0x63,
+          1,
+          0x64,
+          ...zero4,
+        ],
+      ),
+    ];
+    for (final (version, kind, body) in rows) {
+      final payload = u8([0, 1, ...'BDHP'.codeUnits, 0, 0, 0, 1, 0, 2, ...kind.codeUnits, ...body, 0, 3]);
+      final info = decodeLinkInfo(payload, version: decodeVersionWord(hx(version)));
+      final entry = info.entries.single;
+      expect(entry, isA<ViLinkEntryFramed>().having((e) => e.kind, 'kind', kind), reason: kind);
+      expect((entry.offset, entry.end), (10, payload.length - 2), reason: kind);
+    }
+  });
+
   test('decodeLibraryNames: [u32 count][count pstr]', () {
     final b = u8([0, 0, 0, 2, ...pascal('Outer.lvlib'), ...pascal('Inner.lvclass')]);
     final names = decodeLibraryNames(b);
