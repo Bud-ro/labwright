@@ -35,7 +35,7 @@ void main() {
         for (final o in bd.objects) {
           final key = primIconKeyOf(o);
           if (key == null) continue;
-          keys.add(key >= 0 ? 'prim$key' : 'class${-key}');
+          keys.add(primIconName(key));
         }
         if (keys.isNotEmpty) keysBySnippet[f.uri.pathSegments.last] = keys;
       }

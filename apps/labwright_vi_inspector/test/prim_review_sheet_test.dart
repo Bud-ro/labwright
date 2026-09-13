@@ -1,4 +1,5 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/prim_icon_catalog.dart';
 
 import '../tool/prim_review_sheet.dart' show kReviewSheetRows;
@@ -14,7 +15,7 @@ void main() {
           reason: '${row.identity} names no example VI',
         );
         if (row.primResId == null) continue;
-        final key = 'prim${row.primResId}';
+        final key = primIconName(row.primResId!);
         expect(
           row.hasIcon,
           kPrimIconStatus.containsKey(key) &&
