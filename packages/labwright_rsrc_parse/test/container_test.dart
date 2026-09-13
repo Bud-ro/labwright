@@ -270,7 +270,7 @@ void main() {
           ..setUint32(0x38 + 8, descAt - descBase)
           ..setUint32(0x44 + 8, finalDescRel)
           ..setUint32(descAt + 4, 0x100) // descriptor secRel
-          ..setUint32(descAt + 16, ViSectionDescriptor.commonWord16)
+          ..setUint32(descAt + 16, SectionNamespace.own.word)
           ..setUint32(nameTableAt + 4, 0x200); // final entry's secRel
         info
           ..setRange(0x38, 0x3c, 'LVSR'.codeUnits)

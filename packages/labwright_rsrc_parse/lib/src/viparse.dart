@@ -1,8 +1,10 @@
 import 'dart:typed_data';
 
 import 'block_tag.dart';
+import 'container.dart' show SectionNamespace;
 import 'pth0.dart';
 
+/// Thrown when bytes do not hold an RSRC container this package can read.
 class ViFormatException implements Exception {
   ViFormatException(this.message);
   final String message;
@@ -10,6 +12,26 @@ class ViFormatException implements Exception {
   String toString() => 'ViFormatException: $message';
 }
 
+/// The file-type 4CC at offset 8 of the header.
+enum ViFileType {
+  vi('LVIN'),
+
+  control('LVCC')
+  ;
+
+  const ViFileType(this.fourCc);
+
+  final String fourCc;
+
+  static ViFileType? of(String fourCc) {
+    for (final t in values) {
+      if (t.fourCc == fourCc) return t;
+    }
+    return null;
+  }
+}
+
+/// What a file is and which blocks it carries, read from the header and block list alone.
 class ViSummary {
   ViSummary({
     required this.fileType,
@@ -25,12 +47,17 @@ class ViSummary {
 
   final int formatVersion;
 
+  /// The block tags in block-list order.
   final List<String> blocks;
 
+  /// The VI name from the info area's trailing Pascal string.
   final String? name;
 
-  bool get isVi => fileType == 'LVIN';
-  bool get isControl => fileType == 'LVCC';
+  /// Null for a file type other than a VI or a control.
+  ViFileType? get kind => ViFileType.of(fileType);
+
+  bool get isVi => kind == ViFileType.vi;
+  bool get isControl => kind == ViFileType.control;
 
   bool _has(BlockCategory category) => blocks.any((tag) => BlockTag.of(tag)?.category == category);
 
@@ -55,10 +82,10 @@ class ViSummary {
   };
 
   String describe() {
-    final kind = switch (fileType) {
-      'LVIN' => 'VI',
-      'LVCC' => 'control/typedef',
-      _ => fileType,
+    final kind = switch (this.kind) {
+      ViFileType.vi => 'VI',
+      ViFileType.control => 'control/typedef',
+      null => fileType,
     };
     final caps = [
       if (hasFrontPanel) 'front panel',
@@ -71,13 +98,16 @@ class ViSummary {
   }
 }
 
+/// One section of a block: its payload as a view into the file at [dataOffset] + 4.
 class ViSection {
   ViSection({required this.tag, required this.index, required this.dataOffset, required this.bytes});
 
   final String tag;
 
+  /// Position among the block's sections.
   final int index;
 
+  /// The section's `secRel`: the offset of its length word within the data area.
   final int dataOffset;
 
   final Uint8List bytes;
@@ -119,11 +149,13 @@ void _checkRsrcMagic(Uint8List bytes) {
   return (countPos: countPos, count: count);
 }
 
-List<ViSection> readViSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0xFFFFFFFF);
+/// The file's own sections, in block-list order.
+List<ViSection> readViSections(Uint8List bytes) => _readSections(bytes, SectionNamespace.own);
 
-List<ViSection> readEmbeddedSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0);
+/// The sections of embedded resources (`LIBN`, `VINS`).
+List<ViSection> readEmbeddedSections(Uint8List bytes) => _readSections(bytes, SectionNamespace.embedded);
 
-List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
+List<ViSection> _readSections(Uint8List bytes, SectionNamespace namespace) {
   final view = ByteData.sublistView(bytes);
 
   int u32(int at) {
@@ -155,11 +187,11 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
     final descRel = u32(entry + 8);
     entry += 12;
     if (!_printableTag(tagText)) continue;
-    if (finalEntry && wantWord16 != 0xFFFFFFFF) continue;
+    if (finalEntry && namespace != SectionNamespace.own) continue;
     for (var sectionIndex = 0; sectionIndex < sectionCount; sectionIndex++) {
       final dpos = descBase + descRel + sectionIndex * descSize;
       if (dpos + (finalEntry ? finalDescSize : descSize) > bytes.length) break;
-      if (!finalEntry && view.getUint32(dpos + 16) != wantWord16) continue;
+      if (!finalEntry && view.getUint32(dpos + 16) != namespace.word) continue;
       final secRel = view.getUint32(dpos + 4);
       final pos = dataOffset + secRel;
       if (pos + 4 > bytes.length) continue;
@@ -178,6 +210,7 @@ List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   return sections;
 }
 
+/// Reads the header and block list; throws [ViFormatException] when they are not an RSRC.
 ViSummary parseVi(Uint8List bytes) {
   final view = ByteData.sublistView(bytes);
 

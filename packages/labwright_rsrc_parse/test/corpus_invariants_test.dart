@@ -171,7 +171,7 @@ Map<String, int> _inv(Uint8List bytes, String path) {
       }
       for (final d in ia.descriptors) {
         if (d.word0 != 0) bad('word0');
-        if (d.word16 != ViSectionDescriptor.commonWord16 && d.word16 != 0) bad('word16');
+        if (d.namespace == null) bad('word16');
       }
       final nt = ia.nameTable.trailingName;
       if (nt != null) {

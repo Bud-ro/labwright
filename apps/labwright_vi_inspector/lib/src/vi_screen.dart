@@ -605,10 +605,10 @@ class _SummaryViewState extends State<_SummaryView> {
     super.dispose();
   }
 
-  String get _kind => switch (widget.summary.fileType) {
-    'LVIN' => 'VI',
-    'LVCC' => 'Control / typedef',
-    _ => widget.summary.fileType,
+  String get _kind => switch (widget.summary.kind) {
+    ViFileType.vi => 'VI',
+    ViFileType.control => 'Control / typedef',
+    null => widget.summary.fileType,
   };
 
   @override
