@@ -1,3 +1,6 @@
+/// VI snippets: PNG images whose `niVI` chunk holds a complete VI.
+library;
+
 import 'dart:typed_data';
 
 import 'blocks/MNGI_png_image.dart' show crc32;
@@ -8,6 +11,7 @@ const List<int> _rsrcMagic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
 
 const String _niViChunkType = 'niVI';
 
+/// Whether the bytes start with the PNG signature.
 bool isPngBytes(Uint8List bytes) {
   if (bytes.length < _pngSignature.length) return false;
   for (var i = 0; i < _pngSignature.length; i++) {
@@ -16,6 +20,8 @@ bool isPngBytes(Uint8List bytes) {
   return true;
 }
 
+/// The VI inside the PNG's `niVI` chunk (a view), or null when there is no such chunk, its
+/// CRC does not match, or it does not start with the RSRC magic.
 Uint8List? extractSnippetVi(Uint8List png) {
   if (!isPngBytes(png)) return null;
   final view = ByteData.sublistView(png);
@@ -40,10 +46,13 @@ Uint8List? extractSnippetVi(Uint8List png) {
   return null;
 }
 
+/// Height of the title band LabVIEW paints above a snippet's diagram.
 const int snippetHeaderHeight = 25;
 
+/// Width of the frame LabVIEW paints around a snippet's diagram.
 const int snippetFrameInset = 1;
 
+/// The pixel rectangle inside a snippet's frame and title band that holds the diagram.
 ({int left, int top, int right, int bottom}) snippetDiagramInterior(
   int width,
   int height,

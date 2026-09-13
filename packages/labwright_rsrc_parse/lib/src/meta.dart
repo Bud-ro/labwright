@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../labwright_rsrc_parse.dart';
 
+/// The version string and title read from `vers`.
 class ViVersionInfo {
   const ViVersionInfo({this.version, this.title});
 
@@ -12,6 +13,8 @@ class ViVersionInfo {
 
 final RegExp _versionPattern = RegExp(r'^\d{1,2}\.\d');
 
+/// Reads the first `vers` string that looks like a version and the title that follows a
+/// `VIDS` marker.
 ViVersionInfo decodeVersion(Uint8List viBytes) => versionFromSections(readViSections(viBytes));
 
 ViVersionInfo versionFromSections(Iterable<ViSection> sections) {
@@ -26,6 +29,8 @@ ViVersionInfo versionFromSections(Iterable<ViSection> sections) {
   return ViVersionInfo(version: version, title: title);
 }
 
+/// Per-tag totals over a file's sections: how many, their raw and inflated byte sizes, and
+/// whether any was compressed.
 class BlockComponent {
   const BlockComponent({
     required this.tag,
@@ -46,6 +51,7 @@ class BlockComponent {
   final bool compressed;
 }
 
+/// The per-tag totals of a VI, largest inflated size first.
 List<BlockComponent> blockComponents(Uint8List viBytes) => componentsFromDecoded(decodeSections(viBytes));
 
 List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
@@ -67,6 +73,8 @@ List<BlockComponent> componentsFromDecoded(Iterable<DecodedSection> decoded) {
   return out;
 }
 
+/// A run of Pascal strings found in a section: [framed] when it sits inside a string-table
+/// record, otherwise a scan hit at [offset].
 class HeapStringTable {
   const HeapStringTable({
     required this.sectionTag,
@@ -84,9 +92,12 @@ class HeapStringTable {
   final bool framed;
 }
 
+/// Every distinct string of every [HeapStringTable] of a VI.
 List<String> extractHeapStrings(Uint8List viBytes, {int minLength = 4}) =>
     heapStringsFromDecoded(decodeSections(viBytes), minLength: minLength);
 
+/// Scans every section for framed string-table records and for runs of at least [minRun]
+/// printable Pascal strings of at least [minLength] characters.
 List<HeapStringTable> heapStringTables(Uint8List viBytes, {int minLength = 4, int minRun = 2}) =>
     heapStringTablesFromDecoded(decodeSections(viBytes), minLength: minLength, minRun: minRun);
 
@@ -215,6 +226,7 @@ bool _isTextByte(int byte) => byte == 9 || byte == 10 || byte == 13 || (byte >= 
 bool _looksWordy(String text) =>
     text.codeUnits.any((byte) => (byte >= 0x41 && byte <= 0x5a) || (byte >= 0x61 && byte <= 0x7a));
 
+/// Text stored in `CPC2` as a length-prefixed printable run, or null when it holds none.
 String? cpc2Description(Iterable<ViSection> sections) {
   for (final section in sections) {
     if (section.tag != 'CPC2') continue;

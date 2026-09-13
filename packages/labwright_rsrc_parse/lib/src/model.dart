@@ -2,6 +2,9 @@ import 'dart:typed_data';
 
 import '../labwright_rsrc_parse.dart';
 
+/// Everything decoded from one VI that the inspector and transpiler consume: the version and
+/// title, per-block component totals, the recovered string tables and C4 records, the diagrams
+/// of both sides, the type pool, the sub-VI names, the connector-pane type and the font table.
 class ViModel {
   const ViModel({
     required this.version,
@@ -18,28 +21,38 @@ class ViModel {
     this.fontTable,
   });
 
+  /// The version string from `vers`.
   final String? version;
 
+  /// The title from `vers`.
   final String? title;
 
+  /// Text found in `CPC2`, see [cpc2Description].
   final String? description;
 
   final List<BlockComponent> components;
 
   final List<HeapStringTable> stringTables;
 
+  /// Every C4 record across the heap sections, in file order.
   final List<HeapRecord> heapRecords;
 
+  /// One diagram per `BDHb` section.
   final List<ViDiagram> blockDiagrams;
 
+  /// One diagram per `FPHb` section.
   final List<ViDiagram> frontPanelDiagrams;
 
   ViDiagram? get primaryBlockDiagram => largestDiagram(blockDiagrams);
 
+  /// Sub-VI names recovered from `LIbd`, see [readSubViNames].
   final List<String> subViNames;
 
+  /// The `VCTP` type pool.
   final List<ViType> types;
 
+  /// The 1-based `VCTP` index of the connector-pane type; null without `CONP` or when the
+  /// pane carries an inline descriptor.
   final int? connectorPaneTypeIndex;
 
   final ViFontTable? fontTable;
@@ -75,6 +88,8 @@ class ViModel {
   List<String> get labels => _dedupe(stringTables.expand((t) => t.strings));
 }
 
+/// A bounds rectangle paired with the caption or string table that follows it in the heap,
+/// see [assembleObjects].
 class ViObject {
   const ViObject({
     required this.sectionTag,
@@ -94,6 +109,8 @@ class ViObject {
   String? get name => caption ?? (labels.isEmpty ? null : labels.first);
 }
 
+/// Pairs each caption or framed string-table record with the bounds record at most
+/// [maxRecordGap] records before it in the same section.
 List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables, {int maxRecordGap = 3}) {
   final framed = {
     for (final table in stringTables)
@@ -149,6 +166,7 @@ List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> s
   return out;
 }
 
+/// Decodes every section of a VI and builds its [ViModel].
 ViModel buildViModel(Uint8List viBytes) =>
     buildViModelFromDecoded(decodeSections(viBytes), subViNames: readSubViNames(viBytes));
 
@@ -216,6 +234,7 @@ ViDiagram? largestDiagram(List<ViDiagram> diagrams) {
   return best;
 }
 
+/// The glyph LabVIEW paints on a terminal of the type, or null when the type has none.
 String? dataTypeGlyph(ViDataType type) => switch (type) {
   ViDataType.i8 => 'I8',
   ViDataType.i16 => 'I16',
