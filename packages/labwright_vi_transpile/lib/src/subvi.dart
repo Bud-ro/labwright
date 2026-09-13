@@ -18,7 +18,7 @@ class LvViUnit {
 
   final List<ViType> pool;
 
-  final List<int?> paneMap;
+  final List<ConnectorTerminal> paneMap;
 
   final List<ViHeapObject> panelDataItems;
 
@@ -26,9 +26,10 @@ class LvViUnit {
 
   ViHeapObject? paneTerminal(int paneIndex) {
     if (paneIndex < 0 || paneIndex >= paneMap.length) return null;
-    final item = paneMap[paneIndex];
-    if (item == null || item < 0 || item >= panelDataItems.length) return null;
-    return terminalOfDataItem[panelDataItems[item].oid];
+    if (paneMap[paneIndex] case PanelObjectTerminal(:final index) when index < panelDataItems.length) {
+      return terminalOfDataItem[panelDataItems[index].oid];
+    }
+    return null;
   }
 
   static LvViUnit? fromSections(Iterable<DecodedSection> sections, {required String fileName}) {
@@ -47,11 +48,11 @@ class LvViUnit {
   }
 }
 
-List<int?> lvConnectorPaneMap(Iterable<DecodedSection> sections) {
+List<ConnectorTerminal> lvConnectorPaneMap(Iterable<DecodedSection> sections) {
   for (final section in sections) {
-    if (section.tag == 'CPMp') return decodeConnectorPaneMap(section.bytes)?.terminals ?? const <int?>[];
+    if (section.tag == 'CPMp') return decodeConnectorPaneMap(section.bytes).terminals;
   }
-  return const <int?>[];
+  return const <ConnectorTerminal>[];
 }
 
 List<ViHeapObject> lvPanelDataItems(ViModel model) => <ViHeapObject>[

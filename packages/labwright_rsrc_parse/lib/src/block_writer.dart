@@ -8,6 +8,7 @@ import 'blocks/CNST_LPIN_BDTS_word_grid.dart';
 import 'blocks/CONP_CPC2_connector_pane.dart';
 import 'blocks/COUT_compiled_output.dart';
 import 'blocks/CPD2_connector_pane_data.dart';
+import 'blocks/CPMp_connector_pane_map.dart';
 import 'blocks/CPST_CPSP_pascal_string_table.dart';
 import 'blocks/DLDR_default_data_loader.dart';
 import 'blocks/DTHP_data_type_heap.dart';
@@ -32,7 +33,6 @@ import 'blocks/TITL_title.dart';
 import 'blocks/TM80_type_map.dart';
 import 'blocks/TRec_type_record.dart';
 import 'blocks/VITS_tag_store.dart';
-import 'blocks/aux_records.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/vers_version.dart';
 
@@ -99,8 +99,8 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'vers' => decodeVersBlock(payload).serialize(),
     'VITS' => decodeTagStore(payload)?.serialize(),
     'DTHP' => decodeDataTypeHeap(payload)?.serialize(),
-    'CONP' || 'CPC2' => decodeConnectorPane(payload)?.serialize(),
-    'STRG' => decodeStringBlockRaw(payload)?.serialize(),
+    'CONP' || 'CPC2' => decodeConnectorPane(payload).serialize(),
+    'STRG' || 'HLPT' => decodeStringBlock(payload).serialize(),
     'HIST' => decodeHistory(payload).serialize(),
     'LVSR' => decodeSaveRecord(payload).serialize(),
     'MUID' => decodeModifiedUid(payload).serialize(),
@@ -108,7 +108,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'BDEx' || 'FPEx' => decodeExtendedState(payload).serialize(),
     'IPSR' => decodeOffsetTable(payload).serialize(),
     'PICC' => decodeIconPlacement(payload).serialize(),
-    'CPMp' => decodeConnectorPaneMap(payload)?.serialize(),
+    'CPMp' => decodeConnectorPaneMap(payload).serialize(),
     'GCPR' => decodeGcprRecord(payload).serialize(),
     'RTSG' || 'OBSG' || 'CCSG' => decodeSignature(payload).serialize(),
     'SCSR' => decodeSourceSignature(payload).serialize(),
@@ -124,8 +124,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'BFAL' => decodeAlignTable(payload).serialize(),
     'PRT ' => decodePrintRecord(payload).serialize(),
     'FPTD' => decodeU16Grid(payload).serialize(),
-    'HLPT' => decodeStringBlockRaw(payload)?.serialize(),
-    'HLPP' => decodeHelpPath(payload)?.serialize(),
+    'HLPP' || 'DLLP' => decodeHelpPath(payload).serialize(),
     'FTAB' => _serializeFontTable(payload),
     'BKMK' => decodeBookmarkList(payload).serialize(),
     'TRec' => decodeTextRecord(payload).serialize(),

@@ -1,30 +1,44 @@
+/// `STRG` / `HLPT` — the VI description and the context-help text: a length-prefixed UTF-8
+/// string.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       4     length                     u32      bytes of text
+/// 4       rest  text                       u8[length] UTF-8 text
+/// ```
+///
+/// [ViStringBlock] is a view over the payload; [decodeStringBlock] requires the length word
+/// to cover the payload exactly.
+library;
+
 import 'dart:convert';
 import 'dart:typed_data';
 
-String? decodeStringBlock(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final len = ByteData.sublistView(bytes).getUint32(0);
-  final end = (4 + len).clamp(4, bytes.length);
-  return utf8.decode(bytes.sublist(4, end), allowMalformed: true);
-}
+import '../block_layout.dart';
 
+const _length = BlockField(0, 4, 'length', 'u32', 'bytes of text');
+const _text = BlockField(4, null, 'text', 'u8[length]', 'UTF-8 text');
+
+const BlockLayout stringBlockLayout = [_length, _text];
+
+/// A view over an `STRG` or `HLPT` payload.
 class ViStringBlock {
-  const ViStringBlock({required this.declaredLength, required this.body});
+  const ViStringBlock._(this.bytes);
 
-  final int declaredLength;
+  final Uint8List bytes;
 
-  final Uint8List body;
+  Uint8List get body => Uint8List.sublistView(bytes, _text.offset);
 
-  Uint8List serialize() {
-    final out = Uint8List(4 + body.length);
-    ByteData.sublistView(out).setUint32(0, declaredLength);
-    out.setRange(4, 4 + body.length, body);
-    return out;
-  }
+  String get text => utf8.decode(body, allowMalformed: true);
+
+  Uint8List serialize() => bytes;
 }
 
-ViStringBlock? decodeStringBlockRaw(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final declaredLength = ByteData.sublistView(bytes).getUint32(0);
-  return ViStringBlock(declaredLength: declaredLength, body: Uint8List.sublistView(bytes, 4));
+ViStringBlock decodeStringBlock(Uint8List bytes) {
+  assert(bytes.length >= _text.offset, 'a string block starts with its length word');
+  assert(
+    _text.offset + ByteData.sublistView(bytes).getUint32(_length.offset) == bytes.length,
+    'the text fills the payload',
+  );
+  return ViStringBlock._(bytes);
 }

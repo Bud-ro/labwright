@@ -185,7 +185,10 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     subViNames: subViNames,
     types: types,
     fontTable: fontTable,
-    connectorPaneTypeIndex: connectorPaneFromSections(sections)?.typeIndex,
+    connectorPaneTypeIndex: switch (connectorPaneFromSections(sections)) {
+      ViConnectorPaneTypeIndex(:final typeIndex) => typeIndex,
+      ViConnectorPaneInline() || null => null,
+    },
     version: ver.version,
     title: ver.title,
     description: cpc2Description(sections),

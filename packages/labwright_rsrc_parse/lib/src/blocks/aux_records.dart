@@ -28,38 +28,6 @@ ViCompiledCode? decodeCompiledCode(Uint8List bytes) {
   );
 }
 
-class ViConnectorPaneMap {
-  const ViConnectorPaneMap({required this.terminals});
-
-  final List<int?> terminals;
-
-  int get terminalCount => terminals.length;
-  int get assignedCount => terminals.where((t) => t != null).length;
-
-  Uint8List serialize() {
-    final out = Uint8List(2 + 2 * terminals.length);
-    final view = ByteData.sublistView(out);
-    view.setUint16(0, terminals.length, Endian.little);
-    for (var i = 0; i < terminals.length; i++) {
-      view.setUint16(2 + 2 * i, terminals[i] ?? 0xFFFF, Endian.little);
-    }
-    return out;
-  }
-}
-
-ViConnectorPaneMap? decodeConnectorPaneMap(Uint8List bytes) {
-  if (bytes.length < 2) return null;
-  final view = ByteData.sublistView(bytes);
-  final count = view.getUint16(0, Endian.little);
-  if (2 + 2 * count != bytes.length) return null;
-  final terminals = <int?>[];
-  for (var i = 0; i < count; i++) {
-    final value = view.getUint16(2 + 2 * i, Endian.little);
-    terminals.add(value == 0xFFFF ? null : value);
-  }
-  return ViConnectorPaneMap(terminals: terminals);
-}
-
 class ViPngImage {
   const ViPngImage({required this.width, required this.height, required this.byteLength});
   final int width;

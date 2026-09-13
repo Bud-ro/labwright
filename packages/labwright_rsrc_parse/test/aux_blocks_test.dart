@@ -36,7 +36,7 @@ const _probes = <String, List<(String, bool Function(Uint8List))>>{
   'TRec': [('TRec', _trec)],
 };
 
-bool _cpmp(Uint8List b) => decodeConnectorPaneMap(b) != null;
+bool _cpmp(Uint8List b) => decodeConnectorPaneMap(b).length >= 0;
 bool _ipsr(Uint8List b) => decodeOffsetTable(b).length >= 1;
 bool _gcdi(Uint8List b) => decodeGcdiRecord(b).value >= 0;
 bool _bkmk(Uint8List b) => decodeBookmarkList(b).tableA.length >= 0;

@@ -436,16 +436,16 @@ class _BlockHexViewState extends State<BlockHexView> {
         ];
       case 'CONP':
       case 'CPC2':
+        if (bytes.isEmpty) return const [];
         final pane = decodeConnectorPane(bytes);
-        if (pane == null) return const [];
-        if (pane.isInline)
+        if (pane is! ViConnectorPaneTypeIndex)
           return [const MapEntry('Form', 'inline (not yet decoded)')];
         final out = [MapEntry('VCTP type index', '${pane.typeIndex}')];
         final pool = widget.siblings.isEmpty
             ? const <ViType>[]
             : typePoolFromDecoded(widget.siblings);
         final idx = pane.typeIndex;
-        if (idx != null && idx >= 1 && idx <= pool.length) {
+        if (idx >= 1 && idx <= pool.length) {
           final type = pool[idx - 1];
           final name = type.name != null && type.name!.isNotEmpty
               ? " '${type.name}'"
@@ -454,14 +454,18 @@ class _BlockHexViewState extends State<BlockHexView> {
         }
         return out;
       case 'HLPP':
+        if (!isPth0(bytes)) return const [];
         final helpPath = decodeHelpPath(bytes);
-        return (helpPath == null || !helpPath.isPth0 || helpPath.path.isEmpty)
+        return helpPath.path.isEmpty
             ? const []
             : [MapEntry('Help path', helpPath.path)];
       case 'STRG':
       case 'HLPT':
-        final text = decodeStringBlock(bytes);
-        if (text == null || text.isEmpty) return const [];
+        if (bytes.length < 4 || 4 + readU32be(bytes, 0) != bytes.length) {
+          return const [];
+        }
+        final text = decodeStringBlock(bytes).text;
+        if (text.isEmpty) return const [];
         return [
           MapEntry(
             'Text',

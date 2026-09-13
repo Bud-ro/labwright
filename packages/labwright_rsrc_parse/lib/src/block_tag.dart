@@ -9,6 +9,7 @@ import 'blocks/CNST_LPIN_BDTS_word_grid.dart';
 import 'blocks/CONP_CPC2_connector_pane.dart';
 import 'blocks/COUT_compiled_output.dart';
 import 'blocks/CPD2_connector_pane_data.dart';
+import 'blocks/CPMp_connector_pane_map.dart';
 import 'blocks/CPST_CPSP_pascal_string_table.dart';
 import 'blocks/DLDR_default_data_loader.dart';
 import 'blocks/DTHP_data_type_heap.dart';
@@ -166,13 +167,34 @@ enum BlockTag {
   dsim('DSIM', 'Data-space image', BlockCategory.dataSpace, BlockConfidence.confirmed, decodeDataSpaceImage),
 
   /// Connector pane: the [vctp] index of the pane type.
-  conp('CONP', 'Connector pane', BlockCategory.connectorPane, BlockConfidence.confirmed, decodeConnectorPane),
+  conp(
+    'CONP',
+    'Connector pane',
+    BlockCategory.connectorPane,
+    BlockConfidence.confirmed,
+    decodeConnectorPane,
+    connectorPaneLayout,
+  ),
 
   /// Connector-pane reference in the compiled form.
-  cpc2('CPC2', 'Connector pane, compiled', BlockCategory.connectorPane, BlockConfidence.likely, decodeConnectorPane),
+  cpc2(
+    'CPC2',
+    'Connector pane, compiled',
+    BlockCategory.connectorPane,
+    BlockConfidence.likely,
+    decodeConnectorPane,
+    connectorPaneLayout,
+  ),
 
   /// Connector pane map: which panel object each pane terminal is wired to.
-  cpmp('CPMp', 'Connector pane map', BlockCategory.connectorPane, BlockConfidence.confirmed, decodeConnectorPaneMap),
+  cpmp(
+    'CPMp',
+    'Connector pane map',
+    BlockCategory.connectorPane,
+    BlockConfidence.confirmed,
+    decodeConnectorPaneMap,
+    cpmpLayout,
+  ),
 
   /// Connector-pane data, one u16.
   cpd2(
@@ -261,22 +283,22 @@ enum BlockTag {
   vins('VINS', 'Embedded VI', BlockCategory.embeddedVi, BlockConfidence.confirmed, parseVi),
 
   /// VI description text.
-  strg('STRG', 'VI description', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock),
+  strg('STRG', 'VI description', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
 
-  /// One Pascal string in the Mac `STR ` layout; not decoded.
+  /// Begins with a version word; layout not decoded.
   str('STR ', 'String', BlockCategory.text, BlockConfidence.tentative),
 
   /// VI title as a Pascal string.
   titl('TITL', 'VI title', BlockCategory.text, BlockConfidence.confirmed, decodeTitle, titlLayout),
 
   /// Context-help text, in the [strg] layout.
-  hlpt('HLPT', 'Help text', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock),
+  hlpt('HLPT', 'Help text', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
 
   /// Context-help document path (PTH0).
-  hlpp('HLPP', 'Help path', BlockCategory.helpPath, BlockConfidence.confirmed, decodeHelpPath),
+  hlpp('HLPP', 'Help path', BlockCategory.helpPath, BlockConfidence.confirmed, decodeHelpPath, helpPathLayout),
 
   /// Path of a linked DLL (PTH0).
-  dllp('DLLP', 'DLL path', BlockCategory.helpPath, BlockConfidence.likely, decodeHelpPath),
+  dllp('DLLP', 'DLL path', BlockCategory.helpPath, BlockConfidence.likely, decodeHelpPath, helpPathLayout),
 
   /// Help-related; not decoded.
   hlpu('HLPU', 'Help URL', BlockCategory.helpPath, BlockConfidence.tentative),
