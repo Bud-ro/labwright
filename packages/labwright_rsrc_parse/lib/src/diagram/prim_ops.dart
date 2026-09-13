@@ -1,13 +1,21 @@
+/// The primitives a `primResID` names, with the basis of each name.
+library;
+
 import 'diagram.dart' show ViTypeKind;
 
+/// Where a [PrimOp]'s name comes from.
 enum PrimNameBasis {
+  /// A label the corpus attaches to nodes with the id.
   corpusLabel,
 
+  /// The id's position among neighbouring ids whose names are known.
   adjacency,
 
+  /// An icon review.
   review,
 }
 
+/// A primitive node, keyed by its `primResID`.
 enum PrimOp {
   add(1050, 'Add', PrimNameBasis.adjacency),
 
@@ -254,12 +262,15 @@ enum PrimOp {
 
   const PrimOp(this.id, this.opName, this.basis, {this.output});
 
+  /// The `primResID` value.
   final int id;
 
+  /// The name shown on the node.
   final String opName;
 
   final PrimNameBasis basis;
 
+  /// The kind of the primitive's output when it does not depend on the inputs.
   final ViTypeKind? output;
 
   /// The naming half of the icon-asset contract `prim<id>_<slug>.png`.
@@ -267,5 +278,6 @@ enum PrimOp {
 
   static final Map<int, PrimOp> _byId = {for (final op in values) op.id: op};
 
+  /// The primitive with [id], or null for an id not listed.
   static PrimOp? fromId(int id) => _byId[id];
 }
