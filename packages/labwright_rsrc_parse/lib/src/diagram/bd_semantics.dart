@@ -8,7 +8,9 @@ import 'dart:math' show max, min;
 import '../heap/heap.dart' show HeapRect;
 import 'diagram.dart';
 import 'obj_flags.dart';
+import 'objects.dart';
 import 'prim_ops.dart';
+import 'wire_route.dart';
 
 /// Class codes of nodes that call a subVI by name.
 const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c, 0x124};

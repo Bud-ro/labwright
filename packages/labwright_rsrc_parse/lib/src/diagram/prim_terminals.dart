@@ -4,6 +4,7 @@ library;
 
 import 'bd_semantics.dart';
 import 'diagram.dart';
+import 'objects.dart';
 import 'prim_terminal_census.dart';
 
 /// Offsets measured from reference renders, keyed like [kBdPrimTerminalCensus]; they fill

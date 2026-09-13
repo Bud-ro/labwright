@@ -1,7 +1,7 @@
 /// The primitives a `primResID` names, with the basis of each name.
 library;
 
-import 'diagram.dart' show ViTypeKind;
+import 'objects.dart' show ViTypeKind;
 
 /// Where a [PrimOp]'s name comes from.
 enum PrimNameBasis {

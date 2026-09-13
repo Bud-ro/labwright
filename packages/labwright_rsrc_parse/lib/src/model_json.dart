@@ -1,5 +1,6 @@
 import 'blocks/VCTP_type_pool.dart';
 import 'diagram/diagram.dart';
+import 'diagram/objects.dart';
 import 'heap/heap.dart';
 import 'model.dart';
 
