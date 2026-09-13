@@ -1420,8 +1420,9 @@ class HeapTierGrade {
 /// Object kinds whose cosmetic colours [heapDecodeTier] counts as decoded.
 const Set<int> kCosmClassKinds = {0x09, 0x0b, 0x0c};
 
-/// Grades the span at [offset]; [enclosingKind] is the innermost open object, -1 when none.
-HeapTierGrade heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag, {int enclosingKind = -1}) {
+/// Grades the span at [offset]; [enclosingKind] is the class code of the innermost open object,
+/// null when none is open.
+HeapTierGrade heapDecodeTier(Uint8List body, int offset, int lead, String sectionTag, {int? enclosingKind}) {
   const semantic = HeapTierGrade(HeapDecodeTier.semantic);
   const valueKindKnown = HeapTierGrade(HeapDecodeTier.valueKindKnown);
   const framed = HeapTierGrade(HeapDecodeTier.framed);
@@ -1483,8 +1484,8 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
   final walk = walkHeapBody(body);
   final length = body.length;
   var semantic = 0, valueKind = 0;
-  final enclosingBeforeOpen = <int>[];
-  var innermost = -1;
+  final enclosingBeforeOpen = <int?>[];
+  int? innermost;
 
   for (final span in walk.spans) {
     final offset = span.offset;
@@ -1624,7 +1625,7 @@ void walkHeapObjects<T extends Object>(
   void Function(int groupTag, T? enclosing)? onGroupClose,
 }) {
   final stack = <T?>[];
-  final groupTags = <int>[];
+  final groupTags = <int?>[];
   T? innermost() => stack.lastWhere((scope) => scope != null, orElse: () => null);
   final length = body.length;
   for (final span in walkHeapBody(body).spans) {
@@ -1633,7 +1634,7 @@ void walkHeapObjects<T extends Object>(
     final header = heapObjectHeaderAt(body, offset);
     if (header != null) {
       stack.add(onObjectOpen(span, header.kind, header.oid, innermost()));
-      groupTags.add(-1);
+      groupTags.add(null);
       continue;
     }
     if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
@@ -1645,8 +1646,7 @@ void walkHeapObjects<T extends Object>(
     if (kHeapGroupCloseLeads.contains(lead)) {
       if (stack.isNotEmpty) {
         stack.removeLast();
-        final closedTag = groupTags.removeLast();
-        if (closedTag >= 0) onGroupClose?.call(closedTag, innermost());
+        if (groupTags.removeLast() case final closedTag?) onGroupClose?.call(closedTag, innermost());
       }
       continue;
     }

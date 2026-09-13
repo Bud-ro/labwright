@@ -1428,43 +1428,54 @@ class ViDiagram {
     return null;
   }
 
+  /// The terminal each endpoint belongs to; an endpoint claimed by two terminals has no entry.
   late final Map<int, int> _terminalOidByMemberOid = _buildTerminalIndex();
-
-  static const int _ambiguousTerminal = -1;
 
   Map<int, int> _buildTerminalIndex() {
     final index = <int, int>{};
+    final ambiguous = <int>{};
     for (final object in objects) {
       if (object.termBounds == null) continue;
       for (final target in object.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
-        final prev = index[target];
-        index[target] = (prev == null || prev == object.oid) ? object.oid : _ambiguousTerminal;
+        _claim(index, ambiguous, target, object.oid);
       }
     }
     return index;
+  }
+
+  static void _claim(Map<int, int> index, Set<int> ambiguous, int key, int owner) {
+    if (ambiguous.contains(key)) return;
+    final prev = index[key];
+    if (prev == null) {
+      index[key] = owner;
+    } else if (prev != owner) {
+      index.remove(key);
+      ambiguous.add(key);
+    }
   }
 
   ViHeapObject? endpointTerminal(int oid) {
     final endpoint = byId[oid];
     if (endpoint == null || !kSignalEndpointDcoKinds.contains(endpoint.kind)) return null;
     final terminalOid = _terminalOidByMemberOid[oid];
-    return terminalOid == null || terminalOid == _ambiguousTerminal ? null : byId[terminalOid];
+    return terminalOid == null ? null : byId[terminalOid];
   }
 
   late final Map<int, List<ViHeapObject>> childrenByOid = _childrenByParentOid(objects);
 
+  /// The endpoint that names each terminal as its DCO; a terminal named by two has no entry.
   late final Map<int, int> _dcoOidByTerminalOid = _buildTerminalDcoIndex();
 
   Map<int, int> _buildTerminalDcoIndex() {
     final index = <int, int>{};
+    final ambiguous = <int>{};
     for (final terminal in objects) {
       if (terminal.termBounds == null) continue;
       for (final target in terminal.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
         final candidate = byId[target];
         if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
         if (!(candidate.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]).contains(terminal.oid)) continue;
-        final prev = index[terminal.oid];
-        index[terminal.oid] = (prev == null || prev == candidate.oid) ? candidate.oid : _ambiguousTerminal;
+        _claim(index, ambiguous, terminal.oid, candidate.oid);
       }
     }
     return index;
@@ -1472,7 +1483,7 @@ class ViDiagram {
 
   ViHeapObject? terminalDco(int oid) {
     final dcoOid = _dcoOidByTerminalOid[oid];
-    return dcoOid == null || dcoOid == _ambiguousTerminal ? null : byId[dcoOid];
+    return dcoOid == null ? null : byId[dcoOid];
   }
 
   bool terminalGlyphHidden(int oid) => terminalDco(oid)?.hasFlag(ViObjFlag.terminalGlyphHidden) ?? false;
