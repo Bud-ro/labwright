@@ -414,28 +414,26 @@ class _BlockHexViewState extends State<BlockHexView> {
     final bytes = widget.section.bytes;
     switch (widget.section.tag) {
       case 'vers':
+        if (bytes.length < 4) return const [];
         final versionWord = decodeVersionWord(bytes);
-        return versionWord == null
-            ? const []
-            : [
-                MapEntry('Version', versionWord.version),
-                MapEntry(
-                  'Stage',
-                  '0x${versionWord.stage.toRadixString(16)}${versionWord.stage == 0x80 ? ' (release)' : ''}',
-                ),
-                MapEntry('Build', '${versionWord.build}'),
-              ];
+        return [
+          MapEntry('Version', versionWord.version),
+          MapEntry(
+            'Stage',
+            '0x${versionWord.stage.toRadixString(16)}${versionWord.stage == 0x80 ? ' (release)' : ''}',
+          ),
+          MapEntry('Build', '${versionWord.build}'),
+        ];
       case 'LVSR':
+        if (bytes.length < 8) return const [];
         final saveRecord = decodeSaveRecord(bytes);
-        return saveRecord == null
-            ? const []
-            : [
-                MapEntry('LabVIEW version', saveRecord.version),
-                MapEntry(
-                  'BD password-protected',
-                  saveRecord.isBlockDiagramPasswordProtected ? 'yes' : 'no',
-                ),
-              ];
+        return [
+          MapEntry('LabVIEW version', saveRecord.versionWord.version),
+          MapEntry(
+            'BD password-protected',
+            saveRecord.isBlockDiagramPasswordProtected ? 'yes' : 'no',
+          ),
+        ];
       case 'CONP':
       case 'CPC2':
         final pane = decodeConnectorPane(bytes);
@@ -471,13 +469,12 @@ class _BlockHexViewState extends State<BlockHexView> {
           ),
         ];
       case 'HIST':
+        if (bytes.length != 40) return const [];
         final history = decodeHistory(bytes);
-        return history == null
-            ? const []
-            : [
-                MapEntry('Format version', '${history.formatVersion}'),
-                MapEntry('Revision entries', '${history.entryCount}'),
-              ];
+        return [
+          MapEntry('Format version', '${history.formatVersion}'),
+          MapEntry('Revision entries', '${history.entryCount}'),
+        ];
       case 'FTAB':
         final ft = decodeFontTable(bytes);
         if (ft == null) return const [];
@@ -648,19 +645,19 @@ class _BlockHexViewState extends State<BlockHexView> {
 
     switch (tag) {
       case 'vers':
-        final vw = bytes is Uint8List
-            ? decodeVersionWord(bytes)
-            : decodeVersionWord(Uint8List.fromList(bytes));
-        span(
-          0,
-          4,
-          spanColorObject,
-          'Version word (u32)',
-          'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
-          preview: vw == null
-              ? '0x${readU32be(bytes, 0).toRadixString(16)}'
-              : 'v${vw.version}',
-        );
+        if (bytes.length >= 4) {
+          final vw = decodeVersionWord(
+            bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
+          );
+          span(
+            0,
+            4,
+            spanColorObject,
+            'Version word (u32)',
+            'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
+            preview: 'v${vw.version}',
+          );
+        }
       case 'STRG':
       case 'HLPT':
         span(

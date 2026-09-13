@@ -64,7 +64,7 @@ _Summ _summarize(Uint8List bytes, String path) {
 
   if (secs != null) {
     final rec = saveRecordFromSections(secs);
-    if (rec != null && rec.stage != 0x80) bad('stageNon80');
+    if (rec != null && rec.versionWord.stage != 0x80) bad('stageNon80');
     for (final s in secs) {
       if (s.tag != 'DTHP' || s.bytes.length < 4) continue;
       final h = decodeDataTypeHeap(s.bytes);
