@@ -1260,15 +1260,18 @@ void main() {
 }
 
 void resolveTypesTests() {
-  ViType type(int i, ViDataType k, [String? name]) => ViType(index: i, code: 0, kind: k, name: name);
-  final pool = [
-    type(0, ViDataType.voidType),
-    type(1, ViDataType.string, 'data in'),
-    type(2, ViDataType.boolean),
-    type(3, ViDataType.i32),
-  ];
+  final pool = decodeTypePool(
+    Uint8List.fromList([
+      0, 0, 0, 4, //
+      0, 4, 0, TypeCode.voidType,
+      0, 16, 0x40, TypeCode.string, 0xff, 0xff, 0xff, 0xff, 7, ...'data in'.codeUnits,
+      0, 4, 0, TypeCode.boolean,
+      0, 5, 0, TypeCode.i32, 0,
+      0, 0,
+    ]),
+  ).types;
   const table = [0, 0, 1, 2, 3, 1];
-  final dthp = decodeDataTypeHeap(Uint8List.fromList([0, 4, 0, 3]))!;
+  final dthp = decodeDataTypeHeap(Uint8List.fromList([0, 4, 0, 3])) as ViDataTypeHeapCompact;
 
   ViHeapObject obj(int oid, int kind, {int? tdi}) {
     final o = ViHeapObject(oid: oid, kind: kind, offset: 0);

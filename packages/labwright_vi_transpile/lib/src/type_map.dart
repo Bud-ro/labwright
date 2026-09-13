@@ -300,11 +300,11 @@ LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0, LvDeclar
     case TypeCode.enumU8:
     case TypeCode.enumU16:
     case TypeCode.enumU32:
-      return _mapEnum(type, type.name, declarations);
+      return _mapEnum(type, type.label, declarations);
     case TypeCode.array:
       return _mapArray(type, pool, depth, declarations);
     case TypeCode.cluster:
-      return _mapCluster(type, type.name, pool, depth, declarations);
+      return _mapCluster(type, type.label, pool, depth, declarations);
     case TypeCode.typeDef:
       return _mapTypeDef(type, pool, depth, declarations);
     default:
@@ -318,18 +318,17 @@ LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0, LvDeclar
 const String kStringEncodingNote = 'byte string carried as Latin-1 code units';
 
 LvTypeMapping _mapArray(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
-  final elementIndex = type.elementIndex;
-  if (elementIndex == null || elementIndex >= pool.length) {
+  if (type is! ViArrayType || type.elementIndex >= pool.length) {
     return const LvTypeMapping.unmapped('array element type not recovered from the descriptor');
   }
-  final element = mapLvType(pool[elementIndex], pool, depth + 1, declarations);
+  final element = mapLvType(pool[type.elementIndex], pool, depth + 1, declarations);
   if (element.status == LvMapStatus.internal) {
     return LvTypeMapping.internal('array of a non-value element: ${element.note}');
   }
   if (!element.isMapped) {
     return LvTypeMapping.unmapped('array element is unmapped: ${element.note}', unmappedCode: element.unmappedCode);
   }
-  return LvTypeMapping.array(element, type.dimCount ?? 1);
+  return LvTypeMapping.array(element, type.dimCount);
 }
 
 String lvArrayDartType(LvTypeMapping element, int dimCount) {
@@ -345,7 +344,7 @@ String lvArrayFreeze(LvTypeMapping element, String builder) =>
 LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int depth, LvDeclarations? declarations) {
   if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvCarrier.error);
   final members = clusterFields(type, pool);
-  if (members.length != type.members.length) {
+  if (type is! ViClusterType || members.length != type.memberCount) {
     return const LvTypeMapping.unmapped('cluster member indices did not resolve against the pool');
   }
   final mapped = <LvTypeMapping>[];
@@ -362,7 +361,7 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
   if (label != null && lvClassName(label).isNotEmpty) {
     final className = lvClassName(label);
     final fields = [
-      for (var i = 0; i < members.length; i++) LvDeclField(label: members[i].name, type: mapped[i]),
+      for (var i = 0; i < members.length; i++) LvDeclField(label: members[i].label, type: mapped[i]),
     ];
     final signature =
         'C:$className|${[for (final field in fields) '${field.label ?? ''}:${field.type.dartType}'].join(',')}';
@@ -383,33 +382,34 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
 }
 
 LvTypeMapping _mapEnum(ViType type, String? label, LvDeclarations? declarations) {
+  final items = type is ViEnumType ? type.items : const <String>[];
   final stem = label == null ? '' : lvClassName(label);
   final className = stem.isEmpty ? LvRuntimeType.anonymousEnum : stem;
-  final signature = 'E:$className|${type.enumItems.join('\u0000')}';
+  final signature = 'E:$className|${items.join('\u0000')}';
   return LvTypeMapping.nominal(
     (declarations ?? LvDeclarations()).allocate(
       className,
       signature,
-      (name) => LvTypeDecl.enumeration(name: name, label: label, items: type.enumItems),
+      (name) => LvTypeDecl.enumeration(name: name, label: label, items: items),
     ),
-    note: type.enumItems.isEmpty ? 'enum item labels not recovered, so the enum has no members to declare' : null,
+    note: items.isEmpty ? 'enum item labels not recovered, so the enum has no members to declare' : null,
   );
 }
 
 String lvRecordType(List<ViType> members, List<LvTypeMapping> mapped) {
-  final names = [for (final member in members) lvFieldName(member.name ?? '')];
+  final names = [for (final member in members) lvFieldName(member.label ?? '')];
   final named = names.every((name) => name.isNotEmpty) && names.toSet().length == names.length;
   if (!named) return '(${[for (final field in mapped) field.dartType!].join(', ')})';
   return '({${[for (var i = 0; i < mapped.length; i++) '${mapped[i].dartType} ${names[i]}'].join(', ')}})';
 }
 
 LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
-  final base = type.typedefBase;
-  if (base == null) return const LvTypeMapping.unmapped('typedef base descriptor did not frame');
-  final name = type.name;
+  if (type is! ViTypedefType) return const LvTypeMapping.unmapped('typedef base descriptor did not frame');
+  final base = type.base;
+  final name = type.label;
   if (name != null && lvClassName(name).isNotEmpty) {
     if (base.kind == ViDataType.cluster) return _mapCluster(base, name, pool, depth + 1, declarations);
-    if (base.enumItems.isNotEmpty || _isEnumCode(base.code)) return _mapEnum(base, name, declarations);
+    if (_isEnumCode(base.code)) return _mapEnum(base, name, declarations);
   }
   final mapped = mapLvType(base, pool, depth + 1, declarations);
   if (mapped.status == LvMapStatus.internal) return LvTypeMapping.internal('typedef over a non-value: ${mapped.note}');
@@ -422,7 +422,7 @@ LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarati
 bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
 
 bool isLvErrorCluster(ViType type, List<ViType> pool) {
-  if (type.members.length != 3) return false;
+  if (type is! ViClusterType || type.memberCount != 3) return false;
   final members = clusterFields(type, pool);
   if (members.length != 3) return false;
   const shape = [
@@ -433,7 +433,7 @@ bool isLvErrorCluster(ViType type, List<ViType> pool) {
   const names = ['status', 'code', 'source'];
   for (var i = 0; i < 3; i++) {
     if (!shape[i].contains(members[i].code)) return false;
-    if (members[i].name?.toLowerCase() != names[i]) return false;
+    if (members[i].label?.toLowerCase() != names[i]) return false;
   }
   return true;
 }

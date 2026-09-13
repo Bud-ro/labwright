@@ -248,7 +248,7 @@ void main() {
     ),
     HexCase(
       'a VCTP block lists the recovered type pool',
-      raw('VCTP', [0, 0, 0, 2, 0, 4, 0, 0x0a, 0, 4, 0, 0x21]),
+      raw('VCTP', [0, 0, 0, 2, 0, 5, 0, 0x0a, 0, 0, 4, 0, 0x21, 0, 0]),
       exact: ['2 types'],
       some: ['dbl', 'boolean'],
     ),
@@ -301,7 +301,7 @@ void main() {
   testWidgets('a CONP block resolves its index against the sibling VCTP pool', (
     tester,
   ) async {
-    final vctp = raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21]);
+    final vctp = raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21, 0, 0]);
     final conp = raw('CONP', [0, 1]);
     await pumpBody(
       tester,

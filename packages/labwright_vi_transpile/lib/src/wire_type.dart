@@ -77,14 +77,14 @@ int? _refnumDimsOf(ViHeapObject object) {
   final own = _throughTypedefs(object.resolvedType);
   if (own == null) return null;
   if (own.kind == ViDataType.refnum) return 0;
-  if (own.kind != ViDataType.array) return null;
-  return _throughTypedefs(object.resolvedElementType)?.kind == ViDataType.refnum ? (own.dimCount ?? 1) : null;
+  if (own is! ViArrayType || own.kind != ViDataType.array) return null;
+  return _throughTypedefs(object.resolvedElementType)?.kind == ViDataType.refnum ? own.dimCount : null;
 }
 
 ViType? _throughTypedefs(ViType? type) {
   for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
-    if (type.kind != ViDataType.typeDef) return type;
-    type = type.typedefBase;
+    if (type is! ViTypedefType) return type;
+    type = type.base;
   }
   return null;
 }
@@ -105,15 +105,15 @@ const int kLvTypedefDepth = 8;
 ViType? lvClusterBase(ViType? type) {
   for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
     if (type.kind == ViDataType.cluster) return type;
-    if (type.kind != ViDataType.typeDef) return null;
-    type = type.typedefBase;
+    if (type is! ViTypedefType) return null;
+    type = type.base;
   }
   return null;
 }
 
 String lvClusterShape(ViType type, List<ViType> pool) {
   final members = clusterFields(lvClusterBase(type) ?? type, pool);
-  return '${type.name ?? ''}|${members.map((member) => '${member.code}:${member.name ?? ''}').join(',')}';
+  return '${type.label ?? ''}|${members.map((member) => '${member.code}:${member.label ?? ''}').join(',')}';
 }
 
 ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {

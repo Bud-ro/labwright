@@ -43,8 +43,8 @@ void main() {
   test('a VCTP body re-serializes byte-exact and models the whole pool', () {
     final body = hx(
       '00000002' // u32 count = 2
-      '0006 0005 1122' // TD0: descLen 6, interior <flags 00><code 05> 11 22
-      '0008 0040 aabbccdd' // TD1: descLen 8, interior <00><40 array> aa bb cc dd
+      '0005 0005 00' // TD0: descLen 5, <flags 00><code 05 u8> property 00
+      '000c 0040 0001 ffffffff 0000' // TD1: descLen 12, <00><40 array> 1 dim, variable size, element 0
       '0002 0000 0001', // top-level list: count 2, indices 0 and 1
     );
     final res = serializeHeapBody(body, 'VCTP');
@@ -59,13 +59,10 @@ void main() {
     expect(split.modelBugs, 0);
   });
 
-  test('a VCTP body that does not tile stays copied and byte-exact', () {
-    final body = hx('00000003 0006 0005 1122');
-    final res = serializeHeapBody(body, 'VCTP');
-    expect(res.bytes, equals(body));
-    expect(res.modelBytes, 0);
-    expect(res.copiedBytes, body.length);
-    expect(attributeHeapBody(body, 'VCTP').copiedBytes, body.length);
+  test('a VCTP body that does not tile violates the decoder precondition', () {
+    final body = hx('00000003 0005 0005 00');
+    expect(() => serializeHeapBody(body, 'VCTP'), throwsA(isA<AssertionError>()));
+    expect(() => attributeHeapBody(body, 'VCTP'), throwsA(isA<AssertionError>()));
   });
 
   test('a VICD body re-serializes byte-exact and models the whole descriptor', () {
@@ -107,9 +104,14 @@ void main() {
     expect(() => attributeHeapBody(body, 'VICD'), throwsA(isA<AssertionError>()));
   });
 
-  test('serializeHeapBody is total and byte-exact on random VCTP-tagged buffers', () {
+  test('serializeHeapBody on random VCTP-tagged buffers returns byte-exact or rejects the precondition', () {
     expectTotal(7, 2000, 64, (b) {
-      final res = serializeHeapBody(b, 'VCTP');
+      final HeapWriteResult res;
+      try {
+        res = serializeHeapBody(b, 'VCTP');
+      } on AssertionError {
+        return;
+      }
       expect(res.bytes, equals(b));
       expect(res.modelBytes + res.copiedBytes, b.length);
       expect(res.modelBugs, 0);

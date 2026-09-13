@@ -54,6 +54,6 @@ List<LvTerminal> lvTerminals(List<ViType> pool, int? conpaneIndex) {
   if (conpane.kind != ViDataType.cluster) return const [];
   return [
     for (final member in clusterFields(conpane, pool))
-      LvTerminal(member.name ?? '', mapLvType(member, pool), isErrorCluster: isLvErrorCluster(member, pool)),
+      LvTerminal(member.label ?? '', mapLvType(member, pool), isErrorCluster: isLvErrorCluster(member, pool)),
   ];
 }

@@ -217,18 +217,16 @@ final double volts;
 
   test('typedefs are nominal over a cluster or enum, transparent over a scalar', () {
     final rows = <(List<int>, String, String)>[
-      ([0x40, TypeCode.u64], 'Tick Count', 'int'),
-      ([0x40, TypeCode.string], 'Device Name', 'String'),
+      ([0x40, TypeCode.u64, 0], 'Tick Count', 'int'),
+      ([0x40, TypeCode.string, 0xff, 0xff, 0xff, 0xff], 'Device Name', 'String'),
       ([0x40, TypeCode.cluster, 0, 0], 'WPI_PWMDeadband.ctl', 'WpiPwmdeadbandCtl'),
-      ([0x40, TypeCode.enumU16, 0, 1, ...pascal('PWM')], 'Motor Type', 'MotorType'),
+      ([0x40, TypeCode.enumU16, 0, 1, ...pascal('PWM'), 0], 'Motor Type', 'MotorType'),
     ];
     for (final (baseBody, name, expected) in rows) {
       final types = poolOf([typeDef(baseBody, name)]);
       expect(mapLvType(types.single, types).dartType, expected, reason: name);
-      expect(types.single.typedefBase, isNotNull);
+      expect(types.single, isA<ViTypedefType>());
     }
-    final bare = poolOf([scalar(TypeCode.typeDef)]);
-    expect(mapLvType(bare.single, bare).status, LvMapStatus.unmapped);
   });
 
   test('error clusters need both the member types and the member names', () {

@@ -16,7 +16,7 @@ Map<String, List<int>> sweepChunk(List<String> paths) {
   for (final path in paths) {
     List<ViType> pool;
     try {
-      pool = typePoolFromDecoded(decodeSections(File(path).readAsBytesSync()));
+      pool = typePoolFromDecoded(decodeSections(File(path).readAsBytesSync()))?.types ?? const [];
     } catch (_) {
       continue;
     }

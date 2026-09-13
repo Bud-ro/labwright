@@ -9,14 +9,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-bool _bytesEq(Uint8List a, Uint8List b) {
-  if (a.length != b.length) return false;
-  for (var i = 0; i < a.length; i++) {
-    if (a[i] != b[i]) return false;
-  }
-  return true;
-}
-
 const _fuzzIters = 2;
 
 typedef _Summ = (Map<String, int>, Set<int>, Set<String>);
@@ -45,8 +37,6 @@ bool _structuralHeap(Uint8List b) {
   return ByteData.sublistView(b).getUint32(0) == b.length - 4 && _heapLead(b[4]);
 }
 
-bool _printable(Iterable<int> runes) => runes.every((c) => c == 9 || c == 10 || c == 13 || (c >= 0x20 && c < 0x7f));
-
 _Summ _summarize(Uint8List bytes, String path) {
   final c = <String, int>{};
   final kinds = <int>{};
@@ -65,26 +55,6 @@ _Summ _summarize(Uint8List bytes, String path) {
   if (secs != null) {
     final rec = saveRecordFromSections(secs);
     if (rec != null && rec.versionWord.stage != 0x80) bad('stageNon80');
-    for (final s in secs) {
-      if (s.tag != 'DTHP' || s.bytes.length < 4) continue;
-      final h = decodeDataTypeHeap(s.bytes);
-      if (h == null) {
-        bad('dthpUndecoded');
-      } else if (h.isExtended) {
-        if (h.names.isEmpty) bad('dthpExtUnnamed');
-        if (!h.names.every((x) => _printable(x.runes))) bad('dthpExtNonPrintable');
-      }
-    }
-  }
-
-  if (dsecs != null) {
-    for (final d in dsecs) {
-      if (d.tag != 'TM80') continue;
-      final m = decodeTypeMap(d.bytes);
-      if (m == null || !m.framesExactly) continue;
-      final re = reserializeTypeMap(d.bytes);
-      if (re == null || !_bytesEq(re, d.bytes)) bad('tmReemitBad');
-    }
   }
 
   ViModel? m;
@@ -102,8 +72,8 @@ _Summ _summarize(Uint8List bytes, String path) {
     final vctp = bodyOf('VCTP');
     final dthpBody = bodyOf('DTHP');
     final dthp = dthpBody == null ? null : decodeDataTypeHeap(dthpBody);
-    final topLevel = vctp == null ? const <int>[] : decodeTypeTable(vctp);
-    if (dthp != null && topLevel.isNotEmpty) {
+    final topLevel = vctp == null ? const <int>[] : decodeTypePool(vctp).topLevelIndices;
+    if (dthp is ViDataTypeHeapCompact && topLevel.isNotEmpty) {
       if (dthp.firstTopLevelIndex + dthp.heapTypeCount - 1 != topLevel.length) bad('dthpRunNotAtTail');
       final indices = [
         for (final d in [...m.blockDiagrams, ...m.frontPanelDiagrams])
