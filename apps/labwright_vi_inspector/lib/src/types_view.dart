@@ -77,7 +77,9 @@ class _ViTypesViewState extends State<ViTypesView> {
     }
     final vctpBytes = widget.vctpBytes;
     final canCorrelate =
-        vctpBytes != null && vctpTypeSpans(vctpBytes).isNotEmpty;
+        vctpBytes != null &&
+        typePoolFrames(vctpBytes) &&
+        decodeTypePool(vctpBytes).types.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

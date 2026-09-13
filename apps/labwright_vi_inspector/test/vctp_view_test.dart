@@ -2,7 +2,6 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/span_annotations.dart';
 import 'package:labwright_vi_inspector/src/vctp_view.dart';
 
@@ -27,42 +26,6 @@ int _highlightedCells(WidgetTester tester) => tester
     .length;
 
 void main() {
-  test(
-    'vctpTypeSpans tiles the descriptor region and pairs types by index',
-    () {
-      final spans = vctpTypeSpans(_body);
-      final types = decodeTypePool(_body).types;
-      expect(spans, hasLength(types.length));
-      expect(spans, hasLength(3));
-
-      expect(spans.map((s) => s.offset).toList(), [4, 9, 17]);
-      expect(spans.map((s) => s.length).toList(), [5, 8, 5]);
-
-      for (var i = 1; i < spans.length; i++) {
-        expect(spans[i].offset, spans[i - 1].offset + spans[i - 1].length);
-      }
-
-      for (var i = 0; i < spans.length; i++) {
-        expect(spans[i].type.code, types[i].code);
-        expect(spans[i].type.kind, types[i].kind);
-      }
-      expect(spans.map((s) => s.type.kind).toList(), [
-        ViDataType.i32,
-        ViDataType.boolean,
-        ViDataType.u8,
-      ]);
-    },
-  );
-
-  test('vctpTypeSpans is empty for bodies that do not frame as a pool', () {
-    expect(vctpTypeSpans(Uint8List(0)), isEmpty);
-    expect(vctpTypeSpans(Uint8List.fromList(const [0, 0, 0, 1])), isEmpty);
-    expect(
-      vctpTypeSpans(Uint8List.fromList(const [0, 0, 0, 1, 0, 4, 0, 0x21])),
-      isEmpty,
-    );
-  });
-
   testWidgets('selecting a type highlights its byte span and names the field', (
     tester,
   ) async {
