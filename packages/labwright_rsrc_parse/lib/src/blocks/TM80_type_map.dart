@@ -68,13 +68,57 @@ const BlockLayout tm80Layout = [
   _inlineEntries,
 ];
 
-const int kTypeMapHasSaveData = 1 << 13;
+/// Bits of a flag word that decide what the default data space (`DFDS`) stores for the
+/// entry's type.
+enum TypeMapFlag {
+  /// `0x0001`: the data space stores the whole value, as with [hasSaveData].
+  storedValue0(1 << 0),
+
+  /// `0x0004`: a front-panel operation cluster; the data space stores its member 1, or
+  /// member 2 in saves before LabVIEW 10.
+  frontPanelOperation(1 << 2),
+
+  /// `0x0008`: nothing is stored.
+  unstored3(1 << 3),
+
+  /// `0x0010`: a chart history cluster; the data space stores members 1, 2 and 3.
+  chartHistory(1 << 4),
+
+  /// `0x0020`: a cluster whose member 3 alone is stored.
+  member3Stored(1 << 5),
+
+  /// `0x0040`: a cluster whose member 2 alone is stored.
+  member2Stored(1 << 6),
+
+  /// `0x0200`: the first member a special cluster would store is left out.
+  firstMemberSkipped(1 << 9),
+
+  /// `0x0400`: nothing is stored.
+  unstored10(1 << 10),
+
+  /// `0x0800`: nothing is stored.
+  unstored11(1 << 11),
+
+  /// `0x2000`: the data space stores the whole value.
+  hasSaveData(1 << 13)
+  ;
+
+  const TypeMapFlag(this.mask);
+
+  final int mask;
+
+  bool isSetIn(int flags) => flags & mask != 0;
+}
 
 /// A view over a `TM80` payload.
 sealed class ViTypeMap implements BlockRecord {
   const ViTypeMap._(this.bytes);
 
   final Uint8List bytes;
+
+  int get count;
+
+  int flagsAt(int index);
 
   @override
   Uint8List serialize() => bytes;
@@ -89,11 +133,13 @@ final class ViTypeMapIndexed extends ViTypeMap {
   /// Offsets of the count word, the shift word and each flag word.
   final List<int> _wordOffsets;
 
+  @override
   int get count => _wordOffsets.length - 2;
 
   /// The top-level index of the first flag word.
   int get indexShift => _wordAt(_view, _wordOffsets[1]);
 
+  @override
   int flagsAt(int index) => _wordAt(_view, _wordOffsets[index + 2]);
 }
 
@@ -109,10 +155,12 @@ final class ViTypeMapInline extends ViTypeMap {
   /// Offsets of each entry's type-index word; its flags word follows.
   final List<int> _entryOffsets;
 
+  @override
   int get count => _entryOffsets.length;
 
   int typeIndexAt(int index) => _wordAt(_view, _entryOffsets[index]);
 
+  @override
   int flagsAt(int index) => _wordAt(_view, _wordEnd(_view, _entryOffsets[index]));
 }
 

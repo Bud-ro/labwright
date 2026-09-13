@@ -57,16 +57,22 @@ class ViVersionWord {
   final int build;
 
   String get version => patch == 0 ? '$major.$minor' : '$major.$minor.$patch';
+
+  /// Whether this version is [major].[minor] or later.
+  bool isAtLeast(int major, int minor) => this.major > major || this.major == major && this.minor >= minor;
 }
 
-ViVersionWord decodeVersionWord(Uint8List bytes) {
-  assert(bytes.length >= _versionWord.end, 'a version word is four bytes');
+ViVersionWord decodeVersionWord(Uint8List bytes) => decodeVersionWordAt(bytes, 0);
+
+/// The version word at [offset] of [bytes].
+ViVersionWord decodeVersionWordAt(Uint8List bytes, int offset) {
+  assert(offset + _versionWord.end <= bytes.length, 'a version word is four bytes');
   return ViVersionWord(
-    major: (bytes[0] >> 4) * 10 + (bytes[0] & 0x0f),
-    minor: bytes[1] >> 4,
-    patch: bytes[1] & 0x0f,
-    stage: bytes[2],
-    build: bytes[3],
+    major: (bytes[offset] >> 4) * 10 + (bytes[offset] & 0x0f),
+    minor: bytes[offset + 1] >> 4,
+    patch: bytes[offset + 1] & 0x0f,
+    stage: bytes[offset + 2],
+    build: bytes[offset + 3],
   );
 }
 

@@ -4,12 +4,11 @@ import 'dart:typed_data';
 
 import 'block_tag.dart';
 import 'block_writer.dart';
-import 'blocks/DFDS_default_data_space.dart' show DfdsContext;
+import 'blocks/DFDS_default_data_space.dart' show DfdsContext, dataSpaceContexts;
 import 'blocks/DSIM_data_space_image.dart';
 import 'blocks/MNGI_png_image.dart';
 import 'blocks/PICT_picture.dart';
 import 'blocks/WEMF_metafile.dart';
-import 'blocks/vers_version.dart' show versionWordFromSections;
 import 'container.dart';
 import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
 import 'heap/heap_writer.dart' show attributeHeapBody;
@@ -106,26 +105,8 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
     secIndexBySecRel[s.dataOffset] = s.index;
   }
 
-  Uint8List? vctpBody;
-  final tm80BySection = <int, Uint8List>{};
-  for (final s in sections) {
-    if (s.tag != 'VCTP' && s.tag != 'TM80') continue;
-    final body = inflateHeapPayload(s.bytes) ?? s.bytes;
-    if (s.tag == 'VCTP') {
-      vctpBody ??= body;
-    } else {
-      tm80BySection[s.index] = body;
-    }
-  }
-  final versionWord = versionWordFromSections(sections);
-  final verGe10 = (versionWord?.major ?? 0) >= 10;
-  DfdsContext? dfdsContextFor(int secRel) {
-    final vctp = vctpBody;
-    if (vctp == null || tm80BySection.isEmpty) return null;
-    final sectionIndex = secIndexBySecRel[secRel];
-    final tm80 = (sectionIndex == null ? null : tm80BySection[sectionIndex]) ?? tm80BySection.values.first;
-    return DfdsContext(vctp: vctp, tm80: tm80, verGe10: verGe10);
-  }
+  final dfdsContexts = dataSpaceContexts(sections);
+  DfdsContext? dfdsContextFor(int secRel) => dfdsContexts[secIndexBySecRel[secRel]];
 
   var header = 32;
   var infoStruct =

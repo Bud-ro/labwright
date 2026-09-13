@@ -7,7 +7,7 @@ import 'dart:typed_data';
 
 import '../block_record.dart';
 import '../block_tag.dart';
-import '../blocks/DFDS_default_data_space.dart' show DfdsContext, dataSpaceFrames, reserializeDataSpace;
+import '../blocks/DFDS_default_data_space.dart' show DfdsContext, decodeDataSpace;
 import 'heap.dart';
 
 /// A re-emitted heap body and how many of its bytes came from the model versus verbatim copies.
@@ -239,16 +239,11 @@ class HeapContentSplit {
   final int modelBugs;
 }
 
-/// Counts the bytes of [body] the model re-emits without writing them; `DFDS` and every tag
-/// with a writer ([BlockTag.hasWriter]) are whole-block models, any other body is walked
-/// record by record.
+/// Counts the bytes of [body] the model re-emits without writing them; a `DFDS` with its
+/// context and every tag with a writer ([BlockTag.hasWriter]) are whole-block models, any
+/// other body is walked record by record.
 HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
-  if (sectionTag == 'DFDS' && dfdsContext != null) {
-    return dataSpaceFrames(body, dfdsContext)
-        ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
-        : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
-  }
-  if (_wholeBlockRecord(sectionTag, body) != null) {
+  if (_wholeBlockRecord(sectionTag, body, dfdsContext) != null) {
     return HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
   }
   if (body.length < 4) {
@@ -270,8 +265,10 @@ HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsCont
   return HeapContentSplit(modelBytes: model, copiedBytes: copied, modelBugs: bugs);
 }
 
-BlockRecord? _wholeBlockRecord(String? sectionTag, Uint8List body) =>
-    sectionTag == null ? null : BlockTag.of(sectionTag)?.decodeRecord(body);
+BlockRecord? _wholeBlockRecord(String? sectionTag, Uint8List body, DfdsContext? dfdsContext) {
+  if (sectionTag == 'DFDS') return dfdsContext == null ? null : decodeDataSpace(body, dfdsContext);
+  return sectionTag == null ? null : BlockTag.of(sectionTag)?.decodeRecord(body);
+}
 
 int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
   if (m.length == 0) return 0;
@@ -283,14 +280,7 @@ int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
 
 /// Re-emits [body]: modelled records from their fields, everything else copied verbatim.
 HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
-  if (sectionTag == 'DFDS' && dfdsContext != null) {
-    final reserialized = reserializeDataSpace(body, dfdsContext);
-    if (reserialized != null) {
-      return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
-    }
-    return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
-  }
-  if (_wholeBlockRecord(sectionTag, body) case final record?) {
+  if (_wholeBlockRecord(sectionTag, body, dfdsContext) case final record?) {
     return HeapWriteResult(bytes: record.serialize(), modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
   }
 

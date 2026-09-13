@@ -56,22 +56,18 @@ void main() {
       expect(bd5.byId[2924]!.resolvedType?.kind, ViDataType.i32);
       expect(bd5.byId[2924]!.constNumeric, -1);
 
-      final decoded = decodeSections(bytes);
-      Uint8List? vctp, tm80, dfds;
-      for (final d in decoded) {
-        if (d.tag == 'VCTP') vctp ??= d.bytes;
-        if (d.tag == 'TM80') tm80 ??= d.bytes;
-        if (d.tag == 'DFDS') dfds ??= d.bytes;
-      }
-      final slots = dataSpaceSlots(dfds!, DfdsContext(vctp: vctp!, tm80: tm80!, verGe10: true))!;
+      final sections = readViSections(bytes);
+      final dfdsSection = sections.firstWhere((s) => s.tag == 'DFDS');
+      final dfds = inflateHeapPayload(dfdsSection.bytes)!;
+      final slots = decodeDataSpace(dfds, dataSpaceContexts(sections)[dfdsSection.index]!).slots;
       expect(slots, hasLength(37));
-      final strSlot = slots.singleWhere((s) => s.offset == 1947);
+      final strSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 1947);
       expect((strSlot.topLevelIndex, strSlot.length), (324, 15));
       expect(
         String.fromCharCodes(Uint8List.sublistView(dfds, strSlot.offset + 4, strSlot.offset + strSlot.length)),
         'Test Status',
       );
-      final numSlot = slots.singleWhere((s) => s.offset == 2104);
+      final numSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 2104);
       expect(numSlot.length, 4);
       expect(
         ByteData.sublistView(dfds, numSlot.offset, numSlot.offset + 4).getUint32(0),
