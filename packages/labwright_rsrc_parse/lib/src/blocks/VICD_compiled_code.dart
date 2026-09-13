@@ -1,172 +1,239 @@
+/// `VICD` — compiled machine code for one target architecture: a header, the fixups and
+/// code, and a `CODE` chunk that may carry a symbol table.
+///
+/// The header word at 12 selects the layout: `0x103` puts the code-end pointer at 36
+/// (`i386`, `m386`) or 40 (`wx64`); earlier saves put it at 28. The `CODE` chunk is bare
+/// (20 bytes) or carries `count` length-prefixed names padded to 4 bytes (`i386`, `wx64`).
+///
 /// ```text
-///   [0]  u32le codeStart   offset of the machine code within the body
-///   [4]  4cc   arch        target architecture: "i386", "m386", or "wx64"
-///   [8]  u32le codeSize    size of the compiled machine code
-///   [12] u32le reserved    0x103
-///   [16] u32le flags
-///   [20] 4cc   "code"      compiled-code chunk tag
-///   [24…]      fixup + machine code  (opaque; machine code begins at codeStart)
-///   [codeEnd]  4cc "CODE"  symbol-table chunk tag
-///   …          symbol table
+/// offset  size  field                      type     meaning
+/// 0       4     codeStart                  u32le    offset of the machine code within the payload
+/// 4       4     architecture               4cc      i386, m386 or wx64, see CodeArchitecture
+/// 8       4     codeSize                   u32le    bytes of machine code
+/// 12      4     layoutWord                 u32le    0x103 selects the code-end pointer at 36 or
+///                                                   40; older saves hold 0 and use 28
+/// 16      4     flags                      u32le    bits TODO
+/// 20      4     codeTag                    4cc      "code"
+/// 28      4     codeEnd                    u32le    offset of the CODE chunk; at 36 (i386, m386)
+///                                                   or 40 (wx64) when layoutWord is 0x103, else at
+///                                                   28
+/// 24      rest  TODO                       bytes    retained; not decoded
+/// …       20    codeChunk                  chunk    at codeEnd; the bare form
+///   +0    4     chunkTag                   4cc      "CODE"
+///   +4    12    zeros                      u32le[3] zero
+///   +16   4     selfOffset                 u32le    equals codeEnd
+/// …       rest  codeChunk                  chunk    at codeEnd; the i386 symbol-table form
+///   +0    4     chunkTag                   4cc      "CODE"
+///   +4    12    zeros                      u32le[3] zero
+///   +16   4     selfOffset                 u32le    equals codeEnd
+///   +20   4     count                      u32le    symbol names that follow
+/// …       rest  codeChunk                  chunk    at codeEnd; the wx64 symbol-table form
+///   +0    4     chunkTag                   4cc      "CODE"
+///   +4    4     codeImageSize              u32le    role TODO
+///   +8    16    zeros                      u32le[4] zero
+///   +24   4     selfOffset                 u32le    equals codeEnd
+///   +28   4     zero                       u32le    zero
+///   +32   4     count                      u32le    symbol names that follow
+/// …       rest  names                      entry[count] after the chunk head
+///   +0    4     nameLength                 u32le    bytes of name
+///   +4    rest  name                       u8[nameLength] symbol name, padded to a multiple of 4
+///                                                         bytes
 /// ```
-/// ```text
-///   [CODE] [3× u32le 0] [u32le selfOff == codeEnd]         (m386 stops here)
-///          [u32le count] then count entries                 (i386)
-///   [CODE] [u32le codeImageSize] [4× u32le 0]
-///          [u32le selfOff == codeEnd] [u32le 0] [u32le count] then count entries  (wx64)
-///   entry = [u32le nameLen] [nameLen bytes] [zero pad to a 4-byte boundary]
-/// ```
+///
+/// [ViCompiledCode] is a view over the payload that records where each symbol name starts;
+/// [CodeArchitecture] names the 4CC at 4; [decodeCompiledCode] requires the tags, the
+/// code-end pointer and the symbol table to tile the payload.
 library;
 
 import 'dart:typed_data';
 
-const int _reservedTag = 0x103;
+import '../block_layout.dart';
 
-int? _codeEndOffset(String arch) => switch (arch) {
-  'i386' || 'm386' => 36,
-  'wx64' => 40,
-  _ => null,
-};
+const _codeStart = BlockField(0, 4, 'codeStart', 'u32le', 'offset of the machine code within the payload');
+const _architecture = BlockField(4, 4, 'architecture', '4cc', 'i386, m386 or wx64, see CodeArchitecture');
+const _codeSize = BlockField(8, 4, 'codeSize', 'u32le', 'bytes of machine code');
+const _layoutWord = BlockField(
+  12,
+  4,
+  'layoutWord',
+  'u32le',
+  '0x103 selects the code-end pointer at 36 or 40; older saves hold 0 and use 28',
+);
+const _flags = BlockField(16, 4, 'flags', 'u32le', 'bits TODO');
+const _codeTag = BlockField(20, 4, 'codeTag', '4cc', '"code"');
+const _fixupsAndCode = BlockField.undecoded(24, null, type: 'bytes');
+const _codeEnd = BlockField(
+  28,
+  4,
+  'codeEnd',
+  'u32le',
+  'offset of the CODE chunk; at 36 (i386, m386) or 40 (wx64) when layoutWord is 0x103, else at 28',
+);
+const _chunkTag = BlockField(0, 4, 'chunkTag', '4cc', '"CODE"');
+const _bareZeros = BlockField(4, 12, 'zeros', 'u32le[3]', 'zero');
+const _bareSelfOffset = BlockField(16, 4, 'selfOffset', 'u32le', 'equals codeEnd');
+const _codeChunk = BlockField(
+  0,
+  20,
+  'codeChunk',
+  'chunk',
+  'at codeEnd; the bare form',
+  entry: [_chunkTag, _bareZeros, _bareSelfOffset],
+);
+const _i386Count = BlockField(20, 4, 'count', 'u32le', 'symbol names that follow');
+const _i386Chunk = BlockField(
+  0,
+  null,
+  'codeChunk',
+  'chunk',
+  'at codeEnd; the i386 symbol-table form',
+  entry: [_chunkTag, _bareZeros, _bareSelfOffset, _i386Count],
+);
+const _wx64ImageSize = BlockField(4, 4, 'codeImageSize', 'u32le', 'role TODO');
+const _wx64Zeros = BlockField(8, 16, 'zeros', 'u32le[4]', 'zero');
+const _wx64SelfOffset = BlockField(24, 4, 'selfOffset', 'u32le', 'equals codeEnd');
+const _wx64Zero = BlockField(28, 4, 'zero', 'u32le', 'zero');
+const _wx64Count = BlockField(32, 4, 'count', 'u32le', 'symbol names that follow');
+const _wx64Chunk = BlockField(
+  0,
+  null,
+  'codeChunk',
+  'chunk',
+  'at codeEnd; the wx64 symbol-table form',
+  entry: [_chunkTag, _wx64ImageSize, _wx64Zeros, _wx64SelfOffset, _wx64Zero, _wx64Count],
+);
+const _nameLength = BlockField(0, 4, 'nameLength', 'u32le', 'bytes of name');
+const _name = BlockField(4, null, 'name', 'u8[nameLength]', 'symbol name, padded to a multiple of 4 bytes');
+const _names = BlockField(0, null, 'names', 'entry[count]', 'after the chunk head', entry: [_nameLength, _name]);
 
-class _Layout {
-  _Layout({
-    required this.arch,
-    required this.codeEndOff,
-    required this.codeEnd,
-    required this.tableCountOff,
-    required this.entriesOff,
-    required this.entries,
-  });
+const BlockLayout vicdLayout = [
+  _codeStart,
+  _architecture,
+  _codeSize,
+  _layoutWord,
+  _flags,
+  _codeTag,
+  _codeEnd,
+  _fixupsAndCode,
+  _codeChunk,
+  _i386Chunk,
+  _wx64Chunk,
+  _names,
+];
 
-  final String arch;
+const _modernLayoutWord = 0x103;
+const _legacyCodeEndOffset = 28;
+const _bareChunkSize = 20;
 
-  final int codeEndOff;
+/// The target architecture named by the 4CC at offset 4.
+enum CodeArchitecture {
+  i386('i386', 36, 24),
+  m386('m386', 36, 24),
+  wx64('wx64', 40, 36)
+  ;
 
-  final int codeEnd;
+  const CodeArchitecture(this.fourCc, this.codeEndOffset, this.namesOffset);
 
-  final int tableCountOff;
+  final String fourCc;
 
-  final int entriesOff;
+  /// Offset of the code-end pointer when the layout word is `0x103`.
+  final int codeEndOffset;
 
-  final List<List<int>> entries;
+  /// Offset of the first symbol name within a symbol-table `CODE` chunk.
+  final int namesOffset;
+
+  static CodeArchitecture? of(String fourCc) {
+    for (final a in values) {
+      if (a.fourCc == fourCc) return a;
+    }
+    return null;
+  }
 }
 
-_Layout? _parse(Uint8List body) {
-  if (body.length < 44) return null;
-  final view = ByteData.sublistView(body);
-  if (view.getUint32(12, Endian.little) != _reservedTag) return null;
-  final arch = String.fromCharCodes(body, 4, 8);
-  final codeEndOff = _codeEndOffset(arch);
-  if (codeEndOff == null) return null;
-  if (!_is4cc(body, 20, 'code')) return null;
-  final codeEnd = view.getUint32(codeEndOff, Endian.little);
-  if (codeEnd < 40 || codeEnd + 8 > body.length) return null;
-  if (!_is4cc(body, codeEnd, 'CODE')) return null;
+/// A view over a `VICD` payload.
+class ViCompiledCode {
+  ViCompiledCode._(this.bytes, this.architecture, this._nameOffsets) : _view = ByteData.sublistView(bytes);
 
-  if (arch == 'm386') {
-    if (body.length - codeEnd != 20) return null;
-    if (view.getUint32(codeEnd + 16, Endian.little) != codeEnd) return null;
-    return _Layout(
-      arch: arch,
-      codeEndOff: codeEndOff,
-      codeEnd: codeEnd,
-      tableCountOff: -1,
-      entriesOff: -1,
-      entries: const [],
-    );
+  final Uint8List bytes;
+
+  final ByteData _view;
+
+  final CodeArchitecture architecture;
+
+  final List<int> _nameOffsets;
+
+  int get codeStart => _view.getUint32(_codeStart.offset, Endian.little);
+
+  int get codeSize => _view.getUint32(_codeSize.offset, Endian.little);
+
+  int get layoutWord => _view.getUint32(_layoutWord.offset, Endian.little);
+
+  int get flags => _view.getUint32(_flags.offset, Endian.little);
+
+  int get codeEnd => _view.getUint32(_codeEndOffset(this), Endian.little);
+
+  Uint8List get fixupsAndCode => Uint8List.sublistView(bytes, _fixupsAndCode.offset, codeEnd);
+
+  int get symbolCount => _nameOffsets.length;
+
+  Uint8List symbolNameAt(int index) {
+    final at = _nameOffsets[index];
+    return Uint8List.sublistView(bytes, at + _name.offset, at + _name.offset + _view.getUint32(at, Endian.little));
   }
 
-  final int selfOff, countOff, entriesOff;
-  if (arch == 'i386') {
-    if (codeEnd + 24 > body.length) return null;
-    selfOff = codeEnd + 16;
-    countOff = codeEnd + 20;
-    entriesOff = codeEnd + 24;
-  } else {
-    if (codeEnd + 36 > body.length) return null;
-    selfOff = codeEnd + 24;
-    countOff = codeEnd + 32;
-    entriesOff = codeEnd + 36;
-  }
-  if (view.getUint32(selfOff, Endian.little) != codeEnd) return null;
-  final count = view.getUint32(countOff, Endian.little);
-  if (count > 100000) return null;
-
-  final entries = <List<int>>[];
-  var pos = entriesOff;
-  while (pos < body.length) {
-    if (pos + 4 > body.length) return null;
-    final len = view.getUint32(pos, Endian.little);
-    if (len > 1 << 20) return null;
-    final nameOff = pos + 4;
-    final end = nameOff + ((len + 3) & ~3);
-    if (end > body.length) return null;
-    entries.add([pos, nameOff, end]);
-    pos = end;
-  }
-  if (pos != body.length) return null;
-  if (entries.length != count) return null;
-
-  return _Layout(
-    arch: arch,
-    codeEndOff: codeEndOff,
-    codeEnd: codeEnd,
-    tableCountOff: countOff,
-    entriesOff: entriesOff,
-    entries: entries,
-  );
+  Uint8List serialize() => bytes;
 }
 
-bool _is4cc(Uint8List b, int at, String s) {
-  if (at < 0 || at + 4 > b.length) return false;
+int _codeEndOffset(ViCompiledCode code) =>
+    code.layoutWord == _modernLayoutWord ? code.architecture.codeEndOffset : _legacyCodeEndOffset;
+
+bool _has4cc(Uint8List bytes, int at, String tag) {
+  if (at < 0 || at + 4 > bytes.length) return false;
   for (var i = 0; i < 4; i++) {
-    if (b[at + i] != s.codeUnitAt(i)) return false;
+    if (bytes[at + i] != tag.codeUnitAt(i)) return false;
   }
   return true;
 }
 
-void _copy(Uint8List out, Uint8List src, int start, int end) {
-  if (end > start) out.setRange(start, end, src, start);
+ViCompiledCode decodeCompiledCode(Uint8List bytes) {
+  assert(bytes.length >= _codeEnd.end + _bareChunkSize, 'VICD holds a header and a CODE chunk');
+  assert(_has4cc(bytes, _codeTag.offset, 'code'), 'the code tag follows the header');
+  final architecture = CodeArchitecture.of(String.fromCharCodes(bytes, _architecture.offset, _architecture.end));
+  assert(architecture != null, 'the architecture is i386, m386 or wx64');
+  final view = ByteData.sublistView(bytes);
+  final codeEndOffset = view.getUint32(_layoutWord.offset, Endian.little) == _modernLayoutWord
+      ? architecture!.codeEndOffset
+      : _legacyCodeEndOffset;
+  final codeEnd = view.getUint32(codeEndOffset, Endian.little);
+  assert(
+    codeEnd >= codeEndOffset + 4 && codeEnd + _bareChunkSize <= bytes.length,
+    'the CODE chunk lies inside the payload',
+  );
+  assert(_has4cc(bytes, codeEnd, 'CODE'), 'the CODE chunk starts with its tag');
+  final tail = bytes.length - codeEnd;
+  if (tail == _bareChunkSize) {
+    assert(
+      view.getUint32(codeEnd + _bareSelfOffset.offset, Endian.little) == codeEnd,
+      'the bare chunk points at itself',
+    );
+    return ViCompiledCode._(bytes, architecture!, const []);
+  }
+  final selfOffset = architecture == CodeArchitecture.wx64 ? _wx64SelfOffset.offset : _bareSelfOffset.offset;
+  final countOffset = architecture == CodeArchitecture.wx64 ? _wx64Count.offset : _i386Count.offset;
+  assert(
+    architecture != CodeArchitecture.m386 && codeEnd + architecture!.namesOffset <= bytes.length,
+    'a symbol table has its head',
+  );
+  assert(view.getUint32(codeEnd + selfOffset, Endian.little) == codeEnd, 'the symbol-table chunk points at itself');
+  final count = view.getUint32(codeEnd + countOffset, Endian.little);
+  var at = codeEnd + architecture!.namesOffset;
+  assert(count <= (bytes.length - at) ~/ 4, 'the count fits the payload');
+  final offsets = List<int>.filled(count, 0);
+  for (var i = 0; i < count; i++) {
+    assert(at + 4 <= bytes.length, 'name $i has a length word');
+    offsets[i] = at;
+    at += 4 + ((view.getUint32(at, Endian.little) + 3) & ~3);
+  }
+  assert(at == bytes.length, 'the names tile the payload');
+  return ViCompiledCode._(bytes, architecture, offsets);
 }
-
-Uint8List? reserializeCompiledCode(Uint8List body) {
-  final layout = _parse(body);
-  if (layout == null) return null;
-  final out = Uint8List(body.length);
-  final src = ByteData.sublistView(body);
-  final dst = ByteData.sublistView(out);
-
-  dst.setUint32(0, src.getUint32(0, Endian.little), Endian.little);
-  for (var i = 0; i < 4; i++) {
-    out[4 + i] = body[4 + i];
-  }
-  dst.setUint32(8, src.getUint32(8, Endian.little), Endian.little);
-  dst.setUint32(12, _reservedTag, Endian.little);
-  dst.setUint32(16, src.getUint32(16, Endian.little), Endian.little);
-  for (var i = 0; i < 4; i++) {
-    out[20 + i] = 'code'.codeUnitAt(i);
-  }
-
-  _copy(out, body, 24, layout.codeEndOff);
-  dst.setUint32(layout.codeEndOff, layout.codeEnd, Endian.little);
-  _copy(out, body, layout.codeEndOff + 4, layout.codeEnd);
-
-  for (var i = 0; i < 4; i++) {
-    out[layout.codeEnd + i] = 'CODE'.codeUnitAt(i);
-  }
-  final headerEnd = layout.entriesOff < 0 ? body.length : layout.entriesOff;
-  for (var off = layout.codeEnd + 4; off < headerEnd; off += 4) {
-    dst.setUint32(off, src.getUint32(off, Endian.little), Endian.little);
-  }
-  for (final entry in layout.entries) {
-    final lenOff = entry[0];
-    final nameOff = entry[1];
-    final end = entry[2];
-    dst.setUint32(lenOff, src.getUint32(lenOff, Endian.little), Endian.little);
-    _copy(out, body, nameOff, end);
-  }
-
-  return out;
-}
-
-bool compiledCodeFrames(Uint8List body) => _parse(body) != null;

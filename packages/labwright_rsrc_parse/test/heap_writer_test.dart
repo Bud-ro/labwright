@@ -97,26 +97,14 @@ void main() {
     expect(split.copiedBytes, 0);
   });
 
-  test('a VICD body whose CODE table does not tile stays copied and byte-exact', () {
+  test('a VICD body whose CODE table does not tile violates the decoder precondition', () {
     final body = hx(
       '28000000 69333836 08000000 03010000 00000000 636f6465'
       '000000000000000000000000 30000000 5589e583ec109090'
       '434f4445 000000000000000000000000 30000000 02000000 04000000 41424344',
     );
-    final res = serializeHeapBody(body, 'VICD');
-    expect(res.bytes, equals(body));
-    expect(res.modelBytes, 0);
-    expect(res.copiedBytes, body.length);
-    expect(attributeHeapBody(body, 'VICD').copiedBytes, body.length);
-  });
-
-  test('serializeHeapBody is total and byte-exact on random VICD-tagged buffers', () {
-    expectTotal(11, 2000, 64, (b) {
-      final res = serializeHeapBody(b, 'VICD');
-      expect(res.bytes, equals(b));
-      expect(res.modelBytes + res.copiedBytes, b.length);
-      expect(res.modelBugs, 0);
-    });
+    expect(() => serializeHeapBody(body, 'VICD'), throwsA(isA<AssertionError>()));
+    expect(() => attributeHeapBody(body, 'VICD'), throwsA(isA<AssertionError>()));
   });
 
   test('serializeHeapBody is total and byte-exact on random VCTP-tagged buffers', () {

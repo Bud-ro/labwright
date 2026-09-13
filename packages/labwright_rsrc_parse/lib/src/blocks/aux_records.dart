@@ -1,33 +1,5 @@
 import 'dart:typed_data';
 
-class ViCompiledCode {
-  const ViCompiledCode({
-    required this.flags,
-    required this.architecture,
-    required this.codeSize,
-    required this.bodyLength,
-  });
-
-  final int flags;
-
-  final String architecture;
-
-  final int codeSize;
-
-  final int bodyLength;
-}
-
-ViCompiledCode? decodeCompiledCode(Uint8List bytes) {
-  if (bytes.length < 16) return null;
-  final view = ByteData.sublistView(bytes);
-  return ViCompiledCode(
-    flags: view.getUint32(0),
-    architecture: String.fromCharCodes(bytes.sublist(4, 8)),
-    codeSize: view.getUint32(8, Endian.little),
-    bodyLength: bytes.length - 16,
-  );
-}
-
 class ViPngImage {
   const ViPngImage({required this.width, required this.height, required this.byteLength});
   final int width;

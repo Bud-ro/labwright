@@ -35,6 +35,7 @@ import 'blocks/TITL_title.dart';
 import 'blocks/TM80_type_map.dart';
 import 'blocks/TRec_type_record.dart';
 import 'blocks/VCTP_type_pool.dart';
+import 'blocks/VICD_compiled_code.dart';
 import 'blocks/VITS_tag_store.dart';
 import 'blocks/aux_records.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
@@ -158,7 +159,14 @@ enum BlockTag {
   ),
 
   /// Compiled machine code for one target architecture, with its symbol table.
-  vicd('VICD', 'VI compiled code', BlockCategory.compiledCode, BlockConfidence.confirmed, decodeCompiledCode),
+  vicd(
+    'VICD',
+    'VI compiled code',
+    BlockCategory.compiledCode,
+    BlockConfidence.confirmed,
+    decodeCompiledCode,
+    vicdLayout,
+  ),
 
   /// Default data space: the flattened default values of the types [tm80] marks as saved, laid out per their [vctp] type.
   dfds('DFDS', 'Default data space', BlockCategory.dataSpace, BlockConfidence.likely),
