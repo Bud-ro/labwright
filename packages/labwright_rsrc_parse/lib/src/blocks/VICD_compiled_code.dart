@@ -40,6 +40,9 @@
 ///                                                         bytes
 /// ```
 ///
+/// The section usually stores the payload in the zlib envelope that [inflateHeapPayload]
+/// opens, and sometimes plain; the layout is the inflated body.
+///
 /// [ViCompiledCode] is a view over the payload that records where each symbol name starts;
 /// [CodeArchitecture] names the 4CC at 4; [decodeCompiledCode] requires the tags, the
 /// code-end pointer and the symbol table to tile the payload.
@@ -48,6 +51,8 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
+import '../decode.dart' show inflateHeapPayload;
 
 const _codeStart = BlockField(0, 4, 'codeStart', 'u32le', 'offset of the machine code within the payload');
 const _architecture = BlockField(4, 4, 'architecture', '4cc', 'i386, m386 or wx64, see CodeArchitecture');
@@ -151,7 +156,7 @@ enum CodeArchitecture {
 }
 
 /// A view over a `VICD` payload.
-class ViCompiledCode {
+class ViCompiledCode implements BlockRecord {
   ViCompiledCode._(this.bytes, this.architecture, this._nameOffsets) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -181,6 +186,7 @@ class ViCompiledCode {
     return Uint8List.sublistView(bytes, at + _name.offset, at + _name.offset + _view.getUint32(at, Endian.little));
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

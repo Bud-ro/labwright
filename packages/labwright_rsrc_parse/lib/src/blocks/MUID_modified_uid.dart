@@ -11,13 +11,14 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _value = BlockField(0, 4, 'value', 'u32', 'the UID');
 
 const BlockLayout muidLayout = [_value];
 
 /// A view over an `MUID` payload.
-class ViModifiedUid {
+class ViModifiedUid implements BlockRecord {
   ViModifiedUid._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -26,6 +27,7 @@ class ViModifiedUid {
 
   int get value => _view.getUint32(_value.offset);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

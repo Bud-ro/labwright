@@ -8,14 +8,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-const _fullTags = [
-  'icl8', 'icl4', 'ICON', 'NUID', 'SUID', 'BNID', 'vers', 'STRG', 'HIST', //
-  'MUID', 'BDSE', 'FPSE', 'BDEx', 'FPEx', 'IPSR', 'PICC', 'CPMp', 'GCPR', //
-  'RTSG', 'SCSR', 'BDPW', 'DLDR', 'CNST', 'LPIN', 'VPDP', 'TITL', 'OBSG', 'CCSG', //
-  'COUT', 'CPD2', 'PRT ', 'FPTD', 'HLPT', 'HLPP', 'FTAB', 'BKMK', 'TRec', //
-  'CCST', 'CPST', 'CPSP', 'BDTS',
-];
-
 const _laws = {
   'attribute',
   'byteExact',
@@ -26,6 +18,8 @@ const _laws = {
   'reDeflate',
   'dfdsExact',
   'roundTrip',
+  'enveloped',
+  'plain',
   'imageExact',
   'ancillary',
   'raster',
@@ -100,8 +94,13 @@ Map<String, int> _violations(Uint8List bytes, String path) {
 
   final seenBlock = <int>{};
   for (final s in secs) {
-    if (!hasBlockWriter(s.tag) || !seenBlock.add(s.dataOffset)) continue;
-    if (_fullTags.contains(s.tag) && serializeBlockPayload(s.tag, s.bytes, version: ver) == null) bad('roundTrip');
+    if (!seenBlock.add(s.dataOffset)) continue;
+    final tag = BlockTag.of(s.tag);
+    final inflated = inflateHeapPayload(s.bytes);
+    if (inflated != null && !(tag?.isEnveloped ?? false)) bad('enveloped');
+    if (inflated == null && tag != null && tag.isEnveloped && !_alsoPlain.contains(tag)) bad('plain');
+    if (tag == null || !tag.hasWriter) continue;
+    if (serializeBlockPayload(s.tag, inflated ?? s.bytes) == null) bad('roundTrip');
   }
 
   final seenImage = <int>{};
@@ -131,6 +130,8 @@ Map<String, int> _violations(Uint8List bytes, String path) {
 }
 
 const kWriterViolations = <String, Map<String, int>>{};
+
+const _alsoPlain = {BlockTag.tm80, BlockTag.vicd, BlockTag.dfds};
 
 void main() {
   final all = [

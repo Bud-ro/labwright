@@ -16,6 +16,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _words = BlockField(0, 128, 'words', 'u32[32]', 'roles TODO; words 23 to 26 read as little-endian float32');
 const _extra = BlockField(128, null, 'extra', 'u32[]', 'roles TODO', optional: 'the record exceeds 128 bytes');
@@ -23,7 +24,7 @@ const _extra = BlockField(128, null, 'extra', 'u32[]', 'roles TODO', optional: '
 const BlockLayout prtLayout = [_words, _extra];
 
 /// A view over a `PRT ` payload.
-class ViPrintRecord {
+class ViPrintRecord implements BlockRecord {
   ViPrintRecord._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -34,6 +35,7 @@ class ViPrintRecord {
 
   int operator [](int index) => _view.getUint32(4 * index);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

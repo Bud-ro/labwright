@@ -12,19 +12,21 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _digest = BlockField(0, 16, 'digest', 'u8[16]', 'signature digest; derivation TODO');
 
 const BlockLayout signatureLayout = [_digest];
 
 /// A view over an `RTSG`, `OBSG` or `CCSG` payload.
-class ViSignature {
+class ViSignature implements BlockRecord {
   const ViSignature._(this.bytes);
 
   final Uint8List bytes;
 
   Uint8List get digest => bytes;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

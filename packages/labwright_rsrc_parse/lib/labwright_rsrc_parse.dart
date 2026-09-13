@@ -1,6 +1,7 @@
 library;
 
 export 'src/block_layout.dart';
+export 'src/block_record.dart';
 export 'src/block_tag.dart';
 export 'src/block_writer.dart';
 export 'src/blocks/BDHb_BDHc_BDHP_block_diagram.dart';

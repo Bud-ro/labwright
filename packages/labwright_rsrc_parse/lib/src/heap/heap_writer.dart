@@ -5,10 +5,9 @@ library;
 
 import 'dart:typed_data';
 
+import '../block_record.dart';
+import '../block_tag.dart';
 import '../blocks/DFDS_default_data_space.dart' show DfdsContext, dataSpaceFrames, reserializeDataSpace;
-import '../blocks/TM80_type_map.dart' show decodeTypeMap;
-import '../blocks/VCTP_type_pool.dart' show decodeTypePool;
-import '../blocks/VICD_compiled_code.dart' show decodeCompiledCode;
 import 'heap.dart';
 
 /// A re-emitted heap body and how many of its bytes came from the model versus verbatim copies.
@@ -240,24 +239,16 @@ class HeapContentSplit {
   final int modelBugs;
 }
 
-/// Counts the bytes of [body] the model re-emits without writing them; `DFDS`, `VCTP`, `VICD` and
-/// `TM80` bodies are whole-block models, any other body is walked record by record.
+/// Counts the bytes of [body] the model re-emits without writing them; `DFDS` and every tag
+/// with a writer ([BlockTag.hasWriter]) are whole-block models, any other body is walked
+/// record by record.
 HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
   if (sectionTag == 'DFDS' && dfdsContext != null) {
     return dataSpaceFrames(body, dfdsContext)
         ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
         : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
-  if (sectionTag == 'VCTP') {
-    decodeTypePool(body);
-    return HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
-  }
-  if (sectionTag == 'VICD') {
-    decodeCompiledCode(body);
-    return HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
-  }
-  if (sectionTag == 'TM80') {
-    decodeTypeMap(body);
+  if (_wholeBlockRecord(sectionTag, body) != null) {
     return HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
   }
   if (body.length < 4) {
@@ -279,6 +270,9 @@ HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsCont
   return HeapContentSplit(modelBytes: model, copiedBytes: copied, modelBugs: bugs);
 }
 
+BlockRecord? _wholeBlockRecord(String? sectionTag, Uint8List body) =>
+    sectionTag == null ? null : BlockTag.of(sectionTag)?.decodeRecord(body);
+
 int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
   if (m.length == 0) return 0;
   for (var i = 0; i < m.length; i++) {
@@ -296,17 +290,8 @@ HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag, DfdsConte
     }
     return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
-  if (sectionTag == 'VCTP') {
-    final pool = decodeTypePool(body);
-    return HeapWriteResult(bytes: pool.serialize(), modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
-  }
-  if (sectionTag == 'VICD') {
-    final code = decodeCompiledCode(body);
-    return HeapWriteResult(bytes: code.serialize(), modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
-  }
-  if (sectionTag == 'TM80') {
-    final map = decodeTypeMap(body);
-    return HeapWriteResult(bytes: map.serialize(), modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
+  if (_wholeBlockRecord(sectionTag, body) case final record?) {
+    return HeapWriteResult(bytes: record.serialize(), modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
   }
 
   final out = BytesBuilder(copy: false);

@@ -23,6 +23,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _countA = BlockField(0, 4, 'countA', 'u32', 'entries in table A');
 const _wordA = BlockField(0, 4, 'wordA', 'u32', 'role TODO');
@@ -81,7 +82,7 @@ class ViBookmarkTable {
 }
 
 /// The two tables of a `BKMK` payload.
-class ViBookmarkList {
+class ViBookmarkList implements BlockRecord {
   const ViBookmarkList._(this.bytes, this.tableA, this.tableB);
 
   final Uint8List bytes;
@@ -92,6 +93,7 @@ class ViBookmarkList {
 
   bool get isEmpty => tableA.length == 0 && tableB.length == 0;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

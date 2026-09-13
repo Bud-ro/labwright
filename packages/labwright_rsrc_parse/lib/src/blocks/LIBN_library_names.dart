@@ -14,6 +14,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import '../viparse.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of names, outermost library first');
@@ -22,7 +23,7 @@ const _names = BlockField(4, null, 'names', 'pstr[count]', 'library names such a
 const BlockLayout libnLayout = [_count, _names];
 
 /// A view over an `LIBN` payload.
-class ViLibraryNames {
+class ViLibraryNames implements BlockRecord {
   const ViLibraryNames._(this.bytes, this._nameOffsets);
 
   final Uint8List bytes;
@@ -36,6 +37,7 @@ class ViLibraryNames {
     return String.fromCharCodes(bytes, at + 1, at + 1 + bytes[at]);
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

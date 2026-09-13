@@ -12,13 +12,14 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _value = BlockField(0, 2, 'value', 'u16', 'role TODO');
 
 const BlockLayout cpd2Layout = [_value];
 
 /// A view over a `CPD2` payload.
-class ViConnectorPaneData {
+class ViConnectorPaneData implements BlockRecord {
   ViConnectorPaneData._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -27,6 +28,7 @@ class ViConnectorPaneData {
 
   int get value => _view.getUint16(_value.offset);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

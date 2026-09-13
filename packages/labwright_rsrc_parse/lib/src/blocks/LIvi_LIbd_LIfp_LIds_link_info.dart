@@ -30,6 +30,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import 'vers_version.dart';
 
 const _version = BlockField(0, 2, 'version', 'u16', 'link-info format version, 1');
@@ -80,7 +81,7 @@ final class ViLinkEntryUnwalked extends ViLinkEntry {
 }
 
 /// A view over an `LIvi`, `LIbd`, `LIfp` or `LIds` payload.
-class ViLinkInfo {
+class ViLinkInfo implements BlockRecord {
   ViLinkInfo._(this.bytes, this.entriesOffset, this.entries) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -138,6 +139,7 @@ class ViLinkInfo {
     return true;
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

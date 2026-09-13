@@ -7,6 +7,9 @@
 /// 5       rest  TODO                                retained; not decoded
 /// ```
 ///
+/// The section stores the payload in the zlib envelope that [inflateHeapPayload] opens; the
+/// layout is the inflated body.
+///
 /// [ViGcdiRecord] is a view over the payload; [decodeGcdiRecord] requires at least 5 bytes
 /// with the marker byte set to 1.
 library;
@@ -14,6 +17,8 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
+import '../decode.dart' show inflateHeapPayload;
 
 const _value = BlockField(0, 4, 'value', 'u32', 'role TODO');
 const _marker = BlockField(4, 1, 'marker', 'u8', 'always 1');
@@ -22,7 +27,7 @@ const _body = BlockField.undecoded(5, null);
 const BlockLayout gcdiLayout = [_value, _marker, _body];
 
 /// A view over a `GCDI` payload.
-class ViGcdiRecord {
+class ViGcdiRecord implements BlockRecord {
   ViGcdiRecord._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -33,6 +38,7 @@ class ViGcdiRecord {
 
   Uint8List get body => Uint8List.sublistView(bytes, _body.offset);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

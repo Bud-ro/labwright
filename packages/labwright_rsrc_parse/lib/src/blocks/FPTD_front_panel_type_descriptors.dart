@@ -12,13 +12,14 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _words = BlockField(0, null, 'words', 'u16[]', 'roles TODO');
 
 const BlockLayout fptdLayout = [_words];
 
 /// A view over a payload made of u16 words.
-class ViU16Grid {
+class ViU16Grid implements BlockRecord {
   ViU16Grid._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -29,6 +30,7 @@ class ViU16Grid {
 
   int operator [](int index) => _view.getUint16(2 * index);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

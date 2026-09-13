@@ -17,6 +17,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of entries');
 const _keyLength = BlockField(0, 4, 'keyLength', 'u32', 'bytes of key');
@@ -35,7 +36,7 @@ const _entries = BlockField(
 const BlockLayout ccstLayout = [_count, _entries];
 
 /// A view over a `CCST` payload.
-class ViKeyValueTable {
+class ViKeyValueTable implements BlockRecord {
   ViKeyValueTable._(this.bytes, this._entryOffsets) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -60,6 +61,7 @@ class ViKeyValueTable {
     );
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

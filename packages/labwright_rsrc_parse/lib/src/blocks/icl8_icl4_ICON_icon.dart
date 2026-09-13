@@ -23,6 +23,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import '../viparse.dart' show ViSection;
 
 const _pixels8 = BlockField(0, 1024, 'pixels', 'u8[1024]', 'palette index per pixel, 32 rows of 32');
@@ -65,7 +66,7 @@ enum LegacyIconDepth {
 }
 
 /// A view over an `icl8`, `icl4` or `ICON` bitmap.
-class ViLegacyIcon {
+class ViLegacyIcon implements BlockRecord {
   const ViLegacyIcon._(this.bytes, this.depth);
 
   static const int width = 32;
@@ -99,6 +100,7 @@ class ViLegacyIcon {
     return true;
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

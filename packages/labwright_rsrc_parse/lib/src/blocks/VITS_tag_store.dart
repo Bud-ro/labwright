@@ -28,6 +28,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of tags');
 const _nameLength = BlockField(0, 4, 'nameLength', 'u32', 'bytes of name');
@@ -88,7 +89,7 @@ class ViTagEntry {
 }
 
 /// A view over a `VITS` payload.
-class ViTagStore {
+class ViTagStore implements BlockRecord {
   ViTagStore._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -99,6 +100,7 @@ class ViTagStore {
 
   int get declaredCount => _view.getUint32(_count.offset);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

@@ -177,7 +177,7 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           imageInflatedModel += sub.imageInflatedModelBytes;
           imageInflatedCopied += sub.imageInflatedCopiedBytes;
         } else {
-          final modeled = tag == null ? null : serializeBlockPayload(tag, payload, version: versionWord);
+          final modeled = tag == null ? null : serializeBlockPayload(tag, payload);
           final image = tag == null ? null : imageAccounting(tag, payload);
           final meta = tag == null ? null : metafileFrame(tag, payload);
           if (modeled != null) {
