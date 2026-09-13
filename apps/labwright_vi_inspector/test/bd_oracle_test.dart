@@ -27,20 +27,6 @@ ViDiagram _synthDiagram() => modelFromRecords(<int>[
   ...close(),
 ]).blockDiagrams.first;
 
-Directory? _corpusDir() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final candidate = Directory(
-      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi',
-    );
-    if (candidate.existsSync()) return candidate;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return null;
-}
-
 bool _allWithin(Iterable<ViHeapObject> drawable, Rect content) {
   for (final object in drawable) {
     if (object.category == ViObjectKind.wire) continue;
@@ -561,7 +547,6 @@ void main() {
   });
 
   group('corpus', () {
-    final corpus = _corpusDir();
     const rel =
         'NEVSTOP-LAB_Communicable-State-Machine/'
         'NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/'
@@ -570,12 +555,10 @@ void main() {
     testWidgets('BD view renders a corpus VI; objects within their frame', (
       tester,
     ) async {
-      if (corpus == null) return;
-      final file = File('${corpus.path}/$rel');
-      if (!file.existsSync()) return;
-      final model = buildViModel(file.readAsBytesSync());
+      final model = buildViModel(
+        File('${corpusVi.path}/$rel').readAsBytesSync(),
+      );
       final diagrams = model.blockDiagrams;
-      if (!diagrams.any((d) => d.objects.isNotEmpty)) return;
 
       await tester.binding.setSurfaceSize(const Size(1200, 800));
       addTearDown(() => tester.binding.setSurfaceSize(null));
@@ -598,7 +581,7 @@ void main() {
       final drawable = bdDrawableObjects(best);
       final content = bdContentRect(drawable, includeWires: false);
       expect(_allWithin(drawable, content), isTrue);
-    });
+    }, tags: 'corpus');
   });
 
   testWidgets('a recovered constant literal renders (vs a blank plate)', (
@@ -646,13 +629,10 @@ void main() {
     });
 
     testWidgets('rasterising with subVI icons stamps the node', (tester) async {
-      final corpus = _corpusDir();
-      if (corpus == null) return;
       final target = File(
-        '${corpus.path}/vipm-io_caraya/vipm-io-caraya-ca35333/'
+        '${corpusVi.path}/vipm-io_caraya/vipm-io-caraya-ca35333/'
         'src/classes/Test/Define Test.vi',
       );
-      if (!target.existsSync()) return;
 
       final call = ViHeapObject(oid: 5, kind: 0x31, offset: 0)
         ..category = ViObjectKind.node
@@ -670,6 +650,6 @@ void main() {
         final cmp = await compareToReference(iconed!.image, plain!.image);
         expect(cmp.comparison.meanAbsDiff, greaterThan(0));
       });
-    });
+    }, tags: 'corpus');
   });
 }

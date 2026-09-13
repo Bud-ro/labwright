@@ -76,6 +76,6 @@ void main() {
         expect(rect.width, closeTo(width, 0.75), reason: '$label width');
         expect(rect.height, closeTo(height, 0.75), reason: '$label height');
       }
-    });
+    }, tags: 'corpus');
   }
 }

@@ -187,5 +187,5 @@ void main() {
       result.fitted.dispose();
       result.diffImage.dispose();
     });
-  });
+  }, tags: 'corpus');
 }

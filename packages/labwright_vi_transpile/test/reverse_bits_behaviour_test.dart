@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:io';
 import 'dart:typed_data';
 

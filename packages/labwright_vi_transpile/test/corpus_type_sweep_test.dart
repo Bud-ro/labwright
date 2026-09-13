@@ -48,7 +48,7 @@ Map<String, List<int>> sweepChunk(List<String> paths) {
 }
 
 void main() {
-  final vis = corpusViPaths(corpusViDir());
+  final vis = corpusViPaths();
 
   test(
     'every VCTP type code in the corpus is either modelled or on the documented review list',

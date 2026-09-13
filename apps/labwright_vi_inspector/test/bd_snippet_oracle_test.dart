@@ -181,180 +181,191 @@ void main() {
         scene.dispose();
       }
     });
-  });
+  }, tags: 'corpus');
 
-  testWidgets('hatch phase derives per capture and rephases to the reference', (
-    tester,
-  ) async {
-    const expected = {
-      'crc8.png': ((x: 0, y: 0), 716, 0.95),
-      'fg.png': ((x: 0, y: 2), 128, 0.95),
-      'MD5.png': ((x: 2, y: 2), 5720, 0.95),
-    };
-    final pngs = expected.keys.map(snippetPng);
-    await loadRealTextFont();
-    await tester.runAsync(() async {
-      for (final f in pngs) {
-        final name = f.path.split('/').last;
-        final (want, caseOid, floor) = expected[name]!;
-        final bytes = f.readAsBytesSync();
-        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
-        final drawable = bdDrawableObjects(bd);
-        final wires = bdVisibleWires(bd);
-        final icons = await loadPrimIcons();
-        Future<(BdRaster, BdOracleResult)> render(GlobalHatchOffset off) async {
+  testWidgets(
+    'hatch phase derives per capture and rephases to the reference',
+    (tester) async {
+      const expected = {
+        'crc8.png': ((x: 0, y: 0), 716, 0.95),
+        'fg.png': ((x: 0, y: 2), 128, 0.95),
+        'MD5.png': ((x: 2, y: 2), 5720, 0.95),
+      };
+      final pngs = expected.keys.map(snippetPng);
+      await loadRealTextFont();
+      await tester.runAsync(() async {
+        for (final f in pngs) {
+          final name = f.path.split('/').last;
+          final (want, caseOid, floor) = expected[name]!;
+          final bytes = f.readAsBytesSync();
+          final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+          final drawable = bdDrawableObjects(bd);
+          final wires = bdVisibleWires(bd);
+          final icons = await loadPrimIcons();
+          Future<(BdRaster, BdOracleResult)> render(
+            GlobalHatchOffset off,
+          ) async {
+            final raster = (await rasteriseBlockDiagram(
+              bd,
+              primIcons: icons,
+              scale: 1.0,
+              margin: 2,
+              wires: wires,
+              drawable: drawable,
+              style: BdRenderStyle(hatchOffset: off),
+            ))!;
+            final reference = await decodeReferenceImage(bytes);
+            final result = await compareToReference(
+              raster.image,
+              reference.image,
+              lockScale: 1.0 / raster.scale,
+              anchorRects: bdStructureAnchorRects(
+                bd,
+                raster,
+                drawable: drawable,
+              ),
+            );
+            reference.image.dispose();
+            return (raster, result);
+          }
+
+          final (raster, result) = await render(kNoHatchOffset);
+          final derived = deriveHatchOffset(
+            diagram: bd,
+            raster: raster,
+            registration: result.registration,
+            referenceRgba: result.referenceRgba,
+            width: result.reference.width,
+            height: result.reference.height,
+            errorStyle: false,
+          );
+          expect(derived, want, reason: '$name derived offset');
+
+          final (raster2, result2) = await render(derived);
+          final w = result2.reference.width, h = result2.reference.height;
+          final refB = result2.referenceRgba;
+          final ourB = (await result2.fitted.toByteData())!.buffer
+              .asUint8List();
+          bool dark(Uint8List im, int x, int y) {
+            final i = (y * w + x) * 4;
+            return (im[i] + im[i + 1] + im[i + 2]) ~/ 3 < 110;
+          }
+
+          final b = bd.byId[caseOid]!.absBounds!;
+          var same = 0, total = 0;
+          for (var y = b.top; y <= b.bottom; y++) {
+            for (var x = b.left; x <= b.right; x++) {
+              final d = [
+                x - b.left,
+                y - b.top,
+                b.right - x,
+                b.bottom - y,
+              ].reduce((p, q) => p < q ? p : q);
+              if (d > kBdHatchBand) continue;
+              final rx = (x - raster2.content.left + result2.registration.dx)
+                  .round();
+              final ry = (y - raster2.content.top + result2.registration.dy)
+                  .round();
+              if (rx < 0 || ry < 0 || rx >= w || ry >= h) continue;
+              total++;
+              if (dark(refB, rx, ry) == dark(ourB, rx, ry)) same++;
+            }
+          }
+          expect(
+            same / total,
+            greaterThan(floor),
+            reason: '$name case $caseOid hatch ring after rephasing',
+          );
+        }
+      });
+    },
+    tags: 'corpus',
+  );
+
+  testWidgets(
+    'measured terminal art matches its reference somewhere per key',
+    (tester) async {
+      const expected = {
+        'crc8.png': [(ViDataType.u8, false), (ViDataType.boolean, false)],
+        'crc32.png': [(ViDataType.u32, false)],
+        'Tokenize URL.png': [(ViDataType.string, false)],
+        'ProjectItems.png': [
+          (ViDataType.cluster, false),
+          (ViDataType.refnum, false),
+        ],
+        'Config_Escape.png': [(ViDataType.enumU8, false)],
+      };
+      final pngs = expected.keys.map(snippetPng);
+      await loadRealTextFont();
+      await tester.runAsync(() async {
+        for (final f in pngs) {
+          final name = f.path.split('/').last;
+          final bytes = f.readAsBytesSync();
+          final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
+          final scene = BdScene(bd);
+          final icons = await loadPrimIcons();
           final raster = (await rasteriseBlockDiagram(
             bd,
             primIcons: icons,
             scale: 1.0,
             margin: 2,
-            wires: wires,
-            drawable: drawable,
-            style: BdRenderStyle(hatchOffset: off),
+            scene: scene,
           ))!;
           final reference = await decodeReferenceImage(bytes);
           final result = await compareToReference(
             raster.image,
             reference.image,
             lockScale: 1.0 / raster.scale,
-            anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+            anchorRects: bdStructureAnchorRects(
+              bd,
+              raster,
+              drawable: scene.drawable,
+            ),
           );
           reference.image.dispose();
-          return (raster, result);
-        }
-
-        final (raster, result) = await render(kNoHatchOffset);
-        final derived = deriveHatchOffset(
-          diagram: bd,
-          raster: raster,
-          registration: result.registration,
-          referenceRgba: result.referenceRgba,
-          width: result.reference.width,
-          height: result.reference.height,
-          errorStyle: false,
-        );
-        expect(derived, want, reason: '$name derived offset');
-
-        final (raster2, result2) = await render(derived);
-        final w = result2.reference.width, h = result2.reference.height;
-        final refB = result2.referenceRgba;
-        final ourB = (await result2.fitted.toByteData())!.buffer.asUint8List();
-        bool dark(Uint8List im, int x, int y) {
-          final i = (y * w + x) * 4;
-          return (im[i] + im[i + 1] + im[i + 2]) ~/ 3 < 110;
-        }
-
-        final b = bd.byId[caseOid]!.absBounds!;
-        var same = 0, total = 0;
-        for (var y = b.top; y <= b.bottom; y++) {
-          for (var x = b.left; x <= b.right; x++) {
-            final d = [
-              x - b.left,
-              y - b.top,
-              b.right - x,
-              b.bottom - y,
-            ].reduce((p, q) => p < q ? p : q);
-            if (d > kBdHatchBand) continue;
-            final rx = (x - raster2.content.left + result2.registration.dx)
-                .round();
-            final ry = (y - raster2.content.top + result2.registration.dy)
-                .round();
-            if (rx < 0 || ry < 0 || rx >= w || ry >= h) continue;
-            total++;
-            if (dark(refB, rx, ry) == dark(ourB, rx, ry)) same++;
-          }
-        }
-        expect(
-          same / total,
-          greaterThan(floor),
-          reason: '$name case $caseOid hatch ring after rephasing',
-        );
-      }
-    });
-  });
-
-  testWidgets('measured terminal art matches its reference somewhere per key', (
-    tester,
-  ) async {
-    const expected = {
-      'crc8.png': [(ViDataType.u8, false), (ViDataType.boolean, false)],
-      'crc32.png': [(ViDataType.u32, false)],
-      'Tokenize URL.png': [(ViDataType.string, false)],
-      'ProjectItems.png': [
-        (ViDataType.cluster, false),
-        (ViDataType.refnum, false),
-      ],
-      'Config_Escape.png': [(ViDataType.enumU8, false)],
-    };
-    final pngs = expected.keys.map(snippetPng);
-    await loadRealTextFont();
-    await tester.runAsync(() async {
-      for (final f in pngs) {
-        final name = f.path.split('/').last;
-        final bytes = f.readAsBytesSync();
-        final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
-        final scene = BdScene(bd);
-        final icons = await loadPrimIcons();
-        final raster = (await rasteriseBlockDiagram(
-          bd,
-          primIcons: icons,
-          scale: 1.0,
-          margin: 2,
-          scene: scene,
-        ))!;
-        final reference = await decodeReferenceImage(bytes);
-        final result = await compareToReference(
-          raster.image,
-          reference.image,
-          lockScale: 1.0 / raster.scale,
-          anchorRects: bdStructureAnchorRects(
-            bd,
-            raster,
-            drawable: scene.drawable,
-          ),
-        );
-        reference.image.dispose();
-        final reg = result.registration;
-        final w = result.reference.width;
-        final refB = result.referenceRgba;
-        final ourB = (await result.fitted.toByteData())!.buffer.asUint8List();
-        for (final (dataType, indicator) in expected[name]!) {
-          var bestDiff = 1 << 30;
-          for (final o in scene.drawable) {
-            final b = o.absBounds;
-            if (o.kind != 0x16 ||
-                b == null ||
-                b.width != 32 ||
-                b.height != 16 ||
-                (o.isIndicator == true) != indicator ||
-                (o.dataType ?? _artKindOf(o.typeKind)) != dataType) {
-              continue;
-            }
-            var diff = 0;
-            for (var y = b.top; y < b.top + 16; y++) {
-              for (var x = b.left; x < b.left + 32; x++) {
-                final rx = (x - raster.content.left + reg.dx).round();
-                final ry = (y - raster.content.top + reg.dy).round();
-                final i = (ry * w + rx) * 4;
-                if (refB[i] != ourB[i] ||
-                    refB[i + 1] != ourB[i + 1] ||
-                    refB[i + 2] != ourB[i + 2]) {
-                  diff++;
+          final reg = result.registration;
+          final w = result.reference.width;
+          final refB = result.referenceRgba;
+          final ourB = (await result.fitted.toByteData())!.buffer.asUint8List();
+          for (final (dataType, indicator) in expected[name]!) {
+            var bestDiff = 1 << 30;
+            for (final o in scene.drawable) {
+              final b = o.absBounds;
+              if (o.kind != 0x16 ||
+                  b == null ||
+                  b.width != 32 ||
+                  b.height != 16 ||
+                  (o.isIndicator == true) != indicator ||
+                  (o.dataType ?? _artKindOf(o.typeKind)) != dataType) {
+                continue;
+              }
+              var diff = 0;
+              for (var y = b.top; y < b.top + 16; y++) {
+                for (var x = b.left; x < b.left + 32; x++) {
+                  final rx = (x - raster.content.left + reg.dx).round();
+                  final ry = (y - raster.content.top + reg.dy).round();
+                  final i = (ry * w + rx) * 4;
+                  if (refB[i] != ourB[i] ||
+                      refB[i + 1] != ourB[i + 1] ||
+                      refB[i + 2] != ourB[i + 2]) {
+                    diff++;
+                  }
                 }
               }
+              if (diff < bestDiff) bestDiff = diff;
             }
-            if (diff < bestDiff) bestDiff = diff;
+            expect(
+              bestDiff,
+              0,
+              reason: name + ' ' + dataType.name + ' terminal art',
+            );
           }
-          expect(
-            bestDiff,
-            0,
-            reason: name + ' ' + dataType.name + ' terminal art',
-          );
+          scene.dispose();
         }
-        scene.dispose();
-      }
-    });
-  });
+      });
+    },
+    tags: 'corpus',
+  );
 
   testWidgets('error cases derive their stripe phase and rephase to match', (
     tester,
@@ -458,7 +469,7 @@ void main() {
         );
       }
     });
-  });
+  }, tags: 'corpus');
 
   test('excessSupport rescales support against the chance rate', () {
     const cmp = PlacementComparison(
