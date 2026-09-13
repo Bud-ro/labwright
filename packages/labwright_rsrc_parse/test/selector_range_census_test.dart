@@ -48,7 +48,7 @@ String _canonical(String label) =>
 Map<int, int> _statedCounts(List<DecodedSection> sections) {
   final stated = <int, int>{};
   for (final section in sections) {
-    if (!kHeapSectionTags.contains(section.tag)) continue;
+    if (!(BlockTag.of(section.tag)?.isRecordHeap ?? false)) continue;
     final body = section.bytes;
     if (body.length < 6) continue;
     walkHeapObjects<(int, int)>(

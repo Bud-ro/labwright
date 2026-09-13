@@ -1,7 +1,5 @@
 import 'dart:typed_data';
 
-import '../block_catalog.dart' show BlockConfidence;
-
 class ViIdTable {
   const ViIdTable({required this.rawLength, required this.count, required this.entries});
 
@@ -10,8 +8,6 @@ class ViIdTable {
   final int count;
 
   final List<int> entries;
-
-  static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
 
   Uint8List serialize() {
     final out = Uint8List(4 + 4 * entries.length);

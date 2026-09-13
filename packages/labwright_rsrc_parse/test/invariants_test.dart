@@ -125,7 +125,7 @@ _Summ _summarize(Uint8List bytes, String path) {
 
   try {
     for (final s in decodeSections(bytes)) {
-      if (!isRecordHeapTag(s.tag)) continue;
+      if (!(BlockTag.of(s.tag)?.isRecordHeap ?? false)) continue;
       headTags.add(s.tag);
       if (!_structuralHeap(s.bytes)) bad('catHeapNotStructural');
     }

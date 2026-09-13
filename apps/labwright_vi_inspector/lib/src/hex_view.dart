@@ -46,7 +46,7 @@ class _BlockHexViewState extends State<BlockHexView> {
   void _buildModel() {
     final bytes = widget.section.bytes;
     _preview = iconPreview(bytes);
-    final isHeap = isRecordHeapTag(widget.section.tag);
+    final isHeap = BlockTag.of(widget.section.tag)?.isRecordHeap ?? false;
     if (isHeap) {
       try {
         final walk = walkHeapBody(bytes);
@@ -503,7 +503,8 @@ class _BlockHexViewState extends State<BlockHexView> {
   ];
 
   Widget _nonHeapPanel() {
-    final info = blockInfo(widget.section.tag);
+    final info = BlockTag.of(widget.section.tag);
+    final name = info?.displayName ?? 'Unknown (${widget.section.tag})';
     if (widget.section.tag == 'VCTP') {
       final types = decodeTypePool(widget.section.bytes);
       if (types.isNotEmpty) {
@@ -512,7 +513,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            ..._parsedHeader(info.name, '${types.length} types'),
+            ..._parsedHeader(name, '${types.length} types'),
             for (final type in shown)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
@@ -562,10 +563,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            ..._parsedHeader(
-              info.name,
-              '${widget.section.tag} · 32×32 @ ${bpp}bpp',
-            ),
+            ..._parsedHeader(name, '${widget.section.tag} · 32×32 @ ${bpp}bpp'),
             Center(
               child: CustomPaint(
                 size: const Size(128, 128),
@@ -597,7 +595,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         child: Padding(
           padding: const EdgeInsets.all(16),
           child: Text(
-            '${info.name} (${widget.section.tag})\n${info.note}\n\n'
+            '$name (${widget.section.tag})\n\n'
             "Not a record heap — raw hex shown. Decoding this block's format is the open frontier.",
             textAlign: TextAlign.center,
             style: const TextStyle(color: Colors.grey),
@@ -609,8 +607,8 @@ class _BlockHexViewState extends State<BlockHexView> {
       padding: const EdgeInsets.all(12),
       children: [
         ..._parsedHeader(
-          info.name,
-          '${widget.section.tag} — ${info.confidence.name}',
+          name,
+          '${widget.section.tag} — ${(info?.confidence ?? BlockConfidence.tentative).name}',
         ),
         for (final field in fields) ...[
           Text(
@@ -620,14 +618,6 @@ class _BlockHexViewState extends State<BlockHexView> {
           SelectableText(field.value, style: const TextStyle(fontSize: 13)),
           const SizedBox(height: 8),
         ],
-        Text(
-          info.note,
-          style: const TextStyle(
-            fontSize: 11,
-            color: Colors.grey,
-            fontStyle: FontStyle.italic,
-          ),
-        ),
       ],
     );
   }

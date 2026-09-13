@@ -4,8 +4,6 @@ import '../decode.dart';
 
 const int kHeapRecordPrefix = 0xc4;
 
-const Set<String> kHeapSectionTags = {'BDHb', 'BDHP', 'FPHb', 'FPHP', 'DTHP'};
-
 const Set<int> kHeapObjectHeaderLeads = {0x10, 0x11, 0x12};
 
 const Set<int> kHeapGroupOpenLeads = {0x10, 0x11, 0x12, 0x13};

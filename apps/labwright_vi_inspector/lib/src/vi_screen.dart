@@ -905,9 +905,11 @@ class _SummaryViewState extends State<_SummaryView> {
   bool _hasSection(String tag) => widget.sections.any((s) => s.tag == tag);
 
   List<Widget> _blockInventory() {
-    final byCat = <ViBlockCategory, List<BlockComponent>>{};
+    final byCat = <BlockCategory, List<BlockComponent>>{};
     for (final component in widget.components) {
-      (byCat[blockInfo(component.tag).category] ??= []).add(component);
+      (byCat[BlockTag.of(component.tag)?.category ?? BlockCategory.unknown] ??=
+              [])
+          .add(component);
     }
     final cats = byCat.keys.toList()..sort((a, b) => a.name.compareTo(b.name));
     final rows = <Widget>[];
@@ -927,14 +929,14 @@ class _SummaryViewState extends State<_SummaryView> {
       );
       final items = byCat[cat]!..sort((a, b) => a.tag.compareTo(b.tag));
       for (final item in items) {
-        final info = blockInfo(item.tag);
+        final info = BlockTag.of(item.tag);
         final label = item.sectionCount > 1
             ? '${item.tag} ×${item.sectionCount}'
             : item.tag;
         rows.add(
           _kv(
-            '$label  ${info.name}',
-            '${info.confidence.name} · ${_fmtSize(item.decompressedBytes)}',
+            '$label  ${info?.displayName ?? 'Unknown (${item.tag})'}',
+            '${(info?.confidence ?? BlockConfidence.tentative).name} · ${_fmtSize(item.decompressedBytes)}',
           ),
         );
       }

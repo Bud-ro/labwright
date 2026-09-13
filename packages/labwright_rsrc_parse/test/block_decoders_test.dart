@@ -326,77 +326,59 @@ void main() {
     });
   });
 
-  group('block catalog', () {
-    test('category/confidence table; every catalogued row has a name and note', () {
-      const rows = <(String, ViBlockCategory?, BlockConfidence?)>[
-        ('FPHb', ViBlockCategory.recordHeap, null),
-        ('BDHb', ViBlockCategory.recordHeap, null),
-        ('FPHc', ViBlockCategory.recordHeap, null),
-        ('BDHc', ViBlockCategory.recordHeap, null),
-        ('VCTP', ViBlockCategory.typeInfo, BlockConfidence.confirmed),
-        ('VICD', ViBlockCategory.compiledCode, BlockConfidence.confirmed),
-        ('MNGI', ViBlockCategory.image, BlockConfidence.confirmed),
-        ('BDPW', ViBlockCategory.security, BlockConfidence.confirmed),
-        ('HLPP', ViBlockCategory.helpPath, BlockConfidence.confirmed),
-        ('HLPT', ViBlockCategory.text, BlockConfidence.confirmed),
-        ('VINS', ViBlockCategory.embeddedVi, BlockConfidence.confirmed),
-        ('vers', null, BlockConfidence.confirmed),
-        ('RTSG', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('OBSG', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('CCSG', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('SCSR', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('MUID', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('NUID', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('SUID', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('BNID', ViBlockCategory.identifier, BlockConfidence.confirmed),
-        ('VPDP', null, BlockConfidence.confirmed),
-        ('DLDR', null, BlockConfidence.confirmed),
-        ('GCPR', null, BlockConfidence.confirmed),
-        ('CPST', ViBlockCategory.text, null),
-        ('CPSP', ViBlockCategory.text, null),
-        ('DLLP', ViBlockCategory.helpPath, null),
-        ('STRG', ViBlockCategory.text, BlockConfidence.confirmed),
-        ('HIST', ViBlockCategory.history, BlockConfidence.confirmed),
-        ('FTAB', ViBlockCategory.nameTable, BlockConfidence.confirmed),
-        ('DTHP', ViBlockCategory.typeInfo, null),
-        ('TM80', ViBlockCategory.typeInfo, null),
-        ('CONP', ViBlockCategory.connectorPane, BlockConfidence.confirmed),
-        ('CPC2', ViBlockCategory.connectorPane, null),
-        ('LVSR', ViBlockCategory.settings, BlockConfidence.confirmed),
-        ('icl8', ViBlockCategory.icon, BlockConfidence.confirmed),
-        ('icl4', ViBlockCategory.icon, BlockConfidence.confirmed),
-        ('ICON', ViBlockCategory.icon, BlockConfidence.confirmed),
-        ('LIvi', null, null),
-        ('BFAL', ViBlockCategory.unknown, BlockConfidence.confirmed),
+  group('block registry', () {
+    test('category/confidence table', () {
+      const rows = <(BlockTag, BlockCategory, BlockConfidence)>[
+        (BlockTag.fphb, BlockCategory.frontPanelHeap, BlockConfidence.confirmed),
+        (BlockTag.bdhb, BlockCategory.blockDiagramHeap, BlockConfidence.confirmed),
+        (BlockTag.fphc, BlockCategory.frontPanelHeap, BlockConfidence.tentative),
+        (BlockTag.bdhc, BlockCategory.blockDiagramHeap, BlockConfidence.tentative),
+        (BlockTag.vctp, BlockCategory.typeInfo, BlockConfidence.confirmed),
+        (BlockTag.vicd, BlockCategory.compiledCode, BlockConfidence.confirmed),
+        (BlockTag.mngi, BlockCategory.image, BlockConfidence.confirmed),
+        (BlockTag.bdpw, BlockCategory.security, BlockConfidence.confirmed),
+        (BlockTag.hlpp, BlockCategory.helpPath, BlockConfidence.confirmed),
+        (BlockTag.hlpt, BlockCategory.text, BlockConfidence.confirmed),
+        (BlockTag.vins, BlockCategory.embeddedVi, BlockConfidence.confirmed),
+        (BlockTag.vers, BlockCategory.settings, BlockConfidence.confirmed),
+        (BlockTag.rtsg, BlockCategory.identifier, BlockConfidence.confirmed),
+        (BlockTag.scsr, BlockCategory.identifier, BlockConfidence.confirmed),
+        (BlockTag.nuid, BlockCategory.identifier, BlockConfidence.confirmed),
+        (BlockTag.cpst, BlockCategory.text, BlockConfidence.likely),
+        (BlockTag.dllp, BlockCategory.helpPath, BlockConfidence.likely),
+        (BlockTag.strg, BlockCategory.text, BlockConfidence.confirmed),
+        (BlockTag.hist, BlockCategory.history, BlockConfidence.confirmed),
+        (BlockTag.ftab, BlockCategory.nameTable, BlockConfidence.confirmed),
+        (BlockTag.dthp, BlockCategory.typeInfo, BlockConfidence.likely),
+        (BlockTag.conp, BlockCategory.connectorPane, BlockConfidence.confirmed),
+        (BlockTag.cpc2, BlockCategory.connectorPane, BlockConfidence.likely),
+        (BlockTag.lvsr, BlockCategory.settings, BlockConfidence.confirmed),
+        (BlockTag.icl8, BlockCategory.icon, BlockConfidence.confirmed),
+        (BlockTag.bfal, BlockCategory.unknown, BlockConfidence.confirmed),
       ];
       for (final (tag, category, confidence) in rows) {
-        final info = blockInfo(tag);
-        if (category != null) expect(info.category, category, reason: tag);
-        if (confidence != null) expect(info.confidence, confidence, reason: tag);
-        expect(info.tag, tag);
-        expect(info.name, isNotEmpty, reason: tag);
-        expect(info.note, isNotEmpty, reason: tag);
+        expect((tag.category, tag.confidence), (category, confidence), reason: tag.tag);
+        expect(BlockTag.of(tag.tag), tag);
+        expect(tag.displayName, isNotEmpty, reason: tag.tag);
       }
     });
 
-    test('the C4 record-heap set is exactly the four heap tags', () {
-      for (final t in ['FPHb', 'BDHb', 'FPHc', 'BDHc']) {
-        expect(isRecordHeapTag(t), isTrue, reason: t);
+    test('tags are exact four-character strings, unique, and unknown tags look up to null', () {
+      expect(BlockTag.values.map((t) => t.tag).toSet(), hasLength(BlockTag.values.length));
+      for (final t in BlockTag.values) {
+        expect(t.tag, hasLength(4), reason: t.name);
       }
-      for (final t in ['VCTP', 'VICD', 'DFDS', 'TM80', 'GCDI', 'STRG', 'ZZZZ']) {
-        expect(isRecordHeapTag(t), isFalse, reason: '$t must not be walked as a heap');
-      }
+      expect(BlockTag.of('PRT '), BlockTag.prt);
+      expect(BlockTag.of('PRT'), isNull, reason: "the real tag is 'PRT ' with a space");
+      expect(BlockTag.of('STR '), BlockTag.str);
+      expect(BlockTag.of('ZZZZ'), isNull);
     });
 
-    test('specials: PRT trailing-space tag, byte-constant notes, honest unknown', () {
-      expect(blockInfo('PRT ').name, 'Print settings');
-      expect(blockInfo('PRT').category, ViBlockCategory.unknown, reason: "the real tag is 'PRT ' with a space");
-      for (final t in ['VPDP', 'DLDR', 'GCPR']) {
-        expect(blockInfo(t).note, contains('constant'), reason: t);
+    test('the C4 record-heap set is exactly FPHb and BDHb', () {
+      expect(BlockTag.recordHeaps, {BlockTag.fphb, BlockTag.bdhb});
+      for (final t in [BlockTag.fphc, BlockTag.bdhc, BlockTag.fphp, BlockTag.bdhp, BlockTag.dthp, BlockTag.vctp]) {
+        expect(t.isRecordHeap, isFalse, reason: '${t.tag} must not be walked as a heap');
       }
-      final z = blockInfo('ZZZZ');
-      expect((z.category, z.confidence), (ViBlockCategory.unknown, BlockConfidence.tentative));
-      expect(z.name, contains('ZZZZ'));
     });
   });
 

@@ -65,3 +65,9 @@ ViLegacyIcon? decodeLegacyIcon(Uint8List body, int bpp) {
   }
   return ViLegacyIcon(bpp: bpp, pixels: pixels);
 }
+
+ViLegacyIcon? decodeIcl8(Uint8List body) => decodeLegacyIcon(body, 8);
+
+ViLegacyIcon? decodeIcl4(Uint8List body) => decodeLegacyIcon(body, 4);
+
+ViLegacyIcon? decodeIcon1(Uint8List body) => decodeLegacyIcon(body, 1);

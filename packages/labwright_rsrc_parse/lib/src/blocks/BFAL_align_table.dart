@@ -1,7 +1,5 @@
 import 'dart:typed_data';
 
-import '../block_catalog.dart' show BlockConfidence;
-
 class ViAlignEntry {
   const ViAlignEntry({required this.offset, required this.value, required this.kind});
 
@@ -18,8 +16,6 @@ class ViAlignTable {
   final int count;
 
   final List<ViAlignEntry> entries;
-
-  static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
 
   Uint8List serialize() {
     final out = Uint8List(4 + 9 * entries.length);

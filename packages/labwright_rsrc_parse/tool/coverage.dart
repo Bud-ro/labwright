@@ -105,11 +105,12 @@ _Stat _measure(List<File> files) {
     }
     for (final sec in secs) {
       s.blockInstances++;
-      if (isCataloguedTag(sec.tag)) s.blocksIdentified++;
+      final tag = BlockTag.of(sec.tag);
+      if (tag != null) s.blocksIdentified++;
       s.blockBytes += sec.bytes.length;
-      if (blockInfo(sec.tag).isDecoded) s.blockBytesDecoded += sec.bytes.length;
+      if (tag != null && tag.isDecoded) s.blockBytesDecoded += sec.bytes.length;
 
-      if (!kHeapSectionTags.contains(sec.tag) || sec.bytes.length < 6) continue;
+      if (tag == null || !tag.isRecordHeap || sec.bytes.length < 6) continue;
       final tiers = measureHeapTiers(sec.bytes, sec.tag);
       s.framed += tiers.walk.coveredBytes;
       s.body += tiers.walk.bodyBytes;
@@ -206,7 +207,7 @@ void main(List<String> args) {
       ..writeln(
         '- **heapFramed/heapSemantic/heapComplete%** — heap body framing / meaning-and-value-decoded / walked-to-EOF.',
       )
-      ..writeln('- Heaps measured: ${kHeapSectionTags.join(', ')}.')
+      ..writeln('- Heaps measured: ${BlockTag.recordHeaps.map((t) => t.tag).join(', ')}.')
       ..writeln()
       ..writeln(md.toString().trimRight())
       ..writeln()

@@ -1,6 +1,6 @@
 library;
 
-export 'src/block_catalog.dart';
+export 'src/block_tag.dart';
 export 'src/block_writer.dart';
 export 'src/blocks/BFAL_align_table.dart';
 export 'src/blocks/CONP_CPC2_connector_pane.dart';
