@@ -460,36 +460,9 @@ ViDataType? _dataTypeOfTypeKind(ViTypeKind kind) => switch (kind) {
   _ => null,
 };
 
-bool _isNumericDataType(ViDataType type) => switch (type) {
-  ViDataType.i8 ||
-  ViDataType.i16 ||
-  ViDataType.i32 ||
-  ViDataType.i64 ||
-  ViDataType.u8 ||
-  ViDataType.u16 ||
-  ViDataType.u32 ||
-  ViDataType.u64 ||
-  ViDataType.sgl ||
-  ViDataType.dbl ||
-  ViDataType.ext ||
-  ViDataType.complexSgl ||
-  ViDataType.complexDbl ||
-  ViDataType.complexExt ||
-  ViDataType.enumU8 ||
-  ViDataType.enumU16 ||
-  ViDataType.enumU32 => true,
-  _ => false,
-};
-
-bool _isErrorClusterMembers(List<ViType> members) =>
-    members.length == 3 &&
-    members[0].kind == ViDataType.boolean &&
-    members[1].kind == ViDataType.i32 &&
-    members[2].kind == ViDataType.string;
-
-Color _clusterTint(List<ViType> members) => _isErrorClusterMembers(members)
+Color _clusterTint(List<ViType> members) => isErrorClusterShape(members)
     ? const Color(0xFF666600)
-    : members.any((m) => !_isNumericDataType(m.kind))
+    : members.any((m) => !m.kind.isNumeric)
     ? const Color(0xFFFF00FF)
     : labviewTypeColor(ViTypeKind.cluster);
 
@@ -501,7 +474,9 @@ Color bdTerminalTypeColor(ViHeapObject object) {
           object.resolvedElementMembers.isNotEmpty) {
         return _clusterTint(object.resolvedElementMembers);
       }
-      return labviewTypeColor(_typeKindOfDataType(element.kind));
+      return labviewTypeColor(
+        typeKindOfDataType(element.kind) ?? ViTypeKind.unknown,
+      );
     }
   }
   if (object.typeKind == ViTypeKind.cluster &&
@@ -510,32 +485,6 @@ Color bdTerminalTypeColor(ViHeapObject object) {
   }
   return labviewTypeColor(object.typeKind);
 }
-
-ViTypeKind _typeKindOfDataType(ViDataType type) => switch (type) {
-  ViDataType.i8 ||
-  ViDataType.i16 ||
-  ViDataType.i32 ||
-  ViDataType.i64 ||
-  ViDataType.u8 ||
-  ViDataType.u16 ||
-  ViDataType.u32 ||
-  ViDataType.u64 => ViTypeKind.numericInt,
-  ViDataType.sgl ||
-  ViDataType.dbl ||
-  ViDataType.ext ||
-  ViDataType.complexSgl ||
-  ViDataType.complexDbl ||
-  ViDataType.complexExt => ViTypeKind.numericFloat,
-  ViDataType.enumU8 ||
-  ViDataType.enumU16 ||
-  ViDataType.enumU32 => ViTypeKind.enumRing,
-  ViDataType.boolean => ViTypeKind.boolean,
-  ViDataType.string => ViTypeKind.string,
-  ViDataType.path => ViTypeKind.path,
-  ViDataType.cluster => ViTypeKind.cluster,
-  ViDataType.array => ViTypeKind.array,
-  _ => ViTypeKind.unknown,
-};
 
 const int kDefaultStructureRgb = 0x7F7F7F;
 
@@ -2355,7 +2304,9 @@ class BdDiagramPainter extends CustomPainter {
           ? term.resolvedElementType?.kind
           : null;
       final rowColor = elementKind != null
-          ? labviewTypeColor(_typeKindOfDataType(elementKind))
+          ? labviewTypeColor(
+              typeKindOfDataType(elementKind) ?? ViTypeKind.unknown,
+            )
           : labviewTypeColor(term.typeKind);
       final cell = Rect.fromLTRB(
         rect.left + tb.left + 1,
@@ -2639,7 +2590,7 @@ class BdDiagramPainter extends CustomPainter {
       for (final oid in wire.endpointOids) {
         final endpoint = scene.diagram.byId[oid];
         if (endpoint == null) continue;
-        if (_isErrorClusterMembers(endpoint.resolvedMembers)) {
+        if (isErrorClusterShape(endpoint.resolvedMembers)) {
           netError[root] = true;
         }
         if (endpoint.resolvedMembers.isNotEmpty ||

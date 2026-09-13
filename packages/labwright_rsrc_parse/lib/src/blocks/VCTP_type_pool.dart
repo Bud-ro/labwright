@@ -126,7 +126,16 @@ enum ViDataType {
   function,
   typeDef,
   polyVi,
-  unknown,
+  unknown
+  ;
+
+  /// Whether the type is an integer, float, complex or enum scalar.
+  bool get isNumeric => switch (this) {
+    i8 || i16 || i32 || i64 || u8 || u16 || u32 || u64 => true,
+    sgl || dbl || ext || complexSgl || complexDbl || complexExt => true,
+    enumU8 || enumU16 || enumU32 => true,
+    _ => false,
+  };
 }
 
 /// The type codes at descriptor offset 3.
@@ -718,3 +727,10 @@ Map<String, int> typeKindHistogram(List<ViType> types) {
   final entries = counts.entries.toList()..sort((a, b) => b.value.compareTo(a.value));
   return {for (final entry in entries) entry.key.name: entry.value};
 }
+
+/// Whether [members] have the shape of an error cluster: a boolean, an i32 and a string.
+bool isErrorClusterShape(List<ViType> members) =>
+    members.length == 3 &&
+    members[0].kind == ViDataType.boolean &&
+    members[1].kind == ViDataType.i32 &&
+    members[2].kind == ViDataType.string;

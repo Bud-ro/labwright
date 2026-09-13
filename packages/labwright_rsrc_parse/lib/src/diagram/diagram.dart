@@ -781,7 +781,7 @@ class ViSignalType {
   /// The kind of the scalar or element type.
   ViTypeKind? get elementKind {
     final t = dataType;
-    return t == null ? null : _typeKindOf(t);
+    return t == null ? null : typeKindOfDataType(t);
   }
 
   /// Array dimensions: [depth] above the code's scalar depth; null when the code's scalar depth
@@ -2525,7 +2525,8 @@ void _reanchorScrolledControls(
   }
 }
 
-ViTypeKind? _typeKindOf(ViDataType type) => switch (type) {
+/// The drawing kind of a data type, or null for one the diagram does not classify.
+ViTypeKind? typeKindOfDataType(ViDataType type) => switch (type) {
   ViDataType.i8 ||
   ViDataType.i16 ||
   ViDataType.i32 ||
@@ -2618,7 +2619,7 @@ void _resolveTypeIndices({
       if (index == null) continue;
       final type = resolve(base, index);
       if (type == null) continue;
-      final kind = _typeKindOf(type.kind);
+      final kind = typeKindOfDataType(type.kind);
       if (kind != null) object.typeKind = kind;
       object.dataType = type.kind;
       object.resolvedType = type;
