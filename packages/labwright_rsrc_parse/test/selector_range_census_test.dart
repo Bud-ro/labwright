@@ -31,13 +31,17 @@ String? _renderNumeric(ViSelectorRange range) {
 
 String _unescape(String label) => label
     .replaceAllMapped(RegExp(r'\\([0-9a-fA-F]{2})'), (m) => String.fromCharCode(int.parse(m[1]!, radix: 16)))
+    .replaceAll(r'\"', '"')
     .replaceAll(r'\\', r'\');
 
 String? _fromHex(String label) {
   final words = label.split(', ');
   final values = [
     for (final word in words)
-      if (RegExp(r'^[0-9a-fA-F]{1,8}$').hasMatch(word)) int.parse(word, radix: 16).toSigned(32) else null,
+      if (RegExp(r'^[0-9a-fA-F]{1,8}(\.\.[0-9a-fA-F]{1,8})?$').hasMatch(word))
+        word.split('..').map((part) => int.parse(part, radix: 16).toSigned(32)).join('..')
+      else
+        null,
   ];
   return values.contains(null) ? null : values.join(', ');
 }

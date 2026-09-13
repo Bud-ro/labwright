@@ -28,7 +28,7 @@ void main(List<String> args) {
   for (final file in vis) {
     final name = file.path.startsWith(root) ? file.path.substring(root.length).replaceAll('\\', '/') : file.path;
     try {
-      final bytes = file.readAsBytesSync();
+      final bytes = readCorpusVi(file);
       final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
       final model = buildViModel(bytes);
       (groups[blocks.join(',')] ??= (blocks: blocks, files: [])).files.add((

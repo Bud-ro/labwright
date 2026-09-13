@@ -1,8 +1,10 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show extractSnippetVi, isPngBytes;
 
 Directory corpusBaseDir() {
   const pkgRel = 'packages/labwright_rsrc_parse/corpus';
@@ -20,14 +22,20 @@ Directory corpusBaseDir() {
   throw StateError('no corpus/sources.json at or above ${Directory.current.path}');
 }
 
+/// Every VI under [root], sorted by path: the `.vi` files and the snippet PNGs that carry
+/// one; [readCorpusVi] reads either as VI bytes.
 List<File> listCorpusVis(Directory root) {
   if (!root.existsSync()) return <File>[];
-  return root
-      .listSync(recursive: true, followLinks: false)
-      .whereType<File>()
-      .where((file) => file.path.toLowerCase().endsWith('.vi'))
-      .toList()
-    ..sort((left, right) => left.path.compareTo(right.path));
+  return root.listSync(recursive: true, followLinks: false).whereType<File>().where((file) {
+    final path = file.path.toLowerCase();
+    return path.endsWith('.vi') || path.endsWith('.png') && extractSnippetVi(file.readAsBytesSync()) != null;
+  }).toList()..sort((left, right) => left.path.compareTo(right.path));
+}
+
+/// The VI a snippet PNG carries, else the file's bytes.
+Uint8List readCorpusVi(File file) {
+  final bytes = file.readAsBytesSync();
+  return isPngBytes(bytes) ? extractSnippetVi(bytes) ?? bytes : bytes;
 }
 
 File findCatalog(String fileName) {

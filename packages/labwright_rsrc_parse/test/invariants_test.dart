@@ -54,7 +54,7 @@ _Summ _summarize(Uint8List bytes, String path) {
 
   if (secs != null) {
     final rec = saveRecordFromSections(secs);
-    if (rec != null && rec.versionWord.stage != 0x80) bad('stageNon80');
+    if (rec != null && rec.versionWord.releaseStage == null) bad('stageUnnamed');
   }
 
   ViModel? m;
@@ -164,8 +164,8 @@ void main() {
     expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
   });
 
-  test('LVSR stage byte is always 0x80; every framed TM80 re-emits byte-exact', () {
-    expect(violations({'stageNon80', 'tmReemitBad'}), const <String, Map<String, int>>{});
+  test('LVSR names a release stage; every framed TM80 re-emits byte-exact', () {
+    expect(violations({'stageUnnamed', 'tmReemitBad'}), const <String, Map<String, int>>{});
   });
 
   test('DTHP decodes totally, names are printable, and its heap type-index run sits at the VCTP tail', () {
