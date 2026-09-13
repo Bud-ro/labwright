@@ -37,9 +37,9 @@ const _probes = <String, List<(String, bool Function(Uint8List))>>{
 };
 
 bool _cpmp(Uint8List b) => decodeConnectorPaneMap(b) != null;
-bool _ipsr(Uint8List b) => decodeOffsetTable(b) != null;
-bool _gcdi(Uint8List b) => decodeGcdiRecord(b) != null;
-bool _bkmk(Uint8List b) => decodeBookmarkList(b) != null;
+bool _ipsr(Uint8List b) => decodeOffsetTable(b).length >= 1;
+bool _gcdi(Uint8List b) => decodeGcdiRecord(b).value >= 0;
+bool _bkmk(Uint8List b) => decodeBookmarkList(b).tableA.length >= 0;
 bool _vits(Uint8List b) => decodeTagStore(b) != null;
 bool _vitsComplete(Uint8List b) => decodeTagStore(b)?.walkComplete ?? false;
 bool _vicd(Uint8List b) => decodeCompiledCode(b) != null;
@@ -56,7 +56,7 @@ bool _muid(Uint8List b) => decodeModifiedUid(b).value >= 0;
 bool _extendedState(Uint8List b) => decodeExtendedState(b).length >= 1;
 bool _gcpr(Uint8List b) => decodeGcprRecord(b).isZero;
 bool _dldr(Uint8List b) => decodeDldrRecord(b).length == 7;
-bool _trec(Uint8List b) => decodeTextRecord(b) != null;
+bool _trec(Uint8List b) => decodeTextRecord(b).runCount >= 0;
 
 Map<String, int> _undecoded(Uint8List bytes, String path) {
   final c = <String, int>{};

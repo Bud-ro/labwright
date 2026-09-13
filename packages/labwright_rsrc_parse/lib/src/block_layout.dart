@@ -4,10 +4,13 @@
 /// them, and list them in a [BlockLayout] that `tool/gen_block_docs.dart`
 /// renders into the file's doc comment.
 final class BlockField {
-  const BlockField(this.offset, this.size, this.name, this.type, this.meaning, {this.optional});
+  const BlockField(this.offset, this.size, this.name, this.type, this.meaning, {this.optional, this.entry = const []});
 
   /// Bytes whose role is not decoded; retained verbatim. [type] may state the evident shape.
-  const BlockField.undecoded(this.offset, this.size, {this.type = '', this.optional}) : name = 'TODO', meaning = '';
+  const BlockField.undecoded(this.offset, this.size, {this.type = '', this.optional})
+    : name = 'TODO',
+      meaning = '',
+      entry = const [];
 
   final int offset;
 
@@ -24,6 +27,9 @@ final class BlockField {
 
   /// The condition under which the field is present, e.g. `the record is 160 bytes`.
   final String? optional;
+
+  /// For a repeated field, the rows of one entry with offsets relative to the entry start.
+  final List<BlockField> entry;
 
   bool get isUndecoded => meaning.isEmpty;
 

@@ -3,19 +3,24 @@ import 'dart:typed_data';
 import 'block_layout.dart';
 import 'blocks/BDPW_password.dart';
 import 'blocks/BFAL_align_table.dart';
+import 'blocks/BKMK_bookmarks.dart';
+import 'blocks/CCST_compiled_code_state.dart';
 import 'blocks/CNST_LPIN_BDTS_word_grid.dart';
 import 'blocks/CONP_CPC2_connector_pane.dart';
 import 'blocks/COUT_compiled_output.dart';
 import 'blocks/CPD2_connector_pane_data.dart';
+import 'blocks/CPST_CPSP_pascal_string_table.dart';
 import 'blocks/DLDR_default_data_loader.dart';
 import 'blocks/DTHP_data_type_heap.dart';
 import 'blocks/FPEx_BDEx_extended_state.dart';
 import 'blocks/FPSE_BDSE_section_entry.dart';
 import 'blocks/FPTD_front_panel_type_descriptors.dart';
 import 'blocks/FTAB_font_table.dart';
+import 'blocks/GCDI_generated_code_debug_info.dart';
 import 'blocks/GCPR_VPDP_constant_record.dart';
 import 'blocks/HIST_history.dart';
 import 'blocks/HLPP_DLLP_help_path.dart';
+import 'blocks/IPSR_offset_table.dart';
 import 'blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
 import 'blocks/LVSR_save_record.dart';
 import 'blocks/MUID_modified_uid.dart';
@@ -25,13 +30,14 @@ import 'blocks/PRT_print_settings.dart';
 import 'blocks/RTSG_OBSG_CCSG_signature.dart';
 import 'blocks/SCSR_source_signature.dart';
 import 'blocks/STRG_HLPT_string_block.dart';
+import 'blocks/TITL_title.dart';
 import 'blocks/TM80_type_map.dart';
+import 'blocks/TRec_type_record.dart';
 import 'blocks/VCTP_type_pool.dart';
 import 'blocks/VITS_tag_store.dart';
 import 'blocks/aux_records.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/metafile_block.dart';
-import 'blocks/small_records.dart';
 import 'blocks/vers_version.dart';
 import 'viparse.dart';
 
@@ -261,7 +267,7 @@ enum BlockTag {
   str('STR ', 'String', BlockCategory.text, BlockConfidence.tentative),
 
   /// VI title as a Pascal string.
-  titl('TITL', 'VI title', BlockCategory.text, BlockConfidence.confirmed, decodeTitle),
+  titl('TITL', 'VI title', BlockCategory.text, BlockConfidence.confirmed, decodeTitle, titlLayout),
 
   /// Context-help text, in the [strg] layout.
   hlpt('HLPT', 'Help text', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock),
@@ -319,13 +325,20 @@ enum BlockTag {
   muid('MUID', 'Modified UID', BlockCategory.identifier, BlockConfidence.confirmed, decodeModifiedUid, muidLayout),
 
   /// New UID table.
-  nuid('NUID', 'New UID table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable),
+  nuid('NUID', 'New UID table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable, idTableLayout),
 
   /// Saved UID table.
-  suid('SUID', 'Saved UID table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable),
+  suid('SUID', 'Saved UID table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable, idTableLayout),
 
   /// Block-name id table.
-  bnid('BNID', 'Block-name id table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable),
+  bnid(
+    'BNID',
+    'Block-name id table',
+    BlockCategory.identifier,
+    BlockConfidence.confirmed,
+    decodeIdTable,
+    idTableLayout,
+  ),
 
   /// Not decoded.
   omid('OMId', 'Object-map id', BlockCategory.identifier, BlockConfidence.tentative),
@@ -384,7 +397,14 @@ enum BlockTag {
   ),
 
   /// Generated-code debug info.
-  gcdi('GCDI', 'Generated-code debug info', BlockCategory.identifier, BlockConfidence.tentative, decodeGcdiRecord),
+  gcdi(
+    'GCDI',
+    'Generated-code debug info',
+    BlockCategory.identifier,
+    BlockConfidence.tentative,
+    decodeGcdiRecord,
+    gcdiLayout,
+  ),
 
   /// Front-panel section entry: one or two u32 words.
   fpse(
@@ -442,28 +462,42 @@ enum BlockTag {
   dldr('DLDR', 'Default-data loader', BlockCategory.unknown, BlockConfidence.confirmed, decodeDldrRecord, dldrLayout),
 
   /// Type record: a 72-byte header followed by length-prefixed text runs.
-  trec('TRec', 'Type record', BlockCategory.unknown, BlockConfidence.confirmed, decodeTextRecord),
+  trec('TRec', 'Type record', BlockCategory.unknown, BlockConfidence.confirmed, decodeTextRecord, trecLayout),
 
   /// Compiled-code state: a key/value table.
-  ccst('CCST', 'Compiled-code state', BlockCategory.unknown, BlockConfidence.likely, decodeKeyValueTable),
+  ccst('CCST', 'Compiled-code state', BlockCategory.unknown, BlockConfidence.likely, decodeKeyValueTable, ccstLayout),
 
   /// Align table: offset, value and kind per entry.
-  bfal('BFAL', 'Align table', BlockCategory.unknown, BlockConfidence.confirmed, decodeAlignTable),
+  bfal('BFAL', 'Align table', BlockCategory.unknown, BlockConfidence.confirmed, decodeAlignTable, bfalLayout),
 
   /// Bookmarks: two tables of text entries.
-  bkmk('BKMK', 'Bookmarks', BlockCategory.unknown, BlockConfidence.likely, decodeBookmarkList),
+  bkmk('BKMK', 'Bookmarks', BlockCategory.unknown, BlockConfidence.likely, decodeBookmarkList, bkmkLayout),
 
   /// Constants as a grid of u32 words; semantics not decoded.
   cnst('CNST', 'Constants', BlockCategory.unknown, BlockConfidence.tentative, decodeWordGrid, wordGridLayout),
 
   /// Non-decreasing u32 offset table; semantics not decoded.
-  ipsr('IPSR', 'IP source record', BlockCategory.unknown, BlockConfidence.tentative, decodeOffsetTable),
+  ipsr('IPSR', 'IP source record', BlockCategory.unknown, BlockConfidence.tentative, decodeOffsetTable, ipsrLayout),
 
   /// Boolean text table: a count of Pascal strings.
-  cpst('CPST', 'Boolean-text table', BlockCategory.text, BlockConfidence.likely, decodePascalStringTable),
+  cpst(
+    'CPST',
+    'Boolean-text table',
+    BlockCategory.text,
+    BlockConfidence.likely,
+    decodePascalStringTable,
+    pascalStringTableLayout,
+  ),
 
   /// Boolean text table (spec): a count of Pascal strings.
-  cpsp('CPSP', 'Boolean-text table, spec', BlockCategory.text, BlockConfidence.likely, decodePascalStringTable),
+  cpsp(
+    'CPSP',
+    'Boolean-text table, spec',
+    BlockCategory.text,
+    BlockConfidence.likely,
+    decodePascalStringTable,
+    pascalStringTableLayout,
+  ),
 
   /// Not decoded.
   gtmi('GTMI', 'Get-TM info', BlockCategory.unknown, BlockConfidence.tentative),

@@ -60,6 +60,9 @@ List<String> _render(BlockLayout layout) {
     final size = f.size == null ? 'rest' : '${f.size}';
     final meaning = f.isUndecoded ? 'retained; not decoded' : f.meaning;
     out.addAll(_wrapRow(afterVariable ? '…' : '${f.offset}', size, f.name, f.type, meaning));
+    for (final e in f.entry) {
+      out.addAll(_wrapRow('  +${e.offset}', e.size == null ? 'rest' : '${e.size}', e.name, e.type, e.meaning));
+    }
     afterVariable |= f.size == null;
   }
   return out;

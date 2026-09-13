@@ -264,34 +264,70 @@ void main() {
     expect(decodeHelpPath(lying)!.components.length, lessThanOrEqualTo(1), reason: 'huge count bails at buffer end');
   });
 
-  test('decodeIdTable (NUID/SUID/BNID): [u32 count][count u32], over-large counts never over-read', () {
-    final t = decodeIdTable(_idtab([0x1234, 0, 0x7]))!;
-    expect((t.count, t.rawLength), (3, 16));
-    expect(t.entries, [0x1234, 0, 0x7]);
+  test('decodeIdTable (NUID/SUID/BNID): [u32 count][count u32] tiling the payload', () {
+    final body = _idtab([0x1234, 0, 0x7]);
+    final t = decodeIdTable(body);
+    expect((t.count, t[0], t[1], t[2]), (3, 0x1234, 0, 0x7));
+    expect(t.serialize(), same(body));
+    expect(decodeIdTable(_idtab([])).count, 0);
     final lying = Uint8List(12);
     ByteData.sublistView(lying).setUint32(0, 9999);
-    final l = decodeIdTable(lying)!;
-    expect((l.count, l.entries.length), (9999, 2), reason: 'min(count, available)');
-    final empty = decodeIdTable(_idtab([]))!;
-    expect(empty.count, 0);
-    expect(empty.entries, isEmpty);
-    expect(decodeIdTable(u8([0, 1])), isNull);
+    expect(() => decodeIdTable(lying), throwsA(isA<AssertionError>()), reason: 'count must tile');
+    expect(() => decodeIdTable(u8([0, 1])), throwsA(isA<AssertionError>()));
   });
 
-  test('decodeAlignTable (BFAL): [u32 count][count × 9B record], serialize is exact, no over-read', () {
+  test('decodeAlignTable (BFAL): [u32 count][count × 9B entry] tiling the payload', () {
     final body = u8([
       0, 0, 0, 2, // count = 2
       0, 0, 0, 0x41, 0, 0, 0, 9, 1, // offset 0x41, value 9, kind 1
       0, 0, 1, 0x18, 0, 0, 0, 0x10, 3, // offset 0x118, value 0x10, kind 3
     ]);
-    final t = decodeAlignTable(body)!;
-    expect((t.count, t.entries.length), (2, 2));
-    expect((t.entries[0].offset, t.entries[0].value, t.entries[0].kind), (0x41, 9, 1));
-    expect((t.entries[1].offset, t.entries[1].value, t.entries[1].kind), (0x118, 0x10, 3));
-    expect(t.serialize(), body, reason: 'byte-exact inverse');
-    final lying = Uint8List(4 + 9)..[3] = 99;
-    expect(decodeAlignTable(lying)!.entries.length, 1);
-    expect(decodeAlignTable(u8([0, 1])), isNull);
+    final t = decodeAlignTable(body);
+    expect(t.count, 2);
+    expect((t.offsetAt(0), t.valueAt(0), t.kindAt(0)), (0x41, 9, 1));
+    expect((t.offsetAt(1), t.valueAt(1), t.kindAt(1)), (0x118, 0x10, 3));
+    expect(t.serialize(), same(body));
+    expect(() => decodeAlignTable(Uint8List(4 + 9)..[3] = 99), throwsA(isA<AssertionError>()));
+    expect(() => decodeAlignTable(u8([0, 1])), throwsA(isA<AssertionError>()));
+  });
+
+  test('tables with variable entries record where each entry starts', () {
+    final ccst = u8([0, 0, 0, 2, 0, 0, 0, 1, 0x41, 0, 0, 0, 2, 0x42, 0x43, 0, 0, 0, 0, 0, 0, 0, 1, 0x44]);
+    final kv = decodeKeyValueTable(ccst);
+    expect(kv.length, 2);
+    expect(kv.keyAt(0), [0x41]);
+    expect(kv.valueAt(0), [0x42, 0x43]);
+    expect(kv.keyAt(1), isEmpty);
+    expect(kv.valueAt(1), [0x44]);
+    expect(() => decodeKeyValueTable(u8([0, 0, 0, 1, 0, 0, 0, 9])), throwsA(isA<AssertionError>()));
+    final cpst = u8([0, 0, 0, 2, ...pascal('On'), ...pascal('Off')]);
+    final strings = decodePascalStringTable(cpst);
+    expect((strings.length, strings.textAt(0), strings.textAt(1)), (2, 'On', 'Off'));
+    expect(() => decodePascalStringTable(u8([0, 0, 0, 1, 5, 0x41])), throwsA(isA<AssertionError>()));
+    final bkmk = u8([
+      0, 0, 0, 1, 0, 0, 0, 7, 0, 0, 0, 9, 0, 0, 0, 2, 0x41, 0x42, // A: wordA 7, wordB 9, "AB"
+      0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 1, 0x43, // B: wordB 5, "C"
+    ]);
+    final marks = decodeBookmarkList(bkmk);
+    expect((marks.tableA.length, marks.tableA.wordAAt(0), marks.tableA.wordBAt(0)), (1, 7, 9));
+    expect(marks.tableA.textAt(0), [0x41, 0x42]);
+    expect((marks.tableB.length, marks.tableB.wordAAt(0), marks.tableB.wordBAt(0)), (1, null, 5));
+    expect(marks.tableB.textAt(0), [0x43]);
+    expect(decodeBookmarkList(u8([0, 0, 0, 0, 0, 0, 0, 0])).isEmpty, isTrue);
+    expect(() => decodeBookmarkList(u8([0, 0, 0, 1, 0, 0, 0, 7])), throwsA(isA<AssertionError>()));
+    final trec = u8([...List.filled(72, 0), 0, 0, 0, 2, 0x58, 0x59]);
+    final record = decodeTextRecord(trec);
+    expect((record.runCount, record.header.length), (1, 72));
+    expect(record.runAt(0), [0x58, 0x59]);
+    expect(decodeTextRecord(Uint8List(72)).runCount, 0);
+    expect(() => decodeTextRecord(Uint8List(70)), throwsA(isA<AssertionError>()));
+    final ipsr = u8([0, 0, 0, 1, 0, 0, 0, 1, 0, 0, 0, 9]);
+    expect(decodeOffsetTable(ipsr)[2], 9);
+    expect(() => decodeOffsetTable(u8([0, 0, 0, 2, 0, 0, 0, 1])), throwsA(isA<AssertionError>()), reason: 'decreasing');
+    final gcdi = u8([0, 0, 0, 3, 1, 0xaa, 0xbb]);
+    expect(decodeGcdiRecord(gcdi).value, 3);
+    expect(decodeGcdiRecord(gcdi).body, [0xaa, 0xbb]);
+    expect(() => decodeGcdiRecord(u8([0, 0, 0, 3, 2])), throwsA(isA<AssertionError>()));
   });
 
   group('icons', () {
@@ -435,7 +471,7 @@ void main() {
       'decodeCoutRecord': decodeCoutRecord,
       'decodeU16Grid': decodeU16Grid,
       'decodeCpd2Record': decodeCpd2Record,
-      'decodeTitleRaw': decodeTitleRaw,
+      'decodeTitle': decodeTitle,
       'decodeTextRecord': decodeTextRecord,
       'decodeHelpPath+fields': (b) {
         final p = decodeHelpPath(b);
@@ -470,11 +506,11 @@ void main() {
       expect(decodeLegacyIcon(icon, 1)!.serialize(), icon);
     });
 
-    test('ViIdTable.serialize re-emits [u32 count][entries] exactly', () {
+    test('ViIdTable.serialize returns the backing [u32 count][entries] bytes', () {
       final body = _idtab([1, 2, 0xDEADBEEF, 0]);
-      expect(decodeIdTable(body)!.serialize(), body);
+      expect(decodeIdTable(body).serialize(), same(body));
       final empty = _idtab([]);
-      expect(decodeIdTable(empty)!.serialize(), empty);
+      expect(decodeIdTable(empty).serialize(), same(empty));
     });
 
     test('ViStringBlock.serialize re-emits [u32 len][text] exactly', () {
@@ -516,8 +552,9 @@ void main() {
       final scsr = Uint8List.fromList([0, 0, 0, 9, for (var i = 0; i < 16; i++) i]);
       expect((decodeSourceSignature(scsr).marker, decodeSourceSignature(scsr).digest.length), (9, 16));
       final titl = u8([3, 0xff, 0x00, 0x41]);
-      expect(decodeTitleRaw(titl)!.serialize(), titl);
-      expect(decodeTitleRaw(u8([5, 1, 2])), isNull, reason: 'length overruns');
+      expect(decodeTitle(titl).serialize(), same(titl));
+      expect(decodeTitle(u8([2, 0x48, 0x69])).text, 'Hi');
+      expect(() => decodeTitle(u8([5, 1, 2])), throwsA(isA<AssertionError>()), reason: 'length overruns');
       final sig = Uint8List.fromList([for (var i = 0; i < 16; i++) (i * 11) & 0xff]);
       expect(serializeBlockPayload('OBSG', sig), sig);
       expect(serializeBlockPayload('CCSG', sig), sig);
@@ -548,22 +585,10 @@ void main() {
       expect(serializeBlockPayload('LIvi', emptyLi), emptyLi);
       expect(serializeBlockPayload('LIvi', u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3])), isNull);
       expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
-      expect(serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])), isNull);
-    });
-
-    test('MUTATION: editing an id-table entry confines the byte delta to that entry', () {
-      final body = _idtab([10, 20, 30, 40]);
-      final t = decodeIdTable(body)!;
-      final mutated = ViIdTable(rawLength: t.rawLength, count: t.count, entries: [...t.entries]..[2] = 0x11223344);
-      final out = mutated.serialize();
-      final re = decodeIdTable(out)!;
-      expect(re.entries, [10, 20, 0x11223344, 40]);
-      expect(out.length, body.length);
-      final delta = [
-        for (var i = 0; i < out.length; i++)
-          if (out[i] != body[i]) i,
-      ];
-      expect(delta, [12, 13, 14, 15], reason: 'only entry[2] (bytes 12..15) changed');
+      expect(
+        () => serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])),
+        throwsA(isA<AssertionError>()),
+      );
     });
 
     test('MUTATION: flipping an icon pixel confines the byte delta to its byte', () {

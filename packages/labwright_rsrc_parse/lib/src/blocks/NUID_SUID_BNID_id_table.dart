@@ -1,34 +1,44 @@
+/// `NUID` / `SUID` / `BNID` — new, saved and block-name id tables: a counted run of u32 ids.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       4     count                      u32      number of ids
+/// 4       rest  ids                        u32[count] the ids; roles TODO
+/// ```
+///
+/// [ViIdTable] is a view over the payload; [decodeIdTable] requires the count to tile the
+/// payload exactly.
+library;
+
 import 'dart:typed_data';
 
+import '../block_layout.dart';
+
+const _count = BlockField(0, 4, 'count', 'u32', 'number of ids');
+const _ids = BlockField(4, null, 'ids', 'u32[count]', 'the ids; roles TODO');
+
+const BlockLayout idTableLayout = [_count, _ids];
+
+/// A view over an `NUID`, `SUID` or `BNID` payload.
 class ViIdTable {
-  const ViIdTable({required this.rawLength, required this.count, required this.entries});
+  ViIdTable._(this.bytes) : _view = ByteData.sublistView(bytes);
 
-  final int rawLength;
+  final Uint8List bytes;
 
-  final int count;
+  final ByteData _view;
 
-  final List<int> entries;
+  int get count => _view.getUint32(_count.offset);
 
-  Uint8List serialize() {
-    final out = Uint8List(4 + 4 * entries.length);
-    final bd = ByteData.sublistView(out);
-    bd.setUint32(0, count);
-    for (var i = 0; i < entries.length; i++) {
-      bd.setUint32(4 + 4 * i, entries[i]);
-    }
-    return out;
-  }
+  int operator [](int index) => _view.getUint32(_ids.offset + 4 * index);
+
+  Uint8List serialize() => bytes;
 }
 
-ViIdTable? decodeIdTable(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final bd = ByteData.sublistView(bytes);
-  final count = bd.getUint32(0);
-  final available = (bytes.length - 4) ~/ 4;
-  final entryCount = count.clamp(0, available);
-  return ViIdTable(
-    rawLength: bytes.length,
-    count: count,
-    entries: [for (var i = 0; i < entryCount; i++) bd.getUint32(4 + 4 * i)],
+ViIdTable decodeIdTable(Uint8List bytes) {
+  assert(bytes.length >= _ids.offset, 'an id table starts with its count');
+  assert(
+    _ids.offset + 4 * ByteData.sublistView(bytes).getUint32(_count.offset) == bytes.length,
+    'the ids tile the payload',
   );
+  return ViIdTable._(bytes);
 }
