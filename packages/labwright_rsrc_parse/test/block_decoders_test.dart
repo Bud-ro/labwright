@@ -118,49 +118,150 @@ void main() {
     expect(() => decodeHistory(Uint8List(20)), throwsA(isA<AssertionError>()));
   });
 
-  test('decodeFontTable: version/count/offset + packed names, bogus offset safe, null when short', () {
-    final b = u8([0, 1, 0, 2, 0, 3, 0, 2, 0, 0, 0, 16, 0, 0, 0, 0, ...pascal('Segoe UI'), ...pascal('Tahoma')]);
-    final t = decodeFontTable(b)!;
-    expect((t.version, t.fontCount, t.nameTableOffset), (1, 2, 16));
-    expect(t.names, ['Segoe UI', 'Tahoma']);
-    expect(t.entries, isEmpty, reason: 'name table at 16 != 8 + 2*16, so no record framing');
-    final framed = u8([
-      0,
-      1,
-      0,
-      2,
-      0,
-      3,
-      0,
-      1,
-      0,
-      0,
-      0,
-      24,
-      0,
-      15,
-      4,
-      2,
-      3,
-      232,
-      0,
-      15,
-      0,
-      216,
-      0,
-      213,
+  test('decodeFontTable: 8-byte header, 16-byte records naming packed Pascal names', () {
+    final b = u8([
+      0, 1, 0, 2, 0, 3, 0, 1, // version 1, words 2 and 3, one font
+      0, 0, 0, 24, 0, 15, 4, 2, 3, 232, 0, 15, 0, 216, 0, 213, // record: name at 24, size 15, flags 4/2, weight 1000
       ...pascal('Segoe UI'),
     ]);
-    final e = decodeFontTable(framed)!.entries.single;
+    final t = decodeFontTable(b);
+    expect((t.version, t.fontCount, t.nameTableOffset, t.entries.length), (1, 1, 24, 1));
+    final e = t.entries.single;
     expect((e.nameOffset, e.size, e.flagsByte, e.styleFlags), (24, 15, 4, 2));
     expect((e.weight, e.resolvedSize, e.metricA, e.metricB, e.name), (1000, 15, 216, 213, 'Segoe UI'));
-    final bogus = Uint8List(12);
-    ByteData.sublistView(bogus)
-      ..setUint16(0, 1)
-      ..setUint16(6, 3)
-      ..setUint32(8, 9999);
-    expect(decodeFontTable(bogus)!.names, isEmpty, reason: 'bogus name offset yields fewer names, no throw');
-    expect(decodeFontTable(Uint8List(8)), isNull);
+    expect((e.isBold, e.isPredefinedRef), (true, false));
+    expect(identical(t.entryForRunFontId(-3), e), isTrue);
+    expect(t.entryForRunFontId(0), isNull);
+    expect(t.serialize(), same(b));
+    final two = u8([
+      0,
+      1,
+      0,
+      2,
+      0,
+      3,
+      0,
+      2,
+      0,
+      0,
+      0,
+      40,
+      ...List.filled(12, 0),
+      0,
+      0,
+      0,
+      42,
+      ...List.filled(12, 0),
+      ...pascal('1'),
+      ...pascal('Tahoma'),
+    ]);
+    final pair = decodeFontTable(two);
+    expect((pair.entries[0].isPredefinedRef, pair.entries[1].name), (true, 'Tahoma'));
+    final bogus = Uint8List(24)..[7] = 1;
+    ByteData.sublistView(bogus).setUint32(8, 9999);
+    expect(() => decodeFontTable(bogus), throwsA(isA<AssertionError>()), reason: 'record must name the packed table');
+    expect(() => decodeFontTable(Uint8List(6)), throwsA(isA<AssertionError>()));
+  });
+
+  test('decodeTagStore: length-prefixed, bare and LabVIEW 7 inclusive-length values', () {
+    Uint8List entry(String name, List<int> value) => u8([0, 0, 0, name.length, ...name.codeUnits, ...value]);
+    const version20 = [0x20, 0x00, 0x80, 0x00];
+    const boolVariant = [...version20, 0, 0, 0, 1, 0, 4, 0, 0x21, 0, 1, 0, 0, 1, 0, 0, 0, 0];
+    final prefixed = u8([
+      0,
+      0,
+      0,
+      1,
+      ...entry('NI.LV.All.SourceOnly', [0, 0, 0, boolVariant.length, ...boolVariant]),
+    ]);
+    final store = decodeTagStore(prefixed);
+    expect((store.declaredCount, store.entries.length), (1, 1));
+    expect(
+      (store.entries.single.name, store.entries.single.framing),
+      ('NI.LV.All.SourceOnly', ViTagValueFraming.lengthPrefixed),
+    );
+    expect(store.entries.single.value, boolVariant);
+    expect(store.serialize(), same(prefixed));
+
+    const strings = [
+      0x12, 0x00, 0x80, 0x04, 0, 0, 0, 2, // version 12, two type descriptors
+      0, 8, 0, 0x30, 0xff, 0xff, 0xff, 0xff, // string
+      0, 12, 0, 0x40, 0, 1, 0xff, 0xff, 0xff, 0xff, 0, 0, // 1-d array of the string
+      0, 1, 0, 1, // has value, of type 1
+      0, 0, 0, 2, 0, 0, 0, 4, 0x44, 0x66, 0x6c, 0x74, 0, 0, 0, 3, 0x4d, 0x61, 0x63, // ["Dflt", "Mac"]
+      0, 0, 0, 0, // no attributes
+    ];
+    final bare = u8([0, 0, 0, 2, ...entry('NI.LV.ALL.goodSyntaxTargets', strings), ...entry('B', boolVariant)]);
+    final bareStore = decodeTagStore(bare);
+    expect(bareStore.entries.map((e) => e.framing), [ViTagValueFraming.bare, ViTagValueFraming.bare]);
+    expect(bareStore.entries[0].value, strings);
+    expect(bareStore.entries[1].name, 'B');
+
+    const lv7 = [0, 4, 0, 0x21, 1, 0, 0, 0, 0];
+    final inclusive = u8([
+      0,
+      0,
+      0,
+      1,
+      ...entry('NI.VI.HiddenNSLibOutOfDate', [0, 0, 0, lv7.length + 4, ...lv7]),
+    ]);
+    final old = decodeTagStore(inclusive);
+    expect(old.entries.single.framing, ViTagValueFraming.lengthPrefixedInclusive);
+    expect(old.entries.single.value, lv7);
+
+    expect(() => decodeTagStore(u8([0, 0, 0, 1, 0, 0, 0, 1, 0x41, 0, 0, 0, 9])), throwsA(isA<AssertionError>()));
+    expect(
+      () => decodeTagStore(
+        u8([
+          0,
+          0,
+          0,
+          2,
+          ...entry('A', [0, 0, 0, 0]),
+        ]),
+      ),
+      throwsA(isA<AssertionError>()),
+    );
+  });
+
+  test('decodeLinkInfo: header, count, terminator; entries walk with a version and stay unwalked without one', () {
+    final empty = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3]);
+    final info = decodeLinkInfo(empty, version: decodeVersionWord(hx('20008000')));
+    expect((info.version, info.rootKind, info.entryCount, info.terminator, info.isWalked), (1, 'LVIN', 0, 3, true));
+    expect(info.entries, isEmpty);
+    expect(info.serialize(), same(empty));
+    final unknown = u8([0, 1, ...'BDHP'.codeUnits, 0, 0, 0, 1, 0, 2, ...'ZZZZ'.codeUnits, 1, 2, 3, 4, 0, 3]);
+    final walked = decodeLinkInfo(unknown, version: decodeVersionWord(hx('20008000')));
+    expect(walked.isWalked, isFalse);
+    expect(walked.entries.single, isA<ViLinkEntryUnwalked>());
+    expect((walked.entries.single.offset, walked.entries.single.end), (10, unknown.length - 2));
+    expect(decodeLinkInfo(unknown).entries.single, isA<ViLinkEntryUnwalked>(), reason: 'no version, no grammar');
+    final named = u8([
+      0,
+      1,
+      ...'BDHP'.codeUnits,
+      0,
+      0,
+      0,
+      1,
+      0,
+      2,
+      ...'IUVI'.codeUnits,
+      6,
+      ...'Sub.vi'.codeUnits,
+      0,
+      3,
+    ]);
+    expect(decodeLinkInfo(named).linkedNames, ['Sub.vi']);
+    expect(() => decodeLinkInfo(u8([0, 1, 2, 3])), throwsA(isA<AssertionError>()));
+  });
+
+  test('decodeLibraryNames: [u32 count][count pstr]', () {
+    final b = u8([0, 0, 0, 2, ...pascal('Outer.lvlib'), ...pascal('Inner.lvclass')]);
+    final names = decodeLibraryNames(b);
+    expect((names.length, names[0], names[1]), (2, 'Outer.lvlib', 'Inner.lvclass'));
+    expect(names.serialize(), same(b));
+    expect(() => decodeLibraryNames(u8([0, 0, 0, 1, 9, 0x41])), throwsA(isA<AssertionError>()));
   });
 
   test('decodeDataTypeHeap: dominant 4-byte header form; extended form recovers 40xx names; null when short', () {
@@ -498,6 +599,7 @@ void main() {
       'decodePth0': decodePth0,
       'decodeHistory': decodeHistory,
       'decodeFontTable': decodeFontTable,
+      'decodeLibraryNames': decodeLibraryNames,
       'decodeDataTypeHeap': decodeDataTypeHeap,
       'decodeVersionWord': decodeVersionWord,
       'decodeVersBlock': decodeVersBlock,
@@ -633,7 +735,11 @@ void main() {
       expect(serializeBlockPayload('MUID', u8([0x12, 0x34, 0x56, 0x78])), u8([0x12, 0x34, 0x56, 0x78]));
       final emptyLi = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3]);
       expect(serializeBlockPayload('LIvi', emptyLi), emptyLi);
-      expect(serializeBlockPayload('LIvi', u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3])), isNull);
+      expect(
+        serializeBlockPayload('LIvi', u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3])),
+        isNull,
+        reason: 'count 2 with no entries stays unwalked',
+      );
       expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
       expect(
         () => serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])),

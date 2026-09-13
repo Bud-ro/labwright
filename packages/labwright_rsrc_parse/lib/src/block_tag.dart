@@ -22,6 +22,7 @@ import 'blocks/GCPR_VPDP_constant_record.dart';
 import 'blocks/HIST_history.dart';
 import 'blocks/HLPP_DLLP_help_path.dart';
 import 'blocks/IPSR_offset_table.dart';
+import 'blocks/LIBN_library_names.dart';
 import 'blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
 import 'blocks/LVSR_save_record.dart';
 import 'blocks/MUID_modified_uid.dart';
@@ -36,12 +37,12 @@ import 'blocks/TM80_type_map.dart';
 import 'blocks/TRec_type_record.dart';
 import 'blocks/VCTP_type_pool.dart';
 import 'blocks/VICD_compiled_code.dart';
+import 'blocks/VINS_embedded_vis.dart';
 import 'blocks/VITS_tag_store.dart';
 import 'blocks/aux_records.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/metafile_block.dart';
 import 'blocks/vers_version.dart';
-import 'viparse.dart';
 
 /// What a block holds, for grouping in listings.
 enum BlockCategory {
@@ -263,16 +264,37 @@ enum BlockTag {
   pngi('PNGI', 'PNG image', BlockCategory.image, BlockConfidence.tentative),
 
   /// Link info for the VI: linked resources by name and path.
-  livi('LIvi', 'Link info: VI', BlockCategory.linkInfo, BlockConfidence.confirmed, decodeLinkInfo),
+  livi('LIvi', 'Link info: VI', BlockCategory.linkInfo, BlockConfidence.confirmed, decodeLinkInfo, linkInfoLayout),
 
   /// Link info for the front panel: typedefs and controls by name.
-  lifp('LIfp', 'Link info: front panel', BlockCategory.linkInfo, BlockConfidence.confirmed, decodeLinkInfo),
+  lifp(
+    'LIfp',
+    'Link info: front panel',
+    BlockCategory.linkInfo,
+    BlockConfidence.confirmed,
+    decodeLinkInfo,
+    linkInfoLayout,
+  ),
 
   /// Link info for the block diagram: sub-VIs by name and path.
-  libd('LIbd', 'Link info: block diagram', BlockCategory.linkInfo, BlockConfidence.confirmed, decodeLinkInfo),
+  libd(
+    'LIbd',
+    'Link info: block diagram',
+    BlockCategory.linkInfo,
+    BlockConfidence.confirmed,
+    decodeLinkInfo,
+    linkInfoLayout,
+  ),
 
   /// Link info for the data space.
-  lids('LIds', 'Link info: data space', BlockCategory.linkInfo, BlockConfidence.confirmed, decodeLinkInfo),
+  lids(
+    'LIds',
+    'Link info: data space',
+    BlockCategory.linkInfo,
+    BlockConfidence.confirmed,
+    decodeLinkInfo,
+    linkInfoLayout,
+  ),
 
   /// Linked-instance info as a grid of u32 words; semantics not decoded.
   lpin(
@@ -285,10 +307,10 @@ enum BlockTag {
   ),
 
   /// Names of the libraries owning the VI, stored in the embedded section namespace.
-  libn('LIBN', 'Library names', BlockCategory.nameTable, BlockConfidence.tentative),
+  libn('LIBN', 'Library names', BlockCategory.nameTable, BlockConfidence.confirmed, decodeLibraryNames, libnLayout),
 
   /// An embedded VI, itself a complete RSRC file, stored in the embedded section namespace.
-  vins('VINS', 'Embedded VI', BlockCategory.embeddedVi, BlockConfidence.confirmed, parseVi),
+  vins('VINS', 'Embedded VI', BlockCategory.embeddedVi, BlockConfidence.confirmed, decodeEmbeddedVi, vinsLayout),
 
   /// VI description text.
   strg('STRG', 'VI description', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
@@ -343,10 +365,10 @@ enum BlockTag {
   ),
 
   /// Font table: per-font metric records followed by packed Pascal names.
-  ftab('FTAB', 'Font table', BlockCategory.nameTable, BlockConfidence.confirmed, decodeFontTable),
+  ftab('FTAB', 'Font table', BlockCategory.nameTable, BlockConfidence.confirmed, decodeFontTable, ftabLayout),
 
   /// VI tag store: named, typed tag values.
-  vits('VITS', 'VI tag store', BlockCategory.nameTable, BlockConfidence.confirmed, decodeTagStore),
+  vits('VITS', 'VI tag store', BlockCategory.nameTable, BlockConfidence.confirmed, decodeTagStore, vitsLayout),
 
   /// Revision history record.
   hist('HIST', 'Revision history', BlockCategory.history, BlockConfidence.confirmed, decodeHistory, histLayout),

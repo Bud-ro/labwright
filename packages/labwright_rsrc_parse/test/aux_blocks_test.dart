@@ -13,7 +13,7 @@ const _probes = <String, List<(String, bool Function(Uint8List))>>{
   'IPSR': [('IPSR', _ipsr)],
   'GCDI': [('GCDI', _gcdi)],
   'BKMK': [('BKMK', _bkmk)],
-  'VITS': [('VITS', _vits), ('VITS-complete', _vitsComplete)],
+  'VITS': [('VITS', _vits)],
   'VICD': [('VICD', _vicd)],
   'DSIM': [('DSIM', _dsim)],
   'MNGI': [('MNGI', _mngi)],
@@ -40,12 +40,11 @@ bool _cpmp(Uint8List b) => decodeConnectorPaneMap(b).length >= 0;
 bool _ipsr(Uint8List b) => decodeOffsetTable(b).length >= 1;
 bool _gcdi(Uint8List b) => decodeGcdiRecord(b).value >= 0;
 bool _bkmk(Uint8List b) => decodeBookmarkList(b).tableA.length >= 0;
-bool _vits(Uint8List b) => decodeTagStore(b) != null;
-bool _vitsComplete(Uint8List b) => decodeTagStore(b)?.walkComplete ?? false;
+bool _vits(Uint8List b) => decodeTagStore(b).entries.length == decodeTagStore(b).declaredCount;
 bool _vicd(Uint8List b) => decodeCompiledCode(b).codeSize >= 0;
 bool _dsim(Uint8List b) => decodeDataSpaceImage(b) != null;
 bool _mngi(Uint8List b) => decodePngEnvelope(b) != null;
-bool _linkInfo(Uint8List b) => decodeLinkInfo(b)?.version == 1;
+bool _linkInfo(Uint8List b) => decodeLinkInfo(b).version == 1;
 bool _bdpw(Uint8List b) => decodePasswordRecord(b).passwordDigest.length == 16;
 bool _rtsg(Uint8List b) => decodeSignature(b).digest.length == 16;
 bool _scsr(Uint8List b) => decodeSourceSignature(b).digest.length == 16;
@@ -81,27 +80,6 @@ const kUndecodedAuxSections = <String, Map<String, int>>{
       {'MNGI': 2},
   'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/user.lib/_NEVSTOP/Communicable State Machine(CSM)/_tool/_debugConsole/Script-Window.vi':
       {'MNGI': 2},
-  'NISystemsEngineering_LabVIEW-Modbus-API/NISystemsEngineering-LabVIEW-Modbus-API-00aee34/Modbus Library v1/MB Ethernet Example Master MK2.vi':
-      {'VITS-complete': 1},
-  'NISystemsEngineering_LabVIEW-Modbus-API/NISystemsEngineering-LabVIEW-Modbus-API-00aee34/Modbus Library v1/MB Ethernet Example Slave MK2.vi':
-      {'VITS-complete': 1},
-  'NISystemsEngineering_LabVIEW-Modbus-API/NISystemsEngineering-LabVIEW-Modbus-API-00aee34/Modbus Library v1/MB Serial Example Master MK2.vi':
-      {'VITS-complete': 1},
-  'NISystemsEngineering_LabVIEW-Modbus-API/NISystemsEngineering-LabVIEW-Modbus-API-00aee34/Modbus Library v1/MB Serial Example Slave MK2.vi':
-      {'VITS-complete': 1},
-  'NISystemsEngineering_LabVIEW-Modbus-API/NISystemsEngineering-LabVIEW-Modbus-API-00aee34/Modbus Library v1/Weird Master.vi':
-      {'VITS-complete': 1},
-  'NISystemsEngineering_LabVIEW-Modbus-API/NISystemsEngineering-LabVIEW-Modbus-API-00aee34/Modbus Library v1/Weird Slave.vi':
-      {'VITS-complete': 1},
-  'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Calculate Frequency of Signal Displayed on Waveform Graph/Meas Freq of Visible Waveform_LV 7x.vi':
-      {'VITS-complete': 1},
-  'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Calculating the CRC32 of a File with LabVIEW/MECC CRC32 LV2012 Folder/MECC CRC32 LV2012.vi':
-      {'VITS-complete': 1},
-  'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Scope Sound Card Based Oscilloscope and Spectrum Analyzer/scope/scope.vi': {
-    'VITS-complete': 1,
-  },
-  'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Write to a Sheet other than Sheet1 of an Excel Spreadsheet (Report Gen)/Write_to_different_sheet_LV86.vi':
-      {'VITS-complete': 1},
   'ni_grpc-labview/ni-grpc-labview-2f07f03/labview source/Client Server Support New/gRPC Scripting Tools/Animation API/Animation.vi':
       {'MNGI': 1},
   'opengds_OpenGDS/opengds-OpenGDS-1945834/resource/Framework/Providers/Open_GDS/ClassProviders/Common/ConvertTextBasedCodeToLabVIEW.vi':

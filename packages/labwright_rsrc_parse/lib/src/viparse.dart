@@ -96,7 +96,8 @@ final _pathSep = RegExp(r'[\\/]');
 
 String _baseName(String path) => path.split(_pathSep).last;
 
-List<ViSection> _embeddedOrEmpty(Uint8List bytes) {
+/// The embedded-namespace sections of a VI, or none when the file does not parse.
+List<ViSection> embeddedSectionsOrEmpty(Uint8List bytes) {
   try {
     return readEmbeddedSections(bytes);
   } catch (_) {
@@ -121,44 +122,6 @@ void _checkRsrcMagic(Uint8List bytes) {
 List<ViSection> readViSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0xFFFFFFFF);
 
 List<ViSection> readEmbeddedSections(Uint8List bytes) => _readSections(bytes, wantWord16: 0);
-
-class ViEmbeddedVi {
-  ViEmbeddedVi({required this.name, required this.sizeBytes, this.bytes});
-
-  final String? name;
-
-  final int sizeBytes;
-
-  final Uint8List? bytes;
-}
-
-List<String> readOwningLibraryNames(Uint8List bytes) {
-  final out = <String>[];
-  for (final section in _embeddedOrEmpty(bytes)) {
-    if (section.tag != 'LIBN') continue;
-    final sectionBytes = section.bytes;
-    if (sectionBytes.length < 5) continue;
-    final len = sectionBytes[4];
-    if (len == 0 || 5 + len > sectionBytes.length) continue;
-    if (!_allPrintable(sectionBytes, 5, 5 + len)) continue;
-    final name = String.fromCharCodes(sectionBytes.sublist(5, 5 + len));
-    if (!out.contains(name)) out.add(name);
-  }
-  return out;
-}
-
-List<ViEmbeddedVi> readEmbeddedVis(Uint8List bytes) {
-  final out = <ViEmbeddedVi>[];
-  for (final section in _embeddedOrEmpty(bytes)) {
-    if (section.tag != 'VINS') continue;
-    String? name;
-    try {
-      name = parseVi(section.bytes).name;
-    } catch (_) {}
-    out.add(ViEmbeddedVi(name: name, sizeBytes: section.bytes.length, bytes: Uint8List.fromList(section.bytes)));
-  }
-  return out;
-}
 
 List<ViSection> _readSections(Uint8List bytes, {required int wantWord16}) {
   final view = ByteData.sublistView(bytes);

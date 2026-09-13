@@ -28,7 +28,6 @@ void main() {
       final file = byName[name]!;
       final model = buildViModel(extractSnippetVi(file.readAsBytesSync())!);
       final table = model.fontTable!;
-      expect(table.nameTableComplete, isTrue, reason: '$name FTAB complete');
       expect(table.entries.length, greaterThanOrEqualTo(4), reason: name);
       final object = model.blockDiagrams.expand((diagram) => diagram.objects).firstWhere((o) => o.oid == oid);
       expect(object.textStyleRuns.first.fontId, fontId, reason: '$name $oid');

@@ -206,10 +206,12 @@ void main() {
         0,
         0,
         0,
-        5,
+        44,
         ...List.filled(12, 0x0f),
         3,
         ...'Foo'.codeUnits,
+        3,
+        ...'Bar'.codeUnits,
       ]),
       one: [
         'Header constant',
