@@ -12,6 +12,7 @@ import 'blocks/CPD2_connector_pane_data.dart';
 import 'blocks/CPMp_connector_pane_map.dart';
 import 'blocks/CPST_CPSP_pascal_string_table.dart';
 import 'blocks/DLDR_default_data_loader.dart';
+import 'blocks/DSIM_data_space_image.dart';
 import 'blocks/DTHP_data_type_heap.dart';
 import 'blocks/FPEx_BDEx_extended_state.dart';
 import 'blocks/FPSE_BDSE_section_entry.dart';
@@ -25,9 +26,11 @@ import 'blocks/IPSR_offset_table.dart';
 import 'blocks/LIBN_library_names.dart';
 import 'blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
 import 'blocks/LVSR_save_record.dart';
+import 'blocks/MNGI_png_image.dart';
 import 'blocks/MUID_modified_uid.dart';
 import 'blocks/NUID_SUID_BNID_id_table.dart';
 import 'blocks/PICC_icon_placement.dart';
+import 'blocks/PICT_picture.dart';
 import 'blocks/PRT_print_settings.dart';
 import 'blocks/RTSG_OBSG_CCSG_signature.dart';
 import 'blocks/SCSR_source_signature.dart';
@@ -39,9 +42,8 @@ import 'blocks/VCTP_type_pool.dart';
 import 'blocks/VICD_compiled_code.dart';
 import 'blocks/VINS_embedded_vis.dart';
 import 'blocks/VITS_tag_store.dart';
-import 'blocks/aux_records.dart';
+import 'blocks/WEMF_metafile.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
-import 'blocks/metafile_block.dart';
 import 'blocks/vers_version.dart';
 
 /// What a block holds, for grouping in listings.
@@ -173,7 +175,14 @@ enum BlockTag {
   dfds('DFDS', 'Default data space', BlockCategory.dataSpace, BlockConfidence.likely),
 
   /// Data-space image: an icon raster or a PNG behind a raster header.
-  dsim('DSIM', 'Data-space image', BlockCategory.dataSpace, BlockConfidence.confirmed, decodeDataSpaceImage),
+  dsim(
+    'DSIM',
+    'Data-space image',
+    BlockCategory.dataSpace,
+    BlockConfidence.confirmed,
+    decodeDataSpaceImage,
+    dsimLayout,
+  ),
 
   /// Connector pane: the [vctp] index of the pane type.
   conp(
@@ -225,13 +234,13 @@ enum BlockTag {
   cptm('CPTM', 'Connector-pane TM', BlockCategory.unknown, BlockConfidence.tentative),
 
   /// 32x32 icon at 8 bits per pixel in the Mac `icl8` layout.
-  icl8('icl8', 'Icon, 8-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcl8),
+  icl8('icl8', 'Icon, 8-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcl8, icl8Layout),
 
   /// 32x32 icon at 4 bits per pixel in the Mac `icl4` layout.
-  icl4('icl4', 'Icon, 4-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcl4),
+  icl4('icl4', 'Icon, 4-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcl4, icl4Layout),
 
   /// 32x32 icon at 1 bit per pixel in the Mac `ICON` layout.
-  icon('ICON', 'Icon, 1-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcon1),
+  icon('ICON', 'Icon, 1-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcon1, iconLayout),
 
   /// Icon placement rectangle.
   picc('PICC', 'Icon placement', BlockCategory.icon, BlockConfidence.confirmed, decodeIconPlacement, piccLayout),
@@ -252,13 +261,13 @@ enum BlockTag {
   curs('CURS', 'Cursor, 1-bit', BlockCategory.icon, BlockConfidence.tentative),
 
   /// QuickDraw PICT v2 picture: an opcode stream ending at OpEndPic.
-  pict('PICT', 'Mac PICT picture', BlockCategory.image, BlockConfidence.confirmed, framePictV2),
+  pict('PICT', 'Mac PICT picture', BlockCategory.image, BlockConfidence.confirmed, decodePict, pictLayout),
 
-  /// PNG image.
-  mngi('MNGI', 'PNG image', BlockCategory.image, BlockConfidence.confirmed, decodePngEnvelope),
+  /// A picture as a PNG stream, or occasionally an MNG stream.
+  mngi('MNGI', 'PNG image', BlockCategory.image, BlockConfidence.confirmed, decodePngStream, mngiLayout),
 
   /// Windows enhanced metafile: EMR_HEADER followed by self-sized records ending at EMR_EOF.
-  wemf('WEMF', 'Windows enhanced metafile', BlockCategory.image, BlockConfidence.confirmed, frameEmf),
+  wemf('WEMF', 'Windows enhanced metafile', BlockCategory.image, BlockConfidence.confirmed, decodeEmf, wemfLayout),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
   pngi('PNGI', 'PNG image', BlockCategory.image, BlockConfidence.tentative),

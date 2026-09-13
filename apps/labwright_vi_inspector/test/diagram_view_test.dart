@@ -119,10 +119,7 @@ void main() {
   ) async {
     final images = ViImages(
       icons: [
-        EmbeddedLegacyIcon(
-          tag: 'icl8',
-          icon: ViLegacyIcon(bpp: 8, pixels: List.filled(1024, 0)),
-        ),
+        EmbeddedLegacyIcon(tag: 'icl8', icon: decodeIcl8(Uint8List(1024))),
       ],
     );
     await pumpBody(

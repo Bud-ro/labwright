@@ -5,8 +5,6 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'mac_icon_palette.dart';
-
 class SpanInfo {
   SpanInfo({
     required this.offset,
@@ -311,18 +309,21 @@ class ColorPreview extends StatelessWidget {
   );
 }
 
-Widget? iconPreview(Uint8List bytes) {
-  final icon = extractRgbIcon(bytes);
-  if (icon == null) return null;
-  return IconView(
-    caption: '${icon.width}×${icon.height} · embedded 24-bit RGB picture',
-    child: ViIconImage(icon: icon),
-  );
+Widget? iconPreview(String tag, Uint8List bytes) {
+  if (tag != BlockTag.dsim.tag || bytes.length < 46) return null;
+  if (decodeDataSpaceImage(bytes)
+      case ViDataSpaceRaster(depth: 24) && final icon) {
+    return IconView(
+      caption: '${icon.width}×${icon.height} · embedded 24-bit RGB picture',
+      child: ViIconImage(icon: icon),
+    );
+  }
+  return null;
 }
 
 class ViIconImage extends StatelessWidget {
   const ViIconImage({super.key, required this.icon, this.size = 160});
-  final ViIcon icon;
+  final ViDataSpaceRaster icon;
   final double size;
   @override
   Widget build(BuildContext context) => SizedBox(
@@ -354,20 +355,16 @@ class IconView extends StatelessWidget {
 
 class RgbIconPainter extends CustomPainter {
   RgbIconPainter(this.icon);
-  final ViIcon icon;
+  final ViDataSpaceRaster icon;
   @override
   void paint(Canvas canvas, Size size) {
     final pw = size.width / icon.width, ph = size.height / icon.height;
     final paint = Paint();
+    final rgb = icon.pixels;
     var k = 0;
     for (var y = 0; y < icon.height; y++) {
       for (var x = 0; x < icon.width; x++) {
-        paint.color = Color.fromARGB(
-          255,
-          icon.rgb[k],
-          icon.rgb[k + 1],
-          icon.rgb[k + 2],
-        );
+        paint.color = Color.fromARGB(255, rgb[k], rgb[k + 1], rgb[k + 2]);
         k += 3;
         canvas.drawRect(
           Rect.fromLTWH(x * pw, y * ph, pw + 0.5, ph + 0.5),
@@ -425,7 +422,7 @@ void paintLegacyIcon(Canvas canvas, ViLegacyIcon icon, Rect rect) {
   final paint = Paint();
   for (var y = 0; y < dim; y++) {
     for (var x = 0; x < dim; x++) {
-      paint.color = Color(macIconArgb(icon.bpp, icon.pixels[y * dim + x]));
+      paint.color = Color(icon.argbAt(x, y));
       canvas.drawRect(
         Rect.fromLTWH(
           rect.left + x * cw,

@@ -8,7 +8,6 @@ import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/image_clipboard.dart';
 import 'package:labwright_vi_inspector/src/images_view.dart';
-import 'package:labwright_vi_inspector/src/mac_icon_palette.dart';
 import 'package:labwright_vi_inspector/src/span_annotations.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
 
@@ -37,12 +36,13 @@ Directory? _corpusDir() {
   return null;
 }
 
-ViLegacyIcon _icon(int fill, int bpp) => decodeLegacyIcon(
-  Uint8List.fromList(
-    List<int>.filled(bpp == 8 ? 1024 : (bpp == 4 ? 512 : 128), fill),
-  ),
-  bpp,
-)!;
+ViLegacyIcon _icon(int fill, int bpp) {
+  final depth = LegacyIconDepth.values.singleWhere((d) => d.bits == bpp);
+  return decodeLegacyIcon(
+    Uint8List.fromList(List<int>.filled(depth.byteLength, fill)),
+    depth,
+  );
+}
 
 Future<({Uint8List rgba, int stride})> _renderIcon(
   WidgetTester tester,
@@ -111,7 +111,10 @@ ViLegacyIcon _iconWithCells(int bpp, Map<int, int> cellIndexByLinear) {
         if ((index & 1) != 0) body[pixel >> 3] |= 1 << (7 - (pixel & 7));
     }
   });
-  return decodeLegacyIcon(body, bpp)!;
+  return decodeLegacyIcon(
+    body,
+    LegacyIconDepth.values.singleWhere((d) => d.bits == bpp),
+  );
 }
 
 final Uint8List _png1x1 = Uint8List.fromList(const [
@@ -143,24 +146,41 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  test('extractViImages locates a PNG embedded after a header', () {
-    final body = [0, 0, 0, 0, 0x14, 0x14, ..._png1x1];
-    final off = 6;
-    final images = extractViImages([_section('DSIM', body)]);
-    expect(images.pngs, hasLength(1));
-    final png = images.pngs.single;
-    expect(png.tag, 'DSIM');
-    expect((png.width, png.height), (1, 1));
-    expect(png.bytes, equals(Uint8List.fromList(body.sublist(off))));
-  });
+  test(
+    'extractViImages takes the PNG a DSIM carries after its raster header',
+    () {
+      final header = ByteData(46)
+        ..setUint16(4, 1)
+        ..setUint16(6, 1)
+        ..setUint16(8, 24)
+        ..setInt32(22, -1)
+        ..setUint16(30, 1)
+        ..setUint16(32, 1)
+        ..setUint16(34, 24);
+      final body = [...header.buffer.asUint8List(), ..._png1x1, 0xaa];
+      final images = extractViImages([_section('DSIM', body)]);
+      expect(images.pngs, hasLength(1));
+      final png = images.pngs.single;
+      expect(png.tag, 'DSIM');
+      expect((png.width, png.height), (1, 1));
+      expect(png.bytes, equals(_png1x1));
+    },
+  );
 
-  test('extractViImages finds multiple PNGs and a raw MNGI PNG', () {
-    final two = [..._png1x1, 0x00, 0x00, ..._png1x1];
+  test('extractViImages takes a bare MNGI PNG and skips a DSIM raster', () {
+    final raster = ByteData(46 + 3)
+      ..setUint16(4, 1)
+      ..setUint16(6, 1)
+      ..setUint16(8, 24)
+      ..setInt32(22, 3)
+      ..setUint16(30, 1)
+      ..setUint16(32, 1)
+      ..setUint16(34, 24);
     final images = extractViImages([
-      _section('DSIM', two),
+      _section('DSIM', raster.buffer.asUint8List()),
       _section('MNGI', _png1x1),
     ]);
-    expect(images.pngs.map((p) => p.tag), ['DSIM', 'DSIM', 'MNGI']);
+    expect(images.pngs.map((p) => p.tag), ['MNGI']);
   });
 
   test('extractViImages decodes legacy icon payloads', () {
@@ -169,7 +189,7 @@ void main() {
       _section('ICON', List<int>.filled(128, 0xff)),
     ]);
     expect(images.icons.map((i) => i.tag), ['icl8', 'ICON']);
-    expect(images.icons.first.icon.bpp, 8);
+    expect(images.icons.first.icon.depth, LegacyIconDepth.eightBit);
   });
 
   test('extractViImages ignores non-image payloads', () {
@@ -181,23 +201,19 @@ void main() {
 
   test('encodeQuickTimeRasterPng maps 24-bit RGB and 32-bit xRGB pixels', () {
     final rgb = encodeQuickTimeRasterPng(
-      ViQuickTimeRaster(
-        width: 2,
-        height: 1,
-        depth: 24,
-        pixels: Uint8List.fromList([255, 0, 0, 0, 255, 0]),
-      ),
+      2,
+      1,
+      24,
+      Uint8List.fromList([255, 0, 0, 0, 255, 0]),
     );
     final decodedRgb = img.decodePng(rgb)!;
     expect(decodedRgb.getPixel(0, 0).r, 255);
     expect(decodedRgb.getPixel(1, 0).g, 255);
     final xrgb = encodeQuickTimeRasterPng(
-      ViQuickTimeRaster(
-        width: 1,
-        height: 1,
-        depth: 32,
-        pixels: Uint8List.fromList([0x99, 0, 0, 255]),
-      ),
+      1,
+      1,
+      32,
+      Uint8List.fromList([0x99, 0, 0, 255]),
     );
     final decodedXrgb = img.decodePng(xrgb)!;
     expect(decodedXrgb.getPixel(0, 0).r, 0);
@@ -237,10 +253,7 @@ void main() {
       icons: [
         EmbeddedLegacyIcon(
           tag: 'icl8',
-          icon: decodeLegacyIcon(
-            Uint8List.fromList(List<int>.filled(1024, 3)),
-            8,
-          )!,
+          icon: decodeIcl8(Uint8List.fromList(List<int>.filled(1024, 3))),
         ),
       ],
     );
@@ -354,24 +367,24 @@ void main() {
   });
 
   test('macIconArgb maps ICON (1-bit): 1=black, 0=white', () {
-    expect(macIconArgb(1, 1), 0xFF000000);
-    expect(macIconArgb(1, 0), 0xFFFFFFFF);
+    expect(macIconArgb(LegacyIconDepth.mono, 1), 0xFF000000);
+    expect(macIconArgb(LegacyIconDepth.mono, 0), 0xFFFFFFFF);
   });
 
   test('macIconArgb maps icl4 indices to the Mac 16-colour palette', () {
-    expect(macIconArgb(4, 0), 0xFFFFFFFF);
-    expect(macIconArgb(4, 3), 0xFFDD0806);
-    expect(macIconArgb(4, 6), 0xFF0000D4);
-    expect(macIconArgb(4, 15), 0xFF000000);
+    expect(macIconArgb(LegacyIconDepth.fourBit, 0), 0xFFFFFFFF);
+    expect(macIconArgb(LegacyIconDepth.fourBit, 3), 0xFFDD0806);
+    expect(macIconArgb(LegacyIconDepth.fourBit, 6), 0xFF0000D4);
+    expect(macIconArgb(LegacyIconDepth.fourBit, 15), 0xFF000000);
   });
 
   test('macIconArgb maps icl8 indices to the Mac 256-colour palette', () {
-    expect(macIconArgb(8, 0), 0xFFFFFFFF);
-    expect(macIconArgb(8, 5), 0xFFFFFF00);
-    expect(macIconArgb(8, 35), 0xFFFF0000);
-    expect(macIconArgb(8, 215), 0xFFEE0000);
-    expect(macIconArgb(8, 245), 0xFFEEEEEE);
-    expect(macIconArgb(8, 255), 0xFF000000);
+    expect(macIconArgb(LegacyIconDepth.eightBit, 0), 0xFFFFFFFF);
+    expect(macIconArgb(LegacyIconDepth.eightBit, 5), 0xFFFFFF00);
+    expect(macIconArgb(LegacyIconDepth.eightBit, 35), 0xFFFF0000);
+    expect(macIconArgb(LegacyIconDepth.eightBit, 215), 0xFFEE0000);
+    expect(macIconArgb(LegacyIconDepth.eightBit, 245), 0xFFEEEEEE);
+    expect(macIconArgb(LegacyIconDepth.eightBit, 255), 0xFF000000);
   });
 
   testWidgets('icl8 painter draws each index in its palette colour', (

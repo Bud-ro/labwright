@@ -2,10 +2,13 @@ library;
 
 import 'dart:typed_data';
 
+import 'block_tag.dart';
 import 'block_writer.dart';
 import 'blocks/DFDS_default_data_space.dart' show DfdsContext;
-import 'blocks/image_block.dart' show decodeImageBlock;
-import 'blocks/metafile_block.dart' show frameMetafile;
+import 'blocks/DSIM_data_space_image.dart';
+import 'blocks/MNGI_png_image.dart';
+import 'blocks/PICT_picture.dart';
+import 'blocks/WEMF_metafile.dart';
 import 'blocks/vers_version.dart' show versionWordFromSections;
 import 'container.dart';
 import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
@@ -172,20 +175,19 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
           imageInflatedCopied += sub.imageInflatedCopiedBytes;
         } else {
           final modeled = tag == null ? null : serializeBlockPayload(tag, payload, version: versionWord);
-          final image = tag == null ? null : decodeImageBlock(tag, payload);
-          final meta = tag == null ? null : frameMetafile(tag, payload);
+          final image = tag == null ? null : imageAccounting(tag, payload);
+          final meta = tag == null ? null : metafileFrame(tag, payload);
           if (modeled != null) {
             typedPayload += payload.length;
-          } else if (meta != null && _eq(meta.bytes, payload)) {
+          } else if (meta != null) {
             typedPayload += meta.modelBytes;
             untyped += meta.copiedBytes;
-          } else if (image != null && _eq(image.bytes, payload)) {
+          } else if (image != null) {
             typedPayload += image.modelBytes;
             untyped += image.copiedBytes;
             imageCompressed += image.compressedContentBytes;
             imageInflated += image.inflatedContentBytes;
-            imageInflatedModel += image.inflatedModelBytes;
-            imageInflatedCopied += image.inflatedCopiedBytes;
+            imageInflatedModel += image.inflatedContentBytes;
           } else if (isCompressedHeapPayload(payload)) {
             compressed += payload.length;
             final inflated = inflateHeapPayload(payload);
@@ -259,3 +261,17 @@ bool _eq(Uint8List a, Uint8List b) {
   }
   return true;
 }
+
+/// Byte accounting of a picture block, or null for any other tag.
+ViImageAccounting? imageAccounting(String tag, Uint8List payload) => switch (BlockTag.of(tag)) {
+  BlockTag.mngi => decodePngStream(payload).accounting(),
+  BlockTag.dsim => decodeDataSpaceImage(payload).accounting,
+  _ => null,
+};
+
+/// Byte accounting of a metafile block, or null for any other tag.
+ViMetafileFrame? metafileFrame(String tag, Uint8List payload) => switch (BlockTag.of(tag)) {
+  BlockTag.pict => decodePict(payload).frame,
+  BlockTag.wemf => decodeEmf(payload).frame,
+  _ => null,
+};

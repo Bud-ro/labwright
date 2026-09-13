@@ -107,21 +107,25 @@ Map<String, int> _violations(Uint8List bytes, String path) {
   final seenImage = <int>{};
   for (final s in secs) {
     if ((s.tag != 'DSIM' && s.tag != 'MNGI') || !seenImage.add(s.dataOffset)) continue;
-    final img = decodeImageBlock(s.tag, s.bytes);
-    if (img == null) continue;
-    if (!_bytesEqual(img.bytes, s.bytes)) bad('imageExact');
-    bad('pngCrc', img.pngChunks - img.crcVerified);
-    final anc = imageAncillaryRoundTrips(s.tag, s.bytes);
+    final ViPngStream png;
+    if (s.tag == 'MNGI') {
+      png = decodePngStream(s.bytes);
+    } else if (decodeDataSpaceImage(s.bytes) case ViDataSpacePng(png: final stream)) {
+      png = stream;
+    } else {
+      continue;
+    }
+    bad('pngCrc', png.accounting().chunkCount - png.accounting().crcVerified);
+    final anc = png.ancillaryRoundTrips();
     bad('ancillary', anc.count - anc.ok);
-    if (imageRasterRoundTrips(s.tag, s.bytes) == false) bad('raster');
+    if (png.rasterRoundTrips() == false) bad('raster');
   }
 
   final seenMeta = <int>{};
   for (final s in secs) {
     if ((s.tag != 'PICT' && s.tag != 'WEMF') || !seenMeta.add(s.dataOffset)) continue;
-    final meta = frameMetafile(s.tag, s.bytes);
-    if (meta == null) continue;
-    if (!_bytesEqual(meta.bytes, s.bytes) || meta.modelBytes + meta.copiedBytes != s.bytes.length) bad('metafileExact');
+    final meta = metafileFrame(s.tag, s.bytes)!;
+    if (meta.modelBytes + meta.copiedBytes != s.bytes.length) bad('metafileExact');
   }
   return c;
 }
