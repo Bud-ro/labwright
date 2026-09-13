@@ -60,7 +60,7 @@ void main() {
         out.writeln('- ${describe(key)}');
       }
     }
-    final appDir = repoDir('apps/labwright_vi_inspector')!.path;
+    final appDir = '${repoRoot().path}/apps/labwright_vi_inspector';
     File(
       '$appDir/assets/prim_icons/REVIEW.md',
     ).writeAsStringSync(out.toString());

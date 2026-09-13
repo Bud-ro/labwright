@@ -10,7 +10,7 @@ Future<void> main(List<String> args) async {
       '${Platform.environment['NI_HELP_CACHE'] ?? '${Directory.systemTemp.path}/ni_help_oracle'}/oracle.json';
   final file = File(path);
   if (!file.existsSync()) {
-    stderr.writeln('error: no dataset at $path (run labwright_rsrc_parse\'s tool/fetch_help_oracle.dart first)');
+    stderr.writeln('error: no dataset at $path (run tool/fetch_help_oracle.dart first)');
     exitCode = 1;
     return;
   }

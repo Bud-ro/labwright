@@ -40,7 +40,7 @@ The development thus centers around corpus-based reverse engineering.
 If running tests against sequences, fetch them with:
 
 ```bash
-dart run packages/labwright_seq/tool/fetch_seq_corpus.dart
+dart run tool/fetch_corpus.dart
 ```
 
 ## Trademarks

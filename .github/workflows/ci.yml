@@ -80,14 +80,12 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: |
-            packages/labwright_rsrc_parse/corpus/vi
-            packages/labwright_seq/corpus/seq
-          key: corpus-${{ hashFiles('packages/labwright_rsrc_parse/corpus/sources.json', 'packages/labwright_seq/corpus/seq-sources.json') }}
+            corpus/vi
+            corpus/seq
+          key: corpus-${{ hashFiles('corpus/sources.json') }}
 
       - name: fetch the corpora
-        run: |
-          dart run packages/labwright_rsrc_parse/tool/fetch_corpus.dart
-          dart run packages/labwright_seq/tool/fetch_seq_corpus.dart
+        run: dart run tool/fetch_corpus.dart
 
       - name: corpus tests
         shell: bash

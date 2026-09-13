@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import '../tool/corpus_base.dart';
+import '../../../tool/corpus.dart';
 import 'corpus_dirs.dart';
 
 Uint8List png(List<(String, List<int>)> chunks, {String? corruptCrcOf}) {
@@ -94,7 +94,9 @@ void main() {
   });
 
   test('every tracked snippet extracts to a parseable VI with a positioned BD', () async {
-    final results = await decodeSnippetPngs(Directory('${corpusBaseDir().path}/snippets'));
+    final results = await decodeSnippetPngs(
+      Directory('${repoRoot().path}/packages/labwright_rsrc_parse/corpus/snippets'),
+    );
     final snippets = results.where((r) => r.$2 != null).toList();
     expect(snippets, isNotEmpty);
     for (final (path, positioned) in snippets) {

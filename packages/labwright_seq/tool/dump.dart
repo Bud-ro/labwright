@@ -2,6 +2,8 @@ import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
+import '../../../tool/corpus.dart';
+
 void main(List<String> args) {
   final path = args.isNotEmpty ? args.first : _firstCorpusXml();
   if (path == null) {
@@ -28,20 +30,8 @@ void main(List<String> args) {
 }
 
 String? _firstCorpusXml() {
-  var d = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final root = Directory('${d.path}/corpus/seq');
-    if (root.existsSync()) {
-      final files =
-          root.listSync(recursive: true).whereType<File>().where((f) => f.path.toLowerCase().endsWith('.seq')).toList()
-            ..sort((a, b) => a.path.compareTo(b.path));
-      for (final f in files) {
-        if (detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml) return f.path;
-      }
-    }
-    final p = d.parent;
-    if (p.path == d.path) break;
-    d = p;
+  for (final f in corpusFiles(corpusSeq, '.seq')) {
+    if (detectSeqFormat(f.readAsBytesSync()) == SeqFormat.xml) return f.path;
   }
   return null;
 }

@@ -4,7 +4,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import '../tool/corpus_base.dart';
+import '../../../tool/corpus.dart';
 import 'test_util.dart';
 
 List<int> cvU8(int v) => [0x26, 0x6c, v];
@@ -99,7 +99,9 @@ void main() {
     final diagrams = <String, ViDiagram>{};
     for (final (snippet, oid, value, width, height) in pins) {
       final diagram = diagrams[snippet] ??= buildViModel(
-        extractSnippetVi(File('${corpusBaseDir().path}/snippets/$snippet.png').readAsBytesSync())!,
+        extractSnippetVi(
+          File('${repoRoot().path}/packages/labwright_rsrc_parse/corpus/snippets/$snippet.png').readAsBytesSync(),
+        )!,
       ).blockDiagrams.single;
       final constant = diagram.byId[oid]!;
       expect(constant.constText, value, reason: '$snippet oid $oid value');

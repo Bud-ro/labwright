@@ -3,9 +3,10 @@ import 'dart:io';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'corpus_base.dart';
+import '../../../tool/corpus.dart';
+import 'corpus_vis.dart';
 
-/// Run: `dart run tool/snapshot.dart [corpusDir]` (writes `<pkg>/corpus/snapshot.json`)
+/// Run: `dart run tool/snapshot.dart` (writes `test/corpus_snapshot.json`)
 
 typedef _Counts = ({String name, int fp, int bd});
 
@@ -13,16 +14,10 @@ typedef _Group = ({List<String> blocks, List<_Counts> files});
 
 typedef _Failure = ({String name, String error});
 
-void main(List<String> args) {
-  final base = corpusBaseDir().path;
-  final dir = Directory(args.isNotEmpty ? args[0] : '$base/vi');
-  if (!dir.existsSync()) {
-    stderr.writeln('corpus dir not found: ${dir.path}');
-    exit(1);
-  }
-  final vis = listCorpusVis(dir);
+void main() {
+  final vis = listCorpusVis(corpusVi);
 
-  final root = '${dir.path}/';
+  final root = '${corpusVi.path}/';
   final groups = <String, _Group>{};
   final errors = <_Failure>[];
   for (final file in vis) {
@@ -75,7 +70,7 @@ void main(List<String> args) {
   buf
     ..writeln('  ]')
     ..writeln('}');
-  File('$base/snapshot.json').writeAsStringSync(buf.toString());
+  File('${repoRoot().path}/packages/labwright_rsrc_parse/test/corpus_snapshot.json').writeAsStringSync(buf.toString());
   final nFiles = groups.values.fold<int>(0, (a, g) => a + g.files.length);
   stdout.writeln('snapshot: $nFiles VIs in ${groups.length} block-set groups · ${errors.length} errors');
 }

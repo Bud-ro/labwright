@@ -2,31 +2,16 @@ import 'dart:io';
 
 import 'package:labwright_seq/labwright_seq.dart';
 
-String _defaultCorpusRoot() {
-  const pkgRel = 'packages/labwright_seq/corpus';
-  var d = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    if (File('${d.path}/$pkgRel/seq-sources.json').existsSync()) return '${d.path}/$pkgRel/seq';
-    if (File('${d.path}/corpus/seq-sources.json').existsSync()) return '${d.path}/corpus/seq';
-    final p = d.parent;
-    if (p.path == d.path) break;
-    d = p;
-  }
-  return 'corpus/seq';
-}
+import '../../../tool/corpus.dart';
 
 class _Stat {
   int files = 0, seqs = 0, steps = 0;
   var cov = const SeqCoverage(total: 0, modeled: 0);
 }
 
-void main(List<String> args) {
-  final root = args.isNotEmpty ? args[0] : _defaultCorpusRoot();
-  final rootDir = Directory(root);
-  if (!rootDir.existsSync()) {
-    stderr.writeln('corpus not found: $root (run tool/fetch_seq_corpus.dart)');
-    exit(1);
-  }
+void main() {
+  final rootDir = corpusSeq;
+  final root = rootDir.path;
 
   final bySource = <String, List<File>>{};
   for (final src in rootDir.listSync().whereType<Directory>()) {

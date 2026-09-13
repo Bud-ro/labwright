@@ -16,4 +16,6 @@ workspace:
   - example/e2e
 
 dev_dependencies:
+  archive: ^4.0.9
+  crypto: ^3.0.7
   lints: ^5.0.0
