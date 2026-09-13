@@ -2,10 +2,10 @@ library;
 
 import 'dart:typed_data';
 
-import 'blocks/compiled_code.dart' show compiledCodeFrames, reserializeCompiledCode;
-import 'blocks/dfds.dart' show DfdsContext, dataSpaceFrames, reserializeDataSpace;
-import 'blocks/type_map.dart' show reserializeTypeMap, typeMapFrames;
-import 'blocks/type_pool.dart' show reserializeTypePool, typePoolFrames;
+import '../blocks/DFDS_default_data_space.dart' show DfdsContext, dataSpaceFrames, reserializeDataSpace;
+import '../blocks/TM80_type_map.dart' show reserializeTypeMap, typeMapFrames;
+import '../blocks/VCTP_type_pool.dart' show reserializeTypePool, typePoolFrames;
+import '../blocks/VICD_compiled_code.dart' show compiledCodeFrames, reserializeCompiledCode;
 import 'heap.dart';
 
 class HeapWriteResult {

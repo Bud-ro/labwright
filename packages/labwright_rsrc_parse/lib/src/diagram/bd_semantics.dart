@@ -2,9 +2,9 @@ library;
 
 import 'dart:math' show max, min;
 
-import 'blocks/prim_ops.dart';
-import 'graph.dart';
-import 'heap.dart' show HeapRect;
+import '../heap/heap.dart' show HeapRect;
+import 'diagram.dart';
+import 'prim_ops.dart';
 
 const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c, 0x124};
 

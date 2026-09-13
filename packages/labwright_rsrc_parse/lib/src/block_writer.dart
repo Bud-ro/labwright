@@ -1,21 +1,21 @@
 import 'dart:typed_data';
 
-import 'align_table.dart';
-import 'aux_records.dart';
-import 'connector_pane.dart';
-import 'data_type_heap.dart';
-import 'font_table.dart';
-import 'help_path.dart';
-import 'history.dart';
-import 'id_table.dart';
-import 'legacy_icon.dart';
-import 'link_info.dart';
-import 'save_record.dart';
-import 'small_records.dart';
-import 'string_block.dart';
-import 'tag_store.dart';
-import 'type_map.dart';
-import 'version_word.dart';
+import 'blocks/BFAL_align_table.dart';
+import 'blocks/CONP_CPC2_connector_pane.dart';
+import 'blocks/DTHP_data_type_heap.dart';
+import 'blocks/FTAB_font_table.dart';
+import 'blocks/HIST_history.dart';
+import 'blocks/HLPP_DLLP_help_path.dart';
+import 'blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
+import 'blocks/LVSR_save_record.dart';
+import 'blocks/NUID_SUID_BNID_id_table.dart';
+import 'blocks/STRG_HLPT_string_block.dart';
+import 'blocks/TM80_type_map.dart';
+import 'blocks/VITS_tag_store.dart';
+import 'blocks/aux_records.dart';
+import 'blocks/icl8_icl4_ICON_icon.dart';
+import 'blocks/small_records.dart';
+import 'blocks/vers_version.dart';
 
 bool hasBlockWriter(String tag) => switch (tag) {
   'icl8' ||

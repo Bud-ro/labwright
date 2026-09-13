@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import '../viparse.dart' show ViSection;
-import 'version_word.dart' show decodeVersionWord;
+import 'vers_version.dart' show decodeVersionWord;
 
 const List<int> emptyPasswordHash = [
   0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, //

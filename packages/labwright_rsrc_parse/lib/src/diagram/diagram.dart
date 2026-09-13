@@ -1,10 +1,10 @@
 import 'dart:math';
 import 'dart:typed_data';
 
-import 'blocks/font_table.dart';
-import 'blocks/prim_ops.dart';
-import 'blocks/type_pool.dart';
-import 'heap.dart';
+import '../blocks/FTAB_font_table.dart';
+import '../blocks/VCTP_type_pool.dart';
+import '../heap/heap.dart';
+import 'prim_ops.dart';
 
 enum ViObjectKind {
   terminalCluster,

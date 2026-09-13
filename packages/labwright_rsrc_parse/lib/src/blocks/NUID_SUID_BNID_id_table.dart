@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'block_catalog.dart' show BlockConfidence;
+import '../block_catalog.dart' show BlockConfidence;
 
 class ViIdTable {
   const ViIdTable({required this.rawLength, required this.count, required this.entries});
