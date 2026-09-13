@@ -451,7 +451,9 @@ class _Builder {
   int _rootFrame() {
     for (final object in diagram.objects) {
       if (object.parentOid == null) {
-        final frame = childrenOf[object.oid]?.where((child) => child.kind == kViFrameCode).firstOrNull;
+        final frame = childrenOf[object.oid]
+            ?.where((child) => child.objectClass == HeapObjectClass.bdFrame)
+            .firstOrNull;
         if (frame != null) return frame.oid;
       }
     }
@@ -544,7 +546,7 @@ class _Builder {
       if (parent == null) return null;
       final object = byId[parent];
       if (object == null) return null;
-      if (object.kind == kViFrameCode) return object.oid;
+      if (object.objectClass == HeapObjectClass.bdFrame) return object.oid;
       current = object;
     }
     return null;
@@ -691,7 +693,7 @@ class _Builder {
     }
     final frames = [
       for (final child in childrenOf[structure.oid] ?? const <ViHeapObject>[])
-        if (child.kind == kViFrameCode) child.oid,
+        if (child.objectClass == HeapObjectClass.bdFrame) child.oid,
     ];
     final terminals = <LvStructTerminal>[];
     for (final terminal in _terminalRecords(structure)) {

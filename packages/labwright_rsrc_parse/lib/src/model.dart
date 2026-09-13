@@ -34,6 +34,8 @@ class ViModel {
 
   final List<ViDiagram> frontPanelDiagrams;
 
+  ViDiagram? get primaryBlockDiagram => largestDiagram(blockDiagrams);
+
   final List<String> subViNames;
 
   final List<ViType> types;
@@ -198,6 +200,20 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
   );
+}
+
+/// The diagram with the most placed objects, or null when none has any.
+ViDiagram? largestDiagram(List<ViDiagram> diagrams) {
+  ViDiagram? best;
+  var bestCount = 0;
+  for (final diagram in diagrams) {
+    final count = diagram.objects.where((o) => o.absBounds != null).length;
+    if (count > bestCount) {
+      best = diagram;
+      bestCount = count;
+    }
+  }
+  return best;
 }
 
 String? dataTypeGlyph(ViDataType type) => switch (type) {

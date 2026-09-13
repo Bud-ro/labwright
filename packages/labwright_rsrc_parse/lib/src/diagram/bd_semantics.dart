@@ -4,6 +4,7 @@ import 'dart:math' show max, min;
 
 import '../heap/heap.dart' show HeapRect;
 import 'diagram.dart';
+import 'obj_flags.dart';
 import 'prim_ops.dart';
 
 const Set<int> kSubViCallNodeCodes = {0x31, 0x32, 0xc5, 0x104, 0x103, 0x8c, 0x124};
@@ -667,24 +668,32 @@ int? primIconKeyOf(ViHeapObject object) =>
 
 int classVariantIconKey(int kind, int termCount) => -((kind << 8) | (termCount & 0xff)) - 0x100000;
 
-const Set<int> kVerifiedBorderTerminalKinds = {
-  0x22,
-  0x2d,
-  0x27,
-  0x28,
-  0x2e,
-  0x2a,
-  0xcb,
-  0xce,
+/// Border terminals drawn as tunnel squares.
+const Set<HeapObjectClass> kBdTunnelClasses = {
+  HeapObjectClass.bdLoopTunnel,
+  HeapObjectClass.bdCaseTunnel,
+  HeapObjectClass.bdBorderTerminal2a,
+  HeapObjectClass.bdBorderTerminalCb,
+  HeapObjectClass.bdDisableTunnel,
 };
 
-const int kTunnelHollowFlag = 0x1000000;
+const Set<HeapObjectClass> kBdShiftRegisterClasses = {
+  HeapObjectClass.bdLeftShiftRegister,
+  HeapObjectClass.bdRightShiftRegister,
+};
 
-const int kTunnelCentreDotFlags = 0x300000;
+/// Border terminals whose chrome is established: tunnels, shift registers and the case selector.
+const Set<HeapObjectClass> kBdBorderTerminalClasses = {
+  ...kBdTunnelClasses,
+  ...kBdShiftRegisterClasses,
+  HeapObjectClass.bdSelectorTerminal,
+};
 
-Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> bdBorderTerminalKinds(ViDiagram diagram) {
+typedef BdBorderTerminal = ({HeapObjectClass objectClass, bool hollow, bool centreDot, bool disabled});
+
+Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(ViDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
-  final out = <HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>{};
+  final out = <HeapRect, BdBorderTerminal>{};
   final wires = bdVisibleWires(diagram);
   final dimsByTerminal = <int, Set<int>>{};
   for (final wire in wires) {
@@ -703,12 +712,11 @@ Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> bdBorder
       final attach = e < wire.endpointAttachRects.length ? wire.endpointAttachRects[e] : null;
       if (attach == null) continue;
       final terminal = diagram.endpointTerminal(wire.endpointOids[e]);
-      if (terminal != null && kVerifiedBorderTerminalKinds.contains(terminal.kind)) {
+      if (terminal != null && kBdBorderTerminalClasses.contains(terminal.objectClass)) {
         out[attach] = (
-          kind: terminal.kind,
-          hollow:
-              ((terminal.objFlags ?? 0) & kTunnelHollowFlag) != 0 || (dimsByTerminal[terminal.oid]?.length ?? 0) > 1,
-          centreDot: ((terminal.objFlags ?? 0) & kTunnelCentreDotFlags) == kTunnelCentreDotFlags,
+          objectClass: terminal.objectClass,
+          hollow: terminal.hasFlag(ViObjFlag.tunnelHollow) || (dimsByTerminal[terminal.oid]?.length ?? 0) > 1,
+          centreDot: terminal.hasFlag(ViObjFlag.tunnelCentreDot),
           disabled: disabledOids.contains(terminal.oid),
         );
       }
@@ -770,8 +778,7 @@ class ViDiagramSemantics {
 
   late final Set<int> errorCaseOids = bdErrorCaseOids(diagram);
 
-  late final Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})> borderTerminalKinds =
-      bdBorderTerminalKinds(diagram);
+  late final Map<HeapRect, BdBorderTerminal> borderTerminalKinds = bdBorderTerminalKinds(diagram);
 
   late final Map<int, List<({HeapRect box, int bmp})>> structureTerminals = bdStructureTerminals(diagram);
 

@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import '../blocks/FTAB_font_table.dart';
 import '../blocks/VCTP_type_pool.dart';
 import '../heap/heap.dart';
+import 'obj_flags.dart';
 import 'prim_ops.dart';
 
 enum ViObjectKind {
@@ -14,6 +15,9 @@ enum ViObjectKind {
   node,
 
   structure,
+
+  /// One sub-diagram frame of a multi-frame structure.
+  frame,
 
   decoration,
 
@@ -55,8 +59,6 @@ final Set<int> kViSelectorGroupTags = {
   HeapGroupTag.selectorRangeListAlt.tag,
   HeapGroupTag.selectorStringPool.tag,
 };
-
-const int kViFrameCode = 0x1b;
 
 int _signedAtWidth(int value, HeapAttrWidth width) => switch (width) {
   HeapAttrWidth.u8 => value.toSigned(8),
@@ -262,7 +264,9 @@ class ViHeapObject {
 
   int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
 
-  bool get isLabelHidden => objectClass == HeapObjectClass.controlLabel && ((objFlags ?? 0) & 0x08) != 0;
+  bool hasFlag(ViObjFlag flag) => ((objFlags ?? 0) & flag.mask) == flag.mask;
+
+  bool get isLabelHidden => objectClass == HeapObjectClass.controlLabel && hasFlag(ViObjFlag.labelHidden);
 
   bool? isIndicator;
 
@@ -450,6 +454,38 @@ enum HeapObjectClass {
 
   controlRare56(0x56, 'Control (rare 0x56)', ViObjectKind.terminal, ClassConfidence.kindOnly),
 
+  bdFrame(0x1b, 'Structure frame', ViObjectKind.frame, ClassConfidence.inferred),
+
+  bdLoopTunnel(0x22, 'Loop tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdTunnelIndexer(0x23, 'Tunnel indexer', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdIterationTerminal(0x24, 'Iteration terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdConditionalTerminal(0x25, 'Conditional terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdCountTerminal(0x26, 'Count terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdLeftShiftRegister(0x27, 'Left shift register', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdRightShiftRegister(0x28, 'Right shift register', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdBorderTerminal2a(0x2a, 'Border terminal (0x2A)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  bdCaseTunnel(0x2d, 'Case tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdSelectorTerminal(0x2e, 'Case selector terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdTerminalStrip35(0x35, 'Node terminal strip (0x35)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  bdTerminalStrip(0x62, 'Node terminal strip', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdBorderTerminalCb(0xcb, 'Border terminal (0xCB)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  bdDisableTunnel(0xce, 'Disable-structure tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdXnode(0x105, 'XNode', ViObjectKind.node, ClassConfidence.inferred),
+
   unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly)
   ;
 
@@ -483,21 +519,15 @@ final Set<int> kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, HeapObjectClass.
 
 const int kNodeEndpointDcoKind = 0x15;
 
-const int kRightShiftRegisterClass = 0x28;
-
-const int kLeftShiftRegisterClass = 0x27;
-
 const int kShiftRegisterColumnLeftOffset = 4;
 
 const int kShiftRegisterColumnRightOffset = 4;
 
-const kNodeTerminalStripClasses = {0x62, 0x35};
+const kBdTerminalStripClasses = {HeapObjectClass.bdTerminalStrip, HeapObjectClass.bdTerminalStrip35};
 
 const int kTerminalStripColumnWidth = 8;
 
 const int kTerminalStripTargetLeftOffset = 8;
-
-const int kTerminalGlyphHiddenFlag = 0x800000;
 
 const _objAttrIds = {
   0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, 0x74, //
@@ -1053,14 +1083,14 @@ class ViDiagram {
 
   List<ViHeapObject> framesOf(ViHeapObject structure) => [
     for (final child in children(structure.oid))
-      if (child.kind == kViFrameCode) child,
+      if (child.objectClass == HeapObjectClass.bdFrame) child,
   ];
 
   int? displayedFrameIndex(ViHeapObject structure) {
     if (!kMultiFrameStructureClasses.contains(structure.objectClass)) return null;
     var frames = 0;
     for (final child in children(structure.oid)) {
-      if (child.kind == kViFrameCode) frames++;
+      if (child.objectClass == HeapObjectClass.bdFrame) frames++;
     }
     final index = structure.visibleFrameIndex;
     return index < frames ? index : null;
@@ -1445,7 +1475,7 @@ class ViDiagram {
     return dcoOid == null || dcoOid == _ambiguousTerminal ? null : byId[dcoOid];
   }
 
-  bool terminalGlyphHidden(int oid) => ((terminalDco(oid)?.objFlags ?? 0) & kTerminalGlyphHiddenFlag) != 0;
+  bool terminalGlyphHidden(int oid) => terminalDco(oid)?.hasFlag(ViObjFlag.terminalGlyphHidden) ?? false;
 
   ViHeapObject? endpointConstant(int oid) {
     final endpoint = byId[oid];
@@ -1544,9 +1574,9 @@ class ViDiagram {
     var x = rect.left + (rect.right - rect.left) ~/ 2;
     if (attachRect != null) {
       final terminalKind = endpointTerminal(oid)?.kind;
-      if (terminalKind == kRightShiftRegisterClass) {
+      if (terminalKind == HeapObjectClass.bdRightShiftRegister.code) {
         x -= kShiftRegisterColumnLeftOffset;
-      } else if (terminalKind == kLeftShiftRegisterClass) {
+      } else if (terminalKind == HeapObjectClass.bdLeftShiftRegister.code) {
         x += kShiftRegisterColumnRightOffset;
       }
     }
@@ -1556,7 +1586,7 @@ class ViDiagram {
   ViPoint? _stripFarTarget(int oid, HeapRect? attachRect, ViPoint? attach) {
     if (attachRect == null || attach == null) return null;
     if (attachRect.right - attachRect.left != kTerminalStripColumnWidth) return null;
-    if (!kNodeTerminalStripClasses.contains(endpointTerminal(oid)?.kind)) return null;
+    if (!kBdTerminalStripClasses.contains(endpointTerminal(oid)?.objectClass)) return null;
     return (x: attach.x - kTerminalStripTargetLeftOffset, y: attach.y);
   }
 
@@ -2126,7 +2156,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
     if (bounds.width * bounds.height >= _structureAreaCap) continue;
-    if (object.parentOid == null || byOid[object.parentOid]?.kind != kViFrameCode) continue;
+    if (object.parentOid == null || byOid[object.parentOid]?.objectClass != HeapObjectClass.bdFrame) continue;
     final cs = nodeKids[object.oid];
     if (cs == null) continue;
     final hasStructural = cs.any((c) => c.kind == kNodeEndpointDcoKind);
@@ -2278,7 +2308,7 @@ void resolveDataSpaceTypes({
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
       if (object.objectClass == HeapObjectClass.node && object.typeDescIdx != null) {
-        object.isIndicator = ((object.objFlags ?? 0) & 1) != 0;
+        object.isIndicator = object.hasFlag(ViObjFlag.indicator);
       }
     }
   }

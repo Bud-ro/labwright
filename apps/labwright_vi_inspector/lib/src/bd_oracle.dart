@@ -652,18 +652,7 @@ List<Rect> bdStructureAnchorRects(
   return out;
 }
 
-ViDiagram? bestBlockDiagram(ViModel model) {
-  ViDiagram? best;
-  var bestCount = 0;
-  for (final diagram in model.blockDiagrams) {
-    final count = diagram.objects.where((o) => o.absBounds != null).length;
-    if (count > bestCount) {
-      best = diagram;
-      bestCount = count;
-    }
-  }
-  return best;
-}
+ViDiagram? bestBlockDiagram(ViModel model) => model.primaryBlockDiagram;
 
 Future<Uint8List> imageToPng(ui.Image image) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);

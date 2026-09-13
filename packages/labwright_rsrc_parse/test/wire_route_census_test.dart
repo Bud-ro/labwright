@@ -185,7 +185,7 @@ ViPoint? _stripTargetOf(ViDiagram d, ViWire w, int i) {
   final p = d.wireAttachPoint(w.endpointOids[i]);
   if (rect == null || p == null) return null;
   if (rect.right - rect.left != kTerminalStripColumnWidth) return null;
-  if (!kNodeTerminalStripClasses.contains(d.endpointTerminal(w.endpointOids[i])?.kind)) return null;
+  if (!kBdTerminalStripClasses.contains(d.endpointTerminal(w.endpointOids[i])?.objectClass)) return null;
   return (x: p.x - kTerminalStripTargetLeftOffset, y: p.y);
 }
 

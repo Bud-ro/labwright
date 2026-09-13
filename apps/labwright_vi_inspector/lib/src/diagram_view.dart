@@ -388,21 +388,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     _fitted = true;
   }
 
-  static ViDiagram? _largestDiagram(List<ViDiagram>? diagrams) {
-    if (diagrams == null || diagrams.isEmpty) return null;
-    ViDiagram? best;
-    var bestN = -1;
-    for (final diagram in diagrams) {
-      final placedCount = diagram.objects
-          .where((o) => o.absBounds != null)
-          .length;
-      if (placedCount > bestN) {
-        bestN = placedCount;
-        best = diagram;
-      }
-    }
-    return bestN <= 0 ? null : best;
-  }
+  static ViDiagram? _largestDiagram(List<ViDiagram>? diagrams) =>
+      diagrams == null ? null : largestDiagram(diagrams);
 }
 
 Color _typeColor(ViTypeKind kind) => switch (kind) {
@@ -424,6 +411,7 @@ Color _kindColor(ViObjectKind kind) => switch (kind) {
   ViObjectKind.terminal => const Color(0xFF5C9BD6),
   ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
   ViObjectKind.structure => const Color(0xFF9A6B2E),
+  ViObjectKind.frame => const Color(0xFF9A6B2E),
   ViObjectKind.decoration => const Color(0xFFBDBDBD),
   ViObjectKind.wire => const Color(0xFF303030),
   ViObjectKind.unknown => const Color(0xFF9E9E9E),
@@ -964,7 +952,7 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
 ) async {
   final xnodes = [
     for (final o in diagram.objects)
-      if (o.kind == 0x105 && o.absBounds != null) o,
+      if (o.objectClass == HeapObjectClass.bdXnode && o.absBounds != null) o,
   ];
   if (xnodes.isEmpty) return const {};
   final dsims = [
@@ -1002,7 +990,9 @@ Future<Map<int, ui.Image>> loadXnodeFacades(
   Uint8List viBytes,
   ViDiagram diagram,
 ) async {
-  if (!diagram.objects.any((o) => o.kind == 0x105 && o.absBounds != null)) {
+  if (!diagram.objects.any(
+    (o) => o.objectClass == HeapObjectClass.bdXnode && o.absBounds != null,
+  )) {
     return const {};
   }
   List<DecodedSection> sections;
@@ -1244,8 +1234,8 @@ class BdScene {
 
   Set<int> get errorCaseOids => semantics.errorCaseOids;
 
-  Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>
-  get borderTerminalKinds => semantics.borderTerminalKinds;
+  Map<HeapRect, BdBorderTerminal> get borderTerminalKinds =>
+      semantics.borderTerminalKinds;
 
   Map<int, List<({HeapRect box, int bmp})>> get structureTerminals =>
       semantics.structureTerminals;
@@ -1528,8 +1518,8 @@ class BdDiagramPainter extends CustomPainter {
   List<ViWire> get wires => scene.wires;
   Set<int> get disabledOids => scene.disabledOids;
   Set<int> get errorCaseOids => scene.errorCaseOids;
-  Map<HeapRect, ({int kind, bool hollow, bool centreDot, bool disabled})>
-  get borderTerminalKinds => scene.borderTerminalKinds;
+  Map<HeapRect, BdBorderTerminal> get borderTerminalKinds =>
+      scene.borderTerminalKinds;
   Map<int, List<({HeapRect box, int bmp})>> get structureTerminals =>
       scene.structureTerminals;
   Map<int, String> get constValues => scene.constValues;
@@ -1634,14 +1624,7 @@ class BdDiagramPainter extends CustomPainter {
             o.parentOid != null)
           o.parentOid!,
     };
-    final tunnelSquares =
-        <
-          (
-            Rect,
-            ({int kind, bool hollow, bool centreDot, bool disabled}),
-            Color,
-          )
-        >[];
+    final tunnelSquares = <(Rect, BdBorderTerminal, Color)>[];
     final chromeOwnedRects = <Rect>{
       for (final attach in borderTerminalKinds.keys) _toCanvas(attach),
     };
@@ -1756,7 +1739,7 @@ class BdDiagramPainter extends CustomPainter {
             disabled: structDisabled,
             error: errorCaseOids.contains(object.oid),
           );
-          if (((object.objFlags ?? 0) & 0x1000000) != 0) {
+          if (object.hasFlag(ViObjFlag.caseInsensitiveSelector)) {
             _drawCaseInsensitiveBadge(
               canvas,
               rect,
@@ -1880,13 +1863,12 @@ class BdDiagramPainter extends CustomPainter {
 
   void _paintBorderChrome(
     Canvas canvas,
-    List<
-      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
-    >
-    tunnelSquares,
+    List<(Rect, BdBorderTerminal, Color)> tunnelSquares,
   ) {
     tunnelSquares.sort(
-      (a, b) => _chromeZOrder(a.$2.kind).compareTo(_chromeZOrder(b.$2.kind)),
+      (a, b) => _chromeZOrder(
+        a.$2.objectClass,
+      ).compareTo(_chromeZOrder(b.$2.objectClass)),
     );
     for (final (rect, info, color) in tunnelSquares) {
       _drawBorderTerminalChrome(canvas, rect, info, color);
@@ -1917,9 +1899,9 @@ class BdDiagramPainter extends CustomPainter {
         if (object.objectClass == HeapObjectClass.bdSelectorLabel) continue;
         final holder = scene.diagram.byId[object.parentOid ?? -1];
         final backed =
-            holder?.kind == 0x1b ||
+            holder?.objectClass == HeapObjectClass.bdFrame ||
             (holder?.objectClass == HeapObjectClass.caseOrSequence &&
-                ((object.objFlags ?? 0) & 0x800) == 0);
+                !object.hasFlag(ViObjFlag.labelNoBacking));
         final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
             : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
@@ -2328,7 +2310,8 @@ class BdDiagramPainter extends CustomPainter {
       if (dco.kind != kNodeEndpointDcoKind) continue;
       for (final t in scene.diagram.children(dco.oid)) {
         final tb = t.termBounds;
-        if (t.kind != 0x62 || tb == null) continue;
+        if (t.objectClass != HeapObjectClass.bdTerminalStrip || tb == null)
+          continue;
         if (tb.height >= nodeH) {
           cells.add(tb);
         } else {
@@ -2570,10 +2553,7 @@ class BdDiagramPainter extends CustomPainter {
 
   void _drawWires(
     Canvas canvas, {
-    List<
-      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
-    >?
-    tunnelSquares,
+    List<(Rect, BdBorderTerminal, Color)>? tunnelSquares,
   }) {
     if (wires.isEmpty) return;
     final anchors = _collectWireAnchors();
@@ -2780,10 +2760,7 @@ class BdDiagramPainter extends CustomPainter {
     required _BdWireAnchors anchors,
     required Map<int, ({Color? color, bool error})> nets,
     required List<_BdWireSeg> drawn,
-    required List<
-      (Rect, ({int kind, bool hollow, bool centreDot, bool disabled}), Color)
-    >?
-    tunnelSquares,
+    required List<(Rect, BdBorderTerminal, Color)>? tunnelSquares,
   }) {
     final tunnels = _wireTunnelChrome(wire);
     final net = nets[wire.signalOid]!;
@@ -2919,10 +2896,8 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  List<(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>
-  _wireTunnelChrome(ViWire wire) {
-    final tunnels =
-        <(Rect, ({int kind, bool hollow, bool centreDot, bool disabled}))>[];
+  List<(Rect, BdBorderTerminal)> _wireTunnelChrome(ViWire wire) {
+    final tunnels = <(Rect, BdBorderTerminal)>[];
     for (
       var endpointIndex = 0;
       endpointIndex < wire.endpointAnchors.length;
@@ -4461,11 +4436,13 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  static int _chromeZOrder(int kind) => switch (kind) {
-    0x22 || 0x2d => 0,
-    0x27 || 0x28 => 1,
-    _ => 2,
-  };
+  static int _chromeZOrder(HeapObjectClass objectClass) =>
+      switch (objectClass) {
+        HeapObjectClass.bdLoopTunnel || HeapObjectClass.bdCaseTunnel => 0,
+        HeapObjectClass.bdLeftShiftRegister ||
+        HeapObjectClass.bdRightShiftRegister => 1,
+        _ => 2,
+      };
 
   static Paint _solidNoAa(Color color) => Paint()
     ..color = color
@@ -4507,17 +4484,17 @@ class BdDiagramPainter extends CustomPainter {
   void _drawBorderTerminalChrome(
     Canvas canvas,
     Rect t,
-    ({int kind, bool hollow, bool centreDot, bool disabled}) info,
+    BdBorderTerminal info,
     Color wireColor,
   ) {
-    final kind = info.kind;
+    final objectClass = info.objectClass;
     final ringColor = info.disabled ? kBdDisabledChromeGrey : kBdTunnelBorder;
     final creamColor = info.disabled
         ? bdDimDisabled(kBdTerminalFill)
         : kBdTerminalFill;
     final noAa = _solidNoAa(wireColor);
-    switch (kind) {
-      case 0x22 || 0x2d || 0x2a || 0xcb || 0xce:
+    if (kBdTunnelClasses.contains(objectClass)) {
+      {
         if (info.hollow) {
           canvas.drawRect(t, _solidNoAa(creamColor));
           if (t.width == 9 && t.height == 9) {
@@ -4549,11 +4526,13 @@ class BdDiagramPainter extends CustomPainter {
             ..strokeWidth = 1
             ..isAntiAlias = false,
         );
-      case 0x27 || 0x28:
+      }
+    } else if (kBdShiftRegisterClasses.contains(objectClass)) {
+      {
         canvas.drawRect(t, noAa);
         canvas.drawRect(t.deflate(2), _solidNoAa(creamColor));
         if (t.width == 16 && t.height == 12) {
-          final down = kind == 0x27;
+          final down = objectClass == HeapObjectClass.bdLeftShiftRegister;
           for (var i = 0; i < 5; i++) {
             final width = down ? 10 - 2 * i : 2 + 2 * i;
             final row = (down ? 2 + i : 1 + i).toDouble();
@@ -4568,7 +4547,9 @@ class BdDiagramPainter extends CustomPainter {
             );
           }
         }
-      case 0x2e:
+      }
+    } else if (objectClass == HeapObjectClass.bdSelectorTerminal) {
+      {
         canvas.drawRect(t, noAa);
         canvas.drawRect(t.deflate(1), _solidNoAa(creamColor));
         if (t.width == 8 && t.height == 12) {
@@ -4586,6 +4567,7 @@ class BdDiagramPainter extends CustomPainter {
           ];
           _stampBitmap(canvas, noAa, glyph, t.left + 1, t.top + 1, on: 'x');
         }
+      }
     }
   }
 
