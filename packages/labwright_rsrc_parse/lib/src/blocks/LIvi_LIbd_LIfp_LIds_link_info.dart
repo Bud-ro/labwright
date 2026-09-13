@@ -208,10 +208,6 @@ class _LiCursor {
   int p = 0;
   bool ok = true;
 
-  int? lastPathLen;
-
-  bool heapPathEmpty = false;
-
   bool ge(int a, int c, int d) {
     if (major != a) return major > a;
     if (minor != c) return minor > c;
@@ -289,8 +285,8 @@ void _liPathRef(_LiCursor c) {
   }
   c.skip(4);
   final len = c.u32();
-  c.lastPathLen = len;
   c.skip(len);
+  if (len == 0) c.skip(4);
 }
 
 void _liPStr(_LiCursor c) {
@@ -364,15 +360,11 @@ void _liOffsetSave(_LiCursor c) {
 }
 
 void _liHeapToVi(_LiCursor c) {
-  c.heapPathEmpty = false;
   _liOffsetSave(c);
   if (!c.ok) return;
   if (!c.ge(8, 6, 0)) _liOffList(c);
   if (!c.ok) return;
-  if (c.ge(8, 2, 0)) {
-    _liPathRef(c);
-    c.heapPathEmpty = c.lastPathLen == 0;
-  }
+  if (c.ge(8, 2, 0)) _liPathRef(c);
 }
 
 void _liUdApiCache(_LiCursor c) {
@@ -472,15 +464,7 @@ void _liHeapToRcFile(_LiCursor c) {
 }
 
 void _liActiveXTypeLib(_LiCursor c) {
-  _liBasic(c);
-  if (!c.ok) return;
-  c.skip(4);
-  _liU2p2(c);
-  if (!c.ok) return;
-  _liViLinkRef(c);
-  if (!c.ok) return;
-  if (c.ge(12, 0, 0)) c.skip(4);
-  _liOffList(c);
+  _liOffsetSave(c);
   if (!c.ok) return;
   c.skip(40);
 }
@@ -488,11 +472,62 @@ void _liActiveXTypeLib(_LiCursor c) {
 void _liHeapToAssembly(_LiCursor c) {
   _liOffsetSave(c);
   if (!c.ok) return;
-  c.skip(8);
+  if (c.ge(8, 5, 0)) {
+    _liAssemblyPath(c);
+    return;
+  }
+  c.skip(4);
   for (var i = 0; i < 4; i++) {
     c.skip(c.u8());
     if (!c.ok) return;
   }
+  c.skip(4);
+}
+
+void _liViToAssembly(_LiCursor c) {
+  _liBasic(c);
+  if (!c.ok) return;
+  _liAssemblyPath(c);
+}
+
+void _liAssemblyPath(_LiCursor c) {
+  if (!c.ge(10, 0, 0)) return;
+  c.pad(2);
+  _liPathRef(c);
+}
+
+void _liEio(_LiCursor c, {required bool heap}) {
+  _liBasic(c);
+  if (!c.ok) return;
+  _liLStr(c);
+  if (!c.ok) return;
+  c.skip(4);
+  _liLStr(c);
+  if (!c.ok) return;
+  if (heap) _liOffList(c);
+  if (!c.ok) return;
+  _liLStr(c);
+  if (!c.ok) return;
+  _liBool(c);
+}
+
+void _liVariable(_LiCursor c, {required bool heap}) {
+  _liBasic(c);
+  if (!c.ok) return;
+  for (var i = 0; i < 3; i++) {
+    _liLStr(c);
+    if (!c.ok) return;
+  }
+  if (heap) _liOffList(c);
+  if (!c.ok) return;
+  _liLStr(c);
+  if (!c.ok) return;
+  c.skip(4);
+  _liLStr(c);
+  if (!c.ok) return;
+  c.skip(16);
+  _liLStr(c);
+  if (!c.ok) return;
   c.skip(4);
 }
 
@@ -511,15 +546,9 @@ void _liUdViApi(_LiCursor c) {
   _liUdApiCache(c);
 }
 
-void _liTrailer(_LiCursor c) {
-  if (c.ge(8, 6, 0)) _liOffList(c);
-}
-
 void _liBool(_LiCursor c) => c.skip(c.ge(4, 5, 0) ? 1 : 2);
 
 void _liCcSymbol(_LiCursor c) {
-  _liLStr(c);
-  if (!c.ok) return;
   _liLStr(c);
   if (!c.ok) return;
   _liLStr(c);
@@ -553,12 +582,9 @@ void _liEntry(_LiCursor c, String kind) {
     case 'VILB':
       _liBasic(c);
     case 'IUVI':
-      final heapForm = c.ge(8, 2, 0);
-      heapForm ? _liHeapToVi(c) : _liOffsetSave(c);
+      c.ge(8, 2, 0) ? _liHeapToVi(c) : _liOffsetSave(c);
       if (!c.ok) return;
       if (c.ge(8, 0, 0)) _liPStr(c);
-      if (!c.ok) return;
-      if (heapForm && c.heapPathEmpty) _liOffList(c);
     case 'VIVI':
       _liTyped(c);
       if (!c.ok) return;
@@ -573,14 +599,25 @@ void _liEntry(_LiCursor c, String kind) {
       if (!c.ok) return;
       c.skip(4);
     case 'TDCC':
-      _liHeapToVi(c);
-      if (!c.ok) return;
-      if (c.heapPathEmpty) _liOffList(c);
     case 'PUPV':
     case 'SVVI':
       _liHeapToVi(c);
+    case 'XNVI':
+      _liHeapToVi(c);
       if (!c.ok) return;
-      if (c.heapPathEmpty) _liOffList(c);
+      _liLStr(c);
+    case 'VIIV':
+      _liTyped(c);
+      if (!c.ok) return;
+      _liQualName(c);
+      if (!c.ok) return;
+      _liPathRef(c);
+      if (!c.ok) return;
+      _liBool(c);
+    case 'IUIV':
+      _liHeapToVi(c);
+      if (!c.ok) return;
+      c.skip(2);
     case 'V2CC':
       _liBasic(c);
       if (!c.ok) return;
@@ -588,20 +625,10 @@ void _liEntry(_LiCursor c, String kind) {
     case 'H2CC':
       _liOffsetSave(c);
       if (!c.ok) return;
-      _liOffList(c);
-      if (!c.ok) return;
-      _liLStr(c);
-      if (!c.ok) return;
-      _liLStr(c);
-      if (!c.ok) return;
-      _liBool(c);
-    case 'DSDS':
-      _liOffsetSave(c);
-      if (!c.ok) return;
-      if (c.ge(8, 6, 0)) _liOffList(c);
-      if (!c.ok) return;
-      _liTrailer(c);
+      _liCcSymbol(c);
     case 'DSSV':
+      _liOffsetSave(c);
+    case 'DSDS':
       _liOffsetSave(c);
       if (!c.ok) return;
       if (c.ge(8, 6, 0)) _liOffList(c);
@@ -613,7 +640,24 @@ void _liEntry(_LiCursor c, String kind) {
       if (!c.ok) return;
       if (c.ge(8, 6, 0)) c.skip(12);
     case 'VIXN':
+    case 'VIXC':
       _liGiSave(c);
+    case 'XCXI':
+      _liOffsetSave(c);
+      if (!c.ok) return;
+      if (c.ge(8, 6, 0)) c.skip(12);
+    case 'VIGV':
+      _liTyped(c);
+      if (!c.ok) return;
+      c.skip(36);
+    case 'GUGV':
+      _liHeapToVi(c);
+      if (!c.ok) return;
+      c.skip(38);
+    case 'EiVr':
+      _liEio(c, heap: false);
+    case 'HpEr':
+      _liEio(c, heap: true);
     case 'FPPI':
     case 'DDPI':
     case 'VRPI':
@@ -633,6 +677,16 @@ void _liEntry(_LiCursor c, String kind) {
       _liActiveXTypeLib(c);
     case 'DNDA':
       _liHeapToAssembly(c);
+    case 'DNVA':
+      _liViToAssembly(c);
+    case 'DSVr':
+    case 'DSSC':
+    case 'NSCR':
+      _liOffsetSave(c);
+    case 'VIVr':
+      _liVariable(c, heap: false);
+    case 'HpVr':
+      _liVariable(c, heap: true);
     default:
       c.ok = false;
   }

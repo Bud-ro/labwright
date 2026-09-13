@@ -1,4 +1,4 @@
-/// `CNST` / `LPIN` / `BDTS` — runs of u32 words whose roles are not decoded.
+/// `CNST` / `LPIN` — runs of u32 words whose roles are not decoded.
 ///
 /// ```text
 /// offset  size  field                      type     meaning
