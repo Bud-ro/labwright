@@ -7,8 +7,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
-import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
+import 'package:labwright_rsrc_parse/testing.dart';
 
 import 'util.dart';
 
@@ -133,7 +133,7 @@ void main() {
   testWidgets('tapping an embedded sub-VI opens it in the inspector', (
     tester,
   ) async {
-    final nested = demoViBytes(name: 'NestedDemo.vi');
+    final nested = minimalViBytes(name: 'NestedDemo.vi');
     await _pump(
       tester,
       ViInspectorScreen(
@@ -167,7 +167,7 @@ void main() {
     await tester.runAsync(() async {
       final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
       final png = await imageToPng(await imageFromRgba(rgba, 60, 60));
-      File(snippetPath).writeAsBytesSync(spliceNiVi(png, demoViBytes()));
+      File(snippetPath).writeAsBytesSync(spliceNiVi(png, minimalViBytes()));
       File(plainPath).writeAsBytesSync(png);
     });
 

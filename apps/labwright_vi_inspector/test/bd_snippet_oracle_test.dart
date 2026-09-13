@@ -4,7 +4,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
-import 'package:labwright_vi_inspector/src/vi_demo.dart';
+import 'package:labwright_rsrc_parse/testing.dart';
 
 import 'util.dart';
 
@@ -483,7 +483,7 @@ void main() {
       final asIs = await decodeReferenceImage(plain);
       expect(asIs.snippetCropped, isFalse);
       expect((asIs.image.width, asIs.image.height), (60, 60));
-      final snippet = spliceNiVi(plain, demoViBytes());
+      final snippet = spliceNiVi(plain, minimalViBytes());
       final cropped = await decodeReferenceImage(snippet);
       expect(cropped.snippetCropped, isTrue);
       expect((cropped.image.width, cropped.image.height), (56, 32));

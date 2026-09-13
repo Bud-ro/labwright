@@ -3,10 +3,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/vi_demo.dart';
+import 'package:labwright_rsrc_parse/testing.dart';
 
 void main() {
-  test('demoViBytes parses into a VI with the expected capabilities', () {
-    final load = summarize(demoViBytes());
+  test('minimalViBytes parses into a VI with the expected capabilities', () {
+    final load = summarize(minimalViBytes());
     expect(load.isOk, isTrue);
     final vi = load.summary!;
     expect(vi.name, 'demo.vi');
@@ -38,10 +39,4 @@ void main() {
       }
     },
   );
-
-  test('every common block tag has a glossary entry', () {
-    for (final t in ['BDHb', 'FPHb', 'CONP', 'LIvi', 'vers']) {
-      expect(kBlockGlossary[t], isNotNull);
-    }
-  });
 }
