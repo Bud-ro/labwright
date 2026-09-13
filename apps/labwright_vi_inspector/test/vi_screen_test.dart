@@ -98,7 +98,7 @@ void main() {
     expect(find.text('BDEx'), findsOneWidget);
     expect(find.textContaining('76.2 KB'), findsWidgets);
     expect(find.text('Block inventory (by category)'), findsOneWidget);
-    expect(find.text('recordHeap'), findsOneWidget);
+    expect(find.text('frontPanelHeap'), findsOneWidget);
     expect(find.textContaining('Front-panel heap'), findsOneWidget);
 
     await tester.enterText(find.byKey(const Key('string-search')), 'error');
