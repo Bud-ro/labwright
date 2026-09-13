@@ -3,15 +3,14 @@ import 'dart:typed_data';
 import '../labwright_rsrc_parse.dart';
 
 /// Everything decoded from one VI that the inspector and transpiler consume: the version and
-/// title, per-block component totals, the recovered string tables and C4 records, the diagrams
-/// of both sides, the type pool, the sub-VI names, the connector-pane type and the font table.
+/// title, per-block component totals, the C4 records, the diagrams of both sides, the type
+/// pool, the sub-VI names, the connector-pane type and the font table.
 class ViModel {
   const ViModel({
     required this.version,
     required this.title,
     this.description,
     required this.components,
-    required this.stringTables,
     required this.heapRecords,
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
@@ -31,8 +30,6 @@ class ViModel {
   final String? description;
 
   final List<BlockComponent> components;
-
-  final List<HeapStringTable> stringTables;
 
   /// Every C4 record across the heap sections, in file order.
   final List<HeapRecord> heapRecords;
@@ -59,10 +56,6 @@ class ViModel {
 
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
 
-  List<HeapRect> get objectBounds => heapRecords.map((r) => r.bounds).whereType<HeapRect>().toList();
-
-  List<ViObject> get objects => assembleObjects(heapRecords, stringTables);
-
   List<String> _dedupe(Iterable<String?> values) {
     final seen = <String>{};
     return [
@@ -84,86 +77,6 @@ class ViModel {
   List<String> get paths => _dedupe([for (final record in heapRecords) record.path]);
 
   List<String> get descriptions => _dedupe([for (final record in heapRecords) record.descriptionText]);
-
-  List<String> get labels => _dedupe(stringTables.expand((t) => t.strings));
-}
-
-/// A bounds rectangle paired with the caption or string table that follows it in the heap,
-/// see [assembleObjects].
-class ViObject {
-  const ViObject({
-    required this.sectionTag,
-    required this.bounds,
-    this.caption,
-    this.labels = const <String>[],
-  });
-
-  final String sectionTag;
-
-  final HeapRect bounds;
-
-  final String? caption;
-
-  final List<String> labels;
-
-  String? get name => caption ?? (labels.isEmpty ? null : labels.first);
-}
-
-/// Pairs each caption or framed string-table record with the bounds record at most
-/// [maxRecordGap] records before it in the same section.
-List<ViObject> assembleObjects(List<HeapRecord> records, List<HeapStringTable> stringTables, {int maxRecordGap = 3}) {
-  final framed = {
-    for (final table in stringTables)
-      if (table.framed) '${table.sectionTag}@${table.offset}': table,
-  };
-
-  final out = <ViObject>[];
-  HeapRect? lastBounds;
-  var lastBoundsIdx = -1;
-  String? section;
-  var idx = 0;
-  void attach(ViObject o) {
-    out.add(o);
-    lastBounds = null;
-  }
-
-  for (final record in records) {
-    if (record.sectionTag != section) {
-      section = record.sectionTag;
-      lastBounds = null;
-      lastBoundsIdx = -1;
-    }
-    final pendingBounds = idx - lastBoundsIdx <= maxRecordGap ? lastBounds : null;
-    final recordBounds = record.bounds;
-    if (record.kind == HeapOpcode.bounds && recordBounds != null) {
-      lastBounds = recordBounds;
-      lastBoundsIdx = idx;
-    } else if (record.kind == HeapOpcode.caption && pendingBounds != null) {
-      final cap = record.text;
-      if (cap != null) {
-        attach(
-          ViObject(
-            sectionTag: record.sectionTag,
-            bounds: pendingBounds,
-            caption: cap,
-          ),
-        );
-      }
-    } else if (record.kind == HeapOpcode.stringTable && pendingBounds != null) {
-      final table = framed['${record.sectionTag}@${record.offset + record.headerLength}'];
-      if (table != null) {
-        attach(
-          ViObject(
-            sectionTag: record.sectionTag,
-            bounds: pendingBounds,
-            labels: table.strings,
-          ),
-        );
-      }
-    }
-    idx++;
-  }
-  return out;
 }
 
 /// Decodes every section of a VI and builds its [ViModel].
@@ -217,7 +130,6 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     title: ver.title,
     description: cpc2Description(sections),
     components: componentsFromDecoded(list),
-    stringTables: heapStringTablesFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
