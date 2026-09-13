@@ -41,6 +41,7 @@
 ///                             samples with a digital table; dynamic data is [u32 count] f64
 ///                             waveforms
 /// refnum                      u32, or as ViRefnumKind says for the resource, tag and class kinds
+/// fixed point                 8 bytes
 /// pointer                     nothing from LabVIEW 8.6, u32 before; a pointer-to is a u32
 /// block, aligned block        the size word of the descriptor in bytes
 /// repeated block              the client's value, count times
@@ -256,6 +257,9 @@ List<int> _specialMembers(int flags, ViVersionWord version) {
   if (TypeMapFlag.member2Stored.isSetIn(flags)) return const [2];
   return const [];
 }
+
+/// The flattened size of a fixed-point value.
+const _fixedPointBytes = 8;
 
 final class _Walk {
   _Walk(this.bytes, this.context) : view = ByteData.sublistView(bytes);
@@ -477,6 +481,8 @@ final class _Walk {
     switch (type.code) {
       case TypeCode.voidBlock || TypeCode.alignmentMarker:
         return at;
+      case TypeCode.fixedPoint:
+        return _fixed(at, _fixedPointBytes);
       case TypeCode.block || TypeCode.alignedBlock:
         return _fixed(at, descriptor.getUint32(type.offset + 4));
       case TypeCode.repeatedBlock:

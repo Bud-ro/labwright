@@ -5,8 +5,8 @@
 /// 0       rest  offsets                    u32[]    non-decreasing offsets; target TODO
 /// ```
 ///
-/// [ViOffsetTable] is a view over the payload; [decodeOffsetTable] requires a non-empty
-/// whole number of u32 words that never decrease.
+/// [ViOffsetTable] is a view over the payload; [decodeOffsetTable] requires a whole number
+/// of u32 words, possibly none, that never decrease.
 library;
 
 import 'dart:typed_data';
@@ -35,7 +35,7 @@ class ViOffsetTable implements BlockRecord {
 }
 
 ViOffsetTable decodeOffsetTable(Uint8List bytes) {
-  assert(bytes.isNotEmpty && bytes.length % 4 == 0, 'an offset table is a non-empty run of u32 words');
+  assert(bytes.length % 4 == 0, 'an offset table is a run of u32 words');
   assert(() {
     final view = ByteData.sublistView(bytes);
     for (var at = 4; at < bytes.length; at += 4) {

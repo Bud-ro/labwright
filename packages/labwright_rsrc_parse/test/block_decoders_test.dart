@@ -747,7 +747,7 @@ void main() {
       final words = decodeWordGrid(grid);
       expect((words.length, words[0], words[2]), (3, 0x3ae, 0x509));
       expect(() => decodeWordGrid(u8([1, 2, 3])), throwsA(isA<AssertionError>()));
-      expect(() => decodeWordGrid(u8([])), throwsA(isA<AssertionError>()));
+      expect(decodeWordGrid(u8([])).length, 0);
       expect(decodeVpdpRecord(u8([0, 0, 0, 0])).isZero, isTrue);
       expect(decodeVpdpRecord(u8([0, 0, 0, 1])).isZero, isFalse);
       final picc = u8([0, 0x92, 0x09, 0x02, 0, 0x2a, 0, 0x47, 0, 0xaa, 0xff, 0xa6]);

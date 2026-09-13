@@ -6,7 +6,7 @@
 /// ```
 ///
 /// [ViWordGrid] is a view over any whole-word payload and also backs `FPEx`, `BDEx`, `COUT`
-/// and `DLDR`; [decodeWordGrid] requires a non-empty whole number of u32 words.
+/// and `DLDR`; [decodeWordGrid] requires a whole number of u32 words, possibly none.
 library;
 
 import 'dart:typed_data';
@@ -35,6 +35,6 @@ class ViWordGrid implements BlockRecord {
 }
 
 ViWordGrid decodeWordGrid(Uint8List bytes) {
-  assert(bytes.isNotEmpty && bytes.length % 4 == 0, 'a word grid is a non-empty run of u32 words');
+  assert(bytes.length % 4 == 0, 'a word grid is a run of u32 words');
   return ViWordGrid(bytes);
 }
