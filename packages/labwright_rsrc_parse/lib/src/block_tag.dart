@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'block_layout.dart';
+import 'blocks/BDHb_BDHc_BDHP_block_diagram.dart';
 import 'blocks/BDPW_password.dart';
 import 'blocks/BFAL_align_table.dart';
 import 'blocks/BKMK_bookmarks.dart';
@@ -15,6 +16,7 @@ import 'blocks/DLDR_default_data_loader.dart';
 import 'blocks/DSIM_data_space_image.dart';
 import 'blocks/DTHP_data_type_heap.dart';
 import 'blocks/FPEx_BDEx_extended_state.dart';
+import 'blocks/FPHb_FPHc_FPHP_front_panel.dart';
 import 'blocks/FPSE_BDSE_section_entry.dart';
 import 'blocks/FPTD_front_panel_type_descriptors.dart';
 import 'blocks/FTAB_font_table.dart';
@@ -122,10 +124,24 @@ enum BlockConfidence {
 /// `STR ` and `PRT ` end in a space. [of] looks a tag up.
 enum BlockTag {
   /// Front-panel object heap, a C4 record heap.
-  fphb('FPHb', 'Front-panel heap', BlockCategory.frontPanelHeap, BlockConfidence.confirmed),
+  fphb(
+    'FPHb',
+    'Front-panel heap',
+    BlockCategory.frontPanelHeap,
+    BlockConfidence.confirmed,
+    decodeFrontPanel,
+    frontPanelHeapLayout,
+  ),
 
   /// Block-diagram object heap, a C4 record heap.
-  bdhb('BDHb', 'Block-diagram heap', BlockCategory.blockDiagramHeap, BlockConfidence.confirmed),
+  bdhb(
+    'BDHb',
+    'Block-diagram heap',
+    BlockCategory.blockDiagramHeap,
+    BlockConfidence.confirmed,
+    decodeBlockDiagram,
+    blockDiagramHeapLayout,
+  ),
 
   /// Front-panel heap in the `c` encoding, which is not a C4 record heap; not decoded.
   fphc('FPHc', 'Front-panel heap, variant c', BlockCategory.frontPanelHeap, BlockConfidence.tentative),
@@ -647,8 +663,8 @@ enum BlockTag {
 
   final BlockConfidence confidence;
 
-  /// Decodes one section payload; null while the layout is not decoded, and
-  /// for [dfds] and the record heaps, which need sibling blocks.
+  /// Decodes one section payload; null while the layout is not decoded, and for [dfds],
+  /// which needs sibling blocks.
   final Object? Function(Uint8List)? decode;
 
   /// The payload's byte layout, rendered into the block file's doc comment by
@@ -660,7 +676,7 @@ enum BlockTag {
 
   bool get isRecordHeap => recordHeaps.contains(this);
 
-  bool get isDecoded => decode != null || isRecordHeap || this == dfds;
+  bool get isDecoded => decode != null || this == dfds;
 
   static final Map<String, BlockTag> _byTag = {for (final t in values) t.tag: t};
 

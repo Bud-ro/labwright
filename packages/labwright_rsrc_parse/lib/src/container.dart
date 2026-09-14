@@ -1,9 +1,68 @@
+/// The RSRC container: a 32-byte header, a data area of `[u32 length][payload]` sections,
+/// and an info area that repeats the header, lists every block, and describes each section.
+///
+/// ```text
+/// offset  size   field           type      meaning
+/// 0       6      magic           bytes     "RSRC\r\n"
+/// 6       2      formatVersion   u16
+/// 8       4      fileType        4cc       LVIN for a VI, LVCC for a control
+/// 12      4      creator         4cc
+/// 16      4      infoOffset      u32       start of the info area
+/// 20      4      infoSize        u32
+/// 24      4      dataOffset      u32       start of the data area
+/// 28      4      dataSize        u32
+/// ```
+///
+/// Info area, offsets relative to `infoOffset`:
+///
+/// ```text
+/// offset  size   field           type      meaning
+/// 0       32     headerCopy      ViHeader  repeats the file header
+/// 32      12     TODO            u32[3]    the third word is a marker; roles TODO
+/// 44      4      blockListRel    u32       offset of the block list within the info area
+/// 48      4      viNameOffset    u32       offset of the trailing VI name, when the block list starts at 52
+/// …       4      blockCount      u32       one less than the entries that follow
+/// …       12×n   blockList       entry[]   [4cc tag][u32 sectionCount - 1][u32 descRel]
+/// …       8      preGap          [u32 TODO][u32 namespace]
+/// …       20×m   descriptors     entry[]   [u32 TODO][u32 secRel][u32 TODO][u32 nameRef][u32 namespace],
+///                                          descRel counts from blockListRel + 8
+/// …       12     nameTableHeader           u32 at 4 is the final entry's secRel
+/// …       rest   viName          pstr      the VI name
+/// ```
+///
+/// Every section's payload sits at `dataOffset + secRel` behind its own `u32` length. The
+/// namespace word selects the file's own sections or the embedded ones, see [SectionNamespace].
+/// [ViContainer] slices the three regions; [ViInfoArea] parses the info area; [ViVi] re-emits a
+/// file with edited sections.
+library;
+
 import 'dart:typed_data';
 
 import 'viparse.dart' show ViFormatException, readViSections;
 
 const _maxPlausibleBlockCount = 100000;
 
+/// Which block list a section belongs to: the descriptor word at 16 and the pre-gap flags.
+enum SectionNamespace {
+  /// `0xFFFFFFFF`: the file's own sections.
+  own(0xFFFFFFFF),
+
+  /// `0`: sections of embedded resources (`LIBN`, `VINS`).
+  embedded(0)
+  ;
+
+  const SectionNamespace(this.word);
+
+  final int word;
+
+  static SectionNamespace? of(int word) => switch (word) {
+    0xFFFFFFFF => own,
+    0 => embedded,
+    _ => null,
+  };
+}
+
+/// The 32-byte file header.
 class ViHeader {
   ViHeader({
     required this.magic,
@@ -24,10 +83,12 @@ class ViHeader {
 
   final Uint8List creatorBytes;
 
+  /// Start of the info area within the file.
   final int infoOffset;
 
   final int infoSize;
 
+  /// Start of the data area within the file.
   final int dataOffset;
 
   final int dataSize;
@@ -88,6 +149,8 @@ class ViHeader {
   }
 }
 
+/// The info area up to the block list: a copy of the header, undecoded words, the block-list
+/// offset and the bytes before the list (the VI-name offset when they are one word).
 class ViInfoSubheader {
   ViInfoSubheader({
     required this.headerCopy,
@@ -98,11 +161,13 @@ class ViInfoSubheader {
 
   final ViHeader headerCopy;
 
-  // TODO: the third word of reservedA is not decoded.
+  /// The 12 bytes at 32; the third word is a marker, roles TODO.
   final Uint8List reservedA;
 
+  /// Offset of the block list within the info area.
   final int blockListRel;
 
+  /// The bytes between offset 48 and the block list.
   final Uint8List reservedB;
 
   int? get reservedAMarker => reservedA.length >= 12 ? ByteData.sublistView(reservedA).getUint32(8) : null;
@@ -135,6 +200,8 @@ class ViInfoSubheader {
   }
 }
 
+/// One block: its tag, its section count minus one, and the offset of its descriptors counted
+/// from `blockListRel + 8`.
 class ViBlockListEntry {
   ViBlockListEntry({required this.tagBytes, required this.sectionCountMinus1, required this.descRel});
 
@@ -165,6 +232,8 @@ class ViBlockListEntry {
   }
 }
 
+/// The block list. The stored count is one less than the entries present; [finalEntry] is the
+/// extra entry, whose 12-byte descriptor lives in the name-table header.
 class ViBlockList {
   ViBlockList({required this.entries, this.finalEntry});
 
@@ -214,6 +283,7 @@ class ViBlockList {
   }
 }
 
+/// One section's 20-byte descriptor.
 class ViSectionDescriptor {
   ViSectionDescriptor({
     required this.word0,
@@ -226,6 +296,7 @@ class ViSectionDescriptor {
   /// TODO: not decoded.
   final int word0;
 
+  /// Offset of the section's length word within the data area.
   final int secRel;
 
   /// TODO: not decoded.
@@ -234,14 +305,15 @@ class ViSectionDescriptor {
   /// TODO: the name table this index points into is not located.
   final int nameRef;
 
-  /// TODO: not decoded.
+  /// The namespace word, see [namespace].
   final int word16;
-
-  static const int commonWord16 = 0xFFFFFFFF;
 
   static const int byteSize = 20;
 
   bool get isNamed => nameRef != 0;
+
+  /// Null for a word that is neither namespace.
+  SectionNamespace? get namespace => SectionNamespace.of(word16);
 
   factory ViSectionDescriptor.parse(Uint8List info, int at) {
     if (at < 0 || at + byteSize > info.length) throw ViFormatException('descriptor out of range at $at');
@@ -275,6 +347,8 @@ class ViSectionDescriptor {
   }
 }
 
+/// The bytes after the descriptors: a header whose second word is the final entry's `secRel`,
+/// then the VI name as a Pascal string.
 class ViNameTable {
   ViNameTable({required this.header, required this.trailingNameRecord});
 
@@ -335,17 +409,19 @@ class ViNameTable {
           .toBytes();
 }
 
+/// The 8 bytes between the block list and the descriptors.
 class ViInfoPreGap {
   ViInfoPreGap({required this.word0, required this.flags});
 
   /// TODO: not decoded.
   final int word0;
 
+  /// [SectionNamespace.own]'s word when the file carries embedded sections, else 0.
   final int flags;
 
   static const int byteSize = 8;
 
-  bool get hasEmbeddedSections => flags == 0xFFFFFFFF;
+  bool get hasEmbeddedSections => SectionNamespace.of(flags) == SectionNamespace.own;
 
   factory ViInfoPreGap.parse(Uint8List bytes) {
     if (bytes.length < byteSize) throw ViFormatException('preGap record too short (${bytes.length})');
@@ -362,6 +438,8 @@ class ViInfoPreGap {
   }
 }
 
+/// The parsed info area; [descriptors] is empty when the descriptor run does not sit cleanly
+/// between the pre-gap and the name table.
 class ViInfoArea {
   ViInfoArea({
     required this.subheader,
@@ -478,8 +556,7 @@ class ViInfoArea {
       preGap: preGap,
       descriptors: [
         for (final descriptor in descriptors)
-          if (newSecRelByOld[descriptor.secRel] case final newSecRel?
-              when descriptor.word16 == ViSectionDescriptor.commonWord16)
+          if (newSecRelByOld[descriptor.secRel] case final newSecRel? when descriptor.namespace == SectionNamespace.own)
             descriptor.withSecRel(newSecRel)
           else
             descriptor,
@@ -496,6 +573,7 @@ class ViInfoArea {
           .toBytes();
 }
 
+/// The three byte regions of a file, parsed on demand; [toBytes] re-emits them unchanged.
 class ViContainer {
   ViContainer({required this.header, required this.dataArea, required this.infoArea});
 
@@ -536,6 +614,8 @@ class ViContainer {
   Uint8List toBytes() => _concat3(header, dataArea, infoArea);
 }
 
+/// An editable VI: the header, the data area as gaps and sections, and the info area.
+/// [serialize] re-emits the file, remapping every section's `secRel` after an edit.
 class ViVi {
   ViVi({required this.header, required this.dataSegments, required this.infoArea});
 
@@ -580,15 +660,18 @@ class ViVi {
   }
 }
 
+/// One run of the data area: either a section or the bytes between sections.
 sealed class ViDataSegment {
   const ViDataSegment();
 }
 
+/// Bytes of the data area no section descriptor accounts for.
 class ViGap extends ViDataSegment {
   const ViGap(this.bytes);
   final Uint8List bytes;
 }
 
+/// A section's payload at [secRel] (its length word is re-emitted by [ViExport.rebuildDataArea]).
 class ViSectionData extends ViDataSegment {
   const ViSectionData({required this.secRel, required this.payload});
   final int secRel;
@@ -612,6 +695,7 @@ Uint8List _concat3(Uint8List a, Uint8List b, Uint8List c) {
   return out;
 }
 
+/// Decomposes and rebuilds the data area, and edits one section's payload.
 abstract final class ViExport {
   static List<ViDataSegment> decomposeDataArea(Uint8List viBytes) {
     final container = ViContainer.parse(viBytes);
