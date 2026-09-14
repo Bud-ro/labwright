@@ -13,7 +13,7 @@ Map<String, int> _totality(Uint8List bytes, String path) {
   try {
     parseVi(bytes);
     for (final s in decodeSections(bytes)) {
-      if (!kHeapSectionTags.contains(s.tag) || s.bytes.length < 6) continue;
+      if (!(BlockTag.of(s.tag)?.isRecordHeap ?? false) || s.bytes.length < 6) continue;
       for (final span in measureHeapTiers(s.bytes, s.tag).walk.spans) {
         if (span.offset + span.length > s.bytes.length) c['walkOutOfBounds'] = (c['walkOutOfBounds'] ?? 0) + 1;
       }

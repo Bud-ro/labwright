@@ -1,7 +1,5 @@
 import 'dart:typed_data';
 
-import '../block_catalog.dart' show BlockConfidence;
-
 class ViDataTypeHeap {
   const ViDataTypeHeap({
     required this.rawLength,
@@ -20,8 +18,6 @@ class ViDataTypeHeap {
   final bool isExtended;
 
   final List<String> names;
-
-  static const BlockConfidence framingConfidence = BlockConfidence.confirmed;
 
   /// A heap typeDescIndex is 1-based within the run that starts at the 1-based [firstTopLevelIndex].
   int get viTypeIndexBase => firstTopLevelIndex - 2;

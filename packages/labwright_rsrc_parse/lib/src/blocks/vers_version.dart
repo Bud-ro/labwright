@@ -1,6 +1,5 @@
 import 'dart:typed_data';
 
-import '../block_catalog.dart' show BlockConfidence;
 import '../viparse.dart' show ViSection;
 
 class ViVersionWord {
@@ -23,8 +22,6 @@ class ViVersionWord {
   final int build;
 
   String get version => patch == 0 ? '$major.$minor' : '$major.$minor.$patch';
-
-  static const BlockConfidence confidence = BlockConfidence.confirmed;
 }
 
 ViVersionWord? decodeVersionWord(Uint8List bytes) {

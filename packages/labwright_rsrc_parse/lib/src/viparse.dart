@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'block_tag.dart';
 import 'blocks/HLPP_DLLP_help_path.dart';
 
 class ViFormatException implements Exception {
@@ -31,9 +32,11 @@ class ViSummary {
   bool get isVi => fileType == 'LVIN';
   bool get isControl => fileType == 'LVCC';
 
-  bool get hasBlockDiagram => blocks.contains('BDHb') || blocks.contains('BDHP');
+  bool _has(BlockCategory category) => blocks.any((tag) => BlockTag.of(tag)?.category == category);
 
-  bool get hasFrontPanel => blocks.contains('FPHb') || blocks.contains('FPHP');
+  bool get hasBlockDiagram => _has(BlockCategory.blockDiagramHeap);
+
+  bool get hasFrontPanel => _has(BlockCategory.frontPanelHeap);
 
   bool get hasConnectorPane => blocks.contains('CONP');
 

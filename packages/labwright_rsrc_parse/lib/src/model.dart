@@ -154,13 +154,13 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final list = decoded is List<DecodedSection> ? decoded : decoded.toList();
   final sections = list.map((d) => d.section).toList();
   final ver = versionFromSections(sections);
-  List<ViDiagram> diagramsFor(Set<String> tags) => [
+  List<ViDiagram> diagramsFor(BlockTag heap) => [
     for (final decodedSection in list)
-      if (tags.contains(decodedSection.tag) && decodedSection.bytes.length >= 6)
+      if (decodedSection.tag == heap.tag && decodedSection.bytes.length >= 6)
         buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag, version: ver.version),
   ];
-  final blockDiagrams = diagramsFor(const {'BDHb', 'BDHP', 'BDEx'});
-  final frontPanelDiagrams = diagramsFor(const {'FPHb', 'FPHP', 'FPEx'});
+  final blockDiagrams = diagramsFor(BlockTag.bdhb);
+  final frontPanelDiagrams = diagramsFor(BlockTag.fphb);
   final ftab = list.where((s) => s.tag == 'FTAB').map((s) => s.bytes).firstOrNull;
   final fontTable = ftab == null ? null : decodeFontTable(ftab);
   if (fontTable != null) {

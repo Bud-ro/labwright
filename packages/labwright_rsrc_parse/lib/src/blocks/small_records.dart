@@ -258,6 +258,8 @@ ViWordGrid? decodeWordGrid(Uint8List bytes, {int? words}) {
 
 ViWordGrid? decodeDldrRecord(Uint8List bytes) => decodeWordGrid(bytes, words: 7);
 
+ViWordGrid? decodeCoutRecord(Uint8List bytes) => decodeWordGrid(bytes, words: 3);
+
 class ViU16Record {
   const ViU16Record({required this.value});
   final int value;
