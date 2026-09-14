@@ -58,6 +58,51 @@ void main() {
     expect(() => decodeStringBlock(u8([0, 0, 0])), throwsA(isA<AssertionError>()));
   });
 
+  test('decodeCompiledCode (VICD): header, code-end pointer per layout word, bare or symbol-table CODE chunk', () {
+    Uint8List vicd({required int layoutWord, required int codeEndAt, List<String> names = const []}) {
+      final head = Uint8List(codeEndAt)
+        ..setAll(4, 'i386'.codeUnits)
+        ..setAll(20, 'code'.codeUnits);
+      final h = ByteData.sublistView(head);
+      h.setUint32(0, 24, Endian.little);
+      h.setUint32(8, 8, Endian.little);
+      h.setUint32(12, layoutWord, Endian.little);
+      h.setUint32(layoutWord == 0x103 ? 36 : 28, codeEndAt, Endian.little);
+      final chunk = BytesBuilder()
+        ..add('CODE'.codeUnits)
+        ..add(Uint8List(12));
+      final self = ByteData(4)..setUint32(0, codeEndAt, Endian.little);
+      chunk.add(self.buffer.asUint8List());
+      if (names.isNotEmpty) {
+        chunk.add((ByteData(4)..setUint32(0, names.length, Endian.little)).buffer.asUint8List());
+        for (final n in names) {
+          chunk.add((ByteData(4)..setUint32(0, n.length, Endian.little)).buffer.asUint8List());
+          chunk.add(n.codeUnits);
+          chunk.add(Uint8List((4 - n.length % 4) % 4));
+        }
+      }
+      return u8([...head, ...chunk.toBytes()]);
+    }
+
+    final bare = decodeCompiledCode(vicd(layoutWord: 0x103, codeEndAt: 48));
+    expect(
+      (bare.architecture, bare.codeStart, bare.codeSize, bare.codeEnd, bare.symbolCount),
+      (CodeArchitecture.i386, 24, 8, 48, 0),
+    );
+    expect(bare.fixupsAndCode.length, 24);
+    final table = decodeCompiledCode(vicd(layoutWord: 0x103, codeEndAt: 48, names: ['abc', 'defgh']));
+    expect(table.symbolCount, 2);
+    expect(String.fromCharCodes(table.symbolNameAt(1)), 'defgh');
+    expect(table.serialize(), same(table.bytes));
+    final legacy = decodeCompiledCode(vicd(layoutWord: 0, codeEndAt: 44));
+    expect((legacy.layoutWord, legacy.codeEnd), (0, 44));
+    expect(
+      () => decodeCompiledCode(vicd(layoutWord: 0x103, codeEndAt: 48)..[22] = 0x41),
+      throwsA(isA<AssertionError>()),
+    );
+    expect(() => decodeCompiledCode(Uint8List(20)), throwsA(isA<AssertionError>()));
+  });
+
   test('decodeHistory: 40-byte record fields and the reserved-zero check', () {
     final b = Uint8List(40);
     ByteData.sublistView(b)

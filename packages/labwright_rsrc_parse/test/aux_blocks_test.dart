@@ -42,7 +42,7 @@ bool _gcdi(Uint8List b) => decodeGcdiRecord(b).value >= 0;
 bool _bkmk(Uint8List b) => decodeBookmarkList(b).tableA.length >= 0;
 bool _vits(Uint8List b) => decodeTagStore(b) != null;
 bool _vitsComplete(Uint8List b) => decodeTagStore(b)?.walkComplete ?? false;
-bool _vicd(Uint8List b) => decodeCompiledCode(b) != null;
+bool _vicd(Uint8List b) => decodeCompiledCode(b).codeSize >= 0;
 bool _dsim(Uint8List b) => decodeDataSpaceImage(b) != null;
 bool _mngi(Uint8List b) => decodePngEnvelope(b) != null;
 bool _linkInfo(Uint8List b) => decodeLinkInfo(b)?.version == 1;

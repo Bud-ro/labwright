@@ -5,7 +5,7 @@ import 'dart:typed_data';
 import '../blocks/DFDS_default_data_space.dart' show DfdsContext, dataSpaceFrames, reserializeDataSpace;
 import '../blocks/TM80_type_map.dart' show reserializeTypeMap, typeMapFrames;
 import '../blocks/VCTP_type_pool.dart' show reserializeTypePool, typePoolFrames;
-import '../blocks/VICD_compiled_code.dart' show compiledCodeFrames, reserializeCompiledCode;
+import '../blocks/VICD_compiled_code.dart' show decodeCompiledCode;
 import 'heap.dart';
 
 class HeapWriteResult {
@@ -244,9 +244,8 @@ HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsCont
         : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
   if (sectionTag == 'VICD') {
-    return compiledCodeFrames(body)
-        ? HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0)
-        : HeapContentSplit(modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+    decodeCompiledCode(body);
+    return HeapContentSplit(modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
   }
   if (sectionTag == 'TM80') {
     return typeMapFrames(body)
@@ -296,11 +295,8 @@ HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag, DfdsConte
     return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
   }
   if (sectionTag == 'VICD') {
-    final reserialized = reserializeCompiledCode(body);
-    if (reserialized != null) {
-      return HeapWriteResult(bytes: reserialized, modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
-    }
-    return HeapWriteResult(bytes: body, modelBytes: 0, copiedBytes: body.length, modelBugs: 0);
+    final code = decodeCompiledCode(body);
+    return HeapWriteResult(bytes: code.serialize(), modelBytes: body.length, copiedBytes: 0, modelBugs: 0);
   }
   if (sectionTag == 'TM80') {
     final reserialized = reserializeTypeMap(body);
