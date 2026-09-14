@@ -69,6 +69,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   List<String> _libraryNames = const [];
   List<ViEmbeddedVi> _embeddedVis = const [];
   WriterAttribution? _attribution;
+
+  /// Counts loads; every tab body is keyed by it so a new file gets fresh tab state.
+  int _loadSerial = 0;
   ViImages _images = const ViImages();
 
   Uint8List? _snippetPng;
@@ -163,6 +166,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _embeddedVis = embeddedVis;
       _attribution = attribution;
       _images = images;
+      _loadSerial++;
       _snippetPng = snippetPng;
       _subViIconResolver = subViIconResolver;
     });
@@ -444,7 +448,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       },
                                     ),
                                     ViDiagramView(
-                                      key: ValueKey('fp:$_model'),
+                                      key: ValueKey('fp:$_loadSerial'),
                                       diagrams: _model?.frontPanelDiagrams,
                                       emptyHint:
                                           'No front-panel objects recovered in this file.',
@@ -458,7 +462,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                         ],
                                         Expanded(
                                           child: ViDiagramView(
-                                            key: ValueKey('bd:$_model'),
+                                            key: ValueKey('bd:$_loadSerial'),
                                             diagrams: _model?.blockDiagrams,
                                             emptyHint:
                                                 'No block-diagram objects recovered in this file.',
@@ -473,23 +477,21 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       ],
                                     ),
                                     ViTypesView(
-                                      key: ValueKey('types:$_model'),
+                                      key: ValueKey('types:$_loadSerial'),
                                       model: _model,
                                       vctpBytes: _vctpBytes(),
                                     ),
                                     ViImagesView(
-                                      key: ValueKey('img:${_images.count}'),
+                                      key: ValueKey('img:$_loadSerial'),
                                       images: _images,
                                     ),
                                     ViCoverageView(
-                                      key: ValueKey(
-                                        'cov:${_attribution?.fileLength}',
-                                      ),
+                                      key: ValueKey('cov:$_loadSerial'),
                                       attribution: _attribution,
                                     ),
                                     if (_snippetPng != null)
                                       BdOracleView(
-                                        key: ValueKey('oracle:$_model'),
+                                        key: ValueKey('oracle:$_loadSerial'),
                                         diagram: _model == null
                                             ? null
                                             : bestBlockDiagram(_model!),

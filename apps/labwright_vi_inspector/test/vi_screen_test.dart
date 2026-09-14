@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/types_view.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
 import 'package:labwright_rsrc_parse/testing.dart';
 
@@ -187,5 +188,55 @@ void main() {
     drop(plainPath);
     await tester.pump();
     expect(find.textContaining('no embedded VI'), findsOneWidget);
+  });
+
+  testWidgets('dropping another VI gives every stateful tab fresh state', (
+    tester,
+  ) async {
+    await _pump(tester, const ViInspectorScreen());
+    final dir = Directory.systemTemp.createTempSync('snippet_reload');
+    addTearDown(() => dir.deleteSync(recursive: true));
+    final paths = <String>[];
+    await tester.runAsync(() async {
+      final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
+      final png = await imageToPng(await imageFromRgba(rgba, 60, 60));
+      for (final name in ['first.vi', 'second.vi', 'third.vi']) {
+        final path = '${dir.path}/$name.png';
+        File(
+          path,
+        ).writeAsBytesSync(spliceNiVi(png, minimalViBytes(name: name)));
+        paths.add(path);
+      }
+    });
+    void drop(String path) =>
+        tester.widget<DropTarget>(find.byType(DropTarget)).onDragDone!(
+          DropDoneDetails(
+            files: [DropItemFile(path)],
+            localPosition: Offset.zero,
+            globalPosition: Offset.zero,
+          ),
+        );
+
+    drop(paths[0]);
+    await tester.pump();
+    for (final (tab, view) in [
+      ('Front Panel', find.byType(ViDiagramView)),
+      ('Block Diagram', find.byType(ViDiagramView)),
+      ('Types', find.byType(ViTypesView)),
+      ('Oracle', find.byType(BdOracleView)),
+    ]) {
+      await tester.tap(find.text(tab));
+      await tester.pumpAndSettle();
+      final before = tester.state(view);
+      drop(paths[1]);
+      await tester.pumpAndSettle();
+      expect(
+        identical(before, tester.state(view)),
+        isFalse,
+        reason: '$tab kept its state across a drop',
+      );
+      drop(paths[2]);
+      await tester.pumpAndSettle();
+    }
   });
 }
