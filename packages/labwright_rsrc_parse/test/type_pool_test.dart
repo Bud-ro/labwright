@@ -5,22 +5,6 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-List<int> label(String text) => [text.length, ...text.codeUnits, if (text.length.isEven) 0];
-
-List<int> descriptor(int code, List<int> body, {String? name, int flags = 0}) {
-  final rest = [name == null ? flags : flags | 0x40, code, ...body, if (name != null) ...label(name)];
-  return [((2 + rest.length) >> 8) & 0xff, (2 + rest.length) & 0xff, ...rest];
-}
-
-List<int> numeric(int code, {String? name}) => descriptor(code, [0], name: name);
-
-Uint8List poolOf(List<List<int>> descriptors, {List<int> topLevel = const []}) => u8([
-  0, 0, 0, descriptors.length, //
-  for (final d in descriptors) ...d,
-  0, topLevel.length,
-  for (final i in topLevel) ...[i >> 8, i & 0xff],
-]);
-
 void main() {
   test('every type code decodes to its kind; an unlisted code is unknown and retained', () {
     const rows = <(int, ViDataType)>[

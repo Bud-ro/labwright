@@ -13,6 +13,7 @@ import 'blocks/COUT_compiled_output.dart';
 import 'blocks/CPD2_connector_pane_data.dart';
 import 'blocks/CPMp_connector_pane_map.dart';
 import 'blocks/CPST_CPSP_pascal_string_table.dart';
+import 'blocks/DFDS_default_data_space.dart';
 import 'blocks/DLDR_default_data_loader.dart';
 import 'blocks/DSIM_data_space_image.dart';
 import 'blocks/DTHP_data_type_heap.dart';
@@ -190,7 +191,9 @@ enum BlockTag {
   ),
 
   /// Default data space: the flattened default values of the types [tm80] marks as saved, laid out per their [vctp] type.
-  dfds('DFDS', 'Default data space', BlockCategory.dataSpace, BlockConfidence.likely),
+  /// Decoded by `decodeDataSpace` with a [DfdsContext] built from the VI's `VCTP`, `TM80` and
+  /// `vers`, so [decode] is null.
+  dfds('DFDS', 'Default data space', BlockCategory.dataSpace, BlockConfidence.confirmed, null, dfdsLayout),
 
   /// Data-space image: an icon raster or a PNG behind a raster header.
   dsim(
@@ -678,6 +681,8 @@ enum BlockTag {
 
   bool get isRecordHeap => recordHeaps.contains(this);
 
+  /// Whether the payload has a model: a [decode] function, or for [dfds] the context-taking
+  /// `decodeDataSpace`.
   bool get isDecoded => decode != null || this == dfds;
 
   /// Whether [decode] yields a [BlockRecord], so the payload can be re-emitted through the model.

@@ -17,6 +17,7 @@ const _laws = {
   'heapBugs',
   'reDeflate',
   'dfdsExact',
+  'dfdsContext',
   'roundTrip',
   'enveloped',
   'plain',
@@ -59,7 +60,6 @@ Map<String, int> _violations(Uint8List bytes, String path) {
   } catch (_) {
     return c;
   }
-  final ver = versionWordFromSections(secs);
 
   final seenHeap = <int>{};
   for (final s in secs) {
@@ -72,24 +72,22 @@ Map<String, int> _violations(Uint8List bytes, String path) {
     if (round == null || !_bytesEqual(round, inflated)) bad('reDeflate');
   }
 
-  Uint8List? vctp;
-  final tm80 = <int, Uint8List>{};
-  for (final s in secs) {
-    if (s.tag == 'VCTP') {
-      vctp ??= inflateHeapPayload(s.bytes) ?? s.bytes;
-    } else if (s.tag == 'TM80') {
-      tm80[s.index] = inflateHeapPayload(s.bytes) ?? s.bytes;
-    }
-  }
+  final contexts = dataSpaceContexts(secs);
   final seenDfds = <int>{};
   for (final s in secs) {
     if (s.tag != 'DFDS' || !seenDfds.add(s.dataOffset)) continue;
-    final inflated = inflateHeapPayload(s.bytes);
-    if (inflated == null || vctp == null || tm80.isEmpty) continue;
-    final ctx = DfdsContext(vctp: vctp, tm80: tm80[s.index] ?? tm80.values.first, verGe10: (ver?.major ?? 0) >= 10);
-    if (!dataSpaceFrames(inflated, ctx)) continue;
-    final res = serializeHeapBody(inflated, 'DFDS', ctx);
-    if (!_bytesEqual(res.bytes, inflated) || res.copiedBytes != 0) bad('dfdsExact');
+    final body = inflateHeapPayload(s.bytes) ?? s.bytes;
+    final ctx = contexts[s.index];
+    if (ctx == null) {
+      bad('dfdsContext');
+      continue;
+    }
+    try {
+      final res = serializeHeapBody(body, 'DFDS', ctx);
+      if (!_bytesEqual(res.bytes, body) || res.copiedBytes != 0) bad('dfdsExact');
+    } on AssertionError {
+      bad('dfdsExact');
+    }
   }
 
   final seenBlock = <int>{};
@@ -129,7 +127,11 @@ Map<String, int> _violations(Uint8List bytes, String path) {
   return c;
 }
 
-const kWriterViolations = <String, Map<String, int>>{};
+/// The LabVIEW 7.1 save carries no `TM80`, so its data space has no context to decode by.
+const kWriterViolations = <String, Map<String, int>>{
+  'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Calculate Frequency of Signal Displayed on Waveform Graph/Meas Freq of Visible Waveform_LV 7x.vi':
+      {'dfdsContext': 1},
+};
 
 const _alsoPlain = {BlockTag.tm80, BlockTag.vicd, BlockTag.dfds};
 

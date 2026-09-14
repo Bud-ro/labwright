@@ -127,16 +127,34 @@ void main() {
     });
   });
 
-  test('DFDS framing is total on random buffers/contexts and byte-exact when it frames', () {
+  test('a DFDS body with its context is whole-block modelled, or rejects the tiling precondition', () {
+    final pool = decodeTypePool(
+      poolOf(
+        [
+          numeric(TypeCode.i32),
+          descriptor(TypeCode.string, [0xff, 0xff, 0xff, 0xff]),
+          descriptor(TypeCode.array, [0, 1, 0xff, 0xff, 0xff, 0xff, 0, 0]),
+          descriptor(TypeCode.variant, []),
+        ],
+        topLevel: [0, 1, 2, 3],
+      ),
+    );
+    final map = decodeTypeMap(hx('0004 0001 2000 2000 2000 2000')) as ViTypeMapIndexed;
+    final ctx = DfdsContext.indexed(
+      pool,
+      map,
+      const ViVersionWord(major: 20, minor: 0, patch: 0, stage: 0x80, build: 0),
+    );
     expectTotal(3, 3000, 64, (b) {
-      final ctx = DfdsContext(vctp: b, tm80: b, verGe10: b.isNotEmpty && b[0].isEven);
-      final split = attributeHeapBody(b, 'DFDS', ctx);
-      expect(split.modelBytes + split.copiedBytes, b.length);
-      expect(split.modelBugs, 0);
-      final res = serializeHeapBody(b, 'DFDS', ctx);
+      final HeapWriteResult res;
+      try {
+        res = serializeHeapBody(b, 'DFDS', ctx);
+      } on AssertionError {
+        return;
+      }
       expect(res.bytes, equals(b));
-      expect(res.modelBytes + res.copiedBytes, b.length);
-      expect(dataSpaceFrames(b, ctx) ? res.copiedBytes : res.modelBytes, 0);
+      expect((res.modelBytes, res.copiedBytes), (b.length, 0));
+      expect(attributeHeapBody(b, 'DFDS', ctx).modelBytes, b.length);
     });
   });
 

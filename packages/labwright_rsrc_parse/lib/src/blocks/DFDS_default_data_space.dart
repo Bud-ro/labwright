@@ -1,270 +1,176 @@
+/// `DFDS` — the default data space: the saved value of every data-space type whose `TM80`
+/// entry stores one, flattened back to back in map order with no header.
+///
+/// Which entries store a value is decided by their flag word ([TypeMapFlag]): entries with
+/// [TypeMapFlag.hasSaveData] or [TypeMapFlag.storedValue0] store the whole value, entries with
+/// [TypeMapFlag.unstored3], [TypeMapFlag.unstored10] or [TypeMapFlag.unstored11] store nothing,
+/// and a cluster entry with [TypeMapFlag.frontPanelOperation], [TypeMapFlag.chartHistory],
+/// [TypeMapFlag.member3Stored] or [TypeMapFlag.member2Stored] stores only the members that
+/// flag names.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       rest  slots                      entry[]  one flattened value per type-map entry that
+///                                                   stores one, in map order
+///   +0    rest  value                      bytes    the entry's value flattened by its type, see
+///                                                   below
+/// ```
+///
+/// A value is flattened by its type, big-endian:
+///
+/// ```text
+/// type                        flattened value
+/// numeric, enum, boolean      the value, ViNumericType.width (or the enum's, unit's or
+///                             boolean's width) bytes
+/// string, picture, tag        [u32 length][bytes]
+/// path                        [4cc PTH0/PTH1/PTH2][u32 length][bytes]
+/// C string, Pascal string     u32
+/// array                       [u32 size per dimension][elements]; an array data pointer is a u32
+/// cluster                     the members in order
+/// typedef                     the base's value
+/// variant                     [u32 version] then, from LabVIEW 8.6, [u2p2 topLevelIndex] and the
+///                             value of that top-level type (1-based; 0 is an empty variant),
+///                             before 8.6 [u32 typeCount][descriptors][u2p2 hasValue][u2p2 index]
+///                             [value]; then [u32 attributeCount] and per attribute
+///                             [u32 nameLength][name][variant]
+/// measure data                by ViMeasureDataFlavor: a waveform is [u8[16] t0][f64 dt]
+///                             [u32 count][samples][error cluster][variant], an error cluster
+///                             being [u8 status][i32 code][u32 length][source]; a timestamp is
+///                             u8[16]; a digital table is [u32 count][u32 transitions]
+///                             [u32 rows][u32 columns][u8 data]; a digital waveform replaces the
+///                             samples with a digital table; dynamic data is [u32 count] f64
+///                             waveforms
+/// refnum                      u32, or as ViRefnumKind says for the resource, tag and class kinds
+/// pointer                     nothing from LabVIEW 8.6, u32 before; a pointer-to is a u32
+/// block, aligned block        the size word of the descriptor in bytes
+/// repeated block              the client's value, count times
+/// void, void block, marker    nothing
+/// ```
+///
+/// The section usually stores the payload in the zlib envelope that [inflateHeapPayload]
+/// opens, and sometimes plain; the layout is the inflated body.
+///
+/// [ViDataSpace] is a view over the payload recording where each slot starts; a
+/// [DataSpaceSlot] names one; [DfdsContext] supplies the types, the map and the saving
+/// version; [decodeDataSpace] requires the slots to tile the payload exactly.
+library;
+
 import 'dart:typed_data';
 
+import '../block_layout.dart';
+import '../block_record.dart';
+import '../decode.dart' show inflateHeapPayload;
+import '../viparse.dart' show ViSection;
 import 'TM80_type_map.dart';
-import 'VCTP_type_pool.dart' show TypeCode;
+import 'VCTP_type_pool.dart';
+import 'vers_version.dart';
 
-class DfdsContext {
-  const DfdsContext({required this.vctp, required this.tm80, required this.verGe10});
+const _value = BlockField(0, null, 'value', 'bytes', 'the entry\'s value flattened by its type, see below');
+const _slots = BlockField(
+  0,
+  null,
+  'slots',
+  'entry[]',
+  'one flattened value per type-map entry that stores one, in map order',
+  entry: [_value],
+);
 
-  final Uint8List vctp;
+const BlockLayout dfdsLayout = [_slots];
 
-  final Uint8List tm80;
+/// The types, the type map and the saving version a data space is laid out by.
+final class DfdsContext {
+  /// The word-list map form: entries index the top-level list of [pool].
+  DfdsContext.indexed(ViTypePool pool, ViTypeMapIndexed map, this.version)
+    : _pool = pool,
+      typeMap = map,
+      types = pool.types;
 
-  final bool verGe10;
-}
+  /// The inline map form of saves before the type pool: entries index the map's own
+  /// descriptors.
+  DfdsContext.inline(ViTypeMapInline map, this.version) : _pool = null, typeMap = map, types = map.types;
 
-class _Pool {
-  _Pool(this.body, this.descOff, this.topLevel) : view = ByteData.sublistView(body);
-  final Uint8List body;
-  final ByteData view;
-  final List<int> descOff;
-  final List<int> topLevel;
-}
+  final ViTypePool? _pool;
 
-_Pool? _parsePool(Uint8List body) {
-  if (body.length < 6) return null;
-  final view = ByteData.sublistView(body);
-  final count = view.getUint32(0);
-  if (count <= 0 || count > 200000) return null;
-  final descOff = <int>[];
-  var off = 4;
-  for (var i = 0; i < count; i++) {
-    if (off + 4 > body.length) return null;
-    final descLen = view.getUint16(off);
-    if (descLen < 4 || off + descLen > body.length) return null;
-    descOff.add(off);
-    off += descLen;
+  final ViTypeMap typeMap;
+
+  /// The descriptors that entry, member and element indices refer to.
+  final List<ViType> types;
+
+  final ViVersionWord version;
+
+  int get entryCount => typeMap.count;
+
+  int flagsAt(int entry) => typeMap.flagsAt(entry);
+
+  /// For the indexed form, the position of [entry]'s type in the pool's top-level list; for
+  /// the inline form, its descriptor index.
+  int topLevelIndexAt(int entry) => switch (typeMap) {
+    ViTypeMapIndexed(:final indexShift) => indexShift + entry - 1,
+    final ViTypeMapInline map => map.typeIndexAt(entry),
+  };
+
+  /// The index in [types] of [entry]'s type.
+  int typeIndexAt(int entry) => switch (typeMap) {
+    ViTypeMapIndexed() => _pool!.topLevelIndexAt(topLevelIndexAt(entry)),
+    ViTypeMapInline() => topLevelIndexAt(entry),
+  };
+
+  /// The type a variant names by its 1-based top-level index.
+  ViType topLevelType(int oneBased) {
+    final index = _pool!.topLevelIndexAt(oneBased - 1);
+    assert(index < types.length, 'top-level type $oneBased is in the pool');
+    return types[index];
   }
-  var p = off;
-  int? readVar() {
-    if (p + 2 > body.length) return null;
-    final hi = view.getUint16(p);
-    if ((hi & 0x8000) == 0) {
-      p += 2;
-      return hi;
+
+  int get _topLevelCount => switch (typeMap) {
+    ViTypeMapIndexed() => _pool!.topLevelCount,
+    ViTypeMapInline() => types.length,
+  };
+}
+
+/// The context of every `DFDS` section of a VI, keyed by section index: the `TM80` with the
+/// same index (or the only one), the `VCTP` for the indexed map form, and the `vers` version
+/// word. A VI without a type map, a version word, or a type pool for an indexed map has none.
+Map<int, DfdsContext> dataSpaceContexts(Iterable<ViSection> sections) {
+  final version = versionWordFromSections(sections);
+  if (version == null) return const {};
+  ViTypePool? pool;
+  final maps = <int, ViTypeMap>{};
+  final dataSpaces = <int>[];
+  for (final section in sections) {
+    switch (section.tag) {
+      case 'VCTP':
+        pool ??= decodeTypePool(inflateHeapPayload(section.bytes) ?? section.bytes);
+      case 'TM80':
+        maps[section.index] = decodeTypeMap(inflateHeapPayload(section.bytes) ?? section.bytes);
+      case 'DFDS':
+        dataSpaces.add(section.index);
     }
-    if (p + 4 > body.length) return null;
-    final wide = view.getUint32(p) & 0x7fffffff;
-    p += 4;
-    return wide;
   }
-
-  final tlCount = readVar();
-  if (tlCount == null || tlCount > 200000) return null;
-  final topLevel = <int>[];
-  for (var i = 0; i < tlCount; i++) {
-    final v = readVar();
-    if (v == null) return null;
-    topLevel.add(v);
-  }
-  if (p != body.length) return null;
-  return _Pool(body, descOff, topLevel);
+  if (maps.isEmpty) return const {};
+  return {
+    for (final index in dataSpaces)
+      if (switch (maps[index] ?? maps.values.first) {
+            final ViTypeMapInline map => DfdsContext.inline(map, version),
+            final ViTypeMapIndexed map => pool == null ? null : DfdsContext.indexed(pool, map, version),
+          }
+          case final context?)
+        index: context,
+  };
 }
 
-int? _offOf(_Pool pool, int idx) => (idx < 0 || idx >= pool.descOff.length) ? null : pool.descOff[idx];
+/// One stored value: the whole value of the type-map entry [entryIndex].
+final class DataSpaceSlot {
+  const DataSpaceSlot({
+    required this.entryIndex,
+    required this.topLevelIndex,
+    required this.offset,
+    required this.length,
+  });
 
-const int _tmSkip = (1 << 3) | (1 << 10) | (1 << 11);
+  final int entryIndex;
 
-const int _tmSpecial = (1 << 2) | (1 << 4) | (1 << 5) | (1 << 6);
-
-bool _hasSave(int flags) => (flags & ((1 << 13) | (1 << 0))) != 0;
-
-bool _specialElement(int idx, int flags, bool verGe10) {
-  if ((flags & (1 << 2)) != 0) return idx == (verGe10 ? 1 : 2);
-  if ((flags & (1 << 4)) != 0) return idx == 1 || idx == 2 || idx == 3;
-  if ((flags & (1 << 5)) != 0) return idx == 3;
-  if ((flags & (1 << 6)) != 0) return idx == 2;
-  return false;
-}
-
-int? _fixedExtent(_Pool pool, int o, int depth) {
-  if (depth > 200 || o < 0 || o + 4 > pool.body.length) return null;
-  final b = pool.body;
-  final view = pool.view;
-  switch (b[o + 3]) {
-    case TypeCode.voidType:
-    case TypeCode.voidBlock:
-    case TypeCode.alignmentMarker:
-    case TypeCode.ptr:
-      return 0;
-    case TypeCode.i8:
-    case TypeCode.u8:
-    case TypeCode.enumU8:
-    case TypeCode.boolean:
-      return 1;
-    case TypeCode.i16:
-    case TypeCode.u16:
-    case TypeCode.enumU16:
-    case TypeCode.booleanU16:
-      return 2;
-    case TypeCode.i32:
-    case TypeCode.u32:
-    case TypeCode.sgl:
-    case TypeCode.enumU32:
-    case TypeCode.unitSgl:
-    case TypeCode.cString:
-    case TypeCode.pascalString:
-    case TypeCode.arrayDataPointer:
-    case TypeCode.refnum:
-    case TypeCode.ptrTo:
-      return 4;
-    case TypeCode.i64:
-    case TypeCode.u64:
-    case TypeCode.dbl:
-    case TypeCode.complexSgl:
-    case TypeCode.unitDbl:
-    case TypeCode.unitComplexSgl:
-      return 8;
-    case TypeCode.ext:
-    case TypeCode.complexDbl:
-    case TypeCode.unitExt:
-    case TypeCode.unitComplexDbl:
-      return 16;
-    case TypeCode.complexExt:
-    case TypeCode.unitComplexExt:
-      return 32;
-    case TypeCode.block:
-    case TypeCode.alignedBlock:
-      if (o + 8 > b.length) return null;
-      return view.getUint32(o + 4);
-    case TypeCode.repeatedBlock:
-      {
-        if (o + 10 > b.length) return null;
-        final n = view.getUint32(o + 4);
-        final clientOff = _offOf(pool, view.getUint16(o + 8));
-        if (clientOff == null || n > 0x7fffffff) return null;
-        final cf = _fixedExtent(pool, clientOff, depth + 1);
-        if (cf == null) return null;
-        return n * cf;
-      }
-    case TypeCode.cluster:
-      {
-        if (o + 6 > b.length) return null;
-        final n = view.getUint16(o + 4);
-        if (o + 6 + n * 2 > b.length) return null;
-        var total = 0;
-        for (var m = 0; m < n; m++) {
-          final memberOff = _offOf(pool, view.getUint16(o + 6 + m * 2));
-          if (memberOff == null) return null;
-          final s = _fixedExtent(pool, memberOff, depth + 1);
-          if (s == null) return null;
-          total += s;
-        }
-        return total;
-      }
-    case TypeCode.typeDef:
-      {
-        final nested = _typedefNested(pool, o);
-        return nested == null ? null : _fixedExtent(pool, nested, depth + 1);
-      }
-    default:
-      return null;
-  }
-}
-
-int? _extent(_Pool pool, int o, ByteData dfds, int dfdsOff, int depth) {
-  if (depth > 400 || o < 0 || o + 4 > pool.body.length) return null;
-  final fixed = _fixedExtent(pool, o, depth);
-  if (fixed != null) return fixed;
-  final b = pool.body;
-  final view = pool.view;
-  switch (b[o + 3]) {
-    case TypeCode.string:
-    case TypeCode.picture:
-    case TypeCode.tag:
-      if (dfdsOff + 4 > dfds.lengthInBytes) return null;
-      return 4 + dfds.getUint32(dfdsOff);
-    case TypeCode.path:
-      if (dfdsOff + 8 > dfds.lengthInBytes) return null;
-      return 8 + dfds.getUint32(dfdsOff + 4);
-    case TypeCode.array:
-      {
-        if (o + 6 > b.length) return null;
-        final ndim = view.getUint16(o + 4);
-        if (ndim < 1 || ndim > 64) return null;
-        final elemPos = o + 6 + ndim * 4;
-        if (elemPos + 2 > b.length) return null;
-        final elemOff = _offOf(pool, view.getUint16(elemPos));
-        if (elemOff == null) return null;
-        var total = 1;
-        var consumed = 0;
-        for (var k = 0; k < ndim; k++) {
-          if (dfdsOff + consumed + 4 > dfds.lengthInBytes) return null;
-          total *= dfds.getUint32(dfdsOff + consumed) & 0x7fffffff;
-          consumed += 4;
-          if (total > 0x7fffffff) return null;
-        }
-        final ef = _fixedExtent(pool, elemOff, depth + 1);
-        if (ef != null) {
-          final bodyLen = total * ef;
-          if (dfdsOff + consumed + bodyLen > dfds.lengthInBytes) return null;
-          return consumed + bodyLen;
-        }
-        for (var i = 0; i < total; i++) {
-          final e = _extent(pool, elemOff, dfds, dfdsOff + consumed, depth + 1);
-          if (e == null) return null;
-          consumed += e;
-        }
-        return consumed;
-      }
-    case TypeCode.cluster:
-      {
-        if (o + 6 > b.length) return null;
-        final n = view.getUint16(o + 4);
-        if (o + 6 + n * 2 > b.length) return null;
-        var consumed = 0;
-        for (var m = 0; m < n; m++) {
-          final mo = _offOf(pool, view.getUint16(o + 6 + m * 2));
-          if (mo == null) return null;
-          final e = _extent(pool, mo, dfds, dfdsOff + consumed, depth + 1);
-          if (e == null) return null;
-          consumed += e;
-        }
-        return consumed;
-      }
-    case TypeCode.repeatedBlock:
-      {
-        if (o + 10 > b.length) return null;
-        final n = view.getUint32(o + 4);
-        final clientOff = _offOf(pool, view.getUint16(o + 8));
-        if (clientOff == null || n > 0x7fffffff) return null;
-        var consumed = 0;
-        for (var i = 0; i < n; i++) {
-          final e = _extent(pool, clientOff, dfds, dfdsOff + consumed, depth + 1);
-          if (e == null) return null;
-          consumed += e;
-        }
-        return consumed;
-      }
-    case TypeCode.typeDef:
-      {
-        final nested = _typedefNested(pool, o);
-        return nested == null ? null : _extent(pool, nested, dfds, dfdsOff, depth + 1);
-      }
-    default:
-      return null;
-  }
-}
-
-int? _typedefNested(_Pool pool, int o) {
-  final b = pool.body;
-  if (o + 12 > b.length) return null;
-  final nameCount = pool.view.getUint32(o + 8);
-  if (nameCount > 100000) return null;
-  var p = o + 12;
-  for (var i = 0; i < nameCount; i++) {
-    if (p >= b.length) return null;
-    p += 1 + b[p];
-  }
-  if (p + 4 > b.length) return null;
-  final nlen = pool.view.getUint16(p);
-  if (nlen < 4 || p + nlen > b.length) return null;
-  return p;
-}
-
-class DataSpaceSlot {
-  const DataSpaceSlot({required this.topLevelIndex, required this.offset, required this.length});
-
+  /// See [DfdsContext.topLevelIndexAt].
   final int topLevelIndex;
 
   final int offset;
@@ -272,61 +178,318 @@ class DataSpaceSlot {
   final int length;
 }
 
-int? _walk(Uint8List dfds, DfdsContext ctx, [void Function(int tlPos, int off, int len)? onValue]) {
-  final pool = _parsePool(ctx.vctp);
-  if (pool == null) return null;
-  final tm = decodeTypeMap(ctx.tm80);
-  if (tm is! ViTypeMapIndexed) return null;
+/// A view over a `DFDS` payload.
+class ViDataSpace implements BlockRecord {
+  ViDataSpace._(this.bytes, this._slotOffsets, this._slotEntries, this._slotTopLevels);
 
-  final dfdsView = ByteData.sublistView(dfds);
-  var off = 0;
-  for (var i = 0; i < tm.count; i++) {
-    final flags = tm.flagsAt(i);
-    if ((flags & _tmSkip) != 0) continue;
-    final tlPos = tm.indexShift + i - 1; // top-level index is 1-based
-    if (tlPos < 0 || tlPos >= pool.topLevel.length) return null;
-    final descOff = _offOf(pool, pool.topLevel[tlPos]);
-    if (descOff == null) return null;
+  final Uint8List bytes;
 
-    if (_hasSave(flags)) {
-      final e = _extent(pool, descOff, dfdsView, off, 0);
-      if (e == null || off + e > dfds.length) return null;
-      onValue?.call(tlPos, off, e);
-      off += e;
-    } else if (pool.body[descOff + 3] == TypeCode.cluster && (flags & _tmSpecial) != 0) {
-      if (descOff + 6 > pool.body.length) return null;
-      final n = pool.view.getUint16(descOff + 4);
-      if (descOff + 6 + n * 2 > pool.body.length) return null;
-      var skipNext = (flags & (1 << 9)) != 0;
-      for (var m = 0; m < n; m++) {
-        if (!_specialElement(m, flags, ctx.verGe10)) continue;
-        if (skipNext) {
-          skipNext = false;
+  /// Where each whole-value slot starts, then where the last one ends.
+  final List<int> _slotOffsets;
+
+  final List<int> _slotEntries;
+
+  final List<int> _slotTopLevels;
+
+  int get slotCount => _slotEntries.length;
+
+  DataSpaceSlot slotAt(int index) => DataSpaceSlot(
+    entryIndex: _slotEntries[index],
+    topLevelIndex: _slotTopLevels[index],
+    offset: _slotOffsets[index],
+    length: _slotOffsets[index + 1] - _slotOffsets[index],
+  );
+
+  List<DataSpaceSlot> get slots => [for (var i = 0; i < slotCount; i++) slotAt(i)];
+
+  Uint8List slotBytes(int index) => Uint8List.sublistView(bytes, _slotOffsets[index], _slotOffsets[index + 1]);
+
+  @override
+  Uint8List serialize() => bytes;
+}
+
+ViDataSpace decodeDataSpace(Uint8List bytes, DfdsContext context) {
+  final walk = _Walk(bytes, context);
+  final entries = <int>[];
+  final topLevels = <int>[];
+  final offsets = <int>[];
+  var at = 0;
+  for (var entry = 0; entry < context.entryCount; entry++) {
+    final flags = context.flagsAt(entry);
+    if (TypeMapFlag.unstored3.isSetIn(flags) ||
+        TypeMapFlag.unstored10.isSetIn(flags) ||
+        TypeMapFlag.unstored11.isSetIn(flags)) {
+      continue;
+    }
+    final topLevel = context.topLevelIndexAt(entry);
+    assert(topLevel >= 0 && topLevel < context._topLevelCount, 'entry $entry names a top-level type');
+    final typeIndex = context.typeIndexAt(entry);
+    assert(typeIndex < context.types.length, 'entry $entry names a type in the pool');
+    final type = context.types[typeIndex];
+    if (TypeMapFlag.hasSaveData.isSetIn(flags) || TypeMapFlag.storedValue0.isSetIn(flags)) {
+      entries.add(entry);
+      topLevels.add(topLevel);
+      offsets.add(at);
+      at = walk.valueEnd(context.types, type, at, 0);
+    } else if (type is ViClusterType && _specialMembers(flags, context.version).isNotEmpty) {
+      var skip = TypeMapFlag.firstMemberSkipped.isSetIn(flags);
+      for (final member in _specialMembers(flags, context.version)) {
+        if (member >= type.memberCount) continue;
+        if (skip) {
+          skip = false;
           continue;
         }
-        final mo = _offOf(pool, pool.view.getUint16(descOff + 6 + m * 2));
-        if (mo == null) return null;
-        final e = _extent(pool, mo, dfdsView, off, 0);
-        if (e == null || off + e > dfds.length) return null;
-        off += e;
+        at = walk.valueEnd(context.types, context.types[type.memberIndexAt(member)], at, 0);
       }
     }
   }
-  return off;
+  assert(at == bytes.length, 'the stored values tile the payload');
+  offsets.add(at);
+  return ViDataSpace._(bytes, offsets, entries, topLevels);
 }
 
-bool dataSpaceFrames(Uint8List body, DfdsContext ctx) => _walk(body, ctx) == body.length;
-
-Uint8List? reserializeDataSpace(Uint8List body, DfdsContext ctx) {
-  return _walk(body, ctx) == body.length ? body : null;
+/// The cluster members a special flag stores, in order.
+List<int> _specialMembers(int flags, ViVersionWord version) {
+  if (TypeMapFlag.frontPanelOperation.isSetIn(flags)) return version.isAtLeast(10, 0) ? const [1] : const [2];
+  if (TypeMapFlag.chartHistory.isSetIn(flags)) return const [1, 2, 3];
+  if (TypeMapFlag.member3Stored.isSetIn(flags)) return const [3];
+  if (TypeMapFlag.member2Stored.isSetIn(flags)) return const [2];
+  return const [];
 }
 
-List<DataSpaceSlot>? dataSpaceSlots(Uint8List body, DfdsContext ctx) {
-  final slots = <DataSpaceSlot>[];
-  final walked = _walk(
-    body,
-    ctx,
-    (tlPos, off, len) => slots.add(DataSpaceSlot(topLevelIndex: tlPos, offset: off, length: len)),
-  );
-  return walked == body.length ? slots : null;
+final class _Walk {
+  _Walk(this.bytes, this.context) : view = ByteData.sublistView(bytes);
+
+  final Uint8List bytes;
+
+  final ByteData view;
+
+  final DfdsContext context;
+
+  /// Where the value of [type] flattened at [at] ends; member and element indices resolve in
+  /// [types].
+  int valueEnd(List<ViType> types, ViType type, int at, int depth) {
+    assert(depth <= 2 * types.length + 2, 'types nest without cycles');
+    assert(at <= bytes.length, 'a value starts inside the payload');
+    switch (type) {
+      case ViVoidType():
+        return at;
+      case ViNumericType():
+        return _fixed(at, type.width);
+      case ViEnumType():
+        return _fixed(at, type.width);
+      case ViUnitType():
+        return _fixed(at, type.width);
+      case ViBooleanType():
+        return _fixed(at, type.width);
+      case ViStringType():
+        return switch (type.code) {
+          TypeCode.cString || TypeCode.pascalString => _fixed(at, 4),
+          TypeCode.path => _pathEnd(at),
+          _ => _countedEnd(at),
+        };
+      case ViTagType():
+        return _countedEnd(at);
+      case ViArrayType():
+        if (type.code == TypeCode.arrayDataPointer) return _fixed(at, 4);
+        assert(type.code == TypeCode.array, 'a subarray stores no value');
+        assert(type.elementIndex < types.length, 'the array element is a type');
+        final element = types[type.elementIndex];
+        var count = 1;
+        for (var dim = 0; dim < type.dimCount; dim++) {
+          count *= _u32(at) & 0x7fffffff;
+          at += 4;
+        }
+        assert(count <= bytes.length - at, 'the element count fits the payload');
+        for (var i = 0; i < count; i++) {
+          at = valueEnd(types, element, at, depth + 1);
+        }
+        return at;
+      case ViClusterType():
+        for (var m = 0; m < type.memberCount; m++) {
+          assert(type.memberIndexAt(m) < types.length, 'cluster member $m is a type');
+          at = valueEnd(types, types[type.memberIndexAt(m)], at, depth + 1);
+        }
+        return at;
+      case ViVariantType():
+        return _variantEnd(at, depth + 1);
+      case ViMeasureDataType():
+        return _measureDataEnd(type, at, depth + 1);
+      case ViRefnumType():
+        return _refnumEnd(type, at);
+      case ViPointerType():
+        if (type.code == TypeCode.ptrTo) return _fixed(at, 4);
+        return context.version.isAtLeast(8, 6) ? at : _fixed(at, 4);
+      case ViTypedefType():
+        return valueEnd(types, type.base, at, depth + 1);
+      case ViUnknownType():
+        return _blockEnd(types, type, at, depth);
+      case ViFunctionType() || ViPolyViType():
+        assert(false, 'a ${type.kind.name} stores no value');
+        return at;
+    }
+  }
+
+  int _fixed(int at, int width) {
+    assert(at + width <= bytes.length, 'a $width-byte value fits the payload');
+    return at + width;
+  }
+
+  int _u32(int at) {
+    assert(at + 4 <= bytes.length, 'a length word fits the payload');
+    return view.getUint32(at);
+  }
+
+  ({int value, int width}) _u2p2(int at) {
+    assert(at + 2 <= bytes.length, 'a word fits the payload');
+    final head = view.getUint16(at);
+    if (head & 0x8000 == 0) return (value: head, width: 2);
+    return (value: _u32(at) & 0x7fffffff, width: 4);
+  }
+
+  /// `[u32 length][bytes]`.
+  int _countedEnd(int at) => _fixed(at + 4, _u32(at));
+
+  int _pathEnd(int at) {
+    assert(at + 8 <= bytes.length, 'a path has its tag and length');
+    assert(
+      bytes[at] == 0x50 &&
+          bytes[at + 1] == 0x54 &&
+          bytes[at + 2] == 0x48 &&
+          bytes[at + 3] >= 0x30 &&
+          bytes[at + 3] <= 0x32,
+      'a path starts PTH0, PTH1 or PTH2',
+    );
+    return _fixed(at + 8, _u32(at + 4));
+  }
+
+  int _variantEnd(int at, int depth) {
+    assert(at + 4 <= bytes.length, 'a variant has a version word');
+    final version = decodeVersionWordAt(bytes, at);
+    assert(version.isAtLeast(8, 0), 'a variant saved by LabVIEW 8 or later carries its version');
+    at += 4;
+    if (version.isAtLeast(8, 6)) {
+      final topLevel = _u2p2(at);
+      at += topLevel.width;
+      if (topLevel.value != 0) {
+        assert(topLevel.value <= context._topLevelCount, 'the variant names a top-level type');
+        at = valueEnd(context.types, context.topLevelType(topLevel.value), at, depth + 1);
+      }
+    } else {
+      final typeCount = _u32(at);
+      at += 4;
+      final offsets = descriptorOffsets(bytes, at, typeCount);
+      final types = [
+        for (final offset in offsets) ViType.at(bytes, offset, view.getUint16(offset), legacy: true),
+      ];
+      at = types.isEmpty ? at : types.last.end;
+      final hasValue = _u2p2(at);
+      at += hasValue.width;
+      if (hasValue.value != 0) {
+        final index = _u2p2(at);
+        at += index.width;
+        assert(index.value < types.length, 'the variant value is one of its descriptors');
+        at = valueEnd(types, types[index.value], at, depth + 1);
+      }
+    }
+    final attributeCount = _u32(at);
+    at += 4;
+    assert(attributeCount <= (bytes.length - at) ~/ 8, 'the attribute count fits the payload');
+    for (var i = 0; i < attributeCount; i++) {
+      at = _countedEnd(at);
+      at = _variantEnd(at, depth + 1);
+    }
+    return at;
+  }
+
+  int _measureDataEnd(ViMeasureDataType type, int at, int depth) {
+    final flavor = type.flavor;
+    assert(flavor != null, 'measure data flavor ${type.flavorCode} has a known shape');
+    switch (flavor!) {
+      case ViMeasureDataFlavor.timeStamp:
+        return _fixed(at, 16);
+      case ViMeasureDataFlavor.digitalData:
+        return _digitalTableEnd(at);
+      case ViMeasureDataFlavor.digitalWaveform:
+        at = _fixed(at, 24);
+        at = _digitalTableEnd(at);
+        at = _errorClusterEnd(at);
+        return _variantEnd(at, depth);
+      case ViMeasureDataFlavor.dynamicData:
+        final count = _u32(at);
+        at += 4;
+        assert(count <= (bytes.length - at) ~/ 24, 'the waveform count fits the payload');
+        for (var i = 0; i < count; i++) {
+          at = _waveformEnd(at, ViMeasureDataFlavor.float64Waveform.sampleWidth!, depth);
+        }
+        return at;
+      default:
+        return _waveformEnd(at, flavor.sampleWidth!, depth);
+    }
+  }
+
+  int _waveformEnd(int at, int sampleWidth, int depth) {
+    at = _fixed(at, 24);
+    final count = _u32(at);
+    at = _fixed(at + 4, count * sampleWidth);
+    at = _errorClusterEnd(at);
+    return _variantEnd(at, depth);
+  }
+
+  int _digitalTableEnd(int at) {
+    at = _fixed(at + 4, 4 * _u32(at));
+    final rows = _u32(at);
+    final columns = _u32(at + 4);
+    return _fixed(at + 8, rows * columns);
+  }
+
+  int _errorClusterEnd(int at) => _countedEnd(_fixed(at, 5));
+
+  int _refnumEnd(ViRefnumType type, int at) {
+    switch (type.refnumKind) {
+      case ViRefnumKind.imaq || ViRefnumKind.visa || ViRefnumKind.ivi || ViRefnumKind.userDefinedTag:
+        return _countedEnd(at);
+      case ViRefnumKind.userDefinedTagFlattened:
+        at = _countedEnd(at);
+        at = _countedEnd(at);
+        at = _countedEnd(at);
+        return _countedEnd(_fixed(at, 4));
+      case ViRefnumKind.classInstance:
+        final levels = _u32(at);
+        at += 4;
+        if (levels == 0) return at;
+        assert(at < bytes.length, 'the library name has a length byte');
+        at += (1 + bytes[at] + 3) & ~3;
+        final singleZero = levels == 1 && _u32(at) == 0 && _u32(at + 4) == 0;
+        at = _fixed(at, 8 * levels);
+        if (singleZero) return at;
+        for (var i = 0; i < levels; i++) {
+          at = _countedEnd(at);
+        }
+        return at;
+      default:
+        return _fixed(at, 4);
+    }
+  }
+
+  int _blockEnd(List<ViType> types, ViUnknownType type, int at, int depth) {
+    final descriptor = ByteData.sublistView(type.bytes);
+    switch (type.code) {
+      case TypeCode.voidBlock || TypeCode.alignmentMarker:
+        return at;
+      case TypeCode.block || TypeCode.alignedBlock:
+        return _fixed(at, descriptor.getUint32(type.offset + 4));
+      case TypeCode.repeatedBlock:
+        final count = descriptor.getUint32(type.offset + 4);
+        final client = descriptor.getUint16(type.offset + 8);
+        assert(client < types.length, 'the repeated block client is a type');
+        for (var i = 0; i < count; i++) {
+          at = valueEnd(types, types[client], at, depth + 1);
+        }
+        return at;
+      default:
+        assert(false, 'type 0x${type.code.toRadixString(16)} has a known flattened value');
+        return at;
+    }
+  }
 }

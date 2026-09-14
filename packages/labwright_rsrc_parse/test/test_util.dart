@@ -22,6 +22,8 @@ Uint8List heapBody(List<int> records) => u8([0, 0, 0, records.length, ...records
 
 List<int> be16(int value) => [(value >> 8) & 0xff, value & 0xff];
 
+List<int> be32(int value) => [...be16(value >> 16), ...be16(value)];
+
 List<int> open(int kind, int oid, {int tag = 0x19}) => [0x10, tag, 0x02, 0xfe, ...be16(kind), 0xfd, ...be16(oid)];
 
 List<int> close([int tag = 0x19]) => [0x08, tag];
@@ -81,3 +83,20 @@ void expectTotal(int seed, int iters, int maxLen, void Function(Uint8List) probe
     }
   }
 }
+
+List<int> label(String text) => [text.length, ...text.codeUnits, if (text.length.isEven) 0];
+
+/// A `VCTP` descriptor: length word, flags, [code], [body] and a label when [name] is given.
+List<int> descriptor(int code, List<int> body, {String? name, int flags = 0}) {
+  final rest = [name == null ? flags : flags | 0x40, code, ...body, if (name != null) ...label(name)];
+  return [((2 + rest.length) >> 8) & 0xff, (2 + rest.length) & 0xff, ...rest];
+}
+
+List<int> numeric(int code, {String? name}) => descriptor(code, [0], name: name);
+
+Uint8List poolOf(List<List<int>> descriptors, {List<int> topLevel = const []}) => u8([
+  0, 0, 0, descriptors.length, //
+  for (final d in descriptors) ...d,
+  0, topLevel.length,
+  for (final i in topLevel) ...[i >> 8, i & 0xff],
+]);

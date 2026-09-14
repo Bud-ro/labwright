@@ -373,6 +373,17 @@ final class ViNumericType extends ViType {
 
   /// The body byte; role TODO. Null in the inline grammar.
   int? get property => _bodyEnd > offset + _descriptorHead ? bytes[offset + _descriptorHead] : null;
+
+  /// Bytes of one flattened value: `1` for the 8-bit integers up to `32` for an extended
+  /// complex.
+  int get width => switch (code) {
+    TypeCode.i8 || TypeCode.u8 => 1,
+    TypeCode.i16 || TypeCode.u16 => 2,
+    TypeCode.i32 || TypeCode.u32 || TypeCode.sgl => 4,
+    TypeCode.i64 || TypeCode.u64 || TypeCode.dbl || TypeCode.complexSgl => 8,
+    TypeCode.ext || TypeCode.complexDbl => 16,
+    _ => 32,
+  };
 }
 
 /// `0x15`–`0x17`: an enumeration: a count of Pascal items padded to an even length, then one
@@ -398,6 +409,13 @@ final class ViEnumType extends ViType {
 
   /// The byte after the items; role TODO. Null in the inline grammar.
   int? get property => _hasProperty ? bytes[_bodyEnd - 1] : null;
+
+  /// Bytes of one flattened value: the item index as a `u8`, `u16` or `u32`.
+  int get width => switch (code) {
+    TypeCode.enumU8 => 1,
+    TypeCode.enumU16 => 2,
+    _ => 4,
+  };
 
   static List<int> _items(Uint8List bytes, int offset, int length, ByteData view) {
     final body = offset + _descriptorHead;
@@ -426,11 +444,22 @@ final class ViEnumType extends ViType {
 /// `0x19`–`0x1e`: a numeric with units; body not decoded.
 final class ViUnitType extends ViType {
   ViUnitType._(super.bytes, super.offset, super.length, super.bodyEnd) : super._(exact: false);
+
+  /// Bytes of one flattened value, as for the numeric the units qualify.
+  int get width => switch (code) {
+    TypeCode.unitSgl => 4,
+    TypeCode.unitDbl || TypeCode.unitComplexSgl => 8,
+    TypeCode.unitExt || TypeCode.unitComplexDbl => 16,
+    _ => 32,
+  };
 }
 
 /// `0x20`, `0x21`: no body.
 final class ViBooleanType extends ViType {
   ViBooleanType._(super.bytes, super.offset, super.length, super.bodyEnd) : super._();
+
+  /// Bytes of one flattened value: one, or two for the `0x20` form.
+  int get width => code == TypeCode.booleanU16 ? 2 : 1;
 }
 
 /// `0x30` string, `0x32` path, `0x33` picture, `0x3f` substring: a maximum length word;
@@ -482,7 +511,55 @@ final class ViVariantType extends ViType {
 final class ViMeasureDataType extends ViType {
   ViMeasureDataType._(super.bytes, super.offset, super.length, super.bodyEnd) : super._();
 
-  int get flavor => ByteData.sublistView(bytes).getUint16(offset + _descriptorHead);
+  int get flavorCode => ByteData.sublistView(bytes).getUint16(offset + _descriptorHead);
+
+  /// Null for a code [ViMeasureDataFlavor] does not name.
+  ViMeasureDataFlavor? get flavor => ViMeasureDataFlavor.ofCode(flavorCode);
+}
+
+/// The measurement shape a `0x54` type carries, by its flavor word.
+enum ViMeasureDataFlavor {
+  /// A waveform of `f64` samples in the layout of LabVIEW 6.
+  oldFloat64Waveform(1, 8),
+  int16Waveform(2, 2),
+  float64Waveform(3, 8),
+  float32Waveform(5, 4),
+
+  /// A 16-byte timestamp.
+  timeStamp(6, null),
+
+  /// A digital table: `u32` transitions and a `u8` matrix.
+  digitalData(7, null),
+
+  /// A timestamp, a `f64` interval, a digital table, an error cluster and an attribute variant.
+  digitalWaveform(8, null),
+
+  /// An array of `f64` waveforms.
+  dynamicData(9, null),
+  floatExtWaveform(10, 16),
+  uint8Waveform(11, 1),
+  uint16Waveform(12, 2),
+  uint32Waveform(13, 4),
+  int8Waveform(14, 1),
+  int32Waveform(15, 4),
+  complex64Waveform(16, 8),
+  complex128Waveform(17, 16),
+  complexExtWaveform(18, 32),
+  int64Waveform(19, 8),
+  uint64Waveform(20, 8)
+  ;
+
+  const ViMeasureDataFlavor(this.code, this.sampleWidth);
+
+  final int code;
+
+  /// Bytes of one sample for a waveform flavor: a timestamp, a `f64` interval, an array of
+  /// samples, an error cluster and an attribute variant; null for the other shapes.
+  final int? sampleWidth;
+
+  static final Map<int, ViMeasureDataFlavor> _byCode = {for (final flavor in values) flavor.code: flavor};
+
+  static ViMeasureDataFlavor? ofCode(int code) => _byCode[code];
 }
 
 /// `0x70`: a reference with a kind word, then a body not decoded.
@@ -490,6 +567,67 @@ final class ViRefnumType extends ViType {
   ViRefnumType._(super.bytes, super.offset, super.length, super.bodyEnd) : super._(exact: false);
 
   int get refKind => ByteData.sublistView(bytes).getUint16(offset + _descriptorHead);
+
+  /// Null for a code [ViRefnumKind] does not name.
+  ViRefnumKind? get refnumKind => ViRefnumKind.ofCode(refKind);
+}
+
+/// What a `0x70` refnum refers to, by its kind word. A flattened refnum is a `u32` except
+/// where a member says otherwise.
+enum ViRefnumKind {
+  generic(0),
+  dataLog(1),
+  byteStream(2),
+  device(3),
+  occurrence(4),
+  tcpConnection(5),
+  autoRef(7),
+  lvObjectControl(8),
+  menu(9),
+
+  /// Flattened as `[u32 length][name]`.
+  imaq(11),
+  dataSocket(13),
+
+  /// Flattened as `[u32 length][resource name]`.
+  visa(14),
+
+  /// Flattened as `[u32 length][resource name]`.
+  ivi(15),
+  udpConnection(16),
+  notifier(17),
+  queue(18),
+  irdaConnection(19),
+  userDefined(20),
+
+  /// Flattened as `[u32 length][tag]`.
+  userDefinedTag(21),
+  eventRegistration(23),
+  dotNet(24),
+  userEvent(25),
+  callback(27),
+
+  /// Flattened as `[u32 length][tag]`, then two more length-prefixed strings, a `u32` and a
+  /// fourth length-prefixed string.
+  userDefinedTagFlattened(29),
+
+  /// Flattened as `[u32 levels]`, then a Pascal library name padded to four bytes, four `u16`
+  /// version words per level and, unless the single level is version zero, one
+  /// `[u32 length][bytes]` per level.
+  classInstance(30),
+  bluetoothConnection(31),
+  dataValueReference(32),
+  fifo(33),
+  tdmsFile(34)
+  ;
+
+  const ViRefnumKind(this.code);
+
+  final int code;
+
+  static final Map<int, ViRefnumKind> _byCode = {for (final kind in values) kind.code: kind};
+
+  static ViRefnumKind? ofCode(int code) => _byCode[code];
 }
 
 /// `0x80` pointer: no body; `0x83` pointer to a pool index.
@@ -661,22 +799,12 @@ int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {
   switch (t) {
     case ViVoidType():
       return 0;
-    case ViNumericType() || ViBooleanType():
-      return switch (t.code) {
-        TypeCode.i8 || TypeCode.u8 || TypeCode.boolean => 1,
-        TypeCode.i16 || TypeCode.u16 => 2,
-        TypeCode.i32 || TypeCode.u32 || TypeCode.sgl => 4,
-        TypeCode.i64 || TypeCode.u64 || TypeCode.dbl || TypeCode.complexSgl => 8,
-        TypeCode.ext || TypeCode.complexDbl => 16,
-        TypeCode.complexExt => 32,
-        _ => null,
-      };
+    case ViNumericType():
+      return t.width;
+    case ViBooleanType():
+      return t.width;
     case ViEnumType():
-      return switch (t.code) {
-        TypeCode.enumU8 => 1,
-        TypeCode.enumU16 => 2,
-        _ => 4,
-      };
+      return t.width;
     case ViRefnumType():
       return 4;
     case ViClusterType():
