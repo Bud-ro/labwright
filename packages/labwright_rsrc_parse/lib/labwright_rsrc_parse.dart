@@ -52,6 +52,7 @@ export 'src/content_exact.dart';
 export 'src/decode.dart';
 export 'src/diagram/bd_semantics.dart';
 export 'src/diagram/diagram.dart';
+export 'src/diagram/obj_flags.dart';
 export 'src/diagram/prim_ops.dart';
 export 'src/diagram/wire_render.dart';
 export 'src/heap/heap.dart';

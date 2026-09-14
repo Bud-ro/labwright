@@ -742,7 +742,7 @@ void main() {
     List<int> caseWithFrames(int oid, int? dIdx, int frames) => [
       ...open(0x2c, oid),
       if (dIdx != null) ...attrU8(0x4d, dIdx),
-      for (var i = 0; i < frames; i++) ...[...open(kViFrameCode, oid * 10 + i), ...close()],
+      for (var i = 0; i < frames; i++) ...[...open(HeapObjectClass.bdFrame.code, oid * 10 + i), ...close()],
       ...close(),
     ];
     final d = dia([

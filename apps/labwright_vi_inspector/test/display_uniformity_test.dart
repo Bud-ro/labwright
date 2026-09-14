@@ -452,11 +452,13 @@ void main() {
           final attach = w.endpointAttachRects[e];
           if (attach == null) continue;
           final terminal = bd.endpointTerminal(w.endpointOids[e]);
-          final kind = terminal?.kind;
-          if (kind == null || !kVerifiedBorderTerminalKinds.contains(kind)) {
+          final objectClass = terminal?.objectClass;
+          if (objectClass == null ||
+              !kBdBorderTerminalClasses.contains(objectClass)) {
             continue;
           }
-          chromeCounts[kind] = (chromeCounts[kind] ?? 0) + 1;
+          chromeCounts[objectClass.code] =
+              (chromeCounts[objectClass.code] ?? 0) + 1;
           var mismatched = 0;
           var bleed = 0;
           for (var y = attach.top - 2; y < attach.bottom + 2; y++) {
@@ -480,14 +482,14 @@ void main() {
             mismatched,
             0,
             reason:
-                'terminal 0x${kind.toRadixString(16)} at (${attach.left},'
+                'terminal 0x${objectClass.code.toRadixString(16)} at (${attach.left},'
                 '${attach.top}) differs from the reference in $mismatched px',
           );
           expect(
             bleed,
             0,
             reason:
-                'terminal 0x${kind.toRadixString(16)} at (${attach.left},'
+                'terminal 0x${objectClass.code.toRadixString(16)} at (${attach.left},'
                 '${attach.top}): $bleed px of ink bleed onto reference-white '
                 'canvas in its 2 px surround band',
           );

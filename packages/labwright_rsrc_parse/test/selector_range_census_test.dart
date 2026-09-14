@@ -84,7 +84,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
       final ranges = structure.selectorRanges;
       if (ranges.isEmpty) continue;
       if (stated[structure.oid] case final count? when count != ranges.length) bump('countDisagree');
-      final frameCount = diagram.children(structure.oid).where((child) => child.kind == kViFrameCode).length;
+      final frameCount = diagram
+          .children(structure.oid)
+          .where((child) => child.objectClass == HeapObjectClass.bdFrame)
+          .length;
       for (final range in ranges) {
         if (range.frame < 0 || range.frame >= frameCount) bump('frameOutOfRange');
       }
