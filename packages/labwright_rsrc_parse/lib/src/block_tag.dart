@@ -52,63 +52,6 @@ import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/vers_version.dart';
 import 'decode.dart' show inflateHeapPayload;
 
-/// What a block holds, for grouping in listings.
-enum BlockCategory {
-  /// The front panel's object heap, in any encoding.
-  frontPanelHeap,
-
-  /// The block diagram's object heap, in any encoding.
-  blockDiagramHeap,
-
-  /// Type descriptors and type maps.
-  typeInfo,
-
-  /// Compiled machine code.
-  compiledCode,
-
-  /// Default values and images of the data space.
-  dataSpace,
-
-  /// The connector pane and its wiring.
-  connectorPane,
-
-  /// Icons and their placement.
-  icon,
-
-  /// Pictures and metafiles.
-  image,
-
-  /// Links to other resources.
-  linkInfo,
-
-  /// Text.
-  text,
-
-  /// Paths to help documents and libraries.
-  helpPath,
-
-  /// Save-time settings and versions.
-  settings,
-
-  /// Passwords and digests.
-  security,
-
-  /// Embedded VIs.
-  embeddedVi,
-
-  /// Tables of names.
-  nameTable,
-
-  /// Ids and signatures.
-  identifier,
-
-  /// Revision history.
-  history,
-
-  /// Role not established.
-  unknown,
-}
-
 /// How far a block's layout is established.
 enum BlockConfidence {
   /// The layout is decoded and re-serializes byte-exactly across the corpus.
@@ -121,8 +64,8 @@ enum BlockConfidence {
   tentative,
 }
 
-/// Every section tag this package knows, with its display name, category,
-/// confidence and payload decoder.
+/// Every section tag this package knows, with its display name, confidence and payload
+/// decoder, declared in family order.
 ///
 /// [tag] is the exact four-character string stored in the block list;
 /// `STR ` and `PRT ` end in a space. [of] looks a tag up.
@@ -131,7 +74,6 @@ enum BlockTag {
   fphb(
     'FPHb',
     'Front-panel heap',
-    BlockCategory.frontPanelHeap,
     BlockConfidence.confirmed,
     decodeFrontPanel,
     frontPanelHeapLayout,
@@ -141,41 +83,39 @@ enum BlockTag {
   bdhb(
     'BDHb',
     'Block-diagram heap',
-    BlockCategory.blockDiagramHeap,
     BlockConfidence.confirmed,
     decodeBlockDiagram,
     blockDiagramHeapLayout,
   ),
 
   /// Front-panel heap in the `c` encoding, which is not a C4 record heap; not decoded.
-  fphc('FPHc', 'Front-panel heap, variant c', BlockCategory.frontPanelHeap, BlockConfidence.tentative),
+  fphc('FPHc', 'Front-panel heap, variant c', BlockConfidence.tentative),
 
   /// Block-diagram heap in the `c` encoding, which is not a C4 record heap; not decoded.
-  bdhc('BDHc', 'Block-diagram heap, variant c', BlockCategory.blockDiagramHeap, BlockConfidence.tentative),
+  bdhc('BDHc', 'Block-diagram heap, variant c', BlockConfidence.tentative),
 
   /// Front-panel heap in the `P` encoding; not decoded.
-  fphp('FPHP', 'Front-panel heap, variant P', BlockCategory.frontPanelHeap, BlockConfidence.tentative),
+  fphp('FPHP', 'Front-panel heap, variant P', BlockConfidence.tentative),
 
   /// Block-diagram heap in the `P` encoding; not decoded.
-  bdhp('BDHP', 'Block-diagram heap, variant P', BlockCategory.blockDiagramHeap, BlockConfidence.tentative),
+  bdhp('BDHP', 'Block-diagram heap, variant P', BlockConfidence.tentative),
 
   /// Type-descriptor pool: every data type of the VI, referenced by index from the heaps, [tm80] and [conp].
-  vctp('VCTP', 'VI type pool', BlockCategory.typeInfo, BlockConfidence.confirmed, decodeTypePool, vctpLayout),
+  vctp('VCTP', 'VI type pool', BlockConfidence.confirmed, decodeTypePool, vctpLayout),
 
   /// Data-space type map (LabVIEW 8.0 and later): a flag word per top-level [vctp] type selecting its data-space role.
-  tm80('TM80', 'Data-space type map', BlockCategory.typeInfo, BlockConfidence.confirmed, decodeTypeMap, tm80Layout),
+  tm80('TM80', 'Data-space type map', BlockConfidence.confirmed, decodeTypeMap, tm80Layout),
 
   /// Predecessor of [tm80] whose type descriptors are stored inline; not decoded.
-  dstm('DSTM', 'Data-space type map, inline types', BlockCategory.typeInfo, BlockConfidence.tentative),
+  dstm('DSTM', 'Data-space type map, inline types', BlockConfidence.tentative),
 
   /// Locates the heap type-descriptor index range within the [vctp] top-level list.
-  dthp('DTHP', 'Data-type heap table', BlockCategory.typeInfo, BlockConfidence.likely, decodeDataTypeHeap, dthpLayout),
+  dthp('DTHP', 'Data-type heap table', BlockConfidence.likely, decodeDataTypeHeap, dthpLayout),
 
   /// Front-panel type descriptors as a grid of u16 words.
   fptd(
     'FPTD',
     'Front-panel type descriptors',
-    BlockCategory.typeInfo,
     BlockConfidence.likely,
     decodeU16Grid,
     fptdLayout,
@@ -185,7 +125,6 @@ enum BlockTag {
   vicd(
     'VICD',
     'VI compiled code',
-    BlockCategory.compiledCode,
     BlockConfidence.confirmed,
     decodeCompiledCode,
     vicdLayout,
@@ -194,13 +133,12 @@ enum BlockTag {
   /// Default data space: the flattened default values of the types [tm80] marks as saved, laid out per their [vctp] type.
   /// Decoded by `decodeDataSpace` with a [DfdsContext] built from the VI's `VCTP`, `TM80` and
   /// `vers`, so [decode] is null.
-  dfds('DFDS', 'Default data space', BlockCategory.dataSpace, BlockConfidence.confirmed, null, dfdsLayout),
+  dfds('DFDS', 'Default data space', BlockConfidence.confirmed, null, dfdsLayout),
 
   /// Data-space image: an icon raster or a PNG behind a raster header.
   dsim(
     'DSIM',
     'Data-space image',
-    BlockCategory.dataSpace,
     BlockConfidence.confirmed,
     decodeDataSpaceImage,
     dsimLayout,
@@ -210,7 +148,6 @@ enum BlockTag {
   conp(
     'CONP',
     'Connector pane',
-    BlockCategory.connectorPane,
     BlockConfidence.confirmed,
     decodeConnectorPane,
     connectorPaneLayout,
@@ -220,7 +157,6 @@ enum BlockTag {
   cpc2(
     'CPC2',
     'Connector pane, compiled',
-    BlockCategory.connectorPane,
     BlockConfidence.likely,
     decodeConnectorPane,
     connectorPaneLayout,
@@ -230,7 +166,6 @@ enum BlockTag {
   cpmp(
     'CPMp',
     'Connector pane map',
-    BlockCategory.connectorPane,
     BlockConfidence.confirmed,
     decodeConnectorPaneMap,
     cpmpLayout,
@@ -240,68 +175,66 @@ enum BlockTag {
   cpd2(
     'CPD2',
     'Connector-pane data v2',
-    BlockCategory.connectorPane,
     BlockConfidence.likely,
     decodeCpd2Record,
     cpd2Layout,
   ),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  cpct('CPCT', 'Connector port content type', BlockCategory.connectorPane, BlockConfidence.tentative),
+  cpct('CPCT', 'Connector port content type', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  cpdi('CPDI', 'Connector port DI', BlockCategory.connectorPane, BlockConfidence.tentative),
+  cpdi('CPDI', 'Connector port DI', BlockConfidence.tentative),
 
   /// Not decoded.
-  cptm('CPTM', 'Connector-pane TM', BlockCategory.unknown, BlockConfidence.tentative),
+  cptm('CPTM', 'Connector-pane TM', BlockConfidence.tentative),
 
   /// 32x32 icon at 8 bits per pixel in the Mac `icl8` layout.
-  icl8('icl8', 'Icon, 8-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcl8, icl8Layout),
+  icl8('icl8', 'Icon, 8-bit', BlockConfidence.confirmed, decodeIcl8, icl8Layout),
 
   /// 32x32 icon at 4 bits per pixel in the Mac `icl4` layout.
-  icl4('icl4', 'Icon, 4-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcl4, icl4Layout),
+  icl4('icl4', 'Icon, 4-bit', BlockConfidence.confirmed, decodeIcl4, icl4Layout),
 
   /// 32x32 icon at 1 bit per pixel in the Mac `ICON` layout.
-  icon('ICON', 'Icon, 1-bit', BlockCategory.icon, BlockConfidence.confirmed, decodeIcon1, iconLayout),
+  icon('ICON', 'Icon, 1-bit', BlockConfidence.confirmed, decodeIcon1, iconLayout),
 
   /// Icon placement rectangle.
-  picc('PICC', 'Icon placement', BlockCategory.icon, BlockConfidence.confirmed, decodeIconPlacement, piccLayout),
+  picc('PICC', 'Icon placement', BlockConfidence.confirmed, decodeIconPlacement, piccLayout),
 
   /// Mac icon-list resource; not in the corpus.
-  icnList('ICN#', 'Icon with mask, 1-bit', BlockCategory.icon, BlockConfidence.tentative),
+  icnList('ICN#', 'Icon with mask, 1-bit', BlockConfidence.tentative),
 
   /// Mac small icon-list resource; not in the corpus.
-  icsList('ics#', 'Small icon with mask, 1-bit', BlockCategory.icon, BlockConfidence.tentative),
+  icsList('ics#', 'Small icon with mask, 1-bit', BlockConfidence.tentative),
 
   /// Mac small icon resource; not in the corpus.
-  ics4('ics4', 'Small icon, 4-bit', BlockCategory.icon, BlockConfidence.tentative),
+  ics4('ics4', 'Small icon, 4-bit', BlockConfidence.tentative),
 
   /// Mac small icon resource; not in the corpus.
-  ics8('ics8', 'Small icon, 8-bit', BlockCategory.icon, BlockConfidence.tentative),
+  ics8('ics8', 'Small icon, 8-bit', BlockConfidence.tentative),
 
   /// Mac cursor resource; not in the corpus.
-  curs('CURS', 'Cursor, 1-bit', BlockCategory.icon, BlockConfidence.tentative),
+  curs('CURS', 'Cursor, 1-bit', BlockConfidence.tentative),
 
   /// QuickDraw PICT v2 picture: an opcode stream ending at OpEndPic.
-  pict('PICT', 'Mac PICT picture', BlockCategory.image, BlockConfidence.confirmed, decodePict, pictLayout),
+  pict('PICT', 'Mac PICT picture', BlockConfidence.confirmed, decodePict, pictLayout),
 
   /// A picture as a PNG stream, or occasionally an MNG stream.
-  mngi('MNGI', 'PNG image', BlockCategory.image, BlockConfidence.confirmed, decodePngStream, mngiLayout),
+  mngi('MNGI', 'PNG image', BlockConfidence.confirmed, decodePngStream, mngiLayout),
 
   /// Windows enhanced metafile: EMR_HEADER followed by self-sized records ending at EMR_EOF.
-  wemf('WEMF', 'Windows enhanced metafile', BlockCategory.image, BlockConfidence.confirmed, decodeEmf, wemfLayout),
+  wemf('WEMF', 'Windows enhanced metafile', BlockConfidence.confirmed, decodeEmf, wemfLayout),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  pngi('PNGI', 'PNG image', BlockCategory.image, BlockConfidence.tentative),
+  pngi('PNGI', 'PNG image', BlockConfidence.tentative),
 
   /// Link info for the VI: linked resources by name and path.
-  livi('LIvi', 'Link info: VI', BlockCategory.linkInfo, BlockConfidence.confirmed, decodeLinkInfo, linkInfoLayout),
+  livi('LIvi', 'Link info: VI', BlockConfidence.confirmed, decodeLinkInfo, linkInfoLayout),
 
   /// Link info for the front panel: typedefs and controls by name.
   lifp(
     'LIfp',
     'Link info: front panel',
-    BlockCategory.linkInfo,
     BlockConfidence.confirmed,
     decodeLinkInfo,
     linkInfoLayout,
@@ -311,7 +244,6 @@ enum BlockTag {
   libd(
     'LIbd',
     'Link info: block diagram',
-    BlockCategory.linkInfo,
     BlockConfidence.confirmed,
     decodeLinkInfo,
     linkInfoLayout,
@@ -321,7 +253,6 @@ enum BlockTag {
   lids(
     'LIds',
     'Link info: data space',
-    BlockCategory.linkInfo,
     BlockConfidence.confirmed,
     decodeLinkInfo,
     linkInfoLayout,
@@ -331,109 +262,105 @@ enum BlockTag {
   lpin(
     'LPIN',
     'Linked-instance info',
-    BlockCategory.linkInfo,
     BlockConfidence.tentative,
     decodeWordGrid,
     wordGridLayout,
   ),
 
   /// Names of the libraries owning the VI, stored in the embedded section namespace.
-  libn('LIBN', 'Library names', BlockCategory.nameTable, BlockConfidence.confirmed, decodeLibraryNames, libnLayout),
+  libn('LIBN', 'Library names', BlockConfidence.confirmed, decodeLibraryNames, libnLayout),
 
   /// An embedded VI, itself a complete RSRC file, stored in the embedded section namespace.
-  vins('VINS', 'Embedded VI', BlockCategory.embeddedVi, BlockConfidence.confirmed, decodeEmbeddedVi, vinsLayout),
+  vins('VINS', 'Embedded VI', BlockConfidence.confirmed, decodeEmbeddedVi, vinsLayout),
 
   /// VI description text.
-  strg('STRG', 'VI description', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
+  strg('STRG', 'VI description', BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
 
   /// Begins with a version word; layout not decoded.
-  str('STR ', 'String', BlockCategory.text, BlockConfidence.tentative),
+  str('STR ', 'String', BlockConfidence.tentative),
 
   /// VI title as a Pascal string.
-  titl('TITL', 'VI title', BlockCategory.text, BlockConfidence.confirmed, decodeTitle, titlLayout),
+  titl('TITL', 'VI title', BlockConfidence.confirmed, decodeTitle, titlLayout),
 
   /// Context-help text, in the [strg] layout.
-  hlpt('HLPT', 'Help text', BlockCategory.text, BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
+  hlpt('HLPT', 'Help text', BlockConfidence.confirmed, decodeStringBlock, stringBlockLayout),
 
   /// Context-help document path (PTH0).
-  hlpp('HLPP', 'Help path', BlockCategory.helpPath, BlockConfidence.confirmed, decodeHelpPath, helpPathLayout),
+  hlpp('HLPP', 'Help path', BlockConfidence.confirmed, decodeHelpPath, helpPathLayout),
 
   /// Path of a linked DLL (PTH0).
-  dllp('DLLP', 'DLL path', BlockCategory.helpPath, BlockConfidence.likely, decodeHelpPath, helpPathLayout),
+  dllp('DLLP', 'DLL path', BlockConfidence.likely, decodeHelpPath, helpPathLayout),
 
   /// Help-related; not decoded.
-  hlpu('HLPU', 'Help URL', BlockCategory.helpPath, BlockConfidence.tentative),
+  hlpu('HLPU', 'Help URL', BlockConfidence.tentative),
 
   /// Help-related; not decoded.
-  hlpx('HLPX', 'Help (X)', BlockCategory.helpPath, BlockConfidence.tentative),
+  hlpx('HLPX', 'Help (X)', BlockConfidence.tentative),
 
   /// Help-related; not decoded.
-  hlpw('HLPW', 'Help (W)', BlockCategory.helpPath, BlockConfidence.tentative),
+  hlpw('HLPW', 'Help (W)', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  lpth('LPTH', 'L. path', BlockCategory.helpPath, BlockConfidence.tentative),
+  lpth('LPTH', 'L. path', BlockConfidence.tentative),
 
   /// LabVIEW save record: the saving version and save-time settings.
-  lvsr('LVSR', 'LabVIEW save record', BlockCategory.settings, BlockConfidence.confirmed, decodeSaveRecord, lvsrLayout),
+  lvsr('LVSR', 'LabVIEW save record', BlockConfidence.confirmed, decodeSaveRecord, lvsrLayout),
 
   /// Version record in the Mac `vers` layout: numeric version plus short and long version strings.
-  vers('vers', 'Version record', BlockCategory.settings, BlockConfidence.confirmed, decodeVersBlock, versLayout),
+  vers('vers', 'Version record', BlockConfidence.confirmed, decodeVersBlock, versLayout),
 
   /// LabVIEW 4.0 and older; listed by the LabVIEW wiki, not in the corpus.
-  flag('FLAG', 'Integer flags', BlockCategory.settings, BlockConfidence.tentative),
+  flag('FLAG', 'Integer flags', BlockConfidence.tentative),
 
   /// LabVIEW 4.0 and older; listed by the LabVIEW wiki, not in the corpus.
-  lvin('LVIN', 'VI info', BlockCategory.settings, BlockConfidence.tentative),
+  lvin('LVIN', 'VI info', BlockConfidence.tentative),
 
   /// Block-diagram password: an MD5 digest of the password followed by derived digests.
   bdpw(
     'BDPW',
     'Block-diagram password',
-    BlockCategory.security,
     BlockConfidence.confirmed,
     decodePasswordRecord,
     bdpwLayout,
   ),
 
   /// Font table: per-font metric records followed by packed Pascal names.
-  ftab('FTAB', 'Font table', BlockCategory.nameTable, BlockConfidence.confirmed, decodeFontTable, ftabLayout),
+  ftab('FTAB', 'Font table', BlockConfidence.confirmed, decodeFontTable, ftabLayout),
 
   /// VI tag store: named, typed tag values.
-  vits('VITS', 'VI tag store', BlockCategory.nameTable, BlockConfidence.confirmed, decodeTagStore, vitsLayout),
+  vits('VITS', 'VI tag store', BlockConfidence.confirmed, decodeTagStore, vitsLayout),
 
   /// Revision history record.
-  hist('HIST', 'Revision history', BlockCategory.history, BlockConfidence.confirmed, decodeHistory, histLayout),
+  hist('HIST', 'Revision history', BlockConfidence.confirmed, decodeHistory, histLayout),
 
   /// Modified UID, one u32.
-  muid('MUID', 'Modified UID', BlockCategory.identifier, BlockConfidence.confirmed, decodeModifiedUid, muidLayout),
+  muid('MUID', 'Modified UID', BlockConfidence.confirmed, decodeModifiedUid, muidLayout),
 
   /// New UID table.
-  nuid('NUID', 'New UID table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable, idTableLayout),
+  nuid('NUID', 'New UID table', BlockConfidence.confirmed, decodeIdTable, idTableLayout),
 
   /// Saved UID table.
-  suid('SUID', 'Saved UID table', BlockCategory.identifier, BlockConfidence.confirmed, decodeIdTable, idTableLayout),
+  suid('SUID', 'Saved UID table', BlockConfidence.confirmed, decodeIdTable, idTableLayout),
 
   /// Block-name id table.
   bnid(
     'BNID',
     'Block-name id table',
-    BlockCategory.identifier,
     BlockConfidence.confirmed,
     decodeIdTable,
     idTableLayout,
   ),
 
   /// Not decoded.
-  omid('OMId', 'Object-map id', BlockCategory.identifier, BlockConfidence.tentative),
+  omid('OMId', 'Object-map id', BlockConfidence.tentative),
 
   /// Not decoded.
-  rsid('RSID', 'Resource id', BlockCategory.identifier, BlockConfidence.tentative),
+  rsid('RSID', 'Resource id', BlockConfidence.tentative),
 
   /// Run-time signature, a 16-byte digest.
   rtsg(
     'RTSG',
     'Run-time signature',
-    BlockCategory.identifier,
     BlockConfidence.confirmed,
     decodeSignature,
     signatureLayout,
@@ -443,7 +370,6 @@ enum BlockTag {
   obsg(
     'OBSG',
     'Object signature',
-    BlockCategory.identifier,
     BlockConfidence.confirmed,
     decodeSignature,
     signatureLayout,
@@ -453,7 +379,6 @@ enum BlockTag {
   ccsg(
     'CCSG',
     'Compiled-code signature',
-    BlockCategory.identifier,
     BlockConfidence.confirmed,
     decodeSignature,
     signatureLayout,
@@ -463,7 +388,6 @@ enum BlockTag {
   scsr(
     'SCSR',
     'Source signature',
-    BlockCategory.identifier,
     BlockConfidence.confirmed,
     decodeSourceSignature,
     scsrLayout,
@@ -473,7 +397,6 @@ enum BlockTag {
   gcpr(
     'GCPR',
     'Generated-code property',
-    BlockCategory.identifier,
     BlockConfidence.confirmed,
     decodeGcprRecord,
     gcprLayout,
@@ -483,7 +406,6 @@ enum BlockTag {
   gcdi(
     'GCDI',
     'Generated-code debug info',
-    BlockCategory.identifier,
     BlockConfidence.tentative,
     decodeGcdiRecord,
     gcdiLayout,
@@ -493,7 +415,6 @@ enum BlockTag {
   fpse(
     'FPSE',
     'Front-panel section entry',
-    BlockCategory.unknown,
     BlockConfidence.confirmed,
     decodeSectionEntry,
     sectionEntryLayout,
@@ -503,7 +424,6 @@ enum BlockTag {
   bdse(
     'BDSE',
     'Block-diagram section entry',
-    BlockCategory.unknown,
     BlockConfidence.confirmed,
     decodeSectionEntry,
     sectionEntryLayout,
@@ -513,7 +433,6 @@ enum BlockTag {
   fpex(
     'FPEx',
     'Front-panel extended state',
-    BlockCategory.unknown,
     BlockConfidence.confirmed,
     decodeExtendedState,
     extendedStateLayout,
@@ -523,57 +442,54 @@ enum BlockTag {
   bdex(
     'BDEx',
     'Block-diagram extended state',
-    BlockCategory.unknown,
     BlockConfidence.confirmed,
     decodeExtendedState,
     extendedStateLayout,
   ),
 
   /// Not decoded.
-  fpts('FPTS', 'Front-panel TS', BlockCategory.unknown, BlockConfidence.tentative),
+  fpts('FPTS', 'Front-panel TS', BlockConfidence.tentative),
 
   /// Block-diagram TS as a grid of u32 words; semantics not decoded.
   bdts(
     'BDTS',
     'Block-diagram tag store',
-    BlockCategory.nameTable,
     BlockConfidence.confirmed,
     decodeDiagramTagStore,
     bdtsLayout,
   ),
 
   /// VI property data record.
-  vpdp('VPDP', 'VI property data', BlockCategory.unknown, BlockConfidence.confirmed, decodeVpdpRecord, vpdpLayout),
+  vpdp('VPDP', 'VI property data', BlockConfidence.confirmed, decodeVpdpRecord, vpdpLayout),
 
   /// Print settings record.
-  prt('PRT ', 'Print settings', BlockCategory.unknown, BlockConfidence.confirmed, decodePrintRecord, prtLayout),
+  prt('PRT ', 'Print settings', BlockConfidence.confirmed, decodePrintRecord, prtLayout),
 
   /// Default-data loader record, seven u32 words.
-  dldr('DLDR', 'Default-data loader', BlockCategory.unknown, BlockConfidence.confirmed, decodeDldrRecord, dldrLayout),
+  dldr('DLDR', 'Default-data loader', BlockConfidence.confirmed, decodeDldrRecord, dldrLayout),
 
   /// Type record: a 72-byte header followed by length-prefixed text runs.
-  trec('TRec', 'Type record', BlockCategory.unknown, BlockConfidence.confirmed, decodeTextRecord, trecLayout),
+  trec('TRec', 'Type record', BlockConfidence.confirmed, decodeTextRecord, trecLayout),
 
   /// Compiled-code state: a key/value table.
-  ccst('CCST', 'Compiled-code state', BlockCategory.unknown, BlockConfidence.likely, decodeKeyValueTable, ccstLayout),
+  ccst('CCST', 'Compiled-code state', BlockConfidence.likely, decodeKeyValueTable, ccstLayout),
 
   /// Align table: offset, value and kind per entry.
-  bfal('BFAL', 'Align table', BlockCategory.unknown, BlockConfidence.confirmed, decodeAlignTable, bfalLayout),
+  bfal('BFAL', 'Align table', BlockConfidence.confirmed, decodeAlignTable, bfalLayout),
 
   /// Bookmarks: two tables of text entries.
-  bkmk('BKMK', 'Bookmarks', BlockCategory.unknown, BlockConfidence.likely, decodeBookmarkList, bkmkLayout),
+  bkmk('BKMK', 'Bookmarks', BlockConfidence.likely, decodeBookmarkList, bkmkLayout),
 
   /// Constants as a grid of u32 words; semantics not decoded.
-  cnst('CNST', 'Constants', BlockCategory.unknown, BlockConfidence.tentative, decodeWordGrid, wordGridLayout),
+  cnst('CNST', 'Constants', BlockConfidence.tentative, decodeWordGrid, wordGridLayout),
 
   /// Non-decreasing u32 offset table; semantics not decoded.
-  ipsr('IPSR', 'IP source record', BlockCategory.unknown, BlockConfidence.tentative, decodeOffsetTable, ipsrLayout),
+  ipsr('IPSR', 'IP source record', BlockConfidence.tentative, decodeOffsetTable, ipsrLayout),
 
   /// Boolean text table: a count of Pascal strings.
   cpst(
     'CPST',
     'Boolean-text table',
-    BlockCategory.text,
     BlockConfidence.likely,
     decodePascalStringTable,
     pascalStringTableLayout,
@@ -583,96 +499,93 @@ enum BlockTag {
   cpsp(
     'CPSP',
     'Boolean-text table, spec',
-    BlockCategory.text,
     BlockConfidence.likely,
     decodePascalStringTable,
     pascalStringTableLayout,
   ),
 
   /// Not decoded.
-  gtmi('GTMI', 'Get-TM info', BlockCategory.unknown, BlockConfidence.tentative),
+  gtmi('GTMI', 'Get-TM info', BlockConfidence.tentative),
 
   /// Not decoded.
-  hbin('HBIN', 'Heap bin', BlockCategory.unknown, BlockConfidence.tentative),
+  hbin('HBIN', 'Heap bin', BlockConfidence.tentative),
 
   /// Not decoded.
-  hbuf('HBUF', 'Heap buffer', BlockCategory.unknown, BlockConfidence.tentative),
+  hbuf('HBUF', 'Heap buffer', BlockConfidence.tentative),
 
   /// Compiled output, three u32 words.
-  cout('COUT', 'Compiled output', BlockCategory.unknown, BlockConfidence.likely, decodeCoutRecord, coutLayout),
+  cout('COUT', 'Compiled output', BlockConfidence.likely, decodeCoutRecord, coutLayout),
 
   /// Not decoded.
-  rtmp('RTMP', 'Run-time map / path', BlockCategory.unknown, BlockConfidence.tentative),
+  rtmp('RTMP', 'Run-time map / path', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  dlgh('DLGH', 'Dialog HTML', BlockCategory.text, BlockConfidence.tentative),
+  dlgh('DLGH', 'Dialog HTML', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  errh('ERRH', 'Error HTML', BlockCategory.text, BlockConfidence.tentative),
+  errh('ERRH', 'Error HTML', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  nodh('NODH', 'NOD HTML', BlockCategory.text, BlockConfidence.tentative),
+  nodh('NODH', 'NOD HTML', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  noeg('NOEG', 'NOEG string', BlockCategory.text, BlockConfidence.tentative),
+  noeg('NOEG', 'NOEG string', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  mitm('MItm', 'M. item', BlockCategory.unknown, BlockConfidence.tentative),
+  mitm('MItm', 'M. item', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  dnmList('DNm#', 'D. name strings list', BlockCategory.text, BlockConfidence.tentative),
+  dnmList('DNm#', 'D. name strings list', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  hdbList('HDb#', 'Help database item', BlockCategory.text, BlockConfidence.tentative),
+  hdbList('HDb#', 'Help database item', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  lstList('LST#', 'Short strings list', BlockCategory.text, BlockConfidence.tentative),
+  lstList('LST#', 'Short strings list', BlockConfidence.tentative),
 
   /// Mac string-list resource; listed by the LabVIEW wiki, not in the corpus.
-  strList('STR#', 'Short strings list', BlockCategory.text, BlockConfidence.tentative),
+  strList('STR#', 'Short strings list', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  fdfl('FDFL', 'FDFL strings', BlockCategory.text, BlockConfidence.tentative),
+  fdfl('FDFL', 'FDFL strings', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  cgrs('CGRS', 'Conglomerate resource', BlockCategory.unknown, BlockConfidence.tentative),
+  cgrs('CGRS', 'Conglomerate resource', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  lvzp('LVzp', 'Zipped application', BlockCategory.unknown, BlockConfidence.tentative),
+  lvzp('LVzp', 'Zipped application', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  bdht('BDHT', 'Block-diagram heap, text', BlockCategory.text, BlockConfidence.tentative),
+  bdht('BDHT', 'Block-diagram heap, text', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  fpht('FPHT', 'Front-panel heap, text', BlockCategory.text, BlockConfidence.tentative),
+  fpht('FPHT', 'Front-panel heap, text', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  bdhx('BDHX', 'Block-diagram heap, XML', BlockCategory.text, BlockConfidence.tentative),
+  bdhx('BDHX', 'Block-diagram heap, XML', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  fphx('FPHX', 'Front-panel heap, XML', BlockCategory.text, BlockConfidence.tentative),
+  fphx('FPHX', 'Front-panel heap, XML', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  ucrf('UCRF', 'Uncompressed resource file', BlockCategory.unknown, BlockConfidence.tentative),
+  ucrf('UCRF', 'Uncompressed resource file', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  cprf('CPRF', 'Compressed resource file', BlockCategory.unknown, BlockConfidence.tentative),
+  cprf('CPRF', 'Compressed resource file', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  zcrf('ZCRF', 'Zlib-compressed resource file', BlockCategory.unknown, BlockConfidence.tentative),
+  zcrf('ZCRF', 'Zlib-compressed resource file', BlockConfidence.tentative),
 
   /// Listed by the LabVIEW wiki; not in the corpus.
-  dlg3('DLG3', 'Dialog resource file', BlockCategory.unknown, BlockConfidence.tentative)
+  dlg3('DLG3', 'Dialog resource file', BlockConfidence.tentative)
   ;
 
-  const BlockTag(this.tag, this.displayName, this.category, this.confidence, [this.decode, this.layout]);
+  const BlockTag(this.tag, this.displayName, this.confidence, [this.decode, this.layout]);
 
   /// The four-character section tag as stored in the block list.
   final String tag;
 
   final String displayName;
-
-  final BlockCategory category;
 
   final BlockConfidence confidence;
 
@@ -686,6 +599,12 @@ enum BlockTag {
 
   /// The C4 record heaps that `walkHeapBody` and `buildDiagram` read.
   static const Set<BlockTag> recordHeaps = {fphb, bdhb};
+
+  /// The front panel's object heap in every encoding.
+  static const Set<BlockTag> frontPanelHeaps = {fphb, fphc, fphp};
+
+  /// The block diagram's object heap in every encoding.
+  static const Set<BlockTag> blockDiagramHeaps = {bdhb, bdhc, bdhp};
 
   bool get isRecordHeap => recordHeaps.contains(this);
 

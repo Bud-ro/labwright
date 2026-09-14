@@ -824,7 +824,7 @@ class _SummaryViewState extends State<_SummaryView> {
 
           const SizedBox(height: 16),
           const Text(
-            'Block inventory (by category)',
+            'Block inventory',
             style: TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
@@ -842,43 +842,21 @@ class _SummaryViewState extends State<_SummaryView> {
   bool _hasSection(String tag) => widget.sections.any((s) => s.tag == tag);
 
   List<Widget> _blockInventory() {
-    final byCat = <BlockCategory, List<BlockComponent>>{};
-    for (final component in widget.components) {
-      (byCat[BlockTag.of(component.tag)?.category ?? BlockCategory.unknown] ??=
-              [])
-          .add(component);
-    }
-    final cats = byCat.keys.toList()..sort((a, b) => a.name.compareTo(b.name));
-    final rows = <Widget>[];
-    for (final cat in cats) {
-      rows.add(
-        Padding(
-          padding: const EdgeInsets.only(top: 6, bottom: 2),
-          child: Text(
-            cat.name,
-            style: const TextStyle(
-              fontWeight: FontWeight.w600,
-              fontSize: 12,
-              color: Color(0xFF4C8C4C),
-            ),
-          ),
-        ),
+    int order(BlockComponent c) =>
+        BlockTag.of(c.tag)?.index ?? BlockTag.values.length;
+    final items = [...widget.components]
+      ..sort(
+        (a, b) =>
+            order(a) != order(b) ? order(a) - order(b) : a.tag.compareTo(b.tag),
       );
-      final items = byCat[cat]!..sort((a, b) => a.tag.compareTo(b.tag));
-      for (final item in items) {
-        final info = BlockTag.of(item.tag);
-        final label = item.sectionCount > 1
-            ? '${item.tag} ×${item.sectionCount}'
-            : item.tag;
-        rows.add(
-          _kv(
-            '$label  ${info?.displayName ?? 'Unknown (${item.tag})'}',
-            '${(info?.confidence ?? BlockConfidence.tentative).name} · ${_fmtSize(item.decompressedBytes)}',
-          ),
-        );
-      }
-    }
-    return rows;
+    return [
+      for (final item in items)
+        _kv(
+          '${item.sectionCount > 1 ? '${item.tag} ×${item.sectionCount}' : item.tag}  '
+              '${BlockTag.of(item.tag)?.displayName ?? 'Unknown (${item.tag})'}',
+          '${(BlockTag.of(item.tag)?.confidence ?? BlockConfidence.tentative).name} · ${_fmtSize(item.decompressedBytes)}',
+        ),
+    ];
   }
 
   void _openHex(BuildContext context, String tag) {
