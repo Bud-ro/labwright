@@ -17,10 +17,6 @@ const _probes = <String, List<(String, bool Function(Uint8List))>>{
   'VICD': [('VICD', _vicd)],
   'DSIM': [('DSIM', _dsim)],
   'MNGI': [('MNGI', _mngi)],
-  'LIbd': [('LI**', _linkInfo)],
-  'LIvi': [('LI**', _linkInfo)],
-  'LIfp': [('LI**', _linkInfo)],
-  'LIds': [('LI**', _linkInfo)],
   'BDPW': [('BDPW', _bdpw)],
   'RTSG': [('RTSG', _rtsg)],
   'SCSR': [('SCSR', _scsr)],
@@ -44,7 +40,6 @@ bool _vits(Uint8List b) => decodeTagStore(b).entries.length == decodeTagStore(b)
 bool _vicd(Uint8List b) => decodeCompiledCode(b).codeSize >= 0;
 bool _dsim(Uint8List b) => decodeDataSpaceImage(b).width >= 0;
 bool _mngi(Uint8List b) => decodePngStream(b).chunkCount > 0;
-bool _linkInfo(Uint8List b) => decodeLinkInfo(b).version == 1;
 bool _bdpw(Uint8List b) => decodePasswordRecord(b).passwordDigest.length == 16;
 bool _rtsg(Uint8List b) => decodeSignature(b).digest.length == 16;
 bool _scsr(Uint8List b) => decodeSourceSignature(b).digest.length == 16;
@@ -57,6 +52,8 @@ bool _gcpr(Uint8List b) => decodeGcprRecord(b).isZero;
 bool _dldr(Uint8List b) => decodeDldrRecord(b).length == 7;
 bool _trec(Uint8List b) => decodeTextRecord(b).runCount >= 0;
 
+const _linkInfoTags = {'LIvi', 'LIbd', 'LIfp', 'LIds'};
+
 Map<String, int> _undecoded(Uint8List bytes, String path) {
   final c = <String, int>{};
   final Iterable<DecodedSection> sections;
@@ -65,9 +62,13 @@ Map<String, int> _undecoded(Uint8List bytes, String path) {
   } catch (_) {
     return c;
   }
+  final version = versionWordFromSections([for (final section in sections) section.section]);
   for (final section in sections) {
     for (final (key, probe) in _probes[section.tag] ?? const <(String, bool Function(Uint8List))>[]) {
       if (!probe(section.bytes)) c[key] = (c[key] ?? 0) + 1;
+    }
+    if (_linkInfoTags.contains(section.tag) && !decodeLinkInfo(section.bytes, version: version).isWalked) {
+      c['LI**'] = (c['LI**'] ?? 0) + 1;
     }
   }
   return c;
@@ -83,6 +84,7 @@ void main() {
     final keys = {
       for (final probes in _probes.values)
         for (final (key, _) in probes) key,
+      'LI**',
     };
     expect(perFileNonzero(all, res, keys), kUndecodedAuxSections);
   });

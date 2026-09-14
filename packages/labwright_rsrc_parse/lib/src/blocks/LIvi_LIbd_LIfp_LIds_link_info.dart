@@ -396,7 +396,102 @@ void _liUdApiCache(_LiCursor c) {
     }
     c.skip(1);
   }
-  if (c.major >= 20) c.skip(4);
+  if (c.major >= 20) _liClassChain(c);
+}
+
+void _liClassChain(_LiCursor c) {
+  final count = c.u32();
+  if (!c.ok || count > 4096) {
+    c.ok = false;
+    return;
+  }
+  for (var i = 0; i < count; i++) {
+    _liQualName(c);
+    if (!c.ok) return;
+    _liPathRef(c);
+    if (!c.ok) return;
+    final ancestors = c.u32();
+    if (!c.ok || ancestors > 4096) {
+      c.ok = false;
+      return;
+    }
+    for (var j = 0; j < ancestors; j++) {
+      _liQualName(c);
+      if (!c.ok) return;
+      _liPathRef(c);
+      if (!c.ok) return;
+    }
+  }
+}
+
+void _liTypeDescriptors(_LiCursor c) {
+  final count = c.u32();
+  if (!c.ok || count > 4096) {
+    c.ok = false;
+    return;
+  }
+  for (var i = 0; i < count; i++) {
+    final length = c.u16();
+    if (!c.ok || length < 4) {
+      c.ok = false;
+      return;
+    }
+    c.skip(length - 2);
+    if (!c.ok) return;
+  }
+  final hasTopType = c.u16();
+  if ((hasTopType & 0x8000) != 0) c.u16();
+  if (hasTopType != 0) _liU2p2(c);
+}
+
+void _liHeapToFile(_LiCursor c) {
+  _liBasic(c);
+  if (!c.ok) return;
+  _liLStr(c);
+  if (!c.ok) return;
+  c.pad(4);
+  c.skip(4);
+  _liOffList(c);
+}
+
+void _liHeapToRcFile(_LiCursor c) {
+  _liHeapToFile(c);
+  if (!c.ok) return;
+  final count = c.u32();
+  if (!c.ok || count > 4096) {
+    c.ok = false;
+    return;
+  }
+  for (var i = 0; i < count; i++) {
+    _liTypeDescriptors(c);
+    if (!c.ok) return;
+    c.skip(4);
+  }
+}
+
+void _liActiveXTypeLib(_LiCursor c) {
+  _liBasic(c);
+  if (!c.ok) return;
+  c.skip(4);
+  _liU2p2(c);
+  if (!c.ok) return;
+  _liViLinkRef(c);
+  if (!c.ok) return;
+  if (c.ge(12, 0, 0)) c.skip(4);
+  _liOffList(c);
+  if (!c.ok) return;
+  c.skip(40);
+}
+
+void _liHeapToAssembly(_LiCursor c) {
+  _liOffsetSave(c);
+  if (!c.ok) return;
+  c.skip(8);
+  for (var i = 0; i < 4; i++) {
+    c.skip(c.u8());
+    if (!c.ok) return;
+  }
+  c.skip(4);
 }
 
 void _liUdHeapApi(_LiCursor c) {
@@ -527,7 +622,15 @@ void _liEntry(_LiCursor c, String kind) {
     case 'DOPI':
       _liUdHeapApi(c);
     case 'VIPI':
+    case 'RVPI':
       _liUdViApi(c);
+    case 'RCFL':
+      _liHeapToRcFile(c);
+    case 'AXVT':
+    case 'AXDT':
+      _liActiveXTypeLib(c);
+    case 'DNDA':
+      _liHeapToAssembly(c);
     default:
       c.ok = false;
   }
