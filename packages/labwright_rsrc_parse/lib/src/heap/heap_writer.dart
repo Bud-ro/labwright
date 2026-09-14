@@ -1,3 +1,6 @@
+/// Re-emits C4 record heaps from their decoded records: object headers, references, group
+/// opens and closes, rectangle records and nibble-sized attributes are written from their
+/// fields; every other payload is copied verbatim behind a modelled header.
 library;
 
 import 'dart:typed_data';
@@ -8,6 +11,7 @@ import '../blocks/VCTP_type_pool.dart' show reserializeTypePool, typePoolFrames;
 import '../blocks/VICD_compiled_code.dart' show decodeCompiledCode;
 import 'heap.dart';
 
+/// A re-emitted heap body and how many of its bytes came from the model versus verbatim copies.
 class HeapWriteResult {
   HeapWriteResult({
     required this.bytes,
@@ -22,6 +26,7 @@ class HeapWriteResult {
 
   final int copiedBytes;
 
+  /// Records the model expected to re-emit but whose re-emission did not match the bytes.
   final int modelBugs;
 
   int get bodyBytes => modelBytes + copiedBytes;
@@ -224,14 +229,19 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
   return _nothing;
 }
 
+/// How many bytes of a heap body the model re-emits versus copies verbatim.
 class HeapContentSplit {
   const HeapContentSplit({required this.modelBytes, required this.copiedBytes, required this.modelBugs});
 
   final int modelBytes;
   final int copiedBytes;
+
+  /// Records the model expected to re-emit but whose re-emission did not match the bytes.
   final int modelBugs;
 }
 
+/// Counts the bytes of [body] the model re-emits without writing them; `DFDS`, `VCTP`, `VICD` and
+/// `TM80` bodies are whole-block models, any other body is walked record by record.
 HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
   if (sectionTag == 'DFDS' && dfdsContext != null) {
     return dataSpaceFrames(body, dfdsContext)
@@ -279,6 +289,7 @@ int _verifiedModelLength(Uint8List body, int offset, _Modeled m) {
   return m.length + m.retained;
 }
 
+/// Re-emits [body]: modelled records from their fields, everything else copied verbatim.
 HeapWriteResult serializeHeapBody(Uint8List body, [String? sectionTag, DfdsContext? dfdsContext]) {
   if (sectionTag == 'DFDS' && dfdsContext != null) {
     final reserialized = reserializeDataSpace(body, dfdsContext);
