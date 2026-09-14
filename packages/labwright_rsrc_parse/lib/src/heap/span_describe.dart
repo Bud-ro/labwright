@@ -4,7 +4,7 @@ library;
 
 import 'dart:typed_data';
 
-import '../diagram/diagram.dart' show HeapObjectClass, ClassConfidence;
+import '../diagram/objects.dart' show HeapObjectClass, ClassConfidence;
 import 'heap.dart';
 
 /// The record family a heap span belongs to.
