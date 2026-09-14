@@ -1,50 +1,66 @@
+/// `BFAL` — align table: a counted run of 9-byte entries pairing an offset with a value and
+/// a kind byte.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       4     count                      u32      number of entries
+/// 4       rest  entries                    entry[count] count entries of 9 bytes
+///   +0    4     offset                     u32      role TODO
+///   +4    4     value                      u32      role TODO
+///   +8    1     kind                       u8       role TODO
+/// ```
+///
+/// [ViAlignTable] is a view over the payload; [decodeAlignTable] requires the count to tile
+/// the payload exactly.
+library;
+
 import 'dart:typed_data';
 
-class ViAlignEntry {
-  const ViAlignEntry({required this.offset, required this.value, required this.kind});
+import '../block_layout.dart';
 
-  final int offset;
+const _count = BlockField(0, 4, 'count', 'u32', 'number of entries');
+const _entryOffset = BlockField(0, 4, 'offset', 'u32', 'role TODO');
+const _entryValue = BlockField(4, 4, 'value', 'u32', 'role TODO');
+const _entryKind = BlockField(8, 1, 'kind', 'u8', 'role TODO');
+const _entries = BlockField(
+  4,
+  null,
+  'entries',
+  'entry[count]',
+  'count entries of 9 bytes',
+  entry: [_entryOffset, _entryValue, _entryKind],
+);
 
-  final int value;
+const _entrySize = 9;
 
-  final int kind;
-}
+const BlockLayout bfalLayout = [_count, _entries];
 
+/// A view over a `BFAL` payload.
 class ViAlignTable {
-  const ViAlignTable({required this.count, required this.entries});
+  ViAlignTable._(this.bytes) : _view = ByteData.sublistView(bytes);
 
-  final int count;
+  final Uint8List bytes;
 
-  final List<ViAlignEntry> entries;
+  final ByteData _view;
 
-  Uint8List serialize() {
-    final out = Uint8List(4 + 9 * entries.length);
-    final bd = ByteData.sublistView(out);
-    bd.setUint32(0, count);
-    var p = 4;
-    for (final e in entries) {
-      bd.setUint32(p, e.offset);
-      bd.setUint32(p + 4, e.value);
-      out[p + 8] = e.kind;
-      p += 9;
-    }
-    return out;
-  }
+  int get count => _view.getUint32(_count.offset);
+
+  int _at(int index) => _entries.offset + _entrySize * index;
+
+  int offsetAt(int index) => _view.getUint32(_at(index) + _entryOffset.offset);
+
+  int valueAt(int index) => _view.getUint32(_at(index) + _entryValue.offset);
+
+  int kindAt(int index) => bytes[_at(index) + _entryKind.offset];
+
+  Uint8List serialize() => bytes;
 }
 
-ViAlignTable? decodeAlignTable(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final bd = ByteData.sublistView(bytes);
-  final count = bd.getUint32(0);
-  final available = (bytes.length - 4) ~/ 9;
-  final n = count.clamp(0, available);
-  final entries = <ViAlignEntry>[
-    for (var i = 0; i < n; i++)
-      ViAlignEntry(
-        offset: bd.getUint32(4 + 9 * i),
-        value: bd.getUint32(4 + 9 * i + 4),
-        kind: bytes[4 + 9 * i + 8],
-      ),
-  ];
-  return ViAlignTable(count: count, entries: entries);
+ViAlignTable decodeAlignTable(Uint8List bytes) {
+  assert(bytes.length >= _entries.offset, 'an align table starts with its count');
+  assert(
+    _entries.offset + _entrySize * ByteData.sublistView(bytes).getUint32(_count.offset) == bytes.length,
+    'the entries tile the payload',
+  );
+  return ViAlignTable._(bytes);
 }

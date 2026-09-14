@@ -485,8 +485,8 @@ class _BlockHexViewState extends State<BlockHexView> {
       case 'NUID':
       case 'SUID':
       case 'BNID':
-        final it = decodeIdTable(bytes);
-        return it == null ? const [] : [MapEntry('Id count', '${it.count}')];
+        if (bytes.length < 4) return const [];
+        return [MapEntry('Id count', '${readU32be(bytes, 0)}')];
       default:
         return const [];
     }
