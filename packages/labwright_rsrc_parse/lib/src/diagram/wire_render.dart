@@ -1,3 +1,4 @@
+/// The line style a wire is drawn with, chosen from its [ViSignalType].
 library;
 
 import 'dart:math' show min;
@@ -5,34 +6,49 @@ import 'dart:math' show min;
 import '../blocks/VCTP_type_pool.dart';
 import 'diagram.dart' show ViSignalType;
 
+/// The line styles LabVIEW draws wires in.
 enum ViWireRenderStyle {
+  /// A scalar numeric or refnum: one pixel.
   solid1px,
 
+  /// A 1-D numeric or refnum array: two pixels.
   solid2px,
 
+  /// A 2-D numeric array: two lines with a gap.
   hollowDouble,
 
+  /// A scalar boolean.
   dotted,
 
+  /// A 1-D boolean array.
   dottedAlternating,
 
+  /// A scalar string or path.
   zigzag,
 
+  /// A 1-D string or path array.
   chainLink,
 
+  /// A 2-D string or path array.
   chainLinkWide,
 
+  /// A scalar cluster.
   braid,
 
+  /// A 1-D cluster array.
   braidWide,
 
+  /// A variant.
   braidDense,
 
+  /// A 1-D array of clusters carried as variants.
   braidDenseWide,
 
+  /// The weave type code.
   weave,
 }
 
+/// The type code drawn as [ViWireRenderStyle.weave].
 const int kWeaveWireCode = 0x74;
 
 const Map<int, ViWireRenderStyle> _measuredCells = {
@@ -67,9 +83,12 @@ const Map<int, ViWireRenderStyle> _measuredCells = {
 
 bool _isNumericCode(int code) => code >= TypeCode.i8 && code <= TypeCode.complexExt;
 
+/// The render style of a signal type.
 extension ViSignalTypeRenderStyle on ViSignalType {
+  /// The style measured on reference renders for this exact code and depth, or null.
   ViWireRenderStyle? get renderStyle => _measuredCells[raw & 0xfff];
 
+  /// [renderStyle], else the style the code's family and depth imply, else null.
   ViWireRenderStyle? get renderStyleEstimate {
     final measured = renderStyle;
     if (measured != null) return measured;
@@ -122,6 +141,8 @@ extension ViSignalTypeRenderStyle on ViSignalType {
   }
 }
 
+/// [rgb] lightened the way a disabled frame's contents are drawn: each channel halved and
+/// offset toward white.
 int dimDisabledFrameRgb(int rgb) {
   int dim(int c) => min(255, 153 + (c >> 1));
   return (dim((rgb >> 16) & 0xff) << 16) | (dim((rgb >> 8) & 0xff) << 8) | dim(rgb & 0xff);

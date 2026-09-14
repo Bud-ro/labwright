@@ -1,3 +1,41 @@
+/// The object tree of one C4 record heap: [buildDiagram] replays an `FPHb` or `BDHb` body
+/// through [walkHeapObjects] and turns every object header into a [ViHeapObject], every
+/// record it carries into a field of that object, and every `signal` object into a [ViWire]
+/// with its decoded route.
+///
+/// Which records feed which fields:
+///
+/// ```text
+/// record                                   field
+/// object header                            oid, kind, objectClass, offset, parentOid
+/// C4 bounds (0x2d)                         bounds; absBounds accumulates the ancestors' origins
+/// C4 size (0x1f)                           termCount, one per record
+/// C4 caption (0x22), attribute shortText   label
+/// C4 formatString (0x74)                   typeKind (format conversion character)
+/// C4 stringTable (0x2e)                    items
+/// C4 description (0x19)                    helpText
+/// C4 plotName (0x27)                       plotNames
+/// C4 path (0xa4), symbolName (0xc4)        foreignLibraryPath, foreignEntryPoint (Call Library nodes)
+/// reference records                        refs (childRef targets), typedRefs (all kinds)
+/// attributes                               controlMin/Max, constText, constValueRaw, displayFormat,
+///                                          labelModeWord, termBounds, termBmp, typeDescIdx, objFlags,
+///                                          primResId, dIdx, wireTableRaw, defaultFrameIndex,
+///                                          lastSignalKind, the *Rgb colours, plotColors
+/// font run groups                          textStyleRuns
+/// array index group                        arrayIndex
+/// case selector groups                     selectorRanges, selectorStrings
+/// ```
+///
+/// [resolveDataSpaceTypes] then joins the diagrams to the type pool through the data-space type
+/// map (`TM80`), filling `dataType`, `resolvedType` and the member lists, and
+/// [decodeBdConstValues] reads each constant's flat value through its type.
+///
+/// [ViDiagram] indexes the objects by oid and parent and derives the wires; [ViWire] carries a
+/// wire's endpoints, anchors and route; [ViWireRoute], [ViWireBranchRoute] and
+/// [ViWireRouteTree] are the decoded route tables; [ViSignalType] is a wire's type word;
+/// [HeapObjectClass] names the object classes.
+library;
+
 import 'dart:math';
 import 'dart:typed_data';
 
@@ -7,53 +45,78 @@ import '../heap/heap.dart';
 import 'obj_flags.dart';
 import 'prim_ops.dart';
 
+/// What role an object plays on a diagram; [classifyObject] assigns it from the object's
+/// [HeapObjectClass] and terminal count.
 enum ViObjectKind {
+  /// An object that carries terminals: a node's terminal group or any object with a size record.
   terminalCluster,
 
+  /// A control, indicator, label, constant or other single terminal object.
   terminal,
 
+  /// A primitive, subVI call or other executable node.
   node,
 
+  /// A loop, case, sequence or other container that owns a sub-diagram.
   structure,
 
   /// One sub-diagram frame of a multi-frame structure.
   frame,
 
+  /// Chrome, glyphs and free decorations that carry no data.
   decoration,
 
+  /// A signal or wire segment.
   wire,
 
+  /// A class whose role is not established.
   unknown,
 }
 
+/// The broad data type of an object or wire; [inferTypeKind] guesses it from the object's
+/// records and [resolveDataSpaceTypes] replaces the guess with the pool type's kind.
 enum ViTypeKind {
+  /// A signed or unsigned integer.
   numericInt,
 
+  /// A floating-point or complex number.
   numericFloat,
 
+  /// An enum or ring.
   enumRing,
 
+  /// A file-system path.
   path,
 
+  /// A Call Library node's symbol.
   clnNode,
 
+  /// A string.
   string,
 
+  /// A boolean.
   boolean,
 
+  /// A cluster.
   cluster,
 
+  /// An array of any element type.
   array,
 
+  /// A refnum.
   refnum,
 
+  /// Not established.
   unknown,
 }
 
+/// The `selectDefaultCase` value of a case structure without a default frame.
 const int kViNoDefaultFrame = 255;
 
+/// The frame index a case structure without a `selectDefaultCase` attribute defaults to.
 const int kViFirstFrameIsDefault = 0;
 
+/// Group tags that open a case structure's selector data: the range lists and the string pool.
 final Set<int> kViSelectorGroupTags = {
   HeapGroupTag.selectorRangeList.tag,
   HeapGroupTag.selectorRangeListAlt.tag,
@@ -89,11 +152,15 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
   return String.fromCharCodes(chars.skipWhile((char) => char == 0));
 }
 
+/// How one end of a case-selector range is bounded.
 enum ViSelectorBound {
+  /// The range is one value.
   single(0),
 
+  /// The end is inclusive.
   inclusive(1),
 
+  /// The range is open at this end (`..N` or `N..`).
   unbounded(3)
   ;
 
@@ -101,6 +168,7 @@ enum ViSelectorBound {
 
   final int code;
 
+  /// The bound with [code], or null for a code not listed.
   static ViSelectorBound? ofCode(int code) => switch (code) {
     0 => single,
     1 => inclusive,
@@ -109,6 +177,8 @@ enum ViSelectorBound {
   };
 }
 
+/// One entry of a case structure's selector range list: the values [low]..[high] select
+/// [frame]; a bound is null when its code is not a [ViSelectorBound].
 class ViSelectorRange {
   const ViSelectorRange({
     required this.low,
@@ -126,6 +196,7 @@ class ViSelectorRange {
 
   final ViSelectorBound? highBound;
 
+  /// The index of the frame this range selects.
   final int frame;
 
   bool get isSingle => lowBound == ViSelectorBound.single && highBound == ViSelectorBound.single;
@@ -133,40 +204,57 @@ class ViSelectorRange {
   bool get isClosed => lowBound == ViSelectorBound.inclusive && highBound == ViSelectorBound.inclusive;
 }
 
+/// One object of a record heap with every field the walk decoded from its records; unset
+/// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
+/// parent's origin and [absBounds] to the diagram's.
 class ViHeapObject {
   ViHeapObject({required this.oid, required this.kind, required this.offset})
     : objectClass = HeapObjectClass.fromCode(kind);
 
+  /// The object id the header declares; references name objects by it.
   final int oid;
 
+  /// The class code the header declares, also when no [HeapObjectClass] names it.
   final int kind;
 
   final HeapObjectClass objectClass;
 
+  /// Byte offset of the object header in the heap body.
   final int offset;
 
+  /// The bounds record, relative to the parent object's origin.
   HeapRect? bounds;
 
+  /// [bounds] shifted by every ancestor's origin; null for objects without a bounds record.
   HeapRect? absBounds;
 
+  /// The enclosing object, null for a root.
   int? parentOid;
 
+  /// The caption record, else the `shortText` attribute, else for a node the first child label.
   String? label;
 
+  /// Targets of the object's `childRef` references, in record order; a signal's are its endpoints.
   final List<int> refs = <int>[];
 
+  /// Targets of every reference, by kind.
   final Map<HeapRefKind, List<int>> typedRefs = <HeapRefKind, List<int>>{};
 
+  /// The `childRef` and `dcoRef` targets together.
   Iterable<int> get memberOids => <int>{
     ...?typedRefs[HeapRefKind.childRef],
     ...?typedRefs[HeapRefKind.dcoRef],
   };
 
+  /// The number of size records ([HeapOpcode.size]) the object carries.
   int termCount = 0;
 
   // TODO: a font run's colour record (raw 0x029) is not captured.
+  /// The font runs of the object's text: each starts at a character index and names an `FTAB`
+  /// font id.
   List<({int start, int fontId})> textStyleRuns = const [];
 
+  /// The `FTAB` entry of the label's first font run, set by the model once the font table is read.
   ViFontEntry? labelFont;
 
   bool get labelIsBold => labelFont?.isBold ?? false;
@@ -175,76 +263,114 @@ class ViHeapObject {
 
   ViTypeKind typeKind = ViTypeKind.unknown;
 
+  /// Enum or ring item names from the string table record, copied up to the owning control.
   List<String> items = const [];
 
+  /// Plot names of a graph or chart, one per plot-name record.
   List<String> plotNames = const [];
 
+  /// The `stdNumMin` attribute of a control terminal.
   double? controlMin;
 
+  /// The `stdNumMax` attribute of a control terminal.
   double? controlMax;
 
+  /// The description record, copied up to the nearest bounded ancestor when the object has no bounds.
   String? helpText;
 
+  /// A constant's text, from the `constValue` attribute or [decodeBdConstValues].
   String? constText;
 
+  /// A constant's numeric value, from [decodeBdConstValues].
   num? constNumeric;
 
+  /// A constant's boolean value, from [decodeBdConstValues].
   bool? constBool;
 
+  /// The flat bytes of a constant DCO's `constValue` attribute.
   Uint8List? constValueRaw;
 
+  /// Whether [constValueRaw] came from a scalar attribute width rather than a container blob.
   bool constValueScalar = false;
 
+  /// A numeric array constant's elements in row-major order, from [decodeBdConstValues].
   List<num>? constArray;
 
+  /// The dimension sizes of [constArray].
   List<int>? constArrayDims;
 
+  /// The `cosmColorB` word of a label, read as a mode word: `0x20` centres the text, `0x800000`
+  /// widens the text inset.
   int? labelModeWord;
 
   bool get labelJustifyCenter => ((labelModeWord ?? 0) & 0x20) != 0;
 
+  /// The inset between a label's box and its text, in pixels.
   int get labelTextInset => ((labelModeWord ?? 0) & 0x800000) != 0 ? 2 : 1;
 
+  /// The displayed element index of an array container, from its array index group.
   int? arrayIndex;
 
+  /// A case structure's selector ranges.
   List<ViSelectorRange> selectorRanges = const <ViSelectorRange>[];
 
+  /// A case structure's selector strings.
   List<String> selectorStrings = const <String>[];
 
+  /// A case structure's default frame, null when the attribute holds [kViNoDefaultFrame].
   int? defaultFrameIndex;
 
+  /// The `formatStyle` attribute of a numeric display, a `%` format string.
   String? displayFormat;
 
+  /// The `backgroundColor` attribute as `0xRRGGBB`; null when absent or transparent.
   int? bgRgb;
 
+  /// The `fgColor` attribute as `0xRRGGBB`; null when absent or transparent.
   int? fgRgb;
 
+  /// The `contentColor` attribute as `0xRRGGBB`; null when absent or transparent.
   int? contentRgb;
 
+  /// The `structColor` attribute as `0xRRGGBB`; null when absent or transparent.
   int? structRgb;
 
+  /// The `borderColor` attribute as `0xRRGGBB`; null when absent or transparent.
   int? borderRgb;
 
+  /// The `termBounds` attribute: a terminal's box relative to the nearest bounded ancestor's
+  /// origin.
   HeapRect? termBounds;
 
+  /// The `termBMPs` attribute: which glyph the terminal draws.
   int? termBmp;
 
+  /// The `typeDescIndex` attribute: an index into the data-space type map, resolved by
+  /// [resolveDataSpaceTypes].
   int? typeDescIdx;
 
+  /// The label of the resolved pool type.
   String? typeName;
 
+  /// The kind of the resolved pool type.
   ViDataType? dataType;
 
+  /// The pool type [typeDescIdx] resolves to, else the one of the object's `dcoRef` target.
   ViType? resolvedType;
 
+  /// The element type when [resolvedType] is an array.
   ViType? resolvedElementType;
 
+  /// The member types when [resolvedType] is a cluster.
   List<ViType> resolvedMembers = const [];
 
+  /// The member types when [resolvedElementType] is a cluster.
   List<ViType> resolvedElementMembers = const [];
 
+  /// The `objFlags` attribute; [ViObjFlag] names the decoded bits.
   int? objFlags;
 
+  /// The `primResID` attribute of a primitive node; [PrimOp] names the ids.
   int? primResId;
 
   String? get primName {
@@ -252,35 +378,52 @@ class ViHeapObject {
     return id == null ? null : PrimOp.fromId(id)?.opName;
   }
 
+  /// A Call Library node's library path record.
   String? foreignLibraryPath;
 
+  /// A Call Library node's symbol name record.
   String? foreignEntryPoint;
 
+  /// A signal's `compressedWireTable` attribute, decoded by [decodeWireRoute] and
+  /// [decodeWireBranchRoute].
   Uint8List? wireTableRaw;
 
+  /// A signal's `lastSignalKind` attribute; [ViSignalType] reads it.
   int? lastSignalKind;
 
+  /// The `dIdx` attribute of a multi-frame structure.
   int? dIdx;
 
+  /// The frame a multi-frame structure shows: [dIdx] without its high bit.
   int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
 
+  /// Whether every bit of [flag] is set in [objFlags].
   bool hasFlag(ViObjFlag flag) => ((objFlags ?? 0) & flag.mask) == flag.mask;
 
   bool get isLabelHidden => objectClass == HeapObjectClass.controlLabel && hasFlag(ViObjFlag.labelHidden);
 
+  /// Whether a front-panel control is an indicator, from its [ViObjFlag.indicator] bit or its
+  /// `dcoRef` target's; null until [resolveDataSpaceTypes] runs or when neither states it.
   bool? isIndicator;
 
+  /// The `plotColor` attributes as `0xRRGGBB`, one per plot.
   List<int> plotColors = const [];
 }
 
+/// How well a [HeapObjectClass] row's role is established.
 enum ClassConfidence {
+  /// Named from a corpus law or a reference render.
   confirmed,
 
+  /// Named from consistent corpus evidence without a direct check.
   inferred,
 
+  /// Only the class code and its category are known.
   kindOnly,
 }
 
+/// The classes an object header declares, by code; [label] is the display name and
+/// [category] the role [classifyObject] starts from.
 enum HeapObjectClass {
   diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
 
@@ -504,9 +647,12 @@ enum HeapObjectClass {
       if (objectClass != unknown) objectClass.code: objectClass,
   };
 
+  /// The class with [code], or [unknown].
   static HeapObjectClass fromCode(int code) => _byCode[code] ?? unknown;
 }
 
+/// Classes of the terminal objects that carry a control's value: numeric, boolean/cluster,
+/// enum/ring, path and string/array.
 const kControlTerminalClasses = {
   HeapObjectClass.numericControl,
   HeapObjectClass.booleanOrClusterControl,
@@ -515,18 +661,25 @@ const kControlTerminalClasses = {
   HeapObjectClass.stringOrArrayControl,
 };
 
+/// Class codes a signal's endpoint references target: a node endpoint DCO or a leaf.
 final Set<int> kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, HeapObjectClass.bdLeaf.code};
 
+/// The class code of a node's endpoint DCO, the object a wire ends on inside a node.
 const int kNodeEndpointDcoKind = 0x15;
 
+/// Pixels a wire's attach point moves left of a right shift register's column centre.
 const int kShiftRegisterColumnLeftOffset = 4;
 
+/// Pixels a wire's attach point moves right of a left shift register's column centre.
 const int kShiftRegisterColumnRightOffset = 4;
 
+/// Classes of a node's terminal strip, the column of terminals along its edge.
 const kBdTerminalStripClasses = {HeapObjectClass.bdTerminalStrip, HeapObjectClass.bdTerminalStrip35};
 
+/// Width in pixels of a terminal strip's attach box.
 const int kTerminalStripColumnWidth = 8;
 
+/// Pixels a wire's target lies left of a terminal strip's attach point.
 const int kTerminalStripTargetLeftOffset = 8;
 
 const _objAttrIds = {
@@ -534,6 +687,7 @@ const _objAttrIds = {
   0x54,
 };
 
+/// Structures that hold one frame per case, event or sequence step and show one at a time.
 const kMultiFrameStructureClasses = {
   HeapObjectClass.bdStructureFrame,
   HeapObjectClass.bdDisableStructure,
@@ -545,6 +699,8 @@ const int _structureAreaCap = 20000;
 
 String _fmtNum(double v) => v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
 
+/// A control's range as `lo … hi`, `≥ lo` or `≤ hi`; null when neither bound is finite or
+/// the bounds are inverted.
 String? formatControlRange(double? min, double? max) {
   if (min?.isNaN == true || max?.isNaN == true) return null;
   final lo = (min != null && min.isFinite) ? min : null;
@@ -554,6 +710,7 @@ String? formatControlRange(double? min, double? max) {
   return lo != null ? '≥ ${_fmtNum(lo)}' : '≤ ${_fmtNum(hi!)}';
 }
 
+/// Help text without its `<tag>` markup and runs of spaces.
 String stripHelpMarkup(String helpText) {
   final out = helpText.replaceAll(_helpMarkupTag, '').replaceAll(_interiorSpaces, ' ').trim();
   return out.isEmpty ? helpText.trim() : out;
@@ -562,6 +719,8 @@ String stripHelpMarkup(String helpText) {
 final RegExp _helpMarkupTag = RegExp(r'<\s*/?\s*[A-Za-z][A-Za-z0-9]*\s*>');
 final RegExp _interiorSpaces = RegExp(r'[ \t]{2,}');
 
+/// The role of an object: a terminal cluster when it is one or carries a size record, else
+/// its class's category.
 ViObjectKind classifyObject({required HeapObjectClass objectClass, required int termCount}) =>
     objectClass == HeapObjectClass.nodeTerminalCluster || termCount >= 1
     ? ViObjectKind.terminalCluster
@@ -578,6 +737,9 @@ int? _formatConvChar(List<int> payload) {
   return null;
 }
 
+/// A type kind guessed from the C4 opcodes an object carries: a symbol name means a Call
+/// Library node, a path record a path, a string table an enum or ring, and a format string a
+/// number whose conversion character tells integer from float.
 ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
   if (c4ops.contains(0xc4)) return ViTypeKind.clnNode;
   if (c4ops.contains(0xa4)) return ViTypeKind.path;
@@ -589,13 +751,17 @@ ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
   return ViTypeKind.unknown;
 }
 
+/// A signal's `lastSignalKind` word: the low byte is the `VCTP` type code, bits 8–11 the
+/// depth (the scalar depth of the code plus one per array dimension), bits 12–15 flags.
 class ViSignalType {
   const ViSignalType(this.raw);
 
   final int raw;
 
+  /// The type code of a cluster carried as a variant.
   static const int clusterVariantCode = 0x51;
 
+  /// The type code of a typed refnum.
   static const int typedRefnumCode = 0x71;
 
   int get typeCode => raw & 0xff;
@@ -605,17 +771,21 @@ class ViSignalType {
   // TODO: the flag nibble's meaning is not decoded.
   int get flags => (raw >> 12) & 0xf;
 
+  /// The data type of [typeCode]; null for a code the pool grammar does not name.
   ViDataType? get dataType => switch (typeCode) {
     clusterVariantCode => ViDataType.cluster,
     typedRefnumCode => ViDataType.refnum,
     _ => dataTypeOfCode(typeCode),
   };
 
+  /// The kind of the scalar or element type.
   ViTypeKind? get elementKind {
     final t = dataType;
     return t == null ? null : _typeKindOf(t);
   }
 
+  /// Array dimensions: [depth] above the code's scalar depth; null when the code's scalar depth
+  /// is not established and the depth is not the minimum.
   int? get arrayDims {
     final base = _signalScalarDepth(typeCode);
     if (base == null) return depth == kSignalMinScalarDepth ? 0 : null;
@@ -628,6 +798,7 @@ class ViSignalType {
     return dims == null ? null : dims > 0;
   }
 
+  /// [ViTypeKind.array] for an array, else [elementKind].
   ViTypeKind? get typeKind => isArray == true ? ViTypeKind.array : elementKind;
 
   @override
@@ -637,6 +808,7 @@ class ViSignalType {
   int get hashCode => raw.hashCode;
 }
 
+/// The depth of a scalar numeric signal.
 const int kSignalMinScalarDepth = 1;
 
 int? _signalScalarDepth(int code) {
@@ -653,12 +825,17 @@ int? _signalScalarDepth(int code) {
   return null;
 }
 
+/// How a decoded route was placed on the diagram.
 enum WireRouteFidelity {
+  /// The walk from one endpoint's attach point lands exactly on the other's.
   closed,
 
+  /// The walk is anchored at one endpoint and ends inside the other's box.
   walked,
 }
 
+/// One `signal` object of a block diagram as a wire: its endpoints, where each attaches, and
+/// its route in diagram pixels. The endpoint at index 0 is where the route table starts.
 class ViWire {
   ViWire({
     required this.signalOid,
@@ -686,31 +863,44 @@ class ViWire {
 
   final int signalOid;
 
+  /// The signal's `childRef` targets, in record order.
   final List<int> endpointOids;
 
+  /// Per endpoint, the constant's bounds or the nearest bounded ancestor's; null when none.
   final List<HeapRect?> endpointAnchors;
 
+  /// Per endpoint, the terminal's absolute `termBounds`, else the constant's bounds.
   final List<HeapRect?> endpointAttachRects;
 
+  /// The decoded route table of a two-endpoint wire.
   final ViWireRoute? route;
 
+  /// The decoded route table of a wire with three or more endpoints.
   final ViWireBranchRoute? branchRoute;
 
   late final ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _routeTreeResult = _routeTreeBuilder?.call();
+
+  /// [branchRoute] walked from a solved origin; null when no origin closes it.
   late final ViWireRouteTree? routeTree = _routeTree ?? _routeTreeResult?.tree;
 
   late final WireRouteFidelity? routeTreeFidelity = routeTree == null
       ? null
       : (_routeTree != null ? _directRouteTreeFidelity : _routeTreeResult?.fidelity);
 
+  /// [route] walked from a solved origin, as the corners of the polyline; null when no
+  /// candidate attach point closes it.
   final List<ViPoint>? routePoints;
 
   final WireRouteFidelity? routePointsFidelity;
 
+  /// For a walked route whose tail already lies inside the far box: the one-pixel direction the
+  /// tail should keep moving in.
   final ViStep? routeClosingStep;
 
+  /// For a route solved from its tail: the direction the head end may slide along.
   final ViStep? routeHeadSlack;
 
+  /// The signal's type word.
   final ViSignalType? signalType;
 
   ViTypeKind? get typeKind => signalType?.typeKind;
@@ -718,10 +908,14 @@ class ViWire {
   ViTypeKind? get elementTypeKind => signalType?.elementKind;
 }
 
+/// A diagram position in pixels.
 typedef ViPoint = ({int x, int y});
 
+/// A unit direction or offset in pixels.
 typedef ViStep = ({int dx, int dy});
 
+/// The direction of a route's first segment, as the route table codes it; the codes are bits
+/// so a branch route's first mode can name several.
 enum WireRouteDirection {
   up(0x01, 0, -1),
 
@@ -746,9 +940,13 @@ enum WireRouteDirection {
     for (final value in values) value.code: value,
   };
 
+  /// The direction with [code], or null when the code is not exactly one direction.
   static WireRouteDirection? fromCode(int code) => _byCode[code];
 }
 
+/// A two-endpoint wire's route table: `[pointCount][direction][pointCount − 2 joint signs]`
+/// `[pointCount − 2 segment lengths]`, a sign byte `0` turning positive and `1` negative, a
+/// length byte `ff` escaping to a `u16`; a table of one byte is a single point.
 class ViWireRoute {
   ViWireRoute({
     required this.pointCount,
@@ -759,10 +957,13 @@ class ViWireRoute {
 
   final int pointCount;
 
+  /// The first segment's direction; null for a single-point route.
   final WireRouteDirection? direction;
 
+  /// Each segment's length in pixels; segments alternate horizontal and vertical.
   final List<int> segmentLengths;
 
+  /// Per segment after the first, `1` or `-1`: the sign of its axis step.
   final List<int> jointSigns;
 }
 
@@ -782,6 +983,8 @@ List<int>? _decodeLengthTail(Uint8List table, int start) {
 }
 
 // TODO: a residue of two-endpoint tables opening with the up code carries two trailing bytes this grammar does not explain.
+/// The route of a two-endpoint wire, or null when [table] does not follow the [ViWireRoute]
+/// grammar.
 ViWireRoute? decodeWireRoute(Uint8List table) {
   if (table.isEmpty) return null;
   final n = table[0];
@@ -806,6 +1009,8 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
   return ViWireRoute(pointCount: n, direction: direction, segmentLengths: lengths, jointSigns: signs);
 }
 
+/// A branch route mode that forks the wire: which directions leave the junction, in the order
+/// the walk takes them; the direction the wire arrived from is replaced by [WireRouteDirection.left].
 enum WireRouteJunction {
   cross(0x04, [WireRouteDirection.up, WireRouteDirection.down, WireRouteDirection.right]),
 
@@ -826,21 +1031,30 @@ enum WireRouteJunction {
     for (final value in values) value.code: value,
   };
 
+  /// The junction with [code], or null for a code that is not one.
   static WireRouteJunction? fromCode(int code) => _byCode[code];
 }
 
+/// A branching wire's route table: `[pointCount][00][pointCount − 1 modes][pointCount − 1`
+/// `segment lengths]`. The first mode is a set of [WireRouteDirection] bits; a later mode of
+/// `0` or `1` turns positive or negative across the previous axis, [popCode] returns to the
+/// last junction with directions left to walk, and any other mode is a [WireRouteJunction].
 class ViWireBranchRoute {
   ViWireBranchRoute._({required this.pointCount, required this.modes, required this.segmentLengths});
 
+  /// The mode that ends a branch and resumes at the last open junction.
   static const int popCode = 0x03;
 
   final int pointCount;
 
   final Uint8List modes;
 
+  /// One length in pixels per mode.
   final List<int> segmentLengths;
 }
 
+/// The route of a branching wire, or null when [table] does not follow the
+/// [ViWireBranchRoute] grammar or its junctions and pops do not balance.
 ViWireBranchRoute? decodeWireBranchRoute(Uint8List table) {
   if (table.length < 2 || table[1] != 0) return null;
   final n = table[0];
@@ -869,16 +1083,21 @@ ViWireBranchRoute? decodeWireBranchRoute(Uint8List table) {
 
 int _bitCount(int v) => (v & 1) + ((v >> 1) & 1) + ((v >> 2) & 1) + ((v >> 3) & 1);
 
+/// A branching route placed on the diagram: one polyline per branch, each starting at the
+/// origin or a junction and ending at a leaf.
 class ViWireRouteTree {
   ViWireRouteTree({required this.polylines, required this.junctions});
 
   final List<List<ViPoint>> polylines;
 
+  /// Where branches fork.
   final List<ViPoint> junctions;
 
+  /// The end of every branch; a wire with `n` endpoints has `n − 1` leaves.
   late final List<ViPoint> leaves = [for (final polyline in polylines) polyline.last];
 }
 
+/// Places [route] with its first point at [start].
 ViWireRouteTree walkWireBranchRoute(ViWireBranchRoute route, ViPoint start) {
   final modes = route.modes;
   final lengths = route.segmentLengths;
@@ -942,6 +1161,8 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   WireRouteDirection.right => WireRouteDirection.left,
 };
 
+/// The corners of [route] walked from [origin], with the axis and sign of the segment that
+/// would follow the last corner; null for a single-point route.
 ({List<ViPoint> points, WireRouteDirection direction, bool closingHorizontal, int closingSign})? walkRouteBends(
   ViWireRoute route, {
   ViPoint origin = (x: 0, y: 0),
@@ -971,6 +1192,9 @@ WireRouteDirection _reverse(WireRouteDirection d) => switch (d) {
   );
 }
 
+/// Places [route] with the endpoint at [anchoredIndex] fixed at [anchor] and the other end
+/// closing on [farBox]: walked forward from the head, or walked backward from the tail when
+/// [anchoredIndex] is 1. Null when the closing segment misses the box.
 ({List<ViPoint> points, ViStep? closingStep, ViStep? headSlack})? walkOneAnchoredRoute(
   ViWireRoute route, {
   required ViPoint anchor,
@@ -1066,13 +1290,18 @@ bool _predatesFrameRelativeTermBounds(String? version) {
   return major < 8 || (major == 8 && minor < 6);
 }
 
+/// The objects of one heap section, indexed by oid and parent, with the wires derived from
+/// its signals.
 class ViDiagram {
   ViDiagram({required this.sectionTag, required this.objects, this.version});
 
+  /// The section the heap came from, `FPHb` or `BDHb`.
   final String sectionTag;
 
+  /// The saving LabVIEW version as `major.minor`, when the caller knows it.
   final String? version;
 
+  /// Every object in heap order.
   final List<ViHeapObject> objects;
 
   late final Map<int, ViHeapObject> byId = {for (final object in objects) object.oid: object};
@@ -1081,11 +1310,13 @@ class ViDiagram {
 
   Iterable<ViHeapObject> children(int oid) => childrenByOid[oid] ?? const <ViHeapObject>[];
 
+  /// The frame objects of a structure, in heap order.
   List<ViHeapObject> framesOf(ViHeapObject structure) => [
     for (final child in children(structure.oid))
       if (child.objectClass == HeapObjectClass.bdFrame) child,
   ];
 
+  /// The frame a multi-frame structure shows, null for other objects or an index past its frames.
   int? displayedFrameIndex(ViHeapObject structure) {
     if (!kMultiFrameStructureClasses.contains(structure.objectClass)) return null;
     var frames = 0;
@@ -1096,8 +1327,10 @@ class ViDiagram {
     return index < frames ? index : null;
   }
 
+  /// Every object with a bounds record.
   Iterable<ViHeapObject> get nodes => objects.where((o) => o.absBounds != null);
 
+  /// One wire per `signal` object.
   late final List<ViWire> wires = [
     for (final object in objects)
       if (object.objectClass == HeapObjectClass.signal) _buildWire(object),
@@ -1454,6 +1687,8 @@ class ViDiagram {
     }
   }
 
+  /// The terminal object whose `childRef` names the endpoint [oid]; null for an object that is
+  /// not an endpoint or is claimed by two terminals.
   ViHeapObject? endpointTerminal(int oid) {
     final endpoint = byId[oid];
     if (endpoint == null || !kSignalEndpointDcoKinds.contains(endpoint.kind)) return null;
@@ -1481,13 +1716,16 @@ class ViDiagram {
     return index;
   }
 
+  /// The endpoint DCO the terminal [oid] refers back to through `dcoRef`.
   ViHeapObject? terminalDco(int oid) {
     final dcoOid = _dcoOidByTerminalOid[oid];
     return dcoOid == null ? null : byId[dcoOid];
   }
 
+  /// Whether the terminal's DCO carries [ViObjFlag.terminalGlyphHidden].
   bool terminalGlyphHidden(int oid) => terminalDco(oid)?.hasFlag(ViObjFlag.terminalGlyphHidden) ?? false;
 
+  /// The constant DCO under the node endpoint [oid], when the endpoint feeds a constant.
   ViHeapObject? endpointConstant(int oid) {
     final endpoint = byId[oid];
     if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
@@ -1497,6 +1735,7 @@ class ViDiagram {
     return null;
   }
 
+  /// The bounds of the constant's first bounded child; null before LabVIEW 8.6.
   HeapRect? endpointConstantBounds(int oid) {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final constant = endpointConstant(oid);
@@ -1507,6 +1746,7 @@ class ViDiagram {
     return null;
   }
 
+  /// For a constant drawn as a container, the bounds of its rightmost element part.
   HeapRect? endpointConstantElementBounds(int oid) {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final constant = endpointConstant(oid);
@@ -1531,6 +1771,8 @@ class ViDiagram {
     return null;
   }
 
+  /// The endpoint's terminal box in diagram pixels: its `termBounds` shifted by the nearest
+  /// bounded ancestor's origin; null before LabVIEW 8.6.
   HeapRect? endpointTerminalBounds(int oid) {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final terminal = endpointTerminal(oid);
@@ -1547,6 +1789,8 @@ class ViDiagram {
     );
   }
 
+  /// For a node endpoint without bounds whose single child carries `termBounds`: the centre of
+  /// that box, and whether the child is a wide terminal strip.
   ({List<ViPoint> candidates, bool wideRow})? dcoChildTerminalAttach(int oid) {
     if (_predatesFrameRelativeTermBounds(version)) return null;
     final endpoint = byId[oid];
@@ -1570,6 +1814,7 @@ class ViDiagram {
     );
   }
 
+  /// The centre of the endpoint's terminal or constant box, shifted inward for shift registers.
   ViPoint? wireAttachPoint(int oid) =>
       _attachPointFrom(endpointTerminalBounds(oid) ?? endpointConstantBounds(oid), oid);
 
@@ -1669,6 +1914,8 @@ const double _dblWindowFloor = 1e-12, _dblWindowCeil = 1e12;
 const Set<int> _zeroPayloadLengths = {5, 9};
 
 // TODO: absolute (type 0) and UNC (type 2) path text is not decoded.
+/// The segments of a flat relative `PTH0` path joined with backslashes; null for any other
+/// path form.
 String? decodeFlatPathText(Uint8List? raw) {
   if (raw == null || raw.length < 12) return null;
   if (raw[0] != 0x50 || raw[1] != 0x54 || raw[2] != 0x48 || raw[3] != 0x30) {
@@ -1694,6 +1941,9 @@ String? decodeFlatPathText(Uint8List? raw) {
   return segments.join(r'\');
 }
 
+/// A constant's value read from its flat bytes by the class of the control that draws it:
+/// a path, a four-character string, a boolean, or a small non-negative integer, a zero or a
+/// double in a plausible range; null when the bytes do not fit the carrier.
 Object? decodeBdConstantValue({
   required HeapObjectClass carrier,
   required Uint8List? flat,
@@ -1753,6 +2003,10 @@ Object? decodeBdConstantValue({
   }
 }
 
+/// Builds the object tree of a heap body (the section payload including its length word).
+/// After the walk, label bounds are re-based on their owner, flat-sequence frames are shifted
+/// to their declared offsets, items and help text bubble up to the owning control, unlabelled
+/// nodes take their first child label, and controls under a scrolled viewport are re-anchored.
 ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? version}) {
   final objects = <ViHeapObject>[];
   final c4ops = <ViHeapObject, Set<int>>{};
@@ -2296,6 +2550,9 @@ ViTypeKind? _typeKindOf(ViDataType type) => switch (type) {
   _ => null,
 };
 
+/// Joins the diagrams to the type pool: marks indicators from their `objFlags`, resolves each
+/// `typeDescIdx` through [table] (the data-space type map) offset by [typeIndexBase], copies
+/// the result to objects that reach a DCO through `dcoRef`, then decodes constant values.
 void resolveDataSpaceTypes({
   required List<ViType> pool,
   required List<int> table,
@@ -2471,6 +2728,8 @@ void _typedBdConstDecode(ViHeapObject object) {
   ];
 }
 
+/// Fills the `const*` fields of every constant DCO: through its resolved type first, then
+/// through [decodeBdConstantValue] for the fields still unset.
 void decodeBdConstValues(ViDiagram diagram) {
   final nodeKids = _childrenByParentOid(diagram.objects);
   bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
