@@ -27,6 +27,11 @@ jobs:
       - name: check formatting
         shell: bash
         run: ./format.sh --check
+      - name: check generated block docs
+        shell: bash
+        run: |
+          dart run packages/labwright_rsrc_parse/tool/gen_block_docs.dart
+          git diff --exit-code
       - run: dart analyze --fatal-infos
       - name: test all packages
         shell: bash

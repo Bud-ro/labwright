@@ -46,16 +46,16 @@ bool _vicd(Uint8List b) => decodeCompiledCode(b) != null;
 bool _dsim(Uint8List b) => decodeDataSpaceImage(b) != null;
 bool _mngi(Uint8List b) => decodePngEnvelope(b) != null;
 bool _linkInfo(Uint8List b) => decodeLinkInfo(b)?.version == 1;
-bool _bdpw(Uint8List b) => decodePasswordRecord(b) != null;
-bool _rtsg(Uint8List b) => decodeRuntimeSignature(b) != null;
-bool _scsr(Uint8List b) => decodeScsrRecord(b) != null;
-bool _picc(Uint8List b) => decodeIconPlacement(b) != null;
-bool _prt(Uint8List b) => decodePrintRecord(b) != null;
-bool _sectionMarker(Uint8List b) => decodeSectionMarker(b) != null;
-bool _muid(Uint8List b) => decodeModifiedUid(b) != null;
-bool _extendedState(Uint8List b) => decodeExtendedState(b) != null;
-bool _gcpr(Uint8List b) => decodeGcprRecord(b)?.matchesCorpusConstant ?? false;
-bool _dldr(Uint8List b) => decodeDldrRecord(b) != null;
+bool _bdpw(Uint8List b) => decodePasswordRecord(b).passwordDigest.length == 16;
+bool _rtsg(Uint8List b) => decodeSignature(b).digest.length == 16;
+bool _scsr(Uint8List b) => decodeSourceSignature(b).digest.length == 16;
+bool _picc(Uint8List b) => decodeIconPlacement(b).bytes.length == 12;
+bool _prt(Uint8List b) => decodePrintRecord(b).length >= 32;
+bool _sectionMarker(Uint8List b) => decodeSectionEntry(b).value >= 0;
+bool _muid(Uint8List b) => decodeModifiedUid(b).value >= 0;
+bool _extendedState(Uint8List b) => decodeExtendedState(b).length >= 1;
+bool _gcpr(Uint8List b) => decodeGcprRecord(b).isZero;
+bool _dldr(Uint8List b) => decodeDldrRecord(b).length == 7;
 bool _trec(Uint8List b) => decodeTextRecord(b) != null;
 
 Map<String, int> _undecoded(Uint8List bytes, String path) {

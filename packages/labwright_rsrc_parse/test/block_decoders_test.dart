@@ -17,8 +17,8 @@ Uint8List _lvsr(int len, {int b0 = 0x20, int b1 = 0, int flags = 0, List<int>? h
   b[1] = b1;
   b[2] = 0x80;
   if (len >= 6) ByteData.sublistView(b).setUint16(4, flags);
-  if (len >= 112) b.setAll(96, hash96 ?? emptyPasswordHash);
-  if (len >= 160) b.setAll(144, hash144 ?? emptyPasswordHash);
+  if (len >= 112) b.setAll(96, hash96 ?? emptyPasswordDigest);
+  if (len >= 160) b.setAll(144, hash144 ?? emptyPasswordDigest);
   return b;
 }
 
@@ -56,19 +56,19 @@ void main() {
     expect(decodeStringBlock(u8([0, 0, 0])), isNull);
   });
 
-  test('decodeHistory: 40-byte record fields, reserved-zero flag, null when short', () {
+  test('decodeHistory: 40-byte record fields and the reserved-zero check', () {
     final b = Uint8List(40);
     ByteData.sublistView(b)
       ..setUint32(0, 2)
       ..setUint32(4, 0x400)
       ..setUint32(8, 11);
-    final h = decodeHistory(b)!;
-    expect((h.formatVersion, h.flags, h.entryCount, h.rawLength), (2, 0x400, 11, 40));
+    final h = decodeHistory(b);
+    expect((h.formatVersion, h.flags, h.entryCount), (2, 0x400, 11));
     expect(h.reservedAreZero, isTrue);
-    expect(h.words, hasLength(10));
+    expect(h.serialize(), same(b));
     ByteData.sublistView(b).setUint32(12, 7);
-    expect(decodeHistory(b)!.reservedAreZero, isFalse, reason: 'offset 12 is a reserved word');
-    expect(decodeHistory(Uint8List(20)), isNull);
+    expect(decodeHistory(b).reservedAreZero, isFalse, reason: 'offset 12 is a reserved word');
+    expect(() => decodeHistory(Uint8List(20)), throwsA(isA<AssertionError>()));
   });
 
   test('decodeFontTable: version/count/offset + packed names, bogus offset safe, null when short', () {
@@ -136,22 +136,34 @@ void main() {
       ('21138005', 21, 1, 3, '21.1.3'),
     ];
     for (final (bytes, major, minor, patch, version) in rows) {
-      final v = decodeVersionWord(hx(bytes))!;
+      final v = decodeVersionWord(hx(bytes));
       expect((v.major, v.minor, v.patch, v.version), (major, minor, patch, version), reason: bytes);
     }
-    final v = decodeVersionWord(hx('08508002'))!;
+    final v = decodeVersionWord(hx('08508002'));
     expect((v.stage, v.build), (0x80, 2));
     expect(v.minor, 5, reason: 'minor is the high nibble of byte 1, not BCD(0x50)=50');
-    expect(decodeVersionWord(hx('010203')), isNull);
+    expect(() => decodeVersionWord(hx('010203')), throwsA(isA<AssertionError>()));
+  });
+
+  test('decodeVersBlock: version word, flags, and the two Pascal strings tiling the payload', () {
+    final b = u8([0x20, 0x00, 0x80, 0x00, 0x00, 0x03, ...pascal('20.0'), ...pascal('20.0f1')]);
+    final v = decodeVersBlock(b);
+    expect((v.versionWord.version, v.flags, v.versionText, v.infoText), ('20.0', 3, '20.0', '20.0f1'));
+    expect(v.serialize(), same(b));
+    expect(() => decodeVersBlock(u8([0x20, 0, 0x80, 0, 0, 0, 9, 0x41])), throwsA(isA<AssertionError>()));
   });
 
   group('decodeSaveRecord (LVSR)', () {
     test('decodes the BCD version word (same decode as vers)', () {
-      final r = decodeSaveRecord(_lvsr(160))!;
-      expect((r.versionMajor, r.versionMinor, r.stage, r.version, r.rawLength), (20, 0, 0x80, '20.0', 160));
-      expect(decodeSaveRecord(_lvsr(160, b0: 0x09))!.versionMajor, 9);
-      final v85 = decodeSaveRecord(_lvsr(160, b0: 0x08, b1: 0x50))!;
-      expect((v85.versionMajor, v85.versionMinor, v85.version), (8, 5, '8.5'), reason: 'minor guard: not BCD(0x50)');
+      final r = decodeSaveRecord(_lvsr(160));
+      expect(
+        (r.versionWord.major, r.versionWord.minor, r.versionWord.stage, r.versionWord.version),
+        (20, 0, 0x80, '20.0'),
+      );
+      expect(decodeSaveRecord(_lvsr(160, b0: 0x09)).versionWord.major, 9);
+      final v85 = decodeSaveRecord(_lvsr(160, b0: 0x08, b1: 0x50)).versionWord;
+      expect((v85.major, v85.minor, v85.version), (8, 5, '8.5'), reason: 'minor guard: not BCD(0x50)');
+      expect(r.serialize(), same(r.bytes));
     });
 
     test('names the evaluation and home/student bits of the @4 flag word', () {
@@ -163,35 +175,34 @@ void main() {
         (0x1800, {ViSaveFlag.evaluationLicense, ViSaveFlag.homeStudentEdition}),
       ];
       for (final (word, flags) in cases) {
-        final r = decodeSaveRecord(_lvsr(160, flags: word))!;
+        final r = decodeSaveRecord(_lvsr(160, flags: word));
         expect(r.saveFlagWord, word);
         expect(r.saveFlags, flags, reason: word.toRadixString(16));
       }
-      expect(decodeSaveRecord(hx('16008000'))!.saveFlags, isEmpty, reason: 'a 4-byte record has no flag word');
     });
 
-    test('reads the @96 password hash and the independent @144 secondary hash', () {
-      final unset = decodeSaveRecord(_lvsr(160))!;
-      expect(unset.blockDiagramPasswordHash, emptyPasswordHash);
+    test('reads the @96 password digest and the independent @144 secondary digest', () {
+      final unset = decodeSaveRecord(_lvsr(160));
+      expect(unset.blockDiagramPasswordDigest, emptyPasswordDigest);
       expect(unset.isBlockDiagramPasswordProtected, isFalse);
-      final protectedHash = List<int>.generate(16, (i) => i + 1);
-      final prot = decodeSaveRecord(_lvsr(160, hash96: protectedHash))!;
-      expect(prot.blockDiagramPasswordHash, protectedHash);
+      final protectedDigest = List<int>.generate(16, (i) => i + 1);
+      final prot = decodeSaveRecord(_lvsr(160, hash96: protectedDigest));
+      expect(prot.blockDiagramPasswordDigest, protectedDigest);
       expect(prot.isBlockDiagramPasswordProtected, isTrue);
-      final hash144 = List<int>.generate(16, (i) => 100 + i);
-      final r = decodeSaveRecord(_lvsr(160, hash144: hash144))!;
-      expect(r.secondaryHash, hash144);
-      expect(r.blockDiagramPasswordHash, emptyPasswordHash, reason: '@96 is independent of the @144 slot');
-      expect(() => r.secondaryHash!.add(0), throwsUnsupportedError, reason: 'hash slots are read-only');
+      final digest144 = List<int>.generate(16, (i) => 100 + i);
+      final r = decodeSaveRecord(_lvsr(160, hash144: digest144));
+      expect(r.secondaryDigest, digest144);
+      expect(r.blockDiagramPasswordDigest, emptyPasswordDigest, reason: '@96 is independent of the @144 slot');
     });
 
-    test('hash slots are gated on record length', () {
-      final r112 = decodeSaveRecord(_lvsr(112, b0: 0x12))!;
-      expect(r112.blockDiagramPasswordHash, isNotNull, reason: '112 bytes reaches @96');
-      expect(r112.secondaryHash, isNull, reason: '112 bytes does not reach @144');
-      final tiny = decodeSaveRecord(hx('16008000'))!;
-      expect((tiny.versionMajor, tiny.blockDiagramPasswordHash, tiny.secondaryHash), (16, null, null));
-      expect(decodeSaveRecord(hx('0102')), isNull, reason: 'too short for even the version word');
+    test('digest slots are gated on record length; the record needs at least the flag word', () {
+      final r112 = decodeSaveRecord(_lvsr(112, b0: 0x12));
+      expect(r112.blockDiagramPasswordDigest, isNotNull, reason: '112 bytes reaches @96');
+      expect(r112.secondaryDigest, isNull, reason: '112 bytes does not reach @144');
+      final tiny = decodeSaveRecord(hx('16008000 0000'));
+      expect((tiny.versionWord.major, tiny.blockDiagramPasswordDigest, tiny.secondaryDigest), (16, null, null));
+      expect(tiny.isBlockDiagramPasswordProtected, isFalse);
+      expect(() => decodeSaveRecord(hx('16008000')), throwsA(isA<AssertionError>()));
     });
   });
 
@@ -382,13 +393,14 @@ void main() {
     });
   });
 
-  test('every fixed-block decoder is total over random small buffers', () {
+  test('every fixed-block decoder returns or rejects its precondition over random small buffers', () {
     final decoders = <String, Object? Function(Uint8List)>{
       'decodeStringBlock': decodeStringBlock,
       'decodeHistory': decodeHistory,
       'decodeFontTable': decodeFontTable,
       'decodeDataTypeHeap': decodeDataTypeHeap,
       'decodeVersionWord': decodeVersionWord,
+      'decodeVersBlock': decodeVersBlock,
       'decodeSaveRecord': decodeSaveRecord,
       'decodeTypeMap': decodeTypeMap,
       'decodeConnectorPane': decodeConnectorPane,
@@ -409,17 +421,19 @@ void main() {
       'decodePngEnvelope': decodePngEnvelope,
       'decodeLinkInfo': decodeLinkInfo,
       'decodePasswordRecord': decodePasswordRecord,
-      'decodeRuntimeSignature': decodeRuntimeSignature,
-      'decodeScsrRecord': decodeScsrRecord,
+      'decodeSignature': decodeSignature,
+      'decodeSourceSignature': decodeSourceSignature,
       'decodeIconPlacement': decodeIconPlacement,
       'decodePrintRecord': decodePrintRecord,
-      'decodeSectionMarker': decodeSectionMarker,
+      'decodeSectionEntry': decodeSectionEntry,
       'decodeModifiedUid': decodeModifiedUid,
       'decodeExtendedState': decodeExtendedState,
       'decodeGcprRecord': decodeGcprRecord,
       'decodeVpdpRecord': decodeVpdpRecord,
       'decodeDldrRecord': decodeDldrRecord,
       'decodeWordGrid': decodeWordGrid,
+      'decodeCoutRecord': decodeCoutRecord,
+      'decodeU16Grid': decodeU16Grid,
       'decodeCpd2Record': decodeCpd2Record,
       'decodeTitleRaw': decodeTitleRaw,
       'decodeTextRecord': decodeTextRecord,
@@ -437,6 +451,8 @@ void main() {
           decode(b);
         } on ViFormatException {
           rethrow;
+        } on AssertionError {
+          return;
         } catch (e) {
           fail('$name leaked ${e.runtimeType} on ${b.length} bytes: $e');
         }
@@ -470,42 +486,47 @@ void main() {
       expect(decodeStringBlockRaw(raw)!.serialize(), raw);
     });
 
-    test('ViHistory.serialize re-emits the fixed 40-byte ten-word record', () {
-      final body = _lvsr(40, b0: 2);
-      expect(decodeHistory(body)!.serialize(), body);
-    });
-
-    test('ViSaveRecordRaw.serialize re-emits the word grid; non-aligned stays copied', () {
-      for (final len in [160, 136, 144, 120, 96, 116]) {
+    test('fixed records are views: serialize returns the backing bytes', () {
+      for (final len in [160, 136, 144, 120, 96, 116, 8]) {
         final body = _lvsr(len);
-        expect(decodeSaveRecordRaw(body)!.serialize(), body, reason: 'len $len');
+        expect(decodeSaveRecord(body).serialize(), same(body), reason: 'len $len');
       }
-      expect(decodeSaveRecordRaw(u8([1, 2, 3, 4, 5])), isNull, reason: 'not word-aligned');
-      expect(decodeSaveRecordRaw(u8([])), isNull);
-    });
-
-    test('ViWordGrid/ViTitleRaw/constant/signature writers re-emit their bodies exactly', () {
       final dldr = u8([0, 0, 0, 1, ...List.filled(24, 0)]);
-      expect(decodeDldrRecord(dldr)!.serialize(), dldr);
-      expect(decodeDldrRecord(u8([0, 0, 0, 1])), isNull, reason: 'not seven words');
+      expect(decodeDldrRecord(dldr)[0], 1);
+      expect(decodeDldrRecord(dldr).serialize(), same(dldr));
+      expect(() => decodeDldrRecord(u8([0, 0, 0, 1])), throwsA(isA<AssertionError>()), reason: 'not seven words');
       final grid = u8([0, 0, 3, 0xae, 0, 0, 3, 0xc4, 0, 0, 5, 9]);
-      expect(decodeWordGrid(grid)!.serialize(), grid);
-      expect(decodeWordGrid(u8([1, 2, 3])), isNull);
-      expect(decodeWordGrid(u8([])), isNull);
-      expect(decodeVpdpRecord(u8([0, 0, 0, 0]))!.serialize(), u8([0, 0, 0, 0]));
-      expect(decodeVpdpRecord(u8([0, 0, 0, 1]))!.serialize(), isNull);
+      final words = decodeWordGrid(grid);
+      expect((words.length, words[0], words[2]), (3, 0x3ae, 0x509));
+      expect(() => decodeWordGrid(u8([1, 2, 3])), throwsA(isA<AssertionError>()));
+      expect(() => decodeWordGrid(u8([])), throwsA(isA<AssertionError>()));
+      expect(decodeVpdpRecord(u8([0, 0, 0, 0])).isZero, isTrue);
+      expect(decodeVpdpRecord(u8([0, 0, 0, 1])).isZero, isFalse);
+      final picc = u8([0, 0x92, 0x09, 0x02, 0, 0x2a, 0, 0x47, 0, 0xaa, 0xff, 0xa6]);
+      final placement = decodeIconPlacement(picc);
+      expect((placement.top, placement.left, placement.bottom, placement.right), (0x2a, 0x47, 0xaa, -90));
+      final fpse = u8([0, 0, 0, 5]);
+      expect((decodeSectionEntry(fpse).value, decodeSectionEntry(fpse).extra), (5, null));
+      expect(decodeSectionEntry(u8([0, 0, 0, 5, 0, 0, 0, 7])).extra, 7);
+      final bdpw = Uint8List.fromList([for (var i = 0; i < 48; i++) i]);
+      final pw = decodePasswordRecord(bdpw);
+      expect((pw.passwordDigest.length, pw.digest2[0], pw.digest3![0], pw.isUnprotected), (16, 16, 32, false));
+      expect(decodePasswordRecord(Uint8List.sublistView(bdpw, 0, 32)).digest3, isNull);
+      expect(decodePasswordRecord(u8([...emptyPasswordDigest, ...emptyPasswordDigest])).isUnprotected, isTrue);
+      final scsr = Uint8List.fromList([0, 0, 0, 9, for (var i = 0; i < 16; i++) i]);
+      expect((decodeSourceSignature(scsr).marker, decodeSourceSignature(scsr).digest.length), (9, 16));
       final titl = u8([3, 0xff, 0x00, 0x41]);
       expect(decodeTitleRaw(titl)!.serialize(), titl);
       expect(decodeTitleRaw(u8([5, 1, 2])), isNull, reason: 'length overruns');
       final sig = Uint8List.fromList([for (var i = 0; i < 16; i++) (i * 11) & 0xff]);
       expect(serializeBlockPayload('OBSG', sig), sig);
       expect(serializeBlockPayload('CCSG', sig), sig);
-      expect(serializeBlockPayload('OBSG', u8([1, 2, 3])), isNull);
+      expect(() => serializeBlockPayload('OBSG', u8([1, 2, 3])), throwsA(isA<AssertionError>()));
       final cout = u8([0, 0, 0, 1, 0xe2, 0x4d, 0x4e, 0x32, 0xb4, 0x55, 0xad, 0xf7]);
       expect(serializeBlockPayload('COUT', cout), cout);
-      expect(serializeBlockPayload('COUT', u8([0, 0, 0, 1])), isNull, reason: 'not three words');
-      expect(decodeCpd2Record(u8([0, 7]))!.serialize(), u8([0, 7]));
-      expect(decodeCpd2Record(u8([0, 7, 0])), isNull);
+      expect(() => serializeBlockPayload('COUT', u8([0, 0, 0, 1])), throwsA(isA<AssertionError>()));
+      expect(decodeCpd2Record(u8([0, 7])).value, 7);
+      expect(() => decodeCpd2Record(u8([0, 7, 0])), throwsA(isA<AssertionError>()));
     });
 
     test('serializeBlockPayload: model-sources covered tags, null otherwise', () {
@@ -517,11 +538,11 @@ void main() {
       expect(hasBlockWriter('LVSR'), isTrue);
       final lvsr = u8([1, 2, 3, 4, 5, 6, 7, 8]);
       expect(serializeBlockPayload('LVSR', lvsr), lvsr);
-      expect(serializeBlockPayload('LVSR', u8([1, 2, 3, 4, 5])), isNull);
+      expect(() => serializeBlockPayload('LVSR', u8([1, 2, 3, 4, 5])), throwsA(isA<AssertionError>()));
       expect(hasBlockWriter('BDPW'), isTrue);
       final bdpw = Uint8List.fromList([for (var i = 0; i < 48; i++) (i * 5) & 0xff]);
       expect(serializeBlockPayload('BDPW', bdpw), bdpw);
-      expect(serializeBlockPayload('BDPW', u8([1, 2, 3, 4])), isNull);
+      expect(() => serializeBlockPayload('BDPW', u8([1, 2, 3, 4])), throwsA(isA<AssertionError>()));
       expect(serializeBlockPayload('MUID', u8([0x12, 0x34, 0x56, 0x78])), u8([0x12, 0x34, 0x56, 0x78]));
       final emptyLi = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3]);
       expect(serializeBlockPayload('LIvi', emptyLi), emptyLi);

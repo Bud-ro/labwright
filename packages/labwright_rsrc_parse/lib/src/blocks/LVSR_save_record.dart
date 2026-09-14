@@ -1,14 +1,82 @@
+/// `LVSR` — LabVIEW save record: the version that saved the VI and its save-time settings.
+///
+/// The version word repeats the numeric part of `vers`; the digest at 96 is the first
+/// digest of `BDPW`.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       4     versionWord                u32      saving LabVIEW version, see ViVersionWord
+/// 4       2     saveFlags                  u16      bit set named by ViSaveFlag; other bits TODO
+/// 6       46    TODO                                retained; not decoded
+/// 52      16    TODO                       u8[16]   retained; not decoded
+/// 68      12    TODO                                retained; not decoded
+/// 80      16    TODO                       u8[16]   retained; not decoded
+/// optional, when the record reaches offset 112:
+/// 96      16    blockDiagramPasswordDigest u8[16]   MD5 of the block-diagram password, MD5("")
+///                                                   when unprotected
+/// optional, when the record reaches offset 120:
+/// 112     8     TODO                                retained; not decoded
+/// optional, when the record reaches offset 136:
+/// 120     16    TODO                       u8[16]   retained; not decoded
+/// optional, when the record reaches offset 144:
+/// 136     8     TODO                                retained; not decoded
+/// optional, when the record reaches offset 160:
+/// 144     16    secondaryDigest            u8[16]   digest; role TODO
+/// ```
+///
+/// [ViSaveRecord] is a view over the payload; [ViSaveFlag] names the decoded bits of
+/// `saveFlags`; [decodeSaveRecord] requires at least 8 bytes and exposes each later field
+/// only when the record reaches it.
+library;
+
 import 'dart:typed_data';
 
+import '../block_layout.dart';
 import '../viparse.dart' show ViSection;
-import 'vers_version.dart' show decodeVersionWord;
+import 'BDPW_password.dart' show emptyPasswordDigest;
+import 'vers_version.dart';
 
-const List<int> emptyPasswordHash = [
-  0xd4, 0x1d, 0x8c, 0xd9, 0x8f, 0x00, 0xb2, 0x04, //
-  0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e,
+const _versionWord = BlockField(0, 4, 'versionWord', 'u32', 'saving LabVIEW version, see ViVersionWord');
+const _saveFlags = BlockField(4, 2, 'saveFlags', 'u16', 'bit set named by ViSaveFlag; other bits TODO');
+const _todo6 = BlockField.undecoded(6, 46);
+const _todo52 = BlockField.undecoded(52, 16, type: 'u8[16]');
+const _todo68 = BlockField.undecoded(68, 12);
+const _todo80 = BlockField.undecoded(80, 16, type: 'u8[16]');
+const _passwordDigest = BlockField(
+  96,
+  16,
+  'blockDiagramPasswordDigest',
+  'u8[16]',
+  'MD5 of the block-diagram password, MD5("") when unprotected',
+  optional: 'the record reaches offset 112',
+);
+const _todo112 = BlockField.undecoded(112, 8, optional: 'the record reaches offset 120');
+const _todo120 = BlockField.undecoded(120, 16, type: 'u8[16]', optional: 'the record reaches offset 136');
+const _todo136 = BlockField.undecoded(136, 8, optional: 'the record reaches offset 144');
+const _secondaryDigest = BlockField(
+  144,
+  16,
+  'secondaryDigest',
+  'u8[16]',
+  'digest; role TODO',
+  optional: 'the record reaches offset 160',
+);
+
+const BlockLayout lvsrLayout = [
+  _versionWord,
+  _saveFlags,
+  _todo6,
+  _todo52,
+  _todo68,
+  _todo80,
+  _passwordDigest,
+  _todo112,
+  _todo120,
+  _todo136,
+  _secondaryDigest,
 ];
 
-/// Bits of the `u16` flag word at offset 4 of `LVSR`.
+/// Bits of `saveFlags`.
 enum ViSaveFlag {
   /// `0x0800`: last saved by an evaluation-license LabVIEW, whose block-diagram
   /// images carry the "LabVIEW Evaluation Software" watermark.
@@ -24,87 +92,43 @@ enum ViSaveFlag {
   final int mask;
 }
 
+/// A view over an `LVSR` payload.
 class ViSaveRecord {
-  const ViSaveRecord({
-    required this.rawLength,
-    required this.versionMajor,
-    required this.versionMinor,
-    required this.stage,
-    required this.build,
-    this.saveFlagWord = 0,
-    this.blockDiagramPasswordHash,
-    this.secondaryHash,
-  });
+  ViSaveRecord._(this.bytes) : _view = ByteData.sublistView(bytes);
 
-  final int rawLength;
+  final Uint8List bytes;
 
-  final int saveFlagWord;
+  final ByteData _view;
+
+  ViVersionWord get versionWord => decodeVersionWord(bytes);
+
+  int get saveFlagWord => _view.getUint16(_saveFlags.offset);
 
   Set<ViSaveFlag> get saveFlags => {
     for (final flag in ViSaveFlag.values)
       if (saveFlagWord & flag.mask != 0) flag,
   };
 
-  final int versionMajor;
+  Uint8List? _bytesOf(BlockField field) =>
+      bytes.length >= field.end ? Uint8List.sublistView(bytes, field.offset, field.end) : null;
 
-  final int versionMinor;
+  /// Null when the record ends before offset 112.
+  Uint8List? get blockDiagramPasswordDigest => _bytesOf(_passwordDigest);
 
-  final int stage;
-
-  final int build;
-
-  final List<int>? blockDiagramPasswordHash;
-
-  final List<int>? secondaryHash;
-
-  String get version => '$versionMajor.$versionMinor';
+  /// Null when the record ends before offset 160.
+  Uint8List? get secondaryDigest => _bytesOf(_secondaryDigest);
 
   bool get isBlockDiagramPasswordProtected {
-    final hash = blockDiagramPasswordHash;
-    return hash != null && !_bytesEqual(hash, emptyPasswordHash);
+    final digest = blockDiagramPasswordDigest;
+    return digest != null && !_sameBytes(digest, emptyPasswordDigest);
   }
 
-  static const String unknownNote =
-      'Undecoded: the @4 flag word beyond bits 0x0800 and 0x1000, the '
-      'small flag/count words near the start (@36 = -1 sentinel, @68, @72), '
-      'three 16-byte id/checksum fields (@52, @80, @120), and the exact role '
-      'of the secondary @144 hash.';
+  Uint8List serialize() => bytes;
 }
 
-ViSaveRecord? decodeSaveRecord(Uint8List bytes) {
-  final versionWord = decodeVersionWord(bytes);
-  if (versionWord == null) return null;
-  return ViSaveRecord(
-    rawLength: bytes.length,
-    versionMajor: versionWord.major,
-    versionMinor: versionWord.minor,
-    stage: versionWord.stage,
-    build: versionWord.build,
-    saveFlagWord: bytes.length >= 6 ? ByteData.sublistView(bytes).getUint16(4) : 0,
-    blockDiagramPasswordHash: bytes.length >= 112 ? List.unmodifiable(bytes.sublist(96, 112)) : null,
-    secondaryHash: bytes.length >= 160 ? List.unmodifiable(bytes.sublist(144, 160)) : null,
-  );
-}
-
-class ViSaveRecordRaw {
-  const ViSaveRecordRaw({required this.words});
-
-  final List<int> words;
-
-  Uint8List serialize() {
-    final out = Uint8List(words.length * 4);
-    final data = ByteData.sublistView(out);
-    for (var i = 0; i < words.length; i++) {
-      data.setUint32(i * 4, words[i]);
-    }
-    return out;
-  }
-}
-
-ViSaveRecordRaw? decodeSaveRecordRaw(Uint8List bytes) {
-  if (bytes.isEmpty || bytes.length % 4 != 0) return null;
-  final data = ByteData.sublistView(bytes);
-  return ViSaveRecordRaw(words: [for (var i = 0; i < bytes.length; i += 4) data.getUint32(i)]);
+ViSaveRecord decodeSaveRecord(Uint8List bytes) {
+  assert(bytes.length >= _saveFlags.end, 'LVSR holds at least the version word and the flag word');
+  return ViSaveRecord._(bytes);
 }
 
 ViSaveRecord? saveRecordFromSections(Iterable<ViSection> sections) {
@@ -114,7 +138,8 @@ ViSaveRecord? saveRecordFromSections(Iterable<ViSection> sections) {
   return null;
 }
 
-bool _bytesEqual(List<int> a, List<int> b) {
+bool _sameBytes(List<int> a, List<int> b) {
+  if (a.length != b.length) return false;
   for (var i = 0; i < a.length; i++) {
     if (a[i] != b[i]) return false;
   }
