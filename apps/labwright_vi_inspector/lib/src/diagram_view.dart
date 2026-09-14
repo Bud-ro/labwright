@@ -69,7 +69,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
 
   Map<int, ViLegacyIcon> _subViIcons = const {};
-  Map<int, PrimIconArt> _primIcons = const {};
   Map<int, ui.Image> _xnodeFacades = const {};
 
   late final BdScene? _scene = switch (_diagram) {
@@ -94,9 +93,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   void initState() {
     super.initState();
     _resolveIcons();
-    loadPrimIcons().then((icons) {
-      if (mounted && icons.isNotEmpty) setState(() => _primIcons = icons);
-    });
     if (_diagram != null && widget.sections.isNotEmpty) {
       xnodeFacadesFromSections(widget.sections, _diagram).then((facades) {
         if (!mounted) {
@@ -106,11 +102,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
           return;
         }
         if (facades.isNotEmpty) setState(() => _xnodeFacades = facades);
-      });
-    }
-    if (_scene?.disabledOids.isNotEmpty ?? false) {
-      ensurePrimIconsGrey().then((grey) {
-        if (mounted && grey.isNotEmpty) setState(() {});
       });
     }
   }
@@ -260,8 +251,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                               origin: content.topLeft,
                               subViIcons: _subViIcons,
                               xnodeFacades: _xnodeFacades,
-                              primIcons: _primIcons,
-                              primIconsGrey: primIconsGreyLoaded(),
+                              primIcons: primIcons,
+                              primIconsGrey: primIconsGrey,
                               iconFilterQuality: FilterQuality.low,
                               canvasScale: _anchorScale,
                             ),
@@ -333,7 +324,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       var left = bounds.left.toDouble(), top = bounds.top.toDouble();
       var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
       final key = primIconKeyOf(object);
-      final art = key == null ? null : _primIconsSync[key];
+      final art = key == null ? null : primIcons[key];
       if (art != null) {
         final stamp = primIconStampRect(
           Rect.fromLTRB(left, top, right, bottom),
@@ -708,9 +699,17 @@ const kPrimIconPrescale = 4;
 
 typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
 
-Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
+/// The primitive icons by icon key, filled once by [loadPrimIcons] before the first frame.
+final Map<int, PrimIconArt> primIcons = {};
+
+/// The disabled-structure variants of [primIcons], greyed through [_greyDisabledPalette].
+final Map<int, PrimIconArt> primIconsGrey = {};
+
+/// Decodes every primitive icon asset into [primIcons] and [primIconsGrey]; the app awaits it
+/// before running, so every painter finds its icons on its first frame.
+Future<Map<int, PrimIconArt>> loadPrimIcons() async {
+  if (primIcons.isNotEmpty) return primIcons;
   final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-  final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
     final match = RegExp(
       r'assets/prim_icons/((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
@@ -720,9 +719,9 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
     if (kPrimIconStatus[statusKey] == PrimIconStatus.rejected) {
       continue;
     }
+    final id = parsePrimIconName(statusKey)!;
     final bytes = await rootBundle.load(asset);
     final image = await decodeImage(bytes.buffer.asUint8List());
-    final id = parsePrimIconName(statusKey)!;
     final rgba = await image.toByteData();
     if (rgba != null) {
       final alpha = Uint8List(image.width * image.height);
@@ -776,11 +775,16 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
               )
             : null,
       );
+      final greyPixels = Uint8List.fromList(pixels);
+      _greyDisabledPalette(greyPixels);
+      primIconsGrey[id] = await _prescaledArt(
+        await imageFromRgba(greyPixels, image.width, image.height),
+      );
     }
-    icons[id] = await _prescaledArt(image);
+    primIcons[id] = await _prescaledArt(image);
   }
-  return _primIconsSync = icons;
-}();
+  return primIcons;
+}
 
 Future<PrimIconArt> _prescaledArt(ui.Image image) async {
   final recorder = ui.PictureRecorder();
@@ -805,10 +809,6 @@ Future<PrimIconArt> _prescaledArt(ui.Image image) async {
   );
 }
 
-Future<Map<int, PrimIconArt>>? _primIcons;
-Map<int, PrimIconArt> _primIconsSync = const {};
-Map<int, PrimIconArt> _primIconsGreySync = const {};
-
 void _greyDisabledPalette(Uint8List rgba) {
   for (var i = 0; i < rgba.length; i += 4) {
     if (rgba[i + 3] == 0) continue;
@@ -817,8 +817,6 @@ void _greyDisabledPalette(Uint8List rgba) {
     rgba[i] = rgba[i + 1] = rgba[i + 2] = v;
   }
 }
-
-Map<int, PrimIconArt> primIconsGreyLoaded() => _primIconsGreySync;
 
 Future<ui.Image> decodeImage(Uint8List bytes) {
   final completer = Completer<ui.Image>();
@@ -894,23 +892,6 @@ Future<ui.Image> imageFromRgba(Uint8List rgba, int width, int height) {
   );
   return completer.future;
 }
-
-Future<Map<int, PrimIconArt>> ensurePrimIconsGrey() =>
-    _primIconsGrey ??= () async {
-      final icons = await loadPrimIcons();
-      final grey = <int, PrimIconArt>{};
-      for (final e in icons.entries) {
-        final rgba = await e.value.base.toByteData();
-        if (rgba == null) continue;
-        final greyPx = Uint8List.fromList(rgba.buffer.asUint8List());
-        _greyDisabledPalette(greyPx);
-        grey[e.key] = await _prescaledArt(
-          await imageFromRgba(greyPx, e.value.base.width, e.value.base.height),
-        );
-      }
-      return _primIconsGreySync = grey;
-    }();
-Future<Map<int, PrimIconArt>>? _primIconsGrey;
 
 Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
   final data = await icon.toByteData();
@@ -1000,7 +981,7 @@ bool primIconHit(ViHeapObject object, double x, double y) {
   final id = loadedPrimIconIdOf(object);
   final art = id == null ? null : _primIconPixels[id];
   final bounds = object.absBounds;
-  if (art == null || bounds == null || _primIconsSync[id] == null) return true;
+  if (art == null || bounds == null || primIcons[id] == null) return true;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
       bounds.left.toDouble(),
@@ -1067,8 +1048,6 @@ int? primIconInkEdge(
   }
   return null;
 }
-
-Map<int, PrimIconArt> primIconsLoaded() => _primIconsSync;
 
 typedef _BdWireSeg = ({
   bool horizontal,
@@ -5092,7 +5071,7 @@ class _OverlayPainter extends CustomPainter {
       bounds.bottom - origin.dy,
     );
     final key = primIconKeyOf(o);
-    final art = key == null ? null : primIconsLoaded()[key];
+    final art = key == null ? null : primIcons[key];
     return art == null
         ? rect
         : primIconStampRect(rect, art.base.width, art.base.height, key: key);

@@ -295,7 +295,7 @@ void main() {
         return '${refPx[i]},${refPx[i + 1]},${refPx[i + 2]}';
       }
 
-      final greyIcons = primIconsGreyLoaded();
+      final greyIcons = primIconsGrey;
       for (final (label, key, oid, art) in [
         ('prim1608', 1608, 894, icons[1608]!.base),
         ('prim1900 disabled', 1900, 3081, greyIcons[1900]!.base),

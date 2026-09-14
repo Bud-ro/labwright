@@ -28,7 +28,7 @@ void main() {
       await loadRealTextFont();
       await tester.runAsync(() async {
         final icons = await loadPrimIcons();
-        final grey = primIconsGreyLoaded();
+        final grey = primIconsGrey;
         final artBytes = <int, Uint8List>{};
         final greyBytes = <int, Uint8List>{};
         for (final e in icons.entries) {
