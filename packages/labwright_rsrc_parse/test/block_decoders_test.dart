@@ -615,37 +615,37 @@ void main() {
   });
 
   group('block registry', () {
-    test('category/confidence table', () {
-      const rows = <(BlockTag, BlockCategory, BlockConfidence)>[
-        (BlockTag.fphb, BlockCategory.frontPanelHeap, BlockConfidence.confirmed),
-        (BlockTag.bdhb, BlockCategory.blockDiagramHeap, BlockConfidence.confirmed),
-        (BlockTag.fphc, BlockCategory.frontPanelHeap, BlockConfidence.tentative),
-        (BlockTag.bdhc, BlockCategory.blockDiagramHeap, BlockConfidence.tentative),
-        (BlockTag.vctp, BlockCategory.typeInfo, BlockConfidence.confirmed),
-        (BlockTag.vicd, BlockCategory.compiledCode, BlockConfidence.confirmed),
-        (BlockTag.mngi, BlockCategory.image, BlockConfidence.confirmed),
-        (BlockTag.bdpw, BlockCategory.security, BlockConfidence.confirmed),
-        (BlockTag.hlpp, BlockCategory.helpPath, BlockConfidence.confirmed),
-        (BlockTag.hlpt, BlockCategory.text, BlockConfidence.confirmed),
-        (BlockTag.vins, BlockCategory.embeddedVi, BlockConfidence.confirmed),
-        (BlockTag.vers, BlockCategory.settings, BlockConfidence.confirmed),
-        (BlockTag.rtsg, BlockCategory.identifier, BlockConfidence.confirmed),
-        (BlockTag.scsr, BlockCategory.identifier, BlockConfidence.confirmed),
-        (BlockTag.nuid, BlockCategory.identifier, BlockConfidence.confirmed),
-        (BlockTag.cpst, BlockCategory.text, BlockConfidence.likely),
-        (BlockTag.dllp, BlockCategory.helpPath, BlockConfidence.likely),
-        (BlockTag.strg, BlockCategory.text, BlockConfidence.confirmed),
-        (BlockTag.hist, BlockCategory.history, BlockConfidence.confirmed),
-        (BlockTag.ftab, BlockCategory.nameTable, BlockConfidence.confirmed),
-        (BlockTag.dthp, BlockCategory.typeInfo, BlockConfidence.likely),
-        (BlockTag.conp, BlockCategory.connectorPane, BlockConfidence.confirmed),
-        (BlockTag.cpc2, BlockCategory.connectorPane, BlockConfidence.likely),
-        (BlockTag.lvsr, BlockCategory.settings, BlockConfidence.confirmed),
-        (BlockTag.icl8, BlockCategory.icon, BlockConfidence.confirmed),
-        (BlockTag.bfal, BlockCategory.unknown, BlockConfidence.confirmed),
+    test('confidence table', () {
+      const rows = <(BlockTag, BlockConfidence)>[
+        (BlockTag.fphb, BlockConfidence.confirmed),
+        (BlockTag.bdhb, BlockConfidence.confirmed),
+        (BlockTag.fphc, BlockConfidence.tentative),
+        (BlockTag.bdhc, BlockConfidence.tentative),
+        (BlockTag.vctp, BlockConfidence.confirmed),
+        (BlockTag.vicd, BlockConfidence.confirmed),
+        (BlockTag.mngi, BlockConfidence.confirmed),
+        (BlockTag.bdpw, BlockConfidence.confirmed),
+        (BlockTag.hlpp, BlockConfidence.confirmed),
+        (BlockTag.hlpt, BlockConfidence.confirmed),
+        (BlockTag.vins, BlockConfidence.confirmed),
+        (BlockTag.vers, BlockConfidence.confirmed),
+        (BlockTag.rtsg, BlockConfidence.confirmed),
+        (BlockTag.scsr, BlockConfidence.confirmed),
+        (BlockTag.nuid, BlockConfidence.confirmed),
+        (BlockTag.cpst, BlockConfidence.likely),
+        (BlockTag.dllp, BlockConfidence.likely),
+        (BlockTag.strg, BlockConfidence.confirmed),
+        (BlockTag.hist, BlockConfidence.confirmed),
+        (BlockTag.ftab, BlockConfidence.confirmed),
+        (BlockTag.dthp, BlockConfidence.likely),
+        (BlockTag.conp, BlockConfidence.confirmed),
+        (BlockTag.cpc2, BlockConfidence.likely),
+        (BlockTag.lvsr, BlockConfidence.confirmed),
+        (BlockTag.icl8, BlockConfidence.confirmed),
+        (BlockTag.bfal, BlockConfidence.confirmed),
       ];
-      for (final (tag, category, confidence) in rows) {
-        expect((tag.category, tag.confidence), (category, confidence), reason: tag.tag);
+      for (final (tag, confidence) in rows) {
+        expect(tag.confidence, confidence, reason: tag.tag);
         expect(BlockTag.of(tag.tag), tag);
         expect(tag.displayName, isNotEmpty, reason: tag.tag);
       }

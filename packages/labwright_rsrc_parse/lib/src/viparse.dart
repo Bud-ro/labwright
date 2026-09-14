@@ -59,11 +59,11 @@ class ViSummary {
   bool get isVi => kind == ViFileType.vi;
   bool get isControl => kind == ViFileType.control;
 
-  bool _has(BlockCategory category) => blocks.any((tag) => BlockTag.of(tag)?.category == category);
+  bool _hasAny(Set<BlockTag> tags) => blocks.any((tag) => tags.contains(BlockTag.of(tag)));
 
-  bool get hasBlockDiagram => _has(BlockCategory.blockDiagramHeap);
+  bool get hasBlockDiagram => _hasAny(BlockTag.blockDiagramHeaps);
 
-  bool get hasFrontPanel => _has(BlockCategory.frontPanelHeap);
+  bool get hasFrontPanel => _hasAny(BlockTag.frontPanelHeaps);
 
   bool get hasConnectorPane => blocks.contains('CONP');
 
