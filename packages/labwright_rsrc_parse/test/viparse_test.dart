@@ -2,50 +2,10 @@ import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_rsrc_parse/testing.dart';
 import 'package:test/test.dart';
 
 const _magic = [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a];
-
-Uint8List _buildVi({
-  String fileType = 'LVIN',
-  List<String> blocks = const ['CONP', 'BDHb', 'vers'],
-  String name = 'demo.vi',
-}) {
-  void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
-  void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
-
-  final header = BytesBuilder()..add(_magic);
-  be16(header, 3);
-  header
-    ..add(fileType.codeUnits)
-    ..add('LBVW'.codeUnits);
-  be32(header, 32);
-  be32(header, 0);
-  be32(header, 0x20);
-  be32(header, 0);
-  final headerBytes = header.toBytes();
-
-  final info = BytesBuilder()..add(headerBytes);
-  be32(info, 0);
-  be32(info, 0);
-  be32(info, 0x20);
-  be32(info, 0x34);
-  be32(info, 0);
-  be32(info, blocks.length);
-  for (final t in blocks) {
-    info
-      ..add(t.codeUnits)
-      ..add([0, 0, 0, 0, 0, 0, 0, 0]);
-  }
-  info
-    ..addByte(name.length)
-    ..add(name.codeUnits);
-
-  return (BytesBuilder()
-        ..add(headerBytes)
-        ..add(info.toBytes()))
-      .toBytes();
-}
 
 void _mustBeTotal(Uint8List b) {
   try {
@@ -62,12 +22,12 @@ void _mustBeTotal(Uint8List b) {
 
 void main() {
   test('parses header, block inventory, capability flags, and name; deterministic', () {
-    final vi = parseVi(_buildVi());
+    final vi = parseVi(minimalViBytes(blocks: const ['CONP', 'BDHb', 'vers']));
     expect((vi.isVi, vi.creator, vi.formatVersion, vi.name), (true, 'LBVW', 3, 'demo.vi'));
     expect(vi.blocks, ['CONP', 'BDHb', 'vers']);
     expect((vi.hasConnectorPane, vi.hasBlockDiagram, vi.hasFrontPanel, vi.hasSubViLinks), (true, true, false, false));
 
-    final full = _buildVi(blocks: const ['FPHb', 'BDHb', 'CONP', 'LIvi'], name: 'top.vi');
+    final full = minimalViBytes(blocks: const ['FPHb', 'BDHb', 'CONP', 'LIvi'], name: 'top.vi');
     final v2 = parseVi(full);
     expect((v2.hasFrontPanel, v2.hasSubViLinks), (true, true));
     expect(v2.describe(), contains('sub-VI links'));
@@ -100,7 +60,7 @@ void main() {
   });
 
   test('bit-flips and random u32 overwrites of a valid VI fail cleanly', () {
-    final valid = _buildVi();
+    final valid = minimalViBytes(blocks: const ['CONP', 'BDHb', 'vers']);
     final rng = Random(7);
     for (var i = 0; i < 20000; i++) {
       final b = Uint8List.fromList(valid);
@@ -120,7 +80,7 @@ void main() {
     final rng = Random(11);
     const extremes = [0, 1, 2, 0x20, 0x7f, 0x80, 0xffff, 0x7fffffff, 0xfffffffe, 0xffffffff];
     for (var i = 0; i < 20000; i++) {
-      final b = Uint8List.fromList(_buildVi());
+      final b = Uint8List.fromList(minimalViBytes(blocks: const ['CONP', 'BDHb', 'vers']));
       final view = ByteData.sublistView(b);
       view.setUint32(16, extremes[rng.nextInt(extremes.length)]);
       for (var k = 0; k < 3; k++) {
@@ -133,7 +93,7 @@ void main() {
 
   test('valid VI with many blocks + megabytes of trailing garbage stays total + fast', () {
     final rng = Random(13);
-    final base = _buildVi(blocks: [for (var i = 0; i < 5000; i++) 'B${(i % 100).toString().padLeft(3, '0')}']);
+    final base = minimalViBytes(blocks: [for (var i = 0; i < 5000; i++) 'B${(i % 100).toString().padLeft(3, '0')}']);
     final big =
         (BytesBuilder()
               ..add(base)
@@ -145,7 +105,7 @@ void main() {
   });
 
   test('every truncation of a valid VI fails cleanly', () {
-    final valid = _buildVi();
+    final valid = minimalViBytes(blocks: const ['CONP', 'BDHb', 'vers']);
     for (var cut = 0; cut <= valid.length; cut++) {
       _mustBeTotal(Uint8List.sublistView(valid, 0, cut));
     }

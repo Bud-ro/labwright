@@ -5,26 +5,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'span_annotations.dart';
 
-typedef VctpSpan = ({int offset, int length, ViType type});
-
-List<VctpSpan> vctpTypeSpans(Uint8List body) {
-  if (!typePoolFrames(body)) return const [];
-  final types = decodeTypePool(body).types;
-  if (types.isEmpty) return const [];
-  final count = readU32be(body, 0);
-  if (count <= 0) return const [];
-  final out = <VctpSpan>[];
-  var off = 4;
-  for (var i = 0; i < count && i < types.length; i++) {
-    if (off + 4 > body.length) break;
-    final descLen = readU16be(body, off);
-    if (descLen < 4 || off + descLen > body.length) break;
-    out.add((offset: off, length: descLen, type: types[i]));
-    off += descLen;
-  }
-  return out;
-}
-
 class VctpCorrelationView extends StatefulWidget {
   const VctpCorrelationView({super.key, required this.body});
 
@@ -37,7 +17,7 @@ class VctpCorrelationView extends StatefulWidget {
 class _VctpCorrelationViewState extends State<VctpCorrelationView> {
   final _hexScroll = ScrollController();
   final _listScroll = ScrollController();
-  late List<VctpSpan> _spans;
+  late List<ViType> _types;
 
   late List<int> _byteToSpan;
 
@@ -62,13 +42,15 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
   }
 
   void _build() {
-    _spans = vctpTypeSpans(widget.body);
+    _types = typePoolFrames(widget.body)
+        ? decodeTypePool(widget.body).types
+        : const [];
     _byteToSpan = List<int>.filled(widget.body.length, -1);
-    for (var i = 0; i < _spans.length; i++) {
-      final span = _spans[i];
+    for (var i = 0; i < _types.length; i++) {
+      final type = _types[i];
       for (
-        var b = span.offset;
-        b < span.offset + span.length && b < _byteToSpan.length;
+        var b = type.offset;
+        b < type.offset + type.length && b < _byteToSpan.length;
         b++
       ) {
         _byteToSpan[b] = i;
@@ -88,9 +70,9 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
       _selected = i;
       _selectedByte = byteOffset;
     });
-    if (i < 0 || i >= _spans.length) return;
+    if (i < 0 || i >= _types.length) return;
     if (_hexScroll.hasClients) {
-      final row = _spans[i].offset ~/ 16;
+      final row = _types[i].offset ~/ 16;
       _hexScroll.animateTo(
         (row * _kRowHeight).clamp(0.0, _hexScroll.position.maxScrollExtent),
         duration: const Duration(milliseconds: 160),
@@ -111,7 +93,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
 
   @override
   Widget build(BuildContext context) {
-    if (_spans.isEmpty) {
+    if (_types.isEmpty) {
       return const Center(
         child: Padding(
           padding: EdgeInsets.all(24),
@@ -173,13 +155,13 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
                         thumbVisibility: true,
                         child: ListView.builder(
                           controller: _listScroll,
-                          itemCount: _spans.length,
+                          itemCount: _types.length,
                           itemExtent: _kTypeRowHeight,
                           itemBuilder: (context, i) => _typeRow(i),
                         ),
                       ),
                     ),
-                    if (_selected >= 0) _detail(_spans[_selected]),
+                    if (_selected >= 0) _detail(_types[_selected]),
                   ],
                 ),
               ),
@@ -276,8 +258,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
   }
 
   Widget _typeRow(int i) {
-    final span = _spans[i];
-    final type = span.type;
+    final type = _types[i];
     final selected = i == _selected;
     final extra = switch (type) {
       ViEnumType(:final itemCount) => '$itemCount items',
@@ -287,7 +268,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     return GestureDetector(
       key: ValueKey('vctp-type-$i'),
       behavior: HitTestBehavior.opaque,
-      onTap: () => _select(i, byteOffset: span.offset),
+      onTap: () => _select(i, byteOffset: type.offset),
       child: Container(
         color: selected ? spanColorObject.withValues(alpha: 0.18) : null,
         padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
@@ -343,8 +324,8 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     );
   }
 
-  static String _fieldAt(VctpSpan span, int byteOffset) {
-    final rel = byteOffset - span.offset;
+  static String _fieldAt(ViType type, int byteOffset) {
+    final rel = byteOffset - type.offset;
     if (rel < 0) return '';
     if (rel < 2) return 'descriptor length (u16) @+0';
     if (rel == 2) return 'flags (u8) @+2';
@@ -352,10 +333,9 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     return 'interior @+$rel';
   }
 
-  Widget _detail(VctpSpan span) {
-    final type = span.type;
-    final index = _spans.indexOf(span);
-    final field = _selectedByte >= 0 ? _fieldAt(span, _selectedByte) : '';
+  Widget _detail(ViType type) {
+    final index = _types.indexOf(type);
+    final field = _selectedByte >= 0 ? _fieldAt(type, _selectedByte) : '';
     return Container(
       width: double.infinity,
       decoration: const BoxDecoration(
@@ -372,9 +352,9 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
           ),
           const SizedBox(height: 4),
           Text(
-            'bytes 0x${span.offset.toRadixString(16)}..'
-            '0x${(span.offset + span.length - 1).toRadixString(16)} · '
-            '${span.length} B · code 0x${type.code.toRadixString(16).padLeft(2, '0')}',
+            'bytes 0x${type.offset.toRadixString(16)}..'
+            '0x${(type.offset + type.length - 1).toRadixString(16)} · '
+            '${type.length} B · code 0x${type.code.toRadixString(16).padLeft(2, '0')}',
             style: const TextStyle(color: Colors.grey, fontSize: 11),
           ),
           if (field.isNotEmpty) ...[

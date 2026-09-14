@@ -5,6 +5,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_rsrc_parse/testing.dart';
 
 import 'bd_oracle.dart';
 import 'coverage_view.dart';
@@ -322,7 +323,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                 OutlinedButton.icon(
                   key: const Key('demo'),
                   onPressed: () =>
-                      _loadBytes(demoViBytes(), 'demo VI (synthetic)'),
+                      _loadBytes(minimalViBytes(), 'demo VI (synthetic)'),
                   icon: const Icon(Icons.science_outlined),
                   label: const Text('Load demo VI'),
                 ),
@@ -806,7 +807,7 @@ class _SummaryViewState extends State<_SummaryView> {
             for (final block in summary.blocks)
               if (_hasSection(block))
                 Tooltip(
-                  message: kBlockGlossary[block] ?? 'resource block',
+                  message: BlockTag.of(block)?.displayName ?? 'resource block',
                   child: ActionChip(
                     label: Text(block),
                     avatar: const Icon(Icons.data_object, size: 16),
@@ -817,7 +818,7 @@ class _SummaryViewState extends State<_SummaryView> {
               else
                 Tooltip(
                   message:
-                      '${kBlockGlossary[block] ?? 'resource block'}\n(bytes not yet extracted for this block)',
+                      '${BlockTag.of(block)?.displayName ?? 'resource block'}\n(bytes not yet extracted for this block)',
                   child: Opacity(
                     opacity: 0.4,
                     child: Chip(

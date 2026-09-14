@@ -5,8 +5,8 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/representative_vis.dart';
-import 'package:labwright_vi_inspector/src/vi_demo.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
+import 'package:labwright_rsrc_parse/testing.dart';
 
 import 'util.dart';
 
@@ -99,7 +99,7 @@ void main() {
         home: ViInspectorScreen(
           fetchBytes: (url) async {
             urls.add(url);
-            return demoViBytes();
+            return minimalViBytes();
           },
         ),
       ),
@@ -130,7 +130,7 @@ void main() {
     final snippetPng = (await tester.runAsync(() async {
       final rgba = Uint8List(60 * 60 * 4)..fillRange(0, 60 * 60 * 4, 0xff);
       final png = await imageToPng(await imageFromRgba(rgba, 60, 60));
-      return spliceNiVi(png, demoViBytes());
+      return spliceNiVi(png, minimalViBytes());
     }))!;
 
     await tester.pumpWidget(
