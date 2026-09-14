@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
 import 'block_tag.dart';
-import 'blocks/HLPP_DLLP_help_path.dart';
+import 'pth0.dart';
 
 class ViFormatException implements Exception {
   ViFormatException(this.message);
@@ -369,11 +369,10 @@ List<ViSubViPath> readSubViPaths(Uint8List bytes) {
   final out = <ViSubViPath>[];
   final seen = <String>{};
   for (var i = 0; i + 12 <= libd.length; i++) {
-    if (libd[i] != 0x50 || libd[i + 1] != 0x54 || libd[i + 2] != 0x48 || libd[i + 3] != 0x30) {
-      continue;
-    }
-    final path = decodeHelpPath(Uint8List.sublistView(libd, i));
-    if (path == null || !path.isPth0 || path.components.isEmpty) continue;
+    final extent = pth0ExtentAt(libd, i);
+    if (extent == null) continue;
+    final path = decodePth0(Uint8List.sublistView(libd, i, i + extent));
+    if (path.componentCount == 0) continue;
     final components = path.components;
     final first = components.first;
     final kind = path.pathType == 1 && first.isEmpty

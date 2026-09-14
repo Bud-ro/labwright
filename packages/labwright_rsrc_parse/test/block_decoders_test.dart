@@ -47,13 +47,15 @@ Uint8List _iconSection(List<int> pixels) {
 }
 
 void main() {
-  test('decodeStringBlock (STRG/HLPT): [u32 len][text], lying lengths clamp, lenient UTF-8, null when short', () {
-    expect(decodeStringBlock(_strg('This VI does X')), 'This VI does X');
-    expect(decodeStringBlock(_strg('')), '');
-    expect(decodeStringBlock(_strg('### Foo.vi')), '### Foo.vi', reason: 'HLPT reuses the STRG layout');
-    expect(decodeStringBlock(u8([0, 0, 0, 6, 0x41, 0x42, 0x43])), 'ABC', reason: 'len 6 > 3 body bytes clamps');
-    expect(decodeStringBlock(u8([0, 0, 0, 1, 0xff])), isNotNull, reason: 'bad UTF-8 -> replacement, no throw');
-    expect(decodeStringBlock(u8([0, 0, 0])), isNull);
+  test('decodeStringBlock (STRG/HLPT): [u32 len][text] filling the payload, lenient UTF-8', () {
+    expect(decodeStringBlock(_strg('This VI does X')).text, 'This VI does X');
+    expect(decodeStringBlock(_strg('')).text, '');
+    expect(decodeStringBlock(_strg('### Foo.vi')).text, '### Foo.vi', reason: 'HLPT reuses the STRG layout');
+    expect(decodeStringBlock(u8([0, 0, 0, 1, 0xff])).text, isNotEmpty, reason: 'bad UTF-8 -> replacement, no throw');
+    final body = _strg('x');
+    expect(decodeStringBlock(body).serialize(), same(body));
+    expect(() => decodeStringBlock(u8([0, 0, 0, 6, 0x41, 0x42, 0x43])), throwsA(isA<AssertionError>()));
+    expect(() => decodeStringBlock(u8([0, 0, 0])), throwsA(isA<AssertionError>()));
   });
 
   test('decodeHistory: 40-byte record fields and the reserved-zero check', () {
@@ -222,13 +224,27 @@ void main() {
     expect(decodeTypeMap(hx('00')), isNull);
   });
 
-  test('decodeConnectorPane (CONP): 2-byte big-endian VCTP index; longer blocks flagged inline; null when empty', () {
-    final p = decodeConnectorPane(hx('002a'))!;
-    expect((p.typeIndex, p.isInline, p.rawLength), (0x2a, false, 2));
-    expect(decodeConnectorPane(hx('0105'))!.typeIndex, 0x105);
-    final inline = decodeConnectorPane(Uint8List(28))!;
-    expect((inline.isInline, inline.typeIndex, inline.rawLength), (true, null, 28));
-    expect(decodeConnectorPane(Uint8List(0)), isNull);
+  test('decodeConnectorPane (CONP): two bytes are a VCTP index, any other length is an inline descriptor', () {
+    final p = decodeConnectorPane(hx('002a'));
+    expect(p, isA<ViConnectorPaneTypeIndex>().having((p) => p.typeIndex, 'typeIndex', 0x2a));
+    expect((decodeConnectorPane(hx('0105')) as ViConnectorPaneTypeIndex).typeIndex, 0x105);
+    final inline = decodeConnectorPane(Uint8List(28));
+    expect(inline, isA<ViConnectorPaneInline>().having((p) => p.descriptor.length, 'descriptor', 28));
+    expect(inline.serialize(), same(inline.bytes));
+    expect(() => decodeConnectorPane(Uint8List(0)), throwsA(isA<AssertionError>()));
+  });
+
+  test('decodeConnectorPaneMap (CPMp): little-endian count and terminals, 0xFFFF unassigned', () {
+    final body = u8([3, 0, 2, 0, 0xff, 0xff, 0, 0]);
+    final map = decodeConnectorPaneMap(body);
+    expect(map.length, 3);
+    expect(map[0], const PanelObjectTerminal(2));
+    expect(map[1], const UnassignedTerminal());
+    expect(map[2], const PanelObjectTerminal(0));
+    expect(map.assignedCount, 2);
+    expect(map.terminals, hasLength(3));
+    expect(map.serialize(), same(body));
+    expect(() => decodeConnectorPaneMap(u8([2, 0, 0, 0])), throwsA(isA<AssertionError>()));
   });
 
   test('cpc2Description: u32-length-prefixed ASCII; non-description variants and wrong tags yield null', () {
@@ -250,18 +266,20 @@ void main() {
     expect(() => cpc2Description([sec('CPC2', junk)]), returnsNormally);
   });
 
-  test('decodeHelpPath (HLPP): PTH0 components + joined path; non-PTH0 flagged; lying counts safe', () {
-    final p = decodeHelpPath(_pth0(['<helpdir>', 'JKI', 'Caraya', 'README.html']))!;
-    expect((p.isPth0, p.pathType), (true, 0));
+  test('decodeHelpPath (HLPP): a PTH0 whose components tile the payload', () {
+    final body = _pth0(['<helpdir>', 'JKI', 'Caraya', 'README.html']);
+    final p = decodeHelpPath(body);
+    expect((p.pathType, p.componentCount), (0, 4));
     expect(p.components, ['<helpdir>', 'JKI', 'Caraya', 'README.html']);
     expect(p.path, '<helpdir>/JKI/Caraya/README.html');
-    final flat = decodeHelpPath(u8(List.filled(16, 0x41)))!;
-    expect(flat.isPth0, isFalse, reason: 'non-PTH0 bytes are flagged, not guessed');
-    expect(flat.components, isEmpty);
-    expect(decodeHelpPath(Uint8List(8)), isNull);
+    expect(p.serialize(), same(body));
+    expect(isPth0(u8(List.filled(16, 0x41))), isFalse, reason: 'no magic');
+    expect(isPth0(Uint8List(8)), isFalse, reason: 'too short');
     final lying = _pth0(['a']);
     ByteData.sublistView(lying).setUint16(10, 9999);
-    expect(decodeHelpPath(lying)!.components.length, lessThanOrEqualTo(1), reason: 'huge count bails at buffer end');
+    expect(isPth0(lying), isFalse, reason: 'count overruns the length');
+    expect(() => decodeHelpPath(lying), throwsA(isA<AssertionError>()));
+    expect(pth0ExtentAt(u8([0, 0, ...body, 9, 9]), 2), body.length, reason: 'extent inside a larger buffer');
   });
 
   test('decodeIdTable (NUID/SUID/BNID): [u32 count][count u32] tiling the payload', () {
@@ -432,6 +450,7 @@ void main() {
   test('every fixed-block decoder returns or rejects its precondition over random small buffers', () {
     final decoders = <String, Object? Function(Uint8List)>{
       'decodeStringBlock': decodeStringBlock,
+      'decodePth0': decodePth0,
       'decodeHistory': decodeHistory,
       'decodeFontTable': decodeFontTable,
       'decodeDataTypeHeap': decodeDataTypeHeap,
@@ -473,11 +492,6 @@ void main() {
       'decodeCpd2Record': decodeCpd2Record,
       'decodeTitle': decodeTitle,
       'decodeTextRecord': decodeTextRecord,
-      'decodeHelpPath+fields': (b) {
-        final p = decodeHelpPath(b);
-        p?.components;
-        return p?.path;
-      },
     };
     var seed = 0;
     decoders.forEach((name, decode) {
@@ -511,15 +525,6 @@ void main() {
       expect(decodeIdTable(body).serialize(), same(body));
       final empty = _idtab([]);
       expect(decodeIdTable(empty).serialize(), same(empty));
-    });
-
-    test('ViStringBlock.serialize re-emits [u32 len][text] exactly', () {
-      final body = _strg('This VI does a thing.');
-      expect(decodeStringBlockRaw(body)!.serialize(), body);
-      final empty = _strg('');
-      expect(decodeStringBlockRaw(empty)!.serialize(), empty);
-      final raw = u8([0, 0, 0, 3, 0xff, 0x00, 0x80]);
-      expect(decodeStringBlockRaw(raw)!.serialize(), raw);
     });
 
     test('fixed records are views: serialize returns the backing bytes', () {
