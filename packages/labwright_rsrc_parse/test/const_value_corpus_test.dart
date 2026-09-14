@@ -76,4 +76,36 @@ void main() {
       );
     }
   });
+
+  test('string framing: the reference renders that settle a non-printable payload', () {
+    const pins = <(String, int, String, int, int)>[
+      ('Config_Escape', 307, r'\t', 24, 19),
+      ('Config_Escape', 2004, '\t', 24, 19),
+      ('Config_Escape', 347, r'\n', 27, 19),
+      ('Config_Escape', 1812, '\n', 27, 19),
+      ('Config_Escape', 379, r'\f', 24, 19),
+      ('Config_Escape', 1908, '\f', 24, 19),
+      ('Config_Escape', 411, r'\r', 24, 19),
+      ('Config_Escape', 1956, '\r', 24, 19),
+      ('Config_Escape', 475, r'\\', 25, 19),
+      ('Config_Escape', 1764, r'\', 25, 19),
+      ('Config_Escape', 443, r'\"', 25, 19),
+      ('Config_Escape', 1860, '"', 20, 19),
+      ('Config_Dump', 671, '\n', 27, 19),
+      ('Config_Dump', 712, '\n', 27, 19),
+      ('Config_Dump', 2448, '\n', 27, 19),
+      ('Config_Dump', 1575, '=', 17, 19),
+    ];
+    final diagrams = <String, ViDiagram>{};
+    for (final (snippet, oid, value, width, height) in pins) {
+      final diagram = diagrams[snippet] ??= buildViModel(
+        extractSnippetVi(snippetPng('$snippet.png').readAsBytesSync())!,
+      ).blockDiagrams.single;
+      final constant = diagram.byId[oid]!;
+      expect(constant.constText, value, reason: '$snippet oid $oid value');
+      final box = diagram.children(oid).firstWhere((child) => child.absBounds != null).absBounds!;
+      expect((box.width, box.height), (width, height), reason: '$snippet oid $oid box');
+      expect(bdDrawnConstText(constant), value.codeUnits.every((c) => c >= 0x20 && c < 0x7f) ? value : isNull);
+    }
+  });
 }

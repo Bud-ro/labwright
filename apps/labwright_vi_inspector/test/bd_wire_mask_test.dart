@@ -300,6 +300,6 @@ void main() {
             'outside node boxes is covered; re-pin DOWNWARD as routing '
             'lands, never up',
       );
-    });
+    }, tags: 'corpus');
   }
 }

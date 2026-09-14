@@ -1,11 +1,7 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
-
-import '../tool/corpus_base.dart';
-import 'corpus_dirs.dart';
 
 Uint8List png(List<(String, List<int>)> chunks, {String? corruptCrcOf}) {
   final b = BytesBuilder()..add([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
@@ -91,14 +87,5 @@ void main() {
       snippetDiagramInterior(210, 83),
       (left: 2, top: 26, right: 208, bottom: 81),
     );
-  });
-
-  test('every tracked snippet extracts to a parseable VI with a positioned BD', () async {
-    final results = await decodeSnippetPngs(Directory('${corpusBaseDir().path}/snippets'));
-    final snippets = results.where((r) => r.$2 != null).toList();
-    expect(snippets, isNotEmpty);
-    for (final (path, positioned) in snippets) {
-      expect(positioned, isTrue, reason: path);
-    }
   });
 }

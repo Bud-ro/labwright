@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
@@ -101,7 +104,7 @@ void main() {
         ('Calculate CRC.vi', 'modbusCrc16', 'modbus_crc16.g.dart'),
         ('Calc CRC-16.vi', 'calcCrc16', 'modbus_crc16_table.g.dart'),
       ]) {
-        final path = corpusViPaths(corpusViDir()).firstWhere((path) => path.endsWith(fileName));
+        final path = corpusViPaths().firstWhere((path) => path.endsWith(fileName));
         final unit = LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);
         final result = emitLvLibrary(unit!, functionName: functionName, sourceNote: fileName);
         expect(result.refusal, isNull, reason: '$fileName must lower');
@@ -109,7 +112,6 @@ void main() {
         expect(result.source, committed, reason: 'regenerate $generated after changing the emitter');
       }
     },
-    tags: 'corpus',
   );
 }
 

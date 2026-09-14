@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:convert';
 import 'dart:io';
 import 'dart:isolate';
@@ -899,7 +902,7 @@ Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Se
 Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign})> _runCorpusSweep(
   Directory corpus,
 ) async {
-  final paths = corpusViPaths(corpus);
+  final paths = corpusViPaths();
   final index = <String, String>{};
   for (final path in paths) {
     index.putIfAbsent(path.split(Platform.pathSeparator).last.toLowerCase(), () => path);
@@ -924,12 +927,11 @@ Future<({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Se
 }
 
 void main() {
-  final snippets = snippetFiles();
+  final snippets = kSnippetLoweringOutcomes.keys.toList();
 
   test('every tracked snippet lowers, or refuses for its pinned reason', () {
     final measured = <String, String>{};
-    for (final file in snippets) {
-      final name = snippetName(file);
+    for (final name in snippets) {
       final vi = snippetVi(name);
       final result = emitLvFunction(vi.diagram, functionName: 'lowered', sourceNote: name, pool: vi.pool);
       measured[name] = result.refusal?.kind.name ?? 'lowered';
@@ -946,8 +948,7 @@ void main() {
 
   test('the threaded error mode changes only the VIs that carry an error cluster', () {
     final measured = <String, String>{};
-    for (final file in snippets) {
-      final name = snippetName(file);
+    for (final name in snippets) {
       final vi = snippetVi(name);
       final result = emitLvFunction(
         vi.diagram,
@@ -1002,8 +1003,8 @@ void main() {
 
   test('cluster wires resolve their member shape through their endpoints', () {
     var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
-    for (final file in snippets) {
-      final vi = snippetVi(snippetName(file));
+    for (final name in snippets) {
+      final vi = snippetVi(name);
       final measured = _clusterWires(vi.diagram, vi.pool);
       signals += measured.signals;
       resolved += measured.resolved;
@@ -1019,20 +1020,19 @@ void main() {
   test(
     'subVI calls bind through the connector pane, and both error modes sweep the corpus',
     () async {
-      final measured = (await corpusSweep(corpusViDir())).tally;
+      final measured = (await corpusSweep(corpusVi)).tally;
       printOnFailure(
         'measured:\n${[for (final key in measured.keys.toList()..sort()) "  '$key': ${measured[key]},"].join('\n')}',
       );
       expect(measured, {...kCorpusLoweringSweep, ...kCorpusInPlaceElement});
       expect(measured['term.dirDisagree'], isNull, reason: 'the pane binding contradicts the caller\'s own direction');
     },
-    tags: 'corpus',
   );
 
   test(
     'every emitted library analyzes clean at the recommended lint set, and compiles',
     () async {
-      final swept = await corpusSweep(corpusViDir());
+      final swept = await corpusSweep(corpusVi);
       expect(
         (vis: swept.tally['exceptions.lowered'], sources: swept.sources.length),
         kEmittedSources,
@@ -1062,13 +1062,12 @@ void main() {
         scratch.deleteSync(recursive: true);
       }
     },
-    tags: 'corpus',
   );
 
   test(
     'the corpus primitive review list is exactly what the whole corpus holds',
     () async {
-      final prims = (await corpusSweep(corpusViDir())).prims;
+      final prims = (await corpusSweep(corpusVi)).prims;
       final identities = <String>{for (final key in prims.keys) key.split('|').skip(1).join('|')};
       final measured = <String, ({int vis, int nodes, int sole})>{
         for (final identity in identities)
@@ -1104,13 +1103,12 @@ void main() {
         reason: 'the corpus review list moved; re-pin it against the measured corpus',
       );
     },
-    tags: 'corpus',
   );
 
   test(
     'every Call Library Function node names the library and entry point it calls',
     () async {
-      final swept = await corpusSweep(corpusViDir());
+      final swept = await corpusSweep(corpusVi);
       final measured = (
         libraries: swept.foreign.where((entry) => entry.startsWith('lib|')).length,
         entryPoints: swept.foreign.where((entry) => entry.startsWith('entry|')).length,
@@ -1118,13 +1116,12 @@ void main() {
       printOnFailure('measured: $measured');
       expect(measured, kCorpusForeignCalls);
     },
-    tags: 'corpus',
   );
 
   test('the primitive review list is exactly what the snippet corpus holds', () {
     final counts = <String, int>{};
-    for (final file in snippets) {
-      for (final object in snippetDiagram(snippetName(file)).objects) {
+    for (final name in snippets) {
+      for (final object in snippetDiagram(name).objects) {
         if (object.category != ViObjectKind.node) continue;
         if (kSubViCallNodeCodes.contains(object.kind)) continue;
         final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);

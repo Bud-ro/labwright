@@ -3,11 +3,11 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'corpus_base.dart';
+import '../../../tool/corpus.dart';
 
 /// Run: `dart run tool/gen_prim_terminal_census.dart`; writes `lib/src/diagram/prim_terminal_census.dart`.
 void main() {
-  final root = Directory('${corpusBaseDir().path}/vi');
+  final root = corpusVi;
   final xObs = <(int, int, int, int), Map<int, int>>{};
   final yObs = <(int, int, int, int), Map<int, int>>{};
   var files = 0, slackWires = 0;

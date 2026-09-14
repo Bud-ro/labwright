@@ -6,7 +6,6 @@ import 'dart:io';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import '../tool/corpus_base.dart';
 import 'corpus_dirs.dart';
 
 void main() {

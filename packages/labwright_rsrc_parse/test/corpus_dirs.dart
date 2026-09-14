@@ -4,15 +4,19 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import '../tool/corpus_base.dart';
+import '../../../tool/corpus.dart';
+import '../tool/corpus_vis.dart';
 
-final Directory corpusViDir = Directory('${corpusBaseDir().path}/vi');
+export '../../../tool/corpus.dart';
+export '../tool/corpus_vis.dart';
+
+final Directory corpusViDir = corpusVi;
 
 List<File>? _allVisCache;
 
-List<File> corpusVis() => _allVisCache ??= listCorpusVis(corpusViDir);
+List<File> corpusVis() => _allVisCache ??= listCorpusVis(corpusVi);
 
-File corpusSnapshotFile() => File('${corpusBaseDir().path}/snapshot.json');
+File corpusSnapshotFile() => File('${repoRoot().path}/packages/labwright_rsrc_parse/test/corpus_snapshot.json');
 
 const snapshotRegenCommand = 'dart run packages/labwright_rsrc_parse/tool/snapshot.dart';
 

@@ -1,41 +1,16 @@
 @Tags(['corpus'])
 library;
 
-import 'dart:io';
-
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:labwright_seq_inspector/src/document_view.dart';
 import 'package:labwright_seq_inspector/src/property_outline.dart';
 import 'package:labwright_seq_inspector/src/sequence_outline.dart';
 
-Directory _corpusSeqDir() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    if (File(
-      '${dir.path}/packages/labwright_seq/corpus/seq-sources.json',
-    ).existsSync()) {
-      return Directory('${dir.path}/packages/labwright_seq/corpus/seq');
-    }
-    if (File('${dir.path}/corpus/seq-sources.json').existsSync()) {
-      return Directory('${dir.path}/corpus/seq');
-    }
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return Directory('corpus/seq');
-}
+import '../../../tool/corpus.dart';
 
 void main() {
-  final corpus = _corpusSeqDir();
-  final seqs =
-      corpus
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.toLowerCase().endsWith('.seq'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
+  final seqs = corpusFiles(corpusSeq, '.seq');
 
   test('corpus has .seq files', () => expect(seqs, isNotEmpty));
 

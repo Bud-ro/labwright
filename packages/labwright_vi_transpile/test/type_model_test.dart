@@ -1,3 +1,6 @@
+@Tags(['corpus'])
+library;
+
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show PrimOp;

@@ -5,37 +5,14 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-Directory? repoDir(String relative) {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final candidate = Directory('${dir.path}/$relative');
-    if (candidate.existsSync()) return candidate;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return null;
-}
+import '../../../tool/corpus.dart';
 
-Directory snippetCorpusDir() =>
-    repoDir('packages/labwright_rsrc_parse/corpus/snippets')!;
+export '../../../tool/corpus.dart';
 
-List<File> snippetCorpusPngs() {
-  final tracked = snippetCorpusDir().listSync().whereType<File>();
-  final fetched = repoDir(
-    'packages/labwright_rsrc_parse/corpus/vi',
-  )!.listSync(recursive: true).whereType<File>();
-  return [...tracked, ...fetched]
-      .where(
-        (f) =>
-            f.path.endsWith('.png') &&
-            extractSnippetVi(f.readAsBytesSync()) != null,
-      )
-      .toList()
-    ..sort((a, b) => a.path.compareTo(b.path));
-}
-
-File snippetPng(String pngName) => File('${snippetCorpusDir().path}/$pngName');
+List<File> snippetCorpusPngs() => [
+  for (final file in corpusFiles(corpusVi, '.png'))
+    if (extractSnippetVi(file.readAsBytesSync()) != null) file,
+];
 
 Future<void> pumpBody(
   WidgetTester tester,

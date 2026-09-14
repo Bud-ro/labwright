@@ -13,7 +13,7 @@ aborts the whole function with an `LvRefusal` naming what is missing, so
 generated code is either complete or absent — see *Lowering* below.
 
 Every number below is a census over the pinned 7,524-VI corpus
-(`packages/labwright_rsrc_parse/corpus/vi`, 7,490 of which carry a type pool),
+(`corpus/vi`, 7,490 of which carry a type pool),
 totalling **551,681 type descriptors**. `test/corpus_type_sweep_test.dart`
 re-derives them on every run and fails if any code falls outside the tables.
 
@@ -461,7 +461,7 @@ one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
 `test/corpus_lowering_sweep_test.dart`: 88 distinct unmapped identities over
-471 nodes across the tracked snippets, headed by Match Pattern (134) and node
+471 nodes across the rcpacini snippets, headed by Match Pattern (134) and node
 classes `0x93` (18), `0x105` (16) and `0xa9` (15).
 
 ### subVI calls
@@ -485,7 +485,7 @@ disagrees.
 
 ### Outcomes
 
-Over the 46 tracked VI snippets: 8 lower (`MD5`, `PNG CRC32`,
+Over the 46 rcpacini VI snippets: 8 lower (`MD5`, `PNG CRC32`,
 `crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, and `VI Tree` /
 `decorations_only`, which have no dataflow) and 38 refuse. Refusals are pinned
 per VI and concentrate in cluster / path / variant wire types (24), undecoded
