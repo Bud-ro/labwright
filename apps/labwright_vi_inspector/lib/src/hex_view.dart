@@ -49,38 +49,10 @@ class _BlockHexViewState extends State<BlockHexView> {
     final isHeap = BlockTag.of(widget.section.tag)?.isRecordHeap ?? false;
     if (isHeap) {
       try {
-        final walk = walkHeapBody(bytes);
-        _walk = walk;
+        _walk = walkHeapBody(bytes);
         _records = [
-          if (bytes.length >= 4)
-            SpanInfo(
-              offset: 0,
-              length: 4,
-              lead: bytes[0],
-              color: spanColorHeader,
-              title: 'Heap content length (u32)',
-              detail:
-                  'Big-endian u32 = ${readU32be(bytes, 0)} bytes: the size of the record stream that '
-                  'follows (= decompressed heap size − 4). The bracket-tree walk begins at offset 4.',
-              inlinePreview: '${readU32be(bytes, 0)} B',
-            ),
-          for (final span in walk.spans)
-            classifySpan(bytes, span, widget.section.tag),
-          if (walk.stoppedAtOffset != null &&
-              walk.stoppedAtOffset! < bytes.length)
-            SpanInfo(
-              offset: walk.stoppedAtOffset!,
-              length: bytes.length - walk.stoppedAtOffset!,
-              lead: walk.stoppedLead ?? bytes[walk.stoppedAtOffset!],
-              color: spanColorUnframed,
-              title:
-                  'Unframed tail (lead 0x${(walk.stoppedLead ?? 0).toRadixString(16)})',
-              detail:
-                  'The record walk stopped here: this lead byte\'s record family is not yet '
-                  'decoded, so the remaining ${bytes.length - walk.stoppedAtOffset!} bytes are not '
-                  'individually framed. They are preserved — decoding this family is the open frontier.',
-              inlinePreview: '${bytes.length - walk.stoppedAtOffset!} B',
-            ),
+          for (final info in describeHeapBody(bytes, widget.section.tag))
+            spanInfoOf(info),
         ];
       } catch (_) {
         _records = const [];

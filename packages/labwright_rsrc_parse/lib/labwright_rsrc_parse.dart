@@ -60,6 +60,7 @@ export 'src/diagram/prim_ops.dart';
 export 'src/diagram/wire_render.dart';
 export 'src/heap/heap.dart';
 export 'src/heap/heap_writer.dart';
+export 'src/heap/span_describe.dart';
 export 'src/meta.dart';
 export 'src/model.dart';
 export 'src/model_json.dart';
