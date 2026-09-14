@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
@@ -20,20 +19,6 @@ class _FakeImageClipboard implements ImageClipboard {
     writes.add(pngBytes);
     return result;
   }
-}
-
-Directory? _corpusDir() {
-  var dir = Directory.current;
-  for (var i = 0; i < 8; i++) {
-    final candidate = Directory(
-      '${dir.path}/packages/labwright_rsrc_parse/corpus/vi',
-    );
-    if (candidate.existsSync()) return candidate;
-    final parent = dir.parent;
-    if (parent.path == dir.path) break;
-    dir = parent;
-  }
-  return null;
 }
 
 ViLegacyIcon _icon(int fill, int bpp) {
@@ -129,15 +114,6 @@ final Uint8List _png1x1 = Uint8List.fromList(const [
   0x42, 0x60, 0x82,
 ]);
 
-DecodedSection _section(String tag, List<int> body, {int index = 0}) {
-  final bytes = Uint8List.fromList(body);
-  return DecodedSection(
-    section: ViSection(tag: tag, index: index, dataOffset: 0, bytes: bytes),
-    bytes: bytes,
-    wasCompressed: false,
-  );
-}
-
 Future<void> _pump(WidgetTester tester, Widget child) async {
   tester.view.physicalSize = const Size(1000, 2000);
   tester.view.devicePixelRatio = 1.0;
@@ -146,59 +122,6 @@ Future<void> _pump(WidgetTester tester, Widget child) async {
 }
 
 void main() {
-  test(
-    'extractViImages takes the PNG a DSIM carries after its raster header',
-    () {
-      final header = ByteData(46)
-        ..setUint16(4, 1)
-        ..setUint16(6, 1)
-        ..setUint16(8, 24)
-        ..setInt32(22, -1)
-        ..setUint16(30, 1)
-        ..setUint16(32, 1)
-        ..setUint16(34, 24);
-      final body = [...header.buffer.asUint8List(), ..._png1x1, 0xaa];
-      final images = extractViImages([_section('DSIM', body)]);
-      expect(images.pngs, hasLength(1));
-      final png = images.pngs.single;
-      expect(png.tag, 'DSIM');
-      expect((png.width, png.height), (1, 1));
-      expect(png.bytes, equals(_png1x1));
-    },
-  );
-
-  test('extractViImages takes a bare MNGI PNG and skips a DSIM raster', () {
-    final raster = ByteData(46 + 3)
-      ..setUint16(4, 1)
-      ..setUint16(6, 1)
-      ..setUint16(8, 24)
-      ..setInt32(22, 3)
-      ..setUint16(30, 1)
-      ..setUint16(32, 1)
-      ..setUint16(34, 24);
-    final images = extractViImages([
-      _section('DSIM', raster.buffer.asUint8List()),
-      _section('MNGI', _png1x1),
-    ]);
-    expect(images.pngs.map((p) => p.tag), ['MNGI']);
-  });
-
-  test('extractViImages decodes legacy icon payloads', () {
-    final images = extractViImages([
-      _section('icl8', List<int>.filled(1024, 7)),
-      _section('ICON', List<int>.filled(128, 0xff)),
-    ]);
-    expect(images.icons.map((i) => i.tag), ['icl8', 'ICON']);
-    expect(images.icons.first.icon.depth, LegacyIconDepth.eightBit);
-  });
-
-  test('extractViImages ignores non-image payloads', () {
-    final images = extractViImages([
-      _section('vers', const [1, 2, 3, 4]),
-    ]);
-    expect(images.isEmpty, isTrue);
-  });
-
   test('encodeQuickTimeRasterPng maps 24-bit RGB and 32-bit xRGB pixels', () {
     final rgb = encodeQuickTimeRasterPng(
       2,
@@ -220,24 +143,6 @@ void main() {
     expect(decodedXrgb.getPixel(0, 0).b, 255);
   });
 
-  test('a corpus PICT VI yields a decoded metafile image', () {
-    final corpus = _corpusDir();
-    if (corpus == null) return;
-    final file = File(
-      '${corpus.path}/tuftsBaxter_ROS-for-LabVIEW-Software/'
-      'tuftsBaxter-ROS-for-LabVIEW-Software-cef95f1/ROS for LabVIEW Software/'
-      'PlayArea/Controls/OriginalTest.vi',
-    );
-    if (!file.existsSync()) return;
-    final images = extractViImages(decodeSections(file.readAsBytesSync()));
-    expect(images.metafiles, hasLength(1));
-    final metafile = images.metafiles.single;
-    expect((metafile.tag, metafile.width, metafile.height), ('PICT', 411, 489));
-    expect(metafile.depth, 24);
-    final decoded = img.decodePng(metafile.png);
-    expect((decoded!.width, decoded.height), (411, 489));
-  });
-
   testWidgets('empty images show the empty state', (tester) async {
     await _pump(tester, const ViImagesView(images: ViImages()));
     expect(find.text('No embedded images'), findsOneWidget);
@@ -248,14 +153,9 @@ void main() {
   ) async {
     final images = ViImages(
       pngs: [
-        EmbeddedPng(tag: 'MNGI', index: 0, width: 1, height: 1, bytes: _png1x1),
+        EmbeddedPng(tag: 'MNGI', index: 0, stream: decodePngStream(_png1x1)),
       ],
-      icons: [
-        EmbeddedLegacyIcon(
-          tag: 'icl8',
-          icon: decodeIcl8(Uint8List.fromList(List<int>.filled(1024, 3))),
-        ),
-      ],
+      icons: [decodeIcl8(Uint8List.fromList(List<int>.filled(1024, 3)))],
     );
     await _pump(tester, ViImagesView(images: images));
     expect(find.text('Embedded images (2)'), findsOneWidget);
@@ -285,9 +185,7 @@ void main() {
               EmbeddedPng(
                 tag: 'DSIM',
                 index: 0,
-                width: 1,
-                height: 1,
-                bytes: _png1x1,
+                stream: decodePngStream(_png1x1),
               ),
             ],
           ),
@@ -315,13 +213,7 @@ void main() {
       final clip = _FakeImageClipboard();
       final images = ViImages(
         pngs: [
-          EmbeddedPng(
-            tag: 'MNGI',
-            index: 0,
-            width: 1,
-            height: 1,
-            bytes: _png1x1,
-          ),
+          EmbeddedPng(tag: 'MNGI', index: 0, stream: decodePngStream(_png1x1)),
         ],
       );
       await _pump(tester, ViImagesView(images: images, clipboard: clip));
@@ -336,9 +228,7 @@ void main() {
 
   testWidgets('a failed copy shows an honest notice', (tester) async {
     final clip = _FakeImageClipboard()..result = false;
-    final images = ViImages(
-      icons: [EmbeddedLegacyIcon(tag: 'icl8', icon: _icon(3, 8))],
-    );
+    final images = ViImages(icons: [_icon(3, 8)]);
     await _pump(tester, ViImagesView(images: images, clipboard: clip));
     await tester.tap(find.byTooltip('Copy image to clipboard'));
     await tester.pump();
@@ -351,11 +241,7 @@ void main() {
     tester,
   ) async {
     final images = ViImages(
-      icons: [
-        EmbeddedLegacyIcon(tag: 'ICON', icon: _icon(0xff, 1)),
-        EmbeddedLegacyIcon(tag: 'icl8', icon: _icon(3, 8)),
-        EmbeddedLegacyIcon(tag: 'icl4', icon: _icon(0x11, 4)),
-      ],
+      icons: [_icon(3, 8), _icon(0x11, 4), _icon(0xff, 1)],
     );
     await _pump(tester, ViImagesView(images: images));
     expect(find.text('VI icon'), findsOneWidget);

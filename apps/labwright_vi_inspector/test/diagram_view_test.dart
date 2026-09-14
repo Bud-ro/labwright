@@ -6,7 +6,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
-import 'package:labwright_vi_inspector/src/images_view.dart';
 
 import 'util.dart';
 
@@ -117,11 +116,7 @@ void main() {
   testWidgets('BD view shows the VI-image strip when an icon is present', (
     tester,
   ) async {
-    final images = ViImages(
-      icons: [
-        EmbeddedLegacyIcon(tag: 'icl8', icon: decodeIcl8(Uint8List(1024))),
-      ],
-    );
+    final images = ViImages(icons: [decodeIcl8(Uint8List(1024))]);
     await pumpBody(
       tester,
       ViDiagramView(

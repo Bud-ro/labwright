@@ -7,123 +7,6 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'image_clipboard.dart';
 import 'span_annotations.dart';
 
-class EmbeddedPng {
-  const EmbeddedPng({
-    required this.tag,
-    required this.index,
-    required this.width,
-    required this.height,
-    required this.bytes,
-  });
-
-  final String tag;
-
-  final int index;
-
-  final int width;
-  final int height;
-
-  final Uint8List bytes;
-}
-
-class EmbeddedLegacyIcon {
-  const EmbeddedLegacyIcon({required this.tag, required this.icon});
-  final String tag;
-  final ViLegacyIcon icon;
-}
-
-class DecodedMetafileImage {
-  const DecodedMetafileImage({
-    required this.tag,
-    required this.width,
-    required this.height,
-    required this.depth,
-    required this.png,
-  });
-
-  final String tag;
-  final int width;
-  final int height;
-
-  final int depth;
-
-  final Uint8List png;
-}
-
-class ViImages {
-  const ViImages({
-    this.pngs = const [],
-    this.icons = const [],
-    this.metafiles = const [],
-  });
-  final List<EmbeddedPng> pngs;
-  final List<EmbeddedLegacyIcon> icons;
-  final List<DecodedMetafileImage> metafiles;
-
-  bool get isEmpty => pngs.isEmpty && icons.isEmpty && metafiles.isEmpty;
-  int get count => pngs.length + icons.length + metafiles.length;
-}
-
-ViImages extractViImages(List<DecodedSection> sections) {
-  final pngs = <EmbeddedPng>[];
-  final icons = <EmbeddedLegacyIcon>[];
-  final metafiles = <DecodedMetafileImage>[];
-  void png(DecodedSection section, ViPngStream stream) => pngs.add(
-    EmbeddedPng(
-      tag: section.tag,
-      index: section.index,
-      width: stream.width,
-      height: stream.height,
-      bytes: stream.bytes,
-    ),
-  );
-  for (final section in sections) {
-    final payload = section.bytes;
-    switch (BlockTag.of(section.tag)) {
-      case BlockTag.icl8 || BlockTag.icl4 || BlockTag.icon:
-        final depth = LegacyIconDepth.forTag(section.tag)!;
-        if (payload.length == depth.byteLength) {
-          icons.add(
-            EmbeddedLegacyIcon(
-              tag: section.tag,
-              icon: decodeLegacyIcon(payload, depth),
-            ),
-          );
-        }
-      case BlockTag.pict:
-        final raster = decodePict(payload).quickTimeRaster;
-        if (raster != null) {
-          metafiles.add(
-            DecodedMetafileImage(
-              tag: section.tag,
-              width: raster.width,
-              height: raster.height,
-              depth: raster.depth,
-              png: encodeQuickTimeRasterPng(
-                raster.width,
-                raster.height,
-                raster.depth,
-                raster.pixels,
-              ),
-            ),
-          );
-        }
-      case BlockTag.mngi:
-        final stream = decodePngStream(payload);
-        if (stream.kind == ChunkStreamKind.png) png(section, stream);
-      case BlockTag.dsim:
-        if (decodeDataSpaceImage(payload) case ViDataSpacePng(
-          png: final stream,
-        )) {
-          png(section, stream);
-        }
-      default:
-        break;
-    }
-  }
-  return ViImages(pngs: pngs, icons: icons, metafiles: metafiles);
-}
-
 Uint8List encodeQuickTimeRasterPng(
   int width,
   int height,
@@ -145,15 +28,6 @@ Uint8List encodeQuickTimeRasterPng(
   }
   return img.encodePng(image);
 }
-
-List<EmbeddedLegacyIcon> orderedLegacyIcons(List<EmbeddedLegacyIcon> icons) {
-  const order = {'icl8': 0, 'icl4': 1, 'ICON': 2};
-  return [...icons]
-    ..sort((a, b) => (order[a.tag] ?? 9).compareTo(order[b.tag] ?? 9));
-}
-
-ViLegacyIcon? bestLegacyIcon(ViImages images) =>
-    images.icons.isEmpty ? null : orderedLegacyIcons(images.icons).first.icon;
 
 Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
   const dim = ViLegacyIcon.width;
@@ -200,9 +74,6 @@ class ViImagesView extends StatelessWidget {
     );
   }
 
-  List<EmbeddedLegacyIcon> get _orderedIcons =>
-      orderedLegacyIcons(images.icons);
-
   @override
   Widget build(BuildContext context) {
     if (images.isEmpty) {
@@ -216,7 +87,7 @@ class ViImagesView extends StatelessWidget {
         ),
       );
     }
-    final icons = _orderedIcons;
+    final icons = images.icons;
     return ListView(
       padding: const EdgeInsets.all(12),
       children: [
@@ -243,7 +114,7 @@ class ViImagesView extends StatelessWidget {
                 ),
             ],
           ),
-        if (images.metafiles.isNotEmpty) ...[
+        if (images.rasters.isNotEmpty) ...[
           if (images.pngs.isNotEmpty) const SizedBox(height: 20),
           const Text(
             'Metafile images',
@@ -260,15 +131,28 @@ class ViImagesView extends StatelessWidget {
             spacing: 12,
             runSpacing: 12,
             children: [
-              for (final metafile in images.metafiles)
+              for (final EmbeddedRaster(:tag, :raster) in images.rasters)
                 _ImageTile(
                   caption:
-                      '${metafile.tag} · ${metafile.width}×${metafile.height} '
-                      '· ${metafile.depth}-bit QuickTime raw',
-                  onCopy: () =>
-                      _copy(context, metafile.png, '${metafile.tag} image'),
+                      '$tag · ${raster.width}×${raster.height} '
+                      '· ${raster.depth}-bit QuickTime raw',
+                  onCopy: () => _copy(
+                    context,
+                    encodeQuickTimeRasterPng(
+                      raster.width,
+                      raster.height,
+                      raster.depth,
+                      raster.pixels,
+                    ),
+                    '$tag image',
+                  ),
                   child: Image.memory(
-                    metafile.png,
+                    encodeQuickTimeRasterPng(
+                      raster.width,
+                      raster.height,
+                      raster.depth,
+                      raster.pixels,
+                    ),
                     width: 320,
                     fit: BoxFit.contain,
                     errorBuilder: (_, _, _) => const SizedBox(
@@ -303,8 +187,8 @@ class ViImagesView extends StatelessWidget {
                   sameAs: _matchNote(icon, icons),
                   onCopy: () => _copy(
                     context,
-                    encodeLegacyIconPng(icon.icon),
-                    '${icon.tag} icon',
+                    encodeLegacyIconPng(icon),
+                    '${icon.depth.tag} icon',
                   ),
                 ),
             ],
@@ -314,10 +198,10 @@ class ViImagesView extends StatelessWidget {
     );
   }
 
-  String? _matchNote(EmbeddedLegacyIcon icon, List<EmbeddedLegacyIcon> icons) {
+  String? _matchNote(ViLegacyIcon icon, List<ViLegacyIcon> icons) {
     for (final other in icons) {
       if (identical(other, icon)) break;
-      if (other.icon.sameGrid(icon.icon)) return other.tag;
+      if (other.sameGrid(icon)) return other.depth.tag;
     }
     return null;
   }
@@ -401,8 +285,8 @@ class _PngTile extends StatelessWidget {
 }
 
 class _LegacyIconTile extends StatelessWidget {
-  const _LegacyIconTile(this.entry, {required this.onCopy, this.sameAs});
-  final EmbeddedLegacyIcon entry;
+  const _LegacyIconTile(this.icon, {required this.onCopy, this.sameAs});
+  final ViLegacyIcon icon;
   final VoidCallback onCopy;
 
   final String? sameAs;
@@ -411,11 +295,11 @@ class _LegacyIconTile extends StatelessWidget {
   Widget build(BuildContext context) => _ImageTile(
     onCopy: onCopy,
     caption:
-        'VI icon · ${entry.icon.depth.bits}-bit (${entry.tag})'
+        'VI icon · ${icon.depth.bits}-bit (${icon.depth.tag})'
         '${sameAs != null ? ' · identical grid to $sameAs' : ''}',
     child: CustomPaint(
       size: const Size(128, 128),
-      painter: LegacyIconPainter(entry.icon),
+      painter: LegacyIconPainter(icon),
     ),
   );
 }
