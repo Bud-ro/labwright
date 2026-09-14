@@ -65,11 +65,11 @@ enum ViTagValueFraming {
   bare,
 }
 
-/// A view over one entry of a [ViTagStore].
+/// A view over one tag entry: a length-prefixed name and its framed value.
 class ViTagEntry {
-  const ViTagEntry._(this.store, this.offset, this.valueOffset, this.end, this.framing);
+  const ViTagEntry._(this.bytes, this.offset, this.valueOffset, this.end, this.framing);
 
-  final ViTagStore store;
+  final Uint8List bytes;
 
   final int offset;
 
@@ -81,11 +81,11 @@ class ViTagEntry {
 
   final ViTagValueFraming framing;
 
-  int get _nameBytes => store._view.getUint32(offset + _nameLength.offset);
+  int get _nameBytes => ByteData.sublistView(bytes).getUint32(offset + _nameLength.offset);
 
-  String get name => String.fromCharCodes(store.bytes, offset + _name.offset, offset + _name.offset + _nameBytes);
+  String get name => String.fromCharCodes(bytes, offset + _name.offset, offset + _name.offset + _nameBytes);
 
-  Uint8List get value => Uint8List.sublistView(store.bytes, valueOffset, end);
+  Uint8List get value => Uint8List.sublistView(bytes, valueOffset, end);
 }
 
 /// A view over a `VITS` payload.
@@ -107,38 +107,45 @@ class ViTagStore implements BlockRecord {
 ViTagStore decodeTagStore(Uint8List bytes) {
   assert(bytes.length >= _entries.offset, 'a tag store starts with its count');
   final store = ViTagStore._(bytes);
-  final view = store._view;
-  final count = view.getUint32(_count.offset);
+  final count = store._view.getUint32(_count.offset);
   assert(count <= (bytes.length - _entries.offset) ~/ 8, 'the count fits the payload');
   final entries = <ViTagEntry>[];
   var at = _entries.offset;
   for (var i = 0; i < count; i++) {
-    assert(at + 8 <= bytes.length, 'tag $i has a name length and a value word');
-    final nameEnd = at + _name.offset + view.getUint32(at + _nameLength.offset);
-    assert(nameEnd + 4 <= bytes.length, 'tag $i name fits the payload');
-    final word = view.getUint32(nameEnd);
-    final ViTagValueFraming framing;
-    final int valueOffset, end;
-    if (word > bytes.length - nameEnd) {
-      framing = ViTagValueFraming.bare;
-      valueOffset = nameEnd;
-      end = _variantEnd(view, bytes, valueOffset);
-    } else if (bytes[nameEnd + 4] == 0) {
-      framing = ViTagValueFraming.lengthPrefixedInclusive;
-      valueOffset = nameEnd + 4;
-      end = nameEnd + word;
-    } else {
-      framing = ViTagValueFraming.lengthPrefixed;
-      valueOffset = nameEnd + 4;
-      end = valueOffset + word;
-    }
-    assert(end <= bytes.length, 'tag $i value fits the payload');
-    entries.add(ViTagEntry._(store, at, valueOffset, end, framing));
-    at = end;
+    final entry = tagEntryAt(bytes, at, i);
+    entries.add(entry);
+    at = entry.end;
   }
   assert(at == bytes.length, 'the tags tile the payload');
   store.entries = entries;
   return store;
+}
+
+/// The tag entry starting at [at], the [index]th of its store; requires its name and its
+/// framed value to fit [bytes].
+ViTagEntry tagEntryAt(Uint8List bytes, int at, int index) {
+  final view = ByteData.sublistView(bytes);
+  assert(at + 8 <= bytes.length, 'tag $index has a name length and a value word');
+  final nameEnd = at + _name.offset + view.getUint32(at + _nameLength.offset);
+  assert(nameEnd + 4 <= bytes.length, 'tag $index name fits the payload');
+  final word = view.getUint32(nameEnd);
+  final ViTagValueFraming framing;
+  final int valueOffset, end;
+  if (word > bytes.length - nameEnd) {
+    framing = ViTagValueFraming.bare;
+    valueOffset = nameEnd;
+    end = _variantEnd(view, bytes, valueOffset);
+  } else if (bytes[nameEnd + 4] == 0) {
+    framing = ViTagValueFraming.lengthPrefixedInclusive;
+    valueOffset = nameEnd + 4;
+    end = nameEnd + word;
+  } else {
+    framing = ViTagValueFraming.lengthPrefixed;
+    valueOffset = nameEnd + 4;
+    end = valueOffset + word;
+  }
+  assert(end <= bytes.length, 'tag $index value fits the payload');
+  return ViTagEntry._(bytes, at, valueOffset, end, framing);
 }
 
 /// Where the flattened variant starting at [at] ends.
@@ -186,6 +193,8 @@ int _valueEnd(ByteData view, Uint8List bytes, List<int> typeOffsets, int typeInd
   final td = typeOffsets[typeIndex];
   final type = view.getUint16(td + 2) & 0xff;
   switch (type) {
+    case 0x00:
+      return at;
     case 0x01 || 0x05 || 0x21:
       return at + 1;
     case 0x02 || 0x06:

@@ -4,10 +4,11 @@ import 'block_layout.dart';
 import 'block_record.dart';
 import 'blocks/BDHb_BDHc_BDHP_block_diagram.dart';
 import 'blocks/BDPW_password.dart';
+import 'blocks/BDTS_diagram_tag_store.dart';
 import 'blocks/BFAL_align_table.dart';
 import 'blocks/BKMK_bookmarks.dart';
 import 'blocks/CCST_compiled_code_state.dart';
-import 'blocks/CNST_LPIN_BDTS_word_grid.dart';
+import 'blocks/CNST_LPIN_word_grid.dart';
 import 'blocks/CONP_CPC2_connector_pane.dart';
 import 'blocks/COUT_compiled_output.dart';
 import 'blocks/CPD2_connector_pane_data.dart';
@@ -532,7 +533,14 @@ enum BlockTag {
   fpts('FPTS', 'Front-panel TS', BlockCategory.unknown, BlockConfidence.tentative),
 
   /// Block-diagram TS as a grid of u32 words; semantics not decoded.
-  bdts('BDTS', 'Block-diagram TS', BlockCategory.unknown, BlockConfidence.tentative, decodeWordGrid, wordGridLayout),
+  bdts(
+    'BDTS',
+    'Block-diagram tag store',
+    BlockCategory.nameTable,
+    BlockConfidence.confirmed,
+    decodeDiagramTagStore,
+    bdtsLayout,
+  ),
 
   /// VI property data record.
   vpdp('VPDP', 'VI property data', BlockCategory.unknown, BlockConfidence.confirmed, decodeVpdpRecord, vpdpLayout),

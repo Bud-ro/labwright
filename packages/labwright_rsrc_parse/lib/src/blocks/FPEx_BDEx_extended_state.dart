@@ -12,7 +12,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
-import 'CNST_LPIN_BDTS_word_grid.dart';
+import 'CNST_LPIN_word_grid.dart';
 
 const _words = BlockField(0, null, 'words', 'u32[]', 'state words; roles TODO');
 

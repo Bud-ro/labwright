@@ -165,6 +165,19 @@ void main() {
     expect(() => decodeFontTable(Uint8List(6)), throwsA(isA<AssertionError>()));
   });
 
+  test('decodeDiagramTagStore: objects with their VITS-framed tags tile the payload', () {
+    const boolVariant = [0x20, 0x00, 0x80, 0x00, 0, 0, 0, 1, 0, 4, 0, 0x21, 0, 1, 0, 0, 1, 0, 0, 0, 0];
+    final tag = [0, 0, 0, 3, ...'SIM'.codeUnits, 0, 0, 0, boolVariant.length, ...boolVariant];
+    final payload = u8([0, 0, 0, 2, 0, 0, 0, 0x42, 0, 0, 0, 1, ...tag, 0, 0, 0x05, 0x59, 0, 0, 0, 0]);
+    final store = decodeDiagramTagStore(payload);
+    expect(store.declaredCount, 2);
+    expect(store.objects.map((o) => (o.oid, o.tags.length)), [(0x42, 1), (0x559, 0)]);
+    expect(store.objects.first.tags.single.name, 'SIM');
+    expect(store.objects.first.tags.single.value, boolVariant);
+    expect(store.serialize(), same(payload));
+    expect(() => decodeDiagramTagStore(u8([0, 0, 0, 1, 0, 0, 0, 0x42])), throwsA(isA<AssertionError>()));
+  });
+
   test('decodeTagStore: length-prefixed, bare and LabVIEW 7 inclusive-length values', () {
     Uint8List entry(String name, List<int> value) => u8([0, 0, 0, name.length, ...name.codeUnits, ...value]);
     const version20 = [0x20, 0x00, 0x80, 0x00];
@@ -264,19 +277,24 @@ void main() {
       ...[0x50, 0x54, 0x48, 0x30],
       ...zero4,
     ];
-    const basic = [...zero4, ...pth0, ...zero4];
-    const basicLegacy = [...zero4, ...pth0];
+    const basic = [...zero4, ...pth0, ...zero4, ...zero4];
+    const basicLegacy = [...zero4, ...pth0, ...zero4];
     const apiCache = [...zero4, ...zero4, 0, 0, 0, ...zero4];
-    const classAB = [0, 0, 0, 1, 1, 0x41, ...pth0, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0x42, ...pth0];
+    const classAB = [0, 0, 0, 1, 1, 0x41, ...pth0, ...zero4, 0, 0, 0, 1, 0, 0, 0, 1, 1, 0x42, ...pth0, ...zero4];
     final rows = <(String, String, List<int>)>[
       ('20008000', 'TCPI', [...basic, ...apiCache, ...zero4, 0, 0, 0, 0, 1, ...classAB, ...zero4]),
-      ('20008000', 'AXVT', [...basic, ...zero4, 0, 0, 0, ...zero4, ...zero4, ...List.filled(40, 0)]),
+      ('20008000', 'AXVT', [...basic, 0, 0, 0, ...zero4, ...zero4, ...List.filled(40, 0)]),
       (
         '13008000',
         'RCFL',
         [...basic, ...zero4, ...zero4, ...zero4, 0, 0, 0, 1, 0, 0, 0, 1, 0, 4, 0, 0x20, 0, 1, 0, 0, ...zero4],
       ),
       ('13008000', 'RVPI', [...basic, ...apiCache]),
+      ('20008000', 'DNVA', [...basic, ...pth0, ...zero4]),
+      ('20008000', 'DSVr', [...basic, 0, 0, 0x42, ...zero4, ...zero4]),
+      ('20008000', 'XNVI', [...basic, 0, 0, 0x42, ...zero4, ...zero4, ...pth0, ...zero4, 0, 0, 0, 1, 0x41]),
+      ('20008000', 'VIGV', [...basic, 0, 0, 0x42, ...zero4, ...List.filled(36, 0x30)]),
+      ('20008000', 'EiVr', [...basic, 0, 0, 0, 1, 0x30, ...zero4, ...zero4, ...zero4, 0]),
       (
         '08208000',
         'DNDA',
@@ -286,7 +304,7 @@ void main() {
           0,
           ...List.filled(24, 0),
           ...zero4,
-          ...List.filled(8, 0),
+          ...zero4,
           1,
           0x61,
           1,
