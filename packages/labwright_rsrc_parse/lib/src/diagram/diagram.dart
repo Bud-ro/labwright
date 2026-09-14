@@ -2365,8 +2365,7 @@ void _resolveTypeIndices({
       if (kind != null) object.typeKind = kind;
       object.dataType = type.kind;
       object.resolvedType = type;
-      final elementIndex = type.elementIndex;
-      if (type.kind == ViDataType.array && elementIndex != null && elementIndex >= 0 && elementIndex < pool.length) {
+      if (type case ViArrayType(:final elementIndex) when elementIndex < pool.length) {
         final elementType = pool[elementIndex];
         object.resolvedElementType = elementType;
         if (elementType.kind == ViDataType.cluster) {
@@ -2376,7 +2375,7 @@ void _resolveTypeIndices({
       if (type.kind == ViDataType.cluster) {
         object.resolvedMembers = clusterFields(type, pool);
       }
-      final typeName = type.name?.trim();
+      final typeName = type.label?.trim();
       if (typeName != null && typeName.isNotEmpty) {
         object.typeName ??= typeName;
       }
@@ -2451,12 +2450,10 @@ void _typedBdConstDecode(ViHeapObject object) {
     }
     return;
   }
-  if (type.kind != ViDataType.array) return;
+  if (type is! ViArrayType) return;
   final element = object.resolvedElementType;
   final dimCount = type.dimCount;
-  if (element == null || dimCount == null || dimCount < 1 || dimCount > 8) {
-    return;
-  }
+  if (element == null || dimCount < 1 || dimCount > 8) return;
   final elementSize = _flatNumericSize(element.kind);
   if (elementSize == null || flat.length < 4 * dimCount) return;
   final view = ByteData.sublistView(flat);

@@ -276,12 +276,12 @@ int? _walk(Uint8List dfds, DfdsContext ctx, [void Function(int tlPos, int off, i
   final pool = _parsePool(ctx.vctp);
   if (pool == null) return null;
   final tm = decodeTypeMap(ctx.tm80);
-  if (tm == null || !tm.framesExactly) return null;
+  if (tm is! ViTypeMapIndexed) return null;
 
   final dfdsView = ByteData.sublistView(dfds);
   var off = 0;
-  for (var i = 0; i < tm.entries.length; i++) {
-    final flags = tm.entries[i];
+  for (var i = 0; i < tm.count; i++) {
+    final flags = tm.flagsAt(i);
     if ((flags & _tmSkip) != 0) continue;
     final tlPos = tm.indexShift + i - 1; // top-level index is 1-based
     if (tlPos < 0 || tlPos >= pool.topLevel.length) return null;

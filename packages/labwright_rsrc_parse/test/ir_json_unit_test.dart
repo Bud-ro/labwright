@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
@@ -106,15 +107,21 @@ void main() {
   });
 
   test('connector pane: index + resolved terminals are emitted in the IR JSON', () {
-    const dbl = ViType(index: 0, code: 0x0a, kind: ViDataType.dbl, name: 'Threshold');
-    const cluster = ViType(index: 1, code: 0x50, kind: ViDataType.cluster, name: 'error out', members: [0]);
-    const model = ViModel(
+    final types = decodeTypePool(
+      Uint8List.fromList([
+        0, 0, 0, 2, //
+        0, 15, 0x40, 0x0a, 0, 9, ...'Threshold'.codeUnits,
+        0, 18, 0x40, 0x50, 0, 1, 0, 0, 9, ...'error out'.codeUnits,
+        0, 0,
+      ]),
+    ).types;
+    final model = ViModel(
       version: null,
       title: null,
       components: [],
       stringTables: [],
       heapRecords: [],
-      types: [dbl, cluster],
+      types: types,
       connectorPaneTypeIndex: 2,
     );
     final json = viModelToJson(model);

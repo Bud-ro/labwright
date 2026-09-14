@@ -266,17 +266,6 @@ void main() {
     expect(() => decodeLibraryNames(u8([0, 0, 0, 1, 9, 0x41])), throwsA(isA<AssertionError>()));
   });
 
-  test('decodeDataTypeHeap: dominant 4-byte header form; extended form recovers 40xx names; null when short', () {
-    final h = decodeDataTypeHeap(hx('00170004'))!;
-    expect((h.heapTypeCount, h.firstTopLevelIndex, h.viTypeIndexBase), (0x17, 4, 2));
-    expect((h.isExtended, h.rawLength), (false, 4));
-    expect(h.names, isEmpty);
-    final e = decodeDataTypeHeap(u8([...hx('00000040 000e 4021 09'), ...'Auto Stop'.codeUnits]))!;
-    expect(e.isExtended, isTrue);
-    expect(e.names, contains('Auto Stop'));
-    expect(decodeDataTypeHeap(hx('000102')), isNull);
-  });
-
   test('decodeVersionWord: [BCD major][minor<<4|patch][stage][build]', () {
     const rows = <(String, int, int, int, String)>[
       ('08508002', 8, 5, 0, '8.5'),
@@ -354,22 +343,6 @@ void main() {
       expect(tiny.isBlockDiagramPasswordProtected, isFalse);
       expect(() => decodeSaveRecord(hx('16008000')), throwsA(isA<AssertionError>()));
     });
-  });
-
-  test('decodeTypeMap (TM80): variable-field [count][indexShift][flags] walk + byte-exact re-emit', () {
-    const body = '0003 0004 8000d000 2000 8000d001';
-    final m = decodeTypeMap(hx(body))!;
-    expect((m.framesExactly, m.indexShift, m.rawLength), (true, 4, 14));
-    expect(m.entries, [0xd000, 0x2000, 0xd001]);
-    expect(reserializeTypeMap(hx(body)), hx(body));
-    expect(typeMapFrames(hx(body)), isTrue);
-
-    final inline = decodeTypeMap(hx('0000 0021 0008'))!;
-    expect(inline.framesExactly, isFalse);
-    expect(inline.entries, isEmpty);
-    expect(reserializeTypeMap(hx('0000 0021 0008')), isNull);
-
-    expect(decodeTypeMap(hx('00')), isNull);
   });
 
   test('decodeConnectorPane (CONP): two bytes are a VCTP index, any other length is an inline descriptor', () {

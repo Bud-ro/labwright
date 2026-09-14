@@ -8,9 +8,9 @@ import 'package:labwright_vi_inspector/src/vctp_view.dart';
 
 final Uint8List _body = Uint8List.fromList(const [
   0x00, 0x00, 0x00, 0x03, // count = 3
-  0x00, 0x04, 0x00, 0x03, // #0 i32, len 4
-  0x00, 0x06, 0x00, 0x21, 0xaa, 0xbb, // #1 boolean, len 6
-  0x00, 0x04, 0x00, 0x05, // #2 u8, len 4
+  0x00, 0x05, 0x00, 0x03, 0x00, // #0 i32, len 5
+  0x00, 0x08, 0x40, 0x21, 0x03, 0x61, 0x62, 0x63, // #1 boolean 'abc', len 8
+  0x00, 0x05, 0x00, 0x05, 0x00, // #2 u8, len 5
   0x00, 0x00, // top-level list, 0 entries
 ]);
 
@@ -31,19 +31,18 @@ void main() {
     'vctpTypeSpans tiles the descriptor region and pairs types by index',
     () {
       final spans = vctpTypeSpans(_body);
-      final types = decodeTypePool(_body);
+      final types = decodeTypePool(_body).types;
       expect(spans, hasLength(types.length));
       expect(spans, hasLength(3));
 
-      expect(spans.map((s) => s.offset).toList(), [4, 8, 14]);
-      expect(spans.map((s) => s.length).toList(), [4, 6, 4]);
+      expect(spans.map((s) => s.offset).toList(), [4, 9, 17]);
+      expect(spans.map((s) => s.length).toList(), [5, 8, 5]);
 
       for (var i = 1; i < spans.length; i++) {
         expect(spans[i].offset, spans[i - 1].offset + spans[i - 1].length);
       }
 
       for (var i = 0; i < spans.length; i++) {
-        expect(spans[i].type.index, i);
         expect(spans[i].type.code, types[i].code);
         expect(spans[i].type.kind, types[i].kind);
       }
@@ -55,9 +54,13 @@ void main() {
     },
   );
 
-  test('vctpTypeSpans is total on malformed/short bodies', () {
+  test('vctpTypeSpans is empty for bodies that do not frame as a pool', () {
     expect(vctpTypeSpans(Uint8List(0)), isEmpty);
     expect(vctpTypeSpans(Uint8List.fromList(const [0, 0, 0, 1])), isEmpty);
+    expect(
+      vctpTypeSpans(Uint8List.fromList(const [0, 0, 0, 1, 0, 4, 0, 0x21])),
+      isEmpty,
+    );
   });
 
   testWidgets('selecting a type highlights its byte span and names the field', (

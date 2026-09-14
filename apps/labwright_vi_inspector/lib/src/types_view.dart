@@ -39,25 +39,25 @@ class _ViTypesViewState extends State<ViTypesView> {
       ..writeln('// approximate for short strings); not executable Dart.')
       ..writeln();
     for (final type in named.take(_typeCap)) {
-      if (type.enumItems.isNotEmpty) {
-        final items = type.enumItems.take(_itemCap).join(', ');
-        final more = type.enumItems.length > _itemCap ? ', …' : '';
-        out.writeln('enum ${type.name} { $items$more }');
-      } else if (type.members.isNotEmpty) {
+      if (type is ViEnumType) {
+        final items = type.items.take(_itemCap).join(', ');
+        final more = type.itemCount > _itemCap ? ', …' : '';
+        out.writeln('enum ${type.label} { $items$more }');
+      } else if (type is ViClusterType && type.memberCount > 0) {
         final fields = clusterFields(type, m.types)
             .take(_itemCap)
             .map(
-              (f) => f.name != null
-                  ? '  ${typeLabel(f, m.types)} ${f.name};'
+              (f) => f.label != null
+                  ? '  ${typeLabel(f, m.types)} ${f.label};'
                   : '  ${typeLabel(f, m.types)};',
             )
             .join('\n');
-        final more = type.members.length > _itemCap
-            ? '\n  // (+${type.members.length - _itemCap} more)'
+        final more = type.memberCount > _itemCap
+            ? '\n  // (+${type.memberCount - _itemCap} more)'
             : '';
-        out.writeln('${type.name} {\n$fields$more\n}');
+        out.writeln('${type.label} {\n$fields$more\n}');
       } else {
-        out.writeln('${typeLabel(type, m.types)} ${type.name}');
+        out.writeln('${typeLabel(type, m.types)} ${type.label}');
       }
     }
     if (named.length > _typeCap)

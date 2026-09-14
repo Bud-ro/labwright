@@ -35,6 +35,7 @@ import 'blocks/TRec_type_record.dart';
 import 'blocks/VITS_tag_store.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/vers_version.dart';
+import 'decode.dart';
 
 /// Whether [serializeBlockPayload] has a model for the tag.
 bool hasBlockWriter(String tag) => switch (tag) {
@@ -103,7 +104,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'NUID' || 'SUID' || 'BNID' => decodeIdTable(payload).serialize(),
     'vers' => decodeVersBlock(payload).serialize(),
     'VITS' => decodeTagStore(payload).serialize(),
-    'DTHP' => decodeDataTypeHeap(payload)?.serialize(),
+    'DTHP' => decodeDataTypeHeap(payload).serialize(),
     'CONP' || 'CPC2' => decodeConnectorPane(payload).serialize(),
     'STRG' || 'HLPT' => decodeStringBlock(payload).serialize(),
     'HIST' => decodeHistory(payload).serialize(),
@@ -125,7 +126,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'TITL' => decodeTitle(payload).serialize(),
     'COUT' => decodeCoutRecord(payload).serialize(),
     'CPD2' => decodeCpd2Record(payload).serialize(),
-    'TM80' => reserializeTypeMap(payload),
+    'TM80' when !isCompressedHeapPayload(payload) => decodeTypeMap(payload).serialize(),
     'BFAL' => decodeAlignTable(payload).serialize(),
     'PRT ' => decodePrintRecord(payload).serialize(),
     'FPTD' => decodeU16Grid(payload).serialize(),

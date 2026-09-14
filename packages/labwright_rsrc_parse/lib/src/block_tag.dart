@@ -156,16 +156,16 @@ enum BlockTag {
   bdhp('BDHP', 'Block-diagram heap, variant P', BlockCategory.blockDiagramHeap, BlockConfidence.tentative),
 
   /// Type-descriptor pool: every data type of the VI, referenced by index from the heaps, [tm80] and [conp].
-  vctp('VCTP', 'VI type pool', BlockCategory.typeInfo, BlockConfidence.confirmed, decodeTypePool),
+  vctp('VCTP', 'VI type pool', BlockCategory.typeInfo, BlockConfidence.confirmed, decodeTypePool, vctpLayout),
 
   /// Data-space type map (LabVIEW 8.0 and later): a flag word per top-level [vctp] type selecting its data-space role.
-  tm80('TM80', 'Data-space type map', BlockCategory.typeInfo, BlockConfidence.confirmed, decodeTypeMap),
+  tm80('TM80', 'Data-space type map', BlockCategory.typeInfo, BlockConfidence.confirmed, decodeTypeMap, tm80Layout),
 
   /// Predecessor of [tm80] whose type descriptors are stored inline; not decoded.
   dstm('DSTM', 'Data-space type map, inline types', BlockCategory.typeInfo, BlockConfidence.tentative),
 
   /// Locates the heap type-descriptor index range within the [vctp] top-level list.
-  dthp('DTHP', 'Data-type heap table', BlockCategory.typeInfo, BlockConfidence.likely, decodeDataTypeHeap),
+  dthp('DTHP', 'Data-type heap table', BlockCategory.typeInfo, BlockConfidence.likely, decodeDataTypeHeap, dthpLayout),
 
   /// Front-panel type descriptors as a grid of u16 words.
   fptd(

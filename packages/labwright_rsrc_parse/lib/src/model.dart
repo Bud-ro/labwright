@@ -192,12 +192,16 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     }
   }
   final vctp = list.where((s) => s.tag == 'VCTP').map((s) => s.bytes).firstOrNull;
-  final types = vctp == null ? const <ViType>[] : decodeTypePool(vctp);
+  final pool = vctp == null ? null : decodeTypePool(vctp);
+  final types = pool?.types ?? const <ViType>[];
   final dthp = list.where((s) => s.tag == 'DTHP').map((s) => s.bytes).firstOrNull;
   resolveDataSpaceTypes(
     pool: types,
-    table: vctp == null ? const [] : decodeTypeTable(vctp),
-    typeIndexBase: dthp == null ? null : decodeDataTypeHeap(dthp)?.viTypeIndexBase,
+    table: pool?.topLevelIndices ?? const [],
+    typeIndexBase: switch (dthp == null ? null : decodeDataTypeHeap(dthp)) {
+      ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
+      _ => null,
+    },
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
   );

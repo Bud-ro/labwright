@@ -60,7 +60,7 @@ List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
 
 Map<String, Object?> _termJson(ViType t, List<ViType> types) => {
   'kind': typeLabel(t, types),
-  if (t.name != null) 'name': t.name,
+  if (t.label != null) 'name': t.label,
 };
 
 Map<String, Object?> viModelToJson(ViModel m) {
@@ -83,14 +83,14 @@ Map<String, Object?> viModelToJson(ViModel m) {
       'namedTypes': [
         for (final type in named.take(200))
           {
-            'index': type.index,
+            'index': m.types.indexOf(type),
             'kind': typeLabel(type, m.types),
-            'name': type.name,
-            if (type.members.isNotEmpty)
+            'name': type.label,
+            if (type is ViClusterType)
               'members': [
                 for (final field in clusterFields(type, m.types)) _termJson(field, m.types),
               ],
-            if (type.enumItems.isNotEmpty) 'items': type.enumItems,
+            if (type is ViEnumType) 'items': type.items,
           },
       ],
     'blockDiagrams': [for (final diagram in m.blockDiagrams) viDiagramToJson(diagram)],

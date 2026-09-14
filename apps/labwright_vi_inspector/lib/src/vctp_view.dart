@@ -8,8 +8,9 @@ import 'span_annotations.dart';
 typedef VctpSpan = ({int offset, int length, ViType type});
 
 List<VctpSpan> vctpTypeSpans(Uint8List body) {
-  final types = decodeTypePool(body);
-  if (types.isEmpty || body.length < 8) return const [];
+  if (!typePoolFrames(body)) return const [];
+  final types = decodeTypePool(body).types;
+  if (types.isEmpty) return const [];
   final count = readU32be(body, 0);
   if (count <= 0) return const [];
   final out = <VctpSpan>[];
@@ -278,11 +279,11 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
     final span = _spans[i];
     final type = span.type;
     final selected = i == _selected;
-    final extra = type.enumItems.isNotEmpty
-        ? '${type.enumItems.length} items'
-        : type.members.isNotEmpty
-        ? '${type.members.length} members'
-        : '';
+    final extra = switch (type) {
+      ViEnumType(:final itemCount) => '$itemCount items',
+      ViClusterType(:final memberCount) => '$memberCount members',
+      _ => '',
+    };
     return GestureDetector(
       key: ValueKey('vctp-type-$i'),
       behavior: HitTestBehavior.opaque,
@@ -295,7 +296,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
             SizedBox(
               width: 34,
               child: Text(
-                '#${type.index}',
+                '#$i',
                 style: const TextStyle(
                   color: Colors.grey,
                   fontFamily: 'monospace',
@@ -319,9 +320,9 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
                 TextSpan(
                   children: [
                     TextSpan(text: type.kind.name),
-                    if (type.name != null && type.name!.isNotEmpty)
+                    if (type.label != null && type.label!.isNotEmpty)
                       TextSpan(
-                        text: "  '${type.name}'",
+                        text: "  '${type.label}'",
                         style: const TextStyle(color: Color(0xFF4C8C4C)),
                       ),
                   ],
@@ -353,6 +354,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
 
   Widget _detail(VctpSpan span) {
     final type = span.type;
+    final index = _spans.indexOf(span);
     final field = _selectedByte >= 0 ? _fieldAt(span, _selectedByte) : '';
     return Container(
       width: double.infinity,
@@ -364,8 +366,8 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Descriptor #${type.index} · ${type.kind.name}'
-            '${type.name != null && type.name!.isNotEmpty ? " '${type.name}'" : ''}',
+            'Descriptor #$index · ${type.kind.name}'
+            '${type.label != null && type.label!.isNotEmpty ? " '${type.label}'" : ''}',
             style: const TextStyle(fontWeight: FontWeight.bold),
           ),
           const SizedBox(height: 4),
@@ -382,18 +384,18 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
               style: const TextStyle(fontSize: 12),
             ),
           ],
-          if (type.enumItems.isNotEmpty) ...[
+          if (type is ViEnumType) ...[
             const SizedBox(height: 6),
             Text(
-              'items: ${type.enumItems.take(12).join(', ')}'
-              '${type.enumItems.length > 12 ? ', …' : ''}',
+              'items: ${type.items.take(12).join(', ')}'
+              '${type.itemCount > 12 ? ', …' : ''}',
               style: const TextStyle(fontSize: 12),
             ),
           ],
-          if (type.members.isNotEmpty) ...[
+          if (type is ViClusterType) ...[
             const SizedBox(height: 6),
             Text(
-              'member type indices: ${type.members.join(', ')}',
+              'member type indices: ${type.memberIndices.join(', ')}',
               style: const TextStyle(fontSize: 12),
             ),
           ],

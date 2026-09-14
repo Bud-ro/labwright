@@ -427,12 +427,12 @@ class _BlockHexViewState extends State<BlockHexView> {
         final out = [MapEntry('VCTP type index', '${pane.typeIndex}')];
         final pool = widget.siblings.isEmpty
             ? const <ViType>[]
-            : typePoolFromDecoded(widget.siblings);
+            : typePoolFromDecoded(widget.siblings)?.types ?? const <ViType>[];
         final idx = pane.typeIndex;
         if (idx >= 1 && idx <= pool.length) {
           final type = pool[idx - 1];
-          final name = type.name != null && type.name!.isNotEmpty
-              ? " '${type.name}'"
+          final name = type.label != null && type.label!.isNotEmpty
+              ? " '${type.label}'"
               : '';
           out.add(MapEntry('Conpane type', '${typeLabel(type, pool)}$name'));
         }
@@ -498,8 +498,8 @@ class _BlockHexViewState extends State<BlockHexView> {
   Widget _nonHeapPanel() {
     final info = BlockTag.of(widget.section.tag);
     final name = info?.displayName ?? 'Unknown (${widget.section.tag})';
-    if (widget.section.tag == 'VCTP') {
-      final types = decodeTypePool(widget.section.bytes);
+    if (widget.section.tag == 'VCTP' && typePoolFrames(widget.section.bytes)) {
+      final types = decodeTypePool(widget.section.bytes).types;
       if (types.isNotEmpty) {
         const cap = 200;
         final shown = types.length > cap ? types.take(cap).toList() : types;
@@ -507,14 +507,14 @@ class _BlockHexViewState extends State<BlockHexView> {
           padding: const EdgeInsets.all(12),
           children: [
             ..._parsedHeader(name, '${types.length} types'),
-            for (final type in shown)
+            for (final (index, type) in shown.indexed)
               Padding(
                 padding: const EdgeInsets.only(bottom: 2),
                 child: Text.rich(
                   TextSpan(
                     children: [
                       TextSpan(
-                        text: '#${type.index} ',
+                        text: '#$index ',
                         style: const TextStyle(
                           fontFamily: 'monospace',
                           fontSize: 12,
@@ -525,9 +525,9 @@ class _BlockHexViewState extends State<BlockHexView> {
                         text: typeLabel(type, types),
                         style: const TextStyle(fontSize: 12.5),
                       ),
-                      if (type.name != null && type.name!.isNotEmpty)
+                      if (type.label != null && type.label!.isNotEmpty)
                         TextSpan(
-                          text: "  '${type.name}'",
+                          text: "  '${type.label}'",
                           style: const TextStyle(
                             fontSize: 12.5,
                             color: Color(0xFF4C8C4C),

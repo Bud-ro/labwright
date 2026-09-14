@@ -1,118 +1,160 @@
+/// `TM80` — the data-space type map: one flag word per top-level `VCTP` type, selecting
+/// its data-space role.
+///
+/// Words are 2 bytes, or 4 with the high bit set to carry the value in the low 31 bits.
+/// Saves before the type pool existed hold the types inline instead: a zero word, a count,
+/// that many descriptors in the `VCTP` grammar, then the map itself as a count of
+/// (type index, flags) word pairs.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       rest  count                      u2p2     number of flag words; a leading zero word
+///                                                   selects the inline form
+/// …       rest  indexShift                 u2p2     top-level index of the first word, after count
+/// …       rest  flags                      u2p2[count] data-space role bits per top-level type;
+///                                                      bit 13 marks a saved default value
+/// …       2     zero                       u16      the inline form
+/// …       2     count                      u16      number of inline descriptors
+/// …       rest  descriptors                entry[count] descriptors in the VCTP grammar
+/// …       rest  entryCount                 u2p2     number of map entries, after the descriptors
+/// …       rest  entries                    u2p2[2][entryCount] inline type index and flags per
+///                                                              entry
+/// ```
+///
+/// [ViTypeMapIndexed] is a view over the word list recording where each word starts;
+/// [ViTypeMapInline] holds the inline descriptors and the entries indexing them;
+/// [decodeTypeMap] requires either form to tile the payload exactly.
+library;
+
 import 'dart:typed_data';
 
-class ViTypeMap {
-  const ViTypeMap({
-    required this.rawLength,
-    required this.framesExactly,
-    required this.indexShift,
-    required this.entries,
-  });
+import '../block_layout.dart';
+import 'VCTP_type_pool.dart';
 
-  final int rawLength;
+const _count = BlockField(
+  0,
+  null,
+  'count',
+  'u2p2',
+  'number of flag words; a leading zero word selects the inline form',
+);
+const _indexShift = BlockField(2, null, 'indexShift', 'u2p2', 'top-level index of the first word, after count');
+const _flagWords = BlockField(
+  4,
+  null,
+  'flags',
+  'u2p2[count]',
+  'data-space role bits per top-level type; bit 13 marks a saved default value',
+);
+const _inlineZero = BlockField(0, 2, 'zero', 'u16', 'the inline form');
+const _inlineCount = BlockField(2, 2, 'count', 'u16', 'number of inline descriptors');
+const _inlineDescriptors = BlockField(4, null, 'descriptors', 'entry[count]', 'descriptors in the VCTP grammar');
+const _inlineEntryCount = BlockField(4, null, 'entryCount', 'u2p2', 'number of map entries, after the descriptors');
+const _inlineEntries = BlockField(6, null, 'entries', 'u2p2[2][entryCount]', 'inline type index and flags per entry');
 
-  final bool framesExactly;
-
-  final int indexShift;
-
-  final List<int> entries;
-}
-
-typedef _Var = ({int value, int next, int width});
-
-_Var? _readVar(ByteData b, int off) {
-  if (off + 2 > b.lengthInBytes) return null;
-  final hi = b.getUint16(off);
-  if ((hi & 0x8000) == 0) return (value: hi, next: off + 2, width: 2);
-  if (off + 4 > b.lengthInBytes) return null;
-  return (value: b.getUint32(off) & 0x7fffffff, next: off + 4, width: 4);
-}
-
-void _writeVar(BytesBuilder out, int value, int width) {
-  final bytes = Uint8List(width);
-  final view = ByteData.sublistView(bytes);
-  if (width == 2) {
-    view.setUint16(0, value);
-  } else {
-    view.setUint32(0, 0x80000000 | value);
-  }
-  out.add(bytes);
-}
-
-ViTypeMap? decodeTypeMap(Uint8List bytes) {
-  final view = ByteData.sublistView(bytes);
-  final c = _readVar(view, 0);
-  if (c == null) return null;
-  final count = c.value;
-  var off = c.next;
-  var indexShift = 0;
-  if (count > 0) {
-    final s = _readVar(view, off);
-    if (s == null) {
-      return ViTypeMap(rawLength: bytes.length, framesExactly: false, indexShift: 0, entries: const []);
-    }
-    indexShift = s.value;
-    off = s.next;
-  }
-  final entries = <int>[];
-  var ran = true;
-  for (var i = 0; i < count; i++) {
-    final e = _readVar(view, off);
-    if (e == null) {
-      ran = false;
-      break;
-    }
-    entries.add(e.value);
-    off = e.next;
-  }
-  return ViTypeMap(
-    rawLength: bytes.length,
-    framesExactly: ran && off == bytes.length,
-    indexShift: indexShift,
-    entries: entries,
-  );
-}
-
-bool typeMapFrames(Uint8List body) {
-  final view = ByteData.sublistView(body);
-  final c = _readVar(view, 0);
-  if (c == null) return false;
-  final count = c.value;
-  var off = c.next;
-  if (count > 0) {
-    final s = _readVar(view, off);
-    if (s == null) return false;
-    off = s.next;
-  }
-  for (var i = 0; i < count; i++) {
-    final e = _readVar(view, off);
-    if (e == null) return false;
-    off = e.next;
-  }
-  return off == body.length;
-}
-
-Uint8List? reserializeTypeMap(Uint8List body) {
-  final view = ByteData.sublistView(body);
-  final c = _readVar(view, 0);
-  if (c == null) return null;
-  final count = c.value;
-  final out = BytesBuilder(copy: false);
-  _writeVar(out, c.value, c.width);
-  var off = c.next;
-  if (count > 0) {
-    final s = _readVar(view, off);
-    if (s == null) return null;
-    _writeVar(out, s.value, s.width);
-    off = s.next;
-  }
-  for (var i = 0; i < count; i++) {
-    final e = _readVar(view, off);
-    if (e == null) return null;
-    _writeVar(out, e.value, e.width);
-    off = e.next;
-  }
-  if (off != body.length) return null;
-  return out.toBytes();
-}
+const BlockLayout tm80Layout = [
+  _count,
+  _indexShift,
+  _flagWords,
+  _inlineZero,
+  _inlineCount,
+  _inlineDescriptors,
+  _inlineEntryCount,
+  _inlineEntries,
+];
 
 const int kTypeMapHasSaveData = 1 << 13;
+
+/// A view over a `TM80` payload.
+sealed class ViTypeMap {
+  const ViTypeMap._(this.bytes);
+
+  final Uint8List bytes;
+
+  Uint8List serialize() => bytes;
+}
+
+/// The word-list form: flags indexed by top-level type.
+final class ViTypeMapIndexed extends ViTypeMap {
+  ViTypeMapIndexed._(super.bytes, this._wordOffsets) : _view = ByteData.sublistView(bytes), super._();
+
+  final ByteData _view;
+
+  /// Offsets of the count word, the shift word and each flag word.
+  final List<int> _wordOffsets;
+
+  int get count => _wordOffsets.length - 2;
+
+  /// The top-level index of the first flag word.
+  int get indexShift => _wordAt(_view, _wordOffsets[1]);
+
+  int flagsAt(int index) => _wordAt(_view, _wordOffsets[index + 2]);
+}
+
+/// The inline form: the types themselves in the `VCTP` descriptor grammar, and the map
+/// entries that index them.
+final class ViTypeMapInline extends ViTypeMap {
+  ViTypeMapInline._(super.bytes, this.types, this._entryOffsets) : _view = ByteData.sublistView(bytes), super._();
+
+  final ByteData _view;
+
+  final List<ViType> types;
+
+  /// Offsets of each entry's type-index word; its flags word follows.
+  final List<int> _entryOffsets;
+
+  int get count => _entryOffsets.length;
+
+  int typeIndexAt(int index) => _wordAt(_view, _entryOffsets[index]);
+
+  int flagsAt(int index) => _wordAt(_view, _wordEnd(_view, _entryOffsets[index]));
+}
+
+int _wordAt(ByteData view, int offset) {
+  final hi = view.getUint16(offset);
+  return hi & 0x8000 == 0 ? hi : view.getUint32(offset) & 0x7fffffff;
+}
+
+int _wordEnd(ByteData view, int offset) => view.getUint16(offset) & 0x8000 == 0 ? offset + 2 : offset + 4;
+
+/// Walks [count] words from [start], asserting each lies inside [bytes]; returns their
+/// offsets and the offset after the last.
+(List<int>, int) _walkWords(Uint8List bytes, ByteData view, int start, int count) {
+  final offsets = List<int>.filled(count, 0);
+  var at = start;
+  for (var i = 0; i < count; i++) {
+    assert(at + 2 <= bytes.length, 'word $i has its first two bytes');
+    offsets[i] = at;
+    at = _wordEnd(view, at);
+    assert(at <= bytes.length, 'word $i lies inside the payload');
+  }
+  return (offsets, at);
+}
+
+ViTypeMap decodeTypeMap(Uint8List bytes) {
+  assert(bytes.length >= _inlineCount.offset, 'a type map starts with a word');
+  final view = ByteData.sublistView(bytes);
+  if (view.getUint16(_inlineZero.offset) == 0 && bytes.length >= _inlineDescriptors.offset) {
+    final offsets = descriptorOffsets(bytes, _inlineDescriptors.offset, view.getUint16(_inlineCount.offset));
+    final types = [for (final at in offsets) ViType.at(bytes, at, view.getUint16(at), legacy: true)];
+    final countOffset = types.isEmpty ? _inlineDescriptors.offset : types.last.end;
+    assert(countOffset + 2 <= bytes.length, 'the entry count follows the descriptors');
+    assert(_wordEnd(view, countOffset) <= bytes.length, 'the entry count lies inside the payload');
+    final entryCount = _wordAt(view, countOffset);
+    assert(entryCount <= (bytes.length - countOffset) ~/ 4, 'the entry count fits the payload');
+    final (words, end) = _walkWords(bytes, view, _wordEnd(view, countOffset), 2 * entryCount);
+    assert(end == bytes.length, 'the entries tile the payload');
+    final map = ViTypeMapInline._(bytes, types, [for (var i = 0; i < words.length; i += 2) words[i]]);
+    assert(
+      Iterable<int>.generate(entryCount).every((i) => map.typeIndexAt(i) < types.length),
+      'every entry indexes an inline type',
+    );
+    return map;
+  }
+  assert(_wordEnd(view, 0) <= bytes.length, 'the count word lies inside the payload');
+  final count = _wordAt(view, 0);
+  assert(count <= bytes.length ~/ 2, 'the count fits the payload');
+  final (offsets, end) = _walkWords(bytes, view, 0, count + 2);
+  assert(end == bytes.length, 'the words tile the payload');
+  return ViTypeMapIndexed._(bytes, offsets);
+}

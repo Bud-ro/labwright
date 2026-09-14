@@ -8,34 +8,36 @@ import 'package:labwright_vi_inspector/src/vctp_view.dart';
 
 final Uint8List _vctpBody = Uint8List.fromList(const [
   0x00, 0x00, 0x00, 0x01, //
-  0x00, 0x04, 0x00, 0x03,
+  0x00, 0x05, 0x00, 0x03, 0x00,
   0x00, 0x00,
 ]);
 
-ViModel _modelWithTypes() => const ViModel(
+ViModel _modelWithTypes() => ViModel(
   version: null,
   title: null,
   components: const [],
   stringTables: const [],
   heapRecords: const [],
-  types: const [
-    ViType(index: 0, code: 0x21, kind: ViDataType.boolean, name: 'status'),
-    ViType(index: 1, code: 0x03, kind: ViDataType.i32, name: 'code'),
-    ViType(
-      index: 2,
-      code: 0x50,
-      kind: ViDataType.cluster,
-      name: 'error out',
-      members: [0, 1],
-    ),
-    ViType(
-      index: 3,
-      code: 0x16,
-      kind: ViDataType.enumU16,
-      name: 'Direction',
-      enumItems: ['Rising', 'Falling'],
-    ),
-  ],
+  types: decodeTypePool(
+    Uint8List.fromList([
+      0, 0, 0, 4, //
+      0, 12, 0x40, 0x21, 6, ...'status'.codeUnits, 0,
+      0, 11, 0x40, 0x03, 0, 4, ...'code'.codeUnits, 0,
+      0, 20, 0x40, 0x50, 0, 2, 0, 0, 0, 1, 9, ...'error out'.codeUnits,
+      0, 33, 0x40, 0x16,
+      0,
+      2,
+      6,
+      ...'Rising'.codeUnits,
+      7,
+      ...'Falling'.codeUnits,
+      0,
+      0,
+      9,
+      ...'Direction'.codeUnits,
+      0, 0,
+    ]),
+  ).types,
 );
 
 Future<void> _pump(WidgetTester tester, Widget child) =>
