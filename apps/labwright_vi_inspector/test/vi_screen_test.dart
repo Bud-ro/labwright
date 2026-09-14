@@ -58,7 +58,7 @@ void main() {
     expect(find.text('Round-trip'), findsOneWidget);
   });
 
-  testWidgets('shows decoded version/title and a searchable string list', (
+  testWidgets('shows decoded version/title and the component summary', (
     tester,
   ) async {
     await _pump(
@@ -70,7 +70,6 @@ void main() {
           version: '10.0',
           title: 'My Example',
         ),
-        initialStrings: const ['Conversion time', 'error out', 'Range Volts'],
         initialComponents: const [
           BlockComponent(
             tag: 'BDEx',
@@ -92,19 +91,12 @@ void main() {
     expect(find.text('LabVIEW version'), findsOneWidget);
     expect(find.text('10.0'), findsOneWidget);
     expect(find.text('My Example'), findsOneWidget);
-    expect(find.textContaining('Embedded strings (3)'), findsOneWidget);
-    expect(find.text('Conversion time'), findsOneWidget);
     expect(find.text('Components (by decompressed size)'), findsOneWidget);
     expect(find.text('BDEx'), findsOneWidget);
     expect(find.textContaining('76.2 KB'), findsWidgets);
     expect(find.text('Block inventory (by category)'), findsOneWidget);
     expect(find.text('frontPanelHeap'), findsOneWidget);
     expect(find.textContaining('Front-panel heap'), findsOneWidget);
-
-    await tester.enterText(find.byKey(const Key('string-search')), 'error');
-    await tester.pump();
-    expect(find.text('error out'), findsOneWidget);
-    expect(find.text('Conversion time'), findsNothing);
   });
 
   testWidgets('surfaces owning library (LIBN) and embedded sub-VIs (VINS)', (

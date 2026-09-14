@@ -25,7 +25,6 @@ void main() {
       title: 'T',
       description: 'D',
       components: const [],
-      stringTables: const [],
       heapRecords: const [],
       blockDiagrams: [
         ViDiagram(sectionTag: 'BDHb', objects: [node]),
@@ -86,7 +85,6 @@ void main() {
       version: null,
       title: null,
       components: const [],
-      stringTables: const [],
       heapRecords: const [],
       blockDiagrams: [
         ViDiagram(sectionTag: 'BDHb', objects: [node]),
@@ -119,7 +117,6 @@ void main() {
       version: null,
       title: null,
       components: [],
-      stringTables: [],
       heapRecords: [],
       types: types,
       connectorPaneTypeIndex: 2,

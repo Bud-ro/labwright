@@ -24,7 +24,6 @@ class ViInspectorScreen extends StatefulWidget {
     this.initial,
     this.initialSource,
     this.initialVersion,
-    this.initialStrings,
     this.initialComponents,
     this.initialModel,
     this.initialLibraryNames,
@@ -41,8 +40,6 @@ class ViInspectorScreen extends StatefulWidget {
   final String? initialSource;
 
   final ViVersionInfo? initialVersion;
-
-  final List<String>? initialStrings;
 
   final List<BlockComponent>? initialComponents;
 
@@ -66,7 +63,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   String _source = '';
   bool _dragging = false;
   ViVersionInfo? _version;
-  List<String> _strings = const [];
   List<BlockComponent> _components = const [];
   ViModel? _model;
   List<DecodedSection> _sections = const [];
@@ -89,7 +85,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _summary = widget.initial;
     _source = widget.initialSource ?? '';
     _version = widget.initialVersion;
-    _strings = widget.initialStrings ?? const [];
     _components = widget.initialComponents ?? const [];
     _model = widget.initialModel;
     _libraryNames = widget.initialLibraryNames ?? const [];
@@ -123,7 +118,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     }
     final load = summarize(bytes);
     ViVersionInfo? version;
-    var strings = const <String>[];
     var components = const <BlockComponent>[];
     ViModel? model;
     var sections = const <DecodedSection>[];
@@ -138,7 +132,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
           sections,
           subViNames: readSubViNames(bytes),
         );
-        strings = heapStringsFromDecoded(sections);
         components = model.components;
         version = decodeVersion(bytes);
         libraryNames = readOwningLibraryNames(bytes);
@@ -163,7 +156,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _error = load.error;
       _source = source;
       _version = version;
-      _strings = strings;
       _components = components;
       _model = model;
       _sections = sections;
@@ -437,7 +429,6 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                       summary: _summary!,
                                       source: _source,
                                       version: _version,
-                                      strings: _strings,
                                       components: _components,
                                       sections: _sections,
                                       model: _model,
@@ -569,7 +560,6 @@ class _SummaryView extends StatefulWidget {
     required this.summary,
     required this.source,
     required this.version,
-    required this.strings,
     required this.components,
     required this.sections,
     this.model,
@@ -580,7 +570,6 @@ class _SummaryView extends StatefulWidget {
   final ViSummary summary;
   final String source;
   final ViVersionInfo? version;
-  final List<String> strings;
   final List<BlockComponent> components;
   final List<DecodedSection> sections;
 
@@ -597,15 +586,6 @@ class _SummaryView extends StatefulWidget {
 }
 
 class _SummaryViewState extends State<_SummaryView> {
-  final _filterCtrl = TextEditingController();
-  String _filter = '';
-
-  @override
-  void dispose() {
-    _filterCtrl.dispose();
-    super.dispose();
-  }
-
   String get _kind => switch (widget.summary.kind) {
     ViFileType.vi => 'VI',
     ViFileType.control => 'Control / typedef',
@@ -618,14 +598,6 @@ class _SummaryViewState extends State<_SummaryView> {
     final version = widget.version;
     final hasDecoded =
         version != null && (version.version != null || version.title != null);
-    final needle = _filter.trim().toLowerCase();
-    final filtered = needle.isEmpty
-        ? widget.strings
-        : [
-            for (final text in widget.strings)
-              if (text.toLowerCase().contains(needle)) text,
-          ];
-
     return ListView(
       children: [
         Text(summary.describe(), style: const TextStyle(color: Colors.grey)),
@@ -860,44 +832,6 @@ class _SummaryViewState extends State<_SummaryView> {
           ),
           const SizedBox(height: 8),
           ..._blockInventory(),
-        ],
-
-        if (widget.strings.isNotEmpty) ...[
-          const SizedBox(height: 16),
-          Text(
-            'Embedded strings (${widget.strings.length})',
-            style: const TextStyle(fontWeight: FontWeight.bold),
-          ),
-          const SizedBox(height: 4),
-          const Text(
-            'Labels, help text and value lists found in the heaps (best-effort).',
-            style: TextStyle(color: Colors.grey, fontSize: 12),
-          ),
-          const SizedBox(height: 8),
-          TextField(
-            key: const Key('string-search'),
-            controller: _filterCtrl,
-            onChanged: (value) => setState(() => _filter = value),
-            decoration: const InputDecoration(
-              labelText: 'Filter strings',
-              prefixIcon: Icon(Icons.search),
-              border: OutlineInputBorder(),
-              isDense: true,
-            ),
-          ),
-          const SizedBox(height: 8),
-          for (final text in filtered.take(1000))
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 1),
-              child: Text(
-                text,
-                style: const TextStyle(fontFamily: 'monospace', fontSize: 12),
-              ),
-            ),
-          if (filtered.length > 1000)
-            Text('… and ${filtered.length - 1000} more'),
-          if (filtered.isEmpty)
-            const Text('(no match)', style: TextStyle(color: Colors.grey)),
         ],
       ],
     );

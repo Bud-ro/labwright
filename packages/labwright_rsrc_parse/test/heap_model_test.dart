@@ -159,75 +159,18 @@ void main() {
     });
   });
 
-  group('object assembly', () {
-    test('bounds + adjacent 2E table (labels) or 22 caption pair into a named ViObject', () {
-      final table = [...pascal('Sine'), ...pascal('Square')];
-      final o = buildViModelFromDecoded([
-        dsec([...hx('c4 2d 08 0035 0245 005b 02b8'), 0xc4, 0x2e, table.length, ...table]),
-      ]).objects.single;
-      expect((o.name, o.bounds.top, o.bounds.left, o.bounds.bottom, o.bounds.right), ('Sine', 53, 581, 91, 696));
-      expect(o.labels, ['Sine', 'Square']);
-
-      final cap = buildViModelFromDecoded([
-        dsec([...hx('c4 2d 08 000a 0014 0028 0064'), ...c4(0x22, 'Trigger Sourc'.codeUnits)]),
-      ]).objects.single;
-      expect((cap.caption, cap.name, cap.bounds.left), ('Trigger Sourc', 'Trigger Sourc', 20));
-      expect(cap.labels, isEmpty);
-    });
-
-    test('unpaired bounds make no object (but stay in objectBounds); labels beyond maxRecordGap do not pair', () {
-      final unpaired = buildViModelFromDecoded([
-        dsec([...hx('c4 2d 08 0000 0000 000a 000a'), ...hx('c4 1f 08 0000 0000 000c 000c')]),
-      ]);
-      expect(unpaired.objects, isEmpty, reason: 'a 0x1F size record is not a label');
-      expect(unpaired.objectBounds.length, 1);
-
-      final table = [...pascal('Late'), ...pascal('Label')];
-      final far = buildViModelFromDecoded([
-        dsec([
-          ...hx('c4 2d 08 0000 0000 000a 000a'),
-          for (var i = 0; i < 5; i++) ...hx('c4 22 01 00'),
-          0xc4,
-          0x2e,
-          table.length,
-          ...table,
-        ]),
-      ]);
-      expect(far.objects, isEmpty, reason: 'label 5 records away, beyond maxRecordGap (3)');
-    });
-
-    test('ViModel.objectBounds aggregates every C4 2D rect', () {
-      final m = buildViModelFromDecoded([
-        dsec([...hx('c4 2d 08 0000 0000 0337 0695'), ...hx('c4 2d 08 0035 0245 005b 02b8')]),
-      ]);
-      expect(m.objectBounds.length, 2);
-      expect((m.objectBounds.first.width, m.objectBounds[1].height), (1685, 38));
-    });
-  });
-
   group('model aggregation', () {
-    test('buildViModelFromDecoded aggregates version, components, tables, records, labels', () {
+    test('buildViModelFromDecoded aggregates version, components and records', () {
       final vers = [...pascal('10.0'), 0x00, ...'VIDS'.codeUnits, ...pascal('My Example.vi')];
       final table = [...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp')];
       final bd = [0xc4, 0x2e, table.length, ...table, ...hx('c4 2d 08 0000 0000 0000 0000')];
       final m = buildViModelFromDecoded([dsec(vers, tag: 'vers'), dsec(bd, comp: true)]);
       expect((m.version, m.title), ('10.0', 'My Example.vi'));
       expect(m.components.any((c) => c.tag == 'BDEx'), isTrue);
-      expect(m.stringTables.single.framed, isTrue);
-      expect(m.stringTables.single.strings, ['Sine', 'Square', 'Ramp']);
       expect(m.heapRecords.map((r) => r.opcode), containsAll(<int>[0x2e, 0x2d]));
-      expect(m.labels, ['Sine', 'Square', 'Ramp']);
     });
 
-    test('labels/captions/descriptions/symbolNames dedupe order-preserving; paths surface', () {
-      final t1 = [...pascal('error out'), ...pascal('status')];
-      final t2 = [...pascal('status'), ...pascal('code')];
-      final m = buildViModelFromDecoded([
-        dsec([0xc4, 0x2e, t1.length, ...t1]),
-        dsec([0xc4, 0x2e, t2.length, ...t2], tag: 'FPHb'),
-      ]);
-      expect(m.labels, ['error out', 'status', 'code']);
-
+    test('captions/descriptions/symbolNames dedupe order-preserving; paths surface', () {
       List<int> cap(String s) => c4(0x22, s.codeUnits);
       final caps = buildViModelFromDecoded([
         dsec([...cap('source'), ...cap('status'), ...cap('source'), ...cap('error out')]),
@@ -252,79 +195,12 @@ void main() {
     });
   });
 
-  group('heap strings (meta)', () {
+  group('meta', () {
     test('versionFromSections decodes version + VIDS title; null when absent', () {
       final bytes = [0xAB, ...pascal('10.0'), 0x00, ...'VIDS'.codeUnits, ...pascal('My Example.vi')];
       final info = versionFromSections([sec('vers', bytes)]);
       expect((info.version, info.title), ('10.0', 'My Example.vi'));
       expect(versionFromSections([sec('vers', pascal('not a version'))]).version, isNull);
-    });
-
-    test('heapStringsFromDecoded keeps contiguous letter-bearing runs, drops noise/short runs, dedupes', () {
-      final heap = [
-        ...pascal('Conversion time'),
-        ...pascal('error out'),
-        ...pascal('error out'),
-        ...pascal('Range Volts'),
-        ...pascal('1234'),
-        0xff,
-        0xfe,
-        0x00,
-        0x99,
-        ...pascal('Lonely'),
-        0x00,
-        0x00,
-      ];
-      final strings = heapStringsFromDecoded([dsec(heap)]);
-      expect(strings, containsAll(<String>['Conversion time', 'error out', 'Range Volts']));
-      expect(strings.where((s) => s == 'error out').length, 1);
-      expect(strings, isNot(contains('1234')), reason: 'no ASCII letter -> dropped');
-      expect(strings, isNot(contains('Lonely')), reason: 'run shorter than minRun (2) -> coincidental');
-    });
-
-    test('heapStringTablesFromDecoded groups unframed runs with section + offset', () {
-      final lead = [0xff, 0xfe, 0x00];
-      final heap = [
-        ...lead,
-        ...pascal('Range Volts'),
-        ...pascal('error out'),
-        0x00,
-        0x00,
-        ...pascal('Channel'),
-        ...pascal('Sample Rate'),
-      ];
-      final tables = heapStringTablesFromDecoded([dsec(heap)]);
-      expect(tables.length, 2);
-      expect((tables.first.sectionTag, tables.first.offset), ('BDEx', lead.length));
-      expect(tables.first.strings, ['Range Volts', 'error out']);
-      expect(tables[1].strings, ['Channel', 'Sample Rate']);
-      expect(heapStringsFromDecoded([dsec(heap)]), ['Range Volts', 'error out', 'Channel', 'Sample Rate']);
-    });
-
-    test('framed C4 2E tables: u8 and FF-u16 length forms exact; bare 0x2E never framed', () {
-      final body = [...pascal('Sine'), ...pascal('Square'), ...pascal('Ramp Up')];
-      final t = heapStringTablesFromDecoded([
-        dsec([0xaa, 0xbb, 0xc4, 0x2e, body.length, ...body, 0x00]),
-      ]).single;
-      expect((t.framed, t.offset), (true, 5), reason: 'payload after 2 noise bytes + C4 2E <u8 len>');
-      expect(t.strings, ['Sine', 'Square', 'Ramp Up']);
-
-      final entries = <int>[];
-      final expected = <String>[for (var k = 0; k < 30; k++) 'Channel Number $k'];
-      for (final s in expected) {
-        entries.addAll(pascal(s));
-      }
-      expect(entries.length, greaterThan(255));
-      final big = heapStringTablesFromDecoded([
-        dsec([0xc4, 0x2e, 0xff, entries.length >> 8, entries.length & 0xff, ...entries]),
-      ]).single;
-      expect((big.framed, big.offset), (true, 5), reason: 'payload after C4 2E FF <u16 len>');
-      expect(big.strings, expected);
-
-      final bare = heapStringTablesFromDecoded([
-        dsec([0x2e, body.length, ...body]),
-      ]);
-      expect(bare.every((x) => !x.framed), isTrue, reason: '0x2E is ASCII "." — only the C4 form frames');
     });
 
     test('componentsFromDecoded summarizes per-block sizes, largest first', () {
@@ -353,25 +229,17 @@ void main() {
         expect(r.opcode, inInclusiveRange(0, 255));
       }
     });
-    expectTotal(11, 2000, 200, (b) {
-      for (final t in heapStringTables(b)) {
-        expect(t.offset, inInclusiveRange(0, b.length));
-        expect(t.strings, isNotEmpty);
-      }
-    });
     expectTotal(8, 2000, 200, (b) {
       decodeVersion(b);
-      extractHeapStrings(b);
       blockComponents(b);
     });
     expectTotal(3, 1500, 160, (b) {
       final m = buildViModel(b);
-      expect(m.labels, isA<List<String>>());
+      expect(m.captions, isA<List<String>>());
     });
     for (final (seed, step) in const [(7, 0xc4), (13, 0x19), (11, 0x22)]) {
       final junk = [for (var i = 0; i < 400; i++) (i * seed + step) & 0xff];
       final m = buildViModelFromDecoded([dsec(junk)]);
-      m.objects;
       m.descriptions;
       m.captions;
       for (final r in scanC4Records(u8(junk), 'BDEx')) {
