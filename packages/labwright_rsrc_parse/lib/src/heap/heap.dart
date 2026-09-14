@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'decode.dart';
+import '../decode.dart';
 
 const int kHeapRecordPrefix = 0xc4;
 

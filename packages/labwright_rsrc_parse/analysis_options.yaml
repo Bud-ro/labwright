@@ -2,3 +2,7 @@
 # strict-raw-types + lints) so this package is analyzed identically whether via
 # the workspace root or standalone.
 include: ../../analysis_options.yaml
+
+linter:
+  rules:
+    file_names: false

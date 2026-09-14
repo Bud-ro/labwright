@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'blocks/help_path.dart';
+import 'blocks/HLPP_DLLP_help_path.dart';
 
 class ViFormatException implements Exception {
   ViFormatException(this.message);

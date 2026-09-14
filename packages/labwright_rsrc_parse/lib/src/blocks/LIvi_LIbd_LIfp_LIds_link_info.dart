@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'version_word.dart';
+import 'vers_version.dart';
 
 class ViLinkInfo {
   const ViLinkInfo({

@@ -1,7 +1,7 @@
-import 'blocks/type_pool.dart';
-import 'graph.dart';
-import 'heap.dart';
-import 'ir.dart';
+import 'blocks/VCTP_type_pool.dart';
+import 'diagram/diagram.dart';
+import 'heap/heap.dart';
+import 'model.dart';
 
 Map<String, Object?> viDiagramToJson(ViDiagram d) => {
   'sectionTag': d.sectionTag,

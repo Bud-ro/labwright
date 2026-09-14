@@ -2,8 +2,8 @@ library;
 
 import 'dart:math' show min;
 
-import 'blocks/type_pool.dart';
-import 'graph.dart' show ViSignalType;
+import '../blocks/VCTP_type_pool.dart';
+import 'diagram.dart' show ViSignalType;
 
 enum ViWireRenderStyle {
   solid1px,

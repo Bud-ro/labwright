@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'block_catalog.dart' show BlockConfidence;
+import '../block_catalog.dart' show BlockConfidence;
 
 class ViDataTypeHeap {
   const ViDataTypeHeap({

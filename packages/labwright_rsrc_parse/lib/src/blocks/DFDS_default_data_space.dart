@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
-import 'type_map.dart';
-import 'type_pool.dart' show TypeCode;
+import 'TM80_type_map.dart';
+import 'VCTP_type_pool.dart' show TypeCode;
 
 class DfdsContext {
   const DfdsContext({required this.vctp, required this.tm80, required this.verGe10});

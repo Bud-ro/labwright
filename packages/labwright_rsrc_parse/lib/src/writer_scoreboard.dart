@@ -2,14 +2,14 @@ library;
 
 import 'dart:typed_data';
 
-import 'blocks/block_writer.dart';
-import 'blocks/dfds.dart' show DfdsContext;
+import 'block_writer.dart';
+import 'blocks/DFDS_default_data_space.dart' show DfdsContext;
 import 'blocks/image_block.dart' show decodeImageBlock;
 import 'blocks/metafile_block.dart' show frameMetafile;
-import 'blocks/version_word.dart' show versionWordFromSections;
+import 'blocks/vers_version.dart' show versionWordFromSections;
 import 'container.dart';
 import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
-import 'heap_writer.dart' show attributeHeapBody;
+import 'heap/heap_writer.dart' show attributeHeapBody;
 import 'viparse.dart' show readViSections;
 
 class WriterAttribution {

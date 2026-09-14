@@ -1,7 +1,7 @@
 import 'dart:typed_data';
 
+import '../block_catalog.dart' show BlockConfidence;
 import '../viparse.dart' show ViSection;
-import 'block_catalog.dart' show BlockConfidence;
 
 class ViVersionWord {
   const ViVersionWord({
