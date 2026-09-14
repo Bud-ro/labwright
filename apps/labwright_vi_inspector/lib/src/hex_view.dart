@@ -1,3 +1,5 @@
+import 'dart:typed_data';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -58,7 +60,8 @@ class _BlockHexViewState extends State<BlockHexView> {
         _records = const [];
       }
     } else {
-      _records = _fieldSpans(widget.section.tag, bytes);
+      final layout = BlockTag.of(widget.section.tag)?.layout;
+      _records = layout == null ? const [] : _layoutSpans(layout, bytes);
     }
     _byteToRecord = List<int>.filled(bytes.length, -1);
     for (var i = 0; i < _records.length; i++) {
@@ -174,26 +177,35 @@ class _BlockHexViewState extends State<BlockHexView> {
               const VerticalDivider(width: 1),
               Expanded(
                 flex: 2,
-                child: _records.isEmpty
-                    ? _nonHeapPanel()
-                    : Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          Expanded(
-                            child: Scrollbar(
-                              controller: _recScroll,
-                              thumbVisibility: true,
-                              child: ListView.builder(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    if (_records.isEmpty || _showSummary)
+                      Expanded(child: _nonHeapPanel()),
+                    if (_records.isNotEmpty)
+                      Expanded(
+                        flex: 2,
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Expanded(
+                              child: Scrollbar(
                                 controller: _recScroll,
-                                itemCount: _records.length,
-                                itemExtent: _kRecHeight,
-                                itemBuilder: (context, i) => _recordRow(i),
+                                thumbVisibility: true,
+                                child: ListView.builder(
+                                  controller: _recScroll,
+                                  itemCount: _records.length,
+                                  itemExtent: _kRecHeight,
+                                  itemBuilder: (context, i) => _recordRow(i),
+                                ),
                               ),
                             ),
-                          ),
-                          if (_selected >= 0) _detail(_records[_selected]),
-                        ],
+                            if (_selected >= 0) _detail(_records[_selected]),
+                          ],
+                        ),
                       ),
+                  ],
+                ),
               ),
             ],
           ),
@@ -476,6 +488,13 @@ class _BlockHexViewState extends State<BlockHexView> {
     const Divider(height: 14),
   ];
 
+  bool get _showSummary =>
+      _walk == null &&
+      (_preview != null ||
+          widget.section.tag == 'VCTP' ||
+          LegacyIconDepth.forTag(widget.section.tag) != null ||
+          _parsedBlockSummary().isNotEmpty);
+
   Widget _nonHeapPanel() {
     final info = BlockTag.of(widget.section.tag);
     final name = info?.displayName ?? 'Unknown (${widget.section.tag})';
@@ -599,430 +618,80 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  List<SpanInfo> _fieldSpans(String tag, List<int> bytes) {
+  List<SpanInfo> _layoutSpans(BlockLayout layout, Uint8List bytes) {
     final out = <SpanInfo>[];
-    void span(
-      int off,
-      int len,
-      Color c,
-      String title,
-      String detail, {
-      String? preview,
-    }) {
-      if (len <= 0 || off < 0 || off + len > bytes.length) return;
+    for (final field in layout) {
+      final start = field.offset;
+      if (start >= bytes.length) continue;
+      final end = field.size == null ? bytes.length : start + field.size!;
+      if (end > bytes.length) continue;
       out.add(
         SpanInfo(
-          offset: off,
-          length: len,
-          lead: bytes[off],
-          color: c,
-          title: title,
-          detail: detail,
-          inlinePreview: preview,
+          offset: start,
+          length: end - start,
+          lead: bytes[start],
+          color: field.isUndecoded ? spanColorUnframed : _layoutColor(field),
+          title: field.isUndecoded
+              ? 'Undecoded ($start..${end - 1})'
+              : '${field.name} (${field.type})',
+          detail: field.isUndecoded
+              ? 'These ${end - start} bytes are not yet decoded for this block.'
+              : field.meaning,
+          inlinePreview: _fieldPreview(field, bytes, start, end),
         ),
       );
-    }
-
-    switch (tag) {
-      case 'vers':
-        if (bytes.length >= 4) {
-          final vw = decodeVersionWord(
-            bytes is Uint8List ? bytes : Uint8List.fromList(bytes),
-          );
-          span(
-            0,
-            4,
-            spanColorObject,
-            'Version word (u32)',
-            'BCD major · minor<<4|patch · stage · build. The same word heads LVSR. See decodeVersionWord.',
-            preview: 'v${vw.version}',
-          );
-        }
-      case 'STRG':
-      case 'HLPT':
-        span(
-          0,
-          4,
-          spanColorHeader,
-          'Text length (u32)',
-          'Byte length of the UTF-8 text that follows (== sectionLen-4).',
-          preview: '${readU32be(bytes, 0)} B',
-        );
-        span(
-          4,
-          bytes.length - 4,
-          spanColorRect,
-          'Text (UTF-8)',
-          'The VI description / context-help text.',
-        );
-      case 'NUID':
-      case 'SUID':
-      case 'BNID':
-        if (bytes.length >= 4) {
-          final count = readU32be(bytes, 0);
-          span(
-            0,
-            4,
-            spanColorHeader,
-            'Entry count (u32)',
-            '$count u32 id entries follow ([u32 count][count u32]).',
-            preview: '$count',
-          );
-          for (var i = 0; i < count && 4 + 4 * i + 4 <= bytes.length; i++) {
-            span(
-              4 + 4 * i,
-              4,
-              spanColorObject,
-              'id[$i] (u32)',
-              'An opaque UID/handle value (role not yet decoded).',
-              preview: '0x${readU32be(bytes, 4 + 4 * i).toRadixString(16)}',
-            );
-          }
-        }
-      case 'HIST':
-        const names = [
-          'format version',
-          'flags',
-          'entry count',
-          'reserved',
-          'word4',
-          'stamp A',
-          'stamp B',
-          'reserved',
-          'reserved',
-          'word9',
-        ];
-        for (
-          var wordIndex = 0;
-          wordIndex < 10 && wordIndex * 4 + 4 <= bytes.length;
-          wordIndex++
-        ) {
-          span(
-            wordIndex * 4,
-            4,
-            spanColorObject,
-            'HIST @${wordIndex * 4}: ${names[wordIndex]} (u32)',
-            'Revision-history record word. See decodeHistory.',
-            preview: '${readU32be(bytes, wordIndex * 4)}',
-          );
-        }
-      case 'LVSR':
-        span(
-          0,
-          4,
-          spanColorObject,
-          'Version word (u32)',
-          'BCD major · minor<<4|patch · stage · build (== vers word). See decodeSaveRecord.',
-          preview: '0x${readU32be(bytes, 0).toRadixString(16)}',
-        );
-        for (final range in const [
-          [4, 52],
-          [68, 80],
-          [112, 120],
-          [136, 144],
-        ]) {
-          for (
-            var wordOffset = range[0];
-            wordOffset + 4 <= range[1] && wordOffset + 4 <= bytes.length;
-            wordOffset += 4
-          ) {
-            span(
-              wordOffset,
-              4,
-              spanColorGroup,
-              'Config/flags word (u32) @$wordOffset',
-              'A low-cardinality LVSR config/flags word; exact bit meaning not yet decoded.',
-              preview: '0x${readU32be(bytes, wordOffset).toRadixString(16)}',
-            );
-          }
-        }
-        span(
-          52,
-          16,
-          spanColorObject,
-          'Per-VI value A (16B)',
-          'A 16-byte value that varies per VI (≈6920 distinct across the corpus); role not yet decoded.',
-        );
-        span(
-          80,
-          16,
-          spanColorObject,
-          'Per-VI value B (16B)',
-          'A second 16-byte per-VI value (≈6920 distinct across the corpus); role not yet decoded.',
-        );
-        span(
-          96,
-          16,
-          spanColorRect,
-          'BD password hash (16B)',
-          'Block-diagram password hash; mirrors the BDPW block. Empty-password default = d41d8cd9…',
-        );
-        span(
-          120,
-          16,
-          spanColorObject,
-          'Per-VI value C (16B)',
-          'A third 16-byte per-VI value (≈6854 distinct across the corpus); role not yet decoded.',
-        );
-        span(
-          144,
-          16,
-          spanColorRect,
-          'Secondary hash (16B)',
-          'A second hash/checksum slot (role not fully decoded).',
-        );
-      case 'CONP':
-      case 'CPC2':
-        if (bytes.length == 2) {
-          final idx = readU16be(bytes, 0);
-          var resolved = '';
-          if (widget.siblings.isNotEmpty) {
-            final pool = typePoolFromDecoded(widget.siblings);
-            if (idx >= 1 && idx <= pool.length) {
-              final type = pool[idx - 1];
-              resolved =
-                  ' → ${typeLabel(type, pool)}${type.name != null && type.name!.isNotEmpty ? " '${type.name}'" : ''}';
-            }
-          }
-          span(
-            0,
-            2,
-            spanColorObject,
-            'VCTP type index (u16)',
-            '${tag == 'CONP' ? 'Index of the connector-pane type in the VCTP pool (CONP: 100% in-range).' : 'A second conpane reference (CPC2: resolves as a VCTP index only ~84%).'}$resolved',
-            preview: '$idx$resolved',
-          );
-        }
-      case 'FTAB':
-        span(
-          0,
-          2,
-          spanColorObject,
-          'Version (u16)',
-          'Font-table version (1 in the corpus).',
-          preview: '${readU16be(bytes, 0)}',
-        );
-        if (bytes.length >= 6) {
-          span(
-            2,
-            4,
-            spanColorGroup,
-            'Header constant (00 02 00 03)',
-            'Fixed format sub-version words (u16 2, u16 3); 00 02 00 03 in all 322 corpus FTABs.',
-          );
-        }
-        if (bytes.length >= 8)
-          span(
-            6,
-            2,
-            spanColorHeader,
-            'Font count (u16)',
-            'Number of packed name entries.',
-            preview: '${readU16be(bytes, 6)}',
-          );
-        if (bytes.length >= 12) {
-          final nameOff = readU32be(bytes, 8);
-          span(
-            8,
-            4,
-            spanColorHeader,
-            'Name-table offset (u32)',
-            'Byte offset of the packed Pascal font-name strings.',
-            preview: '$nameOff',
-          );
-          final count = readU16be(bytes, 6);
-          if (nameOff >= 12 && nameOff <= bytes.length && count > 0) {
-            var pos = 12;
-            for (var i = 0; i < count && pos + 12 <= nameOff; i++) {
-              span(
-                pos,
-                12,
-                spanColorObject,
-                'Font[$i] metric record (12B)',
-                'Per-font size/style metrics; inner fields not yet decoded.',
-              );
-              pos += 12;
-              if (i < count - 1 && pos + 4 <= nameOff) {
-                span(
-                  pos,
-                  4,
-                  spanColorGroup,
-                  'Font[$i] u32 field',
-                  'A 4-byte value between font records (role not yet decoded).',
-                  preview: '${readU32be(bytes, pos)}',
-                );
-                pos += 4;
-              }
-            }
-          }
-          if (nameOff < bytes.length)
-            span(
-              nameOff,
-              bytes.length - nameOff,
-              spanColorRect,
-              'Font names (Pascal strings)',
-              'Packed [u8 len][name] font face names. See decodeFontTable.',
-            );
-        }
-      case 'BDPW':
-        span(
-          0,
-          16,
-          spanColorRect,
-          'Password hash (16B)',
-          'Block-diagram password hash; sample is MD5("") d41d8cd9…',
-        );
-      case 'GCPR':
-        span(
-          0,
-          bytes.length,
-          spanColorGroup,
-          'Generated-code property (${bytes.length}B)',
-          'Fixed-size record, byte-constant (all-zero) across the corpus.',
-        );
-      case 'VPDP':
-        span(
-          0,
-          bytes.length,
-          spanColorGroup,
-          'VI property data (${bytes.length}B)',
-          'Fixed 4-byte record, byte-constant (all-zero) across the corpus.',
-        );
-      case 'DLDR':
-        span(
-          0,
-          bytes.length,
-          spanColorGroup,
-          'Default-data loader (${bytes.length}B)',
-          'Fixed 28-byte record, byte-constant across the corpus.',
-        );
-      case 'RTSG':
-      case 'OBSG':
-      case 'CCSG':
-        span(
-          0,
-          16,
-          spanColorObject,
-          '16-byte signature',
-          tag == 'CCSG'
-              ? 'Near-constant shared toolchain signature (opaque value).'
-              : 'Per-VI signature (identity; opaque value).',
-          preview: 'sig',
-        );
-      case 'SCSR':
-        span(
-          0,
-          4,
-          spanColorHeader,
-          'Header (u32)',
-          'Leading word 0x01000000 BE (version-ish).',
-          preview: '0x${readU32be(bytes, 0).toRadixString(16)}',
-        );
-        span(
-          4,
-          16,
-          spanColorObject,
-          '16-byte signature',
-          'Source signature (near-constant; opaque value).',
-          preview: 'sig',
-        );
-      case 'FPSE':
-      case 'BDSE':
-        for (var pos = 0; pos + 4 <= bytes.length; pos += 4) {
-          span(
-            pos,
-            4,
-            spanColorObject,
-            '$tag marker (u32)',
-            '${tag == 'FPSE' ? 'Front-panel' : 'Block-diagram'} section marker word (value role not yet decoded).',
-            preview: '${readU32be(bytes, pos)}',
-          );
-        }
-      case 'MUID':
-        span(
-          0,
-          4,
-          spanColorObject,
-          'MUID (u32)',
-          'Module/object unique id (opaque value).',
-          preview: '${readU32be(bytes, 0)}',
-        );
-      case 'CPST':
-      case 'CPSP':
-        if (bytes.length >= 4) {
-          final count = readU32be(bytes, 0);
-          span(
-            0,
-            4,
-            spanColorHeader,
-            'String count (u32)',
-            '$count Pascal-string label entries follow ([u8 len][ASCII]).',
-            preview: '$count',
-          );
-          var pos = 4;
-          for (var i = 0; i < count && pos < bytes.length; i++) {
-            final nameLen = bytes[pos];
-            span(
-              pos,
-              1,
-              spanColorObject,
-              'entry[$i] length (u8)',
-              'Length of the label string that follows.',
-              preview: '$nameLen',
-            );
-            if (nameLen > 0 && pos + 1 + nameLen <= bytes.length) {
-              span(
-                pos + 1,
-                nameLen,
-                spanColorRect,
-                'entry[$i] (ASCII)',
-                'A boolean/comparison/report label.',
-                preview: String.fromCharCodes(
-                  bytes.sublist(pos + 1, pos + 1 + nameLen),
-                ),
-              );
-            }
-            pos += 1 + nameLen;
-          }
-        }
-      case 'FPTD':
-        if (bytes.length == 2) {
-          span(
-            0,
-            2,
-            spanColorObject,
-            'Type index (u16)',
-            'Front-panel terminal type descriptor; likely indexes the VCTP pool (not corpus-verified for FPTD).',
-            preview: '${readU16be(bytes, 0)}',
-          );
-        }
-      case 'TITL':
-        if (bytes.isNotEmpty) {
-          final nameLen = bytes[0];
-          span(
-            0,
-            1,
-            spanColorHeader,
-            'Title length (u8)',
-            'Pascal-string length of the VI title that follows.',
-            preview: '$nameLen',
-          );
-          if (1 + nameLen <= bytes.length) {
-            final text = String.fromCharCodes(bytes.sublist(1, 1 + nameLen));
-            span(
-              1,
-              nameLen,
-              spanColorRect,
-              'Title (ASCII)',
-              'The VI window title (Pascal string).',
-              preview: text,
-            );
-          }
-        }
-      default:
-        return const [];
+      if (field.size == null) break;
     }
     return _fillGaps(out, bytes.length);
+  }
+
+  static Color _layoutColor(BlockField field) {
+    if (field.entry.isNotEmpty) return spanColorContainer;
+    return switch (field.type) {
+      'pstr' || 'u8[]' => spanColorString,
+      '4cc' => spanColorHeader,
+      _ when field.type.startsWith('u8[') => spanColorRef,
+      _ when field.type.endsWith('[]') || field.type.contains('[') =>
+        spanColorContainer,
+      _ => spanColorObject,
+    };
+  }
+
+  static String? _fieldPreview(
+    BlockField field,
+    Uint8List bytes,
+    int start,
+    int end,
+  ) {
+    final view = ByteData.sublistView(bytes);
+    final len = end - start;
+    switch (field.type) {
+      case 'u8' when len == 1:
+        return '${bytes[start]}';
+      case 'u16' when len == 2:
+        return '${view.getUint16(start)}';
+      case 'i16' when len == 2:
+        return '${view.getInt16(start)}';
+      case 'u16le' when len == 2:
+        return '${view.getUint16(start, Endian.little)}';
+      case 'u32' when len == 4:
+        return '${view.getUint32(start)}';
+      case 'i32' when len == 4:
+        return '${view.getInt32(start)}';
+      case 'u32le' when len == 4:
+        return '${view.getUint32(start, Endian.little)}';
+      case '4cc' when len == 4:
+        return String.fromCharCodes(bytes, start, end);
+      case 'pstr' when len >= 1 && start + 1 + bytes[start] <= end:
+        return String.fromCharCodes(bytes, start + 1, start + 1 + bytes[start]);
+      default:
+        return len <= 8
+            ? [
+                for (var i = start; i < end; i++)
+                  bytes[i].toRadixString(16).padLeft(2, '0'),
+              ].join(' ')
+            : '$len B';
+    }
   }
 
   List<SpanInfo> _fillGaps(List<SpanInfo> fields, int len) {
