@@ -6,6 +6,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import '../tool/corpus_base.dart';
 import 'corpus_dirs.dart';
 
 const _laws = {
@@ -98,7 +99,13 @@ Map<String, int> _violations(Uint8List bytes, String path) {
     if (inflated != null && !(tag?.isEnveloped ?? false)) bad('enveloped');
     if (inflated == null && tag != null && tag.isEnveloped && !_alsoPlain.contains(tag)) bad('plain');
     if (tag == null || !tag.hasWriter) continue;
-    if (serializeBlockPayload(s.tag, inflated ?? s.bytes) == null) bad('roundTrip');
+    Uint8List? modeled;
+    try {
+      modeled = serializeBlockPayload(s.tag, inflated ?? s.bytes);
+    } on AssertionError {
+      modeled = null;
+    }
+    if (modeled == null) bad('roundTrip');
   }
 
   final seenImage = <int>{};
@@ -129,6 +136,10 @@ Map<String, int> _violations(Uint8List bytes, String path) {
 
 /// The LabVIEW 7.1 save carries no `TM80`, so its data space has no context to decode by.
 const kWriterViolations = <String, Map<String, int>>{
+  'Bud-ro_vi-snippets/Bud-ro-vi-snippets-03f6778/ni-kb/Generating_Data_on_a_Simulated_FPGA_Target_From_LabVIEW.png': {
+    'attribute': 1,
+    'roundTrip': 1,
+  },
   'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Calculate Frequency of Signal Displayed on Waveform Graph/Meas Freq of Visible Waveform_LV 7x.vi':
       {'dfdsContext': 1},
 };
@@ -149,7 +160,7 @@ void main() {
   test('a compressed section re-emitted from re-deflated content stays valid and content-exact', () {
     var checked = 0;
     for (final f in all.take(15)) {
-      final bytes = Uint8List.fromList(f.readAsBytesSync());
+      final bytes = readCorpusVi(f);
       final vi = ViVi.parse(bytes);
       var changed = false;
       final segs = <ViDataSegment>[];

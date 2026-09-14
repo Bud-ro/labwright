@@ -6,6 +6,7 @@ import 'dart:io';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import '../tool/corpus_base.dart';
 import 'corpus_dirs.dart';
 
 void main() {
@@ -16,7 +17,7 @@ void main() {
     for (final file in all.take(300)) {
       final ViModel model;
       try {
-        model = buildViModel(file.readAsBytesSync());
+        model = buildViModel(readCorpusVi(file));
       } catch (_) {
         continue;
       }
@@ -44,7 +45,7 @@ void main() {
     for (final file in all.take(300)) {
       final ViModel model;
       try {
-        model = buildViModel(file.readAsBytesSync());
+        model = buildViModel(readCorpusVi(file));
       } catch (_) {
         continue;
       }
@@ -105,7 +106,7 @@ void main() {
     for (final file in all.take(300)) {
       final ViModel model;
       try {
-        model = buildViModel(file.readAsBytesSync());
+        model = buildViModel(readCorpusVi(file));
       } catch (_) {
         continue;
       }

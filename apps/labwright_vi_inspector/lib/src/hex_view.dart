@@ -404,7 +404,7 @@ class _BlockHexViewState extends State<BlockHexView> {
           MapEntry('Version', versionWord.version),
           MapEntry(
             'Stage',
-            '0x${versionWord.stage.toRadixString(16)}${versionWord.stage == 0x80 ? ' (release)' : ''}',
+            '0x${versionWord.stage.toRadixString(16)}${versionWord.releaseStage == null ? '' : ' (${versionWord.releaseStage!.name})'}',
           ),
           MapEntry('Build', '${versionWord.build}'),
         ];

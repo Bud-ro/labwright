@@ -72,7 +72,7 @@ _Stat _measure(List<File> files) {
     s.vis++;
     final Uint8List bytes;
     try {
-      bytes = f.readAsBytesSync();
+      bytes = readCorpusVi(f);
       parseVi(bytes);
       s.parseOk++;
     } catch (_) {

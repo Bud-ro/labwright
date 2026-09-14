@@ -1,6 +1,7 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -276,7 +277,7 @@ void main() {
   late final Map<String, Map<String, int>> byFile;
   late final Map<String, int> C;
   setUpAll(() async {
-    final res = await corpusParallel(pngs, _censusSnippet);
+    final res = await corpusParallel(pngs, (_, path) => _censusSnippet(File(path).readAsBytesSync(), path));
     byFile = {for (var i = 0; i < pngs.length; i++) pngs[i].uri.pathSegments.last: res[i]};
     C = {};
     for (final m in res) {

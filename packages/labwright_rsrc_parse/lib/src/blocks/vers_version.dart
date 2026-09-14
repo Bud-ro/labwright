@@ -51,8 +51,10 @@ class ViVersionWord {
 
   final int patch;
 
-  /// Release stage byte; `0x80` is a release build.
+  /// Release stage byte, named by [releaseStage] when it is one LabVIEW uses.
   final int stage;
+
+  ViVersionStage? get releaseStage => ViVersionStage.of(stage);
 
   final int build;
 
@@ -60,6 +62,29 @@ class ViVersionWord {
 
   /// Whether this version is [major].[minor] or later.
   bool isAtLeast(int major, int minor) => this.major > major || this.major == major && this.minor >= minor;
+}
+
+/// The release stage a version word's stage byte names.
+enum ViVersionStage {
+  development(0x20),
+
+  alpha(0x40),
+
+  beta(0x60),
+
+  release(0x80)
+  ;
+
+  const ViVersionStage(this.code);
+
+  final int code;
+
+  static ViVersionStage? of(int code) {
+    for (final stage in values) {
+      if (stage.code == code) return stage;
+    }
+    return null;
+  }
 }
 
 ViVersionWord decodeVersionWord(Uint8List bytes) => decodeVersionWordAt(bytes, 0);
