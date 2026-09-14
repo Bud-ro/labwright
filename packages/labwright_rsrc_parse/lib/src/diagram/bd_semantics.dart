@@ -668,6 +668,25 @@ int? primIconKeyOf(ViHeapObject object) =>
 
 int classVariantIconKey(int kind, int termCount) => -((kind << 8) | (termCount & 0xff)) - 0x100000;
 
+/// The asset name of a prim icon key: `prim<id>` for a primResID, `class<code>` for a
+/// single-op class, `class<code>_t<n>` for a class variant with `n` terminals.
+String primIconName(int key) {
+  if (key >= 0) return 'prim$key';
+  if (key > -0x100000) return 'class${-key}';
+  final packed = -(key + 0x100000);
+  return 'class${packed >> 8}_t${packed & 0xff}';
+}
+
+/// The prim icon key spelled by [name], or null when it is not one; the inverse of [primIconName].
+int? parsePrimIconName(String name) {
+  final match = RegExp(r'^(prim|class)(\d+)(?:_t(\d+))?$').firstMatch(name);
+  if (match == null) return null;
+  final number = int.parse(match.group(2)!);
+  if (match.group(1) == 'prim') return number;
+  final terms = match.group(3);
+  return terms == null ? -number : classVariantIconKey(number, int.parse(terms));
+}
+
 /// Border terminals drawn as tunnel squares.
 const Set<HeapObjectClass> kBdTunnelClasses = {
   HeapObjectClass.bdLoopTunnel,

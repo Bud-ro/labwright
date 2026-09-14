@@ -9,7 +9,6 @@ import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'bd_text_font.dart';
-import 'prim_terminal_catalog.dart';
 import 'terminal_bitmaps.dart';
 
 import 'images_view.dart';
@@ -704,7 +703,7 @@ Rect bdContentRect(
 String? _primDetail(ViHeapObject object) {
   final key = primIconKeyOf(object);
   if (key == null) return null;
-  final name = key >= 0 ? 'prim$key' : 'class${-key}';
+  final name = primIconName(key);
   final status = kPrimIconStatus[name];
   final iconPart =
       'icon $name${status == null ? ' (no asset)' : ' ${status.name}'}';
@@ -723,7 +722,7 @@ String? _primDetail(ViHeapObject object) {
 String _iconStatusSuffix(ViHeapObject object) {
   final key = primIconKeyOf(object);
   if (key == null) return '';
-  final name = key >= 0 ? 'prim$key' : 'class${-key}';
+  final name = primIconName(key);
   final status = kPrimIconStatus[name];
   return status == null ? '' : ' · icon ${status.name}';
 }
@@ -757,63 +756,6 @@ PrimIconArt? primIconArtFor(
       : null;
 }
 
-const Map<(int, int, int, int), ({int? dx, int? dy})> _kBdPrimTerminals = {
-  (1050, 0, 32, 32): (dx: 21, dy: 16),
-  (1050, 1, 32, 32): (dx: null, dy: 21),
-  (1051, 2, 32, 32): (dx: 11, dy: 11),
-  (1052, 1, 32, 32): (dx: null, dy: 21),
-  (1052, 2, 32, 32): (dx: null, dy: 11),
-  (1056, 3, 32, 32): (dx: 10, dy: 10),
-  (1063, 0, 32, 32): (dx: 22, dy: 16),
-  (1081, 0, 32, 32): (dx: null, dy: 16),
-  (1070, 0, 32, 32): (dx: null, dy: 15),
-  (1082, 0, 32, 32): (dx: 22, dy: 16),
-  (-0x44, 1, 32, 27): (dx: 24, dy: 22),
-  (1142, 0, 32, 32): (dx: 22, dy: 16),
-  (1143, 0, 32, 32): (dx: null, dy: 16),
-  (1155, 1, 32, 32): (dx: 10, dy: 16),
-  (1156, 1, 32, 32): (dx: 10, dy: 16),
-  (1166, 2, 32, 32): (dx: 26, dy: 16),
-  (1171, 0, 32, 32): (dx: 20, dy: 16),
-  (1502, 0, 32, 32): (dx: 24, dy: 15),
-  (1814, 0, 32, 32): (dx: null, dy: 16),
-  (1815, 0, 32, 32): (dx: null, dy: 16),
-  (1900, 0, 32, 32): (dx: 24, dy: 16),
-  (1900, 1, 32, 32): (dx: null, dy: 16),
-  (1908, 0, 32, 32): (dx: 24, dy: 24),
-  (8083, 3, 32, 32): (dx: 28, dy: 4),
-};
-
-({int? x, int? y})? bdPrimTerminalOf(ViDiagram diagram, int endpointOid) {
-  final head = diagram.byId[endpointOid];
-  final parentOid = head?.parentOid;
-  if (head == null || head.kind != kNodeEndpointDcoKind || parentOid == null)
-    return null;
-  final parent = diagram.byId[parentOid];
-  final box = parent?.absBounds;
-  if (parent == null || box == null) return null;
-  final key = primIconKeyOf(parent);
-  if (key == null) return null;
-  var termIdx = -1;
-  var at = 0;
-  for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
-    if (c.kind != kNodeEndpointDcoKind) continue;
-    if (c.oid == head.oid) {
-      termIdx = at;
-      break;
-    }
-    at++;
-  }
-  if (termIdx < 0) return null;
-  final sizedKey = (key, termIdx, box.right - box.left, box.bottom - box.top);
-  final offset = _kBdPrimTerminals[sizedKey] ?? kBdPrimTerminalCensus[sizedKey];
-  if (offset == null) return null;
-  return (
-    x: offset.dx == null ? null : box.left + offset.dx!,
-    y: offset.dy == null ? null : box.top + offset.dy!,
-  );
-}
-
 const kPrimIconPrescale = 4;
 
 typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
@@ -823,26 +765,16 @@ Future<Map<int, PrimIconArt>> loadPrimIcons() => _primIcons ??= () async {
   final icons = <int, PrimIconArt>{};
   for (final asset in manifest.listAssets()) {
     final match = RegExp(
-      r'assets/prim_icons/(prim|class)(\d+)(?:_t(\d+))?(?:_[a-z0-9-]+)?\.png$',
+      r'assets/prim_icons/((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
     ).firstMatch(asset);
     if (match == null) continue;
-    final sized = match.group(3) != null;
-    final statusKey =
-        '${match.group(1)}${match.group(2)}'
-        '${sized ? '_t${match.group(3)}' : ''}';
+    final statusKey = match.group(1)!;
     if (kPrimIconStatus[statusKey] == PrimIconStatus.rejected) {
       continue;
     }
     final bytes = await rootBundle.load(asset);
     final image = await decodeImage(bytes.buffer.asUint8List());
-    final id = match.group(1) == 'prim'
-        ? int.parse(match.group(2)!)
-        : (sized
-              ? classVariantIconKey(
-                  int.parse(match.group(2)!),
-                  int.parse(match.group(3)!),
-                )
-              : -int.parse(match.group(2)!));
+    final id = parsePrimIconName(statusKey)!;
     final rgba = await image.toByteData();
     if (rgba != null) {
       final alpha = Uint8List(image.width * image.height);

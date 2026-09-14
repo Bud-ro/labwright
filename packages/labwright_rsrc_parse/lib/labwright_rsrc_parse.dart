@@ -57,6 +57,8 @@ export 'src/diagram/bd_semantics.dart';
 export 'src/diagram/diagram.dart';
 export 'src/diagram/obj_flags.dart';
 export 'src/diagram/prim_ops.dart';
+export 'src/diagram/prim_terminal_census.dart';
+export 'src/diagram/prim_terminals.dart';
 export 'src/diagram/wire_render.dart';
 export 'src/heap/heap.dart';
 export 'src/heap/heap_writer.dart';
