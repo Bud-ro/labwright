@@ -22,6 +22,9 @@
 ///                                                             type
 /// ```
 ///
+/// The section stores the payload in the zlib envelope that [inflateHeapPayload] opens; the
+/// layout is the inflated body.
+///
 /// [ViTypePool] is a view over the payload holding one [ViType] view per descriptor; the
 /// [ViType] subclasses expose each body; [decodeTypePool] requires the descriptors and the
 /// top-level list to tile the payload exactly.
@@ -30,6 +33,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import '../decode.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of descriptors');
@@ -576,7 +580,7 @@ List<int> descriptorOffsets(Uint8List bytes, int start, int count) {
 }
 
 /// A view over a `VCTP` payload.
-class ViTypePool {
+class ViTypePool implements BlockRecord {
   ViTypePool._(this.bytes, this.types, this._topLevelOffset) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -599,6 +603,7 @@ class ViTypePool {
 
   List<int> get topLevelIndices => [for (var i = 0; i < topLevelCount; i++) topLevelIndexAt(i)];
 
+  @override
   Uint8List serialize() => bytes;
 }
 

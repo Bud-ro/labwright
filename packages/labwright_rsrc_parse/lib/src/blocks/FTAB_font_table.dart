@@ -30,6 +30,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _version = BlockField(0, 2, 'version', 'u16', 'table format version');
 const _word2 = BlockField.undecoded(2, 2, type: 'u16');
@@ -99,7 +100,7 @@ class ViFontEntry {
 }
 
 /// A view over an `FTAB` payload.
-class ViFontTable {
+class ViFontTable implements BlockRecord {
   ViFontTable._(this.bytes) : _view = ByteData.sublistView(bytes) {
     entries = List.generate(fontCount, (i) => ViFontEntry._(this, i), growable: false);
   }
@@ -122,6 +123,7 @@ class ViFontTable {
     return index >= 0 && index < entries.length ? entries[index] : null;
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

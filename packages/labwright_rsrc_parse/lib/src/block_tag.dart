@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'block_layout.dart';
+import 'block_record.dart';
 import 'blocks/BDHb_BDHc_BDHP_block_diagram.dart';
 import 'blocks/BDPW_password.dart';
 import 'blocks/BFAL_align_table.dart';
@@ -47,6 +48,7 @@ import 'blocks/VITS_tag_store.dart';
 import 'blocks/WEMF_metafile.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/vers_version.dart';
+import 'decode.dart' show inflateHeapPayload;
 
 /// What a block holds, for grouping in listings.
 enum BlockCategory {
@@ -677,6 +679,22 @@ enum BlockTag {
   bool get isRecordHeap => recordHeaps.contains(this);
 
   bool get isDecoded => decode != null || this == dfds;
+
+  /// Whether [decode] yields a [BlockRecord], so the payload can be re-emitted through the model.
+  bool get hasWriter => decode is BlockRecord Function(Uint8List);
+
+  /// Decodes [payload] when the tag [hasWriter], else null.
+  BlockRecord? decodeRecord(Uint8List payload) => switch (decode) {
+    final BlockRecord Function(Uint8List) decode => decode(payload),
+    _ => null,
+  };
+
+  /// Tags whose payload may be stored in the zlib envelope, a `u32` inflated length followed by
+  /// a zlib stream that [inflateHeapPayload] opens; [tm80], [vicd] and [dfds] payloads also occur
+  /// without it.
+  static const Set<BlockTag> enveloped = {fphb, bdhb, fphc, bdhc, dfds, gcdi, tm80, vctp, vicd};
+
+  bool get isEnveloped => enveloped.contains(this);
 
   static final Map<String, BlockTag> _byTag = {for (final t in values) t.tag: t};
 

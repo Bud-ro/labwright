@@ -16,6 +16,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import '../viparse.dart' show ViSection;
 
 const _typeIndex = BlockField(0, 2, 'typeIndex', 'u16', '1-based index into the VCTP top-level types');
@@ -24,11 +25,12 @@ const _descriptor = BlockField.undecoded(0, null, type: 'type descriptor', optio
 const BlockLayout connectorPaneLayout = [_typeIndex, _descriptor];
 
 /// A view over a `CONP` or `CPC2` payload.
-sealed class ViConnectorPane {
+sealed class ViConnectorPane implements BlockRecord {
   const ViConnectorPane._(this.bytes);
 
   final Uint8List bytes;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

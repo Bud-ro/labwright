@@ -19,6 +19,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import '../viparse.dart' show ViSection;
 
 const _versionWord = BlockField(
@@ -77,7 +78,7 @@ ViVersionWord? versionWordFromSections(Iterable<ViSection> sections) {
 }
 
 /// A view over a `vers` payload.
-class ViVersBlock {
+class ViVersBlock implements BlockRecord {
   ViVersBlock._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -94,6 +95,7 @@ class ViVersBlock {
 
   String get infoText => String.fromCharCodes(bytes, _versionTextEnd + 1);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

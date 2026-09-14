@@ -14,6 +14,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _value = BlockField(0, 4, 'value', 'u32', 'role TODO');
 const _extra = BlockField(4, 4, 'extra', 'u32', 'role TODO', optional: 'the record is 8 bytes');
@@ -21,7 +22,7 @@ const _extra = BlockField(4, 4, 'extra', 'u32', 'role TODO', optional: 'the reco
 const BlockLayout sectionEntryLayout = [_value, _extra];
 
 /// A view over an `FPSE` or `BDSE` payload.
-class ViSectionEntry {
+class ViSectionEntry implements BlockRecord {
   ViSectionEntry._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -33,6 +34,7 @@ class ViSectionEntry {
   /// Null in the 4-byte form.
   int? get extra => bytes.length >= _extra.end ? _view.getUint32(_extra.offset) : null;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

@@ -25,6 +25,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import 'VCTP_type_pool.dart';
 
 const _heapTypeCount = BlockField(0, 2, 'heapTypeCount', 'u16', 'number of heap types');
@@ -52,11 +53,12 @@ const BlockLayout dthpLayout = [
 ];
 
 /// A view over a `DTHP` payload.
-sealed class ViDataTypeHeap {
+sealed class ViDataTypeHeap implements BlockRecord {
   const ViDataTypeHeap._(this.bytes);
 
   final Uint8List bytes;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

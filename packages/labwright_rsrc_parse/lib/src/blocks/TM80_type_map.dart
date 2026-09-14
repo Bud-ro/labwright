@@ -21,6 +21,9 @@
 ///                                                              entry
 /// ```
 ///
+/// The section usually stores the payload in the zlib envelope that [inflateHeapPayload]
+/// opens, and sometimes plain; the layout is the inflated body.
+///
 /// [ViTypeMapIndexed] is a view over the word list recording where each word starts;
 /// [ViTypeMapInline] holds the inline descriptors and the entries indexing them;
 /// [decodeTypeMap] requires either form to tile the payload exactly.
@@ -29,6 +32,8 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
+import '../decode.dart' show inflateHeapPayload;
 import 'VCTP_type_pool.dart';
 
 const _count = BlockField(
@@ -66,11 +71,12 @@ const BlockLayout tm80Layout = [
 const int kTypeMapHasSaveData = 1 << 13;
 
 /// A view over a `TM80` payload.
-sealed class ViTypeMap {
+sealed class ViTypeMap implements BlockRecord {
   const ViTypeMap._(this.bytes);
 
   final Uint8List bytes;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

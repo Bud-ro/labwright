@@ -14,6 +14,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _count = BlockField(0, 2, 'count', 'u16le', 'number of pane terminals');
 const _terminals = BlockField(
@@ -52,7 +53,7 @@ final class PanelObjectTerminal extends ConnectorTerminal {
 }
 
 /// A view over a `CPMp` payload.
-class ViConnectorPaneMap {
+class ViConnectorPaneMap implements BlockRecord {
   ViConnectorPaneMap._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -76,6 +77,7 @@ class ViConnectorPaneMap {
     return n;
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

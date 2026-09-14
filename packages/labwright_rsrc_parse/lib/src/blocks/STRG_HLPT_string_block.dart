@@ -15,6 +15,7 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _length = BlockField(0, 4, 'length', 'u32', 'bytes of text');
 const _text = BlockField(4, null, 'text', 'u8[length]', 'UTF-8 text');
@@ -22,7 +23,7 @@ const _text = BlockField(4, null, 'text', 'u8[length]', 'UTF-8 text');
 const BlockLayout stringBlockLayout = [_length, _text];
 
 /// A view over an `STRG` or `HLPT` payload.
-class ViStringBlock {
+class ViStringBlock implements BlockRecord {
   const ViStringBlock._(this.bytes);
 
   final Uint8List bytes;
@@ -31,6 +32,7 @@ class ViStringBlock {
 
   String get text => utf8.decode(body, allowMalformed: true);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

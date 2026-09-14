@@ -18,6 +18,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _formatVersion = BlockField(0, 4, 'formatVersion', 'u32', 'history record format version');
 const _flags = BlockField(4, 4, 'flags', 'u32', 'history settings; bits TODO');
@@ -30,7 +31,7 @@ const _todo36 = BlockField.undecoded(36, 4, type: 'u32');
 const BlockLayout histLayout = [_formatVersion, _flags, _entryCount, _reserved12, _todo16, _reserved28, _todo36];
 
 /// A view over a `HIST` payload.
-class ViHistory {
+class ViHistory implements BlockRecord {
   ViHistory._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -48,6 +49,7 @@ class ViHistory {
       _view.getUint32(_reserved28.offset) == 0 &&
       _view.getUint32(_reserved28.offset + 4) == 0;
 
+  @override
   Uint8List serialize() => bytes;
 }
 

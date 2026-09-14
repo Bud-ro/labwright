@@ -13,6 +13,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of strings');
 const _strings = BlockField(4, null, 'strings', 'pstr[count]', 'the strings');
@@ -20,7 +21,7 @@ const _strings = BlockField(4, null, 'strings', 'pstr[count]', 'the strings');
 const BlockLayout pascalStringTableLayout = [_count, _strings];
 
 /// A view over a `CPST` or `CPSP` payload.
-class ViPascalStringTable {
+class ViPascalStringTable implements BlockRecord {
   const ViPascalStringTable._(this.bytes, this._stringOffsets);
 
   final Uint8List bytes;
@@ -36,6 +37,7 @@ class ViPascalStringTable {
 
   String textAt(int index) => String.fromCharCodes(this[index]);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

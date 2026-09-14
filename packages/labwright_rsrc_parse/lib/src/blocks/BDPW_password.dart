@@ -16,6 +16,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 /// MD5 of the empty string, the password digest of an unprotected VI.
 const List<int> emptyPasswordDigest = [
@@ -37,7 +38,7 @@ const _digest3 = BlockField(
 const BlockLayout bdpwLayout = [_passwordDigest, _digest2, _digest3];
 
 /// A view over a `BDPW` payload.
-class ViPasswordRecord {
+class ViPasswordRecord implements BlockRecord {
   const ViPasswordRecord._(this.bytes);
 
   final Uint8List bytes;
@@ -58,6 +59,7 @@ class ViPasswordRecord {
     return true;
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

@@ -16,6 +16,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _header = BlockField.undecoded(0, 72);
 const _runLength = BlockField(0, 4, 'runLength', 'u32', 'bytes of text');
@@ -25,7 +26,7 @@ const _runs = BlockField(72, null, 'runs', 'entry[]', 'runs to the end of the pa
 const BlockLayout trecLayout = [_header, _runs];
 
 /// A view over a `TRec` payload.
-class ViTextRecord {
+class ViTextRecord implements BlockRecord {
   ViTextRecord._(this.bytes, this._runOffsets) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -47,6 +48,7 @@ class ViTextRecord {
     );
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

@@ -12,19 +12,21 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _title = BlockField(0, null, 'title', 'pstr', 'the VI title');
 
 const BlockLayout titlLayout = [_title];
 
 /// A view over a `TITL` payload.
-class ViTitle {
+class ViTitle implements BlockRecord {
   const ViTitle._(this.bytes);
 
   final Uint8List bytes;
 
   String get text => String.fromCharCodes(bytes, 1);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

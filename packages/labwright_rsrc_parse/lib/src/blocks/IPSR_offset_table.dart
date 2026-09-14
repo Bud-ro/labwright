@@ -12,13 +12,14 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _offsets = BlockField(0, null, 'offsets', 'u32[]', 'non-decreasing offsets; target TODO');
 
 const BlockLayout ipsrLayout = [_offsets];
 
 /// A view over an `IPSR` payload.
-class ViOffsetTable {
+class ViOffsetTable implements BlockRecord {
   ViOffsetTable._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -29,6 +30,7 @@ class ViOffsetTable {
 
   int operator [](int index) => _view.getUint32(4 * index);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

@@ -8,12 +8,16 @@
 /// 4       rest  records                    record[] C4 records, see HeapOpcode
 /// ```
 ///
+/// The section stores the payload in the zlib envelope that [inflateHeapPayload] opens; the
+/// layout is the inflated body.
+///
 /// [decodeFrontPanel] builds the [ViDiagram] of an `FPHb` payload.
 library;
 
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../decode.dart' show inflateHeapPayload;
 import '../diagram/diagram.dart';
 import '../heap/heap.dart';
 

@@ -17,6 +17,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of entries');
 const _entryOffset = BlockField(0, 4, 'offset', 'u32', 'role TODO');
@@ -36,7 +37,7 @@ const _entrySize = 9;
 const BlockLayout bfalLayout = [_count, _entries];
 
 /// A view over a `BFAL` payload.
-class ViAlignTable {
+class ViAlignTable implements BlockRecord {
   ViAlignTable._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -53,6 +54,7 @@ class ViAlignTable {
 
   int kindAt(int index) => bytes[_at(index) + _entryKind.offset];
 
+  @override
   Uint8List serialize() => bytes;
 }
 

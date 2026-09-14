@@ -17,6 +17,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _todo0 = BlockField.undecoded(0, 2, type: 'u16');
 const _todo2 = BlockField.undecoded(2, 2, type: 'u16');
@@ -28,7 +29,7 @@ const _right = BlockField(10, 2, 'right', 'i16', 'rectangle right');
 const BlockLayout piccLayout = [_todo0, _todo2, _top, _left, _bottom, _right];
 
 /// A view over a `PICC` payload.
-class ViIconPlacement {
+class ViIconPlacement implements BlockRecord {
   ViIconPlacement._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -43,6 +44,7 @@ class ViIconPlacement {
 
   int get right => _view.getInt16(_right.offset);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

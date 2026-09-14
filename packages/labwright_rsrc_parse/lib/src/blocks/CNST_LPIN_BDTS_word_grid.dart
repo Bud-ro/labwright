@@ -12,13 +12,14 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _words = BlockField(0, null, 'words', 'u32[]', 'roles TODO');
 
 const BlockLayout wordGridLayout = [_words];
 
 /// A view over a payload made of u32 words.
-class ViWordGrid {
+class ViWordGrid implements BlockRecord {
   ViWordGrid(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -29,6 +30,7 @@ class ViWordGrid {
 
   int operator [](int index) => _view.getUint32(4 * index);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

@@ -32,6 +32,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 import '../viparse.dart' show ViSection;
 import 'BDPW_password.dart' show emptyPasswordDigest;
 import 'vers_version.dart';
@@ -93,7 +94,7 @@ enum ViSaveFlag {
 }
 
 /// A view over an `LVSR` payload.
-class ViSaveRecord {
+class ViSaveRecord implements BlockRecord {
   ViSaveRecord._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -123,6 +124,7 @@ class ViSaveRecord {
     return digest != null && !_sameBytes(digest, emptyPasswordDigest);
   }
 
+  @override
   Uint8List serialize() => bytes;
 }
 

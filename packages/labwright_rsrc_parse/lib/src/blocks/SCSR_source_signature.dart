@@ -13,6 +13,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _marker = BlockField(0, 4, 'marker', 'u32', 'role TODO');
 const _digest = BlockField(4, 16, 'digest', 'u8[16]', 'signature digest; derivation TODO');
@@ -20,7 +21,7 @@ const _digest = BlockField(4, 16, 'digest', 'u8[16]', 'signature digest; derivat
 const BlockLayout scsrLayout = [_marker, _digest];
 
 /// A view over an `SCSR` payload.
-class ViSourceSignature {
+class ViSourceSignature implements BlockRecord {
   ViSourceSignature._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -31,6 +32,7 @@ class ViSourceSignature {
 
   Uint8List get digest => Uint8List.sublistView(bytes, _digest.offset, _digest.end);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

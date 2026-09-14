@@ -17,6 +17,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _gcprBody = BlockField(0, 13, 'body', 'u8[13]', 'zero; roles TODO');
 const _vpdpBody = BlockField(0, 4, 'body', 'u8[4]', 'zero; roles TODO');
@@ -26,13 +27,14 @@ const BlockLayout gcprLayout = [_gcprBody];
 const BlockLayout vpdpLayout = [_vpdpBody];
 
 /// A view over a `GCPR` or `VPDP` payload.
-class ViConstantRecord {
+class ViConstantRecord implements BlockRecord {
   const ViConstantRecord._(this.bytes);
 
   final Uint8List bytes;
 
   bool get isZero => bytes.every((b) => b == 0);
 
+  @override
   Uint8List serialize() => bytes;
 }
 

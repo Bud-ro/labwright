@@ -795,11 +795,15 @@ void main() {
       expect(serializeBlockPayload('MUID', u8([0x12, 0x34, 0x56, 0x78])), u8([0x12, 0x34, 0x56, 0x78]));
       final emptyLi = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3]);
       expect(serializeBlockPayload('LIvi', emptyLi), emptyLi);
+      final unwalkedLi = u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3]);
       expect(
-        serializeBlockPayload('LIvi', u8([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 2, 0, 3])),
-        isNull,
-        reason: 'count 2 with no entries stays unwalked',
+        serializeBlockPayload('LIvi', unwalkedLi),
+        unwalkedLi,
+        reason: 'the view re-emits an unwalked entry region',
       );
+      expect(serializeBlockPayload('VICD', u8([0, 0, 0, 9, 0x78, 0x9c, 0, 0])), isNull, reason: 'still enveloped');
+      expect(hasBlockWriter('FPHb'), isFalse);
+      expect(hasBlockWriter('MNGI'), isFalse);
       expect(() => serializeBlockPayload('icl8', u8([1, 2, 3])), throwsA(isA<AssertionError>()));
       expect(
         () => serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])),

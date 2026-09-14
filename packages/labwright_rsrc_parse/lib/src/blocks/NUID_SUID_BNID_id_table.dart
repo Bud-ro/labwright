@@ -13,6 +13,7 @@ library;
 import 'dart:typed_data';
 
 import '../block_layout.dart';
+import '../block_record.dart';
 
 const _count = BlockField(0, 4, 'count', 'u32', 'number of ids');
 const _ids = BlockField(4, null, 'ids', 'u32[count]', 'the ids; roles TODO');
@@ -20,7 +21,7 @@ const _ids = BlockField(4, null, 'ids', 'u32[count]', 'the ids; roles TODO');
 const BlockLayout idTableLayout = [_count, _ids];
 
 /// A view over an `NUID`, `SUID` or `BNID` payload.
-class ViIdTable {
+class ViIdTable implements BlockRecord {
   ViIdTable._(this.bytes) : _view = ByteData.sublistView(bytes);
 
   final Uint8List bytes;
@@ -31,6 +32,7 @@ class ViIdTable {
 
   int operator [](int index) => _view.getUint32(_ids.offset + 4 * index);
 
+  @override
   Uint8List serialize() => bytes;
 }
 
