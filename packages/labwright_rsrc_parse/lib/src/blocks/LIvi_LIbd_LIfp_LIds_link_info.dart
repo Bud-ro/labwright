@@ -206,7 +206,7 @@ class _LiCursor {
   int p = 0;
   bool ok = true;
 
-  int lastPathLen = -1;
+  int? lastPathLen;
 
   bool heapPathEmpty = false;
 
