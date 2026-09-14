@@ -1,11 +1,13 @@
 import 'package:flutter/material.dart';
 
 import 'src/bd_text_font.dart';
+import 'src/diagram_view.dart';
 import 'src/vi_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadSystemUiFont();
+  await loadPrimIcons();
   runApp(const ViInspectorApp());
 }
 

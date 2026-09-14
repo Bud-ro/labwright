@@ -288,7 +288,6 @@ Future<BdRaster?> rasteriseBlockDiagram(
   final width = (content.width * pxScale).ceil().clamp(1, 8192);
   final height = (content.height * pxScale).ceil().clamp(1, 8192);
 
-  if (activeScene.disabledOids.isNotEmpty) await ensurePrimIconsGrey();
   final recorder = ui.PictureRecorder();
   final canvas = Canvas(
     recorder,
@@ -305,7 +304,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     subViIcons: subViIcons,
     primIcons: primIcons,
     xnodeFacades: xnodeFacades,
-    primIconsGrey: primIconsGreyLoaded(),
+    primIconsGrey: primIconsGrey,
     drawDotGrid: false,
     style: style,
   ).paint(canvas, content.size);
@@ -1163,16 +1162,6 @@ class _BdOracleViewState extends State<BdOracleView>
   @override
   void initState() {
     super.initState();
-    if (primIconsLoaded().isEmpty) {
-      loadPrimIcons().then((icons) {
-        if (!mounted || icons.isEmpty) return;
-        _retire(_future);
-        final rebuilt = _build();
-        setState(() {
-          _future = rebuilt;
-        });
-      });
-    }
   }
 
   bool _exportingGif = false;
@@ -1250,7 +1239,7 @@ class _BdOracleViewState extends State<BdOracleView>
       BdRenderStyle style = const BdRenderStyle(),
     }) => rasteriseBlockDiagram(
       diagram,
-      primIcons: primIconsLoaded(),
+      primIcons: primIcons,
       maxDimension: maxDimension,
       scale: scale,
       margin: snippet ? 2 : 40,
