@@ -74,6 +74,8 @@ Uint8List _emf() {
     ...List<int>.filled(40, 0), // params (40 bytes → record is 48 B)
   ];
   header.setRange(40, 44, const [0x20, 0x45, 0x4d, 0x46]); // " EMF" signature @40
+  header.setRange(16, 20, _le32(640));
+  header.setRange(20, 24, _le32(480));
   final eof = <int>[
     ..._le32(14), // iType = EMR_EOF
     ..._le32(20), // nSize
@@ -83,95 +85,66 @@ Uint8List _emf() {
 }
 
 void main() {
-  group('PICT v2 framer', () {
-    test('frames byte-exact and tiles to OpEndPic', () {
+  group('PICT v2', () {
+    test('decodes the frame rectangle and accounts for the opcodes to OpEndPic', () {
       final p = _pict();
-      final f = framePictV2(p);
-      expect(f, isNotNull);
-      expect(f!.kind, ViMetafileKind.pictV2);
-      expect(f.bytes, orderedEquals(p));
-      expect(f.modelBytes + f.copiedBytes, p.length);
-      expect(f.elementCount, 4);
-      expect(f.copiedBytes, 4);
+      final pict = decodePict(p);
+      expect(pict.serialize(), same(p));
+      expect((pict.top, pict.left, pict.bottom, pict.right, pict.width), (0, 0, 0x100, 0x100, 0x100));
+      expect(pict.frame.modelBytes + pict.frame.copiedBytes, p.length);
+      expect((pict.frame.elementCount, pict.frame.copiedBytes), (4, 4));
+      expect(pict.quickTimeRaster, isNull);
     });
 
     test('rejects a non-version-2 header', () {
       final p = Uint8List.fromList(_pict())..setRange(12, 14, const [0x00, 0x00]);
-      expect(framePictV2(p), isNull);
+      expect(() => decodePict(p), throwsA(isA<AssertionError>()));
     });
 
     test('rejects a stream that does not end at OpEndPic on the last byte', () {
-      final p = u8([..._pict(), 0x00, 0x00]);
-      expect(framePictV2(p), isNull);
+      expect(() => decodePict(u8([..._pict(), 0x00, 0x00])), throwsA(isA<AssertionError>()));
     });
 
-    test('dispatches through frameMetafile by tag', () {
-      expect(frameMetafile('PICT', _pict())?.kind, ViMetafileKind.pictV2);
-      expect(frameMetafile('XXXX', _pict()), isNull);
+    test('metafileFrame dispatches by tag', () {
+      expect(metafileFrame('PICT', _pict())?.elementCount, 4);
+      expect(metafileFrame('XXXX', _pict()), isNull);
     });
 
-    test('a CompressedQuickTime raw image is fully modeled, byte-exact', () {
-      final p = _pictWithRawQuickTime(2, 2, 32);
-      final f = framePictV2(p);
-      expect(f, isNotNull);
-      expect(f!.bytes, orderedEquals(p));
-      expect(f.modelBytes + f.copiedBytes, p.length);
-      expect(f.copiedBytes, 0);
+    test('a CompressedQuickTime raw image is fully modelled and exposes its pixels', () {
+      final p = _pictWithRawQuickTime(3, 2, 24);
+      final pict = decodePict(p);
+      expect(pict.frame.modelBytes + pict.frame.copiedBytes, p.length);
+      expect(pict.frame.copiedBytes, 0);
+      final r = pict.quickTimeRaster!;
+      expect((r.width, r.height, r.depth), (3, 2, 24));
+      expect(r.pixels, List<int>.generate(18, (i) => i & 0xff));
     });
 
     test('a non-raw CompressedQuickTime codec stays an opaque leaf', () {
       final p = _pictWithRawQuickTime(2, 2, 32);
       const cTypeAt = 14 + 26 + 2 + 4 + 68 + 4;
       final q = Uint8List.fromList(p)..setRange(cTypeAt, cTypeAt + 4, 'jpeg'.codeUnits);
-      final f = framePictV2(q);
-      expect(f, isNotNull);
-      expect(f!.bytes, orderedEquals(q));
-      expect(f.copiedBytes, greaterThan(100));
-    });
-
-    test('decodePictQuickTimeRaster extracts the packed pixels', () {
-      final p = _pictWithRawQuickTime(3, 2, 24);
-      final r = decodePictQuickTimeRaster(p);
-      expect(r, isNotNull);
-      expect((r!.width, r.height, r.depth), (3, 2, 24));
-      expect(r.pixels, List<int>.generate(18, (i) => i & 0xff));
-      const cTypeAt = 14 + 26 + 2 + 4 + 68 + 4;
-      final q = Uint8List.fromList(p)..setRange(cTypeAt, cTypeAt + 4, 'jpeg'.codeUnits);
-      expect(decodePictQuickTimeRaster(q), isNull);
+      final pict = decodePict(q);
+      expect(pict.frame.copiedBytes, greaterThan(100));
+      expect(pict.quickTimeRaster, isNull);
     });
   });
 
-  group('EMF framer', () {
-    test('frames byte-exact and tiles to EMR_EOF', () {
+  group('EMF', () {
+    test('decodes the bounds and accounts for the records to EMR_EOF', () {
       final e = _emf();
-      final f = frameEmf(e);
-      expect(f, isNotNull);
-      expect(f!.kind, ViMetafileKind.emf);
-      expect(f.bytes, orderedEquals(e));
-      expect(f.modelBytes + f.copiedBytes, e.length);
-      expect(f.elementCount, 2);
-      expect(f.modelBytes, 64);
-      expect(f.copiedBytes, 4);
+      final emf = decodeEmf(e);
+      expect(emf.serialize(), same(e));
+      expect((emf.boundsRight, emf.boundsBottom), (640, 480));
+      expect(emf.frame.modelBytes + emf.frame.copiedBytes, e.length);
+      expect(emf.frame.elementCount, 2);
+      expect(metafileFrame('WEMF', e)?.elementCount, 2);
     });
 
-    test('rejects a non-EMF magic / missing signature', () {
-      final e = Uint8List.fromList(_emf())..setRange(40, 44, const [0, 0, 0, 0]);
-      expect(frameEmf(e), isNull);
-    });
-
-    test('rejects a record whose size is not 4-aligned', () {
-      final e = Uint8List.fromList(_emf());
-      ByteData.sublistView(e).setUint32(4, 47, Endian.little);
-      expect(frameEmf(e), isNull);
-    });
-
-    test('rejects a stream that does not end at EMR_EOF on the last byte', () {
-      final e = u8([..._emf(), 0x00, 0x00, 0x00, 0x00]);
-      expect(frameEmf(e), isNull);
-    });
-
-    test('dispatches through frameMetafile by tag', () {
-      expect(frameMetafile('WEMF', _emf())?.kind, ViMetafileKind.emf);
+    test('rejects a missing signature, a bad record size, and a stream past EMR_EOF', () {
+      expect(() => decodeEmf(Uint8List.fromList(_emf())..[40] = 0), throwsA(isA<AssertionError>()));
+      expect(() => decodeEmf(Uint8List.fromList(_emf())..[48 + 4] = 21), throwsA(isA<AssertionError>()));
+      expect(() => decodeEmf(u8([..._emf(), 0, 0, 0, 0])), throwsA(isA<AssertionError>()));
     });
   });
 }

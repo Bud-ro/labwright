@@ -94,7 +94,9 @@ bool hasBlockWriter(String tag) => switch (tag) {
 
 Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? version}) {
   final out = switch (tag) {
-    'icl8' || 'icl4' || 'ICON' => decodeLegacyIcon(payload, legacyIconBpp(tag)!)?.serialize(),
+    'icl8' => decodeIcl8(payload).serialize(),
+    'icl4' => decodeIcl4(payload).serialize(),
+    'ICON' => decodeIcon1(payload).serialize(),
     'NUID' || 'SUID' || 'BNID' => decodeIdTable(payload).serialize(),
     'vers' => decodeVersBlock(payload).serialize(),
     'VITS' => decodeTagStore(payload).serialize(),

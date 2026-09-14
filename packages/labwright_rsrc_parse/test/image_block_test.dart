@@ -15,6 +15,7 @@ List<int> _chunk(String type, List<int> data) {
 }
 
 const _pngSig = [0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
+const _mngSig = [0x8a, 0x4d, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a];
 
 Uint8List _png() {
   final ihdr = _chunk('IHDR', [
@@ -44,17 +45,20 @@ Uint8List _png() {
   return (png: u8([..._pngSig, ...ihdr, ...idats, ...iend]), raster: raster);
 }
 
-Uint8List _dsimRaster(int w, int h, int depth, List<int> pixels, {List<int> trailer = const []}) {
+Uint8List _dsimHeader(int w, int h, int depth, int pixelBytes) {
   final b = ByteData(46);
   b.setUint16(4, w);
   b.setUint16(6, h);
   b.setUint16(8, depth);
-  b.setUint32(22, pixels.length); // pixel byte count
+  b.setInt32(22, pixelBytes);
   b.setUint16(30, w);
   b.setUint16(32, h);
   b.setUint16(34, depth);
-  return u8([...b.buffer.asUint8List(), ...pixels, ...trailer]);
+  return b.buffer.asUint8List();
 }
+
+Uint8List _dsimRaster(int w, int h, int depth, List<int> pixels, {List<int> trailer = const []}) =>
+    u8([..._dsimHeader(w, h, depth, pixels.length), ...pixels, ...trailer]);
 
 void main() {
   test('crc32 matches the canonical empty-IEND checksum', () {
@@ -63,106 +67,109 @@ void main() {
   });
 
   group('MNGI (bare PNG)', () {
-    test('frames a PNG byte-exact and splits framing/IHDR model vs IDAT copied', () {
+    test('records every chunk, verifies CRCs, and splits framing from the copied IDAT', () {
       final png = _png();
-      final img = decodeImageBlock('MNGI', png)!;
-      expect(img.bytes, png, reason: 're-emit must be byte-exact');
-      expect(img.modelBytes + img.copiedBytes, png.length);
-      expect(img.pngChunks, 3);
-      expect(img.crcVerified, 3);
-      expect(img.copiedBytes, 6);
-      expect(img.isRaster, isFalse);
+      final stream = decodePngStream(png);
+      expect(stream.serialize(), same(png));
+      expect(stream.kind, ChunkStreamKind.png);
+      expect((stream.width, stream.height, stream.chunkCount), (4, 4, 3));
+      expect([for (var i = 0; i < 3; i++) stream.chunkTypeAt(i)], ['IHDR', 'IDAT', 'IEND']);
+      expect(stream.chunkDataAt(1), [0xde, 0xad, 0xbe, 0xef, 0x01, 0x02]);
+      final acc = stream.accounting();
+      expect(acc.modelBytes + acc.copiedBytes, png.length);
+      expect((acc.chunkCount, acc.crcVerified, acc.copiedBytes), (3, 3, 6));
     });
 
-    test('a corrupt CRC keeps that chunk copied but stays byte-exact', () {
+    test('a corrupt CRC keeps that chunk retained', () {
       final png = Uint8List.fromList(_png());
       png[png.length - 1] ^= 0xff;
-      final img = decodeImageBlock('MNGI', png)!;
-      expect(img.bytes, isNot(equals(png)), reason: 'recomputed CRC no longer matches the corrupted byte');
-      expect(img.crcVerified, 2);
+      final stream = decodePngStream(png);
+      expect(stream.chunkCrcOkAt(2), isFalse);
+      expect(stream.accounting().crcVerified, 2);
+      expect(stream.serialize(), same(png));
     });
 
-    test('a non-PNG MNG variant is not framed', () {
-      expect(decodeImageBlock('MNGI', u8([0x8a, 0x4d, 0x4e, 0x47, 0, 1, 2, 3])), isNull);
+    test('an MNG stream is the same chunk framing ending at MEND', () {
+      final mng = u8([
+        ..._mngSig,
+        ..._chunk('MHDR', [0, 0, 0, 9, 0, 0, 0, 7, 0, 0, 0, 0]),
+        ..._chunk('MEND', const []),
+      ]);
+      final stream = decodePngStream(mng);
+      expect((stream.kind, stream.width, stream.height, stream.chunkCount), (ChunkStreamKind.mng, 9, 7, 2));
+    });
+
+    test('a stream that does not tile to its end chunk violates the precondition', () {
+      expect(() => decodePngStream(u8([0x8a, 0x4d, 0x4e, 0x47, 0, 1, 2, 3])), throwsA(isA<AssertionError>()));
+      expect(() => decodePngStream(u8([..._png(), 0])), throwsA(isA<AssertionError>()));
     });
 
     test('an unrecoverable IDAT stream leaves the content-level split zero', () {
-      final img = decodeImageBlock('MNGI', _png())!;
-      expect(img.compressedContentBytes, 0);
-      expect(img.inflatedContentBytes, 0);
-      expect(img.inflatedModelBytes, 0);
-      expect(imageRasterRoundTrips('MNGI', _png()), isNull);
+      final stream = decodePngStream(_png());
+      final acc = stream.accounting();
+      expect((acc.compressedContentBytes, acc.inflatedContentBytes), (0, 0));
+      expect(stream.rasterRoundTrips(), isNull);
     });
 
-    test('a real IDAT inflates to the raster and counts as content-model', () {
+    test('a real IDAT inflates to the raster and counts as content', () {
       final made = _pngRealIdat();
-      final img = decodeImageBlock('MNGI', made.png)!;
-      expect(img.bytes, made.png, reason: 're-emit must stay byte-exact');
-      expect(inflateImageRaster('MNGI', made.png), made.raster);
-      expect(img.inflatedContentBytes, made.raster.length);
-      expect(img.inflatedModelBytes, made.raster.length);
-      expect(img.inflatedCopiedBytes, 0);
-      expect(img.compressedContentBytes, greaterThan(0));
-      expect(imageRasterRoundTrips('MNGI', made.png), isTrue);
+      final stream = decodePngStream(made.png);
+      expect(stream.inflateRaster(), made.raster);
+      final acc = stream.accounting();
+      expect(acc.inflatedContentBytes, made.raster.length);
+      expect(acc.compressedContentBytes, greaterThan(0));
+      expect(stream.rasterRoundTrips(), isTrue);
     });
 
     test('a raster split across multiple IDAT chunks concatenates and inflates', () {
       final made = _pngRealIdat(idatParts: 3);
-      expect(inflateImageRaster('MNGI', made.png), made.raster);
-      expect(imageRasterRoundTrips('MNGI', made.png), isTrue);
-      final img = decodeImageBlock('MNGI', made.png)!;
-      expect(img.inflatedModelBytes, made.raster.length);
+      final stream = decodePngStream(made.png);
+      expect(stream.inflateRaster(), made.raster);
+      expect(stream.rasterRoundTrips(), isTrue);
     });
   });
 
   group('DSIM', () {
-    test('raw raster: header + pixels are model, trailer copied, byte-exact', () {
+    test('raw raster: header + pixels are model, trailer retained', () {
       final pixels = List.filled(4 * 4 * 3, 0xbb);
       final dsim = _dsimRaster(4, 4, 24, pixels, trailer: const [1, 2, 3, 4]);
-      final img = decodeImageBlock('DSIM', dsim)!;
-      expect(img.bytes, dsim);
-      expect(img.isRaster, isTrue);
-      expect(img.modelBytes, 46 + pixels.length);
-      expect(img.copiedBytes, 4);
-      expect(img.inflatedContentBytes, 0);
-      expect(img.compressedContentBytes, 0);
-      expect(inflateImageRaster('DSIM', dsim), isNull);
+      final image = decodeDataSpaceImage(dsim);
+      expect(image, isA<ViDataSpaceRaster>());
+      expect(image.serialize(), same(dsim));
+      expect((image as ViDataSpaceRaster).pixels, pixels);
+      expect(image.trailer, [1, 2, 3, 4]);
+      expect((image.accounting.modelBytes, image.accounting.copiedBytes), (46 + pixels.length, 4));
     });
 
-    test('raw raster with a mismatched pixel-count field is not framed', () {
-      final b = ByteData(46);
-      b.setUint16(4, 4);
-      b.setUint16(6, 4);
-      b.setUint16(8, 24);
-      b.setUint32(22, 999);
-      b.setUint16(30, 4);
-      b.setUint16(32, 4);
-      b.setUint16(34, 24);
-      final dsim = u8([...b.buffer.asUint8List(), ...List.filled(48, 0)]);
-      expect(decodeImageBlock('DSIM', dsim), isNull);
+    test('raw raster with a mismatched pixel-count field violates the precondition', () {
+      final dsim = u8([..._dsimHeader(4, 4, 24, 999), ...List.filled(48, 0)]);
+      expect(() => decodeDataSpaceImage(dsim), throwsA(isA<AssertionError>()));
     });
 
-    test('PNG-carrying: header model + framed PNG + trailer copied, byte-exact', () {
-      final header = ByteData(46);
-      header.setUint16(4, 4);
-      header.setUint16(6, 4);
-      header.setUint16(8, 24);
-      header.setUint16(30, 4);
-      header.setUint16(32, 4);
-      header.setUint16(34, 24);
+    test('PNG-carrying: header + PNG framing modelled, IDAT and trailer retained', () {
       final png = _png();
-      final dsim = u8([...header.buffer.asUint8List(), ...png, 0xaa, 0xbb]);
-      final img = decodeImageBlock('DSIM', dsim)!;
-      expect(img.bytes, dsim);
-      expect(img.isRaster, isFalse);
-      expect(img.modelBytes, 46 + (png.length - 6));
-      expect(img.copiedBytes, 6 + 2);
+      final dsim = u8([..._dsimHeader(4, 4, 24, -1), ...png, 0xaa, 0xbb]);
+      final image = decodeDataSpaceImage(dsim);
+      expect(image, isA<ViDataSpacePng>());
+      final withPng = image as ViDataSpacePng;
+      expect((withPng.pngOffset, withPng.png.width, withPng.png.chunkCount), (46, 4, 3));
+      expect(withPng.png.bytes, png);
+      expect(withPng.trailer, [0xaa, 0xbb]);
+      expect((image.accounting.modelBytes, image.accounting.copiedBytes), (46 + (png.length - 6), 6 + 2));
+      final at48 = u8([..._dsimHeader(4, 4, 8, -1), 0, 0, ...png]);
+      expect((decodeDataSpaceImage(at48) as ViDataSpacePng).pngOffset, 48);
     });
 
-    test('an invalid header (nonzero lead) is not framed', () {
+    test('a 16-byte header-only image carries just the geometry', () {
+      final image = decodeDataSpaceImage(u8([0, 0, 0, 0, 0, 20, 0, 20, 0, 1, 0, 0, 0, 0, 0, 0]));
+      expect(image, isA<ViDataSpaceHeaderOnly>());
+      expect((image.width, image.height, image.depth, image.trailer.length), (20, 20, 1, 0));
+    });
+
+    test('an invalid header (nonzero lead or unrepeated geometry) violates the precondition', () {
       final dsim = _dsimRaster(4, 4, 24, List.filled(48, 0));
-      final bad = Uint8List.fromList(dsim)..[0] = 1;
-      expect(decodeImageBlock('DSIM', bad), isNull);
+      expect(() => decodeDataSpaceImage(Uint8List.fromList(dsim)..[0] = 1), throwsA(isA<AssertionError>()));
+      expect(() => decodeDataSpaceImage(Uint8List.fromList(dsim)..[31] = 5), throwsA(isA<AssertionError>()));
     });
   });
 
@@ -182,29 +189,19 @@ void main() {
       return u8([..._pngSig, ...ihdr, ...extra, ...idat, ...iend]);
     }
 
-    test('iCCP: prefix modeled, zlib copied, inflated profile counts as content', () {
+    test('iCCP: prefix modelled, zlib retained, inflated profile counts as content', () {
       final profile = List.generate(200, (i) => (i * 13 + 5) & 0xff);
-      final png = pngWith(iccp(profile));
-      final img = decodeImageBlock('MNGI', png)!;
-      expect(img.bytes, png, reason: 're-emit stays byte-exact');
-      expect(img.inflatedContentBytes, profile.length);
-      expect(img.inflatedModelBytes, profile.length);
-      expect(img.compressedContentBytes, greaterThan(0));
-      final rt = imageAncillaryRoundTrips('MNGI', png);
-      expect(rt.count, 1);
-      expect(rt.ok, 1, reason: 'the iCCP profile round-trips through standard zlib');
+      final stream = decodePngStream(pngWith(iccp(profile)));
+      final acc = stream.accounting();
+      expect(acc.inflatedContentBytes, profile.length);
+      expect(acc.compressedContentBytes, greaterThan(0));
+      expect(stream.ancillaryRoundTrips(), (count: 1, ok: 1));
     });
 
-    test('uncompressed iTXt is modeled whole, carries no ancillary stream', () {
-      final png = pngWith(itxtPlain('Comment', 'hello world'));
-      final img = decodeImageBlock('MNGI', png)!;
-      expect(img.bytes, png);
-      expect(img.copiedBytes, 4);
-      expect(imageAncillaryRoundTrips('MNGI', png).count, 0);
+    test('uncompressed iTXt is modelled whole and carries no ancillary stream', () {
+      final stream = decodePngStream(pngWith(itxtPlain('Comment', 'hello world')));
+      expect(stream.accounting().copiedBytes, 4);
+      expect(stream.ancillaryRoundTrips(), (count: 0, ok: 0));
     });
-  });
-
-  test('an unrelated tag is not an image block', () {
-    expect(decodeImageBlock('STRG', _png()), isNull);
   });
 }

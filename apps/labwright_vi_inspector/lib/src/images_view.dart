@@ -5,19 +5,7 @@ import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'image_clipboard.dart';
-import 'mac_icon_palette.dart';
 import 'span_annotations.dart';
-
-const List<int> _pngSignature = [
-  0x89,
-  0x50,
-  0x4e,
-  0x47,
-  0x0d,
-  0x0a,
-  0x1a,
-  0x0a,
-];
 
 class EmbeddedPng {
   const EmbeddedPng({
@@ -76,79 +64,83 @@ class ViImages {
   int get count => pngs.length + icons.length + metafiles.length;
 }
 
-bool _pngSignatureAt(Uint8List bytes, int start) {
-  if (start + _pngSignature.length > bytes.length) return false;
-  for (var i = 0; i < _pngSignature.length; i++) {
-    if (bytes[start + i] != _pngSignature[i]) return false;
-  }
-  return true;
-}
-
 ViImages extractViImages(List<DecodedSection> sections) {
   final pngs = <EmbeddedPng>[];
   final icons = <EmbeddedLegacyIcon>[];
   final metafiles = <DecodedMetafileImage>[];
+  void png(DecodedSection section, ViPngStream stream) => pngs.add(
+    EmbeddedPng(
+      tag: section.tag,
+      index: section.index,
+      width: stream.width,
+      height: stream.height,
+      bytes: stream.bytes,
+    ),
+  );
   for (final section in sections) {
     final payload = section.bytes;
-    final bpp = legacyIconBpp(section.tag);
-    if (bpp != null) {
-      final icon = decodeLegacyIcon(payload, bpp);
-      if (icon != null) {
-        icons.add(EmbeddedLegacyIcon(tag: section.tag, icon: icon));
-      }
-    }
-    if (section.tag == 'PICT') {
-      final raster = decodePictQuickTimeRaster(payload);
-      if (raster != null) {
-        metafiles.add(
-          DecodedMetafileImage(
-            tag: section.tag,
-            width: raster.width,
-            height: raster.height,
-            depth: raster.depth,
-            png: encodeQuickTimeRasterPng(raster),
-          ),
-        );
-      }
-    }
-    for (var off = 0; off + _pngSignature.length <= payload.length; off++) {
-      if (!_pngSignatureAt(payload, off)) continue;
-      final png = decodePngEnvelope(payload, off);
-      if (png == null) continue;
-      final end = off + png.byteLength;
-      if (end > payload.length) continue;
-      pngs.add(
-        EmbeddedPng(
-          tag: section.tag,
-          index: section.index,
-          width: png.width,
-          height: png.height,
-          bytes: payload.sublist(off, end),
-        ),
-      );
+    switch (BlockTag.of(section.tag)) {
+      case BlockTag.icl8 || BlockTag.icl4 || BlockTag.icon:
+        final depth = LegacyIconDepth.forTag(section.tag)!;
+        if (payload.length == depth.byteLength) {
+          icons.add(
+            EmbeddedLegacyIcon(
+              tag: section.tag,
+              icon: decodeLegacyIcon(payload, depth),
+            ),
+          );
+        }
+      case BlockTag.pict:
+        final raster = decodePict(payload).quickTimeRaster;
+        if (raster != null) {
+          metafiles.add(
+            DecodedMetafileImage(
+              tag: section.tag,
+              width: raster.width,
+              height: raster.height,
+              depth: raster.depth,
+              png: encodeQuickTimeRasterPng(
+                raster.width,
+                raster.height,
+                raster.depth,
+                raster.pixels,
+              ),
+            ),
+          );
+        }
+      case BlockTag.mngi:
+        final stream = decodePngStream(payload);
+        if (stream.kind == ChunkStreamKind.png) png(section, stream);
+      case BlockTag.dsim:
+        if (decodeDataSpaceImage(payload) case ViDataSpacePng(
+          png: final stream,
+        )) {
+          png(section, stream);
+        }
+      default:
+        break;
     }
   }
   return ViImages(pngs: pngs, icons: icons, metafiles: metafiles);
 }
 
-Uint8List encodeQuickTimeRasterPng(ViQuickTimeRaster raster) {
-  if (raster.depth != 24 && raster.depth != 32) {
+Uint8List encodeQuickTimeRasterPng(
+  int width,
+  int height,
+  int depth,
+  Uint8List pixels,
+) {
+  if (depth != 24 && depth != 32) {
     return img.encodePng(img.Image(width: 1, height: 1));
   }
-  final bytesPerPixel = raster.depth ~/ 8;
-  final image = img.Image(width: raster.width, height: raster.height);
-  final rowBytes = raster.width * bytesPerPixel;
-  for (var y = 0; y < raster.height; y++) {
+  final bytesPerPixel = depth ~/ 8;
+  final image = img.Image(width: width, height: height);
+  final rowBytes = width * bytesPerPixel;
+  for (var y = 0; y < height; y++) {
     final row = y * rowBytes;
-    for (var x = 0; x < raster.width; x++) {
+    for (var x = 0; x < width; x++) {
       final base = row + x * bytesPerPixel + (bytesPerPixel - 3);
-      image.setPixelRgb(
-        x,
-        y,
-        raster.pixels[base],
-        raster.pixels[base + 1],
-        raster.pixels[base + 2],
-      );
+      image.setPixelRgb(x, y, pixels[base], pixels[base + 1], pixels[base + 2]);
     }
   }
   return img.encodePng(image);
@@ -168,7 +160,7 @@ Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
   final image = img.Image(width: dim, height: dim);
   for (var y = 0; y < dim; y++) {
     for (var x = 0; x < dim; x++) {
-      final argb = macIconArgb(icon.bpp, icon.pixels[y * dim + x]);
+      final argb = icon.argbAt(x, y);
       image.setPixelRgb(
         x,
         y,
@@ -179,14 +171,6 @@ Uint8List encodeLegacyIconPng(ViLegacyIcon icon) {
     }
   }
   return img.encodePng(image);
-}
-
-bool _sameGrid(ViLegacyIcon a, ViLegacyIcon b) {
-  if (a.pixels.length != b.pixels.length) return false;
-  for (var i = 0; i < a.pixels.length; i++) {
-    if (a.pixels[i] != b.pixels[i]) return false;
-  }
-  return true;
 }
 
 class ViImagesView extends StatelessWidget {
@@ -333,7 +317,7 @@ class ViImagesView extends StatelessWidget {
   String? _matchNote(EmbeddedLegacyIcon icon, List<EmbeddedLegacyIcon> icons) {
     for (final other in icons) {
       if (identical(other, icon)) break;
-      if (_sameGrid(other.icon, icon.icon)) return other.tag;
+      if (other.icon.sameGrid(icon.icon)) return other.tag;
     }
     return null;
   }
@@ -427,7 +411,7 @@ class _LegacyIconTile extends StatelessWidget {
   Widget build(BuildContext context) => _ImageTile(
     onCopy: onCopy,
     caption:
-        'VI icon · ${entry.icon.bpp}-bit (${entry.tag})'
+        'VI icon · ${entry.icon.depth.bits}-bit (${entry.tag})'
         '${sameAs != null ? ' · identical grid to $sameAs' : ''}',
     child: CustomPaint(
       size: const Size(128, 128),

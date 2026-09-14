@@ -1,6 +1,7 @@
 import 'dart:io';
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 
 Directory? _corpusDir() {
@@ -33,7 +34,7 @@ void main() {
     if (vi == null) return;
     final icon = decodeViFileIcon(vi.path);
     expect(icon, isNotNull);
-    expect(icon!.pixels, hasLength(1024));
+    expect(icon!.depth, LegacyIconDepth.eightBit);
   });
 
   test('linker paths resolve targets directly — no directory search', () {

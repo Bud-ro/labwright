@@ -45,7 +45,7 @@ class _BlockHexViewState extends State<BlockHexView> {
 
   void _buildModel() {
     final bytes = widget.section.bytes;
-    _preview = iconPreview(bytes);
+    _preview = iconPreview(widget.section.tag, bytes);
     final isHeap = BlockTag.of(widget.section.tag)?.isRecordHeap ?? false;
     if (isHeap) {
       try {
@@ -558,14 +558,17 @@ class _BlockHexViewState extends State<BlockHexView> {
         );
       }
     }
-    final bpp = legacyIconBpp(widget.section.tag);
-    if (bpp != null) {
-      final icon = decodeLegacyIcon(widget.section.bytes, bpp);
-      if (icon != null) {
+    final depth = LegacyIconDepth.forTag(widget.section.tag);
+    if (depth != null) {
+      if (widget.section.bytes.length == depth.byteLength) {
+        final icon = decodeLegacyIcon(widget.section.bytes, depth);
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
-            ..._parsedHeader(name, '${widget.section.tag} · 32×32 @ ${bpp}bpp'),
+            ..._parsedHeader(
+              name,
+              '${widget.section.tag} · 32×32 @ ${depth.bits}bpp',
+            ),
             Center(
               child: CustomPaint(
                 size: const Size(128, 128),

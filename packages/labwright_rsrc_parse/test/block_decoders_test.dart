@@ -36,13 +36,15 @@ Uint8List _idtab(List<int> entries) {
 }
 
 Uint8List _iconSection(List<int> pixels) {
-  final b = Uint8List(40 + pixels.length);
+  final b = Uint8List(46 + pixels.length);
   b[5] = 2;
   b[7] = 2;
   b[9] = 24;
+  b[25] = pixels.length;
   b[31] = 2;
   b[33] = 2;
-  b.setRange(b.length - pixels.length, b.length, pixels);
+  b[35] = 24;
+  b.setRange(46, b.length, pixels);
   return b;
 }
 
@@ -497,43 +499,77 @@ void main() {
   group('icons', () {
     const px = [255, 0, 0, 0, 255, 0, 0, 0, 255, 255, 255, 0];
 
-    test('extractRgbIcon decodes the validated 2×2 RGB form and rejects everything else', () {
-      final icon = extractRgbIcon(_iconSection(px))!;
-      expect((icon.width, icon.height), (2, 2));
-      expect(icon.rgb, px);
-      expect(extractRgbIcon(_iconSection(px)..[9] = 8), isNull, reason: 'wrong depth');
-      expect(extractRgbIcon(_iconSection(px)..[31] = 9), isNull, reason: 'rect not doubled');
-      expect(extractRgbIcon(_iconSection(px)..[0] = 1), isNull, reason: 'nonzero flags');
-      expect(extractRgbIcon(Uint8List(10)), isNull, reason: 'too short');
-      expect(extractRgbIcon(u8(List.filled(60, 0x41))), isNull, reason: 'arbitrary bytes');
-    });
-
-    test('decodeViIcon finds the icon across sections regardless of tag', () {
-      final icon = decodeViIcon([dsec(List.filled(20, 0), tag: 'LVSR'), dsec(_iconSection(px), tag: 'PICC')])!;
-      expect(icon.width, 2);
-      expect(icon.rgb, px);
-      expect(decodeViIcon([dsec(List.filled(8, 0), tag: 'LVSR')]), isNull);
-    });
-
-    test('decodeLegacyIcon: bpp by tag, exact-size 32×32 bitmaps, wrong sizes rejected', () {
+    test('decodeDataSpaceImage: a 24-bit raster, its pixels, and the geometry checks', () {
+      final raster = decodeDataSpaceImage(_iconSection(px));
+      expect(raster, isA<ViDataSpaceRaster>());
+      expect((raster.width, raster.height, raster.depth), (2, 2, 24));
+      expect((raster as ViDataSpaceRaster).pixels, px);
+      expect(raster.serialize(), same(raster.bytes));
+      expect(() => decodeDataSpaceImage(_iconSection(px)..[31] = 9), throwsA(isA<AssertionError>()));
+      expect(() => decodeDataSpaceImage(_iconSection(px)..[0] = 1), throwsA(isA<AssertionError>()));
+      expect(() => decodeDataSpaceImage(Uint8List(10)), throwsA(isA<AssertionError>()));
       expect(
-        [legacyIconBpp('icl8'), legacyIconBpp('icl4'), legacyIconBpp('ICON'), legacyIconBpp('STRG')],
-        [
-          8,
-          4,
-          1,
-          null,
-        ],
+        decodeDataSpaceImage(
+          Uint8List(16)
+            ..[5] = 20
+            ..[7] = 20
+            ..[9] = 1,
+        ),
+        isA<ViDataSpaceHeaderOnly>(),
       );
-      final mono = decodeLegacyIcon(Uint8List(128)..[0] = 0xA0, 1)!;
-      expect((mono.bpp, mono.pixels.length), (1, 1024));
-      expect(mono.pixels.sublist(0, 8), [1, 0, 1, 0, 0, 0, 0, 0], reason: 'MSB-first bit expansion');
-      final nib = decodeLegacyIcon(Uint8List(512)..[0] = 0x3C, 4)!;
-      expect((nib.pixels.length, nib.pixels[0], nib.pixels[1]), (1024, 3, 12), reason: 'two nibbles per byte');
-      final byte = decodeLegacyIcon(Uint8List(1024)..[5] = 200, 8)!;
-      expect((byte.pixels.length, byte.pixels[5]), (1024, 200));
-      expect(decodeLegacyIcon(Uint8List(100), 1), isNull, reason: '1-bpp must be exactly 128 bytes');
-      expect(decodeLegacyIcon(Uint8List(1024), 4), isNull, reason: '4-bpp must be exactly 512 bytes');
+    });
+
+    test('rgbIconFromSections finds the 24-bit raster among the DSIM sections', () {
+      final icon = rgbIconFromSections([dsec(List.filled(20, 0), tag: 'LVSR'), dsec(_iconSection(px), tag: 'DSIM')])!;
+      expect(icon.width, 2);
+      expect(icon.pixels, px);
+      expect(rgbIconFromSections([dsec(_iconSection(px), tag: 'PICC')]), isNull);
+    });
+
+    test('decodeLegacyIcon: depth by tag, exact-size 32×32 bitmaps, pixel and palette reads', () {
+      expect(
+        [
+          for (final t in ['icl8', 'icl4', 'ICON', 'STRG']) LegacyIconDepth.forTag(t),
+        ],
+        [LegacyIconDepth.eightBit, LegacyIconDepth.fourBit, LegacyIconDepth.mono, null],
+      );
+      final mono = decodeIcon1(Uint8List(128)..[0] = 0xA0);
+      expect([for (var x = 0; x < 8; x++) mono.pixelAt(x, 0)], [1, 0, 1, 0, 0, 0, 0, 0], reason: 'MSB-first bits');
+      expect((mono.argbAt(0, 0), mono.argbAt(1, 0)), (0xFF000000, 0xFFFFFFFF));
+      final nib = decodeIcl4(Uint8List(512)..[0] = 0x3C);
+      expect((nib.pixelAt(0, 0), nib.pixelAt(1, 0)), (3, 12), reason: 'two nibbles per byte');
+      expect(nib.argbAt(0, 0), 0xFFDD0806);
+      final byte = decodeIcl8(Uint8List(1024)..[37] = 200);
+      expect((byte.pixelAt(5, 1), byte.argbAt(5, 1), byte.argbAt(0, 0)), (200, 0xFF006699, 0xFFFFFFFF));
+      expect(byte.serialize(), same(byte.bytes));
+      expect(() => decodeIcon1(Uint8List(100)), throwsA(isA<AssertionError>()));
+      expect(() => decodeIcl4(Uint8List(1024)), throwsA(isA<AssertionError>()));
+    });
+
+    test('macIconArgb maps the Mac 16- and 256-colour palettes', () {
+      expect(
+        (macIconArgb(LegacyIconDepth.fourBit, 0), macIconArgb(LegacyIconDepth.fourBit, 6)),
+        (0xFFFFFFFF, 0xFF0000D4),
+      );
+      expect(macIconArgb(LegacyIconDepth.fourBit, 15), 0xFF000000);
+      const eight = LegacyIconDepth.eightBit;
+      expect(
+        [macIconArgb(eight, 0), macIconArgb(eight, 5), macIconArgb(eight, 35)],
+        [0xFFFFFFFF, 0xFFFFFF00, 0xFFFF0000],
+      );
+      expect(
+        [macIconArgb(eight, 215), macIconArgb(eight, 245), macIconArgb(eight, 255)],
+        [0xFFEE0000, 0xFFEEEEEE, 0xFF000000],
+      );
+    });
+
+    test('legacyIconFromSections prefers icl8 over icl4 over ICON', () {
+      final icl4 = sec('icl4', List.filled(512, 1));
+      final icon = sec('ICON', List.filled(128, 2));
+      expect(legacyIconFromSections([icon, icl4])!.depth, LegacyIconDepth.fourBit);
+      expect(legacyIconFromSections([icon, icl4, sec('icl8', List.filled(1024, 3))])!.depth, LegacyIconDepth.eightBit);
+      expect(legacyIconFromSections([sec('icl8', List.filled(9, 3))]), isNull);
+      expect(legacyIconFromSections([sec('LVSR', List.filled(160, 0))]), isNull);
     });
   });
 
@@ -609,18 +645,19 @@ void main() {
       'decodeHelpPath': decodeHelpPath,
       'decodeIdTable': decodeIdTable,
       'decodeAlignTable': decodeAlignTable,
-      'extractRgbIcon': extractRgbIcon,
-      'icl8': (b) => decodeLegacyIcon(b, 8),
-      'icl4': (b) => decodeLegacyIcon(b, 4),
-      'ICON': (b) => decodeLegacyIcon(b, 1),
+      'decodeDataSpaceImage': decodeDataSpaceImage,
+      'decodeIcl8': decodeIcl8,
+      'decodeIcl4': decodeIcl4,
+      'decodeIcon1': decodeIcon1,
+      'decodePngStream': decodePngStream,
+      'decodePict': decodePict,
+      'decodeEmf': decodeEmf,
       'decodeConnectorPaneMap': decodeConnectorPaneMap,
       'decodeOffsetTable': decodeOffsetTable,
       'decodeGcdiRecord': decodeGcdiRecord,
       'decodeBookmarkList': decodeBookmarkList,
       'decodeTagStore': decodeTagStore,
       'decodeCompiledCode': decodeCompiledCode,
-      'decodeDataSpaceImage': decodeDataSpaceImage,
-      'decodePngEnvelope': decodePngEnvelope,
       'decodeLinkInfo': decodeLinkInfo,
       'decodePasswordRecord': decodePasswordRecord,
       'decodeSignature': decodeSignature,
@@ -660,11 +697,11 @@ void main() {
   group('block-payload writers (byte-exact serialize inverses)', () {
     test('ViLegacyIcon.serialize re-packs 8/4/1 bpp exactly (inverse of decode)', () {
       final icl8 = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 7) & 0xff]);
-      expect(decodeLegacyIcon(icl8, 8)!.serialize(), icl8);
+      expect(decodeIcl8(icl8).serialize(), same(icl8));
       final icl4 = Uint8List.fromList([for (var i = 0; i < 512; i++) (i * 13) & 0xff]);
-      expect(decodeLegacyIcon(icl4, 4)!.serialize(), icl4);
+      expect(decodeIcl4(icl4).serialize(), same(icl4));
       final icon = Uint8List.fromList([for (var i = 0; i < 128; i++) (i * 29) & 0xff]);
-      expect(decodeLegacyIcon(icon, 1)!.serialize(), icon);
+      expect(decodeIcon1(icon).serialize(), same(icon));
     });
 
     test('ViIdTable.serialize returns the backing [u32 count][entries] bytes', () {
@@ -740,23 +777,11 @@ void main() {
         isNull,
         reason: 'count 2 with no entries stays unwalked',
       );
-      expect(serializeBlockPayload('icl8', u8([1, 2, 3])), isNull);
+      expect(() => serializeBlockPayload('icl8', u8([1, 2, 3])), throwsA(isA<AssertionError>()));
       expect(
         () => serializeBlockPayload('NUID', u8([0, 0, 0, 1, 0, 0, 0, 5, 0xFF, 0xFF])),
         throwsA(isA<AssertionError>()),
       );
-    });
-
-    test('MUTATION: flipping an icon pixel confines the byte delta to its byte', () {
-      final body = Uint8List.fromList([for (var i = 0; i < 1024; i++) (i * 5) & 0xff]);
-      final icon = decodeLegacyIcon(body, 8)!;
-      final pixels = [...icon.pixels]..[100] = 0xAB;
-      final out = ViLegacyIcon(bpp: 8, pixels: pixels).serialize();
-      final delta = [
-        for (var i = 0; i < out.length; i++)
-          if (out[i] != body[i]) i,
-      ];
-      expect(delta, [100], reason: '8 bpp: pixel 100 is byte 100');
     });
   });
 }

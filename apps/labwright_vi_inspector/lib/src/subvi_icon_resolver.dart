@@ -97,14 +97,5 @@ ViLegacyIcon? decodeViFileIcon(String path) {
   } catch (_) {
     return null;
   }
-  for (final tag in const ['icl8', 'icl4', 'ICON']) {
-    for (final section in sections) {
-      if (section.tag != tag) continue;
-      final bpp = legacyIconBpp(tag);
-      if (bpp == null) continue;
-      final icon = decodeLegacyIcon(section.bytes, bpp);
-      if (icon != null) return icon;
-    }
-  }
-  return null;
+  return legacyIconFromSections(sections);
 }

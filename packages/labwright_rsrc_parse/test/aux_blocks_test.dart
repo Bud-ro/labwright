@@ -42,8 +42,8 @@ bool _gcdi(Uint8List b) => decodeGcdiRecord(b).value >= 0;
 bool _bkmk(Uint8List b) => decodeBookmarkList(b).tableA.length >= 0;
 bool _vits(Uint8List b) => decodeTagStore(b).entries.length == decodeTagStore(b).declaredCount;
 bool _vicd(Uint8List b) => decodeCompiledCode(b).codeSize >= 0;
-bool _dsim(Uint8List b) => decodeDataSpaceImage(b) != null;
-bool _mngi(Uint8List b) => decodePngEnvelope(b) != null;
+bool _dsim(Uint8List b) => decodeDataSpaceImage(b).width >= 0;
+bool _mngi(Uint8List b) => decodePngStream(b).chunkCount > 0;
 bool _linkInfo(Uint8List b) => decodeLinkInfo(b).version == 1;
 bool _bdpw(Uint8List b) => decodePasswordRecord(b).passwordDigest.length == 16;
 bool _rtsg(Uint8List b) => decodeSignature(b).digest.length == 16;
@@ -73,22 +73,7 @@ Map<String, int> _undecoded(Uint8List bytes, String path) {
   return c;
 }
 
-const kUndecodedAuxSections = <String, Map<String, int>>{
-  'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/user.lib/_NEVSTOP/Communicable State Machine(CSM)/_tool/_SubModules/CSM Batch Format Tool.vi':
-      {'MNGI': 2},
-  'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/user.lib/_NEVSTOP/Communicable State Machine(CSM)/_tool/_SubModules/Interface Browser.vi':
-      {'MNGI': 2},
-  'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/user.lib/_NEVSTOP/Communicable State Machine(CSM)/_tool/_debugConsole/Script-Window.vi':
-      {'MNGI': 2},
-  'ni_grpc-labview/ni-grpc-labview-2f07f03/labview source/Client Server Support New/gRPC Scripting Tools/Animation API/Animation.vi':
-      {'MNGI': 1},
-  'opengds_OpenGDS/opengds-OpenGDS-1945834/resource/Framework/Providers/Open_GDS/ClassProviders/Common/ConvertTextBasedCodeToLabVIEW.vi':
-      {'MNGI': 1},
-  'opengds_OpenGDS/opengds-OpenGDS-1945834/resource/Framework/Providers/Open_GDS/ClassProviders/Provider_LvNativeClass/ClassWriterNative_class/DialogCreateMethod.vi':
-      {'MNGI': 1},
-  'opengds_OpenGDS/opengds-OpenGDS-1945834/resource/Framework/Providers/Open_GDS/ClassProviders/Provider_LvNativeClass/ClassWriterNative_class/private/MethodSignatureDialogvi.vi':
-      {'MNGI': 1},
-};
+const kUndecodedAuxSections = <String, Map<String, int>>{};
 
 void main() {
   final all = corpusVis();
