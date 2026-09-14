@@ -36,6 +36,7 @@ import 'blocks/VITS_tag_store.dart';
 import 'blocks/icl8_icl4_ICON_icon.dart';
 import 'blocks/vers_version.dart';
 
+/// Whether [serializeBlockPayload] has a model for the tag.
 bool hasBlockWriter(String tag) => switch (tag) {
   'icl8' ||
   'icl4' ||
@@ -92,6 +93,8 @@ bool hasBlockWriter(String tag) => switch (tag) {
   _ => false,
 };
 
+/// The payload re-emitted through the tag's model, or null when there is no model or the
+/// re-emitted bytes differ.
 Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? version}) {
   final out = switch (tag) {
     'icl8' => decodeIcl8(payload).serialize(),

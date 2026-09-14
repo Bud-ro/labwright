@@ -15,6 +15,8 @@ import 'decode.dart' show inflateHeapPayload, isCompressedHeapPayload;
 import 'heap/heap_writer.dart' show attributeHeapBody;
 import 'viparse.dart' show readViSections;
 
+/// Where every byte of a file goes when the writer re-emits it: bytes emitted from a typed
+/// model versus bytes copied verbatim, by region.
 class WriterAttribution {
   WriterAttribution({
     required this.fileLength,
@@ -40,6 +42,7 @@ class WriterAttribution {
 
   final int fileLength;
 
+  /// Whether re-emitting the file reproduces it byte for byte.
   final bool byteExact;
 
   final int headerBytes;
