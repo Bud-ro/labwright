@@ -1,39 +1,89 @@
+/// `FTAB` — font table: the fonts the heaps' text runs refer to by id, one 16-byte metric
+/// record per font followed by the packed Pascal names.
+///
+/// The first record's `nameOffset` doubles as the offset of the name table, so the header
+/// is 8 bytes and the records begin at 8. Heap text runs address fonts by `fontId + 3`,
+/// the three leading slots being the predefined application, system and dialog fonts.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       2     version                    u16      table format version
+/// 2       2     TODO                       u16      retained; not decoded
+/// 4       2     TODO                       u16      retained; not decoded
+/// 6       2     fontCount                  u16      number of fonts
+/// 8       rest  records                    entry[fontCount] fontCount records of 16 bytes
+///   +0    4     nameOffset                 u32      offset of the name within the payload
+///   +4    2     size                       u16      point size; 0x8000 when unset
+///   +6    1     flagsByte                  u8       role TODO
+///   +7    1     styleFlags                 u8       style bits; roles TODO
+///   +8    2     weight                     u16      weight, 1000 for bold
+///   +10   2     resolvedSize               u16      pixel size the run renders at
+///   +12   2     metricA                    u16      role TODO
+///   +14   2     metricB                    u16      role TODO
+/// …       rest  names                      pstr[fontCount] font names, packed, in record order
+/// ```
+///
+/// [ViFontTable] is a view over the payload; each [ViFontEntry] is a view over one record
+/// and its name; [decodeFontTable] requires the records and names to tile the payload.
+library;
+
 import 'dart:typed_data';
 
-const _ftabHeaderLen = 12;
+import '../block_layout.dart';
 
-const _ftabRecordLen = 16;
+const _version = BlockField(0, 2, 'version', 'u16', 'table format version');
+const _word2 = BlockField.undecoded(2, 2, type: 'u16');
+const _word4 = BlockField.undecoded(4, 2, type: 'u16');
+const _fontCount = BlockField(6, 2, 'fontCount', 'u16', 'number of fonts');
+const _nameOffset = BlockField(0, 4, 'nameOffset', 'u32', 'offset of the name within the payload');
+const _size = BlockField(4, 2, 'size', 'u16', 'point size; 0x8000 when unset');
+const _flagsByte = BlockField(6, 1, 'flagsByte', 'u8', 'role TODO');
+const _styleFlags = BlockField(7, 1, 'styleFlags', 'u8', 'style bits; roles TODO');
+const _weight = BlockField(8, 2, 'weight', 'u16', 'weight, 1000 for bold');
+const _resolvedSize = BlockField(10, 2, 'resolvedSize', 'u16', 'pixel size the run renders at');
+const _metricA = BlockField(12, 2, 'metricA', 'u16', 'role TODO');
+const _metricB = BlockField(14, 2, 'metricB', 'u16', 'role TODO');
+const _records = BlockField(
+  8,
+  null,
+  'records',
+  'entry[fontCount]',
+  'fontCount records of 16 bytes',
+  entry: [_nameOffset, _size, _flagsByte, _styleFlags, _weight, _resolvedSize, _metricA, _metricB],
+);
+const _names = BlockField(24, null, 'names', 'pstr[fontCount]', 'font names, packed, in record order');
 
+const _recordSize = 16;
+
+const BlockLayout ftabLayout = [_version, _word2, _word4, _fontCount, _records, _names];
+
+/// A view over one font record of a [ViFontTable] and its name.
 class ViFontEntry {
-  const ViFontEntry({
-    required this.nameOffset,
-    required this.size,
-    required this.flagsByte,
-    required this.styleFlags,
-    required this.weight,
-    required this.resolvedSize,
-    required this.metricA,
-    required this.metricB,
-    required this.name,
-  });
+  ViFontEntry._(this.table, this.index);
 
-  final int nameOffset;
+  final ViFontTable table;
 
-  final int size;
+  final int index;
 
-  final int flagsByte;
+  int get _at => _records.offset + _recordSize * index;
 
-  final int styleFlags;
+  int get nameOffset => table._view.getUint32(_at + _nameOffset.offset);
 
-  final int weight;
+  int get size => table._view.getUint16(_at + _size.offset);
 
-  final int resolvedSize;
+  int get flagsByte => table.bytes[_at + _flagsByte.offset];
 
-  final int metricA;
+  int get styleFlags => table.bytes[_at + _styleFlags.offset];
 
-  final int metricB;
+  int get weight => table._view.getUint16(_at + _weight.offset);
 
-  final String name;
+  int get resolvedSize => table._view.getUint16(_at + _resolvedSize.offset);
+
+  int get metricA => table._view.getUint16(_at + _metricA.offset);
+
+  int get metricB => table._view.getUint16(_at + _metricB.offset);
+
+  String get name => String.fromCharCodes(table.bytes, nameOffset + 1, nameOffset + 1 + table.bytes[nameOffset]);
 
   static const int sizeUnset = 0x8000;
 
@@ -41,42 +91,30 @@ class ViFontEntry {
 
   bool get isBold => weight == weightBold;
 
-  bool get isPredefinedRef => name.length == 1 && name.codeUnitAt(0) >= 0x30 && name.codeUnitAt(0) <= 0x32;
+  /// A one-character name `0`, `1` or `2` refers to a predefined font instead of a face.
+  bool get isPredefinedRef {
+    final at = nameOffset;
+    return table.bytes[at] == 1 && table.bytes[at + 1] >= 0x30 && table.bytes[at + 1] <= 0x32;
+  }
 }
 
+/// A view over an `FTAB` payload.
 class ViFontTable {
-  const ViFontTable({
-    required this.rawLength,
-    required this.version,
-    required this.headerWords,
-    required this.fontCount,
-    required this.nameTableOffset,
-    required this.metrics,
-    required this.nameBytes,
-    required this.names,
-    required this.entries,
-    required this.nameTableComplete,
-  });
+  ViFontTable._(this.bytes) : _view = ByteData.sublistView(bytes) {
+    entries = List.generate(fontCount, (i) => ViFontEntry._(this, i), growable: false);
+  }
 
-  final int rawLength;
+  final Uint8List bytes;
 
-  final int version;
+  final ByteData _view;
 
-  final List<int> headerWords;
+  late final List<ViFontEntry> entries;
 
-  final int fontCount;
+  int get version => _view.getUint16(_version.offset);
 
-  final int nameTableOffset;
+  int get fontCount => _view.getUint16(_fontCount.offset);
 
-  final Uint8List metrics;
-
-  final Uint8List nameBytes;
-
-  final List<String> names;
-
-  final List<ViFontEntry> entries;
-
-  final bool nameTableComplete;
+  int get nameTableOffset => _records.offset + _recordSize * fontCount;
 
   /// Run font ids index past the three leading predefined-font slots.
   ViFontEntry? entryForRunFontId(int fontId) {
@@ -84,76 +122,20 @@ class ViFontTable {
     return index >= 0 && index < entries.length ? entries[index] : null;
   }
 
-  Uint8List serialize() {
-    final out = Uint8List(_ftabHeaderLen + metrics.length + nameBytes.length);
-    final d = ByteData.sublistView(out);
-    d.setUint16(0, version);
-    d.setUint16(2, headerWords.isNotEmpty ? headerWords[0] : 0);
-    d.setUint16(4, headerWords.length > 1 ? headerWords[1] : 0);
-    d.setUint16(6, fontCount);
-    d.setUint32(8, nameTableOffset);
-    out.setRange(_ftabHeaderLen, _ftabHeaderLen + metrics.length, metrics);
-    out.setRange(_ftabHeaderLen + metrics.length, out.length, nameBytes);
-    return out;
-  }
+  Uint8List serialize() => bytes;
 }
 
-ViFontTable? decodeFontTable(Uint8List bytes) {
-  if (bytes.length < _ftabHeaderLen) return null;
-  final bd = ByteData.sublistView(bytes);
-  final version = bd.getUint16(0);
-  final headerWords = [bd.getUint16(2), bd.getUint16(4)];
-  final fontCount = bd.getUint16(6);
-  final nameOff = bd.getUint32(8);
-  final inRange = nameOff >= _ftabHeaderLen && nameOff <= bytes.length;
-  final metricsEnd = inRange ? nameOff : _ftabHeaderLen;
-  final names = <String>[];
-  var pos = nameOff;
-  var complete = inRange;
-  for (var i = 0; i < fontCount; i++) {
-    if (pos >= bytes.length) {
-      complete = false;
-      break;
-    }
-    final len = bytes[pos++];
-    if (pos + len > bytes.length) {
-      complete = false;
-      break;
-    }
-    names.add(String.fromCharCodes(bytes, pos, pos + len));
-    pos += len;
+ViFontTable decodeFontTable(Uint8List bytes) {
+  assert(bytes.length >= _records.offset, 'a font table starts with its 8-byte header');
+  final view = ByteData.sublistView(bytes);
+  final count = view.getUint16(_fontCount.offset);
+  var at = _records.offset + _recordSize * count;
+  assert(at <= bytes.length, 'the records fit the payload');
+  for (var i = 0; i < count; i++) {
+    assert(view.getUint32(_records.offset + _recordSize * i) == at, 'record $i names the next packed name');
+    assert(at < bytes.length, 'name $i has a length byte');
+    at += 1 + bytes[at];
   }
-  if (complete && pos != bytes.length) complete = false;
-  const recordsStart = _ftabHeaderLen - 4;
-  final entries = <ViFontEntry>[];
-  if (complete && names.length == fontCount && nameOff == recordsStart + fontCount * _ftabRecordLen) {
-    for (var i = 0; i < fontCount; i++) {
-      final off = recordsStart + i * _ftabRecordLen;
-      entries.add(
-        ViFontEntry(
-          nameOffset: bd.getUint32(off),
-          size: bd.getUint16(off + 4),
-          flagsByte: bd.getUint8(off + 6),
-          styleFlags: bd.getUint8(off + 7),
-          weight: bd.getUint16(off + 8),
-          resolvedSize: bd.getUint16(off + 10),
-          metricA: bd.getUint16(off + 12),
-          metricB: bd.getUint16(off + 14),
-          name: names[i],
-        ),
-      );
-    }
-  }
-  return ViFontTable(
-    rawLength: bytes.length,
-    version: version,
-    headerWords: headerWords,
-    fontCount: fontCount,
-    nameTableOffset: nameOff,
-    metrics: Uint8List.sublistView(bytes, _ftabHeaderLen, metricsEnd),
-    nameBytes: Uint8List.sublistView(bytes, inRange ? nameOff : bytes.length),
-    names: names,
-    entries: entries,
-    nameTableComplete: complete,
-  );
+  assert(at == bytes.length, 'the names tile the payload');
+  return ViFontTable._(bytes);
 }

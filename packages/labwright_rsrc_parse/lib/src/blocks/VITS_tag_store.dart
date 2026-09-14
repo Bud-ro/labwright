@@ -1,152 +1,226 @@
+/// `VITS` — VI tag store: named tags whose values are flattened LabVIEW variants.
+///
+/// Each entry is a length-prefixed name followed by the value. Files saved by LabVIEW 15
+/// and later prefix the value with its byte length; LabVIEW 8 through 14 store the
+/// variant bare, so its extent comes from walking it; LabVIEW 7 prefixes a length that
+/// counts its own four bytes and stores the variant without a version word or type count.
+///
+/// A flattened variant is `[u32 version][u32 typeCount][typeCount type descriptors]
+/// [u2p2 hasValue][u2p2 typeIndex][value][u32 attributeCount][attributes]`, an attribute
+/// being a length-prefixed name and another flattened variant.
+///
+/// ```text
+/// offset  size  field                      type     meaning
+/// 0       4     count                      u32      number of tags
+/// 4       rest  entries                    entry[count] count tags
+///   +0    4     nameLength                 u32      bytes of name
+///   +4    rest  name                       u8[nameLength] tag name such as `NI.LV.All.SourceOnly`
+///   +4    4     valueLength                u32      bytes of value, after name; absent in LabVIEW
+///                                                   8 to 14 files, counts itself in LabVIEW 7
+///                                                   files
+///   +8    rest  value                      variant  flattened variant, after name
+/// ```
+///
+/// [ViTagStore] is a view over the payload; each [ViTagEntry] is a view over one entry;
+/// [decodeTagStore] requires the entries to tile the payload exactly.
+library;
+
 import 'dart:typed_data';
 
+import '../block_layout.dart';
+
+const _count = BlockField(0, 4, 'count', 'u32', 'number of tags');
+const _nameLength = BlockField(0, 4, 'nameLength', 'u32', 'bytes of name');
+const _name = BlockField(4, null, 'name', 'u8[nameLength]', 'tag name such as `NI.LV.All.SourceOnly`');
+const _valueLength = BlockField(
+  4,
+  4,
+  'valueLength',
+  'u32',
+  'bytes of value, after name; absent in LabVIEW 8 to 14 files, counts itself in LabVIEW 7 files',
+);
+const _value = BlockField(8, null, 'value', 'variant', 'flattened variant, after name');
+const _entries = BlockField(
+  4,
+  null,
+  'entries',
+  'entry[count]',
+  'count tags',
+  entry: [_nameLength, _name, _valueLength, _value],
+);
+
+const BlockLayout vitsLayout = [_count, _entries];
+
+/// How one tag's value is framed.
+enum ViTagValueFraming {
+  /// `[u32 length][variant]`, the length excluding itself.
+  lengthPrefixed,
+
+  /// `[u32 length][variant]`, the length including its own four bytes and the variant
+  /// carrying no version word.
+  lengthPrefixedInclusive,
+
+  /// The variant alone; its extent comes from walking it.
+  bare,
+}
+
+/// A view over one entry of a [ViTagStore].
 class ViTagEntry {
-  const ViTagEntry({required this.name, required this.payload, this.nested = false});
+  const ViTagEntry._(this.store, this.offset, this.valueOffset, this.end, this.framing);
 
-  final String name;
+  final ViTagStore store;
 
-  final Uint8List payload;
+  final int offset;
 
-  final bool nested;
+  /// Where the flattened variant starts.
+  final int valueOffset;
 
-  int get payloadLength => payload.length;
+  /// Where the entry ends.
+  final int end;
+
+  final ViTagValueFraming framing;
+
+  int get _nameBytes => store._view.getUint32(offset + _nameLength.offset);
+
+  String get name => String.fromCharCodes(store.bytes, offset + _name.offset, offset + _name.offset + _nameBytes);
+
+  Uint8List get value => Uint8List.sublistView(store.bytes, valueOffset, end);
 }
 
+/// A view over a `VITS` payload.
 class ViTagStore {
-  const ViTagStore({
-    required this.declaredCount,
-    required this.entries,
-    required this.walkComplete,
-  });
+  ViTagStore._(this.bytes) : _view = ByteData.sublistView(bytes);
 
-  final int declaredCount;
+  final Uint8List bytes;
 
-  final List<ViTagEntry> entries;
+  final ByteData _view;
 
-  final bool walkComplete;
+  late final List<ViTagEntry> entries;
 
-  Uint8List serialize() {
-    var size = 4;
-    for (final e in entries) {
-      size += 4 + e.name.length + (e.nested ? 0 : 4) + e.payload.length;
-    }
-    final out = Uint8List(size);
-    final bd = ByteData.sublistView(out);
-    bd.setUint32(0, declaredCount);
-    var pos = 4;
-    for (final e in entries) {
-      bd.setUint32(pos, e.name.length);
-      pos += 4;
-      out.setRange(pos, pos + e.name.length, e.name.codeUnits);
-      pos += e.name.length;
-      if (!e.nested) {
-        bd.setUint32(pos, e.payload.length);
-        pos += 4;
-      }
-      out.setRange(pos, pos + e.payload.length, e.payload);
-      pos += e.payload.length;
-    }
-    return out;
-  }
+  int get declaredCount => _view.getUint32(_count.offset);
+
+  Uint8List serialize() => bytes;
 }
 
-final Uint8List _sourceOnlyTail = Uint8List.fromList(const [
-  0x00, 0x00, 0x00, 0x01, //
-  0x00, 0x04, 0x00, 0x21, 0x00, 0x01, //
-  0x00, 0x00, //
-  0x01, 0x00, 0x00, 0x00, 0x00,
-]);
-
-const int _sourceOnlyLen = 21;
-
-bool _validEntryHeader(Uint8List bytes, int off, int end) {
-  if (off + 4 > end) return false;
-  final nameLen = ByteData.sublistView(bytes).getUint32(off);
-  if (nameLen < 1 || nameLen > 128 || off + 4 + nameLen > end) return false;
-  for (var i = off + 4; i < off + 4 + nameLen; i++) {
-    final b = bytes[i];
-    if (b < 0x20 || b >= 0x7f) return false;
-  }
-  return true;
-}
-
-int? _nestedEntryEnd(Uint8List bytes, int s, int storeEnd) {
-  if (s + 12 > storeEnd || bytes[s + 2] != 0x80) return null;
-  final view = ByteData.sublistView(bytes);
-  if (view.getUint32(s + 4) == 1) {
-    final fieldDescLen = view.getUint16(s + 8);
-    final lenAt = s + 12 + fieldDescLen;
-    if (lenAt + 4 <= storeEnd) {
-      final contentLen = view.getUint32(lenAt);
-      final end = lenAt + 4 + contentLen + 4;
-      if (end <= storeEnd && _validEntryHeader(bytes, end, storeEnd)) return end;
-    }
-  }
-  if (s + _sourceOnlyLen <= storeEnd) {
-    var match = true;
-    for (var i = 0; i < _sourceOnlyTail.length; i++) {
-      if (bytes[s + 4 + i] != _sourceOnlyTail[i]) {
-        match = false;
-        break;
-      }
-    }
-    if (match && _validEntryHeader(bytes, s + _sourceOnlyLen, storeEnd)) {
-      return s + _sourceOnlyLen;
-    }
-  }
-  return null;
-}
-
-ViTagStore? decodeTagStore(Uint8List bytes) {
-  if (bytes.length < 4) return null;
-  final view = ByteData.sublistView(bytes);
-  final declaredCount = view.getUint32(0);
-  if (declaredCount > 65536) {
-    return ViTagStore(declaredCount: declaredCount, entries: const [], walkComplete: false);
-  }
+ViTagStore decodeTagStore(Uint8List bytes) {
+  assert(bytes.length >= _entries.offset, 'a tag store starts with its count');
+  final store = ViTagStore._(bytes);
+  final view = store._view;
+  final count = view.getUint32(_count.offset);
+  assert(count <= (bytes.length - _entries.offset) ~/ 8, 'the count fits the payload');
   final entries = <ViTagEntry>[];
-  var pos = 4;
-  while (entries.length < declaredCount && pos + 4 <= bytes.length) {
-    final nameLen = view.getUint32(pos);
-    pos += 4;
-    if (nameLen > 4096 || pos + nameLen > bytes.length) break;
-    var printable = true;
-    for (var i = pos; i < pos + nameLen; i++) {
-      final byte = bytes[i];
-      if (byte < 0x20 || byte >= 0x7f) {
-        printable = false;
-        break;
-      }
+  var at = _entries.offset;
+  for (var i = 0; i < count; i++) {
+    assert(at + 8 <= bytes.length, 'tag $i has a name length and a value word');
+    final nameEnd = at + _name.offset + view.getUint32(at + _nameLength.offset);
+    assert(nameEnd + 4 <= bytes.length, 'tag $i name fits the payload');
+    final word = view.getUint32(nameEnd);
+    final ViTagValueFraming framing;
+    final int valueOffset, end;
+    if (word > bytes.length - nameEnd) {
+      framing = ViTagValueFraming.bare;
+      valueOffset = nameEnd;
+      end = _variantEnd(view, bytes, valueOffset);
+    } else if (bytes[nameEnd + 4] == 0) {
+      framing = ViTagValueFraming.lengthPrefixedInclusive;
+      valueOffset = nameEnd + 4;
+      end = nameEnd + word;
+    } else {
+      framing = ViTagValueFraming.lengthPrefixed;
+      valueOffset = nameEnd + 4;
+      end = valueOffset + word;
     }
-    if (!printable) break;
-    final name = String.fromCharCodes(bytes.sublist(pos, pos + nameLen));
-    pos += nameLen;
-    if (pos + 4 > bytes.length) break;
-    final payloadLen = view.getUint32(pos);
-    if (payloadLen > bytes.length - pos - 4) {
-      // A nested variant record carries no payload-length word.
-      final isLast = entries.length == declaredCount - 1;
-      final int end;
-      if (isLast) {
-        end = bytes.length;
-      } else {
-        final bounded = _nestedEntryEnd(bytes, pos, bytes.length);
-        if (bounded == null) break;
-        end = bounded;
-      }
-      entries.add(ViTagEntry(name: name, payload: Uint8List.sublistView(bytes, pos, end), nested: true));
-      pos = end;
-      continue;
-    }
-    pos += 4;
-    if (payloadLen > bytes.length - pos) break;
-    final payload = Uint8List.sublistView(bytes, pos, pos + payloadLen);
-    pos += payloadLen;
-    entries.add(ViTagEntry(name: name, payload: payload));
+    assert(end <= bytes.length, 'tag $i value fits the payload');
+    entries.add(ViTagEntry._(store, at, valueOffset, end, framing));
+    at = end;
   }
-  return ViTagStore(
-    declaredCount: declaredCount,
-    entries: entries,
-    walkComplete: entries.length == declaredCount && pos == bytes.length,
-  );
+  assert(at == bytes.length, 'the tags tile the payload');
+  store.entries = entries;
+  return store;
+}
+
+/// Where the flattened variant starting at [at] ends.
+int _variantEnd(ByteData view, Uint8List bytes, int at) {
+  assert(at + 8 <= bytes.length, 'a flattened variant has a version word and a type count');
+  at += 4;
+  final typeCount = view.getUint32(at);
+  at += 4;
+  assert(typeCount <= (bytes.length - at) ~/ 4, 'the type count fits the payload');
+  final typeOffsets = List<int>.filled(typeCount, 0);
+  for (var i = 0; i < typeCount; i++) {
+    typeOffsets[i] = at;
+    assert(at + 4 <= bytes.length && view.getUint16(at) >= 4, 'type descriptor $i has a length and a type');
+    at += view.getUint16(at);
+  }
+  assert(at + 2 <= bytes.length, 'the variant says whether it holds a value');
+  final hasValue = _u2p2(view, at);
+  at += hasValue.width;
+  if (hasValue.value != 0) {
+    assert(at + 2 <= bytes.length, 'the variant names its value type');
+    final typeIndex = _u2p2(view, at);
+    at += typeIndex.width;
+    assert(typeIndex.value < typeCount, 'the value type is one of the descriptors');
+    at = _valueEnd(view, bytes, typeOffsets, typeIndex.value, at);
+  }
+  assert(at + 4 <= bytes.length, 'the variant has an attribute count');
+  final attributeCount = view.getUint32(at);
+  at += 4;
+  for (var i = 0; i < attributeCount; i++) {
+    assert(at + 4 <= bytes.length, 'attribute $i has a name length');
+    at += 4 + view.getUint32(at);
+    at = _variantEnd(view, bytes, at);
+  }
+  assert(at <= bytes.length, 'the variant fits the payload');
+  return at;
+}
+
+({int value, int width}) _u2p2(ByteData view, int at) {
+  final head = view.getUint16(at);
+  return head & 0x8000 != 0 ? (value: view.getUint32(at) & 0x7fffffff, width: 4) : (value: head, width: 2);
+}
+
+/// Where the flattened value of type descriptor [typeIndex] starting at [at] ends.
+int _valueEnd(ByteData view, Uint8List bytes, List<int> typeOffsets, int typeIndex, int at) {
+  final td = typeOffsets[typeIndex];
+  final type = view.getUint16(td + 2) & 0xff;
+  switch (type) {
+    case 0x01 || 0x05 || 0x21:
+      return at + 1;
+    case 0x02 || 0x06:
+      return at + 2;
+    case 0x03 || 0x07 || 0x09:
+      return at + 4;
+    case 0x04 || 0x08 || 0x0a:
+      return at + 8;
+    case 0x30:
+      assert(at + 4 <= bytes.length, 'a string value has a length');
+      return at + 4 + view.getUint32(at);
+    case 0x32:
+      assert(at + 8 <= bytes.length, 'a path value has a tag and a length');
+      return at + 8 + view.getUint32(at + 4);
+    case 0x40:
+      final dimCount = view.getUint16(td + 4);
+      var elements = 1;
+      for (var d = 0; d < dimCount; d++) {
+        assert(at + 4 <= bytes.length, 'array dimension $d has a size');
+        elements *= view.getUint32(at);
+        at += 4;
+      }
+      final elementIndex = view.getUint16(td + 6 + 4 * dimCount);
+      for (var i = 0; i < elements; i++) {
+        at = _valueEnd(view, bytes, typeOffsets, elementIndex, at);
+      }
+      return at;
+    case 0x50:
+      final memberCount = view.getUint16(td + 4);
+      for (var m = 0; m < memberCount; m++) {
+        at = _valueEnd(view, bytes, typeOffsets, view.getUint16(td + 6 + 2 * m), at);
+      }
+      return at;
+    case 0x53:
+      return _variantEnd(view, bytes, at);
+    default:
+      assert(false, 'flattened value of type 0x${type.toRadixString(16)} has a known size');
+      return at;
+  }
 }

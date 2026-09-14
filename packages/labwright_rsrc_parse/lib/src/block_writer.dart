@@ -97,7 +97,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'icl8' || 'icl4' || 'ICON' => decodeLegacyIcon(payload, legacyIconBpp(tag)!)?.serialize(),
     'NUID' || 'SUID' || 'BNID' => decodeIdTable(payload).serialize(),
     'vers' => decodeVersBlock(payload).serialize(),
-    'VITS' => decodeTagStore(payload)?.serialize(),
+    'VITS' => decodeTagStore(payload).serialize(),
     'DTHP' => decodeDataTypeHeap(payload)?.serialize(),
     'CONP' || 'CPC2' => decodeConnectorPane(payload).serialize(),
     'STRG' || 'HLPT' => decodeStringBlock(payload).serialize(),
@@ -125,7 +125,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
     'PRT ' => decodePrintRecord(payload).serialize(),
     'FPTD' => decodeU16Grid(payload).serialize(),
     'HLPP' || 'DLLP' => decodeHelpPath(payload).serialize(),
-    'FTAB' => _serializeFontTable(payload),
+    'FTAB' => decodeFontTable(payload).serialize(),
     'BKMK' => decodeBookmarkList(payload).serialize(),
     'TRec' => decodeTextRecord(payload).serialize(),
     'CCST' => decodeKeyValueTable(payload).serialize(),
@@ -139,12 +139,7 @@ Uint8List? serializeBlockPayload(String tag, Uint8List payload, {ViVersionWord? 
   return out;
 }
 
-Uint8List? _serializeFontTable(Uint8List payload) {
-  final ft = decodeFontTable(payload);
-  return ft != null && ft.nameTableComplete ? ft.serialize() : null;
-}
-
 Uint8List? _serializeLinkInfo(Uint8List payload, ViVersionWord? version) {
-  final info = decodeLinkInfoRaw(payload, version: version);
-  return info != null && info.tiled ? info.serialize() : null;
+  final info = decodeLinkInfo(payload, version: version);
+  return info.isWalked ? info.serialize() : null;
 }

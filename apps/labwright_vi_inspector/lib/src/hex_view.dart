@@ -480,11 +480,12 @@ class _BlockHexViewState extends State<BlockHexView> {
           MapEntry('Revision entries', '${history.entryCount}'),
         ];
       case 'FTAB':
+        if (bytes.length < 8) return const [];
         final ft = decodeFontTable(bytes);
-        if (ft == null) return const [];
         return [
           MapEntry('Fonts', '${ft.fontCount}'),
-          if (ft.names.isNotEmpty) MapEntry('Names', ft.names.join(', ')),
+          if (ft.entries.isNotEmpty)
+            MapEntry('Names', ft.entries.map((e) => e.name).join(', ')),
         ];
       case 'NUID':
       case 'SUID':
