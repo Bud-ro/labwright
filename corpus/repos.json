@@ -2,7 +2,7 @@
  "vi": [
   {
    "repo": "https://github.com/Bud-ro/vi-corpus.git",
-   "ref": "0b36f3d887e0b6a05ad267165fd6c3ded7f923a7",
+   "ref": "4abacfb0ee662403659e5af60893c66db1a6d4fb",
    "paths": [
     "sources/picotech__picosdk-ni-labview-examples",
     "sources/ni__grpc-labview",
