@@ -21,7 +21,7 @@ jobs:
       # ./format.sh in the same commit.
       - uses: dart-lang/setup-dart@v1
         with:
-          sdk: 3.11.3
+          sdk: 3.13.4
 
       - run: dart pub get
       - name: check formatting
