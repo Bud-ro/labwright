@@ -263,8 +263,8 @@ Map<String, int> _inv(Uint8List bytes, String path) {
   for (final path in readSubViPaths(bytes)) {
     if (path.fileName.isEmpty) bad('subviPathClean');
     if (!pathNames.add(path.fileName.toLowerCase())) bad('subviPathClean');
-    if (path.kind == ViSubViPathKind.relative && path.segments.isEmpty) bad('subviPathClean');
-    if (path.kind == ViSubViPathKind.relative && path.upLevels > 20) bad('subviPathClean');
+    if (path.form == ViPathForm.relative && path.segments.isEmpty) bad('subviPathClean');
+    if (path.form == ViPathForm.relative && path.upLevels > 20) bad('subviPathClean');
   }
 
   return c;

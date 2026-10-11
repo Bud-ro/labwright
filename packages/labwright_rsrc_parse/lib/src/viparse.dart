@@ -16,8 +16,7 @@ class ViFormatException implements Exception {
 enum ViFileType {
   vi('LVIN'),
 
-  control('LVCC')
-  ;
+  control('LVCC');
 
   const ViFileType(this.fourCc);
 
@@ -313,40 +312,7 @@ List<String> readSubViNames(Uint8List bytes) {
   return out;
 }
 
-enum ViSubViPathKind {
-  relative,
-
-  viLib,
-
-  symbolic,
-
-  other,
-}
-
-class ViSubViPath {
-  const ViSubViPath({required this.kind, required this.components});
-
-  final ViSubViPathKind kind;
-
-  final List<String> components;
-
-  String get fileName => components.isEmpty ? '' : components.last;
-
-  int get upLevels {
-    var empties = 0;
-    while (empties < components.length && components[empties].isEmpty) {
-      empties++;
-    }
-    return empties == 0 ? 0 : empties - 1;
-  }
-
-  List<String> get segments => [
-    for (final component in components)
-      if (component.isNotEmpty && !component.startsWith('<')) component,
-  ];
-}
-
-List<ViSubViPath> readSubViPaths(Uint8List bytes) {
+List<ViPath> readSubViPaths(Uint8List bytes) {
   List<ViSection> secs;
   try {
     secs = readViSections(bytes);
@@ -362,25 +328,14 @@ List<ViSubViPath> readSubViPaths(Uint8List bytes) {
   }
   if (libd == null || libd.isEmpty) return const [];
 
-  final out = <ViSubViPath>[];
+  final out = <ViPath>[];
   final seen = <String>{};
   for (var i = 0; i + 12 <= libd.length; i++) {
-    final extent = pth0ExtentAt(libd, i);
+    final extent = ViPath.extentAt(libd, i);
     if (extent == null) continue;
-    final path = decodePth0(Uint8List.sublistView(libd, i, i + extent));
-    if (path.componentCount == 0) continue;
-    final components = path.components;
-    final first = components.first;
-    final kind = path.pathType == 1 && first.isEmpty
-        ? ViSubViPathKind.relative
-        : first == '<vilib>'
-        ? ViSubViPathKind.viLib
-        : first.startsWith('<') && first.endsWith('>')
-        ? ViSubViPathKind.symbolic
-        : ViSubViPathKind.other;
-    final record = ViSubViPath(kind: kind, components: components);
-    if (record.fileName.isEmpty) continue;
-    if (seen.add(record.fileName.toLowerCase())) out.add(record);
+    final path = ViPath(Uint8List.sublistView(libd, i, i + extent));
+    if (path.fileName.isEmpty) continue;
+    if (seen.add(path.fileName.toLowerCase())) out.add(path);
   }
   return out;
 }

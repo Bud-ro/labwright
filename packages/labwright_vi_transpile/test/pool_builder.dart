@@ -21,6 +21,12 @@ List<int> _bodyOf(int code) => switch (code) {
 
 List<int> scalar(int code, {String? name}) => _descriptor(code, _bodyOf(code), name: name);
 
+List<int> function(List<int> parameters) => _descriptor(TypeCode.function, [
+  parameters.length >> 8 & 0xff,
+  parameters.length & 0xff,
+  for (final p in parameters) ...[p >> 8 & 0xff, p & 0xff],
+]);
+
 List<int> cluster(List<int> members, {String? name}) => _descriptor(
   TypeCode.cluster,
   [
@@ -51,7 +57,7 @@ List<int> typeDef(List<int> baseBody, String name) {
   return _descriptor(TypeCode.typeDef, [0, 0, 0, 0, 0, 0, 0, 1, ...pascal(name), ...base]);
 }
 
-List<ViType> poolOf(List<List<int>> descriptors) => decodeTypePool(
+List<ViType> poolOf(List<List<int>> descriptors) => ViTypePool(
   Uint8List.fromList([
     0, 0, 0, descriptors.length, //
     for (final descriptor in descriptors) ...descriptor,

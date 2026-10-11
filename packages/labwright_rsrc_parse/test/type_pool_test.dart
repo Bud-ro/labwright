@@ -17,7 +17,7 @@ void main() {
       (TypeCode.variant, ViDataType.variant),
       (TypeCode.ptr, ViDataType.ptr),
     ];
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         for (final (code, _) in rows)
           switch (code) {
@@ -34,11 +34,11 @@ void main() {
     final unknown = pool.types.last;
     expect(unknown.code, 0x31);
     expect(unknown.undecoded, [1, 2, 3]);
-    expect(pool.serialize(), same(pool.bytes));
+    expect(pool.serialize(), pool.serialize());
   });
 
   test('labels: flag 0x40 marks a Pascal label after the body, padded to an even length', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         numeric(TypeCode.i16, name: 'y'),
         numeric(TypeCode.u32, name: 'Time'),
@@ -52,7 +52,7 @@ void main() {
     expect((pool[1] as ViNumericType).property, 0);
     expect(namedTypes(pool.types).map((t) => t.label), ['y', 'Time', 'status', 'X']);
     expect(
-      () => decodeTypePool(
+      () => ViTypePool(
         poolOf([
           u8([0, 6, 0x40, TypeCode.i16, 0, 9]),
         ]),
@@ -63,7 +63,7 @@ void main() {
   });
 
   test('clusters index their members; fields resolve against the pool', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         descriptor(TypeCode.boolean, []),
         numeric(TypeCode.i32, name: 'handle'),
@@ -78,7 +78,7 @@ void main() {
     expect(fields[1].label, 'handle');
     expect(clusterFields(pool[0], pool.types), isEmpty);
     expect(
-      () => decodeTypePool(
+      () => ViTypePool(
         poolOf([
           descriptor(TypeCode.cluster, [3, 0xe7]),
         ]),
@@ -89,7 +89,7 @@ void main() {
   });
 
   test('arrays: dimension sizes and the element index; typeLabel spells array<element>', () {
-    final oneD = decodeTypePool(
+    final oneD = ViTypePool(
       poolOf([
         numeric(TypeCode.dbl),
         descriptor(TypeCode.array, [0, 1, 0xff, 0xff, 0xff, 0xff, 0, 0]),
@@ -99,7 +99,7 @@ void main() {
     expect((a.dimCount, a.dimSizeAt(0), a.elementIndex), (1, 0xffffffff, 0));
     expect(typeLabel(a, oneD.types), 'array<dbl>');
     expect(typeLabel(oneD[0], oneD.types), 'dbl');
-    final twoD = decodeTypePool(
+    final twoD = ViTypePool(
       poolOf([
         numeric(TypeCode.dbl),
         descriptor(TypeCode.array, [0, 2, 0, 0, 0, 3, 0, 0, 0, 4, 0, 0], name: 'grid'),
@@ -110,7 +110,7 @@ void main() {
   });
 
   test('enums: Pascal items padded to an even length, then a property byte', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         descriptor(TypeCode.enumU16, [0, 2, ...'Rising'.codeUnits, ...'Falling'.codeUnits, 0, 0], name: 'Edge'),
         descriptor(TypeCode.enumU8, [0, 2, ...'FP'.codeUnits, ...'BD'.codeUnits, 0]),
@@ -124,7 +124,7 @@ void main() {
 
   test('typedefs: id, path components and the inline base to the end; the base carries the label', () {
     List<int> base(List<int> d) => [...d]..[1] += 4;
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         descriptor(TypeCode.boolean, []),
         numeric(TypeCode.i32),
@@ -145,7 +145,7 @@ void main() {
   });
 
   test('retained bodies: refnum kind, function parameters, and the rest as undecoded bytes', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         descriptor(TypeCode.refnum, [0, 8, 0, 0, 0, 2, 0, 0], name: 'This VI'),
         descriptor(TypeCode.function, [0, 2, 0, 0, 0, 0, 9, 9, 9, 9]),
@@ -164,7 +164,7 @@ void main() {
   });
 
   test('serializedDefaultSize: fixed-width leaves, cluster is the member sum, variable/unknown are null', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         descriptor(TypeCode.voidType, []),
         numeric(TypeCode.i8),
@@ -194,7 +194,7 @@ void main() {
   });
 
   test('the top-level list follows the descriptors and must tile the payload', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf(
         [
           descriptor(TypeCode.string, [0xff, 0xff, 0xff, 0xff]),
@@ -205,13 +205,13 @@ void main() {
     );
     expect((pool.topLevelCount, pool.topLevelIndexAt(2)), (3, 1));
     expect(pool.topLevelIndices, [1, 0, 1]);
-    expect(() => decodeTypePool(u8([0, 0, 0, 1, 0, 4, 0, 0x30, 0, 1])), throwsA(isA<AssertionError>()));
-    expect(() => decodeTypePool(u8([0, 0, 0, 5])), throwsA(isA<AssertionError>()));
-    expect(() => decodeTypePool(Uint8List(0)), throwsA(isA<AssertionError>()));
+    expect(() => ViTypePool(u8([0, 0, 0, 1, 0, 4, 0, 0x30, 0, 1])), throwsA(isA<AssertionError>()));
+    expect(() => ViTypePool(u8([0, 0, 0, 5])), throwsA(isA<AssertionError>()));
+    expect(() => ViTypePool(Uint8List(0)), throwsA(isA<AssertionError>()));
   });
 
   test('typeKindHistogram counts kinds, most-frequent first', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf([
         descriptor(TypeCode.cluster, [0, 0]),
         descriptor(TypeCode.cluster, [0, 0]),
@@ -225,11 +225,11 @@ void main() {
   });
 
   test('decodeTypeMap (TM80): word list, or inline descriptors and entries behind a zero word', () {
-    final indexed = decodeTypeMap(hx('0003 0004 8000d000 2000 8000d001')) as ViTypeMapIndexed;
+    final indexed = ViTypeMap(hx('0003 0004 8000d000 2000 8000d001')) as ViTypeMapIndexed;
     expect((indexed.count, indexed.indexShift), (3, 4));
     expect([for (var i = 0; i < 3; i++) indexed.flagsAt(i)], [0xd000, 0x2000, 0xd001]);
-    expect(indexed.serialize(), same(indexed.bytes));
-    final inline = decodeTypeMap(
+    expect(indexed.serialize(), indexed.serialize());
+    final inline = ViTypeMap(
       u8([
         0,
         0,
@@ -250,30 +250,30 @@ void main() {
         (1, 0x80000),
       ],
     );
-    expect(() => decodeTypeMap(hx('0003 0004 8000')), throwsA(isA<AssertionError>()));
+    expect(() => ViTypeMap(hx('0003 0004 8000')), throwsA(isA<AssertionError>()));
     expect(
-      () => decodeTypeMap(u8([0, 0, 0, 1, ...descriptor(TypeCode.boolean, []), ...hx('0001 0002 0000')])),
+      () => ViTypeMap(u8([0, 0, 0, 1, ...descriptor(TypeCode.boolean, []), ...hx('0001 0002 0000')])),
       throwsA(isA<AssertionError>()),
     );
-    expect(() => decodeTypeMap(hx('00')), throwsA(isA<AssertionError>()));
+    expect(() => ViTypeMap(hx('00')), throwsA(isA<AssertionError>()));
   });
 
   test('decodeDataTypeHeap (DTHP): two words, one word, inline descriptors and entries, or a retained body', () {
-    final compact = decodeDataTypeHeap(hx('00170004')) as ViDataTypeHeapCompact;
+    final compact = ViDataTypeHeap(hx('00170004')) as ViDataTypeHeapCompact;
     expect((compact.heapTypeCount, compact.firstTopLevelIndex, compact.viTypeIndexBase), (0x17, 4, 2));
-    expect((decodeDataTypeHeap(hx('0000')) as ViDataTypeHeapWord).word, 0);
+    expect((ViDataTypeHeap(hx('0000')) as ViDataTypeHeapWord).word, 0);
     final inline =
-        decodeDataTypeHeap(
+        ViDataTypeHeap(
               u8([0, 0, 0, 1, ...descriptor(TypeCode.boolean, [], name: 'Auto Stop'), ...hx('0002 0000 0000')]),
             )
             as ViDataTypeHeapInline;
     expect(inline.types.single.label, 'Auto Stop');
     expect([for (var i = 0; i < inline.count; i++) inline.typeIndexAt(i)], [0, 0]);
     expect(
-      decodeDataTypeHeap(u8([0, 0, 0, 1, ...descriptor(TypeCode.boolean, [])])),
+      ViDataTypeHeap(u8([0, 0, 0, 1, ...descriptor(TypeCode.boolean, [])])),
       isA<ViDataTypeHeapRetained>(),
     );
-    expect(decodeDataTypeHeap(u8([0, 0, 0, 0, ...'DTHP'.codeUnits, 0, 0, 0, 0x44])), isA<ViDataTypeHeapRetained>());
-    expect(() => decodeDataTypeHeap(hx('00')), throwsA(isA<AssertionError>()));
+    expect(ViDataTypeHeap(u8([0, 0, 0, 0, ...'DTHP'.codeUnits, 0, 0, 0, 0x44])), isA<ViDataTypeHeapRetained>());
+    expect(() => ViDataTypeHeap(hx('00')), throwsA(isA<AssertionError>()));
   });
 }

@@ -112,8 +112,8 @@ Map<String, int> _violations(Uint8List bytes, String path) {
     if ((s.tag != 'DSIM' && s.tag != 'MNGI') || !seenImage.add(s.dataOffset)) continue;
     final ViPngStream png;
     if (s.tag == 'MNGI') {
-      png = decodePngStream(s.bytes);
-    } else if (decodeDataSpaceImage(s.bytes) case ViDataSpacePng(png: final stream)) {
+      png = ViPngStream(s.bytes);
+    } else if (ViDataSpaceImage(s.bytes) case ViDataSpacePng(png: final stream)) {
       png = stream;
     } else {
       continue;

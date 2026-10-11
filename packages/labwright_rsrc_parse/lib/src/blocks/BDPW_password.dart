@@ -1,22 +1,20 @@
-/// `BDPW` — block-diagram password: the MD5 digest of the password and two digests derived
-/// from it.
+/// `BDPW` - Block-Diagram Password: [ViPasswordRecord]
+///
+/// The MD5 digest of the block-diagram password and two additional unknown digests.
+/// Can be 2 or 3 digests (32/48) bytes.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       16    passwordDigest             u8[16]   MD5 of the password, MD5("") when unprotected
-/// 16      16    digest2                    u8[16]   derived digest; derivation TODO
-/// optional, when the record is 48 bytes:
-/// 32      16    digest3                    u8[16]   derived digest; derivation TODO
+/// offset  size  field          type    meaning
+/// 0       16    passwordDigest u8[16]  MD5 of the password, MD5("") when unprotected.
+/// 16      16    digest2        u8[16]  Derived digest; derivation TODO.
+/// 32      16    digest3        u8[16]? Derived digest; derivation TODO; null in the 32-byte form.
 /// ```
-///
-/// [ViPasswordRecord] is a view over the payload; [decodePasswordRecord] requires 48 bytes,
-/// or 32 for the two-digest form.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
 /// MD5 of the empty string, the password digest of an unprotected VI.
 const List<int> emptyPasswordDigest = [
@@ -24,32 +22,22 @@ const List<int> emptyPasswordDigest = [
   0xe9, 0x80, 0x09, 0x98, 0xec, 0xf8, 0x42, 0x7e,
 ];
 
-const _passwordDigest = BlockField(0, 16, 'passwordDigest', 'u8[16]', 'MD5 of the password, MD5("") when unprotected');
-const _digest2 = BlockField(16, 16, 'digest2', 'u8[16]', 'derived digest; derivation TODO');
-const _digest3 = BlockField(
-  32,
-  16,
-  'digest3',
-  'u8[16]',
-  'derived digest; derivation TODO',
-  optional: 'the record is 48 bytes',
-);
+final class ViPasswordRecord extends ByteRecord {
+  ViPasswordRecord(Uint8List bytes) : super(bytes, layout) {
+    assert(
+      view.lengthInBytes == _digest3.end || view.lengthInBytes == _digest2.end,
+      'BDPW holds three digests, or two',
+    );
+  }
 
-const BlockLayout bdpwLayout = [_passwordDigest, _digest2, _digest3];
+  /// MD5 of the password, MD5("") when unprotected.
+  Uint8List get passwordDigest => _passwordDigest.read(view);
 
-/// A view over a `BDPW` payload.
-class ViPasswordRecord implements BlockRecord {
-  const ViPasswordRecord._(this.bytes);
+  /// Derived digest; derivation TODO.
+  Uint8List get digest2 => _digest2.read(view);
 
-  final Uint8List bytes;
-
-  Uint8List get passwordDigest => Uint8List.sublistView(bytes, _passwordDigest.offset, _passwordDigest.end);
-
-  Uint8List get digest2 => Uint8List.sublistView(bytes, _digest2.offset, _digest2.end);
-
-  /// Null in the 32-byte form.
-  Uint8List? get digest3 =>
-      bytes.length >= _digest3.end ? Uint8List.sublistView(bytes, _digest3.offset, _digest3.end) : null;
+  /// Derived digest; derivation TODO; null in the 32-byte form.
+  Uint8List? get digest3 => _digest3.isIn(view) ? _digest3.read(view) : null;
 
   bool get isUnprotected {
     final digest = passwordDigest;
@@ -59,11 +47,9 @@ class ViPasswordRecord implements BlockRecord {
     return true;
   }
 
-  @override
-  Uint8List serialize() => bytes;
-}
+  static const _passwordDigest = Bytes(0, size: 16);
+  static const _digest2 = Bytes(16, size: 16);
+  static const _digest3 = Bytes(32, size: 16, optional: true);
 
-ViPasswordRecord decodePasswordRecord(Uint8List bytes) {
-  assert(bytes.length == _digest3.end || bytes.length == _digest2.end, 'BDPW holds three digests, or two');
-  return ViPasswordRecord._(bytes);
+  static const layout = ByteLayout([_passwordDigest, _digest2, _digest3]);
 }

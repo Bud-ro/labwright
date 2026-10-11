@@ -126,7 +126,7 @@ void main() {
     ),
     HexCase(
       'an undecoded non-heap block shows raw hex + catalog identity',
-      raw('TRec', List.filled(40, 0x41)),
+      raw('GTMI', List.filled(40, 0x41)),
       one: ['raw hex'],
     ),
     HexCase(
@@ -134,7 +134,7 @@ void main() {
       raw('vers', versBytes),
       one: [
         'versionWord (u32)',
-        'flags (u16)',
+        'regionCode (u16)',
         'versionText (pstr)',
         '100% framed',
       ],
@@ -151,9 +151,9 @@ void main() {
       ),
       one: [
         'versionWord (u32)',
-        'saveFlags (u16)',
-        'blockDiagramPasswordDigest (u8[16])',
-        'secondaryDigest (u8[16])',
+        'statusFlags (u32)',
+        'priority (u16)',
+        'unknown136 (u8?)',
         '% framed',
       ],
       some: ['Undecoded'],
@@ -174,7 +174,7 @@ void main() {
     HexCase(
       'a MUID block is framed as a single u32 (100%)',
       raw('MUID', [0, 0, 0x0b, 0x6c]),
-      one: ['value (u32)', '100% framed'],
+      one: ['maxUid (u32)', '100% framed'],
     ),
     HexCase(
       'a TITL block is a Pascal string (100%)',
@@ -209,8 +209,13 @@ void main() {
         3,
         ...'Bar'.codeUnits,
       ]),
-      one: ['version (u16)', 'fontCount (u16)', '% framed'],
-      some: ['Undecoded'],
+      one: [
+        'version (u16)',
+        'platform (u16)',
+        'predefinedSlots (u16)',
+        'fontCount (u16)',
+        '% framed',
+      ],
     ),
     HexCase(
       'a CPSP string table is framed (count + strings, 100%)',
@@ -225,9 +230,9 @@ void main() {
       never: ['Undecoded'],
     ),
     HexCase(
-      'an FPTD block is framed as its u16 words (100%)',
+      'an FPTD block is framed as its type index (100%)',
       raw('FPTD', [0x01, 0x52]),
-      one: ['words (u16[])', '100% framed'],
+      one: ['typeIndex (u16)', '100% framed'],
     ),
     HexCase(
       'a decoded HLPP block shows its recovered help path',
@@ -236,15 +241,17 @@ void main() {
         0,
         0,
         0,
-        0x08,
+        0x16,
         0,
         0,
         0,
-        1,
-        3,
-        ...'doc'.codeUnits,
+        2,
+        9,
+        ...'<helpdir>'.codeUnits,
+        7,
+        ...'doc.chm'.codeUnits,
       ]),
-      exact: ['doc'],
+      exact: [r'<helpdir>\doc.chm'],
     ),
     HexCase(
       'a VCTP block lists the recovered type pool',
@@ -301,7 +308,7 @@ void main() {
   testWidgets('a CONP block resolves its index against the sibling VCTP pool', (
     tester,
   ) async {
-    final vctp = raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21, 0, 0]);
+    final vctp = raw('VCTP', [0, 0, 0, 1, 0, 4, 0, 0x21, 0, 1, 0, 0]);
     final conp = raw('CONP', [0, 1]);
     await pumpBody(
       tester,

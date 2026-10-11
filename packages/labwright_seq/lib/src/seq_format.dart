@@ -9,8 +9,7 @@ enum SeqFormat {
 
   ini,
 
-  unknown
-  ;
+  unknown;
 
   bool get isText => this == xml || this == ini;
 }
@@ -41,8 +40,7 @@ enum Ascii {
 
   latin1Start(0xa0),
 
-  latin1End(0xff)
-  ;
+  latin1End(0xff);
 
   const Ascii(this.code);
   final int code;
@@ -58,8 +56,7 @@ enum TofHeaderField {
 
   compatibleVersion(0xa4),
 
-  buildVersion(0xd6)
-  ;
+  buildVersion(0xd6);
 
   const TofHeaderField(this.offset);
 

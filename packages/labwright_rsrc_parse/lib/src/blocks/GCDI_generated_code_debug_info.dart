@@ -1,48 +1,40 @@
-/// `GCDI` — generated-code debug info: a value word, a marker byte and an undecoded body.
+/// `GCDI` - Generated-Code Debug Info: [ViGcdiRecord]
+///
+/// A record count and a run of records, always in the zlib envelope that [inflateHeapPayload]
+/// opens; the layout is the inflated body. Each record starts with a kind byte, and the first is
+/// kind 1 in every file. Reading kinds 1 and 2 as a u32 and kind 3 as a byte then a u32 tiles the
+/// 422 single-record bodies with the count; the other 570 bodies hold further kinds, 0 and 0xaf
+/// among them, of sizes not decoded. Present in 992 files from LabVIEW 8 to 25.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     value                      u32      role TODO
-/// 4       1     marker                     u8       always 1
-/// 5       rest  TODO                                retained; not decoded
+/// offset  size  field       type   meaning
+/// 0       4     recordCount u32    Number of records; 1 in 422 files, up to 263.
+/// 4       rest  records            Records led by a kind byte: 1 and 2 take a u32, 3 a byte and a u32,
+///                                  others TODO.
 /// ```
-///
-/// The section stores the payload in the zlib envelope that [inflateHeapPayload] opens; the
-/// layout is the inflated body.
-///
-/// [ViGcdiRecord] is a view over the payload; [decodeGcdiRecord] requires at least 5 bytes
-/// with the marker byte set to 1.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import '../decode.dart' show inflateHeapPayload;
 
-const _value = BlockField(0, 4, 'value', 'u32', 'role TODO');
-const _marker = BlockField(4, 1, 'marker', 'u8', 'always 1');
-const _body = BlockField.undecoded(5, null);
+final class ViGcdiRecord extends ByteRecord {
+  ViGcdiRecord(Uint8List bytes) : super(bytes, layout) {
+    assert(view.lengthInBytes > _records.offset && view.getUint8(_records.offset) == 1, 'the first record is kind 1');
+  }
 
-const BlockLayout gcdiLayout = [_value, _marker, _body];
+  /// Number of records; 1 in 422 files, up to 263.
+  int get recordCount => _recordCount.read(view);
 
-/// A view over a `GCDI` payload.
-class ViGcdiRecord implements BlockRecord {
-  ViGcdiRecord._(this.bytes) : _view = ByteData.sublistView(bytes);
+  /// The records, not decoded.
+  Uint8List get records => _records.read(view);
 
-  final Uint8List bytes;
+  // dart format off
+  static const _recordCount = U32(0);
+  static const _records = Unknown(4); // Records led by a kind byte: 1 and 2 take a u32, 3 a byte and a u32, others TODO.
 
-  final ByteData _view;
-
-  int get value => _view.getUint32(_value.offset);
-
-  Uint8List get body => Uint8List.sublistView(bytes, _body.offset);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViGcdiRecord decodeGcdiRecord(Uint8List bytes) {
-  assert(bytes.length >= _body.offset && bytes[_marker.offset] == 1, 'GCDI carries a value word and the marker byte 1');
-  return ViGcdiRecord._(bytes);
+  static const layout = ByteLayout([_recordCount, _records]);
+  // dart format on
 }

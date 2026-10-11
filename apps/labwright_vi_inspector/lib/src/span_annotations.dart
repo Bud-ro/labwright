@@ -175,8 +175,7 @@ class ColorPreview extends StatelessWidget {
 
 Widget? iconPreview(String tag, Uint8List bytes) {
   if (tag != BlockTag.dsim.tag || bytes.length < 46) return null;
-  if (decodeDataSpaceImage(bytes)
-      case ViDataSpaceRaster(depth: 24) && final icon) {
+  if (ViDataSpaceImage(bytes) case ViDataSpaceRaster(depth: 24) && final icon) {
     return IconView(
       caption: '${icon.width}×${icon.height} · embedded 24-bit RGB picture',
       child: ViIconImage(icon: icon),

@@ -79,7 +79,7 @@ class _ViTypesViewState extends State<ViTypesView> {
     final canCorrelate =
         vctpBytes != null &&
         typePoolFrames(vctpBytes) &&
-        decodeTypePool(vctpBytes).types.isNotEmpty;
+        ViTypePool(vctpBytes).types.isNotEmpty;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [

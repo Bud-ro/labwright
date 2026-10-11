@@ -829,7 +829,7 @@ class _SummaryViewState extends State<_SummaryView> {
           ),
           const SizedBox(height: 4),
           const Text(
-            'Every resource block, identified via the clean-room catalog (name · confidence · size).',
+            'Every resource block, identified via the clean-room catalog (name · unknown bytes · size).',
             style: TextStyle(color: Colors.grey, fontSize: 12),
           ),
           const SizedBox(height: 8),
@@ -854,7 +854,7 @@ class _SummaryViewState extends State<_SummaryView> {
         _kv(
           '${item.sectionCount > 1 ? '${item.tag} ×${item.sectionCount}' : item.tag}  '
               '${BlockTag.of(item.tag)?.displayName ?? 'Unknown (${item.tag})'}',
-          '${(BlockTag.of(item.tag)?.confidence ?? BlockConfidence.tentative).name} · ${_fmtSize(item.decompressedBytes)}',
+          '${layoutCoverage(BlockTag.of(item.tag), item.decompressedBytes)} · ${_fmtSize(item.decompressedBytes)}',
         ),
     ];
   }

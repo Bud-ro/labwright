@@ -22,7 +22,7 @@ Map<String, ViLegacyIcon> resolveIconsOnDisk(
   final remaining = {...wanted};
   final callerDir = File(viPath).parent.path;
 
-  List<ViSubViPath> paths;
+  List<ViPath> paths;
   try {
     paths = readSubViPaths(File(viPath).readAsBytesSync());
   } catch (_) {
@@ -31,8 +31,8 @@ Map<String, ViLegacyIcon> resolveIconsOnDisk(
   for (final path in paths) {
     final name = path.fileName;
     if (!remaining.contains(name)) continue;
-    switch (path.kind) {
-      case ViSubViPathKind.relative:
+    switch (path.form) {
+      case ViPathForm.relative:
         var dir = callerDir;
         for (var up = 0; up < path.upLevels; up++) {
           dir = Directory(dir).parent.path;
@@ -40,10 +40,15 @@ Map<String, ViLegacyIcon> resolveIconsOnDisk(
         final icon = decodeViFileIcon('$dir/${path.segments.join('/')}');
         if (icon != null) out[name] = icon;
         remaining.remove(name);
-      case ViSubViPathKind.viLib:
+      case ViPathForm.symbolic when path.components.first == '<vilib>':
         remaining.remove(name);
-      case ViSubViPathKind.symbolic:
-      case ViSubViPathKind.other:
+      case ViPathForm.symbolic:
+      case ViPathForm.absolute:
+      case ViPathForm.url:
+      case ViPathForm.name:
+      case ViPathForm.notAPath:
+      case ViPathForm.empty:
+      case ViPathForm.unc:
         break;
     }
   }

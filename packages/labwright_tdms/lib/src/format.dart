@@ -9,8 +9,7 @@ enum TocFlag {
   newObjList(1 << 2),
   rawData(1 << 3),
   interleaved(1 << 5),
-  bigEndian(1 << 6)
-  ;
+  bigEndian(1 << 6);
 
   const TocFlag(this.mask);
   final int mask;

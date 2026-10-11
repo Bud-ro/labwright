@@ -1,5 +1,3 @@
-import 'dart:typed_data';
-
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
@@ -60,8 +58,11 @@ class _BlockHexViewState extends State<BlockHexView> {
         _records = const [];
       }
     } else {
-      final layout = BlockTag.of(widget.section.tag)?.layout;
-      _records = layout == null ? const [] : _layoutSpans(layout, bytes);
+      final tag = BlockTag.of(widget.section.tag);
+      final layout = tag?.layout;
+      _records = layout == null
+          ? const []
+          : _layoutSpans(layout, blockFieldDocs[tag]!, bytes);
     }
     _byteToRecord = List<int>.filled(bytes.length, -1);
     for (var i = 0; i < _records.length; i++) {
@@ -399,7 +400,7 @@ class _BlockHexViewState extends State<BlockHexView> {
     switch (widget.section.tag) {
       case 'vers':
         if (bytes.length < 4) return const [];
-        final versionWord = decodeVersionWord(bytes);
+        final versionWord = ViVersionWord.at(ByteData.sublistView(bytes), 0);
         return [
           MapEntry('Version', versionWord.version),
           MapEntry(
@@ -409,46 +410,57 @@ class _BlockHexViewState extends State<BlockHexView> {
           MapEntry('Build', '${versionWord.build}'),
         ];
       case 'LVSR':
-        if (bytes.length < 8) return const [];
-        final saveRecord = decodeSaveRecord(bytes);
+        if (bytes.length < 96) return const [];
+        final saveRecord = ViSaveRecord(bytes);
         return [
           MapEntry('LabVIEW version', saveRecord.versionWord.version),
-          MapEntry(
-            'BD password-protected',
-            saveRecord.isBlockDiagramPasswordProtected ? 'yes' : 'no',
-          ),
+          MapEntry('VI kind', saveRecord.kind.name),
+          MapEntry('Priority', saveRecord.priority.name),
         ];
       case 'CONP':
       case 'CPC2':
         if (bytes.isEmpty) return const [];
-        final pane = decodeConnectorPane(bytes);
-        if (pane is! ViConnectorPaneTypeIndex)
-          return [const MapEntry('Form', 'inline (not yet decoded)')];
-        final out = [MapEntry('VCTP type index', '${pane.typeIndex}')];
-        final pool = widget.siblings.isEmpty
-            ? const <ViType>[]
-            : typePoolFromDecoded(widget.siblings)?.types ?? const <ViType>[];
-        final idx = pane.typeIndex;
-        if (idx >= 1 && idx <= pool.length) {
-          final type = pool[idx - 1];
+        final pane = ViConnectorPane(bytes);
+        final vctp = widget.siblings.where((s) => s.tag == 'VCTP').firstOrNull;
+        final pool = switch (pane) {
+          ViConnectorPaneInline(:final pool) => pool,
+          ViConnectorPaneIndex() =>
+            vctp == null ? null : ViTypePool(vctp.bytes),
+        };
+        final out = [
+          switch (pane) {
+            ViConnectorPaneIndex(:final typeIndex) => MapEntry(
+              'VCTP type index',
+              '$typeIndex',
+            ),
+            ViConnectorPaneInline() => const MapEntry(
+              'Form',
+              'embedded type pool',
+            ),
+          },
+        ];
+        final type = pane.typeIn(pool);
+        if (type != null && pool != null) {
           final name = type.label != null && type.label!.isNotEmpty
               ? " '${type.label}'"
               : '';
-          out.add(MapEntry('Conpane type', '${typeLabel(type, pool)}$name'));
+          out.add(
+            MapEntry('Conpane type', '${typeLabel(type, pool.types)}$name'),
+          );
         }
         return out;
       case 'HLPP':
         if (!isPth0(bytes)) return const [];
-        final helpPath = decodeHelpPath(bytes);
-        return helpPath.path.isEmpty
+        final helpPath = ViPath(bytes);
+        return helpPath.text.isEmpty
             ? const []
-            : [MapEntry('Help path', helpPath.path)];
+            : [MapEntry('Help path', helpPath.text)];
       case 'STRG':
       case 'HLPT':
         if (bytes.length < 4 || 4 + readU32be(bytes, 0) != bytes.length) {
           return const [];
         }
-        final text = decodeStringBlock(bytes).text;
+        final text = ViStringBlock(bytes).text;
         if (text.isEmpty) return const [];
         return [
           MapEntry(
@@ -458,14 +470,14 @@ class _BlockHexViewState extends State<BlockHexView> {
         ];
       case 'HIST':
         if (bytes.length != 40) return const [];
-        final history = decodeHistory(bytes);
+        final history = ViHistory(bytes);
         return [
           MapEntry('Format version', '${history.formatVersion}'),
-          MapEntry('Revision entries', '${history.entryCount}'),
+          MapEntry('Revision entries', '${history.revisionNumber}'),
         ];
       case 'FTAB':
         if (bytes.length < 8) return const [];
-        final ft = decodeFontTable(bytes);
+        final ft = ViFontTable(bytes);
         return [
           MapEntry('Fonts', '${ft.fontCount}'),
           if (ft.entries.isNotEmpty)
@@ -499,7 +511,7 @@ class _BlockHexViewState extends State<BlockHexView> {
     final info = BlockTag.of(widget.section.tag);
     final name = info?.displayName ?? 'Unknown (${widget.section.tag})';
     if (widget.section.tag == 'VCTP' && typePoolFrames(widget.section.bytes)) {
-      final types = decodeTypePool(widget.section.bytes).types;
+      final types = ViTypePool(widget.section.bytes).types;
       if (types.isNotEmpty) {
         const cap = 200;
         final shown = types.length > cap ? types.take(cap).toList() : types;
@@ -552,7 +564,7 @@ class _BlockHexViewState extends State<BlockHexView> {
     final depth = LegacyIconDepth.forTag(widget.section.tag);
     if (depth != null) {
       if (widget.section.bytes.length == depth.byteLength) {
-        final icon = decodeLegacyIcon(widget.section.bytes, depth);
+        final icon = ViLegacyIcon(widget.section.bytes, depth);
         return ListView(
           padding: const EdgeInsets.all(12),
           children: [
@@ -604,7 +616,7 @@ class _BlockHexViewState extends State<BlockHexView> {
       children: [
         ..._parsedHeader(
           name,
-          '${widget.section.tag} — ${(info?.confidence ?? BlockConfidence.tentative).name}',
+          '${widget.section.tag} — ${layoutCoverage(info, widget.section.bytes.length)}',
         ),
         for (final field in fields) ...[
           Text(
@@ -618,26 +630,34 @@ class _BlockHexViewState extends State<BlockHexView> {
     );
   }
 
-  List<SpanInfo> _layoutSpans(BlockLayout layout, Uint8List bytes) {
+  List<SpanInfo> _layoutSpans(
+    ByteLayout layout,
+    List<FieldDoc> docs,
+    Uint8List bytes,
+  ) {
     final out = <SpanInfo>[];
-    for (final field in layout) {
+    final view = ByteData.sublistView(bytes);
+    for (var i = 0; i < layout.fields.length; i++) {
+      final field = layout.fields[i];
+      final doc = docs[i];
       final start = field.offset;
       if (start >= bytes.length) continue;
-      final end = field.size == null ? bytes.length : start + field.size!;
+      final end = field.size == null ? bytes.length : field.end;
       if (end > bytes.length) continue;
+      final unknown = field is Unknown;
       out.add(
         SpanInfo(
           offset: start,
           length: end - start,
           lead: bytes[start],
-          color: field.isUndecoded ? spanColorUnframed : _layoutColor(field),
-          title: field.isUndecoded
+          color: unknown ? spanColorUnframed : _layoutColor(field),
+          title: unknown
               ? 'Undecoded ($start..${end - 1})'
-              : '${field.name} (${field.type})',
-          detail: field.isUndecoded
+              : '${doc.name} (${doc.type})',
+          detail: unknown
               ? 'These ${end - start} bytes are not yet decoded for this block.'
-              : field.meaning,
-          inlinePreview: _fieldPreview(field, bytes, start, end),
+              : doc.doc,
+          inlinePreview: _fieldPreview(field, view, bytes, start, end),
         ),
       );
       if (field.size == null) break;
@@ -645,53 +665,38 @@ class _BlockHexViewState extends State<BlockHexView> {
     return _fillGaps(out, bytes.length);
   }
 
-  static Color _layoutColor(BlockField field) {
-    if (field.entry.isNotEmpty) return spanColorContainer;
-    return switch (field.type) {
-      'pstr' || 'u8[]' => spanColorString,
-      '4cc' => spanColorHeader,
-      _ when field.type.startsWith('u8[') => spanColorRef,
-      _ when field.type.endsWith('[]') || field.type.contains('[') =>
-        spanColorContainer,
-      _ => spanColorObject,
-    };
-  }
+  static Color _layoutColor(Field field) => switch (field) {
+    PStr() || PStrList() => spanColorString,
+    Bytes(size: null) => spanColorString,
+    FourCc() => spanColorHeader,
+    Bytes() => spanColorRef,
+    WordList() ||
+    PackedWordList() ||
+    Entries() ||
+    Struct() => spanColorContainer,
+    _ => spanColorObject,
+  };
 
   static String? _fieldPreview(
-    BlockField field,
+    Field field,
+    ByteData view,
     Uint8List bytes,
     int start,
     int end,
   ) {
-    final view = ByteData.sublistView(bytes);
     final len = end - start;
-    switch (field.type) {
-      case 'u8' when len == 1:
-        return '${bytes[start]}';
-      case 'u16' when len == 2:
-        return '${view.getUint16(start)}';
-      case 'i16' when len == 2:
-        return '${view.getInt16(start)}';
-      case 'u16le' when len == 2:
-        return '${view.getUint16(start, Endian.little)}';
-      case 'u32' when len == 4:
-        return '${view.getUint32(start)}';
-      case 'i32' when len == 4:
-        return '${view.getInt32(start)}';
-      case 'u32le' when len == 4:
-        return '${view.getUint32(start, Endian.little)}';
-      case '4cc' when len == 4:
-        return String.fromCharCodes(bytes, start, end);
-      case 'pstr' when len >= 1 && start + 1 + bytes[start] <= end:
-        return String.fromCharCodes(bytes, start + 1, start + 1 + bytes[start]);
-      default:
-        return len <= 8
+    return switch (field) {
+      final Scalar scalar when scalar.size == len => '${scalar.read(view)}',
+      final FourCc cc when len == 4 => cc.read(view),
+      final PStr str when len >= 1 && str.endIn(view) <= end => str.read(view),
+      _ =>
+        len <= 8
             ? [
                 for (var i = start; i < end; i++)
                   bytes[i].toRadixString(16).padLeft(2, '0'),
               ].join(' ')
-            : '$len B';
-    }
+            : '$len B',
+    };
   }
 
   List<SpanInfo> _fillGaps(List<SpanInfo> fields, int len) {
@@ -785,3 +790,11 @@ class _BlockHexViewState extends State<BlockHexView> {
 
 const double _kRowHeight = 20;
 const double _kRecHeight = 30;
+
+/// How much of a [length]-byte payload the tag's layout leaves undecoded; "no layout" when the
+/// tag has none.
+String layoutCoverage(BlockTag? tag, int length) {
+  final layout = tag?.layout;
+  if (layout == null) return 'no layout';
+  return '${layout.unknownBytes(length)} of $length B unknown';
+}

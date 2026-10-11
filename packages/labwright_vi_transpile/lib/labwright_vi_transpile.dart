@@ -17,8 +17,7 @@ export 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart'
         ViTypedefType,
         buildViModelFromDecoded,
         clusterFields,
-        decodeSections,
-        decodeTypePool;
+        decodeSections;
 
 export 'src/dataflow_ir.dart';
 export 'src/declare.dart';

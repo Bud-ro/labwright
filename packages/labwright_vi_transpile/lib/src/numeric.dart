@@ -12,8 +12,7 @@ enum LvArithmeticHazard {
 
   unsignedFormat(operators: ['toString', 'toDouble', 'toRadixString'], remedy: 'BigInt.from(a).toUnsigned(64)'),
 
-  floatNarrowing(operators: ['+', '-', '*', '/'], remedy: '(Float32List(1)..[0] = value)[0]')
-  ;
+  floatNarrowing(operators: ['+', '-', '*', '/'], remedy: '(Float32List(1)..[0] = value)[0]');
 
   const LvArithmeticHazard({required this.operators, required this.remedy});
 
@@ -57,8 +56,7 @@ enum LvNumericKind {
     hazards: [LvArithmeticHazard.floatNarrowing],
   ),
 
-  dbl(code: TypeCode.dbl, glyph: 'DBL', bits: 64, signed: true, isFloat: true, typedListType: 'Float64List')
-  ;
+  dbl(code: TypeCode.dbl, glyph: 'DBL', bits: 64, signed: true, isFloat: true, typedListType: 'Float64List');
 
   const LvNumericKind({
     required this.code,

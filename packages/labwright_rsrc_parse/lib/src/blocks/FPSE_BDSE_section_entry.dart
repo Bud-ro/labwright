@@ -1,44 +1,42 @@
-/// `FPSE` / `BDSE` — front-panel and block-diagram section entries: one u32, sometimes
-/// followed by a second.
+/// `FPSE` / `BDSE` - Front-Panel and Block-Diagram Section Entries: [ViSectionEntry]
+///
+/// One u32 per heap section, present in every corpus file. It is never zero and matches no size
+/// or count of any block; `FPSE` never exceeds `MUID` but `BDSE` does in 133 files. It names an
+/// object id of its own heap in a fifth of the files, and the values cluster on a few numbers
+/// that many unrelated files share. Files saved by LabVIEW 8.0 to 8.5 add a second word. Role
+/// TODO.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     value                      u32      role TODO
-/// optional, when the record is 8 bytes:
-/// 4       4     extra                      u32      role TODO
+/// offset  size  field    type   meaning
+/// 0       4     value    u32    Never zero; an object id of this section's heap in a fifth of the corpus;
+///                               role TODO.
+/// 4       4     extra    u32?   The LabVIEW 8.0 to 8.5 word: zero in 31 of the 49 files that carry it; null
+///                               otherwise.
 /// ```
-///
-/// [ViSectionEntry] is a view over the payload; [decodeSectionEntry] requires 4 or 8 bytes.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _value = BlockField(0, 4, 'value', 'u32', 'role TODO');
-const _extra = BlockField(4, 4, 'extra', 'u32', 'role TODO', optional: 'the record is 8 bytes');
+final class ViSectionEntry extends ByteRecord {
+  ViSectionEntry(Uint8List bytes) : super(bytes, layout) {
+    assert(
+      view.lengthInBytes == _value.end || view.lengthInBytes == _extra.end,
+      'a section entry is one or two u32 words',
+    );
+  }
 
-const BlockLayout sectionEntryLayout = [_value, _extra];
+  /// Never zero; an object id of this section's heap in a fifth of the
+  /// corpus; role TODO.
+  int get value => _value.read(view);
 
-/// A view over an `FPSE` or `BDSE` payload.
-class ViSectionEntry implements BlockRecord {
-  ViSectionEntry._(this.bytes) : _view = ByteData.sublistView(bytes);
+  /// The LabVIEW 8.0 to 8.5 word: zero in 31 of the 49 files that carry it; null otherwise.
+  int? get extra => _extra.isIn(view) ? _extra.read(view) : null;
 
-  final Uint8List bytes;
+  static const _value = U32(0);
+  static const _extra = U32(4, optional: true);
 
-  final ByteData _view;
-
-  int get value => _view.getUint32(_value.offset);
-
-  /// Null in the 4-byte form.
-  int? get extra => bytes.length >= _extra.end ? _view.getUint32(_extra.offset) : null;
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViSectionEntry decodeSectionEntry(Uint8List bytes) {
-  assert(bytes.length == _value.end || bytes.length == _extra.end, 'a section entry is one or two u32 words');
-  return ViSectionEntry._(bytes);
+  static const layout = ByteLayout([_value, _extra]);
 }

@@ -11,8 +11,7 @@ enum TdsType {
   doubleFloat(10, 8),
   string(0x20, -1),
   boolean(0x21, 1),
-  timestamp(0x44, 16)
-  ;
+  timestamp(0x44, 16);
 
   const TdsType(this.code, this.width);
 

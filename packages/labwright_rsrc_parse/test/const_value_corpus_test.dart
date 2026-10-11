@@ -59,7 +59,7 @@ void main() {
       final sections = readViSections(bytes);
       final dfdsSection = sections.firstWhere((s) => s.tag == 'DFDS');
       final dfds = inflateHeapPayload(dfdsSection.bytes)!;
-      final slots = decodeDataSpace(dfds, dataSpaceContexts(sections)[dfdsSection.index]!).slots;
+      final slots = ViDataSpace(dfds, dataSpaceContexts(sections)[dfdsSection.index]!).slots;
       expect(slots, hasLength(37));
       final strSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 1947);
       expect((strSlot.topLevelIndex, strSlot.length), (324, 15));

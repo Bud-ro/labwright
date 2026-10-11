@@ -257,8 +257,7 @@ enum PrimOp {
 
   emptyArray(23063, 'Empty Array?', PrimNameBasis.corpusLabel),
 
-  flattenToJson(24201, 'Flatten To JSON', PrimNameBasis.corpusLabel)
-  ;
+  flattenToJson(24201, 'Flatten To JSON', PrimNameBasis.corpusLabel);
 
   const PrimOp(this.id, this.opName, this.basis, {this.output});
 

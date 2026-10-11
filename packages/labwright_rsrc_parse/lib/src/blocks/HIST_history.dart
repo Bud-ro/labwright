@@ -1,59 +1,69 @@
-/// `HIST` — revision history record: the format version and the number of revision
-/// entries kept for the VI.
+/// `HIST` - Revision History: [ViHistory]
+///
+/// The VI's revision number and history settings in a fixed 40-byte record; every corpus file
+/// has one. Words 4 to 6 and 9 are zero except in 175 files, where they hold a rectangle about
+/// 390 by 280 pixels and two small counts, the natural reading being the History window's bounds.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     formatVersion              u32      history record format version
-/// 4       4     flags                      u32      history settings; bits TODO
-/// 8       4     entryCount                 u32      revision entries recorded
-/// 12      4     reserved                   u32      zero
-/// 16      12    TODO                       u32[3]   retained; not decoded
-/// 28      8     reserved                   u32[2]   zero
-/// 36      4     TODO                       u32      retained; not decoded
+/// offset  size  field          type   meaning
+/// 0       4     formatVersion  u32    Always 2.
+/// 4       4     flags          u32    History settings: bit 10 is set in all but 5 files, bit 8 in 34, bits
+///                                     2 and 5 once each; roles TODO.
+/// 8       4     revisionNumber u32    The revision number the History window shows, 1 to 2597 in the corpus.
+/// 12      4     reserved12     u32    Zero.
+/// 16      4     unknown16             Zero, or 3, 4 or 5 when the rectangle is set; role TODO.
+/// 20      2     top            i16    The rectangle words 5 and 6 hold, as top, left, bottom and right; all
+///                                     zero in all but 175 files.
+/// 22      2     left           i16    The rectangle words 5 and 6 hold, as top, left, bottom and right; all
+///                                     zero in all but 175 files.
+/// 24      2     bottom         i16    The rectangle words 5 and 6 hold, as top, left, bottom and right; all
+///                                     zero in all but 175 files.
+/// 26      2     right          i16    The rectangle words 5 and 6 hold, as top, left, bottom and right; all
+///                                     zero in all but 175 files.
+/// 28      8     reserved28     u32[2] Zero.
+/// 36      4     unknown36             Zero, or 2 to 14 when the rectangle is set; role TODO.
 /// ```
-///
-/// [ViHistory] is a view over the payload; [decodeHistory] requires exactly 40 bytes.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _formatVersion = BlockField(0, 4, 'formatVersion', 'u32', 'history record format version');
-const _flags = BlockField(4, 4, 'flags', 'u32', 'history settings; bits TODO');
-const _entryCount = BlockField(8, 4, 'entryCount', 'u32', 'revision entries recorded');
-const _reserved12 = BlockField(12, 4, 'reserved', 'u32', 'zero');
-const _todo16 = BlockField.undecoded(16, 12, type: 'u32[3]');
-const _reserved28 = BlockField(28, 8, 'reserved', 'u32[2]', 'zero');
-const _todo36 = BlockField.undecoded(36, 4, type: 'u32');
+final class ViHistory extends ByteRecord {
+  ViHistory(Uint8List bytes) : super(bytes, layout);
 
-const BlockLayout histLayout = [_formatVersion, _flags, _entryCount, _reserved12, _todo16, _reserved28, _todo36];
+  /// Always 2.
+  int get formatVersion => _formatVersion.read(view);
 
-/// A view over a `HIST` payload.
-class ViHistory implements BlockRecord {
-  ViHistory._(this.bytes) : _view = ByteData.sublistView(bytes);
+  /// History settings: bit 10 is set in all but 5 files, bit 8 in 34, bits 2 and 5 once each;
+  /// roles TODO.
+  int get flags => _flags.read(view);
 
-  final Uint8List bytes;
+  /// The revision number the History window shows, 1 to 2597 in the corpus.
+  int get revisionNumber => _revisionNumber.read(view);
 
-  final ByteData _view;
-
-  int get formatVersion => _view.getUint32(_formatVersion.offset);
-
-  int get flags => _view.getUint32(_flags.offset);
-
-  int get entryCount => _view.getUint32(_entryCount.offset);
-
+  /// Whether the reserved words are zero.
   bool get reservedAreZero =>
-      _view.getUint32(_reserved12.offset) == 0 &&
-      _view.getUint32(_reserved28.offset) == 0 &&
-      _view.getUint32(_reserved28.offset + 4) == 0;
+      _reserved12.read(view) == 0 && _reserved28.at(view, 0) == 0 && _reserved28.at(view, 1) == 0;
 
-  @override
-  Uint8List serialize() => bytes;
-}
+  /// The rectangle words 5 and 6 hold, as top, left, bottom and right; all zero in all but 175
+  /// files.
+  (int, int, int, int) get windowBounds => (_top.read(view), _left.read(view), _bottom.read(view), _right.read(view));
 
-ViHistory decodeHistory(Uint8List bytes) {
-  assert(bytes.length == _todo36.end, 'HIST is a 40-byte record');
-  return ViHistory._(bytes);
+  // dart format off
+  static const _formatVersion = U32(0);
+  static const _flags = U32(4);
+  static const _revisionNumber = U32(8);
+  static const _reserved12 = U32(12); // Zero.
+  static const _unknown16 = Unknown(16, size: 4); // Zero, or 3, 4 or 5 when the rectangle is set; role TODO.
+  static const _top = I16(20);
+  static const _left = I16(22);
+  static const _bottom = I16(24);
+  static const _right = I16(26);
+  static const _reserved28 = U32List(28, length: 2); // Zero.
+  static const _unknown36 = Unknown(36, size: 4); // Zero, or 2 to 14 when the rectangle is set; role TODO.
+
+  static const layout = ByteLayout([_formatVersion, _flags, _revisionNumber, _reserved12, _unknown16, _top, _left, _bottom, _right, _reserved28, _unknown36]);
+  // dart format on
 }

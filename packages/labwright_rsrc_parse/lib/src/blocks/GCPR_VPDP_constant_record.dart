@@ -1,49 +1,39 @@
-/// `GCPR` / `VPDP` — generated-code property and VI property data: fixed-size records that
-/// are all zero in every file seen.
+/// `GCPR` / `VPDP` - Generated-Code Properties and VI Property Data: [ViConstantRecord]
+///
+/// Two fixed records that carry almost nothing: `GCPR` is 13 zero bytes in all 3835 files that
+/// have it (LabVIEW 11 and later); `VPDP` is a 4-byte word, present in every file from LabVIEW
+/// 14 on, zero in all but 15 web-snippet PNGs where it is 1.
 ///
 /// ```text
 /// GCPR:
-/// offset  size  field                      type     meaning
-/// 0       13    body                       u8[13]   zero; roles TODO
+/// offset  size  field    type   meaning
+/// 0       13    gcprBody        Zero in every file; roles TODO.
 /// VPDP:
-/// offset  size  field                      type     meaning
-/// 0       4     body                       u8[4]    zero; roles TODO
+/// offset  size  field    type   meaning
+/// 0       4     vpdpWord        Zero, or 1 in 15 snippet PNGs; role TODO.
 /// ```
-///
-/// [ViConstantRecord] is a view over the payload; [decodeGcprRecord] requires 13 bytes and
-/// [decodeVpdpRecord] 4.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _gcprBody = BlockField(0, 13, 'body', 'u8[13]', 'zero; roles TODO');
-const _vpdpBody = BlockField(0, 4, 'body', 'u8[4]', 'zero; roles TODO');
+final class ViConstantRecord extends ByteRecord {
+  ViConstantRecord.gcpr(Uint8List bytes) : super(bytes, gcprLayout);
 
-const BlockLayout gcprLayout = [_gcprBody];
+  ViConstantRecord.vpdp(Uint8List bytes) : super(bytes, vpdpLayout);
 
-const BlockLayout vpdpLayout = [_vpdpBody];
+  bool get isZero {
+    for (var i = 0; i < view.lengthInBytes; i++) {
+      if (view.getUint8(i) != 0) return false;
+    }
+    return true;
+  }
 
-/// A view over a `GCPR` or `VPDP` payload.
-class ViConstantRecord implements BlockRecord {
-  const ViConstantRecord._(this.bytes);
+  static const _gcprBody = Unknown(0, size: 13); // Zero in every file; roles TODO.
+  static const _vpdpWord = Unknown(0, size: 4); // Zero, or 1 in 15 snippet PNGs; role TODO.
 
-  final Uint8List bytes;
-
-  bool get isZero => bytes.every((b) => b == 0);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViConstantRecord decodeGcprRecord(Uint8List bytes) {
-  assert(bytes.length == _gcprBody.end, 'GCPR is 13 bytes');
-  return ViConstantRecord._(bytes);
-}
-
-ViConstantRecord decodeVpdpRecord(Uint8List bytes) {
-  assert(bytes.length == _vpdpBody.end, 'VPDP is 4 bytes');
-  return ViConstantRecord._(bytes);
+  static const gcprLayout = ByteLayout([_gcprBody]);
+  static const vpdpLayout = ByteLayout([_vpdpWord]);
 }

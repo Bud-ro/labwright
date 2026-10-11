@@ -1,77 +1,51 @@
-/// `VCTP` — the VI's type pool: every data type as a descriptor, then the list of top-level
-/// types that the heaps, `TM80`, `CONP` and `DFDS` refer to by index.
+/// `VCTP` - VI Type Pool: [ViTypePool]
 ///
-/// A descriptor is a length word, a flag byte, a type code, a body whose shape the code
-/// selects, and, when [ViTypeFlag.label] is set, a Pascal label padded to an even length.
-/// The same descriptor grammar appears inline in `TM80` and `DTHP` and inside typedefs; the
-/// inline forms predate the type pool and omit the property byte of numerics and enums.
+/// Every data type as a descriptor, then the list of top-level types that the heaps, `TM80`,
+/// `CONP` and `DFDS` refer to by index. A descriptor is a length word, a flag byte, a type
+/// code, a body whose shape the code selects, and, when [ViTypeFlag.label] is set, a Pascal
+/// label padded to an even length; the same grammar appears inline in `TM80` and `DTHP` and
+/// inside typedefs, where it predates the type pool and omits the property byte of numerics
+/// and enums. The section stores the payload in the zlib envelope that [inflateHeapPayload]
+/// opens; the layout is the inflated body.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     count                      u32      number of descriptors
-/// 4       rest  descriptors                entry[count] count descriptors
-///   +0    2     length                     u16      bytes of the descriptor
-///   +2    1     flags                      u8       bit set, see ViTypeFlag
-///   +3    1     typeCode                   u8       see TypeCode and ViDataType
-///   +4    rest  body                       bytes    shape selected by typeCode, see the ViType
-///                                                   subclasses
-///   +4    rest  label                      pstr     after the body when flag 0x40 is set, padded
-///                                                   to an even length
-/// …       2     topLevelCount              u16      after the descriptors
-/// …       rest  topLevelIndices            u16[topLevelCount] descriptor index of each top-level
-///                                                             type
+/// offset  size            field           type                  meaning
+/// 0       4               count           u32                   Number of descriptors.
+/// 4       …               descriptors     VctpDescriptor[count]
+///   +0    2               length          u16                   Bytes of the descriptor.
+///   +2    1               flags           u8                    Bit set, see ViTypeFlag.
+///   +3    1               typeCode        u8                    See TypeCode and ViDataType.
+///   +4    rest            body            u8[]                  Shape selected by typeCode, see the ViType
+///                                                               subclasses.
+///   +…    …               label           pstr                  After the body when flag 0x40 is set, padded
+///                                                               to an even length.
+/// …       2               topLevelCount   u16                   Number of top-level types, after the
+///                                                               descriptors.
+/// …       2·topLevelCount topLevelIndices u16[topLevelCount]    Descriptor index of each top-level type.
 /// ```
-///
-/// The section stores the payload in the zlib envelope that [inflateHeapPayload] opens; the
-/// layout is the inflated body.
-///
-/// [ViTypePool] is a view over the payload holding one [ViType] view per descriptor; the
-/// [ViType] subclasses expose each body; [decodeTypePool] requires the descriptors and the
-/// top-level list to tile the payload exactly.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
-import '../decode.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
+import '../decode.dart' show inflateHeapPayload;
 
-const _count = BlockField(0, 4, 'count', 'u32', 'number of descriptors');
-const _descLength = BlockField(0, 2, 'length', 'u16', 'bytes of the descriptor');
-const _descFlags = BlockField(2, 1, 'flags', 'u8', 'bit set, see ViTypeFlag');
-const _descCode = BlockField(3, 1, 'typeCode', 'u8', 'see TypeCode and ViDataType');
-const _descBody = BlockField(4, null, 'body', 'bytes', 'shape selected by typeCode, see the ViType subclasses');
-const _descLabel = BlockField(
-  4,
-  null,
-  'label',
-  'pstr',
-  'after the body when flag 0x40 is set, padded to an even length',
-);
-const _descriptors = BlockField(
-  4,
-  null,
-  'descriptors',
-  'entry[count]',
-  'count descriptors',
-  entry: [_descLength, _descFlags, _descCode, _descBody, _descLabel],
-);
-const _topLevelCount = BlockField(4, 2, 'topLevelCount', 'u16', 'after the descriptors');
-const _topLevelIndices = BlockField(
-  6,
-  null,
-  'topLevelIndices',
-  'u16[topLevelCount]',
-  'descriptor index of each top-level type',
-);
+/// One type descriptor, the grammar `TM80` and `DTHP` reuse inline.
+abstract final class VctpDescriptor {
+  static const length = U16(0); // Bytes of the descriptor.
+  static const flags = U8(2); // Bit set, see [ViTypeFlag].
+  static const typeCode = U8(3); // See [TypeCode] and [ViDataType].
+  static const body = Bytes(4); // Shape selected by typeCode, see the [ViType] subclasses.
+  static const label = PStr(4); // After the body when flag 0x40 is set, padded to an even length.
 
-const BlockLayout vctpLayout = [_count, _descriptors, _topLevelCount, _topLevelIndices];
+  static const layout = ByteLayout([length, flags, typeCode, body, label]);
+}
 
 /// Bits of a descriptor's flag byte.
 enum ViTypeFlag {
   /// `0x40`: a Pascal label follows the body.
-  label(0x40)
-  ;
+  label(0x40);
 
   const ViTypeFlag(this.mask);
 
@@ -126,8 +100,7 @@ enum ViDataType {
   function,
   typeDef,
   polyVi,
-  unknown
-  ;
+  unknown;
 
   /// Whether the type is an integer, float, complex or enum scalar.
   bool get isNumeric => switch (this) {
@@ -272,11 +245,11 @@ sealed class ViType {
   int get end => offset + length;
 
   /// The length word at offset 0, which for a typedef's inline base differs from [length].
-  int get declaredLength => ByteData.sublistView(bytes).getUint16(offset + _descLength.offset);
+  int get declaredLength => ByteData.sublistView(bytes).getUint16(offset + VctpDescriptor.length.offset);
 
-  int get flags => bytes[offset + _descFlags.offset];
+  int get flags => bytes[offset + VctpDescriptor.flags.offset];
 
-  int get code => bytes[offset + _descCode.offset];
+  int get code => bytes[offset + VctpDescriptor.typeCode.offset];
 
   ViDataType get kind => _typeCodes[code] ?? ViDataType.unknown;
 
@@ -298,7 +271,7 @@ sealed class ViType {
   static int _findLabel(Uint8List bytes, int offset, int length, int bodyEnd, bool exact) {
     final end = offset + length;
     assert(bodyEnd <= end, 'the body lies inside the descriptor');
-    if (bytes[offset + _descFlags.offset] & ViTypeFlag.label.mask == 0) {
+    if (bytes[offset + VctpDescriptor.flags.offset] & ViTypeFlag.label.mask == 0) {
       assert(!exact || bodyEnd == end, 'an unlabelled descriptor ends with its body');
       return end;
     }
@@ -319,7 +292,7 @@ sealed class ViType {
     assert(length >= _descriptorHead && offset + length <= bytes.length, 'a descriptor has its head inside the bytes');
     final view = ByteData.sublistView(bytes);
     final body = offset + _descriptorHead;
-    switch (bytes[offset + _descCode.offset]) {
+    switch (bytes[offset + VctpDescriptor.typeCode.offset]) {
       case TypeCode.voidType:
         return ViVoidType._(bytes, offset, length, body);
       case >= TypeCode.i8 && <= TypeCode.complexExt:
@@ -546,8 +519,7 @@ enum ViMeasureDataFlavor {
   complex128Waveform(17, 16),
   complexExtWaveform(18, 32),
   int64Waveform(19, 8),
-  uint64Waveform(20, 8)
-  ;
+  uint64Waveform(20, 8);
 
   const ViMeasureDataFlavor(this.code, this.sampleWidth);
 
@@ -562,11 +534,17 @@ enum ViMeasureDataFlavor {
   static ViMeasureDataFlavor? ofCode(int code) => _byCode[code];
 }
 
-/// `0x70`: a reference with a kind word, then a body not decoded.
+/// `0x70`: a reference with a kind word, a client count and one pool index per client, then
+/// a body not decoded.
 final class ViRefnumType extends ViType {
   ViRefnumType._(super.bytes, super.offset, super.length, super.bodyEnd) : super._(exact: false);
 
   int get refKind => ByteData.sublistView(bytes).getUint16(offset + _descriptorHead);
+
+  /// Types the reference is parameterised by: one, the record cluster, for a datalog.
+  int get clientCount => ByteData.sublistView(bytes).getUint16(offset + _descriptorHead + 2);
+
+  int clientIndexAt(int index) => ByteData.sublistView(bytes).getUint16(offset + _descriptorHead + 4 + 2 * index);
 
   /// Null for a code [ViRefnumKind] does not name.
   ViRefnumKind? get refnumKind => ViRefnumKind.ofCode(refKind);
@@ -618,8 +596,7 @@ enum ViRefnumKind {
   bluetoothConnection(31),
   dataValueReference(32),
   fifo(33),
-  tdmsFile(34)
-  ;
+  tdmsFile(34);
 
   const ViRefnumKind(this.code);
 
@@ -718,7 +695,7 @@ List<int> descriptorOffsets(Uint8List bytes, int start, int count) {
   var at = start;
   for (var i = 0; i < count; i++) {
     assert(at + _descriptorHead <= bytes.length, 'descriptor $i has its head');
-    final length = view.getUint16(at + _descLength.offset);
+    final length = view.getUint16(at + VctpDescriptor.length.offset);
     assert(length >= _descriptorHead && at + length <= bytes.length, 'descriptor $i lies inside the bytes');
     offsets[i] = at;
     at += length;
@@ -726,72 +703,60 @@ List<int> descriptorOffsets(Uint8List bytes, int start, int count) {
   return offsets;
 }
 
-/// A view over a `VCTP` payload.
-class ViTypePool implements BlockRecord {
-  ViTypePool._(this.bytes, this.types, this._topLevelOffset) : _view = ByteData.sublistView(bytes);
-
-  final Uint8List bytes;
-
-  final ByteData _view;
+final class ViTypePool extends ByteRecord {
+  /// [legacy] selects the inline descriptor grammar of the pools LabVIEW 8.5 and older embed
+  /// in other blocks.
+  ViTypePool(Uint8List bytes, {bool legacy = false}) : super(bytes, layout) {
+    assert(view.lengthInBytes >= _count.end + 2, 'a type pool holds its count and the top-level count');
+    final pool = Uint8List.sublistView(view);
+    final offsets = descriptorOffsets(pool, _descriptors.offset, _count.read(view));
+    types = [
+      for (final at in offsets) ViType.at(pool, at, view.getUint16(at + VctpDescriptor.length.offset), legacy: legacy),
+    ];
+    _topLevelOffset = offsets.isEmpty ? _descriptors.offset : types.last.end;
+    assert(_topLevelOffset + 2 <= view.lengthInBytes, 'the top-level count follows the descriptors');
+    assert(_topLevelOffset + 2 + 2 * topLevelCount == view.lengthInBytes, 'the top-level indices tile the payload');
+  }
 
   /// One view per descriptor, in pool order.
-  final List<ViType> types;
-
-  final int _topLevelOffset;
+  late final List<ViType> types;
 
   int get length => types.length;
 
   ViType operator [](int index) => types[index];
 
-  int get topLevelCount => _view.getUint16(_topLevelOffset);
+  /// Number of top-level types, after the descriptors.
+  int get topLevelCount => view.getUint16(_topLevelOffset);
 
   /// The pool index of the top-level type at [index].
-  int topLevelIndexAt(int index) => _view.getUint16(_topLevelOffset + 2 + 2 * index);
+  int topLevelIndexAt(int index) => view.getUint16(_topLevelOffset + 2 + 2 * index);
 
   List<int> get topLevelIndices => [for (var i = 0; i < topLevelCount; i++) topLevelIndexAt(i)];
 
-  @override
-  Uint8List serialize() => bytes;
+  late final int _topLevelOffset;
+
+  static const _count = U32(0); // Number of descriptors.
+  static const _descriptors = Entries(4, VctpDescriptor.layout, count: _count);
+  static const _topLevelCount = U16(4);
+  static const _topLevelIndices = U16List(6, count: _topLevelCount); // Descriptor index of each top-level type.
+
+  static const layout = ByteLayout([_count, _descriptors, _topLevelCount, _topLevelIndices]);
 }
 
 /// Whether [bytes] frame as a type pool: the count, each descriptor's length word and the
-/// top-level list tile the payload. [decodeTypePool] additionally requires every descriptor
+/// top-level list tile the payload. [ViTypePool] additionally requires every descriptor
 /// body and label to be well formed.
 bool typePoolFrames(Uint8List bytes) {
-  if (bytes.length < _count.end + 2) return false;
+  if (bytes.length < ViTypePool._count.end + 2) return false;
   final view = ByteData.sublistView(bytes);
-  var at = _descriptors.offset;
-  for (var i = view.getUint32(_count.offset); i > 0; i--) {
+  var at = ViTypePool._descriptors.offset;
+  for (var i = ViTypePool._count.read(view); i > 0; i--) {
     if (at + _descriptorHead > bytes.length) return false;
-    final length = view.getUint16(at + _descLength.offset);
+    final length = view.getUint16(at + VctpDescriptor.length.offset);
     if (length < _descriptorHead) return false;
     at += length;
   }
   return at + 2 <= bytes.length && at + 2 + 2 * view.getUint16(at) == bytes.length;
-}
-
-ViTypePool decodeTypePool(Uint8List bytes) {
-  assert(bytes.length >= _count.end + 2, 'a type pool holds its count and the top-level count');
-  final view = ByteData.sublistView(bytes);
-  final offsets = descriptorOffsets(bytes, _descriptors.offset, view.getUint32(_count.offset));
-  final types = [
-    for (var i = 0; i < offsets.length; i++)
-      ViType.at(bytes, offsets[i], view.getUint16(offsets[i] + _descLength.offset)),
-  ];
-  final topLevelOffset = offsets.isEmpty ? _descriptors.offset : types.last.end;
-  assert(topLevelOffset + 2 <= bytes.length, 'the top-level count follows the descriptors');
-  assert(
-    topLevelOffset + 2 + 2 * view.getUint16(topLevelOffset) == bytes.length,
-    'the top-level indices tile the payload',
-  );
-  return ViTypePool._(bytes, types, topLevelOffset);
-}
-
-ViTypePool? typePoolFromDecoded(Iterable<DecodedSection> decoded) {
-  for (final decodedSection in decoded) {
-    if (decodedSection.tag == 'VCTP') return decodeTypePool(decodedSection.bytes);
-  }
-  return null;
 }
 
 int? serializedDefaultSize(ViType t, List<ViType> pool, [int depth = 0]) {

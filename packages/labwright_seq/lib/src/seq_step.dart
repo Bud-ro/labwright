@@ -176,8 +176,7 @@ enum StepType {
 
   continueStep('NI_Flow_Continue', FlowKind.continueStmt),
 
-  other('')
-  ;
+  other('');
 
   const StepType(this.wire, [this.flowKind]);
 
@@ -207,8 +206,7 @@ enum FlowKind {
   caseBlock('case'),
   end('end'),
   breakStmt('break'),
-  continueStmt('continue')
-  ;
+  continueStmt('continue');
 
   const FlowKind(this.label);
 

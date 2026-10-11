@@ -1,61 +1,52 @@
-/// `icl8` / `icl4` / `ICON` — the VI icon as a 32×32 bitmap in the Mac icon-resource layouts:
-/// one byte, one nibble or one bit per pixel, rows top to bottom, pixels left to right, indices
-/// into the Mac system palette.
+/// `icl8` / `icl4` / `ICON` - Icon: [ViLegacyIcon]
+///
+/// The VI icon as a 32×32 bitmap in the Mac icon-resource layouts: one byte, one nibble or one
+/// bit per pixel, rows top to bottom, pixels left to right, indices into the Mac system
+/// palette. Every VI carries `icl8`, nearly every one `ICON`, about half `icl4`, one section
+/// each. The shallower bitmaps are LabVIEW's own renderings, not reductions of `icl8`: `icl4`
+/// rarely equals the nearest 16-colour match and `ICON` matches a luminance threshold in only
+/// two of three VIs. [legacyIconFromSections] picks the deepest icon a VI carries.
 ///
 /// ```text
 /// icl8:
-/// offset  size  field                      type     meaning
-/// 0       1024  pixels                     u8[1024] palette index per pixel, 32 rows of 32
+/// offset  size  field    type     meaning
+/// 0       1024  pixels8  u8[1024] Palette index per pixel, 32 rows of 32.
 /// icl4:
-/// offset  size  field                      type     meaning
-/// 0       512   pixels                     u4[1024] palette index per pixel, high nibble first
+/// offset  size  field    type    meaning
+/// 0       512   pixels4  u8[512] Palette index per pixel, one nibble each, high nibble first.
 /// ICON:
-/// offset  size  field                      type     meaning
-/// 0       128   pixels                     u1[1024] 1 = black, 0 = white, most significant bit
-///                                                   first
+/// offset  size  field    type    meaning
+/// 0       128   pixels1  u8[128] One bit per pixel, most significant bit first: 1 = black, 0 = white.
 /// ```
-///
-/// [ViLegacyIcon] is a view over the bitmap; [LegacyIconDepth] names the three layouts;
-/// [decodeIcl8], [decodeIcl4] and [decodeIcon1] require the exact bitmap size;
-/// [legacyIconFromSections] picks the deepest icon a VI carries.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import '../viparse.dart' show ViSection;
-
-const _pixels8 = BlockField(0, 1024, 'pixels', 'u8[1024]', 'palette index per pixel, 32 rows of 32');
-const _pixels4 = BlockField(0, 512, 'pixels', 'u4[1024]', 'palette index per pixel, high nibble first');
-const _pixels1 = BlockField(0, 128, 'pixels', 'u1[1024]', '1 = black, 0 = white, most significant bit first');
-
-const BlockLayout icl8Layout = [_pixels8];
-
-const BlockLayout icl4Layout = [_pixels4];
-
-const BlockLayout iconLayout = [_pixels1];
 
 /// The three bitmap layouts, by bits per pixel.
 enum LegacyIconDepth {
   /// `ICON`: 1 bit per pixel, 128 bytes.
-  mono(1, 'ICON'),
+  mono(1, 'ICON', ViLegacyIcon.iconLayout),
 
   /// `icl4`: 4 bits per pixel, 512 bytes.
-  fourBit(4, 'icl4'),
+  fourBit(4, 'icl4', ViLegacyIcon.icl4Layout),
 
   /// `icl8`: 8 bits per pixel, 1024 bytes.
-  eightBit(8, 'icl8')
-  ;
+  eightBit(8, 'icl8', ViLegacyIcon.icl8Layout);
 
-  const LegacyIconDepth(this.bits, this.tag);
+  const LegacyIconDepth(this.bits, this.tag, this.layout);
 
   final int bits;
 
   /// The section tag that stores this layout.
   final String tag;
 
-  int get byteLength => ViLegacyIcon.width * ViLegacyIcon.height * bits ~/ 8;
+  final ByteLayout layout;
+
+  int get byteLength => layout.size!;
 
   static LegacyIconDepth? forTag(String tag) {
     for (final depth in values) {
@@ -65,15 +56,18 @@ enum LegacyIconDepth {
   }
 }
 
-/// A view over an `icl8`, `icl4` or `ICON` bitmap.
-class ViLegacyIcon implements BlockRecord {
-  const ViLegacyIcon._(this.bytes, this.depth);
+final class ViLegacyIcon extends ByteRecord {
+  ViLegacyIcon(Uint8List bytes, this.depth) : super(bytes, depth.layout);
+
+  ViLegacyIcon.icl8(Uint8List bytes) : this(bytes, LegacyIconDepth.eightBit);
+
+  ViLegacyIcon.icl4(Uint8List bytes) : this(bytes, LegacyIconDepth.fourBit);
+
+  ViLegacyIcon.icon1(Uint8List bytes) : this(bytes, LegacyIconDepth.mono);
 
   static const int width = 32;
 
   static const int height = 32;
-
-  final Uint8List bytes;
 
   final LegacyIconDepth depth;
 
@@ -81,9 +75,9 @@ class ViLegacyIcon implements BlockRecord {
   int pixelAt(int x, int y) {
     final pixel = y * width + x;
     return switch (depth) {
-      LegacyIconDepth.eightBit => bytes[pixel],
-      LegacyIconDepth.fourBit => (pixel & 1) == 0 ? bytes[pixel >> 1] >> 4 : bytes[pixel >> 1] & 0x0f,
-      LegacyIconDepth.mono => (bytes[pixel >> 3] >> (7 - (pixel & 7))) & 1,
+      LegacyIconDepth.eightBit => view.getUint8(pixel),
+      LegacyIconDepth.fourBit => (pixel & 1) == 0 ? view.getUint8(pixel >> 1) >> 4 : view.getUint8(pixel >> 1) & 0x0f,
+      LegacyIconDepth.mono => (view.getUint8(pixel >> 3) >> (7 - (pixel & 7))) & 1,
     };
   }
 
@@ -100,20 +94,14 @@ class ViLegacyIcon implements BlockRecord {
     return true;
   }
 
-  @override
-  Uint8List serialize() => bytes;
+  static const _pixels8 = Bytes(0, size: 1024); // Palette index per pixel, 32 rows of 32.
+  static const _pixels4 = Bytes(0, size: 512); // Palette index per pixel, one nibble each, high nibble first.
+  static const _pixels1 = Bytes(0, size: 128); // One bit per pixel, most significant bit first: 1 = black, 0 = white.
+
+  static const icl8Layout = ByteLayout([_pixels8]);
+  static const icl4Layout = ByteLayout([_pixels4]);
+  static const iconLayout = ByteLayout([_pixels1]);
 }
-
-ViLegacyIcon decodeLegacyIcon(Uint8List bytes, LegacyIconDepth depth) {
-  assert(bytes.length == depth.byteLength, 'a ${depth.tag} bitmap is ${depth.byteLength} bytes');
-  return ViLegacyIcon._(bytes, depth);
-}
-
-ViLegacyIcon decodeIcl8(Uint8List bytes) => decodeLegacyIcon(bytes, LegacyIconDepth.eightBit);
-
-ViLegacyIcon decodeIcl4(Uint8List bytes) => decodeLegacyIcon(bytes, LegacyIconDepth.fourBit);
-
-ViLegacyIcon decodeIcon1(Uint8List bytes) => decodeLegacyIcon(bytes, LegacyIconDepth.mono);
 
 /// The deepest icon among [sections]: `icl8`, else `icl4`, else `ICON`; null without any.
 ViLegacyIcon? legacyIconFromSections(Iterable<ViSection> sections) {
@@ -121,7 +109,7 @@ ViLegacyIcon? legacyIconFromSections(Iterable<ViSection> sections) {
   for (final section in sections) {
     final depth = LegacyIconDepth.forTag(section.tag);
     if (depth == null || section.bytes.length != depth.byteLength) continue;
-    if (best == null || depth.bits > best.depth.bits) best = ViLegacyIcon._(section.bytes, depth);
+    if (best == null || depth.bits > best.depth.bits) best = ViLegacyIcon(section.bytes, depth);
   }
   return best;
 }

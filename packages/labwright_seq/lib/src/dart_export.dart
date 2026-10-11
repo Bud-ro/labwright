@@ -515,8 +515,7 @@ enum _DartSlot {
   text('String'),
   list('List'),
 
-  untyped('dynamic')
-  ;
+  untyped('dynamic');
 
   const _DartSlot(this.source);
 

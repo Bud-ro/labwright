@@ -1,31 +1,36 @@
-/// `CPMp` — connector pane map: for each pane terminal, the panel data item it is wired to.
+/// `CPMp` - Connector Pane Map: [ViConnectorPaneMap]
+///
+/// Which front-panel data item each connector-pane terminal is wired to.
+///
+/// TODO: It's worth pointing this to our code that does pane terminal ordering once we have it.
+/// `terminals` follows pane order (see: https://labviewwiki.org/wiki/Connector_pane).
+/// `0xFFFF` means that terminal is unwired.
+///
+/// `count` equals [ViFunctionType.parameterCount] of the pane's type (`CONP`) in every one of
+/// the 4127 files that have both, so terminal `i` pairs with parameter `i`. A wired terminal's
+/// word is a 0-based index into the panel's data-item cluster, [ViFrontPanelType.panelItemsIn]
+/// from `FPTD`: `items.memberIndexAt(word)` is the descriptor of the control or indicator the
+/// terminal is wired to, the same descriptor as the parameter in 17954 of 18076 wired
+/// terminals and one sharing its label in the other 6. The 116 remaining words, always the
+/// first terminal's, are stored big-endian (`00 01` where every other word is `01 00`); read
+/// as written they index nothing, read swapped they obey the law. Which saves do that is TODO.
+/// The cluster lists every data item, wired or not, in tabbing order; the panel heap stores
+/// the same top-level controls last-first, which is why their reversed heap order agrees with
+/// the cluster in 4086 of 4106 panels and differs in dialogs with tab controls or several panes.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       2     count                      u16le    number of pane terminals
-/// 2       rest  terminals                  u16le[count] panel data-item index per terminal; 0xFFFF
-///                                                       when unassigned
+/// offset  size    field     type         meaning
+/// 0       2       count     u16le        Number of pane terminals.
+/// 2       2·count terminals u16le[count] 0-based member of the FPTD data-item cluster, 0xFFFF when unwired.
 /// ```
-///
-/// [ViConnectorPaneMap] is a view over the payload whose terminals are [ConnectorTerminal]s;
-/// [decodeConnectorPaneMap] requires the count to tile the payload exactly.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
-
-const _count = BlockField(0, 2, 'count', 'u16le', 'number of pane terminals');
-const _terminals = BlockField(
-  2,
-  null,
-  'terminals',
-  'u16le[count]',
-  'panel data-item index per terminal; 0xFFFF when unassigned',
-);
-
-const BlockLayout cpmpLayout = [_count, _terminals];
+import '../byte_layout.dart';
+import '../byte_record.dart';
+import 'FPTD_front_panel_datalog_type.dart';
+import 'VCTP_type_pool.dart';
 
 const _unassignedWord = 0xFFFF;
 
@@ -39,7 +44,8 @@ final class UnassignedTerminal extends ConnectorTerminal {
   const UnassignedTerminal();
 }
 
-/// The terminal is wired to the panel data item at [index].
+/// The terminal is wired to the panel data item [index] names, a member of the cluster
+/// [ViFrontPanelType.panelItemsIn] returns.
 final class PanelObjectTerminal extends ConnectorTerminal {
   const PanelObjectTerminal(this.index);
 
@@ -52,18 +58,16 @@ final class PanelObjectTerminal extends ConnectorTerminal {
   int get hashCode => index;
 }
 
-/// A view over a `CPMp` payload.
-class ViConnectorPaneMap implements BlockRecord {
-  ViConnectorPaneMap._(this.bytes) : _view = ByteData.sublistView(bytes);
+final class ViConnectorPaneMap extends ByteRecord {
+  ViConnectorPaneMap(Uint8List bytes) : super(bytes, layout) {
+    assert(_terminals.endIn(view) == view.lengthInBytes, 'the terminals tile the payload');
+  }
 
-  final Uint8List bytes;
-
-  final ByteData _view;
-
-  int get length => _view.getUint16(_count.offset, Endian.little);
+  /// Number of pane terminals.
+  int get length => _count.read(view);
 
   ConnectorTerminal operator [](int index) {
-    final word = _view.getUint16(_terminals.offset + 2 * index, Endian.little);
+    final word = _terminals.at(view, index);
     return word == _unassignedWord ? const UnassignedTerminal() : PanelObjectTerminal(word);
   }
 
@@ -77,15 +81,10 @@ class ViConnectorPaneMap implements BlockRecord {
     return n;
   }
 
-  @override
-  Uint8List serialize() => bytes;
-}
+  // dart format off
+  static const _count = U16(0, endian: Endian.little);
+  static const _terminals = U16List(2, endian: Endian.little, count: _count); // 0-based member of the FPTD data-item cluster, 0xFFFF when unwired.
 
-ViConnectorPaneMap decodeConnectorPaneMap(Uint8List bytes) {
-  assert(bytes.length >= _count.end, 'a pane map starts with its count');
-  assert(
-    _count.end + 2 * ByteData.sublistView(bytes).getUint16(_count.offset, Endian.little) == bytes.length,
-    'the terminals tile the payload',
-  );
-  return ViConnectorPaneMap._(bytes);
+  static const layout = ByteLayout([_count, _terminals]);
+  // dart format on
 }

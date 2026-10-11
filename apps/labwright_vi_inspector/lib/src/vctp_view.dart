@@ -43,7 +43,7 @@ class _VctpCorrelationViewState extends State<VctpCorrelationView> {
 
   void _build() {
     _types = typePoolFrames(widget.body)
-        ? decodeTypePool(widget.body).types
+        ? ViTypePool(widget.body).types
         : const [];
     _byteToSpan = List<int>.filled(widget.body.length, -1);
     for (var i = 0; i < _types.length; i++) {

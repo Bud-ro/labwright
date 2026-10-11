@@ -378,23 +378,22 @@ final double volts;
     }
   });
 
-  test('connector-pane terminals resolve through the pool; a non-cluster pane yields none', () {
+  test('connector-pane terminals are the parameters of the pane\'s function type', () {
     final types = poolOf([
       scalar(TypeCode.boolean, name: 'status'),
       scalar(TypeCode.i32, name: 'code'),
       scalar(TypeCode.string, name: 'source'),
       cluster([0, 1, 2], name: 'error out'),
       scalar(TypeCode.u32, name: 'CRC-32'),
-      cluster([3, 4]),
+      function([3, 4]),
     ]);
-    final terminals = lvTerminals(types, 6);
+    final terminals = lvTerminals(types, types[5]);
     expect(terminals.map((t) => (t.name, t.type.dartType, t.isErrorCluster)), [
       ('error out', LvRuntimeType.error, true),
       ('CRC-32', 'int', false),
     ]);
-    expect(lvTerminals(types, 5), isEmpty, reason: 'a non-cluster connector pane resolves to no terminals');
+    expect(lvTerminals(types, types[3]), isEmpty, reason: 'a non-function pane type resolves to no terminals');
     expect(lvTerminals(types, null), isEmpty);
-    expect(lvTerminals(types, 99), isEmpty);
   });
 
   test('identifier sanitizing: type names, field names, reserved words', () {

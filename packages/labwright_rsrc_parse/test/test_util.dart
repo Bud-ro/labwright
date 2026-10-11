@@ -11,6 +11,14 @@ Uint8List hx(String s) {
 
 Uint8List u8(List<int> b) => Uint8List.fromList(b);
 
+ByteData bd(Uint8List b) => ByteData.sublistView(b);
+
+/// Matches a zero-copy view over exactly [bytes]: same buffer, offset and length.
+Matcher viewOf(Uint8List bytes) => predicate<Uint8List>(
+  (v) => v.buffer == bytes.buffer && v.offsetInBytes == bytes.offsetInBytes && v.length == bytes.length,
+  'a view over the same ${bytes.length} bytes',
+);
+
 List<int> pascal(String s) => [s.length, ...s.codeUnits];
 
 ViSection sec(String tag, List<int> bytes) => ViSection(tag: tag, index: 0, dataOffset: 0, bytes: u8(bytes));

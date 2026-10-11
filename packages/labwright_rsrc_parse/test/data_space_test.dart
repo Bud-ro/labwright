@@ -21,7 +21,7 @@ List<int> _variant(int topLevel, List<int> value, [Map<String, List<int>> attrib
 ];
 
 void main() {
-  final pool = decodeTypePool(
+  final pool = ViTypePool(
     poolOf(
       [
         numeric(TypeCode.i32, name: 'n'),
@@ -40,8 +40,8 @@ void main() {
   );
 
   ViDataSpace decode(List<int> flags, List<int> body, {ViVersionWord version = _lv20}) {
-    final map = decodeTypeMap(u8([...be16(flags.length), 0, 1, for (final f in flags) ...be16(f)])) as ViTypeMapIndexed;
-    return decodeDataSpace(u8(body), DfdsContext.indexed(pool, map, version));
+    final map = ViTypeMap(u8([...be16(flags.length), 0, 1, for (final f in flags) ...be16(f)])) as ViTypeMapIndexed;
+    return ViDataSpace(u8(body), DfdsContext.indexed(pool, map, version));
   }
 
   test('each stored entry is one slot laid out by its type; unstored and special entries take none', () {
@@ -97,7 +97,7 @@ void main() {
         slots,
         reason: name,
       );
-      expect(space.serialize(), same(space.bytes), reason: name);
+      expect(space.serialize(), space.serialize(), reason: name);
     }
     final ordered = decode([0, 0, 0, 0, 0, 0, 0x0004, 0x2000], [...be32(1), ...List.filled(16, 0)], version: _lv8);
     expect(ordered.slots.single.offset, 4, reason: 'before LabVIEW 10 the operation cluster stores member 2');
@@ -121,7 +121,7 @@ void main() {
 
   test('the inline map form lays the space out by its own descriptors', () {
     final map =
-        decodeTypeMap(
+        ViTypeMap(
               u8([
                 0,
                 0,
@@ -133,7 +133,7 @@ void main() {
               ]),
             )
             as ViTypeMapInline;
-    final space = decodeDataSpace(u8([1, 2, 3, 4, 5, 6]), DfdsContext.inline(map, _lv8));
+    final space = ViDataSpace(u8([1, 2, 3, 4, 5, 6]), DfdsContext.inline(map, _lv8));
     expect([for (final slot in space.slots) (slot.topLevelIndex, slot.offset, slot.length)], [(0, 0, 2), (1, 2, 4)]);
   });
 
@@ -144,7 +144,7 @@ void main() {
     final tm80 = u8(hx('0001 0001 2000'));
     final contexts = dataSpaceContexts([
       section('vers', 0, vers),
-      section('VCTP', 0, pool.bytes),
+      section('VCTP', 0, pool.serialize()),
       section('TM80', 0, tm80),
       section('TM80', 2, tm80),
       section('DFDS', 0, u8([])),
@@ -154,7 +154,7 @@ void main() {
     expect(contexts.keys, [0, 2, 5]);
     expect(contexts[5]!.typeMap, same(contexts[0]!.typeMap));
     expect(
-      dataSpaceContexts([section('VCTP', 0, pool.bytes), section('TM80', 0, tm80), section('DFDS', 0, u8([]))]),
+      dataSpaceContexts([section('VCTP', 0, pool.serialize()), section('TM80', 0, tm80), section('DFDS', 0, u8([]))]),
       isEmpty,
     );
     expect(

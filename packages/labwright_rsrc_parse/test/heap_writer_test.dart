@@ -128,7 +128,7 @@ void main() {
   });
 
   test('a DFDS body with its context is whole-block modelled, or rejects the tiling precondition', () {
-    final pool = decodeTypePool(
+    final pool = ViTypePool(
       poolOf(
         [
           numeric(TypeCode.i32),
@@ -139,7 +139,7 @@ void main() {
         topLevel: [0, 1, 2, 3],
       ),
     );
-    final map = decodeTypeMap(hx('0004 0001 2000 2000 2000 2000')) as ViTypeMapIndexed;
+    final map = ViTypeMap(hx('0004 0001 2000 2000 2000 2000')) as ViTypeMapIndexed;
     final ctx = DfdsContext.indexed(
       pool,
       map,

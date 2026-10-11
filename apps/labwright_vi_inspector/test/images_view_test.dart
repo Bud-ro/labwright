@@ -23,7 +23,7 @@ class _FakeImageClipboard implements ImageClipboard {
 
 ViLegacyIcon _icon(int fill, int bpp) {
   final depth = LegacyIconDepth.values.singleWhere((d) => d.bits == bpp);
-  return decodeLegacyIcon(
+  return ViLegacyIcon(
     Uint8List.fromList(List<int>.filled(depth.byteLength, fill)),
     depth,
   );
@@ -96,7 +96,7 @@ ViLegacyIcon _iconWithCells(int bpp, Map<int, int> cellIndexByLinear) {
         if ((index & 1) != 0) body[pixel >> 3] |= 1 << (7 - (pixel & 7));
     }
   });
-  return decodeLegacyIcon(
+  return ViLegacyIcon(
     body,
     LegacyIconDepth.values.singleWhere((d) => d.bits == bpp),
   );
@@ -152,10 +152,8 @@ void main() {
     tester,
   ) async {
     final images = ViImages(
-      pngs: [
-        EmbeddedPng(tag: 'MNGI', index: 0, stream: decodePngStream(_png1x1)),
-      ],
-      icons: [decodeIcl8(Uint8List.fromList(List<int>.filled(1024, 3)))],
+      pngs: [EmbeddedPng(tag: 'MNGI', index: 0, stream: ViPngStream(_png1x1))],
+      icons: [ViLegacyIcon.icl8(Uint8List.fromList(List<int>.filled(1024, 3)))],
     );
     await _pump(tester, ViImagesView(images: images));
     expect(find.text('Embedded images (2)'), findsOneWidget);
@@ -182,11 +180,7 @@ void main() {
           initialSource: 'test',
           initialImages: ViImages(
             pngs: [
-              EmbeddedPng(
-                tag: 'DSIM',
-                index: 0,
-                stream: decodePngStream(_png1x1),
-              ),
+              EmbeddedPng(tag: 'DSIM', index: 0, stream: ViPngStream(_png1x1)),
             ],
           ),
         ),
@@ -213,7 +207,7 @@ void main() {
       final clip = _FakeImageClipboard();
       final images = ViImages(
         pngs: [
-          EmbeddedPng(tag: 'MNGI', index: 0, stream: decodePngStream(_png1x1)),
+          EmbeddedPng(tag: 'MNGI', index: 0, stream: ViPngStream(_png1x1)),
         ],
       );
       await _pump(tester, ViImagesView(images: images, clipboard: clip));

@@ -1,36 +1,28 @@
-/// `TITL` — VI title: one Pascal string.
+/// `TITL` - Window Title: [ViTitle]
+///
+/// The front panel's window title when it is not the VI's name, from VI Properties » Window
+/// Appearance; 898 of 8316 VIs carry one, and 864 of those differ from the file name.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       rest  title                      pstr     the VI title
+/// offset  size  field    type   meaning
+/// 0       …     title    pstr   The window title.
 /// ```
-///
-/// [ViTitle] is a view over the payload; [decodeTitle] requires the string to end the
-/// payload exactly.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _title = BlockField(0, null, 'title', 'pstr', 'the VI title');
+final class ViTitle extends ByteRecord {
+  ViTitle(Uint8List bytes) : super(bytes, layout) {
+    assert(view.lengthInBytes > 0 && _title.endIn(view) == view.lengthInBytes, 'a title is one Pascal string');
+  }
 
-const BlockLayout titlLayout = [_title];
+  /// The window title.
+  String get text => _title.read(view);
 
-/// A view over a `TITL` payload.
-class ViTitle implements BlockRecord {
-  const ViTitle._(this.bytes);
+  static const _title = PStr(0);
 
-  final Uint8List bytes;
-
-  String get text => String.fromCharCodes(bytes, 1);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViTitle decodeTitle(Uint8List bytes) {
-  assert(bytes.isNotEmpty && 1 + bytes[0] == bytes.length, 'a title is one Pascal string');
-  return ViTitle._(bytes);
+  static const layout = ByteLayout([_title]);
 }

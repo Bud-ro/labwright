@@ -88,8 +88,8 @@ void main() {
   group('PICT v2', () {
     test('decodes the frame rectangle and accounts for the opcodes to OpEndPic', () {
       final p = _pict();
-      final pict = decodePict(p);
-      expect(pict.serialize(), same(p));
+      final pict = ViPictPicture(p);
+      expect(pict.serialize(), viewOf(p));
       expect((pict.top, pict.left, pict.bottom, pict.right, pict.width), (0, 0, 0x100, 0x100, 0x100));
       expect(pict.frame.modelBytes + pict.frame.copiedBytes, p.length);
       expect((pict.frame.elementCount, pict.frame.copiedBytes), (4, 4));
@@ -98,11 +98,11 @@ void main() {
 
     test('rejects a non-version-2 header', () {
       final p = Uint8List.fromList(_pict())..setRange(12, 14, const [0x00, 0x00]);
-      expect(() => decodePict(p), throwsA(isA<AssertionError>()));
+      expect(() => ViPictPicture(p), throwsA(isA<AssertionError>()));
     });
 
     test('rejects a stream that does not end at OpEndPic on the last byte', () {
-      expect(() => decodePict(u8([..._pict(), 0x00, 0x00])), throwsA(isA<AssertionError>()));
+      expect(() => ViPictPicture(u8([..._pict(), 0x00, 0x00])), throwsA(isA<AssertionError>()));
     });
 
     test('metafileFrame dispatches by tag', () {
@@ -112,7 +112,7 @@ void main() {
 
     test('a CompressedQuickTime raw image is fully modelled and exposes its pixels', () {
       final p = _pictWithRawQuickTime(3, 2, 24);
-      final pict = decodePict(p);
+      final pict = ViPictPicture(p);
       expect(pict.frame.modelBytes + pict.frame.copiedBytes, p.length);
       expect(pict.frame.copiedBytes, 0);
       final r = pict.quickTimeRaster!;
@@ -124,7 +124,7 @@ void main() {
       final p = _pictWithRawQuickTime(2, 2, 32);
       const cTypeAt = 14 + 26 + 2 + 4 + 68 + 4;
       final q = Uint8List.fromList(p)..setRange(cTypeAt, cTypeAt + 4, 'jpeg'.codeUnits);
-      final pict = decodePict(q);
+      final pict = ViPictPicture(q);
       expect(pict.frame.copiedBytes, greaterThan(100));
       expect(pict.quickTimeRaster, isNull);
     });
@@ -133,8 +133,8 @@ void main() {
   group('EMF', () {
     test('decodes the bounds and accounts for the records to EMR_EOF', () {
       final e = _emf();
-      final emf = decodeEmf(e);
-      expect(emf.serialize(), same(e));
+      final emf = ViEmfMetafile(e);
+      expect(emf.serialize(), viewOf(e));
       expect((emf.boundsRight, emf.boundsBottom), (640, 480));
       expect(emf.frame.modelBytes + emf.frame.copiedBytes, e.length);
       expect(emf.frame.elementCount, 2);
@@ -142,9 +142,9 @@ void main() {
     });
 
     test('rejects a missing signature, a bad record size, and a stream past EMR_EOF', () {
-      expect(() => decodeEmf(Uint8List.fromList(_emf())..[40] = 0), throwsA(isA<AssertionError>()));
-      expect(() => decodeEmf(Uint8List.fromList(_emf())..[48 + 4] = 21), throwsA(isA<AssertionError>()));
-      expect(() => decodeEmf(u8([..._emf(), 0, 0, 0, 0])), throwsA(isA<AssertionError>()));
+      expect(() => ViEmfMetafile(Uint8List.fromList(_emf())..[40] = 0), throwsA(isA<AssertionError>()));
+      expect(() => ViEmfMetafile(Uint8List.fromList(_emf())..[48 + 4] = 21), throwsA(isA<AssertionError>()));
+      expect(() => ViEmfMetafile(u8([..._emf(), 0, 0, 0, 0])), throwsA(isA<AssertionError>()));
     });
   });
 }

@@ -99,8 +99,7 @@ enum ViSelectorBound {
   inclusive(1),
 
   /// The range is open at this end (`..N` or `N..`).
-  unbounded(3)
-  ;
+  unbounded(3);
 
   const ViSelectorBound(this.code);
 
@@ -567,8 +566,7 @@ enum HeapObjectClass {
 
   bdXnode(0x105, 'XNode', ViObjectKind.node, ClassConfidence.inferred),
 
-  unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly)
-  ;
+  unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly);
 
   const HeapObjectClass(this.code, this.label, this.category, this.confidence);
 

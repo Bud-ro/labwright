@@ -1,87 +1,83 @@
-/// `BDTS` — block-diagram tag store: the tags of each tagged diagram object, each a
-/// length-prefixed name and a flattened LabVIEW variant framed as in `VITS`.
+/// `BDTS` - Block-Diagram Tag Store: [ViDiagramTagStore]
+///
+/// The persistent tags of block-diagram objects.
+///
+/// A tag is a (name, variant) pair that VI Server's `Set Tag` method attaches to any object
+/// and `Get Tag` reads back. A tag set with `Is Persistent?` true is saved with the VI,
+/// in `VITS` when it belongs to the VI and here when it belongs to a diagram object.
+///
+/// Names are free strings chosen by whoever sets them, so no closed set exists. The corpus has an example:
+/// `SIM Discrete Run` on three simulation nodes.
+///
+/// 36 files carry the block, naming 75 objects of which 72 have no tags left; 58 ids name a
+/// sub-VI call or XNode of `BDHb` and 17 name no object of a fully walked diagram. Entries
+/// are framed as in `VITS`.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     count                      u32      number of tagged objects
-/// 4       rest  objects                    entry[count] count tagged objects
-///   +0    4     oid                        u32      object id
-///   +4    4     tagCount                   u32      tags that follow
-///   +8    rest  tags                       entry[tagCount] the object's tags, as VITS entries
+/// offset  size  field    type                meaning
+/// 0       4     count    u32                 Number of tagged objects.
+/// 4       …     objects  BdtsObject[count]
+///   +0    4     oid      u32                 Object id.
+///   +4    4     tagCount u32                 Tags that follow.
+///   +8    …     tags     VitsEntry[tagCount] The object's tags, as `VITS` entries.
 /// ```
-///
-/// [ViDiagramTagStore] is a view over the payload; each [ViDiagramTagObject] names one
-/// object and its [ViTagEntry]s; [decodeDiagramTagStore] requires the objects to tile the
-/// payload exactly.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import 'VITS_tag_store.dart';
 
-const _count = BlockField(0, 4, 'count', 'u32', 'number of tagged objects');
-const _oid = BlockField(0, 4, 'oid', 'u32', 'object id');
-const _tagCount = BlockField(4, 4, 'tagCount', 'u32', 'tags that follow');
-const _tags = BlockField(8, null, 'tags', 'entry[tagCount]', "the object's tags, as VITS entries");
-const _objects = BlockField(
-  4,
-  null,
-  'objects',
-  'entry[count]',
-  'count tagged objects',
-  entry: [_oid, _tagCount, _tags],
-);
-
-const BlockLayout bdtsLayout = [_count, _objects];
-
 /// One tagged object of a [ViDiagramTagStore].
-class ViDiagramTagObject {
-  const ViDiagramTagObject._(this.oid, this.tags);
+final class ViDiagramTagObject {
+  const ViDiagramTagObject(this.oid, this.tags);
 
   final int oid;
 
   final List<ViTagEntry> tags;
 }
 
-/// A view over a `BDTS` payload.
-class ViDiagramTagStore implements BlockRecord {
-  ViDiagramTagStore._(this.bytes, this.objects) : _view = ByteData.sublistView(bytes);
+final class ViDiagramTagStore extends ByteRecord {
+  ViDiagramTagStore(Uint8List bytes) : super(bytes, layout) {
+    final count = _count.read(view);
+    assert(count <= (view.lengthInBytes - _objects.offset) ~/ 8, 'the count fits the payload');
+    final objects = <ViDiagramTagObject>[];
+    var at = _objects.offset;
+    for (var i = 0; i < count; i++) {
+      assert(at + BdtsObject.tags.offset <= view.lengthInBytes, 'object $i has an id and a tag count');
+      final oid = view.getUint32(at + BdtsObject.oid.offset);
+      final tagCount = view.getUint32(at + BdtsObject.tagCount.offset);
+      at += BdtsObject.tags.offset;
+      assert(tagCount <= (view.lengthInBytes - at) ~/ 8, 'the tag count of object $i fits the payload');
+      final tags = <ViTagEntry>[];
+      for (var t = 0; t < tagCount; t++) {
+        final tag = ViTagEntry.at(view, at, t);
+        tags.add(tag);
+        at = tag.end;
+      }
+      objects.add(ViDiagramTagObject(oid, tags));
+    }
+    assert(at == view.lengthInBytes, 'the objects tile the payload');
+    this.objects = objects;
+  }
 
-  final Uint8List bytes;
+  late final List<ViDiagramTagObject> objects;
 
-  final ByteData _view;
+  /// Number of tagged objects.
+  int get declaredCount => _count.read(view);
 
-  final List<ViDiagramTagObject> objects;
+  static const _count = U32(0);
+  static const _objects = Entries(4, BdtsObject.layout, count: _count);
 
-  int get declaredCount => _view.getUint32(_count.offset);
-
-  @override
-  Uint8List serialize() => bytes;
+  static const layout = ByteLayout([_count, _objects]);
 }
 
-ViDiagramTagStore decodeDiagramTagStore(Uint8List bytes) {
-  assert(bytes.length >= _objects.offset, 'a diagram tag store starts with its count');
-  final view = ByteData.sublistView(bytes);
-  final count = view.getUint32(_count.offset);
-  assert(count <= (bytes.length - _objects.offset) ~/ 8, 'the count fits the payload');
-  final objects = <ViDiagramTagObject>[];
-  var at = _objects.offset;
-  for (var i = 0; i < count; i++) {
-    assert(at + _tags.offset <= bytes.length, 'object $i has an id and a tag count');
-    final oid = view.getUint32(at + _oid.offset);
-    final tagCount = view.getUint32(at + _tagCount.offset);
-    at += _tags.offset;
-    assert(tagCount <= (bytes.length - at) ~/ 8, 'the tag count of object $i fits the payload');
-    final tags = <ViTagEntry>[];
-    for (var t = 0; t < tagCount; t++) {
-      final tag = tagEntryAt(bytes, at, t);
-      tags.add(tag);
-      at = tag.end;
-    }
-    objects.add(ViDiagramTagObject._(oid, tags));
-  }
-  assert(at == bytes.length, 'the objects tile the payload');
-  return ViDiagramTagStore._(bytes, objects);
+/// One tagged object.
+abstract final class BdtsObject {
+  static const oid = U32(0); // Object id.
+  static const tagCount = U32(4); // Tags that follow.
+  static const tags = Entries(8, VitsEntry.layout, count: tagCount); // The object's tags, as `VITS` entries.
+
+  static const layout = ByteLayout([oid, tagCount, tags]);
 }

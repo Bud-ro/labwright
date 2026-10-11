@@ -48,12 +48,15 @@ LvSignature lvSignature(List<LvTerminal> terminals, LvErrorMode mode) {
   );
 }
 
-List<LvTerminal> lvTerminals(List<ViType> pool, int? conpaneIndex) {
-  if (conpaneIndex == null || conpaneIndex < 1 || conpaneIndex > pool.length) return const [];
-  final conpane = pool[conpaneIndex - 1];
-  if (conpane.kind != ViDataType.cluster) return const [];
+List<LvTerminal> lvTerminals(List<ViType> pool, ViType? conpane) {
+  if (conpane is! ViFunctionType) return const [];
   return [
-    for (final member in clusterFields(conpane, pool))
-      LvTerminal(member.label ?? '', mapLvType(member, pool), isErrorCluster: isLvErrorCluster(member, pool)),
+    for (var i = 0; i < conpane.parameterCount; i++)
+      if (conpane.parameterIndexAt(i) case final index when index < pool.length)
+        LvTerminal(
+          pool[index].label ?? '',
+          mapLvType(pool[index], pool),
+          isErrorCluster: isLvErrorCluster(pool[index], pool),
+        ),
   ];
 }

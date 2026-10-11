@@ -17,7 +17,7 @@ ViModel _modelWithTypes() => ViModel(
   title: null,
   components: const [],
   heapRecords: const [],
-  types: decodeTypePool(
+  types: ViTypePool(
     Uint8List.fromList([
       0, 0, 0, 4, //
       0, 12, 0x40, 0x21, 6, ...'status'.codeUnits, 0,

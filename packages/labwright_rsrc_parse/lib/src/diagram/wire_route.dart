@@ -106,8 +106,7 @@ enum WireRouteDirection {
 
   down(0x04, 0, 1),
 
-  right(0x08, 1, 0)
-  ;
+  right(0x08, 1, 0);
 
   const WireRouteDirection(this.code, this.dx, this.dy);
 
@@ -201,8 +200,7 @@ enum WireRouteJunction {
 
   upRight(0x06, [WireRouteDirection.up, WireRouteDirection.right]),
 
-  upDown(0x07, [WireRouteDirection.up, WireRouteDirection.down])
-  ;
+  upDown(0x07, [WireRouteDirection.up, WireRouteDirection.down]);
 
   const WireRouteJunction(this.code, this.outgoing);
 

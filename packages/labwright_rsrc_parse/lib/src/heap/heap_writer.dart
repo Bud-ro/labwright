@@ -5,9 +5,9 @@ library;
 
 import 'dart:typed_data';
 
-import '../block_record.dart';
 import '../block_tag.dart';
-import '../blocks/DFDS_default_data_space.dart' show DfdsContext, decodeDataSpace;
+import '../blocks/DFDS_default_data_space.dart' show DfdsContext, ViDataSpace;
+import '../byte_record.dart';
 import 'heap.dart';
 
 /// A re-emitted heap body and how many of its bytes came from the model versus verbatim copies.
@@ -265,8 +265,8 @@ HeapContentSplit attributeHeapBody(Uint8List body, [String? sectionTag, DfdsCont
   return HeapContentSplit(modelBytes: model, copiedBytes: copied, modelBugs: bugs);
 }
 
-BlockRecord? _wholeBlockRecord(String? sectionTag, Uint8List body, DfdsContext? dfdsContext) {
-  if (sectionTag == 'DFDS') return dfdsContext == null ? null : decodeDataSpace(body, dfdsContext);
+ByteRecord? _wholeBlockRecord(String? sectionTag, Uint8List body, DfdsContext? dfdsContext) {
+  if (sectionTag == 'DFDS') return dfdsContext == null ? null : ViDataSpace(body, dfdsContext);
   return sectionTag == null ? null : BlockTag.of(sectionTag)?.decodeRecord(body);
 }
 

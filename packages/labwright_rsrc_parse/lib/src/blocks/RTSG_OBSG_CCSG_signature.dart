@@ -1,36 +1,29 @@
-/// `RTSG` / `OBSG` / `CCSG` — run-time, object and compiled-code signatures: one 16-byte
-/// digest each.
+/// `RTSG` / `OBSG` / `CCSG` - Run-Time, Object and Compiled-Code Signatures: [ViSignature]
+///
+/// One 16-byte digest each; none is the MD5 of any block or of the file. `RTSG` is in every VI:
+/// zero in 657 of 8315, otherwise near-unique per VI, though sibling VIs with the same data
+/// space can share it. `OBSG` (LabVIEW 8 to 13) is unique per VI. `CCSG` (LabVIEW 8 to 12)
+/// takes only six values over 594 files, one per compiler build, so it signs the compiler rather
+/// than the VI.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       16    digest                     u8[16]   signature digest; derivation TODO
+/// offset  size  field    type   meaning
+/// 0       16    digest   u8[16] The digest; how it is derived is not decoded.
 /// ```
-///
-/// [ViSignature] is a view over the payload; [decodeSignature] requires exactly 16 bytes.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _digest = BlockField(0, 16, 'digest', 'u8[16]', 'signature digest; derivation TODO');
+final class ViSignature extends ByteRecord {
+  ViSignature(Uint8List bytes) : super(bytes, layout);
 
-const BlockLayout signatureLayout = [_digest];
+  /// The digest; how it is derived is not decoded.
+  Uint8List get digest => _digest.read(view);
 
-/// A view over an `RTSG`, `OBSG` or `CCSG` payload.
-class ViSignature implements BlockRecord {
-  const ViSignature._(this.bytes);
+  static const _digest = Bytes(0, size: 16);
 
-  final Uint8List bytes;
-
-  Uint8List get digest => bytes;
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViSignature decodeSignature(Uint8List bytes) {
-  assert(bytes.length == _digest.end, 'a signature block is one 16-byte digest');
-  return ViSignature._(bytes);
+  static const layout = ByteLayout([_digest]);
 }

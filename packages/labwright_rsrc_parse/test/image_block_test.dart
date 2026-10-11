@@ -69,8 +69,8 @@ void main() {
   group('MNGI (bare PNG)', () {
     test('records every chunk, verifies CRCs, and splits framing from the copied IDAT', () {
       final png = _png();
-      final stream = decodePngStream(png);
-      expect(stream.serialize(), same(png));
+      final stream = ViPngStream(png);
+      expect(stream.serialize(), viewOf(png));
       expect(stream.kind, ChunkStreamKind.png);
       expect((stream.width, stream.height, stream.chunkCount), (4, 4, 3));
       expect([for (var i = 0; i < 3; i++) stream.chunkTypeAt(i)], ['IHDR', 'IDAT', 'IEND']);
@@ -83,10 +83,10 @@ void main() {
     test('a corrupt CRC keeps that chunk retained', () {
       final png = Uint8List.fromList(_png());
       png[png.length - 1] ^= 0xff;
-      final stream = decodePngStream(png);
+      final stream = ViPngStream(png);
       expect(stream.chunkCrcOkAt(2), isFalse);
       expect(stream.accounting().crcVerified, 2);
-      expect(stream.serialize(), same(png));
+      expect(stream.serialize(), viewOf(png));
     });
 
     test('an MNG stream is the same chunk framing ending at MEND', () {
@@ -95,17 +95,17 @@ void main() {
         ..._chunk('MHDR', [0, 0, 0, 9, 0, 0, 0, 7, 0, 0, 0, 0]),
         ..._chunk('MEND', const []),
       ]);
-      final stream = decodePngStream(mng);
+      final stream = ViPngStream(mng);
       expect((stream.kind, stream.width, stream.height, stream.chunkCount), (ChunkStreamKind.mng, 9, 7, 2));
     });
 
     test('a stream that does not tile to its end chunk violates the precondition', () {
-      expect(() => decodePngStream(u8([0x8a, 0x4d, 0x4e, 0x47, 0, 1, 2, 3])), throwsA(isA<AssertionError>()));
-      expect(() => decodePngStream(u8([..._png(), 0])), throwsA(isA<AssertionError>()));
+      expect(() => ViPngStream(u8([0x8a, 0x4d, 0x4e, 0x47, 0, 1, 2, 3])), throwsA(isA<AssertionError>()));
+      expect(() => ViPngStream(u8([..._png(), 0])), throwsA(isA<AssertionError>()));
     });
 
     test('an unrecoverable IDAT stream leaves the content-level split zero', () {
-      final stream = decodePngStream(_png());
+      final stream = ViPngStream(_png());
       final acc = stream.accounting();
       expect((acc.compressedContentBytes, acc.inflatedContentBytes), (0, 0));
       expect(stream.rasterRoundTrips(), isNull);
@@ -113,7 +113,7 @@ void main() {
 
     test('a real IDAT inflates to the raster and counts as content', () {
       final made = _pngRealIdat();
-      final stream = decodePngStream(made.png);
+      final stream = ViPngStream(made.png);
       expect(stream.inflateRaster(), made.raster);
       final acc = stream.accounting();
       expect(acc.inflatedContentBytes, made.raster.length);
@@ -123,7 +123,7 @@ void main() {
 
     test('a raster split across multiple IDAT chunks concatenates and inflates', () {
       final made = _pngRealIdat(idatParts: 3);
-      final stream = decodePngStream(made.png);
+      final stream = ViPngStream(made.png);
       expect(stream.inflateRaster(), made.raster);
       expect(stream.rasterRoundTrips(), isTrue);
     });
@@ -133,9 +133,9 @@ void main() {
     test('raw raster: header + pixels are model, trailer retained', () {
       final pixels = List.filled(4 * 4 * 3, 0xbb);
       final dsim = _dsimRaster(4, 4, 24, pixels, trailer: const [1, 2, 3, 4]);
-      final image = decodeDataSpaceImage(dsim);
+      final image = ViDataSpaceImage(dsim);
       expect(image, isA<ViDataSpaceRaster>());
-      expect(image.serialize(), same(dsim));
+      expect(image.serialize(), viewOf(dsim));
       expect((image as ViDataSpaceRaster).pixels, pixels);
       expect(image.trailer, [1, 2, 3, 4]);
       expect((image.accounting.modelBytes, image.accounting.copiedBytes), (46 + pixels.length, 4));
@@ -143,33 +143,33 @@ void main() {
 
     test('raw raster with a mismatched pixel-count field violates the precondition', () {
       final dsim = u8([..._dsimHeader(4, 4, 24, 999), ...List.filled(48, 0)]);
-      expect(() => decodeDataSpaceImage(dsim), throwsA(isA<AssertionError>()));
+      expect(() => ViDataSpaceImage(dsim), throwsA(isA<AssertionError>()));
     });
 
     test('PNG-carrying: header + PNG framing modelled, IDAT and trailer retained', () {
       final png = _png();
       final dsim = u8([..._dsimHeader(4, 4, 24, -1), ...png, 0xaa, 0xbb]);
-      final image = decodeDataSpaceImage(dsim);
+      final image = ViDataSpaceImage(dsim);
       expect(image, isA<ViDataSpacePng>());
       final withPng = image as ViDataSpacePng;
       expect((withPng.pngOffset, withPng.png.width, withPng.png.chunkCount), (46, 4, 3));
-      expect(withPng.png.bytes, png);
+      expect(withPng.png.serialize(), png);
       expect(withPng.trailer, [0xaa, 0xbb]);
       expect((image.accounting.modelBytes, image.accounting.copiedBytes), (46 + (png.length - 6), 6 + 2));
       final at48 = u8([..._dsimHeader(4, 4, 8, -1), 0, 0, ...png]);
-      expect((decodeDataSpaceImage(at48) as ViDataSpacePng).pngOffset, 48);
+      expect((ViDataSpaceImage(at48) as ViDataSpacePng).pngOffset, 48);
     });
 
     test('a 16-byte header-only image carries just the geometry', () {
-      final image = decodeDataSpaceImage(u8([0, 0, 0, 0, 0, 20, 0, 20, 0, 1, 0, 0, 0, 0, 0, 0]));
+      final image = ViDataSpaceImage(u8([0, 0, 0, 0, 0, 20, 0, 20, 0, 1, 0, 0, 0, 0, 0, 0]));
       expect(image, isA<ViDataSpaceHeaderOnly>());
       expect((image.width, image.height, image.depth, image.trailer.length), (20, 20, 1, 0));
     });
 
     test('an invalid header (nonzero lead or unrepeated geometry) violates the precondition', () {
       final dsim = _dsimRaster(4, 4, 24, List.filled(48, 0));
-      expect(() => decodeDataSpaceImage(Uint8List.fromList(dsim)..[0] = 1), throwsA(isA<AssertionError>()));
-      expect(() => decodeDataSpaceImage(Uint8List.fromList(dsim)..[31] = 5), throwsA(isA<AssertionError>()));
+      expect(() => ViDataSpaceImage(Uint8List.fromList(dsim)..[0] = 1), throwsA(isA<AssertionError>()));
+      expect(() => ViDataSpaceImage(Uint8List.fromList(dsim)..[31] = 5), throwsA(isA<AssertionError>()));
     });
   });
 
@@ -191,7 +191,7 @@ void main() {
 
     test('iCCP: prefix modelled, zlib retained, inflated profile counts as content', () {
       final profile = List.generate(200, (i) => (i * 13 + 5) & 0xff);
-      final stream = decodePngStream(pngWith(iccp(profile)));
+      final stream = ViPngStream(pngWith(iccp(profile)));
       final acc = stream.accounting();
       expect(acc.inflatedContentBytes, profile.length);
       expect(acc.compressedContentBytes, greaterThan(0));
@@ -199,7 +199,7 @@ void main() {
     });
 
     test('uncompressed iTXt is modelled whole and carries no ancillary stream', () {
-      final stream = decodePngStream(pngWith(itxtPlain('Comment', 'hello world')));
+      final stream = ViPngStream(pngWith(itxtPlain('Comment', 'hello world')));
       expect(stream.accounting().copiedBytes, 4);
       expect(stream.ancillaryRoundTrips(), (count: 0, ok: 0));
     });

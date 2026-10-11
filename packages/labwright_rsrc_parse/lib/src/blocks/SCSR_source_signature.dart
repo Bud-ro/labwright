@@ -1,42 +1,32 @@
-/// `SCSR` — source signature: a marker word followed by a 16-byte digest.
+/// `SCSR` - Source Signature: [ViSourceSignature]
+///
+/// A little-endian version word, 1 in all but two LabVIEW 8.6 files, and a 16-byte digest that
+/// does not sign the VI: it is one constant in 3217 of 3304 files across LabVIEW 11 to 25, zero
+/// before LabVIEW 11, and one of a few other values in VIs saved for RT and FPGA targets.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     marker                     u32      role TODO
-/// 4       16    digest                     u8[16]   signature digest; derivation TODO
+/// offset  size  field    type   meaning
+/// 0       4     version  u32le  Always 1.
+/// 4       16    digest   u8[16] The digest; what it signs is not decoded.
 /// ```
-///
-/// [ViSourceSignature] is a view over the payload; [decodeSourceSignature] requires exactly
-/// 20 bytes.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _marker = BlockField(0, 4, 'marker', 'u32', 'role TODO');
-const _digest = BlockField(4, 16, 'digest', 'u8[16]', 'signature digest; derivation TODO');
+final class ViSourceSignature extends ByteRecord {
+  ViSourceSignature(Uint8List bytes) : super(bytes, layout);
 
-const BlockLayout scsrLayout = [_marker, _digest];
+  /// Always 1.
+  int get version => _version.read(view);
 
-/// A view over an `SCSR` payload.
-class ViSourceSignature implements BlockRecord {
-  ViSourceSignature._(this.bytes) : _view = ByteData.sublistView(bytes);
+  /// The digest; what it signs is not decoded.
+  Uint8List get digest => _digest.read(view);
 
-  final Uint8List bytes;
+  static const _version = U32(0, endian: Endian.little);
+  static const _digest = Bytes(4, size: 16);
 
-  final ByteData _view;
-
-  int get marker => _view.getUint32(_marker.offset);
-
-  Uint8List get digest => Uint8List.sublistView(bytes, _digest.offset, _digest.end);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViSourceSignature decodeSourceSignature(Uint8List bytes) {
-  assert(bytes.length == _digest.end, 'SCSR is a marker word and a 16-byte digest');
-  return ViSourceSignature._(bytes);
+  static const layout = ByteLayout([_version, _digest]);
 }

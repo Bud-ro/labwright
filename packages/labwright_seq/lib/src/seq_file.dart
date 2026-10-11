@@ -105,8 +105,7 @@ class SeqFile {
 enum StepGroup {
   setup('Setup'),
   main('Main'),
-  cleanup('Cleanup')
-  ;
+  cleanup('Cleanup');
 
   const StepGroup(this.key);
 

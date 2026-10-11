@@ -48,8 +48,7 @@ enum SectionNamespace {
   own(0xFFFFFFFF),
 
   /// `0`: sections of embedded resources (`LIBN`, `VINS`).
-  embedded(0)
-  ;
+  embedded(0);
 
   const SectionNamespace(this.word);
 

@@ -9,14 +9,13 @@ class ViModel {
   const ViModel({
     required this.version,
     required this.title,
-    this.description,
     required this.components,
     required this.heapRecords,
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
     this.subViNames = const <String>[],
     this.types = const <ViType>[],
-    this.connectorPaneTypeIndex,
+    this.connectorPaneType,
     this.fontTable,
   });
 
@@ -25,9 +24,6 @@ class ViModel {
 
   /// The title from `vers`.
   final String? title;
-
-  /// Text found in `CPC2`, see [cpc2Description].
-  final String? description;
 
   final List<BlockComponent> components;
 
@@ -48,9 +44,8 @@ class ViModel {
   /// The `VCTP` type pool.
   final List<ViType> types;
 
-  /// The 1-based `VCTP` index of the connector-pane type; null without `CONP` or when the
-  /// pane carries an inline descriptor.
-  final int? connectorPaneTypeIndex;
+  /// The VI's call signature from `CONP`: one parameter per pane terminal; null without `CONP`.
+  final ViType? connectorPaneType;
 
   final ViFontTable? fontTable;
 
@@ -95,7 +90,7 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final blockDiagrams = diagramsFor(BlockTag.bdhb);
   final frontPanelDiagrams = diagramsFor(BlockTag.fphb);
   final ftab = list.where((s) => s.tag == 'FTAB').map((s) => s.bytes).firstOrNull;
-  final fontTable = ftab == null ? null : decodeFontTable(ftab);
+  final fontTable = ftab == null ? null : ViFontTable(ftab);
   if (fontTable != null) {
     for (final diagram in [...blockDiagrams, ...frontPanelDiagrams]) {
       for (final object in diagram.objects) {
@@ -105,13 +100,13 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     }
   }
   final vctp = list.where((s) => s.tag == 'VCTP').map((s) => s.bytes).firstOrNull;
-  final pool = vctp == null ? null : decodeTypePool(vctp);
+  final pool = vctp == null ? null : ViTypePool(vctp);
   final types = pool?.types ?? const <ViType>[];
   final dthp = list.where((s) => s.tag == 'DTHP').map((s) => s.bytes).firstOrNull;
   resolveDataSpaceTypes(
     pool: types,
     table: pool?.topLevelIndices ?? const [],
-    typeIndexBase: switch (dthp == null ? null : decodeDataTypeHeap(dthp)) {
+    typeIndexBase: switch (dthp == null ? null : ViDataTypeHeap(dthp)) {
       ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
       _ => null,
     },
@@ -122,13 +117,12 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     subViNames: subViNames,
     types: types,
     fontTable: fontTable,
-    connectorPaneTypeIndex: switch (connectorPaneFromSections(sections)) {
-      ViConnectorPaneTypeIndex(:final typeIndex) => typeIndex,
-      ViConnectorPaneInline() || null => null,
+    connectorPaneType: switch (sections.where((section) => section.tag == 'CONP').firstOrNull) {
+      final ViSection conp => ViConnectorPane(conp.bytes).typeIn(pool),
+      null => null,
     },
     version: ver.version,
     title: ver.title,
-    description: cpc2Description(sections),
     components: componentsFromDecoded(list),
     heapRecords: heapC4RecordsFromDecoded(list),
     blockDiagrams: blockDiagrams,

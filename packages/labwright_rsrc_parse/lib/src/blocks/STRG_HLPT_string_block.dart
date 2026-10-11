@@ -1,46 +1,36 @@
-/// `STRG` / `HLPT` — the VI description and the context-help text: a length-prefixed UTF-8
-/// string.
+/// `STRG` / `HLPT` - VI Description and Help Tag: [ViStringBlock]
+///
+/// The two text fields of VI Properties » Documentation: `STRG` is the VI description, `HLPT`
+/// the help tag that names the VI's topic in the help file `HLPP` points at. The text is 8-bit
+/// in the saving platform's code page, Windows-1252 in the corpus, never UTF-8; line breaks are
+/// CR LF, CR or LF.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     length                     u32      bytes of text
-/// 4       rest  text                       u8[length] UTF-8 text
+/// offset  size   field    type       meaning
+/// 0       4      length   u32        Bytes of text.
+/// 4       length text     u8[length] The text bytes.
 /// ```
-///
-/// [ViStringBlock] is a view over the payload; [decodeStringBlock] requires the length word
-/// to cover the payload exactly.
 library;
 
 import 'dart:convert';
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _length = BlockField(0, 4, 'length', 'u32', 'bytes of text');
-const _text = BlockField(4, null, 'text', 'u8[length]', 'UTF-8 text');
+final class ViStringBlock extends ByteRecord {
+  ViStringBlock(Uint8List bytes) : super(bytes, layout) {
+    assert(_text.endIn(view) == view.lengthInBytes, 'the text fills the payload');
+  }
 
-const BlockLayout stringBlockLayout = [_length, _text];
+  /// The text, decoded byte for byte; bytes 0x80 to 0x9F are Windows-1252 punctuation.
+  String get text => latin1.decode(body);
 
-/// A view over an `STRG` or `HLPT` payload.
-class ViStringBlock implements BlockRecord {
-  const ViStringBlock._(this.bytes);
+  /// The text bytes.
+  Uint8List get body => _text.read(view);
 
-  final Uint8List bytes;
+  static const _length = U32(0); // Bytes of text.
+  static const _text = Bytes(4, count: _length);
 
-  Uint8List get body => Uint8List.sublistView(bytes, _text.offset);
-
-  String get text => utf8.decode(body, allowMalformed: true);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViStringBlock decodeStringBlock(Uint8List bytes) {
-  assert(bytes.length >= _text.offset, 'a string block starts with its length word');
-  assert(
-    _text.offset + ByteData.sublistView(bytes).getUint32(_length.offset) == bytes.length,
-    'the text fills the payload',
-  );
-  return ViStringBlock._(bytes);
+  static const layout = ByteLayout([_length, _text]);
 }
