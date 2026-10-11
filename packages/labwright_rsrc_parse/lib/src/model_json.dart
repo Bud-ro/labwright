@@ -54,10 +54,10 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
   final pane = m.connectorPaneType;
   if (pane is! ViFunctionType) return null;
-  return [
-    for (var i = 0; i < pane.parameterCount; i++)
-      if (pane.parameterIndexAt(i) < m.types.length) _termJson(m.types[pane.parameterIndexAt(i)], m.types),
-  ];
+  for (var i = 0; i < pane.parameterCount; i++) {
+    if (pane.parameterIndexAt(i) >= m.types.length) return null;
+  }
+  return [for (var i = 0; i < pane.parameterCount; i++) _termJson(m.types[pane.parameterIndexAt(i)], m.types)];
 }
 
 Map<String, Object?> _termJson(ViType t, List<ViType> types) => {

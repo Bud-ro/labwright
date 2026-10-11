@@ -69,6 +69,10 @@ final class ViPngStream extends ByteRecord {
     assert(offsets != null, 'the chunks tile to the end chunk');
     _chunkOffsets = offsets!;
     assert(pngStreamEnd(bytes, _chunkOffsets) == bytes.length, 'the stream ends the payload');
+    assert(
+      (chunkTypeAt(0) == 'IHDR' || chunkTypeAt(0) == 'MHDR') && chunkLengthAt(0) >= 8,
+      'the first chunk is a header with a width and a height',
+    );
   }
 
   late final ChunkStreamKind kind;

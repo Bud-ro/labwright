@@ -17,7 +17,7 @@ const _minTypeWidth = 6;
 const _lineWidth = 110;
 
 /// The last line of a `static const` declaration: a `;`, then at most a trailing comment.
-final _declarationEnd = RegExp(r';(?: //.*)?\s*$');
+final _declarationEnd = RegExp(r';\s*(?://.*)?$');
 
 /// A getter, operator or instance field declaration at class-member indent.
 final _accessor = RegExp(
@@ -186,7 +186,9 @@ List<_LayoutClass> _parseClasses(File file) {
           j++;
           buffer.write(' ${body[j].trim()}');
         }
-        final decl = RegExp(r'^static const (?:[\w<>?]+ )?(\w+) = (.*?);(?: // (.*))?$').firstMatch(buffer.toString());
+        final decl = RegExp(
+          r'^static const (?:[\w<>?]+ )?(\w+) = (.*?);\s*(?://\s*(.*))?$',
+        ).firstMatch(buffer.toString());
         if (decl == null) throw StateError('${file.path}: cannot parse `$buffer`');
         final memberName = decl.group(1)!;
         final initializer = decl.group(2)!;
@@ -380,7 +382,12 @@ String _sizeExpr(_FieldDecl decl) {
     Bytes() when count != null => count,
     WordList(:final wordSize) when count != null => '$wordSize·$count',
     Entries(entry: ByteLayout(size: final int entrySize)) when count != null => '$entrySize·$count',
-    Bytes() || Unknown() || WordList() || PStrList() || PackedWordList() || Entries() when count == null => 'rest',
+    Bytes() ||
+    Unknown() ||
+    WordList(length: null) ||
+    PStrList(length: null) ||
+    PackedWordList(length: null) ||
+    Entries(length: null) when count == null => 'rest',
     _ => '…',
   };
 }

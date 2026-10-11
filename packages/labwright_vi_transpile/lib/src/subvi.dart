@@ -82,18 +82,27 @@ List<ViHeapObject?> lvPanelDataItems(ViModel model, Iterable<DecodedSection> sec
   final types = frontPanelType is ViFrontPanelTypeInline ? frontPanelType.pool.types : pool!.types;
   final sameTypes = frontPanelType is! ViFrontPanelTypeInline;
   final reversed = top.reversed.toList();
+  final bound = <ViHeapObject>{};
   ViHeapObject? match(int i, ViType member) {
+    bool free(ViHeapObject o) => !bound.contains(o);
     bool sameType(ViHeapObject o) => !sameTypes || o.resolvedType?.offset == member.offset;
-    if (i < reversed.length && sameType(reversed[i]) && reversed[i].typeName == member.label) return reversed[i];
-    final named = member.label == null ? const <ViHeapObject>[] : top.where((o) => o.typeName == member.label).toList();
-    for (final object in named) {
-      if (sameType(object)) return object;
-    }
-    if (i < reversed.length && sameType(reversed[i])) return reversed[i];
-    return named.firstOrNull;
+    bool sameName(ViHeapObject o) => member.label != null && o.typeName == member.label;
+    final positional = i < reversed.length && free(reversed[i]) ? reversed[i] : null;
+    final hit = switch (positional) {
+      final o? when sameType(o) && sameName(o) => o,
+      _ =>
+        reversed.where((o) => free(o) && sameType(o) && sameName(o)).firstOrNull ??
+            (positional != null && sameType(positional) ? positional : null) ??
+            reversed.where((o) => free(o) && sameName(o)).firstOrNull,
+    };
+    if (hit != null) bound.add(hit);
+    return hit;
   }
 
-  return [for (var i = 0; i < items.memberCount; i++) match(i, types[items.memberIndexAt(i)])];
+  return [
+    for (var i = 0; i < items.memberCount; i++)
+      if (items.memberIndexAt(i) case final index when index < types.length) match(i, types[index]) else null,
+  ];
 }
 
 Map<int, ViHeapObject> lvTerminalsOfDataItems(ViDiagram diagram) => {

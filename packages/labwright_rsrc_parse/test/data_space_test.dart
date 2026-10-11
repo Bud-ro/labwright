@@ -101,6 +101,16 @@ void main() {
     }
     final ordered = decode([0, 0, 0, 0, 0, 0, 0x0004, 0x2000], [...be32(1), ...List.filled(16, 0)], version: _lv8);
     expect(ordered.slots.single.offset, 4, reason: 'before LabVIEW 10 the operation cluster stores member 2');
+    final between = decode(
+      [0x2000, 0, 0, 0, 0, 0, 0x0004, 0x2000],
+      [...be32(7), ...be32(1), ...List.filled(16, 0)],
+      version: _lv8,
+    );
+    expect(
+      [for (final slot in between.slots) (slot.entryIndex, slot.offset, slot.length)],
+      [(0, 0, 4), (7, 8, 16)],
+      reason: 'a special-member entry between two slots belongs to neither',
+    );
     final first = decode([0x2000, 0x2000], [...be32(7), ..._str('abc')]);
     expect(first.slotAt(1).topLevelIndex, 1);
     expect(first.slotBytes(1), [0, 0, 0, 3, 0x61, 0x62, 0x63]);

@@ -135,6 +135,9 @@ final class PackedWord extends Scalar {
 
   static int sizeAt(ByteData view, int offset) => view.getUint16(offset) & 0x8000 == 0 ? 2 : 4;
 
+  @override
+  bool isIn(ByteData view) => offset + 2 <= view.lengthInBytes;
+
   static int readAt(ByteData view, int offset) {
     final high = view.getUint16(offset);
     return high & 0x8000 == 0 ? high : view.getUint32(offset) & 0x7fffffff;
@@ -171,6 +174,9 @@ final class PStr extends Field {
   int? get size => null;
 
   static int endAt(ByteData view, int offset) => offset + 1 + view.getUint8(offset);
+
+  @override
+  bool isIn(ByteData view) => offset < view.lengthInBytes;
 
   @override
   int endIn(ByteData view) => endAt(view, offset);
@@ -375,8 +381,8 @@ final class ByteLayout {
     return true;
   }
 
-  /// The bytes every payload holds: the end of the last field that is neither optional nor
-  /// after a data-sized one.
+  /// The bytes every payload holds: the end of the last required field before the first
+  /// data-sized one; a data-sized field contributes nothing.
   int get minSize {
     var end = 0;
     for (final field in fields) {

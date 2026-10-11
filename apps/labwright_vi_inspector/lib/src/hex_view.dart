@@ -419,7 +419,7 @@ class _BlockHexViewState extends State<BlockHexView> {
         ];
       case 'CONP':
       case 'CPC2':
-        if (bytes.isEmpty) return const [];
+        if (bytes.length != 2 && !typePoolFrames(bytes)) return const [];
         final pane = ViConnectorPane(bytes);
         final vctp = widget.siblings.where((s) => s.tag == 'VCTP').firstOrNull;
         final pool = switch (pane) {
@@ -792,9 +792,10 @@ const double _kRowHeight = 20;
 const double _kRecHeight = 30;
 
 /// How much of a [length]-byte payload the tag's layout leaves undecoded; "no layout" when the
-/// tag has none.
+/// tag has none and "other form" when the payload is a form the registered layout does not fit.
 String layoutCoverage(BlockTag? tag, int length) {
   final layout = tag?.layout;
   if (layout == null) return 'no layout';
+  if (!layout.fits(length)) return 'other form, $length B';
   return '${layout.unknownBytes(length)} of $length B unknown';
 }

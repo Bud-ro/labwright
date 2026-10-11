@@ -490,6 +490,9 @@ void main() {
     expect(up.segments, ['Sub', 'x.vi']);
     expect(up.fileName, 'x.vi');
     expect(() => ViPath(_pth0(['a'], type: 7)), throwsA(isA<AssertionError>()), reason: 'unknown type');
+    expect(isPth0(_pth0(['a'], type: 7)), isFalse, reason: 'the gate agrees with the constructor');
+    final bare = ViPath(_pth0([], type: 0));
+    expect((bare.form, bare.text), (ViPathForm.empty, ''));
     expect(p.serialize(), viewOf(body));
     expect(isPth0(u8(List.filled(16, 0x41))), isFalse, reason: 'no magic');
     expect(isPth0(Uint8List(8)), isFalse, reason: 'too short');

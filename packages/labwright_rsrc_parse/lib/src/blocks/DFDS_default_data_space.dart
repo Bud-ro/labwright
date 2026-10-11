@@ -176,6 +176,7 @@ final class ViDataSpace extends ByteRecord {
     final entries = <int>[];
     final topLevels = <int>[];
     final offsets = <int>[];
+    final ends = <int>[];
     var at = 0;
     for (var entry = 0; entry < context.entryCount; entry++) {
       final flags = context.flagsAt(entry);
@@ -194,6 +195,7 @@ final class ViDataSpace extends ByteRecord {
         topLevels.add(topLevel);
         offsets.add(at);
         at = walk.valueEnd(context.types, type, at, 0);
+        ends.add(at);
       } else if (type is ViClusterType && _specialMembers(flags, context.version).isNotEmpty) {
         var skip = TypeMapFlag.firstMemberSkipped.isSetIn(flags);
         for (final member in _specialMembers(flags, context.version)) {
@@ -202,13 +204,17 @@ final class ViDataSpace extends ByteRecord {
             skip = false;
             continue;
           }
+          assert(
+            type.memberIndexAt(member) < context.types.length,
+            'member $member of entry $entry names a type in the pool',
+          );
           at = walk.valueEnd(context.types, context.types[type.memberIndexAt(member)], at, 0);
         }
       }
     }
     assert(at == view.lengthInBytes, 'the stored values tile the payload');
-    offsets.add(at);
     _slotOffsets = offsets;
+    _slotEnds = ends;
     _slotEntries = entries;
     _slotTopLevels = topLevels;
   }
@@ -219,15 +225,17 @@ final class ViDataSpace extends ByteRecord {
     entryIndex: _slotEntries[index],
     topLevelIndex: _slotTopLevels[index],
     offset: _slotOffsets[index],
-    length: _slotOffsets[index + 1] - _slotOffsets[index],
+    length: _slotEnds[index] - _slotOffsets[index],
   );
 
   List<DataSpaceSlot> get slots => [for (var i = 0; i < slotCount; i++) slotAt(i)];
 
-  Uint8List slotBytes(int index) => Uint8List.sublistView(view, _slotOffsets[index], _slotOffsets[index + 1]);
+  Uint8List slotBytes(int index) => Uint8List.sublistView(view, _slotOffsets[index], _slotEnds[index]);
 
-  /// Where each whole-value slot starts, then where the last one ends.
+  /// Where each whole-value slot starts and ends; special-member entries lie between slots.
   late final List<int> _slotOffsets;
+
+  late final List<int> _slotEnds;
 
   late final List<int> _slotEntries;
 

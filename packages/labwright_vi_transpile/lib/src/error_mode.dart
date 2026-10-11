@@ -50,13 +50,15 @@ LvSignature lvSignature(List<LvTerminal> terminals, LvErrorMode mode) {
 
 List<LvTerminal> lvTerminals(List<ViType> pool, ViType? conpane) {
   if (conpane is! ViFunctionType) return const [];
+  for (var i = 0; i < conpane.parameterCount; i++) {
+    if (conpane.parameterIndexAt(i) >= pool.length) return const [];
+  }
   return [
     for (var i = 0; i < conpane.parameterCount; i++)
-      if (conpane.parameterIndexAt(i) case final index when index < pool.length)
-        LvTerminal(
-          pool[index].label ?? '',
-          mapLvType(pool[index], pool),
-          isErrorCluster: isLvErrorCluster(pool[index], pool),
-        ),
+      LvTerminal(
+        pool[conpane.parameterIndexAt(i)].label ?? '',
+        mapLvType(pool[conpane.parameterIndexAt(i)], pool),
+        isErrorCluster: isLvErrorCluster(pool[conpane.parameterIndexAt(i)], pool),
+      ),
   ];
 }

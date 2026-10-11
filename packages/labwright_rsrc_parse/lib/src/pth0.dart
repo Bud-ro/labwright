@@ -66,6 +66,7 @@ final class ViPath extends ByteRecord {
       case ViPathType.unc:
         return ViPathForm.unc;
       case ViPathType.absolute:
+        if (c.isEmpty) return ViPathForm.empty;
         if (c.length >= 2 && c[1].startsWith('//')) return ViPathForm.url;
         if (c.isNotEmpty && c.first.startsWith('<') && c.first.endsWith('>')) return ViPathForm.symbolic;
         return ViPathForm.absolute;
@@ -137,6 +138,7 @@ final class ViPath extends ByteRecord {
     if (at + _components.offset > bytes.length) return null;
     final view = ByteData.sublistView(bytes);
     if (_magic.read(ByteData.sublistView(bytes, at, at + _magic.end)) != 'PTH0') return null;
+    if (ViPathType.of(view.getUint16(at + _pathType.offset)) == null) return null;
     final end = at + _length.end + view.getUint32(at + _length.offset);
     if (end > bytes.length) return null;
     var pos = at + _components.offset;
@@ -190,7 +192,7 @@ enum ViPathType {
 
 /// What a [ViPath] spells, see [ViPath.form].
 enum ViPathForm {
-  /// A relative path with no components.
+  /// A path with no components.
   empty,
 
   /// The [ViPathType.notAPath] type, or a relative path whose one component is `<Not A Path>`.
