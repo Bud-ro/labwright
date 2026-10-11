@@ -4,7 +4,6 @@ library;
 import 'dart:io';
 import 'dart:isolate';
 
-import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 import 'package:test/test.dart';
 
@@ -16,7 +15,8 @@ Map<String, List<int>> sweepChunk(List<String> paths) {
   for (final path in paths) {
     List<ViType> pool;
     try {
-      pool = typePoolFromDecoded(decodeSections(File(path).readAsBytesSync()))?.types ?? const [];
+      final vctp = decodeSections(File(path).readAsBytesSync()).where((d) => d.tag == 'VCTP').firstOrNull;
+      pool = vctp == null ? const [] : ViTypePool(vctp.bytes).types;
     } catch (_) {
       continue;
     }

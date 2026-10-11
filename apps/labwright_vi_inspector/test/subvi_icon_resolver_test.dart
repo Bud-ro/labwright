@@ -38,29 +38,25 @@ void main() {
     expect(icons.keys, isNot(contains('Nonexistent Anywhere.vi')));
   }, tags: 'corpus');
 
-  test(
-    'ring search finds a target with no linker path, nearest first',
-    () {
-      final vi = _iconViFile;
-      final root = Directory.systemTemp.createTempSync('subvi_resolve_');
-      addTearDown(() => root.deleteSync(recursive: true));
-      final proj = Directory('${root.path}/proj/sub')
-        ..createSync(recursive: true);
-      final caller = File('${proj.path}/Caller.vi')..writeAsBytesSync([0]);
-      File('${proj.path}/Near.vi').writeAsBytesSync(vi.readAsBytesSync());
-      final sibling = Directory('${root.path}/proj/lib')
-        ..createSync(recursive: true);
-      File('${sibling.path}/Far.vi').writeAsBytesSync(vi.readAsBytesSync());
-      final icons = resolveIconsOnDisk(caller.path, {
-        'Near.vi',
-        'Far.vi',
-        'Nowhere.vi',
-      }, 4);
-      expect(icons.keys, containsAll(['Near.vi', 'Far.vi']));
-      expect(icons.keys, isNot(contains('Nowhere.vi')));
-    },
-    tags: 'corpus',
-  );
+  test('ring search finds a target with no linker path, nearest first', () {
+    final vi = _iconViFile;
+    final root = Directory.systemTemp.createTempSync('subvi_resolve_');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final proj = Directory('${root.path}/proj/sub')
+      ..createSync(recursive: true);
+    final caller = File('${proj.path}/Caller.vi')..writeAsBytesSync([0]);
+    File('${proj.path}/Near.vi').writeAsBytesSync(vi.readAsBytesSync());
+    final sibling = Directory('${root.path}/proj/lib')
+      ..createSync(recursive: true);
+    File('${sibling.path}/Far.vi').writeAsBytesSync(vi.readAsBytesSync());
+    final icons = resolveIconsOnDisk(caller.path, {
+      'Near.vi',
+      'Far.vi',
+      'Nowhere.vi',
+    }, 4);
+    expect(icons.keys, containsAll(['Near.vi', 'Far.vi']));
+    expect(icons.keys, isNot(contains('Nowhere.vi')));
+  }, tags: 'corpus');
 
   test(
     'an empty wanted set resolves to an empty map without touching disk',

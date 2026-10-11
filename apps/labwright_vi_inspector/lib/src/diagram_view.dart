@@ -841,14 +841,14 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
   for (var k = 0; k < xnodes.length && k < dsims.length; k++) {
     final payload = dsims[k].bytes;
     if (payload.length < 46) continue;
-    final image = decodeDataSpaceImage(payload);
+    final image = ViDataSpaceImage(payload);
     if (image is! ViDataSpacePng) continue;
     final png = image.png;
     final b = xnodes[k].absBounds!;
     if (png.width != b.right - b.left || png.height != b.bottom - b.top) {
       continue;
     }
-    final codec = await ui.instantiateImageCodec(png.bytes);
+    final codec = await ui.instantiateImageCodec(png.serialize());
     final frame = await codec.getNextFrame();
     final data = await frame.image.toByteData();
     frame.image.dispose();

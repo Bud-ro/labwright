@@ -1,24 +1,27 @@
-/// `VINS` — an embedded VI: a complete RSRC file stored as one section in the embedded
-/// section namespace, one section per VI.
+/// `VINS` - VI Instances
+///
+/// A complete VI file stored in the embedded section namespace, one section per instance,
+/// parsed like the VI that embeds it: the instance VIs of the caller's Express VIs, named by a
+/// number and owned by a library called `Instance`, with their own diagram, panel and compiled
+/// code but never an embedded VI of their own. [readEmbeddedVis] lists them as [ViEmbeddedVi].
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       rest  file                       rsrc     a whole RSRC file, parsed like the VI that
-///                                                   embeds it
+/// offset  size  field    type   meaning
+/// 0       rest  file     u8[]   A whole VI file, parsed like the VI that embeds it.
 /// ```
-///
-/// [decodeEmbeddedVi] parses the payload as a VI; [readEmbeddedVis] lists every embedded
-/// VI of a file as a [ViEmbeddedVi].
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
+import '../byte_layout.dart';
 import '../viparse.dart';
 
-const _file = BlockField(0, null, 'file', 'rsrc', 'a whole RSRC file, parsed like the VI that embeds it');
+/// The fields of a `VINS` payload.
+abstract final class Vins {
+  static const file = Bytes(0); // A whole VI file, parsed like the VI that embeds it.
 
-const BlockLayout vinsLayout = [_file];
+  static const layout = ByteLayout([file]);
+}
 
 ViSummary decodeEmbeddedVi(Uint8List bytes) => parseVi(bytes);
 

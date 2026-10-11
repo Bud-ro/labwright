@@ -159,8 +159,7 @@ String editorLinkTemplate({required bool isWindows, String? wslDistro}) {
 enum SiteAsset {
   html('index.html', 'text/html; charset=utf-8'),
   css('style.css', 'text/css; charset=utf-8'),
-  js('app.js', 'text/javascript; charset=utf-8')
-  ;
+  js('app.js', 'text/javascript; charset=utf-8');
 
   const SiteAsset(this.fileName, this.contentType);
 

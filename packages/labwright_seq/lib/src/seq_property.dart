@@ -43,8 +43,7 @@ enum SeqValueClass {
 
   containers('Containers'),
 
-  other('')
-  ;
+  other('');
 
   const SeqValueClass(this.wire, {this.alias});
 

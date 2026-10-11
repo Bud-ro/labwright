@@ -1260,7 +1260,7 @@ void main() {
 }
 
 void resolveTypesTests() {
-  final pool = decodeTypePool(
+  final pool = ViTypePool(
     Uint8List.fromList([
       0, 0, 0, 4, //
       0, 4, 0, TypeCode.voidType,
@@ -1271,7 +1271,7 @@ void resolveTypesTests() {
     ]),
   ).types;
   const table = [0, 0, 1, 2, 3, 1];
-  final dthp = decodeDataTypeHeap(Uint8List.fromList([0, 4, 0, 3])) as ViDataTypeHeapCompact;
+  final dthp = ViDataTypeHeap(Uint8List.fromList([0, 4, 0, 3])) as ViDataTypeHeapCompact;
 
   ViHeapObject obj(int oid, int kind, {int? tdi}) {
     final o = ViHeapObject(oid: oid, kind: kind, offset: 0);

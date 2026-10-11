@@ -16,8 +16,7 @@ enum ZlibFlag {
 
   byDefault(0x9c),
 
-  best(0xda)
-  ;
+  best(0xda);
 
   const ZlibFlag(this.byte);
   final int byte;
@@ -449,8 +448,7 @@ enum _PropRecordField {
 
   nameIndex(18),
 
-  value(22)
-  ;
+  value(22);
 
   const _PropRecordField(this.offset);
 
@@ -706,8 +704,7 @@ enum _FieldForm {
 enum BinaryNumericRepresentation {
   int64(2, 'Int64'),
 
-  uint64(3, 'UInt64')
-  ;
+  uint64(3, 'UInt64');
 
   const BinaryNumericRepresentation(this.code, this.xmlName);
 

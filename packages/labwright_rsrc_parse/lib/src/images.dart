@@ -26,7 +26,7 @@ final class EmbeddedPng {
 
   int get height => stream.height;
 
-  Uint8List get bytes => stream.bytes;
+  Uint8List get bytes => stream.serialize();
 }
 
 /// A QuickTime raster and the section it came from.
@@ -68,18 +68,18 @@ ViImages viImagesOf(Iterable<DecodedSection> sections) {
     switch (BlockTag.of(section.tag)) {
       case BlockTag.icl8 || BlockTag.icl4 || BlockTag.icon:
         final depth = LegacyIconDepth.forTag(section.tag)!;
-        if (payload.length == depth.byteLength) icons.add(decodeLegacyIcon(payload, depth));
+        if (payload.length == depth.byteLength) icons.add(ViLegacyIcon(payload, depth));
       case BlockTag.pict:
-        if (decodePict(payload).quickTimeRaster case final raster?) {
+        if (ViPictPicture(payload).quickTimeRaster case final raster?) {
           rasters.add(EmbeddedRaster(tag: section.tag, raster: raster));
         }
       case BlockTag.mngi:
-        final stream = decodePngStream(payload);
+        final stream = ViPngStream(payload);
         if (stream.kind == ChunkStreamKind.png) {
           pngs.add(EmbeddedPng(tag: section.tag, index: section.index, stream: stream));
         }
       case BlockTag.dsim:
-        if (decodeDataSpaceImage(payload) case ViDataSpacePng(png: final stream)) {
+        if (ViDataSpaceImage(payload) case ViDataSpacePng(png: final stream)) {
           pngs.add(EmbeddedPng(tag: section.tag, index: section.index, stream: stream));
         }
       default:

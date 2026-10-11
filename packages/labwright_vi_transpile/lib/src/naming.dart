@@ -31,8 +31,7 @@ enum LvNameRole {
 
   member('member'),
 
-  item('item')
-  ;
+  item('item');
 
   const LvNameRole(this.stem);
 

@@ -52,11 +52,12 @@ Map<String, Object?> _rectToJson(HeapRect r) => {
 };
 
 List<Map<String, Object?>>? _conpaneTerminals(ViModel m) {
-  final typeIndex = m.connectorPaneTypeIndex;
-  if (typeIndex == null || typeIndex < 1 || typeIndex > m.types.length) return null;
-  final conpaneType = m.types[typeIndex - 1];
-  final terms = conpaneType.kind == ViDataType.cluster ? clusterFields(conpaneType, m.types) : <ViType>[conpaneType];
-  return [for (final term in terms) _termJson(term, m.types)];
+  final pane = m.connectorPaneType;
+  if (pane is! ViFunctionType) return null;
+  for (var i = 0; i < pane.parameterCount; i++) {
+    if (pane.parameterIndexAt(i) >= m.types.length) return null;
+  }
+  return [for (var i = 0; i < pane.parameterCount; i++) _termJson(m.types[pane.parameterIndexAt(i)], m.types)];
 }
 
 Map<String, Object?> _termJson(ViType t, List<ViType> types) => {
@@ -70,11 +71,9 @@ Map<String, Object?> viModelToJson(ViModel m) {
   return {
     if (m.version != null) 'labviewVersion': m.version,
     if (m.title != null) 'title': m.title,
-    if (m.description != null) 'description': m.description,
     if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
     if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
     if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
-    if (m.connectorPaneTypeIndex != null) 'connectorPaneTypeIndex': m.connectorPaneTypeIndex,
     if (terminals != null) 'connectorPaneTerminals': terminals,
     if (m.types.isNotEmpty) ...{
       'typeCount': m.types.length,

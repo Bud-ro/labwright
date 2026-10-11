@@ -1,122 +1,111 @@
-/// `BKMK` — bookmarks: two counted tables of text entries, the first with an extra word per
-/// entry.
+/// `BKMK` - Bookmarks: [ViBookmarkList]
+///
+/// Two counted tables of text entries, the first with an extra word per entry; their roles
+/// are not decoded.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     countA                     u32      entries in table A
-/// 4       rest  tableA                     entry[countA] countA entries
-///   +0    4     wordA                      u32      role TODO
-///   +4    4     wordB                      u32      role TODO
-///   +8    4     textLength                 u32      bytes of text
-///   +12   rest  text                       u8[textLength] text bytes
-/// …       4     countB                     u32      entries in table B, after table A
-/// …       rest  tableB                     entry[countB] countB entries
-///   +0    4     wordB                      u32      role TODO
-///   +4    4     textLength                 u32      bytes of text
-///   +8    rest  text                       u8[textLength] text bytes
+/// offset  size       field      type                     meaning
+/// 0       4          countA     u32                      Entries in table A.
+/// 4       …          tableA     ViBookmarkEntryA[countA]
+///   +0    4          wordA      u32                      Role TODO.
+///   +4    4          wordB      u32                      Role TODO.
+///   +8    4          textLength u32
+///   +12   textLength text       u8[textLength]
+/// …       4          countB     u32                      Entries in table B, after table A.
+/// …       …          tableB     ViBookmarkEntryB[countB]
+///   +0    4          wordB      u32                      Role TODO.
+///   +4    4          textLength u32
+///   +8    textLength text       u8[textLength]
 /// ```
-///
-/// [ViBookmarkList] holds a [ViBookmarkTable] view over each table; [decodeBookmarkList]
-/// requires the two tables to tile the payload exactly.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _countA = BlockField(0, 4, 'countA', 'u32', 'entries in table A');
-const _wordA = BlockField(0, 4, 'wordA', 'u32', 'role TODO');
-const _wordB = BlockField(4, 4, 'wordB', 'u32', 'role TODO');
-const _textLength = BlockField(8, 4, 'textLength', 'u32', 'bytes of text');
-const _text = BlockField(12, null, 'text', 'u8[textLength]', 'text bytes');
-const _tableA = BlockField(
-  4,
-  null,
-  'tableA',
-  'entry[countA]',
-  'countA entries',
-  entry: [_wordA, _wordB, _textLength, _text],
-);
-const _countB = BlockField(4, 4, 'countB', 'u32', 'entries in table B, after table A');
-const _bWordB = BlockField(0, 4, 'wordB', 'u32', 'role TODO');
-const _bTextLength = BlockField(4, 4, 'textLength', 'u32', 'bytes of text');
-const _bText = BlockField(8, null, 'text', 'u8[textLength]', 'text bytes');
-const _tableB = BlockField(
-  8,
-  null,
-  'tableB',
-  'entry[countB]',
-  'countB entries',
-  entry: [_bWordB, _bTextLength, _bText],
-);
-
-const BlockLayout bkmkLayout = [_countA, _tableA, _countB, _tableB];
-
-/// A view over one bookmark table.
-class ViBookmarkTable {
-  ViBookmarkTable._(this.bytes, this._entryOffsets, this.hasWordA) : _view = ByteData.sublistView(bytes);
-
-  final Uint8List bytes;
-
-  final ByteData _view;
-
-  final List<int> _entryOffsets;
-
-  /// True for table A, whose entries start with `wordA`.
-  final bool hasWordA;
-
-  int get _headBytes => hasWordA ? _text.offset : _bText.offset;
-
-  int get length => _entryOffsets.length;
-
-  /// Null for table B.
-  int? wordAAt(int index) => hasWordA ? _view.getUint32(_entryOffsets[index] + _wordA.offset) : null;
-
-  int wordBAt(int index) => _view.getUint32(_entryOffsets[index] + _headBytes - 8);
-
-  Uint8List textAt(int index) {
-    final at = _entryOffsets[index] + _headBytes;
-    return Uint8List.sublistView(bytes, at, at + _view.getUint32(at - 4));
-  }
-}
-
-/// The two tables of a `BKMK` payload.
-class ViBookmarkList implements BlockRecord {
-  const ViBookmarkList._(this.bytes, this.tableA, this.tableB);
-
-  final Uint8List bytes;
-
-  final ViBookmarkTable tableA;
-
-  final ViBookmarkTable tableB;
-
-  bool get isEmpty => tableA.length == 0 && tableB.length == 0;
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViBookmarkList decodeBookmarkList(Uint8List bytes) {
-  assert(bytes.length >= _tableA.offset, 'a bookmark list starts with the count of table A');
-  final view = ByteData.sublistView(bytes);
-  var at = _tableA.offset;
-  List<int> table(int headBytes) {
-    final count = view.getUint32(at - 4);
-    assert(count <= (bytes.length - at) ~/ headBytes, 'the count fits the payload');
-    final offsets = List<int>.filled(count, 0);
-    for (var i = 0; i < count; i++) {
-      offsets[i] = at;
-      assert(at + headBytes <= bytes.length, 'entry $i has its words and length');
-      at += headBytes + view.getUint32(at + headBytes - 4);
+final class ViBookmarkList extends ByteRecord {
+  ViBookmarkList(Uint8List bytes) : super(bytes, layout) {
+    var at = _tableA.offset;
+    final a = <ViBookmarkEntryA>[];
+    for (var i = _countA.read(view); i > 0; i--) {
+      final entry = ViBookmarkEntryA.at(view, at);
+      a.add(entry);
+      at += ViBookmarkEntryA.layout.minSize + entry.text.length;
     }
-    return offsets;
+    tableA = a;
+    assert(at + _countB.size <= view.lengthInBytes, 'table B has a count');
+    final countB = view.getUint32(at);
+    at += _countB.size;
+    final b = <ViBookmarkEntryB>[];
+    for (var i = countB; i > 0; i--) {
+      final entry = ViBookmarkEntryB.at(view, at);
+      b.add(entry);
+      at += ViBookmarkEntryB.layout.minSize + entry.text.length;
+    }
+    tableB = b;
+    assert(at == view.lengthInBytes, 'the two tables tile the payload');
   }
 
-  final a = table(_text.offset);
-  assert(at + 4 <= bytes.length, 'table B has a count');
-  at += 4;
-  final b = table(_bText.offset);
-  assert(at == bytes.length, 'the two tables tile the payload');
-  return ViBookmarkList._(bytes, ViBookmarkTable._(bytes, a, true), ViBookmarkTable._(bytes, b, false));
+  late final List<ViBookmarkEntryA> tableA;
+
+  late final List<ViBookmarkEntryB> tableB;
+
+  bool get isEmpty => tableA.isEmpty && tableB.isEmpty;
+
+  static const _countA = U32(0); // Entries in table A.
+  static const _tableA = Entries(4, ViBookmarkEntryA.layout, count: _countA);
+  static const _countB = U32(4); // Entries in table B, after table A.
+  static const _tableB = Entries(8, ViBookmarkEntryB.layout, count: _countB);
+
+  static const layout = ByteLayout([_countA, _tableA, _countB, _tableB]);
+}
+
+/// One entry of table A.
+final class ViBookmarkEntryA {
+  const ViBookmarkEntryA(this.wordA, this.wordB, this.text);
+
+  /// The entry starting at [at] in [view].
+  factory ViBookmarkEntryA.at(ByteData view, int at) {
+    assert(at + layout.minSize <= view.lengthInBytes, 'the entry has its words and length');
+    final entry = ByteData.sublistView(view, at);
+    assert(_text.endIn(entry) <= entry.lengthInBytes, 'the text fits the payload');
+    return ViBookmarkEntryA(_wordA.read(entry), _wordB.read(entry), _text.read(entry));
+  }
+
+  final int wordA;
+
+  final int wordB;
+
+  final Uint8List text;
+
+  static const _wordA = U32(0); // Role TODO.
+  static const _wordB = U32(4); // Role TODO.
+  static const _textLength = U32(8);
+  static const _text = Bytes(12, count: _textLength);
+
+  static const layout = ByteLayout([_wordA, _wordB, _textLength, _text]);
+}
+
+/// One entry of table B.
+final class ViBookmarkEntryB {
+  const ViBookmarkEntryB(this.wordB, this.text);
+
+  /// The entry starting at [at] in [view].
+  factory ViBookmarkEntryB.at(ByteData view, int at) {
+    assert(at + layout.minSize <= view.lengthInBytes, 'the entry has its word and length');
+    final entry = ByteData.sublistView(view, at);
+    assert(_text.endIn(entry) <= entry.lengthInBytes, 'the text fits the payload');
+    return ViBookmarkEntryB(_wordB.read(entry), _text.read(entry));
+  }
+
+  final int wordB;
+
+  final Uint8List text;
+
+  static const _wordB = U32(0); // Role TODO.
+  static const _textLength = U32(4);
+  static const _text = Bytes(8, count: _textLength);
+
+  static const layout = ByteLayout([_wordB, _textLength, _text]);
 }

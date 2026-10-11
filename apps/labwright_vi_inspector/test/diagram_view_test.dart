@@ -116,7 +116,7 @@ void main() {
   testWidgets('BD view shows the VI-image strip when an icon is present', (
     tester,
   ) async {
-    final images = ViImages(icons: [decodeIcl8(Uint8List(1024))]);
+    final images = ViImages(icons: [ViLegacyIcon.icl8(Uint8List(1024))]);
     await pumpBody(
       tester,
       ViDiagramView(

@@ -146,8 +146,7 @@ enum LvNodeClass {
   deleteFromArray(0xbd, 'Delete From Array'),
   mergeErrors(0x172, 'Merge Errors'),
   initializeArray(0x114, 'Initialize Array', basis: LvClassNameBasis.terminalGrammar),
-  byName(0x63, 'Bundle/Unbundle By Name', basis: LvClassNameBasis.terminalGrammar)
-  ;
+  byName(0x63, 'Bundle/Unbundle By Name', basis: LvClassNameBasis.terminalGrammar);
 
   const LvNodeClass(this.code, this.title, {this.basis = LvClassNameBasis.captions});
 
@@ -271,8 +270,7 @@ enum LvCompoundMode {
 
   or(3, 'OR'),
 
-  exclusiveOr(4, 'Exclusive OR')
-  ;
+  exclusiveOr(4, 'Exclusive OR');
 
   const LvCompoundMode(this.selector, this.opName);
 

@@ -95,8 +95,7 @@ void main() {
     expect(find.text('Components (by decompressed size)'), findsOneWidget);
     expect(find.text('BDEx'), findsOneWidget);
     expect(find.textContaining('76.2 KB'), findsWidgets);
-    expect(find.text('Block inventory (by category)'), findsOneWidget);
-    expect(find.text('frontPanelHeap'), findsOneWidget);
+    expect(find.text('Block inventory'), findsOneWidget);
     expect(find.textContaining('Front-panel heap'), findsOneWidget);
   });
 

@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-const _pinnedIniSeqCount = 45;
+const _pinnedIniSeqCount = 15;
 const _pinnedXmlSeqCount = 42;
 const _pinnedBinarySeqCount = 297;
 

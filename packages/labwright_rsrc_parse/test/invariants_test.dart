@@ -53,8 +53,8 @@ _Summ _summarize(Uint8List bytes, String path) {
   } catch (_) {}
 
   if (secs != null) {
-    final rec = saveRecordFromSections(secs);
-    if (rec != null && rec.versionWord.releaseStage == null) bad('stageUnnamed');
+    final lvsr = secs.where((section) => section.tag == 'LVSR').firstOrNull;
+    if (lvsr != null && ViSaveRecord(lvsr.bytes).versionWord.releaseStage == null) bad('stageUnnamed');
   }
 
   ViModel? m;
@@ -71,8 +71,8 @@ _Summ _summarize(Uint8List bytes, String path) {
     Uint8List? bodyOf(String tag) => dsecs!.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
     final vctp = bodyOf('VCTP');
     final dthpBody = bodyOf('DTHP');
-    final dthp = dthpBody == null ? null : decodeDataTypeHeap(dthpBody);
-    final topLevel = vctp == null ? const <int>[] : decodeTypePool(vctp).topLevelIndices;
+    final dthp = dthpBody == null ? null : ViDataTypeHeap(dthpBody);
+    final topLevel = vctp == null ? const <int>[] : ViTypePool(vctp).topLevelIndices;
     if (dthp is ViDataTypeHeapCompact && topLevel.isNotEmpty) {
       if (dthp.firstTopLevelIndex + dthp.heapTypeCount - 1 != topLevel.length) bad('dthpRunNotAtTail');
       final indices = [

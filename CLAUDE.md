@@ -46,8 +46,9 @@ The RSRC reader and TestStand readers are most pressing here.
   before committing. Run `./format.sh` (a thin wrapper over `dart format .`)
   so hand/agent edits match VS Code's format-on-save and diffs stay noise-free.
   The byte-layout diagrams in `packages/labwright_rsrc_parse/lib/src/blocks/*.dart`
-  are generated from each file's `BlockLayout` by `tool/gen_block_docs.dart`;
-  run it after editing a layout, CI fails if the output differs.
+  and `lib/src/generated/block_docs.dart` are generated from each file's layout
+  classes by `tool/gen_block_docs.dart`; run it after editing a layout or a
+  field's doc comment, CI fails if the output differs.
   Prefer small, reviewable PRs over large unfocused pushes. Keep note of test
   run times, and do not allow them to balloon.
 

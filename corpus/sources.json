@@ -105,7 +105,6 @@
       {"repo": "ni/nitsm-python", "commit": "334552e02b324bf5663e96a4fc31399570c3138a"},
       {"repo": "ni/semi-test-library-dotnet", "commit": "1bffd0d77c98c7898e73f5e39262749a701170c5"},
       {"repo": "ni/stsmemsapt", "commit": "672b0097e35c393d70adf14c79aaebf43b74f126"},
-      {"repo": "noffz-mbokcic/PR002165_FCT_NGPMH", "commit": "83973ba32980051e144791ec73e4d706d3493399"},
       {"repo": "pranay001/STS-Live-Test-Result-Viewer", "commit": "f2a84e036b066245c7d079697936d250fb102434"},
       {"repo": "prestwick/systemlink-hands-on", "commit": "50dabc8d1f18c22d3cc6af27d8d60391b93f8dcb"},
       {"repo": "robertsdy/python_labview_teststand", "commit": "981d2048041933a268cb4cec4a73f06133d978c2"},

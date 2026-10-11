@@ -1,63 +1,57 @@
-/// `LIvi` / `LIbd` / `LIfp` / `LIds` — link info for the VI, its block diagram, front panel
-/// and data space: the resources it links to, each as an entry whose grammar depends on
-/// its four-character kind and on the saving LabVIEW version.
+/// `LIvi` / `LIbd` / `LIfp` / `LIds` - Link Info: [ViLinkInfo]
 ///
-/// A VI saved inside a library before LabVIEW 14 puts its own qualified name between the
-/// root kind and the entry count. Entries follow with no length of their own, so an entry
-/// whose kind the grammar does not know ends the walk: the rest of the region up to the
-/// terminator is retained as one [ViLinkEntryUnwalked].
+/// The resources the VI, its block diagram, front panel and data space link to, each an entry
+/// whose grammar depends on its four-character kind and on the saving LabVIEW version. A VI
+/// saved inside a library before LabVIEW 14 puts its own qualified name between the root kind
+/// and the entry count, the [ViLinkInfo.libraryLayout] form. Entries carry no length of their
+/// own, so an entry whose kind the grammar does not know ends the walk and the rest of the
+/// region up to the terminator is retained as one [ViLinkEntryUnwalked].
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       2     version                    u16      link-info format version, 1
-/// 2       4     rootKind                   4cc      the linking resource: LVIN, BDHP, FPHP or VIDS
-/// optional, when saved inside a library before LabVIEW 14:
-/// 6       rest  qualifiedName              pstr     the VI's library-qualified name, padded to an
-///                                                   even length, then a u16 whose role is TODO
-/// …       4     entryCount                 u32      number of entries
-/// …       rest  entries                    entry[entryCount] entryCount entries
-///   +0    2     version                    u16      entry format version, 2
-///   +2    4     kind                       4cc      link kind such as IUVI (sub-VI) or VILB
-///                                                   (library)
-///   +6    rest  body                       bytes    grammar per kind and saving version
-/// …       2     terminator                 u16      always 3, the last two bytes of the payload
+/// LIvi / LIfp / LIbd / LIds:
+/// offset  size  field      type                      meaning
+/// 0       2     version    u16                       Link-info format version, 1.
+/// 2       4     rootKind   4cc                       The linking resource: LVIN, BDHP, FPHP or VIDS.
+/// 6       4     entryCount u32                       Number of entries.
+/// 10      …     entries    LinkInfoEntry[entryCount]
+///   +0    2     version    u16                       Entry format version, 2.
+///   +2    4     kind       4cc                       Link kind such as IUVI (sub-VI) or VILB (library).
+///   +6    rest  body       u8[]                      Grammar per kind and saving version.
+/// …       2     terminator u16                       Always 3, the last two bytes of the payload.
+/// ViLinkInfo.libraryLayout:
+/// offset  size        field         type                      meaning
+/// 0       2           version       u16                       Link-info format version, 1.
+/// 2       4           rootKind      4cc                       The linking resource: LVIN, BDHP, FPHP or
+///                                                             VIDS.
+/// 6       …           qualifiedName pstr                      The VI's library-qualified name, padded to an
+///                                                             even length.
+/// …       2           wordCount     u16                       After the padded name; role TODO.
+/// …       2·wordCount words         u16[wordCount]            Words whose role is TODO; the entry count
+///                                                             follows them.
+/// …       4           entryCount    u32                       Number of entries.
+/// …       …           entries       LinkInfoEntry[entryCount]
+///   +0    2           version       u16                       Entry format version, 2.
+///   +2    4           kind          4cc                       Link kind such as IUVI (sub-VI) or VILB
+///                                                             (library).
+///   +6    rest        body          u8[]                      Grammar per kind and saving version.
+/// …       2           terminator    u16                       Always 3, the last two bytes of the payload.
 /// ```
-///
-/// [ViLinkInfo] is a view over the payload; [decodeLinkInfo] walks the entries with the
-/// grammar of [ViVersionWord] when given one and requires the header and terminator.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import 'vers_version.dart';
 
-const _version = BlockField(0, 2, 'version', 'u16', 'link-info format version, 1');
-const _rootKind = BlockField(2, 4, 'rootKind', '4cc', 'the linking resource: LVIN, BDHP, FPHP or VIDS');
-const _qualifiedName = BlockField(
-  6,
-  null,
-  'qualifiedName',
-  'pstr',
-  'the VI\'s library-qualified name, padded to an even length, then a u16 whose role is TODO',
-  optional: 'saved inside a library before LabVIEW 14',
-);
-const _entryCount = BlockField(6, 4, 'entryCount', 'u32', 'number of entries');
-const _entryVersion = BlockField(0, 2, 'version', 'u16', 'entry format version, 2');
-const _entryKind = BlockField(2, 4, 'kind', '4cc', 'link kind such as IUVI (sub-VI) or VILB (library)');
-const _entryBody = BlockField(6, null, 'body', 'bytes', 'grammar per kind and saving version');
-const _entries = BlockField(
-  10,
-  null,
-  'entries',
-  'entry[entryCount]',
-  'entryCount entries',
-  entry: [_entryVersion, _entryKind, _entryBody],
-);
-const _terminator = BlockField(0, 2, 'terminator', 'u16', 'always 3, the last two bytes of the payload');
+/// One link entry.
+abstract final class LinkInfoEntry {
+  static const version = U16(0); // Entry format version, 2.
+  static const kind = FourCc(2); // Link kind such as IUVI (sub-VI) or VILB (library).
+  static const body = Bytes(6); // Grammar per kind and saving version.
 
-const BlockLayout linkInfoLayout = [_version, _rootKind, _qualifiedName, _entryCount, _entries, _terminator];
+  static const layout = ByteLayout([version, kind, body]);
+}
 
 /// One entry of a [ViLinkInfo].
 sealed class ViLinkEntry {
@@ -80,37 +74,52 @@ final class ViLinkEntryUnwalked extends ViLinkEntry {
   const ViLinkEntryUnwalked(super.offset, super.end);
 }
 
-/// A view over an `LIvi`, `LIbd`, `LIfp` or `LIds` payload.
-class ViLinkInfo implements BlockRecord {
-  ViLinkInfo._(this.bytes, this.entriesOffset, this.entries) : _view = ByteData.sublistView(bytes);
+final class ViLinkInfo extends ByteRecord {
+  ViLinkInfo(Uint8List bytes, {ViVersionWord? version}) : super(bytes, layout) {
+    assert(bytes.length >= _entries.offset + _terminator.size, 'link info holds a header, a count and a terminator');
+    final termOff = bytes.length - _terminator.size;
+    for (final start in _entriesStarts(bytes, view, version)) {
+      final count = view.getUint32(start - _entryCount.size);
+      final walked = _walk(bytes, version, count, start, termOff);
+      if (walked != null) {
+        entriesOffset = start;
+        entries = walked;
+        return;
+      }
+    }
+    entriesOffset = _entries.offset;
+    entries = [ViLinkEntryUnwalked(_entries.offset, termOff)];
+  }
 
-  final Uint8List bytes;
+  /// Where the entries start: after the count word, itself after the qualified name in the
+  /// library form.
+  late final int entriesOffset;
 
-  final ByteData _view;
+  late final List<ViLinkEntry> entries;
 
-  /// Where the entries start: after the count word, itself after the optional qualified name.
-  final int entriesOffset;
+  /// Link-info format version, 1.
+  int get version => _version.read(view);
 
-  final List<ViLinkEntry> entries;
+  /// The linking resource: LVIN, BDHP, FPHP or VIDS.
+  String get rootKind => _rootKind.read(view);
 
-  int get version => _view.getUint16(_version.offset);
+  /// Number of entries.
+  int get entryCount => view.getUint32(entriesOffset - _entryCount.size);
 
-  String get rootKind => String.fromCharCodes(bytes, _rootKind.offset, _rootKind.end);
-
-  int get entryCount => _view.getUint32(entriesOffset - 4);
-
-  int get terminator => _view.getUint16(bytes.length - 2);
+  /// Always 3, the last two bytes of the payload.
+  int get terminator => view.getUint16(view.lengthInBytes - _terminator.size);
 
   bool get isWalked => entries.every((e) => e is ViLinkEntryFramed);
 
   /// Names ending in a LabVIEW file extension that appear as Pascal strings anywhere in
   /// the entry region, in order of first appearance.
   List<String> get linkedNames {
+    final bytes = Uint8List.sublistView(view);
     final out = <String>[];
     for (var pos = entriesOffset; pos < bytes.length - 4; pos++) {
       final len = bytes[pos];
       if (len < 4 || len > 120 || pos + 1 + len > bytes.length) continue;
-      if (!_printable(pos + 1, pos + 1 + len)) continue;
+      if (!_printable(bytes, pos + 1, pos + 1 + len)) continue;
       final text = String.fromCharCodes(bytes, pos + 1, pos + 1 + len);
       if (_linkedFile.hasMatch(text)) {
         if (!out.contains(text)) out.add(text);
@@ -122,6 +131,7 @@ class ViLinkInfo implements BlockRecord {
 
   /// `PTH0` path records anywhere in the entry region.
   int get pathCount {
+    final bytes = Uint8List.sublistView(view);
     var n = 0;
     for (var pos = entriesOffset; pos + 4 <= bytes.length; pos++) {
       if (bytes[pos] == 0x50 && bytes[pos + 1] == 0x54 && bytes[pos + 2] == 0x48 && bytes[pos + 3] == 0x30) {
@@ -132,43 +142,41 @@ class ViLinkInfo implements BlockRecord {
     return n;
   }
 
-  bool _printable(int start, int end) {
+  static bool _printable(Uint8List bytes, int start, int end) {
     for (var i = start; i < end; i++) {
       if (bytes[i] < 0x20 || bytes[i] >= 0x7f) return false;
     }
     return true;
   }
 
-  @override
-  Uint8List serialize() => bytes;
+  // dart format off
+  static const _version = U16(0);
+  static const _rootKind = FourCc(2);
+  static const _entryCount = U32(6);
+  static const _entries = Entries(10, LinkInfoEntry.layout, count: _entryCount);
+  static const _terminator = U16(0);
+  static const _qualifiedName = PStr(6); // The VI's library-qualified name, padded to an even length.
+  static const _wordCount = U16(7); // After the padded name; role TODO.
+  static const _words = U16List(9, count: _wordCount); // Words whose role is TODO; the entry count follows them.
+
+  static const layout = ByteLayout([_version, _rootKind, _entryCount, _entries, _terminator]);
+  static const libraryLayout = ByteLayout([_version, _rootKind, _qualifiedName, _wordCount, _words, _entryCount, _entries, _terminator]);
+  // dart format on
 }
 
 final _linkedFile = RegExp(r'\.(vi|vim|vit|ctl|ctt|lvclass|lvlib|llb)$', caseSensitive: false);
 
-ViLinkInfo decodeLinkInfo(Uint8List bytes, {ViVersionWord? version}) {
-  assert(bytes.length >= _entries.offset + 2, 'link info holds a header, a count and a terminator');
-  final view = ByteData.sublistView(bytes);
-  final termOff = bytes.length - 2;
-  for (final start in _entriesStarts(bytes, view, version)) {
-    final count = view.getUint32(start - 4);
-    final entries = _walk(bytes, version, count, start, termOff);
-    if (entries != null) return ViLinkInfo._(bytes, start, entries);
-  }
-  final start = _entries.offset;
-  return ViLinkInfo._(bytes, start, [ViLinkEntryUnwalked(start, termOff)]);
-}
-
 /// Candidate offsets of the first entry, each preceded by its count word.
 Iterable<int> _entriesStarts(Uint8List bytes, ByteData view, ViVersionWord? version) sync* {
   if (version != null && version.major < 14) {
-    final nameLen = bytes[_qualifiedName.offset];
-    var pos = _qualifiedName.offset + 1 + nameLen;
+    final nameLen = bytes[ViLinkInfo._qualifiedName.offset];
+    var pos = ViLinkInfo._qualifiedName.offset + 1 + nameLen;
     if ((nameLen + 1).isOdd) pos += 1;
     if (pos + 6 <= bytes.length) yield pos + 2 + 2 * view.getUint16(pos) + 4;
   }
-  yield _entries.offset;
-  if (bytes[_qualifiedName.offset] != 0) {
-    var pos = _qualifiedName.offset + 1 + bytes[_qualifiedName.offset];
+  yield ViLinkInfo._entries.offset;
+  if (bytes[ViLinkInfo._qualifiedName.offset] != 0) {
+    var pos = ViLinkInfo._qualifiedName.offset + 1 + bytes[ViLinkInfo._qualifiedName.offset];
     if (pos % 4 != 0) pos += 4 - pos % 4;
     pos += 2;
     if (pos + 4 <= bytes.length) yield pos + 4;

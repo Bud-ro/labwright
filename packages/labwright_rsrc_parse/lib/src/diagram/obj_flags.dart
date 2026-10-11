@@ -19,8 +19,7 @@ enum ViObjFlag {
   tunnelHollow(0x1000000),
 
   /// `0x1000000` on a case structure: selector strings match case-insensitively.
-  caseInsensitiveSelector(0x1000000)
-  ;
+  caseInsensitiveSelector(0x1000000);
 
   const ViObjFlag(this.mask);
 

@@ -32,25 +32,25 @@ const _probes = <String, List<(String, bool Function(Uint8List))>>{
   'TRec': [('TRec', _trec)],
 };
 
-bool _cpmp(Uint8List b) => decodeConnectorPaneMap(b).length >= 0;
-bool _ipsr(Uint8List b) => decodeOffsetTable(b).serialize().length == b.length;
-bool _gcdi(Uint8List b) => decodeGcdiRecord(b).value >= 0;
-bool _bkmk(Uint8List b) => decodeBookmarkList(b).tableA.length >= 0;
-bool _vits(Uint8List b) => decodeTagStore(b).entries.length == decodeTagStore(b).declaredCount;
-bool _vicd(Uint8List b) => decodeCompiledCode(b).codeSize >= 0;
-bool _dsim(Uint8List b) => decodeDataSpaceImage(b).width >= 0;
-bool _mngi(Uint8List b) => decodePngStream(b).chunkCount > 0;
-bool _bdpw(Uint8List b) => decodePasswordRecord(b).passwordDigest.length == 16;
-bool _rtsg(Uint8List b) => decodeSignature(b).digest.length == 16;
-bool _scsr(Uint8List b) => decodeSourceSignature(b).digest.length == 16;
-bool _picc(Uint8List b) => decodeIconPlacement(b).bytes.length == 12;
-bool _prt(Uint8List b) => decodePrintRecord(b).length >= 32;
-bool _sectionMarker(Uint8List b) => decodeSectionEntry(b).value >= 0;
-bool _muid(Uint8List b) => decodeModifiedUid(b).value >= 0;
-bool _extendedState(Uint8List b) => decodeExtendedState(b).length >= 1;
-bool _gcpr(Uint8List b) => decodeGcprRecord(b).isZero;
-bool _dldr(Uint8List b) => decodeDldrRecord(b).length == 7;
-bool _trec(Uint8List b) => decodeTextRecord(b).runCount >= 0;
+bool _cpmp(Uint8List b) => ViConnectorPaneMap(b).length >= 0;
+bool _ipsr(Uint8List b) => ViOffsetTable(b).serialize().length == b.length;
+bool _gcdi(Uint8List b) => ViGcdiRecord(b).recordCount >= 0;
+bool _bkmk(Uint8List b) => ViBookmarkList(b).serialize().length == b.length;
+bool _vits(Uint8List b) => ViTagStore(b).entries.length == ViTagStore(b).declaredCount;
+bool _vicd(Uint8List b) => ViCompiledCode(b).codeSize >= 0;
+bool _dsim(Uint8List b) => ViDataSpaceImage(b).width >= 0;
+bool _mngi(Uint8List b) => ViPngStream(b).chunkCount > 0;
+bool _bdpw(Uint8List b) => ViPasswordRecord(b).passwordDigest.length == 16;
+bool _rtsg(Uint8List b) => ViSignature(b).digest.length == 16;
+bool _scsr(Uint8List b) => ViSourceSignature(b).digest.length == 16;
+bool _picc(Uint8List b) => ViPiccRecord(b).serialize().length == 12;
+bool _prt(Uint8List b) => ViPrintRecord(b).length >= 32;
+bool _sectionMarker(Uint8List b) => ViSectionEntry(b).value >= 0;
+bool _muid(Uint8List b) => ViMaxUid(b).maxUid >= 0;
+bool _extendedState(Uint8List b) => ViLinkEntryWords(b).count >= 0;
+bool _gcpr(Uint8List b) => ViConstantRecord.gcpr(b).isZero;
+bool _dldr(Uint8List b) => ViDldrRecord(b).length == 7;
+bool _trec(Uint8List b) => ViTextRecord(b).runCount >= 0;
 
 const _linkInfoTags = {'LIvi', 'LIbd', 'LIfp', 'LIds'};
 
@@ -62,12 +62,13 @@ Map<String, int> _undecoded(Uint8List bytes, String path) {
   } catch (_) {
     return c;
   }
-  final version = versionWordFromSections([for (final section in sections) section.section]);
+  final vers = sections.where((section) => section.tag == 'vers').firstOrNull;
+  final version = vers == null ? null : ViVersBlock(vers.bytes).versionWord;
   for (final section in sections) {
     for (final (key, probe) in _probes[section.tag] ?? const <(String, bool Function(Uint8List))>[]) {
       if (!probe(section.bytes)) c[key] = (c[key] ?? 0) + 1;
     }
-    if (_linkInfoTags.contains(section.tag) && !decodeLinkInfo(section.bytes, version: version).isWalked) {
+    if (_linkInfoTags.contains(section.tag) && !ViLinkInfo(section.bytes, version: version).isWalked) {
       c['LI**'] = (c['LI**'] ?? 0) + 1;
     }
   }

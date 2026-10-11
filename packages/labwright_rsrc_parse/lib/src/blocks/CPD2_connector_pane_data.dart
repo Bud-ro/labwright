@@ -1,38 +1,26 @@
-/// `CPD2` — connector-pane data: one u16.
+/// `CPD2` - Connector Pane Data: [ViConnectorPaneData]
+///
+/// One u16 that repeats `CPC2`'s type index in every corpus file that carries it (53, most saved
+/// by LabVIEW 2012); why it exists is not decoded.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       2     value                      u16      role TODO
+/// offset  size  field     type   meaning
+/// 0       2     typeIndex u16    1-based index among the VCTP top-level types, the same as CPC2's.
 /// ```
-///
-/// [ViConnectorPaneData] is a view over the payload; [decodeCpd2Record] requires exactly
-/// 2 bytes.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _value = BlockField(0, 2, 'value', 'u16', 'role TODO');
+final class ViConnectorPaneData extends ByteRecord {
+  ViConnectorPaneData(Uint8List bytes) : super(bytes, layout);
 
-const BlockLayout cpd2Layout = [_value];
+  /// 1-based index among the VCTP top-level types, the same as CPC2's.
+  int get typeIndex => _typeIndex.read(view);
 
-/// A view over a `CPD2` payload.
-class ViConnectorPaneData implements BlockRecord {
-  ViConnectorPaneData._(this.bytes) : _view = ByteData.sublistView(bytes);
+  static const _typeIndex = U16(0);
 
-  final Uint8List bytes;
-
-  final ByteData _view;
-
-  int get value => _view.getUint16(_value.offset);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViConnectorPaneData decodeCpd2Record(Uint8List bytes) {
-  assert(bytes.length == _value.end, 'CPD2 is one u16');
-  return ViConnectorPaneData._(bytes);
+  static const layout = ByteLayout([_typeIndex]);
 }

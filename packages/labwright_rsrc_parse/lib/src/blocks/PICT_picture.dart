@@ -1,51 +1,38 @@
-/// `PICT` — a QuickDraw PICT version 2 picture: the picture frame, the version opcode, then a
-/// big-endian opcode stream padded to even offsets and ending at OpEndPic.
+/// `PICT` - QuickDraw Picture: [ViPictPicture]
+///
+/// A QuickDraw PICT version 2 picture: the picture frame, the version opcode, then a
+/// big-endian opcode stream padded to even offsets and ending at OpEndPic. A
+/// CompressedQuickTime opcode carrying an uncompressed `raw ` image is read through
+/// [ViQuickTimeRaster].
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       2     size                       u16      picture size, low 16 bits
-/// 2       2     top                        i16      picture frame top
-/// 4       2     left                       i16      picture frame left
-/// 6       2     bottom                     i16      picture frame bottom
-/// 8       2     right                      i16      picture frame right
-/// 10      2     versionOp                  u16      0x0011
-/// 12      2     version                    u16      0x02FF
-/// 14      rest  opcodes                    entry[]  opcodes to OpEndPic (0x00FF)
-///   +0    2     opcode                     u16      QuickDraw opcode
-///   +2    rest  data                       u8[]     opcode data, sized by opcode; padded to an
-///                                                   even offset
+/// offset  size  field     type         meaning
+/// 0       2     size      u16          Picture size, low 16 bits.
+/// 2       2     top       i16          Picture frame top.
+/// 4       2     left      i16          Picture frame left.
+/// 6       2     bottom    i16          Picture frame bottom.
+/// 8       2     right     i16          Picture frame right.
+/// 10      2     versionOp u16          0x0011.
+/// 12      2     version   u16          0x02FF.
+/// 14      rest  opcodes   PictOpcode[] Opcodes to OpEndPic (0x00FF).
+///   +0    2     opcode    u16          QuickDraw opcode.
+///   +2    rest  data      u8[]         Opcode data, sized by opcode; padded to an even offset.
 /// ```
-///
-/// [ViPictPicture] is a view over the payload whose [ViPictPicture.frame] accounts for the
-/// opcode stream; [decodePict] requires the version-2 header and the stream to tile the payload
-/// to OpEndPic. A CompressedQuickTime opcode carrying an uncompressed `raw ` image is read
-/// through [ViQuickTimeRaster].
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import 'WEMF_metafile.dart' show ViMetafileFrame;
 
-const _size = BlockField(0, 2, 'size', 'u16', 'picture size, low 16 bits');
-const _top = BlockField(2, 2, 'top', 'i16', 'picture frame top');
-const _left = BlockField(4, 2, 'left', 'i16', 'picture frame left');
-const _bottom = BlockField(6, 2, 'bottom', 'i16', 'picture frame bottom');
-const _right = BlockField(8, 2, 'right', 'i16', 'picture frame right');
-const _versionOp = BlockField(10, 2, 'versionOp', 'u16', '0x0011');
-const _version = BlockField(12, 2, 'version', 'u16', '0x02FF');
-const _opcode = BlockField(0, 2, 'opcode', 'u16', 'QuickDraw opcode');
-const _opData = BlockField(2, null, 'data', 'u8[]', 'opcode data, sized by opcode; padded to an even offset');
-const _opcodes = BlockField(
-  14,
-  null,
-  'opcodes',
-  'entry[]',
-  'opcodes to OpEndPic (0x00FF)',
-  entry: [_opcode, _opData],
-);
+/// One QuickDraw opcode.
+abstract final class PictOpcode {
+  static const opcode = U16(0); // QuickDraw opcode.
+  static const data = Bytes(2); // Opcode data, sized by opcode; padded to an even offset.
 
-const BlockLayout pictLayout = [_size, _top, _left, _bottom, _right, _versionOp, _version, _opcodes];
+  static const layout = ByteLayout([opcode, data]);
+}
 
 const int _pictVersionOp = 0x0011;
 const int _pictVersion2 = 0x02FF;
@@ -53,24 +40,28 @@ const int _pictOpEndPic = 0x00FF;
 const int _compressedQuickTime = 0x8200;
 const int _qtRawCodec = 0x72617720;
 
-/// A view over a `PICT` payload.
-class ViPictPicture {
-  ViPictPicture._(this.bytes, this.frame) : _view = ByteData.sublistView(bytes);
+final class ViPictPicture extends ByteRecord {
+  ViPictPicture(Uint8List bytes) : super(bytes, layout) {
+    assert(_versionOp.read(view) == _pictVersionOp && _version.read(view) == _pictVersion2, 'PICT is version 2');
+    final framed = _framePict(view);
+    assert(framed != null, 'the opcodes tile to OpEndPic at the end of the payload');
+    frame = framed!;
+  }
 
-  final Uint8List bytes;
+  /// Byte accounting of the opcode stream.
+  late final ViMetafileFrame frame;
 
-  final ByteData _view;
+  /// Picture frame top.
+  int get top => _top.read(view);
 
-  /// Byte accounting of the opcode stream, computed at decode time.
-  final ViMetafileFrame frame;
+  /// Picture frame left.
+  int get left => _left.read(view);
 
-  int get top => _view.getInt16(_top.offset);
+  /// Picture frame bottom.
+  int get bottom => _bottom.read(view);
 
-  int get left => _view.getInt16(_left.offset);
-
-  int get bottom => _view.getInt16(_bottom.offset);
-
-  int get right => _view.getInt16(_right.offset);
+  /// Picture frame right.
+  int get right => _right.read(view);
 
   int get width => right - left;
 
@@ -79,13 +70,12 @@ class ViPictPicture {
   /// The first CompressedQuickTime opcode holding an uncompressed `raw ` image, or null.
   ViQuickTimeRaster? get quickTimeRaster {
     var pos = _opcodes.offset;
-    while (pos + 2 <= bytes.length) {
-      final op = _view.getUint16(pos);
-      final dataStart = pos + 2;
-      final dataLen = _pictOpcodeDataLength(op, _view, dataStart)!;
-      if (op == _compressedQuickTime && _quickTimeRawExtent(_view, dataStart, dataLen) != null) {
-        final idStart = dataStart + 4 + 68;
-        return ViQuickTimeRaster._(bytes, idStart);
+    while (pos + PictOpcode.data.offset <= view.lengthInBytes) {
+      final op = view.getUint16(pos);
+      final dataStart = pos + PictOpcode.data.offset;
+      final dataLen = _pictOpcodeDataLength(op, view, dataStart)!;
+      if (op == _compressedQuickTime && _quickTimeRawExtent(view, dataStart, dataLen) != null) {
+        return ViQuickTimeRaster(view, dataStart + 4 + 68);
       }
       pos = dataStart + dataLen;
       if ((pos & 1) != 0) pos++;
@@ -94,43 +84,38 @@ class ViPictPicture {
     return null;
   }
 
-  Uint8List serialize() => bytes;
+  static const _size = U16(0); // Picture size, low 16 bits.
+  static const _top = I16(2);
+  static const _left = I16(4);
+  static const _bottom = I16(6);
+  static const _right = I16(8);
+  static const _versionOp = U16(10); // 0x0011.
+  static const _version = U16(12); // 0x02FF.
+  static const _opcodes = Entries(14, PictOpcode.layout); // Opcodes to OpEndPic (0x00FF).
+
+  static const layout = ByteLayout([_size, _top, _left, _bottom, _right, _versionOp, _version, _opcodes]);
 }
 
 /// The uncompressed `raw ` image of a CompressedQuickTime opcode: a QuickTime ImageDescription
 /// followed by `rowBytes × height` packed pixels.
-class ViQuickTimeRaster {
-  ViQuickTimeRaster._(this.bytes, this._descriptionOffset) : _view = ByteData.sublistView(bytes);
+final class ViQuickTimeRaster {
+  const ViQuickTimeRaster(this.view, this._descriptionOffset);
 
-  final Uint8List bytes;
-
-  final ByteData _view;
+  final ByteData view;
 
   final int _descriptionOffset;
 
-  int get width => _view.getUint16(_descriptionOffset + 32);
+  int get width => view.getUint16(_descriptionOffset + 32);
 
-  int get height => _view.getUint16(_descriptionOffset + 34);
+  int get height => view.getUint16(_descriptionOffset + 34);
 
   /// Bits per pixel: 24 or 32.
-  int get depth => _view.getUint16(_descriptionOffset + 82);
+  int get depth => view.getUint16(_descriptionOffset + 82);
 
   Uint8List get pixels {
-    final start = _descriptionOffset + _view.getUint32(_descriptionOffset);
-    return Uint8List.sublistView(bytes, start, start + (width * depth ~/ 8) * height);
+    final start = _descriptionOffset + view.getUint32(_descriptionOffset);
+    return Uint8List.sublistView(view, start, start + (width * depth ~/ 8) * height);
   }
-}
-
-ViPictPicture decodePict(Uint8List bytes) {
-  assert(bytes.length >= _opcodes.offset, 'PICT starts with a 14-byte header');
-  final view = ByteData.sublistView(bytes);
-  assert(
-    view.getUint16(_versionOp.offset) == _pictVersionOp && view.getUint16(_version.offset) == _pictVersion2,
-    'PICT is version 2',
-  );
-  final frame = _framePict(bytes, view);
-  assert(frame != null, 'the opcodes tile to OpEndPic at the end of the payload');
-  return ViPictPicture._(bytes, frame!);
 }
 
 int? _pictOpcodeDataLength(int op, ByteData v, int dataStart) {
@@ -289,30 +274,30 @@ int _pictOpcodeModelData(int op, ByteData v, int dataStart, int dataLen) {
   return dataLen;
 }
 
-ViMetafileFrame? _framePict(Uint8List payload, ByteData v) {
-  var model = _opcodes.offset;
+ViMetafileFrame? _framePict(ByteData v) {
+  var model = ViPictPicture._opcodes.offset;
   var copied = 0;
-  var pos = _opcodes.offset;
+  var pos = ViPictPicture._opcodes.offset;
   var opcodes = 0;
-  while (pos + 2 <= payload.length) {
+  while (pos + 2 <= v.lengthInBytes) {
     final op = v.getUint16(pos);
     final dataStart = pos + 2;
     final dataLen = _pictOpcodeDataLength(op, v, dataStart);
     if (dataLen == null) return null;
     final dataEnd = dataStart + dataLen;
-    if (dataEnd > payload.length) return null;
+    if (dataEnd > v.lengthInBytes) return null;
     final modelData = _pictOpcodeModelData(op, v, dataStart, dataLen);
     model += 2 + modelData;
     copied += dataLen - modelData;
     pos = dataEnd;
     opcodes++;
     if ((pos & 1) != 0) {
-      if (pos >= payload.length) return null;
+      if (pos >= v.lengthInBytes) return null;
       copied += 1;
       pos++;
     }
     if (op == _pictOpEndPic) {
-      if (pos != payload.length) return null;
+      if (pos != v.lengthInBytes) return null;
       return ViMetafileFrame(modelBytes: model, copiedBytes: copied, elementCount: opcodes);
     }
   }

@@ -4,6 +4,8 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'test_util.dart';
+
 void main() {
   test('GOLDEN: emitted top-level + node key sets are pinned (update if the IR shape changes)', () {
     final node = ViHeapObject(oid: 7, kind: 0x12, offset: 0)
@@ -23,7 +25,6 @@ void main() {
     final model = ViModel(
       version: '10.0',
       title: 'T',
-      description: 'D',
       components: const [],
       heapRecords: const [],
       blockDiagrams: [
@@ -35,7 +36,7 @@ void main() {
     final json = viModelToJson(model);
     expect(
       json.keys.toSet(),
-      {'labviewVersion', 'title', 'description', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
+      {'labviewVersion', 'title', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
       reason:
           'top-level key set changed (IR shape) — update this golden expectation. '
           'symbolNames/libraryPaths are absent here because this model has no heap records.',
@@ -105,26 +106,25 @@ void main() {
   });
 
   test('connector pane: index + resolved terminals are emitted in the IR JSON', () {
-    final types = decodeTypePool(
+    final pool = ViTypePool(
       Uint8List.fromList([
         0, 0, 0, 2, //
         0, 15, 0x40, 0x0a, 0, 9, ...'Threshold'.codeUnits,
-        0, 18, 0x40, 0x50, 0, 1, 0, 0, 9, ...'error out'.codeUnits,
-        0, 0,
+        0, 8, 0, 0xf0, 0, 1, 0, 0,
+        0, 1, 0, 1,
       ]),
-    ).types;
+    );
     final model = ViModel(
       version: null,
       title: null,
       components: [],
       heapRecords: [],
-      types: types,
-      connectorPaneTypeIndex: 2,
+      types: pool.types,
+      connectorPaneType: ViConnectorPaneIndex(u8([0, 1])).resolve(pool),
     );
     final json = viModelToJson(model);
-    expect(json['connectorPaneTypeIndex'], 2, reason: '1-based index into the type pool -> the cluster');
     final terms = json['connectorPaneTerminals'] as List<Map<String, Object?>>;
-    expect(terms, hasLength(1), reason: "the cluster's one member");
+    expect(terms, hasLength(1), reason: "the function type's one parameter");
     expect(terms.first['kind'], 'dbl');
     expect(terms.first['name'], 'Threshold');
     expect(() => jsonEncode(json), returnsNormally);

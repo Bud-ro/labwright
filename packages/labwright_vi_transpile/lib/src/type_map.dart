@@ -29,8 +29,7 @@ enum LvCarrier {
   refnum(LvRuntimeType.refnum, runtime: true),
   variant(LvRuntimeType.variant, runtime: true),
   nominal(null),
-  compound(null)
-  ;
+  compound(null);
 
   const LvCarrier(this.dartType, {this.runtime = false});
 

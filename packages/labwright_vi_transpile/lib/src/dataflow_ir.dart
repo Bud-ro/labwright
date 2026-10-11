@@ -25,8 +25,7 @@ enum LvStructureKind {
 
   caseStructure(0x2c),
 
-  disableStructure(0xcd)
-  ;
+  disableStructure(0xcd);
 
   const LvStructureKind(this.code);
 
@@ -54,8 +53,7 @@ enum LvTerminalRole {
 
   selector(0x2e),
 
-  disableTunnel(0xce)
-  ;
+  disableTunnel(0xce);
 
   const LvTerminalRole(this.code);
 
@@ -294,8 +292,7 @@ class LvStructTerminal {
 enum LvDisableFrame {
   enabled,
   disabled,
-  other
-  ;
+  other;
 
   static LvDisableFrame ofLabel(String? label) => switch (label?.trim().toLowerCase()) {
     'enabled' => enabled,
@@ -309,8 +306,7 @@ enum LvCaseLabel {
   isFalse('false'),
   error('error'),
   noError('no error'),
-  other('')
-  ;
+  other('');
 
   const LvCaseLabel(this.label);
 

@@ -1,72 +1,43 @@
-/// `TM80` — the data-space type map: one flag word per top-level `VCTP` type, selecting
-/// its data-space role.
+/// `TM80` - Data-Space Type Map: [ViTypeMap]
 ///
-/// Words are 2 bytes, or 4 with the high bit set to carry the value in the low 31 bits.
-/// Saves before the type pool existed hold the types inline instead: a zero word, a count,
-/// that many descriptors in the `VCTP` grammar, then the map itself as a count of
-/// (type index, flags) word pairs.
+/// One flag word per top-level `VCTP` type, selecting its data-space role. Words are 2
+/// bytes, or 4 with the high bit set to carry the value in the low 31 bits. Saves before the
+/// type pool existed hold the types inline instead: a zero word, a count, that many
+/// descriptors in the `VCTP` grammar, then the map itself as a count of (type index, flags)
+/// word pairs. The section usually stores the payload in the zlib envelope that
+/// [inflateHeapPayload] opens, and sometimes plain; the layout is the inflated body.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       rest  count                      u2p2     number of flag words; a leading zero word
-///                                                   selects the inline form
-/// …       rest  indexShift                 u2p2     top-level index of the first word, after count
-/// …       rest  flags                      u2p2[count] data-space role bits per top-level type;
-///                                                      bit 13 marks a saved default value
-/// …       2     zero                       u16      the inline form
-/// …       2     count                      u16      number of inline descriptors
-/// …       rest  descriptors                entry[count] descriptors in the VCTP grammar
-/// …       rest  entryCount                 u2p2     number of map entries, after the descriptors
-/// …       rest  entries                    u2p2[2][entryCount] inline type index and flags per
-///                                                              entry
+/// TM80:
+/// offset  size  field      type          meaning
+/// 0       …     count      packed        Number of flag words; a leading zero word selects the inline form,
+///                                        see ViTypeMapInline.
+/// …       …     indexShift packed        The top-level index of the first flag word, after count.
+/// …       …     flags      packed[count] Role bits per type; bit 13 marks a saved default value.
+/// ViTypeMapInline:
+/// offset  size  field       type                  meaning
+/// 0       2     zero        u16                   Zero; selects the inline form.
+/// 2       2     count       u16                   Number of inline descriptors.
+/// 4       …     descriptors VctpDescriptor[count] Descriptors in the VCTP grammar.
+///   +0    2     length      u16                   Bytes of the descriptor.
+///   +2    1     flags       u8                    Bit set, see ViTypeFlag.
+///   +3    1     typeCode    u8                    See TypeCode and ViDataType.
+///   +4    rest  body        u8[]                  Shape selected by typeCode, see the ViType subclasses.
+///   +…    …     label       pstr                  After the body when flag 0x40 is set, padded to an even
+///                                                 length.
+/// …       …     entryCount  packed                Number of map entries, after the descriptors.
+/// …       …     entries     Tm80Entry[entryCount] Inline type index and flags per entry.
+///   +0    …     typeIndex   packed                Index into the inline descriptors.
+///   +…    …     flags       packed                Data-space role bits, after typeIndex.
 /// ```
-///
-/// The section usually stores the payload in the zlib envelope that [inflateHeapPayload]
-/// opens, and sometimes plain; the layout is the inflated body.
-///
-/// [ViTypeMapIndexed] is a view over the word list recording where each word starts;
-/// [ViTypeMapInline] holds the inline descriptors and the entries indexing them;
-/// [decodeTypeMap] requires either form to tile the payload exactly.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import '../decode.dart' show inflateHeapPayload;
 import 'VCTP_type_pool.dart';
-
-const _count = BlockField(
-  0,
-  null,
-  'count',
-  'u2p2',
-  'number of flag words; a leading zero word selects the inline form',
-);
-const _indexShift = BlockField(2, null, 'indexShift', 'u2p2', 'top-level index of the first word, after count');
-const _flagWords = BlockField(
-  4,
-  null,
-  'flags',
-  'u2p2[count]',
-  'data-space role bits per top-level type; bit 13 marks a saved default value',
-);
-const _inlineZero = BlockField(0, 2, 'zero', 'u16', 'the inline form');
-const _inlineCount = BlockField(2, 2, 'count', 'u16', 'number of inline descriptors');
-const _inlineDescriptors = BlockField(4, null, 'descriptors', 'entry[count]', 'descriptors in the VCTP grammar');
-const _inlineEntryCount = BlockField(4, null, 'entryCount', 'u2p2', 'number of map entries, after the descriptors');
-const _inlineEntries = BlockField(6, null, 'entries', 'u2p2[2][entryCount]', 'inline type index and flags per entry');
-
-const BlockLayout tm80Layout = [
-  _count,
-  _indexShift,
-  _flagWords,
-  _inlineZero,
-  _inlineCount,
-  _inlineDescriptors,
-  _inlineEntryCount,
-  _inlineEntries,
-];
 
 /// Bits of a flag word that decide what the default data space (`DFDS`) stores for the
 /// entry's type.
@@ -100,8 +71,7 @@ enum TypeMapFlag {
   unstored11(1 << 11),
 
   /// `0x2000`: the data space stores the whole value.
-  hasSaveData(1 << 13)
-  ;
+  hasSaveData(1 << 13);
 
   const TypeMapFlag(this.mask);
 
@@ -110,105 +80,121 @@ enum TypeMapFlag {
   bool isSetIn(int flags) => flags & mask != 0;
 }
 
-/// A view over a `TM80` payload.
-sealed class ViTypeMap implements BlockRecord {
-  const ViTypeMap._(this.bytes);
+sealed class ViTypeMap extends ByteRecord {
+  ViTypeMap._(super.bytes, super.layout);
 
-  final Uint8List bytes;
+  factory ViTypeMap(Uint8List bytes) {
+    assert(bytes.length >= 2, 'a type map starts with a word');
+    final view = ByteData.sublistView(bytes);
+    if (ViTypeMapInline._zero.read(view) == 0 && bytes.length >= ViTypeMapInline._descriptors.offset) {
+      return ViTypeMapInline(bytes);
+    }
+    return ViTypeMapIndexed(bytes);
+  }
 
   int get count;
 
   int flagsAt(int index);
-
-  @override
-  Uint8List serialize() => bytes;
 }
 
 /// The word-list form: flags indexed by top-level type.
 final class ViTypeMapIndexed extends ViTypeMap {
-  ViTypeMapIndexed._(super.bytes, this._wordOffsets) : _view = ByteData.sublistView(bytes), super._();
+  ViTypeMapIndexed(Uint8List bytes) : super._(bytes, layout) {
+    assert(_count.endIn(view) <= view.lengthInBytes, 'the count word lies inside the payload');
+    final count = _count.read(view);
+    assert(count <= view.lengthInBytes ~/ 2, 'the count fits the payload');
+    final (offsets, end) = _walkWords(view, _count.offset, count + 2);
+    assert(end == view.lengthInBytes, 'the words tile the payload');
+    _wordOffsets = offsets;
+  }
 
-  final ByteData _view;
-
-  /// Offsets of the count word, the shift word and each flag word.
-  final List<int> _wordOffsets;
-
+  /// Number of flag words; a leading zero word selects the inline form, see [ViTypeMapInline].
   @override
   int get count => _wordOffsets.length - 2;
 
-  /// The top-level index of the first flag word.
-  int get indexShift => _wordAt(_view, _wordOffsets[1]);
+  /// The top-level index of the first flag word, after count.
+  int get indexShift => PackedWord.readAt(view, _wordOffsets[1]);
 
+  /// Data-space role bits of a top-level type; bit 13 marks a saved default value.
   @override
-  int flagsAt(int index) => _wordAt(_view, _wordOffsets[index + 2]);
+  int flagsAt(int index) => PackedWord.readAt(view, _wordOffsets[index + 2]);
+
+  /// Offsets of the count word, the shift word and each flag word.
+  late final List<int> _wordOffsets;
+
+  static const _count = PackedWord(0);
+  static const _indexShift = PackedWord(2);
+  static const _flags = PackedWordList(4, count: _count); // Role bits per type; bit 13 marks a saved default value.
+
+  static const layout = ByteLayout([_count, _indexShift, _flags]);
 }
 
 /// The inline form: the types themselves in the `VCTP` descriptor grammar, and the map
 /// entries that index them.
 final class ViTypeMapInline extends ViTypeMap {
-  ViTypeMapInline._(super.bytes, this.types, this._entryOffsets) : _view = ByteData.sublistView(bytes), super._();
+  ViTypeMapInline(Uint8List bytes) : super._(bytes, layout) {
+    final pool = Uint8List.sublistView(view);
+    types = [
+      for (final at in descriptorOffsets(pool, _descriptors.offset, _count.read(view)))
+        ViType.at(pool, at, view.getUint16(at), legacy: true),
+    ];
+    final countOffset = types.isEmpty ? _descriptors.offset : types.last.end;
+    assert(countOffset + 2 <= view.lengthInBytes, 'the entry count follows the descriptors');
+    assert(_wordEnd(view, countOffset) <= view.lengthInBytes, 'the entry count lies inside the payload');
+    final entryCount = PackedWord.readAt(view, countOffset);
+    assert(entryCount <= (view.lengthInBytes - countOffset) ~/ 4, 'the entry count fits the payload');
+    final (words, end) = _walkWords(view, _wordEnd(view, countOffset), 2 * entryCount);
+    assert(end == view.lengthInBytes, 'the entries tile the payload');
+    _entryOffsets = [for (var i = 0; i < words.length; i += 2) words[i]];
+    assert(
+      Iterable<int>.generate(entryCount).every((i) => typeIndexAt(i) < types.length),
+      'every entry indexes an inline type',
+    );
+  }
 
-  final ByteData _view;
+  late final List<ViType> types;
 
-  final List<ViType> types;
-
-  /// Offsets of each entry's type-index word; its flags word follows.
-  final List<int> _entryOffsets;
-
+  /// Number of map entries.
   @override
   int get count => _entryOffsets.length;
 
-  int typeIndexAt(int index) => _wordAt(_view, _entryOffsets[index]);
+  int typeIndexAt(int index) => PackedWord.readAt(view, _entryOffsets[index]);
 
   @override
-  int flagsAt(int index) => _wordAt(_view, _wordEnd(_view, _entryOffsets[index]));
+  int flagsAt(int index) => PackedWord.readAt(view, _wordEnd(view, _entryOffsets[index]));
+
+  /// Offsets of each entry's type-index word; its flags word follows.
+  late final List<int> _entryOffsets;
+
+  static const _zero = U16(0); // Zero; selects the inline form.
+  static const _count = U16(2); // Number of inline descriptors.
+  static const _descriptors = Entries(4, VctpDescriptor.layout, count: _count); // Descriptors in the VCTP grammar.
+  static const _entryCount = PackedWord(4); // Number of map entries, after the descriptors.
+  static const _entries = Entries(6, Tm80Entry.layout, count: _entryCount); // Inline type index and flags per entry.
+
+  static const layout = ByteLayout([_zero, _count, _descriptors, _entryCount, _entries]);
 }
 
-int _wordAt(ByteData view, int offset) {
-  final hi = view.getUint16(offset);
-  return hi & 0x8000 == 0 ? hi : view.getUint32(offset) & 0x7fffffff;
+/// One map entry of the inline form.
+abstract final class Tm80Entry {
+  static const typeIndex = PackedWord(0); // Index into the inline descriptors.
+  static const flags = PackedWord(2); // Data-space role bits, after typeIndex.
+
+  static const layout = ByteLayout([typeIndex, flags]);
 }
 
-int _wordEnd(ByteData view, int offset) => view.getUint16(offset) & 0x8000 == 0 ? offset + 2 : offset + 4;
+int _wordEnd(ByteData view, int offset) => offset + PackedWord.sizeAt(view, offset);
 
-/// Walks [count] words from [start], asserting each lies inside [bytes]; returns their
+/// Walks [count] words from [start], asserting each lies inside [view]; returns their
 /// offsets and the offset after the last.
-(List<int>, int) _walkWords(Uint8List bytes, ByteData view, int start, int count) {
+(List<int>, int) _walkWords(ByteData view, int start, int count) {
   final offsets = List<int>.filled(count, 0);
   var at = start;
   for (var i = 0; i < count; i++) {
-    assert(at + 2 <= bytes.length, 'word $i has its first two bytes');
+    assert(at + 2 <= view.lengthInBytes, 'word $i has its first two bytes');
     offsets[i] = at;
     at = _wordEnd(view, at);
-    assert(at <= bytes.length, 'word $i lies inside the payload');
+    assert(at <= view.lengthInBytes, 'word $i lies inside the payload');
   }
   return (offsets, at);
-}
-
-ViTypeMap decodeTypeMap(Uint8List bytes) {
-  assert(bytes.length >= _inlineCount.offset, 'a type map starts with a word');
-  final view = ByteData.sublistView(bytes);
-  if (view.getUint16(_inlineZero.offset) == 0 && bytes.length >= _inlineDescriptors.offset) {
-    final offsets = descriptorOffsets(bytes, _inlineDescriptors.offset, view.getUint16(_inlineCount.offset));
-    final types = [for (final at in offsets) ViType.at(bytes, at, view.getUint16(at), legacy: true)];
-    final countOffset = types.isEmpty ? _inlineDescriptors.offset : types.last.end;
-    assert(countOffset + 2 <= bytes.length, 'the entry count follows the descriptors');
-    assert(_wordEnd(view, countOffset) <= bytes.length, 'the entry count lies inside the payload');
-    final entryCount = _wordAt(view, countOffset);
-    assert(entryCount <= (bytes.length - countOffset) ~/ 4, 'the entry count fits the payload');
-    final (words, end) = _walkWords(bytes, view, _wordEnd(view, countOffset), 2 * entryCount);
-    assert(end == bytes.length, 'the entries tile the payload');
-    final map = ViTypeMapInline._(bytes, types, [for (var i = 0; i < words.length; i += 2) words[i]]);
-    assert(
-      Iterable<int>.generate(entryCount).every((i) => map.typeIndexAt(i) < types.length),
-      'every entry indexes an inline type',
-    );
-    return map;
-  }
-  assert(_wordEnd(view, 0) <= bytes.length, 'the count word lies inside the payload');
-  final count = _wordAt(view, 0);
-  assert(count <= bytes.length ~/ 2, 'the count fits the payload');
-  final (offsets, end) = _walkWords(bytes, view, 0, count + 2);
-  assert(end == bytes.length, 'the words tile the payload');
-  return ViTypeMapIndexed._(bytes, offsets);
 }

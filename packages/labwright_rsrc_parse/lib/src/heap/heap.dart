@@ -127,8 +127,7 @@ enum HeapOpcode {
   rect23(0x23, HeapShape.rectangle),
 
   /// Any opcode not listed.
-  unknown(-1, HeapShape.none)
-  ;
+  unknown(-1, HeapShape.none);
 
   const HeapOpcode(this.byte, this.shape, {this.isDecoded = false});
 
@@ -587,8 +586,7 @@ enum HeapAttribute {
   bufValue(0x02e, HeapAttrKind.numeric, 'bufValue', AttrConfidence.kindOnly),
 
   /// Any id not listed.
-  unknown(-1, HeapAttrKind.unknown, 'unknown', AttrConfidence.kindOnly)
-  ;
+  unknown(-1, HeapAttrKind.unknown, 'unknown', AttrConfidence.kindOnly);
 
   const HeapAttribute(this.raw, this.kind, this.attrName, this.confidence);
 
@@ -1163,8 +1161,7 @@ enum HeapPropertyToken {
   viewportSlot2(0x11, 0x14, PropTokenForm.selector, 'viewportSlot2', AttrConfidence.inferred),
 
   /// Wizard id marker; inferred.
-  wizIdMarker(0x15, 0x4b, PropTokenForm.selector, 'wizID', AttrConfidence.inferred)
-  ;
+  wizIdMarker(0x15, 0x4b, PropTokenForm.selector, 'wizID', AttrConfidence.inferred);
 
   const HeapPropertyToken(this.op, this.subop, this.form, this.tokenName, this.confidence);
 
@@ -1206,8 +1203,7 @@ enum HeapGroupTag {
   selectorRange(0x19),
 
   /// Case-selector string pool.
-  selectorStringPool(0x58)
-  ;
+  selectorStringPool(0x58);
 
   const HeapGroupTag(this.tag);
 
@@ -1220,8 +1216,7 @@ enum FontRunAttr {
   start(0x027),
 
   /// Font id the run uses, resolved through the `FTAB` table.
-  fontId(0x028)
-  ;
+  fontId(0x028);
 
   const FontRunAttr(this.raw);
 
@@ -1243,8 +1238,7 @@ enum SelectorRangeAttr {
   highBound(0x022),
 
   /// Frame the range selects.
-  frame(0x023)
-  ;
+  frame(0x023);
 
   const SelectorRangeAttr(this.raw);
 
@@ -1350,8 +1344,7 @@ enum HeapRefKind {
   attachedObjectRef(0x289, 'attachedObjectRef', AttrConfidence.inferred),
 
   /// Any other reference id; inferred.
-  objectRef(-1, 'objectRef', AttrConfidence.inferred)
-  ;
+  objectRef(-1, 'objectRef', AttrConfidence.inferred);
 
   const HeapRefKind(this.raw, this.refName, this.confidence);
 

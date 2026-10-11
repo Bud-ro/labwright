@@ -1,39 +1,27 @@
-/// `vers` — version record in the Mac `vers` layout: the numeric version of the saving
-/// LabVIEW followed by its short and long version strings.
+/// `vers` - Version Record: [ViVersBlock]
+///
+/// The Mac `vers` resource layout: the numeric version of the saving LabVIEW, a region code,
+/// then the short and long version strings; the short string spells the numeric version and the
+/// long one is empty. A VI with compiled code carries five sections: the first, third and fifth
+/// give the saving version with its build number, the second and fourth the base release with
+/// patch and build cleared, which `LVSR` repeats. A VI whose compiled code is kept separately
+/// carries only the first, and `LVSR` then repeats it with patch and build cleared.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     versionWord                u32      [BCD major][minor << 4 | patch][stage][build],
-///                                                   see ViVersionWord
-/// 4       2     flags                      u16      role TODO; the Mac layout holds the region
-///                                                   code here
-/// 6       rest  versionText                pstr     short version string
-/// …       rest  infoText                   pstr     long version string, after versionText
+/// offset  size  field       type   meaning
+/// 0       4     versionWord u32    BCD major byte, then minor in the high nibble and patch in the low, then
+///                                  the stage and build bytes, see ViVersionWord.
+/// 4       2     regionCode  u16    The Mac region code: zero for nearly every save, 14 and 1 in localized
+///                                  ones.
+/// 6       …     versionText pstr   Short version string.
+/// …       …     infoText    pstr   Long version string, after versionText; empty in the corpus.
 /// ```
-///
-/// [ViVersionWord] decodes the 4-byte numeric version, which `LVSR` repeats at its start;
-/// [ViVersBlock] is a view over the whole payload; [decodeVersBlock] requires the two Pascal
-/// strings to end exactly at the end of the payload.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
-import '../viparse.dart' show ViSection;
-
-const _versionWord = BlockField(
-  0,
-  4,
-  'versionWord',
-  'u32',
-  '[BCD major][minor << 4 | patch][stage][build], see ViVersionWord',
-);
-const _flags = BlockField(4, 2, 'flags', 'u16', 'role TODO; the Mac layout holds the region code here');
-const _versionText = BlockField(6, null, 'versionText', 'pstr', 'short version string');
-const _infoText = BlockField(7, null, 'infoText', 'pstr', 'long version string, after versionText');
-
-const BlockLayout versLayout = [_versionWord, _flags, _versionText, _infoText];
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
 /// The numeric version packed into the first four bytes of `vers` and `LVSR`.
 class ViVersionWord {
@@ -44,6 +32,20 @@ class ViVersionWord {
     required this.stage,
     required this.build,
   });
+
+  /// The version word at [offset] of [view].
+  factory ViVersionWord.at(ByteData view, int offset) {
+    assert(offset + 4 <= view.lengthInBytes, 'a version word is four bytes');
+    final b0 = view.getUint8(offset);
+    final b1 = view.getUint8(offset + 1);
+    return ViVersionWord(
+      major: (b0 >> 4) * 10 + (b0 & 0x0f),
+      minor: b1 >> 4,
+      patch: b1 & 0x0f,
+      stage: view.getUint8(offset + 2),
+      build: view.getUint8(offset + 3),
+    );
+  }
 
   final int major;
 
@@ -64,7 +66,8 @@ class ViVersionWord {
   bool isAtLeast(int major, int minor) => this.major > major || this.major == major && this.minor >= minor;
 }
 
-/// The release stage a version word's stage byte names.
+/// The release stage a version word's stage byte names; the corpus is all [release] but for
+/// one [beta] and a few saves with `0x82`.
 enum ViVersionStage {
   development(0x20),
 
@@ -72,8 +75,7 @@ enum ViVersionStage {
 
   beta(0x60),
 
-  release(0x80)
-  ;
+  release(0x80);
 
   const ViVersionStage(this.code);
 
@@ -87,55 +89,33 @@ enum ViVersionStage {
   }
 }
 
-ViVersionWord decodeVersionWord(Uint8List bytes) => decodeVersionWordAt(bytes, 0);
-
-/// The version word at [offset] of [bytes].
-ViVersionWord decodeVersionWordAt(Uint8List bytes, int offset) {
-  assert(offset + _versionWord.end <= bytes.length, 'a version word is four bytes');
-  return ViVersionWord(
-    major: (bytes[offset] >> 4) * 10 + (bytes[offset] & 0x0f),
-    minor: bytes[offset + 1] >> 4,
-    patch: bytes[offset + 1] & 0x0f,
-    stage: bytes[offset + 2],
-    build: bytes[offset + 3],
-  );
-}
-
-ViVersionWord? versionWordFromSections(Iterable<ViSection> sections) {
-  for (final section in sections) {
-    if (section.tag == 'vers') return decodeVersBlock(section.bytes).versionWord;
+final class ViVersBlock extends ByteRecord {
+  ViVersBlock(Uint8List bytes) : super(bytes, layout) {
+    assert(view.lengthInBytes > _versionText.offset, 'vers holds two Pascal strings');
+    final infoStart = _versionText.endIn(view);
+    assert(
+      infoStart < view.lengthInBytes && PStr.endAt(view, infoStart) == view.lengthInBytes,
+      'the two strings end the payload',
+    );
   }
-  return null;
-}
 
-/// A view over a `vers` payload.
-class ViVersBlock implements BlockRecord {
-  ViVersBlock._(this.bytes) : _view = ByteData.sublistView(bytes);
+  /// BCD major byte, then minor in the high nibble and patch in the low, then the stage and
+  /// build bytes, see [ViVersionWord].
+  ViVersionWord get versionWord => ViVersionWord.at(view, _versionWord.offset);
 
-  final Uint8List bytes;
+  /// The Mac region code: zero for nearly every save, 14 and 1 in localized ones.
+  int get regionCode => _regionCode.read(view);
 
-  final ByteData _view;
+  /// Short version string.
+  String get versionText => _versionText.read(view);
 
-  ViVersionWord get versionWord => decodeVersionWord(bytes);
+  /// Long version string, after versionText; empty in the corpus.
+  String get infoText => PStr.readAt(view, _versionText.endIn(view));
 
-  int get flags => _view.getUint16(_flags.offset);
+  static const _versionWord = U32(0);
+  static const _regionCode = U16(4);
+  static const _versionText = PStr(6);
+  static const _infoText = PStr(7);
 
-  int get _versionTextEnd => _versionText.offset + 1 + bytes[_versionText.offset];
-
-  String get versionText => String.fromCharCodes(bytes, _versionText.offset + 1, _versionTextEnd);
-
-  String get infoText => String.fromCharCodes(bytes, _versionTextEnd + 1);
-
-  @override
-  Uint8List serialize() => bytes;
-}
-
-ViVersBlock decodeVersBlock(Uint8List bytes) {
-  assert(bytes.length >= _versionText.offset + 2, 'vers holds the version word, flags and two Pascal strings');
-  final infoStart = _versionText.offset + 1 + bytes[_versionText.offset];
-  assert(
-    infoStart < bytes.length && infoStart + 1 + bytes[infoStart] == bytes.length,
-    'the two strings end the payload',
-  );
-  return ViVersBlock._(bytes);
+  static const layout = ByteLayout([_versionWord, _regionCode, _versionText, _infoText]);
 }

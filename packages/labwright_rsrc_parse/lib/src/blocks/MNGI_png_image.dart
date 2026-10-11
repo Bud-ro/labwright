@@ -1,55 +1,42 @@
-/// `MNGI` — a picture as a bare PNG stream, or occasionally an MNG stream, run to its end
-/// chunk.
+/// `MNGI` - PNG Image: [ViPngStream]
+///
+/// A picture as a bare PNG stream, or occasionally an MNG stream, run to its end chunk;
+/// [ChunkStreamKind] names the two signatures and [ViImageAccounting] measures how much of a
+/// stream the model accounts for byte by byte.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       8     signature                  u8[8]    89 "PNG" 0d 0a 1a 0a, or 8a "MNG" 0d 0a 1a 0a
-/// 8       rest  chunks                     entry[]  chunks to the end chunk
-///   +0    4     length                     u32      bytes of data
-///   +4    4     type                       4cc      chunk type; IHDR or MHDR first, IEND or MEND
-///                                                   last
-///   +8    rest  data                       u8[length] chunk data
-///   +8    4     crc                        u32      CRC-32 of type and data, after data
+/// offset      size   field     type       meaning
+/// 0           8      signature u8[8]      89 "PNG" 0d 0a 1a 0a, or 8a "MNG" 0d 0a 1a 0a.
+/// 8           rest   chunks    PngChunk[] Chunks to the end chunk.
+///   +0        4      length    u32        Bytes of data.
+///   +4        4      type      4cc        Chunk type; IHDR or MHDR first, IEND or MEND last.
+///   +8        length data      u8[length]
+///   +8+length 4      crc       u32        CRC-32 of type and data, after data.
 /// ```
-///
-/// [ViPngStream] is a view over a PNG or MNG chunk stream that records where each chunk
-/// starts; [ChunkStreamKind] names the two signatures; [decodePngStream] requires the chunks
-/// to tile the payload exactly. [ViImageAccounting] measures how much of a stream the model
-/// accounts for byte by byte.
 library;
 
 import 'dart:typed_data';
 
 import 'package:archive/archive.dart';
 
-import '../block_layout.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 
-const _signature = BlockField(0, 8, 'signature', 'u8[8]', '89 "PNG" 0d 0a 1a 0a, or 8a "MNG" 0d 0a 1a 0a');
-const _chunkLength = BlockField(0, 4, 'length', 'u32', 'bytes of data');
-const _chunkType = BlockField(4, 4, 'type', '4cc', 'chunk type; IHDR or MHDR first, IEND or MEND last');
-const _chunkData = BlockField(8, null, 'data', 'u8[length]', 'chunk data');
-const _chunkCrc = BlockField(8, 4, 'crc', 'u32', 'CRC-32 of type and data, after data');
-const _chunks = BlockField(
-  8,
-  null,
-  'chunks',
-  'entry[]',
-  'chunks to the end chunk',
-  entry: [_chunkLength, _chunkType, _chunkData, _chunkCrc],
-);
+/// One PNG or MNG chunk.
+abstract final class PngChunk {
+  static const length = U32(0); // Bytes of data.
+  static const type = FourCc(4); // Chunk type; IHDR or MHDR first, IEND or MEND last.
+  static const data = Bytes(8, count: length);
+  static const crc = U32(8); // CRC-32 of type and data, after data.
 
-const BlockLayout mngiLayout = [_signature, _chunks];
-
-const _chunkHeaderBytes = 8;
-
-const _chunkCrcBytes = 4;
+  static const layout = ByteLayout([length, type, data, crc]);
+}
 
 /// The two chunk-stream signatures a picture block carries.
 enum ChunkStreamKind {
   png([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'IEND'),
 
-  mng([0x8a, 0x4d, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'MEND')
-  ;
+  mng([0x8a, 0x4d, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a], 'MEND');
 
   const ChunkStreamKind(this.signature, this.endChunk);
 
@@ -73,53 +60,48 @@ enum ChunkStreamKind {
   }
 }
 
-/// A view over a PNG or MNG chunk stream.
-class ViPngStream {
-  ViPngStream._(this.bytes, this.kind, this._chunkOffsets) : _view = ByteData.sublistView(bytes);
+final class ViPngStream extends ByteRecord {
+  ViPngStream(Uint8List bytes) : super(bytes, layout) {
+    final found = ChunkStreamKind.at(bytes, 0);
+    assert(found != null, 'a PNG or MNG signature');
+    kind = found!;
+    final offsets = pngChunkOffsets(bytes, 0, kind);
+    assert(offsets != null, 'the chunks tile to the end chunk');
+    _chunkOffsets = offsets!;
+    assert(pngStreamEnd(bytes, _chunkOffsets) == bytes.length, 'the stream ends the payload');
+    assert(
+      (chunkTypeAt(0) == 'IHDR' || chunkTypeAt(0) == 'MHDR') && chunkLengthAt(0) >= 8,
+      'the first chunk is a header with a width and a height',
+    );
+  }
 
-  final Uint8List bytes;
-
-  final ByteData _view;
-
-  final ChunkStreamKind kind;
-
-  final List<int> _chunkOffsets;
+  late final ChunkStreamKind kind;
 
   int get chunkCount => _chunkOffsets.length;
 
-  int chunkLengthAt(int index) => _view.getUint32(_chunkOffsets[index] + _chunkLength.offset);
+  int chunkLengthAt(int index) => view.getUint32(_chunkOffsets[index] + PngChunk.length.offset);
 
   String chunkTypeAt(int index) {
-    final at = _chunkOffsets[index] + _chunkType.offset;
-    return String.fromCharCodes(bytes, at, at + 4);
+    final at = _chunkOffsets[index] + PngChunk.type.offset;
+    return String.fromCharCodes(Uint8List.sublistView(view, at, at + PngChunk.type.size));
   }
 
   Uint8List chunkDataAt(int index) {
-    final at = _chunkOffsets[index] + _chunkData.offset;
-    return Uint8List.sublistView(bytes, at, at + chunkLengthAt(index));
+    final at = _chunkOffsets[index] + PngChunk.data.offset;
+    return Uint8List.sublistView(view, at, at + chunkLengthAt(index));
   }
 
   bool chunkCrcOkAt(int index) {
     final at = _chunkOffsets[index];
-    final crcAt = at + _chunkHeaderBytes + chunkLengthAt(index);
-    return crc32(bytes, at + _chunkType.offset, crcAt) == _view.getUint32(crcAt);
+    final crcAt = at + PngChunk.data.offset + chunkLengthAt(index);
+    return crc32(Uint8List.sublistView(view), at + PngChunk.type.offset, crcAt) == view.getUint32(crcAt);
   }
 
   /// Image width from IHDR, or frame width from MHDR.
-  int get width => _view.getUint32(_chunkOffsets[0] + _chunkData.offset);
+  int get width => view.getUint32(_chunkOffsets[0] + PngChunk.data.offset);
 
   /// Image height from IHDR, or frame height from MHDR.
-  int get height => _view.getUint32(_chunkOffsets[0] + _chunkData.offset + 4);
-
-  Uint8List serialize() => bytes;
-
-  Uint8List _idat() {
-    final b = BytesBuilder(copy: false);
-    for (var i = 0; i < chunkCount; i++) {
-      if (chunkTypeAt(i) == 'IDAT') b.add(chunkDataAt(i));
-    }
-    return b.toBytes();
-  }
+  int get height => view.getUint32(_chunkOffsets[0] + PngChunk.data.offset + 4);
 
   /// The raster the IDAT chunks inflate to, or null when they do not inflate.
   Uint8List? inflateRaster() => _inflateZlib(_idat());
@@ -155,12 +137,12 @@ class ViPngStream {
     var compressedContent = 0;
     var inflatedContent = 0;
     for (var i = 0; i < chunkCount; i++) {
-      model += _chunkHeaderBytes;
+      model += PngChunk.data.offset;
       if (chunkCrcOkAt(i)) {
-        model += _chunkCrcBytes;
+        model += PngChunk.crc.size;
         crcVerified++;
       } else {
-        copied += _chunkCrcBytes;
+        copied += PngChunk.crc.size;
       }
       final type = chunkTypeAt(i);
       final data = chunkDataAt(i);
@@ -196,6 +178,21 @@ class ViPngStream {
       inflatedContentBytes: inflatedContent,
     );
   }
+
+  late final List<int> _chunkOffsets;
+
+  Uint8List _idat() {
+    final b = BytesBuilder(copy: false);
+    for (var i = 0; i < chunkCount; i++) {
+      if (chunkTypeAt(i) == 'IDAT') b.add(chunkDataAt(i));
+    }
+    return b.toBytes();
+  }
+
+  static const _signature = Bytes(0, size: 8); // 89 "PNG" 0d 0a 1a 0a, or 8a "MNG" 0d 0a 1a 0a.
+  static const _chunks = Entries(8, PngChunk.layout); // Chunks to the end chunk.
+
+  static const layout = ByteLayout([_signature, _chunks]);
 }
 
 /// How much of a picture block the model accounts for, byte by byte.
@@ -232,11 +229,11 @@ List<int>? pngChunkOffsets(Uint8List bytes, int start, ChunkStreamKind kind) {
   final view = ByteData.sublistView(bytes);
   final offsets = <int>[];
   var at = start + kind.signature.length;
-  while (at + _chunkHeaderBytes + _chunkCrcBytes <= bytes.length) {
-    final end = at + _chunkHeaderBytes + view.getUint32(at) + _chunkCrcBytes;
+  while (at + PngChunk.data.offset + PngChunk.crc.size <= bytes.length) {
+    final end = at + PngChunk.data.offset + view.getUint32(at) + PngChunk.crc.size;
     if (end > bytes.length) return null;
     offsets.add(at);
-    final type = String.fromCharCodes(bytes, at + _chunkType.offset, at + _chunkType.offset + 4);
+    final type = String.fromCharCodes(bytes, at + PngChunk.type.offset, at + PngChunk.type.end);
     at = end;
     if (type == kind.endChunk) return offsets;
   }
@@ -246,7 +243,7 @@ List<int>? pngChunkOffsets(Uint8List bytes, int start, ChunkStreamKind kind) {
 /// The end of the stream whose chunks start at [chunkOffsets].
 int pngStreamEnd(Uint8List bytes, List<int> chunkOffsets) {
   final last = chunkOffsets.last;
-  return last + _chunkHeaderBytes + ByteData.sublistView(bytes).getUint32(last) + _chunkCrcBytes;
+  return last + PngChunk.data.offset + ByteData.sublistView(bytes).getUint32(last) + PngChunk.crc.size;
 }
 
 /// The stream at [start] in [bytes], which must carry a PNG or MNG signature there and tile
@@ -256,15 +253,7 @@ ViPngStream pngStreamAt(Uint8List bytes, int start) {
   assert(kind != null, 'a PNG or MNG signature at $start');
   final offsets = pngChunkOffsets(bytes, start, kind!);
   assert(offsets != null, 'the chunks tile to the end chunk');
-  final end = pngStreamEnd(bytes, offsets!);
-  if (start == 0 && end == bytes.length) return ViPngStream._(bytes, kind, offsets);
-  return ViPngStream._(Uint8List.sublistView(bytes, start, end), kind, [for (final o in offsets) o - start]);
-}
-
-ViPngStream decodePngStream(Uint8List bytes) {
-  final stream = pngStreamAt(bytes, 0);
-  assert(identical(stream.bytes, bytes), 'the stream ends the payload');
-  return stream;
+  return ViPngStream(Uint8List.sublistView(bytes, start, pngStreamEnd(bytes, offsets!)));
 }
 
 final Uint32List _crcTable = () {

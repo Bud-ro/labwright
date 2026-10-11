@@ -81,8 +81,7 @@ enum TestStatus {
 
   error('ERR ', _red),
 
-  skipped('SKIP', _yellow)
-  ;
+  skipped('SKIP', _yellow);
 
   const TestStatus(this._label, this._color);
 

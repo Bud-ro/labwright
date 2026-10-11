@@ -97,22 +97,6 @@ List<String> _pascalStrings(Uint8List bytes) {
   return out;
 }
 
-/// Text stored in `CPC2` as a length-prefixed printable run, or null when it holds none.
-bool _isTextByte(int byte) => byte == 9 || byte == 10 || byte == 13 || (byte >= 32 && byte < 127);
-
-String? cpc2Description(Iterable<ViSection> sections) {
-  for (final section in sections) {
-    if (section.tag != 'CPC2') continue;
-    final bytes = section.bytes;
-    if (bytes.length < 5) continue;
-    final len = ByteData.sublistView(bytes).getUint32(0);
-    if (len == 0 || 4 + len > bytes.length) continue;
-    final ok = bytes.getRange(4, 4 + len).every(_isTextByte);
-    if (ok) return String.fromCharCodes(bytes.sublist(4, 4 + len));
-  }
-  return null;
-}
-
 String? _vidsTitle(Uint8List bytes) {
   for (var i = 0; i + 5 <= bytes.length; i++) {
     if (bytes[i] == 0x56 && bytes[i + 1] == 0x49 && bytes[i + 2] == 0x44 && bytes[i + 3] == 0x53) {

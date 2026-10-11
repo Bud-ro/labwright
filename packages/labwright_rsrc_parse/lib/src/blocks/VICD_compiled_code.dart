@@ -1,150 +1,111 @@
-/// `VICD` — compiled machine code for one target architecture: a header, the fixups and
-/// code, and a `CODE` chunk that may carry a symbol table.
+/// `VICD` - VI Compiled Code: [ViCompiledCode]
 ///
-/// Bit `0x100` of the header word at 12 selects the header layout: set (`0x103`, `0x303`),
-/// the code-end pointer is at 36; clear (`0`, `0x3`), at 28. A 64-bit architecture (`wx64`,
-/// `mx64`) puts it 4 bytes later in both layouts. The `CODE` chunk is bare (20 bytes for
-/// 32-bit code, 40 for 64-bit) or carries `count` length-prefixed names padded to 4 bytes.
+/// Compiled machine code for one target architecture: a header, the fixups and code, and a
+/// `CODE` chunk that may carry a symbol table. Bit `0x100` of the header word at 12 selects
+/// the header layout: set (`0x103`, `0x303`), the code-end pointer is at 36; clear (`0`,
+/// `0x3`), at 28. A 64-bit architecture (`wx64`, `mx64`) puts it 4 bytes later in both
+/// layouts. The `CODE` chunk is bare (20 bytes for 32-bit code, 40 for 64-bit) or carries
+/// `count` length-prefixed names padded to 4 bytes. The section usually stores the payload
+/// in the zlib envelope that [inflateHeapPayload] opens, and sometimes plain; the layout is
+/// the inflated body.
 ///
 /// ```text
-/// offset  size  field                      type     meaning
-/// 0       4     codeStart                  u32le    offset of the machine code within the payload
-/// 4       4     architecture               4cc      i386, m386, wx64 or mx64, see CodeArchitecture
-/// 8       4     codeSize                   u32le    bytes of machine code
-/// 12      4     layoutWord                 u32le    bit 0x100 puts the code-end pointer at 36
-///                                                   (32-bit) or 40 (64-bit); clear, it is at 28 or
-///                                                   32
-/// 16      4     flags                      u32le    bits TODO
-/// 20      4     codeTag                    4cc      "code"
-/// 28      4     codeEnd                    u32le    offset of the CODE chunk; at 28, 32, 36 or 40
-///                                                   as layoutWord and the architecture select
-/// 24      rest  TODO                       bytes    retained; not decoded
-/// …       20    codeChunk                  chunk    at codeEnd; the 32-bit bare form
-///   +0    4     chunkTag                   4cc      "CODE"
-///   +4    12    zeros                      u32le[3] zero
-///   +16   4     selfOffset                 u32le    equals codeEnd
-/// …       40    codeChunk                  chunk    at codeEnd; the 64-bit bare form
-///   +0    4     chunkTag                   4cc      "CODE"
-///   +4    28    zeros                      u32le[7] zero
-///   +32   4     selfOffset                 u32le    equals codeEnd
-///   +36   4     zero                       u32le    zero
-/// …       rest  codeChunk                  chunk    at codeEnd; the 32-bit symbol-table form
-///   +0    4     chunkTag                   4cc      "CODE"
-///   +4    12    zeros                      u32le[3] zero
-///   +16   4     selfOffset                 u32le    equals codeEnd
-///   +20   4     count                      u32le    symbol names that follow
-/// …       rest  codeChunk                  chunk    at codeEnd; the 64-bit symbol-table form
-///   +0    4     chunkTag                   4cc      "CODE"
-///   +4    4     codeImageSize              u32le    role TODO
-///   +8    16    zeros                      u32le[4] zero
-///   +24   4     selfOffset                 u32le    equals codeEnd
-///   +28   4     zero                       u32le    zero
-///   +32   4     count                      u32le    symbol names that follow
-/// …       rest  names                      entry[count] after the chunk head
-///   +0    4     nameLength                 u32le    bytes of name
-///   +4    rest  name                       u8[nameLength] symbol name, padded to a multiple of 4
-///                                                         bytes
+/// offset  size       field         type           meaning
+/// 0       4          codeStart     u32le          Offset of the machine code within the payload.
+/// 4       4          architecture  4cc            i386, m386, wx64 or mx64, see CodeArchitecture.
+/// 8       4          codeSize      u32le          Bytes of machine code.
+/// 12      4          layoutWord    u32le          Bit 0x100 puts the code-end pointer at 36 (32-bit) or 40
+///                                                 (64-bit); clear, it is at 28 or 32.
+/// 16      4          flags         u32le          Bits TODO.
+/// 20      4          codeTag       4cc            "code".
+/// 24      rest       fixupsAndCode                The fixups and the machine code, up to codeEnd.
+/// …       4          codeEnd       u32le          Offset of the CODE chunk; at 28, 32, 36 or 40 as
+///                                                 layoutWord and the architecture select, inside
+///                                                 fixupsAndCode.
+/// …       20         bareChunk32   VicdChunk32    At codeEnd; the 32-bit bare form.
+///   +0    4          chunkTag      4cc            "CODE".
+///   +4    12         zeros         u32le[3]       Zero.
+///   +16   4          selfOffset    u32le          Equals codeEnd.
+/// …       40         bareChunk64   VicdChunk64    At codeEnd; the 64-bit bare form.
+///   +0    4          chunkTag      4cc            "CODE".
+///   +4    28         zeros         u32le[7]       Zero.
+///   +32   4          selfOffset    u32le          Equals codeEnd.
+///   +36   4          zero          u32le          Zero.
+/// …       24         tableChunk32  VicdChunkI386  At codeEnd; the 32-bit symbol-table form.
+///   +0    4          chunkTag      4cc            "CODE".
+///   +4    12         zeros         u32le[3]       Zero.
+///   +16   4          selfOffset    u32le          Equals codeEnd.
+///   +20   4          count         u32le          Symbol names that follow.
+/// …       36         tableChunk64  VicdChunkWx64  At codeEnd; the 64-bit symbol-table form.
+///   +0    4          chunkTag      4cc            "CODE".
+///   +4    4          codeImageSize u32le          Role TODO.
+///   +8    16         zeros         u32le[4]       Zero.
+///   +24   4          selfOffset    u32le          Equals codeEnd.
+///   +28   4          zero          u32le          Zero.
+///   +32   4          count         u32le          Symbol names that follow.
+/// …       rest       names         VicdName[]     After a symbol-table chunk head, as many as its count
+///                                                 says.
+///   +0    4          nameLength    u32le          Bytes of name.
+///   +4    nameLength name          u8[nameLength] Symbol name, padded to a multiple of 4 bytes.
 /// ```
-///
-/// The section usually stores the payload in the zlib envelope that [inflateHeapPayload]
-/// opens, and sometimes plain; the layout is the inflated body.
-///
-/// [ViCompiledCode] is a view over the payload that records where each symbol name starts;
-/// [CodeArchitecture] names the 4CC at 4; [decodeCompiledCode] requires the tags, the
-/// code-end pointer and the symbol table to tile the payload.
 library;
 
 import 'dart:typed_data';
 
-import '../block_layout.dart';
-import '../block_record.dart';
+import '../byte_layout.dart';
+import '../byte_record.dart';
 import '../decode.dart' show inflateHeapPayload;
 
-const _codeStart = BlockField(0, 4, 'codeStart', 'u32le', 'offset of the machine code within the payload');
-const _architecture = BlockField(4, 4, 'architecture', '4cc', 'i386, m386, wx64 or mx64, see CodeArchitecture');
-const _codeSize = BlockField(8, 4, 'codeSize', 'u32le', 'bytes of machine code');
-const _layoutWord = BlockField(
-  12,
-  4,
-  'layoutWord',
-  'u32le',
-  'bit 0x100 puts the code-end pointer at 36 (32-bit) or 40 (64-bit); clear, it is at 28 or 32',
-);
-const _flags = BlockField(16, 4, 'flags', 'u32le', 'bits TODO');
-const _codeTag = BlockField(20, 4, 'codeTag', '4cc', '"code"');
-const _fixupsAndCode = BlockField.undecoded(24, null, type: 'bytes');
-const _codeEnd = BlockField(
-  28,
-  4,
-  'codeEnd',
-  'u32le',
-  'offset of the CODE chunk; at 28, 32, 36 or 40 as layoutWord and the architecture select',
-);
-const _chunkTag = BlockField(0, 4, 'chunkTag', '4cc', '"CODE"');
-const _bareZeros = BlockField(4, 12, 'zeros', 'u32le[3]', 'zero');
-const _bareSelfOffset = BlockField(16, 4, 'selfOffset', 'u32le', 'equals codeEnd');
-const _codeChunk = BlockField(
-  0,
-  20,
-  'codeChunk',
-  'chunk',
-  'at codeEnd; the 32-bit bare form',
-  entry: [_chunkTag, _bareZeros, _bareSelfOffset],
-);
-const _bare64Zeros = BlockField(4, 28, 'zeros', 'u32le[7]', 'zero');
-const _bare64SelfOffset = BlockField(32, 4, 'selfOffset', 'u32le', 'equals codeEnd');
-const _bare64Zero = BlockField(36, 4, 'zero', 'u32le', 'zero');
-const _codeChunk64 = BlockField(
-  0,
-  40,
-  'codeChunk',
-  'chunk',
-  'at codeEnd; the 64-bit bare form',
-  entry: [_chunkTag, _bare64Zeros, _bare64SelfOffset, _bare64Zero],
-);
-const _i386Count = BlockField(20, 4, 'count', 'u32le', 'symbol names that follow');
-const _i386Chunk = BlockField(
-  0,
-  null,
-  'codeChunk',
-  'chunk',
-  'at codeEnd; the 32-bit symbol-table form',
-  entry: [_chunkTag, _bareZeros, _bareSelfOffset, _i386Count],
-);
-const _wx64ImageSize = BlockField(4, 4, 'codeImageSize', 'u32le', 'role TODO');
-const _wx64Zeros = BlockField(8, 16, 'zeros', 'u32le[4]', 'zero');
-const _wx64SelfOffset = BlockField(24, 4, 'selfOffset', 'u32le', 'equals codeEnd');
-const _wx64Zero = BlockField(28, 4, 'zero', 'u32le', 'zero');
-const _wx64Count = BlockField(32, 4, 'count', 'u32le', 'symbol names that follow');
-const _wx64Chunk = BlockField(
-  0,
-  null,
-  'codeChunk',
-  'chunk',
-  'at codeEnd; the 64-bit symbol-table form',
-  entry: [_chunkTag, _wx64ImageSize, _wx64Zeros, _wx64SelfOffset, _wx64Zero, _wx64Count],
-);
-const _nameLength = BlockField(0, 4, 'nameLength', 'u32le', 'bytes of name');
-const _name = BlockField(4, null, 'name', 'u8[nameLength]', 'symbol name, padded to a multiple of 4 bytes');
-const _names = BlockField(0, null, 'names', 'entry[count]', 'after the chunk head', entry: [_nameLength, _name]);
+/// The bare `CODE` chunk of 32-bit code.
+abstract final class VicdChunk32 {
+  static const chunkTag = FourCc(0); // "CODE".
+  static const zeros = U32List(4, endian: Endian.little, length: 3); // Zero.
+  static const selfOffset = U32(16, endian: Endian.little); // Equals codeEnd.
 
-const BlockLayout vicdLayout = [
-  _codeStart,
-  _architecture,
-  _codeSize,
-  _layoutWord,
-  _flags,
-  _codeTag,
-  _codeEnd,
-  _fixupsAndCode,
-  _codeChunk,
-  _codeChunk64,
-  _i386Chunk,
-  _wx64Chunk,
-  _names,
-];
+  static const layout = ByteLayout([chunkTag, zeros, selfOffset]);
+}
 
-/// The [_layoutWord] bit that puts the code-end pointer after a longer header.
+/// The bare `CODE` chunk of 64-bit code.
+abstract final class VicdChunk64 {
+  static const chunkTag = FourCc(0); // "CODE".
+  static const zeros = U32List(4, endian: Endian.little, length: 7); // Zero.
+  static const selfOffset = U32(32, endian: Endian.little); // Equals codeEnd.
+  static const zero = U32(36, endian: Endian.little); // Zero.
+
+  static const layout = ByteLayout([chunkTag, zeros, selfOffset, zero]);
+}
+
+/// The symbol-table `CODE` chunk head of 32-bit code.
+abstract final class VicdChunkI386 {
+  static const chunkTag = FourCc(0); // "CODE".
+  static const zeros = U32List(4, endian: Endian.little, length: 3); // Zero.
+  static const selfOffset = U32(16, endian: Endian.little); // Equals codeEnd.
+  static const count = U32(20, endian: Endian.little); // Symbol names that follow.
+
+  static const layout = ByteLayout([chunkTag, zeros, selfOffset, count]);
+}
+
+/// The symbol-table `CODE` chunk head of 64-bit code.
+abstract final class VicdChunkWx64 {
+  static const chunkTag = FourCc(0); // "CODE".
+  static const codeImageSize = U32(4, endian: Endian.little); // Role TODO.
+  static const zeros = U32List(8, endian: Endian.little, length: 4); // Zero.
+  static const selfOffset = U32(24, endian: Endian.little); // Equals codeEnd.
+  static const zero = U32(28, endian: Endian.little); // Zero.
+  static const count = U32(32, endian: Endian.little); // Symbol names that follow.
+
+  static const layout = ByteLayout([chunkTag, codeImageSize, zeros, selfOffset, zero, count]);
+}
+
+/// One symbol name of a symbol-table chunk.
+abstract final class VicdName {
+  static const nameLength = U32(0, endian: Endian.little); // Bytes of name.
+  static const name = Bytes(4, count: nameLength); // Symbol name, padded to a multiple of 4 bytes.
+
+  static const layout = ByteLayout([nameLength, name]);
+}
+
+/// The [ViCompiledCode.layoutWord] bit that puts the code-end pointer after a longer header.
 const _modernHeaderBit = 0x100;
 const _legacyCodeEndOffset = 28;
 const _modernCodeEndOffset = 36;
@@ -154,8 +115,7 @@ enum CodeArchitecture {
   i386('i386', is64Bit: false),
   m386('m386', is64Bit: false),
   wx64('wx64', is64Bit: true),
-  mx64('mx64', is64Bit: true)
-  ;
+  mx64('mx64', is64Bit: true);
 
   const CodeArchitecture(this.fourCc, {required this.is64Bit});
 
@@ -169,16 +129,16 @@ enum CodeArchitecture {
   int codeEndOffset(int layoutWord) =>
       (layoutWord & _modernHeaderBit != 0 ? _modernCodeEndOffset : _legacyCodeEndOffset) + (is64Bit ? 4 : 0);
 
-  int get bareChunkSize => is64Bit ? _codeChunk64.size! : _codeChunk.size!;
+  int get bareChunkSize => is64Bit ? VicdChunk64.layout.size! : VicdChunk32.layout.size!;
 
-  int get bareSelfOffset => is64Bit ? _bare64SelfOffset.offset : _bareSelfOffset.offset;
+  int get bareSelfOffset => is64Bit ? VicdChunk64.selfOffset.offset : VicdChunk32.selfOffset.offset;
 
-  int get tableSelfOffset => is64Bit ? _wx64SelfOffset.offset : _bareSelfOffset.offset;
+  int get tableSelfOffset => is64Bit ? VicdChunkWx64.selfOffset.offset : VicdChunkI386.selfOffset.offset;
 
-  int get countOffset => is64Bit ? _wx64Count.offset : _i386Count.offset;
+  int get countOffset => is64Bit ? VicdChunkWx64.count.offset : VicdChunkI386.count.offset;
 
   /// Offset of the first symbol name within a symbol-table `CODE` chunk.
-  int get namesOffset => is64Bit ? _wx64Count.end : _i386Count.end;
+  int get namesOffset => is64Bit ? VicdChunkWx64.count.end : VicdChunkI386.count.end;
 
   static CodeArchitecture? of(String fourCc) {
     for (final a in values) {
@@ -188,86 +148,103 @@ enum CodeArchitecture {
   }
 }
 
-/// A view over a `VICD` payload.
-class ViCompiledCode implements BlockRecord {
-  ViCompiledCode._(this.bytes, this.architecture, this._nameOffsets) : _view = ByteData.sublistView(bytes);
+final class ViCompiledCode extends ByteRecord {
+  ViCompiledCode(Uint8List bytes) : super(bytes, layout) {
+    assert(view.lengthInBytes >= _codeEnd.end + VicdChunk32.layout.size!, 'VICD holds a header and a CODE chunk');
+    assert(_codeTag.read(view) == 'code', 'the code tag follows the header');
+    final architecture = CodeArchitecture.of(_architecture.read(view));
+    assert(architecture != null, 'the architecture is i386, m386, wx64 or mx64');
+    this.architecture = architecture!;
+    final codeEndOffset = architecture.codeEndOffset(layoutWord);
+    final codeEnd = view.getUint32(codeEndOffset, Endian.little);
+    assert(
+      codeEnd >= codeEndOffset + 4 && codeEnd + VicdChunk32.layout.size! <= view.lengthInBytes,
+      'the CODE chunk lies inside the payload',
+    );
+    assert(_has4cc(codeEnd, 'CODE'), 'the CODE chunk starts with its tag');
+    final tail = view.lengthInBytes - codeEnd;
+    if (tail == architecture.bareChunkSize) {
+      assert(
+        view.getUint32(codeEnd + architecture.bareSelfOffset, Endian.little) == codeEnd,
+        'the bare chunk points at itself',
+      );
+      _nameOffsets = const [];
+      return;
+    }
+    assert(codeEnd + architecture.namesOffset <= view.lengthInBytes, 'a symbol table has its head');
+    assert(
+      view.getUint32(codeEnd + architecture.tableSelfOffset, Endian.little) == codeEnd,
+      'the symbol-table chunk points at itself',
+    );
+    final count = view.getUint32(codeEnd + architecture.countOffset, Endian.little);
+    var at = codeEnd + architecture.namesOffset;
+    assert(count <= (view.lengthInBytes - at) ~/ 4, 'the count fits the payload');
+    final offsets = List<int>.filled(count, 0);
+    for (var i = 0; i < count; i++) {
+      assert(at + 4 <= view.lengthInBytes, 'name $i has a length word');
+      offsets[i] = at;
+      at += 4 + ((view.getUint32(at, Endian.little) + 3) & ~3);
+    }
+    assert(at == view.lengthInBytes, 'the names tile the payload');
+    _nameOffsets = offsets;
+  }
 
-  final Uint8List bytes;
+  /// i386, m386, wx64 or mx64, see [CodeArchitecture].
+  late final CodeArchitecture architecture;
 
-  final ByteData _view;
+  /// Offset of the machine code within the payload.
+  int get codeStart => _codeStart.read(view);
 
-  final CodeArchitecture architecture;
+  /// Bytes of machine code.
+  int get codeSize => _codeSize.read(view);
 
-  final List<int> _nameOffsets;
+  /// Bit 0x100 puts the code-end pointer at 36 (32-bit) or 40 (64-bit); clear, it is at 28
+  /// or 32.
+  int get layoutWord => _layoutWord.read(view);
 
-  int get codeStart => _view.getUint32(_codeStart.offset, Endian.little);
+  /// Bits TODO.
+  int get flags => _flags.read(view);
 
-  int get codeSize => _view.getUint32(_codeSize.offset, Endian.little);
+  /// Offset of the CODE chunk; at 28, 32, 36 or 40 as layoutWord and the architecture
+  /// select, inside fixupsAndCode.
+  int get codeEnd => view.getUint32(architecture.codeEndOffset(layoutWord), Endian.little);
 
-  int get layoutWord => _view.getUint32(_layoutWord.offset, Endian.little);
-
-  int get flags => _view.getUint32(_flags.offset, Endian.little);
-
-  int get codeEnd => _view.getUint32(_codeEndOffset(this), Endian.little);
-
-  Uint8List get fixupsAndCode => Uint8List.sublistView(bytes, _fixupsAndCode.offset, codeEnd);
+  /// The fixups and the machine code, up to codeEnd.
+  Uint8List get fixupsAndCode => Uint8List.sublistView(view, _fixupsAndCode.offset, codeEnd);
 
   int get symbolCount => _nameOffsets.length;
 
   Uint8List symbolNameAt(int index) {
     final at = _nameOffsets[index];
-    return Uint8List.sublistView(bytes, at + _name.offset, at + _name.offset + _view.getUint32(at, Endian.little));
+    final start = at + VicdName.name.offset;
+    return Uint8List.sublistView(view, start, start + view.getUint32(at + VicdName.nameLength.offset, Endian.little));
   }
 
-  @override
-  Uint8List serialize() => bytes;
-}
+  late final List<int> _nameOffsets;
 
-int _codeEndOffset(ViCompiledCode code) => code.architecture.codeEndOffset(code.layoutWord);
+  bool _has4cc(int at, String tag) {
+    if (at < 0 || at + 4 > view.lengthInBytes) return false;
+    for (var i = 0; i < 4; i++) {
+      if (view.getUint8(at + i) != tag.codeUnitAt(i)) return false;
+    }
+    return true;
+  }
 
-bool _has4cc(Uint8List bytes, int at, String tag) {
-  if (at < 0 || at + 4 > bytes.length) return false;
-  for (var i = 0; i < 4; i++) {
-    if (bytes[at + i] != tag.codeUnitAt(i)) return false;
-  }
-  return true;
-}
+  // dart format off
+  static const _codeStart = U32(0, endian: Endian.little);
+  static const _architecture = FourCc(4);
+  static const _codeSize = U32(8, endian: Endian.little);
+  static const _layoutWord = U32(12, endian: Endian.little);
+  static const _flags = U32(16, endian: Endian.little);
+  static const _codeTag = FourCc(20); // "code".
+  static const _fixupsAndCode = Unknown(24);
+  static const _codeEnd = U32(28, endian: Endian.little);
+  static const _bareChunk32 = Struct(0, VicdChunk32.layout); // At codeEnd; the 32-bit bare form.
+  static const _bareChunk64 = Struct(0, VicdChunk64.layout); // At codeEnd; the 64-bit bare form.
+  static const _tableChunk32 = Struct(0, VicdChunkI386.layout); // At codeEnd; the 32-bit symbol-table form.
+  static const _tableChunk64 = Struct(0, VicdChunkWx64.layout); // At codeEnd; the 64-bit symbol-table form.
+  static const _names = Entries(0, VicdName.layout); // After a symbol-table chunk head, as many as its count says.
 
-ViCompiledCode decodeCompiledCode(Uint8List bytes) {
-  assert(bytes.length >= _codeEnd.end + _codeChunk.size!, 'VICD holds a header and a CODE chunk');
-  assert(_has4cc(bytes, _codeTag.offset, 'code'), 'the code tag follows the header');
-  final architecture = CodeArchitecture.of(String.fromCharCodes(bytes, _architecture.offset, _architecture.end));
-  assert(architecture != null, 'the architecture is i386, m386, wx64 or mx64');
-  final view = ByteData.sublistView(bytes);
-  final codeEndOffset = architecture!.codeEndOffset(view.getUint32(_layoutWord.offset, Endian.little));
-  final codeEnd = view.getUint32(codeEndOffset, Endian.little);
-  assert(
-    codeEnd >= codeEndOffset + 4 && codeEnd + _codeChunk.size! <= bytes.length,
-    'the CODE chunk lies inside the payload',
-  );
-  assert(_has4cc(bytes, codeEnd, 'CODE'), 'the CODE chunk starts with its tag');
-  final tail = bytes.length - codeEnd;
-  if (tail == architecture.bareChunkSize) {
-    assert(
-      view.getUint32(codeEnd + architecture.bareSelfOffset, Endian.little) == codeEnd,
-      'the bare chunk points at itself',
-    );
-    return ViCompiledCode._(bytes, architecture, const []);
-  }
-  assert(codeEnd + architecture.namesOffset <= bytes.length, 'a symbol table has its head');
-  assert(
-    view.getUint32(codeEnd + architecture.tableSelfOffset, Endian.little) == codeEnd,
-    'the symbol-table chunk points at itself',
-  );
-  final count = view.getUint32(codeEnd + architecture.countOffset, Endian.little);
-  var at = codeEnd + architecture.namesOffset;
-  assert(count <= (bytes.length - at) ~/ 4, 'the count fits the payload');
-  final offsets = List<int>.filled(count, 0);
-  for (var i = 0; i < count; i++) {
-    assert(at + 4 <= bytes.length, 'name $i has a length word');
-    offsets[i] = at;
-    at += 4 + ((view.getUint32(at, Endian.little) + 3) & ~3);
-  }
-  assert(at == bytes.length, 'the names tile the payload');
-  return ViCompiledCode._(bytes, architecture, offsets);
+  static const layout = ByteLayout([_codeStart, _architecture, _codeSize, _layoutWord, _flags, _codeTag, _fixupsAndCode, _codeEnd, _bareChunk32, _bareChunk64, _tableChunk32, _tableChunk64, _names]);
+  // dart format on
 }

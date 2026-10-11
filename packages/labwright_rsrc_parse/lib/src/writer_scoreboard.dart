@@ -248,14 +248,14 @@ bool _eq(Uint8List a, Uint8List b) {
 
 /// Byte accounting of a picture block, or null for any other tag.
 ViImageAccounting? imageAccounting(String tag, Uint8List payload) => switch (BlockTag.of(tag)) {
-  BlockTag.mngi => decodePngStream(payload).accounting(),
-  BlockTag.dsim => decodeDataSpaceImage(payload).accounting,
+  BlockTag.mngi => ViPngStream(payload).accounting(),
+  BlockTag.dsim => ViDataSpaceImage(payload).accounting,
   _ => null,
 };
 
 /// Byte accounting of a metafile block, or null for any other tag.
 ViMetafileFrame? metafileFrame(String tag, Uint8List payload) => switch (BlockTag.of(tag)) {
-  BlockTag.pict => decodePict(payload).frame,
-  BlockTag.wemf => decodeEmf(payload).frame,
+  BlockTag.pict => ViPictPicture(payload).frame,
+  BlockTag.wemf => ViEmfMetafile(payload).frame,
   _ => null,
 };
