@@ -217,6 +217,7 @@ const kShipInkPct = <String, int>{
 const kShipBelowClosedPct = <String, int>{
   '18726000_BBgBQ.png': 12,
   '23824206_lZCON.png': 67,
+  '25835168_902X7.png': 5,
   '33003667_WQUOg.png': 4,
   '34140795_eK3nc.png': 12,
   '44061689_Pkwe4.png': 21,
@@ -226,12 +227,15 @@ const kShipBelowClosedPct = <String, int>{
 };
 
 const kHeldNotWorseThanShip = <String>{
+  '16342924_H0Flz.png',
   '16347228_ATJUN.png',
   '18726000_BBgBQ.png',
+  '25835168_902X7.png',
   '26103724_Lk2H5.png',
   '2_packet_convert_cluster.png',
   '31949337_Nurez.png',
   '36790337_6otPV.png',
+  '42401972_Z1SeC.png',
   '42658007_WxW2z.png',
   '43292939_cDHQF.png',
   '43309546_cGFGy.png',
@@ -243,6 +247,7 @@ const kHeldNotWorseThanShip = <String>{
   '53541044_9rOae.png',
   '55101960_vZSSg.png',
   '56386018_EToD7.png',
+  '62609290_qf4mZ.png',
   '62643358_CqHhu.png',
   '63563672_qPrsL.png',
   '69539137_5Mi4k.png',

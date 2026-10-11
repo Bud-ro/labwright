@@ -178,7 +178,21 @@ void main() {
         'dthpIdxNotMinOne',
         'dthpIdxOutOfRange',
       }),
-      const <String, Map<String, int>>{},
+      const <String, Map<String, int>>{
+        'vi-corpus/sources/dnattinger__GoCommando/GoCommando Main.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/abort.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/add.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/brokenwires.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/create.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/del.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/drop.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/grow.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/move.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Commands/run.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/Support/GoCommando Wire CORE.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/dnattinger__GoCommando/_GoCommando/testing_terminal_labeling.vi': {'dthpRunNotAtTail': 1},
+        'vi-corpus/sources/tomsoftware__VI-Explorer-VI/VI-File-Explorer.vi': {'dthpRunNotAtTail': 1},
+      },
     );
   });
 }

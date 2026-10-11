@@ -97,11 +97,10 @@ void main() {
   });
 
   test(
-    'the checked-in generated sources are exactly what the three block diagrams lower to',
+    'the checked-in generated sources are exactly what the two block diagrams lower to',
     () {
       for (final (fileName, functionName, generated) in const [
         ('Calc LRC-8.vi', 'lrc8', 'lrc8.g.dart'),
-        ('Calculate CRC.vi', 'modbusCrc16', 'modbus_crc16.g.dart'),
         ('Calc CRC-16.vi', 'calcCrc16', 'modbus_crc16_table.g.dart'),
       ]) {
         final path = corpusViPaths().firstWhere((path) => path.endsWith(fileName));

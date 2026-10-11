@@ -47,7 +47,7 @@ const _viFrontPanelTypeIndex = <FieldDoc>[
 
 const _viCompiledCode = <FieldDoc>[
   FieldDoc('codeStart', 'u32le', 'Offset of the machine code within the payload.'),
-  FieldDoc('architecture', '4cc', 'i386, m386, wx64 or mx64, see CodeArchitecture.'),
+  FieldDoc('architecture', '4cc', 'i386, m386, wx64, mx64 or AM64, see CodeArchitecture.'),
   FieldDoc('codeSize', 'u32le', 'Bytes of machine code.'),
   FieldDoc(
     'layoutWord',

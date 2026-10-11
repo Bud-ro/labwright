@@ -14,8 +14,8 @@ import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import '../test/util.dart';
 
 const _curatedVis = [
-  'smithed_vicompare/smithed-vicompare-5bb0d48/Trunk/constants/required keys.vi',
-  'NEVSTOP-LAB_Communicable-State-Machine/NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/src/_TEST/test message before initialize.vi',
+  'vi-corpus/sources/picotech__picosdk-ni-labview-examples/ps2000a/PicoScope2000aExampleStreamingMSO.vi',
+  'vi-corpus/sources/NEVSTOP-LAB__Communicable-State-Machine/src/_TEST/test message before initialize.vi',
 ];
 
 /// `--dart-define=RENDER_SWEEP=true` renders ~100 VIs instead of the curated two.
@@ -24,7 +24,9 @@ const int _sweepTarget = 100;
 
 List<String> _diverseSample(Directory corpus) {
   final bySource = <String, List<File>>{};
-  for (final entry in corpus.listSync().whereType<Directory>()) {
+  for (final entry in Directory(
+    '${corpus.path}/vi-corpus/sources',
+  ).listSync().whereType<Directory>()) {
     final files =
         entry
             .listSync(recursive: true)

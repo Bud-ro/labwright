@@ -82,7 +82,7 @@ jobs:
           path: |
             corpus/vi
             corpus/seq
-          key: corpus-${{ hashFiles('corpus/sources.json') }}
+          key: corpus-${{ hashFiles('corpus/repos.json') }}
 
       - name: fetch the corpora
         run: dart run tool/fetch_corpus.dart

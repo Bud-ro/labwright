@@ -7,7 +7,7 @@ import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 import '../../../tool/corpus.dart';
 
 final File _iconViFile = File(
-  '${corpusVi.path}/vipm-io_caraya/vipm-io-caraya-ca35333/src/classes/Test/'
+  '${corpusVi.path}/vi-corpus/sources/vipm-io__caraya/src/classes/Test/'
   'Define Test.vi',
 );
 
@@ -20,8 +20,7 @@ void main() {
 
   test('linker paths resolve targets directly — no directory search', () {
     final vi = File(
-      '${corpusVi.path}/picotech_picosdk-ni-labview-examples/'
-      'picotech-picosdk-ni-labview-examples-dceb711/ps2000a/'
+      '${corpusVi.path}/vi-corpus/sources/picotech__picosdk-ni-labview-examples/ps2000a/'
       'PicoScope2000aExampleStreamingMSO.vi',
     );
     final sw = Stopwatch()..start();

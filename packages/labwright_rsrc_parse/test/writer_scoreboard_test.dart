@@ -133,10 +133,12 @@ Map<String, int> _violations(Uint8List bytes, String path) {
   return c;
 }
 
-/// The LabVIEW 7.1 save carries no `TM80`, so its data space has no context to decode by.
 const kWriterViolations = <String, Map<String, int>>{
-  'Rompil_LabVIEW/Rompil-LabVIEW-7a9f0ff/Calculate Frequency of Signal Displayed on Waveform Graph/Meas Freq of Visible Waveform_LV 7x.vi':
-      {'dfdsContext': 1},
+  'vi-corpus/sources/jdnichollsc__Automated-classrooms/LABORATORIOS.vi': {
+    'attribute': 1,
+    'dfdsContext': 1,
+    'roundTrip': 3,
+  },
 };
 
 const _alsoPlain = {BlockTag.tm80, BlockTag.vicd, BlockTag.dfds};

@@ -40,7 +40,7 @@ Set<String> _xmlStepNames(SeqFile file) => {
 };
 
 void main() {
-  final rosetta = Directory('${corpusSeqDir.path}/rosetta');
+  final rosetta = Directory('${corpusSeqDir.path}/seq-corpus/rosetta');
   final oracleBinFile = File('${rosetta.path}/OutputVoltage_BIN.seq');
   final oracleXmlFile = File('${rosetta.path}/OutputVoltage_XML.seq');
   final binaries = rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq')).toList()
@@ -617,7 +617,7 @@ void main() {
     final files = corpusSeqDir.listSync(recursive: true).whereType<File>().toList();
     File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
     final xmlPin = pin('Server/ExampleFiles/TraceExecution.seq');
-    final binPin = pin('Tests/Sequence File 1.seq');
+    final binPin = pin('VeriStand-steps-for-TestStand/Tests/Sequences/Main.seq');
     expect(xmlPin, isNotNull, reason: 'substep oracle XML pin missing — rename/partial checkout?');
     expect(binPin, isNotNull, reason: 'substep oracle binary pin missing — rename/partial checkout?');
 

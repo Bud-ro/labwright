@@ -47,7 +47,7 @@ void main() {
   });
 
   test('rosetta binaries: byte-exact bodies', () {
-    final files = Directory('${corpusSeqDir.path}/rosetta').listSync().whereType<File>().toList()
+    final files = Directory('${corpusSeqDir.path}/seq-corpus/rosetta').listSync().whereType<File>().toList()
       ..sort((a, b) => a.path.compareTo(b.path));
     for (final f in files) {
       if (!f.path.toLowerCase().endsWith('.seq')) continue;
@@ -61,7 +61,7 @@ void main() {
     Uint8List read(String relative) => File('${corpusSeqDir.path}/$relative').readAsBytesSync();
 
     test('step rename via its pool string (same length): delta is the pool entry alone', () {
-      final bytes = read('rosetta/OutputVoltage_BIN.seq');
+      final bytes = read('seq-corpus/rosetta/OutputVoltage_BIN.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       final body = model.writeBody();
       const oldName = 'Output voltage test';
@@ -91,7 +91,7 @@ void main() {
     });
 
     test('step rename with a DIFFERENT length: record region byte-identical (references are by index)', () {
-      final bytes = read('rosetta/NIDmm_labview_BIN.seq');
+      final bytes = read('seq-corpus/rosetta/NIDmm_labview_BIN.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       const oldName = 'Acquire Measurement';
       const newName = 'Acquire Measurement (probed)';
@@ -120,7 +120,7 @@ void main() {
     });
 
     test('numeric value via its f64 slot: delta is the 8-byte slot and one decoded record', () {
-      final bytes = read('rosetta/OutputVoltage_BIN.seq');
+      final bytes = read('seq-corpus/rosetta/OutputVoltage_BIN.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       const oldValue = 2953567917.0;
       const newValue = 2953567918.0;
@@ -152,7 +152,7 @@ void main() {
     });
 
     test('typed flag/attr surfaces are mutation-stable: a value mutation leaves every fieldFlags/attrWords intact', () {
-      final bytes = read('rosetta/OutputVoltage_BIN.seq');
+      final bytes = read('seq-corpus/rosetta/OutputVoltage_BIN.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       const oldValue = 2953567917.0;
       expect(model.replaceF64(oldValue, oldValue + 1), 1);
@@ -180,12 +180,12 @@ void main() {
       expect(after, before, reason: 'flag/attr surface must be identical after an unrelated value mutation');
     });
 
-    test('pool[0]-`Obj` generation: a parameter rename mutates exactly its pool entry, decode stays stable', () {
-      final bytes = read('michael-harhay-arx_CICDUtility/michael-harhay-arx-CICDUtility-02c6c67/Sequence/iTAC.seq');
+    test('a parameter rename mutates exactly its pool entry, decode stays stable', () {
+      final bytes = read('seq-corpus/sources/FloresFelipe__csv-doc-gen-tool-teststand/src/docgen_html.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
       final body = model.writeBody();
-      const oldName = 'iTACStationID';
-      const newName = 'iTacSTATIONid';
+      const oldName = 'TotalNumSteps';
+      const newName = 'TOTALnumSTEPS';
       final entryIndex = model.pool.indexOf(oldName);
       expect(entryIndex, greaterThan(0));
       expect(model.replacePoolEntry(oldName, newName), 1);
@@ -214,13 +214,14 @@ void main() {
     });
 
     test('sequence comment via its pool string: delta is the comment alone', () {
-      final bytes = read(
-        'JavierABH_Elatch-Bench-Test/JavierABH-Elatch-Bench-Test-71012f4/'
-        'Sequence/History/Very Old/Elatch-bench - Ford Test.seq',
-      );
+      final bytes = read('seq-corpus/sources/Aldo633__TestStandLock-API/Lock Test.seq');
       final model = parseBinarySeqWriteModel(bytes)!;
-      const oldComment = 'Override this in the client file with a sequence that performs tests on the UUT.';
-      const newComment = 'OVERRIDE this in the client file with a sequence that performs tests on the UUT.';
+      const oldComment =
+          'Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  '
+          'Override this in the client file to perform an action before any code in the model executes.';
+      const newComment =
+          'Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  '
+          'OVERRIDE this in the client file to perform an action before any code in the model executes.';
       final entryIndex = model.pool.indexOf(oldComment);
       expect(entryIndex, greaterThan(0));
       expect(model.replacePoolEntry(oldComment, newComment), 1);

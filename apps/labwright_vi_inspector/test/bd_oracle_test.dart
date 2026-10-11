@@ -548,8 +548,7 @@ void main() {
 
   group('corpus', () {
     const rel =
-        'NEVSTOP-LAB_Communicable-State-Machine/'
-        'NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/'
+        'vi-corpus/sources/NEVSTOP-LAB__Communicable-State-Machine/'
         'src/_TEST/test message before initialize.vi';
 
     testWidgets('BD view renders a corpus VI; objects within their frame', (
@@ -630,7 +629,7 @@ void main() {
 
     testWidgets('rasterising with subVI icons stamps the node', (tester) async {
       final target = File(
-        '${corpusVi.path}/vipm-io_caraya/vipm-io-caraya-ca35333/'
+        '${corpusVi.path}/vi-corpus/sources/vipm-io__caraya/'
         'src/classes/Test/Define Test.vi',
       );
 
