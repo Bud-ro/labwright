@@ -113,7 +113,10 @@ ViDiagram? largestDiagram(List<ViDiagram> diagrams) {
   ViDiagram? best;
   var bestCount = 0;
   for (final diagram in diagrams) {
-    final count = diagram.objects.where((o) => o.absBounds != null).length;
+    var count = 0;
+    for (final object in diagram.objects) {
+      if (object.absBounds != null) count++;
+    }
     if (count > bestCount) {
       best = diagram;
       bestCount = count;

@@ -1533,40 +1533,11 @@ void resolveDataSpaceTypes({
     return null;
   }
 
-  for (final diagram in diagrams) {
-    for (final object in diagram.objects) {
-      if (object.objectClass == HeapObjectClass.node && object.typeDescIdx != null) {
-        object.isIndicator = object.hasFlag(ViObjFlag.indicator);
-      }
-    }
-  }
-  for (final diagram in diagrams) {
-    for (final object in diagram.objects) {
-      if (object.isIndicator != null) continue;
-      final dcoRefs = object.refsOf(HeapRefKind.dcoRef);
-      if (dcoRefs == null || dcoRefs.isEmpty) continue;
-      object.isIndicator = findDco(diagram, dcoRefs.first)?.isIndicator;
-    }
-  }
+  final base = typeIndexBase;
+  final resolvable = pool.isNotEmpty && table.isNotEmpty && base != null;
 
-  _resolveTypeIndices(pool: pool, table: table, base: typeIndexBase, diagrams: diagrams, findDco: findDco);
-
-  for (final diagram in diagrams) {
-    decodeBdConstValues(diagram);
-  }
-}
-
-void _resolveTypeIndices({
-  required List<ViType> pool,
-  required List<int> table,
-  required int? base,
-  required List<ViDiagram> diagrams,
-  required ViHeapObject? Function(ViDiagram own, int oid) findDco,
-}) {
-  if (pool.isEmpty || table.isEmpty || base == null) return;
-
-  ViType? resolve(int base, int index) {
-    final ti = base + index;
+  ViType? resolve(int index) {
+    final ti = base! + index;
     if (ti < 0 || ti >= table.length) return null;
     final pi = table[ti];
     return pi >= 0 && pi < pool.length ? pool[pi] : null;
@@ -1576,7 +1547,9 @@ void _resolveTypeIndices({
     for (final object in diagram.objects) {
       final index = object.typeDescIdx;
       if (index == null) continue;
-      final type = resolve(base, index);
+      if (object.objectClass == HeapObjectClass.node) object.isIndicator = object.hasFlag(ViObjFlag.indicator);
+      if (!resolvable) continue;
+      final type = resolve(index);
       if (type == null) continue;
       final kind = typeKindOfDataType(type.kind);
       if (kind != null) object.typeKind = kind;
@@ -1600,11 +1573,11 @@ void _resolveTypeIndices({
   }
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
-      if (object.typeDescIdx != null) continue;
       final dcoRefs = object.refsOf(HeapRefKind.dcoRef);
       if (dcoRefs == null || dcoRefs.isEmpty) continue;
       final dco = findDco(diagram, dcoRefs.first);
-      if (dco == null) continue;
+      object.isIndicator ??= dco?.isIndicator;
+      if (!resolvable || object.typeDescIdx != null || dco == null) continue;
       if (dco.typeKind != ViTypeKind.unknown) object.typeKind = dco.typeKind;
       object.dataType ??= dco.dataType;
       object.resolvedType ??= dco.resolvedType;
@@ -1617,6 +1590,10 @@ void _resolveTypeIndices({
       }
       object.typeName ??= dco.typeName;
     }
+  }
+
+  for (final diagram in diagrams) {
+    decodeBdConstValues(diagram);
   }
 }
 
