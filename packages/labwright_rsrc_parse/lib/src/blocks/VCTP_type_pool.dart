@@ -229,7 +229,9 @@ sealed class ViType {
   ViType._(this.bytes, this.offset, this.length, int bodyEnd, {bool exact = true})
     : _bodyEnd = bodyEnd,
       _labelStart = _findLabel(bytes, offset, length, bodyEnd, exact),
-      kind = _typeCodes[bytes[offset + VctpDescriptor.typeCode.offset]] ?? ViDataType.unknown;
+      kind = _typeCodes[bytes[offset + VctpDescriptor.typeCode.offset]] ?? ViDataType.unknown {
+    label = hasLabel ? String.fromCharCodes(bytes, _labelStart + 1, _labelStart + 1 + bytes[_labelStart]) : null;
+  }
 
   final Uint8List bytes;
 
@@ -256,8 +258,7 @@ sealed class ViType {
 
   bool get hasLabel => flags & ViTypeFlag.label.mask != 0;
 
-  String? get label =>
-      hasLabel ? String.fromCharCodes(bytes, _labelStart + 1, _labelStart + 1 + bytes[_labelStart]) : null;
+  late final String? label;
 
   /// Bytes the grammar does not cover; empty for codes whose body is fully decoded.
   Uint8List get undecoded => Uint8List.sublistView(bytes, _bodyEnd, _labelStart);
