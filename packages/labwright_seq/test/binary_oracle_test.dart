@@ -616,7 +616,7 @@ void main() {
   test('cross-format substep oracle: binary NI_Wait Substeps match the XML typedef', () {
     final files = corpusSeqDir.listSync(recursive: true).whereType<File>().toList();
     File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
-    final xmlPin = pin('Server/ExampleFiles/TraceExecution.seq');
+    final xmlPin = pin('ni__grpc-teststand-api/Server/ExampleFiles/TraceExecution.seq');
     final binPin = pin('VeriStand-steps-for-TestStand/Tests/Sequences/Main.seq');
     expect(xmlPin, isNotNull, reason: 'substep oracle XML pin missing — rename/partial checkout?');
     expect(binPin, isNotNull, reason: 'substep oracle binary pin missing — rename/partial checkout?');

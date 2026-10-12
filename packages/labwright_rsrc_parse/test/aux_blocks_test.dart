@@ -75,6 +75,7 @@ Map<String, int> _undecoded(Uint8List bytes, String path) {
   return c;
 }
 
+// TODO: link-info walks stop early in XControl test VIs, .NET-calling VIs and the LabVIEW 7.0 save.
 const kUndecodedAuxSections = <String, Map<String, int>>{
   'vi-corpus/sources/NEVSTOP-LAB__LabVIEW-UI-XCtl/LabVIEW-UI-GaussfitGraph/GaussfitGraph/_test/Demo.vi': {'LI**': 1},
   'vi-corpus/sources/NEVSTOP-LAB__LabVIEW-UI-XCtl/LabVIEW-UI-XListGraph/src/_Test/UI-XListGraph-Example.vi': {

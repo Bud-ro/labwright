@@ -168,6 +168,7 @@ void main() {
     expect(violations({'stageUnnamed', 'tmReemitBad'}), const <String, Map<String, int>>{});
   });
 
+  // TODO: LabVIEW 8.6 saves keep the DTHP type-index run away from the VCTP tail.
   test('DTHP decodes totally, names are printable, and its heap type-index run sits at the VCTP tail', () {
     expect(
       violations({

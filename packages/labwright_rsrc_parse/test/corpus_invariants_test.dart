@@ -294,6 +294,7 @@ void main() {
     );
   });
 
+  // TODO: XControl facade VIs lay out the info area and section edits differently.
   test('INFO-AREA: descriptor peel, final entry, subheader, name table and trailing name laws', () {
     expect(
       violations({

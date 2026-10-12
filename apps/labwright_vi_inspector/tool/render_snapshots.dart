@@ -24,9 +24,13 @@ const int _sweepTarget = 100;
 
 List<String> _diverseSample(Directory corpus) {
   final bySource = <String, List<File>>{};
-  for (final entry in Directory(
-    '${corpus.path}/vi-corpus/sources',
-  ).listSync().whereType<Directory>()) {
+  final roots = [
+    Directory('${corpus.path}/vi-corpus/sources'),
+    Directory('${corpus.path}/vi-snippets'),
+  ];
+  for (final entry in roots.expand(
+    (root) => root.listSync().whereType<Directory>(),
+  )) {
     final files =
         entry
             .listSync(recursive: true)

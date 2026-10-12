@@ -136,4 +136,42 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 2)),
   );
+
+  test(
+    'project export: every sequence file lowers to a module, analyze is clean, dart run exits green',
+    () {
+      final projDir = Directory('${corpusSeqDir.path}/seq-corpus/sources/NIVeriStandAdd-Ons__ECU-HIL-Demo');
+      expect(projDir.existsSync(), isTrue, reason: 'the ECU-HIL-Demo project must be fetched with the corpus');
+      final byPath = <String, SeqFile>{};
+      for (final f in projDir.listSync(recursive: true).whereType<File>()) {
+        if (!f.path.toLowerCase().endsWith('.seq')) continue;
+        final rel = f.path.substring(projDir.path.length + 1).replaceAll(r'\', '/');
+        try {
+          byPath[rel] = parseSeqFile(f.readAsBytesSync());
+        } on FormatException catch (_) {}
+      }
+      final project = exportSeqProjectToLabwright(byPath);
+      expect(project.files.keys, containsAll(['main.dart', 'analysis_options.yaml']));
+      final allSource = project.files.values.join('\n');
+      final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n]*\);').allMatches(allSource).length;
+      expect((byPath.length, project.files.length, crossCalls), (16, 18, 0));
+
+      final genDir = Directory('${pkgRoot.path}/test/.export_gen_proj')..createSync(recursive: true);
+      try {
+        project.files.forEach((name, source) => File('${genDir.path}/$name').writeAsStringSync(source));
+        final analyze = Process.runSync('dart', ['analyze', 'test/.export_gen_proj'], workingDirectory: pkgRoot.path);
+        expect(analyze.exitCode, 0, reason: 'generated project must analyze clean:\n${analyze.stdout}');
+        final run = Process.runSync('dart', [
+          'run',
+          '-Dlabwright.viewer=false',
+          'test/.export_gen_proj/main.dart',
+        ], workingDirectory: pkgRoot.path);
+        expect(run.exitCode, 0, reason: 'fresh project export must run green:\n${run.stdout}\n${run.stderr}');
+        expect(run.stdout.toString(), contains('0 failed, 0 errors,'));
+      } finally {
+        genDir.deleteSync(recursive: true);
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 4)),
+  );
 }

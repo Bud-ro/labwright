@@ -133,6 +133,7 @@ Map<String, int> _violations(Uint8List bytes, String path) {
   return c;
 }
 
+// TODO: the LabVIEW 7.0 save trips the FTAB packed-name and CPST tiling asserts.
 const kWriterViolations = <String, Map<String, int>>{
   'vi-corpus/sources/jdnichollsc__Automated-classrooms/LABORATORIOS.vi': {
     'attribute': 1,

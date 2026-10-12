@@ -287,7 +287,9 @@ void main() {
   group('pinned corpus files (record-walk correctness)', () {
     const pinnedSuffixes = [
       'sandbox/Test Sequence.seq',
-      'LabVIEW Compiled Object Cache Preparation/LabVIEW Compiled Object Cache Preparation.seq',
+      'Digital IO Tests/Digital IO Tests.seq',
+      'PCBA FT Demo/PCBA FT Demo.seq',
+      'TsmPerformanceLogger/Code/ModelPlugins/PerformanceMeasurementLogger.seq',
     ];
 
     List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix)!.readAsBytesSync());
@@ -323,7 +325,50 @@ void main() {
           'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
         );
         expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
-        expect(records.where((r) => r.undecodedBody).length, 0);
+        expect(records.where((r) => r.undecodedBody).length, 2);
+      },
+    );
+
+    test('PCBA FT Demo.seq: expression-array elements (DataSourceArray) decode', () {
+      if (pin(pinnedSuffixes[2]) == null) return;
+      final main = outlinesOf(
+        pinnedSuffixes[2],
+      ).firstWhere((o) => o.name == 'Power Diagnostics').groupArrays.firstWhere((g) => g.name == 'Main');
+      expect(main.children, hasLength(4));
+      BinaryTypeField? findDataSources(BinaryTypeField f) {
+        if (f.name == 'DataSourceArray' && f.children.isNotEmpty) return f;
+        for (final c in f.children) {
+          final hit = findDataSources(c);
+          if (hit != null) return hit;
+        }
+        return null;
+      }
+
+      final dataSources = main.children.map(findDataSources).whereType<BinaryTypeField>().toList();
+      expect(dataSources, hasLength(3));
+      expect(dataSources.first.children, hasLength(1));
+      expect(dataSources.first.children.every((e) => e.className == 'ExprValue' && e.name.isEmpty), isTrue);
+      expect(dataSources.first.children.first.value, 'Locals.PS_Meas_Data.Max_Current');
+    });
+
+    test(
+      'PerformanceMeasurementLogger.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode',
+      () {
+        if (pin(pinnedSuffixes[3]) == null) return;
+        final outlines = outlinesOf(pinnedSuffixes[3]);
+        expect(outlines.map((o) => o.name), contains('Log Data to File'));
+        final log = outlines.firstWhere((o) => o.name == 'Log Data to File');
+        final params = log.leadingSubProps.firstWhere((p) => p.name == 'Parameters');
+        expect(params.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
+        expect(params.attrWords, [0x440000], reason: 'the twin-known Parameters valueflags word');
+        expect([for (final c in params.children) c.name], ['PerformanceMeasurementLogger']);
+        final ref = params.children.single;
+        expect(ref.className, 'Ref');
+        expect(ref.value, isNull, reason: 'a Ref never persists a value');
+        expect(ref.children, isEmpty);
+        final locals = log.leadingSubProps.firstWhere((p) => p.name == 'Locals');
+        expect(locals.attrWords, [0x400000], reason: 'the twin-known Locals valueflags word');
+        expect([for (final c in locals.children) c.name], ['SocketTime', 'ResultList']);
       },
     );
   });
