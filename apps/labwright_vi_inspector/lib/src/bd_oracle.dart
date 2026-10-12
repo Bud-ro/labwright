@@ -925,23 +925,38 @@ BdRegistration _translationRegistration(
     renderHeight,
     edgeThreshold,
   );
-  final points = <double>[];
   final stride = math.max(1, math.sqrt(renderPixels / 300000).ceil());
+  final pointList = <double>[];
   for (var y = 0; y < renderHeight; y += stride) {
     final row = y * renderWidth;
     for (var x = 0; x < renderWidth; x += stride) {
       if (renderEdges[row + x] != 0) {
-        points
+        pointList
           ..add(x * scale)
           ..add(y * scale);
       }
     }
   }
-  if (points.isEmpty) return base;
+  if (pointList.isEmpty) return base;
+  final points = Float64List.fromList(pointList);
+  final whole = scale == scale.roundToDouble();
+  final wholePoints = Int32List.fromList([
+    for (final p in pointList) p.round(),
+  ]);
   final nearEdges = _dilate(referenceEdges, width, height, 1);
-  int hitsAt(double dx, double dy) {
+  int hitsEvery(int step, double dx, double dy) {
     var hits = 0;
-    for (var i = 0; i < points.length; i += 2) {
+    if (whole && dx == dx.roundToDouble() && dy == dy.roundToDouble()) {
+      final ox = dx.round(), oy = dy.round();
+      for (var i = 0; i < wholePoints.length; i += step) {
+        final x = wholePoints[i] + ox;
+        final y = wholePoints[i + 1] + oy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        hits += nearEdges[y * width + x];
+      }
+      return hits;
+    }
+    for (var i = 0; i < points.length; i += step) {
       final x = (points[i] + dx).round();
       final y = (points[i + 1] + dy).round();
       if (x < 0 || y < 0 || x >= width || y >= height) continue;
@@ -950,16 +965,28 @@ BdRegistration _translationRegistration(
     return hits;
   }
 
+  int hitsAt(double dx, double dy) => hitsEvery(2, dx, dy);
   final int coarseStep = 2 * math.max(1, (points.length ~/ 2) ~/ 4000);
-  int coarseHitsAt(double dx, double dy) {
-    var hits = 0;
-    for (var i = 0; i < points.length; i += coarseStep) {
-      final x = (points[i] + dx).round();
-      final y = (points[i + 1] + dy).round();
-      if (x < 0 || y < 0 || x >= width || y >= height) continue;
-      hits += nearEdges[y * width + x];
+  int coarseHitsAt(double dx, double dy) => hitsEvery(coarseStep, dx, dy);
+  (double, double, int) refine(
+    double px,
+    double py,
+    int Function(double, double) score,
+  ) {
+    var bestDx = px, bestDy = py;
+    var bestHits = score(px, py);
+    for (var oy = -5; oy <= 5; oy++) {
+      for (var ox = -5; ox <= 5; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final hits = score(px + ox, py + oy);
+        if (hits > bestHits) {
+          bestHits = hits;
+          bestDx = px + ox;
+          bestDy = py + oy;
+        }
+      }
     }
-    return hits;
+    return (bestDx, bestDy, bestHits);
   }
 
   final starts = <(double, double)>{
@@ -974,10 +1001,12 @@ BdRegistration _translationRegistration(
     ),
   };
   final cells = <(double, double, int)>[];
+  final seen = <(double, double)>{};
   for (final (sx, sy) in starts) {
     for (var oy = -searchRadius; oy <= searchRadius; oy += 6) {
       for (var ox = -searchRadius; ox <= searchRadius; ox += 6) {
-        cells.add((sx + ox, sy + oy, coarseHitsAt(sx + ox, sy + oy)));
+        if (seen.add((sx + ox, sy + oy)))
+          cells.add((sx + ox, sy + oy, coarseHitsAt(sx + ox, sy + oy)));
       }
     }
   }
@@ -990,23 +1019,9 @@ BdRegistration _translationRegistration(
     );
     if (farEnough) peaks.add(cell);
   }
-  final candidates = <(double, double, int)>[];
-  for (final (px, py, _) in peaks) {
-    var bestDx = px, bestDy = py;
-    var bestHits = hitsAt(px, py);
-    for (var oy = -5; oy <= 5; oy++) {
-      for (var ox = -5; ox <= 5; ox++) {
-        if (ox == 0 && oy == 0) continue;
-        final hits = hitsAt(px + ox, py + oy);
-        if (hits > bestHits) {
-          bestHits = hits;
-          bestDx = px + ox;
-          bestDy = py + oy;
-        }
-      }
-    }
-    candidates.add((bestDx, bestDy, bestHits));
-  }
+  final candidates = [
+    for (final (px, py, _) in peaks) refine(px, py, coarseHitsAt),
+  ];
   if (candidates.isEmpty) return base;
   if (anchorRects.isNotEmpty) {
     double anchorSupport(double dx, double dy, Uint8List edges) {
@@ -1041,23 +1056,25 @@ BdRegistration _translationRegistration(
         bestScore = score;
       }
     }
+    final (dx, dy, _) = refine(best.$1, best.$2, hitsAt);
     return BdRegistration(
       scale: scale,
-      dx: best.$1,
-      dy: best.$2,
+      dx: dx,
+      dy: dy,
     )._exactSnap(points, referenceEdges, width, height);
   }
   candidates.sort((a, b) => b.$3.compareTo(a.$3));
+  final (dx, dy, _) = refine(candidates.first.$1, candidates.first.$2, hitsAt);
   return BdRegistration(
     scale: scale,
-    dx: candidates.first.$1,
-    dy: candidates.first.$2,
+    dx: dx,
+    dy: dy,
   )._exactSnap(points, referenceEdges, width, height);
 }
 
 extension _ExactSnap on BdRegistration {
   BdRegistration _exactSnap(
-    List<double> points,
+    Float64List points,
     Uint8List referenceEdges,
     int width,
     int height,
