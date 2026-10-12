@@ -206,12 +206,9 @@ const Set<HeapObjectClass> _controlTerminalDrawClasses = {
   HeapObjectClass.controlRare56,
 };
 
-bool _isInlinedSubViControl(
-  ViHeapObject o,
-  Map<int, ViHeapObject> byId,
-  Map<int, List<ViHeapObject>> childrenByOid,
-) {
+bool _isInlinedSubViControl(ViHeapObject o, ViDiagram diagram) {
   if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
+  final byId = diagram.byId;
   var parentOid = o.parentOid;
   final seen = <int>{};
   var underConstOrStruct = false;
@@ -230,11 +227,12 @@ bool _isInlinedSubViControl(
     parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
-  final kids = childrenByOid[o.oid];
-  if (kids == null) return false;
-  return kids.any(
-    (c) => c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
-  );
+  return diagram
+      .childrenOf(o)
+      .any(
+        (c) =>
+            c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
+      );
 }
 
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
@@ -310,12 +308,11 @@ Set<ViHeapObject> nodesWithin(
 /// displayed one, or when the displayed index is unknown, the frames whose contents overlap the
 /// fullest frame.
 Set<int> bdHiddenFrameOids(ViDiagram diagram) {
-  final childrenByOid = diagram.childrenByOid;
   final hidden = <int>{};
 
   void hideSubtree(ViHeapObject root) {
     hidden.add(root.oid);
-    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+    for (final child in diagram.childrenOf(root)) {
       hideSubtree(child);
     }
   }
@@ -352,7 +349,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
             if (bounds.bottom > b) b = bounds.bottom;
           }
         }
-        for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
+        for (final child in diagram.childrenOf(o)) {
           visit(child);
         }
       }
@@ -471,10 +468,9 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
 
 /// The oids under every XNode, whose contents are not drawn.
 Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
-  final childrenByOid = diagram.childrenByOid;
   final out = <int>{};
   void collect(ViHeapObject root) {
-    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+    for (final child in diagram.childrenOf(root)) {
       if (out.add(child.oid)) collect(child);
     }
   }
@@ -531,7 +527,6 @@ bool _nestedInStructure(ViHeapObject object, Map<int, ViHeapObject> byId) {
 List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
   final hidden = bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
-  final childrenByOid = diagram.childrenByOid;
   return [
     for (final object in diagram.objects)
       if (object.absBounds case final bounds?)
@@ -545,7 +540,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
             !_escapesConstantBox(object, byId) &&
             !_escapesStructureBox(object, byId) &&
             !(kBdTextLabelClasses.contains(object.objectClass) && bounds.left == 0 && bounds.bottom == 0) &&
-            !_isInlinedSubViControl(object, byId, childrenByOid) &&
+            !_isInlinedSubViControl(object, diagram) &&
             !_isScaffolding(object, byId))
           object,
   ];
@@ -793,7 +788,7 @@ Set<int> bdErrorCaseOids(ViDiagram diagram) => {
   for (final o in diagram.objects)
     if (o.objectClass == HeapObjectClass.bdStructureFrame &&
         diagram
-            .children(o.oid)
+            .childrenOf(o)
             .any(
               (k) => k.objectClass == HeapObjectClass.bdSelectorLabel && k.label?.trim() == 'No Error',
             ))
@@ -805,7 +800,7 @@ Set<int> bdDisabledObjectOids(ViDiagram diagram) {
   final out = <int>{};
   for (final o in diagram.objects) {
     if (o.objectClass != HeapObjectClass.bdDisableStructure) continue;
-    final kids = diagram.children(o.oid).toList();
+    final kids = diagram.childrenOf(o).toList();
     final selector = kids.firstWhere((k) => k.objectClass == HeapObjectClass.bdSelectorLabel, orElse: () => o);
     if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
       continue;

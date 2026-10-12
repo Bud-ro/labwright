@@ -141,12 +141,25 @@ class ViSelectorRange {
   bool get isClosed => lowBound == ViSelectorBound.inclusive && highBound == ViSelectorBound.inclusive;
 }
 
+/// Reference targets by [HeapRefKind], stored only once a kind is written.
+class ViTypedRefs {
+  List<List<int>?>? _byKind;
+
+  List<int>? operator [](HeapRefKind kind) => _byKind?[kind.index];
+
+  void operator []=(HeapRefKind kind, List<int> targets) =>
+      (_byKind ??= List<List<int>?>.filled(HeapRefKind.values.length, null))[kind.index] = targets;
+}
+
 /// One object of a record heap with every field the walk decoded from its records; unset
 /// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
 /// parent's origin and [absBounds] to the diagram's.
 class ViHeapObject {
   ViHeapObject({required this.oid, required this.kind, required this.offset})
     : objectClass = HeapObjectClass.fromCode(kind);
+
+  /// Position in [ViDiagram.objects], heap order; the diagram assigns it.
+  int index = 0;
 
   /// The object id the header declares; references name objects by it.
   final int oid;
@@ -175,7 +188,7 @@ class ViHeapObject {
   final List<int> refs = <int>[];
 
   /// Targets of every reference, by kind.
-  final Map<HeapRefKind, List<int>> typedRefs = <HeapRefKind, List<int>>{};
+  final ViTypedRefs typedRefs = ViTypedRefs();
 
   /// The `childRef` and `dcoRef` targets together.
   Iterable<int> get memberOids => <int>{
@@ -666,16 +679,48 @@ int? _formatConvChar(List<int> payload) {
   return null;
 }
 
-/// A type kind guessed from the C4 opcodes an object carries: a symbol name means a Call
-/// Library node, a path record a path, a string table an enum or ring, and a format string a
-/// number whose conversion character tells integer from float.
-ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
-  if (c4ops.contains(0xc4)) return ViTypeKind.clnNode;
-  if (c4ops.contains(0xa4)) return ViTypeKind.path;
-  if (c4ops.contains(0x2e)) return ViTypeKind.enumRing;
-  if (c4ops.contains(0x74)) {
-    final conv = formatPayload == null ? null : _formatConvChar(formatPayload);
-    return (conv != null && _intConvChars.contains(conv)) ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
+/// What an object's C4 records say about its [ViTypeKind]; [inferTypeKind] reads a set of these
+/// as the bits [bit] names.
+enum ViTypeKindEvidence {
+  /// A `symbolName` record: a Call Library node.
+  clnNode,
+
+  /// A `path` record.
+  path,
+
+  /// A `stringTable` record: an enum or ring.
+  enumRing,
+
+  /// A `formatString` record: a number.
+  numeric,
+
+  /// The format string's conversion character is `b`, `d`, `o`, `x` or `X`: an integer.
+  integerFormat;
+
+  int get bit => 1 << index;
+
+  /// The bit a record with [opcode] carries on its own; a format string needs [ofFormat].
+  static int ofOpcode(int opcode) {
+    if (opcode == HeapOpcode.symbolName.byte) return clnNode.bit;
+    if (opcode == HeapOpcode.path.byte) return path.bit;
+    if (opcode == HeapOpcode.stringTable.byte) return enumRing.bit;
+    return 0;
+  }
+
+  /// The bits a `formatString` record's [payload] carries.
+  static int ofFormat(List<int> payload) {
+    final conv = _formatConvChar(payload);
+    return numeric.bit | (conv != null && _intConvChars.contains(conv) ? integerFormat.bit : 0);
+  }
+}
+
+/// The type kind the [ViTypeKindEvidence] bits in [evidence] support, strongest first.
+ViTypeKind inferTypeKind(int evidence) {
+  if (evidence & ViTypeKindEvidence.clnNode.bit != 0) return ViTypeKind.clnNode;
+  if (evidence & ViTypeKindEvidence.path.bit != 0) return ViTypeKind.path;
+  if (evidence & ViTypeKindEvidence.enumRing.bit != 0) return ViTypeKind.enumRing;
+  if (evidence & ViTypeKindEvidence.numeric.bit != 0) {
+    return evidence & ViTypeKindEvidence.integerFormat.bit != 0 ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
   }
   return ViTypeKind.unknown;
 }

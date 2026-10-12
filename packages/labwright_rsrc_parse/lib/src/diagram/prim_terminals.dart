@@ -49,7 +49,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
   if (key == null) return null;
   var termIdx = -1;
   var at = 0;
-  for (final c in diagram.childrenByOid[parentOid] ?? const <ViHeapObject>[]) {
+  for (final c in diagram.children(parentOid)) {
     if (c.kind != kNodeEndpointDcoKind) continue;
     if (c.oid == head.oid) {
       termIdx = at;

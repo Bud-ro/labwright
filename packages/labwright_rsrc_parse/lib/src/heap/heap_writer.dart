@@ -116,7 +116,7 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
     return _Modeled(out, 6, expected: true);
   }
 
-  if (kHeapGroupCloseLeads.contains(lead) && spanLength == 2) {
+  if (isHeapGroupCloseLead(lead) && spanLength == 2) {
     return _Modeled(Uint8List.fromList([body[offset], body[offset + 1]]), 2, expected: true);
   }
 
@@ -211,7 +211,7 @@ _Modeled _modelRecord(Uint8List body, int offset, int lead, int spanLength) {
     }
   }
 
-  if (kHeapGroupOpenLeads.contains(lead)) {
+  if (isHeapGroupOpenLead(lead)) {
     if (spanLength >= 4 && isHeapTypeTag(body[offset + 3])) {
       return _Modeled(
         Uint8List.fromList([body[offset], body[offset + 1], body[offset + 2]]),

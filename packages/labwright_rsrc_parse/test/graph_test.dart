@@ -1324,4 +1324,135 @@ void resolveTypesTests() {
     );
     expect(only.typeKind, ViTypeKind.unknown);
   });
+
+  test('a child takes the parent origin current when the child opens', () {
+    final rows = <(String, List<int>, (int, int))>[
+      (
+        'bounds before the child',
+        [
+          ...open(0x7e, 1),
+          ...bounds(10, 20, 99, 99),
+          ...open(0x50, 2, tag: 0x1a),
+          ...bounds(1, 2, 5, 5),
+          ...close(0x1a),
+          ...close(),
+        ],
+        (11, 22),
+      ),
+      (
+        'bounds after the child',
+        [
+          ...open(0x7e, 1),
+          ...open(0x50, 2, tag: 0x1a),
+          ...bounds(1, 2, 5, 5),
+          ...close(0x1a),
+          ...bounds(10, 20, 99, 99),
+          ...close(),
+        ],
+        (1, 2),
+      ),
+      (
+        'only the first bounds record counts',
+        [
+          ...open(0x7e, 1),
+          ...bounds(10, 20, 99, 99),
+          ...bounds(50, 50, 99, 99),
+          ...open(0x50, 2, tag: 0x1a),
+          ...bounds(1, 2, 5, 5),
+          ...close(0x1a),
+          ...close(),
+        ],
+        (11, 22),
+      ),
+      (
+        'an unbounded ancestor passes its origin through',
+        [
+          ...open(0x7e, 1),
+          ...bounds(10, 20, 99, 99),
+          ...open(0x13, 3, tag: 0x1a),
+          ...open(0x50, 2, tag: 0x1b),
+          ...bounds(1, 2, 5, 5),
+          ...close(0x1b),
+          ...close(0x1a),
+          ...close(),
+        ],
+        (11, 22),
+      ),
+    ];
+    for (final (why, records, want) in rows) {
+      final b = dia(records).byId[2]!.absBounds!;
+      expect((b.top, b.left), want, reason: why);
+    }
+  });
+
+  test('children keep heap order; index is the position in objects; parentOf follows parentOid', () {
+    final d = dia([
+      ...open(0x7e, 1),
+      for (final oid in [5, 3, 4]) ...[...open(0x50, oid, tag: 0x1a), ...close(0x1a)],
+      ...close(),
+    ]);
+    expect(d.children(1).map((c) => c.oid), [5, 3, 4]);
+    expect(d.objects.map((o) => o.index), [0, 1, 2, 3]);
+    expect(d.objects.map((o) => d.parentOf(o)?.oid), [null, 1, 1, 1]);
+    expect([d.children(5), d.children(99)], [isEmpty, isEmpty]);
+  });
+
+  test('a hand-built diagram links parents and children from parentOid in either order', () {
+    ViHeapObject obj(int oid, [int? parentOid]) => ViHeapObject(oid: oid, kind: 0x50, offset: 0)..parentOid = parentOid;
+    for (final objects in [
+      [obj(1), obj(2, 1), obj(3, 1)],
+      [obj(2, 1), obj(3, 1), obj(1)],
+    ]) {
+      final d = ViDiagram(sectionTag: 'BDHb', objects: objects);
+      expect(d.children(1).map((o) => o.oid), [2, 3]);
+      expect(d.childrenOf(d.byId[1]!), d.children(1));
+      expect(d.parentOf(d.byId[2]!)?.oid, 1);
+      expect(d.objects.map((o) => o.index), [0, 1, 2]);
+    }
+  });
+
+  test('ViTypedRefs: unwritten kinds are null, writes are per kind', () {
+    final r = ViTypedRefs();
+    expect(HeapRefKind.values.map((k) => r[k]), everyElement(isNull));
+    r[HeapRefKind.dcoRef] = [3];
+    (r[HeapRefKind.childRef] ??= <int>[]).add(9);
+    expect(
+      [r[HeapRefKind.childRef], r[HeapRefKind.dcoRef], r[HeapRefKind.ownerRef]],
+      [
+        [9],
+        [3],
+        null,
+      ],
+    );
+  });
+
+  test('type-kind evidence: record bits, format conversion characters, strongest kind wins', () {
+    const e = ViTypeKindEvidence.values;
+    expect([0xc4, 0xa4, 0x2e, 0x74, 0x2d].map(ViTypeKindEvidence.ofOpcode), [
+      ViTypeKindEvidence.clnNode.bit,
+      ViTypeKindEvidence.path.bit,
+      ViTypeKindEvidence.enumRing.bit,
+      0,
+      0,
+    ]);
+    final numeric = ViTypeKindEvidence.numeric.bit, integer = ViTypeKindEvidence.integerFormat.bit;
+    expect(['%d', '%x', '%.3f', '%e', 'abc'].map((f) => ViTypeKindEvidence.ofFormat(f.codeUnits)), [
+      numeric | integer,
+      numeric | integer,
+      numeric,
+      numeric,
+      numeric,
+    ]);
+    final rows = <(List<ViTypeKindEvidence>, ViTypeKind)>[
+      (e, ViTypeKind.clnNode),
+      ([ViTypeKindEvidence.path, ViTypeKindEvidence.enumRing, ViTypeKindEvidence.numeric], ViTypeKind.path),
+      ([ViTypeKindEvidence.enumRing, ViTypeKindEvidence.numeric], ViTypeKind.enumRing),
+      ([ViTypeKindEvidence.numeric, ViTypeKindEvidence.integerFormat], ViTypeKind.numericInt),
+      ([ViTypeKindEvidence.numeric], ViTypeKind.numericFloat),
+      ([], ViTypeKind.unknown),
+    ];
+    for (final (evidence, want) in rows) {
+      expect(inferTypeKind(evidence.fold(0, (bits, v) => bits | v.bit)), want, reason: '$evidence');
+    }
+  });
 }

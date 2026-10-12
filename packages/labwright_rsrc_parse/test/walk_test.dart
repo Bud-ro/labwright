@@ -121,4 +121,51 @@ void main() {
       }
     }
   });
+
+  test('walkHeapObjects threads the innermost object through groups and stops at an unsized lead', () {
+    final log = <String>[];
+    walkHeapObjects<int>(
+      heapBody([
+        ...open(0x7e, 1),
+        ...hx('10 55 01 fb 0002'),
+        ...childRef(9),
+        ...open(0x50, 2, tag: 0x1a),
+        ...attrU8(0xcb, 1),
+        ...close(0x1a),
+        ...close(0x55),
+        ...close(),
+        ...close(),
+        0x99,
+      ]),
+      onObjectOpen: (_, kind, oid, parent) {
+        log.add('o$oid:${kind.toRadixString(16)}<$parent');
+        return oid;
+      },
+      onRecord: (span, enclosing) => log.add('r${span.lead.toRadixString(16)}<$enclosing'),
+      onGroupOpen: (tag, enclosing) => log.add('g${tag.toRadixString(16)}<$enclosing'),
+      onGroupClose: (tag, enclosing) => log.add('/${tag.toRadixString(16)}<$enclosing'),
+    );
+    expect(log, ['o1:7e<null', 'g55<1', 'r14<1', 'o2:50<1', 'r24<2', '/55<1']);
+  });
+
+  test('walkHeapObjects and heapObjectHeaderAt read both oid widths alike', () {
+    final rows = <(String, int, int)>[
+      ('10 19 02 fe 002a fd 1234', 0x2a, 0x1234),
+      ('11 19 02 fe 002a fd 8000 00010002', 0x2a, 0x00010002),
+    ];
+    for (final (bytes, kind, oid) in rows) {
+      final body = heapBody([...hx(bytes), ...close()]);
+      final header = heapObjectHeaderAt(body, 4)!;
+      expect((header.kind, header.oid, header.length), (kind, oid, body.length - 6), reason: bytes);
+      final seen = <(int, int)>[];
+      walkHeapObjects<int>(
+        body,
+        onObjectOpen: (_, k, o, _) {
+          seen.add((k, o));
+          return o;
+        },
+      );
+      expect(seen, [(kind, oid)], reason: bytes);
+    }
+  });
 }

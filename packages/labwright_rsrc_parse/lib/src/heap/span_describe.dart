@@ -184,14 +184,9 @@ HeapSpanInfo describeHeapSpan(Uint8List body, HeapSpan span, String sectionTag) 
         value: value,
       );
 
-  if (kHeapObjectHeaderLeads.contains(lead) &&
-      offset + 9 <= body.length &&
-      body[offset + 2] == 0x02 &&
-      body[offset + 3] == 0xfe &&
-      body[offset + 6] == 0xfd) {
-    final view = ByteData.sublistView(body);
-    final kind = view.getUint16(offset + 4);
-    final oid = view.getUint16(offset + 7);
+  final header = heapObjectHeaderAt(body, offset);
+  if (header != null) {
+    final (:kind, :oid, length: _) = header;
     final cls = HeapObjectClass.fromCode(kind);
     return make(
       HeapSpanKind.objectOpen,
@@ -212,7 +207,7 @@ HeapSpanInfo describeHeapSpan(Uint8List body, HeapSpan span, String sectionTag) 
       value: prop.value == null ? null : HeapNumberValue(prop.value!, HeapAttrWidth.u8),
     );
   }
-  if (kHeapGroupOpenLeads.contains(lead) && offset + 3 < body.length && isHeapTypeTag(body[offset + 3])) {
+  if (isHeapGroupOpenLead(lead) && offset + 3 < body.length && isHeapTypeTag(body[offset + 3])) {
     return make(
       HeapSpanKind.groupOpen,
       'Group open · tag 0x${_hex2(body[offset + 1])}',
@@ -220,7 +215,7 @@ HeapSpanInfo describeHeapSpan(Uint8List body, HeapSpan span, String sectionTag) 
           'Its close carries lead 0x${_hex2(lead - 0x08)} and the same tag.',
     );
   }
-  if (kHeapGroupCloseLeads.contains(lead)) {
+  if (isHeapGroupCloseLead(lead)) {
     final tag = offset + 1 < body.length ? body[offset + 1] : -1;
     return make(
       HeapSpanKind.groupClose,

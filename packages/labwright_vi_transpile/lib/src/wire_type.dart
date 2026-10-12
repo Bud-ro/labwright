@@ -63,7 +63,7 @@ int? lvRefnumWireDims(ViDiagram diagram, ViWire wire) {
   if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) return null;
   int? answer;
   for (final endpoint in wire.endpointOids) {
-    for (final part in diagram.childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
+    for (final part in diagram.children(endpoint)) {
       final dims = _refnumDimsOf(part);
       if (dims == null) continue;
       if (answer != null && answer != dims) return null;
