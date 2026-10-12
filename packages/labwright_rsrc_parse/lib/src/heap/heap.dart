@@ -1598,6 +1598,8 @@ int? recordSkip(Uint8List heapBytes, int offset) {
   final length = heapBytes.length;
   if (offset >= length) return null;
   final op = heapBytes[offset];
+  final fixed = _fixedRecordLength[op];
+  if (fixed != 0) return fixed;
   switch (op) {
     case 0xc4:
       if (offset + 3 > length) return null;
@@ -1636,6 +1638,21 @@ int? recordSkip(Uint8List heapBytes, int offset) {
   }
   return null;
 }
+
+/// Byte length of a record whose lead alone fixes it: the two-byte closes and the inline
+/// attribute forms; zero where the bytes after the lead decide.
+final Uint8List _fixedRecordLength = () {
+  final table = Uint8List(0x100);
+  for (var op = 0; op < 0x100; op++) {
+    final lo = op & 0x0f, hi = op >> 4;
+    if (op == 0x04 || op == 0x08 || op == 0x09) {
+      table[op] = 2;
+    } else if ((lo == 4 || lo == 5 || lo == 6) && hi != 0 && hi != 1 && hi != 0xc) {
+      table[op] = 2 + (_attrNibbleValueBytes(hi) ?? -2);
+    }
+  }
+  return table;
+}();
 
 int? _typedList(Uint8List heapBytes, int offset) {
   final length = heapBytes.length;
