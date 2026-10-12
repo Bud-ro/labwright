@@ -960,10 +960,16 @@ class HeapRecord {
 /// A string-shaped record's text, with line ends normalised; null when a byte is not text.
 String? heapRecordText(Uint8List payload) {
   if (payload.isEmpty) return null;
+  var hasReturn = false;
   for (final b in payload) {
-    if ((b < 32 && b != 0x09 && b != 0x0a && b != 0x0d) || b >= 127) return null;
+    if (b == 0x0d) {
+      hasReturn = true;
+    } else if ((b < 32 && b != 0x09 && b != 0x0a) || b >= 127) {
+      return null;
+    }
   }
-  return String.fromCharCodes(payload).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
+  final text = String.fromCharCodes(payload);
+  return hasReturn ? text.replaceAll('\r\n', '\n').replaceAll('\r', '\n') : text;
 }
 
 bool _isDescriptionTextByte(int byte) => (byte >= 32 && byte < 127) || byte == 9 || byte == 10 || byte == 13;

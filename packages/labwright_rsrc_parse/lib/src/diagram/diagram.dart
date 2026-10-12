@@ -1097,11 +1097,79 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           }
       }
     } else if (lead == 0x14) {
-      final ref = decodeHeapRefIn(view, body, offset);
-      if (ref != null) {
-        cur.addRef(ref.kind, ref.targetOid);
+      if (offset + 6 <= length && body[offset + 2] == 0x01 && body[offset + 3] == 0xfd) {
+        final wide = (body[offset + 4] & 0x80) != 0;
+        if (!wide || offset + 10 <= length) {
+          cur.addRef(
+            HeapRefKind.fromRaw(heapRawId(lead, body[offset + 1])),
+            wide ? view.getUint32(offset + 6) : view.getUint16(offset + 4),
+          );
+        }
       }
     } else if (offset + 1 < length && _modelAttributeRaws[heapRawId(lead, body[offset + 1])]) {
+      final attribute = HeapAttribute.fromRaw(heapRawId(lead, body[offset + 1]));
+      final lo = lead & 0xf, hi = lead >> 4;
+      final scalarBytes = hi >> 1;
+      if ((lo == 4 || lo == 5 || lo == 6) &&
+          (hi == 2 || hi == 4 || hi == 6 || hi == 8) &&
+          offset + 2 + scalarBytes <= length &&
+          attribute != HeapAttribute.shortText &&
+          attribute != HeapAttribute.constValue &&
+          attribute != HeapAttribute.formatStyle) {
+        final value = switch (hi) {
+          2 => body[offset + 2],
+          4 => view.getUint16(offset + 2),
+          6 => (view.getUint16(offset + 2) << 8) | body[offset + 4],
+          _ => view.getUint32(offset + 2),
+        };
+        switch (attribute) {
+          case HeapAttribute.typeDescIndex:
+            cur.typeDescIdx ??= value;
+          case HeapAttribute.objFlags:
+            cur.objFlags ??= value;
+          case HeapAttribute.termBMPs:
+            cur.termBmp ??= value;
+          case HeapAttribute.cosmColorB:
+            if (cur.objectClass == HeapObjectClass.controlLabel) cur.labelModeWord ??= value;
+          case HeapAttribute.primResID:
+            if (cur.objectClass == HeapObjectClass.bdNode && hi == 4) cur.primResId ??= value;
+          case HeapAttribute.dIdx:
+            if (cur.objectClass.isMultiFrameStructure) cur.dIdx ??= value;
+          case HeapAttribute.selectDefaultCase:
+            if (cur.objectClass == HeapObjectClass.bdStructureFrame && value != kViNoDefaultFrame) {
+              cur.defaultFrameIndex ??= value;
+            }
+          case HeapAttribute.lastSignalKind:
+            if (cur.objectClass == HeapObjectClass.signal && value <= 0xffff) cur.lastSignalKind ??= value;
+          case HeapAttribute.compressedWireTable:
+            if (cur.objectClass == HeapObjectClass.signal) {
+              cur.wireTableRaw ??= body.sublist(offset + 2, offset + 2 + scalarBytes);
+            }
+          default:
+            if (attribute.kind == HeapAttrKind.color) {
+              final rgb = value & 0xffffff;
+              if (value != 0x1 && !(rgb == 0 && value >>> 24 == 0x01)) {
+                switch (attribute) {
+                  case HeapAttribute.backgroundColor:
+                    cur.bgRgb ??= rgb;
+                  case HeapAttribute.fgColor:
+                    cur.fgRgb ??= rgb;
+                  case HeapAttribute.contentColor:
+                    cur.contentRgb ??= rgb;
+                  case HeapAttribute.structColor:
+                    cur.structRgb ??= rgb;
+                  case HeapAttribute.borderColor:
+                    cur.borderRgb ??= rgb;
+                  case HeapAttribute.plotColor:
+                    (cur.plotColors.isEmpty ? (cur.plotColors = <int>[]) : cur.plotColors).add(rgb);
+                  default:
+                    break;
+                }
+              }
+            }
+        }
+        continue;
+      }
       final attr = decodeHeapAttrIn(view, body, offset);
       if (attr == null) continue;
       final number = attr.asDouble;
