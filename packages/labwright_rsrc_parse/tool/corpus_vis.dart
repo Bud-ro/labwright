@@ -3,7 +3,7 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show extractSnippetVi, isPngBytes;
 
-/// The file extensions LabVIEW saves in the VI resource format: VIs, controls, malleable and
+/// The extensions of the single-VI files the corpus tests read: VIs, controls, malleable and
 /// template VIs and their control counterparts.
 const viExtensions = ['.vi', '.ctl', '.vim', '.vit', '.ctt'];
 

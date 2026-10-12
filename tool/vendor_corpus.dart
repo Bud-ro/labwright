@@ -46,8 +46,11 @@ const _prefetch = 4;
 
 File _tarOf(Directory work, _Source source) => File('${work.path}/${source.name}.tar.gz');
 
-bool _isVendored(Directory corpus, _Source source) =>
-    File('${corpus.path}/sources/${source.name}/manifest.json').existsSync();
+bool _isVendored(Directory corpus, _Source source) {
+  final manifest = 'sources/${source.name}/manifest.json';
+  if (!File('${corpus.path}/$manifest').existsSync()) return false;
+  return Process.runSync('git', ['-C', corpus.path, 'ls-files', '--error-unmatch', manifest]).exitCode == 0;
+}
 
 const _fileCap = 95 * 1024 * 1024;
 
@@ -216,9 +219,9 @@ List<Map<String, Object>> _packageManifest(Directory tree, _Source source) {
     final members = <Map<String, Object>>[];
     final specs = <String, String>{};
     try {
-      for (final entry in ZipDecoder().decodeBytes(bytes)) {
+      for (final entry in bytes.length > _fileCap ? const <ArchiveFile>[] : ZipDecoder().decodeBytes(bytes)) {
         if (!entry.isFile) continue;
-        final content = entry.content as List<int>;
+        final content = entry.content;
         members.add({
           'path': entry.name,
           'bytes': content.length,
@@ -230,8 +233,9 @@ List<Map<String, Object>> _packageManifest(Directory tree, _Source source) {
           specs[entry.name] = utf8.decode(content, allowMalformed: true);
         }
       }
-    } on FormatException {
+    } on Object {
       members.clear();
+      specs.clear();
     }
     out.add({
       'path': path,
@@ -247,12 +251,18 @@ List<Map<String, Object>> _packageManifest(Directory tree, _Source source) {
 }
 
 Future<bool> _ghTarball(_Source source, File tar) async {
-  final process = await Process.start('gh', ['api', 'repos/${source.repo}/tarball/${source.commit}']);
-  final errors = process.stderr.transform(utf8.decoder).join();
-  await process.stdout.pipe(tar.openWrite());
-  final code = await process.exitCode;
-  if (code != 0) stderr.writeln('  gh api failed ($code): ${(await errors).trim()}');
-  return code == 0;
+  try {
+    final process = await Process.start('gh', ['api', 'repos/${source.repo}/tarball/${source.commit}']);
+    final errors = process.stderr.transform(utf8.decoder).join();
+    await process.stdout.pipe(tar.openWrite());
+    final code = await process.exitCode;
+    final message = (await errors).trim();
+    if (code != 0) stderr.writeln('  gh api failed ($code): $message');
+    return code == 0;
+  } on IOException catch (e) {
+    stderr.writeln('  download failed: $e');
+    return false;
+  }
 }
 
 Future<String> _ghSpdx(String repo) async {
@@ -270,7 +280,10 @@ File? _findLicense(Directory tree) {
           .toList()
         ..sort((a, b) {
           final depth = a.path.split('/').length.compareTo(b.path.split('/').length);
-          return depth != 0 ? depth : a.path.compareTo(b.path);
+          if (depth != 0) return depth;
+          final named =
+              (b.uri.pathSegments.last == 'LICENSE.md' ? 1 : 0) - (a.uri.pathSegments.last == 'LICENSE.md' ? 1 : 0);
+          return named != 0 ? named : a.path.compareTo(b.path);
         });
   return candidates.firstOrNull;
 }
@@ -332,7 +345,7 @@ _Selection _select(Directory tree, List<String> keep) {
               if (lower == tail || lower.endsWith('/$tail')) byLowerPath[lower]!,
           ];
           if (matches.length == 1) return matches.single;
-          if (matches.isEmpty && k < ref.segments.length) return null;
+          if (matches.length > 1) return null;
         }
         return null;
       case _RefKind.external:
@@ -359,7 +372,7 @@ _Selection _select(Directory tree, List<String> keep) {
     final lower = path.toLowerCase();
     final junk =
         _notVendored.any((ext) => lower.endsWith(ext.toLowerCase())) ||
-        RegExp(r'\.z\d\d$').hasMatch(lower) ||
+        _splitArchive.hasMatch(lower) ||
         path.split('/').any(_notVendoredDirs.contains);
     if (!junk && all[path]! <= _treeFileCap) admit(path, 'tree');
   }
@@ -399,7 +412,7 @@ Iterable<_Ref> _rsrcRefs(Uint8List bytes) sync* {
       final extent = ViPath.extentAt(region, i);
       if (extent == null) continue;
       final viPath = ViPath(Uint8List.sublistView(region, i, i + extent));
-      if (!seen.add(viPath.text)) continue;
+      if (!seen.add(viPath.text.toLowerCase())) continue;
       i += extent - 1;
       switch (viPath.form) {
         case ViPathForm.relative:
@@ -422,11 +435,20 @@ Iterable<_Ref> _rsrcRefs(Uint8List bytes) sync* {
 }
 
 final _xmlUrl = RegExp(r'\bURL="([^"]+)"');
+final _separators = RegExp(r'[\\/]');
+final _tokenBoundary = RegExp(r'[\x00-\x1f"<>|*?=]');
+final _splitArchive = RegExp(r'\.z\d\d$');
 
 Iterable<_Ref> _xmlRefs(String xml) sync* {
   for (final match in _xmlUrl.allMatches(xml)) {
-    final text = match.group(1)!.replaceAll('&amp;', '&').replaceAll('&quot;', '"').replaceAll('&apos;', "'");
-    final parts = text.split(RegExp(r'[\\/]'));
+    final text = match
+        .group(1)!
+        .replaceAll('&lt;', '<')
+        .replaceAll('&gt;', '>')
+        .replaceAll('&quot;', '"')
+        .replaceAll('&apos;', "'")
+        .replaceAll('&amp;', '&');
+    final parts = text.split(_separators);
     if (parts.length == 1) {
       yield _Ref(_RefKind.name, parts, text: text);
     } else if (text.startsWith('/<') || text.startsWith('<')) {
@@ -455,7 +477,8 @@ final _fileToken = RegExp(
   caseSensitive: false,
 );
 
-Iterable<_Ref> _teststandRefs(Uint8List bytes) => _tokenRefs([latin1.decode(bytes), _utf16le(bytes)], {});
+Iterable<_Ref> _teststandRefs(Uint8List bytes) =>
+    _tokenRefs([latin1.decode(bytes), if (bytes.contains(0)) _utf16le(bytes)], {});
 
 Iterable<_Ref> _tokenRefs(List<String> texts, Set<String> seen) sync* {
   for (final text in texts) {
@@ -464,9 +487,9 @@ Iterable<_Ref> _tokenRefs(List<String> texts, Set<String> seen) sync* {
       if (!seen.add(token.toLowerCase())) continue;
       final start = match.start;
       final prefix = text.substring(start > 400 ? start - 400 : 0, start);
-      final pathStart = prefix.lastIndexOf(RegExp(r'[\x00-\x1f"<>|*?=]'));
+      final pathStart = prefix.lastIndexOf(_tokenBoundary);
       final full = '${prefix.substring(pathStart + 1)}$token'.trim();
-      final parts = full.split(RegExp(r'[\\/]'));
+      final parts = full.split(_separators);
       if (parts.length == 1) {
         yield _Ref(_RefKind.name, [token], text: token);
       } else if (parts.first.length == 2 && parts.first.endsWith(':') || full.startsWith('<')) {
@@ -489,13 +512,8 @@ Iterable<_Ref> _tokenRefs(List<String> texts, Set<String> seen) sync* {
 }
 
 String _utf16le(Uint8List bytes) {
-  final even = bytes.length & ~1;
-  final units = Uint16List.view(bytes.buffer, bytes.offsetInBytes, even ~/ 2);
-  final out = StringBuffer();
-  for (final unit in units) {
-    out.writeCharCode(unit < 0xd800 || unit > 0xdfff ? unit : 0x20);
-  }
-  return out.toString();
+  final units = Uint16List.view(bytes.buffer, bytes.offsetInBytes, (bytes.length & ~1) ~/ 2);
+  return String.fromCharCodes([for (final unit in units) unit < 0xd800 || unit > 0xdfff ? unit : 0x20]);
 }
 
 void _appendSourcesJson(Directory corpus, _Source source, String spdx, int files, int bytes) {
@@ -518,11 +536,12 @@ void _appendSourcesJson(Directory corpus, _Source source, String spdx, int files
 }
 
 Future<void> _commit(Directory corpus, _Source source, int files, int bytes) async {
-  final add = await Process.run('git', ['-C', corpus.path, 'add', 'sources/${source.name}', 'sources.json']);
+  final paths = ['sources/${source.name}', 'sources.json'];
+  final add = await Process.run('git', ['-C', corpus.path, 'add', ...paths]);
   if (add.exitCode != 0) throw StateError('git add failed: ${add.stderr}');
   final message =
       'Vendor ${source.repo} @ ${source.commit.substring(0, 12)}\n\n'
       '$files files, ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB.\n';
-  final commit = await Process.run('git', ['-C', corpus.path, 'commit', '-q', '-m', message]);
+  final commit = await Process.run('git', ['-C', corpus.path, 'commit', '-q', '--only', '-m', message, '--', ...paths]);
   if (commit.exitCode != 0) throw StateError('git commit failed: ${commit.stderr}');
 }
