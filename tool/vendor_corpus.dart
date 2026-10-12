@@ -2,6 +2,7 @@ import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
@@ -174,6 +175,12 @@ Future<bool> _vendor(Directory corpus, _Source source, List<String> keep, Future
       bytes += content.length;
     }
     File('${dest.path}/LICENSE.md').writeAsBytesSync(license.readAsBytesSync());
+    final packages = _packageManifest(tree, source);
+    if (packages.isNotEmpty) {
+      File(
+        '${dest.path}/vi-package-manifest.json',
+      ).writeAsStringSync('${const JsonEncoder.withIndent(' ').convert(packages)}\n');
+    }
     final manifest = {
       'repo': source.repo,
       'url': 'https://github.com/${source.repo}',
@@ -194,6 +201,49 @@ Future<bool> _vendor(Directory corpus, _Source source, List<String> keep, Future
     if (tar.existsSync()) tar.deleteSync();
     if (tree.existsSync()) tree.deleteSync(recursive: true);
   }
+}
+
+const _packageExtensions = ['.vip', '.vipc'];
+
+List<Map<String, Object>> _packageManifest(Directory tree, _Source source) {
+  final out = <Map<String, Object>>[];
+  final files = tree.listSync(recursive: true, followLinks: false).whereType<File>().toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
+  for (final file in files) {
+    final path = _relative(tree, file);
+    if (!_packageExtensions.any(path.toLowerCase().endsWith)) continue;
+    final bytes = file.readAsBytesSync();
+    final members = <Map<String, Object>>[];
+    final specs = <String, String>{};
+    try {
+      for (final entry in ZipDecoder().decodeBytes(bytes)) {
+        if (!entry.isFile) continue;
+        final content = entry.content as List<int>;
+        members.add({
+          'path': entry.name,
+          'bytes': content.length,
+          'crc32': entry.crc32 ?? 0,
+          'sha256': sha256.convert(content).toString(),
+        });
+        final name = entry.name.split('/').last;
+        if (name == 'spec' || name.endsWith('.spec') || name == 'config.xml') {
+          specs[entry.name] = utf8.decode(content, allowMalformed: true);
+        }
+      }
+    } on FormatException {
+      members.clear();
+    }
+    out.add({
+      'path': path,
+      'url':
+          'https://raw.githubusercontent.com/${source.repo}/${source.commit}/${path.split('/').map(Uri.encodeComponent).join('/')}',
+      'bytes': bytes.length,
+      'sha256': sha256.convert(bytes).toString(),
+      'members': members,
+      'spec': specs,
+    });
+  }
+  return out;
 }
 
 Future<bool> _ghTarball(_Source source, File tar) async {
