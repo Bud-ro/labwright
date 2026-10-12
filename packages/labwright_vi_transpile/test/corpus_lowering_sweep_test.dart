@@ -474,7 +474,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
       final lower = name.toLowerCase();
       if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) continue;
       final ports = [
-        for (final holder in diagram.children(node.oid))
+        for (final holder in diagram.childrenOf(node))
           if (holder.kind == kNodeEndpointDcoKind) holder.oid,
       ];
       if (!ports.any(endpoints.contains)) continue;
@@ -699,8 +699,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
       if (node.kind != LvNodeClass.indexArray.code) continue;
       bump('idx');
       final roles = [
-        for (final holder in diagram.children(node.oid))
-          if (holder.kind == kNodeEndpointDcoKind) diagram.children(holder.oid).firstOrNull?.objFlags ?? 0,
+        for (final holder in diagram.childrenOf(node))
+          if (holder.kind == kNodeEndpointDcoKind) diagram.childrenOf(holder).firstOrNull?.objFlags ?? 0,
       ];
       bump(_indexArrayShape(roles) ? 'idx.regular' : 'idx.irregular');
       for (final role in roles) {
@@ -844,7 +844,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
       if (name == null || !(name.endsWith('.vi') || name.endsWith('.vim'))) continue;
       final width = paneWidth(name);
       if (width == null || width == 0) continue;
-      final holders = diagram.children(node.oid).where((kid) => kid.kind == kNodeEndpointDcoKind).length;
+      final holders = diagram.childrenOf(node).where((kid) => kid.kind == kNodeEndpointDcoKind).length;
       final tag = 'pane.0x${node.kind.toRadixString(16)}';
       bump(holders == width ? '$tag.equal' : '$tag.differs');
     }

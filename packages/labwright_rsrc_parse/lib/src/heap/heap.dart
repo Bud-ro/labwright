@@ -49,14 +49,20 @@ import '../decode.dart';
 /// Lead byte of a C4 record.
 const int kHeapRecordPrefix = 0xc4;
 
-/// Lead bytes that can open an object.
-const Set<int> kHeapObjectHeaderLeads = {0x10, 0x11, 0x12};
+/// Whether [lead] can open an object, `0x10`–`0x12`.
+bool isHeapObjectHeaderLead(int lead) => lead >= 0x10 && lead <= 0x12;
 
-/// Lead bytes that can open a group.
-const Set<int> kHeapGroupOpenLeads = {0x10, 0x11, 0x12, 0x13};
+/// Whether [lead] can open a group, `0x10`–`0x13`.
+bool isHeapGroupOpenLead(int lead) => lead >= 0x10 && lead <= 0x13;
 
-/// Lead bytes that close a group.
-const Set<int> kHeapGroupCloseLeads = {0x08, 0x09, 0x0a, 0x0b};
+/// Whether [lead] closes a group, `0x08`–`0x0b`.
+bool isHeapGroupCloseLead(int lead) => lead >= 0x08 && lead <= 0x0b;
+
+/// The full id of an attribute or reference record, `(lead & 3) << 8 | id`.
+int heapRawId(int lead, int id) => ((lead & 3) << 8) | id;
+
+/// Size of the [heapRawId] space, ten bits.
+const int kHeapRawIdCount = 0x400;
 
 /// Whether [tagByte] is one of the typed-list tags `fb`, `fe`, `fd`.
 bool isHeapTypeTag(int tagByte) => tagByte == 0xfb || tagByte == 0xfe || tagByte == 0xfd;
@@ -599,7 +605,7 @@ enum HeapAttribute {
   final AttrConfidence confidence;
 
   static final List<HeapAttribute> _byRaw = () {
-    final table = List<HeapAttribute>.filled(0x400, unknown);
+    final table = List<HeapAttribute>.filled(kHeapRawIdCount, unknown);
     for (final attribute in values) {
       if (attribute != unknown) table[attribute.raw] = attribute;
     }
@@ -714,15 +720,14 @@ String? _asciiFromInt(int v) {
   return String.fromCharCodes(chars.reversed);
 }
 
-const Map<int, int> _attrNibbleValueBytes = {0x0: 0, 0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
-
-int _attrNibbleValueBytesAt(int nibble) => switch (nibble) {
+/// Value bytes an inline attribute's high nibble declares; null for a nibble that is not one.
+int? _attrNibbleValueBytes(int nibble) => switch (nibble) {
   0x0 || 0xe => 0,
   0x2 => 1,
   0x4 => 2,
   0x6 => 3,
   0x8 => 4,
-  _ => -1,
+  _ => null,
 };
 
 /// The attribute record at [offset], or null when the bytes there are not one.
@@ -730,10 +735,11 @@ HeapAttr? decodeHeapAttr(Uint8List body, int offset) => decodeHeapAttrIn(ByteDat
 
 /// [decodeHeapAttr] with the caller's [ByteData] view of [body].
 HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
+  assert(view.offsetInBytes == body.offsetInBytes && view.lengthInBytes == body.lengthInBytes);
   if (offset + 2 > body.length) return null;
   final op = body[offset];
   final id = body[offset + 1];
-  final raw = ((op & 3) << 8) | id;
+  final raw = heapRawId(op, id);
 
   if (op == 0xc6 && offset + 3 <= body.length && _inlineStringRaws.contains(raw) && body[offset + 2] != 0xff) {
     final len = body[offset + 2];
@@ -847,7 +853,7 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
 
   final lo = op & 0xf, hi = op >> 4;
   if (lo == 4 || lo == 5 || lo == 6) {
-    final valueBytes = _attrNibbleValueBytes[hi];
+    final valueBytes = _attrNibbleValueBytes(hi);
     if (valueBytes == null) return null;
     if (hi == 0x0 && op != 0x04 && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
       return null;
@@ -1268,21 +1274,26 @@ bool isTypeDescriptorToken(int op) => op == 0x04;
 
 bool _isObjectHeader(Uint8List body, int offset) =>
     offset + 9 <= body.length &&
-    body[offset] >= 0x10 &&
-    body[offset] <= 0x12 &&
+    isHeapObjectHeaderLead(body[offset]) &&
     body[offset + 2] == 0x02 &&
     body[offset + 3] == 0xfe &&
     body[offset + 6] == 0xfd;
 
+int _objectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
+
+/// 13 for the u32 oid form, else 9.
+int _objectHeaderLength(Uint8List body, int offset) =>
+    (body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length ? 13 : 9;
+
+int _objectHeaderOid(Uint8List body, int offset, int length) => length == 13
+    ? body[offset + 9] << 24 | body[offset + 10] << 16 | body[offset + 11] << 8 | body[offset + 12]
+    : body[offset + 7] << 8 | body[offset + 8];
+
 /// The object header at [offset], or null when the bytes there are not one.
 ({int kind, int oid, int length})? heapObjectHeaderAt(Uint8List body, int offset) {
   if (!_isObjectHeader(body, offset)) return null;
-  final view = ByteData.sublistView(body);
-  final kind = view.getUint16(offset + 4);
-  if ((body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length) {
-    return (kind: kind, oid: view.getUint32(offset + 9), length: 13);
-  }
-  return (kind: kind, oid: view.getUint16(offset + 7), length: 9);
+  final length = _objectHeaderLength(body, offset);
+  return (kind: _objectHeaderKind(body, offset), oid: _objectHeaderOid(body, offset, length), length: length);
 }
 
 /// One decoded property token and, for the tagged-list form, its first item.
@@ -1373,12 +1384,15 @@ enum HeapRefKind {
 
   final AttrConfidence confidence;
 
-  static final Map<int, HeapRefKind> _byRaw = {
-    for (final refKind in values)
-      if (refKind != objectRef) refKind.raw: refKind,
-  };
+  static final List<HeapRefKind> _byRaw = () {
+    final table = List<HeapRefKind>.filled(kHeapRawIdCount, objectRef);
+    for (final refKind in values) {
+      if (refKind != objectRef) table[refKind.raw] = refKind;
+    }
+    return table;
+  }();
 
-  static HeapRefKind fromRaw(int raw) => _byRaw[raw] ?? objectRef;
+  static HeapRefKind fromRaw(int raw) => raw >= 0 && raw < _byRaw.length ? _byRaw[raw] : objectRef;
 }
 
 /// One decoded reference record.
@@ -1398,11 +1412,12 @@ HeapRef? decodeHeapRef(Uint8List body, int offset) => decodeHeapRefIn(ByteData.s
 
 /// [decodeHeapRef] with the caller's [ByteData] view of [body].
 HeapRef? decodeHeapRefIn(ByteData view, Uint8List body, int offset) {
+  assert(view.offsetInBytes == body.offsetInBytes && view.lengthInBytes == body.lengthInBytes);
   if (offset + 6 > body.length) return null;
   final lead = body[offset];
   if (lead < 0x14 || lead > 0x17) return null;
   if (body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
-  final raw = ((lead & 3) << 8) | body[offset + 1];
+  final raw = heapRawId(lead, body[offset + 1]);
   if ((body[offset + 4] & 0x80) != 0) {
     if (offset + 10 > body.length) return null;
     return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: view.getUint32(offset + 6), length: 10);
@@ -1441,8 +1456,8 @@ HeapTierGrade heapDecodeTier(Uint8List body, int offset, int lead, String sectio
   const valueKindKnown = HeapTierGrade(HeapDecodeTier.valueKindKnown);
   const framed = HeapTierGrade(HeapDecodeTier.framed);
   if (_isObjectHeader(body, offset)) return semantic;
-  if (kHeapGroupCloseLeads.contains(lead)) return semantic;
-  if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
+  if (isHeapGroupCloseLead(lead)) return semantic;
+  if (isHeapGroupOpenLead(lead) && offset + 4 <= body.length && isHeapTypeTag(body[offset + 3])) {
     return semantic;
   }
   if (lead >= 0x14 && lead <= 0x17) {
@@ -1511,12 +1526,12 @@ HeapTierTotals measureHeapTiers(Uint8List body, String sectionTag) {
       semantic += span.length;
       continue;
     }
-    if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
+    if (isHeapGroupOpenLead(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
       enclosingBeforeOpen.add(innermost);
       semantic += span.length;
       continue;
     }
-    if (kHeapGroupCloseLeads.contains(lead)) {
+    if (isHeapGroupCloseLead(lead)) {
       if (enclosingBeforeOpen.isNotEmpty) innermost = enclosingBeforeOpen.removeLast();
       semantic += span.length;
       continue;
@@ -1571,8 +1586,8 @@ int? recordSkip(Uint8List heapBytes, int offset) {
   final lo = op & 0x0f;
   if ((lo == 4 || lo == 5 || lo == 6) && op >> 4 != 0) {
     if (op >> 4 == 0xc) return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
-    final valueBytes = _attrNibbleValueBytesAt(op >> 4);
-    if (valueBytes >= 0) return 2 + valueBytes;
+    final valueBytes = _attrNibbleValueBytes(op >> 4);
+    if (valueBytes != null) return 2 + valueBytes;
   }
   final hi = op >> 4;
   if (hi == 0 || hi == 1) {
@@ -1630,7 +1645,8 @@ HeapWalk walkHeapBody(Uint8List body) {
 }
 
 /// Replays a heap body as an object tree: [onObjectOpen] returns the scope for each object
-/// header, groups push a null scope, and [onRecord] sees every other span with the innermost scope.
+/// header, a group keeps the scope it opened in, and [onRecord] sees every other span with the
+/// innermost scope. The walk stops at the first record [recordSkip] cannot size.
 void walkHeapObjects<T extends Object>(
   Uint8List body, {
   required T Function(HeapSpan span, int kind, int oid, T? parent) onObjectOpen,
@@ -1638,36 +1654,30 @@ void walkHeapObjects<T extends Object>(
   void Function(int groupTag, T? enclosing)? onGroupOpen,
   void Function(int groupTag, T? enclosing)? onGroupClose,
 }) {
-  final innermost = <T?>[];
-  final groupTags = <int>[];
+  final scopes = <T?>[];
+  final groupTags = <int?>[];
   final length = body.length;
-  var depth = 0;
   var offset = 4;
   while (offset < length) {
     final step = recordSkip(body, offset);
     if (step == null || offset + step > length) return;
     final lead = body[offset];
-    final enclosing = depth == 0 ? null : innermost[depth - 1];
-    if (lead >= 0x10 && lead <= 0x12 && _isObjectHeader(body, offset)) {
-      final kind = body[offset + 4] << 8 | body[offset + 5];
-      final oid = (body[offset + 7] & 0x80) != 0 && offset + 13 <= length
-          ? body[offset + 9] << 24 | body[offset + 10] << 16 | body[offset + 11] << 8 | body[offset + 12]
-          : body[offset + 7] << 8 | body[offset + 8];
-      final scope = onObjectOpen(HeapSpan(offset: offset, length: step, lead: lead), kind, oid, enclosing);
-      innermost.add(scope);
-      groupTags.add(-1);
-      depth++;
-    } else if (lead >= 0x10 && lead <= 0x13 && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
-      innermost.add(enclosing);
+    final enclosing = scopes.isEmpty ? null : scopes.last;
+    if (isHeapObjectHeaderLead(lead) && _isObjectHeader(body, offset)) {
+      final headerLength = _objectHeaderLength(body, offset);
+      final kind = _objectHeaderKind(body, offset);
+      final oid = _objectHeaderOid(body, offset, headerLength);
+      scopes.add(onObjectOpen(HeapSpan(offset: offset, length: step, lead: lead), kind, oid, enclosing));
+      groupTags.add(null);
+    } else if (isHeapGroupOpenLead(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
+      scopes.add(enclosing);
       groupTags.add(body[offset + 1]);
-      depth++;
       onGroupOpen?.call(body[offset + 1], enclosing);
-    } else if (lead >= 0x08 && lead <= 0x0b) {
-      if (depth > 0) {
-        depth--;
-        innermost.removeLast();
+    } else if (isHeapGroupCloseLead(lead)) {
+      if (scopes.isNotEmpty) {
+        scopes.removeLast();
         final closedTag = groupTags.removeLast();
-        if (closedTag >= 0) onGroupClose?.call(closedTag, depth == 0 ? null : innermost[depth - 1]);
+        if (closedTag != null) onGroupClose?.call(closedTag, scopes.isEmpty ? null : scopes.last);
       }
     } else {
       onRecord?.call(HeapSpan(offset: offset, length: step, lead: lead), enclosing);

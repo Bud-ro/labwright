@@ -141,8 +141,6 @@ class ViSelectorRange {
   bool get isClosed => lowBound == ViSelectorBound.inclusive && highBound == ViSelectorBound.inclusive;
 }
 
-/// One object of a record heap with every field the walk decoded from its records; unset
-/// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
 /// Reference targets by [HeapRefKind], stored only once a kind is written.
 class ViTypedRefs {
   List<List<int>?>? _byKind;
@@ -153,13 +151,15 @@ class ViTypedRefs {
       (_byKind ??= List<List<int>?>.filled(HeapRefKind.values.length, null))[kind.index] = targets;
 }
 
+/// One object of a record heap with every field the walk decoded from its records; unset
+/// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
 /// parent's origin and [absBounds] to the diagram's.
 class ViHeapObject {
-  ViHeapObject({required this.oid, required this.kind, required this.offset, this.index = 0})
+  ViHeapObject({required this.oid, required this.kind, required this.offset})
     : objectClass = HeapObjectClass.fromCode(kind);
 
-  /// Position in the diagram's object list, heap order.
-  final int index;
+  /// Position in [ViDiagram.objects], heap order; the diagram assigns it.
+  int index = 0;
 
   /// The object id the header declares; references name objects by it.
   final int oid;
@@ -189,18 +189,6 @@ class ViHeapObject {
 
   /// Targets of every reference, by kind.
   final ViTypedRefs typedRefs = ViTypedRefs();
-
-  /// The object whose records enclose this one in the heap, when any does.
-  ViHeapObject? parent;
-
-  /// Direct children in heap order.
-  List<ViHeapObject> children = const <ViHeapObject>[];
-
-  /// Diagram-space origin that [bounds] is relative to: the parent's origin until this object's
-  /// own bounds record arrives, its absolute top-left after.
-  int originTop = 0;
-
-  int originLeft = 0;
 
   /// The `childRef` and `dcoRef` targets together.
   Iterable<int> get memberOids => <int>{
@@ -691,22 +679,48 @@ int? _formatConvChar(List<int> payload) {
   return null;
 }
 
-/// A type kind guessed from the C4 opcodes an object carries: a symbol name means a Call
-/// Library node, a path record a path, a string table an enum or ring, and a format string a
-/// number whose conversion character tells integer from float.
-ViTypeKind inferTypeKind({
-  required bool clnNode,
-  required bool path,
-  required bool enumRing,
-  required bool numeric,
-  List<int>? formatPayload,
-}) {
-  if (clnNode) return ViTypeKind.clnNode;
-  if (path) return ViTypeKind.path;
-  if (enumRing) return ViTypeKind.enumRing;
-  if (numeric) {
-    final conv = formatPayload == null ? null : _formatConvChar(formatPayload);
-    return (conv != null && _intConvChars.contains(conv)) ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
+/// What an object's C4 records say about its [ViTypeKind]; [inferTypeKind] reads a set of these
+/// as the bits [bit] names.
+enum ViTypeKindEvidence {
+  /// A `symbolName` record: a Call Library node.
+  clnNode,
+
+  /// A `path` record.
+  path,
+
+  /// A `stringTable` record: an enum or ring.
+  enumRing,
+
+  /// A `formatString` record: a number.
+  numeric,
+
+  /// The format string's conversion character is `b`, `d`, `o`, `x` or `X`: an integer.
+  integerFormat;
+
+  int get bit => 1 << index;
+
+  /// The bit a record with [opcode] carries on its own; a format string needs [ofFormat].
+  static int ofOpcode(int opcode) {
+    if (opcode == HeapOpcode.symbolName.byte) return clnNode.bit;
+    if (opcode == HeapOpcode.path.byte) return path.bit;
+    if (opcode == HeapOpcode.stringTable.byte) return enumRing.bit;
+    return 0;
+  }
+
+  /// The bits a `formatString` record's [payload] carries.
+  static int ofFormat(List<int> payload) {
+    final conv = _formatConvChar(payload);
+    return numeric.bit | (conv != null && _intConvChars.contains(conv) ? integerFormat.bit : 0);
+  }
+}
+
+/// The type kind the [ViTypeKindEvidence] bits in [evidence] support, strongest first.
+ViTypeKind inferTypeKind(int evidence) {
+  if (evidence & ViTypeKindEvidence.clnNode.bit != 0) return ViTypeKind.clnNode;
+  if (evidence & ViTypeKindEvidence.path.bit != 0) return ViTypeKind.path;
+  if (evidence & ViTypeKindEvidence.enumRing.bit != 0) return ViTypeKind.enumRing;
+  if (evidence & ViTypeKindEvidence.numeric.bit != 0) {
+    return evidence & ViTypeKindEvidence.integerFormat.bit != 0 ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
   }
   return ViTypeKind.unknown;
 }

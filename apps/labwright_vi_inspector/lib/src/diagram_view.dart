@@ -675,7 +675,7 @@ PrimIconArt? primIconArtFor(
   if (key == null) return null;
   if (key >= 0) return icons[key];
   final terms = diagram
-      .children(object.oid)
+      .childrenOf(object)
       .where((c) => c.kind == kNodeEndpointDcoKind)
       .length;
   final variant = icons[classVariantIconKey(object.kind, terms)];
@@ -1611,7 +1611,7 @@ class BdDiagramPainter extends CustomPainter {
           break;
         case HeapObjectClass.bdDisableStructure:
           final showsDisabled = scene.diagram
-              .children(object.oid)
+              .childrenOf(object)
               .any(
                 (k) =>
                     k.objectClass == HeapObjectClass.bdSelectorLabel &&
@@ -1786,7 +1786,7 @@ class BdDiagramPainter extends CustomPainter {
   void _paintTerminal(Canvas canvas, ViHeapObject object, Rect rect) {
     var box = rect;
     if (constValues[object.oid] != null) {
-      final kids = scene.diagram.children(object.oid);
+      final kids = scene.diagram.childrenOf(object);
       final named = kids.any(
         (c) =>
             c.objectClass == HeapObjectClass.controlLabel &&
@@ -1963,7 +1963,7 @@ class BdDiagramPainter extends CustomPainter {
       final radixPart = marker == null
           ? null
           : scene.diagram
-                .children(object.oid)
+                .childrenOf(object)
                 .where(
                   (part) =>
                       part.objectClass == HeapObjectClass.controlSubPart &&
@@ -2163,9 +2163,9 @@ class BdDiagramPainter extends CustomPainter {
     final cells = <HeapRect>[];
     final nodeH = object.absBounds!.bottom - object.absBounds!.top;
     final nodeW = object.absBounds!.right - object.absBounds!.left;
-    for (final dco in scene.diagram.children(object.oid)) {
+    for (final dco in scene.diagram.childrenOf(object)) {
       if (dco.kind != kNodeEndpointDcoKind) continue;
-      for (final t in scene.diagram.children(dco.oid)) {
+      for (final t in scene.diagram.childrenOf(dco)) {
         final tb = t.termBounds;
         if (t.objectClass != HeapObjectClass.bdTerminalStrip || tb == null)
           continue;
@@ -3743,7 +3743,7 @@ class BdDiagramPainter extends CustomPainter {
       }
       var cum = 0.0;
       final frames = scene.diagram
-          .children(seq.oid)
+          .childrenOf(seq)
           .where(
             (c) =>
                 c.objectClass == HeapObjectClass.bdSequenceFrame &&
@@ -3760,7 +3760,7 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   void _drawArrayConstantShell(Canvas canvas, ViHeapObject shell) {
-    final children = scene.diagram.children(shell.oid).toList();
+    final children = scene.diagram.childrenOf(shell).toList();
     ViTypeKind elementType = ViTypeKind.unknown;
     ViHeapObject? element;
     for (final c in children) {
@@ -3808,7 +3808,7 @@ class BdDiagramPainter extends CustomPainter {
       if (c.objectClass == HeapObjectClass.numericControl &&
           b != null &&
           !identical(c, element)) {
-        for (final part in scene.diagram.children(c.oid)) {
+        for (final part in scene.diagram.childrenOf(c)) {
           final pb = part.absBounds;
           if (pb == null) continue;
           if (part.objectClass == HeapObjectClass.controlSubPart ||
@@ -3882,7 +3882,7 @@ class BdDiagramPainter extends CustomPainter {
     final format = bdDisplayFormatOf(scene.diagram, element.oid);
     final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
     var radixDx = 2, radixDy = 3;
-    for (final part in scene.diagram.children(element.oid)) {
+    for (final part in scene.diagram.childrenOf(element)) {
       if (part.objectClass == HeapObjectClass.controlSubPart &&
           part.absBounds != null) {
         radixDx = part.absBounds!.left - cell.left;

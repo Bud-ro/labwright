@@ -89,7 +89,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
       if (ranges.isEmpty) continue;
       if (stated[structure.oid] case final count? when count != ranges.length) bump('countDisagree');
       final frameCount = diagram
-          .children(structure.oid)
+          .childrenOf(structure)
           .where((child) => child.objectClass == HeapObjectClass.bdFrame)
           .length;
       for (final range in ranges) {
@@ -102,7 +102,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
       }
 
       final selectorLabel = diagram
-          .children(structure.oid)
+          .childrenOf(structure)
           .where((child) => child.objectClass == HeapObjectClass.bdSelectorLabel)
           .map((child) => child.label)
           .whereType<String>()

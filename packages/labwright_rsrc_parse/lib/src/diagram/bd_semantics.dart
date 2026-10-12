@@ -206,11 +206,9 @@ const Set<HeapObjectClass> _controlTerminalDrawClasses = {
   HeapObjectClass.controlRare56,
 };
 
-bool _isInlinedSubViControl(
-  ViHeapObject o,
-  Map<int, ViHeapObject> byId,
-) {
+bool _isInlinedSubViControl(ViHeapObject o, ViDiagram diagram) {
   if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
+  final byId = diagram.byId;
   var parentOid = o.parentOid;
   final seen = <int>{};
   var underConstOrStruct = false;
@@ -229,9 +227,12 @@ bool _isInlinedSubViControl(
     parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
-  return o.children.any(
-    (c) => c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
-  );
+  return diagram
+      .childrenOf(o)
+      .any(
+        (c) =>
+            c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
+      );
 }
 
 bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
@@ -311,7 +312,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
 
   void hideSubtree(ViHeapObject root) {
     hidden.add(root.oid);
-    for (final child in root.children) {
+    for (final child in diagram.childrenOf(root)) {
       hideSubtree(child);
     }
   }
@@ -348,7 +349,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
             if (bounds.bottom > b) b = bounds.bottom;
           }
         }
-        for (final child in o.children) {
+        for (final child in diagram.childrenOf(o)) {
           visit(child);
         }
       }
@@ -469,7 +470,7 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
 Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
   final out = <int>{};
   void collect(ViHeapObject root) {
-    for (final child in root.children) {
+    for (final child in diagram.childrenOf(root)) {
       if (out.add(child.oid)) collect(child);
     }
   }
@@ -539,7 +540,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
             !_escapesConstantBox(object, byId) &&
             !_escapesStructureBox(object, byId) &&
             !(kBdTextLabelClasses.contains(object.objectClass) && bounds.left == 0 && bounds.bottom == 0) &&
-            !_isInlinedSubViControl(object, byId) &&
+            !_isInlinedSubViControl(object, diagram) &&
             !_isScaffolding(object, byId))
           object,
   ];
@@ -787,7 +788,7 @@ Set<int> bdErrorCaseOids(ViDiagram diagram) => {
   for (final o in diagram.objects)
     if (o.objectClass == HeapObjectClass.bdStructureFrame &&
         diagram
-            .children(o.oid)
+            .childrenOf(o)
             .any(
               (k) => k.objectClass == HeapObjectClass.bdSelectorLabel && k.label?.trim() == 'No Error',
             ))
@@ -799,7 +800,7 @@ Set<int> bdDisabledObjectOids(ViDiagram diagram) {
   final out = <int>{};
   for (final o in diagram.objects) {
     if (o.objectClass != HeapObjectClass.bdDisableStructure) continue;
-    final kids = diagram.children(o.oid).toList();
+    final kids = diagram.childrenOf(o).toList();
     final selector = kids.firstWhere((k) => k.objectClass == HeapObjectClass.bdSelectorLabel, orElse: () => o);
     if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
       continue;

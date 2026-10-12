@@ -447,7 +447,7 @@ class _Builder {
     for (final object in diagram.objects) {
       if (object.parentOid == null) {
         final frame = diagram
-            .children(object.oid)
+            .childrenOf(object)
             .where((child) => child.objectClass == HeapObjectClass.bdFrame)
             .firstOrNull;
         if (frame != null) return frame.oid;
@@ -573,7 +573,7 @@ class _Builder {
   LvSubViUnit _subViUnit(ViHeapObject node) {
     final ports = <int>[];
     final inputs = <int>[], outputs = <int>[];
-    for (final holder in diagram.children(node.oid)) {
+    for (final holder in diagram.childrenOf(node)) {
       if (holder.kind != kNodeEndpointDcoKind) continue;
       ownerOfPort[holder.oid] = node.oid;
       ports.add(holder.oid);
@@ -600,11 +600,11 @@ class _Builder {
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
     final memberName = <int, String>{};
-    for (final holder in diagram.children(node.oid)) {
+    for (final holder in diagram.childrenOf(node)) {
       if (holder.kind != kNodeEndpointDcoKind) continue;
       ownerOfPort[holder.oid] = node.oid;
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
-      final record = diagram.children(holder.oid).firstOrNull;
+      final record = diagram.childrenOf(holder).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
       if (record?.typeName case final name?) memberName[holder.oid] = name;
       final attach = diagram.dcoChildTerminalAttach(holder.oid);
@@ -627,7 +627,7 @@ class _Builder {
 
   List<LvUnit> _wireRecordUnits(ViHeapObject record) {
     final units = <LvUnit>[];
-    for (final child in diagram.children(record.oid)) {
+    for (final child in diagram.childrenOf(record)) {
       if (child.kind == HeapObjectClass.bdLeaf.code) {
         ownerOfPort[child.oid] = child.oid;
         units.add(
@@ -643,7 +643,7 @@ class _Builder {
       if (child.kind != kNodeEndpointDcoKind) continue;
       if (child.memberOids.isNotEmpty) continue;
       final constant = diagram
-          .children(child.oid)
+          .childrenOf(child)
           .where((child) => child.kind == HeapObjectClass.bdConstDco.code)
           .firstOrNull;
       if (constant == null) {
@@ -667,8 +667,8 @@ class _Builder {
   }
 
   String? _constantLabel(ViHeapObject constant) {
-    for (final shell in diagram.children(constant.oid)) {
-      for (final part in diagram.children(shell.oid)) {
+    for (final shell in diagram.childrenOf(constant)) {
+      for (final part in diagram.childrenOf(shell)) {
         if (part.kind == HeapObjectClass.controlLabel.code) {
           final text = part.label?.trim();
           if (text != null && text.isNotEmpty) return text;
@@ -689,7 +689,7 @@ class _Builder {
       );
     }
     final frames = [
-      for (final child in diagram.children(structure.oid))
+      for (final child in diagram.childrenOf(structure))
         if (child.objectClass == HeapObjectClass.bdFrame) child.oid,
     ];
     final terminals = <LvStructTerminal>[];
@@ -720,14 +720,14 @@ class _Builder {
           role: role,
           outerPort: outer,
           innerPorts: inner,
-          autoIndexing: lvTunnelAutoIndexes(diagram.children(terminal.oid)),
+          autoIndexing: lvTunnelAutoIndexes(diagram.childrenOf(terminal)),
           partnerOid: partner,
           outerIsSink: outer != null && _isSink(outer),
         ),
       );
     }
     final label = diagram
-        .children(structure.oid)
+        .childrenOf(structure)
         .where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code)
         .firstOrNull;
     return LvStructUnit(
@@ -744,13 +744,13 @@ class _Builder {
   }
 
   Iterable<ViHeapObject> _terminalRecords(ViHeapObject structure) sync* {
-    for (final child in diagram.children(structure.oid)) {
+    for (final child in diagram.childrenOf(structure)) {
       if (LvTerminalRole.ofCode(child.kind) != null) {
         yield child;
         continue;
       }
       if (child.kind != kNodeEndpointDcoKind) continue;
-      for (final grand in diagram.children(child.oid)) {
+      for (final grand in diagram.childrenOf(child)) {
         if (LvTerminalRole.ofCode(grand.kind) != null) yield grand;
       }
     }
