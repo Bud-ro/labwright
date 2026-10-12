@@ -169,7 +169,7 @@ class ViDiagram {
 
   /// The frame a multi-frame structure shows, null for other objects or an index past its frames.
   int? displayedFrameIndex(ViHeapObject structure) {
-    if (!kMultiFrameStructureClasses.contains(structure.objectClass)) return null;
+    if (!structure.objectClass.isMultiFrameStructure) return null;
     var frames = 0;
     for (final child in children(structure.oid)) {
       if (child.objectClass == HeapObjectClass.bdFrame) frames++;
@@ -1082,7 +1082,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         final attr = decodeHeapAttrIn(view, body, offset);
         if (attr == null) return;
         final number = attr.asDouble;
-        if (number != null && kControlTerminalClasses.contains(cur.objectClass)) {
+        if (number != null && cur.objectClass.isControlTerminal) {
           if (attr.attribute == HeapAttribute.stdNumMin) cur.controlMin ??= number;
           if (attr.attribute == HeapAttribute.stdNumMax) cur.controlMax ??= number;
         }
@@ -1120,7 +1120,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
             attr.width == HeapAttrWidth.u16) {
           cur.primResId ??= attr.asInt;
         }
-        if (attr.attribute == HeapAttribute.dIdx && kMultiFrameStructureClasses.contains(cur.objectClass)) {
+        if (attr.attribute == HeapAttribute.dIdx && cur.objectClass.isMultiFrameStructure) {
           cur.dIdx ??= attr.asInt;
         }
         if (attr.attribute == HeapAttribute.compressedWireTable && cur.objectClass == HeapObjectClass.signal) {
@@ -1230,7 +1230,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     while (parentOid != null && depth < 12) {
       final po = byOid[parentOid];
       if (po == null) break;
-      if (kControlTerminalClasses.contains(po.objectClass)) {
+      if (po.objectClass.isControlTerminal) {
         if (po.items.isEmpty) po.items = object.items;
         break;
       }
@@ -1340,7 +1340,7 @@ void _reanchorScrolledControls(ViDiagram diagram) {
       final po = byOid[parentOid];
       if (po == null) return null;
       if (po.objectClass == HeapObjectClass.contentViewport) return po.oid;
-      if (kControlTerminalClasses.contains(po.objectClass) || po.bounds != null) return null;
+      if (po.objectClass.isControlTerminal || po.bounds != null) return null;
       parentOid = po.parentOid;
     }
     return null;
@@ -1348,7 +1348,7 @@ void _reanchorScrolledControls(ViDiagram diagram) {
 
   final groups = <int, List<ViHeapObject>>{};
   for (final object in objects) {
-    if (!kControlTerminalClasses.contains(object.objectClass) || object.bounds == null || object.absBounds == null) {
+    if (!object.objectClass.isControlTerminal || object.bounds == null || object.absBounds == null) {
       continue;
     }
     final viewport = reanchorViewport(object);

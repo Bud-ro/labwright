@@ -228,7 +228,8 @@ const int _descriptorHead = 4;
 sealed class ViType {
   ViType._(this.bytes, this.offset, this.length, int bodyEnd, {bool exact = true})
     : _bodyEnd = bodyEnd,
-      _labelStart = _findLabel(bytes, offset, length, bodyEnd, exact);
+      _labelStart = _findLabel(bytes, offset, length, bodyEnd, exact),
+      kind = _typeCodes[bytes[offset + VctpDescriptor.typeCode.offset]] ?? ViDataType.unknown;
 
   final Uint8List bytes;
 
@@ -251,7 +252,7 @@ sealed class ViType {
 
   int get code => bytes[offset + VctpDescriptor.typeCode.offset];
 
-  ViDataType get kind => _typeCodes[code] ?? ViDataType.unknown;
+  final ViDataType kind;
 
   bool get hasLabel => flags & ViTypeFlag.label.mask != 0;
 

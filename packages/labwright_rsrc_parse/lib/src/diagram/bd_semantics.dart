@@ -248,7 +248,7 @@ bool _isScaffolding(ViHeapObject o, ViObjectsByOid byId) {
     while (depth++ < 64) {
       final parent = _parentOf(cur, byId);
       if (parent == null) break;
-      if (kControlTerminalClasses.contains(parent.objectClass)) return true;
+      if (parent.objectClass.isControlTerminal) return true;
       cur = parent;
     }
   }

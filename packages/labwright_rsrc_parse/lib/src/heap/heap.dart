@@ -669,7 +669,7 @@ class HeapAttr {
   };
 
   String? get asciiText => switch (value) {
-    final int number when _asciiIntRaws.contains(rawTag) => _asciiFromInt(number),
+    final int number when _isAsciiIntRaw[rawTag] => _asciiFromInt(number),
     _ => null,
   };
 
@@ -697,15 +697,27 @@ class HeapAttr {
   };
 }
 
+List<bool> _rawTable(Set<int> raws) => [for (var raw = 0; raw < kHeapRawIdCount; raw++) raws.contains(raw)];
+
 const Set<int> _rectPayloadRaws = {0x129, 0x163, 0x164, 0x275};
+
+final List<bool> _isRectPayloadRaw = _rawTable(_rectPayloadRaws);
 
 const Set<int> _f64PayloadRaws = {0x1f5, 0x1f6, 0x1f7, 0x1f8, 0x1f9, 0x1fa, 0x220, 0x221, 0x222};
 
+final List<bool> _isF64PayloadRaw = _rawTable(_f64PayloadRaws);
+
 const Set<int> _inlineStringRaws = {0x231};
+
+final List<bool> _isInlineStringRaw = _rawTable(_inlineStringRaws);
 
 const Set<int> _u32StringRaws = {0x26c};
 
+final List<bool> _isU32StringRaw = _rawTable(_u32StringRaws);
+
 const Set<int> _asciiIntRaws = {0x022, 0x0c4};
+
+final List<bool> _isAsciiIntRaw = _rawTable(_asciiIntRaws);
 
 bool _isPrintableAscii(int byte) => byte >= 0x20 && byte < 0x7f;
 
@@ -741,7 +753,7 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
   final id = body[offset + 1];
   final raw = heapRawId(op, id);
 
-  if (op == 0xc6 && offset + 3 <= body.length && _inlineStringRaws.contains(raw) && body[offset + 2] != 0xff) {
+  if (op == 0xc6 && offset + 3 <= body.length && _isInlineStringRaw[raw] && body[offset + 2] != 0xff) {
     final len = body[offset + 2];
     if (offset + 3 + len <= body.length) {
       final text = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where(_isPrintableAscii));
@@ -758,20 +770,22 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
   }
 
   if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
-    if (_rectPayloadRaws.contains(raw)) {
-      final rect = HeapRect.fromPayload(Uint8List.sublistView(body, offset + 3, offset + 11));
-      if (rect != null) {
-        return HeapAttr(
-          attribute: HeapAttribute.fromRaw(raw),
-          id: id,
-          rawTag: raw,
-          width: HeapAttrWidth.rect,
-          value: rect,
-          length: 11,
-        );
-      }
+    if (_isRectPayloadRaw[raw]) {
+      return HeapAttr(
+        attribute: HeapAttribute.fromRaw(raw),
+        id: id,
+        rawTag: raw,
+        width: HeapAttrWidth.rect,
+        value: HeapRect(
+          top: view.getInt16(offset + 3),
+          left: view.getInt16(offset + 5),
+          bottom: view.getInt16(offset + 7),
+          right: view.getInt16(offset + 9),
+        ),
+        length: 11,
+      );
     }
-    if (_f64PayloadRaws.contains(raw)) {
+    if (_isF64PayloadRaw[raw]) {
       final value = view.getFloat64(offset + 3);
       return HeapAttr(
         attribute: HeapAttribute.fromRaw(raw),
@@ -807,7 +821,7 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
     }
   }
 
-  if (op == 0xc6 && offset + 3 <= body.length && _u32StringRaws.contains(raw)) {
+  if (op == 0xc6 && offset + 3 <= body.length && _isU32StringRaw[raw]) {
     final len = body[offset + 2];
     if (len != 0xff && len != 0x08 && len >= 5 && offset + 3 + len <= body.length) {
       final payloadStart = offset + 3;

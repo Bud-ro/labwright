@@ -596,6 +596,20 @@ enum HeapObjectClass {
 
   /// The class with [code], or [unknown].
   static HeapObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
+
+  static final List<bool> _controlTerminal = [
+    for (final objectClass in values) kControlTerminalClasses.contains(objectClass),
+  ];
+
+  static final List<bool> _multiFrameStructure = [
+    for (final objectClass in values) kMultiFrameStructureClasses.contains(objectClass),
+  ];
+
+  /// Whether the class is in [kControlTerminalClasses].
+  bool get isControlTerminal => _controlTerminal[index];
+
+  /// Whether the class is in [kMultiFrameStructureClasses].
+  bool get isMultiFrameStructure => _multiFrameStructure[index];
 }
 
 /// Classes of the terminal objects that carry a control's value: numeric, boolean/cluster,

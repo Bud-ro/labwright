@@ -5190,7 +5190,7 @@ class _DetailsCard extends StatelessWidget {
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.isLabelHidden ? ' · hidden' : ''}'
-                    '${kMultiFrameStructureClasses.contains(object.objectClass) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
+                    '${object.objectClass.isMultiFrameStructure ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
                     '${_iconStatusSuffix(object)}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
