@@ -141,16 +141,6 @@ class ViSelectorRange {
   bool get isClosed => lowBound == ViSelectorBound.inclusive && highBound == ViSelectorBound.inclusive;
 }
 
-/// Reference targets by [HeapRefKind], stored only once a kind is written.
-class ViTypedRefs {
-  List<List<int>?>? _byKind;
-
-  List<int>? operator [](HeapRefKind kind) => _byKind?[kind.index];
-
-  void operator []=(HeapRefKind kind, List<int> targets) =>
-      (_byKind ??= List<List<int>?>.filled(HeapRefKind.values.length, null))[kind.index] = targets;
-}
-
 /// One object of a record heap with every field the walk decoded from its records; unset
 /// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
 /// parent's origin and [absBounds] to the diagram's.
@@ -184,17 +174,21 @@ class ViHeapObject {
   /// The caption record, else the `shortText` attribute, else for a node the first child label.
   String? label;
 
-  /// Targets of the object's `childRef` references, in record order; a signal's are its endpoints.
-  final List<int> refs = <int>[];
+  List<List<int>?>? _refsByKind;
 
-  /// Targets of every reference, by kind.
-  final ViTypedRefs typedRefs = ViTypedRefs();
+  /// Targets of the object's references of [kind], in record order; null when it has none.
+  List<int>? refsOf(HeapRefKind kind) => _refsByKind?[kind.index];
+
+  void addRef(HeapRefKind kind, int target) {
+    final byKind = _refsByKind ??= List<List<int>?>.filled(HeapRefKind.values.length, null);
+    (byKind[kind.index] ??= <int>[]).add(target);
+  }
+
+  /// Targets of the object's `childRef` references, in record order; a signal's are its endpoints.
+  List<int> get refs => refsOf(HeapRefKind.childRef) ?? const <int>[];
 
   /// The `childRef` and `dcoRef` targets together.
-  Iterable<int> get memberOids => <int>{
-    ...?typedRefs[HeapRefKind.childRef],
-    ...?typedRefs[HeapRefKind.dcoRef],
-  };
+  Iterable<int> get memberOids => <int>{...?refsOf(HeapRefKind.childRef), ...?refsOf(HeapRefKind.dcoRef)};
 
   /// The number of size records ([HeapOpcode.size]) the object carries.
   int termCount = 0;
@@ -591,13 +585,17 @@ enum HeapObjectClass {
 
   final ClassConfidence confidence;
 
-  static final Map<int, HeapObjectClass> _byCode = {
-    for (final objectClass in values)
-      if (objectClass != unknown) objectClass.code: objectClass,
-  };
+  static final List<HeapObjectClass> _byCode = () {
+    final codeCount = values.fold(0, (count, objectClass) => objectClass.code >= count ? objectClass.code + 1 : count);
+    final table = List<HeapObjectClass>.filled(codeCount, unknown);
+    for (final objectClass in values) {
+      if (objectClass != unknown) table[objectClass.code] = objectClass;
+    }
+    return table;
+  }();
 
   /// The class with [code], or [unknown].
-  static HeapObjectClass fromCode(int code) => _byCode[code] ?? unknown;
+  static HeapObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
 }
 
 /// Classes of the terminal objects that carry a control's value: numeric, boolean/cluster,

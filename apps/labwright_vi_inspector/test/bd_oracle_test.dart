@@ -329,10 +329,10 @@ void main() {
           bottom: 140,
           right: 400,
         );
-      final signal = ViHeapObject(oid: 4, kind: 0x17, offset: 0)..parentOid = 1;
-      signal.refs
-        ..add(2)
-        ..add(3);
+      final signal = ViHeapObject(oid: 4, kind: 0x17, offset: 0)
+        ..parentOid = 1
+        ..addRef(HeapRefKind.childRef, 2)
+        ..addRef(HeapRefKind.childRef, 3);
       final objects = <ViHeapObject>[root, a, b];
       if (midNode) {
         objects.add(

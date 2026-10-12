@@ -26,10 +26,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
     final body = d.bytes;
     walkHeapObjects<int>(
       body,
-      onObjectOpen: (span, kind, oid, parent) => kind,
-      onRecord: (span, kind) {
-        if (kind != 0x17 || span.lead == kHeapRecordPrefix || span.lead == 0x14) return;
-        final attr = decodeHeapAttr(body, span.offset);
+      onObjectOpen: (offset, kind, oid, parent) => kind,
+      onRecord: (offset, length, lead, kind) {
+        if (kind != 0x17 || lead == kHeapRecordPrefix || lead == 0x14) return;
+        final attr = decodeHeapAttr(body, offset);
         final v = attr?.value;
         if (attr?.rawTag == 0x09f && v is int && v > 0xffff) bump('oversizedTypeWord');
       },

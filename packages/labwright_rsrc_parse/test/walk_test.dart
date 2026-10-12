@@ -137,11 +137,11 @@ void main() {
         ...close(),
         0x99,
       ]),
-      onObjectOpen: (_, kind, oid, parent) {
+      onObjectOpen: (offset, kind, oid, parent) {
         log.add('o$oid:${kind.toRadixString(16)}<$parent');
         return oid;
       },
-      onRecord: (span, enclosing) => log.add('r${span.lead.toRadixString(16)}<$enclosing'),
+      onRecord: (offset, length, lead, enclosing) => log.add('r${lead.toRadixString(16)}<$enclosing'),
       onGroupOpen: (tag, enclosing) => log.add('g${tag.toRadixString(16)}<$enclosing'),
       onGroupClose: (tag, enclosing) => log.add('/${tag.toRadixString(16)}<$enclosing'),
     );
@@ -160,7 +160,7 @@ void main() {
       final seen = <(int, int)>[];
       walkHeapObjects<int>(
         body,
-        onObjectOpen: (_, k, o, _) {
+        onObjectOpen: (offset, k, o, parent) {
           seen.add((k, o));
           return o;
         },

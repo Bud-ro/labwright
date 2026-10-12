@@ -16,7 +16,7 @@
 /// C4 description (0x19)                    helpText
 /// C4 plotName (0x27)                       plotNames
 /// C4 path (0xa4), symbolName (0xc4)        foreignLibraryPath, foreignEntryPoint (Call Library nodes)
-/// reference records                        refs (childRef targets), typedRefs (all kinds)
+/// reference records                        refs (childRef targets), refsOf (every kind)
 /// attributes                               controlMin/Max, constText, constValueRaw, displayFormat,
 ///                                          labelModeWord, termBounds, termBmp, typeDescIdx, objFlags,
 ///                                          primResId, dIdx, wireTableRaw, defaultFrameIndex,
@@ -493,7 +493,7 @@ class ViDiagram {
     final ambiguous = <int>{};
     for (final object in objects) {
       if (object.termBounds == null) continue;
-      for (final target in object.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+      for (final target in object.refs) {
         _claim(index, ambiguous, target, object.oid);
       }
     }
@@ -528,10 +528,10 @@ class ViDiagram {
     final ambiguous = <int>{};
     for (final terminal in objects) {
       if (terminal.termBounds == null) continue;
-      for (final target in terminal.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+      for (final target in terminal.refs) {
         final candidate = byId[target];
         if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
-        if (!(candidate.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]).contains(terminal.oid)) continue;
+        if (!(candidate.refsOf(HeapRefKind.dcoRef) ?? const <int>[]).contains(terminal.oid)) continue;
         _claim(index, ambiguous, terminal.oid, candidate.oid);
       }
     }
@@ -932,8 +932,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         styleRunOwner = null;
       }
     },
-    onObjectOpen: (span, kind, oid, parent) {
-      final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset)..index = objects.length;
+    onObjectOpen: (offset, kind, oid, parent) {
+      final cur = ViHeapObject(oid: oid, kind: kind, offset: offset)..index = objects.length;
       cur.parentOid = parent?.oid;
       typeKindEvidence.add(0);
       originTop.add(parent == null ? 0 : originTop[parent.index]);
@@ -941,13 +941,11 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       objects.add(cur);
       return cur;
     },
-    onRecord: (span, cur) {
+    onRecord: (offset, recordLength, lead, cur) {
       if (cur == null) return;
-      final offset = span.offset;
-      final lead = span.lead;
       if (selectorOwner != null && identical(cur, selectorOwner)) {
         if (selectorInPool) {
-          final value = _selectorPoolString(body, offset, lead, span.length);
+          final value = _selectorPoolString(body, offset, lead, recordLength);
           if (value != null) {
             selectorStrings.add(value);
             return;
@@ -1004,14 +1002,19 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
       }
       if (lead == kHeapRecordPrefix) {
-        final rec = c4FrameAt(body, offset, sectionTag);
-        if (rec == null) return;
-        typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofOpcode(rec.opcode);
-        switch (rec.opcode) {
+        final opcode = body[offset + 1];
+        final start = offset + (body[offset + 2] == 0xff ? 5 : 3);
+        final end = offset + recordLength;
+        typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofOpcode(opcode);
+        switch (opcode) {
           case 0x2d:
-            final recBounds = rec.bounds;
-            if (cur.bounds == null && recBounds != null) {
-              final bounds = recBounds;
+            if (cur.bounds == null && end - start == 8) {
+              final bounds = HeapRect(
+                top: view.getInt16(start),
+                left: view.getInt16(start + 2),
+                bottom: view.getInt16(start + 4),
+                right: view.getInt16(start + 6),
+              );
               cur.bounds = bounds;
               final top = originTop[cur.index] + bounds.top;
               final left = originLeft[cur.index] + bounds.left;
@@ -1020,32 +1023,33 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
               cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
             }
           case 0x22:
-            cur.label ??= rec.text;
+            cur.label ??= heapRecordText(Uint8List.sublistView(body, start, end));
           case 0x1f:
             cur.termCount++;
           case 0x74:
             if (typeKindEvidence[cur.index] & ViTypeKindEvidence.numeric.bit == 0) {
-              typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofFormat(rec.payload);
+              typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofFormat(Uint8List.sublistView(body, start, end));
             }
           case 0x2e:
-            if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
+            if (cur.items.isEmpty) cur.items = _parseEnumItems(Uint8List.sublistView(body, start, end));
           case 0x19:
-            cur.helpText ??= rec.descriptionText;
+            cur.helpText ??= heapDescriptionText(Uint8List.sublistView(body, start, end));
           case 0x27:
-            {
-              final text = rec.text ?? rec.path ?? rec.descriptionText;
-              if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
-            }
+            final text = heapRecordText(Uint8List.sublistView(body, start, end));
+            if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
           case 0xa4:
-            if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignLibraryPath ??= rec.path;
+            if (cur.objectClass == HeapObjectClass.bdCallLibrary) {
+              cur.foreignLibraryPath ??= heapRecordPath(Uint8List.sublistView(body, start, end));
+            }
           case 0xc4:
-            if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignEntryPoint ??= rec.text;
+            if (cur.objectClass == HeapObjectClass.bdCallLibrary) {
+              cur.foreignEntryPoint ??= heapRecordText(Uint8List.sublistView(body, start, end));
+            }
         }
       } else if (lead == 0x14) {
         final ref = decodeHeapRefIn(view, body, offset);
         if (ref != null) {
-          (cur.typedRefs[ref.kind] ??= <int>[]).add(ref.targetOid);
-          if (ref.kind == HeapRefKind.childRef) cur.refs.add(ref.targetOid);
+          cur.addRef(ref.kind, ref.targetOid);
         }
       } else if (offset + 1 < length && _modelAttributeRaws[heapRawId(lead, body[offset + 1])]) {
         final attr = decodeHeapAttrIn(view, body, offset);
@@ -1424,7 +1428,7 @@ void resolveDataSpaceTypes({
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
       if (object.isIndicator != null) continue;
-      final dcoRefs = object.typedRefs[HeapRefKind.dcoRef];
+      final dcoRefs = object.refsOf(HeapRefKind.dcoRef);
       if (dcoRefs == null || dcoRefs.isEmpty) continue;
       object.isIndicator = findDco(diagram, dcoRefs.first)?.isIndicator;
     }
@@ -1482,7 +1486,7 @@ void _resolveTypeIndices({
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
       if (object.typeDescIdx != null) continue;
-      final dcoRefs = object.typedRefs[HeapRefKind.dcoRef];
+      final dcoRefs = object.refsOf(HeapRefKind.dcoRef);
       if (dcoRefs == null || dcoRefs.isEmpty) continue;
       final dco = findDco(diagram, dcoRefs.first);
       if (dco == null) continue;

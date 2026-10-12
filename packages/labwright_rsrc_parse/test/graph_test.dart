@@ -842,10 +842,10 @@ void main() {
     ]).byId[1]!;
     expect(s.category, ViObjectKind.structure);
     expect(s.refs, [9], reason: 's.refs is the backward-compatible childRef subset');
-    expect(s.typedRefs[HeapRefKind.childRef], [9]);
-    expect(s.typedRefs[HeapRefKind.dcoRef], [11]);
-    expect(s.typedRefs[HeapRefKind.dcoAggRef], [12]);
-    expect(s.typedRefs[HeapRefKind.ddoRef], [7], reason: '14 53 is a cross-heap display-object reference');
+    expect(s.refsOf(HeapRefKind.childRef), [9]);
+    expect(s.refsOf(HeapRefKind.dcoRef), [11]);
+    expect(s.refsOf(HeapRefKind.dcoAggRef), [12]);
+    expect(s.refsOf(HeapRefKind.ddoRef), [7], reason: '14 53 is a cross-heap display-object reference');
     expect(s.memberOids.toSet(), {9, 11}, reason: 'memberOids = childRef ∪ dcoRef');
 
     final multi = dia([
@@ -1292,7 +1292,7 @@ void resolveTypesTests() {
     final loopCount = obj(3, 0x24, tdi: 3);
     final dco = obj(10, 0x12, tdi: 4);
     final terminal = obj(11, 0x16);
-    terminal.typedRefs[HeapRefKind.dcoRef] = [10];
+    terminal.addRef(HeapRefKind.dcoRef, 10);
     resolveDataSpaceTypes(
       pool: pool,
       table: table,
@@ -1411,19 +1411,23 @@ void resolveTypesTests() {
     }
   });
 
-  test('ViTypedRefs: unwritten kinds are null, writes are per kind', () {
-    final r = ViTypedRefs();
-    expect(HeapRefKind.values.map((k) => r[k]), everyElement(isNull));
-    r[HeapRefKind.dcoRef] = [3];
-    (r[HeapRefKind.childRef] ??= <int>[]).add(9);
+  test('references are kept per kind in record order; refs is the childRef list', () {
+    final o = ViHeapObject(oid: 1, kind: 0x50, offset: 0);
+    expect(HeapRefKind.values.map(o.refsOf), everyElement(isNull));
+    expect(o.refs, isEmpty);
+    o.addRef(HeapRefKind.dcoRef, 3);
+    o.addRef(HeapRefKind.childRef, 9);
+    o.addRef(HeapRefKind.childRef, 4);
     expect(
-      [r[HeapRefKind.childRef], r[HeapRefKind.dcoRef], r[HeapRefKind.ownerRef]],
+      [o.refsOf(HeapRefKind.childRef), o.refsOf(HeapRefKind.dcoRef), o.refsOf(HeapRefKind.ownerRef)],
       [
-        [9],
+        [9, 4],
         [3],
         null,
       ],
     );
+    expect(o.refs, [9, 4]);
+    expect(o.memberOids, [9, 4, 3]);
   });
 
   test('type-kind evidence: record bits, format conversion characters, strongest kind wins', () {

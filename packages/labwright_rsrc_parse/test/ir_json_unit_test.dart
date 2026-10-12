@@ -20,7 +20,7 @@ void main() {
       ..controlMax = 10.0
       ..helpText = 'help'
       ..primResId = 1051;
-    node.typedRefs[HeapRefKind.childRef] = [1];
+    node.addRef(HeapRefKind.childRef, 1);
 
     final model = ViModel(
       version: '10.0',
