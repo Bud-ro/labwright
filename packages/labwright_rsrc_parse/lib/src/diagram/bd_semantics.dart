@@ -209,7 +209,6 @@ const Set<HeapObjectClass> _controlTerminalDrawClasses = {
 bool _isInlinedSubViControl(
   ViHeapObject o,
   Map<int, ViHeapObject> byId,
-  Map<int, List<ViHeapObject>> childrenByOid,
 ) {
   if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
   var parentOid = o.parentOid;
@@ -230,9 +229,7 @@ bool _isInlinedSubViControl(
     parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
-  final kids = childrenByOid[o.oid];
-  if (kids == null) return false;
-  return kids.any(
+  return o.children.any(
     (c) => c.objectClass == HeapObjectClass.controlLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
   );
 }
@@ -310,12 +307,11 @@ Set<ViHeapObject> nodesWithin(
 /// displayed one, or when the displayed index is unknown, the frames whose contents overlap the
 /// fullest frame.
 Set<int> bdHiddenFrameOids(ViDiagram diagram) {
-  final childrenByOid = diagram.childrenByOid;
   final hidden = <int>{};
 
   void hideSubtree(ViHeapObject root) {
     hidden.add(root.oid);
-    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+    for (final child in root.children) {
       hideSubtree(child);
     }
   }
@@ -352,7 +348,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
             if (bounds.bottom > b) b = bounds.bottom;
           }
         }
-        for (final child in childrenByOid[o.oid] ?? const <ViHeapObject>[]) {
+        for (final child in o.children) {
           visit(child);
         }
       }
@@ -471,10 +467,9 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
 
 /// The oids under every XNode, whose contents are not drawn.
 Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
-  final childrenByOid = diagram.childrenByOid;
   final out = <int>{};
   void collect(ViHeapObject root) {
-    for (final child in childrenByOid[root.oid] ?? const <ViHeapObject>[]) {
+    for (final child in root.children) {
       if (out.add(child.oid)) collect(child);
     }
   }
@@ -531,7 +526,6 @@ bool _nestedInStructure(ViHeapObject object, Map<int, ViHeapObject> byId) {
 List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   final byId = diagram.byId;
   final hidden = bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
-  final childrenByOid = diagram.childrenByOid;
   return [
     for (final object in diagram.objects)
       if (object.absBounds case final bounds?)
@@ -545,7 +539,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
             !_escapesConstantBox(object, byId) &&
             !_escapesStructureBox(object, byId) &&
             !(kBdTextLabelClasses.contains(object.objectClass) && bounds.left == 0 && bounds.bottom == 0) &&
-            !_isInlinedSubViControl(object, byId, childrenByOid) &&
+            !_isInlinedSubViControl(object, byId) &&
             !_isScaffolding(object, byId))
           object,
   ];

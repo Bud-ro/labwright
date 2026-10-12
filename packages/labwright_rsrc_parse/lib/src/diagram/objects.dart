@@ -143,10 +143,23 @@ class ViSelectorRange {
 
 /// One object of a record heap with every field the walk decoded from its records; unset
 /// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
+/// Reference targets by [HeapRefKind], stored only once a kind is written.
+class ViTypedRefs {
+  List<List<int>?>? _byKind;
+
+  List<int>? operator [](HeapRefKind kind) => _byKind?[kind.index];
+
+  void operator []=(HeapRefKind kind, List<int> targets) =>
+      (_byKind ??= List<List<int>?>.filled(HeapRefKind.values.length, null))[kind.index] = targets;
+}
+
 /// parent's origin and [absBounds] to the diagram's.
 class ViHeapObject {
-  ViHeapObject({required this.oid, required this.kind, required this.offset})
+  ViHeapObject({required this.oid, required this.kind, required this.offset, this.index = 0})
     : objectClass = HeapObjectClass.fromCode(kind);
+
+  /// Position in the diagram's object list, heap order.
+  final int index;
 
   /// The object id the header declares; references name objects by it.
   final int oid;
@@ -175,7 +188,19 @@ class ViHeapObject {
   final List<int> refs = <int>[];
 
   /// Targets of every reference, by kind.
-  final Map<HeapRefKind, List<int>> typedRefs = <HeapRefKind, List<int>>{};
+  final ViTypedRefs typedRefs = ViTypedRefs();
+
+  /// The object whose records enclose this one in the heap, when any does.
+  ViHeapObject? parent;
+
+  /// Direct children in heap order.
+  List<ViHeapObject> children = const <ViHeapObject>[];
+
+  /// Diagram-space origin that [bounds] is relative to: the parent's origin until this object's
+  /// own bounds record arrives, its absolute top-left after.
+  int originTop = 0;
+
+  int originLeft = 0;
 
   /// The `childRef` and `dcoRef` targets together.
   Iterable<int> get memberOids => <int>{
@@ -669,11 +694,17 @@ int? _formatConvChar(List<int> payload) {
 /// A type kind guessed from the C4 opcodes an object carries: a symbol name means a Call
 /// Library node, a path record a path, a string table an enum or ring, and a format string a
 /// number whose conversion character tells integer from float.
-ViTypeKind inferTypeKind(Set<int> c4ops, List<int>? formatPayload) {
-  if (c4ops.contains(0xc4)) return ViTypeKind.clnNode;
-  if (c4ops.contains(0xa4)) return ViTypeKind.path;
-  if (c4ops.contains(0x2e)) return ViTypeKind.enumRing;
-  if (c4ops.contains(0x74)) {
+ViTypeKind inferTypeKind({
+  required bool clnNode,
+  required bool path,
+  required bool enumRing,
+  required bool numeric,
+  List<int>? formatPayload,
+}) {
+  if (clnNode) return ViTypeKind.clnNode;
+  if (path) return ViTypeKind.path;
+  if (enumRing) return ViTypeKind.enumRing;
+  if (numeric) {
     final conv = formatPayload == null ? null : _formatConvChar(formatPayload);
     return (conv != null && _intConvChars.contains(conv)) ? ViTypeKind.numericInt : ViTypeKind.numericFloat;
   }

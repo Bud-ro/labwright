@@ -495,7 +495,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
     if (clusterEndpoints.isEmpty) return;
     final paneOf = paneTerminalsOf(diagram, clusterEndpoints);
     final anyTyped = diagram.objects.any((object) => object.resolvedType != null);
-    final childrenByOid = diagram.childrenByOid;
     final registry = LvDeclarations();
     final mappingOf = <ViType, LvTypeMapping>{};
     LvTypeMapping typeOf(ViType type, List<ViType> owner) =>
@@ -520,7 +519,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
         ownTypes.add(mapping.dartType);
       }
       for (final endpoint in wire.endpointOids) {
-        for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
+        for (final part in diagram.children(endpoint)) {
           final type = array ? part.resolvedElementType : part.resolvedType;
           if (lvClusterBase(type) == null) continue;
           final shape = lvClusterShape(type!, pool);
@@ -629,7 +628,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
           final anyIndex = wire.endpointOids.any(
             (endpoint) => [
               if (diagram.byId[endpoint] case final object?) object,
-              ...?childrenByOid[endpoint],
+              ...diagram.children(endpoint),
             ].any((object) => object.typeDescIdx != null),
           );
           return anyIndex ? 'noneNoCluster' : 'noneNoIndex';
@@ -696,14 +695,12 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
   }
 
   void censusIndexArrays(ViDiagram diagram) {
-    final childrenByOid = diagram.childrenByOid;
     for (final node in diagram.objects) {
       if (node.kind != LvNodeClass.indexArray.code) continue;
       bump('idx');
       final roles = [
-        for (final holder in childrenByOid[node.oid] ?? const <ViHeapObject>[])
-          if (holder.kind == kNodeEndpointDcoKind)
-            (childrenByOid[holder.oid] ?? const <ViHeapObject>[]).firstOrNull?.objFlags ?? 0,
+        for (final holder in diagram.children(node.oid))
+          if (holder.kind == kNodeEndpointDcoKind) diagram.children(holder.oid).firstOrNull?.objFlags ?? 0,
       ];
       bump(_indexArrayShape(roles) ? 'idx.regular' : 'idx.irregular');
       for (final role in roles) {
@@ -715,7 +712,6 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
   }
 
   void censusRefnumWires(ViDiagram diagram) {
-    final childrenByOid = diagram.childrenByOid;
     final refnumEndpoints = <int>{
       for (final wire in diagram.wires)
         if (kLvWireRefnumCodes.contains(wire.signalType?.typeCode)) ...wire.endpointOids,
@@ -739,7 +735,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
             final parent = walker.parentOid;
             walker = parent == null ? null : diagram.byId[parent];
           }
-          for (final part in childrenByOid[endpoint] ?? const <ViHeapObject>[]) {
+          for (final part in diagram.children(endpoint)) {
             if (_refnumDims(part) case final answer?) viaPart.add(answer);
           }
           if (paneOf[endpoint] case (final callee, final pane)) {

@@ -598,12 +598,15 @@ enum HeapAttribute {
 
   final AttrConfidence confidence;
 
-  static final Map<int, HeapAttribute> _byRaw = {
-    for (final attribute in values)
-      if (attribute != unknown) attribute.raw: attribute,
-  };
+  static final List<HeapAttribute> _byRaw = () {
+    final table = List<HeapAttribute>.filled(0x400, unknown);
+    for (final attribute in values) {
+      if (attribute != unknown) table[attribute.raw] = attribute;
+    }
+    return table;
+  }();
 
-  static HeapAttribute fromRaw(int raw) => _byRaw[raw] ?? unknown;
+  static HeapAttribute fromRaw(int raw) => raw >= 0 && raw < _byRaw.length ? _byRaw[raw] : unknown;
 }
 
 /// One decoded attribute record.
@@ -713,10 +716,21 @@ String? _asciiFromInt(int v) {
 
 const Map<int, int> _attrNibbleValueBytes = {0x0: 0, 0x2: 1, 0x4: 2, 0x6: 3, 0x8: 4, 0xe: 0};
 
+int _attrNibbleValueBytesAt(int nibble) => switch (nibble) {
+  0x0 || 0xe => 0,
+  0x2 => 1,
+  0x4 => 2,
+  0x6 => 3,
+  0x8 => 4,
+  _ => -1,
+};
+
 /// The attribute record at [offset], or null when the bytes there are not one.
-HeapAttr? decodeHeapAttr(Uint8List body, int offset) {
+HeapAttr? decodeHeapAttr(Uint8List body, int offset) => decodeHeapAttrIn(ByteData.sublistView(body), body, offset);
+
+/// [decodeHeapAttr] with the caller's [ByteData] view of [body].
+HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
   if (offset + 2 > body.length) return null;
-  final view = ByteData.sublistView(body);
   final op = body[offset];
   final id = body[offset + 1];
   final raw = ((op & 3) << 8) | id;
@@ -973,6 +987,10 @@ List<HeapRecord> scanC4Records(Uint8List heapBytes, String sectionTag) {
   final length = heapBytes.length;
   var i = 0;
   while (i < length) {
+    if (heapBytes[i] != kHeapRecordPrefix) {
+      i++;
+      continue;
+    }
     final frame = c4FrameAt(heapBytes, i, sectionTag);
     if (frame != null) {
       out.add(frame);
@@ -1250,7 +1268,8 @@ bool isTypeDescriptorToken(int op) => op == 0x04;
 
 bool _isObjectHeader(Uint8List body, int offset) =>
     offset + 9 <= body.length &&
-    kHeapObjectHeaderLeads.contains(body[offset]) &&
+    body[offset] >= 0x10 &&
+    body[offset] <= 0x12 &&
     body[offset + 2] == 0x02 &&
     body[offset + 3] == 0xfe &&
     body[offset + 6] == 0xfd;
@@ -1375,13 +1394,15 @@ class HeapRef {
 }
 
 /// The reference record at [offset], or null when the bytes there are not one.
-HeapRef? decodeHeapRef(Uint8List body, int offset) {
+HeapRef? decodeHeapRef(Uint8List body, int offset) => decodeHeapRefIn(ByteData.sublistView(body), body, offset);
+
+/// [decodeHeapRef] with the caller's [ByteData] view of [body].
+HeapRef? decodeHeapRefIn(ByteData view, Uint8List body, int offset) {
   if (offset + 6 > body.length) return null;
   final lead = body[offset];
   if (lead < 0x14 || lead > 0x17) return null;
   if (body[offset + 2] != 0x01 || body[offset + 3] != 0xfd) return null;
   final raw = ((lead & 3) << 8) | body[offset + 1];
-  final view = ByteData.sublistView(body);
   if ((body[offset + 4] & 0x80) != 0) {
     if (offset + 10 > body.length) return null;
     return HeapRef(kind: HeapRefKind.fromRaw(raw), targetOid: view.getUint32(offset + 6), length: 10);
@@ -1527,7 +1548,7 @@ int? recordSkip(Uint8List heapBytes, int offset) {
       final lenByte = heapBytes[offset + 2];
       if (lenByte == 0xff) {
         if (offset + 5 > length) return null;
-        return 5 + ByteData.sublistView(heapBytes).getUint16(offset + 3);
+        return 5 + (heapBytes[offset + 3] << 8 | heapBytes[offset + 4]);
       }
       return 3 + lenByte;
     case 0x14:
@@ -1544,14 +1565,14 @@ int? recordSkip(Uint8List heapBytes, int offset) {
       return (offset + 2 <= length && heapBytes[offset + 1] == 0xfe) ? 7 : null;
     case 0xc6:
       if (offset + 3 <= length && heapBytes[offset + 2] == 0xff) {
-        return (offset + 5 <= length) ? 5 + ByteData.sublistView(heapBytes).getUint16(offset + 3) : null;
+        return (offset + 5 <= length) ? 5 + (heapBytes[offset + 3] << 8 | heapBytes[offset + 4]) : null;
       }
   }
   final lo = op & 0x0f;
   if ((lo == 4 || lo == 5 || lo == 6) && op >> 4 != 0) {
     if (op >> 4 == 0xc) return (offset + 3 <= length) ? 3 + heapBytes[offset + 2] : null;
-    final valueBytes = _attrNibbleValueBytes[op >> 4];
-    if (valueBytes != null) return 2 + valueBytes;
+    final valueBytes = _attrNibbleValueBytesAt(op >> 4);
+    if (valueBytes >= 0) return 2 + valueBytes;
   }
   final hi = op >> 4;
   if (hi == 0 || hi == 1) {
@@ -1617,33 +1638,41 @@ void walkHeapObjects<T extends Object>(
   void Function(int groupTag, T? enclosing)? onGroupOpen,
   void Function(int groupTag, T? enclosing)? onGroupClose,
 }) {
-  final stack = <T?>[];
-  final groupTags = <int?>[];
-  T? innermost() => stack.lastWhere((scope) => scope != null, orElse: () => null);
+  final innermost = <T?>[];
+  final groupTags = <int>[];
   final length = body.length;
-  for (final span in walkHeapBody(body).spans) {
-    final offset = span.offset;
-    final lead = span.lead;
-    final header = heapObjectHeaderAt(body, offset);
-    if (header != null) {
-      stack.add(onObjectOpen(span, header.kind, header.oid, innermost()));
-      groupTags.add(null);
-      continue;
-    }
-    if (kHeapGroupOpenLeads.contains(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
-      stack.add(null);
+  var depth = 0;
+  var offset = 4;
+  while (offset < length) {
+    final step = recordSkip(body, offset);
+    if (step == null || offset + step > length) return;
+    final lead = body[offset];
+    final enclosing = depth == 0 ? null : innermost[depth - 1];
+    if (lead >= 0x10 && lead <= 0x12 && _isObjectHeader(body, offset)) {
+      final kind = body[offset + 4] << 8 | body[offset + 5];
+      final oid = (body[offset + 7] & 0x80) != 0 && offset + 13 <= length
+          ? body[offset + 9] << 24 | body[offset + 10] << 16 | body[offset + 11] << 8 | body[offset + 12]
+          : body[offset + 7] << 8 | body[offset + 8];
+      final scope = onObjectOpen(HeapSpan(offset: offset, length: step, lead: lead), kind, oid, enclosing);
+      innermost.add(scope);
+      groupTags.add(-1);
+      depth++;
+    } else if (lead >= 0x10 && lead <= 0x13 && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
+      innermost.add(enclosing);
       groupTags.add(body[offset + 1]);
-      onGroupOpen?.call(body[offset + 1], innermost());
-      continue;
-    }
-    if (kHeapGroupCloseLeads.contains(lead)) {
-      if (stack.isNotEmpty) {
-        stack.removeLast();
-        if (groupTags.removeLast() case final closedTag?) onGroupClose?.call(closedTag, innermost());
+      depth++;
+      onGroupOpen?.call(body[offset + 1], enclosing);
+    } else if (lead >= 0x08 && lead <= 0x0b) {
+      if (depth > 0) {
+        depth--;
+        innermost.removeLast();
+        final closedTag = groupTags.removeLast();
+        if (closedTag >= 0) onGroupClose?.call(closedTag, depth == 0 ? null : innermost[depth - 1]);
       }
-      continue;
+    } else {
+      onRecord?.call(HeapSpan(offset: offset, length: step, lead: lead), enclosing);
     }
-    onRecord?.call(span, innermost());
+    offset += step;
   }
 }
 

@@ -1786,8 +1786,7 @@ class BdDiagramPainter extends CustomPainter {
   void _paintTerminal(Canvas canvas, ViHeapObject object, Rect rect) {
     var box = rect;
     if (constValues[object.oid] != null) {
-      final kids =
-          scene.diagram.childrenByOid[object.oid] ?? const <ViHeapObject>[];
+      final kids = scene.diagram.children(object.oid);
       final named = kids.any(
         (c) =>
             c.objectClass == HeapObjectClass.controlLabel &&

@@ -74,11 +74,6 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
   return String.fromCharCodes(chars.skipWhile((char) => char == 0));
 }
 
-const _objAttrIds = {
-  0x20, 0x21, 0x6c, 0x24, 0x28, 0x6f, 0x19, 0x2b, 0x2a, 0x29, 0x3a, 0xcb, 0xea, 0xe7, 0x4d, 0x9f, 0x22, 0x74, //
-  0x54,
-};
-
 const int _structureAreaCap = 20000;
 
 // TODO: LabVIEW < 8.6 heaps store bounds in an absolute coordinate space that is not decoded.
@@ -95,7 +90,12 @@ bool _predatesFrameRelativeTermBounds(String? version) {
 /// The objects of one heap section, indexed by oid and parent, with the wires derived from
 /// its signals.
 class ViDiagram {
-  ViDiagram({required this.sectionTag, required this.objects, this.version});
+  ViDiagram({
+    required this.sectionTag,
+    required this.objects,
+    this.version,
+    Map<int, ViHeapObject>? byId,
+  }) : _byId = byId;
 
   /// The section the heap came from, `FPHb` or `BDHb`.
   final String sectionTag;
@@ -106,11 +106,15 @@ class ViDiagram {
   /// Every object in heap order.
   final List<ViHeapObject> objects;
 
-  late final Map<int, ViHeapObject> byId = {for (final object in objects) object.oid: object};
+  Map<int, ViHeapObject>? _byId;
+
+  Map<int, ViHeapObject> get byId => _byId ??= _objectsByOid(objects);
+
+  late final bool _predatesFrameRelativeTerms = _predatesFrameRelativeTermBounds(version);
 
   Iterable<ViHeapObject> get roots => objects.where((o) => o.parentOid == null);
 
-  Iterable<ViHeapObject> children(int oid) => childrenByOid[oid] ?? const <ViHeapObject>[];
+  List<ViHeapObject> children(int oid) => byId[oid]?.children ?? const <ViHeapObject>[];
 
   /// The frame objects of a structure, in heap order.
   List<ViHeapObject> framesOf(ViHeapObject structure) => [
@@ -498,8 +502,6 @@ class ViDiagram {
     return terminalOid == null ? null : byId[terminalOid];
   }
 
-  late final Map<int, List<ViHeapObject>> childrenByOid = _childrenByParentOid(objects);
-
   /// The endpoint that names each terminal as its DCO; a terminal named by two has no entry.
   late final Map<int, int> _dcoOidByTerminalOid = _buildTerminalDcoIndex();
 
@@ -531,7 +533,7 @@ class ViDiagram {
   ViHeapObject? endpointConstant(int oid) {
     final endpoint = byId[oid];
     if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
-    for (final child in childrenByOid[oid] ?? const <ViHeapObject>[]) {
+    for (final child in children(oid)) {
       if (child.objectClass == HeapObjectClass.bdConstDco) return child;
     }
     return null;
@@ -539,10 +541,10 @@ class ViDiagram {
 
   /// The bounds of the constant's first bounded child; null before LabVIEW 8.6.
   HeapRect? endpointConstantBounds(int oid) {
-    if (_predatesFrameRelativeTermBounds(version)) return null;
+    if (_predatesFrameRelativeTerms) return null;
     final constant = endpointConstant(oid);
     if (constant == null) return null;
-    for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
+    for (final child in children(constant.oid)) {
       if (child.absBounds != null) return child.absBounds;
     }
     return null;
@@ -550,14 +552,14 @@ class ViDiagram {
 
   /// For a constant drawn as a container, the bounds of its rightmost element part.
   HeapRect? endpointConstantElementBounds(int oid) {
-    if (_predatesFrameRelativeTermBounds(version)) return null;
+    if (_predatesFrameRelativeTerms) return null;
     final constant = endpointConstant(oid);
     if (constant == null) return null;
-    for (final child in childrenByOid[constant.oid] ?? const <ViHeapObject>[]) {
+    for (final child in children(constant.oid)) {
       if (child.absBounds == null) continue;
       if (child.objectClass != HeapObjectClass.caseOrSequence) return null;
       HeapRect? element;
-      for (final kid in childrenByOid[child.oid] ?? const <ViHeapObject>[]) {
+      for (final kid in children(child.oid)) {
         final kidBounds = kid.absBounds;
         if (kid.objectClass == HeapObjectClass.controlChrome ||
             kid.objectClass == HeapObjectClass.controlLabel ||
@@ -576,7 +578,7 @@ class ViDiagram {
   /// The endpoint's terminal box in diagram pixels: its `termBounds` shifted by the nearest
   /// bounded ancestor's origin; null before LabVIEW 8.6.
   HeapRect? endpointTerminalBounds(int oid) {
-    if (_predatesFrameRelativeTermBounds(version)) return null;
+    if (_predatesFrameRelativeTerms) return null;
     final terminal = endpointTerminal(oid);
     final rel = terminal?.termBounds;
     if (terminal == null || rel == null) return null;
@@ -594,11 +596,11 @@ class ViDiagram {
   /// For a node endpoint without bounds whose single child carries `termBounds`: the centre of
   /// that box, and whether the child is a wide terminal strip.
   ({List<ViPoint> candidates, bool wideRow})? dcoChildTerminalAttach(int oid) {
-    if (_predatesFrameRelativeTermBounds(version)) return null;
+    if (_predatesFrameRelativeTerms) return null;
     final endpoint = byId[oid];
     if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind || endpoint.absBounds != null) return null;
     ViHeapObject? part;
-    for (final child in childrenByOid[oid] ?? const <ViHeapObject>[]) {
+    for (final child in children(oid)) {
       if (child.termBounds == null) continue;
       if (part != null) return null;
       part = child;
@@ -623,7 +625,7 @@ class ViDiagram {
   ViPoint? _attachPointFrom(HeapRect? attachRect, int oid) {
     var rect = attachRect;
     if (rect == null) {
-      if (_predatesFrameRelativeTermBounds(version)) return null;
+      if (_predatesFrameRelativeTerms) return null;
       final endpoint = byId[oid];
       if (endpoint == null || endpoint.objectClass != HeapObjectClass.bdLeaf) return null;
       rect = endpoint.absBounds;
@@ -669,8 +671,7 @@ class ViDiagram {
 
   ViHeapObject? _boundedOwnerObject(ViHeapObject start) {
     ViHeapObject? object = start;
-    final seen = <int>{};
-    while (object != null && seen.add(object.oid)) {
+    for (var depth = 0; object != null && depth < objects.length; depth++) {
       if (object.absBounds != null) return object;
       final parentOid = object.parentOid;
       object = parentOid == null ? null : byId[parentOid];
@@ -679,13 +680,7 @@ class ViDiagram {
   }
 }
 
-Map<int, List<ViHeapObject>> _childrenByParentOid(List<ViHeapObject> objects) {
-  final kids = <int, List<ViHeapObject>>{};
-  for (final object in objects) {
-    if (object.parentOid != null) (kids[object.parentOid!] ??= <ViHeapObject>[]).add(object);
-  }
-  return kids;
-}
+Map<int, ViHeapObject> _objectsByOid(List<ViHeapObject> objects) => {for (final object in objects) object.oid: object};
 
 int? _attrScalarBytes(HeapAttrWidth width) => switch (width) {
   HeapAttrWidth.flag => 0,
@@ -811,12 +806,10 @@ Object? decodeBdConstantValue({
 /// nodes take their first child label, and controls under a scrolled viewport are re-anchored.
 ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? version}) {
   final objects = <ViHeapObject>[];
-  final c4ops = <ViHeapObject, Set<int>>{};
+  final typeKindOps = <int>[];
   final formatPayloads = <ViHeapObject, List<int>>{};
-  final absTop = <ViHeapObject, int>{};
-  final absLeft = <ViHeapObject, int>{};
-  final liveParent = <ViHeapObject, ViHeapObject?>{};
   final length = body.length;
+  final view = ByteData.sublistView(body);
 
   ViHeapObject? styleRunOwner;
   var styleRunGroupDepth = 0;
@@ -923,13 +916,17 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       }
     },
     onObjectOpen: (span, kind, oid, parent) {
-      final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset);
-      cur.parentOid = parent?.oid;
-      liveParent[cur] = parent;
-      absTop[cur] = absTop[parent] ?? 0;
-      absLeft[cur] = absLeft[parent] ?? 0;
+      final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset, index: objects.length);
+      typeKindOps.add(0);
+      if (parent != null) {
+        cur.parentOid = parent.oid;
+        cur.parent = parent;
+        cur.originTop = parent.originTop;
+        cur.originLeft = parent.originLeft;
+        if (parent.children.isEmpty) parent.children = <ViHeapObject>[];
+        parent.children.add(cur);
+      }
       objects.add(cur);
-      c4ops[cur] = <int>{};
       return cur;
     },
     onRecord: (span, cur) {
@@ -944,7 +941,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
             return;
           }
         } else if (selectorEntryOpen) {
-          final attr = decodeHeapAttr(body, offset);
+          final attr = decodeHeapAttrIn(view, body, offset);
           final value = attr?.asInt;
           if (attr != null && value != null) {
             final tag = attr.rawTag;
@@ -973,7 +970,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       }
       final indexOwner = arrayIndexOwner;
       if (indexOwner != null && identical(cur, indexOwner)) {
-        final attr = decodeHeapAttr(body, offset);
+        final attr = decodeHeapAttrIn(view, body, offset);
         final value = attr?.asInt;
         if (value != null && attr != null && attr.rawTag == HeapAttribute.arrayElemValue.raw) {
           indexOwner.arrayIndex = value;
@@ -981,7 +978,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
       }
       if (styleRunOpen && identical(cur, styleRunOwner)) {
-        final attr = decodeHeapAttr(body, offset);
+        final attr = decodeHeapAttrIn(view, body, offset);
         final value = attr?.asInt;
         if (attr != null && value != null) {
           if (attr.rawTag == FontRunAttr.start.raw) {
@@ -997,17 +994,17 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
       if (lead == kHeapRecordPrefix) {
         final rec = c4FrameAt(body, offset, sectionTag);
         if (rec == null) return;
-        (c4ops[cur] ??= <int>{}).add(rec.opcode);
+        typeKindOps[cur.index] |= _typeKindOpBit(rec.opcode);
         switch (rec.opcode) {
           case 0x2d:
             final recBounds = rec.bounds;
             if (cur.bounds == null && recBounds != null) {
               final bounds = recBounds;
               cur.bounds = bounds;
-              final top = (absTop[cur] ?? 0) + bounds.top;
-              final left = (absLeft[cur] ?? 0) + bounds.left;
-              absTop[cur] = top;
-              absLeft[cur] = left;
+              final top = cur.originTop + bounds.top;
+              final left = cur.originLeft + bounds.left;
+              cur.originTop = top;
+              cur.originLeft = left;
               cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
             }
           case 0x22:
@@ -1031,13 +1028,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
             if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignEntryPoint ??= rec.text;
         }
       } else if (lead == 0x14) {
-        final ref = decodeHeapRef(body, offset);
+        final ref = decodeHeapRefIn(view, body, offset);
         if (ref != null) {
           (cur.typedRefs[ref.kind] ??= <int>[]).add(ref.targetOid);
           if (ref.kind == HeapRefKind.childRef) cur.refs.add(ref.targetOid);
         }
-      } else if (offset + 1 < length && _objAttrIds.contains(body[offset + 1])) {
-        final attr = decodeHeapAttr(body, offset);
+      } else if (offset + 1 < length && _objAttrRawTable[((lead & 3) << 8) | body[offset + 1]]) {
+        final attr = decodeHeapAttrIn(view, body, offset);
         if (attr == null) return;
         final number = attr.asDouble;
         if (number != null && kControlTerminalClasses.contains(cur.objectClass)) {
@@ -1130,7 +1127,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
 
   for (final object in objects) {
     if (object.objectClass != HeapObjectClass.controlLabel) continue;
-    final parent = liveParent[object];
+    final parent = object.parent;
     final local = object.bounds;
     final ownerBounds = parent?.bounds;
     final ownerAbs = parent?.absBounds;
@@ -1143,11 +1140,6 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     );
   }
 
-  final childrenOf = <ViHeapObject, List<ViHeapObject>>{};
-  for (final object in objects) {
-    final parent = liveParent[object];
-    if (parent != null) (childrenOf[parent] ??= []).add(object);
-  }
   void shiftSubtree(ViHeapObject root, int dTop, int dLeft) {
     final b = root.absBounds;
     if (b != null) {
@@ -1158,14 +1150,14 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         right: b.right + dLeft,
       );
     }
-    for (final child in childrenOf[root] ?? const <ViHeapObject>[]) {
+    for (final child in root.children) {
       shiftSubtree(child, dTop, dLeft);
     }
   }
 
   for (final object in objects) {
     if (object.objectClass != HeapObjectClass.bdFlatSequence || object.absBounds == null) continue;
-    for (final frame in childrenOf[object] ?? const <ViHeapObject>[]) {
+    for (final frame in object.children) {
       final local = frame.bounds;
       final abs = frame.absBounds;
       final owner = object.absBounds;
@@ -1180,10 +1172,17 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
 
   for (final object in objects) {
     object.category = classifyObject(objectClass: object.objectClass, termCount: object.termCount);
-    object.typeKind = inferTypeKind(c4ops[object] ?? const <int>{}, formatPayloads[object]);
+    final ops = typeKindOps[object.index];
+    object.typeKind = inferTypeKind(
+      clnNode: ops & _clnNodeOp != 0,
+      path: ops & _pathOp != 0,
+      enumRing: ops & _enumRingOp != 0,
+      numeric: ops & _numericOp != 0,
+      formatPayload: formatPayloads[object],
+    );
   }
 
-  final byOid = {for (final object in objects) object.oid: object};
+  final byOid = _objectsByOid(objects);
   for (final object in objects) {
     if (object.items.isEmpty) continue;
     var parentOid = object.parentOid;
@@ -1216,16 +1215,14 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     }
   }
 
-  final nodeKids = _childrenByParentOid(objects);
-
   for (final object in objects) {
     if (object.category != ViObjectKind.unknown) continue;
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
     if (bounds.width * bounds.height >= _structureAreaCap) continue;
     if (object.parentOid == null || byOid[object.parentOid]?.objectClass != HeapObjectClass.bdFrame) continue;
-    final cs = nodeKids[object.oid];
-    if (cs == null) continue;
+    final cs = object.children;
+    if (cs.isEmpty) continue;
     final hasStructural = cs.any((c) => c.kind == kNodeEndpointDcoKind);
     final hasConnector = cs.any((c) => c.objectClass == HeapObjectClass.connectorTerminal);
     if (!hasStructural || hasConnector) continue;
@@ -1234,16 +1231,56 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
 
   for (final object in objects) {
     if (object.category != ViObjectKind.node || object.label != null) continue;
-    final caps = (nodeKids[object.oid] ?? const <ViHeapObject>[])
+    final caps = object.children
         .where((c) => c.objectClass == HeapObjectClass.controlLabel)
         .map((c) => c.label?.trim())
         .where((cap) => cap != null && cap.isNotEmpty);
     if (caps.isNotEmpty) object.label = caps.first;
   }
 
-  _reanchorScrolledControls(objects, byOid, nodeKids);
-  return ViDiagram(sectionTag: sectionTag, objects: objects, version: version);
+  _reanchorScrolledControls(objects, byOid);
+  return ViDiagram(sectionTag: sectionTag, objects: objects, version: version, byId: byOid);
 }
+
+const _clnNodeOp = 1, _pathOp = 2, _enumRingOp = 4, _numericOp = 8;
+
+int _typeKindOpBit(int opcode) => switch (opcode) {
+  0xc4 => _clnNodeOp,
+  0xa4 => _pathOp,
+  0x2e => _enumRingOp,
+  0x74 => _numericOp,
+  _ => 0,
+};
+
+final List<bool> _objAttrRawTable = () {
+  final table = List<bool>.filled(0x400, false);
+  for (final attribute in const [
+    HeapAttribute.backgroundColor,
+    HeapAttribute.borderColor,
+    HeapAttribute.compressedWireTable,
+    HeapAttribute.constValue,
+    HeapAttribute.contentColor,
+    HeapAttribute.cosmColorB,
+    HeapAttribute.dIdx,
+    HeapAttribute.fgColor,
+    HeapAttribute.formatStyle,
+    HeapAttribute.lastSignalKind,
+    HeapAttribute.objFlags,
+    HeapAttribute.plotColor,
+    HeapAttribute.primResID,
+    HeapAttribute.selectDefaultCase,
+    HeapAttribute.shortText,
+    HeapAttribute.stdNumMax,
+    HeapAttribute.stdNumMin,
+    HeapAttribute.structColor,
+    HeapAttribute.termBMPs,
+    HeapAttribute.termBounds,
+    HeapAttribute.typeDescIndex,
+  ]) {
+    table[attribute.raw] = true;
+  }
+  return table;
+}();
 
 List<String> _parseEnumItems(List<int> payload) {
   final out = <String>[];
@@ -1260,11 +1297,7 @@ List<String> _parseEnumItems(List<int> payload) {
   return out;
 }
 
-void _reanchorScrolledControls(
-  List<ViHeapObject> objects,
-  Map<int, ViHeapObject> byOid,
-  Map<int, List<ViHeapObject>> kids,
-) {
+void _reanchorScrolledControls(List<ViHeapObject> objects, Map<int, ViHeapObject> byOid) {
   int? reanchorViewport(ViHeapObject object) {
     var parentOid = object.parentOid;
     final seen = <int>{};
@@ -1305,8 +1338,8 @@ void _reanchorScrolledControls(
         );
       }
       if (!expanded.add(object.oid)) continue;
-      final cs = kids[object.oid];
-      if (cs != null) {
+      final cs = object.children;
+      if (cs.isNotEmpty) {
         for (final child in cs) {
           if (seen.add(child)) work.add(child);
         }
@@ -1534,11 +1567,10 @@ void _typedBdConstDecode(ViHeapObject object) {
 /// Fills the `const*` fields of every constant DCO: through its resolved type first, then
 /// through [decodeBdConstantValue] for the fields still unset.
 void decodeBdConstValues(ViDiagram diagram) {
-  final nodeKids = _childrenByParentOid(diagram.objects);
   bool subtreeHasItems(ViHeapObject o, [int depth = 0]) {
     if (o.items.isNotEmpty) return true;
     if (depth >= 16) return false;
-    for (final kid in nodeKids[o.oid] ?? const <ViHeapObject>[]) {
+    for (final kid in o.children) {
       if (subtreeHasItems(kid, depth + 1)) return true;
     }
     return false;
@@ -1547,8 +1579,8 @@ void decodeBdConstValues(ViDiagram diagram) {
   for (final object in diagram.objects) {
     if (object.objectClass != HeapObjectClass.bdConstDco || object.constValueRaw == null) continue;
     _typedBdConstDecode(object);
-    final kids = nodeKids[object.oid];
-    if (kids == null || kids.isEmpty) continue;
+    final kids = object.children;
+    if (kids.isEmpty) continue;
     final carrier = kids.first.objectClass;
     final wantsItems = carrier == HeapObjectClass.enumRingControl || carrier == HeapObjectClass.clusterShell;
     final value = decodeBdConstantValue(
