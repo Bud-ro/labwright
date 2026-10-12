@@ -49,6 +49,9 @@ import '../decode.dart';
 /// Lead byte of a C4 record.
 const int kHeapRecordPrefix = 0xc4;
 
+/// Bytes of the shortest object header, the u16 oid form.
+const int kHeapObjectHeaderMinLength = 9;
+
 /// Whether [lead] can open an object, `0x10`–`0x12`.
 bool isHeapObjectHeaderLead(int lead) => lead >= 0x10 && lead <= 0x12;
 
@@ -1306,21 +1309,26 @@ bool _isObjectHeader(Uint8List body, int offset) =>
     body[offset + 3] == 0xfe &&
     body[offset + 6] == 0xfd;
 
-int _objectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
+/// The byte length of the object header at [offset], 9 or 13 by oid width; 0 when the bytes
+/// there are not one.
+int heapObjectHeaderLength(Uint8List body, int offset) {
+  if (!_isObjectHeader(body, offset)) return 0;
+  return (body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length ? 13 : 9;
+}
 
-/// 13 for the u32 oid form, else 9.
-int _objectHeaderLength(Uint8List body, int offset) =>
-    (body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length ? 13 : 9;
+/// The class code of the object header at [offset].
+int heapObjectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
 
-int _objectHeaderOid(Uint8List body, int offset, int length) => length == 13
+/// The oid of the object header at [offset] whose [heapObjectHeaderLength] is [length].
+int heapObjectHeaderOid(Uint8List body, int offset, int length) => length == 13
     ? body[offset + 9] << 24 | body[offset + 10] << 16 | body[offset + 11] << 8 | body[offset + 12]
     : body[offset + 7] << 8 | body[offset + 8];
 
 /// The object header at [offset], or null when the bytes there are not one.
 ({int kind, int oid, int length})? heapObjectHeaderAt(Uint8List body, int offset) {
-  if (!_isObjectHeader(body, offset)) return null;
-  final length = _objectHeaderLength(body, offset);
-  return (kind: _objectHeaderKind(body, offset), oid: _objectHeaderOid(body, offset, length), length: length);
+  final length = heapObjectHeaderLength(body, offset);
+  if (length == 0) return null;
+  return (kind: heapObjectHeaderKind(body, offset), oid: heapObjectHeaderOid(body, offset, length), length: length);
 }
 
 /// One decoded property token and, for the tagged-list form, its first item.
@@ -1691,10 +1699,10 @@ void walkHeapObjects<T extends Object>(
     if (step == null || offset + step > length) return;
     final lead = body[offset];
     final enclosing = scopes.isEmpty ? null : scopes.last;
-    if (isHeapObjectHeaderLead(lead) && _isObjectHeader(body, offset)) {
-      final headerLength = _objectHeaderLength(body, offset);
-      final kind = _objectHeaderKind(body, offset);
-      final oid = _objectHeaderOid(body, offset, headerLength);
+    final headerLength = isHeapObjectHeaderLead(lead) ? heapObjectHeaderLength(body, offset) : 0;
+    if (headerLength != 0) {
+      final kind = heapObjectHeaderKind(body, offset);
+      final oid = heapObjectHeaderOid(body, offset, headerLength);
       scopes.add(onObjectOpen(offset, kind, oid, enclosing));
       groupTags.add(null);
     } else if (isHeapGroupOpenLead(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
