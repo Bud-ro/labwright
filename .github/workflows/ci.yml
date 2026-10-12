@@ -66,8 +66,6 @@ jobs:
   corpus:
     name: corpus
     runs-on: ubuntu-latest
-    env:
-      GH_TOKEN: ${{ github.token }}
     steps:
       - uses: actions/checkout@v4
 
@@ -82,7 +80,7 @@ jobs:
           path: |
             corpus/vi
             corpus/seq
-          key: corpus-${{ hashFiles('corpus/sources.json') }}
+          key: corpus-${{ hashFiles('corpus/repos.json') }}
 
       - name: fetch the corpora
         run: dart run tool/fetch_corpus.dart

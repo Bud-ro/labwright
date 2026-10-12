@@ -11,7 +11,7 @@ import 'corpus_dirs.dart';
 
 void main() {
   test('corpus pins: known constant values', () {
-    final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
+    final crc8 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/crc8.png');
     final vi = extractSnippetVi(crc8.readAsBytesSync())!;
     final bd = buildViModel(vi).blockDiagrams.single;
     final pins = <int, Object?>{
@@ -29,7 +29,7 @@ void main() {
     expect(bd.byId[2369]!.arrayIndex, 255, reason: 'zero-LUT shell index');
     expect(bd.byId[750]!.constArray![255], 255, reason: 'LUT[255]');
 
-    final md5 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/MD5.png');
+    final md5 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/MD5.png');
     final bdM = buildViModel(extractSnippetVi(md5.readAsBytesSync())!).blockDiagrams.single;
     expect(bdM.byId[821]!.constNumeric, 0x67452301, reason: 's1 in');
     expect(bdM.byId[796]!.constNumeric, 0xEFCDAB89, reason: 's2 in: leading byte >= 0x80, typed u32');
@@ -44,37 +44,36 @@ void main() {
     expect(bdM.byId[4996]!.displayFormat, '%x', reason: 'T element window');
 
     final test5 = File(
-      '${corpusViDir.path}/NEVSTOP-LAB_Communicable-State-Machine/'
-      'NEVSTOP-LAB-Communicable-State-Machine-afe7d4d/testcases/testcase-CSMGlobalLog/test5-Broadcast_Queue.vi',
+      '${corpusViDir.path}/vi-corpus/sources/NEVSTOP-LAB__Communicable-State-Machine/'
+      'testcases/testcase-CSMGlobalLog/test5-Broadcast_Queue.vi',
     );
-    if (test5.existsSync()) {
-      final bytes = test5.readAsBytesSync();
-      final bd5 = buildViModel(bytes).blockDiagrams.single;
-      expect(bd5.byId[1148]!.constNumeric, 10, reason: 'milliseconds to wait');
-      expect(bd5.byId[2592]!.constBool, true);
-      expect(bd5.byId[2692]!.constText, 'Test Status');
-      expect(bd5.byId[2924]!.resolvedType?.kind, ViDataType.i32);
-      expect(bd5.byId[2924]!.constNumeric, -1);
+    expect(test5.existsSync(), isTrue, reason: 'the pinned VI must be fetched with the corpus');
+    final bytes = test5.readAsBytesSync();
+    final bd5 = buildViModel(bytes).blockDiagrams.single;
+    expect(bd5.byId[1148]!.constNumeric, 10, reason: 'milliseconds to wait');
+    expect(bd5.byId[2592]!.constBool, true);
+    expect(bd5.byId[2692]!.constText, 'Test Status');
+    expect(bd5.byId[2924]!.resolvedType?.kind, ViDataType.i32);
+    expect(bd5.byId[2924]!.constNumeric, -1);
 
-      final sections = readViSections(bytes);
-      final dfdsSection = sections.firstWhere((s) => s.tag == 'DFDS');
-      final dfds = inflateHeapPayload(dfdsSection.bytes)!;
-      final slots = ViDataSpace(dfds, dataSpaceContexts(sections)[dfdsSection.index]!).slots;
-      expect(slots, hasLength(37));
-      final strSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 1947);
-      expect((strSlot.topLevelIndex, strSlot.length), (324, 15));
-      expect(
-        String.fromCharCodes(Uint8List.sublistView(dfds, strSlot.offset + 4, strSlot.offset + strSlot.length)),
-        'Test Status',
-      );
-      final numSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 2104);
-      expect(numSlot.length, 4);
-      expect(
-        ByteData.sublistView(dfds, numSlot.offset, numSlot.offset + 4).getUint32(0),
-        bd5.byId[1148]!.constNumeric,
-        reason: 'decoded constant value byte-matches its data-space slot',
-      );
-    }
+    final sections = readViSections(bytes);
+    final dfdsSection = sections.firstWhere((s) => s.tag == 'DFDS');
+    final dfds = inflateHeapPayload(dfdsSection.bytes)!;
+    final slots = ViDataSpace(dfds, dataSpaceContexts(sections)[dfdsSection.index]!).slots;
+    expect(slots, hasLength(37));
+    final strSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 1947);
+    expect((strSlot.topLevelIndex, strSlot.length), (324, 15));
+    expect(
+      String.fromCharCodes(Uint8List.sublistView(dfds, strSlot.offset + 4, strSlot.offset + strSlot.length)),
+      'Test Status',
+    );
+    final numSlot = slots.singleWhere((DataSpaceSlot s) => s.offset == 2104);
+    expect(numSlot.length, 4);
+    expect(
+      ByteData.sublistView(dfds, numSlot.offset, numSlot.offset + 4).getUint32(0),
+      bd5.byId[1148]!.constNumeric,
+      reason: 'decoded constant value byte-matches its data-space slot',
+    );
   });
 
   test('string framing: the reference renders that settle a non-printable payload', () {

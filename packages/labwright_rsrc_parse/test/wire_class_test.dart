@@ -83,7 +83,7 @@ void main() {
   });
 
   test('endpoint terminal bounds: crc8 tunnels pin to their structure borders', () {
-    final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
+    final crc8 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/crc8.png');
     final diagram = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
     const wants = {
       88: (375, 158, 391, 174),

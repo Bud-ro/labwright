@@ -50,65 +50,65 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     primResId: null,
     classCode: 0x34,
     hasIcon: false,
-    vis: 805,
-    nodes: 1659,
-    sole: 84,
+    vis: 823,
+    nodes: 1746,
+    sole: 89,
     note:
         'named by 26 corpus captions; which terminal is the cluster being '
         'modified and which are the members is not decoded',
-    example: 'smithed_vicompare/…/Trunk/performaction.vi',
+    example: 'rtoenniges__LabVNA/calc_rjx_scale.vi',
   ),
   (
     identity: 'Close Reference (primResID 8011)',
     primResId: 8011,
     classCode: null,
     hasIcon: false,
-    vis: 759,
-    nodes: 3068,
-    sole: 41,
+    vis: 780,
+    nodes: 3083,
+    sole: 44,
     note:
         'what closing a reference does to the referent is not decoded, and '
         'the reference classes are not separated (LvRefnum is one handle type)',
-    example: 'vipm-io_caraya/…/src/subVIs/VI Name.vi',
+    example: 'vipm-io__caraya/…/src/subVIs/VI Name.vi',
   ),
   (
     identity: 'class 0x93 — Format Into String',
     primResId: null,
     classCode: 0x93,
     hasIcon: false,
-    vis: 690,
-    nodes: 1566,
-    sole: 107,
+    vis: 619,
+    nodes: 1463,
+    sole: 90,
     note:
         'named by 37 corpus captions; LabVIEW\'s format-specifier grammar is '
         'not decoded, so the format string cannot be read',
-    example: 'G-CLI_G-CLI/…/build/setVipBuildNumber.vi',
+    example: 'G-CLI__G-CLI/…/build/setVipBuildNumber.vi',
   ),
   (
     identity: 'Match Pattern (primResID 1535)',
     primResId: 1535,
     classCode: null,
     hasIcon: true,
-    vis: 680,
-    nodes: 1800,
-    sole: 71,
+    vis: 644,
+    nodes: 1693,
+    sole: 79,
     note:
         'the pattern dialect is not decoded: LabVIEW\'s Match Pattern is not '
         'a regular expression, and its metacharacter set is not established',
-    example: 'G-CLI_G-CLI/…/build/setVipBuildNumber.vi',
+    example: 'G-CLI__G-CLI/…/build/setVipBuildNumber.vi',
   ),
   (
     identity: 'class 0xa9 — 38 distinct captions',
     primResId: null,
     classCode: 0xa9,
     hasIcon: false,
-    vis: 678,
-    nodes: 2619,
-    sole: 62,
+    vis: 697,
+    nodes: 2673,
+    sole: 61,
     note:
         'captions read Invoke Node ×84 then Classes ×10, Attribute ×10, '
         'Save ×8 — is the class one node whose caption is the invoked member?',
-    example: 'vipm-io_caraya/…/src/tests/All Tests.vi',
+    example: 'vipm-io__caraya/…/src/tests/All Tests.vi',
   ),
   (
     identity: 'class 0x6c — Compound Arithmetic',
@@ -121,98 +121,99 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'operand order reads; the node\'s mode (add/multiply/AND/OR/XOR) and '
         'its per-operand inversion bit are not tied to any decoded field',
-    example: 'vipm-io_caraya/…/src/subVIs/FindLibPath.vi',
+    example: 'vipm-io__caraya/…/src/subVIs/FindLibPath.vi',
   ),
   (
     identity: 'Search 1D Array (primResID 1901)',
     primResId: 1901,
     classCode: null,
     hasIcon: true,
-    vis: 591,
-    nodes: 1338,
-    sole: 29,
+    vis: 581,
+    nodes: 1335,
+    sole: 38,
     note:
         'arity and operand order read; the value returned when the element is '
         'absent, and the start-index default when unwired, are not decoded',
-    example: 'vipm-io_caraya/…/src/Caraya CLI.vi',
+    example: 'vipm-io__caraya/…/src/Caraya CLI.vi',
   ),
   (
     identity: 'class 0x153 — In Place Element (DVR access)',
     primResId: null,
     classCode: 0x153,
     hasIcon: false,
-    vis: 556,
-    nodes: 1466,
-    sole: 337,
+    vis: 534,
+    nodes: 1424,
+    sole: 322,
     note:
         'all 1466 sit inside an In Place Element Structure and name a data '
         'value reference; no VI holding one lowers on a rule for it alone',
-    example: 'rfporter_Modbus-Master/…/MB_Master_TCP/RX.vi',
+    example: 'rfporter__Modbus-Master/…/MB_Master_TCP/RX.vi',
   ),
   (
     identity: 'Build Path (primResID 1419)',
     primResId: 1419,
     classCode: null,
     hasIcon: true,
-    vis: 439,
-    nodes: 1215,
+    vis: 428,
+    nodes: 1191,
     sole: 25,
     note:
         'LvPath carries components and a root flag; how LabVIEW joins a '
         'relative name onto a path, and what it does with an empty one, is not decoded',
-    example: 'G-CLI_G-CLI/…/build/vipbBuild-nocli.vi',
+    example: 'G-CLI__G-CLI/…/build/vipbBuild-nocli.vi',
   ),
   (
     identity: 'class 0xd6 — Event Data / Event Filter Node',
     primResId: null,
     classCode: 0xd6,
     hasIcon: false,
-    vis: 378,
-    nodes: 2437,
-    sole: 25,
+    vis: 415,
+    nodes: 2657,
+    sole: 20,
     note:
         'captioned two ways (Event Data Node ×17, Event Filter Node ×1); no '
         'decoded field separates the two the way 0x63\'s flag bit does',
-    example: 'G-CLI_G-CLI/…/LabVIEW Source/CLI Demo.vi',
+    example: 'G-CLI__G-CLI/…/LabVIEW Source/CLI Demo.vi',
   ),
   (
     identity: 'Strip Path (primResID 1420)',
     primResId: 1420,
     classCode: null,
     hasIcon: true,
-    vis: 370,
-    nodes: 865,
-    sole: 1,
+    vis: 360,
+    nodes: 841,
+    sole: 3,
     note:
         'which of the two outputs is the stripped path and which the removed '
         'name is not decoded, and the behaviour on a rootless path is not stated',
-    example: 'vipm-io_caraya/…/src/Caraya CLI.vi',
+    example: 'vipm-io__caraya/…/src/Caraya CLI.vi',
   ),
   (
     identity: 'To More Specific Class (primResID 8016)',
     primResId: 8016,
     classCode: null,
     hasIcon: true,
-    vis: 344,
-    nodes: 825,
-    sole: 39,
+    vis: 364,
+    nodes: 859,
+    sole: 53,
     note:
         'LabVIEW class hierarchies are not decoded, so what makes one class '
         'more specific than another has no reading',
-    example: 'nasa_NDAS/…/Menu Manager/Activate Menu.vi',
+    example: 'nasa__NDAS/…/Menu Manager/Activate Menu.vi',
   ),
   (
     identity: 'class 0xbd — Delete From Array',
     primResId: null,
     classCode: 0xbd,
     hasIcon: false,
-    vis: 332,
-    nodes: 645,
-    sole: 10,
+    vis: 318,
+    nodes: 628,
+    sole: 8,
     note:
         'named by 7 corpus captions, unanimous; which terminal is the index '
         'and which the length, and which output is the remainder, are not decoded',
-    example: 'DAQIO_LVMQTT/…/Sub/Sub_Read_MQTT_String.vi',
+    example:
+        'opengds__OpenGDS/…/Project_class/GDSProject_RemoveFullyQualifiedNamesIfPossible.vi',
   ),
   (
     identity: 'String Subset (primResID 1503)',
@@ -225,33 +226,33 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'operand order reads as [string, offset, length] and the offset is '
         '0-based; the rule for an offset or length outside the string is not decoded',
-    example: 'smithed_vicompare/…/Trunk/is absolute path.vi',
+    example: 'opengds__OpenGDS/…/UMLEditor/UMLEditor_RemoveClassSuffix.vi',
   ),
   (
     identity: 'class 0xb6 — 147 distinct captions',
     primResId: null,
     classCode: 0xb6,
     hasIcon: false,
-    vis: 264,
-    nodes: 533,
-    sole: 20,
+    vis: 316,
+    nodes: 760,
+    sole: 18,
     note:
         'every node is 0 inputs 1 output; captions read Current VI Reference '
         '×141, This VI ×34, This Application ×8 — a reference source?',
-    example: 'vipm-io_caraya/…/src/tests/All Tests.vi',
+    example: 'vipm-io__caraya/…/src/tests/All Tests.vi',
   ),
   (
     identity: 'Variant To Data (primResID 8003)',
     primResId: 8003,
     classCode: null,
     hasIcon: true,
-    vis: 263,
-    nodes: 506,
-    sole: 10,
+    vis: 272,
+    nodes: 530,
+    sole: 15,
     note:
         'variant payload layout is not decoded (LvVariant carries the bytes '
         'and the descriptor verbatim), so nothing reads a value back out',
-    example: 'ni_grpc-labview/…/tests/gRPC_ATS/SubVIs/RunVI.vi',
+    example: 'ni__grpc-labview/…/tests/gRPC_ATS/SubVIs/RunVI.vi',
   ),
   (
     identity: 'To Lower Case (primResID 1189)',
@@ -264,20 +265,21 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'LabVIEW\'s case-mapping table over a byte string is not decoded, and '
         'Dart\'s toLowerCase is Unicode\'s, which differs above U+007F',
-    example: 'smithed_vicompare/…/Trunk/fix all paths.vi',
+    example:
+        'NEVSTOP-LAB__Communicable-State-Machine/…/_csmDoc/Support/_Generate ControlDocMap.vi',
   ),
   (
     identity: 'Open VI Reference (primResID 8010)',
     primResId: 8010,
     classCode: null,
     hasIcon: true,
-    vis: 251,
-    nodes: 447,
-    sole: 7,
+    vis: 253,
+    nodes: 449,
+    sole: 8,
     note:
         'the options word\'s bits are not decoded, and a VI reference has no '
         'runtime to open against',
-    example: 'vipm-io_caraya/…/src/subVIs/VI Name.vi',
+    example: 'vipm-io__caraya/…/src/subVIs/VI Name.vi',
   ),
   (
     identity: 'class 0x114 — no caption agreement',
@@ -290,98 +292,99 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'captions read Overflow array ×4 against Initialize Array ×3, both of '
         'which read as author text — what is this node?',
-    example: 'vipm-io_caraya/…/src/subVIs/Call Chain To Hash.vi',
+    example: 'vipm-io__caraya/…/src/subVIs/Call Chain To Hash.vi',
   ),
   (
     identity: 'class 0x14a — Feedback Node',
     primResId: null,
     classCode: 0x14a,
     hasIcon: false,
-    vis: 221,
-    nodes: 380,
+    vis: 225,
+    nodes: 385,
     sole: 0,
     note:
         'captions read Feedback Node ×12 and Target Angle ×2; a feedback node '
         'carries state across iterations, which this dataflow IR has no unit for',
-    example: 'nasa_NDAS/…/File Manager/Write Results.vi',
+    example: 'nasa__NDAS/…/File Manager/Write Results.vi',
   ),
   (
     identity: 'class 0x170 — no caption at all',
     primResId: null,
     classCode: 0x170,
     hasIcon: false,
-    vis: 221,
-    nodes: 380,
+    vis: 225,
+    nodes: 385,
     sole: 0,
     note:
         'not one corpus node carries a caption; every node is sink-only '
         '(1i0o ×372, 2i0o ×8), so it consumes values and yields none',
-    example: 'nasa_NDAS/…/File Manager/Write Results.vi',
+    example: 'nasa__NDAS/…/File Manager/Write Results.vi',
   ),
   (
     identity: 'class 0xeb — Register For Events',
     primResId: null,
     classCode: 0xeb,
     hasIcon: false,
-    vis: 199,
-    nodes: 226,
-    sole: 6,
+    vis: 206,
+    nodes: 234,
+    sole: 7,
     note:
         'only 2 corpus captions, below the naming bar; the terminal grammar '
         'of a growable registration node is not decoded',
-    example: 'opengds_OpenGDS/…/Open_GDS_Tools/Temp/SelectClassIcon.vi',
+    example: 'opengds__OpenGDS/…/Open_GDS_Tools/Temp/SelectClassIcon.vi',
   ),
   (
     identity: 'Unregister For Events (primResID 2076)',
     primResId: 2076,
     classCode: null,
     hasIcon: true,
-    vis: 181,
-    nodes: 203,
+    vis: 188,
+    nodes: 210,
     sole: 0,
     note:
         'the event system has no runtime model, so unregistering has no '
         'observable effect to lower to',
-    example: 'nasa_NDAS/…/Peer Review Tool/Peer Review Tool.vi',
+    example: 'nasa__NDAS/…/Peer Review Tool/Peer Review Tool.vi',
   ),
   (
     identity: 'Call Chain (primResID 1999)',
     primResId: 1999,
     classCode: null,
     hasIcon: true,
-    vis: 174,
-    nodes: 175,
-    sole: 37,
+    vis: 166,
+    nodes: 167,
+    sole: 73,
     note:
         'yields the caller chain as an array of paths; the runtime keeps no '
         'call stack of VI paths, so the value has no source',
-    example: 'vipm-io_caraya/…/src/subVIs/VI Name.vi',
+    example: 'vipm-io__caraya/…/src/subVIs/VI Name.vi',
   ),
   (
     identity: 'Search and Replace String (primResID 3914)',
     primResId: 3914,
     classCode: null,
     hasIcon: true,
-    vis: 157,
-    nodes: 243,
-    sole: 10,
+    vis: 156,
+    nodes: 263,
+    sole: 11,
     note:
         'the node carries a regular-expression mode and a replace-all flag; '
         'neither is tied to a decoded field, and the dialect is Match Pattern\'s',
-    example: 'smithed_vicompare/…/Trunk/swap slashes.vi',
+    example:
+        'opengds__OpenGDS/…/ClassWriterNative_class/private/UpdateMethodSignatureText.vi',
   ),
   (
     identity: 'class 0x150 — In Place Element border node',
     primResId: null,
     classCode: 0x150,
     hasIcon: false,
-    vis: 157,
-    nodes: 406,
-    sole: 28,
+    vis: 164,
+    nodes: 428,
+    sole: 20,
     note:
         'all 406 sit inside an In Place Element Structure and pair off '
         'left/right; which element access each performs is not recovered',
-    example: 'nasa_NDAS/…/Peer Review Tool/Functions/Reset Files.vi',
+    example: 'nasa__NDAS/…/Peer Review Tool/Functions/Reset Files.vi',
   ),
   (
     identity: 'Get Variant Attribute (primResID 8205)',
@@ -390,24 +393,24 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     hasIcon: true,
     vis: 153,
     nodes: 307,
-    sole: 27,
+    sole: 29,
     note:
         'variant attribute storage is not decoded — neither where a variant '
         'keeps its attribute table nor how a name selects one',
-    example: 'rfporter_Modbus-Master/…/MB_Master_TCP/TX.vi',
+    example: 'rfporter__Modbus-Master/…/MB_Master_TCP/TX.vi',
   ),
   (
     identity: 'Enqueue Element (primResID 9111)',
     primResId: 9111,
     classCode: null,
     hasIcon: true,
-    vis: 152,
-    nodes: 369,
-    sole: 3,
+    vis: 153,
+    nodes: 319,
+    sole: 5,
     note:
         'queues have no runtime model; the timeout terminal\'s unwired default '
         'and the timed-out output\'s polarity are not decoded either',
-    example: 'rfporter_Modbus-Master/…/MB_Master_TCP/Core.vi',
+    example: 'rfporter__Modbus-Master/…/MB_Master_TCP/Core.vi',
   ),
   (
     identity: 'primResID 9113 — name not decoded',
@@ -420,7 +423,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'no corpus VI labels this id and no bundled icon exists for it; it '
         'sits in the queue run (9108 Obtain, 9109 Release, 9111 Enqueue)',
-    example: 'rfporter_Modbus-Master/…/Tools/Modbus Comm Tester.vi',
+    example: 'rfporter__Modbus-Master/…/Tools/Modbus Comm Tester.vi',
   ),
   (
     identity: 'primResID 1181 — name not decoded',
@@ -433,7 +436,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'MAINTAINER-BLOCKED: two inputs, one output; no corpus VI labels it '
         'and its icon has not been read — what operation is this?',
-    example: 'vipm-io_caraya/…/src/subVIs/guid_generator.vi',
+    example: 'vipm-io__caraya/…/src/subVIs/guid_generator.vi',
   ),
   (
     identity: 'primResID 1082 — name not decoded',
@@ -446,7 +449,7 @@ const List<ReviewSheetRow> kReviewSheetRows = [
     note:
         'MAINTAINER-BLOCKED: two inputs, one output, drawn beside the '
         'arithmetic run; no corpus label and no reading of its icon',
-    example: 'rcpacini_LabVIEW-VI-Hacker/…/src/MD5.vi',
+    example: 'rcpacini__LabVIEW-VI-Hacker/…/src/MD5.vi',
   ),
 ];
 

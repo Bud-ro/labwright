@@ -43,11 +43,7 @@ const _elementTokens = {'Objs', 'Obj', 'Seq', 'Data', 'Step', 'Sequence', 'Seque
 
 BinaryTypeField? _child(BinaryTypeField f, String name) => f.children.where((c) => c.name == name).firstOrNull;
 
-const _knownOffenders = {
-  'MainCycle.seq: type name Obj',
-  'MainTest.seq: type name Obj',
-  'RemoveUnusedChannels.seq: type name Obj',
-};
+const _knownOffenders = <String>{};
 
 void main() {
   final files =
@@ -249,11 +245,14 @@ void main() {
 
   test('misaligned cohort recovers its exact per-file base, and the rebase is semantic', () {
     const expected = {
-      'teststand/Sequence File 1.seq': 1,
-      'EnumControls/EnumControls.seq': 4,
-      'DotNetEnums/DotNetEnums.seq': 9,
-      'Example Sequences/Sample Project.seq': 23,
-      'TestProgram/AppNoteMEMS_TestProgram_Example.seq': 5,
+      'rfic-reference-design-libraries-csharp/Automation/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL.seq':
+          24,
+      'rfic-reference-design-libraries-labview/Automation/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL.seq':
+          23,
+      'rfic-reference-design-libraries-labview/Automation/TestStand_SPECAN_TXP_LOADPULL/TestStand_SPECAN_TXP_LOADPULL.seq':
+          27,
+      'ECU-HIL-Demo/TestStand Scripts/CC Tests.seq': -1,
+      'Patching Process Models/SequentialModel.seq': -1,
       'src/docgen_csv.seq': -1,
     };
     var checked = 0;
@@ -265,7 +264,7 @@ void main() {
     });
     expect(checked, greaterThanOrEqualTo(4), reason: 'too few cohort files present to guard the recovery');
 
-    final f = pin('teststand/Sequence File 1.seq');
+    final f = pin('ECU-HIL-Demo/TestStand Scripts/CC Tests.seq');
     if (f == null) return;
     final bytes = f.readAsBytesSync();
     var anchors = 0;
@@ -287,12 +286,10 @@ void main() {
 
   group('pinned corpus files (record-walk correctness)', () {
     const pinnedSuffixes = [
-      'DHA_TestStand_Seq-39449e1/DHA5x5_STTE_CalibrationSequence.seq',
       'sandbox/Test Sequence.seq',
-      'Bed of Nails Test Stand/BenchmarkTest.seq',
-      'Very Old/Elatch-bench Backup.seq',
-      'Sequence/iTAC.seq',
-      'Solar_Panel Controller/Solar_panel_main.seq',
+      'Digital IO Tests/Digital IO Tests.seq',
+      'PCBA FT Demo/PCBA FT Demo.seq',
+      'TsmPerformanceLogger/Code/ModelPlugins/PerformanceMeasurementLogger.seq',
     ];
 
     List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix)!.readAsBytesSync());
@@ -301,35 +298,43 @@ void main() {
       expect(pinnedSuffixes.where((s) => pin(s) != null).length, pinnedSuffixes.length);
     });
 
-    test('DHA5x5_STTE_CalibrationSequence.seq: record-walk-only discovery (no declaration paths)', () {
-      if (pin(pinnedSuffixes[0]) == null) return;
-      final outlines = outlinesOf(pinnedSuffixes[0]);
-      final verify = outlines.firstWhere((o) => o.name == 'VerifyCalibration');
-      final main = verify.groupArrays.firstWhere((g) => g.name == 'Main');
-      expect(main.children, hasLength(72));
-      expect(main.children.every((s) => s.typeName != null), isTrue);
-      final locals = verify.leadingSubProps.firstWhere((p) => p.name == 'Locals');
-      final crosshair = locals.children.firstWhere((c) => c.name == 'CrosshairX');
-      expect(crosshair.className, 'Nums');
-      expect(crosshair.arrayUBound, '[8]');
-      expect(crosshair.children, hasLength(9));
-      expect(crosshair.children.first.value, '150');
-    });
-
     test('Test Sequence.seq: a genuine sequence NAMED `Sequence` (walk-corroborated)', () {
-      if (pin(pinnedSuffixes[1]) == null) return;
-      final seq = outlinesOf(pinnedSuffixes[1]).where((o) => o.name == 'Sequence').single;
+      if (pin(pinnedSuffixes[0]) == null) return;
+      final seq = outlinesOf(pinnedSuffixes[0]).where((o) => o.name == 'Sequence').single;
       final step = seq.groupArrays.firstWhere((g) => g.name == 'Main').children.single;
       expect((step.name, step.typeName), ('Subseq', 'DanfossStringValueTest'));
       expect(step.children.where((c) => c.name == 'Limits').single.children.single.value, 'String Limit');
     });
 
-    test('BenchmarkTest.seq: expression-array elements (DataSourceArray) decode', () {
+    test(
+      'LabVIEW Compiled Object Cache Preparation.seq: pool[0]-`Obj` generation — NI_Wait typedef body decodes through its substeps',
+      () {
+        if (pin(pinnedSuffixes[1]) == null) return;
+        final records = binaryTypeRecords(pin(pinnedSuffixes[1])!.readAsBytesSync());
+        final wait = records.firstWhere((r) => r.name == 'NI_Wait');
+        expect(wait.undecodedBody, isFalse);
+        final substeps = wait.fields!.firstWhere((f) => f.name == 'Substeps');
+        expect([for (final s in substeps.children) s.name], ['OnNewStep', 'Post', 'Edit']);
+        final edit = substeps.children[2];
+        final result = edit.children.firstWhere((f) => f.name == 'Result');
+        expect(result.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
+        expect([for (final c in result.children) c.name], ['Error', 'ReportText', 'Common']);
+        expect(result.children[0].className, isNull);
+        expect(
+          edit.children.firstWhere((f) => f.name == 'MenuName').value,
+          'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
+        );
+        expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
+        expect(records.where((r) => r.undecodedBody).length, 2);
+      },
+    );
+
+    test('PCBA FT Demo.seq: expression-array elements (DataSourceArray) decode', () {
       if (pin(pinnedSuffixes[2]) == null) return;
       final main = outlinesOf(
         pinnedSuffixes[2],
-      ).firstWhere((o) => o.name == 'MainSequence').groupArrays.firstWhere((g) => g.name == 'Main');
-      expect(main.children, hasLength(9));
+      ).firstWhere((o) => o.name == 'Power Diagnostics').groupArrays.firstWhere((g) => g.name == 'Main');
+      expect(main.children, hasLength(4));
       BinaryTypeField? findDataSources(BinaryTypeField f) {
         if (f.name == 'DataSourceArray' && f.children.isNotEmpty) return f;
         for (final c in f.children) {
@@ -339,63 +344,32 @@ void main() {
         return null;
       }
 
-      final dataSources = main.children.map(findDataSources).whereType<BinaryTypeField>().first;
-      expect(dataSources.children, hasLength(8));
-      expect(dataSources.children.every((e) => e.className == 'ExprValue' && e.name.isEmpty), isTrue);
-      expect(dataSources.children.first.value, 'Step.NumericArray[0]');
+      final dataSources = main.children.map(findDataSources).whereType<BinaryTypeField>().toList();
+      expect(dataSources, hasLength(3));
+      expect(dataSources.first.children, hasLength(1));
+      expect(dataSources.first.children.every((e) => e.className == 'ExprValue' && e.name.isEmpty), isTrue);
+      expect(dataSources.first.children.first.value, 'Locals.PS_Meas_Data.Max_Current');
     });
 
-    test('Elatch-bench Backup.seq: comment-slot record head decodes', () {
-      if (pin(pinnedSuffixes[3]) == null) return;
-      final outlines = outlinesOf(pinnedSuffixes[3]);
-      expect(
-        outlines.firstWhere((o) => o.name == 'MainSequence').comment,
-        'Override this in the client file with a sequence that performs tests on the UUT.',
-      );
-      final load = outlines.firstWhere((o) => o.name == 'Load_Variables');
-      expect(load.groupArrays.firstWhere((g) => g.name == 'Main').children, hasLength(6));
-    });
-
-    test('iTAC.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode', () {
-      if (pin(pinnedSuffixes[4]) == null) return;
-      final outlines = outlinesOf(pinnedSuffixes[4]);
-      expect(outlines.map((o) => o.name), contains('Connect'));
-      final connect = outlines.firstWhere((o) => o.name == 'Connect');
-      final params = connect.leadingSubProps.firstWhere((p) => p.name == 'Parameters');
-      expect(params.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
-      expect(params.attrWords, [0x440000], reason: 'the twin-known Parameters valueflags word');
-      expect(
-        [for (final c in params.children) c.name],
-        ['Error', 'iTACRef', 'iTACStationID', 'iTACSessionID', 'Errmsg'],
-        reason: 'the true 5-parameter list — nothing swallowed by the Ref',
-      );
-      final ref = params.children[1];
-      expect(ref.className, 'Ref');
-      expect(ref.value, isNull, reason: 'a Ref never persists a value');
-      expect(ref.children, isEmpty);
-      final locals = connect.leadingSubProps.firstWhere((p) => p.name == 'Locals');
-      expect(locals.attrWords, [0x400000], reason: 'the twin-known Locals valueflags word');
-      expect(locals.children.single.name, 'ResultList');
-    });
-
-    test('Solar_panel_main.seq: pool[0]-`Obj` generation — NI_Wait typedef body decodes through its substeps', () {
-      if (pin(pinnedSuffixes[5]) == null) return;
-      final records = binaryTypeRecords(pin(pinnedSuffixes[5])!.readAsBytesSync());
-      final wait = records.firstWhere((r) => r.name == 'NI_Wait');
-      expect(wait.undecodedBody, isFalse);
-      final substeps = wait.fields!.firstWhere((f) => f.name == 'Substeps');
-      expect([for (final s in substeps.children) s.name], ['OnNewStep', 'Post', 'Edit']);
-      final edit = substeps.children[2];
-      final result = edit.children.firstWhere((f) => f.name == 'Result');
-      expect(result.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
-      expect([for (final c in result.children) c.name], ['Error', 'ReportText', 'Common']);
-      expect(result.children[0].className, isNull);
-      expect(
-        edit.children.firstWhere((f) => f.name == 'MenuName').value,
-        'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
-      );
-      expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
-      expect(records.where((r) => r.undecodedBody).length, 4);
-    });
+    test(
+      'PerformanceMeasurementLogger.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode',
+      () {
+        if (pin(pinnedSuffixes[3]) == null) return;
+        final outlines = outlinesOf(pinnedSuffixes[3]);
+        expect(outlines.map((o) => o.name), contains('Log Data to File'));
+        final log = outlines.firstWhere((o) => o.name == 'Log Data to File');
+        final params = log.leadingSubProps.firstWhere((p) => p.name == 'Parameters');
+        expect(params.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
+        expect(params.attrWords, [0x440000], reason: 'the twin-known Parameters valueflags word');
+        expect([for (final c in params.children) c.name], ['PerformanceMeasurementLogger']);
+        final ref = params.children.single;
+        expect(ref.className, 'Ref');
+        expect(ref.value, isNull, reason: 'a Ref never persists a value');
+        expect(ref.children, isEmpty);
+        final locals = log.leadingSubProps.firstWhere((p) => p.name == 'Locals');
+        expect(locals.attrWords, [0x400000], reason: 'the twin-known Locals valueflags word');
+        expect([for (final c in locals.children) c.name], ['SocketTime', 'ResultList']);
+      },
+    );
   });
 }

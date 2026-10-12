@@ -1,0 +1,58 @@
+{
+ "vi": [
+  {
+   "repo": "https://github.com/Bud-ro/vi-corpus.git",
+   "ref": "faa92c288901e1c19f38c3500e5eb13629c45530",
+   "paths": [
+    "sources/picotech__picosdk-ni-labview-examples",
+    "sources/ni__grpc-labview",
+    "sources/JKISoftware__JKI-State-Machine",
+    "sources/JKISoftware__JKI-State-Machine-Objects",
+    "sources/nasa__NDAS",
+    "sources/opengds__OpenGDS",
+    "sources/LabVIEW-Open-Source__LV-MQTT-Broker",
+    "sources/vipm-io__caraya",
+    "sources/NEVSTOP-LAB__Communicable-State-Machine",
+    "sources/unipsycho__Graph-Extensions-LabVIEW",
+    "sources/rcpacini__LabVIEW-VI-Hacker",
+    "sources/rfporter__Modbus-Master",
+    "sources/REVrobotics__SPARK-MAX-Examples",
+    "sources/G-CLI__G-CLI",
+    "sources/rcpacini__LabVIEW-VI-Snippet",
+    "sources/rcpacini__VI-Snippets",
+    "sources/jdnichollsc__Automated-classrooms",
+    "sources/tomsoftware__VI-Explorer-VI",
+    "sources/dnattinger__GoCommando",
+    "sources/KurtDing__LabVIEW_Pong",
+    "sources/rfporter__FP-Equal",
+    "sources/rfporter__Robust-CSV",
+    "sources/JKISoftware__JKI-Serialization",
+    "sources/NIVeriStandAdd-Ons__Switch-DMM-Custom-Device",
+    "sources/chrylarson__LabVIEW-HMI",
+    "sources/ha7ilm__sdrlab",
+    "sources/LabVIEW-DCAF__calcs",
+    "sources/SoftwareMinimalist__LabVIEW-SOLID-Examples",
+    "sources/rcpacini__LabVIEW-HttpServer",
+    "sources/EliMattingly22__Simple_Impedance_Analyzer",
+    "sources/ThatsTheEnd__LabviewPipelineSampleProject",
+    "sources/NJKirchner__LabVIEW-Evaluation-Hands-On",
+    "sources/MikaylaFischler__Mekanism-Sim",
+    "sources/rtoenniges__LabVNA",
+    "sources/NEVSTOP-LAB__LabVIEW-UI-XCtl",
+    "sources/PRIrvin__XY-Utilities",
+    "sources/danielcoons__tsc-pop-up",
+    "sources/adam8687__2024-LED-lights"
+   ]
+  },
+  {
+   "repo": "https://github.com/Bud-ro/vi-snippets.git",
+   "ref": "882d1672121a88bd7e2f5e177f8d1ddf51038b6a"
+  }
+ ],
+ "seq": [
+  {
+   "repo": "https://github.com/Bud-ro/seq-corpus.git",
+   "ref": "bb4608df0a88e515b1386a3d8d87fd5ef070a696"
+  }
+ ]
+}

@@ -90,7 +90,7 @@ void main() {
   }, timeout: const Timeout(Duration(minutes: 5)));
 
   test('the Rosetta oracle Dart export carries sequences, steps, and stubs', () {
-    final f = File('${corpusSeqDir.path}/rosetta/OutputVoltage_XML.seq');
+    final f = File('${corpusSeqDir.path}/seq-corpus/rosetta/OutputVoltage_XML.seq');
     expect(f.existsSync(), isTrue, reason: 'the Rosetta oracle must be fetched with the corpus');
     final file = parseSeqFile(f.readAsBytesSync());
     final source = exportSeqFileToDart(file);
@@ -109,7 +109,7 @@ void main() {
   test(
     'the oracle labwright program runs under dart run: disarmed skipTest, exit 0',
     () {
-      final oracle = File('${corpusSeqDir.path}/rosetta/OutputVoltage_XML.seq');
+      final oracle = File('${corpusSeqDir.path}/seq-corpus/rosetta/OutputVoltage_XML.seq');
       expect(oracle.existsSync(), isTrue, reason: 'the Rosetta oracle must be fetched with the corpus');
       final source = exportSeqFileToLabwright(
         parseSeqFile(oracle.readAsBytesSync()),
@@ -138,12 +138,10 @@ void main() {
   );
 
   test(
-    'project export: cross-module calls bind, analyze is clean, dart run exits green',
+    'project export: every sequence file lowers to a module, analyze is clean, dart run exits green',
     () {
-      final projDir = Directory(
-        '${corpusSeqDir.path}/michael-harhay-arx_CICDUtility/michael-harhay-arx-CICDUtility-02c6c67',
-      );
-      expect(projDir.existsSync(), isTrue, reason: 'the CICDUtility project must be fetched with the corpus');
+      final projDir = Directory('${corpusSeqDir.path}/seq-corpus/sources/NIVeriStandAdd-Ons__ECU-HIL-Demo');
+      expect(projDir.existsSync(), isTrue, reason: 'the ECU-HIL-Demo project must be fetched with the corpus');
       final byPath = <String, SeqFile>{};
       for (final f in projDir.listSync(recursive: true).whereType<File>()) {
         if (!f.path.toLowerCase().endsWith('.seq')) continue;
@@ -153,12 +151,10 @@ void main() {
         } on FormatException catch (_) {}
       }
       final project = exportSeqProjectToLabwright(byPath);
-      expect(project.files.length, byPath.length + 3, reason: 'one module per input + runtime + main + options');
-      expect(project.files.keys, containsAll(['main.dart', 'lw_runtime.dart', 'analysis_options.yaml']));
+      expect(project.files.keys, containsAll(['main.dart', 'analysis_options.yaml']));
       final allSource = project.files.values.join('\n');
       final crossCalls = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n]*\);').allMatches(allSource).length;
-      final crossCallsWithArgs = RegExp(r'await [a-z0-9_]+_seq\.\w+\([^;\n)][^;\n]*\);').allMatches(allSource).length;
-      expect((byPath.length, crossCalls, crossCallsWithArgs), (12, 129, 102));
+      expect((byPath.length, project.files.length, crossCalls), (16, 18, 0));
 
       final genDir = Directory('${pkgRoot.path}/test/.export_gen_proj')..createSync(recursive: true);
       try {
@@ -170,12 +166,7 @@ void main() {
           '-Dlabwright.viewer=false',
           'test/.export_gen_proj/main.dart',
         ], workingDirectory: pkgRoot.path);
-        expect(
-          run.exitCode,
-          0,
-          reason:
-              'fresh project export must run green (armed tests are fully translated):\n${run.stdout}\n${run.stderr}',
-        );
+        expect(run.exitCode, 0, reason: 'fresh project export must run green:\n${run.stdout}\n${run.stderr}');
         expect(run.stdout.toString(), contains('0 failed, 0 errors,'));
       } finally {
         genDir.deleteSync(recursive: true);

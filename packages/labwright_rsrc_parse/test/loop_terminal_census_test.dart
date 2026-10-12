@@ -10,7 +10,7 @@ import 'corpus_dirs.dart';
 
 void main() {
   test('crc8: N feeders resolve to their constant boxes; hidden i glyphs decode', () {
-    final crc8 = File('${corpusViDir.path}/rcpacini_VI-Snippets/rcpacini-VI-Snippets-1662bd7/crc8.png');
+    final crc8 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/crc8.png');
     final d = buildViModel(extractSnippetVi(crc8.readAsBytesSync())!).blockDiagrams.single;
 
     const glyphs = {

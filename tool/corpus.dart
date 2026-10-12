@@ -2,9 +2,9 @@ import 'dart:io';
 
 Directory repoRoot() {
   var dir = Directory.current;
-  while (!File('${dir.path}/corpus/sources.json').existsSync()) {
+  while (!File('${dir.path}/corpus/repos.json').existsSync()) {
     final parent = dir.parent;
-    if (parent.path == dir.path) throw StateError('no corpus/sources.json at or above ${Directory.current.path}');
+    if (parent.path == dir.path) throw StateError('no corpus/repos.json at or above ${Directory.current.path}');
     dir = parent;
   }
   return dir;

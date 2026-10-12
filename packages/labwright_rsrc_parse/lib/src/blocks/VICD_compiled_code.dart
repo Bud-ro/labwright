@@ -3,7 +3,7 @@
 /// Compiled machine code for one target architecture: a header, the fixups and code, and a
 /// `CODE` chunk that may carry a symbol table. Bit `0x100` of the header word at 12 selects
 /// the header layout: set (`0x103`, `0x303`), the code-end pointer is at 36; clear (`0`,
-/// `0x3`), at 28. A 64-bit architecture (`wx64`, `mx64`) puts it 4 bytes later in both
+/// `0x3`), at 28. A 64-bit architecture (`wx64`, `mx64`, `AM64`) puts it 4 bytes later in both
 /// layouts. The `CODE` chunk is bare (20 bytes for 32-bit code, 40 for 64-bit) or carries
 /// `count` length-prefixed names padded to 4 bytes. The section usually stores the payload
 /// in the zlib envelope that [inflateHeapPayload] opens, and sometimes plain; the layout is
@@ -12,7 +12,7 @@
 /// ```text
 /// offset  size       field         type           meaning
 /// 0       4          codeStart     u32le          Offset of the machine code within the payload.
-/// 4       4          architecture  4cc            i386, m386, wx64 or mx64, see CodeArchitecture.
+/// 4       4          architecture  4cc            i386, m386, wx64, mx64 or AM64, see CodeArchitecture.
 /// 8       4          codeSize      u32le          Bytes of machine code.
 /// 12      4          layoutWord    u32le          Bit 0x100 puts the code-end pointer at 36 (32-bit) or 40
 ///                                                 (64-bit); clear, it is at 28 or 32.
@@ -115,7 +115,8 @@ enum CodeArchitecture {
   i386('i386', is64Bit: false),
   m386('m386', is64Bit: false),
   wx64('wx64', is64Bit: true),
-  mx64('mx64', is64Bit: true);
+  mx64('mx64', is64Bit: true),
+  am64('AM64', is64Bit: true);
 
   const CodeArchitecture(this.fourCc, {required this.is64Bit});
 
@@ -153,7 +154,7 @@ final class ViCompiledCode extends ByteRecord {
     assert(view.lengthInBytes >= _codeEnd.end + VicdChunk32.layout.size!, 'VICD holds a header and a CODE chunk');
     assert(_codeTag.read(view) == 'code', 'the code tag follows the header');
     final architecture = CodeArchitecture.of(_architecture.read(view));
-    assert(architecture != null, 'the architecture is i386, m386, wx64 or mx64');
+    assert(architecture != null, 'the architecture is i386, m386, wx64, mx64 or AM64');
     this.architecture = architecture!;
     final codeEndOffset = architecture.codeEndOffset(layoutWord);
     final codeEnd = view.getUint32(codeEndOffset, Endian.little);
@@ -189,7 +190,7 @@ final class ViCompiledCode extends ByteRecord {
     _nameOffsets = offsets;
   }
 
-  /// i386, m386, wx64 or mx64, see [CodeArchitecture].
+  /// i386, m386, wx64, mx64 or AM64, see [CodeArchitecture].
   late final CodeArchitecture architecture;
 
   /// Offset of the machine code within the payload.

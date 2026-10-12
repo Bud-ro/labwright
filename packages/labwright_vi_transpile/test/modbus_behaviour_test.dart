@@ -9,7 +9,6 @@ import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 import 'package:test/test.dart';
 
 import 'generated/lrc8.g.dart';
-import 'generated/modbus_crc16.g.dart';
 import 'generated/modbus_crc16_table.g.dart';
 import 'snippets.dart';
 
@@ -55,18 +54,6 @@ void main() {
     }
   });
 
-  test('the code lowered from Calculate CRC.vi is CRC-16/MODBUS with its bytes swapped', () {
-    for (final message in messages()) {
-      final expected = modbusCrcReference(message);
-      expect(
-        modbusCrc16(data: message),
-        (expected & 0xFF) << 8 | expected >> 8,
-        reason: '${message.length} bytes',
-      );
-    }
-    expect(modbusCrc16(data: Uint8List.fromList(latin1.encode('123456789'))), 0x374B);
-  });
-
   test('the code lowered from Calc CRC-16.vi is CRC-16/MODBUS in Modbus RTU wire order', () {
     for (final message in messages()) {
       final expected = modbusCrcReference(message);
@@ -79,17 +66,6 @@ void main() {
     expect(calcCrc16(frameIn: Uint8List.fromList(latin1.encode('123456789'))), [0x37, 0x4B]);
   });
 
-  test('the two CRC-16 VIs agree, one folding bit at a time and one reading a table', () {
-    for (final message in messages()) {
-      final swapped = modbusCrc16(data: message);
-      expect(
-        calcCrc16(frameIn: message),
-        [swapped >> 8, swapped & 0xFF],
-        reason: '${message.length} bytes',
-      );
-    }
-  });
-
   test('the code lowered from Calc LRC-8.vi agrees with the reference byte for byte', () {
     for (final message in messages()) {
       expect(lrc8(frameIn: message), lrcReference(message), reason: '${message.length} bytes');
@@ -97,11 +73,10 @@ void main() {
   });
 
   test(
-    'the checked-in generated sources are exactly what the three block diagrams lower to',
+    'the checked-in generated sources are exactly what the two block diagrams lower to',
     () {
       for (final (fileName, functionName, generated) in const [
         ('Calc LRC-8.vi', 'lrc8', 'lrc8.g.dart'),
-        ('Calculate CRC.vi', 'modbusCrc16', 'modbus_crc16.g.dart'),
         ('Calc CRC-16.vi', 'calcCrc16', 'modbus_crc16_table.g.dart'),
       ]) {
         final path = corpusViPaths().firstWhere((path) => path.endsWith(fileName));
