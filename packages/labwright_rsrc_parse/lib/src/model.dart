@@ -3,14 +3,13 @@ import 'dart:typed_data';
 import '../labwright_rsrc_parse.dart';
 
 /// Everything decoded from one VI that the inspector and transpiler consume: the version and
-/// title, per-block component totals, the C4 records, the diagrams of both sides, the type
-/// pool, the sub-VI names, the connector-pane type and the font table.
+/// title, per-block component totals, the diagrams of both sides, the type pool, the sub-VI
+/// names, the connector-pane type and the font table.
 class ViModel {
   const ViModel({
     required this.version,
     required this.title,
     required this.components,
-    required this.heapRecords,
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
     this.subViNames = const <String>[],
@@ -26,9 +25,6 @@ class ViModel {
   final String? title;
 
   final List<BlockComponent> components;
-
-  /// Every C4 record across the heap sections, in file order.
-  final List<HeapRecord> heapRecords;
 
   /// One diagram per `BDHb` section.
   final List<ViDiagram> blockDiagrams;
@@ -50,33 +46,16 @@ class ViModel {
   final ViFontTable? fontTable;
 
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
-
-  List<String> _dedupe(Iterable<String?> values) {
-    final seen = <String>{};
-    return [
-      for (final value in values)
-        if (value != null && seen.add(value)) value,
-    ];
-  }
-
-  List<String> get captions => _dedupe([
-    for (final record in heapRecords)
-      if (record.kind == HeapOpcode.caption) record.text,
-  ]);
-
-  List<String> get symbolNames => _dedupe([
-    for (final record in heapRecords)
-      if (record.kind == HeapOpcode.symbolName) record.text,
-  ]);
-
-  List<String> get paths => _dedupe([for (final record in heapRecords) record.path]);
-
-  List<String> get descriptions => _dedupe([for (final record in heapRecords) record.descriptionText]);
 }
 
 /// Decodes every section of a VI and builds its [ViModel].
-ViModel buildViModel(Uint8List viBytes) =>
-    buildViModelFromDecoded(decodeSections(viBytes), subViNames: readSubViNames(viBytes));
+ViModel buildViModel(Uint8List viBytes) {
+  final sections = readViSections(viBytes);
+  return buildViModelFromDecoded(
+    [for (final section in sections) inflateSection(section)],
+    subViNames: subViNamesOf(sections, viBytes),
+  );
+}
 
 ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> subViNames = const <String>[]}) {
   final list = decoded is List<DecodedSection> ? decoded : decoded.toList();
@@ -124,7 +103,6 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     version: ver.version,
     title: ver.title,
     components: componentsFromDecoded(list),
-    heapRecords: heapC4RecordsFromDecoded(list),
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
   );

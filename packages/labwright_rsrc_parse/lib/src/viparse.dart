@@ -274,14 +274,19 @@ String? _viName(Uint8List bytes, int infoOffset) {
 bool _printableTag(String tag) => tag.length == 4 && tag.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
 
 List<String> readSubViNames(Uint8List bytes) {
-  List<ViSection> secs;
+  List<ViSection> sections;
   try {
-    secs = readViSections(bytes);
+    sections = readViSections(bytes);
   } catch (_) {
     return const [];
   }
+  return subViNamesOf(sections, bytes);
+}
+
+/// [readSubViNames] over the [sections] already read from [bytes].
+List<String> subViNamesOf(List<ViSection> sections, Uint8List bytes) {
   Uint8List? sectionBytes(String tag) {
-    for (final section in secs) {
+    for (final section in sections) {
       if (section.tag == tag) return section.bytes;
     }
     return null;

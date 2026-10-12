@@ -68,11 +68,19 @@ Map<String, Object?> _termJson(ViType t, List<ViType> types) => {
 Map<String, Object?> viModelToJson(ViModel m) {
   final terminals = _conpaneTerminals(m);
   final named = namedTypes(m.types);
+  final symbolNames = _dedupe([
+    for (final d in m.diagrams)
+      for (final o in d.objects) o.foreignEntryPoint,
+  ]);
+  final libraryPaths = _dedupe([
+    for (final d in m.diagrams)
+      for (final o in d.objects) o.foreignLibraryPath,
+  ]);
   return {
     if (m.version != null) 'labviewVersion': m.version,
     if (m.title != null) 'title': m.title,
-    if (m.symbolNames.isNotEmpty) 'symbolNames': m.symbolNames,
-    if (m.paths.isNotEmpty) 'libraryPaths': m.paths,
+    if (symbolNames.isNotEmpty) 'symbolNames': symbolNames,
+    if (libraryPaths.isNotEmpty) 'libraryPaths': libraryPaths,
     if (m.subViNames.isNotEmpty) 'subViNames': m.subViNames,
     if (terminals != null) 'connectorPaneTerminals': terminals,
     if (m.types.isNotEmpty) ...{
@@ -96,4 +104,12 @@ Map<String, Object?> viModelToJson(ViModel m) {
     'blockDiagrams': [for (final diagram in m.blockDiagrams) viDiagramToJson(diagram)],
     'frontPanelDiagrams': [for (final diagram in m.frontPanelDiagrams) viDiagramToJson(diagram)],
   };
+}
+
+List<String> _dedupe(Iterable<String?> values) {
+  final seen = <String>{};
+  return [
+    for (final value in values)
+      if (value != null && seen.add(value)) value,
+  ];
 }
