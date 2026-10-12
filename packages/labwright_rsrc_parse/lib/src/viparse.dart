@@ -349,13 +349,12 @@ List<String> _pascalViNames(Uint8List bytes) {
   final out = <String>[];
   for (var i = 0; i + 1 < bytes.length; i++) {
     final len = bytes[i];
-    if (len < 4 || i + 1 + len > bytes.length) continue;
-    if (!_allPrintable(bytes, i + 1, i + 1 + len)) continue;
-    final text = String.fromCharCodes(bytes.sublist(i + 1, i + 1 + len));
-    if (text.toLowerCase().endsWith('.vi')) {
-      out.add(text);
-      i += len;
-    }
+    final end = i + 1 + len;
+    if (len < 4 || end > bytes.length) continue;
+    if (bytes[end - 3] != 0x2e || bytes[end - 2] | 0x20 != 0x76 || bytes[end - 1] | 0x20 != 0x69) continue;
+    if (!_allPrintable(bytes, i + 1, end)) continue;
+    out.add(String.fromCharCodes(bytes, i + 1, end));
+    i += len;
   }
   return out;
 }

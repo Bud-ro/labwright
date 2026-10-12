@@ -423,7 +423,7 @@ class _Builder {
   final ViDiagram diagram;
   final List<ViType> pool;
   final LvDeclarations declarations;
-  final Map<int, ViHeapObject> byId;
+  final ViObjectsByOid byId;
 
   final edgeBySink = <int, LvEdge>{};
   final edgeBySource = <int, LvEdge>{};

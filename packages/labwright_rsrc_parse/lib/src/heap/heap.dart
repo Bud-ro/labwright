@@ -955,7 +955,11 @@ bool _isDescriptionTextByte(int byte) => (byte >= 32 && byte < 127) || byte == 9
 /// of six bytes or more joined by newlines; null when it has neither.
 String? heapDescriptionText(Uint8List payload) {
   if (payload.isNotEmpty) {
-    final printable = payload.where(_isDescriptionTextByte).length;
+    var printable = 0;
+    for (final byte in payload) {
+      if (_isDescriptionTextByte(byte)) printable++;
+    }
+    if (printable == payload.length) return String.fromCharCodes(payload).trim();
     if (printable / payload.length >= 0.9) {
       return String.fromCharCodes(payload.where(_isDescriptionTextByte)).trim();
     }

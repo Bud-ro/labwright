@@ -87,11 +87,39 @@ bool _predatesFrameRelativeTermBounds(String? version) {
   return major < 8 || (major == 8 && minor < 6);
 }
 
+/// Every object of a diagram by oid; the last declaration wins when a heap repeats one.
+class ViObjectsByOid {
+  ViObjectsByOid(this._objects) : _slotByOid = Int32List(_oidCount(_objects)) {
+    for (var i = 0; i < _objects.length; i++) {
+      _slotByOid[_objects[i].oid] = i + 1;
+    }
+  }
+
+  static int _oidCount(List<ViHeapObject> objects) {
+    var top = -1;
+    for (final object in objects) {
+      if (object.oid > top) top = object.oid;
+    }
+    return top + 1;
+  }
+
+  final List<ViHeapObject> _objects;
+
+  /// One past the object's position in [_objects]; zero where no object has the oid.
+  final Int32List _slotByOid;
+
+  ViHeapObject? operator [](int? oid) {
+    if (oid == null || oid < 0 || oid >= _slotByOid.length) return null;
+    final slot = _slotByOid[oid];
+    return slot == 0 ? null : _objects[slot - 1];
+  }
+}
+
 /// The objects of one heap section, indexed by oid and parent, with the wires derived from
 /// its signals.
 class ViDiagram {
   ViDiagram({required this.sectionTag, required this.objects, this.version})
-    : byId = {for (final object in objects) object.oid: object},
+    : byId = ViObjectsByOid(objects),
       _childrenOf = List<List<ViHeapObject>?>.filled(objects.length, null) {
     for (var i = 0; i < objects.length; i++) {
       objects[i].index = i;
@@ -111,8 +139,7 @@ class ViDiagram {
   /// Every object in heap order.
   final List<ViHeapObject> objects;
 
-  /// Every object by oid; the last declaration wins when a heap repeats one.
-  final Map<int, ViHeapObject> byId;
+  final ViObjectsByOid byId;
 
   final List<List<ViHeapObject>?> _childrenOf;
 
@@ -1309,9 +1336,7 @@ void _reanchorScrolledControls(ViDiagram diagram) {
   final byOid = diagram.byId;
   int? reanchorViewport(ViHeapObject object) {
     var parentOid = object.parentOid;
-    final seen = <int>{};
-    while (parentOid != null) {
-      if (!seen.add(parentOid)) return null;
+    for (var depth = 0; parentOid != null && depth < objects.length; depth++) {
       final po = byOid[parentOid];
       if (po == null) return null;
       if (po.objectClass == HeapObjectClass.contentViewport) return po.oid;

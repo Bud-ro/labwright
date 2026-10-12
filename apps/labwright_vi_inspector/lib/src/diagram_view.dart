@@ -66,7 +66,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   bool _shelfOpen = true;
 
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
-  late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
+  late final ViObjectsByOid _byId = _diagram?.byId ?? ViObjectsByOid(const []);
 
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, ui.Image> _xnodeFacades = const {};

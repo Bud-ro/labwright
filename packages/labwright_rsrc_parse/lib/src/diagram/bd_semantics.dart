@@ -235,7 +235,7 @@ bool _isInlinedSubViControl(ViHeapObject o, ViDiagram diagram) {
       );
 }
 
-bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
+bool _isScaffolding(ViHeapObject o, ViObjectsByOid byId) {
   if (o.objectClass == HeapObjectClass.controlChrome || o.objectClass == HeapObjectClass.contentViewport) return true;
   if (o.objectClass == HeapObjectClass.bdPolySelector) return true;
   if (o.objectClass == HeapObjectClass.connectorTerminal && o.bounds == null) return true;
@@ -269,7 +269,7 @@ bool _isScaffolding(ViHeapObject o, Map<int, ViHeapObject> byId) {
 }
 
 /// The bounded, non-scaffolding objects [o] refers to as members.
-Set<ViHeapObject> membersOf(ViHeapObject? o, Map<int, ViHeapObject> byId) {
+Set<ViHeapObject> membersOf(ViHeapObject? o, ViObjectsByOid byId) {
   if (o == null) return const {};
   return {
     for (final oid in o.memberOids)
@@ -504,12 +504,12 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
   return out;
 }
 
-ViHeapObject? _parentOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
+ViHeapObject? _parentOf(ViHeapObject object, ViObjectsByOid byId) {
   final parentOid = object.parentOid;
   return parentOid == null ? null : byId[parentOid];
 }
 
-bool _nestedInStructure(ViHeapObject object, Map<int, ViHeapObject> byId) {
+bool _nestedInStructure(ViHeapObject object, ViObjectsByOid byId) {
   var cur = _parentOf(object, byId);
   var depth = 0;
   while (cur != null && depth++ < 16) {
@@ -546,7 +546,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   ];
 }
 
-bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
+bool _escapesConstantBox(ViHeapObject object, ViObjectsByOid byId) {
   final chain = <ViHeapObject>[];
   var cur = object;
   var depth = 0;
@@ -586,7 +586,7 @@ bool _escapesConstantBox(ViHeapObject object, Map<int, ViHeapObject> byId) {
 
 bool _escapesStructureBox(
   ViHeapObject object,
-  Map<int, ViHeapObject> byId, {
+  ViObjectsByOid byId, {
   int slack = 32,
 }) {
   if (kBdTextLabelClasses.contains(object.objectClass)) return false;
@@ -626,7 +626,7 @@ bool _isViFileName(String name) {
 /// [drawable] sorted shallowest first, so containers paint under their contents.
 List<ViHeapObject> bdPaintOrder(
   List<ViHeapObject> drawable,
-  Map<int, ViHeapObject> byId,
+  ViObjectsByOid byId,
 ) => [...drawable]..sort((a, b) => _depthOf(a, byId).compareTo(_depthOf(b, byId)));
 
 /// The outermost chrome boxes of an array shell that wrap its elements, excluding chrome that
@@ -671,7 +671,7 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
   ];
 }
 
-int _depthOf(ViHeapObject object, Map<int, ViHeapObject> byId) {
+int _depthOf(ViHeapObject object, ViObjectsByOid byId) {
   var depth = 0;
   var cur = object;
   while (depth < 64) {
