@@ -108,5 +108,5 @@ List<ViHeapObject?> lvPanelDataItems(ViModel model, Iterable<DecodedSection> sec
 Map<int, ViHeapObject> lvTerminalsOfDataItems(ViDiagram diagram) => {
   for (final object in diagram.objects)
     if (object.kind == HeapObjectClass.bdLeaf.code)
-      for (final ref in object.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]) ref: object,
+      for (final ref in object.refsOf(HeapRefKind.dcoRef) ?? const <int>[]) ref: object,
 };

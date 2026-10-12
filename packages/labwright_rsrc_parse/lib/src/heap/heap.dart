@@ -49,6 +49,9 @@ import '../decode.dart';
 /// Lead byte of a C4 record.
 const int kHeapRecordPrefix = 0xc4;
 
+/// Bytes of the shortest object header, the u16 oid form.
+const int kHeapObjectHeaderMinLength = 9;
+
 /// Whether [lead] can open an object, `0x10`–`0x12`.
 bool isHeapObjectHeaderLead(int lead) => lead >= 0x10 && lead <= 0x12;
 
@@ -669,7 +672,7 @@ class HeapAttr {
   };
 
   String? get asciiText => switch (value) {
-    final int number when _asciiIntRaws.contains(rawTag) => _asciiFromInt(number),
+    final int number when _isAsciiIntRaw[rawTag] => _asciiFromInt(number),
     _ => null,
   };
 
@@ -697,15 +700,27 @@ class HeapAttr {
   };
 }
 
+List<bool> _rawTable(Set<int> raws) => [for (var raw = 0; raw < kHeapRawIdCount; raw++) raws.contains(raw)];
+
 const Set<int> _rectPayloadRaws = {0x129, 0x163, 0x164, 0x275};
+
+final List<bool> _isRectPayloadRaw = _rawTable(_rectPayloadRaws);
 
 const Set<int> _f64PayloadRaws = {0x1f5, 0x1f6, 0x1f7, 0x1f8, 0x1f9, 0x1fa, 0x220, 0x221, 0x222};
 
+final List<bool> _isF64PayloadRaw = _rawTable(_f64PayloadRaws);
+
 const Set<int> _inlineStringRaws = {0x231};
+
+final List<bool> _isInlineStringRaw = _rawTable(_inlineStringRaws);
 
 const Set<int> _u32StringRaws = {0x26c};
 
+final List<bool> _isU32StringRaw = _rawTable(_u32StringRaws);
+
 const Set<int> _asciiIntRaws = {0x022, 0x0c4};
+
+final List<bool> _isAsciiIntRaw = _rawTable(_asciiIntRaws);
 
 bool _isPrintableAscii(int byte) => byte >= 0x20 && byte < 0x7f;
 
@@ -741,7 +756,7 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
   final id = body[offset + 1];
   final raw = heapRawId(op, id);
 
-  if (op == 0xc6 && offset + 3 <= body.length && _inlineStringRaws.contains(raw) && body[offset + 2] != 0xff) {
+  if (op == 0xc6 && offset + 3 <= body.length && _isInlineStringRaw[raw] && body[offset + 2] != 0xff) {
     final len = body[offset + 2];
     if (offset + 3 + len <= body.length) {
       final text = String.fromCharCodes(body.sublist(offset + 3, offset + 3 + len).where(_isPrintableAscii));
@@ -758,20 +773,22 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
   }
 
   if ((op == 0xc5 || op == 0xc6) && offset + 11 <= body.length && body[offset + 2] == 0x08) {
-    if (_rectPayloadRaws.contains(raw)) {
-      final rect = HeapRect.fromPayload(Uint8List.sublistView(body, offset + 3, offset + 11));
-      if (rect != null) {
-        return HeapAttr(
-          attribute: HeapAttribute.fromRaw(raw),
-          id: id,
-          rawTag: raw,
-          width: HeapAttrWidth.rect,
-          value: rect,
-          length: 11,
-        );
-      }
+    if (_isRectPayloadRaw[raw]) {
+      return HeapAttr(
+        attribute: HeapAttribute.fromRaw(raw),
+        id: id,
+        rawTag: raw,
+        width: HeapAttrWidth.rect,
+        value: HeapRect(
+          top: view.getInt16(offset + 3),
+          left: view.getInt16(offset + 5),
+          bottom: view.getInt16(offset + 7),
+          right: view.getInt16(offset + 9),
+        ),
+        length: 11,
+      );
     }
-    if (_f64PayloadRaws.contains(raw)) {
+    if (_isF64PayloadRaw[raw]) {
       final value = view.getFloat64(offset + 3);
       return HeapAttr(
         attribute: HeapAttribute.fromRaw(raw),
@@ -807,7 +824,7 @@ HeapAttr? decodeHeapAttrIn(ByteData view, Uint8List body, int offset) {
     }
   }
 
-  if (op == 0xc6 && offset + 3 <= body.length && _u32StringRaws.contains(raw)) {
+  if (op == 0xc6 && offset + 3 <= body.length && _isU32StringRaw[raw]) {
     final len = body[offset + 2];
     if (len != 0xff && len != 0x08 && len >= 5 && offset + 3 + len <= body.length) {
       final payloadStart = offset + 3;
@@ -926,65 +943,84 @@ class HeapRecord {
 
   HeapRect? get sizeRect => kind == HeapOpcode.size ? HeapRect.fromPayload(payload) : null;
 
-  String? get text {
-    if (kind.shape != HeapShape.string || payload.isEmpty) return null;
-    if (payload.any((b) => (b < 32 && b != 0x09 && b != 0x0a && b != 0x0d) || b >= 127)) {
-      return null;
-    }
-    return String.fromCharCodes(payload).replaceAll('\r\n', '\n').replaceAll('\r', '\n');
-  }
+  String? get text => kind.shape == HeapShape.string ? heapRecordText(payload) : null;
 
   Uint8List? get rawText => kind.shape == HeapShape.string && payload.isNotEmpty ? payload : null;
 
-  String? get descriptionText {
-    if (kind != HeapOpcode.description) return null;
-    bool isTextByte(int byte) => (byte >= 32 && byte < 127) || byte == 9 || byte == 10 || byte == 13;
+  String? get descriptionText => kind == HeapOpcode.description ? heapDescriptionText(payload) : null;
 
-    if (payload.isNotEmpty) {
-      final printable = payload.where(isTextByte).length;
-      if (printable / payload.length >= 0.9) {
-        return String.fromCharCodes(payload.where(isTextByte)).trim();
-      }
-    }
-
-    final runs = <String>[];
-    var i = 0;
-    while (i < payload.length) {
-      final len = payload[i];
-      if (len >= 6 && i + 1 + len <= payload.length && payload.sublist(i + 1, i + 1 + len).every(isTextByte)) {
-        runs.add(String.fromCharCodes(payload.sublist(i + 1, i + 1 + len)));
-        i += 1 + len;
-      } else {
-        i++;
-      }
-    }
-    return runs.isEmpty ? null : runs.join('\n');
-  }
-
-  String? get path {
-    if (kind != HeapOpcode.path) return null;
-    final bytes = payload;
-    if (bytes.length < 12 || bytes[0] != 0x50 || bytes[1] != 0x54 || bytes[2] != 0x48 || bytes[3] != 0x30) {
-      return null;
-    }
-    final nComp = ByteData.sublistView(bytes).getUint16(10);
-    final parts = <String>[];
-    var i = 12;
-    for (var componentIndex = 0; componentIndex < nComp && i < bytes.length; componentIndex++) {
-      final len = bytes[i];
-      if (i + 1 + len > bytes.length) break;
-      final part = bytes.sublist(i + 1, i + 1 + len);
-      if (part.any((byte) => byte < 32 || byte >= 127)) break;
-      parts.add(String.fromCharCodes(part));
-      i += 1 + len;
-    }
-    return parts.isEmpty ? null : parts.join('/');
-  }
+  String? get path => kind == HeapOpcode.path ? heapRecordPath(payload) : null;
 
   Uint8List? get rawPathBytes => kind == HeapOpcode.path && payload.isNotEmpty ? payload : null;
 
   List<HeapRecord> get children =>
       kind.shape == HeapShape.container ? scanC4Records(payload, sectionTag) : const <HeapRecord>[];
+}
+
+/// A string-shaped record's text, with line ends normalised; null when a byte is not text.
+String? heapRecordText(Uint8List payload) {
+  if (payload.isEmpty) return null;
+  var hasReturn = false;
+  for (final b in payload) {
+    if (b == 0x0d) {
+      hasReturn = true;
+    } else if ((b < 32 && b != 0x09 && b != 0x0a) || b >= 127) {
+      return null;
+    }
+  }
+  final text = String.fromCharCodes(payload);
+  return hasReturn ? text.replaceAll('\r\n', '\n').replaceAll('\r', '\n') : text;
+}
+
+bool _isDescriptionTextByte(int byte) => (byte >= 32 && byte < 127) || byte == 9 || byte == 10 || byte == 13;
+
+/// A description record's text: the printable bytes when nine in ten are, else its text runs
+/// of six bytes or more joined by newlines; null when it has neither.
+String? heapDescriptionText(Uint8List payload) {
+  if (payload.isNotEmpty) {
+    var printable = 0;
+    for (final byte in payload) {
+      if (_isDescriptionTextByte(byte)) printable++;
+    }
+    if (printable == payload.length) return String.fromCharCodes(payload).trim();
+    if (printable / payload.length >= 0.9) {
+      return String.fromCharCodes(payload.where(_isDescriptionTextByte)).trim();
+    }
+  }
+
+  final runs = <String>[];
+  var i = 0;
+  while (i < payload.length) {
+    final len = payload[i];
+    if (len >= 6 &&
+        i + 1 + len <= payload.length &&
+        payload.sublist(i + 1, i + 1 + len).every(_isDescriptionTextByte)) {
+      runs.add(String.fromCharCodes(payload.sublist(i + 1, i + 1 + len)));
+      i += 1 + len;
+    } else {
+      i++;
+    }
+  }
+  return runs.isEmpty ? null : runs.join('\n');
+}
+
+/// A path record's `PTH0` components joined by `/`; null when the payload is not one.
+String? heapRecordPath(Uint8List bytes) {
+  if (bytes.length < 12 || bytes[0] != 0x50 || bytes[1] != 0x54 || bytes[2] != 0x48 || bytes[3] != 0x30) {
+    return null;
+  }
+  final nComp = ByteData.sublistView(bytes).getUint16(10);
+  final parts = <String>[];
+  var i = 12;
+  for (var componentIndex = 0; componentIndex < nComp && i < bytes.length; componentIndex++) {
+    final len = bytes[i];
+    if (i + 1 + len > bytes.length) break;
+    final part = bytes.sublist(i + 1, i + 1 + len);
+    if (part.any((byte) => byte < 32 || byte >= 127)) break;
+    parts.add(String.fromCharCodes(part));
+    i += 1 + len;
+  }
+  return parts.isEmpty ? null : parts.join('/');
 }
 
 /// Every C4 record in [heapBytes], skipping bytes that do not start one.
@@ -1279,21 +1315,26 @@ bool _isObjectHeader(Uint8List body, int offset) =>
     body[offset + 3] == 0xfe &&
     body[offset + 6] == 0xfd;
 
-int _objectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
+/// The byte length of the object header at [offset], 9 or 13 by oid width; 0 when the bytes
+/// there are not one.
+int heapObjectHeaderLength(Uint8List body, int offset) {
+  if (!_isObjectHeader(body, offset)) return 0;
+  return (body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length ? 13 : 9;
+}
 
-/// 13 for the u32 oid form, else 9.
-int _objectHeaderLength(Uint8List body, int offset) =>
-    (body[offset + 7] & 0x80) != 0 && offset + 13 <= body.length ? 13 : 9;
+/// The class code of the object header at [offset].
+int heapObjectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
 
-int _objectHeaderOid(Uint8List body, int offset, int length) => length == 13
+/// The oid of the object header at [offset] whose [heapObjectHeaderLength] is [length].
+int heapObjectHeaderOid(Uint8List body, int offset, int length) => length == 13
     ? body[offset + 9] << 24 | body[offset + 10] << 16 | body[offset + 11] << 8 | body[offset + 12]
     : body[offset + 7] << 8 | body[offset + 8];
 
 /// The object header at [offset], or null when the bytes there are not one.
 ({int kind, int oid, int length})? heapObjectHeaderAt(Uint8List body, int offset) {
-  if (!_isObjectHeader(body, offset)) return null;
-  final length = _objectHeaderLength(body, offset);
-  return (kind: _objectHeaderKind(body, offset), oid: _objectHeaderOid(body, offset, length), length: length);
+  final length = heapObjectHeaderLength(body, offset);
+  if (length == 0) return null;
+  return (kind: heapObjectHeaderKind(body, offset), oid: heapObjectHeaderOid(body, offset, length), length: length);
 }
 
 /// One decoded property token and, for the tagged-list form, its first item.
@@ -1645,12 +1686,13 @@ HeapWalk walkHeapBody(Uint8List body) {
 }
 
 /// Replays a heap body as an object tree: [onObjectOpen] returns the scope for each object
-/// header, a group keeps the scope it opened in, and [onRecord] sees every other span with the
-/// innermost scope. The walk stops at the first record [recordSkip] cannot size.
+/// header at [offset], a group keeps the scope it opened in, and [onRecord] sees every other
+/// record's offset, byte length and lead with the innermost scope. The walk stops at the first
+/// record [recordSkip] cannot size.
 void walkHeapObjects<T extends Object>(
   Uint8List body, {
-  required T Function(HeapSpan span, int kind, int oid, T? parent) onObjectOpen,
-  void Function(HeapSpan span, T? enclosing)? onRecord,
+  required T Function(int offset, int kind, int oid, T? parent) onObjectOpen,
+  void Function(int offset, int length, int lead, T? enclosing)? onRecord,
   void Function(int groupTag, T? enclosing)? onGroupOpen,
   void Function(int groupTag, T? enclosing)? onGroupClose,
 }) {
@@ -1663,11 +1705,11 @@ void walkHeapObjects<T extends Object>(
     if (step == null || offset + step > length) return;
     final lead = body[offset];
     final enclosing = scopes.isEmpty ? null : scopes.last;
-    if (isHeapObjectHeaderLead(lead) && _isObjectHeader(body, offset)) {
-      final headerLength = _objectHeaderLength(body, offset);
-      final kind = _objectHeaderKind(body, offset);
-      final oid = _objectHeaderOid(body, offset, headerLength);
-      scopes.add(onObjectOpen(HeapSpan(offset: offset, length: step, lead: lead), kind, oid, enclosing));
+    final headerLength = isHeapObjectHeaderLead(lead) ? heapObjectHeaderLength(body, offset) : 0;
+    if (headerLength != 0) {
+      final kind = heapObjectHeaderKind(body, offset);
+      final oid = heapObjectHeaderOid(body, offset, headerLength);
+      scopes.add(onObjectOpen(offset, kind, oid, enclosing));
       groupTags.add(null);
     } else if (isHeapGroupOpenLead(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
       scopes.add(enclosing);
@@ -1680,7 +1722,7 @@ void walkHeapObjects<T extends Object>(
         if (closedTag != null) onGroupClose?.call(closedTag, scopes.isEmpty ? null : scopes.last);
       }
     } else {
-      onRecord?.call(HeapSpan(offset: offset, length: step, lead: lead), enclosing);
+      onRecord?.call(offset, step, lead, enclosing);
     }
     offset += step;
   }

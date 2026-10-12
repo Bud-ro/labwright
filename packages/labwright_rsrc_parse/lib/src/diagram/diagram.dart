@@ -16,7 +16,7 @@
 /// C4 description (0x19)                    helpText
 /// C4 plotName (0x27)                       plotNames
 /// C4 path (0xa4), symbolName (0xc4)        foreignLibraryPath, foreignEntryPoint (Call Library nodes)
-/// reference records                        refs (childRef targets), typedRefs (all kinds)
+/// reference records                        refs (childRef targets), refsOf (every kind)
 /// attributes                               controlMin/Max, constText, constValueRaw, displayFormat,
 ///                                          labelModeWord, termBounds, termBmp, typeDescIdx, objFlags,
 ///                                          primResId, dIdx, wireTableRaw, defaultFrameIndex,
@@ -87,11 +87,39 @@ bool _predatesFrameRelativeTermBounds(String? version) {
   return major < 8 || (major == 8 && minor < 6);
 }
 
+/// Every object of a diagram by oid; the last declaration wins when a heap repeats one.
+class ViObjectsByOid {
+  ViObjectsByOid(this._objects) : _slotByOid = Int32List(_oidCount(_objects)) {
+    for (var i = 0; i < _objects.length; i++) {
+      _slotByOid[_objects[i].oid] = i + 1;
+    }
+  }
+
+  static int _oidCount(List<ViHeapObject> objects) {
+    var top = -1;
+    for (final object in objects) {
+      if (object.oid > top) top = object.oid;
+    }
+    return top + 1;
+  }
+
+  final List<ViHeapObject> _objects;
+
+  /// One past the object's position in [_objects]; zero where no object has the oid.
+  final Int32List _slotByOid;
+
+  ViHeapObject? operator [](int? oid) {
+    if (oid == null || oid < 0 || oid >= _slotByOid.length) return null;
+    final slot = _slotByOid[oid];
+    return slot == 0 ? null : _objects[slot - 1];
+  }
+}
+
 /// The objects of one heap section, indexed by oid and parent, with the wires derived from
 /// its signals.
 class ViDiagram {
   ViDiagram({required this.sectionTag, required this.objects, this.version})
-    : byId = {for (final object in objects) object.oid: object},
+    : byId = ViObjectsByOid(objects),
       _childrenOf = List<List<ViHeapObject>?>.filled(objects.length, null) {
     for (var i = 0; i < objects.length; i++) {
       objects[i].index = i;
@@ -111,8 +139,7 @@ class ViDiagram {
   /// Every object in heap order.
   final List<ViHeapObject> objects;
 
-  /// Every object by oid; the last declaration wins when a heap repeats one.
-  final Map<int, ViHeapObject> byId;
+  final ViObjectsByOid byId;
 
   final List<List<ViHeapObject>?> _childrenOf;
 
@@ -142,7 +169,7 @@ class ViDiagram {
 
   /// The frame a multi-frame structure shows, null for other objects or an index past its frames.
   int? displayedFrameIndex(ViHeapObject structure) {
-    if (!kMultiFrameStructureClasses.contains(structure.objectClass)) return null;
+    if (!structure.objectClass.isMultiFrameStructure) return null;
     var frames = 0;
     for (final child in children(structure.oid)) {
       if (child.objectClass == HeapObjectClass.bdFrame) frames++;
@@ -493,7 +520,7 @@ class ViDiagram {
     final ambiguous = <int>{};
     for (final object in objects) {
       if (object.termBounds == null) continue;
-      for (final target in object.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+      for (final target in object.refs) {
         _claim(index, ambiguous, target, object.oid);
       }
     }
@@ -528,10 +555,10 @@ class ViDiagram {
     final ambiguous = <int>{};
     for (final terminal in objects) {
       if (terminal.termBounds == null) continue;
-      for (final target in terminal.typedRefs[HeapRefKind.childRef] ?? const <int>[]) {
+      for (final target in terminal.refs) {
         final candidate = byId[target];
         if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
-        if (!(candidate.typedRefs[HeapRefKind.dcoRef] ?? const <int>[]).contains(terminal.oid)) continue;
+        if (!(candidate.refsOf(HeapRefKind.dcoRef) ?? const <int>[]).contains(terminal.oid)) continue;
         _claim(index, ambiguous, terminal.oid, candidate.oid);
       }
     }
@@ -822,10 +849,11 @@ Object? decodeBdConstantValue({
 /// nodes take their first child label, and controls under a scrolled viewport are re-anchored.
 ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? version}) {
   final objects = <ViHeapObject>[];
-  final typeKindEvidence = <int>[];
-  final originTop = <int>[];
-  final originLeft = <int>[];
   final length = body.length;
+  final objectCapacity = length ~/ kHeapObjectHeaderMinLength + 1;
+  final typeKindEvidence = Int32List(objectCapacity);
+  final originTop = Int32List(objectCapacity);
+  final originLeft = Int32List(objectCapacity);
   final view = ByteData.sublistView(body);
 
   ViHeapObject? styleRunOwner;
@@ -846,9 +874,35 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
   var selectorStrings = <String>[];
   var entryLow = 0, entryHigh = 0, entryLowBound = 0, entryHighBound = 0, entryFrame = 0;
 
-  walkHeapObjects<ViHeapObject>(
-    body,
-    onGroupOpen: (groupTag, cur) {
+  final scopes = <ViHeapObject?>[];
+  final groupTags = <int?>[];
+  var next = 4;
+  while (next < length) {
+    final offset = next;
+    final step = recordSkip(body, offset);
+    if (step == null || offset + step > length) break;
+    next = offset + step;
+    final recordLength = step;
+    final lead = body[offset];
+    final cur = scopes.isEmpty ? null : scopes.last;
+    final headerLength = isHeapObjectHeaderLead(lead) ? heapObjectHeaderLength(body, offset) : 0;
+    if (headerLength != 0) {
+      final kind = heapObjectHeaderKind(body, offset);
+      final oid = heapObjectHeaderOid(body, offset, headerLength);
+      final index = objects.length;
+      final object = ViHeapObject(oid: oid, kind: kind, offset: offset)..index = index;
+      object.parentOid = cur?.oid;
+      originTop[index] = cur == null ? 0 : originTop[cur.index];
+      originLeft[index] = cur == null ? 0 : originLeft[cur.index];
+      objects.add(object);
+      scopes.add(object);
+      groupTags.add(null);
+      continue;
+    }
+    if (isHeapGroupOpenLead(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
+      final groupTag = body[offset + 1];
+      scopes.add(cur);
+      groupTags.add(groupTag);
       if (selectorOwner != null) {
         selectorGroupDepth++;
         if (groupTag == HeapGroupTag.selectorRange.tag && selectorGroupDepth == 2 && !selectorInPool) {
@@ -881,7 +935,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
           styleRunGroupDepth = 1;
           styleRuns = [];
         }
-        return;
+        continue;
       }
       styleRunGroupDepth++;
       if (groupTag == HeapGroupTag.fontRun.tag && styleRunGroupDepth == 2) {
@@ -889,8 +943,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         styleRunStart = 0;
         styleRunFontId = 0;
       }
-    },
-    onGroupClose: (groupTag, cur) {
+      continue;
+    }
+    if (isHeapGroupCloseLead(lead)) {
+      if (scopes.isEmpty) continue;
+      scopes.removeLast();
+      final groupTag = groupTags.removeLast();
+      if (groupTag == null) continue;
       final owner = selectorOwner;
       if (owner != null) {
         if (selectorEntryOpen && selectorGroupDepth == 2) {
@@ -919,7 +978,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         arrayIndexOwner = null;
       }
       final runOwner = styleRunOwner;
-      if (runOwner == null) return;
+      if (runOwner == null) continue;
       styleRunGroupDepth--;
       if (styleRunOpen && styleRunGroupDepth == 1) {
         styleRuns.add((start: styleRunStart, fontId: styleRunFontId));
@@ -931,213 +990,275 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
         }
         styleRunOwner = null;
       }
-    },
-    onObjectOpen: (span, kind, oid, parent) {
-      final cur = ViHeapObject(oid: oid, kind: kind, offset: span.offset)..index = objects.length;
-      cur.parentOid = parent?.oid;
-      typeKindEvidence.add(0);
-      originTop.add(parent == null ? 0 : originTop[parent.index]);
-      originLeft.add(parent == null ? 0 : originLeft[parent.index]);
-      objects.add(cur);
-      return cur;
-    },
-    onRecord: (span, cur) {
-      if (cur == null) return;
-      final offset = span.offset;
-      final lead = span.lead;
-      if (selectorOwner != null && identical(cur, selectorOwner)) {
-        if (selectorInPool) {
-          final value = _selectorPoolString(body, offset, lead, span.length);
-          if (value != null) {
-            selectorStrings.add(value);
-            return;
-          }
-        } else if (selectorEntryOpen) {
-          final attr = decodeHeapAttrIn(view, body, offset);
-          final value = attr?.asInt;
-          if (attr != null && value != null) {
-            final tag = attr.rawTag;
-            if (tag == SelectorRangeAttr.low.raw) {
-              entryLow = _signedAtWidth(value, attr.width);
-              return;
-            }
-            if (tag == SelectorRangeAttr.high.raw) {
-              entryHigh = _signedAtWidth(value, attr.width);
-              return;
-            }
-            if (tag == SelectorRangeAttr.lowBound.raw) {
-              entryLowBound = value;
-              return;
-            }
-            if (tag == SelectorRangeAttr.highBound.raw) {
-              entryHighBound = value;
-              return;
-            }
-            if (tag == SelectorRangeAttr.frame.raw) {
-              entryFrame = value;
-              return;
-            }
-          }
+      continue;
+    }
+    if (cur == null) continue;
+    if (selectorOwner != null && identical(cur, selectorOwner)) {
+      if (selectorInPool) {
+        final value = _selectorPoolString(body, offset, lead, recordLength);
+        if (value != null) {
+          selectorStrings.add(value);
+          continue;
         }
-      }
-      final indexOwner = arrayIndexOwner;
-      if (indexOwner != null && identical(cur, indexOwner)) {
-        final attr = decodeHeapAttrIn(view, body, offset);
-        final value = attr?.asInt;
-        if (value != null && attr != null && attr.rawTag == HeapAttribute.arrayElemValue.raw) {
-          indexOwner.arrayIndex = value;
-          return;
-        }
-      }
-      if (styleRunOpen && identical(cur, styleRunOwner)) {
+      } else if (selectorEntryOpen) {
         final attr = decodeHeapAttrIn(view, body, offset);
         final value = attr?.asInt;
         if (attr != null && value != null) {
-          if (attr.rawTag == FontRunAttr.start.raw) {
-            styleRunStart = value;
-            return;
+          final tag = attr.rawTag;
+          if (tag == SelectorRangeAttr.low.raw) {
+            entryLow = _signedAtWidth(value, attr.width);
+            continue;
           }
-          if (attr.rawTag == FontRunAttr.fontId.raw) {
-            styleRunFontId = value;
-            return;
+          if (tag == SelectorRangeAttr.high.raw) {
+            entryHigh = _signedAtWidth(value, attr.width);
+            continue;
+          }
+          if (tag == SelectorRangeAttr.lowBound.raw) {
+            entryLowBound = value;
+            continue;
+          }
+          if (tag == SelectorRangeAttr.highBound.raw) {
+            entryHighBound = value;
+            continue;
+          }
+          if (tag == SelectorRangeAttr.frame.raw) {
+            entryFrame = value;
+            continue;
           }
         }
       }
-      if (lead == kHeapRecordPrefix) {
-        final rec = c4FrameAt(body, offset, sectionTag);
-        if (rec == null) return;
-        typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofOpcode(rec.opcode);
-        switch (rec.opcode) {
-          case 0x2d:
-            final recBounds = rec.bounds;
-            if (cur.bounds == null && recBounds != null) {
-              final bounds = recBounds;
-              cur.bounds = bounds;
-              final top = originTop[cur.index] + bounds.top;
-              final left = originLeft[cur.index] + bounds.left;
-              originTop[cur.index] = top;
-              originLeft[cur.index] = left;
-              cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
-            }
-          case 0x22:
-            cur.label ??= rec.text;
-          case 0x1f:
-            cur.termCount++;
-          case 0x74:
-            if (typeKindEvidence[cur.index] & ViTypeKindEvidence.numeric.bit == 0) {
-              typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofFormat(rec.payload);
-            }
-          case 0x2e:
-            if (cur.items.isEmpty) cur.items = _parseEnumItems(rec.payload);
-          case 0x19:
-            cur.helpText ??= rec.descriptionText;
-          case 0x27:
-            {
-              final text = rec.text ?? rec.path ?? rec.descriptionText;
-              if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
-            }
-          case 0xa4:
-            if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignLibraryPath ??= rec.path;
-          case 0xc4:
-            if (cur.objectClass == HeapObjectClass.bdCallLibrary) cur.foreignEntryPoint ??= rec.text;
+    }
+    final indexOwner = arrayIndexOwner;
+    if (indexOwner != null && identical(cur, indexOwner)) {
+      final attr = decodeHeapAttrIn(view, body, offset);
+      final value = attr?.asInt;
+      if (value != null && attr != null && attr.rawTag == HeapAttribute.arrayElemValue.raw) {
+        indexOwner.arrayIndex = value;
+        continue;
+      }
+    }
+    if (styleRunOpen && identical(cur, styleRunOwner)) {
+      final attr = decodeHeapAttrIn(view, body, offset);
+      final value = attr?.asInt;
+      if (attr != null && value != null) {
+        if (attr.rawTag == FontRunAttr.start.raw) {
+          styleRunStart = value;
+          continue;
         }
-      } else if (lead == 0x14) {
-        final ref = decodeHeapRefIn(view, body, offset);
-        if (ref != null) {
-          (cur.typedRefs[ref.kind] ??= <int>[]).add(ref.targetOid);
-          if (ref.kind == HeapRefKind.childRef) cur.refs.add(ref.targetOid);
+        if (attr.rawTag == FontRunAttr.fontId.raw) {
+          styleRunFontId = value;
+          continue;
         }
-      } else if (offset + 1 < length && _modelAttributeRaws[heapRawId(lead, body[offset + 1])]) {
-        final attr = decodeHeapAttrIn(view, body, offset);
-        if (attr == null) return;
-        final number = attr.asDouble;
-        if (number != null && kControlTerminalClasses.contains(cur.objectClass)) {
-          if (attr.attribute == HeapAttribute.stdNumMin) cur.controlMin ??= number;
-          if (attr.attribute == HeapAttribute.stdNumMax) cur.controlMax ??= number;
-        }
-        if (attr.attribute == HeapAttribute.constValue) {
-          final text = attr.asString;
-          if (text != null && text.isNotEmpty) cur.constText ??= text;
-        }
-        if (attr.attribute == HeapAttribute.shortText) {
-          final text = attr.asciiText;
-          if (text != null && text.length == _attrScalarBytes(attr.width)) {
-            cur.label ??= text;
+      }
+    }
+    if (lead == kHeapRecordPrefix) {
+      final opcode = body[offset + 1];
+      final start = offset + (body[offset + 2] == 0xff ? 5 : 3);
+      final end = offset + recordLength;
+      typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofOpcode(opcode);
+      switch (opcode) {
+        case 0x2d:
+          if (cur.bounds == null && end - start == 8) {
+            final bounds = HeapRect(
+              top: view.getInt16(start),
+              left: view.getInt16(start + 2),
+              bottom: view.getInt16(start + 4),
+              right: view.getInt16(start + 6),
+            );
+            cur.bounds = bounds;
+            final top = originTop[cur.index] + bounds.top;
+            final left = originLeft[cur.index] + bounds.left;
+            originTop[cur.index] = top;
+            originLeft[cur.index] = left;
+            cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
           }
-        }
-        if (attr.attribute == HeapAttribute.constValue &&
-            cur.objectClass == HeapObjectClass.bdConstDco &&
-            cur.constValueRaw == null) {
-          cur.constValueRaw = _attrFlatBytes(attr);
-          cur.constValueScalar = _attrScalarBytes(attr.width) != null;
-        }
-        if (attr.attribute == HeapAttribute.formatStyle) {
-          final bytes = _attrFlatBytes(attr);
-          if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
-            cur.displayFormat ??= String.fromCharCodes(bytes);
+        case 0x22:
+          cur.label ??= heapRecordText(Uint8List.sublistView(body, start, end));
+        case 0x1f:
+          cur.termCount++;
+        case 0x74:
+          if (typeKindEvidence[cur.index] & ViTypeKindEvidence.numeric.bit == 0) {
+            typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofFormat(Uint8List.sublistView(body, start, end));
           }
+        case 0x2e:
+          if (cur.items.isEmpty) cur.items = _parseEnumItems(Uint8List.sublistView(body, start, end));
+        case 0x19:
+          cur.helpText ??= heapDescriptionText(Uint8List.sublistView(body, start, end));
+        case 0x27:
+          final text = heapRecordText(Uint8List.sublistView(body, start, end));
+          if (text != null && text.isNotEmpty) cur.plotNames = [...cur.plotNames, text];
+        case 0xa4:
+          if (cur.objectClass == HeapObjectClass.bdCallLibrary) {
+            cur.foreignLibraryPath ??= heapRecordPath(Uint8List.sublistView(body, start, end));
+          }
+        case 0xc4:
+          if (cur.objectClass == HeapObjectClass.bdCallLibrary) {
+            cur.foreignEntryPoint ??= heapRecordText(Uint8List.sublistView(body, start, end));
+          }
+      }
+    } else if (lead == 0x14) {
+      if (offset + 6 <= length && body[offset + 2] == 0x01 && body[offset + 3] == 0xfd) {
+        final wide = (body[offset + 4] & 0x80) != 0;
+        if (!wide || offset + 10 <= length) {
+          cur.addRef(
+            HeapRefKind.fromRaw(heapRawId(lead, body[offset + 1])),
+            wide ? view.getUint32(offset + 6) : view.getUint16(offset + 4),
+          );
         }
-        if (attr.attribute == HeapAttribute.cosmColorB && cur.objectClass == HeapObjectClass.controlLabel) {
-          cur.labelModeWord ??= attr.asInt;
-        }
-        if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
-        if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
-        if (attr.attribute == HeapAttribute.typeDescIndex) cur.typeDescIdx ??= attr.asInt;
-        if (attr.attribute == HeapAttribute.objFlags) cur.objFlags ??= attr.asInt;
-        if (attr.attribute == HeapAttribute.primResID &&
-            cur.objectClass == HeapObjectClass.bdNode &&
-            attr.width == HeapAttrWidth.u16) {
-          cur.primResId ??= attr.asInt;
-        }
-        if (attr.attribute == HeapAttribute.dIdx && kMultiFrameStructureClasses.contains(cur.objectClass)) {
-          cur.dIdx ??= attr.asInt;
-        }
-        if (attr.attribute == HeapAttribute.compressedWireTable && cur.objectClass == HeapObjectClass.signal) {
-          if (attr.width == HeapAttrWidth.container) {
-            cur.wireTableRaw ??= attr.rawValueBytes;
-          } else {
-            final scalarBytes = _attrScalarBytes(attr.width);
-            final value = attr.asInt;
-            if (scalarBytes != null && scalarBytes > 0 && value != null) {
-              final table = Uint8List(scalarBytes);
-              for (var b = 0; b < scalarBytes; b++) {
-                table[b] = (value >> (8 * (scalarBytes - 1 - b))) & 0xff;
+      }
+    } else if (offset + 1 < length && _modelAttributeRaws[heapRawId(lead, body[offset + 1])]) {
+      final attribute = HeapAttribute.fromRaw(heapRawId(lead, body[offset + 1]));
+      final lo = lead & 0xf, hi = lead >> 4;
+      final scalarBytes = hi >> 1;
+      if ((lo == 4 || lo == 5 || lo == 6) &&
+          (hi == 2 || hi == 4 || hi == 6 || hi == 8) &&
+          offset + 2 + scalarBytes <= length &&
+          attribute != HeapAttribute.shortText &&
+          attribute != HeapAttribute.constValue &&
+          attribute != HeapAttribute.formatStyle) {
+        final value = switch (hi) {
+          2 => body[offset + 2],
+          4 => view.getUint16(offset + 2),
+          6 => (view.getUint16(offset + 2) << 8) | body[offset + 4],
+          _ => view.getUint32(offset + 2),
+        };
+        switch (attribute) {
+          case HeapAttribute.typeDescIndex:
+            cur.typeDescIdx ??= value;
+          case HeapAttribute.objFlags:
+            cur.objFlags ??= value;
+          case HeapAttribute.termBMPs:
+            cur.termBmp ??= value;
+          case HeapAttribute.cosmColorB:
+            if (cur.objectClass == HeapObjectClass.controlLabel) cur.labelModeWord ??= value;
+          case HeapAttribute.primResID:
+            if (cur.objectClass == HeapObjectClass.bdNode && hi == 4) cur.primResId ??= value;
+          case HeapAttribute.dIdx:
+            if (cur.objectClass.isMultiFrameStructure) cur.dIdx ??= value;
+          case HeapAttribute.selectDefaultCase:
+            if (cur.objectClass == HeapObjectClass.bdStructureFrame && value != kViNoDefaultFrame) {
+              cur.defaultFrameIndex ??= value;
+            }
+          case HeapAttribute.lastSignalKind:
+            if (cur.objectClass == HeapObjectClass.signal && value <= 0xffff) cur.lastSignalKind ??= value;
+          case HeapAttribute.compressedWireTable:
+            if (cur.objectClass == HeapObjectClass.signal) {
+              cur.wireTableRaw ??= body.sublist(offset + 2, offset + 2 + scalarBytes);
+            }
+          default:
+            if (attribute.kind == HeapAttrKind.color) {
+              final rgb = value & 0xffffff;
+              if (value != 0x1 && !(rgb == 0 && value >>> 24 == 0x01)) {
+                switch (attribute) {
+                  case HeapAttribute.backgroundColor:
+                    cur.bgRgb ??= rgb;
+                  case HeapAttribute.fgColor:
+                    cur.fgRgb ??= rgb;
+                  case HeapAttribute.contentColor:
+                    cur.contentRgb ??= rgb;
+                  case HeapAttribute.structColor:
+                    cur.structRgb ??= rgb;
+                  case HeapAttribute.borderColor:
+                    cur.borderRgb ??= rgb;
+                  case HeapAttribute.plotColor:
+                    (cur.plotColors.isEmpty ? (cur.plotColors = <int>[]) : cur.plotColors).add(rgb);
+                  default:
+                    break;
+                }
               }
-              cur.wireTableRaw ??= table;
             }
-          }
         }
-        if (attr.attribute == HeapAttribute.selectDefaultCase && cur.objectClass == HeapObjectClass.bdStructureFrame) {
-          final frame = attr.asInt;
-          if (frame != null && frame != kViNoDefaultFrame) cur.defaultFrameIndex ??= frame;
+        continue;
+      }
+      final attr = decodeHeapAttrIn(view, body, offset);
+      if (attr == null) continue;
+      final number = attr.asDouble;
+      if (number != null && cur.objectClass.isControlTerminal) {
+        if (attr.attribute == HeapAttribute.stdNumMin) cur.controlMin ??= number;
+        if (attr.attribute == HeapAttribute.stdNumMax) cur.controlMax ??= number;
+      }
+      if (attr.attribute == HeapAttribute.constValue) {
+        final text = attr.asString;
+        if (text != null && text.isNotEmpty) cur.constText ??= text;
+      }
+      if (attr.attribute == HeapAttribute.shortText) {
+        final text = attr.asciiText;
+        if (text != null && text.length == _attrScalarBytes(attr.width)) {
+          cur.label ??= text;
         }
-        if (attr.attribute == HeapAttribute.lastSignalKind && cur.objectClass == HeapObjectClass.signal) {
-          final word = attr.asInt;
-          if (word != null && word <= 0xffff) cur.lastSignalKind ??= word;
+      }
+      if (attr.attribute == HeapAttribute.constValue &&
+          cur.objectClass == HeapObjectClass.bdConstDco &&
+          cur.constValueRaw == null) {
+        cur.constValueRaw = _attrFlatBytes(attr);
+        cur.constValueScalar = _attrScalarBytes(attr.width) != null;
+      }
+      if (attr.attribute == HeapAttribute.formatStyle) {
+        final bytes = _attrFlatBytes(attr);
+        if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
+          cur.displayFormat ??= String.fromCharCodes(bytes);
         }
-        final rawColor = attr.kind == HeapAttrKind.color && attr.value is int ? attr.value as int : null;
-        final rgb = attr.isTransparent || rawColor == 0x1 ? null : attr.rgb;
-        if (rgb != null) {
-          switch (attr.attribute) {
-            case HeapAttribute.backgroundColor:
-              cur.bgRgb ??= rgb;
-            case HeapAttribute.fgColor:
-              cur.fgRgb ??= rgb;
-            case HeapAttribute.contentColor:
-              cur.contentRgb ??= rgb;
-            case HeapAttribute.structColor:
-              cur.structRgb ??= rgb;
-            case HeapAttribute.borderColor:
-              cur.borderRgb ??= rgb;
-            case HeapAttribute.plotColor:
-              (cur.plotColors.isEmpty ? (cur.plotColors = <int>[]) : cur.plotColors).add(rgb);
-            default:
-              break;
+      }
+      if (attr.attribute == HeapAttribute.cosmColorB && cur.objectClass == HeapObjectClass.controlLabel) {
+        cur.labelModeWord ??= attr.asInt;
+      }
+      if (attr.attribute == HeapAttribute.termBounds) cur.termBounds ??= attr.asRect;
+      if (attr.attribute == HeapAttribute.termBMPs) cur.termBmp ??= attr.asInt;
+      if (attr.attribute == HeapAttribute.typeDescIndex) cur.typeDescIdx ??= attr.asInt;
+      if (attr.attribute == HeapAttribute.objFlags) cur.objFlags ??= attr.asInt;
+      if (attr.attribute == HeapAttribute.primResID &&
+          cur.objectClass == HeapObjectClass.bdNode &&
+          attr.width == HeapAttrWidth.u16) {
+        cur.primResId ??= attr.asInt;
+      }
+      if (attr.attribute == HeapAttribute.dIdx && cur.objectClass.isMultiFrameStructure) {
+        cur.dIdx ??= attr.asInt;
+      }
+      if (attr.attribute == HeapAttribute.compressedWireTable && cur.objectClass == HeapObjectClass.signal) {
+        if (attr.width == HeapAttrWidth.container) {
+          cur.wireTableRaw ??= attr.rawValueBytes;
+        } else {
+          final scalarBytes = _attrScalarBytes(attr.width);
+          final value = attr.asInt;
+          if (scalarBytes != null && scalarBytes > 0 && value != null) {
+            final table = Uint8List(scalarBytes);
+            for (var b = 0; b < scalarBytes; b++) {
+              table[b] = (value >> (8 * (scalarBytes - 1 - b))) & 0xff;
+            }
+            cur.wireTableRaw ??= table;
           }
         }
       }
-    },
-  );
+      if (attr.attribute == HeapAttribute.selectDefaultCase && cur.objectClass == HeapObjectClass.bdStructureFrame) {
+        final frame = attr.asInt;
+        if (frame != null && frame != kViNoDefaultFrame) cur.defaultFrameIndex ??= frame;
+      }
+      if (attr.attribute == HeapAttribute.lastSignalKind && cur.objectClass == HeapObjectClass.signal) {
+        final word = attr.asInt;
+        if (word != null && word <= 0xffff) cur.lastSignalKind ??= word;
+      }
+      final rawColor = attr.kind == HeapAttrKind.color && attr.value is int ? attr.value as int : null;
+      final rgb = attr.isTransparent || rawColor == 0x1 ? null : attr.rgb;
+      if (rgb != null) {
+        switch (attr.attribute) {
+          case HeapAttribute.backgroundColor:
+            cur.bgRgb ??= rgb;
+          case HeapAttribute.fgColor:
+            cur.fgRgb ??= rgb;
+          case HeapAttribute.contentColor:
+            cur.contentRgb ??= rgb;
+          case HeapAttribute.structColor:
+            cur.structRgb ??= rgb;
+          case HeapAttribute.borderColor:
+            cur.borderRgb ??= rgb;
+          case HeapAttribute.plotColor:
+            (cur.plotColors.isEmpty ? (cur.plotColors = <int>[]) : cur.plotColors).add(rgb);
+          default:
+            break;
+        }
+      }
+    }
+  }
 
   final diagram = ViDiagram(sectionTag: sectionTag, objects: objects, version: version);
   final byOid = diagram.byId;
@@ -1199,7 +1320,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     while (parentOid != null && depth < 12) {
       final po = byOid[parentOid];
       if (po == null) break;
-      if (kControlTerminalClasses.contains(po.objectClass)) {
+      if (po.objectClass.isControlTerminal) {
         if (po.items.isEmpty) po.items = object.items;
         break;
       }
@@ -1305,13 +1426,11 @@ void _reanchorScrolledControls(ViDiagram diagram) {
   final byOid = diagram.byId;
   int? reanchorViewport(ViHeapObject object) {
     var parentOid = object.parentOid;
-    final seen = <int>{};
-    while (parentOid != null) {
-      if (!seen.add(parentOid)) return null;
+    for (var depth = 0; parentOid != null && depth < objects.length; depth++) {
       final po = byOid[parentOid];
       if (po == null) return null;
       if (po.objectClass == HeapObjectClass.contentViewport) return po.oid;
-      if (kControlTerminalClasses.contains(po.objectClass) || po.bounds != null) return null;
+      if (po.objectClass.isControlTerminal || po.bounds != null) return null;
       parentOid = po.parentOid;
     }
     return null;
@@ -1319,7 +1438,7 @@ void _reanchorScrolledControls(ViDiagram diagram) {
 
   final groups = <int, List<ViHeapObject>>{};
   for (final object in objects) {
-    if (!kControlTerminalClasses.contains(object.objectClass) || object.bounds == null || object.absBounds == null) {
+    if (!object.objectClass.isControlTerminal || object.bounds == null || object.absBounds == null) {
       continue;
     }
     final viewport = reanchorViewport(object);
@@ -1414,40 +1533,11 @@ void resolveDataSpaceTypes({
     return null;
   }
 
-  for (final diagram in diagrams) {
-    for (final object in diagram.objects) {
-      if (object.objectClass == HeapObjectClass.node && object.typeDescIdx != null) {
-        object.isIndicator = object.hasFlag(ViObjFlag.indicator);
-      }
-    }
-  }
-  for (final diagram in diagrams) {
-    for (final object in diagram.objects) {
-      if (object.isIndicator != null) continue;
-      final dcoRefs = object.typedRefs[HeapRefKind.dcoRef];
-      if (dcoRefs == null || dcoRefs.isEmpty) continue;
-      object.isIndicator = findDco(diagram, dcoRefs.first)?.isIndicator;
-    }
-  }
+  final base = typeIndexBase;
+  final resolvable = pool.isNotEmpty && table.isNotEmpty && base != null;
 
-  _resolveTypeIndices(pool: pool, table: table, base: typeIndexBase, diagrams: diagrams, findDco: findDco);
-
-  for (final diagram in diagrams) {
-    decodeBdConstValues(diagram);
-  }
-}
-
-void _resolveTypeIndices({
-  required List<ViType> pool,
-  required List<int> table,
-  required int? base,
-  required List<ViDiagram> diagrams,
-  required ViHeapObject? Function(ViDiagram own, int oid) findDco,
-}) {
-  if (pool.isEmpty || table.isEmpty || base == null) return;
-
-  ViType? resolve(int base, int index) {
-    final ti = base + index;
+  ViType? resolve(int index) {
+    final ti = base! + index;
     if (ti < 0 || ti >= table.length) return null;
     final pi = table[ti];
     return pi >= 0 && pi < pool.length ? pool[pi] : null;
@@ -1457,7 +1547,9 @@ void _resolveTypeIndices({
     for (final object in diagram.objects) {
       final index = object.typeDescIdx;
       if (index == null) continue;
-      final type = resolve(base, index);
+      if (object.objectClass == HeapObjectClass.node) object.isIndicator = object.hasFlag(ViObjFlag.indicator);
+      if (!resolvable) continue;
+      final type = resolve(index);
       if (type == null) continue;
       final kind = typeKindOfDataType(type.kind);
       if (kind != null) object.typeKind = kind;
@@ -1481,11 +1573,11 @@ void _resolveTypeIndices({
   }
   for (final diagram in diagrams) {
     for (final object in diagram.objects) {
-      if (object.typeDescIdx != null) continue;
-      final dcoRefs = object.typedRefs[HeapRefKind.dcoRef];
+      final dcoRefs = object.refsOf(HeapRefKind.dcoRef);
       if (dcoRefs == null || dcoRefs.isEmpty) continue;
       final dco = findDco(diagram, dcoRefs.first);
-      if (dco == null) continue;
+      object.isIndicator ??= dco?.isIndicator;
+      if (!resolvable || object.typeDescIdx != null || dco == null) continue;
       if (dco.typeKind != ViTypeKind.unknown) object.typeKind = dco.typeKind;
       object.dataType ??= dco.dataType;
       object.resolvedType ??= dco.resolvedType;
@@ -1498,6 +1590,10 @@ void _resolveTypeIndices({
       }
       object.typeName ??= dco.typeName;
     }
+  }
+
+  for (final diagram in diagrams) {
+    decodeBdConstValues(diagram);
   }
 }
 

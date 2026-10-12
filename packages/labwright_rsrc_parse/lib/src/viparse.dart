@@ -274,14 +274,19 @@ String? _viName(Uint8List bytes, int infoOffset) {
 bool _printableTag(String tag) => tag.length == 4 && tag.codeUnits.every((c) => c >= 0x20 && c < 0x7f);
 
 List<String> readSubViNames(Uint8List bytes) {
-  List<ViSection> secs;
+  List<ViSection> sections;
   try {
-    secs = readViSections(bytes);
+    sections = readViSections(bytes);
   } catch (_) {
     return const [];
   }
+  return subViNamesOf(sections, bytes);
+}
+
+/// [readSubViNames] over the [sections] already read from [bytes].
+List<String> subViNamesOf(List<ViSection> sections, Uint8List bytes) {
   Uint8List? sectionBytes(String tag) {
-    for (final section in secs) {
+    for (final section in sections) {
       if (section.tag == tag) return section.bytes;
     }
     return null;
@@ -344,13 +349,12 @@ List<String> _pascalViNames(Uint8List bytes) {
   final out = <String>[];
   for (var i = 0; i + 1 < bytes.length; i++) {
     final len = bytes[i];
-    if (len < 4 || i + 1 + len > bytes.length) continue;
-    if (!_allPrintable(bytes, i + 1, i + 1 + len)) continue;
-    final text = String.fromCharCodes(bytes.sublist(i + 1, i + 1 + len));
-    if (text.toLowerCase().endsWith('.vi')) {
-      out.add(text);
-      i += len;
-    }
+    final end = i + 1 + len;
+    if (len < 4 || end > bytes.length) continue;
+    if (bytes[end - 3] != 0x2e || bytes[end - 2] | 0x20 != 0x76 || bytes[end - 1] | 0x20 != 0x69) continue;
+    if (!_allPrintable(bytes, i + 1, end)) continue;
+    out.add(String.fromCharCodes(bytes, i + 1, end));
+    i += len;
   }
   return out;
 }

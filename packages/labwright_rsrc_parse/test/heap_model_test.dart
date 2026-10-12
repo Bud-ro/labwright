@@ -167,31 +167,23 @@ void main() {
       final m = buildViModelFromDecoded([dsec(vers, tag: 'vers'), dsec(bd, comp: true)]);
       expect((m.version, m.title), ('10.0', 'My Example.vi'));
       expect(m.components.any((c) => c.tag == 'BDEx'), isTrue);
-      expect(m.heapRecords.map((r) => r.opcode), containsAll(<int>[0x2e, 0x2d]));
+      expect(heapC4RecordsFromDecoded([dsec(bd, comp: true)]).map((r) => r.opcode), containsAll(<int>[0x2e, 0x2d]));
     });
 
-    test('captions/descriptions/symbolNames dedupe order-preserving; paths surface', () {
-      List<int> cap(String s) => c4(0x22, s.codeUnits);
-      final caps = buildViModelFromDecoded([
-        dsec([...cap('source'), ...cap('status'), ...cap('source'), ...cap('error out')]),
-      ]);
-      expect(caps.captions, ['source', 'status', 'error out']);
-
-      List<int> desc(String s) => c4(0x19, s.codeUnits);
-      final descs = buildViModelFromDecoded([
-        dsec([...desc('Cursors are draggable'), ...desc('Cursors are draggable'), ...desc('Click to add')]),
-      ]);
-      expect(descs.descriptions, ['Cursors are draggable', 'Click to add']);
-
-      final ext = buildViModelFromDecoded([
-        dsec([
-          ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
-          ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
-          ...c4(0xa4, pth0('ps5000.dll')),
-        ], tag: 'DTHP'),
-      ]);
-      expect(ext.symbolNames, ['ps5000RunStreaming']);
-      expect(ext.paths, ['ps5000.dll']);
+    test('the JSON export lists Call Library entry points and library paths once each', () {
+      List<int> cln(int oid) => [
+        ...open(HeapObjectClass.bdCallLibrary.code, oid),
+        ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
+        ...c4(0xa4, pth0('ps5000.dll')),
+        ...close(),
+      ];
+      final json = viModelToJson(
+        buildViModelFromDecoded([
+          dsec(heapBody([...cln(1), ...cln(2)]), tag: 'BDHb'),
+        ]),
+      );
+      expect(json['symbolNames'], ['ps5000RunStreaming']);
+      expect(json['libraryPaths'], ['ps5000.dll']);
     });
   });
 
@@ -235,13 +227,11 @@ void main() {
     });
     expectTotal(3, 1500, 160, (b) {
       final m = buildViModel(b);
-      expect(m.captions, isA<List<String>>());
+      expect(m, isA<ViModel>());
     });
     for (final (seed, step) in const [(7, 0xc4), (13, 0x19), (11, 0x22)]) {
       final junk = [for (var i = 0; i < 400; i++) (i * seed + step) & 0xff];
-      final m = buildViModelFromDecoded([dsec(junk)]);
-      m.descriptions;
-      m.captions;
+      buildViModelFromDecoded([dsec(junk)]);
       for (final r in scanC4Records(u8(junk), 'BDEx')) {
         r.rect;
         r.text;

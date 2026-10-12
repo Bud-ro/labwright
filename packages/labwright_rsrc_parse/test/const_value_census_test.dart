@@ -31,10 +31,10 @@ Map<String, int> _census(Uint8List bytes, String path) {
     final recs = <int, _Rec>{};
     walkHeapObjects<({int kind, int oid})>(
       body,
-      onObjectOpen: (span, kind, oid, parent) => (kind: kind, oid: oid),
-      onRecord: (span, cur) {
+      onObjectOpen: (offset, kind, oid, parent) => (kind: kind, oid: oid),
+      onRecord: (offset, length, lead, cur) {
         if (cur == null) return;
-        final attr = decodeHeapAttr(body, span.offset);
+        final attr = decodeHeapAttr(body, offset);
         if (attr == null || attr.attribute != HeapAttribute.constValue) return;
         if (cur.kind != HeapObjectClass.bdConstDco.code) {
           bump('recordsOffDco');
@@ -42,7 +42,7 @@ Map<String, int> _census(Uint8List bytes, String path) {
         }
         final prev = recs[cur.oid];
         if (prev == null) {
-          recs[cur.oid] = _Rec(body[span.offset], attr.asInt, attr.rawValueBytes);
+          recs[cur.oid] = _Rec(lead, attr.asInt, attr.rawValueBytes);
         } else {
           prev.count++;
         }

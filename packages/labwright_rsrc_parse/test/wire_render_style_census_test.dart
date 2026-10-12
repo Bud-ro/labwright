@@ -55,14 +55,14 @@ Map<String, int> _censusSnippet(Uint8List png, String path) {
   final body = bodies[bdIndex];
   walkHeapObjects<(int, int)>(
     body,
-    onObjectOpen: (span, kind, oid, parent) {
-      if (kind == 0x17) heapOff[oid] = span.offset;
+    onObjectOpen: (offset, kind, oid, parent) {
+      if (kind == 0x17) heapOff[oid] = offset;
       return (kind, oid);
     },
-    onRecord: (span, cur) {
+    onRecord: (offset, length, lead, cur) {
       if (cur == null || cur.$1 != 0x17) return;
-      if (span.lead == kHeapRecordPrefix || span.lead == 0x14) return;
-      final attr = decodeHeapAttr(body, span.offset);
+      if (lead == kHeapRecordPrefix || lead == 0x14) return;
+      final attr = decodeHeapAttr(body, offset);
       if (attr == null) return;
       final v = attr.value;
       if (attr.rawTag == 0x115 && v is int) state[cur.$2] ??= v;

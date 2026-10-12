@@ -66,7 +66,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   bool _shelfOpen = true;
 
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
-  late final Map<int, ViHeapObject> _byId = _diagram?.byId ?? const {};
+  late final ViObjectsByOid _byId = _diagram?.byId ?? ViObjectsByOid(const []);
 
   Map<int, ViLegacyIcon> _subViIcons = const {};
   Map<int, ui.Image> _xnodeFacades = const {};
@@ -5190,7 +5190,7 @@ class _DetailsCard extends StatelessWidget {
                   Text(
                     '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
                     '${object.isLabelHidden ? ' · hidden' : ''}'
-                    '${kMultiFrameStructureClasses.contains(object.objectClass) ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
+                    '${object.objectClass.isMultiFrameStructure ? ' · shows frame ${object.visibleFrameIndex + 1}' : ''}'
                     '${_iconStatusSuffix(object)}'
                     '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
                     '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'

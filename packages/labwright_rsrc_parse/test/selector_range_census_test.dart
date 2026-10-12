@@ -57,10 +57,10 @@ Map<int, int> _statedCounts(List<DecodedSection> sections) {
     if (body.length < 6) continue;
     walkHeapObjects<(int, int)>(
       body,
-      onObjectOpen: (span, kind, oid, parent) => (kind, oid),
-      onRecord: (span, enclosing) {
+      onObjectOpen: (offset, kind, oid, parent) => (kind, oid),
+      onRecord: (offset, length, lead, enclosing) {
         if (enclosing == null || enclosing.$1 != HeapObjectClass.bdStructureFrame.code) return;
-        final attr = decodeHeapAttr(body, span.offset);
+        final attr = decodeHeapAttr(body, offset);
         if (attr?.rawTag == HeapAttribute.selectNRightType.raw && attr?.asInt != null) {
           stated[enclosing.$2] ??= attr!.asInt!;
         }

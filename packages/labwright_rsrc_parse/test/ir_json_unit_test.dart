@@ -20,13 +20,12 @@ void main() {
       ..controlMax = 10.0
       ..helpText = 'help'
       ..primResId = 1051;
-    node.typedRefs[HeapRefKind.childRef] = [1];
+    node.addRef(HeapRefKind.childRef, 1);
 
     final model = ViModel(
       version: '10.0',
       title: 'T',
       components: const [],
-      heapRecords: const [],
       blockDiagrams: [
         ViDiagram(sectionTag: 'BDHb', objects: [node]),
       ],
@@ -39,7 +38,7 @@ void main() {
       {'labviewVersion', 'title', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
       reason:
           'top-level key set changed (IR shape) — update this golden expectation. '
-          'symbolNames/libraryPaths are absent here because this model has no heap records.',
+          'symbolNames/libraryPaths are absent here because this model has no Call Library nodes.',
     );
 
     final emittedNode =
@@ -86,7 +85,6 @@ void main() {
       version: null,
       title: null,
       components: const [],
-      heapRecords: const [],
       blockDiagrams: [
         ViDiagram(sectionTag: 'BDHb', objects: [node]),
       ],
@@ -118,7 +116,6 @@ void main() {
       version: null,
       title: null,
       components: [],
-      heapRecords: [],
       types: pool.types,
       connectorPaneType: ViConnectorPaneIndex(u8([0, 1])).resolve(pool),
     );
