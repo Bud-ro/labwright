@@ -107,6 +107,28 @@ bool lvEndpointIsTimestamp(ViDiagram diagram, int oid, {required bool array}) {
   return type is ViMeasureDataType && type.flavor == ViMeasureDataFlavor.timeStamp;
 }
 
+/// The signal-word type code of a wire whose type the word does not state.
+const int kLvUntypedSignalCode = 0xff;
+
+/// The one scalar descriptor the endpoints of an untyped wire resolve, through typedefs; null
+/// when none does or when two resolve different ones. An endpoint's array descriptor decides
+/// nothing, since it may be the array an element wire indexes.
+ViType? lvScalarOfEndpoints(ViDiagram diagram, ViWire wire, List<ViType> pool) {
+  ViType? reading;
+  for (final endpoint in wire.endpointOids) {
+    final own = _throughTypedefs(diagram.byId[endpoint]?.resolvedType);
+    if (own == null || own is ViArrayType) continue;
+    if (reading != null && !identical(reading, own) && !_sameDescriptor(reading, own, pool)) return null;
+    reading ??= own;
+  }
+  return reading;
+}
+
+bool _sameDescriptor(ViType left, ViType right, List<ViType> pool) {
+  if (left.code != right.code || left.label != right.label) return false;
+  return left.kind != ViDataType.cluster || lvClusterShape(left, pool) == lvClusterShape(right, pool);
+}
+
 /// A wire of timestamps at the signal's dimensionality.
 LvWireType lvTimestampWireType(ViSignalType signal) {
   const element = LvTypeMapping.mapped(LvCarrier.timestamp);

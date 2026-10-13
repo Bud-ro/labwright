@@ -324,6 +324,14 @@ agrees on every one (116 to the member, 10 differing only in the cluster's
 own label, one VI copied across repositories); 2,076 more wires it alone
 decides. It applies to the endpoint itself, not to its parent.
 
+A signal word of type code `0xff` states no type at all. Such a wire takes
+the one scalar descriptor its endpoints resolve, through typedefs, when every
+resolving endpoint resolves the same one; an endpoint's array descriptor
+decides nothing, since it may be the array an element wire indexes. Corpus:
+478 such wires, 290 with a resolving endpoint, none with two that disagree;
+the word's depth bears no relation to the descriptor's rank, so it is not
+read.
+
 ### Refnum dimensionality
 
 A refnum wire's array-depth base rides the **reference class**, not the type
@@ -577,9 +585,9 @@ direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 770 lower
-and the rest refuse, 4,877 of them on a wire type — overwhelmingly a cluster
+and the rest refuse, 4,863 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 654 on a primitive, 303 on a subVI call, 296 on a structure, 201 on a constant's value, 114 on a foreign call, 99 on an unwired terminal, 40 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 660 on a primitive, 303 on a subVI call, 301 on a structure, 202 on a constant's value, 114 on a foreign call, 99 on an unwired terminal, 40 on a tunnel coercion, 26 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
