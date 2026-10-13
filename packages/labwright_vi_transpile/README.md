@@ -495,13 +495,30 @@ name resolves through the `.lvlib` and `.lvclass` files around it
 the sweep and `tool/generate.dart` fall back to a bare file-name index only
 when no link answers.
 
-Corpus, over the 3,598 call nodes in diagrams whose dataflow builds: 2,253
-callees resolve through their link and 678 through the file-name index; 2,803
+**Stock VIs.** A call whose link points into LabVIEW's own library (`<vilib>`),
+or that a snippet draws with no link at all, reaches no file this repository
+holds. `kLvStockVis` names the ones the runtime implements — `Space Constant`,
+`Application Directory`, `Trim Whitespace`, `Color to RGB` and `Error Cluster
+From Error Code` — each as a runtime function with its terminals by pane index,
+and the call lowers to that function with named arguments. A terminal's pane
+index, direction and type are those every corpus call of the VI draws and
+wires: `Error Cluster From Error Code` is called 426 times, always with a
+ten-terminal pane, its error code at 9 (I32, wired at every call), message at
+8 (string, 348), error in at 6, show-call-chain at 5 (boolean, 258) and error
+out at 0 (403). In the exceptions error mode a stock error out is raised at the
+call site. Where the terminal order of a stock VI is not visible in a caller
+(NI's modern help is a browser application and the legacy help archive holds
+none of these five), the runtime notes what it leaves out: the call chain
+`Error Cluster From Error Code` appends to its source is not modelled.
+
+Corpus, over the 3,598 call nodes in diagrams whose dataflow builds: 136
+reach a stock VI the runtime implements, 2,253 callees resolve through their
+link and 678 through the file-name index; 2,803
 have a connector pane of the right width, and of the 8,502 wired terminals at
 those calls, 8,424 resolve a callee terminal. The caller's own wire direction
 agrees with the named control's on **8,424 of 8,424**. The two VIs' wire types
 agree on 2,830 of the 2,851 where both are decided. The rest are refused by
-name: 544 calls whose callee is absent from the corpus, 121 that name no file,
+name: 408 calls whose callee is absent from the corpus, 121 that name no file,
 88 whose callee carries no connector pane, 40 whose pane width disagrees, 2
 whose name several links share.
 
@@ -515,20 +532,20 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 260 lower
-and the rest refuse, 5,518 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 294 lower
+and the rest refuse, 5,520 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 518 on a primitive, 306 on
-an unwired terminal, 188 on a constant's value, 180 on a subVI call, 147 on a
-structure, 142 on a wire's direction, 93 on a foreign call, 36 on a tunnel
+rest are pinned per kind in `kCorpusLoweringSweep`: 530 on a primitive, 306 on
+an unwired terminal, 188 on a constant's value, 147 on a structure, 142 on a
+wire's direction, 132 on a subVI call, 93 on a foreign call, 36 on a tunnel
 coercion, 4 on a case selector, 2 on an unbound value.
 
-Those 260 lowerings are **79 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 79 into a
+Those 294 lowerings are **112 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 112 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 79 is the independent check that they
+kernel` of one entry point importing all 112 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
