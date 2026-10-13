@@ -22,6 +22,9 @@ bool lvEndpointIsSink(ViHeapObject object) {
 
 const int kLvTunnelIndexerCode = 0x23;
 
+/// How far below its output tunnel's record a condition terminal's record is drawn.
+const int kConditionBelowTunnel = 9;
+
 /// The heap kind of an In Place Element border node.
 const int kInPlaceBorderNodeKind = 0x14f;
 
@@ -935,6 +938,7 @@ class _Builder {
         .childrenOf(structure)
         .where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code)
         .firstOrNull;
+    _pairConditions(terminals);
     var pairs = const <LvInPlaceArrayPair>[];
     var clusterPairs = const <LvInPlaceClusterPair>[];
     if (kind == LvStructureKind.inPlaceElement) {
@@ -1125,6 +1129,37 @@ class _Builder {
       lvRefuse(LvRefusalKind.structure, 'an In Place Element structure draws no border-node pair', oid: structure.oid);
     }
     return (terminals: terminals, pairs: pairs, clusterPairs: clusterPairs);
+  }
+
+  /// Names, on each condition terminal, the output tunnel it gates: the one whose record is drawn
+  /// [kConditionBelowTunnel] pixels below its own at the same left, which every corpus loop has.
+  void _pairConditions(List<LvStructTerminal> terminals) {
+    for (var i = 0; i < terminals.length; i++) {
+      final condition = terminals[i];
+      if (condition.role != LvTerminalRole.tunnelCondition) continue;
+      final at = _recordBounds(condition.oid);
+      if (at == null) continue;
+      for (final tunnel in terminals) {
+        if (tunnel.role != LvTerminalRole.loopTunnel || tunnel.outerIsSink) continue;
+        final box = _recordBounds(tunnel.oid);
+        if (box == null || box.left != at.left || at.top - box.top != kConditionBelowTunnel) continue;
+        terminals[i] = LvStructTerminal(
+          oid: condition.oid,
+          role: condition.role,
+          outerPort: condition.outerPort,
+          innerPorts: condition.innerPorts,
+          autoIndexing: condition.autoIndexing,
+          partnerOid: tunnel.oid,
+          outerIsSink: condition.outerIsSink,
+        );
+        break;
+      }
+    }
+  }
+
+  HeapRect? _recordBounds(int oid) {
+    final record = byId[oid];
+    return record == null ? null : record.absBounds ?? record.termBounds;
   }
 
   Iterable<ViHeapObject> _terminalRecords(ViHeapObject structure) sync* {

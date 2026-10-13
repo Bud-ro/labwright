@@ -468,6 +468,15 @@ class _FunctionEmitter {
               wake(unit);
             }
           }
+          for (final terminal in unit.terminals) {
+            if (terminal.outerPort == edge.source && !terminal.outerIsSink) {
+              for (final condition in unit.terminals) {
+                if (condition.role == LvTerminalRole.tunnelCondition && condition.partnerOid == terminal.oid) {
+                  pending.addAll(condition.innerPorts.values);
+                }
+              }
+            }
+          }
           for (final pair in unit.inPlacePairs) {
             if (pair.arrayOut == edge.source) pending.addAll([for (final element in pair.elements) element.elementIn]);
           }
@@ -979,14 +988,20 @@ class _FunctionEmitter {
     if (!bounded && exit == null) {
       lvRefuse(LvRefusalKind.unwiredTerminal, 'a While loop\'s conditional terminal receives no wire', oid: unit.oid);
     }
+    final conditionOf = <int, int>{};
     for (final terminal in unit.terminals) {
       if (terminal.role != LvTerminalRole.tunnelCondition) continue;
       if (terminal.innerPorts[frame.frameOid] case final port? when flow.into(port) != null) {
-        lvRefuse(
-          LvRefusalKind.structure,
-          'a loop output tunnel is conditional, and which tunnel its condition terminal gates is not decoded',
-          oid: terminal.oid,
-        );
+        final tunnel = terminal.partnerOid;
+        if (tunnel == null) {
+          lvRefuse(
+            LvRefusalKind.structure,
+            'a loop output tunnel is conditional, and no output tunnel is drawn where its condition '
+            'terminal names one',
+            oid: terminal.oid,
+          );
+        }
+        conditionOf[tunnel] = port;
       }
     }
     final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
@@ -1029,6 +1044,13 @@ class _FunctionEmitter {
       }
       if (!_readsOuter(tunnel)) continue;
       if (!tunnel.autoIndexing) {
+        if (conditionOf.containsKey(tunnel.oid)) {
+          lvRefuse(
+            LvRefusalKind.structure,
+            'a conditional output tunnel that does not auto-index is not modelled',
+            oid: tunnel.oid,
+          );
+        }
         _checkTunnelDims(tunnel, unit.oid, drop: 0);
         final type = _typeAt(tunnel.outerPort!)!;
         final fallback = _defaultValueOf(type);
@@ -1124,7 +1146,13 @@ class _FunctionEmitter {
           oid: output.terminal.oid,
         );
       }
-      body.writeln('${output.builder}.add(${_bound(edge.source, output.terminal.oid)});');
+      final added = '${output.builder}.add(${_bound(edge.source, output.terminal.oid)});';
+      if (conditionOf[output.terminal.oid] case final condition?) {
+        final gate = _bound(flow.into(condition)!.source, output.terminal.oid);
+        body.writeln('if ($gate) $added');
+      } else {
+        body.writeln(added);
+      }
     }
     for (final output in lastOutputs) {
       final inner = output.terminal.innerPorts[frame.frameOid];
