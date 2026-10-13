@@ -549,10 +549,10 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 679 lower
-and the rest refuse, 5,049 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 693 lower
+and the rest refuse, 5,066 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 625 on a primitive, 254 on a subVI call, 189 on a structure, 169 on a constant's value, 168 on a wire's direction, 104 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 566 on a primitive, 268 on a subVI call, 189 on a structure, 183 on a constant's value, 168 on a wire's direction, 104 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -579,12 +579,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 679 lowerings are **445 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 445 into a
+Those 693 lowerings are **456 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 456 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 445 is the independent check that they
+kernel` of one entry point importing all 456 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
@@ -671,6 +671,18 @@ What that method decided, and what it did not:
   takes the leftmost match, each quantifier as long as the rest of the pattern
   allows; its terminals are told apart by role flags (left `0`, right `1`) and
   drawn order, and an unwired offset reads as zero as the reference states.
+- **`Build Path`** takes its base path and name top-down, as the reference
+  draws them. The runtime appends a relative path, or a name split at the
+  running platform's separator as LabVIEW splits it; an invalid side or an
+  empty name gives *Not A Path*, an absolute name on an empty base is that
+  path, and an absolute name on any other base is not decoded and throws.
+  `LvPath` carries a `valid` flag for *Not A Path*, which is what
+  `Not A Number/Path/Refnum?` tests on a path; on a refnum it tests for
+  *Not A Refnum*, the only invalid reference a lowered program can hold.
+- **`Type Cast`** flattens a refnum as its 32-bit identity, so a cast between a
+  refnum and an integer reads or makes one. The operand that shares the
+  result's type is `type`; when both do, the top one is, as the reference
+  draws them.
 - **`To Lower Case`** and 1181's digit case are proven only as a **pair**: the
   digests are wrong if either the conversion writes lower case and the mapping
   is a no-op, or the reverse, but they cannot separate the two. The VI's own

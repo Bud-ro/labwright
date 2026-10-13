@@ -17,6 +17,8 @@ abstract final class LvRuntimeCall {
   static const String toLowerCase = 'lvToLowerCase';
   static const String stringSubset = 'lvStringSubset';
   static const String matchPattern = 'lvMatchPattern';
+  static const String buildPath = 'lvBuildPath';
+  static const String notARefnum = 'lvNotARefnum';
   static const String hexString = 'lvHexString';
   static const String initializeArray = 'lvInitializeArray';
   static const String mergeErrors = 'lvMergeErrors';

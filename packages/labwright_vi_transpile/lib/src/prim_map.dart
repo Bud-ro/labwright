@@ -219,6 +219,7 @@ final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
   PrimOp.notANumberPathRefnum: _isNotANumber,
   PrimOp.stringSubset: _stringSubset,
   PrimOp.matchPattern: _matchPattern,
+  PrimOp.buildPath: _buildPath,
   PrimOp.toLowerCase: _toLowerCase,
   PrimOp.waitMs: _waitMs,
 };
@@ -513,8 +514,13 @@ List<String>? _typeCast(LvPrimCall call) {
   final LvPrimTerminal value;
   if (call.inputs.length == 2 && call.hasSoleSourceTerminal) {
     final typed = call.inputs.where((operand) => _sameWireType(operand.type, out.type)).toList();
-    if (typed.length != 1) return null;
-    value = call.inputs.firstWhere((operand) => !identical(operand, typed.single));
+    if (typed.length == 1) {
+      value = call.inputs.firstWhere((operand) => !identical(operand, typed.single));
+    } else {
+      final operands = call.inputsTopDown;
+      if (operands == null || !_sameWireType(operands[0].type, out.type)) return null;
+      value = operands[1];
+    }
   } else if (call.inputs.length == 1 && call.outputPorts.length == 2) {
     if (out.type.dims != 0 || out.type.carrier != LvCarrier.text) return null;
     value = call.inputs.single;
@@ -541,6 +547,9 @@ String? _flatOf(LvPrimTerminal operand) {
     if (operand.type.carrier == LvCarrier.text) {
       return '${LvRuntimeCall.flatOfString}(${operand.expression})';
     }
+    if (operand.type.carrier == LvCarrier.refnum) {
+      return '${LvRuntimeCall.flatOfInt}(${operand.expression}.id, $kLvRefnumBits)';
+    }
     if (kind == null) return null;
     final call = kind.isFloat ? LvRuntimeCall.flatOfFloat : LvRuntimeCall.flatOfInt;
     return '$call(${operand.expression}, ${kind.bits})';
@@ -549,10 +558,16 @@ String? _flatOf(LvPrimTerminal operand) {
   return '${LvRuntimeCall.flatOfIntList}(${operand.expression}, ${kind.bits})';
 }
 
+/// The width of a flattened reference.
+const int kLvRefnumBits = 32;
+
 String? _valueOfFlat(LvWireType type, String bytes) {
   final kind = type.numeric;
   if (type.dims == 0) {
     if (type.carrier == LvCarrier.text) return '${LvRuntimeCall.stringOfFlat}($bytes)';
+    if (type.carrier == LvCarrier.refnum) {
+      return '${LvRuntimeType.refnum}(${LvRuntimeCall.intOfFlat}($bytes, $kLvRefnumBits))';
+    }
     if (kind == null) return null;
     if (kind.isFloat) return '${LvRuntimeCall.floatOfFlat}($bytes, ${kind.bits})';
     return lvWrapped(type, '${LvRuntimeCall.intOfFlat}($bytes, ${kind.bits})');
@@ -771,11 +786,37 @@ List<String>? _mergeErrors(LvPrimCall call) {
 List<String>? _isNotANumber(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, result = call.outputs.single;
-  if (source.type.dims != 0 || !(source.type.numeric?.isFloat ?? false)) return null;
-  if (result.type.dims != 0 || result.type.carrier != LvCarrier.boolean) return null;
+  if (source.type.dims != 0 || result.type.dims != 0 || result.type.carrier != LvCarrier.boolean) return null;
   final name = result.expression;
   if (name == null) return const [];
-  return ['final bool $name = ${source.expression}.isNaN;'];
+  switch (source.type.carrier) {
+    case LvCarrier.float:
+      return ['final bool $name = ${source.expression}.isNaN;'];
+    case LvCarrier.path:
+      return ['final bool $name = !${source.expression}.valid;'];
+    case LvCarrier.refnum:
+      call.requireImport(kLvRuntimeImport);
+      return ['final bool $name = ${LvRuntimeCall.notARefnum}(${source.expression});'];
+    case _:
+      return null;
+  }
+}
+
+/// Build Path's terminals top-down: the base path, then a name (text) or relative path.
+List<String>? _buildPath(LvPrimCall call) {
+  if (call.inputs.length != 2 || call.outputs.length > 1 || !call.hasSoleSourceTerminal) return null;
+  final operands = call.inputsTopDown;
+  if (operands == null) return null;
+  final [base, name] = operands;
+  if (base.type.dims != 0 || base.type.carrier != LvCarrier.path) return null;
+  if (name.type.dims != 0 || (name.type.carrier != LvCarrier.text && name.type.carrier != LvCarrier.path)) return null;
+  final out = call.outputs.singleOrNull;
+  if (out == null) return const [];
+  if (out.type.dims != 0 || out.type.carrier != LvCarrier.path) return null;
+  call.requireImport(kLvRuntimeImport);
+  return [
+    'final ${LvRuntimeType.path} ${out.expression} = ${LvRuntimeCall.buildPath}(${base.expression}, ${name.expression});',
+  ];
 }
 
 String _interpolated(String? expression) =>

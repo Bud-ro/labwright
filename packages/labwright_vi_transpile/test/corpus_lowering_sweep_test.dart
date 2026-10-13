@@ -189,18 +189,18 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 63,
   'decl.vi': 3106,
   'exceptions.caseSelector': 22,
-  'exceptions.constantValue': 169,
+  'exceptions.constantValue': 183,
   'exceptions.foreignCall': 104,
-  'exceptions.lowered': 679,
-  'exceptions.primitive': 625,
+  'exceptions.lowered': 693,
+  'exceptions.primitive': 566,
   'exceptions.structure': 189,
-  'exceptions.subViCall': 254,
+  'exceptions.subViCall': 268,
   'exceptions.tunnelCoercion': 37,
   'exceptions.tunnelIndexing': 1,
   'exceptions.unboundValue': 5,
   'exceptions.unwiredTerminal': 92,
   'exceptions.wireDirection': 168,
-  'exceptions.wireType': 5049,
+  'exceptions.wireType': 5066,
   'flag0.array': 24551,
   'flag0.scalar': 149919,
   'flag12.array': 931,
@@ -219,8 +219,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 319,
-  'modes.same': 360,
+  'modes.differ': 323,
+  'modes.same': 370,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -279,18 +279,18 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 82,
   'term.wired': 10984,
   'threaded.caseSelector': 22,
-  'threaded.constantValue': 169,
+  'threaded.constantValue': 183,
   'threaded.foreignCall': 104,
-  'threaded.lowered': 679,
-  'threaded.primitive': 625,
+  'threaded.lowered': 693,
+  'threaded.primitive': 566,
   'threaded.structure': 189,
-  'threaded.subViCall': 254,
+  'threaded.subViCall': 268,
   'threaded.tunnelCoercion': 37,
   'threaded.tunnelIndexing': 1,
   'threaded.unboundValue': 5,
   'threaded.unwiredTerminal': 92,
   'threaded.wireDirection': 168,
-  'threaded.wireType': 5049,
+  'threaded.wireType': 5066,
   'vi': 7394,
   'wt.cause.member.0x33': 17,
   'wt.cause.member.0x37': 4,
@@ -325,14 +325,13 @@ const Map<String, int> kCorpusLoweringSweep = {
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
   'node class 0x34': (vis: 823, nodes: 1746, sole: 92),
   'Close Reference (primResID 8011)': (vis: 780, nodes: 3083, sole: 46),
-  'node class 0xa9': (vis: 697, nodes: 2673, sole: 62),
-  'node class 0x93': (vis: 619, nodes: 1463, sole: 93),
-  'Search 1D Array (primResID 1901)': (vis: 581, nodes: 1335, sole: 49),
+  'node class 0xa9': (vis: 697, nodes: 2673, sole: 67),
+  'node class 0x93': (vis: 619, nodes: 1463, sole: 94),
+  'Search 1D Array (primResID 1901)': (vis: 581, nodes: 1335, sole: 50),
   'node class 0x153': (vis: 534, nodes: 1424, sole: 322),
-  'Build Path (primResID 1419)': (vis: 428, nodes: 1191, sole: 26),
   'node class 0xd6': (vis: 415, nodes: 2657, sole: 21),
   'To More Specific Class (primResID 8016)': (vis: 364, nodes: 859, sole: 58),
-  'Strip Path (primResID 1420)': (vis: 360, nodes: 841, sole: 3),
+  'Strip Path (primResID 1420)': (vis: 360, nodes: 841, sole: 11),
   'node class 0xbd': (vis: 318, nodes: 628, sole: 9),
   'node class 0xb6': (vis: 316, nodes: 760, sole: 18),
   'Variant To Data (primResID 8003)': (vis: 272, nodes: 530, sole: 15),
@@ -345,7 +344,7 @@ const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
   'node class 0x150': (vis: 164, nodes: 428, sole: 21),
   'Search and Replace String (primResID 3914)': (vis: 156, nodes: 263, sole: 14),
   'Enqueue Element (primResID 9111)': (vis: 153, nodes: 319, sole: 5),
-  'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 30),
+  'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 31),
   'primResID 1103 (name not decoded)': (vis: 152, nodes: 213, sole: 15),
   'Boolean To (0,1) (primResID 1167)': (vis: 151, nodes: 555, sole: 32),
 };
@@ -354,13 +353,13 @@ const ({int libraries, int entryPoints}) kCorpusForeignCalls = (libraries: 51, e
 
 const int kCorpusReviewListFloor = 150;
 
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 247, nodes: 32930, vis: 14795);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 246, nodes: 31739, vis: 14367);
 
 const int kReviewListFloor = 10;
 
-const ({int identities, int nodes}) kReviewListTotals = (identities: 86, nodes: 336);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 85, nodes: 328);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 679, sources: 445);
+const ({int vis, int sources}) kEmittedSources = (vis: 693, sources: 456);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
