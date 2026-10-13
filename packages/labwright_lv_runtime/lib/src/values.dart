@@ -38,3 +38,17 @@ LvError lvMergeErrors(List<LvError> errors) {
   }
   return LvError.none;
 }
+
+/// Whether two values are the same as LabVIEW's equality compares them: paths by their
+/// components, validity and absoluteness, everything else by `==`.
+bool lvSameValue(Object? left, Object? right) {
+  if (left is LvPath && right is LvPath) {
+    if (left.valid != right.valid || left.absolute != right.absolute) return false;
+    if (left.components.length != right.components.length) return false;
+    for (var i = 0; i < left.components.length; i++) {
+      if (left.components[i] != right.components[i]) return false;
+    }
+    return true;
+  }
+  return left == right;
+}

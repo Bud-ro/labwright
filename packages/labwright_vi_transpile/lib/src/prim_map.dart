@@ -225,6 +225,7 @@ final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
   PrimOp.stringSubset: _stringSubset,
   PrimOp.matchPattern: _matchPattern,
   PrimOp.buildPath: _buildPath,
+  PrimOp.search1dArray: _search1dArray,
   PrimOp.toLowerCase: _toLowerCase,
   PrimOp.waitMs: _waitMs,
 };
@@ -952,6 +953,48 @@ List<String>? _isNotANumber(LvPrimCall call) {
     case _:
       return null;
   }
+}
+
+/// Search 1D Array's terminals top-down: the array, the element and an optional start index on
+/// the left, the index of the element on the right; an unwired start index is among
+/// [LvPrimCall.outputPorts] with role flags 0. Elements compare as text, booleans, integers or
+/// paths; other kinds are not decided.
+List<String>? _search1dArray(LvPrimCall call) {
+  if (call.outputs.length > 1) return null;
+  final left = [for (final operand in call.inputs) operand.port];
+  final right = <int>[];
+  for (final port in call.outputPorts) {
+    switch (call.portRoleFlags[port] ?? 0) {
+      case 0:
+        left.add(port);
+      case 1:
+        right.add(port);
+      case _:
+        return null;
+    }
+  }
+  final operands = call.portsTopDown(left);
+  if (operands == null || operands.length < 2 || operands.length > 3 || right.length != 1) return null;
+  final wired = {for (final operand in call.inputs) operand.port: operand};
+  final array = wired[operands[0]], element = wired[operands[1]];
+  final start = operands.length == 3 ? wired[operands[2]] : null;
+  if (array == null || element == null) return null;
+  if (array.type.dims != 1 || element.type.dims != 0) return null;
+  final carrier = element.type.carrier;
+  final numeric = element.type.numeric;
+  final comparable =
+      carrier == LvCarrier.text ||
+      carrier == LvCarrier.boolean ||
+      carrier == LvCarrier.path ||
+      (numeric != null && !numeric.isFloat);
+  if (!comparable || array.type.element.dartType != element.type.dartType) return null;
+  if (start != null && (start.type.dims != 0 || start.type.numeric == null || start.type.numeric!.isFloat)) return null;
+  final out = call.outputs.singleOrNull;
+  if (out == null) return const [];
+  if (out.type.dims != 0 || out.type.numeric == null || out.type.numeric!.isFloat) return null;
+  call.requireImport(kLvRuntimeImport);
+  final arguments = [array.expression, element.expression, if (start != null) start.expression];
+  return ['final int ${out.expression} = ${LvRuntimeCall.search1dArray}(${arguments.join(', ')});'];
 }
 
 /// Build Path's terminals top-down: the base path, then a name (text) or relative path.
