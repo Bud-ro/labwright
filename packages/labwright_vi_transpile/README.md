@@ -317,6 +317,13 @@ emitter calls, and refuses the wire when the readings it has disagree, as it
 does for the endpoint route. The 13,929 wires this newly types are 11,434
 plain clusters and 2,495 typedefs.
 
+An endpoint of a *scalar* cluster wire that resolves a **one-dimensional
+array** of a cluster carries that array's element. Corpus: on the 126 such
+wires where another endpoint resolves the cluster directly, the element
+agrees on every one (116 to the member, 10 differing only in the cluster's
+own label, one VI copied across repositories); 2,076 more wires it alone
+decides. It applies to the endpoint itself, not to its parent.
+
 ### Refnum dimensionality
 
 A refnum wire's array-depth base rides the **reference class**, not the type
@@ -555,10 +562,10 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 720 lower
-and the rest refuse, 5,083 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 725 lower
+and the rest refuse, 5,035 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 589 on a primitive, 271 on a subVI call, 185 on a constant's value, 171 on a wire's direction, 106 on a foreign call, 106 on a structure, 96 on an unwired terminal, 37 on a tunnel coercion, 23 on a case selector, 6 on an unbound value, 1 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 600 on a primitive, 275 on a subVI call, 189 on a constant's value, 173 on a wire's direction, 117 on a structure, 109 on a foreign call, 98 on an unwired terminal, 39 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 2 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -583,12 +590,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 720 lowerings are **468 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 468 into a
+Those 725 lowerings are **470 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 470 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 468 is the independent check that they
+kernel` of one entry point importing all 470 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

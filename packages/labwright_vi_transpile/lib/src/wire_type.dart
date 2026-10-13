@@ -138,11 +138,21 @@ String lvClusterShape(ViType type, List<ViType> pool) {
   return '${type.label ?? ''}|${members.map((member) => '${member.code}:${member.label ?? ''}').join(',')}';
 }
 
+/// The cluster an endpoint of a cluster wire resolves: its own descriptor (the element's for an
+/// [array] wire), else its parent's; a scalar wire whose endpoint resolves a one-dimensional
+/// array of clusters carries that array's element.
 ViType? lvClusterOfEndpoint(ViDiagram diagram, int oid, {required bool array}) {
   var object = diagram.byId[oid];
   for (var depth = 0; object != null && depth < 2; depth++) {
     final type = array ? object.resolvedElementType : object.resolvedType;
     if (lvClusterBase(type) != null) return type;
+    if (!array &&
+        depth == 0 &&
+        object.resolvedType is ViArrayType &&
+        (object.resolvedType as ViArrayType).dimCount == 1) {
+      final element = object.resolvedElementType;
+      if (lvClusterBase(element) != null) return element;
+    }
     final parent = object.parentOid;
     object = parent == null ? null : diagram.byId[parent];
   }
