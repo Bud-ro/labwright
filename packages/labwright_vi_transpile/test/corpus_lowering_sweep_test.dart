@@ -67,9 +67,9 @@ const Set<int> kLvInPlaceElementBorderClasses = {kLvDataValueRefBorderClass, 0x1
 const int kLvDataValueRefBorderClass = 0x153;
 
 const Map<String, int> kCorpusInPlaceElement = {
-  'ipe.blocked': 45,
-  'ipe.blocked.identifiedOnly': 3,
-  'ipe.blocked.undecodedAccess': 42,
+  'ipe.blocked': 57,
+  'ipe.blocked.identifiedOnly': 5,
+  'ipe.blocked.undecodedAccess': 52,
   'ipe.border.0x14f': 164,
   'ipe.border.0x150': 428,
   'ipe.border.0x152': 98,
@@ -103,16 +103,15 @@ const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClu
 const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 3598,
-  'call.ambiguousLink': 2,
-  'call.calleeMissing': 408,
-  'call.noPane': 88,
-  'call.paneMatched': 2803,
-  'call.paneWidthMismatch': 40,
-  'call.unnamed': 121,
-  'call.via.link': 2253,
-  'call.via.name': 678,
-  'call.via.stock': 136,
+  'call': 4181,
+  'call.calleeMissing': 468,
+  'call.noPane': 94,
+  'call.paneMatched': 3274,
+  'call.paneWidthMismatch': 66,
+  'call.unnamed': 134,
+  'call.via.link': 2405,
+  'call.via.name': 1029,
+  'call.via.stock': 145,
   'clus': 135446,
   'clus.kid.many': 255,
   'clus.kid.none': 21959,
@@ -190,18 +189,18 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.suffixed': 563,
   'decl.unnamedMember': 63,
   'decl.vi': 3106,
-  'exceptions.caseSelector': 4,
-  'exceptions.constantValue': 192,
-  'exceptions.foreignCall': 94,
-  'exceptions.lowered': 367,
-  'exceptions.primitive': 533,
-  'exceptions.structure': 147,
-  'exceptions.subViCall': 141,
-  'exceptions.tunnelCoercion': 36,
-  'exceptions.unboundValue': 2,
-  'exceptions.unwiredTerminal': 213,
-  'exceptions.wireDirection': 142,
-  'exceptions.wireType': 5523,
+  'exceptions.caseSelector': 20,
+  'exceptions.constantValue': 213,
+  'exceptions.foreignCall': 96,
+  'exceptions.lowered': 592,
+  'exceptions.primitive': 540,
+  'exceptions.structure': 170,
+  'exceptions.subViCall': 208,
+  'exceptions.tunnelCoercion': 37,
+  'exceptions.unboundValue': 3,
+  'exceptions.unwiredTerminal': 456,
+  'exceptions.wireDirection': 168,
+  'exceptions.wireType': 4891,
   'flag0.array': 24551,
   'flag0.scalar': 149919,
   'flag12.array': 931,
@@ -220,8 +219,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 115,
-  'modes.same': 252,
+  'modes.differ': 276,
+  'modes.same': 316,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -272,45 +271,45 @@ const Map<String, int> kCorpusLoweringSweep = {
   'render.lawSilent.styleSpeaks': 6013,
   'render.refUndecided.styleMute': 33925,
   'render.refUndecided.styleSpeaks': 5329,
-  'term.calleeUntyped': 5573,
-  'term.dirAgree': 8424,
-  'term.resolved': 8424,
-  'term.typeAgree': 2830,
-  'term.typeDisagree': 21,
-  'term.unresolved': 78,
-  'term.wired': 8502,
-  'threaded.caseSelector': 4,
-  'threaded.constantValue': 192,
-  'threaded.foreignCall': 94,
-  'threaded.lowered': 367,
-  'threaded.primitive': 533,
-  'threaded.structure': 147,
-  'threaded.subViCall': 141,
-  'threaded.tunnelCoercion': 36,
-  'threaded.unboundValue': 2,
-  'threaded.unwiredTerminal': 213,
-  'threaded.wireDirection': 142,
-  'threaded.wireType': 5523,
+  'term.calleeUntyped': 6409,
+  'term.dirAgree': 10902,
+  'term.resolved': 10902,
+  'term.typeAgree': 4182,
+  'term.typeDisagree': 311,
+  'term.unresolved': 82,
+  'term.wired': 10984,
+  'threaded.caseSelector': 20,
+  'threaded.constantValue': 213,
+  'threaded.foreignCall': 96,
+  'threaded.lowered': 592,
+  'threaded.primitive': 540,
+  'threaded.structure': 170,
+  'threaded.subViCall': 208,
+  'threaded.tunnelCoercion': 37,
+  'threaded.unboundValue': 3,
+  'threaded.unwiredTerminal': 456,
+  'threaded.wireDirection': 168,
+  'threaded.wireType': 4891,
   'vi': 7394,
-  'wt.cause.member.0x33': 16,
+  'wt.cause.member.0x33': 17,
   'wt.cause.member.0x37': 4,
-  'wt.cause.member.0x54': 81,
+  'wt.cause.member.0x54': 76,
   'wt.cause.member.0xd': 2,
-  'wt.cause.noneNoCluster': 3125,
+  'wt.cause.noneNoCluster': 3271,
   'wt.cause.noneUntyped': 24,
   'wt.cause.typesDisagree': 12,
-  'wt.cluster': 3268,
+  'wt.cluster': 3411,
   'wt.code0x0': 7,
-  'wt.code0x33': 52,
-  'wt.code0x37': 28,
-  'wt.code0x54': 101,
+  'wt.code0x33': 54,
+  'wt.code0x37': 29,
+  'wt.code0x54': 100,
   'wt.code0x73': 1,
-  'wt.code0x74': 23,
-  'wt.code0xb': 24,
-  'wt.code0xc': 3,
+  'wt.code0x74': 15,
+  'wt.code0xb': 25,
+  'wt.code0xc': 2,
   'wt.code0xd': 6,
-  'wt.code0xff': 99,
-  'wt.refnum': 1658,
+  'wt.code0xff': 138,
+  'wt.refnum': 782,
   'wt.sole.cluster': 1364,
   'wt.sole.code0x33': 4,
   'wt.sole.code0x37': 3,
@@ -319,7 +318,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'wt.sole.code0xb': 16,
   'wt.sole.code0xd': 4,
   'wt.sole.code0xff': 8,
-  'wt.sole.refnum': 765,
+  'wt.sole.refnum': 264,
 };
 
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
@@ -361,7 +360,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 367, sources: 168);
+const ({int vis, int sources}) kEmittedSources = (vis: 592, sources: 366);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -401,6 +400,21 @@ const ({int vis, int sources}) kEmittedSources = (vis: 367, sources: 168);
 
   LvViUnit? resolve(LvCallee callee) => resolveCallee(callee).unit;
 
+  final classData = <String, ViModel?>{};
+  ViModel? resolveClass(List<String> qualifiedName) => classData.putIfAbsent(qualifiedName.join(':'), () {
+    final path = libraries.fileOf(qualifiedName);
+    if (path == null) return null;
+    try {
+      final control = LvLibraryFile.parse(
+        File(path).readAsStringSync(),
+        fileName: qualifiedName.last,
+      ).privateDataControl;
+      return control == null ? null : buildViModel(control);
+    } catch (_) {
+      return null;
+    }
+  });
+
   final paneWidths = <String, int?>{};
   int? paneWidth(String name) => paneWidths.putIfAbsent(name.toLowerCase(), () {
     final path = index[name.toLowerCase()];
@@ -414,7 +428,14 @@ const ({int vis, int sources}) kEmittedSources = (vis: 367, sources: 168);
 
   ({LvDataflow? dataflow, LvRefusal? refusal}) buildOf(LvViUnit unit) => builds.putIfAbsent(
     unit,
-    () => buildLvDataflow(unit.diagram, pool: unit.pool, declarations: registry, caller: unit, resolve: resolve),
+    () => buildLvDataflow(
+      unit.diagram,
+      pool: unit.pool,
+      declarations: registry,
+      caller: unit,
+      resolve: resolve,
+      resolveClass: resolveClass,
+    ),
   );
 
   LvDataflow? flowOf(LvViUnit unit) => buildOf(unit).dataflow;
@@ -936,7 +957,13 @@ const ({int vis, int sources}) kEmittedSources = (vis: 367, sources: 168);
     }
     final sources = <String?>[];
     for (final mode in LvErrorMode.values) {
-      final result = emitLvLibrary(unit, functionName: 'lowered', errorMode: mode, resolveSubVi: resolve);
+      final result = emitLvLibrary(
+        unit,
+        functionName: 'lowered',
+        errorMode: mode,
+        resolveSubVi: resolve,
+        resolveClass: resolveClass,
+      );
       bump('${mode.name}.${result.refusal?.kind.name ?? 'lowered'}');
       sources.add(result.source);
       if (mode == LvErrorMode.exceptions && result.source != null) emitted.add(result.source!);

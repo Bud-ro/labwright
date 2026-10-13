@@ -76,6 +76,25 @@ int? lvRefnumWireDims(ViDiagram diagram, ViWire wire) {
   return answer;
 }
 
+/// The class a refnum wire carries, read from the class-instance descriptor of an endpoint or
+/// one of its node-terminal parts; null when none names one.
+List<String>? lvClassOfEndpoint(ViDiagram diagram, int endpoint, {required bool array}) {
+  final objects = [if (diagram.byId[endpoint] case final object?) object, ...diagram.children(endpoint)];
+  for (final object in objects) {
+    final own = _throughTypedefs(array ? object.resolvedElementType ?? object.resolvedType : object.resolvedType);
+    if (own is ViRefnumType && own.refnumKind == ViRefnumKind.classInstance && own.classQualifiedName.isNotEmpty) {
+      return own.classQualifiedName;
+    }
+  }
+  return null;
+}
+
+/// A wire of class objects: [element] at [dims] dimensions.
+LvWireType lvClassObjectWireType(LvTypeMapping element, int dims) {
+  if (dims == 0 || !element.isMapped) return LvWireType._(dims: dims, element: element, value: element);
+  return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
+}
+
 int? _refnumDimsOf(ViHeapObject object) {
   final own = _throughTypedefs(object.resolvedType);
   if (own == null) return null;

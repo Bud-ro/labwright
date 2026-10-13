@@ -534,6 +534,53 @@ LvTypeMapping _mapQualifiedTypeDef(
   );
 }
 
+/// The root class every LabVIEW class descends from, which carries no data.
+const List<String> kLvRootClassName = ['LabVIEW Object'];
+
+/// A LabVIEW class object as a Dart class named after the class and holding its own private
+/// data cluster's members, one declaration per qualified name; the root class is empty. The
+/// class's private data comes from its class file, the typedef the class qualifies in
+/// [privateData], and a class not supplied is unmapped.
+LvTypeMapping lvClassObjectType(List<String> qualifiedName, ViModel? privateData, LvDeclarations declarations) {
+  final signature = 'K:${qualifiedName.join(':')}';
+  final stem = lvClassName(qualifiedName.last.replaceAll(RegExp(r'\.\w+$'), ''));
+  if (qualifiedName.length == 1 && qualifiedName.single == kLvRootClassName.single) {
+    return LvTypeMapping.nominal(
+      declarations.allocate(
+        'LabViewObject',
+        signature,
+        (name) =>
+            LvTypeDecl.cluster(name: name, label: qualifiedName.single, fields: const [], qualifiedName: qualifiedName),
+      ),
+    );
+  }
+  if (privateData == null) {
+    return LvTypeMapping.unmapped('the class ${qualifiedName.join(':')} was not supplied to the lowering');
+  }
+  final classFile = qualifiedName.last;
+  ViTypedefType? own;
+  for (final type in privateData.types) {
+    if (type is ViTypedefType && type.componentCount >= 2 && type.componentAt(type.componentCount - 2) == classFile) {
+      own = type;
+      break;
+    }
+  }
+  if (own == null || own.base.kind != ViDataType.cluster) {
+    return LvTypeMapping.unmapped('the class file of ${qualifiedName.join(':')} holds no private data cluster');
+  }
+  final (:members, :mapped, :refusal) = _clusterMembers(own.base, privateData.types, 1, declarations);
+  if (refusal != null) return refusal;
+  final fields = [for (var i = 0; i < members.length; i++) LvDeclField(label: members[i].label, type: mapped[i])];
+  return LvTypeMapping.nominal(
+    declarations.allocate(
+      stem.isEmpty ? 'LvClass' : stem,
+      signature,
+      (name) =>
+          LvTypeDecl.cluster(name: name, label: own!.label ?? classFile, fields: fields, qualifiedName: qualifiedName),
+    ),
+  );
+}
+
 bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
 
 bool isLvErrorCluster(ViType type, List<ViType> pool) {
