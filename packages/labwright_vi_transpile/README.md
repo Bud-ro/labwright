@@ -441,7 +441,8 @@ the primitive's own name.
 | Flat Sequence (`0xca`) | each frame's region in order; a tunnel between adjacent frames (`0xcb`, whose outer endpoints the two frames wire to each other) is the earlier frame's output, bound before the later frame reads it |
 | While loop (`0x21`) | `for (var i = 0; ; i++)` over the frame, every tunnel and shift register written at the end of each iteration, then `if (…) break;` by the conditional terminal's polarity |
 | conditional terminal (`0x25`) | bit `0x10000` of its record's flags set is *stop if true*, clear is *continue if true* (`LvConditionalPolarity`); a For loop with one wired breaks the same way |
-| In Place Element (`0x14d`) | **refused** — see below |
+| In Place Element (`0x14d`), Index/Replace Array Elements pairs (`0x158`) | each element read from its array at its index before the frame; each written array a copy with the frame's results at the same indices; an index passes through; plain border tunnels (`0x14e`) as on a Case |
+| In Place Element with other pairs (`0x154` data value reference, `0x159`, `0x15b`) | **refused** — see below |
 
 An auto-indexing tunnel is identified by flag `0x1000000`. Corpus, over 21,486
 loop tunnels whose two sides both resolve a dimensionality: all 6,584 flagged
@@ -464,13 +465,18 @@ that is not decoded. A shift register with no initial value wired in keeps its
 value from the previous call, which the lowering does not model, so one that
 is read refuses.
 
-The **In Place Element Structure** (`0x14d`) is common but is not the lever its
-frequency suggests, and `kCorpusInPlaceElement` is the measurement. 705 corpus
-VIs carry one, 904 in total — but a lowering refuses at the first thing it
-cannot read, and the structure is that first thing in only **27** of them.
-The other 678 are held up earlier, 482 by a single cause: a cluster wire whose
-member types no endpoint resolves. Modelling the structure's control flow would
-therefore move at most 0.36% of the corpus.
+The **In Place Element Structure** (`0x14d`) holds one marker object per
+border-node pair. Corpus, 915 structures: 620 hold Data Value Reference
+read/write pairs (`0x154`), which need a reference the lowering does not
+model; 210 hold `0x159` pairs and 30 `0x15b`; 75 hold Index/Replace Array
+Elements pairs (`0x158`). That last pair is modelled: its two border nodes
+(`0x14f`, the left one flagged `0x10000`) carry `0x163` terminals whose high
+flag bits say what each is — `0x800000` the array, `0xe00000` a
+one-dimensional index (fewer bits set index more dimensions, refused), none
+of them an element — and whose members name the structure's holders on the
+array and index terminals. Every one of the 75 draws that shape. No corpus
+VI yet lowers through the pair: each stops later on a cluster wire or a tunnel
+coercion, so the emission is checked by the analyzer gate only once one does.
 
 Those 27 then split against it. 22 carry a border node from `0x150` / `0x14f` /
 `0x152`, whose element access is not recovered — the parser labels that family
@@ -585,9 +591,9 @@ direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 770 lower
-and the rest refuse, 4,863 of them on a wire type — overwhelmingly a cluster
+and the rest refuse, 4,866 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 660 on a primitive, 303 on a subVI call, 301 on a structure, 202 on a constant's value, 114 on a foreign call, 99 on an unwired terminal, 40 on a tunnel coercion, 26 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 662 on a primitive, 306 on a subVI call, 276 on a structure, 202 on a constant's value, 114 on a foreign call, 99 on an unwired terminal, 57 on a tunnel coercion, 26 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
