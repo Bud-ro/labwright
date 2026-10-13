@@ -217,7 +217,8 @@ class LvTypeMapping {
       _namesRuntimeType = false,
       _namesTypedData = false,
       unmappedCode = null,
-      declarations = const [];
+      declarations = const [],
+      fields = const [];
 
   LvTypeMapping.compound(
     String this._source, {
@@ -225,6 +226,7 @@ class LvTypeMapping {
     required bool namesTypedData,
     this.note,
     this.declarations = const [],
+    this.fields = const [],
   }) : status = LvMapStatus.mapped,
        carrier = LvCarrier.compound,
        numeric = null,
@@ -248,7 +250,8 @@ class LvTypeMapping {
       _namesTypedData = false,
       numeric = null,
       unmappedCode = null,
-      declarations = [declaration];
+      declarations = [declaration],
+      fields = const [];
 
   const LvTypeMapping.internal(this.note)
     : status = LvMapStatus.internal,
@@ -258,7 +261,8 @@ class LvTypeMapping {
       _namesTypedData = false,
       numeric = null,
       unmappedCode = null,
-      declarations = const [];
+      declarations = const [],
+      fields = const [];
 
   const LvTypeMapping.unmapped(this.note, {this.unmappedCode})
     : status = LvMapStatus.unmapped,
@@ -267,7 +271,8 @@ class LvTypeMapping {
       _namesRuntimeType = false,
       _namesTypedData = false,
       numeric = null,
-      declarations = const [];
+      declarations = const [],
+      fields = const [];
 
   final LvMapStatus status;
 
@@ -286,6 +291,10 @@ class LvTypeMapping {
   final String? note;
 
   final List<LvTypeDecl> declarations;
+
+  /// The members of an anonymous cluster carried as a record, in order; empty for any other
+  /// mapping.
+  final List<LvDeclField> fields;
 
   final int? unmappedCode;
 
@@ -420,6 +429,7 @@ LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int dep
     namesRuntimeType: mapped.any(lvTypeNeedsRuntime),
     namesTypedData: mapped.any(lvTypeNeedsTypedData),
     declarations: [for (final field in mapped) ...field.declarations],
+    fields: [for (var i = 0; i < members.length; i++) LvDeclField(label: members[i].label, type: mapped[i])],
   );
 }
 

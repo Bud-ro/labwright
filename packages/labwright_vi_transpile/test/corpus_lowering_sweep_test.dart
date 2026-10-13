@@ -193,13 +193,13 @@ const Map<String, int> kCorpusLoweringSweep = {
   'exceptions.caseSelector': 4,
   'exceptions.constantValue': 192,
   'exceptions.foreignCall': 94,
-  'exceptions.lowered': 365,
-  'exceptions.primitive': 537,
+  'exceptions.lowered': 367,
+  'exceptions.primitive': 533,
   'exceptions.structure': 147,
   'exceptions.subViCall': 141,
   'exceptions.tunnelCoercion': 36,
   'exceptions.unboundValue': 2,
-  'exceptions.unwiredTerminal': 211,
+  'exceptions.unwiredTerminal': 213,
   'exceptions.wireDirection': 142,
   'exceptions.wireType': 5523,
   'flag0.array': 24551,
@@ -220,7 +220,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 113,
+  'modes.differ': 115,
   'modes.same': 252,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
@@ -282,13 +282,13 @@ const Map<String, int> kCorpusLoweringSweep = {
   'threaded.caseSelector': 4,
   'threaded.constantValue': 192,
   'threaded.foreignCall': 94,
-  'threaded.lowered': 365,
-  'threaded.primitive': 537,
+  'threaded.lowered': 367,
+  'threaded.primitive': 533,
   'threaded.structure': 147,
   'threaded.subViCall': 141,
   'threaded.tunnelCoercion': 36,
   'threaded.unboundValue': 2,
-  'threaded.unwiredTerminal': 211,
+  'threaded.unwiredTerminal': 213,
   'threaded.wireDirection': 142,
   'threaded.wireType': 5523,
   'vi': 7394,
@@ -361,7 +361,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 365, sources: 166);
+const ({int vis, int sources}) kEmittedSources = (vis: 367, sources: 168);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,

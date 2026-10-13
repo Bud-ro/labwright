@@ -322,10 +322,10 @@ String lvPrimUnmappedReason(LvPrimCall call) {
     final unbundles = (call.nodeFlags! & kLvByNameUnbundlesBit) != 0;
     final members = unbundles ? call.outputs : call.inputs;
     final cluster = (unbundles ? call.inputs : call.outputs).firstOrNull?.type;
-    final declaration = cluster == null ? null : _clusterDecl(cluster);
+    final shape = cluster == null ? null : _ClusterShape.of(cluster);
     return '${unbundles ? 'Unbundle' : 'Bundle'} By Name (class '
         '0x${call.classCode.toRadixString(16)}) does not resolve its members: '
-        '${declaration == null ? 'its cluster wire carries no declared class, and' : 'against ${declaration.name},'} '
+        '${shape == null ? 'its cluster wire carries no class or named record, and' : 'against ${shape.dartType},'} '
         '${members.where((terminal) => terminal.memberName == null).length} of ${members.length} '
         'member terminals name no member on their own record';
   }
@@ -598,46 +598,92 @@ List<String>? _concatenateStrings(LvPrimCall call) {
   return ['final String $name = $joined;'];
 }
 
-LvTypeDecl? _clusterDecl(LvWireType type) {
-  if (type.dims != 0 || type.declarations.length != 1) return null;
-  final declaration = type.declarations.single;
-  if (declaration.isEnum || declaration.fields.isEmpty) return null;
-  return declaration.name == type.dartType ? declaration : null;
-}
+/// The members of the runtime's error cluster, as `LvError` declares them.
+final List<LvDeclField> _errorClusterFields = [
+  const LvDeclField(label: 'status', type: LvTypeMapping.mapped(LvCarrier.boolean)),
+  const LvDeclField(
+    label: 'code',
+    type: LvTypeMapping.mapped(LvCarrier.integer, numeric: LvNumericKind.i32),
+  ),
+  const LvDeclField(label: 'source', type: LvTypeMapping.mapped(LvCarrier.text)),
+];
 
-int? _soleFieldIndex(LvTypeDecl declaration, String? label) {
-  if (label == null) return null;
-  int? found;
-  for (var i = 0; i < declaration.fields.length; i++) {
-    if (declaration.fields[i].label != label) continue;
-    if (found != null) return null;
-    found = i;
+/// A cluster wire's members as Dart spells them: a declared class's fields, the named fields
+/// of the record an anonymous cluster is carried as, or the runtime error cluster's.
+class _ClusterShape {
+  _ClusterShape._(this.dartType, this.fields, this.names, {required this.isRecord});
+
+  final String dartType;
+
+  final List<LvDeclField> fields;
+
+  /// Each field's Dart name.
+  final List<String> names;
+
+  final bool isRecord;
+
+  static _ClusterShape? of(LvWireType type) {
+    if (type.dims != 0) return null;
+    if (type.isErrorCluster) {
+      return _ClusterShape._(
+        LvRuntimeType.error,
+        _errorClusterFields,
+        [for (final field in _errorClusterFields) field.label!],
+        isRecord: false,
+      );
+    }
+    if (type.declarations.length == 1 && type.declarations.single.name == type.dartType) {
+      final declaration = type.declarations.single;
+      if (declaration.isEnum || declaration.fields.isEmpty) return null;
+      return _ClusterShape._(
+        declaration.name,
+        declaration.fields,
+        LvNaming.declarationFields([for (final field in declaration.fields) field.label]),
+        isRecord: false,
+      );
+    }
+    final fields = type.value.fields;
+    if (fields.isEmpty || type.dartType == null || !type.dartType!.startsWith('({')) return null;
+    return _ClusterShape._(
+      type.dartType!,
+      fields,
+      [for (final field in fields) lvFieldName(field.label ?? '')],
+      isRecord: true,
+    );
   }
-  return found;
-}
 
-bool _memberMatches(LvTypeDecl declaration, int index, LvWireType wire) {
-  final type = declaration.fields[index].type;
-  return type.isMapped && type.dartType == wire.dartType;
+  int? soleFieldIndex(String? label) {
+    if (label == null) return null;
+    int? found;
+    for (var i = 0; i < fields.length; i++) {
+      if (fields[i].label != label) continue;
+      if (found != null) return null;
+      found = i;
+    }
+    return found;
+  }
+
+  bool memberMatches(int index, LvWireType wire) {
+    final type = fields[index].type;
+    return type.isMapped && type.dartType == wire.dartType;
+  }
 }
 
 List<String>? _unbundle(LvPrimCall call) {
   if (call.inputs.length != 1) return null;
   final source = call.inputs.single;
-  final declaration = _clusterDecl(source.type);
-  if (declaration == null) return null;
+  final shape = _ClusterShape.of(source.type);
+  if (shape == null) return null;
   final ordered = call.portsTopDown(call.outputPorts);
-  if (ordered == null || ordered.length != declaration.fields.length) return null;
-  final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+  if (ordered == null || ordered.length != shape.fields.length) return null;
   final statements = <String>[];
   for (var i = 0; i < ordered.length; i++) {
     final result = LvPrimCall._terminalAt(call.outputs, ordered[i]);
     if (result == null) continue;
-    if (!_memberMatches(declaration, i, result.type)) return null;
-    if (result.memberName != null && result.memberName != declaration.fields[i].label) return null;
+    if (!shape.memberMatches(i, result.type)) return null;
+    if (result.memberName != null && result.memberName != shape.fields[i].label) return null;
     statements.add(
-      'final ${declaration.fields[i].type.dartType} ${result.expression} = '
-      '${source.expression}.${names[i]};',
+      'final ${shape.fields[i].type.dartType} ${result.expression} = ${source.expression}.${shape.names[i]};',
     );
   }
   return statements;
@@ -652,16 +698,14 @@ List<String>? _byName(LvPrimCall call) => switch (call.nodeFlags) {
 List<String>? _unbundleByName(LvPrimCall call) {
   if (call.inputs.length != 1 || call.outputs.isEmpty) return null;
   final source = call.inputs.single;
-  final declaration = _clusterDecl(source.type);
-  if (declaration == null) return null;
-  final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+  final shape = _ClusterShape.of(source.type);
+  if (shape == null) return null;
   final statements = <String>[];
   for (final result in call.outputs) {
-    final index = _soleFieldIndex(declaration, result.memberName);
-    if (index == null || !_memberMatches(declaration, index, result.type)) return null;
+    final index = shape.soleFieldIndex(result.memberName);
+    if (index == null || !shape.memberMatches(index, result.type)) return null;
     statements.add(
-      'final ${declaration.fields[index].type.dartType} ${result.expression} = '
-      '${source.expression}.${names[index]};',
+      'final ${shape.fields[index].type.dartType} ${result.expression} = ${source.expression}.${shape.names[index]};',
     );
   }
   return statements;
@@ -670,37 +714,37 @@ List<String>? _unbundleByName(LvPrimCall call) {
 List<String>? _bundleByName(LvPrimCall call) {
   if (call.outputs.length != 1 || !call.hasSoleSourceTerminal) return null;
   final result = call.outputs.single;
-  final declaration = _clusterDecl(result.type);
-  if (declaration == null) return null;
+  final shape = _ClusterShape.of(result.type);
+  if (shape == null) return null;
   final written = <int, LvPrimTerminal>{};
   final bases = <LvPrimTerminal>[];
   for (final operand in call.inputs) {
-    final index = _soleFieldIndex(declaration, operand.memberName);
+    final index = shape.soleFieldIndex(operand.memberName);
     if (index == null) {
       bases.add(operand);
       continue;
     }
-    if (written.containsKey(index) || !_memberMatches(declaration, index, operand.type)) return null;
+    if (written.containsKey(index) || !shape.memberMatches(index, operand.type)) return null;
     written[index] = operand;
   }
   if (bases.length != 1 || written.isEmpty) return null;
   final base = bases.single;
-  if (base.type.dartType != declaration.name) return null;
+  if (base.type.dartType != shape.dartType) return null;
   final name = result.expression;
   if (name == null) return const [];
   final statements = <String>[];
   var carrier = base.expression!;
-  if (!lvIsAtomic(carrier) && written.length < declaration.fields.length) {
+  if (!lvIsAtomic(carrier) && written.length < shape.fields.length) {
     final local = call.names.wire(base.type);
-    statements.add('final ${declaration.name} $local = $carrier;');
+    statements.add('final ${shape.dartType} $local = $carrier;');
     carrier = local;
   }
-  final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
   final arguments = [
-    for (var i = 0; i < declaration.fields.length; i++)
-      '${names[i]}: ${written[i]?.expression ?? '$carrier.${names[i]}'}',
+    for (var i = 0; i < shape.fields.length; i++)
+      '${shape.names[i]}: ${written[i]?.expression ?? '$carrier.${shape.names[i]}'}',
   ];
-  return statements..add('final ${declaration.name} $name = ${declaration.name}(${arguments.join(', ')});');
+  final value = shape.isRecord ? '(${arguments.join(', ')})' : '${shape.dartType}(${arguments.join(', ')})';
+  return statements..add('final ${shape.dartType} $name = $value;');
 }
 
 List<String>? _mergeErrors(LvPrimCall call) {
