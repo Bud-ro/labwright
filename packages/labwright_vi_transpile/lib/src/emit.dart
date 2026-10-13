@@ -1352,6 +1352,9 @@ class _FunctionEmitter {
       case LvCarrier.refnum:
         library.imports.add(kLvRuntimeImport);
         return LvRuntimeType.notARefnum;
+      case LvCarrier.timestamp:
+        library.imports.add(kLvRuntimeImport);
+        return LvRuntimeType.timestampEpoch;
       case LvCarrier.nominal:
         final declaration = mapping.declarations.singleOrNull;
         if (declaration == null) return null;

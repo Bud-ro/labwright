@@ -15,6 +15,10 @@ abstract final class LvRuntimeType {
 
   static const String variant = 'LvVariant';
 
+  static const String timestamp = 'LvTimestamp';
+
+  static const String timestampEpoch = '$timestamp.epoch';
+
   static const String arrayNd = 'LvArrayNd';
 
   static const String anonymousEnum = 'LvEnum';
@@ -30,6 +34,7 @@ enum LvCarrier {
   path(LvRuntimeType.path, runtime: true),
   refnum(LvRuntimeType.refnum, runtime: true),
   variant(LvRuntimeType.variant, runtime: true),
+  timestamp(LvRuntimeType.timestamp, runtime: true),
   nominal(null),
   compound(null);
 
@@ -101,7 +106,7 @@ const Map<int, String> kUnmappedTypeCodes = {
   TypeCode.tag: 'tag type; the fixed record after its sentinel is not decoded',
   TypeCode.subString: 'substring view; whether it carries an offset/length into another string is not decoded',
   TypeCode.subArray: 'sub-array view; its interior is a dim count and element index with no bounds, not decoded',
-  TypeCode.measureData: 'waveform / timestamp / digital-waveform; the subkind word is decoded but its layout is not',
+  TypeCode.measureData: 'waveform / digital-waveform; the subkind word is decoded but its layout is not',
   TypeCode.unitSgl: 'physical-unit float; the unit exponent vector is not decoded',
   TypeCode.unitDbl: 'physical-unit float; the unit exponent vector is not decoded',
   TypeCode.unitExt: 'physical-unit extended float; the unit exponent vector is not decoded',
@@ -306,6 +311,9 @@ class LvTypeMapping {
 LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0, LvDeclarations? declarations]) {
   if (depth > 16) return const LvTypeMapping.unmapped('type nesting deeper than 16 levels');
   if (kInternalTypeCodes[type.code] case final why?) return LvTypeMapping.internal(why);
+  if (type is ViMeasureDataType && type.flavor == ViMeasureDataFlavor.timeStamp) {
+    return const LvTypeMapping.mapped(LvCarrier.timestamp);
+  }
   if (kUnmappedTypeCodes[type.code] case final why?) return LvTypeMapping.unmapped(why, unmappedCode: type.code);
   if (LvNumericKind.ofCode(type.code) case final kind?) {
     return LvTypeMapping.mapped(kind.carrier, numeric: kind);

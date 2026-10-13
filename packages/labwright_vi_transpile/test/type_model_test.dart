@@ -3,7 +3,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show PrimOp;
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show PrimOp, ViMeasureDataFlavor;
 import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 import 'package:test/test.dart';
 
@@ -830,5 +830,13 @@ final double volts;
     expect(LvConditionalPolarity.ofFlags(0x10001), LvConditionalPolarity.stopIfTrue);
     expect(LvConditionalPolarity.ofFlags(0x1), LvConditionalPolarity.continueIfTrue);
     expect(LvConditionalPolarity.ofFlags(0), LvConditionalPolarity.continueIfTrue);
+  });
+
+  test('a timestamp maps to the runtime value and other measure data stays unmapped', () {
+    final pool = poolOf([measureData(ViMeasureDataFlavor.timeStamp), measureData(ViMeasureDataFlavor.float64Waveform)]);
+    final stamp = mapLvType(pool[0], pool);
+    expect((stamp.isMapped, stamp.carrier, stamp.dartType), (true, LvCarrier.timestamp, 'LvTimestamp'));
+    expect(lvTypeNeedsRuntime(stamp), isTrue);
+    expect(mapLvType(pool[1], pool).isMapped, isFalse);
   });
 }

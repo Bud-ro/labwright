@@ -234,7 +234,7 @@ nothing outside this list goes unmapped, so it cannot grow silently.
 | --- | --- | --- | --- | --- | --- |
 | `0x3f` | subString | 3,099 | 1,221 | whether it carries an offset/length into another string | `JKISoftware_JKI-State-Machine-Objects/…/Declare Dependency.vi` |
 | `0x4f` | subArray | 1,762 | 873 | interior is a dim count and element index with no bounds | `DAQIO_LVMQTT/…/Sub_Read_Fixed_Header.vi` |
-| `0x54` | measureData | 1,105 | 661 | subkind word decodes (3, 6, 7, 8, 9) but its layout does not | `JKISoftware_JKI-State-Machine-Objects/…/Clear Registered Process.vi` |
+| `0x54` | measureData | 1,105 | 661 | subkind word decodes (3, 6, 7, 8, 9); the timestamp subkind (6) maps to `LvTimestamp`, the waveform and digital subkinds have no decided layout | `JKISoftware_JKI-State-Machine-Objects/…/Clear Registered Process.vi` |
 | `0x33` | picture | 703 | 292 | the draw-op stream | `NEVSTOP-LAB_Communicable-State-Machine/…/FixJKIHelper.vi` |
 | `0x37` | tag | 87 | 87 | the fixed record after its sentinel | `CrossTheRoadElec_FRC-Examples-STEAMWORKS/…/Vision Processing.vi` |
 | `0x0b` | ext | 34 | 14 | Dart has no wider-than-binary64 float; any mapping loses precision | `picotech_picosdk-ni-labview-examples/…/PicoScope2000FrequencyToDeltaPhase.vi` |
@@ -366,6 +366,15 @@ plain-refnum cell, and its single stroke there is shared by the 3,969 wires the
 part route calls one-dimensional and the 651 it calls scalar alike. For cluster
 wires it is weaker still: the whole 133,106-wire population falls in six cells,
 against the thousands of distinct member shapes the question needs.
+
+**Timestamps.** A measure-data descriptor whose subkind word is 6 is LabVIEW's
+128-bit absolute time, published by NI as a signed 64-bit count of seconds
+since 1904-01-01 00:00:00 UTC followed by an unsigned 64-bit fraction of a
+second. It maps to the runtime's `LvTimestamp`, whose default is the epoch;
+a measure-data wire takes that type when an endpoint resolves a timestamp
+descriptor, as a cluster wire takes its members. Over the corpus the
+timestamp subkind accounts for 958 of the 1,232 measure-data descriptors and
+every one of the 171 VIs that refused first on a measure-data cluster member.
 
 **What the unresolved majority costs.** Cluster wires with no member shape are
 the single largest lowering blocker in the corpus: of the 5,748 VIs whose own
@@ -567,10 +576,10 @@ primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
 direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 743 lower
-and the rest refuse, 4,943 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 770 lower
+and the rest refuse, 4,877 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 631 on a primitive, 293 on a subVI call, 292 on a structure, 200 on a constant's value, 114 on a foreign call, 98 on an unwired terminal, 40 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 654 on a primitive, 303 on a subVI call, 296 on a structure, 201 on a constant's value, 114 on a foreign call, 99 on an unwired terminal, 40 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -595,12 +604,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 743 lowerings are **486 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 486 into a
+Those 770 lowerings are **513 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 513 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 486 is the independent check that they
+kernel` of one entry point importing all 513 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

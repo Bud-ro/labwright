@@ -620,6 +620,13 @@ class _Builder {
       }
       return dims == null ? direct : lvRefnumWireType(signal, dims);
     }
+    if (signal.typeCode == TypeCode.measureData) {
+      final array = (signal.arrayDims ?? 0) > 0;
+      if (wire.endpointOids.any((endpoint) => lvEndpointIsTimestamp(diagram, endpoint, array: array))) {
+        return lvTimestampWireType(signal);
+      }
+      return direct;
+    }
     if (!kLvWireClusterCodes.contains(signal.typeCode)) return direct;
     final array = (signal.arrayDims ?? 0) > 0;
     final readings = <LvWireType>[
