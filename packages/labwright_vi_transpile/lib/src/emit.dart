@@ -444,6 +444,10 @@ class _FunctionEmitter {
             pending.addAll(terminal.innerPorts.values);
           case LvTerminalRole.loopTunnel when terminal.outerIsSink && terminal.autoIndexing:
             if (terminal.outerPort case final port? when terminal.innerPorts.isNotEmpty) pending.add(port);
+          case LvTerminalRole.inPlaceArray || LvTerminalRole.inPlaceIndex when terminal.outerIsSink:
+            pending.add(terminal.outerPort!);
+          case LvTerminalRole.inPlaceElement:
+            pending.addAll(terminal.innerPorts.values);
           case _:
         }
       }
@@ -929,6 +933,8 @@ class _FunctionEmitter {
         _emitDisable(unit);
       case LvStructureKind.flatSequence:
         _emitSequence(unit);
+      case LvStructureKind.inPlaceElement:
+        _emitInPlaceElement(unit);
       case LvStructureKind.whileLoop:
         _emitLoop(unit, bounded: false);
     }
@@ -1446,6 +1452,7 @@ class _FunctionEmitter {
     for (final terminal in unit.terminals) {
       final inner = terminal.innerPorts[frameOid];
       if (inner == null || flow.outOf(inner) == null || !_read.contains(inner)) continue;
+      if (terminal.outerPort == null && terminal.role != LvTerminalRole.selector) continue;
       if (terminal.role == LvTerminalRole.selector) {
         if (selectorValue != null) valueOf[inner] = selectorValue;
         continue;
@@ -1474,6 +1481,84 @@ class _FunctionEmitter {
         }
         valueOf[tunnel.outerPort!] = _bound(edge.source, tunnel.oid);
       }
+    }
+  }
+
+  /// An In Place Element structure of Index/Replace Array Elements pairs: each element is read
+  /// from its array at its index before the frame, and each array written after it is a copy of
+  /// the array with the frame's results at the same indices; an index passes through.
+  void _emitInPlaceElement(LvStructUnit unit) {
+    final frame = unit.frames.single;
+    _bindFrameInputs(unit, frame.frameOid, null);
+    final writes = <({String array, String index, int elementIn, int arrayOut, LvWireType type})>[];
+    for (final pair in unit.inPlacePairs) {
+      final arrayType = _typeAt(pair.arrayIn);
+      final array = _outerValue(unit.terminals.firstWhere((terminal) => terminal.outerPort == pair.arrayIn));
+      if (arrayType == null || array == null) {
+        lvRefuse(LvRefusalKind.unwiredTerminal, 'an In Place Element array terminal receives no wire', oid: unit.oid);
+      }
+      if (arrayType.dims != 1) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'an Index/Replace Array Elements pair over a ${arrayType.dims}-dimensional array is not modelled',
+          oid: unit.oid,
+        );
+      }
+      final held = lvIsAtomic(array) ? array : names.wire(arrayType);
+      if (held != array) {
+        library.noteImportsFor(arrayType);
+        body.writeln('final ${arrayType.dartType} $held = $array;');
+      }
+      for (final element in pair.elements) {
+        final index = _outerValue(unit.terminals.firstWhere((terminal) => terminal.outerPort == element.indexIn));
+        if (index == null) {
+          lvRefuse(
+            LvRefusalKind.unwiredTerminal,
+            'an Index/Replace Array Elements index receives no wire, and the index LabVIEW takes then is not decoded',
+            oid: unit.oid,
+          );
+        }
+        final at = lvIsAtomic(index) ? index : names.wire(_typeAt(element.indexIn)!);
+        if (at != index) body.writeln('final int $at = $index;');
+        if (_read.contains(element.elementOut)) {
+          final name = names.role(LvNameRole.element);
+          library.noteImportsFor(arrayType);
+          body.writeln('final ${arrayType.element.dartType} $name = $held[$at];');
+          valueOf[element.elementOut] = name;
+        }
+        if (_read.contains(element.indexOut)) valueOf[element.indexOut] = at;
+        writes.add((array: held, index: at, elementIn: element.elementIn, arrayOut: pair.arrayOut, type: arrayType));
+      }
+    }
+    _emitRegion(frame, _frameExits(unit, frame.frameOid));
+    for (final tunnel in unit.terminals) {
+      if (tunnel.role != LvTerminalRole.inPlaceTunnel || tunnel.outerIsSink || !_readsOuter(tunnel)) continue;
+      final inner = tunnel.innerPorts[frame.frameOid];
+      final edge = inner == null ? null : flow.into(inner);
+      if (edge == null) {
+        lvRefuse(LvRefusalKind.unwiredTerminal, 'an In Place Element output tunnel is unwired', oid: tunnel.oid);
+      }
+      valueOf[tunnel.outerPort!] = _bound(edge.source, tunnel.oid);
+    }
+    final copies = <int, String>{};
+    for (final write in writes) {
+      if (!_read.contains(write.arrayOut)) continue;
+      final edge = flow.into(write.elementIn);
+      if (edge == null) {
+        lvRefuse(LvRefusalKind.unwiredTerminal, 'an In Place Element frame writes no element back', oid: unit.oid);
+      }
+      final value = _bound(edge.source, unit.oid);
+      var copy = copies[write.arrayOut];
+      if (copy == null) {
+        copy = copies[write.arrayOut] = names.wire(write.type);
+        final element = write.type.element;
+        final fresh = element.numeric != null
+            ? lvArrayFreeze(element, write.array)
+            : 'List<${element.dartType}>.of(${write.array})';
+        body.writeln('final ${write.type.dartType} $copy = $fresh;');
+      }
+      body.writeln('$copy[${write.index}] = $value;');
+      valueOf[write.arrayOut] = copy;
     }
   }
 
