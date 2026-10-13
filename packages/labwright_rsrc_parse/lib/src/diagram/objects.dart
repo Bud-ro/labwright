@@ -240,7 +240,10 @@ class ViHeapObject {
   /// A numeric array constant's elements in row-major order, from [decodeBdConstValues].
   List<num>? constArray;
 
-  /// The dimension sizes of [constArray].
+  /// A string array constant's elements in row-major order, from [decodeBdConstValues].
+  List<String>? constTextArray;
+
+  /// The dimension sizes of [constArray] or [constTextArray].
   List<int>? constArrayDims;
 
   /// The `cosmColorB` word of a label, read as a mode word: `0x20` centres the text, `0x800000`

@@ -1619,7 +1619,8 @@ num _flatNumericAt(Uint8List flat, int offset, ViDataType kind, int size) {
   return signed ? value.toSigned(8 * size) : value;
 }
 
-// TODO: payloads stored wider than their numeric type, and arrays of non-numeric elements, are not decoded.
+// TODO: payloads stored wider than their numeric type, and arrays of elements other than numbers
+// and strings, are not decoded.
 void _typedBdConstDecode(ViHeapObject object) {
   final flat = object.constValueRaw;
   final type = object.resolvedType;
@@ -1652,15 +1653,30 @@ void _typedBdConstDecode(ViHeapObject object) {
   final dimCount = type.dimCount;
   if (element == null || dimCount < 1 || dimCount > 8) return;
   final elementSize = _flatNumericSize(element.kind);
-  if (elementSize == null || flat.length < 4 * dimCount) return;
+  if ((elementSize == null && element.kind != ViDataType.string) || flat.length < 4 * dimCount) return;
   final view = ByteData.sublistView(flat);
   final dims = [for (var d = 0; d < dimCount; d++) view.getUint32(4 * d)];
   var count = 1;
   for (final dim in dims) {
     count *= dim;
   }
-  final expected = 4 * dimCount + count * elementSize;
   final emptyPadded = count == 0 && flat.length == 4 * dimCount + 1 && flat.last == 0;
+  if (elementSize == null) {
+    final texts = <String>[];
+    var at = 4 * dimCount;
+    for (var i = 0; i < count; i++) {
+      if (at + 4 > flat.length) return;
+      final length = view.getUint32(at);
+      if (at + 4 + length > flat.length) return;
+      texts.add(String.fromCharCodes(flat, at + 4, at + 4 + length));
+      at += 4 + length;
+    }
+    if (at != flat.length && !emptyPadded) return;
+    object.constArrayDims = dims;
+    object.constTextArray = texts;
+    return;
+  }
+  final expected = 4 * dimCount + count * elementSize;
   if (flat.length != expected && !emptyPadded) return;
   object.constArrayDims = dims;
   object.constArray = [

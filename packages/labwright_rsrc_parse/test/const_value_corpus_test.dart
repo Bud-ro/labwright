@@ -107,4 +107,27 @@ void main() {
       expect(bdDrawnConstText(constant), value.codeUnits.every((c) => c >= 0x20 && c < 0x7f) ? value : isNull);
     }
   });
+
+  test('corpus pins: string array constants', () {
+    const csm =
+        'vi-corpus/sources/NEVSTOP-LAB__Communicable-State-Machine/src/user.lib/_NEVSTOP/'
+        'Communicable State Machine(CSM)';
+    final pins = <(String, int, List<int>, List<String>)>[
+      ('$csm/_Shared/Remove Comments from Single-line.vi', 43, [2], ['//', '/*']),
+      ('$csm/_csmDoc/Support/_list_CSM documented VIs.vi', 299, [3], ['*.vi', '*.vim', '*.vit']),
+      (
+        'vi-corpus/sources/JKISoftware__JKI-State-Machine-Objects/src/Support/Attribute.Dependencies/Remove Dependency.vi',
+        488,
+        [0],
+        [],
+      ),
+    ];
+    for (final (path, oid, dims, texts) in pins) {
+      final diagram = buildViModel(File('${corpusViDir.path}/$path').readAsBytesSync()).blockDiagrams.single;
+      final constant = diagram.byId[oid]!;
+      expect(constant.constArrayDims, dims, reason: '$path oid $oid dims');
+      expect(constant.constTextArray, texts, reason: '$path oid $oid elements');
+      expect(constant.constArray, isNull, reason: '$path oid $oid numbers');
+    }
+  });
 }
