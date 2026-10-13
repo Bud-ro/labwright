@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 List<int> pascal(String text) => [text.length, ...text.codeUnits];
 
@@ -20,6 +20,9 @@ List<int> _bodyOf(int code) => switch (code) {
 };
 
 List<int> scalar(int code, {String? name}) => _descriptor(code, _bodyOf(code), name: name);
+
+List<int> measureData(ViMeasureDataFlavor flavor, {String? name}) =>
+    _descriptor(TypeCode.measureData, [flavor.code >> 8 & 0xff, flavor.code & 0xff], name: name);
 
 List<int> function(List<int> parameters) => _descriptor(TypeCode.function, [
   parameters.length >> 8 & 0xff,

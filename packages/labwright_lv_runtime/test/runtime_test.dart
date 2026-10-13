@@ -300,4 +300,9 @@ void main() {
     );
     expect(() => lvSearch1dArray(<int>[], 1, -1), throwsRangeError);
   });
+
+  test('a timestamp is its seconds and fraction, the epoch being both zero', () {
+    expect(LvTimestamp.epoch, const LvTimestamp(seconds: 0, fraction: 0));
+    expect(const LvTimestamp(seconds: 3027456000, fraction: 0) == LvTimestamp.epoch, isFalse);
+  });
 }

@@ -9,6 +9,19 @@ class LvPath {
   static const LvPath notAPath = LvPath(components: [], absolute: false, valid: false);
 }
 
+/// LabVIEW's 128-bit absolute time: [seconds] since 1904-01-01 00:00:00 UTC as a signed 64-bit
+/// integer, then [fraction] of a second as an unsigned 64-bit integer, the sum being the time.
+class LvTimestamp {
+  const LvTimestamp({required this.seconds, required this.fraction});
+  final int seconds;
+  final int fraction;
+  static const LvTimestamp epoch = LvTimestamp(seconds: 0, fraction: 0);
+  @override
+  bool operator ==(Object other) => other is LvTimestamp && other.seconds == seconds && other.fraction == fraction;
+  @override
+  int get hashCode => Object.hash(seconds, fraction);
+}
+
 class LvRefnum {
   const LvRefnum(this.id);
   final int id;

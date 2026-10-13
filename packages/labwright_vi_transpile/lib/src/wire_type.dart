@@ -98,6 +98,22 @@ List<String>? lvClassOfEndpoint(ViDiagram diagram, int endpoint, {required bool 
   return null;
 }
 
+/// Whether an endpoint of a measure-data wire resolves a timestamp descriptor (the element's for
+/// an [array] wire), itself or through typedefs.
+bool lvEndpointIsTimestamp(ViDiagram diagram, int oid, {required bool array}) {
+  final object = diagram.byId[oid];
+  if (object == null) return false;
+  final type = _throughTypedefs(array ? object.resolvedElementType : object.resolvedType);
+  return type is ViMeasureDataType && type.flavor == ViMeasureDataFlavor.timeStamp;
+}
+
+/// A wire of timestamps at the signal's dimensionality.
+LvWireType lvTimestampWireType(ViSignalType signal) {
+  const element = LvTypeMapping.mapped(LvCarrier.timestamp);
+  final dims = signal.arrayDims ?? 0;
+  return LvWireType._(dims: dims, element: element, value: dims == 0 ? element : LvTypeMapping.array(element, dims));
+}
+
 /// A wire of class objects: [element] at [dims] dimensions.
 LvWireType lvClassObjectWireType(LvTypeMapping element, int dims) {
   if (dims == 0 || !element.isMapped) return LvWireType._(dims: dims, element: element, value: element);
@@ -185,6 +201,13 @@ LvTypeMapping _mapSignalElement(int code) {
     return LvTypeMapping.unmapped(
       'a cluster wire\'s member types are not in the signal word, and no '
       'endpoint of this wire resolves a cluster descriptor to take them from',
+      unmappedCode: code,
+    );
+  }
+  if (code == TypeCode.measureData) {
+    return LvTypeMapping.unmapped(
+      'a measure-data wire\'s flavor is not in the signal word, and no endpoint of this wire '
+      'resolves a timestamp descriptor; waveforms have no decided Dart representation',
       unmappedCode: code,
     );
   }
