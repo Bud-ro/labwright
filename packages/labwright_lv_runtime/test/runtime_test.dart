@@ -192,4 +192,56 @@ void main() {
     const upstream = LvError(status: true, code: 1, source: 'earlier');
     expect(lvErrorClusterFromErrorCode(errorCode: 5000, errorIn: upstream), upstream);
   });
+
+  test('Match Pattern follows the published special-character rules', () {
+    const cases = <(String, String, int, String, String, String, int)>[
+      ('Welcome to LabVIEW.', 't....', 0, 'Welcome ', 'to La', 'bVIEW.', 13),
+      ('Welcome to LabVIEW.', '[z.]', 0, 'Welcome to LabVIEW', '.', '', 19),
+      ('Hello LabVIEW!', 'el*', 0, 'H', 'ell', 'o LabVIEW!', 4),
+      ('Hello LabVIEW!', 'el+', 0, 'H', 'ell', 'o LabVIEW!', 4),
+      ('Hello LabVIEW!', 'el?', 0, 'H', 'el', 'lo LabVIEW!', 3),
+      ('version=14.0.1', r'[0-9]+\.[0-9]+\.[0-9]+', 0, 'version=', '14.0.1', '', 14),
+      ('Hello LabVIEW!', '^[^ ]+', 0, '', 'Hello', ' LabVIEW!', 5),
+      ('Hello LabVIEW!', r'[^ ]+$', 0, 'Hello ', 'LabVIEW!', '', 14),
+      (
+        'Welcome\nto\tthe LabVIEW Help!',
+        r'come\nto\tthe\sLabVIEW\sHelp\21',
+        0,
+        'Wel',
+        'come\nto\tthe LabVIEW Help!',
+        '',
+        28,
+      ),
+      ('cdb', 'b*', 0, '', '', 'cdb', 0),
+      ('bbbcd', 'b*', 0, '', 'bbb', 'cd', 3),
+      ('abc', 'x', 0, 'abc', '', '', -1),
+      ('volts', '[Vv][Oo][Ll][Tt][Ss]', 0, '', 'volts', '', 5),
+      ('a-b', '[ +-]', 0, 'a', '-', 'b', 2),
+      ('ab123c', '[0-9]+', 0, 'ab', '123', 'c', 5),
+      ('12ab3', '[~0-9]+', 0, '12', 'ab', '3', 4),
+      ('xLevel', '^Level', 1, 'x', 'Level', '', 6),
+      ('xLevel', '^Level', 0, 'xLevel', '', '', -1),
+      ('Volts Volts', r'Volts$', 0, 'Volts ', 'Volts', '', 11),
+      ('a(b(c))d', '(.*)', 0, 'a', '(b(c))', 'd', 7),
+      ('a(b(c))d', '([~()]*)', 0, 'a(b', '(c)', ')d', 6),
+      ('a[b', r'\[', 0, 'a', '[', 'b', 2),
+      ('the dog', '[cd][ao][tg]', 0, 'the ', 'dog', '', 7),
+      ('hz+', 'hz[+]', 0, '', 'hz+', '', 3),
+      ('aaab', 'a*ab', 0, '', 'aaab', '', 4),
+      ('abc', 'b', -5, 'a', 'b', 'c', 2),
+      ('abc', 'b', 3, 'abc', '', '', -1),
+      ('abc', '', 2, 'ab', '', 'c', 2),
+      ('a\nb', '.', 1, 'a\n', 'b', '', 3),
+    ];
+    for (final (string, pattern, offset, before, match, after, past) in cases) {
+      expect(
+        lvMatchPattern(string, pattern, offset),
+        (before: before, match: match, after: after, offsetPastMatch: past),
+        reason: '"$pattern" in "$string" at $offset',
+      );
+    }
+    expect(() => lvMatchPattern('x', '*a'), throwsUnsupportedError);
+    expect(() => lvMatchPattern('x', '[ab'), throwsUnsupportedError);
+    expect(() => lvMatchPattern('x', r'a\'), throwsUnsupportedError);
+  });
 }

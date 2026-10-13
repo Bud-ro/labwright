@@ -463,10 +463,10 @@ order unstated), `Boolean To (0,1)` (550; which boolean maps to which member),
 Where an operation's *domain* is decoded but its behaviour outside that domain
 is not, the rule lowers and the **runtime** throws at the boundary rather than
 inventing a value, each with a `TODO` naming the gap: `String Subset` outside
-the string, `To Lower Case` above code unit `0x7F`, `Initialize Array` at a
-negative size, `Type Cast` on a size mismatch, a rotation by anything but a
-count inside one width, and a hexadecimal conversion of a value wider than the
-field it is given.
+the string, `To Lower Case` and `Match Pattern`'s `[^…]` class above code unit
+`0x7F`, `Initialize Array` at a negative size, `Type Cast` on a size mismatch,
+a rotation by anything but a count inside one width, and a hexadecimal
+conversion of a value wider than the field it is given.
 
 Bundle and Unbundle By Name address a cluster's members through the Dart
 type the wire carries: a declared class's fields, the named fields of the record
@@ -489,9 +489,9 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 88 distinct unmapped identities over
-471 nodes across the rcpacini snippets, headed by Match Pattern (134) and node
-classes `0x93` (18), `0x105` (16) and `0xa9` (15).
+`test/corpus_lowering_sweep_test.dart`: 86 distinct unmapped identities over
+336 nodes across the rcpacini snippets, headed by node classes `0x93` (18),
+`0x105` (16) and `0xa9` (15).
 
 ### subVI calls
 
@@ -549,10 +549,10 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 645 lower
-and the rest refuse, 5,046 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 674 lower
+and the rest refuse, 5,048 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 671 on a primitive, 249 on a subVI call, 189 on a structure, 169 on a constant's value, 168 on a wire's direction, 100 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 624 on a primitive, 253 on a subVI call, 197 on a structure, 169 on a constant's value, 168 on a wire's direction, 104 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -575,12 +575,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 645 lowerings are **418 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 418 into a
+Those 674 lowerings are **442 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 442 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 418 is the independent check that they
+kernel` of one entry point importing all 442 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
@@ -661,6 +661,12 @@ What that method decided, and what it did not:
 - **`String Subset`'s unwired length** defaults to the rest of the string. Every
   message whose length is not a multiple of 64 depends on it, so the vectors
   decide it; an unwired *offset* has no such witness and stays refused.
+- **`Match Pattern`** follows the published special-character table: `.`,
+  `*`, `+`, `?`, `[…]` with `-` ranges and `~`/`^` negation, `^`/`$` anchors
+  at the pattern's ends, and `\` escapes including two-digit hex. The runtime
+  takes the leftmost match, each quantifier as long as the rest of the pattern
+  allows; its terminals are told apart by role flags (left `0`, right `1`) and
+  drawn order, and an unwired offset reads as zero as the reference states.
 - **`To Lower Case`** and 1181's digit case are proven only as a **pair**: the
   digests are wrong if either the conversion writes lower case and the mapping
   is a no-op, or the reverse, but they cannot separate the two. The VI's own
