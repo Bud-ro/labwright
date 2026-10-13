@@ -21,7 +21,7 @@ class ViDiagramView extends StatefulWidget {
     this.subViNames = const [],
     this.isFrontPanel = false,
     this.viImages = const ViImages(),
-    this.subViIconResolver,
+    this.subViIcons = const {},
     this.sections = const [],
   });
 
@@ -35,8 +35,8 @@ class ViDiagramView extends StatefulWidget {
 
   final ViImages viImages;
 
-  final Future<Map<String, ViLegacyIcon>> Function(Set<String> wantedNames)?
-  subViIconResolver;
+  /// The icons of the diagram's sub-VIs by file name, as [resolveSubViIcons] reads them.
+  final Map<String, ViLegacyIcon> subViIcons;
 
   final List<DecodedSection> sections;
 
@@ -67,7 +67,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   late final ViDiagram? _diagram = _largestDiagram(widget.diagrams);
   late final ViObjectsByOid _byId = _diagram?.byId ?? ViObjectsByOid(const []);
 
-  Map<int, ViLegacyIcon> _subViIcons = const {};
+  late final Map<int, ViLegacyIcon> _subViIcons = {
+    if (_diagram case final diagram? when !widget.isFrontPanel)
+      for (final object in diagram.objects)
+        if (kSubViCallNodeCodes.contains(object.kind))
+          if (widget.subViIcons[object.label?.trim()] case final icon?)
+            object.oid: icon,
+  };
   Map<int, ui.Image> _xnodeFacades = const {};
 
   late final BdScene? _scene = switch (_diagram) {
@@ -91,7 +97,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
   @override
   void initState() {
     super.initState();
-    _resolveIcons();
     if (_diagram != null && widget.sections.isNotEmpty) {
       xnodeFacadesFromSections(widget.sections, _diagram).then((facades) {
         if (!mounted) {
@@ -103,23 +108,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         if (facades.isNotEmpty) setState(() => _xnodeFacades = facades);
       });
     }
-  }
-
-  Future<void> _resolveIcons() async {
-    final diagram = _diagram;
-    final resolver = widget.subViIconResolver;
-    if (diagram == null || widget.isFrontPanel || resolver == null) return;
-    final wanted = subViWantedNames(diagram);
-    if (wanted.isEmpty) return;
-    final byName = await resolver(wanted);
-    if (!mounted || byName.isEmpty) return;
-    final icons = <int, ViLegacyIcon>{};
-    for (final object in diagram.objects) {
-      if (!kSubViCallNodeCodes.contains(object.kind)) continue;
-      final icon = byName[object.label?.trim()];
-      if (icon != null) icons[object.oid] = icon;
-    }
-    if (icons.isNotEmpty) setState(() => _subViIcons = icons);
   }
 
   @override
