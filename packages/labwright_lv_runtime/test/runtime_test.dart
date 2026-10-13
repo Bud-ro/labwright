@@ -1,3 +1,4 @@
+import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:labwright_lv_runtime/labwright_lv_runtime.dart';
@@ -243,5 +244,25 @@ void main() {
     expect(() => lvMatchPattern('x', '*a'), throwsUnsupportedError);
     expect(() => lvMatchPattern('x', '[ab'), throwsUnsupportedError);
     expect(() => lvMatchPattern('x', r'a\'), throwsUnsupportedError);
+  });
+
+  test('Build Path appends a name or relative path, and invalid sides make Not A Path', () {
+    const base = LvPath(components: ['c:', 'dir1'], absolute: true);
+    final sep = Platform.pathSeparator;
+    expect(lvBuildPath(base, 'vis').components, ['c:', 'dir1', 'vis']);
+    expect(lvBuildPath(base, 'vis').absolute, isTrue);
+    expect(lvBuildPath(base, 'vis${sep}first.vi').components, ['c:', 'dir1', 'vis', 'first.vi']);
+    expect(lvBuildPath(base, const LvPath(components: ['vis'], absolute: false)).components, ['c:', 'dir1', 'vis']);
+    expect(lvBuildPath(const LvPath(components: [], absolute: false), 'a').absolute, isFalse);
+    expect(lvBuildPath(base, '').valid, isFalse);
+    expect(lvBuildPath(LvPath.notAPath, 'a').valid, isFalse);
+    expect(lvBuildPath(base, LvPath.notAPath).valid, isFalse);
+    expect(lvBuildPath(const LvPath(components: [], absolute: false), base), base);
+    expect(() => lvBuildPath(base, base), throwsUnsupportedError);
+    expect(lvPathOfString('${sep}usr${sep}lib').absolute, isTrue);
+    expect(lvPathOfString('${sep}usr${sep}lib').components, ['usr', 'lib']);
+    expect(LvPath.notAPath.isEmpty, isFalse);
+    expect(lvNotARefnum(LvRefnum.none), isTrue);
+    expect(lvNotARefnum(const LvRefnum(7)), isFalse);
   });
 }

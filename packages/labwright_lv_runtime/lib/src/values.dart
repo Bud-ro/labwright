@@ -1,10 +1,12 @@
 import 'dart:typed_data';
 
 class LvPath {
-  const LvPath({required this.components, required this.absolute});
+  const LvPath({required this.components, required this.absolute, this.valid = true});
   final List<String> components;
   final bool absolute;
-  bool get isEmpty => !absolute && components.isEmpty;
+  final bool valid;
+  bool get isEmpty => valid && !absolute && components.isEmpty;
+  static const LvPath notAPath = LvPath(components: [], absolute: false, valid: false);
 }
 
 class LvRefnum {
