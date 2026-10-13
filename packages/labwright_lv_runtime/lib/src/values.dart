@@ -10,6 +10,7 @@ class LvPath {
 class LvRefnum {
   const LvRefnum(this.id);
   final int id;
+  static const LvRefnum none = LvRefnum(0);
 }
 
 class LvVariant {

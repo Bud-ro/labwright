@@ -333,15 +333,13 @@ class _FunctionEmitter {
     for (final parameter in callable.parameters) {
       valueOf[parameter.terminal] = parameter.name;
     }
-    final thrown = <int>[];
     for (final terminal in callable.elided) {
       if (flow.outOf(terminal) != null) {
         library.imports.add(kLvRuntimeImport);
         valueOf[terminal] = LvRuntimeType.clearedError;
-      } else if (flow.into(terminal) != null) {
-        thrown.add(terminal);
       }
     }
+    final thrown = _thrown;
     _emitRegion(flow.root, {for (final result in callable.results) result.terminal, ...thrown});
     for (final terminal in thrown) {
       final value = _bound(flow.into(terminal)!.source, terminal);
@@ -369,6 +367,12 @@ class _FunctionEmitter {
       ..writeln('}');
     return source.toString();
   }
+
+  /// The elided error indicators whose incoming error the function throws instead of returning.
+  List<int> get _thrown => [
+    for (final terminal in callable.elided)
+      if (flow.outOf(terminal) == null && flow.into(terminal) != null) terminal,
+  ];
 
   void _emitRegion(LvRegion region, Set<int> exitPorts) {
     final byOid = {for (final unit in region.units) unit.oid: unit};
@@ -419,26 +423,61 @@ class _FunctionEmitter {
     }
   }
 
-  /// Whether the value arriving at [sink] is read: not by an indicator off the connector pane,
-  /// and not by a structure's input tunnel whose inner side feeds no wire in any frame.
-  bool _readsPort(int sink) {
-    final unit = _unitByOid[flow.ownerOfPort[sink]];
-    switch (unit) {
-      case LvInterfaceUnit():
-        return callable.byTerminal.containsKey(sink) || callable.elided.contains(sink);
-      case LvStructUnit():
-        for (final terminal in unit.terminals) {
-          if (terminal.outerPort != sink) continue;
-          if (!_kTunnelRoles.contains(terminal.role)) return true;
-          return terminal.innerPorts.values.any((inner) => flow.outOf(inner) != null);
+  /// The ports whose values the function reads, found backwards from its results: a node reads
+  /// every input once any output is read; a structure reads an output tunnel's inner sides once
+  /// its outer side is read, an input tunnel's outer side once an inner side is read, and its
+  /// count, selector, conditional, shift-register and auto-indexing ports once anything of it is.
+  late final Set<int> _read = _readPorts();
+
+  Set<int> _readPorts() {
+    final read = <int>{};
+    final structures = <int>{};
+    final pending = <int>[for (final result in callable.results) result.terminal, ..._thrown];
+    void wake(LvStructUnit unit) {
+      if (!structures.add(unit.oid)) return;
+      for (final terminal in unit.terminals) {
+        switch (terminal.role) {
+          case LvTerminalRole.count || LvTerminalRole.selector || LvTerminalRole.leftShiftRegister:
+            if (terminal.outerPort case final port?) pending.add(port);
+          case LvTerminalRole.conditional || LvTerminalRole.rightShiftRegister:
+            pending.addAll(terminal.innerPorts.values);
+          case LvTerminalRole.loopTunnel when terminal.outerIsSink && terminal.autoIndexing:
+            if (terminal.outerPort case final port? when terminal.innerPorts.isNotEmpty) pending.add(port);
+          case _:
         }
-        return true;
-      case _:
-        return true;
+      }
     }
+
+    while (pending.isNotEmpty) {
+      final sink = pending.removeLast();
+      if (!read.add(sink)) continue;
+      final edge = flow.into(sink);
+      if (edge == null) continue;
+      read.add(edge.source);
+      switch (_unitByOid[flow.ownerOfPort[edge.source]]) {
+        case final LvStructUnit unit:
+          for (final terminal in unit.terminals) {
+            if (terminal.outerPort == edge.source && !terminal.outerIsSink) {
+              pending.addAll(terminal.innerPorts.values);
+              wake(unit);
+            } else if (terminal.innerPorts.containsValue(edge.source)) {
+              if (terminal.outerPort case final port? when terminal.outerIsSink) pending.add(port);
+              wake(unit);
+            }
+          }
+        case final unit?:
+          pending.addAll(unit.inputPorts);
+        case null:
+      }
+    }
+    return read;
   }
 
-  bool _readsEdge(LvEdge edge) => edge.sinks.any(_readsPort);
+  bool _readsPort(int sink) => _read.contains(sink);
+
+  bool _readsEdge(LvEdge edge) => _read.contains(edge.source);
+
+  bool _readsOuter(LvStructTerminal tunnel) => _read.contains(tunnel.outerPort);
 
   List<LvUnit> _ordered(LvRegion region, Map<int, LvUnit> byOid, Set<int> live) {
     final ordered = <LvUnit>[];
@@ -489,23 +528,31 @@ class _FunctionEmitter {
       valueOf[unit.port] = literal;
       return;
     }
-    final values = record.constArray;
     final dims = record.constArrayDims;
-    if (values == null || dims == null || dims.length != type.dims || type.numeric == null) {
+    final numbers = record.constArray;
+    final texts = record.constTextArray;
+    final String flat;
+    final String elements;
+    if (dims != null && dims.length == type.dims && numbers != null && type.numeric != null) {
+      flat = _typedListLiteral(numbers, type);
+      elements = type.numeric!.glyph;
+    } else if (dims != null && dims.length == type.dims && texts != null && type.element.carrier == LvCarrier.text) {
+      flat = '<String>[${[for (final text in texts) _stringLiteral(text)].join(', ')}]';
+      elements = 'string';
+    } else {
       lvRefuse(
         LvRefusalKind.constantValue,
         'diagram constant of ${type.dims}-D type ${type.dartType} carries no decoded value',
         oid: unit.oid,
       );
     }
-    valueOf[unit.port] = _hoistArrayConstant(unit, type, values, dims);
+    valueOf[unit.port] = _hoistArrayConstant(unit, type, flat, dims, elements);
   }
 
-  String _hoistArrayConstant(LvConstUnit unit, LvWireType type, List<num> values, List<int> dims) {
+  String _hoistArrayConstant(LvConstUnit unit, LvWireType type, String flat, List<int> dims, String elements) {
     library.noteImportsFor(type);
     final name = names.fileConstant(unit.label);
     final shape = dims.join(' × ');
-    final flat = _typedListLiteral(values, type);
     final initializer = dims.length <= 1
         ? flat
         : '${LvRuntimeType.arrayNd}<${type.elementListType}>($flat, '
@@ -513,7 +560,7 @@ class _FunctionEmitter {
     final caption = unit.label?.replaceAll(RegExp(r'\s+'), ' ').trim();
     final declaration =
         '/// The block diagram\'s ${caption == null || caption.isEmpty ? 'unnamed constant' : '"$caption" constant'}: '
-        '$shape ${type.numeric!.glyph} elements.\n'
+        '$shape $elements elements.\n'
         'final ${type.dartType} $name = $initializer;';
     library.fileConstants[name] = initializer.contains('\n')
         ? '// dart format off\n$declaration\n// dart format on'
@@ -921,22 +968,11 @@ class _FunctionEmitter {
 
   LvWireType? _typeAt(int port) => (flow.into(port) ?? flow.outOf(port))?.type;
 
-  static const Set<LvTerminalRole> _kTunnelRoles = {
-    LvTerminalRole.loopTunnel,
-    LvTerminalRole.caseTunnel,
-    LvTerminalRole.disableTunnel,
-  };
-
-  /// The frame's ports whose values leave it: every structure terminal's inner sink port, except
-  /// an output tunnel whose outer side feeds no wire, which nothing reads.
+  /// The frame's inner sink ports whose values are read.
   Set<int> _frameExits(LvStructUnit unit, int frameOid) => {
     for (final terminal in unit.terminals)
-      if (terminal.innerPorts[frameOid] case final port? when flow.sinkPorts.contains(port))
-        if (!_kTunnelRoles.contains(terminal.role) ||
-            terminal.outerPort == null ||
-            flow.outOf(terminal.outerPort!) != null ||
-            terminal.outerIsSink)
-          port,
+      if (terminal.innerPorts[frameOid] case final port? when flow.sinkPorts.contains(port) && _read.contains(port))
+        port,
   };
 
   void _emitForLoop(LvStructUnit unit) {
@@ -950,7 +986,7 @@ class _FunctionEmitter {
 
     for (final tunnel in tunnels) {
       final inner = tunnel.innerPorts[frame.frameOid];
-      if (inner == null) continue;
+      if (inner == null || !_read.contains(tunnel.outerIsSink ? tunnel.outerPort : inner)) continue;
       if (tunnel.outerPort != null && _typeAt(tunnel.outerPort!) == null) continue;
       if (tunnel.outerIsSink) {
         final outer = _outerValue(tunnel);
@@ -973,6 +1009,7 @@ class _FunctionEmitter {
         indexedInputs.add((terminal: tunnel, array: array));
         continue;
       }
+      if (!_readsOuter(tunnel)) continue;
       if (!tunnel.autoIndexing) {
         lvRefuse(
           LvRefusalKind.structure,
@@ -1272,6 +1309,9 @@ class _FunctionEmitter {
       case LvCarrier.path:
         library.imports.add(kLvRuntimeImport);
         return 'const ${LvRuntimeType.path}(components: [], absolute: false)';
+      case LvCarrier.refnum:
+        library.imports.add(kLvRuntimeImport);
+        return LvRuntimeType.notARefnum;
       case LvCarrier.nominal:
         final declaration = mapping.declarations.singleOrNull;
         if (declaration == null) return null;
@@ -1299,7 +1339,6 @@ class _FunctionEmitter {
         if (dartType.endsWith('List') && !dartType.contains('<')) return '$dartType(0)';
         if (dartType.startsWith('List<')) return 'const <${dartType.substring(5, dartType.length - 1)}>[]';
         return null;
-      case LvCarrier.refnum:
       case LvCarrier.variant:
       case LvCarrier.voidValue:
       case null:
@@ -1310,9 +1349,8 @@ class _FunctionEmitter {
   List<_TunnelValue> _declareCaseOutputs(LvStructUnit unit) {
     final outputs = <_TunnelValue>[];
     for (final tunnel in unit.terminals) {
-      if (tunnel.role != LvTerminalRole.caseTunnel || tunnel.outerIsSink) continue;
-      final port = tunnel.outerPort;
-      if (port == null || flow.outOf(port) == null) continue;
+      if (tunnel.role != LvTerminalRole.caseTunnel || tunnel.outerIsSink || !_readsOuter(tunnel)) continue;
+      final port = tunnel.outerPort!;
       final type = _typeAt(port)!;
       final name = names.role(LvNameRole.branch);
       library.noteImportsFor(type);
@@ -1364,7 +1402,7 @@ class _FunctionEmitter {
   void _bindFrameInputs(LvStructUnit unit, int frameOid, String? selectorValue) {
     for (final terminal in unit.terminals) {
       final inner = terminal.innerPorts[frameOid];
-      if (inner == null || flow.outOf(inner) == null) continue;
+      if (inner == null || flow.outOf(inner) == null || !_read.contains(inner)) continue;
       if (terminal.role == LvTerminalRole.selector) {
         if (selectorValue != null) valueOf[inner] = selectorValue;
         continue;
@@ -1397,11 +1435,10 @@ class _FunctionEmitter {
     _bindFrameInputs(unit, frame.frameOid, null);
     _emitRegion(frame, _frameExits(unit, frame.frameOid));
     for (final tunnel in unit.terminals) {
-      if (tunnel.outerIsSink) continue;
-      final port = tunnel.outerPort;
+      if (tunnel.outerIsSink || !_readsOuter(tunnel)) continue;
+      final port = tunnel.outerPort!;
       final inner = tunnel.innerPorts[frame.frameOid];
       final edge = inner == null ? null : flow.into(inner);
-      if (port == null || flow.outOf(port) == null) continue;
       if (edge == null) {
         lvRefuse(LvRefusalKind.unwiredTerminal, 'a disable-structure output tunnel is unwired', oid: tunnel.oid);
       }

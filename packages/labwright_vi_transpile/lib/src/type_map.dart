@@ -11,6 +11,8 @@ abstract final class LvRuntimeType {
 
   static const String refnum = 'LvRefnum';
 
+  static const String notARefnum = '$refnum.none';
+
   static const String variant = 'LvVariant';
 
   static const String arrayNd = 'LvArrayNd';
