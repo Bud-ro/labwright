@@ -620,6 +620,12 @@ class _Builder {
       }
       return dims == null ? direct : lvRefnumWireType(signal, dims);
     }
+    if (signal.typeCode == kLvUntypedSignalCode) {
+      final reading = lvScalarOfEndpoints(diagram, wire, pool);
+      if (reading == null) return direct;
+      final mapped = mapLvType(reading, pool, 0, declarations);
+      return mapped.isMapped ? LvWireType.scalarOf(mapped) : direct;
+    }
     if (signal.typeCode == TypeCode.measureData) {
       final array = (signal.arrayDims ?? 0) > 0;
       if (wire.endpointOids.any((endpoint) => lvEndpointIsTimestamp(diagram, endpoint, array: array))) {
