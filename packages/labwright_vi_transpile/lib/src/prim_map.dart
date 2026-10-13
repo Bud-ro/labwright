@@ -54,6 +54,7 @@ class LvPrimCall {
     required this.names,
     required this.nodeFlags,
     this.primResId,
+    this.portRoleFlags = const {},
   });
 
   final PrimOp? op;
@@ -71,6 +72,9 @@ class LvPrimCall {
   final List<int> outputPorts;
 
   final Map<int, int> portDrawnTop;
+
+  /// Every terminal's role flags, wired or not.
+  final Map<int, int> portRoleFlags;
 
   final void Function(String) requireImport;
 
@@ -214,6 +218,7 @@ final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
   PrimOp.typeCast: _typeCast,
   PrimOp.notANumberPathRefnum: _isNotANumber,
   PrimOp.stringSubset: _stringSubset,
+  PrimOp.matchPattern: _matchPattern,
   PrimOp.toLowerCase: _toLowerCase,
   PrimOp.waitMs: _waitMs,
 };
@@ -1158,6 +1163,56 @@ List<String>? _stringSubset(LvPrimCall call) {
   call.requireImport(kLvRuntimeImport);
   final arguments = [string.expression, offset.expression, if (length != null) length.expression];
   return ['final String $name = ${LvRuntimeCall.stringSubset}(${arguments.join(', ')});'];
+}
+
+/// Match Pattern's terminals, top-down on each side: string, regular expression and an optional
+/// offset on the left; before, match and after substrings and the offset past the match on the
+/// right. An unwired left terminal is among [LvPrimCall.outputPorts] with role flags 0, a right
+/// one with role flags 1.
+List<String>? _matchPattern(LvPrimCall call) {
+  final left = <int>[], right = <int>[];
+  for (final operand in call.inputs) {
+    if (operand.roleFlags != 0) return null;
+    left.add(operand.port);
+  }
+  for (final port in call.outputPorts) {
+    switch (call.portRoleFlags[port] ?? 0) {
+      case 0:
+        left.add(port);
+      case 1:
+        right.add(port);
+      case _:
+        return null;
+    }
+  }
+  final operands = call.portsTopDown(left), results = call.portsTopDown(right);
+  if (operands == null || results == null || operands.length < 2 || operands.length > 3 || results.length != 4) {
+    return null;
+  }
+  final wired = {for (final operand in call.inputs) operand.port: operand};
+  final consumed = {for (final result in call.outputs) result.port: result};
+  final string = wired[operands[0]], pattern = wired[operands[1]];
+  final offset = operands.length == 3 ? wired[operands[2]] : null;
+  if (string == null || pattern == null) return null;
+  final texts = [string, pattern, for (final port in results.take(3)) consumed[port]];
+  for (final text in texts) {
+    if (text != null && (text.type.dims != 0 || text.type.carrier != LvCarrier.text)) return null;
+  }
+  final past = consumed[results[3]];
+  for (final count in [offset, past]) {
+    final kind = count?.type.numeric;
+    if (count == null) continue;
+    if (count.type.dims != 0 || kind == null || kind.isFloat) return null;
+  }
+  if (past != null && (!past.type.numeric!.signed || past.type.numeric!.bits < 32)) return null;
+  final [before, match, after] = [for (final port in results.take(3)) consumed[port]?.expression];
+  if (before == null && match == null && after == null && past == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  final arguments = [string.expression, pattern.expression, if (offset != null) offset.expression];
+  return [
+    'final (before: ${before ?? '_'}, match: ${match ?? '_'}, after: ${after ?? '_'}, '
+        'offsetPastMatch: ${past?.expression ?? '_'}) = ${LvRuntimeCall.matchPattern}(${arguments.join(', ')});',
+  ];
 }
 
 List<String>? _toLowerCase(LvPrimCall call) {

@@ -677,6 +677,7 @@ class _FunctionEmitter {
       outputs: outputs,
       outputPorts: unit.outputPorts,
       portDrawnTop: unit.portDrawnTop,
+      portRoleFlags: unit.portRoleFlags,
       requireImport: library.imports.add,
       names: names,
       nodeFlags: unit.nodeFlags,
