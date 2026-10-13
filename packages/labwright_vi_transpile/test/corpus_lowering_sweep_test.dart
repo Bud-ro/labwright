@@ -105,13 +105,14 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 const Map<String, int> kCorpusLoweringSweep = {
   'call': 3598,
   'call.ambiguousLink': 2,
-  'call.calleeMissing': 544,
+  'call.calleeMissing': 408,
   'call.noPane': 88,
   'call.paneMatched': 2803,
   'call.paneWidthMismatch': 40,
   'call.unnamed': 121,
   'call.via.link': 2253,
   'call.via.name': 678,
+  'call.via.stock': 136,
   'clus': 135446,
   'clus.kid.many': 255,
   'clus.kid.none': 21959,
@@ -192,15 +193,15 @@ const Map<String, int> kCorpusLoweringSweep = {
   'exceptions.caseSelector': 4,
   'exceptions.constantValue': 188,
   'exceptions.foreignCall': 93,
-  'exceptions.lowered': 260,
-  'exceptions.primitive': 518,
+  'exceptions.lowered': 294,
+  'exceptions.primitive': 530,
   'exceptions.structure': 147,
-  'exceptions.subViCall': 180,
+  'exceptions.subViCall': 132,
   'exceptions.tunnelCoercion': 36,
   'exceptions.unboundValue': 2,
   'exceptions.unwiredTerminal': 306,
   'exceptions.wireDirection': 142,
-  'exceptions.wireType': 5518,
+  'exceptions.wireType': 5520,
   'flag0.array': 24551,
   'flag0.scalar': 149919,
   'flag12.array': 931,
@@ -219,8 +220,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 50,
-  'modes.same': 210,
+  'modes.differ': 82,
+  'modes.same': 212,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -281,15 +282,15 @@ const Map<String, int> kCorpusLoweringSweep = {
   'threaded.caseSelector': 4,
   'threaded.constantValue': 188,
   'threaded.foreignCall': 93,
-  'threaded.lowered': 260,
-  'threaded.primitive': 518,
+  'threaded.lowered': 294,
+  'threaded.primitive': 530,
   'threaded.structure': 147,
-  'threaded.subViCall': 180,
+  'threaded.subViCall': 132,
   'threaded.tunnelCoercion': 36,
   'threaded.unboundValue': 2,
   'threaded.unwiredTerminal': 306,
   'threaded.wireDirection': 142,
-  'threaded.wireType': 5518,
+  'threaded.wireType': 5520,
   'vi': 7394,
   'wt.cause.member.0x33': 16,
   'wt.cause.member.0x37': 4,
@@ -360,7 +361,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 260, sources: 79);
+const ({int vis, int sources}) kEmittedSources = (vis: 294, sources: 112);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -425,6 +426,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 260, sources: 79);
     final link = caller.linkTo(name);
     if (link == null && caller.links.any((l) => l.qualifiedName.lastOrNull?.toLowerCase() == name.toLowerCase())) {
       return bump('call.ambiguousLink');
+    }
+    if (kLvStockVis.containsKey(name.toLowerCase()) &&
+        (link?.path?.text.startsWith('<vilib>') ?? caller.links.isEmpty)) {
+      return bump('call.via.stock');
     }
     final resolved = resolveCallee(LvCallee(caller: caller, fileName: name, link: link));
     final callee = resolved.unit;

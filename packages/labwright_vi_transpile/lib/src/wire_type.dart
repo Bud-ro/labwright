@@ -6,6 +6,9 @@ import 'type_map.dart';
 class LvWireType {
   LvWireType._({required this.dims, required this.element, required this.value});
 
+  /// A scalar wire of [type].
+  LvWireType.scalarOf(LvTypeMapping type) : this._(dims: 0, element: type, value: type);
+
   final LvTypeMapping element;
 
   final LvTypeMapping value;

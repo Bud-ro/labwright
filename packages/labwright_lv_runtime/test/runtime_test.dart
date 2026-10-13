@@ -175,4 +175,21 @@ void main() {
     lvWaitMs(20);
     expect(wall.elapsedMicroseconds, greaterThanOrEqualTo(20 * Duration.microsecondsPerMillisecond));
   });
+
+  test('the stock VIs: space, trimming, colour bytes, and an error from a code', () {
+    expect(lvSpaceConstant(), ' ');
+    expect(lvTrimWhitespace(string: '  a b \t\r\n'), 'a b');
+    expect(lvTrimWhitespace(string: '  a b  ', location: LvTrimLocation.start), 'a b  ');
+    expect(lvTrimWhitespace(string: '  a b  ', location: LvTrimLocation.end), '  a b');
+    expect(lvTrimWhitespace(string: '   '), '');
+    expect(lvColorToRgb(color: 0x00ff8001), (red: 0xff, green: 0x80, blue: 0x01));
+    expect(lvApplicationDirectory().absolute, isTrue);
+    expect(lvApplicationDirectory().components, isNotEmpty);
+    final raised = lvErrorClusterFromErrorCode(errorCode: 5000, message: 'custom');
+    expect((raised.status, raised.code, raised.source), (true, 5000, 'custom'));
+    final clear = lvErrorClusterFromErrorCode(errorCode: 0, message: 'note');
+    expect((clear.status, clear.code, clear.source), (false, 0, 'note'));
+    const upstream = LvError(status: true, code: 1, source: 'earlier');
+    expect(lvErrorClusterFromErrorCode(errorCode: 5000, errorIn: upstream), upstream);
+  });
 }

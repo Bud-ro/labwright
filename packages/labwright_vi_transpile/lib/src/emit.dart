@@ -10,6 +10,7 @@ import 'naming.dart';
 import 'numeric.dart';
 import 'prim_map.dart';
 import 'runtime.dart';
+import 'stock_vis.dart';
 import 'subvi.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
@@ -589,7 +590,126 @@ class _FunctionEmitter {
     }
   }
 
+  /// The stock VI a call node reaches, when its link points into LabVIEW's own library (or the
+  /// diagram links nothing, as a snippet's does) and the runtime implements it.
+  LvStockVi? _stockCallee(LvSubViUnit unit) {
+    final name = unit.calleeName;
+    if (name == null) return null;
+    final stock = kLvStockVis[name.toLowerCase()];
+    if (stock == null) return null;
+    final link = callable.unit.linkTo(name);
+    final symbolic = link?.path?.text.startsWith('<vilib>') ?? callable.unit.links.isEmpty;
+    return symbolic ? stock : null;
+  }
+
+  void _emitStockCall(LvSubViUnit unit, LvStockVi stock) {
+    if (stock.paneWidth != unit.panePorts.length) {
+      lvRefuse(
+        LvRefusalKind.subViCall,
+        'the call node draws ${unit.panePorts.length} connector-pane terminals but '
+        '"${stock.fileName}" has a ${stock.paneWidth}-terminal pane, so the two do not '
+        'describe the same interface',
+        oid: unit.oid,
+      );
+    }
+    LvStockTerminal terminalFor(int holder, {required bool isInput}) {
+      final pane = unit.paneIndexOf(holder)!;
+      final terminal = stock.terminalAt(pane);
+      if (terminal == null || terminal.isInput != isInput) {
+        lvRefuse(
+          LvRefusalKind.subViCall,
+          'connector-pane terminal $pane of "${stock.fileName}" is wired here but the '
+          'runtime declares no ${isInput ? 'input' : 'output'} there',
+          oid: unit.oid,
+        );
+      }
+      return terminal;
+    }
+
+    final arguments = <String>[];
+    for (final holder in unit.inputPorts) {
+      final edge = flow.into(holder);
+      if (edge == null) continue;
+      final terminal = terminalFor(holder, isInput: true);
+      if (library._elides(edge.type) && terminal.isErrorCluster) continue;
+      final value = _bound(edge.source, unit.oid);
+      switch (terminal.coercion) {
+        case LvStockCoercion.none:
+          if (edge.type.dartType != lvStockWireType(terminal).dartType) {
+            lvRefuse(
+              LvRefusalKind.subViCall,
+              'the wire at connector-pane terminal ${terminal.pane} carries ${edge.type.dartType}, '
+              'but "${stock.fileName}" takes ${lvStockWireType(terminal).dartType} there',
+              oid: unit.oid,
+            );
+          }
+          arguments.add('${lvFieldName(terminal.name)}: $value');
+        case LvStockCoercion.enumIndex:
+          if (edge.type.carrier != LvCarrier.nominal || edge.type.declarations.any((d) => !d.isEnum)) {
+            lvRefuse(
+              LvRefusalKind.subViCall,
+              'connector-pane terminal ${terminal.pane} of "${stock.fileName}" takes an enum, '
+              'and the wire carries ${edge.type.dartType}',
+              oid: unit.oid,
+            );
+          }
+          arguments.add('${lvFieldName(terminal.name)}: ${stock.enumType}.values[$value.index]');
+      }
+    }
+    final results = [
+      for (final terminal in stock.terminals)
+        if (!terminal.isInput) terminal,
+    ];
+    final wanted = <int, LvStockTerminal>{};
+    for (final holder in unit.outputPorts) {
+      if (flow.outOf(holder) == null) continue;
+      final terminal = terminalFor(holder, isInput: false);
+      if (library._elides(lvStockWireType(terminal))) {
+        library.imports.add(kLvRuntimeImport);
+        valueOf[holder] = LvRuntimeType.clearedError;
+        continue;
+      }
+      wanted[holder] = terminal;
+    }
+    library.imports.add(kLvRuntimeImport);
+    final call = '${stock.function}(${arguments.join(', ')})';
+    final raised = results
+        .where((terminal) => terminal.isErrorCluster && library._elides(lvStockWireType(terminal)))
+        .toList();
+    if (raised.isNotEmpty) {
+      final error = names.role(LvNameRole.value, decoded: raised.single.name);
+      body.writeln('final ${LvRuntimeType.error} $error = $call;');
+      body.writeln('if ($error.status) throw $error;');
+      return;
+    }
+    if (results.isEmpty || wanted.isEmpty) {
+      body.writeln('$call;');
+      return;
+    }
+    if (results.length == 1) {
+      final terminal = results.single;
+      final type = lvStockWireType(terminal);
+      final name = names.wire(type, decoded: terminal.name);
+      library.noteImportsFor(type);
+      body.writeln('final ${type.dartType} $name = $call;');
+      for (final holder in wanted.keys) {
+        valueOf[holder] = name;
+      }
+      return;
+    }
+    final record = names.role(LvNameRole.value, decoded: stock.function);
+    final fields = [
+      for (final terminal in results) '${lvStockWireType(terminal).dartType} ${lvFieldName(terminal.name)}',
+    ];
+    body.writeln('final ({${fields.join(', ')}}) $record = $call;');
+    wanted.forEach((holder, terminal) => valueOf[holder] = '$record.${lvFieldName(terminal.name)}');
+  }
+
   void _emitSubVi(LvSubViUnit unit) {
+    if (_stockCallee(unit) case final stock?) {
+      _emitStockCall(unit, stock);
+      return;
+    }
     final callee = _resolveCallee(unit);
     final target = library.declare(callee);
     if (callee.paneTerminals.length != unit.panePorts.length) {
