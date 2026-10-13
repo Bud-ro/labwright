@@ -532,20 +532,25 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 294 lower
-and the rest refuse, 5,520 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 365 lower
+and the rest refuse, 5,523 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 530 on a primitive, 306 on
-an unwired terminal, 188 on a constant's value, 147 on a structure, 142 on a
-wire's direction, 132 on a subVI call, 93 on a foreign call, 36 on a tunnel
+rest are pinned per kind in `kCorpusLoweringSweep`: 537 on a primitive, 211 on
+an unwired terminal, 192 on a constant's value, 147 on a structure, 142 on a
+wire's direction, 141 on a subVI call, 94 on a foreign call, 36 on a tunnel
 coercion, 4 on a case selector, 2 on an unbound value.
 
-Those 294 lowerings are **112 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 112 into a
+A connector-pane control that drives no wire is a parameter the function
+takes and never uses, typed by the control's own descriptor (105 VIs stopped
+there). An indicator that receives no wire returns the value saved with it,
+which the lowering does not read from the data space, and is refused.
+
+Those 365 lowerings are **166 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 166 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 112 is the independent check that they
+kernel` of one entry point importing all 166 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
