@@ -1,17 +1,13 @@
-@Tags(['corpus'])
-library;
-
-import 'dart:io';
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
-import 'wire_style_oracle.dart';
+import '../corpus_dirs.dart';
+import '../wire_style_oracle.dart';
 
-Map<String, int> _censusSnippet(Uint8List png, String path) {
+Map<String, int> _censusSnippet(CorpusVi entry) {
   final c = <String, int>{};
+  final png = entry.png;
+  if (png == null) return c;
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
   bump('snippet_pngs');
   final Raster raster;
@@ -27,8 +23,8 @@ Map<String, int> _censusSnippet(Uint8List png, String path) {
     return c;
   }
   final interior = snippetDiagramInterior(raster.width, raster.height);
-  final decoded = decodeSections(vi).toList();
-  final model = buildViModelFromDecoded(decoded);
+  final decoded = entry.decoded!;
+  final model = entry.model!;
   if (model.blockDiagrams.isEmpty) return c;
   var bdIndex = 0;
   for (var i = 1; i < model.blockDiagrams.length; i++) {
@@ -271,14 +267,18 @@ const kDisabledPaletteMismatches = <String, int>{
   'crc8.png': 1,
 };
 
-void main() {
-  final pngs = listSnippetPngs(corpusViDir);
+const wireRenderStyleCensusLaw = CorpusLaw('wire_render_style_census', _censusSnippet);
 
+void wireRenderStyleCensusTests() {
+  final files = corpusVis.files;
   late final Map<String, Map<String, int>> byFile;
   late final Map<String, int> C;
   setUpAll(() async {
-    final res = await corpusParallel(pngs, (_, path) => _censusSnippet(File(path).readAsBytesSync(), path));
-    byFile = {for (var i = 0; i < pngs.length; i++) pngs[i].uri.pathSegments.last: res[i]};
+    final res = await wireRenderStyleCensusLaw.results;
+    byFile = {
+      for (var i = 0; i < files.length; i++)
+        if (files[i].path.endsWith('.png')) files[i].uri.pathSegments.last: res[i],
+    };
     C = {};
     for (final m in res) {
       m.forEach((k, v) => C[k] = (C[k] ?? 0) + v);

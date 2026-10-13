@@ -1,26 +1,16 @@
-@Tags(['corpus'])
-library;
-
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 const _laws = {'oversizedTypeWord', 'depthOutOfRange', 'flagsLow2Set'};
 
-Map<String, int> _census(Uint8List bytes, String path) {
+Map<String, int> _census(CorpusVi vi) {
   final c = <String, int>{};
   void bump(String k) => c[k] = (c[k] ?? 0) + 1;
-  final List<DecodedSection> decoded;
-  final ViModel model;
-  try {
-    decoded = decodeSections(bytes).toList();
-    model = buildViModelFromDecoded(decoded);
-  } catch (_) {
-    return c;
-  }
+  final decoded = vi.decoded;
+  final model = vi.model;
+  if (decoded == null || model == null) return c;
   for (final d in decoded) {
     if (!const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag) || d.bytes.length < 6) continue;
     final body = d.bytes;
@@ -46,13 +36,12 @@ Map<String, int> _census(Uint8List bytes, String path) {
   return c;
 }
 
-void main() {
-  final all = corpusVis();
+const signalTypeCensusLaw = CorpusLaw('signal_type_census', _census);
 
+void signalTypeCensusTests() {
   test('wire-type word laws: u16 wide, depth 1..6, flag bits 12-13 clear', () async {
-    final res = await corpusParallel(all, _census);
     // TODO: two editor VIs carry a wire-type depth outside 1..6.
-    expect(perFileNonzero(all, res, _laws), const <String, Map<String, int>>{
+    expect(await signalTypeCensusLaw.nonzero(_laws), const <String, Map<String, int>>{
       'vi-corpus/sources/LabVIEW-DCAF__calcs/src/editor node/Main Editor UI.vi': {'depthOutOfRange': 1},
       'vi-corpus/sources/LabVIEW-DCAF__calcs/src/editor node/Node Change Event.vi': {'depthOutOfRange': 1},
     });

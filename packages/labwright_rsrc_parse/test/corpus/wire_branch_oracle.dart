@@ -1,16 +1,13 @@
-@Tags(['corpus'])
-library;
-
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
-import 'wire_style_oracle.dart';
+import '../corpus_dirs.dart';
+import '../wire_style_oracle.dart';
 
-Map<String, int> _census(Uint8List png, String path) {
+Map<String, int> _census(CorpusVi entry) {
   final c = <String, int>{};
+  final png = entry.png;
+  if (png == null) return c;
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
   final Raster raster;
   try {
@@ -21,7 +18,7 @@ Map<String, int> _census(Uint8List png, String path) {
   final vi = extractSnippetVi(png);
   if (vi == null) return c;
   final interior = snippetDiagramInterior(raster.width, raster.height);
-  final model = buildViModelFromDecoded(decodeSections(vi));
+  final model = entry.model!;
   if (model.blockDiagrams.isEmpty) return c;
   var bi = 0;
   for (var i = 1; i < model.blockDiagrams.length; i++) {
@@ -122,12 +119,17 @@ const kShippedRunInkPct = <String, int>{
   'Symbols1Bit.png': 60,
 };
 
-void main() {
-  final pngs = listSnippetPngs(corpusViDir);
+const wireBranchOracleLaw = CorpusLaw('wire_branch_oracle', _census);
+
+void wireBranchOracleTests() {
+  final files = corpusVis.files;
   late final Map<String, Map<String, int>> byFile;
   setUpAll(() async {
-    final res = await Future.wait([for (final f in pngs) Future(() => _census(f.readAsBytesSync(), f.path))]);
-    byFile = {for (var i = 0; i < pngs.length; i++) pngs[i].uri.pathSegments.last: res[i]};
+    final res = await wireBranchOracleLaw.results;
+    byFile = {
+      for (var i = 0; i < files.length; i++)
+        if (files[i].path.endsWith('.png')) files[i].uri.pathSegments.last: res[i],
+    };
   });
 
   test('branch oracle law: shipped junction dots sit on reference ink', () {

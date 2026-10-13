@@ -1,36 +1,35 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
-typedef _Snap = ({String path, bool error, int fp, int bd, List<String> blocks});
+typedef _Snap = ({bool error, int fp, int bd, List<String> blocks});
 
 typedef _Want = ({bool error, int fp, int bd, Set<String> blocks});
 
-_Snap _summarizeVi(Uint8List bytes, String path) {
+/// The [_Snap] fields in order.
+List<Object?> _summarizeVi(CorpusVi vi) {
   try {
-    final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
-    final m = buildViModel(bytes);
-    return (
-      path: path,
-      error: false,
-      fp: m.frontPanelDiagrams.fold(0, (a, b) => a + b.objects.length),
-      bd: m.blockDiagrams.fold(0, (a, b) => a + b.objects.length),
-      blocks: blocks,
-    );
+    final blocks = parseVi(vi.bytes).blocks.toSet().toList()..sort();
+    final m = vi.model;
+    if (m == null) throw vi.error!;
+    final fp = m.frontPanelDiagrams.fold(0, (a, b) => a + b.objects.length);
+    final bd = m.blockDiagrams.fold(0, (a, b) => a + b.objects.length);
+    return [false, fp, bd, blocks];
   } catch (_) {
-    return (path: path, error: true, fp: 0, bd: 0, blocks: const <String>[]);
+    return [true, 0, 0, const <String>[]];
   }
 }
 
-void main() {
-  final all = corpusVis();
+_Snap _snapOf(List<Object?> row) =>
+    (error: row[0] as bool, fp: row[1] as int, bd: row[2] as int, blocks: (row[3] as List).cast<String>());
+
+const corpusSnapshotLaw = CorpusLaw('corpus_snapshot', _summarizeVi);
+
+void corpusSnapshotTests() {
+  final all = corpusVis.files;
   final snapFile = corpusSnapshotFile();
 
   final root = '${corpusViDir.path}/';
@@ -47,13 +46,9 @@ void main() {
     snap[failure['name'] as String] = (error: true, fp: 0, bd: 0, blocks: const <String>{});
   }
 
-  late final Map<String, _Snap> byPath;
-  setUpAll(() async {
-    final res = await corpusParallel(all, _summarizeVi);
-    byPath = {for (final s in res) s.path: s};
-  });
-
-  test('every VI keeps EXACTLY its snapshotted front-panel/block-diagram counts and block set', () {
+  test('every VI keeps EXACTLY its snapshotted front-panel/block-diagram counts and block set', () async {
+    final rows = await corpusSnapshotLaw.results;
+    final byPath = {for (var i = 0; i < all.length; i++) all[i].path: _snapOf(rows[i])};
     final diffs = <String>[];
     for (final MapEntry(key: key, value: want) in snap.entries) {
       final s = byPath[byKey[key]];

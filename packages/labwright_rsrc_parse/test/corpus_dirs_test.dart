@@ -6,7 +6,7 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 
 void main() {
-  final all = corpusVis();
+  final all = corpusVis.files;
 
   test('corpusVis yields each VI exactly once (no symlink duplicates)', () {
     final canonical = <String>{};

@@ -1,12 +1,9 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 class _Rec {
   _Rec(this.op, this.intValue, this.raw);
@@ -16,15 +13,11 @@ class _Rec {
   int count = 1;
 }
 
-Map<String, int> _census(Uint8List bytes, String path) {
+Map<String, int> _census(CorpusVi vi) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
-  final List<DecodedSection> decoded;
-  try {
-    decoded = decodeSections(bytes);
-  } catch (_) {
-    return c;
-  }
+  final decoded = vi.decoded;
+  if (decoded == null) return c;
   for (final d in decoded) {
     if (d.bytes.length < 6 || !const {'BDHb', 'BDHP', 'BDEx'}.contains(d.tag)) continue;
     final body = d.bytes;
@@ -74,13 +67,12 @@ Map<String, int> _census(Uint8List bytes, String path) {
 
 const kConstValueLawBreaks = <String, Map<String, int>>{};
 
-void main() {
-  final all = corpusVis();
+const constValueCensusLaw = CorpusLaw('const_value_census', _census);
 
+void constValueCensusTests() {
   test('BD-constant laws: one record per constant, on the DCO, booleans binary', () async {
-    final res = await corpusParallel(all, _census);
     expect(
-      perFileNonzero(all, res, const {'recordsOffDco', 'multiRecordConstants', 'boolNonBinary'}),
+      await constValueCensusLaw.nonzero(const {'recordsOffDco', 'multiRecordConstants', 'boolNonBinary'}),
       kConstValueLawBreaks,
     );
   });

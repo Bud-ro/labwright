@@ -1,15 +1,15 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
-(Map<String, int>, List<String>) _summarizeVi(Uint8List bytes, String path) {
+/// Counts, then diagnostics.
+List<Object?> _summarizeVi(CorpusVi vi) {
+  final bytes = vi.bytes;
+  final path = vi.path;
   final c = <String, int>{};
   final diags = <String>[];
   void n(String k, [int by = 1]) => c[k] = (c[k] ?? 0) + by;
@@ -18,12 +18,8 @@ import 'corpus_dirs.dart';
     if (diags.length < 4) diags.add('$key• $msg');
   }
 
-  final ViModel model;
-  try {
-    model = buildViModel(Uint8List.fromList(bytes));
-  } catch (_) {
-    return (c, diags);
-  }
+  final model = vi.model;
+  if (model == null) return [c, diags];
   n('built');
   final name = path.split('/').last;
 
@@ -77,17 +73,18 @@ import 'corpus_dirs.dart';
       if (t.itemCount > 0) n('enumsWithItems');
     }
   }
-  return (c, diags);
+  return [c, diags];
 }
 
-void main() {
-  final all = corpusVis();
+const irJsonLaw = CorpusLaw('ir_json', _summarizeVi);
+
+void irJsonTests() {
   late final Map<String, int> C;
   late final List<String> diags;
   setUpAll(() async {
     C = {};
     diags = [];
-    for (final (counts, d) in await corpusParallel(all, _summarizeVi)) {
+    for (final [counts as Map<String, int>, d as List<String>] in await irJsonLaw.results) {
       counts.forEach((k, v) => C[k] = (C[k] ?? 0) + v);
       diags.addAll(d);
     }

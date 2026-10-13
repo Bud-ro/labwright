@@ -1,23 +1,15 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:io';
-import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
-Map<String, int> _census(Uint8List bytes, String path) {
+Map<String, int> _census(CorpusVi vi) {
   final c = <String, int>{};
   void bump(String k, [int n = 1]) => c[k] = (c[k] ?? 0) + n;
-  final ViModel model;
-  try {
-    model = buildViModelFromDecoded(decodeSections(bytes));
-  } catch (_) {
-    return c;
-  }
+  final model = vi.model;
+  if (model == null) return c;
   for (final d in model.blockDiagrams) {
     for (final w in d.wires) {
       final raw = d.byId[w.signalOid]?.wireTableRaw;
@@ -227,11 +219,11 @@ const kWireRouteViolations = <String, Map<String, int>>{};
 
 int _sum(Map<String, int> c, List<String> keys) => keys.fold(0, (a, k) => a + (c[k] ?? 0));
 
-void main() {
-  final all = corpusVis();
+const wireRouteCensusLaw = CorpusLaw('wire_route_census', _census);
 
+void wireRouteCensusTests() {
   test('every VI obeys the wire route laws', () async {
-    final res = await corpusParallel(all, _census);
+    final res = await wireRouteCensusLaw.results;
     for (final c in res) {
       c['shippedTierMismatch'] =
           ((c['shipped'] ?? 0) -
@@ -251,7 +243,7 @@ void main() {
       c['extAnchoredMismatch'] =
           ((c['extFullAnchored'] ?? 0) - _sum(c, ['extFullClosed', 'extFullMiss', 'extFullLeafMismatch'])).abs();
     }
-    expect(perFileNonzero(all, res, _laws), kWireRouteViolations);
+    expect(perFileNonzero(corpusVis.files, res, _laws), kWireRouteViolations);
   });
 
   test('basic.png ground truth: decoded routes reproduce the reference render geometry', () {

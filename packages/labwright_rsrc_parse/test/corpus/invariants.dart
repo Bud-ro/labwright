@@ -1,17 +1,12 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:math';
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 const _fuzzIters = 2;
-
-typedef _Summ = (Map<String, int>, Set<int>, Set<String>);
 
 String _sig(ViModel m) {
   final b = StringBuffer();
@@ -37,38 +32,31 @@ bool _structuralHeap(Uint8List b) {
   return ByteData.sublistView(b).getUint32(0) == b.length - 4 && _heapLead(b[4]);
 }
 
-_Summ _summarize(Uint8List bytes, String path) {
+/// Counts, object kinds seen, then record-heap tags seen.
+List<Object?> _summarize(CorpusVi vi) {
+  final bytes = vi.bytes;
   final c = <String, int>{};
   final kinds = <int>{};
   final headTags = <String>{};
   void bad(String key) => c[key] = (c[key] ?? 0) + 1;
 
-  List<ViSection>? secs;
-  List<DecodedSection>? dsecs;
-  try {
-    secs = readViSections(bytes);
-  } catch (_) {}
-  try {
-    dsecs = decodeSections(bytes);
-  } catch (_) {}
+  final secs = vi.sections;
+  final dsecs = vi.decoded;
 
   if (secs != null) {
     final lvsr = secs.where((section) => section.tag == 'LVSR').firstOrNull;
     if (lvsr != null && ViSaveRecord(lvsr.bytes).versionWord.releaseStage == null) bad('stageUnnamed');
   }
 
-  ViModel? m;
-  try {
-    m = buildViModel(bytes);
-  } catch (_) {}
-  if (m == null) return (c, kinds, headTags);
+  final m = vi.model;
+  if (m == null) return [c, kinds.toList(), headTags.toList()];
 
   try {
     if (_sig(m) != _sig(buildViModel(bytes))) bad('nondet');
   } catch (_) {}
 
   if (dsecs != null) {
-    Uint8List? bodyOf(String tag) => dsecs!.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
+    Uint8List? bodyOf(String tag) => dsecs.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
     final vctp = bodyOf('VCTP');
     final dthpBody = bodyOf('DTHP');
     final dthp = dthpBody == null ? null : ViDataTypeHeap(dthpBody);
@@ -93,13 +81,11 @@ _Summ _summarize(Uint8List bytes, String path) {
     if (r != null && _wild(r)) bad('wildBounds');
   }
 
-  try {
-    for (final s in decodeSections(bytes)) {
-      if (!(BlockTag.of(s.tag)?.isRecordHeap ?? false)) continue;
-      headTags.add(s.tag);
-      if (!_structuralHeap(s.bytes)) bad('catHeapNotStructural');
-    }
-  } catch (_) {}
+  for (final s in dsecs ?? const <DecodedSection>[]) {
+    if (!(BlockTag.of(s.tag)?.isRecordHeap ?? false)) continue;
+    headTags.add(s.tag);
+    if (!_structuralHeap(s.bytes)) bad('catHeapNotStructural');
+  }
 
   if (bytes.length >= 64) {
     final rng = Random(0xC0FFEE);
@@ -126,19 +112,21 @@ _Summ _summarize(Uint8List bytes, String path) {
     }
   }
 
-  return (c, kinds, headTags);
+  return [c, kinds.toList(), headTags.toList()];
 }
 
-void main() {
-  final all = corpusVis();
+const invariantsLaw = CorpusLaw('invariants', _summarize);
+
+void invariantsTests() {
+  final all = corpusVis.files;
   late final List<Map<String, int>> counts;
   late final Set<int> kindsSeen;
   late final Set<String> headTags;
   setUpAll(() async {
-    final res = await corpusParallel(all, _summarize);
-    counts = [for (final (c, _, _) in res) c];
-    kindsSeen = {for (final (_, k, _) in res) ...k};
-    headTags = {for (final (_, _, h) in res) ...h};
+    final res = await invariantsLaw.results;
+    counts = [for (final [c as Map<String, int>, _, _] in res) c];
+    kindsSeen = {for (final [_, k as List<int>, _] in res) ...k};
+    headTags = {for (final [_, _, h as List<String>] in res) ...h};
   });
 
   Map<String, Map<String, int>> violations(Set<String> laws) => perFileNonzero(all, counts, laws);
