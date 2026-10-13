@@ -495,9 +495,9 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 86 distinct unmapped identities over
-336 nodes across the rcpacini snippets, headed by node classes `0x93` (18),
-`0x105` (16) and `0xa9` (15).
+`test/corpus_lowering_sweep_test.dart`: 84 distinct unmapped identities over
+310 nodes across the rcpacini snippets, headed by node classes `0x105` (16)
+and `0xa9` (15).
 
 ### subVI calls
 
@@ -555,10 +555,10 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 713 lower
-and the rest refuse, 5,078 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 720 lower
+and the rest refuse, 5,083 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 602 on a primitive, 271 on a subVI call, 184 on a constant's value, 171 on a wire's direction, 106 on a foreign call, 106 on a structure, 96 on an unwired terminal, 37 on a tunnel coercion, 23 on a case selector, 6 on an unbound value, 1 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 589 on a primitive, 271 on a subVI call, 185 on a constant's value, 171 on a wire's direction, 106 on a foreign call, 106 on a structure, 96 on an unwired terminal, 37 on a tunnel coercion, 23 on a case selector, 6 on an unbound value, 1 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -583,12 +583,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 713 lowerings are **461 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 461 into a
+Those 720 lowerings are **468 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 468 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 461 is the independent check that they
+kernel` of one entry point importing all 468 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
@@ -687,6 +687,17 @@ What that method decided, and what it did not:
   refnum and an integer reads or makes one. The operand that shares the
   result's type is `type`; when both do, the top one is, as the reference
   draws them.
+- **`Format Into String`** lowers when its format string is a diagram
+  constant, expanded at lowering time into one Dart interpolation: the
+  published specifier syntax's `%[n$][-][+][0][width][.precision]` with the
+  `s`, `d`, `x`, `X` and `f` conversions, `%%`, and the backslash codes. A
+  string or boolean (`TRUE`/`FALSE`) spells `%s`, an integer or boolean
+  (`1`/`0`) `%d`, an integer at its own width `%x`, a float or integer `%f`
+  with six digits unless told otherwise; widths and flags go through the
+  runtime's `lvFormat…` helpers. The other conversions and elements (`e`, `g`,
+  `p`, `b`, `o`, `u`, times, `^`, `#`, `_`, units, localisation) are not
+  spelled and refuse. The fixed terminals carry role bit `0x10000` and read by
+  drawn row then port, since the format and initial strings share a row.
 - **`To Lower Case`** and 1181's digit case are proven only as a **pair**: the
   digests are wrong if either the conversion writes lower case and the mapping
   is a no-op, or the reverse, but they cannot separate the two. The VI's own

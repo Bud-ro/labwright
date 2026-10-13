@@ -265,4 +265,21 @@ void main() {
     expect(lvNotARefnum(LvRefnum.none), isTrue);
     expect(lvNotARefnum(const LvRefnum(7)), isFalse);
   });
+
+  test('Format Into String pads, cuts and signs as the published examples show', () {
+    expect(lvFormatRadix(12, 16, 32, width: 2, zeroPad: true), '0c');
+    expect(lvFormatRadix(12, 16, 32, width: 2, zeroPad: true, upper: true), '0C');
+    expect(lvFormatRadix(-1, 16, 8, upper: true), 'FF');
+    expect(lvFormatRadix(12, 8, 32, width: 6, zeroPad: true), '000014');
+    expect(lvFormatRadix(12, 2, 32), '1100');
+    expect(lvFormatFixed(12.67, 1, width: 5), ' 12.7');
+    expect(lvFormatFixed(12.67, 3, width: 5), '12.670');
+    expect(lvFormatFixed(-1.5, 2, width: 7, zeroPad: true), '-001.50');
+    expect(lvFormatFixed(1.5, 2, plusSign: true), '+1.50');
+    expect(lvFormatText('Hello, World', width: 10, maxLength: 6), '    Hello,');
+    expect(lvFormatText('ab', width: 4, leftJustify: true), 'ab  ');
+    expect(lvFormatInt(-7, width: 4, zeroPad: true), '-007');
+    expect(lvFormatInt(7, width: 4, leftJustify: true), '7   ');
+    expect(lvFormatInt(7, plusSign: true), '+7');
+  });
 }
