@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
-import 'package:labwright_vi_transpile/labwright_vi_transpile.dart';
 
 List<int> pascal(String text) => [text.length, ...text.codeUnits];
 
