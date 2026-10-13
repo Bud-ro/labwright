@@ -73,6 +73,8 @@ export 'src/images.dart';
 export 'src/meta.dart';
 export 'src/model.dart';
 export 'src/model_json.dart';
+export 'src/project/lv_library_file.dart';
+export 'src/project/lv_project_index.dart';
 export 'src/pth0.dart';
 export 'src/snippet_png.dart';
 export 'src/viparse.dart';

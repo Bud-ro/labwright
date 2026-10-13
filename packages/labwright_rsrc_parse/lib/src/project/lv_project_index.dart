@@ -1,0 +1,104 @@
+import 'dart:io';
+
+import '../blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
+import 'lv_library_file.dart';
+
+/// Every library, class and XControl file under a root, and each member's file by its
+/// library-qualified name; resolves a VI's link entries to files.
+class LvProjectIndex {
+  LvProjectIndex._(this.root, this.libraries, this._byQualifiedName);
+
+  final Directory root;
+
+  /// Every library file under [root] by its absolute path.
+  final Map<String, LvLibraryFile> libraries;
+
+  final Map<String, String> _byQualifiedName;
+
+  /// Reads every `.lvlib`, `.lvclass` and `.xctl` under [root].
+  factory LvProjectIndex.scan(Directory root) {
+    final libraries = <String, LvLibraryFile>{};
+    for (final entity in root.listSync(recursive: true)) {
+      if (entity is! File) continue;
+      final kind = LvLibraryKind.ofPath(entity.path);
+      if (kind == null || kind == LvLibraryKind.project) continue;
+      libraries[entity.path] = LvLibraryFile.parse(
+        entity.readAsStringSync(),
+        fileName: entity.uri.pathSegments.last,
+      );
+    }
+    final owner = <String, String>{};
+    for (final MapEntry(key: path, value: library) in libraries.entries) {
+      for (final item in library.items) {
+        if (item.url case final url? when _ownsLibrary(item.type)) owner[resolveLibraryUrl(path, url)] = path;
+      }
+    }
+    List<String> qualifiedNameOf(String path) {
+      final names = <String>[];
+      for (String? at = path; at != null; at = owner[at]) {
+        if (names.length > 16) {
+          break;
+        }
+        names.insert(0, libraries[at]!.fileName);
+      }
+      return names;
+    }
+
+    final byQualifiedName = <String, String>{};
+    for (final MapEntry(key: path, value: library) in libraries.entries) {
+      final prefix = qualifiedNameOf(path);
+      byQualifiedName[prefix.join(':')] = path;
+      for (final item in library.items) {
+        if (item.url == null || item.isFolder) continue;
+        byQualifiedName[[...prefix, item.name].join(':')] = resolveLibraryUrl(path, item.url!);
+      }
+    }
+    return LvProjectIndex._(root, libraries, byQualifiedName);
+  }
+
+  /// The file a library-qualified name denotes, such as [`MB Master.lvlib`, `Read Coils.vi`].
+  String? fileOf(List<String> qualifiedName) => _byQualifiedName[qualifiedName.join(':')];
+
+  /// The file a link entry of the VI at [viPath] denotes: its path record resolved from the
+  /// VI's directory when that file exists, else its qualified name through the libraries.
+  String? fileOfLink(ViLinkEntryFramed entry, {required String viPath}) {
+    final path = entry.path;
+    if (path != null && path.pathType == 1) {
+      final candidate = resolveViPath(viPath, path.components);
+      if (File(candidate).existsSync()) return candidate;
+    }
+    if (entry.qualifiedName.isNotEmpty) return fileOf(entry.qualifiedName);
+    return null;
+  }
+}
+
+bool _ownsLibrary(String itemType) => itemType == 'LVClass' || itemType == 'Library' || itemType == 'XControl';
+
+/// A library item's URL resolved as LabVIEW does: relative to the library file taken as a
+/// directory, so `../X.vi` is the file's sibling.
+String resolveLibraryUrl(String libraryPath, String url) {
+  final segments = [...Uri.file(libraryPath).pathSegments, ...url.split('/')];
+  return _join(segments);
+}
+
+/// A path record's components resolved from the VI at [viPath]: a leading empty component
+/// starts at the VI's file, and each further empty component climbs a directory.
+String resolveViPath(String viPath, List<String> components) {
+  final segments = [...Uri.file(viPath).pathSegments, ...components];
+  return _join(segments);
+}
+
+String _join(List<String> segments) {
+  final out = <String>[];
+  for (var i = 0; i < segments.length; i++) {
+    final segment = segments[i];
+    if (segment == '.') continue;
+    if (segment.isEmpty || segment == '..') {
+      if (i == 0) continue;
+      if (out.isNotEmpty) out.removeLast();
+      continue;
+    }
+    out.add(segment);
+  }
+  return '/${out.join('/')}';
+}
