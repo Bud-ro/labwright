@@ -76,29 +76,14 @@ bool _ownsLibrary(String itemType) => itemType == 'LVClass' || itemType == 'Libr
 
 /// A library item's URL resolved as LabVIEW does: relative to the library file taken as a
 /// directory, so `../X.vi` is the file's sibling.
-String resolveLibraryUrl(String libraryPath, String url) {
-  final segments = [...Uri.file(libraryPath).pathSegments, ...url.split('/')];
-  return _join(segments);
-}
+String resolveLibraryUrl(String libraryPath, String url) =>
+    Uri.directory(libraryPath).resolveUri(Uri(pathSegments: url.split('/'))).toFilePath();
 
 /// A path record's components resolved from the VI at [viPath]: a leading empty component
 /// starts at the VI's file, and each further empty component climbs a directory.
-String resolveViPath(String viPath, List<String> components) {
-  final segments = [...Uri.file(viPath).pathSegments, ...components];
-  return _join(segments);
-}
-
-String _join(List<String> segments) {
-  final out = <String>[];
-  for (var i = 0; i < segments.length; i++) {
-    final segment = segments[i];
-    if (segment == '.') continue;
-    if (segment.isEmpty || segment == '..') {
-      if (i == 0) continue;
-      if (out.isNotEmpty) out.removeLast();
-      continue;
-    }
-    out.add(segment);
-  }
-  return '/${out.join('/')}';
-}
+String resolveViPath(String viPath, List<String> components) =>
+    Uri.directory(
+          viPath,
+        )
+        .resolveUri(Uri(pathSegments: [for (final component in components) component.isEmpty ? '..' : component]))
+        .toFilePath();

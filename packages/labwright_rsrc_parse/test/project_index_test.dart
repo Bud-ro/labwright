@@ -39,32 +39,39 @@ void main() {
   });
 
   test('a library URL resolves from the library file taken as a directory', () {
-    expect(resolveLibraryUrl('/p/lib/MB Master.lvlib', '../MB_Master/Read Coils.vi'), '/p/lib/MB_Master/Read Coils.vi');
-    expect(resolveLibraryUrl('/p/MB_ADU/MB_ADU.lvclass', 'MB_ADU.ctl'), '/p/MB_ADU/MB_ADU.lvclass/MB_ADU.ctl');
+    final p = Directory.current.path;
     expect(
-      resolveViPath('/p/Examples/Tester.vi', ['', '', 'MB_Master', 'Read Coils.vi']),
-      '/p/MB_Master/Read Coils.vi',
+      resolveLibraryUrl(_at('$p/lib/MB Master.lvlib'), '../MB_Master/Read Coils.vi'),
+      _at('$p/lib/MB_Master/Read Coils.vi'),
     );
-    expect(resolveViPath('/p/Tester.vi', ['', 'Sub.vi']), '/p/Sub.vi');
+    expect(
+      resolveLibraryUrl(_at('$p/MB_ADU/MB_ADU.lvclass'), 'MB_ADU.ctl'),
+      _at('$p/MB_ADU/MB_ADU.lvclass/MB_ADU.ctl'),
+    );
+    expect(
+      resolveViPath(_at('$p/Examples/Tester.vi'), ['', '', 'MB_Master', 'Read Coils.vi']),
+      _at('$p/MB_Master/Read Coils.vi'),
+    );
+    expect(resolveViPath(_at('$p/Tester.vi'), ['', 'Sub.vi']), _at('$p/Sub.vi'));
   });
 
   test('the index names every member by its owning libraries and resolves link entries', () {
     final root = Directory.systemTemp.createTempSync('lv_project');
     try {
-      File('${root.path}/lib/MB Master.lvlib')
+      File(_at('${root.path}/lib/MB Master.lvlib'))
         ..createSync(recursive: true)
         ..writeAsStringSync(_lvlib);
-      File('${root.path}/lib/MB_ADU/MB_ADU.lvclass')
+      File(_at('${root.path}/lib/MB_ADU/MB_ADU.lvclass'))
         ..createSync(recursive: true)
         ..writeAsStringSync(_lvclass);
-      File('${root.path}/lib/MB_Master/Read Coils.vi').createSync(recursive: true);
+      File(_at('${root.path}/lib/MB_Master/Read Coils.vi')).createSync(recursive: true);
       final index = LvProjectIndex.scan(root);
       expect(index.libraries.length, 2);
-      expect(index.fileOf(['MB Master.lvlib', 'Read Coils.vi']), '${root.path}/lib/MB_Master/Read Coils.vi');
-      expect(index.fileOf(['MB Master.lvlib', 'MB_ADU.lvclass']), '${root.path}/lib/MB_ADU/MB_ADU.lvclass');
+      expect(index.fileOf(['MB Master.lvlib', 'Read Coils.vi']), _at('${root.path}/lib/MB_Master/Read Coils.vi'));
+      expect(index.fileOf(['MB Master.lvlib', 'MB_ADU.lvclass']), _at('${root.path}/lib/MB_ADU/MB_ADU.lvclass'));
       expect(
         index.fileOf(['MB Master.lvlib', 'MB_ADU.lvclass', 'Read TX Data.vi']),
-        '${root.path}/lib/MB_ADU/Read TX Data.vi',
+        _at('${root.path}/lib/MB_ADU/Read TX Data.vi'),
       );
       expect(index.fileOf(['MB_ADU.lvclass', 'Read TX Data.vi']), isNull, reason: 'the class is owned by the library');
       final byPath = ViLinkEntryFramed(
@@ -75,8 +82,8 @@ void main() {
         path: _relativePath(['', '', 'MB_Master', 'Read Coils.vi']),
       );
       expect(
-        index.fileOfLink(byPath, viPath: '${root.path}/lib/Examples/Tester.vi'),
-        '${root.path}/lib/MB_Master/Read Coils.vi',
+        index.fileOfLink(byPath, viPath: _at('${root.path}/lib/Examples/Tester.vi')),
+        _at('${root.path}/lib/MB_Master/Read Coils.vi'),
       );
       final byName = ViLinkEntryFramed(
         0,
@@ -86,16 +93,19 @@ void main() {
         path: _relativePath(['', 'elsewhere', 'Read TX Data.vi']),
       );
       expect(
-        index.fileOfLink(byName, viPath: '${root.path}/lib/Examples/Tester.vi'),
-        '${root.path}/lib/MB_ADU/Read TX Data.vi',
+        index.fileOfLink(byName, viPath: _at('${root.path}/lib/Examples/Tester.vi')),
+        _at('${root.path}/lib/MB_ADU/Read TX Data.vi'),
         reason: 'the path record misses, the qualified name answers',
       );
-      expect(index.fileOfLink(const ViLinkEntryFramed(0, 0, 'IUVI'), viPath: '${root.path}/x.vi'), isNull);
+      expect(index.fileOfLink(const ViLinkEntryFramed(0, 0, 'IUVI'), viPath: _at('${root.path}/x.vi')), isNull);
     } finally {
       root.deleteSync(recursive: true);
     }
   });
 }
+
+/// [path] spelled as this platform spells it.
+String _at(String path) => Uri.file(path.replaceAll('\\', '/')).toFilePath();
 
 ViPath _relativePath(List<String> components) {
   final body = BytesBuilder()
