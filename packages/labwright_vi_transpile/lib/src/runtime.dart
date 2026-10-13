@@ -24,6 +24,7 @@ abstract final class LvRuntimeCall {
   static const String formatRadix = 'lvFormatRadix';
   static const String formatFixed = 'lvFormatFixed';
   static const String search1dArray = 'lvSearch1dArray';
+  static const String randomNumber = 'lvRandomNumber';
   static const String hexString = 'lvHexString';
   static const String initializeArray = 'lvInitializeArray';
   static const String mergeErrors = 'lvMergeErrors';
