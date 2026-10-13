@@ -1,18 +1,17 @@
-@Tags(['corpus'])
-library;
-
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
-Map<String, int> _totality(Uint8List bytes, String path) {
+Map<String, int> _totality(CorpusVi vi) {
+  final bytes = vi.bytes;
+  final path = vi.path;
   final c = <String, int>{};
   try {
     parseVi(bytes);
-    for (final s in decodeSections(bytes)) {
+    final decoded = vi.decoded;
+    if (decoded == null) throw vi.error!;
+    for (final s in decoded) {
       if (!(BlockTag.of(s.tag)?.isRecordHeap ?? false) || s.bytes.length < 6) continue;
       for (final span in measureHeapTiers(s.bytes, s.tag).walk.spans) {
         if (span.offset + span.length > s.bytes.length) c['walkOutOfBounds'] = (c['walkOutOfBounds'] ?? 0) + 1;
@@ -26,11 +25,11 @@ Map<String, int> _totality(Uint8List bytes, String path) {
 
 const kTotalityBreaks = <String, Map<String, int>>{};
 
-void main() {
-  final all = corpusVis();
+void corpusCoverageTests() {
+  final all = corpusVis.files;
 
   test('every corpus VI parses, decodes, and walks without throwing', () async {
-    final res = await corpusParallel(all, _totality);
+    final res = await corpusVis.map(_totality);
     expect(perFileNonzero(all, res, const {'throws', 'walkOutOfBounds'}), kTotalityBreaks);
   });
 }

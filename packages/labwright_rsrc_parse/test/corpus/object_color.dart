@@ -1,12 +1,7 @@
-@Tags(['corpus'])
-library;
-
-import 'dart:typed_data';
-
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 // Per-VI tallies of decoded object colours: how many objects carry each colour
 // attribute, and how many of those are BOUNDED (drawable).
@@ -17,14 +12,10 @@ import 'corpus_dirs.dart';
 // [13]=plot objects, [14]=plot objects that are bounded (drawable),
 // [15]=plot colour entries, [16]=plot entries in range,
 // [17]=plot objects that are a graphIndicator.
-List<int> _tally(Uint8List bytes, String path) {
+List<int> _tally(CorpusVi vi) {
   final out = List<int>.filled(18, 0);
-  final ViModel model;
-  try {
-    model = buildViModel(bytes);
-  } catch (_) {
-    return out;
-  }
+  final model = vi.model;
+  if (model == null) return out;
   bool inRange(int? rgb) => rgb != null && rgb >= 0 && rgb <= 0xffffff;
   for (final diagram in [
     ...model.frontPanelDiagrams,
@@ -69,11 +60,9 @@ List<int> _tally(Uint8List bytes, String path) {
   return out;
 }
 
-void main() {
-  final all = corpusVis();
-
+void objectColorTests() {
   test('object colours decode and land on drawable objects', () async {
-    final tallies = await corpusParallel(all, _tally);
+    final tallies = await corpusVis.map(_tally);
     final sum = List<int>.filled(18, 0);
     for (final t in tallies) {
       for (var i = 0; i < 18; i++) {

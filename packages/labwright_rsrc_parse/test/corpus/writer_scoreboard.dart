@@ -1,12 +1,9 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 const _laws = {
   'attribute',
@@ -38,8 +35,10 @@ bool _bytesEqual(Uint8List a, Uint8List b) {
   return true;
 }
 
-Map<String, int> _violations(Uint8List bytes, String path) {
+Map<String, int> _violations(CorpusVi vi) {
   final c = <String, int>{};
+  if (isNonRsrcFixture(vi.path)) return c;
+  final bytes = vi.bytes;
   void bad(String k, [int by = 1]) => c[k] = (c[k] ?? 0) + by;
 
   try {
@@ -54,12 +53,8 @@ Map<String, int> _violations(Uint8List bytes, String path) {
     bad('attribute');
   }
 
-  final List<ViSection> secs;
-  try {
-    secs = readViSections(bytes);
-  } catch (_) {
-    return c;
-  }
+  final secs = vi.sections;
+  if (secs == null) return c;
 
   final seenHeap = <int>{};
   for (final s in secs) {
@@ -144,15 +139,15 @@ const kWriterViolations = <String, Map<String, int>>{
 
 const _alsoPlain = {BlockTag.tm80, BlockTag.vicd, BlockTag.dfds};
 
-void main() {
+void writerScoreboardTests() {
   final all = [
-    for (final f in corpusVis())
+    for (final f in corpusVis.files)
       if (!isNonRsrcFixture(f.path)) f,
   ];
 
   test('every VI obeys the writer laws', () async {
-    final res = await corpusParallel(all, _violations);
-    expect(perFileNonzero(all, res, _laws), kWriterViolations);
+    final res = await corpusVis.map(_violations);
+    expect(perFileNonzero(corpusVis.files, res, _laws), kWriterViolations);
   });
 
   test('a compressed section re-emitted from re-deflated content stays valid and content-exact', () {

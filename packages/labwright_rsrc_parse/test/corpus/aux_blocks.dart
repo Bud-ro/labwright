@@ -1,12 +1,9 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 const _probes = <String, List<(String, bool Function(Uint8List))>>{
   'CPMp': [('CPMp', _cpmp)],
@@ -54,14 +51,10 @@ bool _trec(Uint8List b) => ViTextRecord(b).runCount >= 0;
 
 const _linkInfoTags = {'LIvi', 'LIbd', 'LIfp', 'LIds'};
 
-Map<String, int> _undecoded(Uint8List bytes, String path) {
+Map<String, int> _undecoded(CorpusVi vi) {
   final c = <String, int>{};
-  final Iterable<DecodedSection> sections;
-  try {
-    sections = decodeSections(bytes);
-  } catch (_) {
-    return c;
-  }
+  final sections = vi.decoded;
+  if (sections == null) return c;
   final vers = sections.where((section) => section.tag == 'vers').firstOrNull;
   final version = vers == null ? null : ViVersBlock(vers.bytes).versionWord;
   for (final section in sections) {
@@ -90,11 +83,11 @@ const kUndecodedAuxSections = <String, Map<String, int>>{
   'vi-corpus/sources/jdnichollsc__Automated-classrooms/LABORATORIOS.vi': {'LI**': 3},
 };
 
-void main() {
-  final all = corpusVis();
+void auxBlocksTests() {
+  final all = corpusVis.files;
 
   test('every aux block instance decodes', () async {
-    final res = await corpusParallel(all, _undecoded);
+    final res = await corpusVis.map(_undecoded);
     final keys = {
       for (final probes in _probes.values)
         for (final (key, _) in probes) key,

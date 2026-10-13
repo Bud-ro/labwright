@@ -1,0 +1,40 @@
+@Tags(['corpus'])
+library;
+
+import 'package:test/test.dart';
+
+import 'corpus/aux_blocks.dart';
+import 'corpus/const_value_census.dart';
+import 'corpus/corpus_coverage.dart';
+import 'corpus/corpus_invariants.dart';
+import 'corpus/corpus_snapshot.dart';
+import 'corpus/invariants.dart';
+import 'corpus/ir_json.dart';
+import 'corpus/object_color.dart';
+import 'corpus/selector_range_census.dart';
+import 'corpus/signal_type_census.dart';
+import 'corpus/wire_branch_oracle.dart';
+import 'corpus/wire_one_anchored_oracle.dart';
+import 'corpus/wire_render_style_census.dart';
+import 'corpus/wire_route_census.dart';
+import 'corpus/writer_scoreboard.dart';
+import 'corpus_dirs.dart';
+
+void main() {
+  tearDownAll(corpusVis.close);
+  group('invariants', invariantsTests);
+  group('corpus_snapshot', corpusSnapshotTests);
+  group('ir_json', irJsonTests);
+  group('writer_scoreboard', writerScoreboardTests);
+  group('wire_route_census', wireRouteCensusTests);
+  group('object_color', objectColorTests);
+  group('signal_type_census', signalTypeCensusTests);
+  group('const_value_census', constValueCensusTests);
+  group('corpus_coverage', corpusCoverageTests);
+  group('selector_range_census', selectorRangeCensusTests);
+  group('aux_blocks', auxBlocksTests);
+  group('corpus_invariants', corpusInvariantsTests);
+  group('wire_render_style_census', wireRenderStyleCensusTests);
+  group('wire_one_anchored_oracle', wireOneAnchoredOracleTests);
+  group('wire_branch_oracle', wireBranchOracleTests);
+}

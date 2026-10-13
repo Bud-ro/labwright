@@ -1,12 +1,9 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 const _descBaseAfterCount = 8;
 const _sectionDescriptorBytes = 20;
@@ -27,7 +24,8 @@ bool _eqRange(List<int> a, int aStart, List<int> b, int bStart, int len) {
   return true;
 }
 
-Map<String, int> _inv(Uint8List bytes, String path) {
+Map<String, int> _inv(CorpusVi vi) {
+  final bytes = vi.bytes;
   final c = <String, int>{};
   void bad(String key) => c[key] = (c[key] ?? 0) + 1;
 
@@ -270,11 +268,11 @@ Map<String, int> _inv(Uint8List bytes, String path) {
   return c;
 }
 
-void main() {
-  final all = corpusVis();
+void corpusInvariantsTests() {
+  final all = corpusVis.files;
   late final List<Map<String, int>> res;
   setUpAll(() async {
-    res = await corpusParallel(all, _inv);
+    res = await corpusVis.map(_inv);
   });
 
   Map<String, Map<String, int>> violations(Set<String> laws) => perFileNonzero(all, res, laws);

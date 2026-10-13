@@ -1,22 +1,21 @@
-@Tags(['corpus'])
-library;
-
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
-import 'corpus_dirs.dart';
+import '../corpus_dirs.dart';
 
 typedef _Snap = ({String path, bool error, int fp, int bd, List<String> blocks});
 
 typedef _Want = ({bool error, int fp, int bd, Set<String> blocks});
 
-_Snap _summarizeVi(Uint8List bytes, String path) {
+_Snap _summarizeVi(CorpusVi vi) {
+  final bytes = vi.bytes;
+  final path = vi.path;
   try {
     final blocks = parseVi(bytes).blocks.toSet().toList()..sort();
-    final m = buildViModel(bytes);
+    final m = vi.model;
+    if (m == null) throw vi.error!;
     return (
       path: path,
       error: false,
@@ -29,8 +28,8 @@ _Snap _summarizeVi(Uint8List bytes, String path) {
   }
 }
 
-void main() {
-  final all = corpusVis();
+void corpusSnapshotTests() {
+  final all = corpusVis.files;
   final snapFile = corpusSnapshotFile();
 
   final root = '${corpusViDir.path}/';
@@ -49,7 +48,7 @@ void main() {
 
   late final Map<String, _Snap> byPath;
   setUpAll(() async {
-    final res = await corpusParallel(all, _summarizeVi);
+    final res = await corpusVis.map(_summarizeVi);
     byPath = {for (final s in res) s.path: s};
   });
 

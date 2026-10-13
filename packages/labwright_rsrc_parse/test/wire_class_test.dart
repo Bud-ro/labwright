@@ -9,7 +9,7 @@ import 'package:test/test.dart';
 import 'corpus_dirs.dart';
 
 void main() {
-  final all = corpusVis();
+  final all = corpusVis.files;
 
   test('0x1d objects are BD-only wire segments with line-like bounds', () {
     var bdWires = 0, fpWires = 0, withBounds = 0, lineLike = 0;
