@@ -944,7 +944,7 @@ class _FunctionEmitter {
   void _emitStructure(LvStructUnit unit) {
     switch (unit.kind) {
       case LvStructureKind.forLoop:
-        _emitForLoop(unit);
+        _emitLoop(unit, bounded: true);
       case LvStructureKind.caseStructure:
         _emitCase(unit);
       case LvStructureKind.disableStructure:
@@ -952,13 +952,7 @@ class _FunctionEmitter {
       case LvStructureKind.flatSequence:
         _emitSequence(unit);
       case LvStructureKind.whileLoop:
-        lvRefuse(
-          LvRefusalKind.structure,
-          'a While loop\'s conditional terminal carries a stop-if-true / '
-          'continue-if-true polarity that no decoded field distinguishes '
-          '(see LvTerminalRole.conditional), so its exit test has no meaning',
-          oid: unit.oid,
-        );
+        _emitLoop(unit, bounded: false);
     }
   }
 
@@ -978,22 +972,24 @@ class _FunctionEmitter {
         port,
   };
 
-  void _emitForLoop(LvStructUnit unit) {
+  /// A For loop ([bounded]) or a While loop: one `for` whose body is the frame, its shift
+  /// registers and tunnels written at the end of each iteration, and a wired conditional
+  /// terminal tested last by its polarity.
+  void _emitLoop(LvStructUnit unit, {required bool bounded}) {
+    final kind = bounded ? 'For' : 'While';
     if (unit.frames.length != 1) {
-      lvRefuse(LvRefusalKind.structure, 'a For loop has ${unit.frames.length} frames, not one', oid: unit.oid);
+      lvRefuse(LvRefusalKind.structure, 'a $kind loop has ${unit.frames.length} frames, not one', oid: unit.oid);
     }
     final frame = unit.frames.single;
+    ({LvStructTerminal terminal, int port})? exit;
     for (final terminal in unit.terminals) {
       if (terminal.role != LvTerminalRole.conditional) continue;
       if (terminal.innerPorts[frame.frameOid] case final port? when flow.into(port) != null) {
-        lvRefuse(
-          LvRefusalKind.structure,
-          'a For loop\'s conditional terminal carries a stop-if-true / '
-          'continue-if-true polarity that no decoded field distinguishes '
-          '(see LvTerminalRole.conditional), so its exit test has no meaning',
-          oid: terminal.oid,
-        );
+        exit = (terminal: terminal, port: port);
       }
+    }
+    if (!bounded && exit == null) {
+      lvRefuse(LvRefusalKind.unwiredTerminal, 'a While loop\'s conditional terminal receives no wire', oid: unit.oid);
     }
     final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
     final indexedInputs = <({LvStructTerminal terminal, String array})>[];
@@ -1007,12 +1003,20 @@ class _FunctionEmitter {
       if (tunnel.outerIsSink) {
         final outer = _outerValue(tunnel);
         if (outer == null) {
-          lvRefuse(LvRefusalKind.unwiredTerminal, 'a For loop input tunnel receives no wire', oid: tunnel.oid);
+          lvRefuse(LvRefusalKind.unwiredTerminal, 'a $kind loop input tunnel receives no wire', oid: tunnel.oid);
         }
         if (!tunnel.autoIndexing) {
           _checkTunnelDims(tunnel, unit.oid, drop: 0);
           valueOf[inner] = outer;
           continue;
+        }
+        if (!bounded) {
+          lvRefuse(
+            LvRefusalKind.structure,
+            'a While loop\'s auto-indexing input tunnel reads past the array\'s end, and the '
+            'value it yields there is not decoded',
+            oid: tunnel.oid,
+          );
         }
         _checkTunnelDims(tunnel, unit.oid, drop: 1);
         _checkIndexedRank(tunnel, inner);
@@ -1033,7 +1037,7 @@ class _FunctionEmitter {
         if (fallback == null) {
           lvRefuse(
             LvRefusalKind.structure,
-            'a For loop\'s non-indexing output tunnel carries the last iteration\'s '
+            'a $kind loop\'s non-indexing output tunnel carries the last iteration\'s '
             'value, or the default of ${type.dartType} when the loop runs zero times, '
             'which has no decided spelling',
             oid: tunnel.oid,
@@ -1055,30 +1059,32 @@ class _FunctionEmitter {
     }
 
     final carried = _emitShiftRegisters(unit, frame.frameOid);
-    final bounds = <String>[
-      if (unit.terminals.where((terminal) => terminal.role == LvTerminalRole.count).firstOrNull case final count?)
-        if (_outerValue(count) case final value?) value,
-      for (final input in indexedInputs) '${input.array}.${_indexedLength(input.terminal)}',
-    ];
-    if (bounds.isEmpty) {
-      lvRefuse(
-        LvRefusalKind.unwiredTerminal,
-        'a For loop with neither a wired count terminal nor an auto-indexing '
-        'input tunnel states no iteration count',
-        oid: unit.oid,
-      );
-    }
-    String bound;
-    if (bounds.length == 1) {
-      bound = bounds.single;
-    } else {
-      library.imports.add(kLvRuntimeImport);
-      bound = names.role(LvNameRole.count);
-      body.writeln('final int $bound = ${LvRuntimeCall.iterationCount}(<int>[${bounds.join(', ')}]);');
+    String? bound;
+    if (bounded) {
+      final bounds = <String>[
+        if (unit.terminals.where((terminal) => terminal.role == LvTerminalRole.count).firstOrNull case final count?)
+          if (_outerValue(count) case final value?) value,
+        for (final input in indexedInputs) '${input.array}.${_indexedLength(input.terminal)}',
+      ];
+      if (bounds.isEmpty) {
+        lvRefuse(
+          LvRefusalKind.unwiredTerminal,
+          'a For loop with neither a wired count terminal nor an auto-indexing '
+          'input tunnel states no iteration count',
+          oid: unit.oid,
+        );
+      }
+      if (bounds.length == 1) {
+        bound = bounds.single;
+      } else {
+        library.imports.add(kLvRuntimeImport);
+        bound = names.role(LvNameRole.count);
+        body.writeln('final int $bound = ${LvRuntimeCall.iterationCount}(<int>[${bounds.join(', ')}]);');
+      }
     }
 
     final iteration = names.loopIndex();
-    body.writeln('for (var $iteration = 0; $iteration < $bound; $iteration++) {');
+    body.writeln('for (var $iteration = 0; ${bound == null ? '' : '$iteration < $bound'}; $iteration++) {');
     for (final terminal in unit.terminals) {
       if (terminal.role != LvTerminalRole.iteration) continue;
       if (terminal.innerPorts[frame.frameOid] case final port?) valueOf[port] = iteration;
@@ -1128,12 +1134,20 @@ class _FunctionEmitter {
       if (edge == null) {
         lvRefuse(
           LvRefusalKind.unwiredTerminal,
-          'a For loop output tunnel is not written inside the loop',
+          'a $kind loop output tunnel is not written inside the loop',
           oid: output.terminal.oid,
         );
       }
       body.writeln('${output.name} = ${_bound(edge.source, output.terminal.oid)};');
       valueOf[output.terminal.outerPort!] = output.name;
+    }
+    if (exit case (:final terminal, :final port)) {
+      final test = _bound(flow.into(port)!.source, terminal.oid);
+      final stops = switch (terminal.polarity!) {
+        LvConditionalPolarity.stopIfTrue => test,
+        LvConditionalPolarity.continueIfTrue => lvIsAtomic(test) ? '!$test' : '!($test)',
+      };
+      body.writeln('if ($stops) break;');
     }
     body.writeln('}');
 
@@ -1156,7 +1170,16 @@ class _FunctionEmitter {
       if (left == null) {
         lvRefuse(LvRefusalKind.structure, 'a right shift register names no left partner', oid: right.oid);
       }
-      if (left.outerPort == null || _typeAt(left.outerPort!) == null) continue;
+      if (left.outerPort == null || _typeAt(left.outerPort!) == null) {
+        final read = [left.innerPorts[frameOid], right.outerPort].any((port) => port != null && _read.contains(port));
+        if (!read) continue;
+        lvRefuse(
+          LvRefusalKind.structure,
+          'an uninitialised shift register keeps its value from the previous call, '
+          'which the lowering does not model',
+          oid: left.oid,
+        );
+      }
       final initial = _outerValue(left);
       if (initial == null) {
         lvRefuse(

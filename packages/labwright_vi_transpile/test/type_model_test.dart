@@ -825,4 +825,10 @@ final double volts;
     expect(narrowed, isNot(sum));
     expect(narrowed, (Float32List(1)..[0] = 0.30000001192092896)[0]);
   });
+
+  test('a conditional terminal stops on true when its record carries bit 0x10000', () {
+    expect(LvConditionalPolarity.ofFlags(0x10001), LvConditionalPolarity.stopIfTrue);
+    expect(LvConditionalPolarity.ofFlags(0x1), LvConditionalPolarity.continueIfTrue);
+    expect(LvConditionalPolarity.ofFlags(0), LvConditionalPolarity.continueIfTrue);
+  });
 }
