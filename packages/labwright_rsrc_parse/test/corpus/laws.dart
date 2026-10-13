@@ -8,6 +8,7 @@ import 'corpus_snapshot.dart';
 import 'invariants.dart';
 import 'ir_json.dart';
 import 'object_color.dart';
+import 'pane_terminal_census.dart';
 import 'selector_range_census.dart';
 import 'signal_type_census.dart';
 import 'wire_branch_oracle.dart';
@@ -26,6 +27,7 @@ const List<CorpusLaw<Object?>> corpusLaws = [
   invariantsLaw,
   irJsonLaw,
   objectColorLaw,
+  paneTerminalCensusLaw,
   selectorRangeCensusLaw,
   signalTypeCensusLaw,
   wireBranchOracleLaw,

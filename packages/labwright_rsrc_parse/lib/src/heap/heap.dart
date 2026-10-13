@@ -405,8 +405,9 @@ enum HeapAttribute {
   /// Terminal list length.
   termListLength(0x158, HeapAttrKind.ordinal, 'termListLength', AttrConfidence.confirmed),
 
-  /// Connection number; inferred.
-  conNum(0x044, HeapAttrKind.ordinal, 'conNum', AttrConfidence.inferred),
+  /// A panel control's connector-pane terminal: agrees with `CPMp` on 14,450 of 14,451 wired
+  /// terminals; 0xff off the pane, absent on terminal 0.
+  conNum(0x044, HeapAttrKind.ordinal, 'conNum', AttrConfidence.confirmed),
 
   /// Reserved flag; inferred.
   reservedFlag(0x059, HeapAttrKind.flag, 'reservedFlag', AttrConfidence.inferred),

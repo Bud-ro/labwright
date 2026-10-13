@@ -37,8 +37,7 @@ typedef LvViResolver = LvViUnit? Function(String fileName);
     fileName: sourceNote ?? functionName,
     diagram: diagram,
     pool: pool,
-    paneMap: const [],
-    panelDataItems: const [],
+    paneTerminals: const [],
     terminalOfDataItem: const {},
   ),
   functionName: functionName,
@@ -73,12 +72,12 @@ class _Port {
 }
 
 class _Callable {
-  _Callable({required this.unit, required this.functionName, required this.flow});
+  _Callable({required this.unit, required this.functionName, required this.flow, required this.names});
 
   final LvViUnit unit;
   final String functionName;
   final LvDataflow flow;
-  final LvNaming names = LvNaming();
+  final LvNaming names;
 
   final List<_Port> parameters = <_Port>[];
 
@@ -114,7 +113,11 @@ class _Library {
 
   final List<_Callable> functions = <_Callable>[];
 
+  /// The function names declared so far, which no local may take.
   final Set<String> takenNames = <String>{};
+
+  /// Every local named so far in any function, which no later function may take.
+  final Set<String> localNames = <String>{};
 
   void emit(LvViUnit unit, {required String entryName}) {
     final entry = declare(unit, name: entryName);
@@ -135,6 +138,7 @@ class _Library {
       unit: unit,
       functionName: _uniqueName(name ?? lvFieldName(unit.fileName.replaceAll(RegExp(r'\.\w+$'), ''))),
       flow: built.dataflow!,
+      names: LvNaming(reserved: takenNames, shared: localNames),
     );
     byFile[key] = callable;
     functions.add(callable);
@@ -144,9 +148,9 @@ class _Library {
 
   String _uniqueName(String stem) {
     final base = stem.isEmpty ? 'lowered' : stem;
-    if (takenNames.add(base)) return base;
-    for (var index = 2; ; index++) {
-      if (takenNames.add('$base$index')) return '$base$index';
+    for (var index = 1; ; index++) {
+      final candidate = index == 1 ? base : '$base$index';
+      if (!localNames.contains(candidate) && takenNames.add(candidate)) return candidate;
     }
   }
 
@@ -582,11 +586,11 @@ class _FunctionEmitter {
   void _emitSubVi(LvSubViUnit unit) {
     final callee = _resolveCallee(unit);
     final target = library.declare(callee);
-    if (callee.paneMap.length != unit.panePorts.length) {
+    if (callee.paneTerminals.length != unit.panePorts.length) {
       lvRefuse(
         LvRefusalKind.subViCall,
         'the call node draws ${unit.panePorts.length} connector-pane terminals but '
-        '"${callee.fileName}" has a ${callee.paneMap.length}-terminal pane, so the '
+        '"${callee.fileName}" has a ${callee.paneTerminals.length}-terminal pane, so the '
         'two do not describe the same interface',
         oid: unit.oid,
       );
@@ -681,10 +685,10 @@ class _FunctionEmitter {
     if (callee == null) {
       lvRefuse(LvRefusalKind.subViCall, 'the called VI "$name" was not supplied to the lowering', oid: unit.oid);
     }
-    if (callee.paneMap.isEmpty) {
+    if (callee.paneTerminals.isEmpty) {
       lvRefuse(
         LvRefusalKind.subViCall,
-        'the called VI "$name" carries no connector-pane map, so which of its '
+        'the called VI "$name" carries no connector pane, so which of its '
         'controls each call terminal feeds is not decoded',
         oid: unit.oid,
       );

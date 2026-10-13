@@ -1135,6 +1135,8 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
             if (cur.objectClass == HeapObjectClass.bdNode && hi == 4) cur.primResId ??= value;
           case HeapAttribute.dIdx:
             if (cur.objectClass.isMultiFrameStructure) cur.dIdx ??= value;
+          case HeapAttribute.conNum:
+            if (cur.objectClass == HeapObjectClass.node) cur.conNum ??= value;
           case HeapAttribute.selectDefaultCase:
             if (cur.objectClass == HeapObjectClass.bdStructureFrame && value != kViNoDefaultFrame) {
               cur.defaultFrameIndex ??= value;
@@ -1378,6 +1380,7 @@ const Set<HeapAttribute> _modelAttributes = {
   HeapAttribute.backgroundColor,
   HeapAttribute.borderColor,
   HeapAttribute.compressedWireTable,
+  HeapAttribute.conNum,
   HeapAttribute.constValue,
   HeapAttribute.contentColor,
   HeapAttribute.cosmColorB,

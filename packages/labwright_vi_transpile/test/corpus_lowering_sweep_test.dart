@@ -105,9 +105,9 @@ const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 const Map<String, int> kCorpusLoweringSweep = {
   'call': 1792,
   'call.calleeMissing': 389,
-  'call.noPaneMap': 1008,
-  'call.paneMatched': 286,
-  'call.paneWidthMismatch': 13,
+  'call.noPane': 63,
+  'call.paneMatched': 1204,
+  'call.paneWidthMismatch': 40,
   'call.unnamed': 96,
   'clus': 135446,
   'clus.kid.many': 255,
@@ -121,12 +121,12 @@ const Map<String, int> kCorpusLoweringSweep = {
   'clus.noneNoIndex': 43,
   'clus.noneUntyped': 378,
   'clus.one': 92017,
-  'clus.pane.many': 14,
-  'clus.pane.none': 4016,
-  'clus.pane.one': 5887,
-  'clus.paneAgrees': 2362,
-  'clus.paneDisagrees': 3525,
-  'clus.paneNameOnly': 3476,
+  'clus.pane.many': 48,
+  'clus.pane.none': 10022,
+  'clus.pane.one': 12530,
+  'clus.paneAgrees': 5208,
+  'clus.paneDisagrees': 7322,
+  'clus.paneNameOnly': 7237,
   'clus.typedefContradicts': 6,
   'clus.viaTypedef': 18215,
   'clus.why.member.0x33': 285,
@@ -141,31 +141,31 @@ const Map<String, int> kCorpusLoweringSweep = {
   'clus.why.typed': 91125,
   'clus.why.typesDisagree': 199,
   'clusType.kidAgrees': 68780,
-  'clusType.kidChecked': 5350,
+  'clusType.kidChecked': 13306,
   'clusType.kidDisagrees': 2050,
   'clusType.kidLabelOnly': 1980,
   'clusType.kidShapeDiffers': 68,
-  'clusType.kidUnchecked': 33724,
+  'clusType.kidUnchecked': 25768,
   'clusType.kidWouldDecide': 39074,
   'clusType.kidWouldNotMap': 596,
   'clusType.many': 199,
   'clusType.none': 41932,
   'clusType.one': 93315,
-  'clusType.pane.many': 1,
-  'clusType.pane.none': 5591,
-  'clusType.pane.one': 5914,
-  'clusType.paneAgrees': 5444,
-  'clusType.paneAtCallAgrees': 11465,
-  'clusType.paneAtCallDisagrees': 40,
-  'clusType.paneDisagrees': 470,
-  'clusType.paneLabelOnly': 463,
-  'clusType.paneOffCallAgrees': 4192,
-  'clusType.paneOffCallDisagrees': 282,
-  'clusType.paneOffCallLabelOnly': 247,
-  'clusType.paneOffCallShapeDiffers': 34,
-  'clusType.paneShapeDiffers': 6,
-  'clusType.paneWouldDecide': 5547,
-  'clusType.paneWouldNotMap': 44,
+  'clusType.pane.many': 2,
+  'clusType.pane.none': 13923,
+  'clusType.pane.one': 12608,
+  'clusType.paneAgrees': 11789,
+  'clusType.paneAtCallAgrees': 26314,
+  'clusType.paneAtCallDisagrees': 215,
+  'clusType.paneDisagrees': 819,
+  'clusType.paneLabelOnly': 790,
+  'clusType.paneOffCallAgrees': 10052,
+  'clusType.paneOffCallDisagrees': 633,
+  'clusType.paneOffCallLabelOnly': 486,
+  'clusType.paneOffCallShapeDiffers': 146,
+  'clusType.paneShapeDiffers': 27,
+  'clusType.paneWouldDecide': 13722,
+  'clusType.paneWouldNotMap': 201,
   'cond': 2210,
   'cond.dcoBit0': 324,
   'cond.dcoBit12': 143,
@@ -180,17 +180,17 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 63,
   'decl.vi': 3097,
   'exceptions.caseSelector': 3,
-  'exceptions.constantValue': 122,
+  'exceptions.constantValue': 129,
   'exceptions.foreignCall': 37,
-  'exceptions.lowered': 239,
-  'exceptions.primitive': 388,
-  'exceptions.structure': 79,
-  'exceptions.subViCall': 281,
+  'exceptions.lowered': 247,
+  'exceptions.primitive': 425,
+  'exceptions.structure': 82,
+  'exceptions.subViCall': 148,
   'exceptions.tunnelCoercion': 31,
   'exceptions.unboundValue': 2,
-  'exceptions.unwiredTerminal': 218,
-  'exceptions.wireDirection': 121,
-  'exceptions.wireType': 5873,
+  'exceptions.unwiredTerminal': 225,
+  'exceptions.wireDirection': 129,
+  'exceptions.wireType': 5936,
   'flag0.array': 24551,
   'flag0.scalar': 149919,
   'flag12.array': 931,
@@ -209,33 +209,35 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 40,
-  'modes.same': 199,
-  'pane.0x103.differs': 32,
-  'pane.0x104.differs': 125,
-  'pane.0x104.equal': 842,
-  'pane.0x124.differs': 2,
-  'pane.0x124.equal': 33,
-  'pane.0x31.differs': 51,
-  'pane.0x31.equal': 6093,
-  'pane.0x32.differs': 977,
-  'pane.0x32.equal': 37,
+  'modes.differ': 47,
+  'modes.same': 200,
+  'pane.0x103.differs': 129,
+  'pane.0x103.equal': 15,
+  'pane.0x104.differs': 297,
+  'pane.0x104.equal': 1460,
+  'pane.0x124.differs': 43,
+  'pane.0x124.equal': 171,
+  'pane.0x31.differs': 76,
+  'pane.0x31.equal': 19653,
+  'pane.0x32.differs': 1858,
+  'pane.0x32.equal': 43,
+  'pane.0xc5.equal': 162,
   'ref': 67373,
   'ref.ep.agrees': 13174,
   'ref.ep.contradicts': 1345,
   'ref.ep.split': 15,
-  'ref.pane.contraCell.70_d2.agrees': 193,
-  'ref.pane.contraCell.70_d3.agrees': 4030,
+  'ref.pane.contraCell.70_d2.agrees': 557,
+  'ref.pane.contraCell.70_d3.agrees': 8785,
   'ref.pane.contraCell.70_d3.contradicts': 1,
-  'ref.pane.contraCell.70_d4.agrees': 108,
+  'ref.pane.contraCell.70_d4.agrees': 284,
   'ref.pane.contraCell.70_d4.contradicts': 10,
-  'ref.pane.contraCell.71_d4.agrees': 42,
-  'ref.pane.contraCell.71_d5.agrees': 558,
-  'ref.pane.contraCell.71_d6.agrees': 1,
-  'ref.pane.dims0': 4747,
-  'ref.pane.dims1': 196,
-  'ref.pane.lawAgrees': 1824,
-  'ref.pane.vsAgrees': 4932,
+  'ref.pane.contraCell.71_d4.agrees': 91,
+  'ref.pane.contraCell.71_d5.agrees': 1054,
+  'ref.pane.contraCell.71_d6.agrees': 9,
+  'ref.pane.dims0': 10265,
+  'ref.pane.dims1': 526,
+  'ref.pane.lawAgrees': 3908,
+  'ref.pane.vsAgrees': 10780,
   'ref.pane.vsContradicts': 11,
   'ref.pane.vsInvented': 10,
   'ref.pane.vsMissed': 1,
@@ -259,25 +261,25 @@ const Map<String, int> kCorpusLoweringSweep = {
   'render.lawSilent.styleSpeaks': 6013,
   'render.refUndecided.styleMute': 33925,
   'render.refUndecided.styleSpeaks': 5329,
-  'term.calleeUntyped': 599,
-  'term.dirAgree': 852,
-  'term.resolved': 852,
-  'term.typeAgree': 250,
-  'term.typeDisagree': 3,
-  'term.unresolved': 13,
-  'term.wired': 865,
+  'term.calleeUntyped': 1424,
+  'term.dirAgree': 2482,
+  'term.resolved': 2482,
+  'term.typeAgree': 1046,
+  'term.typeDisagree': 12,
+  'term.unresolved': 25,
+  'term.wired': 2507,
   'threaded.caseSelector': 3,
-  'threaded.constantValue': 122,
+  'threaded.constantValue': 129,
   'threaded.foreignCall': 37,
-  'threaded.lowered': 239,
-  'threaded.primitive': 388,
-  'threaded.structure': 79,
-  'threaded.subViCall': 281,
+  'threaded.lowered': 247,
+  'threaded.primitive': 425,
+  'threaded.structure': 82,
+  'threaded.subViCall': 148,
   'threaded.tunnelCoercion': 31,
   'threaded.unboundValue': 2,
-  'threaded.unwiredTerminal': 218,
-  'threaded.wireDirection': 121,
-  'threaded.wireType': 5873,
+  'threaded.unwiredTerminal': 225,
+  'threaded.wireDirection': 129,
+  'threaded.wireType': 5936,
   'vi': 7394,
   'wt.cause.member.0x33': 14,
   'wt.cause.member.0x37': 4,
@@ -348,7 +350,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
+const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -360,7 +362,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
   final foreign = <String>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
-  var builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
+  var builds = <LvViUnit, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
   var registry = LvDeclarations();
   var clusterWireCause = <int, String>{};
   var untypedFamilies = <String>{};
@@ -381,16 +383,14 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
     final path = index[name.toLowerCase()];
     if (path == null) return null;
     try {
-      return lvConnectorPaneMap(decodeSections(File(path).readAsBytesSync())).length;
+      return buildViModelFromDecoded(decodeSections(File(path).readAsBytesSync())).paneTerminals.length;
     } catch (_) {
       return null;
     }
   });
 
-  ({LvDataflow? dataflow, LvRefusal? refusal}) buildOf(LvViUnit unit) => builds.putIfAbsent(
-    unit.fileName,
-    () => buildLvDataflow(unit.diagram, pool: unit.pool, declarations: registry),
-  );
+  ({LvDataflow? dataflow, LvRefusal? refusal}) buildOf(LvViUnit unit) =>
+      builds.putIfAbsent(unit, () => buildLvDataflow(unit.diagram, pool: unit.pool, declarations: registry));
 
   LvDataflow? flowOf(LvViUnit unit) => buildOf(unit).dataflow;
 
@@ -399,8 +399,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
     if (call.calleeName == null) return bump('call.unnamed');
     final callee = resolve(call.calleeName!);
     if (callee == null) return bump('call.calleeMissing');
-    if (callee.paneMap.isEmpty) return bump('call.noPaneMap');
-    if (callee.paneMap.length != call.panePorts.length) return bump('call.paneWidthMismatch');
+    if (callee.paneTerminals.isEmpty) return bump('call.noPane');
+    if (callee.paneTerminals.length != call.panePorts.length) return bump('call.paneWidthMismatch');
     bump('call.paneMatched');
     final calleeFlow = flowOf(callee);
     for (var pane = 0; pane < call.panePorts.length; pane++) {
@@ -479,7 +479,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
       ];
       if (!ports.any(endpoints.contains)) continue;
       final callee = resolve(name);
-      if (callee == null || ports.length != callee.paneMap.length || callee.paneMap.isEmpty) continue;
+      if (callee == null || ports.length != callee.paneTerminals.length || callee.paneTerminals.isEmpty) continue;
       for (var pane = 0; pane < ports.length; pane++) {
         paneOf[ports[pane]] = (callee, pane);
       }
@@ -873,7 +873,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 239, sources: 66);
     censusPrimitives(unit.diagram);
     censusCallPaneWidths(unit.diagram);
     censusForeignCalls(unit.diagram);
-    builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
+    builds = <LvViUnit, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
     registry = LvDeclarations();
     clusterWireCause = <int, String>{};
     untypedFamilies = <String>{};
