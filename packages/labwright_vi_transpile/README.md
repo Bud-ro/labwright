@@ -101,11 +101,19 @@ class only when their member types and member names agree.
   (`(double, int)`). A record's identity is structural, exactly like an unnamed
   cluster's, and costs no generated declaration.
 - **Typedef** (`0xf1`) → nominal only when its base is a cluster or an enum,
-  which need a declaration anyway, and the declaration then takes the
-  *typedef's* name; a typedef of a scalar, string or array is transparent.
-  Corpus typedef bases: cluster 19,890, enumU16 5,548, U64 1,347, enumU32
-  1,053, refnum 934, and 15 further kinds; 20 of 31,060 typedef descriptors
-  expose no base and are unmapped.
+  which need a declaration anyway; a typedef of a scalar, string or array is
+  transparent. A typedef that names its control — the descriptor carries the
+  control's library-qualified name, `Lib.lvlib`, `Class.lvclass`, `Name.ctl` —
+  is **one declaration per qualified name**, named after the control, however
+  each VI's copy labels it: 1,155 such typedef clusters live in the corpus, and
+  the copies of one agree on their member types in 1,107 of them and on their
+  member labels in 1,098 of the fully labelled; a copy whose member types or
+  enum items differ from the one already declared is a stale save against
+  another version of the control and is refused. A typedef without a control
+  name (20 of 31,060) is declared from its label as a cluster is. Corpus
+  typedef bases: cluster 19,890, enumU16 5,548, U64 1,347, enumU32 1,053,
+  refnum 934, and 15 further kinds; 20 descriptors expose no base and are
+  unmapped.
 - **Enum** → a Dart `enum`. The descriptor's interior is `[u16 count]` then
   `count × [u8 len][chars]` — item labels in order and **no value word
   anywhere** — so an item's value is its ordinal, which is exactly a Dart
@@ -121,13 +129,13 @@ does one wanting a name the file already spells (`String`, `Uint8List`,
 `LvError`; `kLvReservedTypeNames`).
 
 Corpus, over the cluster wires that resolve a member shape, one registry per VI:
-3,129 of 7,508 VIs need a declaration at all, and they need **10,437** — 8,583
-cluster classes and 1,854 enums. **724** take a suffix because a structurally
-different type in the same VI already holds the name, which is why the name
-alone cannot be the identity. Member names come from the one naming policy:
-1,213 declarations hold a member the descriptor does not name, and 1,594
-members are displaced by an earlier member or by a name every Dart class
-inherits.
+3,106 of 7,508 VIs need a declaration at all, and they need **9,324** — 7,788
+cluster classes and 1,536 enums. **563** take a suffix because a structurally
+different type, or another control with the same name, in the same VI already
+holds the name, which is why the name alone cannot be the identity. Member
+names come from the one naming policy: 63 declarations hold a member
+the descriptor does not name, and 58 members are displaced by an
+earlier member or by a name every Dart class inherits.
 
 One shape has no declaration and is **refused**
 (`LvRefusalKind.typeDeclaration`, 16 VIs): an enum whose item labels did not

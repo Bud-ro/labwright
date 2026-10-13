@@ -50,11 +50,18 @@ List<int> array(int elementIndex, int dimCount) => _descriptor(TypeCode.array, [
   elementIndex & 0xff,
 ]);
 
-/// A typedef whose inline base is [baseBody] (`flags, code, body...`) labelled [name].
-List<int> typeDef(List<int> baseBody, String name) {
+/// A typedef whose inline base is [baseBody] (`flags, code, body...`) labelled [name], naming
+/// its control by [components] (the qualified name, outermost first), by default [name] alone.
+List<int> typeDef(List<int> baseBody, String name, {List<String>? components}) {
   final base = _descriptor(baseBody[1], baseBody.sublist(2), name: name);
   base[1] += 4;
-  return _descriptor(TypeCode.typeDef, [0, 0, 0, 0, 0, 0, 0, 1, ...pascal(name), ...base]);
+  final qualified = components ?? [name];
+  return _descriptor(TypeCode.typeDef, [
+    0, 0, 0, 0, //
+    0, 0, 0, qualified.length,
+    for (final component in qualified) ...pascal(component),
+    ...base,
+  ]);
 }
 
 List<ViType> poolOf(List<List<int>> descriptors) => ViTypePool(

@@ -23,7 +23,7 @@ List<LvTypeDecl> lvDeclarationClosure(Iterable<LvTypeDecl> roots) {
 String _classSource(LvTypeDecl decl) {
   final names = LvNaming.declarationFields([for (final field in decl.fields) field.label]);
   final out = StringBuffer()
-    ..writeln('/// The LabVIEW cluster ${_doc(decl.label)}.')
+    ..writeln(_heading('cluster', decl))
     ..writeln('class ${decl.name} {')
     ..writeln(
       'const ${decl.name}('
@@ -46,7 +46,7 @@ String _classSource(LvTypeDecl decl) {
 String _enumSource(LvTypeDecl decl) {
   final names = LvNaming.declarationItems(decl.items);
   final out = StringBuffer()
-    ..writeln('/// The LabVIEW enum ${_doc(decl.label)}. A member\'s `index` is the')
+    ..writeln('${_heading('enum', decl)} A member\'s `index` is the')
     ..writeln('/// value the wire carries: the descriptor states the item labels in order')
     ..writeln('/// and no value of its own for any of them.')
     ..writeln('enum ${decl.name} {');
@@ -57,6 +57,10 @@ String _enumSource(LvTypeDecl decl) {
   out.writeln('}');
   return out.toString();
 }
+
+String _heading(String kind, LvTypeDecl decl) => decl.qualifiedName.isEmpty
+    ? '/// The LabVIEW $kind ${_doc(decl.label)}.'
+    : '/// The LabVIEW typedef $kind ${_doc(decl.qualifiedName.join(':'))}.';
 
 String _doc(String? label) {
   if (label == null) return 'with no name of its own';
