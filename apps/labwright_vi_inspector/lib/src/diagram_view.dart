@@ -1,6 +1,4 @@
 import 'dart:async';
-import 'dart:convert';
-import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
@@ -329,8 +327,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       if (art != null) {
         final stamp = primIconStampRect(
           Rect.fromLTRB(left, top, right, bottom),
-          art.base.width,
-          art.base.height,
+          art.width,
+          art.height,
           key: key,
         );
         left = math.min(left, stamp.left);
@@ -682,142 +680,256 @@ PrimIconArt? primIconArtFor(
   final variant = icons[classVariantIconKey(object.kind, terms)];
   if (variant != null) {
     final b = object.absBounds;
-    if (b != null &&
-        variant.base.width == b.width &&
-        variant.base.height == b.height) {
+    if (b != null && variant.width == b.width && variant.height == b.height) {
       return variant;
     }
   }
   final legacy = icons[key];
   final b = object.absBounds;
   if (legacy == null || b == null) return legacy;
-  return legacy.base.width == b.width && legacy.base.height == b.height
-      ? legacy
-      : null;
+  return legacy.width == b.width && legacy.height == b.height ? legacy : null;
 }
 
 const kPrimIconPrescale = 4;
 
-typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
+/// One primitive icon: its pixels, the measurements the painters take from them, its [image]
+/// and that image drawn at [kPrimIconPrescale] as [sharp].
+class PrimIconArt {
+  PrimIconArt({
+    required this.width,
+    required this.height,
+    required this.rgba,
+    required this.alpha,
+    required this.cornerAa,
+    required this.inkBounds,
+    required this.image,
+    required this.sharp,
+  });
+
+  final int width;
+
+  final int height;
+
+  final Uint8List rgba;
+
+  final Uint8List alpha;
+
+  final Set<int> cornerAa;
+
+  final ui.Rect? inkBounds;
+
+  final ui.Image image;
+
+  final ui.Image sharp;
+}
 
 /// The primitive icons by icon key, filled once by [loadPrimIcons] before the first frame.
 final Map<int, PrimIconArt> primIcons = {};
 
-/// The disabled-structure variants of [primIcons], greyed through [_greyDisabledPalette].
+/// The disabled-structure variants of [primIcons], greyed through [_greyDisabledColor].
 final Map<int, PrimIconArt> primIconsGrey = {};
 
-/// Builds every primitive icon from [kPrimIconArtSources] into [primIcons] and [primIconsGrey];
-/// the app calls it before the first frame, so every painter finds its icons.
+/// Raises every icon in [kPrimIconArt] into [primIcons] and [primIconsGrey]; the app calls it
+/// before the first frame, so every painter finds its icons.
 Map<int, PrimIconArt> loadPrimIcons() {
   if (primIcons.isNotEmpty) return primIcons;
-  for (final source in kPrimIconArtSources) {
-    if (kPrimIconStatus[source.key] == PrimIconStatus.rejected) continue;
-    final id = parsePrimIconName(source.key)!;
-    final width = source.width, height = source.height;
-    final pixels = Uint8List.fromList(
-      ZLibDecoder().convert(base64Decode(source.packedRgba)),
-    );
+  final indexOfCharacter = Int32List(128);
+  final palette = Int32List(kPrimIconPalette.length);
+  var entry = 0;
+  for (final MapEntry(key: character, value: argb)
+      in kPrimIconPalette.entries) {
+    indexOfCharacter[character.codeUnitAt(0)] = entry;
+    palette[entry++] = argb;
+  }
+  final greyPalette = Int32List.fromList([
+    0,
+    for (final argb in palette.skip(1)) _greyDisabledColor(argb),
+  ]);
+  for (final MapEntry(key: key, value: art) in kPrimIconArt.entries) {
+    if (kPrimIconStatus[key] == PrimIconStatus.rejected) continue;
+    final id = parsePrimIconName(key)!;
+    final width = art.indexOf('|');
+    final height = art.length ~/ (width + 1);
+    final indices = Uint8List(width * height);
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        indices[y * width + x] =
+            indexOfCharacter[art.codeUnitAt(y * (width + 1) + x)];
+      }
+    }
+    final pixels = Uint8List(width * height * 4);
+    final greyPixels = Uint8List(width * height * 4);
     final alpha = Uint8List(width * height);
-    for (var i = 0; i < alpha.length; i++) {
-      alpha[i] = pixels[i * 4 + 3];
+    for (var i = 0; i < indices.length; i++) {
+      final index = indices[i];
+      if (index == 0) continue;
+      final argb = palette[index], grey = greyPalette[index] & 0xff;
+      pixels[i * 4] = (argb >> 16) & 0xff;
+      pixels[i * 4 + 1] = (argb >> 8) & 0xff;
+      pixels[i * 4 + 2] = argb & 0xff;
+      pixels[i * 4 + 3] = 0xff;
+      greyPixels[i * 4] = greyPixels[i * 4 + 1] = greyPixels[i * 4 + 2] = grey;
+      greyPixels[i * 4 + 3] = 0xff;
+      alpha[i] = 0xff;
     }
     final corners = <int>{};
     var minX = width, minY = height, maxX = -1, maxY = -1;
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
-        final artIndex = y * width + x;
-        if (alpha[artIndex] == 0) continue;
+        final i = y * width + x;
+        if (alpha[i] == 0) continue;
         if (x < minX) minX = x;
         if (y < minY) minY = y;
         if (x > maxX) maxX = x;
         if (y > maxY) maxY = y;
-        if (alpha[artIndex] != 255) continue;
-        final byteIndex = artIndex * 4;
-        if (pixels[byteIndex] != 0xdd ||
-            pixels[byteIndex + 1] != 0xdd ||
-            pixels[byteIndex + 2] != 0xdd) {
-          continue;
-        }
+        if (palette[indices[i]] != 0xffdddddd) continue;
         final onEdge =
             x == 0 ||
             y == 0 ||
             x == width - 1 ||
             y == height - 1 ||
-            alpha[artIndex - 1] == 0 ||
-            alpha[artIndex + 1] == 0 ||
-            alpha[artIndex - width] == 0 ||
-            alpha[artIndex + width] == 0;
-        if (onEdge) corners.add(artIndex);
+            alpha[i - 1] == 0 ||
+            alpha[i + 1] == 0 ||
+            alpha[i - width] == 0 ||
+            alpha[i + width] == 0;
+        if (onEdge) corners.add(i);
       }
     }
-    _primIconPixels[id] = _PrimIconPixels(
+    final inkBounds = maxX < minX
+        ? null
+        : ui.Rect.fromLTRB(
+            minX.toDouble(),
+            minY.toDouble(),
+            maxX + 1.0,
+            maxY + 1.0,
+          );
+    final rects = _rects(indices, width, height, palette.length);
+    final image = _imageOf(rects, palette, width, height);
+    final greyImage = _imageOf(rects, greyPalette, width, height);
+    primIcons[id] = PrimIconArt(
       width: width,
       height: height,
-      alpha: alpha,
       rgba: pixels,
+      alpha: alpha,
       cornerAa: corners,
-      inkBounds: maxX >= minX && maxY >= minY
-          ? ui.Rect.fromLTRB(
-              minX.toDouble(),
-              minY.toDouble(),
-              maxX + 1.0,
-              maxY + 1.0,
-            )
-          : null,
+      inkBounds: inkBounds,
+      image: image,
+      sharp: _prescaled(image),
     );
-    final greyPixels = Uint8List.fromList(pixels);
-    _greyDisabledPalette(greyPixels);
-    primIconsGrey[id] = _prescaledArt(_imageOfRgba(greyPixels, width, height));
-    primIcons[id] = _prescaledArt(_imageOfRgba(pixels, width, height));
+    primIconsGrey[id] = PrimIconArt(
+      width: width,
+      height: height,
+      rgba: greyPixels,
+      alpha: alpha,
+      cornerAa: corners,
+      inkBounds: inkBounds,
+      image: greyImage,
+      sharp: _prescaled(greyImage),
+    );
   }
   return primIcons;
 }
 
-/// An image of [rgba] drawn as one rectangle per run of equal opaque pixels, raised on the
-/// spot; every icon is fully opaque or fully transparent per pixel.
-ui.Image _imageOfRgba(Uint8List rgba, int width, int height) {
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder);
-  final paint = ui.Paint()..isAntiAlias = false;
+/// The opaque pixels of [indices] as rectangles of one palette index each, grouped by that
+/// index: every run of equal pixels in a row, merged with the identical run beneath it. The six
+/// vertices of each rectangle's two triangles follow one another.
+List<Float32List> _rects(Uint8List indices, int width, int height, int colors) {
+  final left = Int32List(indices.length ~/ 2 + 1);
+  final top = Int32List(left.length);
+  final right = Int32List(left.length);
+  final bottom = Int32List(left.length);
+  final color = Int32List(left.length);
+  final rectAbove = Int32List(width);
+  final rectHere = Int32List(width);
+  final perColor = Int32List(colors);
+  var count = 0;
   for (var y = 0; y < height; y++) {
+    final row = y * width;
+    rectHere.fillRange(0, width, -1);
     var x = 0;
     while (x < width) {
-      final i = (y * width + x) * 4;
-      if (rgba[i + 3] == 0) {
+      final index = indices[row + x];
+      if (index == 0) {
         x++;
         continue;
       }
       var end = x + 1;
-      while (end < width) {
-        final j = (y * width + end) * 4;
-        if (rgba[j] != rgba[i] ||
-            rgba[j + 1] != rgba[i + 1] ||
-            rgba[j + 2] != rgba[i + 2] ||
-            rgba[j + 3] != rgba[i + 3]) {
-          break;
-        }
+      while (end < width && indices[row + end] == index) {
         end++;
       }
-      paint.color = ui.Color.fromARGB(
-        rgba[i + 3],
-        rgba[i],
-        rgba[i + 1],
-        rgba[i + 2],
-      );
-      canvas.drawRect(
-        ui.Rect.fromLTWH(x.toDouble(), y.toDouble(), (end - x).toDouble(), 1),
-        paint,
-      );
+      final above = y == 0 ? -1 : rectAbove[x];
+      if (above >= 0 &&
+          right[above] == end &&
+          color[above] == index &&
+          bottom[above] == y) {
+        bottom[above] = y + 1;
+        rectHere[x] = above;
+      } else {
+        left[count] = x;
+        top[count] = y;
+        right[count] = end;
+        bottom[count] = y + 1;
+        color[count] = index;
+        perColor[index]++;
+        rectHere[x] = count;
+        count++;
+      }
       x = end;
     }
+    rectAbove.setAll(0, rectHere);
+  }
+  final vertices = [
+    for (var c = 0; c < colors; c++) Float32List(perColor[c] * 12),
+  ];
+  final filled = Int32List(colors);
+  for (var r = 0; r < count; r++) {
+    final c = color[r];
+    final out = vertices[c];
+    final p = filled[c] * 12;
+    filled[c]++;
+    final l = left[r].toDouble(), t = top[r].toDouble();
+    final rr = right[r].toDouble(), bb = bottom[r].toDouble();
+    out[p] = l;
+    out[p + 1] = t;
+    out[p + 2] = rr;
+    out[p + 3] = t;
+    out[p + 4] = l;
+    out[p + 5] = bb;
+    out[p + 6] = rr;
+    out[p + 7] = t;
+    out[p + 8] = rr;
+    out[p + 9] = bb;
+    out[p + 10] = l;
+    out[p + 11] = bb;
+  }
+  return vertices;
+}
+
+/// An image raised on the spot from [rects], one draw per palette entry.
+ui.Image _imageOf(
+  List<Float32List> rects,
+  Int32List palette,
+  int width,
+  int height,
+) {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  final paint = ui.Paint()..isAntiAlias = false;
+  for (var c = 1; c < rects.length; c++) {
+    if (rects[c].isEmpty) continue;
+    paint.color = ui.Color(palette[c]);
+    canvas.drawVertices(
+      ui.Vertices.raw(ui.VertexMode.triangles, rects[c]),
+      ui.BlendMode.srcOver,
+      paint,
+    );
   }
   return recorder.endRecording().toImageSync(width, height);
 }
 
-PrimIconArt _prescaledArt(ui.Image image) {
+ui.Image _prescaled(ui.Image image) {
   final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder);
-  canvas.drawImageRect(
+  ui.Canvas(recorder).drawImageRect(
     image,
     ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
     ui.Rect.fromLTWH(
@@ -828,22 +940,17 @@ PrimIconArt _prescaledArt(ui.Image image) {
     ),
     ui.Paint()..filterQuality = ui.FilterQuality.none,
   );
-  return (
-    base: image,
-    sharp: recorder.endRecording().toImageSync(
-      image.width * kPrimIconPrescale,
-      image.height * kPrimIconPrescale,
-    ),
+  return recorder.endRecording().toImageSync(
+    image.width * kPrimIconPrescale,
+    image.height * kPrimIconPrescale,
   );
 }
 
-void _greyDisabledPalette(Uint8List rgba) {
-  for (var i = 0; i < rgba.length; i += 4) {
-    if (rgba[i + 3] == 0) continue;
-    final light = (rgba[i] + rgba[i + 1] + rgba[i + 2]) >= 3 * 204;
-    final v = light ? 255 : 170;
-    rgba[i] = rgba[i + 1] = rgba[i + 2] = v;
-  }
+/// The disabled-structure grey of one opaque ARGB colour: white for light colours, 170 otherwise.
+int _greyDisabledColor(int argb) {
+  final r = (argb >> 16) & 0xff, g = (argb >> 8) & 0xff, b = argb & 0xff;
+  final v = r + g + b >= 3 * 204 ? 255 : 170;
+  return 0xff000000 | (v << 16) | (v << 8) | v;
 }
 
 Future<ui.Image> decodeImage(Uint8List bytes) {
@@ -937,33 +1044,9 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
   return imageFromRgba(rgba, icon.width, icon.height);
 }
 
-class _PrimIconPixels {
-  const _PrimIconPixels({
-    required this.width,
-    required this.height,
-    required this.alpha,
-    required this.rgba,
-    required this.cornerAa,
-    required this.inkBounds,
-  });
-
-  final int width;
-  final int height;
-
-  final Uint8List alpha;
-
-  final Uint8List rgba;
-
-  final Set<int> cornerAa;
-
-  final ui.Rect? inkBounds;
-}
-
-final Map<int, _PrimIconPixels> _primIconPixels = {};
-
 const _kCornerAaRung2 = Color(0xFFAAAAAA);
 
-ui.Rect? primIconInkBounds(int key) => _primIconPixels[key]?.inkBounds;
+ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
@@ -992,12 +1075,12 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
   if (b == null) return key;
   for (var t = 0; t <= 15; t++) {
     final id = classVariantIconKey(object.kind, t);
-    final art = _primIconPixels[id];
+    final art = primIcons[id];
     if (art != null && art.width == b.width && art.height == b.height) {
       return id;
     }
   }
-  final legacy = _primIconPixels[key];
+  final legacy = primIcons[key];
   if (legacy != null &&
       (legacy.width != b.width || legacy.height != b.height)) {
     return null;
@@ -1007,9 +1090,9 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
 
 bool primIconHit(ViHeapObject object, double x, double y) {
   final id = loadedPrimIconIdOf(object);
-  final art = id == null ? null : _primIconPixels[id];
+  final art = id == null ? null : primIcons[id];
   final bounds = object.absBounds;
-  if (art == null || bounds == null || primIcons[id] == null) return true;
+  if (art == null || bounds == null) return true;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
       bounds.left.toDouble(),
@@ -1034,7 +1117,7 @@ int? primIconInkEdge(
   required int sign,
 }) {
   final id = loadedPrimIconIdOf(object);
-  final art = id == null ? null : _primIconPixels[id];
+  final art = id == null ? null : primIcons[id];
   final b = object.absBounds;
   if (art == null || b == null) return null;
   final stamp = primIconStampRect(
@@ -2082,13 +2165,15 @@ class BdDiagramPainter extends CustomPainter {
               canvasScale >= kPrimIconPrescale
           ? FilterQuality.none
           : iconFilterQuality;
-      final art = filter == FilterQuality.none ? primIcon.base : primIcon.sharp;
       final dst = primIconStampRect(
         rect,
-        primIcon.base.width,
-        primIcon.base.height,
+        primIcon.width,
+        primIcon.height,
         key: iconKey,
       );
+      final art = filter == FilterQuality.none
+          ? primIcon.image
+          : primIcon.sharp;
       canvas.drawImageRect(
         art,
         Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
@@ -2097,10 +2182,10 @@ class BdDiagramPainter extends CustomPainter {
       );
       final ladderId = disabled ? null : loadedPrimIconIdOf(object);
       final corners =
-          (ladderId == null ? null : _primIconPixels[ladderId]?.cornerAa) ??
+          (ladderId == null ? null : primIcons[ladderId]?.cornerAa) ??
           const <int>{};
       for (final artIndex in corners) {
-        final artWidth = primIcon.base.width;
+        final artWidth = primIcon.width;
         final cornerX = dst.left + artIndex % artWidth;
         final cornerY = dst.top + artIndex ~/ artWidth;
         var beneathCorner = false;
@@ -2108,7 +2193,7 @@ class BdDiagramPainter extends CustomPainter {
         for (final prior in stampedPrimIcons.reversed) {
           final localX = (cornerX - prior.dst.left).round();
           final localY = (cornerY - prior.dst.top).round();
-          final priorArt = _primIconPixels[prior.id];
+          final priorArt = primIcons[prior.id];
           if (priorArt == null ||
               localX < 0 ||
               localY < 0 ||
@@ -2488,8 +2573,8 @@ class BdDiagramPainter extends CustomPainter {
         final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);
         iconNodeObjects[boxRect] = object;
-        final art = primIcons[iconKey]?.base;
-        final ink = primIconInkBounds(iconKey);
+        final art = primIcons[iconKey];
+        final ink = art?.inkBounds;
         if (art != null && ink != null) {
           final stamp = primIconStampRect(
             boxRect,
@@ -5101,7 +5186,7 @@ class _OverlayPainter extends CustomPainter {
     final art = key == null ? null : primIcons[key];
     return art == null
         ? rect
-        : primIconStampRect(rect, art.base.width, art.base.height, key: key);
+        : primIconStampRect(rect, art.width, art.height, key: key);
   }
 
   @override

@@ -524,12 +524,11 @@ Future<List<int>> _paintSheet(Map<int, PrimIconArt> icons) async {
     );
     final art = row.primResId == null ? null : icons[row.primResId!];
     if (art != null) {
-      final image = art.base;
-      final scale = (34 / image.width).clamp(0.0, 34 / image.height);
-      final w = image.width * scale, h = image.height * scale;
+      final scale = (34 / art.width).clamp(0.0, 34 / art.height);
+      final w = art.width * scale, h = art.height * scale;
       canvas.drawImageRect(
-        image,
-        Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
+        art.image,
+        Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
         Rect.fromLTWH(12 + (36 - w) / 2, y + 8 + (36 - h) / 2, w, h),
         Paint()..filterQuality = FilterQuality.none,
       );

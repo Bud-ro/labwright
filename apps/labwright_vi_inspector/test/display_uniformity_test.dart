@@ -129,8 +129,8 @@ void main() {
               b.right.toDouble(),
               b.bottom.toDouble(),
             ),
-            art.base.width,
-            art.base.height,
+            art.width,
+            art.height,
             key: key,
           );
           for (final v in [stamp.left, stamp.top, stamp.width, stamp.height]) {
@@ -145,8 +145,8 @@ void main() {
             greaterThan(0),
             reason: 'empty stamp for $key in ${f.path}',
           );
-          final mask = (await art.base.toByteData())!.buffer.asUint8List();
-          final aw = art.base.width, ah = art.base.height;
+          final mask = art.rgba;
+          final aw = art.width, ah = art.height;
           (int, int)? top, leftmost;
           for (var y = 0; y < ah && top == null; y++) {
             for (var x = 0; x < aw; x++) {
@@ -242,7 +242,7 @@ void main() {
       int lum(int x, int y) => out[(y * display.width + x) * 4];
       final o = bd.byId[894]!.absBounds!;
       final reg = result.registration;
-      final art1608b = icons[1608]!.base;
+      final art1608b = icons[1608]!;
       final stampRef = primIconStampRect(
         ui.Rect.fromLTRB(
           o.left - raster.content.left + reg.dx,
@@ -297,8 +297,8 @@ void main() {
 
       final greyIcons = primIconsGrey;
       for (final (label, key, oid, art) in [
-        ('prim1608', 1608, 894, icons[1608]!.base),
-        ('prim1900 disabled', 1900, 3081, greyIcons[1900]!.base),
+        ('prim1608', 1608, 894, icons[1608]!),
+        ('prim1900 disabled', 1900, 3081, greyIcons[1900]!),
       ]) {
         final b = bd.byId[oid]!.absBounds!;
         final stamp = primIconStampRect(
@@ -312,7 +312,7 @@ void main() {
           art.height,
           key: key,
         );
-        final artPx = (await art.toByteData())!.buffer.asUint8List();
+        final artPx = art.rgba;
         var opaque = 0, mismatched = 0;
         for (var y = 0; y < art.height; y++) {
           for (var x = 0; x < art.width; x++) {
