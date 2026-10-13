@@ -1248,6 +1248,65 @@ class _FunctionEmitter {
     return null;
   }
 
+  /// The value an unwired structure output carries: the default of its type, as LabVIEW's
+  /// *use default if unwired* substitutes it. Null where this package spells no default for
+  /// the type.
+  String? _defaultValueOf(LvWireType type) => _defaultOfMapping(type.value);
+
+  String? _defaultOfMapping(LvTypeMapping mapping) {
+    if (!mapping.isMapped) return null;
+    final dartType = mapping.dartType;
+    if (dartType == null) return null;
+    switch (mapping.carrier) {
+      case LvCarrier.boolean:
+        return 'false';
+      case LvCarrier.integer:
+        return '0';
+      case LvCarrier.float:
+        return '0.0';
+      case LvCarrier.text:
+        return "''";
+      case LvCarrier.error:
+        library.imports.add(kLvRuntimeImport);
+        return LvRuntimeType.clearedError;
+      case LvCarrier.path:
+        library.imports.add(kLvRuntimeImport);
+        return 'const ${LvRuntimeType.path}(components: [], absolute: false)';
+      case LvCarrier.nominal:
+        final declaration = mapping.declarations.singleOrNull;
+        if (declaration == null) return null;
+        if (declaration.isEnum) return declaration.items.isEmpty ? null : '${declaration.name}.values.first';
+        final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+        final values = <String>[];
+        for (var i = 0; i < declaration.fields.length; i++) {
+          final value = _defaultOfMapping(declaration.fields[i].type);
+          if (value == null) return null;
+          values.add('${names[i]}: $value');
+        }
+        return '${declaration.name}(${values.join(', ')})';
+      case LvCarrier.compound:
+        if (mapping.fields.isNotEmpty) {
+          final names = [for (final field in mapping.fields) lvFieldName(field.label ?? '')];
+          if (names.any((name) => name.isEmpty) || names.toSet().length != names.length) return null;
+          final values = <String>[];
+          for (var i = 0; i < mapping.fields.length; i++) {
+            final value = _defaultOfMapping(mapping.fields[i].type);
+            if (value == null) return null;
+            values.add('${names[i]}: $value');
+          }
+          return '(${values.join(', ')})';
+        }
+        if (dartType.endsWith('List') && !dartType.contains('<')) return '$dartType(0)';
+        if (dartType.startsWith('List<')) return 'const <${dartType.substring(5, dartType.length - 1)}>[]';
+        return null;
+      case LvCarrier.refnum:
+      case LvCarrier.variant:
+      case LvCarrier.voidValue:
+      case null:
+        return null;
+    }
+  }
+
   List<_TunnelValue> _declareCaseOutputs(LvStructUnit unit) {
     final outputs = <_TunnelValue>[];
     for (final tunnel in unit.terminals) {
@@ -1277,12 +1336,17 @@ class _FunctionEmitter {
       final inner = output.terminal.innerPorts[frame.frameOid];
       final edge = inner == null ? null : flow.into(inner);
       if (edge == null) {
-        lvRefuse(
-          LvRefusalKind.unwiredTerminal,
-          'a Case output tunnel is unwired in one frame; the value LabVIEW '
-          'substitutes there is not decoded',
-          oid: output.terminal.oid,
-        );
+        final fallback = _defaultValueOf(output.type);
+        if (fallback == null) {
+          lvRefuse(
+            LvRefusalKind.unwiredTerminal,
+            'a Case output tunnel is unwired in one frame, so it carries the default value of '
+            '${output.type.dartType}, which has no decided spelling',
+            oid: output.terminal.oid,
+          );
+        }
+        body.writeln('${output.name} = $fallback;');
+        continue;
       }
       if (edge.type.dartType != output.type.dartType) {
         lvRefuse(

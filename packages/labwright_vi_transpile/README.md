@@ -549,25 +549,29 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 592 lower
-and the rest refuse, 4,891 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 619 lower
+and the rest refuse, 5,028 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 540 on a primitive, 456 on an unwired terminal, 213 on a constant's value, 208 on a subVI call, 170 on a structure, 168 on a wire's direction, 96 on a foreign call, 37 on a tunnel coercion, 20 on a case selector, 3 on an unbound value.
+rest are pinned per kind in `kCorpusLoweringSweep`: 600 on a primitive, 236 on a subVI call, 232 on a constant's value, 179 on a structure, 171 on an unwired terminal, 168 on a wire's direction, 100 on a foreign call, 37 on a tunnel coercion, 20 on a case selector, 3 on an unbound value, 1 on a tunnel's indexing.
 
 A connector-pane control that drives no wire is a parameter the function
 takes and never uses, typed by the control's own descriptor. An indicator that
 receives no wire returns the value saved with it, which the lowering does not
-read from the data space, and is refused. A value nothing reads — one feeding
-only an indicator off the connector pane, a structure's input tunnel whose
-inner side feeds no wire, or an output tunnel whose outer side feeds none —
-is not computed, so no local goes unread.
+read from the data space, and is refused. A Case frame's output tunnel left
+unwired carries the default value of its type, as LabVIEW's *use default if
+unwired* substitutes it: `0`, `false`, `''`, an empty array, a cleared error,
+an empty path, an enum's first item, or a cluster of its members' defaults; a
+refnum or variant default has no decided spelling and is refused. A value
+nothing reads — one feeding only an indicator off the connector pane, a
+structure's input tunnel whose inner side feeds no wire, or an output tunnel
+whose outer side feeds none — is not computed, so no local goes unread.
 
-Those 592 lowerings are **366 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 366 into a
+Those 619 lowerings are **393 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 393 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 366 is the independent check that they
+kernel` of one entry point importing all 393 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
