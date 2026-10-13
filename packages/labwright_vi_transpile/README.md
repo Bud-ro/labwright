@@ -442,7 +442,8 @@ the primitive's own name.
 | While loop (`0x21`) | `for (var i = 0; ; i++)` over the frame, every tunnel and shift register written at the end of each iteration, then `if (…) break;` by the conditional terminal's polarity |
 | conditional terminal (`0x25`) | bit `0x10000` of its record's flags set is *stop if true*, clear is *continue if true* (`LvConditionalPolarity`); a For loop with one wired breaks the same way |
 | In Place Element (`0x14d`), Index/Replace Array Elements pairs (`0x158`) | each element read from its array at its index before the frame; each written array a copy with the frame's results at the same indices; an index passes through; plain border tunnels (`0x14e`) as on a Case |
-| In Place Element with other pairs (`0x154` data value reference, `0x159`, `0x15b`) | **refused** — see below |
+| In Place Element (`0x14d`), Unbundle/Bundle Cluster Elements pairs (`0x159`) | each named member read from its cluster before the frame; the written cluster a copy with the frame's results in those members |
+| In Place Element with other pairs (`0x154` data value reference, `0x15b`) | **refused** — see below |
 
 An auto-indexing tunnel is identified by flag `0x1000000`. Corpus, over 21,486
 loop tunnels whose two sides both resolve a dimensionality: all 6,584 flagged
@@ -482,7 +483,14 @@ flag bits say what each is — `0x800000` the array, `0xe00000` a
 one-dimensional index (fewer bits set index more dimensions, refused), none
 of them an element — and whose members name the structure's holders on the
 array and index terminals. Every one of the 75 draws that shape, and five corpus
-VIs lower through it.
+VIs lower through it. The Unbundle/Bundle Cluster Elements pair (`0x159`) is
+drawn the same way with border nodes of kind `0x150`: the cluster terminal
+carries `0x800000` and each element terminal's type name is the member it
+reads or writes. Over the 192 single-pair structures every element terminal is
+named; on 46 of the 246 nodes a name is not a member label of the cluster
+(nested or typedef members), and those refuse by name. The written cluster is
+a copy of the read one with the frame's results in the named members, as the
+border coercion spells it.
 
 Those 27 then split against it. 22 carry a border node from `0x150` / `0x14f` /
 `0x152`, whose element access is not recovered — the parser labels that family
@@ -596,10 +604,10 @@ primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
 direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 783 lower
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 791 lower
 and the rest refuse, 4,871 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 686 on a primitive, 318 on a subVI call, 276 on a structure, 203 on a constant's value, 114 on a foreign call, 100 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing, 1 on a tunnel coercion.
+rest are pinned per kind in `kCorpusLoweringSweep`: 698 on a primitive, 319 on a subVI call, 247 on a structure, 206 on a constant's value, 114 on a foreign call, 102 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 6 on a tunnel's indexing, 5 on a wire's direction, 1 on a tunnel coercion.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -624,12 +632,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 783 lowerings are **526 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 526 into a
+Those 791 lowerings are **534 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 534 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 526 is the independent check that they
+kernel` of one entry point importing all 534 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
