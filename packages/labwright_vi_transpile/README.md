@@ -549,10 +549,10 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 674 lower
-and the rest refuse, 5,048 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 679 lower
+and the rest refuse, 5,049 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 624 on a primitive, 253 on a subVI call, 197 on a structure, 169 on a constant's value, 168 on a wire's direction, 104 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 625 on a primitive, 254 on a subVI call, 189 on a structure, 169 on a constant's value, 168 on a wire's direction, 104 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -564,7 +564,11 @@ frame's output tunnel left unwired carries the default value of its type, as
 LabVIEW's *use default if unwired* substitutes it: `0`, `false`, `''`, an empty
 array, a cleared error, an empty path, *Not A Refnum*, an enum's first item, or
 a cluster of its members' defaults; a variant default has no decided spelling
-and is refused.
+and is refused. A For loop's output tunnel that does not auto-index carries
+the last iteration's value, starting from that same default for a loop that
+runs no iteration. A For loop with a wired conditional terminal is refused as
+a While loop is: no decoded field says whether the terminal stops or continues
+on true.
 
 What the function reads is found backwards from its results: a node reads
 every input once any output is read; a structure reads an output tunnel's inner
@@ -575,12 +579,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 674 lowerings are **442 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 442 into a
+Those 679 lowerings are **445 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 445 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 442 is the independent check that they
+kernel` of one entry point importing all 445 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

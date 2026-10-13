@@ -981,9 +981,22 @@ class _FunctionEmitter {
       lvRefuse(LvRefusalKind.structure, 'a For loop has ${unit.frames.length} frames, not one', oid: unit.oid);
     }
     final frame = unit.frames.single;
+    for (final terminal in unit.terminals) {
+      if (terminal.role != LvTerminalRole.conditional) continue;
+      if (terminal.innerPorts[frame.frameOid] case final port? when flow.into(port) != null) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a For loop\'s conditional terminal carries a stop-if-true / '
+          'continue-if-true polarity that no decoded field distinguishes '
+          '(see LvTerminalRole.conditional), so its exit test has no meaning',
+          oid: terminal.oid,
+        );
+      }
+    }
     final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
     final indexedInputs = <({LvStructTerminal terminal, String array})>[];
     final indexedOutputs = <({LvStructTerminal terminal, String builder, LvWireType type})>[];
+    final lastOutputs = <({LvStructTerminal terminal, String name})>[];
 
     for (final tunnel in tunnels) {
       final inner = tunnel.innerPorts[frame.frameOid];
@@ -1012,13 +1025,23 @@ class _FunctionEmitter {
       }
       if (!_readsOuter(tunnel)) continue;
       if (!tunnel.autoIndexing) {
-        lvRefuse(
-          LvRefusalKind.structure,
-          'a For loop\'s non-indexing output tunnel carries the last iteration\'s '
-          'value, or the element type\'s default when the loop runs zero times; '
-          'that default is not decoded',
-          oid: tunnel.oid,
-        );
+        _checkTunnelDims(tunnel, unit.oid, drop: 0);
+        final type = _typeAt(tunnel.outerPort!)!;
+        final fallback = _defaultValueOf(type);
+        if (fallback == null) {
+          lvRefuse(
+            LvRefusalKind.structure,
+            'a For loop\'s non-indexing output tunnel carries the last iteration\'s '
+            'value, or the default of ${type.dartType} when the loop runs zero times, '
+            'which has no decided spelling',
+            oid: tunnel.oid,
+          );
+        }
+        final name = names.wire(type);
+        library.noteImportsFor(type);
+        body.writeln('${type.dartType} $name = $fallback;');
+        lastOutputs.add((terminal: tunnel, name: name));
+        continue;
       }
       _checkTunnelDims(tunnel, unit.oid, drop: 1);
       _checkIndexedRank(tunnel, inner);
@@ -1096,6 +1119,19 @@ class _FunctionEmitter {
         );
       }
       body.writeln('${output.builder}.add(${_bound(edge.source, output.terminal.oid)});');
+    }
+    for (final output in lastOutputs) {
+      final inner = output.terminal.innerPorts[frame.frameOid];
+      final edge = inner == null ? null : flow.into(inner);
+      if (edge == null) {
+        lvRefuse(
+          LvRefusalKind.unwiredTerminal,
+          'a For loop output tunnel is not written inside the loop',
+          oid: output.terminal.oid,
+        );
+      }
+      body.writeln('${output.name} = ${_bound(edge.source, output.terminal.oid)};');
+      valueOf[output.terminal.outerPort!] = output.name;
     }
     body.writeln('}');
 
