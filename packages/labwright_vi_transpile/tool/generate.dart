@@ -22,15 +22,21 @@ void main(List<String> args) {
     stderr.writeln('$name: no block diagram heap with content');
     exit(1);
   }
-  final library = options.containsKey('--subvis') ? _index(Directory(options['--subvis']!)) : const <String, File>{};
+  final subVis = options.containsKey('--subvis') ? Directory(options['--subvis']!) : null;
+  final libraries = subVis == null || !subVis.existsSync() ? null : LvProjectIndex.scan(subVis);
+  final byName = subVis == null ? const <String, File>{} : _index(subVis);
   final result = emitLvLibrary(
     unit,
     functionName: lvFieldName(stem),
     sourceNote: '$stem.vi',
     errorMode: options['--errors'] == 'threaded' ? LvErrorMode.threaded : LvErrorMode.exceptions,
-    resolveSubVi: (fileName) {
-      final file = library[fileName.toLowerCase()];
-      return file == null ? null : _unitOf(file, fileName);
+    resolveSubVi: (callee) {
+      final linked = switch ((callee.link, callee.caller.path)) {
+        (final link?, final viPath?) => libraries?.fileOfLink(link, viPath: viPath),
+        _ => null,
+      };
+      final file = linked != null && File(linked).existsSync() ? File(linked) : byName[callee.fileName.toLowerCase()];
+      return file == null ? null : _unitOf(file, callee.fileName);
     },
   );
   if (result.refusal case final refusal?) {
@@ -49,7 +55,7 @@ final Map<String, LvViUnit?> _cache = <String, LvViUnit?>{};
 LvViUnit? _unitOf(File file, String fileName) => _cache.putIfAbsent(file.path, () {
   final bytes = file.readAsBytesSync();
   final vi = extractSnippetVi(bytes) ?? bytes;
-  return LvViUnit.fromSections(decodeSections(Uint8List.fromList(vi)), fileName: fileName);
+  return LvViUnit.fromSections(decodeSections(Uint8List.fromList(vi)), fileName: fileName, path: file.path);
 });
 
 Map<String, File> _index(Directory root) {

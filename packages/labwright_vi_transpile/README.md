@@ -474,15 +474,24 @@ and that control's block-diagram terminal is reached through the terminal's
 is by terminal rather than by position, and each callee is emitted once into
 the same file however many sites reach it.
 
-Corpus, over the 1,792 call nodes in diagrams whose dataflow builds: 1,204 have
-a callee with a connector pane of the right width, and of the 2,507 wired
-terminals at those calls, 2,482 resolve a callee terminal. The caller's own
-wire direction agrees with the named control's on **2,482 of 2,482**. The two
-VIs' wire types agree on 1,046 of the 1,058 where both are decided; the 12
-that differ are a variant terminal fed a concrete type, and same-named VIs in
-different repositories that the sweep's filename index conflates. The rest are
-refused by name: 389 calls whose callee is absent, 96 that name no file, 63
-whose callee carries no connector pane, 40 whose pane width disagrees.
+The callee is found through the caller's own link entry for it (`LIbd` kind
+`IUVI`, [`LvViUnit.links`]): the node's label names the entry, and the entry's
+path record resolves from the caller's directory, else its library-qualified
+name resolves through the `.lvlib` and `.lvclass` files around it
+(`LvProjectIndex`). A label that several link entries share is refused. The
+`LvViResolver` receives the caller, the name and the entry as an `LvCallee`;
+the sweep and `tool/generate.dart` fall back to a bare file-name index only
+when no link answers.
+
+Corpus, over the 1,792 call nodes in diagrams whose dataflow builds: 932
+callees resolve through their link and 375 through the file-name index; 1,205
+have a connector pane of the right width, and of the 2,509 wired terminals at
+those calls, 2,487 resolve a callee terminal. The caller's own wire direction
+agrees with the named control's on **2,487 of 2,487**. The two VIs' wire types
+agree on 1,079 of the 1,086 where both are decided; the 7 that differ are a
+variant terminal fed a concrete type. The rest are refused by name: 389 calls
+whose callee is absent from the corpus, 96 that name no file, 63 whose callee
+carries no connector pane, 39 whose pane width disagrees.
 
 ### Outcomes
 
@@ -494,20 +503,20 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 247 lower
-and the rest refuse, 5,936 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 248 lower
+and the rest refuse, 5,933 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for. The rest are pinned per kind in
-`kCorpusLoweringSweep`: 425 on a primitive, 225 on an unwired terminal, 148 on
+`kCorpusLoweringSweep`: 427 on a primitive, 226 on an unwired terminal, 147 on
 a subVI call, 129 on a wire's direction, 129 on a constant's value, 82 on a
 structure, 37 on a foreign call, 31 on a tunnel coercion, 3 on a case selector,
 2 on an unbound value.
 
-Those 247 lowerings are **73 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 73 into a
+Those 248 lowerings are **74 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 74 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 73 is the independent check that they
+kernel` of one entry point importing all 74 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
