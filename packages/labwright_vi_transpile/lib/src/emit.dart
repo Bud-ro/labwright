@@ -168,29 +168,23 @@ class _Library {
 
     for (final control in controls) {
       final edge = callable.flow.outOf(control.oid);
-      if (edge == null) {
-        lvRefuse(
-          LvRefusalKind.unwiredTerminal,
-          'connector-pane control "${control.name ?? 'unnamed'}" drives no wire, '
-          'so the diagram states no type for it',
-          oid: control.oid,
-        );
-      }
-      if (_elides(edge.type)) {
+      final type = edge?.type ?? _unwiredControlType(callable, control);
+      if (_elides(type)) {
         callable.elided.add(control.oid);
         continue;
       }
-      final port = _Port(terminal: control.oid, name: callable.names.parameter(control.name), type: edge.type);
+      final port = _Port(terminal: control.oid, name: callable.names.parameter(control.name), type: type);
       callable.parameters.add(port);
       callable.byTerminal[control.oid] = port;
-      noteImportsFor(edge.type);
+      noteImportsFor(type);
     }
     for (final indicator in indicators) {
       final edge = callable.flow.into(indicator.oid);
       if (edge == null) {
         lvRefuse(
           LvRefusalKind.unwiredTerminal,
-          'connector-pane indicator "${indicator.name ?? 'unnamed'}" receives no wire',
+          'connector-pane indicator "${indicator.name ?? 'unnamed'}" receives no wire, so it '
+          'returns the value saved with it, which is not read',
           oid: indicator.oid,
         );
       }
@@ -206,6 +200,24 @@ class _Library {
   }
 
   bool _elides(LvWireType type) => errorMode == LvErrorMode.exceptions && type.isErrorCluster;
+
+  /// The type of a connector-pane control nothing reads: a parameter the function takes and
+  /// never uses, typed by the control's own descriptor.
+  LvWireType _unwiredControlType(_Callable callable, LvInterfaceUnit control) {
+    final descriptor = callable.unit.diagram.byId[control.oid]?.resolvedType;
+    final mapped = descriptor == null
+        ? const LvTypeMapping.unmapped('the terminal resolves no descriptor')
+        : mapLvType(descriptor, callable.unit.pool, 0, declarations);
+    if (!mapped.isMapped) {
+      lvRefuse(
+        LvRefusalKind.unwiredTerminal,
+        'connector-pane control "${control.name ?? 'unnamed'}" drives no wire, and its own '
+        'descriptor does not type it: ${mapped.note}',
+        oid: control.oid,
+      );
+    }
+    return LvWireType.scalarOf(mapped);
+  }
 
   void noteImportsFor(LvWireType type) => noteImportsForType(type.value);
 
