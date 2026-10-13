@@ -1,4 +1,8 @@
+import 'dart:typed_data';
+
 import 'package:xml/xml.dart';
+
+import 'lv_flattened_text.dart';
 
 /// The kinds of XML file LabVIEW keeps a library in, by extension.
 enum LvLibraryKind {
@@ -59,6 +63,21 @@ class LvLibraryFile {
 
   /// The root's `Property` entries by name, such as `NI.Lib.Version`.
   final Map<String, String> properties;
+
+  /// A class's private data control, the RSRC control file its
+  /// `NI.LVClass.FlattenedPrivateDataCTL` property carries after a 33-byte header; null for a
+  /// file that is not a class or a class without one.
+  Uint8List? get privateDataControl {
+    final text = properties['NI.LVClass.FlattenedPrivateDataCTL'];
+    if (kind != LvLibraryKind.lvClass || text == null) return null;
+    final bytes = lvFlattenedTextBytes(text);
+    for (var i = 0; i + 4 <= bytes.length; i++) {
+      if (bytes[i] == 0x52 && bytes[i + 1] == 0x53 && bytes[i + 2] == 0x52 && bytes[i + 3] == 0x43) {
+        return Uint8List.sublistView(bytes, i);
+      }
+    }
+    return null;
+  }
 
   /// Parses [xml] from the file named [fileName].
   factory LvLibraryFile.parse(String xml, {required String fileName}) {

@@ -12,6 +12,19 @@ import 'corpus_dirs.dart';
 /// ships alongside; a class's private data control is embedded in the class file itself.
 const kLvMemberItemTypes = {'VI', 'LVClass', 'Library', 'XControl', 'Property Definition'};
 
+/// Class files that carry no private data control: interface classes.
+const kClassesWithoutPrivateData = <String>{
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/SOLID-Dataflow-Template/IAction/IAction.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/SOLID-Dataflow-Template/IConfig/IConfig.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/SOLID-Dataflow-Template/IReference/IDMM.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/SOLID-Dataflow-Template/IReference/IRef.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/SOLID-Dataflow-Template/IResult/IResult.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/Template-Logger/IAction/IAction.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/Template-Logger/IConfig/IConfig.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/Template-Logger/ILogger/ILogger.lvclass',
+  'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/Template-Logger/IResult/IResult.lvclass',
+};
+
 const kLibraryMembersMissing = <String, int>{
   'vi-corpus/sources/JKISoftware__JKI-State-Machine/examples/3 Button Dialog/3 Button Dialog.lvproj': 1,
   'vi-corpus/sources/NEVSTOP-LAB__Communicable-State-Machine/.github/CSMHelper.lvproj': 2,
@@ -46,6 +59,33 @@ void main() {
       }
     }
     expect(missing, kLibraryMembersMissing);
+  });
+
+  test('every class file carries a private data control that parses to one typedef cluster', () {
+    final without = <String>{};
+    for (final file in files) {
+      if (LvLibraryKind.ofPath(file.path) != LvLibraryKind.lvClass) continue;
+      final library = LvLibraryFile.parse(file.readAsStringSync(), fileName: file.uri.pathSegments.last);
+      final control = library.privateDataControl;
+      if (control == null) {
+        without.add(corpusRelativePath(file.path));
+        continue;
+      }
+      final model = buildViModel(control);
+      final item = library.items.where((item) => item.type == 'Class Private Data').single;
+      final own = [
+        for (final type in model.types.whereType<ViTypedefType>())
+          if (type.componentCount >= 2 &&
+              type.componentAt(type.componentCount - 1) == item.name &&
+              type.componentAt(type.componentCount - 2) == library.fileName)
+            type,
+      ];
+      expect(own, isNotEmpty, reason: '${file.path}: the typedef named ${item.name} under the class');
+      final shapes = {for (final type in own) clusterFields(type.base, model.types).map((m) => m.code).join(',')};
+      expect(own.every((type) => type.base.kind == ViDataType.cluster), isTrue, reason: file.path);
+      expect(shapes, hasLength(1), reason: '${file.path}: every copy of the private data agrees');
+    }
+    expect(without, kClassesWithoutPrivateData);
   });
 
   test('the project index names every library member uniquely within its repository', () {
