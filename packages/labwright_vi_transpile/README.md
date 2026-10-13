@@ -478,7 +478,7 @@ Corpus, over the 1,792 call nodes in diagrams whose dataflow builds: 1,204 have
 a callee with a connector pane of the right width, and of the 2,507 wired
 terminals at those calls, 2,482 resolve a callee terminal. The caller's own
 wire direction agrees with the named control's on **2,482 of 2,482**. The two
-VIs' wire types agree on 1,076 of the 1,088 where both are decided; the 12
+VIs' wire types agree on 1,046 of the 1,058 where both are decided; the 12
 that differ are a variant terminal fed a concrete type, and same-named VIs in
 different repositories that the sweep's filename index conflates. The rest are
 refused by name: 389 calls whose callee is absent, 96 that name no file, 63

@@ -261,10 +261,10 @@ const Map<String, int> kCorpusLoweringSweep = {
   'render.lawSilent.styleSpeaks': 6013,
   'render.refUndecided.styleMute': 33925,
   'render.refUndecided.styleSpeaks': 5329,
-  'term.calleeUntyped': 1394,
+  'term.calleeUntyped': 1424,
   'term.dirAgree': 2482,
   'term.resolved': 2482,
-  'term.typeAgree': 1076,
+  'term.typeAgree': 1046,
   'term.typeDisagree': 12,
   'term.unresolved': 25,
   'term.wired': 2507,
@@ -362,7 +362,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
   final foreign = <String>{};
   void bump(String key) => tally[key] = (tally[key] ?? 0) + 1;
   final units = <String, LvViUnit?>{};
-  var builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
+  var builds = <LvViUnit, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
   var registry = LvDeclarations();
   var clusterWireCause = <int, String>{};
   var untypedFamilies = <String>{};
@@ -389,10 +389,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
     }
   });
 
-  ({LvDataflow? dataflow, LvRefusal? refusal}) buildOf(LvViUnit unit) => builds.putIfAbsent(
-    unit.fileName,
-    () => buildLvDataflow(unit.diagram, pool: unit.pool, declarations: registry),
-  );
+  ({LvDataflow? dataflow, LvRefusal? refusal}) buildOf(LvViUnit unit) =>
+      builds.putIfAbsent(unit, () => buildLvDataflow(unit.diagram, pool: unit.pool, declarations: registry));
 
   LvDataflow? flowOf(LvViUnit unit) => buildOf(unit).dataflow;
 
@@ -875,7 +873,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
     censusPrimitives(unit.diagram);
     censusCallPaneWidths(unit.diagram);
     censusForeignCalls(unit.diagram);
-    builds = <String, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
+    builds = <LvViUnit, ({LvDataflow? dataflow, LvRefusal? refusal})>{};
     registry = LvDeclarations();
     clusterWireCause = <int, String>{};
     untypedFamilies = <String>{};
