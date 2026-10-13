@@ -24,7 +24,19 @@ ViDiagram? lvBlockDiagramOf(ViModel model) {
 
 const int kLvEmitPageWidth = 120;
 
-typedef LvViResolver = LvViUnit? Function(String fileName);
+/// A call node's callee as its caller states it: the file name the node draws and the caller's
+/// link entry for it, which carries the callee's qualified name and path record.
+class LvCallee {
+  const LvCallee({required this.caller, required this.fileName, required this.link});
+
+  final LvViUnit caller;
+
+  final String fileName;
+
+  final ViLinkEntryFramed? link;
+}
+
+typedef LvViResolver = LvViUnit? Function(LvCallee callee);
 
 ({String? source, LvRefusal? refusal}) emitLvFunction(
   ViDiagram diagram, {
@@ -681,7 +693,16 @@ class _FunctionEmitter {
         oid: unit.oid,
       );
     }
-    final callee = library.resolve?.call(name);
+    final link = callable.unit.linkTo(name);
+    if (link == null &&
+        callable.unit.links.where((l) => l.qualifiedName.lastOrNull?.toLowerCase() == name.toLowerCase()).length > 1) {
+      lvRefuse(
+        LvRefusalKind.subViCall,
+        'the diagram links to more than one VI named "$name", so the node does not say which it calls',
+        oid: unit.oid,
+      );
+    }
+    final callee = library.resolve?.call(LvCallee(caller: callable.unit, fileName: name, link: link));
     if (callee == null) {
       lvRefuse(LvRefusalKind.subViCall, 'the called VI "$name" was not supplied to the lowering', oid: unit.oid);
     }

@@ -12,6 +12,7 @@ executables:
 
 dependencies:
   archive: ^4.0.9
+  xml: ^6.2.2
 
 dev_dependencies:
   test: ^1.25.0

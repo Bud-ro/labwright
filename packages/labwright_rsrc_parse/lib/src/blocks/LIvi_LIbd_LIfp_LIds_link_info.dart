@@ -42,6 +42,7 @@ import 'dart:typed_data';
 
 import '../byte_layout.dart';
 import '../byte_record.dart';
+import '../pth0.dart';
 import 'vers_version.dart';
 
 /// One link entry.
@@ -64,9 +65,18 @@ sealed class ViLinkEntry {
 
 /// An entry the grammar walked: [kind] at `offset + 2`, body to [end].
 final class ViLinkEntryFramed extends ViLinkEntry {
-  const ViLinkEntryFramed(super.offset, super.end, this.kind);
+  const ViLinkEntryFramed(super.offset, super.end, this.kind, {this.qualifiedName = const [], this.path});
 
   final String kind;
+
+  /// The linked resource's library-qualified name, outermost first, such as
+  /// `MB Master.lvlib`, `MB_Master.lvclass`, `Close Session.vi`; empty for an entry kind that
+  /// names none.
+  final List<String> qualifiedName;
+
+  /// The linked resource's path record, relative to the VI's own directory when
+  /// [ViPath.pathType] says so; null for an entry kind that carries none.
+  final ViPath? path;
 }
 
 /// The entry region from an entry the grammar cannot walk up to the terminator.
@@ -183,6 +193,27 @@ Iterable<int> _entriesStarts(Uint8List bytes, ByteData view, ViVersionWord? vers
   }
 }
 
+/// Whether a `PTH0` record with components starts at [at]; a link may also carry an empty
+/// record or a `PTH1`/`PTH2`, which [ViPath] does not model.
+bool _framesPath(Uint8List bytes, ByteData view, int at) {
+  if (at + 8 > bytes.length) return false;
+  final length = view.getUint32(at + 4);
+  if (length < 4 || at + 8 + length > bytes.length) return false;
+  return isPth0(Uint8List.sublistView(bytes, at, at + 8 + length));
+}
+
+List<String> _qualifiedNameAt(Uint8List bytes, int at) {
+  final count = ByteData.sublistView(bytes).getUint32(at);
+  final names = <String>[];
+  var pos = at + 4;
+  for (var i = 0; i < count; i++) {
+    final length = bytes[pos];
+    names.add(String.fromCharCodes(bytes, pos + 1, pos + 1 + length));
+    pos += 1 + length;
+  }
+  return names;
+}
+
 List<ViLinkEntry>? _walk(Uint8List bytes, ViVersionWord? version, int count, int start, int termOff) {
   if (start > termOff || count > 0x10000) return null;
   if (count == 0) return start == termOff ? const [] : null;
@@ -191,6 +222,8 @@ List<ViLinkEntry>? _walk(Uint8List bytes, ViVersionWord? version, int count, int
   final c = _LiCursor(bytes, version.major, version.minor, version.patch)..p = start;
   for (var i = 0; i < count; i++) {
     final at = c.p;
+    c.qualifiedNameAt = null;
+    c.pathAt = null;
     final kind = at + 6 <= termOff && c.u16() == 2 ? c.tag4() : '';
     if (kind.isNotEmpty) {
       c.skip(4);
@@ -199,7 +232,23 @@ List<ViLinkEntry>? _walk(Uint8List bytes, ViVersionWord? version, int count, int
     if (kind.isEmpty || !c.ok || c.p > termOff) {
       return entries.isEmpty ? null : (entries..add(ViLinkEntryUnwalked(at, termOff)));
     }
-    entries.add(ViLinkEntryFramed(at, c.p, kind));
+    entries.add(
+      ViLinkEntryFramed(
+        at,
+        c.p,
+        kind,
+        qualifiedName: switch (c.qualifiedNameAt) {
+          final at? => _qualifiedNameAt(bytes, at),
+          null => const [],
+        },
+        path: switch (c.pathAt) {
+          final at? when _framesPath(bytes, c.view, at) => ViPath(
+            Uint8List.sublistView(bytes, at, at + 8 + c.view.getUint32(at + 4)),
+          ),
+          _ => null,
+        },
+      ),
+    );
   }
   if (c.p != termOff) {
     final last = entries.removeLast();
@@ -215,6 +264,9 @@ class _LiCursor {
   final int major, minor, patch;
   int p = 0;
   bool ok = true;
+
+  /// Where the entry's first qualified name and path record start: the linked resource's.
+  int? qualifiedNameAt, pathAt;
 
   bool ge(int a, int c, int d) {
     if (major != a) return major > a;
@@ -318,9 +370,11 @@ void _liU2p2(_LiCursor c) {
 
 void _liBasic(_LiCursor c) {
   c.pad(4);
+  c.qualifiedNameAt ??= c.p;
   _liQualName(c);
   if (!c.ok) return;
   c.pad(2);
+  c.pathAt ??= c.p;
   _liPathRef(c);
   if (!c.ok) return;
   if (c.ge(8, 6, 0)) {

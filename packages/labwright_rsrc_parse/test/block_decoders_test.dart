@@ -329,6 +329,52 @@ void main() {
     }
   });
 
+  test('a framed link entry names the linked resource and its path record', () {
+    final path = [
+      ...'PTH0'.codeUnits,
+      0,
+      0,
+      0,
+      22,
+      0,
+      1,
+      0,
+      3,
+      0,
+      6,
+      ...'Parent'.codeUnits,
+      9,
+      ...'Child.ctl'.codeUnits,
+    ];
+    final names = [0, 0, 0, 2, 9, ...'Lib.lvlib'.codeUnits, 9, ...'Child.ctl'.codeUnits];
+    final payload = u8([
+      0,
+      1,
+      ...'BDHP'.codeUnits,
+      0,
+      0,
+      0,
+      1,
+      0,
+      2,
+      ...'VILB'.codeUnits,
+      ...names,
+      ...path,
+      0,
+      0,
+      0,
+      0,
+      0,
+      3,
+    ]);
+    final entry = ViLinkInfo(payload, version: ViVersionWord.at(bd(hx('20008000')), 0)).entries.single;
+    expect(entry, isA<ViLinkEntryFramed>());
+    final framed = entry as ViLinkEntryFramed;
+    expect(framed.qualifiedName, ['Lib.lvlib', 'Child.ctl']);
+    expect(framed.path?.components, ['', 'Parent', 'Child.ctl']);
+    expect(framed.path?.pathType, 1);
+  });
+
   test('decodeLibraryNames: [u32 count][count pstr]', () {
     final b = u8([0, 0, 0, 2, ...pascal('Outer.lvlib'), ...pascal('Inner.lvclass')]);
     final names = ViLibraryNames(b);

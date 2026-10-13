@@ -106,9 +106,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'call': 1792,
   'call.calleeMissing': 389,
   'call.noPane': 63,
-  'call.paneMatched': 1204,
-  'call.paneWidthMismatch': 40,
+  'call.paneMatched': 1205,
+  'call.paneWidthMismatch': 39,
   'call.unnamed': 96,
+  'call.via.link': 932,
+  'call.via.name': 375,
   'clus': 135446,
   'clus.kid.many': 255,
   'clus.kid.none': 21959,
@@ -182,15 +184,15 @@ const Map<String, int> kCorpusLoweringSweep = {
   'exceptions.caseSelector': 3,
   'exceptions.constantValue': 129,
   'exceptions.foreignCall': 37,
-  'exceptions.lowered': 247,
-  'exceptions.primitive': 425,
+  'exceptions.lowered': 248,
+  'exceptions.primitive': 427,
   'exceptions.structure': 82,
-  'exceptions.subViCall': 148,
+  'exceptions.subViCall': 147,
   'exceptions.tunnelCoercion': 31,
   'exceptions.unboundValue': 2,
-  'exceptions.unwiredTerminal': 225,
+  'exceptions.unwiredTerminal': 226,
   'exceptions.wireDirection': 129,
-  'exceptions.wireType': 5936,
+  'exceptions.wireType': 5933,
   'flag0.array': 24551,
   'flag0.scalar': 149919,
   'flag12.array': 931,
@@ -210,7 +212,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
   'modes.differ': 47,
-  'modes.same': 200,
+  'modes.same': 201,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -261,25 +263,25 @@ const Map<String, int> kCorpusLoweringSweep = {
   'render.lawSilent.styleSpeaks': 6013,
   'render.refUndecided.styleMute': 33925,
   'render.refUndecided.styleSpeaks': 5329,
-  'term.calleeUntyped': 1424,
-  'term.dirAgree': 2482,
-  'term.resolved': 2482,
-  'term.typeAgree': 1046,
-  'term.typeDisagree': 12,
-  'term.unresolved': 25,
-  'term.wired': 2507,
+  'term.calleeUntyped': 1401,
+  'term.dirAgree': 2487,
+  'term.resolved': 2487,
+  'term.typeAgree': 1079,
+  'term.typeDisagree': 7,
+  'term.unresolved': 22,
+  'term.wired': 2509,
   'threaded.caseSelector': 3,
   'threaded.constantValue': 129,
   'threaded.foreignCall': 37,
-  'threaded.lowered': 247,
-  'threaded.primitive': 425,
+  'threaded.lowered': 248,
+  'threaded.primitive': 427,
   'threaded.structure': 82,
-  'threaded.subViCall': 148,
+  'threaded.subViCall': 147,
   'threaded.tunnelCoercion': 31,
   'threaded.unboundValue': 2,
-  'threaded.unwiredTerminal': 225,
+  'threaded.unwiredTerminal': 226,
   'threaded.wireDirection': 129,
-  'threaded.wireType': 5936,
+  'threaded.wireType': 5933,
   'vi': 7394,
   'wt.cause.member.0x33': 14,
   'wt.cause.member.0x37': 4,
@@ -350,7 +352,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
+const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -366,17 +368,29 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
   var registry = LvDeclarations();
   var clusterWireCause = <int, String>{};
   var untypedFamilies = <String>{};
+  final libraries = LvProjectIndex.scan(corpusVi);
   LvViUnit? load(String path, String fileName) => units.putIfAbsent(path, () {
     try {
-      return LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName);
+      return LvViUnit.fromSections(decodeSections(File(path).readAsBytesSync()), fileName: fileName, path: path);
     } catch (_) {
       return null;
     }
   });
-  LvViUnit? resolve(String name) {
+  LvViUnit? resolveByName(String name) {
     final path = index[name.toLowerCase()];
     return path == null ? null : load(path, name);
   }
+
+  /// The callee's file through the caller's link entry, else the corpus-wide file name index.
+  ({LvViUnit? unit, String how}) resolveCallee(LvCallee callee) {
+    if ((callee.link, callee.caller.path) case (final link?, final viPath?)) {
+      final linked = libraries.fileOfLink(link, viPath: viPath);
+      if (linked != null && File(linked).existsSync()) return (unit: load(linked, callee.fileName), how: 'link');
+    }
+    return (unit: resolveByName(callee.fileName), how: 'name');
+  }
+
+  LvViUnit? resolve(LvCallee callee) => resolveCallee(callee).unit;
 
   final paneWidths = <String, int?>{};
   int? paneWidth(String name) => paneWidths.putIfAbsent(name.toLowerCase(), () {
@@ -394,11 +408,18 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
 
   LvDataflow? flowOf(LvViUnit unit) => buildOf(unit).dataflow;
 
-  void bindCall(LvDataflow flow, LvSubViUnit call) {
+  void bindCall(LvDataflow flow, LvViUnit caller, LvSubViUnit call) {
     bump('call');
     if (call.calleeName == null) return bump('call.unnamed');
-    final callee = resolve(call.calleeName!);
+    final name = call.calleeName!;
+    final link = caller.linkTo(name);
+    if (link == null && caller.links.any((l) => l.qualifiedName.lastOrNull?.toLowerCase() == name.toLowerCase())) {
+      return bump('call.ambiguousLink');
+    }
+    final resolved = resolveCallee(LvCallee(caller: caller, fileName: name, link: link));
+    final callee = resolved.unit;
     if (callee == null) return bump('call.calleeMissing');
+    bump('call.via.${resolved.how}');
     if (callee.paneTerminals.isEmpty) return bump('call.noPane');
     if (callee.paneTerminals.length != call.panePorts.length) return bump('call.paneWidthMismatch');
     bump('call.paneMatched');
@@ -478,7 +499,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
           if (holder.kind == kNodeEndpointDcoKind) holder.oid,
       ];
       if (!ports.any(endpoints.contains)) continue;
-      final callee = resolve(name);
+      final callee = resolveByName(name);
       if (callee == null || ports.length != callee.paneTerminals.length || callee.paneTerminals.isEmpty) continue;
       for (var pane = 0; pane < ports.length; pane++) {
         paneOf[ports[pane]] = (callee, pane);
@@ -806,12 +827,12 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
     if (clusterWireCause[wire!.signalOid] case final cause?) bump('wt.cause.$cause');
   }
 
-  void walk(LvDataflow flow, LvRegion region) {
+  void walk(LvDataflow flow, LvViUnit caller, LvRegion region) {
     for (final unit in region.units) {
-      if (unit is LvSubViUnit) bindCall(flow, unit);
+      if (unit is LvSubViUnit) bindCall(flow, caller, unit);
       if (unit is LvStructUnit) {
         for (final frame in unit.frames) {
-          walk(flow, frame);
+          walk(flow, caller, frame);
         }
       }
     }
@@ -884,7 +905,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 247, sources: 73);
     censusRefnumWires(unit.diagram);
     final built = buildOf(unit);
     censusInPlaceElement(unit.diagram, built.refusal);
-    if (built.dataflow case final flow?) walk(flow, flow.root);
+    if (built.dataflow case final flow?) walk(flow, unit, flow.root);
     if (built.refusal case final refusal? when refusal.kind == LvRefusalKind.wireType) {
       censusWireTypeRefusal(unit.diagram, refusal);
     }

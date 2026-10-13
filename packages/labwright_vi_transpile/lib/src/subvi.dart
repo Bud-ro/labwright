@@ -9,9 +9,30 @@ class LvViUnit {
     required this.pool,
     required this.paneTerminals,
     required this.terminalOfDataItem,
+    this.path,
+    this.links = const [],
   });
 
   final String fileName;
+
+  /// The VI's file on disk, from which its relative links resolve; null for a VI held in memory.
+  final String? path;
+
+  /// The block diagram's sub-VI link entries (`LIbd` kind `IUVI`): each callee's qualified
+  /// name and path record.
+  final List<ViLinkEntryFramed> links;
+
+  /// The link entry naming [calleeFileName], or null when none or several do.
+  ViLinkEntryFramed? linkTo(String calleeFileName) {
+    final lower = calleeFileName.toLowerCase();
+    ViLinkEntryFramed? found;
+    for (final link in links) {
+      if (link.qualifiedName.isEmpty || link.qualifiedName.last.toLowerCase() != lower) continue;
+      if (found != null) return null;
+      found = link;
+    }
+    return found;
+  }
 
   final ViDiagram diagram;
 
@@ -31,7 +52,7 @@ class LvViUnit {
     };
   }
 
-  static LvViUnit? fromSections(Iterable<DecodedSection> sections, {required String fileName}) {
+  static LvViUnit? fromSections(Iterable<DecodedSection> sections, {required String fileName, String? path}) {
     final model = buildViModelFromDecoded(sections);
     final diagram = lvBlockDiagramOf(model);
     if (diagram == null) return null;
@@ -41,8 +62,25 @@ class LvViUnit {
       pool: model.types,
       paneTerminals: model.paneTerminals,
       terminalOfDataItem: lvTerminalsOfDataItems(diagram),
+      path: path,
+      links: lvSubViLinks(sections),
     );
   }
+}
+
+/// The block diagram's sub-VI link entries, in link order.
+List<ViLinkEntryFramed> lvSubViLinks(Iterable<DecodedSection> sections) {
+  DecodedSection? libd, vers;
+  for (final section in sections) {
+    if (section.tag == 'LIbd') libd ??= section;
+    if (section.tag == 'vers') vers ??= section;
+  }
+  if (libd == null) return const [];
+  final version = vers == null ? null : ViVersBlock(vers.bytes).versionWord;
+  return [
+    for (final entry in ViLinkInfo(libd.bytes, version: version).entries)
+      if (entry is ViLinkEntryFramed && entry.kind == 'IUVI') entry,
+  ];
 }
 
 Map<int, ViHeapObject> lvTerminalsOfDataItems(ViDiagram diagram) => {
