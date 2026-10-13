@@ -133,7 +133,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
   })?
   gauge;
   await tester.runAsync(() async {
-    final icons = await loadPrimIcons();
+    final icons = loadPrimIcons();
     final facades = await loadXnodeFacades(viBytes, bd);
     final raster = (await rasteriseBlockDiagram(
       bd,

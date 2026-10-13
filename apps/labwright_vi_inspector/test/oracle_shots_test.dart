@@ -31,7 +31,7 @@ void main() {
     ];
     await tester.runAsync(() async {
       final outDir = Directory(shotDir)..createSync(recursive: true);
-      final icons = await loadPrimIcons();
+      final icons = loadPrimIcons();
       var exported = 0;
       for (final name in wanted) {
         final file = pngs.firstWhere(

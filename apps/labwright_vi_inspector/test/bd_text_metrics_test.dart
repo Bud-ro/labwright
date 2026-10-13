@@ -50,7 +50,7 @@ void main() {
       await tester.runAsync(() async {
         final raster = (await rasteriseBlockDiagram(
           bd,
-          primIcons: await loadPrimIcons(),
+          primIcons: loadPrimIcons(),
           xnodeFacades: await loadXnodeFacades(viBytes, bd),
           scale: 1.0,
           margin: 2,

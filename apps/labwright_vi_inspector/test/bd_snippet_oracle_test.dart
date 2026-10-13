@@ -137,7 +137,7 @@ void main() {
         final bytes = f.readAsBytesSync();
         final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
         final scene = BdScene(bd);
-        final icons = await loadPrimIcons();
+        final icons = loadPrimIcons();
         final raster = (await rasteriseBlockDiagram(
           bd,
           primIcons: icons,
@@ -201,7 +201,7 @@ void main() {
         final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
         final drawable = bdDrawableObjects(bd);
         final wires = bdVisibleWires(bd);
-        final icons = await loadPrimIcons();
+        final icons = loadPrimIcons();
         Future<(BdRaster, BdOracleResult)> render(GlobalHatchOffset off) async {
           final raster = (await rasteriseBlockDiagram(
             bd,
@@ -294,7 +294,7 @@ void main() {
         final bytes = f.readAsBytesSync();
         final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
         final scene = BdScene(bd);
-        final icons = await loadPrimIcons();
+        final icons = loadPrimIcons();
         final raster = (await rasteriseBlockDiagram(
           bd,
           primIcons: icons,
@@ -378,7 +378,7 @@ void main() {
         );
         final drawable = bdDrawableObjects(bd);
         final wires = bdVisibleWires(bd);
-        final icons = await loadPrimIcons();
+        final icons = loadPrimIcons();
         Future<(BdRaster, BdOracleResult)> render(
           GlobalHatchOffset black,
           GlobalHatchOffset error,
