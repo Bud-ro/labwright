@@ -111,6 +111,9 @@ enum LvTerminalRole {
   /// A plain tunnel on an In Place Element structure's border.
   inPlaceTunnel(0x14e),
 
+  /// The boolean condition terminal of a loop's conditional output tunnel, inner side only.
+  tunnelCondition(0x176),
+
   /// An In Place Element border node's array terminal: its outer side is the structure's array
   /// holder, its inner side is unwired.
   inPlaceArray(-1),

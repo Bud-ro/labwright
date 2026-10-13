@@ -440,6 +440,7 @@ the primitive's own name.
 | Diagram Disable (`0xcd`) | the Enabled frame's region, inline |
 | Flat Sequence (`0xca`) | each frame's region in order; a tunnel between adjacent frames (`0xcb`, whose outer endpoints the two frames wire to each other) is the earlier frame's output, bound before the later frame reads it |
 | While loop (`0x21`) | `for (var i = 0; ; i++)` over the frame, every tunnel and shift register written at the end of each iteration, then `if (…) break;` by the conditional terminal's polarity |
+| conditional output tunnel, condition terminal (`0x176`) | **refused** — the boolean that gates an auto-indexing output tunnel; which tunnel it gates is not decoded (581 in the corpus, all boolean, on For and While loops) |
 | conditional terminal (`0x25`) | bit `0x10000` of its record's flags set is *stop if true*, clear is *continue if true* (`LvConditionalPolarity`); a For loop with one wired breaks the same way |
 | In Place Element (`0x14d`), Index/Replace Array Elements pairs (`0x158`) | each element read from its array at its index before the frame; each written array a copy with the frame's results at the same indices; an index passes through; plain border tunnels (`0x14e`) as on a Case |
 | In Place Element (`0x14d`), Unbundle/Bundle Cluster Elements pairs (`0x159`) | each named member read from its cluster before the frame; the written cluster a copy with the frame's results in those members |
@@ -604,10 +605,10 @@ primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
 direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 791 lower
-and the rest refuse, 4,871 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 782 lower
+and the rest refuse, 4,867 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 698 on a primitive, 319 on a subVI call, 247 on a structure, 206 on a constant's value, 114 on a foreign call, 102 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 6 on a tunnel's indexing, 5 on a wire's direction, 1 on a tunnel coercion.
+rest are pinned per kind in `kCorpusLoweringSweep`: 680 on a primitive, 318 on a subVI call, 281 on a structure, 206 on a constant's value, 114 on a foreign call, 102 on an unwired terminal, 26 on a case selector, 7 on an unbound value, 5 on a tunnel's indexing, 5 on a wire's direction, 1 on a tunnel coercion.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -632,12 +633,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 791 lowerings are **534 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 534 into a
+Those 782 lowerings are **525 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 525 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 534 is the independent check that they
+kernel` of one entry point importing all 525 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

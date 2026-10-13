@@ -446,8 +446,6 @@ class _FunctionEmitter {
             if (terminal.outerPort case final port? when terminal.innerPorts.isNotEmpty) pending.add(port);
           case LvTerminalRole.inPlaceArray || LvTerminalRole.inPlaceIndex when terminal.outerIsSink:
             pending.add(terminal.outerPort!);
-          case LvTerminalRole.inPlaceElement:
-            pending.addAll(terminal.innerPorts.values);
           case _:
         }
       }
@@ -469,6 +467,12 @@ class _FunctionEmitter {
               if (terminal.outerPort case final port? when terminal.outerIsSink) pending.add(port);
               wake(unit);
             }
+          }
+          for (final pair in unit.inPlacePairs) {
+            if (pair.arrayOut == edge.source) pending.addAll([for (final element in pair.elements) element.elementIn]);
+          }
+          for (final pair in unit.inPlaceClusterPairs) {
+            if (pair.clusterOut == edge.source) pending.addAll([for (final member in pair.members) member.elementIn]);
           }
         case final unit?:
           pending.addAll(unit.inputPorts);
@@ -974,6 +978,16 @@ class _FunctionEmitter {
     }
     if (!bounded && exit == null) {
       lvRefuse(LvRefusalKind.unwiredTerminal, 'a While loop\'s conditional terminal receives no wire', oid: unit.oid);
+    }
+    for (final terminal in unit.terminals) {
+      if (terminal.role != LvTerminalRole.tunnelCondition) continue;
+      if (terminal.innerPorts[frame.frameOid] case final port? when flow.into(port) != null) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a loop output tunnel is conditional, and which tunnel its condition terminal gates is not decoded',
+          oid: terminal.oid,
+        );
+      }
     }
     final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
     final indexedInputs = <({LvStructTerminal terminal, String array})>[];
