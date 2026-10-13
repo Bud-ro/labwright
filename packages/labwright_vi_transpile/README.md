@@ -409,6 +409,7 @@ the primitive's own name.
 | plain tunnel | the outer value, bound to the frame's inner reads |
 | Case structure (`0x2c`) | `if`/`else` over a boolean selector, each output tunnel a `final` assigned in both branches |
 | Diagram Disable (`0xcd`) | the Enabled frame's region, inline |
+| Flat Sequence (`0xca`) | each frame's region in order; a tunnel between adjacent frames (`0xcb`, whose outer endpoints the two frames wire to each other) is the earlier frame's output, bound before the later frame reads it |
 | While loop (`0x21`) | **refused** — the conditional terminal's stop-if-true / continue-if-true polarity is not decoded |
 | In Place Element (`0x14d`) | **refused** — see below |
 
@@ -425,9 +426,9 @@ boolean. Frame order does not supply it: over 3,587 two-frame boolean cases the
 displayed frame is index 1 labelled `True` 1,840 times, but index 0 labelled
 `True` 328 times.
 
-A For loop's **non-indexing output tunnel** is refused: it carries the last
-iteration's value, or the element type's default when the loop runs zero times,
-and that default is not decoded.
+A For loop's **non-indexing output tunnel** carries the last iteration's
+value, starting from its type's default for a loop that runs no iteration;
+a type whose default has no decided spelling refuses.
 
 The **In Place Element Structure** (`0x14d`) is common but is not the lever its
 frequency suggests, and `kCorpusInPlaceElement` is the measurement. 705 corpus
@@ -549,10 +550,10 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 693 lower
-and the rest refuse, 5,066 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 708 lower
+and the rest refuse, 5,069 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 566 on a primitive, 268 on a subVI call, 189 on a structure, 183 on a constant's value, 168 on a wire's direction, 104 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 572 on a primitive, 270 on a subVI call, 184 on a constant's value, 170 on a wire's direction, 158 on a structure, 106 on a foreign call, 92 on an unwired terminal, 37 on a tunnel coercion, 22 on a case selector, 5 on an unbound value, 1 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -579,7 +580,7 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 693 lowerings are **456 distinct Dart sources** (a VI copied across
+Those 708 lowerings are **456 distinct Dart sources** (a VI copied across
 repositories lowers to the same text). The corpus sweep writes all 456 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts

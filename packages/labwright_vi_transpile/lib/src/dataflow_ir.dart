@@ -26,7 +26,9 @@ enum LvStructureKind {
 
   caseStructure(0x2c),
 
-  disableStructure(0xcd);
+  disableStructure(0xcd),
+
+  flatSequence(0xca);
 
   const LvStructureKind(this.code);
 
@@ -53,6 +55,13 @@ enum LvTerminalRole {
   caseTunnel(0x2d),
 
   selector(0x2e),
+
+  /// A Flat Sequence frame's tunnel to the enclosing diagram.
+  sequenceTunnel(0x2a),
+
+  /// A Flat Sequence frame's tunnel to the adjacent frame, whose outer endpoints the two frames'
+  /// records wire to each other.
+  sequenceBorder(0xcb),
 
   disableTunnel(0xce);
 
@@ -772,7 +781,13 @@ class _Builder {
     final frames = [
       for (final child in diagram.childrenOf(structure))
         if (child.objectClass == HeapObjectClass.bdFrame) child.oid,
+      if (kind == LvStructureKind.flatSequence)
+        for (final sequenceFrame in diagram.childrenOf(structure))
+          if (sequenceFrame.objectClass == HeapObjectClass.bdSequenceFrame)
+            for (final child in diagram.childrenOf(sequenceFrame))
+              if (child.objectClass == HeapObjectClass.bdFrame) child.oid,
     ];
+    final frameSet = frames.toSet();
     final terminals = <LvStructTerminal>[];
     for (final terminal in _terminalRecords(structure)) {
       final role = LvTerminalRole.ofCode(terminal.kind);
@@ -788,11 +803,11 @@ class _Builder {
           continue;
         }
         ownerOfPort[object.oid] = structure.oid;
-        if (object.parentOid == structure.oid) {
-          outer = object.oid;
+        final frame = _frameOf(object.oid);
+        if (frame != null && frameSet.contains(frame)) {
+          inner[frame] = object.oid;
         } else {
-          final frame = _frameOf(object.oid);
-          if (frame != null) inner[frame] = object.oid;
+          outer = object.oid;
         }
       }
       terminals.add(
@@ -830,10 +845,20 @@ class _Builder {
         yield child;
         continue;
       }
-      if (child.kind != kNodeEndpointDcoKind) continue;
-      for (final grand in diagram.childrenOf(child)) {
-        if (LvTerminalRole.ofCode(grand.kind) != null) yield grand;
+      if (child.objectClass == HeapObjectClass.bdSequenceFrame) {
+        for (final holder in diagram.childrenOf(child)) {
+          yield* _holderRecords(holder);
+        }
+        continue;
       }
+      yield* _holderRecords(child);
+    }
+  }
+
+  Iterable<ViHeapObject> _holderRecords(ViHeapObject holder) sync* {
+    if (holder.kind != kNodeEndpointDcoKind) return;
+    for (final record in diagram.childrenOf(holder)) {
+      if (LvTerminalRole.ofCode(record.kind) != null) yield record;
     }
   }
 }
