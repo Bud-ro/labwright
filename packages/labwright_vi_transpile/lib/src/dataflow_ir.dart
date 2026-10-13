@@ -19,6 +19,18 @@ const int kLvTunnelIndexerCode = 0x23;
 bool lvTunnelAutoIndexes(Iterable<ViHeapObject> children) =>
     children.any((child) => child.kind == kLvTunnelIndexerCode && (child.objFlags ?? 0) != 0);
 
+/// Which boolean a loop's conditional terminal exits on, from bit `0x10000` of its record's
+/// flags: set stops the loop on true, clear continues it on true.
+enum LvConditionalPolarity {
+  stopIfTrue,
+
+  continueIfTrue;
+
+  static const int _stopBit = 0x10000;
+
+  static LvConditionalPolarity ofFlags(int flags) => flags & _stopBit != 0 ? stopIfTrue : continueIfTrue;
+}
+
 enum LvStructureKind {
   forLoop(0x20),
 
@@ -282,6 +294,7 @@ class LvStructTerminal {
     required this.autoIndexing,
     required this.partnerOid,
     required this.outerIsSink,
+    this.polarity,
   });
 
   final int oid;
@@ -297,6 +310,9 @@ class LvStructTerminal {
   final int? partnerOid;
 
   final bool outerIsSink;
+
+  /// A conditional terminal's exit test; null for every other role.
+  final LvConditionalPolarity? polarity;
 }
 
 enum LvDisableFrame {
@@ -819,6 +835,7 @@ class _Builder {
           autoIndexing: lvTunnelAutoIndexes(diagram.childrenOf(terminal)),
           partnerOid: partner,
           outerIsSink: outer != null && _isSink(outer),
+          polarity: role == LvTerminalRole.conditional ? LvConditionalPolarity.ofFlags(terminal.objFlags ?? 0) : null,
         ),
       );
     }
