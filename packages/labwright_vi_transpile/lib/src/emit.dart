@@ -1435,7 +1435,8 @@ class _FunctionEmitter {
         body.writeln('${output.name} = $fallback;');
         continue;
       }
-      if (edge.type.dartType != output.type.dartType) {
+      final coerced = _coerced(_bound(edge.source, output.terminal.oid), edge.type, output.type);
+      if (coerced == null) {
         lvRefuse(
           LvRefusalKind.tunnelCoercion,
           'a Case output tunnel carries ${output.type.dartType} outside and '
@@ -1444,7 +1445,51 @@ class _FunctionEmitter {
           oid: output.terminal.oid,
         );
       }
-      body.writeln('${output.name} = ${_bound(edge.source, output.terminal.oid)};');
+      body.writeln('${output.name} = $coerced;');
+    }
+  }
+
+  /// [expression] of type [from] spelled as [to]: itself when the Dart types agree, else a
+  /// member-by-member copy when both are clusters whose members match by label and type, so
+  /// that two typedefs of one shape cross a border as LabVIEW lets them; null otherwise.
+  String? _coerced(String expression, LvWireType from, LvWireType to) {
+    if (from.dartType == to.dartType) return expression;
+    if (from.dims != to.dims || from.dims > 1) return null;
+    final source = _clusterShapeOf(from.element), target = _clusterShapeOf(to.element);
+    if (source == null || target == null || source.fields.length != target.fields.length) return null;
+    for (var i = 0; i < source.fields.length; i++) {
+      if (source.fields[i].label != target.fields[i].label) return null;
+      if (source.fields[i].type.dartType != target.fields[i].type.dartType) return null;
+    }
+    final names = target.name == null
+        ? [for (final field in target.fields) lvFieldName(field.label ?? '')]
+        : LvNaming.declarationFields([for (final field in target.fields) field.label]);
+    final sourceNames = source.name == null
+        ? [for (final field in source.fields) lvFieldName(field.label ?? '')]
+        : LvNaming.declarationFields([for (final field in source.fields) field.label]);
+    if (names.any((name) => name.isEmpty) || sourceNames.any((name) => name.isEmpty)) return null;
+    String copy(String item) {
+      final members = [for (var i = 0; i < names.length; i++) '${names[i]}: $item.${sourceNames[i]}'].join(', ');
+      return target.name == null ? '($members)' : '${target.name}($members)';
+    }
+
+    if (from.dims == 0) return copy(expression);
+    final item = sourceNames.contains('item') ? 'element' : 'item';
+    return '[for (final $item in $expression) ${copy(item)}]';
+  }
+
+  /// A cluster mapping's Dart name (null for an anonymous record) and members, or null for any
+  /// other mapping.
+  ({String? name, List<LvDeclField> fields})? _clusterShapeOf(LvTypeMapping mapping) {
+    switch (mapping.carrier) {
+      case LvCarrier.nominal:
+        final declaration = mapping.declarations.singleOrNull;
+        if (declaration == null || declaration.isEnum) return null;
+        return (name: declaration.name, fields: declaration.fields);
+      case LvCarrier.compound:
+        return mapping.fields.isEmpty ? null : (name: null, fields: mapping.fields);
+      case _:
+        return null;
     }
   }
 
@@ -1521,9 +1566,19 @@ class _FunctionEmitter {
         final at = lvIsAtomic(index) ? index : names.wire(_typeAt(element.indexIn)!);
         if (at != index) body.writeln('final int $at = $index;');
         if (_read.contains(element.elementOut)) {
+          final innerType = _typeAt(element.elementOut) ?? LvWireType.scalarOf(arrayType.element);
+          final read = _coerced('$held[$at]', LvWireType.scalarOf(arrayType.element), innerType);
+          if (read == null) {
+            lvRefuse(
+              LvRefusalKind.tunnelCoercion,
+              'an In Place Element reads ${arrayType.element.dartType} elements into a ${innerType.dartType} '
+              'wire, and the coercion LabVIEW applies at the border is not decoded',
+              oid: unit.oid,
+            );
+          }
           final name = names.role(LvNameRole.element);
-          library.noteImportsFor(arrayType);
-          body.writeln('final ${arrayType.element.dartType} $name = $held[$at];');
+          library.noteImportsFor(innerType);
+          body.writeln('final ${innerType.dartType} $name = $read;');
           valueOf[element.elementOut] = name;
         }
         if (_read.contains(element.indexOut)) valueOf[element.indexOut] = at;
@@ -1547,7 +1602,15 @@ class _FunctionEmitter {
       if (edge == null) {
         lvRefuse(LvRefusalKind.unwiredTerminal, 'an In Place Element frame writes no element back', oid: unit.oid);
       }
-      final value = _bound(edge.source, unit.oid);
+      final value = _coerced(_bound(edge.source, unit.oid), edge.type, LvWireType.scalarOf(write.type.element));
+      if (value == null) {
+        lvRefuse(
+          LvRefusalKind.tunnelCoercion,
+          'an In Place Element writes a ${edge.type.dartType} wire back into ${write.type.element.dartType} '
+          'elements, and the coercion LabVIEW applies at the border is not decoded',
+          oid: unit.oid,
+        );
+      }
       var copy = copies[write.arrayOut];
       if (copy == null) {
         copy = copies[write.arrayOut] = names.wire(write.type);
