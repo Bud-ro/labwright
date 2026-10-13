@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
@@ -24,14 +23,10 @@ List<Object?> _summarizeVi(CorpusVi vi) {
   final name = path.split('/').last;
 
   try {
-    final a = jsonEncode(viModelToJson(model));
-    final b = jsonEncode(viModelToJson(buildViModel(Uint8List.fromList(bytes))));
-    if (a != b) {
-      bad('json', 'NONDET $name');
-    } else {
-      final decoded = jsonDecode(a);
-      if (decoded is! Map || !decoded.containsKey('blockDiagrams')) bad('json', 'BADROOT $name');
-    }
+    final json = viModelToJson(model);
+    jsonEncode(json);
+    if (!json.containsKey('blockDiagrams')) bad('json', 'BADROOT $name');
+    if (!_same(json, viModelToJson(buildViModel(bytes)))) bad('json', 'NONDET $name');
   } catch (e) {
     bad('json', 'THREW $name: $e');
   }
@@ -77,6 +72,24 @@ List<Object?> _summarizeVi(CorpusVi vi) {
 }
 
 const irJsonLaw = CorpusLaw('ir_json', _summarizeVi);
+
+bool _same(Object? a, Object? b) {
+  if (a is Map) {
+    if (b is! Map || a.length != b.length) return false;
+    for (final MapEntry(:key, :value) in a.entries) {
+      if (!b.containsKey(key) || !_same(value, b[key])) return false;
+    }
+    return true;
+  }
+  if (a is List) {
+    if (b is! List || a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (!_same(a[i], b[i])) return false;
+    }
+    return true;
+  }
+  return a == b;
+}
 
 void irJsonTests() {
   late final Map<String, int> C;
