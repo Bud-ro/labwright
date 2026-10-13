@@ -414,10 +414,11 @@ class LvDataflow {
   LvDeclarations? declarations,
   LvViUnit? caller,
   LvViResolver? resolve,
+  LvClassResolver? resolveClass,
 }) {
   try {
     return (
-      dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations(), caller, resolve).build(),
+      dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations(), caller, resolve, resolveClass).build(),
       refusal: null,
     );
   } on LvRefusedException catch (error) {
@@ -426,14 +427,21 @@ class LvDataflow {
 }
 
 class _Builder {
-  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve) : byId = diagram.byId;
+  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve, this.resolveClass)
+    : byId = diagram.byId;
 
   final ViDiagram diagram;
   final List<ViType> pool;
   final LvDeclarations declarations;
   final LvViUnit? caller;
   final LvViResolver? resolve;
+  final LvClassResolver? resolveClass;
   final ViObjectsByOid byId;
+
+  final Map<String, ViModel?> _classData = {};
+
+  ViModel? _privateDataOf(List<String> qualifiedName) =>
+      _classData.putIfAbsent(qualifiedName.join(':'), () => resolveClass?.call(qualifiedName));
 
   /// Each sub-VI call port by its oid: the call node and the pane index the port draws.
   late final Map<int, (ViHeapObject node, int pane)> _callPorts = {
@@ -559,7 +567,26 @@ class _Builder {
     final direct = mapLvWireType(signal);
     if (direct.isMapped) return direct;
     if (kLvWireRefnumCodes.contains(signal.typeCode)) {
-      final dims = lvRefnumWireDims(diagram, wire);
+      final dims = lvRefnumWireDims(diagram, wire) ?? signal.arrayDims;
+      final classes = <String>{};
+      List<String>? qualifiedName;
+      for (final endpoint in wire.endpointOids) {
+        if (lvClassOfEndpoint(diagram, endpoint, array: (dims ?? 0) > 0) case final named?) {
+          qualifiedName = named;
+          classes.add(named.join(':'));
+        }
+      }
+      if (qualifiedName != null) {
+        if (classes.length != 1) {
+          lvRefuse(
+            LvRefusalKind.wireType,
+            'the wire\'s endpoints name ${classes.length} different classes, so the object it carries is not decided',
+            oid: wire.signalOid,
+          );
+        }
+        final element = lvClassObjectType(qualifiedName, _privateDataOf(qualifiedName), declarations);
+        return lvClassObjectWireType(element, dims ?? 0);
+      }
       return dims == null ? direct : lvRefnumWireType(signal, dims);
     }
     if (!kLvWireClusterCodes.contains(signal.typeCode)) return direct;

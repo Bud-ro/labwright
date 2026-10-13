@@ -42,8 +42,14 @@ const int kLvEmitPageWidth = 120;
   String? sourceNote,
   LvErrorMode errorMode = LvErrorMode.exceptions,
   LvViResolver? resolveSubVi,
+  LvClassResolver? resolveClass,
 }) {
-  final library = _Library(errorMode: errorMode, resolve: resolveSubVi, sourceNote: sourceNote);
+  final library = _Library(
+    errorMode: errorMode,
+    resolve: resolveSubVi,
+    resolveClass: resolveClass,
+    sourceNote: sourceNote,
+  );
   try {
     library.emit(entry, entryName: functionName);
     return (source: library.assemble(), refusal: null);
@@ -95,10 +101,11 @@ final RegExp _spellsTypedData = RegExp(
 );
 
 class _Library {
-  _Library({required this.errorMode, required this.resolve, required this.sourceNote});
+  _Library({required this.errorMode, required this.resolve, required this.resolveClass, required this.sourceNote});
 
   final LvErrorMode errorMode;
   final LvViResolver? resolve;
+  final LvClassResolver? resolveClass;
   final String? sourceNote;
 
   final Set<String> imports = <String>{};
@@ -136,6 +143,7 @@ class _Library {
       declarations: declarations,
       caller: unit,
       resolve: resolve,
+      resolveClass: resolveClass,
     );
     if (built.refusal case final refusal?) throw LvRefusedException(refusal);
     final callable = _Callable(
@@ -391,10 +399,46 @@ class _FunctionEmitter {
       final owner = flow.ownerOfPort[edge.source];
       final unit = owner == null ? null : byOid[owner];
       if (unit == null || !live.add(owner!)) continue;
-      pending.addAll(unit.inputPorts);
+      pending.addAll(unit.inputPorts.where(_readsPort));
     }
     return live;
   }
+
+  late final Map<int, LvUnit> _unitByOid = {
+    for (final unit in _allUnits(flow.root)) unit.oid: unit,
+  };
+
+  static Iterable<LvUnit> _allUnits(LvRegion region) sync* {
+    for (final unit in region.units) {
+      yield unit;
+      if (unit is LvStructUnit) {
+        for (final frame in unit.frames) {
+          yield* _allUnits(frame);
+        }
+      }
+    }
+  }
+
+  /// Whether the value arriving at [sink] is read: not by an indicator off the connector pane,
+  /// and not by a structure's input tunnel whose inner side feeds no wire in any frame.
+  bool _readsPort(int sink) {
+    final unit = _unitByOid[flow.ownerOfPort[sink]];
+    switch (unit) {
+      case LvInterfaceUnit():
+        return callable.byTerminal.containsKey(sink) || callable.elided.contains(sink);
+      case LvStructUnit():
+        for (final terminal in unit.terminals) {
+          if (terminal.outerPort != sink) continue;
+          if (!_kTunnelRoles.contains(terminal.role)) return true;
+          return terminal.innerPorts.values.any((inner) => flow.outOf(inner) != null);
+        }
+        return true;
+      case _:
+        return true;
+    }
+  }
+
+  bool _readsEdge(LvEdge edge) => edge.sinks.any(_readsPort);
 
   List<LvUnit> _ordered(LvRegion region, Map<int, LvUnit> byOid, Set<int> live) {
     final ordered = <LvUnit>[];
@@ -430,7 +474,7 @@ class _FunctionEmitter {
 
   void _emitConstant(LvConstUnit unit) {
     final edge = flow.outOf(unit.port);
-    if (edge == null) return;
+    if (edge == null || !_readsEdge(edge)) return;
     final record = unit.record;
     final type = edge.type;
     if (type.dims == 0) {
@@ -576,7 +620,7 @@ class _FunctionEmitter {
 
     final outputs = [
       for (final port in unit.outputPorts)
-        if (flow.outOf(port) != null) terminal(port, isInput: false),
+        if (flow.outOf(port) case final edge? when _readsEdge(edge)) terminal(port, isInput: false),
     ];
     final call = LvPrimCall(
       op: unit.op,
@@ -674,7 +718,10 @@ class _FunctionEmitter {
     ];
     final wanted = <int, LvStockTerminal>{};
     for (final holder in unit.outputPorts) {
-      if (flow.outOf(holder) == null) continue;
+      if (flow.outOf(holder) case final edge? when _readsEdge(edge)) {
+      } else {
+        continue;
+      }
       final terminal = terminalFor(holder, isInput: false);
       if (library._elides(lvStockWireType(terminal))) {
         library.imports.add(kLvRuntimeImport);
@@ -776,7 +823,10 @@ class _FunctionEmitter {
     }
     final wanted = <int, _Port>{};
     for (final holder in unit.outputPorts) {
-      if (flow.outOf(holder) == null) continue;
+      if (flow.outOf(holder) case final edge? when _readsEdge(edge)) {
+      } else {
+        continue;
+      }
       final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: false);
       if (port == null) {
         library.imports.add(kLvRuntimeImport);
@@ -871,9 +921,22 @@ class _FunctionEmitter {
 
   LvWireType? _typeAt(int port) => (flow.into(port) ?? flow.outOf(port))?.type;
 
+  static const Set<LvTerminalRole> _kTunnelRoles = {
+    LvTerminalRole.loopTunnel,
+    LvTerminalRole.caseTunnel,
+    LvTerminalRole.disableTunnel,
+  };
+
+  /// The frame's ports whose values leave it: every structure terminal's inner sink port, except
+  /// an output tunnel whose outer side feeds no wire, which nothing reads.
   Set<int> _frameExits(LvStructUnit unit, int frameOid) => {
     for (final terminal in unit.terminals)
-      if (terminal.innerPorts[frameOid] case final port? when flow.sinkPorts.contains(port)) port,
+      if (terminal.innerPorts[frameOid] case final port? when flow.sinkPorts.contains(port))
+        if (!_kTunnelRoles.contains(terminal.role) ||
+            terminal.outerPort == null ||
+            flow.outOf(terminal.outerPort!) != null ||
+            terminal.outerIsSink)
+          port,
   };
 
   void _emitForLoop(LvStructUnit unit) {

@@ -22,6 +22,11 @@ class LvCallee {
 
 typedef LvViResolver = LvViUnit? Function(LvCallee callee);
 
+/// The private data control of the class a qualified name denotes (`Lib.lvlib`, `X.lvclass`),
+/// as [LvLibraryFile.privateDataControl] gives it and [buildViModel] reads it; null when the
+/// class is not supplied.
+typedef LvClassResolver = ViModel? Function(List<String> qualifiedName);
+
 class LvViUnit {
   LvViUnit({
     required this.fileName,

@@ -114,6 +114,16 @@ class only when their member types and member names agree.
   typedef bases: cluster 19,890, enumU16 5,548, U64 1,347, enumU32 1,053,
   refnum 934, and 15 further kinds; 20 descriptors expose no base and are
   unmapped.
+- **Class object** (a refnum wire whose descriptor is a class instance, naming
+  the class `Lib.lvlib`, `X.lvclass`) → a Dart class named after the class and
+  holding the members of its own private data cluster, read from the class
+  file's `NI.LVClass.FlattenedPrivateDataCTL` through `LvProjectIndex`; one
+  declaration per qualified name, the root `LabVIEW Object` an empty class, and a
+  class the lowering is not supplied is unmapped. Bundle and Unbundle By Name
+  reach its members as a cluster's. Inheritance is not modelled: a child object
+  on a parent-typed wire is a different Dart type and the call refuses. Over the
+  corpus VIs 16,805 class-instance descriptors name a class the index holds,
+  2,497 one it does not, 259 the root.
 - **Enum** → a Dart `enum`. The descriptor's interior is `[u16 count]` then
   `count × [u8 len][chars]` — item labels in order and **no value word
   anywhere** — so an item's value is its ordinal, which is exactly a Dart
@@ -539,25 +549,25 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 367 lower
-and the rest refuse, 5,523 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 592 lower
+and the rest refuse, 4,891 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 533 on a primitive, 213 on
-an unwired terminal, 192 on a constant's value, 147 on a structure, 142 on a
-wire's direction, 141 on a subVI call, 94 on a foreign call, 36 on a tunnel
-coercion, 4 on a case selector, 2 on an unbound value.
+rest are pinned per kind in `kCorpusLoweringSweep`: 540 on a primitive, 456 on an unwired terminal, 213 on a constant's value, 208 on a subVI call, 170 on a structure, 168 on a wire's direction, 96 on a foreign call, 37 on a tunnel coercion, 20 on a case selector, 3 on an unbound value.
 
 A connector-pane control that drives no wire is a parameter the function
-takes and never uses, typed by the control's own descriptor (105 VIs stopped
-there). An indicator that receives no wire returns the value saved with it,
-which the lowering does not read from the data space, and is refused.
+takes and never uses, typed by the control's own descriptor. An indicator that
+receives no wire returns the value saved with it, which the lowering does not
+read from the data space, and is refused. A value nothing reads — one feeding
+only an indicator off the connector pane, a structure's input tunnel whose
+inner side feeds no wire, or an output tunnel whose outer side feeds none —
+is not computed, so no local goes unread.
 
-Those 367 lowerings are **168 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 168 into a
+Those 592 lowerings are **366 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 366 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 168 is the independent check that they
+kernel` of one entry point importing all 366 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
