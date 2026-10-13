@@ -1,14 +1,15 @@
 import 'dart:async';
+import 'dart:convert';
+import 'dart:io';
 import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' as ui;
-
-import 'package:flutter/services.dart' show AssetManifest, rootBundle;
 
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'bd_text_font.dart';
+import 'generated/prim_icon_art.dart';
 import 'terminal_bitmaps.dart';
 
 import 'prim_icon_catalog.dart';
@@ -705,88 +706,115 @@ final Map<int, PrimIconArt> primIcons = {};
 /// The disabled-structure variants of [primIcons], greyed through [_greyDisabledPalette].
 final Map<int, PrimIconArt> primIconsGrey = {};
 
-/// Decodes every primitive icon asset into [primIcons] and [primIconsGrey]; the app awaits it
-/// before running, so every painter finds its icons on its first frame.
-Future<Map<int, PrimIconArt>> loadPrimIcons() async {
+/// Builds every primitive icon from [kPrimIconArtSources] into [primIcons] and [primIconsGrey];
+/// the app calls it before the first frame, so every painter finds its icons.
+Map<int, PrimIconArt> loadPrimIcons() {
   if (primIcons.isNotEmpty) return primIcons;
-  final manifest = await AssetManifest.loadFromAssetBundle(rootBundle);
-  for (final asset in manifest.listAssets()) {
-    final match = RegExp(
-      r'assets/prim_icons/((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
-    ).firstMatch(asset);
-    if (match == null) continue;
-    final statusKey = match.group(1)!;
-    if (kPrimIconStatus[statusKey] == PrimIconStatus.rejected) {
-      continue;
+  for (final source in kPrimIconArtSources) {
+    if (kPrimIconStatus[source.key] == PrimIconStatus.rejected) continue;
+    final id = parsePrimIconName(source.key)!;
+    final width = source.width, height = source.height;
+    final pixels = Uint8List.fromList(
+      ZLibDecoder().convert(base64Decode(source.packedRgba)),
+    );
+    final alpha = Uint8List(width * height);
+    for (var i = 0; i < alpha.length; i++) {
+      alpha[i] = pixels[i * 4 + 3];
     }
-    final id = parsePrimIconName(statusKey)!;
-    final bytes = await rootBundle.load(asset);
-    final image = await decodeImage(bytes.buffer.asUint8List());
-    final rgba = await image.toByteData();
-    if (rgba != null) {
-      final alpha = Uint8List(image.width * image.height);
-      for (var i = 0; i < alpha.length; i++) {
-        alpha[i] = rgba.getUint8(i * 4 + 3);
-      }
-      final pixels = Uint8List.fromList(
-        rgba.buffer.asUint8List(rgba.offsetInBytes, rgba.lengthInBytes),
-      );
-      final corners = <int>{};
-      var minX = image.width, minY = image.height, maxX = -1, maxY = -1;
-      for (var y = 0; y < image.height; y++) {
-        for (var x = 0; x < image.width; x++) {
-          final artIndex = y * image.width + x;
-          if (alpha[artIndex] == 0) continue;
-          if (x < minX) minX = x;
-          if (y < minY) minY = y;
-          if (x > maxX) maxX = x;
-          if (y > maxY) maxY = y;
-          if (alpha[artIndex] != 255) continue;
-          final byteIndex = artIndex * 4;
-          if (pixels[byteIndex] != 0xdd ||
-              pixels[byteIndex + 1] != 0xdd ||
-              pixels[byteIndex + 2] != 0xdd) {
-            continue;
-          }
-          final onEdge =
-              x == 0 ||
-              y == 0 ||
-              x == image.width - 1 ||
-              y == image.height - 1 ||
-              alpha[artIndex - 1] == 0 ||
-              alpha[artIndex + 1] == 0 ||
-              alpha[artIndex - image.width] == 0 ||
-              alpha[artIndex + image.width] == 0;
-          if (onEdge) corners.add(artIndex);
+    final corners = <int>{};
+    var minX = width, minY = height, maxX = -1, maxY = -1;
+    for (var y = 0; y < height; y++) {
+      for (var x = 0; x < width; x++) {
+        final artIndex = y * width + x;
+        if (alpha[artIndex] == 0) continue;
+        if (x < minX) minX = x;
+        if (y < minY) minY = y;
+        if (x > maxX) maxX = x;
+        if (y > maxY) maxY = y;
+        if (alpha[artIndex] != 255) continue;
+        final byteIndex = artIndex * 4;
+        if (pixels[byteIndex] != 0xdd ||
+            pixels[byteIndex + 1] != 0xdd ||
+            pixels[byteIndex + 2] != 0xdd) {
+          continue;
         }
+        final onEdge =
+            x == 0 ||
+            y == 0 ||
+            x == width - 1 ||
+            y == height - 1 ||
+            alpha[artIndex - 1] == 0 ||
+            alpha[artIndex + 1] == 0 ||
+            alpha[artIndex - width] == 0 ||
+            alpha[artIndex + width] == 0;
+        if (onEdge) corners.add(artIndex);
       }
-      _primIconPixels[id] = _PrimIconPixels(
-        width: image.width,
-        height: image.height,
-        alpha: alpha,
-        rgba: pixels,
-        cornerAa: corners,
-        inkBounds: maxX >= minX && maxY >= minY
-            ? ui.Rect.fromLTRB(
-                minX.toDouble(),
-                minY.toDouble(),
-                maxX + 1.0,
-                maxY + 1.0,
-              )
-            : null,
-      );
-      final greyPixels = Uint8List.fromList(pixels);
-      _greyDisabledPalette(greyPixels);
-      primIconsGrey[id] = await _prescaledArt(
-        await imageFromRgba(greyPixels, image.width, image.height),
-      );
     }
-    primIcons[id] = await _prescaledArt(image);
+    _primIconPixels[id] = _PrimIconPixels(
+      width: width,
+      height: height,
+      alpha: alpha,
+      rgba: pixels,
+      cornerAa: corners,
+      inkBounds: maxX >= minX && maxY >= minY
+          ? ui.Rect.fromLTRB(
+              minX.toDouble(),
+              minY.toDouble(),
+              maxX + 1.0,
+              maxY + 1.0,
+            )
+          : null,
+    );
+    final greyPixels = Uint8List.fromList(pixels);
+    _greyDisabledPalette(greyPixels);
+    primIconsGrey[id] = _prescaledArt(_imageOfRgba(greyPixels, width, height));
+    primIcons[id] = _prescaledArt(_imageOfRgba(pixels, width, height));
   }
   return primIcons;
 }
 
-Future<PrimIconArt> _prescaledArt(ui.Image image) async {
+/// An image of [rgba] drawn as one rectangle per run of equal opaque pixels, raised on the
+/// spot; every icon is fully opaque or fully transparent per pixel.
+ui.Image _imageOfRgba(Uint8List rgba, int width, int height) {
+  final recorder = ui.PictureRecorder();
+  final canvas = ui.Canvas(recorder);
+  final paint = ui.Paint()..isAntiAlias = false;
+  for (var y = 0; y < height; y++) {
+    var x = 0;
+    while (x < width) {
+      final i = (y * width + x) * 4;
+      if (rgba[i + 3] == 0) {
+        x++;
+        continue;
+      }
+      var end = x + 1;
+      while (end < width) {
+        final j = (y * width + end) * 4;
+        if (rgba[j] != rgba[i] ||
+            rgba[j + 1] != rgba[i + 1] ||
+            rgba[j + 2] != rgba[i + 2] ||
+            rgba[j + 3] != rgba[i + 3]) {
+          break;
+        }
+        end++;
+      }
+      paint.color = ui.Color.fromARGB(
+        rgba[i + 3],
+        rgba[i],
+        rgba[i + 1],
+        rgba[i + 2],
+      );
+      canvas.drawRect(
+        ui.Rect.fromLTWH(x.toDouble(), y.toDouble(), (end - x).toDouble(), 1),
+        paint,
+      );
+      x = end;
+    }
+  }
+  return recorder.endRecording().toImageSync(width, height);
+}
+
+PrimIconArt _prescaledArt(ui.Image image) {
   final recorder = ui.PictureRecorder();
   final canvas = ui.Canvas(recorder);
   canvas.drawImageRect(
@@ -802,7 +830,7 @@ Future<PrimIconArt> _prescaledArt(ui.Image image) async {
   );
   return (
     base: image,
-    sharp: await recorder.endRecording().toImage(
+    sharp: recorder.endRecording().toImageSync(
       image.width * kPrimIconPrescale,
       image.height * kPrimIconPrescale,
     ),

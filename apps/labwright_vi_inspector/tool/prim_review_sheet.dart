@@ -19,7 +19,7 @@ void main() {
     }
     await loadRealTextFont();
     await tester.runAsync(() async {
-      final icons = await loadPrimIcons();
+      final icons = loadPrimIcons();
       final png = await _paintSheet(icons);
       final out = Directory(sheetDir)..createSync(recursive: true);
       final file = File('${out.path}/prim_review_sheet.png')

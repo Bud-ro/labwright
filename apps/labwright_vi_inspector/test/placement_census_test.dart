@@ -25,7 +25,7 @@ void main() {
     final pngs = snippetCorpusPngs();
     await loadRealTextFont();
     await tester.runAsync(() async {
-      final icons = await loadPrimIcons();
+      final icons = loadPrimIcons();
       final grey = primIconsGrey;
       final artBytes = <int, Uint8List>{};
       final greyBytes = <int, Uint8List>{};

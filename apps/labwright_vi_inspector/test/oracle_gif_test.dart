@@ -138,7 +138,7 @@ void main() {
       final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
       final raster = (await rasteriseBlockDiagram(
         bd,
-        primIcons: await loadPrimIcons(),
+        primIcons: loadPrimIcons(),
         scale: 1.0,
         margin: 2,
       ))!;

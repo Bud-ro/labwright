@@ -7,7 +7,7 @@ import 'src/vi_screen.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await loadSystemUiFont();
-  await loadPrimIcons();
+  loadPrimIcons();
   runApp(const ViInspectorApp());
 }
 

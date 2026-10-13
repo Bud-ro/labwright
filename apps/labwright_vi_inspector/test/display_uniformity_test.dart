@@ -108,7 +108,7 @@ void main() {
   ) async {
     final pngs = snippetCorpusPngs();
     await tester.runAsync(() async {
-      final icons = await loadPrimIcons();
+      final icons = loadPrimIcons();
       var stamps = 0;
       for (final f in pngs) {
         final vi = extractSnippetVi(f.readAsBytesSync());
@@ -204,7 +204,7 @@ void main() {
       final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
       final drawable = bdDrawableObjects(bd);
       final wires = bdVisibleWires(bd);
-      final icons = await loadPrimIcons();
+      final icons = loadPrimIcons();
       final raster = (await rasteriseBlockDiagram(
         bd,
         primIcons: icons,
@@ -853,7 +853,7 @@ void main() {
     await loadRealTextFont();
     var branchWires = 0, junctionDots = 0, runPixels = 0, exposedWires = 0;
     await tester.runAsync(() async {
-      final icons = await loadPrimIcons();
+      final icons = loadPrimIcons();
       for (final name in ['Excel_Read_XLSX', 'Read VI Blocks']) {
         final file = root
             .listSync(recursive: true)
