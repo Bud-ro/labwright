@@ -51,96 +51,124 @@ CorpusVi parseCorpusVi(File file) {
   return CorpusVi(file.path, bytes, png: png, sections: sections, decoded: decoded, model: model, error: error);
 }
 
-/// Every corpus VI parsed once per test process and kept in worker isolates; a law runs over all
-/// of them, in corpus order, where they live.
+/// A law over the corpus: a top-level function applied to every VI, named for the timing table
+/// and catalogued in corpus/laws.dart for the worker. Its result crosses isolate groups, so it is
+/// built from primitives, lists and maps, never records or class instances.
+class CorpusLaw<R> {
+  const CorpusLaw(this.name, this.apply);
+
+  final String name;
+
+  final R Function(CorpusVi vi) apply;
+
+  /// The law's results over [CorpusVis.files], in that order.
+  Future<List<R>> get results async => (await corpusVis._results()).results[name]!.cast<R>();
+}
+
+extension CorpusCountLaw on CorpusLaw<Map<String, int>> {
+  /// The files on which the law counted any of [keys], with those counts.
+  Future<Map<String, Map<String, int>>> nonzero(Iterable<String> keys) async =>
+      perFileNonzero(corpusVis.files, await results, keys);
+}
+
+/// The corpus laws applied in one pass: worker isolates, each in its own isolate group so their
+/// heaps never block one another, parse a VI, run every catalogued law on it and drop it. The pass
+/// starts when the first law's results are awaited.
 class CorpusVis {
   List<File>? _files;
 
   List<File> get files => _files ??= listCorpusVis(corpusVi);
 
-  Future<List<_Worker>>? _workers;
+  Future<CorpusPass>? _pass;
 
-  /// [law] applied to every VI, in [files] order; it must be a top-level function.
-  Future<List<R>> map<R>(R Function(CorpusVi vi) law) async {
-    final workers = await (_workers ??= _spawn(files));
-    final replies = await Future.wait([for (final worker in workers) worker.run(law)]);
-    final n = workers.length;
-    return [for (var i = 0; i < files.length; i++) replies[i % n][i ~/ n] as R];
+  /// The seconds each law spent over the corpus, summed across workers, with 'parse' for the
+  /// parse itself.
+  Future<Map<String, double>> get lawSeconds async {
+    final pass = await _results();
+    return {
+      'parse': pass.parseMicros / 1e6,
+      for (final MapEntry(key: name, value: micros) in pass.lawMicros.entries) name: micros / 1e6,
+    };
   }
 
-  /// The files on which [law] counts any of [keys], with those counts.
-  Future<Map<String, Map<String, int>>> validateAll(
-    Map<String, int> Function(CorpusVi vi) law,
-    Iterable<String> keys,
-  ) async => perFileNonzero(files, await map(law), keys);
+  Future<CorpusPass> _results() => _pass ??= _run();
 
-  Future<void> close() async {
-    final workers = await _workers;
-    if (workers == null) return;
-    for (final worker in workers) {
-      worker.commands.send(null);
-    }
-    _workers = null;
-  }
-
-  static Future<List<_Worker>> _spawn(List<File> files) {
+  Future<CorpusPass> _run() async {
+    final test = Directory('${repoRoot().path}/packages/labwright_rsrc_parse/test');
+    final dill = File('${Directory.systemTemp.createTempSync('corpus_worker').path}/corpus_worker.dill');
+    final compiled = await Process.run(Platform.resolvedExecutable, [
+      'compile',
+      'kernel',
+      '${test.path}/corpus_worker.dart',
+      '-o',
+      dill.path,
+    ]);
+    if (compiled.exitCode != 0) throw StateError('corpus worker failed to compile:\n${compiled.stderr}');
     final n = _workerCount < files.length ? _workerCount : files.length;
     final chunks = List.generate(n, (_) => <String>[]);
     for (var i = 0; i < files.length; i++) {
       chunks[i % n].add(files[i].path);
     }
-    return Future.wait([for (final chunk in chunks) _Worker.spawn(chunk)]);
+    final packageConfig = File('${repoRoot().path}/.dart_tool/package_config.json').uri;
+    final parts = await Future.wait([for (final chunk in chunks) _spawnWorker(dill.uri, packageConfig, chunk)]);
+    dill.parent.deleteSync(recursive: true);
+    final results = {
+      for (final name in parts.first.results.keys)
+        name: [for (var i = 0; i < files.length; i++) parts[i % n].results[name]![i ~/ n]],
+    };
+    return CorpusPass(
+      results,
+      parts.fold(0, (sum, part) => sum + part.parseMicros),
+      {
+        for (final name in parts.first.lawMicros.keys) name: parts.fold(0, (sum, part) => sum + part.lawMicros[name]!),
+      },
+    );
   }
+
+  static Future<CorpusPass> _spawnWorker(Uri dill, Uri packageConfig, List<String> paths) async {
+    final reply = ReceivePort();
+    final exit = ReceivePort();
+    final errors = ReceivePort();
+    await Isolate.spawnUri(
+      dill,
+      paths,
+      reply.sendPort,
+      packageConfig: packageConfig,
+      onExit: exit.sendPort,
+      onError: errors.sendPort,
+    );
+    final outcome = await Future.any([
+      reply.first,
+      exit.first.then((_) => throw StateError('a corpus worker exited without replying')),
+      errors.first.then((error) => throw StateError('a corpus worker died: ${(error as List).join('\n')}')),
+    ]);
+    reply.close();
+    exit.close();
+    errors.close();
+    return switch (outcome as List<Object?>) {
+      [final String failure] => throw StateError(failure),
+      [final Map<String, List<Object?>> results, final int parseMicros, final Map<String, int> lawMicros] => CorpusPass(
+        results,
+        parseMicros,
+        lawMicros,
+      ),
+      final other => throw StateError('unexpected corpus worker reply: $other'),
+    };
+  }
+}
+
+/// One worker's share of a pass: each law's results over its VIs, in order, and the time spent.
+class CorpusPass {
+  CorpusPass(this.results, this.parseMicros, this.lawMicros);
+
+  final Map<String, List<Object?>> results;
+
+  final int parseMicros;
+
+  final Map<String, int> lawMicros;
 }
 
 final corpusVis = CorpusVis();
-
-class _Worker {
-  _Worker(this.commands);
-
-  final SendPort commands;
-
-  static Future<_Worker> spawn(List<String> paths) async {
-    final ready = ReceivePort();
-    await Isolate.spawn(_main, (ready.sendPort, paths));
-    final commands = await ready.first as SendPort;
-    ready.close();
-    return _Worker(commands);
-  }
-
-  Future<List<Object?>> run(Function law) async {
-    final reply = ReceivePort();
-    commands.send((law, reply.sendPort));
-    final (results, failure) = await reply.first as (List<Object?>?, String?);
-    reply.close();
-    if (results == null) throw StateError(failure!);
-    return results;
-  }
-
-  static void _main((SendPort, List<String>) init) {
-    final (ready, paths) = init;
-    final vis = [for (final path in paths) parseCorpusVi(File(path))];
-    final commands = ReceivePort();
-    ready.send(commands.sendPort);
-    commands.listen((message) {
-      if (message == null) {
-        commands.close();
-        return;
-      }
-      final (law, reply) = message as (Function, SendPort);
-      final results = <Object?>[];
-      for (final vi in vis) {
-        try {
-          results.add(law(vi));
-        } catch (error, stack) {
-          reply.send((null, 'the law threw on ${vi.path}: $error\n$stack'));
-          return;
-        }
-      }
-      reply.send((results, null));
-    });
-  }
-}
 
 File corpusSnapshotFile() => File('${repoRoot().path}/packages/labwright_rsrc_parse/test/corpus_snapshot.json');
 

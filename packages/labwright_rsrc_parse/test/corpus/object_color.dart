@@ -60,9 +60,11 @@ List<int> _tally(CorpusVi vi) {
   return out;
 }
 
+const objectColorLaw = CorpusLaw('object_color', _tally);
+
 void objectColorTests() {
   test('object colours decode and land on drawable objects', () async {
-    final tallies = await corpusVis.map(_tally);
+    final tallies = await objectColorLaw.results;
     final sum = List<int>.filled(18, 0);
     for (final t in tallies) {
       for (var i = 0; i < 18; i++) {

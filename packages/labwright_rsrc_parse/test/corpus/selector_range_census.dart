@@ -148,25 +148,22 @@ Map<String, int> _census(CorpusVi vi) {
   return counts;
 }
 
+const selectorRangeCensusLaw = CorpusLaw('selector_range_census', _census);
+
 void selectorRangeCensusTests() {
-  final all = corpusVis.files;
-  late final List<Map<String, int>> counts;
-  setUpAll(() async {
-    counts = await corpusVis.map(_census);
-  });
-
-  test('every selector range names a frame the structure has, and no frame is unreachable', () {
+  test('every selector range names a frame the structure has, and no frame is unreachable', () async {
     expect(
-      perFileNonzero(all, counts, {'frameOutOfRange', 'frameUnreachable', 'countDisagree'}),
+      await selectorRangeCensusLaw.nonzero({'frameOutOfRange', 'frameUnreachable', 'countDisagree'}),
       const <String, Map<String, int>>{},
     );
   });
 
-  test('the displayed frame\'s ranges reproduce its selector label', () {
+  test('the displayed frame\'s ranges reproduce its selector label', () async {
     expect(
-      perFileNonzero(all, counts, {'boolDisagree', 'errorDisagree', 'numericDisagree', 'stringDisagree'}),
+      await selectorRangeCensusLaw.nonzero({'boolDisagree', 'errorDisagree', 'numericDisagree', 'stringDisagree'}),
       const <String, Map<String, int>>{},
     );
+    final counts = await selectorRangeCensusLaw.results;
     for (final shape in const ['bool', 'error', 'numeric', 'string']) {
       expect(counts.any((c) => (c['${shape}Agree'] ?? 0) > 0), isTrue, reason: shape);
     }

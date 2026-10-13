@@ -21,7 +21,13 @@ import 'corpus/writer_scoreboard.dart';
 import 'corpus_dirs.dart';
 
 void main() {
-  tearDownAll(corpusVis.close);
+  tearDownAll(() async {
+    final seconds = await corpusVis.lawSeconds;
+    // ignore: avoid_print
+    print(
+      'corpus law seconds across workers: ${seconds.entries.map((e) => '${e.key} ${e.value.toStringAsFixed(1)}').join(', ')}',
+    );
+  });
   group('invariants', invariantsTests);
   group('corpus_snapshot', corpusSnapshotTests);
   group('ir_json', irJsonTests);

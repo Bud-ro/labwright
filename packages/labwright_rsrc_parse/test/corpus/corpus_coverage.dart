@@ -25,11 +25,10 @@ Map<String, int> _totality(CorpusVi vi) {
 
 const kTotalityBreaks = <String, Map<String, int>>{};
 
-void corpusCoverageTests() {
-  final all = corpusVis.files;
+const corpusCoverageLaw = CorpusLaw('corpus_coverage', _totality);
 
+void corpusCoverageTests() {
   test('every corpus VI parses, decodes, and walks without throwing', () async {
-    final res = await corpusVis.map(_totality);
-    expect(perFileNonzero(all, res, const {'throws', 'walkOutOfBounds'}), kTotalityBreaks);
+    expect(await corpusCoverageLaw.nonzero(const {'throws', 'walkOutOfBounds'}), kTotalityBreaks);
   });
 }

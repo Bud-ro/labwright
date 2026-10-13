@@ -36,13 +36,12 @@ Map<String, int> _census(CorpusVi vi) {
   return c;
 }
 
-void signalTypeCensusTests() {
-  final all = corpusVis.files;
+const signalTypeCensusLaw = CorpusLaw('signal_type_census', _census);
 
+void signalTypeCensusTests() {
   test('wire-type word laws: u16 wide, depth 1..6, flag bits 12-13 clear', () async {
-    final res = await corpusVis.map(_census);
     // TODO: two editor VIs carry a wire-type depth outside 1..6.
-    expect(perFileNonzero(all, res, _laws), const <String, Map<String, int>>{
+    expect(await signalTypeCensusLaw.nonzero(_laws), const <String, Map<String, int>>{
       'vi-corpus/sources/LabVIEW-DCAF__calcs/src/editor node/Main Editor UI.vi': {'depthOutOfRange': 1},
       'vi-corpus/sources/LabVIEW-DCAF__calcs/src/editor node/Node Change Event.vi': {'depthOutOfRange': 1},
     });

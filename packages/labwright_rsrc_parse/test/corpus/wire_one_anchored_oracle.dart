@@ -320,12 +320,14 @@ const kBranchGrossMisses = <String, int>{
   'for-loop_autoindex.png': 1,
 };
 
+const wireOneAnchoredOracleLaw = CorpusLaw('wire_one_anchored_oracle', _census);
+
 void wireOneAnchoredOracleTests() {
   final files = corpusVis.files;
   late final Map<String, Map<String, int>> byFile;
   late final Map<String, int> C;
   setUpAll(() async {
-    final res = await corpusVis.map(_census);
+    final res = await wireOneAnchoredOracleLaw.results;
     byFile = {
       for (var i = 0; i < files.length; i++)
         if (files[i].path.endsWith('.png')) files[i].uri.pathSegments.last: res[i],

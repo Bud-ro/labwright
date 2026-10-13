@@ -83,16 +83,15 @@ const kUndecodedAuxSections = <String, Map<String, int>>{
   'vi-corpus/sources/jdnichollsc__Automated-classrooms/LABORATORIOS.vi': {'LI**': 3},
 };
 
-void auxBlocksTests() {
-  final all = corpusVis.files;
+const auxBlocksLaw = CorpusLaw('aux_blocks', _undecoded);
 
+void auxBlocksTests() {
   test('every aux block instance decodes', () async {
-    final res = await corpusVis.map(_undecoded);
     final keys = {
       for (final probes in _probes.values)
         for (final (key, _) in probes) key,
       'LI**',
     };
-    expect(perFileNonzero(all, res, keys), kUndecodedAuxSections);
+    expect(await auxBlocksLaw.nonzero(keys), kUndecodedAuxSections);
   });
 }

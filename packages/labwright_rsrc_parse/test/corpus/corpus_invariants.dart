@@ -268,34 +268,30 @@ Map<String, int> _inv(CorpusVi vi) {
   return c;
 }
 
+const corpusInvariantsLaw = CorpusLaw('corpus_invariants', _inv);
+
 void corpusInvariantsTests() {
-  final all = corpusVis.files;
-  late final List<Map<String, int>> res;
-  setUpAll(() async {
-    res = await corpusVis.map(_inv);
+  Future<Map<String, Map<String, int>>> violations(Set<String> laws) => corpusInvariantsLaw.nonzero(laws);
+
+  test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () async {
+    expect(await violations({'cross'}), const <String, Map<String, int>>{});
   });
 
-  Map<String, Map<String, int>> violations(Set<String> laws) => perFileNonzero(all, res, laws);
-
-  test('CROSS-CONSISTENCY: every extracted section tag is in parseVi\'s block inventory', () {
-    expect(violations({'cross'}), const <String, Map<String, int>>{});
+  test('SECTION: recovered VINS re-parse as VIs and LIBN carries printable names', () async {
+    expect(await violations({'vinsNotRsrc', 'libnNotPrintable'}), const <String, Map<String, int>>{});
   });
 
-  test('SECTION: recovered VINS re-parse as VIs and LIBN carries printable names', () {
-    expect(violations({'vinsNotRsrc', 'libnNotPrintable'}), const <String, Map<String, int>>{});
-  });
-
-  test('IDEMPOTENCY: every container layer re-serializes byte-exact for every VI', () {
+  test('IDEMPOTENCY: every container layer re-serializes byte-exact for every VI', () async {
     expect(
-      violations({'rtBytes', 'rtSerialize', 'rtVivi', 'rtHeader', 'rtSub', 'rtBl', 'rtData', 'desc'}),
+      await violations({'rtBytes', 'rtSerialize', 'rtVivi', 'rtHeader', 'rtSub', 'rtBl', 'rtData', 'desc'}),
       const <String, Map<String, int>>{},
     );
   });
 
   // TODO: XControl facade VIs lay out the info area and section edits differently.
-  test('INFO-AREA: descriptor peel, final entry, subheader, name table and trailing name laws', () {
+  test('INFO-AREA: descriptor peel, final entry, subheader, name table and trailing name laws', () async {
     expect(
-      violations({
+      await violations({
         'peel',
         'preGapMarker',
         'preGapZero',
@@ -346,8 +342,8 @@ void corpusInvariantsTests() {
     );
   });
 
-  test('EDIT: typed and raw section edits stay coherent for every VI', () {
-    expect(violations({'edit', 'seditNoop', 'seditGrow', 'seditShrink'}), const <String, Map<String, int>>{
+  test('EDIT: typed and raw section edits stay coherent for every VI', () async {
+    expect(await violations({'edit', 'seditNoop', 'seditGrow', 'seditShrink'}), const <String, Map<String, int>>{
       'vi-corpus/sources/NEVSTOP-LAB__LabVIEW-UI-XCtl/LabVIEW-UI-DateTimeSelector/UI_TimeSelector/Facade.vi': {
         'edit': 1,
       },
@@ -360,7 +356,7 @@ void corpusInvariantsTests() {
     });
   });
 
-  test('SUBVI: names and paths are clean, deduped and plausible', () {
-    expect(violations({'subviClean', 'subviPathClean'}), const <String, Map<String, int>>{});
+  test('SUBVI: names and paths are clean, deduped and plausible', () async {
+    expect(await violations({'subviClean', 'subviPathClean'}), const <String, Map<String, int>>{});
   });
 }

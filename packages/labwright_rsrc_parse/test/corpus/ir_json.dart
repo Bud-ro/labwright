@@ -6,7 +6,8 @@ import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
 
-(Map<String, int>, List<String>) _summarizeVi(CorpusVi vi) {
+/// Counts, then diagnostics.
+List<Object?> _summarizeVi(CorpusVi vi) {
   final bytes = vi.bytes;
   final path = vi.path;
   final c = <String, int>{};
@@ -18,7 +19,7 @@ import '../corpus_dirs.dart';
   }
 
   final model = vi.model;
-  if (model == null) return (c, diags);
+  if (model == null) return [c, diags];
   n('built');
   final name = path.split('/').last;
 
@@ -72,8 +73,10 @@ import '../corpus_dirs.dart';
       if (t.itemCount > 0) n('enumsWithItems');
     }
   }
-  return (c, diags);
+  return [c, diags];
 }
+
+const irJsonLaw = CorpusLaw('ir_json', _summarizeVi);
 
 void irJsonTests() {
   late final Map<String, int> C;
@@ -81,7 +84,7 @@ void irJsonTests() {
   setUpAll(() async {
     C = {};
     diags = [];
-    for (final (counts, d) in await corpusVis.map(_summarizeVi)) {
+    for (final [counts as Map<String, int>, d as List<String>] in await irJsonLaw.results) {
       counts.forEach((k, v) => C[k] = (C[k] ?? 0) + v);
       diags.addAll(d);
     }

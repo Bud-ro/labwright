@@ -219,11 +219,11 @@ const kWireRouteViolations = <String, Map<String, int>>{};
 
 int _sum(Map<String, int> c, List<String> keys) => keys.fold(0, (a, k) => a + (c[k] ?? 0));
 
-void wireRouteCensusTests() {
-  final all = corpusVis.files;
+const wireRouteCensusLaw = CorpusLaw('wire_route_census', _census);
 
+void wireRouteCensusTests() {
   test('every VI obeys the wire route laws', () async {
-    final res = await corpusVis.map(_census);
+    final res = await wireRouteCensusLaw.results;
     for (final c in res) {
       c['shippedTierMismatch'] =
           ((c['shipped'] ?? 0) -
@@ -243,7 +243,7 @@ void wireRouteCensusTests() {
       c['extAnchoredMismatch'] =
           ((c['extFullAnchored'] ?? 0) - _sum(c, ['extFullClosed', 'extFullMiss', 'extFullLeafMismatch'])).abs();
     }
-    expect(perFileNonzero(all, res, _laws), kWireRouteViolations);
+    expect(perFileNonzero(corpusVis.files, res, _laws), kWireRouteViolations);
   });
 
   test('basic.png ground truth: decoded routes reproduce the reference render geometry', () {

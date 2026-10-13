@@ -119,11 +119,13 @@ const kShippedRunInkPct = <String, int>{
   'Symbols1Bit.png': 60,
 };
 
+const wireBranchOracleLaw = CorpusLaw('wire_branch_oracle', _census);
+
 void wireBranchOracleTests() {
   final files = corpusVis.files;
   late final Map<String, Map<String, int>> byFile;
   setUpAll(() async {
-    final res = await corpusVis.map(_census);
+    final res = await wireBranchOracleLaw.results;
     byFile = {
       for (var i = 0; i < files.length; i++)
         if (files[i].path.endsWith('.png')) files[i].uri.pathSegments.last: res[i],

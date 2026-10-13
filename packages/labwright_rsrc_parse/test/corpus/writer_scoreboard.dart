@@ -139,6 +139,8 @@ const kWriterViolations = <String, Map<String, int>>{
 
 const _alsoPlain = {BlockTag.tm80, BlockTag.vicd, BlockTag.dfds};
 
+const writerScoreboardLaw = CorpusLaw('writer_scoreboard', _violations);
+
 void writerScoreboardTests() {
   final all = [
     for (final f in corpusVis.files)
@@ -146,8 +148,7 @@ void writerScoreboardTests() {
   ];
 
   test('every VI obeys the writer laws', () async {
-    final res = await corpusVis.map(_violations);
-    expect(perFileNonzero(corpusVis.files, res, _laws), kWriterViolations);
+    expect(await writerScoreboardLaw.nonzero(_laws), kWriterViolations);
   });
 
   test('a compressed section re-emitted from re-deflated content stays valid and content-exact', () {

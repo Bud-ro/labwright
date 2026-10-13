@@ -267,13 +267,14 @@ const kDisabledPaletteMismatches = <String, int>{
   'crc8.png': 1,
 };
 
+const wireRenderStyleCensusLaw = CorpusLaw('wire_render_style_census', _censusSnippet);
+
 void wireRenderStyleCensusTests() {
   final files = corpusVis.files;
-
   late final Map<String, Map<String, int>> byFile;
   late final Map<String, int> C;
   setUpAll(() async {
-    final res = await corpusVis.map(_censusSnippet);
+    final res = await wireRenderStyleCensusLaw.results;
     byFile = {
       for (var i = 0; i < files.length; i++)
         if (files[i].path.endsWith('.png')) files[i].uri.pathSegments.last: res[i],

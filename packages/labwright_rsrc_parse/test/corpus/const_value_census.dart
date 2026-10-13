@@ -67,13 +67,12 @@ Map<String, int> _census(CorpusVi vi) {
 
 const kConstValueLawBreaks = <String, Map<String, int>>{};
 
-void constValueCensusTests() {
-  final all = corpusVis.files;
+const constValueCensusLaw = CorpusLaw('const_value_census', _census);
 
+void constValueCensusTests() {
   test('BD-constant laws: one record per constant, on the DCO, booleans binary', () async {
-    final res = await corpusVis.map(_census);
     expect(
-      perFileNonzero(all, res, const {'recordsOffDco', 'multiRecordConstants', 'boolNonBinary'}),
+      await constValueCensusLaw.nonzero(const {'recordsOffDco', 'multiRecordConstants', 'boolNonBinary'}),
       kConstValueLawBreaks,
     );
   });

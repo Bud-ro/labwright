@@ -8,8 +8,6 @@ import '../corpus_dirs.dart';
 
 const _fuzzIters = 2;
 
-typedef _Summ = (Map<String, int>, Set<int>, Set<String>);
-
 String _sig(ViModel m) {
   final b = StringBuffer();
   for (final diag in [...m.blockDiagrams, ...m.frontPanelDiagrams]) {
@@ -34,7 +32,8 @@ bool _structuralHeap(Uint8List b) {
   return ByteData.sublistView(b).getUint32(0) == b.length - 4 && _heapLead(b[4]);
 }
 
-_Summ _summarize(CorpusVi vi) {
+/// Counts, object kinds seen, then record-heap tags seen.
+List<Object?> _summarize(CorpusVi vi) {
   final bytes = vi.bytes;
   final c = <String, int>{};
   final kinds = <int>{};
@@ -50,7 +49,7 @@ _Summ _summarize(CorpusVi vi) {
   }
 
   final m = vi.model;
-  if (m == null) return (c, kinds, headTags);
+  if (m == null) return [c, kinds.toList(), headTags.toList()];
 
   try {
     if (_sig(m) != _sig(buildViModel(bytes))) bad('nondet');
@@ -113,8 +112,10 @@ _Summ _summarize(CorpusVi vi) {
     }
   }
 
-  return (c, kinds, headTags);
+  return [c, kinds.toList(), headTags.toList()];
 }
+
+const invariantsLaw = CorpusLaw('invariants', _summarize);
 
 void invariantsTests() {
   final all = corpusVis.files;
@@ -122,10 +123,10 @@ void invariantsTests() {
   late final Set<int> kindsSeen;
   late final Set<String> headTags;
   setUpAll(() async {
-    final res = await corpusVis.map(_summarize);
-    counts = [for (final (c, _, _) in res) c];
-    kindsSeen = {for (final (_, k, _) in res) ...k};
-    headTags = {for (final (_, _, h) in res) ...h};
+    final res = await invariantsLaw.results;
+    counts = [for (final [c as Map<String, int>, _, _] in res) c];
+    kindsSeen = {for (final [_, k as List<int>, _] in res) ...k};
+    headTags = {for (final [_, _, h as List<String>] in res) ...h};
   });
 
   Map<String, Map<String, int>> violations(Set<String> laws) => perFileNonzero(all, counts, laws);
