@@ -1,3 +1,5 @@
+import 'dart:math';
+
 // TODO(lv-convert-range): truncate vs saturate outside the target width is not decoded; these truncate.
 int lvToI8(int value) => value << 56 >> 56;
 int lvToI16(int value) => value << 48 >> 48;
@@ -44,3 +46,8 @@ int lvRotate(int value, int count, int bits) {
   (value >>> 1) | (carryIn ? 1 << (bits - 1) : 0),
   value & 1 != 0,
 );
+
+final Random _random = Random();
+
+/// Random Number (0-1): a double-precision number at or above 0 and below 1.
+double lvRandomNumber() => _random.nextDouble();

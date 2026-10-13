@@ -545,8 +545,8 @@ they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 83 distinct unmapped identities over
-299 nodes across the rcpacini snippets, headed by node classes `0x105` (16)
+`test/corpus_lowering_sweep_test.dart`: 82 distinct unmapped identities over
+295 nodes across the rcpacini snippets, headed by node classes `0x105` (16)
 and `0xa9` (15).
 
 ### subVI calls
@@ -605,10 +605,10 @@ primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
 direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 785 lower
-and the rest refuse, 4,872 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 795 lower
+and the rest refuse, 4,873 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 698 on a primitive, 321 on a subVI call, 250 on a structure, 206 on a constant's value, 114 on a foreign call, 102 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 6 on a tunnel's indexing, 5 on a wire's direction, 1 on a tunnel coercion.
+rest are pinned per kind in `kCorpusLoweringSweep`: 685 on a primitive, 323 on a subVI call, 250 on a structure, 206 on a constant's value, 114 on a foreign call, 102 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 6 on a tunnel's indexing, 5 on a wire's direction, 1 on a tunnel coercion.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -633,12 +633,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 785 lowerings are **528 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 528 into a
+Those 795 lowerings are **534 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 534 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 528 is the independent check that they
+kernel` of one entry point importing all 534 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
@@ -753,6 +753,12 @@ What that method decided, and what it did not:
   the reference states; elements compare as text, booleans, integers or paths
   (a path by its components, validity and absoluteness), and a negative start
   index is not decoded and throws in the runtime.
+- **`Random Number (0-1)`** is the runtime's `lvRandomNumber`, a double at or
+  above 0 and below 1 from Dart's own generator.
+- **`Format Into String` with no format wired** takes the format the reference
+  says matches the argument's data type, spelled only where that is one
+  thing: `%d` for a single integer argument and `%s` for a single string; any
+  other argument list refuses.
 - **`To Lower Case`** and 1181's digit case are proven only as a **pair**: the
   digests are wrong if either the conversion writes lower case and the mapping
   is a no-op, or the reverse, but they cannot separate the two. The VI's own

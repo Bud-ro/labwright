@@ -226,6 +226,7 @@ final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
   PrimOp.matchPattern: _matchPattern,
   PrimOp.buildPath: _buildPath,
   PrimOp.search1dArray: _search1dArray,
+  PrimOp.randomNumber: _randomNumber,
   PrimOp.toLowerCase: _toLowerCase,
   PrimOp.waitMs: _waitMs,
 };
@@ -661,7 +662,8 @@ List<String>? _formatIntoString(LvPrimCall call) {
   if (left.length != 3 || right.length != 2) return null;
   final [formatPort, initialPort, errorInPort] = left;
   final [resultPort, errorOutPort] = right;
-  final format = wired[formatPort]?.constantText;
+  final formatTerminal = wired[formatPort];
+  final format = formatTerminal == null ? _defaultFormat(wired, order) : formatTerminal.constantText;
   if (format == null) return null;
   final pieces = lvFormatPieces(format);
   if (pieces == null) return null;
@@ -704,6 +706,18 @@ List<String>? _formatIntoString(LvPrimCall call) {
   text.write("'");
   lines.add('final String ${result.expression} = $text;');
   return lines;
+}
+
+/// The format an unwired format string defaults to, which the reference says matches the
+/// argument's data type: `%d` for one integer argument, `%s` for one string; null for any other
+/// argument list, whose default the reference does not spell.
+String? _defaultFormat(Map<int, LvPrimTerminal> wired, List<int> order) {
+  if (order.length != 1) return null;
+  final operand = wired[order.single];
+  if (operand == null || operand.type.dims != 0) return null;
+  if (operand.type.carrier == LvCarrier.text) return '%s';
+  final kind = operand.type.numeric;
+  return kind != null && !kind.isFloat ? '%d' : null;
 }
 
 /// How [spec] spells [operand] inside the resulting string's interpolation.
@@ -953,6 +967,15 @@ List<String>? _isNotANumber(LvPrimCall call) {
     case _:
       return null;
   }
+}
+
+List<String>? _randomNumber(LvPrimCall call) {
+  if (call.inputs.isNotEmpty || call.outputs.length > 1) return null;
+  final out = call.outputs.singleOrNull;
+  if (out == null) return const [];
+  if (out.type.dims != 0 || !(out.type.numeric?.isFloat ?? false)) return null;
+  call.requireImport(kLvRuntimeImport);
+  return ['final double ${out.expression} = ${LvRuntimeCall.randomNumber}();'];
 }
 
 /// Search 1D Array's terminals top-down: the array, the element and an optional start index on
