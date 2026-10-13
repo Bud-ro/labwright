@@ -550,6 +550,32 @@ final class ViRefnumType extends ViType {
 
   /// Null for a code [ViRefnumKind] does not name.
   ViRefnumKind? get refnumKind => ViRefnumKind.ofCode(refKind);
+
+  /// For a [ViRefnumKind.classInstance], the class's library-qualified name, outermost first:
+  /// after the client words, a byte counting the rest, then the components as Pascal strings
+  /// padded to an even length (`Option Parser.lvlib`, `Option.lvclass`); the root class is the
+  /// bare text `LabVIEW Object`. Empty for any other kind.
+  List<String> get classQualifiedName {
+    if (refnumKind != ViRefnumKind.classInstance) return const [];
+    final at = offset + _descriptorHead + 4 + 2 * clientCount;
+    if (at >= end) return const [];
+    final count = bytes[at];
+    final limit = at + 1 + count;
+    if (limit > end) return const [];
+    final names = <String>[];
+    var pos = at + 1;
+    while (pos < limit) {
+      final length = bytes[pos];
+      if (length == 0) {
+        pos++;
+        continue;
+      }
+      if (pos + 1 + length > limit) return [String.fromCharCodes(bytes, at + 1, limit)];
+      names.add(String.fromCharCodes(bytes, pos + 1, pos + 1 + length));
+      pos += 1 + length;
+    }
+    return names;
+  }
 }
 
 /// What a `0x70` refnum refers to, by its kind word. A flattened refnum is a `u32` except

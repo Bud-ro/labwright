@@ -12,6 +12,10 @@ import 'corpus_dirs.dart';
 /// ships alongside; a class's private data control is embedded in the class file itself.
 const kLvMemberItemTypes = {'VI', 'LVClass', 'Library', 'XControl', 'Property Definition'};
 
+/// Class-instance refnum descriptors over the corpus VIs: the root `LabVIEW Object`, classes the
+/// corpus holds, classes it does not, and descriptors naming nothing.
+const kClassRefnumNames = (root: 259, indexed: 16805, elsewhere: 2497, unnamed: 0);
+
 /// Class files that carry no private data control: interface classes.
 const kClassesWithoutPrivateData = <String>{
   'vi-corpus/sources/SoftwareMinimalist__LabVIEW-SOLID-Examples/SOLID-Dataflow-Template/IAction/IAction.lvclass',
@@ -86,6 +90,34 @@ void main() {
       expect(shapes, hasLength(1), reason: '${file.path}: every copy of the private data agrees');
     }
     expect(without, kClassesWithoutPrivateData);
+  });
+
+  test('every class-instance refnum in the corpus names a class the index can look up, or the root', () {
+    final index = LvProjectIndex.scan(corpusVi);
+    var root = 0, indexed = 0, elsewhere = 0, unnamed = 0;
+    for (final file in listCorpusVis(corpusVi)) {
+      if (!file.path.endsWith('.vi')) continue;
+      final ViModel model;
+      try {
+        model = buildViModel(file.readAsBytesSync());
+      } catch (_) {
+        continue;
+      }
+      for (final type in model.types) {
+        if (type is! ViRefnumType || type.refnumKind != ViRefnumKind.classInstance) continue;
+        final name = type.classQualifiedName;
+        if (name.isEmpty) {
+          unnamed++;
+        } else if (name.length == 1 && name.single == 'LabVIEW Object') {
+          root++;
+        } else if (index.fileOf(name) != null) {
+          indexed++;
+        } else {
+          elsewhere++;
+        }
+      }
+    }
+    expect((root: root, indexed: indexed, elsewhere: elsewhere, unnamed: unnamed), kClassRefnumNames);
   });
 
   test('the project index names every library member uniquely within its repository', () {
