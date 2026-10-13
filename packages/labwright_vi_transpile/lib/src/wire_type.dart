@@ -59,6 +59,10 @@ LvWireType lvRefnumWireType(ViSignalType signal, int dims) {
 
 const Set<(int, int)> kLvRefnumContradictedCells = {(TypeCode.refnum, 4)};
 
+/// A refnum wire's dimensionality: from the descriptors of its endpoints' node-terminal parts
+/// when they agree, else zero when an endpoint's own descriptor is a scalar refnum, which never
+/// contradicts the parts in the corpus (an endpoint's own array descriptor does, and decides
+/// nothing).
 int? lvRefnumWireDims(ViDiagram diagram, ViWire wire) {
   final signal = wire.signalType;
   if (signal == null || !kLvWireRefnumCodes.contains(signal.typeCode)) return null;
@@ -73,7 +77,12 @@ int? lvRefnumWireDims(ViDiagram diagram, ViWire wire) {
       answer = dims;
     }
   }
-  return answer;
+  if (answer != null) return answer;
+  for (final endpoint in wire.endpointOids) {
+    final object = diagram.byId[endpoint];
+    if (object != null && _refnumDimsOf(object) == 0) return 0;
+  }
+  return null;
 }
 
 /// The class a refnum wire carries, read from the class-instance descriptor of an endpoint or
