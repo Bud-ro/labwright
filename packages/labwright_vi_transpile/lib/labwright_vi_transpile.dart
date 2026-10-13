@@ -23,6 +23,7 @@ export 'src/dataflow_ir.dart';
 export 'src/declare.dart';
 export 'src/emit.dart';
 export 'src/error_mode.dart';
+export 'src/format_string.dart';
 export 'src/naming.dart';
 export 'src/numeric.dart';
 export 'src/prim_map.dart';

@@ -1,5 +1,6 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'format_string.dart';
 import 'naming.dart';
 import 'numeric.dart';
 import 'runtime.dart';
@@ -29,6 +30,7 @@ class LvPrimTerminal {
     required this.roleFlags,
     required this.expression,
     this.memberName,
+    this.constantText,
   });
 
   final int port;
@@ -40,6 +42,9 @@ class LvPrimTerminal {
   final String? expression;
 
   final String? memberName;
+
+  /// The text of the diagram constant feeding an input, when one does.
+  final String? constantText;
 }
 
 class LvPrimCall {
@@ -229,6 +234,7 @@ final Map<LvNodeClass, LvLowering> kLvNodeClassLowerings = {
   LvNodeClass.replaceArraySubset: _replaceArraySubset,
   LvNodeClass.buildArray: _buildArray,
   LvNodeClass.concatenateStrings: _concatenateStrings,
+  LvNodeClass.formatIntoString: _formatIntoString,
   LvNodeClass.unbundle: _unbundle,
   LvNodeClass.mergeErrors: _mergeErrors,
   LvNodeClass.byName: _byName,
@@ -617,6 +623,152 @@ List<String>? _concatenateStrings(LvPrimCall call) {
   final joined = operands.length == 1 ? operands.single : "'${operands.map(_interpolated).join()}'";
   return ['final String $name = $joined;'];
 }
+
+const int kLvFormatFixedTerminalBit = 0x10000;
+
+const int kLvFormatFixedRightTerminal = kLvFormatFixedTerminalBit | 1;
+
+/// Format Into String with a constant format, expanded here: the fixed terminals (format string,
+/// initial string and error in on the left; resulting string and error out on the right) carry
+/// [kLvFormatFixedTerminalBit] in their role flags and read by drawn row, then by port within a
+/// row; the arguments carry none and read the same way. Each specifier spells its argument by conversion: `%s` a string or
+/// a boolean as `TRUE`/`FALSE`, `%d` an integer or a boolean as `1`/`0`, `%x`/`%X` an integer at
+/// its own width, `%f` a float or an integer. The error passes through.
+List<String>? _formatIntoString(LvPrimCall call) {
+  final fixedLeft = <int>[], fixedRight = <int>[], arguments = <int>[];
+  final wired = {for (final operand in call.inputs) operand.port: operand};
+  final consumed = {for (final result in call.outputs) result.port: result};
+  for (final port in [...wired.keys, ...call.outputPorts]) {
+    final flags = call.portRoleFlags[port] ?? wired[port]?.roleFlags ?? 0;
+    switch (flags) {
+      case 0:
+        arguments.add(port);
+      case kLvFormatFixedTerminalBit:
+        fixedLeft.add(port);
+      case kLvFormatFixedRightTerminal:
+        fixedRight.add(port);
+      case _:
+        return null;
+    }
+  }
+  List<int> rowsThenPorts(List<int> ports) => [...ports]
+    ..sort((a, b) {
+      final rows = (call.portDrawnTop[a] ?? 0).compareTo(call.portDrawnTop[b] ?? 0);
+      return rows != 0 ? rows : a.compareTo(b);
+    });
+  final left = rowsThenPorts(fixedLeft), right = rowsThenPorts(fixedRight), order = rowsThenPorts(arguments);
+  if (left.length != 3 || right.length != 2) return null;
+  final [formatPort, initialPort, errorInPort] = left;
+  final [resultPort, errorOutPort] = right;
+  final format = wired[formatPort]?.constantText;
+  if (format == null) return null;
+  final pieces = lvFormatPieces(format);
+  if (pieces == null) return null;
+  final initial = wired[initialPort], errorIn = wired[errorInPort];
+  if (initial != null && (initial.type.dims != 0 || initial.type.carrier != LvCarrier.text)) return null;
+  final operands = <LvPrimTerminal>[];
+  for (final port in order) {
+    final operand = wired[port];
+    if (operand == null || operand.type.dims != 0) return null;
+    operands.add(operand);
+  }
+  final result = consumed[resultPort], errorOut = consumed[errorOutPort];
+  if (result != null && (result.type.dims != 0 || result.type.carrier != LvCarrier.text)) return null;
+  if (errorOut != null && !errorOut.type.isErrorCluster) return null;
+  final lines = <String>[];
+  if (errorOut != null) {
+    call.requireImport(kLvRuntimeImport);
+    lines.add(
+      'final ${LvRuntimeType.error} ${errorOut.expression} = ${errorIn?.expression ?? LvRuntimeType.clearedError};',
+    );
+  }
+  if (result == null) return lines;
+  final text = StringBuffer("'");
+  if (initial != null) text.write(_interpolated(initial.expression));
+  var next = 0;
+  for (final piece in pieces) {
+    switch (piece) {
+      case LvFormatLiteral(text: final chunk):
+        final literal = lvDartStringLiteral(chunk);
+        text.write(literal.substring(1, literal.length - 1));
+      case LvFormatSpecifier():
+        final index = piece.argument ?? next;
+        if (index < 0 || index >= operands.length) return null;
+        next = index + 1;
+        final spelled = _formatted(piece, operands[index], call);
+        if (spelled == null) return null;
+        text.write(spelled);
+    }
+  }
+  text.write("'");
+  lines.add('final String ${result.expression} = $text;');
+  return lines;
+}
+
+/// How [spec] spells [operand] inside the resulting string's interpolation.
+String? _formatted(LvFormatSpecifier spec, LvPrimTerminal operand, LvPrimCall call) {
+  final kind = operand.type.numeric;
+  final carrier = operand.type.carrier;
+  final padding = [
+    if (spec.width case final width?) 'width: $width',
+    if (spec.zeroPad) 'zeroPad: true',
+    if (spec.leftJustify) 'leftJustify: true',
+  ];
+  final signing = [if (spec.plusSign) 'plusSign: true'];
+  String interpolate(String runtimeCall, String value, List<String> named) {
+    call.requireImport(kLvRuntimeImport);
+    return '\${$runtimeCall(${[value, ...named].join(', ')})}';
+  }
+
+  switch (spec.conversion) {
+    case LvFormatConversion.text:
+      if (spec.plusSign || spec.zeroPad) return null;
+      final String value;
+      if (carrier == LvCarrier.text) {
+        value = operand.expression!;
+      } else if (carrier == LvCarrier.boolean) {
+        value = "(${operand.expression} ? 'TRUE' : 'FALSE')";
+      } else {
+        return null;
+      }
+      if (spec.width == null && spec.precision == null) return _interpolated(value);
+      return interpolate(LvRuntimeCall.formatText, value, [
+        ...padding,
+        if (spec.precision case final precision?) 'maxLength: $precision',
+      ]);
+    case LvFormatConversion.decimal:
+      if (spec.precision != null) return null;
+      final String value;
+      if (kind != null && !kind.isFloat) {
+        value = operand.expression!;
+      } else if (carrier == LvCarrier.boolean) {
+        value = '(${operand.expression} ? 1 : 0)';
+      } else {
+        return null;
+      }
+      if (padding.isEmpty && signing.isEmpty) return _interpolated(value);
+      return interpolate(LvRuntimeCall.formatInt, value, [...padding, ...signing]);
+    case LvFormatConversion.hexadecimal || LvFormatConversion.hexadecimalUpper:
+      if (kind == null || kind.isFloat || spec.precision != null || spec.plusSign) return null;
+      return interpolate(LvRuntimeCall.formatRadix, operand.expression!, [
+        '16',
+        '${kind.bits}',
+        ...padding,
+        if (spec.conversion == LvFormatConversion.hexadecimalUpper) 'upper: true',
+      ]);
+    case LvFormatConversion.fixed:
+      if (kind == null) return null;
+      final value = kind.isFloat ? operand.expression! : '${operand.expression}.toDouble()';
+      return interpolate(LvRuntimeCall.formatFixed, value, [
+        '${spec.precision ?? kLvFormatDefaultPrecision}',
+        ...padding,
+        ...signing,
+      ]);
+  }
+}
+
+/// Digits after the point when a `%f` names no precision.
+const int kLvFormatDefaultPrecision = 6;
 
 /// The members of the runtime's error cluster, as `LvError` declares them.
 final List<LvDeclField> _errorClusterFields = [

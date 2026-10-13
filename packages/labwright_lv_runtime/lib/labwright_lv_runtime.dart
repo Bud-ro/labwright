@@ -1,5 +1,6 @@
 export 'src/array_ops.dart';
 export 'src/flat_ops.dart';
+export 'src/format_ops.dart';
 export 'src/match_pattern.dart';
 export 'src/numeric_ops.dart';
 export 'src/path_ops.dart';

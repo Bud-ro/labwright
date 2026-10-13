@@ -19,6 +19,10 @@ abstract final class LvRuntimeCall {
   static const String matchPattern = 'lvMatchPattern';
   static const String buildPath = 'lvBuildPath';
   static const String notARefnum = 'lvNotARefnum';
+  static const String formatText = 'lvFormatText';
+  static const String formatInt = 'lvFormatInt';
+  static const String formatRadix = 'lvFormatRadix';
+  static const String formatFixed = 'lvFormatFixed';
   static const String hexString = 'lvHexString';
   static const String initializeArray = 'lvInitializeArray';
   static const String mergeErrors = 'lvMergeErrors';

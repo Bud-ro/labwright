@@ -6,6 +6,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'dataflow_ir.dart';
 import 'declare.dart';
 import 'error_mode.dart';
+import 'format_string.dart';
 import 'naming.dart';
 import 'numeric.dart';
 import 'prim_map.dart';
@@ -618,32 +619,7 @@ class _FunctionEmitter {
     return '${magnitude > (1 << (kind.bits - 1)) - 1 ? magnitude - (1 << kind.bits) : magnitude}';
   }
 
-  static String _stringLiteral(String text) {
-    final out = StringBuffer("'");
-    for (final code in text.codeUnits) {
-      switch (code) {
-        case 0x5c:
-          out.write(r'\\');
-        case 0x27:
-          out.write(r"\'");
-        case 0x24:
-          out.write(r'\$');
-        case 0x0a:
-          out.write(r'\n');
-        case 0x0d:
-          out.write(r'\r');
-        case 0x09:
-          out.write(r'\t');
-        default:
-          if (code < 0x20 || code >= 0x7f) {
-            out.write('\\u{${code.toRadixString(16)}}');
-          } else {
-            out.writeCharCode(code);
-          }
-      }
-    }
-    return (out..write("'")).toString();
-  }
+  static String _stringLiteral(String text) => lvDartStringLiteral(text);
 
   void _emitPrimitive(LvPrimUnit unit) {
     LvPrimTerminal terminal(int port, {required bool isInput}) {
@@ -656,12 +632,14 @@ class _FunctionEmitter {
         );
       }
       library.noteImportsFor(edge.type);
+      final producer = isInput ? _unitByOid[flow.ownerOfPort[edge.source]] : null;
       return LvPrimTerminal(
         port: port,
         type: edge.type,
         roleFlags: unit.portRoleFlags[port] ?? 0,
         expression: isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label),
         memberName: unit.portMemberName[port],
+        constantText: producer is LvConstUnit ? producer.record.constText : null,
       );
     }
 
