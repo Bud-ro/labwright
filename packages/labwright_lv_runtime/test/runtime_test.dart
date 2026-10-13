@@ -282,4 +282,22 @@ void main() {
     expect(lvFormatInt(7, width: 4, leftJustify: true), '7   ');
     expect(lvFormatInt(7, plusSign: true), '+7');
   });
+
+  test('Search 1D Array finds the first exact match at or after the start index', () {
+    expect(lvSearch1dArray(['upper limit', 'lower limit'], 'limit'), -1);
+    expect(lvSearch1dArray(['a', 'b', 'a'], 'a'), 0);
+    expect(lvSearch1dArray(['a', 'b', 'a'], 'a', 1), 2);
+    expect(lvSearch1dArray(['a', 'b', 'a'], 'a', 3), -1);
+    expect(lvSearch1dArray(<bool>[false, true], true), 1);
+    expect(lvSearch1dArray(Int32List.fromList([5, 6, 7]), 7), 2);
+    const home = LvPath(components: ['home'], absolute: true);
+    expect(
+      lvSearch1dArray([
+        LvPath.notAPath,
+        const LvPath(components: ['home'], absolute: true),
+      ], home),
+      1,
+    );
+    expect(() => lvSearch1dArray(<int>[], 1, -1), throwsRangeError);
+  });
 }

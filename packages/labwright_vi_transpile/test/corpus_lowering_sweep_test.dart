@@ -79,7 +79,6 @@ const Map<String, int> kCorpusInPlaceElement = {
 };
 
 const Map<String, int> kSnippetPrimReviewList = {
-  'Search 1D Array (primResID 1901)': 11,
   'node class 0x150': 12,
   'primResID 1171 (name not decoded)': 11,
   'node class 0x105': 16,
@@ -188,10 +187,10 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.unnamedMember': 64,
   'decl.vi': 3168,
   'exceptions.caseSelector': 24,
-  'exceptions.constantValue': 197,
+  'exceptions.constantValue': 198,
   'exceptions.foreignCall': 114,
-  'exceptions.lowered': 735,
-  'exceptions.primitive': 623,
+  'exceptions.lowered': 743,
+  'exceptions.primitive': 614,
   'exceptions.structure': 122,
   'exceptions.subViCall': 293,
   'exceptions.tunnelCoercion': 40,
@@ -219,7 +218,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
   'modes.differ': 337,
-  'modes.same': 398,
+  'modes.same': 406,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -278,10 +277,10 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.unresolved': 88,
   'term.wired': 12471,
   'threaded.caseSelector': 24,
-  'threaded.constantValue': 197,
+  'threaded.constantValue': 198,
   'threaded.foreignCall': 114,
-  'threaded.lowered': 735,
-  'threaded.primitive': 623,
+  'threaded.lowered': 743,
+  'threaded.primitive': 614,
   'threaded.structure': 122,
   'threaded.subViCall': 293,
   'threaded.tunnelCoercion': 40,
@@ -322,28 +321,27 @@ const Map<String, int> kCorpusLoweringSweep = {
 };
 
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
-  'node class 0x34': (vis: 823, nodes: 1746, sole: 95),
+  'node class 0x34': (vis: 823, nodes: 1746, sole: 97),
   'Close Reference (primResID 8011)': (vis: 780, nodes: 3083, sole: 49),
-  'node class 0xa9': (vis: 697, nodes: 2673, sole: 67),
-  'Search 1D Array (primResID 1901)': (vis: 581, nodes: 1335, sole: 57),
-  'node class 0x153': (vis: 534, nodes: 1424, sole: 322),
+  'node class 0xa9': (vis: 697, nodes: 2673, sole: 69),
+  'node class 0x153': (vis: 534, nodes: 1424, sole: 327),
   'node class 0xd6': (vis: 415, nodes: 2657, sole: 28),
-  'To More Specific Class (primResID 8016)': (vis: 364, nodes: 859, sole: 64),
-  'Strip Path (primResID 1420)': (vis: 360, nodes: 841, sole: 12),
-  'node class 0xbd': (vis: 318, nodes: 628, sole: 10),
+  'To More Specific Class (primResID 8016)': (vis: 364, nodes: 859, sole: 68),
+  'Strip Path (primResID 1420)': (vis: 360, nodes: 841, sole: 16),
+  'node class 0xbd': (vis: 318, nodes: 628, sole: 22),
   'node class 0xb6': (vis: 316, nodes: 760, sole: 19),
-  'Variant To Data (primResID 8003)': (vis: 272, nodes: 530, sole: 24),
+  'Variant To Data (primResID 8003)': (vis: 272, nodes: 530, sole: 26),
   'Open VI Reference (primResID 8010)': (vis: 253, nodes: 449, sole: 8),
   'node class 0x14a': (vis: 225, nodes: 385, sole: 0),
   'node class 0x170': (vis: 225, nodes: 385, sole: 0),
   'node class 0xeb': (vis: 206, nodes: 234, sole: 8),
   'Unregister For Events (primResID 2076)': (vis: 188, nodes: 210, sole: 0),
   'Call Chain (primResID 1999)': (vis: 166, nodes: 167, sole: 77),
-  'node class 0x150': (vis: 164, nodes: 428, sole: 22),
-  'Search and Replace String (primResID 3914)': (vis: 156, nodes: 263, sole: 17),
+  'node class 0x150': (vis: 164, nodes: 428, sole: 29),
+  'Search and Replace String (primResID 3914)': (vis: 156, nodes: 263, sole: 18),
   'Enqueue Element (primResID 9111)': (vis: 153, nodes: 319, sole: 6),
   'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 32),
-  'primResID 1103 (name not decoded)': (vis: 152, nodes: 213, sole: 15),
+  'primResID 1103 (name not decoded)': (vis: 152, nodes: 213, sole: 18),
   'Boolean To (0,1) (primResID 1167)': (vis: 151, nodes: 555, sole: 33),
 };
 
@@ -351,13 +349,13 @@ const ({int libraries, int entryPoints}) kCorpusForeignCalls = (libraries: 51, e
 
 const int kCorpusReviewListFloor = 150;
 
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 245, nodes: 30276, vis: 13748);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 244, nodes: 28941, vis: 13167);
 
 const int kReviewListFloor = 10;
 
-const ({int identities, int nodes}) kReviewListTotals = (identities: 84, nodes: 310);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 83, nodes: 299);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 735, sources: 478);
+const ({int vis, int sources}) kEmittedSources = (vis: 743, sources: 486);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
