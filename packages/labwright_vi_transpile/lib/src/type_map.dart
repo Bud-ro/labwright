@@ -145,17 +145,36 @@ class LvDeclField {
 }
 
 class LvTypeDecl {
-  const LvTypeDecl.cluster({required this.name, required this.label, required this.fields})
-    : items = const [],
-      isEnum = false;
+  const LvTypeDecl.cluster({
+    required this.name,
+    required this.label,
+    required this.fields,
+    this.qualifiedName = const [],
+  }) : items = const [],
+       isEnum = false;
 
-  const LvTypeDecl.enumeration({required this.name, required this.label, required this.items})
-    : fields = const [],
-      isEnum = true;
+  const LvTypeDecl.enumeration({
+    required this.name,
+    required this.label,
+    required this.items,
+    this.qualifiedName = const [],
+  }) : fields = const [],
+       isEnum = true;
 
   final String name;
 
   final String? label;
+
+  /// The typedef control this declares, `Lib.lvlib`, `Class.lvclass`, `Name.ctl`; empty for a
+  /// type declared from a cluster or enum label.
+  final List<String> qualifiedName;
+
+  /// The name the declaration asks for before the registry disambiguates it.
+  String get preferredName => qualifiedName.isNotEmpty
+      ? lvClassName(qualifiedName.last.replaceAll(RegExp(r'\.\w+$'), ''))
+      : label == null
+      ? LvRuntimeType.anonymousEnum
+      : lvClassName(label!);
 
   final List<LvDeclField> fields;
 
@@ -340,23 +359,47 @@ String lvArrayBuilderType(LvTypeMapping element) => 'List<${element.dartType}>';
 String lvArrayFreeze(LvTypeMapping element, String builder) =>
     element.numeric == null ? builder : '${element.numeric!.typedListType}.fromList($builder)';
 
-LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int depth, LvDeclarations? declarations) {
-  if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvCarrier.error);
+/// A cluster's members and their mappings, or the mapping that refuses the cluster.
+({List<ViType> members, List<LvTypeMapping> mapped, LvTypeMapping? refusal}) _clusterMembers(
+  ViType type,
+  List<ViType> pool,
+  int depth,
+  LvDeclarations? declarations,
+) {
   final members = clusterFields(type, pool);
   if (type is! ViClusterType || members.length != type.memberCount) {
-    return const LvTypeMapping.unmapped('cluster member indices did not resolve against the pool');
+    return (
+      members: members,
+      mapped: const [],
+      refusal: const LvTypeMapping.unmapped('cluster member indices did not resolve against the pool'),
+    );
   }
   final mapped = <LvTypeMapping>[];
   for (final member in members) {
     final field = mapLvType(member, pool, depth + 1, declarations);
     if (field.status == LvMapStatus.internal) {
-      return LvTypeMapping.internal('cluster holding a non-value member: ${field.note}');
+      return (
+        members: members,
+        mapped: mapped,
+        refusal: LvTypeMapping.internal('cluster holding a non-value member: ${field.note}'),
+      );
     }
     if (!field.isMapped) {
-      return LvTypeMapping.unmapped('cluster member is unmapped: ${field.note}', unmappedCode: field.unmappedCode);
+      return (
+        members: members,
+        mapped: mapped,
+        refusal: LvTypeMapping.unmapped('cluster member is unmapped: ${field.note}', unmappedCode: field.unmappedCode),
+      );
     }
     mapped.add(field);
   }
+  return (members: members, mapped: mapped, refusal: null);
+}
+
+LvTypeMapping _mapCluster(ViType type, String? label, List<ViType> pool, int depth, LvDeclarations? declarations) {
+  if (isLvErrorCluster(type, pool)) return const LvTypeMapping.mapped(LvCarrier.error);
+  final (:members, :mapped, :refusal) = _clusterMembers(type, pool, depth, declarations);
+  if (refusal != null) return refusal;
   if (label != null && lvClassName(label).isNotEmpty) {
     final className = lvClassName(label);
     final fields = [
@@ -405,6 +448,13 @@ String lvRecordType(List<ViType> members, List<LvTypeMapping> mapped) {
 LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarations? declarations) {
   if (type is! ViTypedefType) return const LvTypeMapping.unmapped('typedef base descriptor did not frame');
   final base = type.base;
+  if (type.componentCount > 0) {
+    final qualified = [for (var i = 0; i < type.componentCount; i++) type.componentAt(i)];
+    final stem = lvClassName(qualified.last.replaceAll(RegExp(r'\.\w+$'), ''));
+    if (stem.isNotEmpty && (base.kind == ViDataType.cluster || _isEnumCode(base.code))) {
+      return _mapQualifiedTypeDef(type, base, qualified, stem, pool, depth, declarations);
+    }
+  }
   final name = type.label;
   if (name != null && lvClassName(name).isNotEmpty) {
     if (base.kind == ViDataType.cluster) return _mapCluster(base, name, pool, depth + 1, declarations);
@@ -416,6 +466,62 @@ LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarati
     return LvTypeMapping.unmapped('typedef base is unmapped: ${mapped.note}', unmappedCode: mapped.unmappedCode);
   }
   return mapped;
+}
+
+/// A typedef that names its control file is one nominal type wherever its qualified name
+/// appears, `Lib.lvlib`, `Class.lvclass`, `Name.ctl`, however each VI's copy labels it; the
+/// first copy a library meets declares it, and a copy whose member types or items differ is a
+/// stale save against another version of the control and is refused.
+LvTypeMapping _mapQualifiedTypeDef(
+  ViTypedefType type,
+  ViType base,
+  List<String> qualified,
+  String stem,
+  List<ViType> pool,
+  int depth,
+  LvDeclarations? declarations,
+) {
+  final signature = 'T:${qualified.join(':')}';
+  final registry = declarations ?? LvDeclarations();
+  final label = type.label ?? qualified.last;
+  if (base.kind == ViDataType.cluster) {
+    if (isLvErrorCluster(base, pool)) return const LvTypeMapping.mapped(LvCarrier.error);
+    final (:members, :mapped, :refusal) = _clusterMembers(base, pool, depth + 1, declarations);
+    if (refusal != null) return refusal;
+    final fields = [
+      for (var i = 0; i < members.length; i++) LvDeclField(label: members[i].label, type: mapped[i]),
+    ];
+    final declared = registry.allocate(
+      stem,
+      signature,
+      (name) => LvTypeDecl.cluster(name: name, label: label, fields: fields, qualifiedName: qualified),
+    );
+    final declaredTypes = [for (final field in declared.fields) field.type.dartType];
+    final copyTypes = [for (final field in fields) field.type.dartType];
+    if (declaredTypes.join(',') != copyTypes.join(',')) {
+      return LvTypeMapping.unmapped(
+        'typedef ${qualified.join(':')} is saved here with members (${copyTypes.join(', ')}) where '
+        'the library declares it with (${declaredTypes.join(', ')}), a stale copy of the control',
+      );
+    }
+    return LvTypeMapping.nominal(declared);
+  }
+  final items = base is ViEnumType ? base.items : const <String>[];
+  final declared = registry.allocate(
+    stem,
+    signature,
+    (name) => LvTypeDecl.enumeration(name: name, label: label, items: items, qualifiedName: qualified),
+  );
+  if (declared.items.join('\u0000') != items.join('\u0000')) {
+    return LvTypeMapping.unmapped(
+      'typedef ${qualified.join(':')} is saved here with items (${items.join(', ')}) where the '
+      'library declares it with (${declared.items.join(', ')}), a stale copy of the control',
+    );
+  }
+  return LvTypeMapping.nominal(
+    declared,
+    note: items.isEmpty ? 'enum item labels not recovered, so the enum has no members to declare' : null,
+  );
 }
 
 bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;

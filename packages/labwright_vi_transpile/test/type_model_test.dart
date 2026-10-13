@@ -222,7 +222,7 @@ final double volts;
     final rows = <(List<int>, String, String)>[
       ([0x40, TypeCode.u64, 0], 'Tick Count', 'int'),
       ([0x40, TypeCode.string, 0xff, 0xff, 0xff, 0xff], 'Device Name', 'String'),
-      ([0x40, TypeCode.cluster, 0, 0], 'WPI_PWMDeadband.ctl', 'WpiPwmdeadbandCtl'),
+      ([0x40, TypeCode.cluster, 0, 0], 'WPI_PWMDeadband.ctl', 'WpiPwmdeadband'),
       ([0x40, TypeCode.enumU16, 0, 1, ...pascal('PWM'), 0], 'Motor Type', 'MotorType'),
     ];
     for (final (baseBody, name, expected) in rows) {
@@ -230,6 +230,25 @@ final double volts;
       expect(mapLvType(types.single, types).dartType, expected, reason: name);
       expect(types.single, isA<ViTypedefType>());
     }
+  });
+
+  test('a typedef is one declaration per qualified name, and a stale copy is refused', () {
+    final registry = LvDeclarations();
+    List<ViType> copy(String label, int memberCode, {List<String>? components}) => poolOf([
+      scalar(memberCode, name: 'Count'),
+      typeDef([0x40, TypeCode.cluster, 0, 1, 0, 0], label, components: components ?? ['Lib.lvlib', 'Settings.ctl']),
+    ]);
+    final first = copy('Settings', TypeCode.i32);
+    final renamed = copy('My Settings', TypeCode.i32);
+    final stale = copy('Settings', TypeCode.dbl);
+    final elsewhere = copy('Settings', TypeCode.i32, components: ['Other.lvlib', 'Settings.ctl']);
+    expect(mapLvType(first.last, first, 0, registry).dartType, 'Settings');
+    expect(mapLvType(renamed.last, renamed, 0, registry).dartType, 'Settings', reason: 'the label is not the identity');
+    expect(mapLvType(elsewhere.last, elsewhere, 0, registry).dartType, 'Settings2', reason: 'another control');
+    final refused = mapLvType(stale.last, stale, 0, registry);
+    expect(refused.isMapped, isFalse);
+    expect(refused.note, contains('stale copy'));
+    expect(registry.all.map((decl) => decl.name), ['Settings', 'Settings2']);
   });
 
   test('error clusters need both the member types and the member names', () {

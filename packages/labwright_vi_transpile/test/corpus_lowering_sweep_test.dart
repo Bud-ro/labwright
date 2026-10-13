@@ -67,9 +67,9 @@ const Set<int> kLvInPlaceElementBorderClasses = {kLvDataValueRefBorderClass, 0x1
 const int kLvDataValueRefBorderClass = 0x153;
 
 const Map<String, int> kCorpusInPlaceElement = {
-  'ipe.blocked': 6,
+  'ipe.blocked': 19,
   'ipe.blocked.identifiedOnly': 1,
-  'ipe.blocked.undecodedAccess': 5,
+  'ipe.blocked.undecodedAccess': 18,
   'ipe.border.0x14f': 164,
   'ipe.border.0x150': 428,
   'ipe.border.0x152': 98,
@@ -103,13 +103,13 @@ const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClu
 const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 1792,
+  'call': 1795,
   'call.calleeMissing': 389,
   'call.noPane': 63,
-  'call.paneMatched': 1205,
+  'call.paneMatched': 1206,
   'call.paneWidthMismatch': 39,
-  'call.unnamed': 96,
-  'call.via.link': 932,
+  'call.unnamed': 98,
+  'call.via.link': 933,
   'call.via.name': 375,
   'clus': 135446,
   'clus.kid.many': 255,
@@ -124,11 +124,11 @@ const Map<String, int> kCorpusLoweringSweep = {
   'clus.noneUntyped': 378,
   'clus.one': 92017,
   'clus.pane.many': 48,
-  'clus.pane.none': 10022,
-  'clus.pane.one': 12530,
-  'clus.paneAgrees': 5208,
-  'clus.paneDisagrees': 7322,
-  'clus.paneNameOnly': 7237,
+  'clus.pane.none': 10028,
+  'clus.pane.one': 12545,
+  'clus.paneAgrees': 5220,
+  'clus.paneDisagrees': 7325,
+  'clus.paneNameOnly': 7240,
   'clus.typedefContradicts': 6,
   'clus.viaTypedef': 18215,
   'clus.why.member.0x33': 285,
@@ -140,59 +140,66 @@ const Map<String, int> kCorpusLoweringSweep = {
   'clus.why.noneNoCluster': 41511,
   'clus.why.noneNoIndex': 43,
   'clus.why.noneUntyped': 378,
-  'clus.why.typed': 91125,
-  'clus.why.typesDisagree': 199,
-  'clusType.kidAgrees': 68780,
-  'clusType.kidChecked': 13306,
-  'clusType.kidDisagrees': 2050,
-  'clusType.kidLabelOnly': 1980,
-  'clusType.kidShapeDiffers': 68,
-  'clusType.kidUnchecked': 25768,
-  'clusType.kidWouldDecide': 39074,
+  'clus.why.typed': 91297,
+  'clus.why.typesDisagree': 27,
+  'clusType.kidAgrees': 70277,
+  'clusType.kidChecked': 13822,
+  'clusType.kidDisagrees': 693,
+  'clusType.kidLabelOnly': 622,
+  'clusType.kidShapeDiffers': 71,
+  'clusType.kidUnchecked': 26200,
+  'clusType.kidWouldDecide': 40022,
   'clusType.kidWouldNotMap': 596,
-  'clusType.many': 199,
+  'clusType.many': 27,
   'clusType.none': 41932,
-  'clusType.one': 93315,
-  'clusType.pane.many': 2,
-  'clusType.pane.none': 13923,
-  'clusType.pane.one': 12608,
-  'clusType.paneAgrees': 11789,
-  'clusType.paneAtCallAgrees': 26314,
-  'clusType.paneAtCallDisagrees': 215,
-  'clusType.paneDisagrees': 819,
-  'clusType.paneLabelOnly': 790,
-  'clusType.paneOffCallAgrees': 10052,
-  'clusType.paneOffCallDisagrees': 633,
-  'clusType.paneOffCallLabelOnly': 486,
-  'clusType.paneOffCallShapeDiffers': 146,
+  'clusType.one': 93487,
+  'clusType.pane.agrees.plain.ownPlain': 10570,
+  'clusType.pane.agrees.typedef.ownTypedef': 1891,
+  'clusType.pane.disagrees.plain.ownPlain': 111,
+  'clusType.pane.disagrees.plain.ownTypedef': 19,
+  'clusType.pane.disagrees.typedef.ownPlain': 12,
+  'clusType.pane.disagrees.typedef.ownTypedef': 27,
+  'clusType.pane.none': 14181,
+  'clusType.pane.one': 12630,
+  'clusType.paneAgrees': 12461,
+  'clusType.paneAtCallAgrees': 26665,
+  'clusType.paneAtCallDisagrees': 144,
+  'clusType.paneDisagrees': 169,
+  'clusType.paneLabelOnly': 142,
+  'clusType.paneOffCallAgrees': 10527,
+  'clusType.paneOffCallDisagrees': 284,
+  'clusType.paneOffCallLabelOnly': 193,
+  'clusType.paneOffCallShapeDiffers': 91,
   'clusType.paneShapeDiffers': 27,
-  'clusType.paneWouldDecide': 13722,
-  'clusType.paneWouldNotMap': 201,
+  'clusType.paneWouldDecide': 13929,
+  'clusType.paneWouldDecide.plain': 11434,
+  'clusType.paneWouldDecide.typedef': 2495,
+  'clusType.paneWouldNotMap': 252,
   'cond': 2210,
   'cond.dcoBit0': 324,
   'cond.dcoBit12': 143,
   'cond.glyph192': 1841,
   'cond.glyphNone': 369,
-  'decl': 10250,
+  'decl': 9324,
   'decl.anonymous': 3,
-  'decl.cluster': 8626,
-  'decl.displacedMember': 59,
-  'decl.enum': 1624,
-  'decl.suffixed': 713,
+  'decl.cluster': 7788,
+  'decl.displacedMember': 58,
+  'decl.enum': 1536,
+  'decl.suffixed': 563,
   'decl.unnamedMember': 63,
-  'decl.vi': 3097,
+  'decl.vi': 3106,
   'exceptions.caseSelector': 3,
   'exceptions.constantValue': 129,
   'exceptions.foreignCall': 37,
-  'exceptions.lowered': 248,
-  'exceptions.primitive': 427,
-  'exceptions.structure': 82,
-  'exceptions.subViCall': 147,
-  'exceptions.tunnelCoercion': 31,
+  'exceptions.lowered': 252,
+  'exceptions.primitive': 432,
+  'exceptions.structure': 97,
+  'exceptions.subViCall': 145,
+  'exceptions.tunnelCoercion': 29,
   'exceptions.unboundValue': 2,
-  'exceptions.unwiredTerminal': 226,
+  'exceptions.unwiredTerminal': 243,
   'exceptions.wireDirection': 129,
-  'exceptions.wireType': 5933,
+  'exceptions.wireType': 5896,
   'flag0.array': 24551,
   'flag0.scalar': 149919,
   'flag12.array': 931,
@@ -211,8 +218,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 47,
-  'modes.same': 201,
+  'modes.differ': 49,
+  'modes.same': 203,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -229,17 +236,17 @@ const Map<String, int> kCorpusLoweringSweep = {
   'ref.ep.contradicts': 1345,
   'ref.ep.split': 15,
   'ref.pane.contraCell.70_d2.agrees': 557,
-  'ref.pane.contraCell.70_d3.agrees': 8785,
+  'ref.pane.contraCell.70_d3.agrees': 8834,
   'ref.pane.contraCell.70_d3.contradicts': 1,
   'ref.pane.contraCell.70_d4.agrees': 284,
   'ref.pane.contraCell.70_d4.contradicts': 10,
-  'ref.pane.contraCell.71_d4.agrees': 91,
+  'ref.pane.contraCell.71_d4.agrees': 92,
   'ref.pane.contraCell.71_d5.agrees': 1054,
   'ref.pane.contraCell.71_d6.agrees': 9,
-  'ref.pane.dims0': 10265,
+  'ref.pane.dims0': 10315,
   'ref.pane.dims1': 526,
   'ref.pane.lawAgrees': 3908,
-  'ref.pane.vsAgrees': 10780,
+  'ref.pane.vsAgrees': 10830,
   'ref.pane.vsContradicts': 11,
   'ref.pane.vsInvented': 10,
   'ref.pane.vsMissed': 1,
@@ -263,46 +270,46 @@ const Map<String, int> kCorpusLoweringSweep = {
   'render.lawSilent.styleSpeaks': 6013,
   'render.refUndecided.styleMute': 33925,
   'render.refUndecided.styleSpeaks': 5329,
-  'term.calleeUntyped': 1401,
-  'term.dirAgree': 2487,
-  'term.resolved': 2487,
-  'term.typeAgree': 1079,
-  'term.typeDisagree': 7,
+  'term.calleeUntyped': 1407,
+  'term.dirAgree': 2493,
+  'term.resolved': 2493,
+  'term.typeAgree': 1081,
+  'term.typeDisagree': 5,
   'term.unresolved': 22,
-  'term.wired': 2509,
+  'term.wired': 2515,
   'threaded.caseSelector': 3,
   'threaded.constantValue': 129,
   'threaded.foreignCall': 37,
-  'threaded.lowered': 248,
-  'threaded.primitive': 427,
-  'threaded.structure': 82,
-  'threaded.subViCall': 147,
-  'threaded.tunnelCoercion': 31,
+  'threaded.lowered': 252,
+  'threaded.primitive': 432,
+  'threaded.structure': 97,
+  'threaded.subViCall': 145,
+  'threaded.tunnelCoercion': 29,
   'threaded.unboundValue': 2,
-  'threaded.unwiredTerminal': 226,
+  'threaded.unwiredTerminal': 243,
   'threaded.wireDirection': 129,
-  'threaded.wireType': 5933,
+  'threaded.wireType': 5896,
   'vi': 7394,
   'wt.cause.member.0x33': 14,
   'wt.cause.member.0x37': 4,
-  'wt.cause.member.0x54': 68,
+  'wt.cause.member.0x54': 77,
   'wt.cause.member.0xd': 2,
-  'wt.cause.noneNoCluster': 4046,
+  'wt.cause.noneNoCluster': 4066,
   'wt.cause.noneUntyped': 24,
-  'wt.cause.typesDisagree': 83,
-  'wt.cluster': 4241,
+  'wt.cause.typesDisagree': 10,
+  'wt.cluster': 4197,
   'wt.code0x0': 6,
-  'wt.code0x33': 49,
-  'wt.code0x37': 24,
-  'wt.code0x54': 91,
+  'wt.code0x33': 50,
+  'wt.code0x37': 25,
+  'wt.code0x54': 93,
   'wt.code0x73': 1,
   'wt.code0x74': 23,
   'wt.code0xb': 22,
   'wt.code0xc': 3,
   'wt.code0xd': 6,
   'wt.code0xff': 71,
-  'wt.refnum': 1300,
-  'wt.sole.cluster': 1689,
+  'wt.refnum': 1302,
+  'wt.sole.cluster': 1656,
   'wt.sole.code0x33': 4,
   'wt.sole.code0x37': 3,
   'wt.sole.code0x54': 22,
@@ -310,7 +317,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'wt.sole.code0xb': 16,
   'wt.sole.code0xd': 4,
   'wt.sole.code0xff': 8,
-  'wt.sole.refnum': 762,
+  'wt.sole.refnum': 765,
 };
 
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
@@ -352,7 +359,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 87, nodes: 470);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
+const ({int vis, int sources}) kEmittedSources = (vis: 252, sources: 78);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -486,7 +493,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
     }
   }
 
-  Map<int, (LvViUnit, int)> paneTerminalsOf(ViDiagram diagram, Set<int> endpoints) {
+  Map<int, (LvViUnit, int)> paneTerminalsOf(LvViUnit caller, Set<int> endpoints) {
+    final diagram = caller.diagram;
     final paneOf = <int, (LvViUnit, int)>{};
     for (final node in diagram.objects) {
       if (!kSubViCallNodeCodes.contains(node.kind)) continue;
@@ -499,7 +507,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
           if (holder.kind == kNodeEndpointDcoKind) holder.oid,
       ];
       if (!ports.any(endpoints.contains)) continue;
-      final callee = resolveByName(name);
+      final callee = resolveCallee(LvCallee(caller: caller, fileName: name, link: caller.linkTo(name))).unit;
       if (callee == null || ports.length != callee.paneTerminals.length || callee.paneTerminals.isEmpty) continue;
       for (var pane = 0; pane < ports.length; pane++) {
         paneOf[ports[pane]] = (callee, pane);
@@ -508,13 +516,15 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
     return paneOf;
   }
 
-  void censusClusterWires(ViDiagram diagram, List<ViType> pool) {
+  void censusClusterWires(LvViUnit unit) {
+    final diagram = unit.diagram;
+    final pool = unit.pool;
     final clusterEndpoints = <int>{
       for (final wire in diagram.wires)
         if (kLvWireClusterCodes.contains(wire.signalType?.typeCode)) ...wire.endpointOids,
     };
     if (clusterEndpoints.isEmpty) return;
-    final paneOf = paneTerminalsOf(diagram, clusterEndpoints);
+    final paneOf = paneTerminalsOf(unit, clusterEndpoints);
     final anyTyped = diagram.objects.any((object) => object.resolvedType != null);
     final registry = LvDeclarations();
     final mappingOf = <ViType, LvTypeMapping>{};
@@ -527,11 +537,13 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
       final array = (signal.arrayDims ?? 0) > 0;
       final shapes = <String>{}, bare = <String>{}, viaPane = <String>{}, viaKid = <String>{};
       final ownTypes = <String?>{}, kidTypes = <String?>{}, paneTypes = <String?>{};
+      var paneTypedef = false, ownTypedef = false;
       final kidAtCall = <String?>{}, kidOffCall = <String?>{}, kidOffCallShape = <String>{};
       LvTypeMapping? ownMapping;
       for (final endpoint in wire.endpointOids) {
         final type = lvClusterOfEndpoint(diagram, endpoint, array: array);
         if (type == null) continue;
+        if (type is ViTypedefType && type.componentCount > 0) ownTypedef = true;
         final shape = lvClusterShape(type, pool);
         shapes.add(shape);
         if (type.kind == ViDataType.cluster) bare.add(shape);
@@ -561,6 +573,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
           if (terminal == null) continue;
           final type = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
           if (type == null) continue;
+          if (type is ViTypedefType && type.componentCount > 0) paneTypedef = true;
           viaPane.add(lvClusterShape(type, callee.pool));
           paneTypes.add(typeOf(type, callee.pool).dartType);
         }
@@ -618,6 +631,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
       if (ownTypes.length == 1 && paneTypes.length == 1) {
         final agrees = ownTypes.single == paneTypes.single;
         bump(agrees ? 'clusType.paneAgrees' : 'clusType.paneDisagrees');
+        bump(
+          'clusType.pane.${agrees ? 'agrees' : 'disagrees'}.${paneTypedef ? 'typedef' : 'plain'}.${ownTypedef ? 'ownTypedef' : 'ownPlain'}',
+        );
         if (!agrees && shapes.length == 1 && viaPane.length == 1) {
           bump(
             _clusterMemberCodes(shapes.single) == _clusterMemberCodes(viaPane.single)
@@ -628,6 +644,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
       }
       if (ownTypes.isEmpty && paneTypes.length == 1) {
         bump(paneTypes.single == null ? 'clusType.paneWouldNotMap' : 'clusType.paneWouldDecide');
+        if (paneTypes.single != null) bump('clusType.paneWouldDecide.${paneTypedef ? 'typedef' : 'plain'}');
       }
       if (paneTypes.length == 1 && kidAtCall.length == 1) {
         bump(kidAtCall.single == paneTypes.single ? 'clusType.paneAtCallAgrees' : 'clusType.paneAtCallDisagrees');
@@ -702,8 +719,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
     for (final declaration in declarations) {
       bump('decl');
       bump(declaration.isEnum ? 'decl.enum' : 'decl.cluster');
-      final preferred = declaration.label == null ? LvRuntimeType.anonymousEnum : lvClassName(declaration.label!);
-      if (declaration.name != preferred) bump('decl.suffixed');
+      if (declaration.name != declaration.preferredName) bump('decl.suffixed');
       if (declaration.label == null) bump('decl.anonymous');
       if (declaration.undeclarable != null) bump('decl.noItems');
       if (declaration.fields.any((field) => field.label == null)) bump('decl.unnamedMember');
@@ -732,12 +748,13 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
     }
   }
 
-  void censusRefnumWires(ViDiagram diagram) {
+  void censusRefnumWires(LvViUnit unit) {
+    final diagram = unit.diagram;
     final refnumEndpoints = <int>{
       for (final wire in diagram.wires)
         if (kLvWireRefnumCodes.contains(wire.signalType?.typeCode)) ...wire.endpointOids,
     };
-    final paneOf = refnumEndpoints.isEmpty ? const <int, (LvViUnit, int)>{} : paneTerminalsOf(diagram, refnumEndpoints);
+    final paneOf = refnumEndpoints.isEmpty ? const <int, (LvViUnit, int)>{} : paneTerminalsOf(unit, refnumEndpoints);
     for (final wire in diagram.wires) {
       final signal = wire.signalType;
       if (signal == null) continue;
@@ -899,10 +916,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 248, sources: 74);
     clusterWireCause = <int, String>{};
     untypedFamilies = <String>{};
     censusConditionals(unit.diagram);
-    censusClusterWires(unit.diagram, unit.pool);
+    censusClusterWires(unit);
     censusDeclarations(unit.diagram, unit.pool);
     censusIndexArrays(unit.diagram);
-    censusRefnumWires(unit.diagram);
+    censusRefnumWires(unit);
     final built = buildOf(unit);
     censusInPlaceElement(unit.diagram, built.refusal);
     if (built.dataflow case final flow?) walk(flow, unit, flow.root);
