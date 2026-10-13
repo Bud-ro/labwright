@@ -1,55 +1,64 @@
 import 'dart:io';
-import 'dart:isolate';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-Future<Map<String, ViLegacyIcon>> resolveSubViIconsFor(
+/// The icons of the sub-VIs named in [wanted], by file name, read from the files the VI at
+/// [viPath] links to: each link's path record from the VI's directory, else its library-qualified
+/// name through the library files under the directory [levelsUp] above the VI, else the file of
+/// that name nearest the VI within those directories.
+Map<String, ViLegacyIcon> resolveSubViIcons(
   String viPath,
-  Set<String> wantedNames, {
+  Set<String> wanted, {
   int levelsUp = 4,
 }) {
-  if (wantedNames.isEmpty) return Future.value(const {});
-  final wanted = {...wantedNames};
-  return Isolate.run(() => resolveIconsOnDisk(viPath, wanted, levelsUp));
-}
-
-Map<String, ViLegacyIcon> resolveIconsOnDisk(
-  String viPath,
-  Set<String> wanted,
-  int levelsUp,
-) {
   final out = <String, ViLegacyIcon>{};
-  final remaining = {...wanted};
+  if (wanted.isEmpty) return out;
+  final remaining = {for (final name in wanted) name.toLowerCase(): name};
   final callerDir = File(viPath).parent.path;
-
-  List<ViPath> paths;
-  try {
-    paths = readSubViPaths(File(viPath).readAsBytesSync());
-  } catch (_) {
-    paths = const [];
+  var root = Directory(callerDir);
+  for (var up = 0; up < levelsUp; up++) {
+    final parent = root.parent;
+    if (parent.path == root.path) break;
+    root = parent;
   }
-  for (final path in paths) {
-    final name = path.fileName;
-    if (!remaining.contains(name)) continue;
-    switch (path.form) {
-      case ViPathForm.relative:
-        var dir = callerDir;
-        for (var up = 0; up < path.upLevels; up++) {
-          dir = Directory(dir).parent.path;
-        }
-        final icon = decodeViFileIcon('$dir/${path.segments.join('/')}');
-        if (icon != null) out[name] = icon;
-        remaining.remove(name);
-      case ViPathForm.symbolic when path.components.first == '<vilib>':
-        remaining.remove(name);
-      case ViPathForm.symbolic:
-      case ViPathForm.absolute:
-      case ViPathForm.url:
-      case ViPathForm.name:
-      case ViPathForm.notAPath:
-      case ViPathForm.empty:
-      case ViPathForm.unc:
-        break;
+
+  var links = const <ViLinkEntryFramed>[];
+  try {
+    links = readSubViLinks(File(viPath).readAsBytesSync());
+  } catch (_) {}
+  final byQualifiedName = <ViLinkEntryFramed>[];
+  for (final link in links) {
+    final fileName = link.qualifiedName.lastOrNull;
+    final name = fileName == null ? null : remaining[fileName.toLowerCase()];
+    if (name == null) continue;
+    final path = link.path;
+    if (path != null && path.pathType == 1) {
+      final file = resolveViPath(viPath, path.components);
+      final icon = decodeViFileIcon(file);
+      if (icon != null) {
+        out[name] = icon;
+        remaining.remove(fileName!.toLowerCase());
+        continue;
+      }
+    }
+    if (path != null && path.text.startsWith('<')) {
+      remaining.remove(fileName!.toLowerCase());
+      continue;
+    }
+    if (link.qualifiedName.length > 1) byQualifiedName.add(link);
+  }
+  if (byQualifiedName.isNotEmpty) {
+    final index = LvProjectIndex.scan(root);
+    for (final link in byQualifiedName) {
+      final fileName = link.qualifiedName.last.toLowerCase();
+      final name = remaining[fileName];
+      if (name == null) continue;
+      final file = index.fileOf(link.qualifiedName);
+      final icon = file == null ? null : decodeViFileIcon(file);
+      if (icon != null) {
+        out[name] = icon;
+        remaining.remove(fileName);
+      }
     }
   }
 
@@ -68,7 +77,7 @@ Map<String, ViLegacyIcon> resolveIconsOnDisk(
 void _searchRing(
   String root,
   String? exclude,
-  Set<String> remaining,
+  Map<String, String> remaining,
   Map<String, ViLegacyIcon> out,
 ) {
   final stack = <String>[root];
@@ -83,13 +92,14 @@ void _searchRing(
       if (entity is Directory) {
         if (entity.path != exclude) stack.add(entity.path);
       } else if (entity is File) {
-        final name = entity.uri.pathSegments.isEmpty
+        final fileName = entity.uri.pathSegments.isEmpty
             ? ''
-            : entity.uri.pathSegments.last;
-        if (!remaining.contains(name)) continue;
+            : entity.uri.pathSegments.last.toLowerCase();
+        final name = remaining[fileName];
+        if (name == null) continue;
         final icon = decodeViFileIcon(entity.path);
         if (icon != null) out[name] = icon;
-        remaining.remove(name);
+        remaining.remove(fileName);
       }
     }
   }

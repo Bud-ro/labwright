@@ -80,7 +80,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
 
   Directory? _repProjectDir;
 
-  Future<Map<String, ViLegacyIcon>> Function(Set<String>)? _subViIconResolver;
+  Map<String, ViLegacyIcon> _subViIcons = const {};
 
   @override
   void initState() {
@@ -99,7 +99,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   void _loadBytes(
     Uint8List bytes,
     String source, {
-    Future<Map<String, ViLegacyIcon>> Function(Set<String>)? subViIconResolver,
+    Map<String, ViLegacyIcon> Function(Set<String> wanted)? subViIcons,
   }) {
     Uint8List? snippetPng;
     if (isPngBytes(bytes)) {
@@ -168,7 +168,10 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _images = images;
       _loadSerial++;
       _snippetPng = snippetPng;
-      _subViIconResolver = subViIconResolver;
+      _subViIcons = switch ((subViIcons, model?.primaryBlockDiagram)) {
+        (final resolve?, final diagram?) => resolve(subViWantedNames(diagram)),
+        _ => const {},
+      };
     });
   }
 
@@ -204,7 +207,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     _loadBytes(
       bytes,
       path,
-      subViIconResolver: (wanted) => resolveSubViIconsFor(path, wanted),
+      subViIcons: (wanted) => resolveSubViIcons(path, wanted),
     );
   }
 
@@ -225,8 +228,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
       _loadBytes(
         fetched.bytes,
         'GitHub: ${vi.repo} · ${vi.name}${deps}',
-        subViIconResolver: (wanted) =>
-            resolveSubViIconsFor(mainPath, wanted, levelsUp: levelsUp),
+        subViIcons: (wanted) =>
+            resolveSubViIcons(mainPath, wanted, levelsUp: levelsUp),
       );
     } catch (e) {
       if (!mounted) return;
@@ -469,8 +472,7 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                             subViNames:
                                                 _model?.subViNames ?? const [],
                                             viImages: _images,
-                                            subViIconResolver:
-                                                _subViIconResolver,
+                                            subViIcons: _subViIcons,
                                             sections: _sections,
                                           ),
                                         ),

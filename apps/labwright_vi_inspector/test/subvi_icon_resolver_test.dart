@@ -24,11 +24,11 @@ void main() {
       'PicoScope2000aExampleStreamingMSO.vi',
     );
     final sw = Stopwatch()..start();
-    final icons = resolveIconsOnDisk(vi.path, {
+    final icons = resolveSubViIcons(vi.path, {
       'PicoScope2000aOpen.vi',
       'PicoScope2000aClose.vi',
       'Nonexistent Anywhere.vi',
-    }, 4);
+    });
     sw.stop();
     expect(
       icons.keys,
@@ -48,22 +48,36 @@ void main() {
     final sibling = Directory('${root.path}/proj/lib')
       ..createSync(recursive: true);
     File('${sibling.path}/Far.vi').writeAsBytesSync(vi.readAsBytesSync());
-    final icons = resolveIconsOnDisk(caller.path, {
+    final icons = resolveSubViIcons(caller.path, {
       'Near.vi',
       'Far.vi',
       'Nowhere.vi',
-    }, 4);
+    });
     expect(icons.keys, containsAll(['Near.vi', 'Far.vi']));
     expect(icons.keys, isNot(contains('Nowhere.vi')));
   }, tags: 'corpus');
 
   test(
     'an empty wanted set resolves to an empty map without touching disk',
-    () async {
-      expect(
-        await resolveSubViIconsFor('/nonexistent/x.vi', const {}),
-        isEmpty,
-      );
+    () {
+      expect(resolveSubViIcons('/nonexistent/x.vi', const {}), isEmpty);
     },
+  );
+
+  test(
+    'a library member resolves through its link, by path or by qualified name',
+    () {
+      final caller = File(
+        '${corpusVi.path}/vi-corpus/sources/rfporter__Modbus-Master/Examples/MB_Master Comm Tester.vi',
+      );
+      final icons = resolveSubViIcons(caller.path, {
+        'Read Coils.vi',
+        'Clear Errors.vi',
+      }, levelsUp: 1);
+      expect(icons.keys, [
+        'Read Coils.vi',
+      ], reason: 'Clear Errors.vi lives in <vilib>');
+    },
+    tags: 'corpus',
   );
 }
