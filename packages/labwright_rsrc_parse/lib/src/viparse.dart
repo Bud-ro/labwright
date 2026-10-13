@@ -1,7 +1,10 @@
 import 'dart:typed_data';
 
 import 'block_tag.dart';
+import 'blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
+import 'blocks/vers_version.dart';
 import 'container.dart' show SectionNamespace;
+import 'decode.dart';
 import 'pth0.dart';
 
 /// Thrown when bytes do not hold an RSRC container this package can read.
@@ -315,6 +318,28 @@ List<String> subViNamesOf(List<ViSection> sections, Uint8List bytes) {
     if (seen.add(key)) out.add(base);
   }
   return out;
+}
+
+/// The block diagram's sub-VI link entries (`LIbd` kind `IUVI`), in link order: each callee's
+/// library-qualified name and path record.
+List<ViLinkEntryFramed> readSubViLinks(Uint8List bytes) {
+  final List<ViSection> sections;
+  try {
+    sections = readViSections(bytes);
+  } catch (_) {
+    return const [];
+  }
+  ViSection? libd, vers;
+  for (final section in sections) {
+    if (section.tag == 'LIbd') libd ??= section;
+    if (section.tag == 'vers') vers ??= section;
+  }
+  if (libd == null) return const [];
+  final version = vers == null ? null : ViVersBlock(inflateSection(vers).bytes).versionWord;
+  return [
+    for (final entry in ViLinkInfo(inflateSection(libd).bytes, version: version).entries)
+      if (entry is ViLinkEntryFramed && entry.kind == 'IUVI') entry,
+  ];
 }
 
 List<ViPath> readSubViPaths(Uint8List bytes) {
