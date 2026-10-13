@@ -446,8 +446,6 @@ class _FunctionEmitter {
             if (terminal.outerPort case final port? when terminal.innerPorts.isNotEmpty) pending.add(port);
           case LvTerminalRole.inPlaceArray || LvTerminalRole.inPlaceIndex when terminal.outerIsSink:
             pending.add(terminal.outerPort!);
-          case LvTerminalRole.inPlaceElement:
-            pending.addAll(terminal.innerPorts.values);
           case _:
         }
       }
@@ -469,6 +467,12 @@ class _FunctionEmitter {
               if (terminal.outerPort case final port? when terminal.outerIsSink) pending.add(port);
               wake(unit);
             }
+          }
+          for (final pair in unit.inPlacePairs) {
+            if (pair.arrayOut == edge.source) pending.addAll([for (final element in pair.elements) element.elementIn]);
+          }
+          for (final pair in unit.inPlaceClusterPairs) {
+            if (pair.clusterOut == edge.source) pending.addAll([for (final member in pair.members) member.elementIn]);
           }
         case final unit?:
           pending.addAll(unit.inputPorts);
@@ -974,6 +978,16 @@ class _FunctionEmitter {
     }
     if (!bounded && exit == null) {
       lvRefuse(LvRefusalKind.unwiredTerminal, 'a While loop\'s conditional terminal receives no wire', oid: unit.oid);
+    }
+    for (final terminal in unit.terminals) {
+      if (terminal.role != LvTerminalRole.tunnelCondition) continue;
+      if (terminal.innerPorts[frame.frameOid] case final port? when flow.into(port) != null) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a loop output tunnel is conditional, and which tunnel its condition terminal gates is not decoded',
+          oid: terminal.oid,
+        );
+      }
     }
     final tunnels = unit.terminals.where((terminal) => terminal.role == LvTerminalRole.loopTunnel).toList();
     final indexedInputs = <({LvStructTerminal terminal, String array})>[];
@@ -1585,7 +1599,95 @@ class _FunctionEmitter {
         writes.add((array: held, index: at, elementIn: element.elementIn, arrayOut: pair.arrayOut, type: arrayType));
       }
     }
+    final clusterWrites =
+        <({String cluster, LvWireType type, int clusterOut, List<({int field, int elementIn})> members})>[];
+    for (final pair in unit.inPlaceClusterPairs) {
+      final type = _typeAt(pair.clusterIn);
+      final cluster = _outerValue(unit.terminals.firstWhere((terminal) => terminal.outerPort == pair.clusterIn));
+      if (type == null || cluster == null) {
+        lvRefuse(LvRefusalKind.unwiredTerminal, 'an In Place Element cluster terminal receives no wire', oid: unit.oid);
+      }
+      final shape = type.dims == 0 ? _clusterShapeOf(type.element) : null;
+      if (shape == null) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'an Unbundle/Bundle Cluster Elements pair over ${type.dartType}, which resolves no members',
+          oid: unit.oid,
+        );
+      }
+      final fieldNames = shape.name == null
+          ? [for (final field in shape.fields) lvFieldName(field.label ?? '')]
+          : LvNaming.declarationFields([for (final field in shape.fields) field.label]);
+      final held = lvIsAtomic(cluster) ? cluster : names.wire(type);
+      if (held != cluster) {
+        library.noteImportsFor(type);
+        body.writeln('final ${type.dartType} $held = $cluster;');
+      }
+      final members = <({int field, int elementIn})>[];
+      for (final member in pair.members) {
+        final field = shape.fields.indexWhere((candidate) => candidate.label == member.name);
+        if (field < 0 || fieldNames[field].isEmpty) {
+          lvRefuse(
+            LvRefusalKind.structure,
+            'an Unbundle/Bundle Cluster Elements terminal names "${member.name}", which ${type.dartType} '
+            'has no member of',
+            oid: unit.oid,
+          );
+        }
+        final fieldType = LvWireType.scalarOf(shape.fields[field].type);
+        if (_read.contains(member.elementOut)) {
+          final innerType = _typeAt(member.elementOut) ?? fieldType;
+          final read = _coerced('$held.${fieldNames[field]}', fieldType, innerType);
+          if (read == null) {
+            lvRefuse(
+              LvRefusalKind.tunnelCoercion,
+              'an In Place Element reads a ${fieldType.dartType} member into a ${innerType.dartType} wire, '
+              'and the coercion LabVIEW applies at the border is not decoded',
+              oid: unit.oid,
+            );
+          }
+          final name = names.role(LvNameRole.element);
+          library.noteImportsFor(innerType);
+          body.writeln('final ${innerType.dartType} $name = $read;');
+          valueOf[member.elementOut] = name;
+        }
+        members.add((field: field, elementIn: member.elementIn));
+      }
+      clusterWrites.add((cluster: held, type: type, clusterOut: pair.clusterOut, members: members));
+    }
     _emitRegion(frame, _frameExits(unit, frame.frameOid));
+    for (final write in clusterWrites) {
+      if (!_read.contains(write.clusterOut)) continue;
+      final shape = _clusterShapeOf(write.type.element)!;
+      final fieldNames = shape.name == null
+          ? [for (final field in shape.fields) lvFieldName(field.label ?? '')]
+          : LvNaming.declarationFields([for (final field in shape.fields) field.label]);
+      final values = [for (final name in fieldNames) '${write.cluster}.$name'];
+      for (final member in write.members) {
+        final edge = flow.into(member.elementIn);
+        if (edge == null) {
+          lvRefuse(LvRefusalKind.unwiredTerminal, 'an In Place Element frame writes no member back', oid: unit.oid);
+        }
+        final fieldType = LvWireType.scalarOf(shape.fields[member.field].type);
+        final value = _coerced(_bound(edge.source, unit.oid), edge.type, fieldType);
+        if (value == null) {
+          lvRefuse(
+            LvRefusalKind.tunnelCoercion,
+            'an In Place Element writes a ${edge.type.dartType} wire back into a ${fieldType.dartType} member, '
+            'and the coercion LabVIEW applies at the border is not decoded',
+            oid: unit.oid,
+          );
+        }
+        values[member.field] = value;
+      }
+      final arguments = [for (var i = 0; i < fieldNames.length; i++) '${fieldNames[i]}: ${values[i]}'].join(', ');
+      final name = names.wire(write.type);
+      library.noteImportsFor(write.type);
+      body.writeln(
+        'final ${write.type.dartType} $name = ${shape.name == null ? '($arguments)' : '${shape.name}($arguments)'};',
+      );
+      valueOf[write.clusterOut] = name;
+    }
     for (final tunnel in unit.terminals) {
       if (tunnel.role != LvTerminalRole.inPlaceTunnel || tunnel.outerIsSink || !_readsOuter(tunnel)) continue;
       final inner = tunnel.innerPorts[frame.frameOid];

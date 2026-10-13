@@ -28,6 +28,12 @@ const int kInPlaceBorderNodeKind = 0x14f;
 /// The marker object an In Place Element structure holds per Index/Replace Array Elements pair.
 const int kInPlaceArrayPairKind = 0x158;
 
+/// The marker object an In Place Element structure holds per Unbundle/Bundle Cluster Elements
+/// pair, and the heap kind of that pair's border nodes.
+const int kInPlaceClusterPairKind = 0x159;
+
+const int kInPlaceClusterNodeKind = 0x150;
+
 /// Set on the left border node of a pair, which reads the elements; clear on the right, which
 /// writes them back.
 const int kInPlaceLeftNodeFlag = 0x10000;
@@ -104,6 +110,9 @@ enum LvTerminalRole {
 
   /// A plain tunnel on an In Place Element structure's border.
   inPlaceTunnel(0x14e),
+
+  /// The boolean condition terminal of a loop's conditional output tunnel, inner side only.
+  tunnelCondition(0x176),
 
   /// An In Place Element border node's array terminal: its outer side is the structure's array
   /// holder, its inner side is unwired.
@@ -398,6 +407,18 @@ class LvInPlaceArrayPair {
   final List<({int indexIn, int indexOut, int elementOut, int elementIn})> elements;
 }
 
+/// One Unbundle/Bundle Cluster Elements pair of an In Place Element structure: the cluster
+/// holders on each side and, per member read, its name and the element ports inside the frame.
+class LvInPlaceClusterPair {
+  const LvInPlaceClusterPair({required this.clusterIn, required this.clusterOut, required this.members});
+
+  final int clusterIn;
+
+  final int clusterOut;
+
+  final List<({String name, int elementOut, int elementIn})> members;
+}
+
 class LvStructUnit extends LvUnit {
   LvStructUnit({
     required this.oid,
@@ -410,6 +431,7 @@ class LvStructUnit extends LvUnit {
     this.selectorStrings = const <String>[],
     this.defaultFrame = 0,
     this.inPlacePairs = const <LvInPlaceArrayPair>[],
+    this.inPlaceClusterPairs = const <LvInPlaceClusterPair>[],
   }) : displayedDisable = LvDisableFrame.ofLabel(displayedCase),
        displayedLabel = LvCaseLabel.ofLabel(displayedCase);
 
@@ -437,6 +459,8 @@ class LvStructUnit extends LvUnit {
   final int defaultFrame;
 
   final List<LvInPlaceArrayPair> inPlacePairs;
+
+  final List<LvInPlaceClusterPair> inPlaceClusterPairs;
 
   @override
   List<int> get inputPorts => [
@@ -726,7 +750,7 @@ class _Builder {
     for (final child in diagram.children(frameOid)) {
       switch (child.category) {
         case ViObjectKind.node:
-          if (child.kind == kInPlaceBorderNodeKind) continue;
+          if (child.kind == kInPlaceBorderNodeKind || child.kind == kInPlaceClusterNodeKind) continue;
           units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
         case ViObjectKind.structure:
           units.add(_structUnit(child));
@@ -912,16 +936,19 @@ class _Builder {
         .where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code)
         .firstOrNull;
     var pairs = const <LvInPlaceArrayPair>[];
+    var clusterPairs = const <LvInPlaceClusterPair>[];
     if (kind == LvStructureKind.inPlaceElement) {
       final inPlace = _inPlacePairs(structure, frames.singleOrNull);
       terminals.addAll(inPlace.terminals);
       pairs = inPlace.pairs;
+      clusterPairs = inPlace.clusterPairs;
     }
     return LvStructUnit(
       oid: structure.oid,
       kind: kind,
       terminals: terminals,
       inPlacePairs: pairs,
+      inPlaceClusterPairs: clusterPairs,
       frames: [for (final frame in frames) _region(frame)],
       displayedFrame: structure.visibleFrameIndex,
       displayedCase: label?.label?.trim(),
@@ -931,13 +958,13 @@ class _Builder {
     );
   }
 
-  /// An In Place Element structure holding only Index/Replace Array Elements pairs: each pair is
-  /// a left and a right border node inside the frame, whose array and index terminals name the
-  /// structure's holders through their members and whose element terminals are the frame's ports.
-  ({List<LvStructTerminal> terminals, List<LvInPlaceArrayPair> pairs}) _inPlacePairs(
-    ViHeapObject structure,
-    int? frameOid,
-  ) {
+  /// An In Place Element structure's Index/Replace Array Elements and Unbundle/Bundle Cluster
+  /// Elements pairs: each is a left and a right border node inside the frame, whose array or
+  /// cluster and index terminals name the structure's holders through their members and whose
+  /// element terminals are the frame's ports; a cluster element terminal's type name is the
+  /// member it reads or writes.
+  ({List<LvStructTerminal> terminals, List<LvInPlaceArrayPair> pairs, List<LvInPlaceClusterPair> clusterPairs})
+  _inPlacePairs(ViHeapObject structure, int? frameOid) {
     final markers = [
       for (final child in diagram.childrenOf(structure))
         if (child.kind != kNodeEndpointDcoKind &&
@@ -945,23 +972,25 @@ class _Builder {
             child.kind != HeapObjectClass.controlLabel.code)
           child.kind,
     ];
-    if (frameOid == null || markers.isEmpty || markers.any((kind) => kind != kInPlaceArrayPairKind)) {
+    if (frameOid == null ||
+        markers.isEmpty ||
+        markers.any((kind) => kind != kInPlaceArrayPairKind && kind != kInPlaceClusterPairKind)) {
       lvRefuse(
         LvRefusalKind.structure,
         'an In Place Element structure whose border-node pairs are '
         '${markers.map((kind) => '0x${kind.toRadixString(16)}').join(', ')} has no modelled control '
-        'flow; only Index/Replace Array Elements (0x${kInPlaceArrayPairKind.toRadixString(16)}) does',
+        'flow; only Index/Replace Array Elements (0x${kInPlaceArrayPairKind.toRadixString(16)}) and '
+        'Unbundle/Bundle Cluster Elements (0x${kInPlaceClusterPairKind.toRadixString(16)}) do',
         oid: structure.oid,
       );
     }
     final terminals = <LvStructTerminal>[];
-    final lefts = <({int array, List<int> indices, List<int> elements})>[];
-    final rights = <({int array, List<int> indices, List<int> elements})>[];
+    final sides = <int, List<({int anchor, List<int> indices, List<String> names, List<int> elements, bool left})>>{};
     for (final node in diagram.children(frameOid)) {
-      if (node.kind != kInPlaceBorderNodeKind) continue;
+      if (node.kind != kInPlaceBorderNodeKind && node.kind != kInPlaceClusterNodeKind) continue;
       final isLeft = ((node.objFlags ?? 0) & kInPlaceLeftNodeFlag) != 0;
-      int? array;
-      final indices = <int>[], elements = <int>[];
+      int? anchor;
+      final indices = <int>[], names = <String>[], elements = <int>[];
       for (final holder in diagram.childrenOf(node)) {
         if (holder.kind != kNodeEndpointDcoKind) continue;
         final record = diagram.childrenOf(holder).firstOrNull;
@@ -970,6 +999,17 @@ class _Builder {
         if (kindBits == 0) {
           ownerOfPort[holder.oid] = structure.oid;
           elements.add(holder.oid);
+          if (node.kind == kInPlaceClusterNodeKind) {
+            final name = record.typeName;
+            if (name == null) {
+              lvRefuse(
+                LvRefusalKind.structure,
+                'an Unbundle/Bundle Cluster Elements terminal names no member',
+                oid: structure.oid,
+              );
+            }
+            names.add(name);
+          }
           terminals.add(
             LvStructTerminal(
               oid: record.oid,
@@ -988,7 +1028,7 @@ class _Builder {
         ownerOfPort[outer] = structure.oid;
         final role = kindBits == kInPlaceArrayTerminalFlag ? LvTerminalRole.inPlaceArray : LvTerminalRole.inPlaceIndex;
         if (role == LvTerminalRole.inPlaceArray) {
-          array = outer;
+          anchor = outer;
         } else {
           if (kindBits != kInPlaceIndexTerminalFlag) {
             lvRefuse(
@@ -1011,45 +1051,80 @@ class _Builder {
           ),
         );
       }
-      if (array == null || indices.length != elements.length) {
+      if (anchor == null || (node.kind == kInPlaceBorderNodeKind && indices.length != elements.length)) {
         lvRefuse(
           LvRefusalKind.structure,
           'an In Place Element border node draws ${indices.length} indices for ${elements.length} elements',
           oid: node.oid,
         );
       }
-      (isLeft ? lefts : rights).add((array: array, indices: indices, elements: elements));
-    }
-    if (lefts.length != rights.length || lefts.isEmpty) {
-      lvRefuse(
-        LvRefusalKind.structure,
-        'an In Place Element structure draws ${lefts.length} left and ${rights.length} right border nodes',
-        oid: structure.oid,
-      );
+      sides.putIfAbsent(node.kind, () => []).add((
+        anchor: anchor,
+        indices: indices,
+        names: names,
+        elements: elements,
+        left: isLeft,
+      ));
     }
     final pairs = <LvInPlaceArrayPair>[];
-    for (var i = 0; i < lefts.length; i++) {
-      final left = lefts[i], right = rights[i];
-      if (left.elements.length != right.elements.length) {
-        lvRefuse(LvRefusalKind.structure, 'an Index/Replace Array Elements pair is uneven', oid: structure.oid);
+    final clusterPairs = <LvInPlaceClusterPair>[];
+    for (final MapEntry(key: nodeKind, value: nodes) in sides.entries) {
+      final lefts = nodes.where((node) => node.left).toList(), rights = nodes.where((node) => !node.left).toList();
+      if (lefts.length != rights.length) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'an In Place Element structure draws ${lefts.length} left and ${rights.length} right border nodes',
+          oid: structure.oid,
+        );
       }
-      pairs.add(
-        LvInPlaceArrayPair(
-          arrayIn: left.array,
-          arrayOut: right.array,
-          elements: [
-            for (var k = 0; k < left.elements.length; k++)
-              (
-                indexIn: left.indices[k],
-                indexOut: right.indices[k],
-                elementOut: left.elements[k],
-                elementIn: right.elements[k],
-              ),
-          ],
-        ),
-      );
+      for (var i = 0; i < lefts.length; i++) {
+        final left = lefts[i], right = rights[i];
+        if (left.elements.length != right.elements.length) {
+          lvRefuse(LvRefusalKind.structure, 'an In Place Element pair is uneven', oid: structure.oid);
+        }
+        if (nodeKind == kInPlaceBorderNodeKind) {
+          pairs.add(
+            LvInPlaceArrayPair(
+              arrayIn: left.anchor,
+              arrayOut: right.anchor,
+              elements: [
+                for (var k = 0; k < left.elements.length; k++)
+                  (
+                    indexIn: left.indices[k],
+                    indexOut: right.indices[k],
+                    elementOut: left.elements[k],
+                    elementIn: right.elements[k],
+                  ),
+              ],
+            ),
+          );
+        } else {
+          for (var k = 0; k < left.elements.length; k++) {
+            if (left.names[k] != right.names[k]) {
+              lvRefuse(
+                LvRefusalKind.structure,
+                'an Unbundle/Bundle Cluster Elements pair names different members',
+                oid: structure.oid,
+              );
+            }
+          }
+          clusterPairs.add(
+            LvInPlaceClusterPair(
+              clusterIn: left.anchor,
+              clusterOut: right.anchor,
+              members: [
+                for (var k = 0; k < left.elements.length; k++)
+                  (name: left.names[k], elementOut: left.elements[k], elementIn: right.elements[k]),
+              ],
+            ),
+          );
+        }
+      }
     }
-    return (terminals: terminals, pairs: pairs);
+    if (pairs.isEmpty && clusterPairs.isEmpty) {
+      lvRefuse(LvRefusalKind.structure, 'an In Place Element structure draws no border-node pair', oid: structure.oid);
+    }
+    return (terminals: terminals, pairs: pairs, clusterPairs: clusterPairs);
   }
 
   Iterable<ViHeapObject> _terminalRecords(ViHeapObject structure) sync* {
