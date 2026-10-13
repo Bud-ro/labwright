@@ -22,6 +22,16 @@ const _lvclass = '''<?xml version='1.0' encoding='UTF-8'?>
 ''';
 
 void main() {
+  test('flattened text carries six bits per character and round-trips', () {
+    final bytes = Uint8List.fromList([for (var i = 0; i < 300; i++) (i * 37) & 0xff]);
+    final text = lvFlattenedText(bytes);
+    expect(text.codeUnits.every((unit) => unit >= 0x21 && unit <= 0x60), isTrue);
+    expect(lvFlattenedTextBytes(text).sublist(0, bytes.length), bytes);
+    expect(lvFlattenedTextBytes('!!!!'), [0, 0, 0]);
+    expect(lvFlattenedTextBytes('````'), [0xff, 0xff, 0xff]);
+    expect(lvFlattenedTextBytes('`\n`\n`\n`'), [0xff, 0xff, 0xff], reason: 'line breaks are ignored');
+  });
+
   test('a library file lists its items with their folders and properties', () {
     final library = LvLibraryFile.parse(_lvlib, fileName: 'MB Master.lvlib');
     expect(library.kind, LvLibraryKind.library);
