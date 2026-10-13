@@ -193,6 +193,15 @@ Iterable<int> _entriesStarts(Uint8List bytes, ByteData view, ViVersionWord? vers
   }
 }
 
+/// Whether a `PTH0` record with components starts at [at]; a link may also carry an empty
+/// record or a `PTH1`/`PTH2`, which [ViPath] does not model.
+bool _framesPath(Uint8List bytes, ByteData view, int at) {
+  if (at + 8 > bytes.length) return false;
+  final length = view.getUint32(at + 4);
+  if (length < 4 || at + 8 + length > bytes.length) return false;
+  return isPth0(Uint8List.sublistView(bytes, at, at + 8 + length));
+}
+
 List<String> _qualifiedNameAt(Uint8List bytes, int at) {
   final count = ByteData.sublistView(bytes).getUint32(at);
   final names = <String>[];
@@ -233,13 +242,9 @@ List<ViLinkEntry>? _walk(Uint8List bytes, ViVersionWord? version, int count, int
           null => const [],
         },
         path: switch (c.pathAt) {
-          final at?
-              when at + 8 <= bytes.length &&
-                  c.view.getUint32(at + 4) >= 4 &&
-                  at + 8 + c.view.getUint32(at + 4) <= bytes.length =>
-            ViPath(
-              Uint8List.sublistView(bytes, at, at + 8 + c.view.getUint32(at + 4)),
-            ),
+          final at? when _framesPath(bytes, c.view, at) => ViPath(
+            Uint8List.sublistView(bytes, at, at + 8 + c.view.getUint32(at + 4)),
+          ),
           _ => null,
         },
       ),
