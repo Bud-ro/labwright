@@ -380,20 +380,19 @@ A `ViDiagram` becomes an `LvDataflow`: **units** (primitive nodes, diagram
 constants, connector-pane terminals, structures) joined by typed **edges**, and
 grouped into one `LvRegion` per structure frame.
 
-- **Direction.** An endpoint holder's own flag bit `0x8000` marks it a wire's
-  sink, except on a connector-pane terminal (`0x16`), which answers from its
-  panel data item's control/indicator bit. Corpus, over 428,043 signals in
-  7,524 files: 424,466 (99.2%) resolve to exactly one source endpoint. The
-  panel bit never contradicts the flag — it agrees on all 38,744 connector-pane
-  endpoints of already-resolved signals — and it settles 481 signals the flag
-  alone leaves with two sources.
+- **Direction.** An endpoint holder's own flag bit `0x8000` or `0x4000` marks
+  it a wire's sink, except on a connector-pane terminal (`0x16`), which answers
+  from its panel data item's control/indicator bit. Corpus, over 432,359
+  signals in 7,394 files: 432,140 (99.95%) resolve to exactly one source
+  endpoint. The panel bit never contradicts the flags, and `0x4000` never sits
+  on a producing endpoint of a signal `0x8000` alone resolves; it settles
+  3,699 signals `0x8000` alone leaves with two sources (the 494 pane
+  indicators among them already answered by their panel bit).
 
-  The remaining 3,577 are refused. Every one has **several** sources, none has
-  zero, and 2,629 are two plain endpoint holders that both read as producers.
-  The terminal record's own `0x1` output bit would single out a producer for
-  2,182 of them, but it disagrees with the sink flag on 39 of the 213,394
-  already-resolved signals where it speaks, so it is not a law and is not
-  applied.
+  The remaining 219 are refused. Every one has **several** sources, none has
+  zero. The terminal record's own `0x1` output bit is not a law: it disagrees
+  with the sink flag on 39 of the 213,394 signals where it speaks, so it is
+  not applied.
 - **Nesting.** Every node, structure and signal is parented to a frame
   (`0x1b`), so each edge lives in exactly one region and a structure terminal
   splits into an outer port and one inner port per frame.
@@ -557,15 +556,15 @@ whose name several links share.
 Over the 46 rcpacini VI snippets: 8 lower (`MD5`, `PNG CRC32`,
 `crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, and `VI Tree` /
 `decorations_only`, which have no dataflow) and 38 refuse. Refusals are pinned
-per VI and concentrate in cluster / path / variant wire types (24), undecoded
-primitives (5), unresolved wire direction (3), constants whose value the heap
-decode did not recover (2), structures (2) and subVI calls whose callee is not
-supplied (2).
+per VI and concentrate in cluster / path / variant wire types (23), undecoded
+primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
+direction (2), and one each on a structure, a foreign call and a tunnel's
+indexing.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 725 lower
-and the rest refuse, 5,035 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 735 lower
+and the rest refuse, 5,132 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 600 on a primitive, 275 on a subVI call, 189 on a constant's value, 173 on a wire's direction, 117 on a structure, 109 on a foreign call, 98 on an unwired terminal, 39 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 2 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 623 on a primitive, 293 on a subVI call, 197 on a constant's value, 122 on a structure, 114 on a foreign call, 98 on an unwired terminal, 40 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -590,12 +589,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 725 lowerings are **470 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 470 into a
+Those 735 lowerings are **478 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 478 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 470 is the independent check that they
+kernel` of one entry point importing all 478 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
