@@ -949,6 +949,8 @@ class _FunctionEmitter {
         _emitCase(unit);
       case LvStructureKind.disableStructure:
         _emitDisable(unit);
+      case LvStructureKind.flatSequence:
+        _emitSequence(unit);
       case LvStructureKind.whileLoop:
         lvRefuse(
           LvRefusalKind.structure,
@@ -1449,6 +1451,25 @@ class _FunctionEmitter {
         lvRefuse(LvRefusalKind.unwiredTerminal, 'a frame reads a tunnel that receives no wire', oid: terminal.oid);
       }
       valueOf[inner] = outer;
+    }
+  }
+
+  /// A Flat Sequence runs its frames left to right; a value crossing a frame border is the
+  /// previous frame's output tunnel, already bound when the next frame's inputs are.
+  void _emitSequence(LvStructUnit unit) {
+    for (final frame in unit.frames) {
+      _bindFrameInputs(unit, frame.frameOid, null);
+      _emitRegion(frame, _frameExits(unit, frame.frameOid));
+      for (final tunnel in unit.terminals) {
+        if (tunnel.outerIsSink || !_readsOuter(tunnel)) continue;
+        final inner = tunnel.innerPorts[frame.frameOid];
+        if (inner == null) continue;
+        final edge = flow.into(inner);
+        if (edge == null) {
+          lvRefuse(LvRefusalKind.unwiredTerminal, 'a sequence frame\'s output tunnel is unwired', oid: tunnel.oid);
+        }
+        valueOf[tunnel.outerPort!] = _bound(edge.source, tunnel.oid);
+      }
     }
   }
 
