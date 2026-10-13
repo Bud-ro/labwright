@@ -7,11 +7,17 @@ import 'wire_type.dart';
 
 const int kLvSinkEndpointFlag = 0x8000;
 
+/// A second flag marking an endpoint that consumes its wire, carried by some node terminals and
+/// pane indicators that lack [kLvSinkEndpointFlag] and by no producing endpoint.
+const int kLvInputEndpointFlag = 0x4000;
+
+/// Whether a signal endpoint consumes the wire: a pane terminal by its indicator bit, any other by
+/// [kLvSinkEndpointFlag] or [kLvInputEndpointFlag].
 bool lvEndpointIsSink(ViHeapObject object) {
   if (object.kind == HeapObjectClass.bdLeaf.code) {
     if (object.isIndicator case final indicator?) return indicator;
   }
-  return ((object.objFlags ?? 0) & kLvSinkEndpointFlag) != 0;
+  return ((object.objFlags ?? 0) & (kLvSinkEndpointFlag | kLvInputEndpointFlag)) != 0;
 }
 
 const int kLvTunnelIndexerCode = 0x23;
