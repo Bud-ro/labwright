@@ -11,6 +11,7 @@ import 'corpus/corpus_snapshot.dart';
 import 'corpus/invariants.dart';
 import 'corpus/ir_json.dart';
 import 'corpus/object_color.dart';
+import 'corpus/pane_terminal_census.dart';
 import 'corpus/selector_range_census.dart';
 import 'corpus/signal_type_census.dart';
 import 'corpus/wire_branch_oracle.dart';
@@ -34,6 +35,7 @@ void main() {
   group('writer_scoreboard', writerScoreboardTests);
   group('wire_route_census', wireRouteCensusTests);
   group('object_color', objectColorTests);
+  group('pane_terminal_census', paneTerminalCensusTests);
   group('signal_type_census', signalTypeCensusTests);
   group('const_value_census', constValueCensusTests);
   group('corpus_coverage', corpusCoverageTests);

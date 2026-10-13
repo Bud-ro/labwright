@@ -15,6 +15,7 @@ class ViModel {
     this.subViNames = const <String>[],
     this.types = const <ViType>[],
     this.connectorPaneType,
+    this.paneTerminals = const <ViHeapObject?>[],
     this.fontTable,
   });
 
@@ -42,6 +43,10 @@ class ViModel {
 
   /// The VI's call signature from `CONP`: one parameter per pane terminal; null without `CONP`.
   final ViType? connectorPaneType;
+
+  /// The panel control behind each connector-pane terminal, in pane order; null where the
+  /// terminal is unwired or no control answers for it. See [connectorPaneTerminals].
+  final List<ViHeapObject?> paneTerminals;
 
   final ViFontTable? fontTable;
 
@@ -92,14 +97,24 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
   );
+  final paneType = switch (list.where((section) => section.tag == 'CONP').firstOrNull) {
+    final DecodedSection conp => ViConnectorPane(conp.bytes).typeIn(pool),
+    null => null,
+  };
+  final cpmp = list.where((s) => s.tag == 'CPMp').map((s) => s.bytes).firstOrNull;
+  final fptd = list.where((s) => s.tag == 'FPTD').map((s) => s.bytes).firstOrNull;
   return ViModel(
     subViNames: subViNames,
     types: types,
     fontTable: fontTable,
-    connectorPaneType: switch (sections.where((section) => section.tag == 'CONP').firstOrNull) {
-      final ViSection conp => ViConnectorPane(conp.bytes).typeIn(pool),
-      null => null,
-    },
+    connectorPaneType: paneType,
+    paneTerminals: connectorPaneTerminals(
+      paneType: paneType,
+      frontPanelDiagrams: frontPanelDiagrams,
+      map: cpmp == null ? null : ViConnectorPaneMap(cpmp),
+      panelType: fptd == null ? null : ViFrontPanelType(fptd),
+      pool: pool,
+    ),
     version: ver.version,
     title: ver.title,
     components: componentsFromDecoded(list),

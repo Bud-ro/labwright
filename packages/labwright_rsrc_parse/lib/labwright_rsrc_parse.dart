@@ -52,6 +52,7 @@ export 'src/blocks/icl8_icl4_ICON_icon.dart';
 export 'src/blocks/vers_version.dart';
 export 'src/byte_layout.dart';
 export 'src/byte_record.dart';
+export 'src/connector_pane_terminals.dart';
 export 'src/container.dart';
 export 'src/content_exact.dart';
 export 'src/decode.dart';

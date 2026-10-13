@@ -338,6 +338,10 @@ class ViHeapObject {
   /// The `dIdx` attribute of a multi-frame structure.
   int? dIdx;
 
+  /// The `conNum` attribute of a panel control: its connector-pane terminal, [kViNotOnPane] off
+  /// the pane; a control saved without it sits on terminal 0.
+  int? conNum;
+
   /// The frame a multi-frame structure shows: [dIdx] without its high bit.
   int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
 
