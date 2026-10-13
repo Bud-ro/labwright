@@ -56,7 +56,17 @@ final RegExp _atomicExpression = RegExp(r'^[A-Za-z_$][A-Za-z0-9_$]*$|^-?\d+$');
 /// An identifier or an integer literal: safe to repeat without aliasing into a local.
 bool lvIsAtomic(String expression) => _atomicExpression.hasMatch(expression);
 
+/// The locals of one generated function. A local never takes a name in [reserved], the
+/// library's function names, and every local is recorded in [shared] so a function declared
+/// later never takes a local's name either: a Dart local shadows a top-level function across
+/// the whole block it is declared in.
 class LvNaming {
+  LvNaming({Set<String> reserved = const {}, Set<String>? shared})
+    : _reserved = reserved,
+      _shared = shared ?? <String>{};
+
+  final Set<String> _reserved;
+  final Set<String> _shared;
   final Set<String> _used = <String>{};
   final Set<String> _fields = <String>{};
 
@@ -73,14 +83,17 @@ class LvNaming {
 
   String loopIndex() {
     for (final name in kLvLoopIndexNames) {
-      if (_used.add(name)) return name;
+      if (!_reserved.contains(name) && _used.add(name)) {
+        _shared.add(name);
+        return name;
+      }
     }
-    return _unique(kLvLoopIndexNames.first, _used);
+    return _uniqueLocal(kLvLoopIndexNames.first);
   }
 
   String fileConstant(String? decoded) {
     final stem = decoded == null ? '' : lvClassName(decoded);
-    return _unique('_k${stem.isEmpty ? 'Constant' : stem}', _used);
+    return _uniqueLocal('_k${stem.isEmpty ? 'Constant' : stem}');
   }
 
   static List<String> declarationFields(List<String?> labels) => _declarationNames(labels, LvNameRole.member);
@@ -109,7 +122,18 @@ class LvNaming {
     };
   }
 
-  String _local(String? decoded, LvNameRole fallback) => _unique(_sanitize(decoded) ?? fallback.stem, _used);
+  String _local(String? decoded, LvNameRole fallback) => _uniqueLocal(_sanitize(decoded) ?? fallback.stem);
+
+  String _uniqueLocal(String stem) {
+    for (var index = 1; ; index++) {
+      final candidate = index == 1 ? stem : '$stem$index';
+      if (_reserved.contains(candidate)) continue;
+      if (_used.add(candidate)) {
+        _shared.add(candidate);
+        return candidate;
+      }
+    }
+  }
 
   static String? _sanitize(String? raw) {
     if (raw == null) return null;

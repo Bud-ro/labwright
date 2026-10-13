@@ -466,22 +466,23 @@ classes `0x93` (18), `0x105` (16) and `0xa9` (15).
 
 ### subVI calls
 
-A call node's terminals are its callee's connector pane, in pane order, and
-`subvi.dart` states the three decoded facts that join the two files: the pane
-order itself, `CPMp` naming each pane terminal's panel data item counted from
-the last data-space slot backwards, and that item's block-diagram terminal
-reached through the terminal's `dcoRef`. A call lowers to a Dart call with
-**named** arguments, so the binding is by terminal rather than by position, and
-each callee is emitted once into the same file however many sites reach it.
+A call node's terminals are its callee's connector pane, in pane order. The
+parser's `ViModel.paneTerminals` names the panel control behind each terminal
+(`CPMp` where the file has one, else each control's own `conNum` attribute),
+and that control's block-diagram terminal is reached through the terminal's
+`dcoRef`. A call lowers to a Dart call with **named** arguments, so the binding
+is by terminal rather than by position, and each callee is emitted once into
+the same file however many sites reach it.
 
-Corpus, over the 1,290 call nodes in diagrams whose dataflow builds: 545 have a
-callee with a connector pane of the right width, and of the 337 wired terminals
-at those calls, 304 resolve a callee terminal. Two independent checks confirm
-the binding — the caller's own wire direction agrees with the named control's
-on **304 of 304**, and the two VIs' wire types agree on **189 of 189** where
-both are decided. The rest are refused by name: 567 calls whose callee carries
-no `CPMp`, 159 whose callee is absent, 13 that name no file, 6 whose pane width
-disagrees.
+Corpus, over the 1,792 call nodes in diagrams whose dataflow builds: 1,204 have
+a callee with a connector pane of the right width, and of the 2,507 wired
+terminals at those calls, 2,482 resolve a callee terminal. The caller's own
+wire direction agrees with the named control's on **2,482 of 2,482**. The two
+VIs' wire types agree on 1,076 of the 1,088 where both are decided; the 12
+that differ are a variant terminal fed a concrete type, and same-named VIs in
+different repositories that the sweep's filename index conflates. The rest are
+refused by name: 389 calls whose callee is absent, 96 that name no file, 63
+whose callee carries no connector pane, 40 whose pane width disagrees.
 
 ### Outcomes
 
@@ -493,19 +494,20 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 229 lower
-and the rest refuse, 5,809 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 247 lower
+and the rest refuse, 5,936 of them on a wire type — overwhelmingly a cluster
 wire no endpoint resolves a member shape for. The rest are pinned per kind in
-`kCorpusLoweringSweep`: 524 on a primitive, 322 on a subVI call, 234 on an
-unwired terminal, 111 on a structure, 107 on a wire's direction, 135 on a
-constant's value, 18 on a declaration that cannot be written.
+`kCorpusLoweringSweep`: 425 on a primitive, 225 on an unwired terminal, 148 on
+a subVI call, 129 on a wire's direction, 129 on a constant's value, 82 on a
+structure, 37 on a foreign call, 31 on a tunnel coercion, 3 on a case selector,
+2 on an unbound value.
 
-Those 229 lowerings are **79 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 79 into a
+Those 247 lowerings are **73 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 73 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 79 is the independent check that they
+kernel` of one entry point importing all 73 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
