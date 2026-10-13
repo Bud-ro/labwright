@@ -30,12 +30,10 @@ void main() {
       final artBytes = <int, Uint8List>{};
       final greyBytes = <int, Uint8List>{};
       for (final e in icons.entries) {
-        artBytes[e.key] = (await e.value.base.toByteData())!.buffer
-            .asUint8List();
+        artBytes[e.key] = e.value.rgba;
       }
       for (final e in grey.entries) {
-        greyBytes[e.key] = (await e.value.base.toByteData())!.buffer
-            .asUint8List();
+        greyBytes[e.key] = e.value.rgba;
       }
       final census = <String, Map<(int, int), int>>{};
       for (final f in pngs) {
@@ -80,7 +78,7 @@ void main() {
           if (key == null) continue;
           final art = icons[key];
           if (art == null) continue;
-          final aw = art.base.width, ah = art.base.height;
+          final aw = art.width, ah = art.height;
           final bw = b.right - b.left, bh = b.bottom - b.top;
           final cx = (b.left - raster.content.left + reg.dx).round();
           final cy = (b.top - raster.content.top + reg.dy).round();

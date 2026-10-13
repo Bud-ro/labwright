@@ -9,7 +9,7 @@ import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'bd_text_font.dart';
-import 'generated/prim_icon_art.dart';
+import 'generated/prim_icon_atlas.dart';
 import 'terminal_bitmaps.dart';
 
 import 'prim_icon_catalog.dart';
@@ -329,8 +329,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       if (art != null) {
         final stamp = primIconStampRect(
           Rect.fromLTRB(left, top, right, bottom),
-          art.base.width,
-          art.base.height,
+          art.width,
+          art.height,
           key: key,
         );
         left = math.min(left, stamp.left);
@@ -682,23 +682,58 @@ PrimIconArt? primIconArtFor(
   final variant = icons[classVariantIconKey(object.kind, terms)];
   if (variant != null) {
     final b = object.absBounds;
-    if (b != null &&
-        variant.base.width == b.width &&
-        variant.base.height == b.height) {
+    if (b != null && variant.width == b.width && variant.height == b.height) {
       return variant;
     }
   }
   final legacy = icons[key];
   final b = object.absBounds;
   if (legacy == null || b == null) return legacy;
-  return legacy.base.width == b.width && legacy.base.height == b.height
-      ? legacy
-      : null;
+  return legacy.width == b.width && legacy.height == b.height ? legacy : null;
 }
 
 const kPrimIconPrescale = 4;
 
-typedef PrimIconArt = ({ui.Image base, ui.Image sharp});
+/// One primitive icon: its pixels, the measurements the painters take from them, and where it
+/// sits on the atlas [sheet] (and on [sharpSheet], the atlas drawn at [kPrimIconPrescale]).
+class PrimIconArt {
+  PrimIconArt({
+    required this.width,
+    required this.height,
+    required this.rgba,
+    required this.alpha,
+    required this.cornerAa,
+    required this.inkBounds,
+    required this.sheet,
+    required this.src,
+    required this.sharpSheet,
+  }) : sharpSrc = ui.Rect.fromLTWH(
+         src.left * kPrimIconPrescale,
+         src.top * kPrimIconPrescale,
+         src.width * kPrimIconPrescale,
+         src.height * kPrimIconPrescale,
+       );
+
+  final int width;
+
+  final int height;
+
+  final Uint8List rgba;
+
+  final Uint8List alpha;
+
+  final Set<int> cornerAa;
+
+  final ui.Rect? inkBounds;
+
+  final ui.Image sheet;
+
+  final ui.Rect src;
+
+  final ui.Image sharpSheet;
+
+  final ui.Rect sharpSrc;
+}
 
 /// The primitive icons by icon key, filled once by [loadPrimIcons] before the first frame.
 final Map<int, PrimIconArt> primIcons = {};
@@ -706,79 +741,95 @@ final Map<int, PrimIconArt> primIcons = {};
 /// The disabled-structure variants of [primIcons], greyed through [_greyDisabledPalette].
 final Map<int, PrimIconArt> primIconsGrey = {};
 
-/// Builds every primitive icon from [kPrimIconArtSources] into [primIcons] and [primIconsGrey];
-/// the app calls it before the first frame, so every painter finds its icons.
+/// Raises the icon atlas into [primIcons] and [primIconsGrey]; the app calls it before the first
+/// frame, so every painter finds its icons.
 Map<int, PrimIconArt> loadPrimIcons() {
   if (primIcons.isNotEmpty) return primIcons;
-  for (final source in kPrimIconArtSources) {
-    if (kPrimIconStatus[source.key] == PrimIconStatus.rejected) continue;
-    final id = parsePrimIconName(source.key)!;
-    final width = source.width, height = source.height;
-    final pixels = Uint8List.fromList(
-      ZLibDecoder().convert(base64Decode(source.packedRgba)),
-    );
+  const sheetWidth = kPrimIconAtlasWidth, sheetHeight = kPrimIconAtlasHeight;
+  final rgba = Uint8List.fromList(
+    ZLibDecoder().convert(base64Decode(kPrimIconAtlasRgba)),
+  );
+  final greyRgba = Uint8List.fromList(rgba);
+  _greyDisabledPalette(greyRgba);
+  final sheet = _sheetImage(rgba, sheetWidth, sheetHeight);
+  final greySheet = _sheetImage(greyRgba, sheetWidth, sheetHeight);
+  final sharpSheet = _prescaled(sheet);
+  final greySharpSheet = _prescaled(greySheet);
+  for (final entry in kPrimIconAtlas) {
+    if (kPrimIconStatus[entry.key] == PrimIconStatus.rejected) continue;
+    final id = parsePrimIconName(entry.key)!;
+    final width = entry.width, height = entry.height;
+    final pixels = Uint8List(width * height * 4);
+    final greyPixels = Uint8List(width * height * 4);
     final alpha = Uint8List(width * height);
-    for (var i = 0; i < alpha.length; i++) {
-      alpha[i] = pixels[i * 4 + 3];
-    }
-    final corners = <int>{};
-    var minX = width, minY = height, maxX = -1, maxY = -1;
     for (var y = 0; y < height; y++) {
+      final from = ((entry.top + y) * sheetWidth + entry.left) * 4;
+      pixels.setRange(y * width * 4, (y + 1) * width * 4, rgba, from);
+      greyPixels.setRange(y * width * 4, (y + 1) * width * 4, greyRgba, from);
       for (var x = 0; x < width; x++) {
-        final artIndex = y * width + x;
-        if (alpha[artIndex] == 0) continue;
-        if (x < minX) minX = x;
-        if (y < minY) minY = y;
-        if (x > maxX) maxX = x;
-        if (y > maxY) maxY = y;
-        if (alpha[artIndex] != 255) continue;
-        final byteIndex = artIndex * 4;
-        if (pixels[byteIndex] != 0xdd ||
-            pixels[byteIndex + 1] != 0xdd ||
-            pixels[byteIndex + 2] != 0xdd) {
-          continue;
-        }
-        final onEdge =
-            x == 0 ||
-            y == 0 ||
-            x == width - 1 ||
-            y == height - 1 ||
-            alpha[artIndex - 1] == 0 ||
-            alpha[artIndex + 1] == 0 ||
-            alpha[artIndex - width] == 0 ||
-            alpha[artIndex + width] == 0;
-        if (onEdge) corners.add(artIndex);
+        alpha[y * width + x] = rgba[from + x * 4 + 3];
       }
     }
-    _primIconPixels[id] = _PrimIconPixels(
+    final ink = entry.inkBounds;
+    final inkBounds = ink == null
+        ? null
+        : ui.Rect.fromLTRB(
+            ink.left.toDouble(),
+            ink.top.toDouble(),
+            ink.right.toDouble(),
+            ink.bottom.toDouble(),
+          );
+    final cornerAa = entry.cornerAa.toSet();
+    final src = ui.Rect.fromLTWH(
+      entry.left.toDouble(),
+      entry.top.toDouble(),
+      width.toDouble(),
+      height.toDouble(),
+    );
+    primIcons[id] = PrimIconArt(
       width: width,
       height: height,
-      alpha: alpha,
       rgba: pixels,
-      cornerAa: corners,
-      inkBounds: maxX >= minX && maxY >= minY
-          ? ui.Rect.fromLTRB(
-              minX.toDouble(),
-              minY.toDouble(),
-              maxX + 1.0,
-              maxY + 1.0,
-            )
-          : null,
+      alpha: alpha,
+      cornerAa: cornerAa,
+      inkBounds: inkBounds,
+      sheet: sheet,
+      src: src,
+      sharpSheet: sharpSheet,
     );
-    final greyPixels = Uint8List.fromList(pixels);
-    _greyDisabledPalette(greyPixels);
-    primIconsGrey[id] = _prescaledArt(_imageOfRgba(greyPixels, width, height));
-    primIcons[id] = _prescaledArt(_imageOfRgba(pixels, width, height));
+    primIconsGrey[id] = PrimIconArt(
+      width: width,
+      height: height,
+      rgba: greyPixels,
+      alpha: alpha,
+      cornerAa: cornerAa,
+      inkBounds: inkBounds,
+      sheet: greySheet,
+      src: src,
+      sharpSheet: greySharpSheet,
+    );
   }
   return primIcons;
 }
 
-/// An image of [rgba] drawn as one rectangle per run of equal opaque pixels, raised on the
-/// spot; every icon is fully opaque or fully transparent per pixel.
-ui.Image _imageOfRgba(Uint8List rgba, int width, int height) {
-  final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder);
-  final paint = ui.Paint()..isAntiAlias = false;
+/// An image of [rgba], raised on the spot from one triangle pair per run of equal opaque pixels;
+/// every atlas pixel is fully opaque or fully transparent.
+ui.Image _sheetImage(Uint8List rgba, int width, int height) {
+  var runs = 0;
+  for (var y = 0; y < height; y++) {
+    var previous = 0;
+    for (var x = 0; x < width; x++) {
+      final i = (y * width + x) * 4;
+      final pixel = rgba[i + 3] == 0
+          ? 0
+          : 0xff000000 | (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
+      if (pixel != 0 && pixel != previous) runs++;
+      previous = pixel;
+    }
+  }
+  final positions = Float32List(runs * 12);
+  final colors = Int32List(runs * 6);
+  var run = 0;
   for (var y = 0; y < height; y++) {
     var x = 0;
     while (x < width) {
@@ -798,26 +849,42 @@ ui.Image _imageOfRgba(Uint8List rgba, int width, int height) {
         }
         end++;
       }
-      paint.color = ui.Color.fromARGB(
-        rgba[i + 3],
-        rgba[i],
-        rgba[i + 1],
-        rgba[i + 2],
+      final left = x.toDouble(), right = end.toDouble();
+      final top = y.toDouble(), bottom = y + 1.0;
+      final p = run * 12;
+      positions[p] = left;
+      positions[p + 1] = top;
+      positions[p + 2] = right;
+      positions[p + 3] = top;
+      positions[p + 4] = left;
+      positions[p + 5] = bottom;
+      positions[p + 6] = right;
+      positions[p + 7] = top;
+      positions[p + 8] = right;
+      positions[p + 9] = bottom;
+      positions[p + 10] = left;
+      positions[p + 11] = bottom;
+      colors.fillRange(
+        run * 6,
+        run * 6 + 6,
+        0xff000000 | (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
       );
-      canvas.drawRect(
-        ui.Rect.fromLTWH(x.toDouble(), y.toDouble(), (end - x).toDouble(), 1),
-        paint,
-      );
+      run++;
       x = end;
     }
   }
+  final recorder = ui.PictureRecorder();
+  ui.Canvas(recorder).drawVertices(
+    ui.Vertices.raw(ui.VertexMode.triangles, positions, colors: colors),
+    ui.BlendMode.dst,
+    ui.Paint()..isAntiAlias = false,
+  );
   return recorder.endRecording().toImageSync(width, height);
 }
 
-PrimIconArt _prescaledArt(ui.Image image) {
+ui.Image _prescaled(ui.Image image) {
   final recorder = ui.PictureRecorder();
-  final canvas = ui.Canvas(recorder);
-  canvas.drawImageRect(
+  ui.Canvas(recorder).drawImageRect(
     image,
     ui.Rect.fromLTWH(0, 0, image.width.toDouble(), image.height.toDouble()),
     ui.Rect.fromLTWH(
@@ -828,12 +895,9 @@ PrimIconArt _prescaledArt(ui.Image image) {
     ),
     ui.Paint()..filterQuality = ui.FilterQuality.none,
   );
-  return (
-    base: image,
-    sharp: recorder.endRecording().toImageSync(
-      image.width * kPrimIconPrescale,
-      image.height * kPrimIconPrescale,
-    ),
+  return recorder.endRecording().toImageSync(
+    image.width * kPrimIconPrescale,
+    image.height * kPrimIconPrescale,
   );
 }
 
@@ -937,33 +1001,9 @@ Future<ui.Image> remapPrimIcon(ui.Image icon, Map<int, int> rgbMapping) async {
   return imageFromRgba(rgba, icon.width, icon.height);
 }
 
-class _PrimIconPixels {
-  const _PrimIconPixels({
-    required this.width,
-    required this.height,
-    required this.alpha,
-    required this.rgba,
-    required this.cornerAa,
-    required this.inkBounds,
-  });
-
-  final int width;
-  final int height;
-
-  final Uint8List alpha;
-
-  final Uint8List rgba;
-
-  final Set<int> cornerAa;
-
-  final ui.Rect? inkBounds;
-}
-
-final Map<int, _PrimIconPixels> _primIconPixels = {};
-
 const _kCornerAaRung2 = Color(0xFFAAAAAA);
 
-ui.Rect? primIconInkBounds(int key) => _primIconPixels[key]?.inkBounds;
+ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
@@ -992,12 +1032,12 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
   if (b == null) return key;
   for (var t = 0; t <= 15; t++) {
     final id = classVariantIconKey(object.kind, t);
-    final art = _primIconPixels[id];
+    final art = primIcons[id];
     if (art != null && art.width == b.width && art.height == b.height) {
       return id;
     }
   }
-  final legacy = _primIconPixels[key];
+  final legacy = primIcons[key];
   if (legacy != null &&
       (legacy.width != b.width || legacy.height != b.height)) {
     return null;
@@ -1007,9 +1047,9 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
 
 bool primIconHit(ViHeapObject object, double x, double y) {
   final id = loadedPrimIconIdOf(object);
-  final art = id == null ? null : _primIconPixels[id];
+  final art = id == null ? null : primIcons[id];
   final bounds = object.absBounds;
-  if (art == null || bounds == null || primIcons[id] == null) return true;
+  if (art == null || bounds == null) return true;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
       bounds.left.toDouble(),
@@ -1034,7 +1074,7 @@ int? primIconInkEdge(
   required int sign,
 }) {
   final id = loadedPrimIconIdOf(object);
-  final art = id == null ? null : _primIconPixels[id];
+  final art = id == null ? null : primIcons[id];
   final b = object.absBounds;
   if (art == null || b == null) return null;
   final stamp = primIconStampRect(
@@ -2082,25 +2122,25 @@ class BdDiagramPainter extends CustomPainter {
               canvasScale >= kPrimIconPrescale
           ? FilterQuality.none
           : iconFilterQuality;
-      final art = filter == FilterQuality.none ? primIcon.base : primIcon.sharp;
       final dst = primIconStampRect(
         rect,
-        primIcon.base.width,
-        primIcon.base.height,
+        primIcon.width,
+        primIcon.height,
         key: iconKey,
       );
+      final sharp = filter != FilterQuality.none;
       canvas.drawImageRect(
-        art,
-        Rect.fromLTWH(0, 0, art.width.toDouble(), art.height.toDouble()),
+        sharp ? primIcon.sharpSheet : primIcon.sheet,
+        sharp ? primIcon.sharpSrc : primIcon.src,
         dst,
         Paint()..filterQuality = filter,
       );
       final ladderId = disabled ? null : loadedPrimIconIdOf(object);
       final corners =
-          (ladderId == null ? null : _primIconPixels[ladderId]?.cornerAa) ??
+          (ladderId == null ? null : primIcons[ladderId]?.cornerAa) ??
           const <int>{};
       for (final artIndex in corners) {
-        final artWidth = primIcon.base.width;
+        final artWidth = primIcon.width;
         final cornerX = dst.left + artIndex % artWidth;
         final cornerY = dst.top + artIndex ~/ artWidth;
         var beneathCorner = false;
@@ -2108,7 +2148,7 @@ class BdDiagramPainter extends CustomPainter {
         for (final prior in stampedPrimIcons.reversed) {
           final localX = (cornerX - prior.dst.left).round();
           final localY = (cornerY - prior.dst.top).round();
-          final priorArt = _primIconPixels[prior.id];
+          final priorArt = primIcons[prior.id];
           if (priorArt == null ||
               localX < 0 ||
               localY < 0 ||
@@ -2488,8 +2528,8 @@ class BdDiagramPainter extends CustomPainter {
         final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);
         iconNodeObjects[boxRect] = object;
-        final art = primIcons[iconKey]?.base;
-        final ink = primIconInkBounds(iconKey);
+        final art = primIcons[iconKey];
+        final ink = art?.inkBounds;
         if (art != null && ink != null) {
           final stamp = primIconStampRect(
             boxRect,
@@ -5101,7 +5141,7 @@ class _OverlayPainter extends CustomPainter {
     final art = key == null ? null : primIcons[key];
     return art == null
         ? rect
-        : primIconStampRect(rect, art.base.width, art.base.height, key: key);
+        : primIconStampRect(rect, art.width, art.height, key: key);
   }
 
   @override
