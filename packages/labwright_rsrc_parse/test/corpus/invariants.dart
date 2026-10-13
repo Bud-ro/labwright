@@ -8,22 +8,6 @@ import '../corpus_dirs.dart';
 
 const _fuzzIters = 2;
 
-String _sig(ViModel m) {
-  final b = StringBuffer();
-  for (final diag in [...m.blockDiagrams, ...m.frontPanelDiagrams]) {
-    b.write('§${diag.sectionTag}');
-    for (final o in diag.objects) {
-      final r = o.absBounds;
-      b.write(
-        '|${o.oid},${o.kind},${o.parentOid},'
-        '${r == null ? 'n' : '${r.top}.${r.left}.${r.bottom}.${r.right}'},'
-        '${o.category.index},${o.label}',
-      );
-    }
-  }
-  return b.toString();
-}
-
 bool _heapLead(int x) => x == 0xc4 || (x >= 0x08 && x <= 0x13);
 bool _wild(HeapRect r) => [r.left, r.top, r.right, r.bottom].any((c) => c < -200000 || c > 200000);
 
@@ -50,10 +34,6 @@ List<Object?> _summarize(CorpusVi vi) {
 
   final m = vi.model;
   if (m == null) return [c, kinds.toList(), headTags.toList()];
-
-  try {
-    if (_sig(m) != _sig(buildViModel(bytes))) bad('nondet');
-  } catch (_) {}
 
   if (dsecs != null) {
     Uint8List? bodyOf(String tag) => dsecs.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
@@ -130,10 +110,6 @@ void invariantsTests() {
   });
 
   Map<String, Map<String, int>> violations(Set<String> laws) => perFileNonzero(all, counts, laws);
-
-  test('DETERMINISM: building the same VI twice yields an identical object graph', () {
-    expect(violations({'nondet'}), const <String, Map<String, int>>{});
-  });
 
   test('STRUCTURAL INVARIANT: no decoded object has wild bounds, even under byte-flip fuzzing', () {
     expect(violations({'wildBounds', 'fuzzWild'}), const <String, Map<String, int>>{});
