@@ -450,6 +450,13 @@ tunnels drop exactly one dimension and all 10,370 unflagged ones drop none.
 595 unflagged tunnels do drop a dimension; the emitter refuses those rather
 than pick a side.
 
+A frame's value crosses a Case output tunnel, or an In Place Element's element
+port, as the type on the other side when the Dart types agree, else as a
+member-by-member copy when both sides are clusters whose members match by
+label and type — two typedefs of one shape, or a typedef and the anonymous
+cluster it names — since LabVIEW lets those cross a border; any other
+mismatch refuses as a tunnel coercion.
+
 A Case structure lowers only over a **boolean** selector with two frames. The
 file records the case value of the *displayed* frame alone (its `0x95` label),
 so any other frame's value is decoded only when it is the complement of a
@@ -474,9 +481,8 @@ Elements pairs (`0x158`). That last pair is modelled: its two border nodes
 flag bits say what each is — `0x800000` the array, `0xe00000` a
 one-dimensional index (fewer bits set index more dimensions, refused), none
 of them an element — and whose members name the structure's holders on the
-array and index terminals. Every one of the 75 draws that shape. No corpus
-VI yet lowers through the pair: each stops later on a cluster wire or a tunnel
-coercion, so the emission is checked by the analyzer gate only once one does.
+array and index terminals. Every one of the 75 draws that shape, and five corpus
+VIs lower through it.
 
 Those 27 then split against it. 22 carry a border node from `0x150` / `0x14f` /
 `0x152`, whose element access is not recovered — the parser labels that family
@@ -590,10 +596,10 @@ primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
 direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 770 lower
-and the rest refuse, 4,866 of them on a wire type — overwhelmingly a cluster
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 783 lower
+and the rest refuse, 4,871 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 662 on a primitive, 306 on a subVI call, 276 on a structure, 202 on a constant's value, 114 on a foreign call, 99 on an unwired terminal, 57 on a tunnel coercion, 26 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 686 on a primitive, 318 on a subVI call, 276 on a structure, 203 on a constant's value, 114 on a foreign call, 100 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing, 1 on a tunnel coercion.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
@@ -618,12 +624,12 @@ only an indicator off the connector pane, a tunnel whose far side feeds nothing
 live, a node whose outputs go nowhere — is not computed, so no local goes
 unread.
 
-Those 770 lowerings are **513 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 513 into a
+Those 783 lowerings are **526 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 526 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 513 is the independent check that they
+kernel` of one entry point importing all 526 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 
