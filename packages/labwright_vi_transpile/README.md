@@ -338,8 +338,14 @@ Three readings of that dimensionality are censused, and only one is read:
 | reading | vs. the word's ground-truth row | verdict |
 | --- | --- | --- |
 | endpoint's node-terminal **parts** | 26,796 agree, 0 contradict | read |
-| endpoint DCO itself | 14,046 agree, 1,335 contradict (8.7%) | not read |
+| endpoint DCO itself | 14,046 agree, 1,335 contradict (8.7%) | read one-sidedly |
 | callee's **connector-pane** terminal | 1,869 agree, 0 contradict | corroborates |
+
+The endpoint DCO's own descriptor contradicts in one direction only: every one
+of its contradictions is an *array* descriptor on a wire the parts decide
+scalar, and a *scalar* refnum descriptor never contradicts the parts. So when
+the parts are silent, an endpoint whose own descriptor is a scalar refnum
+decides the wire scalar, and an array descriptor decides nothing.
 
 The word's row is one-sided — every wire it decides is scalar, so it catches an
 invented array and not a missed one. The pane reading supplies the other side:
@@ -562,9 +568,9 @@ direction (2), and one each on a structure, a foreign call and a tunnel's
 indexing.
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 743 lower
-and the rest refuse, 5,132 of them on a wire type — overwhelmingly a cluster
+and the rest refuse, 4,943 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 614 on a primitive, 293 on a subVI call, 198 on a constant's value, 122 on a structure, 114 on a foreign call, 98 on an unwired terminal, 40 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
+rest are pinned per kind in `kCorpusLoweringSweep`: 631 on a primitive, 293 on a subVI call, 292 on a structure, 200 on a constant's value, 114 on a foreign call, 98 on an unwired terminal, 40 on a tunnel coercion, 24 on a case selector, 8 on an unbound value, 5 on a wire's direction, 3 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
