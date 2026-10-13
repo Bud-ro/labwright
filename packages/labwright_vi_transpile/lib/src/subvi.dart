@@ -1,6 +1,26 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-import 'emit.dart';
+ViDiagram? lvBlockDiagramOf(ViModel model) {
+  ViDiagram? best;
+  for (final diagram in model.blockDiagrams) {
+    if (best == null || diagram.objects.length > best.objects.length) best = diagram;
+  }
+  return best == null || best.objects.isEmpty ? null : best;
+}
+
+/// A call node's callee as its caller states it: the file name the node draws and the caller's
+/// link entry for it, which carries the callee's qualified name and path record.
+class LvCallee {
+  const LvCallee({required this.caller, required this.fileName, required this.link});
+
+  final LvViUnit caller;
+
+  final String fileName;
+
+  final ViLinkEntryFramed? link;
+}
+
+typedef LvViResolver = LvViUnit? Function(LvCallee callee);
 
 class LvViUnit {
   LvViUnit({

@@ -275,16 +275,17 @@ describes a scalar cluster wire's element, so that route is not taken.
 
 ### Cluster member types
 
-The 41,120 wires no endpoint resolves are the corpus's largest lowering
-blocker, and two further decoded routes were scored as a source for them. Both
-are censused on the **Dart type** each maps to, since that is the identity a
-generated library has and the one the lowering compares by; the descriptor's
-spelling scores the same routes very differently and scores them wrong.
+The 41,932 wires no endpoint of their own resolves are the corpus's largest
+lowering blocker, and two further decoded routes were scored as a source for
+them. Both are censused on the **Dart type** each maps to, since that is the
+identity a generated library has and the one the lowering compares by; the
+descriptor's spelling scores the same routes very differently and scores them
+wrong.
 
 | reading | vs. the endpoint route | would newly type | verdict |
 | --- | --- | --- | --- |
 | endpoint's node-terminal **parts** | 68,112 agree, 1,939 contradict (2.8%) | 38,236 | not read |
-| callee's **connector-pane** terminal | 5,777 agree, 523 contradict (8.3%) | 5,918 | not read |
+| callee's **connector-pane** control | 12,461 agree, 169 contradict (1.3%) | 13,929 | read when no endpoint speaks |
 
 The part route's 1,939 contradictions are 1,874 wires whose two readings agree
 on every member's own type code and differ in a **label**, and 65 that differ
@@ -292,16 +293,19 @@ in a member code outright. Since a nominal class is named from those labels,
 both kinds are a different generated type.
 
 The pane is the only decoded route that reads a cluster wire from *another
-file*, and it is the route that corroborates refnum dimensionality above — but
-it does not carry over. It contradicts the reading already trusted on 8.3% of
-the wires where both speak (518 of the 523 by a label alone), which is what a
-connector pane is: a cluster crosses it on its member **types**, so the two
-files need not label the same members alike, and the callee terminal's name is
-not the caller wire's. Where it does agree it is not independent either — the
-part route read *at* the call node's own terminal contradicts it on 39 of
-12,252 wires (0.32%) against 372 of 4,677 (7.95%) read anywhere else on the
-same wires, which is what a cached copy of the callee's descriptor looks like.
-It also reaches only 5,645 of the 38,236 wires the part route would newly type.
+file*, and it is the route that corroborates refnum dimensionality above. Read
+through the caller's link entry, so that the callee is the file the caller
+links and not a namesake elsewhere in the corpus, and with a typedef one type
+per qualified name, it contradicts the caller's own reading on 111 of the
+10,681 plain-cluster wires where both speak (1.0%) and on 27 of the 1,918
+typedef wires; the 31 remaining contradictions are a typedef on one side and
+a plain cluster on the other. (Found by file name across repositories, as it
+once was, the same route contradicted on 8.3%.) `buildLvDataflow` therefore
+takes a cluster wire's member shape from the callee's pane control when no
+endpoint of the wire's own resolves one, through the same `LvViResolver` the
+emitter calls, and refuses the wire when the readings it has disagree, as it
+does for the endpoint route. The 13,929 wires this newly types are 11,434
+plain clusters and 2,495 typedefs.
 
 ### Refnum dimensionality
 
@@ -491,15 +495,15 @@ name resolves through the `.lvlib` and `.lvclass` files around it
 the sweep and `tool/generate.dart` fall back to a bare file-name index only
 when no link answers.
 
-Corpus, over the 1,792 call nodes in diagrams whose dataflow builds: 932
-callees resolve through their link and 375 through the file-name index; 1,205
-have a connector pane of the right width, and of the 2,509 wired terminals at
-those calls, 2,487 resolve a callee terminal. The caller's own wire direction
-agrees with the named control's on **2,487 of 2,487**. The two VIs' wire types
-agree on 1,079 of the 1,086 where both are decided; the 7 that differ are a
-variant terminal fed a concrete type. The rest are refused by name: 389 calls
-whose callee is absent from the corpus, 96 that name no file, 63 whose callee
-carries no connector pane, 39 whose pane width disagrees.
+Corpus, over the 3,598 call nodes in diagrams whose dataflow builds: 2,253
+callees resolve through their link and 678 through the file-name index; 2,803
+have a connector pane of the right width, and of the 8,502 wired terminals at
+those calls, 8,424 resolve a callee terminal. The caller's own wire direction
+agrees with the named control's on **8,424 of 8,424**. The two VIs' wire types
+agree on 2,830 of the 2,851 where both are decided. The rest are refused by
+name: 544 calls whose callee is absent from the corpus, 121 that name no file,
+88 whose callee carries no connector pane, 40 whose pane width disagrees, 2
+whose name several links share.
 
 ### Outcomes
 
@@ -511,20 +515,20 @@ primitives (5), unresolved wire direction (3), constants whose value the heap
 decode did not recover (2), structures (2) and subVI calls whose callee is not
 supplied (2).
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 248 lower
-and the rest refuse, 5,933 of them on a wire type — overwhelmingly a cluster
-wire no endpoint resolves a member shape for. The rest are pinned per kind in
-`kCorpusLoweringSweep`: 427 on a primitive, 226 on an unwired terminal, 147 on
-a subVI call, 129 on a wire's direction, 129 on a constant's value, 82 on a
-structure, 37 on a foreign call, 31 on a tunnel coercion, 3 on a case selector,
-2 on an unbound value.
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 260 lower
+and the rest refuse, 5,518 of them on a wire type — overwhelmingly a cluster
+wire neither an endpoint nor a callee's pane resolves a member shape for. The
+rest are pinned per kind in `kCorpusLoweringSweep`: 518 on a primitive, 306 on
+an unwired terminal, 188 on a constant's value, 180 on a subVI call, 147 on a
+structure, 142 on a wire's direction, 93 on a foreign call, 36 on a tunnel
+coercion, 4 on a case selector, 2 on an unbound value.
 
-Those 248 lowerings are **74 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 74 into a
+Those 260 lowerings are **79 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 79 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 74 is the independent check that they
+kernel` of one entry point importing all 79 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

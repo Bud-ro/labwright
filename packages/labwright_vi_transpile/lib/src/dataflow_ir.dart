@@ -1,6 +1,7 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'declare.dart';
+import 'subvi.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
 
@@ -405,25 +406,71 @@ class LvDataflow {
   LvEdge? outOf(int port) => edgeBySource[port];
 }
 
+/// Builds the dataflow of [diagram]. With [caller] and [resolve], a cluster wire no endpoint of
+/// its own types takes its member shape from the connector-pane control of the callee it reaches.
 ({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(
   ViDiagram diagram, {
   List<ViType> pool = const [],
   LvDeclarations? declarations,
+  LvViUnit? caller,
+  LvViResolver? resolve,
 }) {
   try {
-    return (dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations()).build(), refusal: null);
+    return (
+      dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations(), caller, resolve).build(),
+      refusal: null,
+    );
   } on LvRefusedException catch (error) {
     return (dataflow: null, refusal: error.refusal);
   }
 }
 
 class _Builder {
-  _Builder(this.diagram, this.pool, this.declarations) : byId = diagram.byId;
+  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve) : byId = diagram.byId;
 
   final ViDiagram diagram;
   final List<ViType> pool;
   final LvDeclarations declarations;
+  final LvViUnit? caller;
+  final LvViResolver? resolve;
   final ViObjectsByOid byId;
+
+  /// Each sub-VI call port by its oid: the call node and the pane index the port draws.
+  late final Map<int, (ViHeapObject node, int pane)> _callPorts = {
+    for (final node in diagram.objects)
+      if (kSubViCallNodeCodes.contains(node.kind))
+        for (final (pane, holder) in diagram.childrenOf(node).where((c) => c.kind == kNodeEndpointDcoKind).indexed)
+          holder.oid: (node, pane),
+  };
+
+  /// The callee behind a sub-VI call port, resolved through the caller's link entry.
+  final Map<int, LvViUnit?> _calleeOfNode = {};
+
+  LvViUnit? _calleeOf(ViHeapObject node) => _calleeOfNode.putIfAbsent(node.oid, () {
+    final unit = caller;
+    final name = node.label?.trim();
+    if (unit == null || resolve == null || name == null) return null;
+    final lower = name.toLowerCase();
+    if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) return null;
+    final link = unit.linkTo(name);
+    if (link == null && unit.links.any((l) => l.qualifiedName.lastOrNull?.toLowerCase() == lower)) return null;
+    return resolve!(LvCallee(caller: unit, fileName: name, link: link));
+  });
+
+  /// The cluster type the callee's connector-pane control gives [endpoint], a sub-VI call port.
+  (ViType, List<ViType>)? _paneCluster(int endpoint, {required bool array}) {
+    final port = _callPorts[endpoint];
+    if (port == null) return null;
+    final (node, pane) = port;
+    final callee = _calleeOf(node);
+    if (callee == null || callee.paneTerminals.length != _callPorts.values.where((p) => p.$1 == node).length) {
+      return null;
+    }
+    final terminal = callee.paneTerminal(pane);
+    if (terminal == null) return null;
+    final cluster = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
+    return cluster == null ? null : (cluster, callee.pool);
+  }
 
   final edgeBySink = <int, LvEdge>{};
   final edgeBySource = <int, LvEdge>{};
@@ -517,12 +564,19 @@ class _Builder {
     }
     if (!kLvWireClusterCodes.contains(signal.typeCode)) return direct;
     final array = (signal.arrayDims ?? 0) > 0;
-    final resolved = <ViType>[
+    final readings = <LvWireType>[
       for (final endpoint in wire.endpointOids)
-        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?) cluster,
+        if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?)
+          lvClusterWireType(signal, cluster, pool, declarations),
     ];
-    if (resolved.isEmpty) return direct;
-    final readings = [for (final cluster in resolved) lvClusterWireType(signal, cluster, pool, declarations)];
+    if (readings.isEmpty) {
+      for (final endpoint in wire.endpointOids) {
+        if (_paneCluster(endpoint, array: array) case (final cluster, final calleePool)) {
+          readings.add(lvClusterWireType(signal, cluster, calleePool, declarations));
+        }
+      }
+    }
+    if (readings.isEmpty) return direct;
     final types = {for (final reading in readings) reading.dartType};
     if (types.length != 1) {
       lvRefuse(
