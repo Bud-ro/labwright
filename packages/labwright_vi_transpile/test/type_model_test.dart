@@ -472,7 +472,7 @@ final double volts;
   test('a refnum wire the signal word leaves open takes its dimensionality from the endpoint parts', () {
     const rows = <String, Map<String, int>>{
       'ClassChildren': {'70_d3->0': 6, '70_d4->refused': 2},
-      'Page1': {'70_d3->0': 2, '71_d5->0': 7, '71_d5->refused': 4},
+      'Page1': {'70_d3->0': 2, '71_d5->0': 11},
       'Pages': {'70_d2->1': 10, '70_d3->0': 12, '71_d5->0': 19},
       'ProjectItems': {'70_d2->1': 2},
     };
