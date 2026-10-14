@@ -12,6 +12,7 @@ import 'object_color.dart';
 import 'pane_terminal_census.dart';
 import 'selector_range_census.dart';
 import 'signal_type_census.dart';
+import 'type_reencode.dart';
 import 'wire_branch_oracle.dart';
 import 'wire_one_anchored_oracle.dart';
 import 'wire_render_style_census.dart';
@@ -32,6 +33,7 @@ const List<CorpusLaw<Object?>> corpusLaws = [
   paneTerminalCensusLaw,
   selectorRangeCensusLaw,
   signalTypeCensusLaw,
+  typeReencodeLaw,
   wireBranchOracleLaw,
   wireOneAnchoredOracleLaw,
   wireRenderStyleCensusLaw,
