@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
 
-const _laws = {'span', 'nesting', 'boundsRecord', 'labelRecord', 'moved', 'relabelled', 'others'};
+const _laws = {'span', 'nesting', 'boundsRecord', 'labelRecord', 'moved', 'relabelled', 'cloned', 'others', 'undone'};
 
 String _row(ViHeapObject o) {
   final b = o.bounds;
@@ -43,38 +43,68 @@ Map<String, int> _census(CorpusVi vi) {
   }
 
   final edited = buildViModelFromDecoded(vi.decoded!, file: vi.bytes);
-  final diagram = edited.primaryBlockDiagram;
-  if (diagram == null) return c;
+  final primary = edited.primaryBlockDiagram;
+  if (primary == null) return c;
+  var diagram = primary;
   final before = [for (final o in diagram.objects) _row(o)];
   final movable = diagram.objects.where((o) => o.boundsOffset != null).firstOrNull;
   final labelled = diagram.objects.where((o) => o.labelOffset != null).firstOrNull;
-  if (movable == null && labelled == null) return c;
+  final leaf = diagram.objects.where((o) => o.boundsOffset != null && diagram.childrenOf(o).isEmpty).firstOrNull;
+  if (movable == null && labelled == null && leaf == null) return c;
   if (movable != null) edited.moveObject(diagram, movable, dx: 3, dy: 5);
   if (labelled != null) edited.setLabel(diagram, labelled, '${labelled.label}+');
+  final expected = [for (final o in diagram.objects) _row(o)];
+  var cloneIndex = -1;
+  if (leaf != null && edited.section(BlockTag.muid.tag) != null) {
+    final uid = ViMaxUid(edited.section(BlockTag.muid.tag)!.bytes).maxUid;
+    final (diagram: rebuilt, :clone) = edited.cloneObject(diagram, leaf);
+    cloneIndex = leaf.index + 1;
+    diagram = rebuilt;
+    final original = _row(leaf);
+    if (clone.oid != uid + 1 || _row(clone).replaceFirst('${clone.oid}:', '${leaf.oid}:') != original) bad('cloned');
+    expected.insert(cloneIndex, _row(clone));
+  }
   final after = buildViModel(
     edited.serialize(),
   ).blockDiagrams.where((d) => d.sectionIndex == diagram.sectionIndex).first;
-  if (after.objects.length != before.length) {
+  if (after.objects.length != expected.length) {
     bad('others');
-    return c;
+  } else {
+    for (var i = 0; i < expected.length; i++) {
+      final j = cloneIndex >= 0 && i > cloneIndex ? i - 1 : i;
+      final key = i == cloneIndex
+          ? 'cloned'
+          : identical(diagram.objects[i], movable) ||
+                j < before.length && movable != null && diagram.objects[i].oid == movable.oid
+          ? 'moved'
+          : labelled != null && diagram.objects[i].oid == labelled.oid
+          ? 'relabelled'
+          : 'others';
+      if (_row(after.objects[i]) != expected[i]) bad(key);
+      if (key == 'moved' && expected[i] == before[j]) bad('moved');
+      if (key == 'relabelled' && expected[i] == before[j]) bad('relabelled');
+    }
   }
-  for (var i = 0; i < before.length; i++) {
-    final object = diagram.objects[i];
-    final expected = _row(object);
-    final key = identical(object, movable)
-        ? 'moved'
-        : identical(object, labelled)
-        ? 'relabelled'
-        : 'others';
-    if (_row(after.objects[i]) != expected || (key != 'others' && expected == before[i])) bad(key);
-  }
+  while (edited.undo()) {}
+  if (!_same(edited.serialize(), vi.bytes)) bad('undone');
   return c;
+}
+
+bool _same(Uint8List a, Uint8List b) {
+  if (a.length != b.length) return false;
+  for (var i = 0; i < a.length; i++) {
+    if (a[i] != b[i]) return false;
+  }
+  return true;
 }
 
 const heapEditLaw = CorpusLaw('heap_edit', _census);
 
 void heapEditTests() {
-  test('object spans nest and name their records; a move and a relabel survive a round trip alone', () async {
-    expect(await heapEditLaw.nonzero(_laws), isEmpty);
-  });
+  test(
+    'object spans nest and name their records; a move, a relabel and a clone survive a round trip alone, and undo restores the file',
+    () async {
+      expect(await heapEditLaw.nonzero(_laws), isEmpty);
+    },
+  );
 }
