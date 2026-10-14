@@ -23,6 +23,7 @@ import '../../../packages/labwright_rsrc_parse/test/reconstruction/snippet_examp
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/unit_test_add_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/string_to_number_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/while_loop_infinite_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/while_loop_reconstruction.dart';
 import 'util.dart';
 
 /// The reconstructions that draw as their snippet draws, by snippet file name.
@@ -45,6 +46,7 @@ final Map<String, ViModel Function()> layoutReconstructions = {
       buildHexStringDisplay,
   'Modifying_LabVIEW_Boolean_Control_Output_Values.png':
       buildBooleanOutputValues,
+  'LabVIEW_While.png': buildWhileLoop,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
