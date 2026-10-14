@@ -4,8 +4,8 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import '../corpus_dirs.dart';
 import 'reconstruction_test.dart';
 
-/// Prints where everything in a snippet sits: `dart run test/reconstruction/facts.dart
-/// <snippet.png> [built]` lists each placed object's bounds and labels, each structure's
+/// Prints where everything in a snippet sits. `dart run test/reconstruction/facts.dart
+/// snippet.png [built]` lists each placed object's bounds and labels, each structure's
 /// border terminals, and each wire's endpoints, table and placed points, for the corpus
 /// snippet or for its reconstruction.
 String rect(HeapRect? r) => r == null ? '-' : '(${r.top},${r.left},${r.bottom},${r.right})';

@@ -5,7 +5,7 @@ import '../corpus_dirs.dart';
 import 'reconstruction_test.dart';
 
 /// Writes a snippet's and its reconstruction's heap records as trees without object ids:
-/// `dart run test/reconstruction/tree.dart <snippet.png>` leaves `orig-BDHb.txt`,
+/// `dart run test/reconstruction/tree.dart snippet.png` leaves `orig-BDHb.txt`,
 /// `built-BDHb.txt` and the panel pair under `$TMPDIR` for diffing.
 String hex(Uint8List b) => b.map((x) => x.toRadixString(16).padLeft(2, '0')).join(' ');
 
