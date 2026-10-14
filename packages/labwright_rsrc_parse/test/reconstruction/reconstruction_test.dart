@@ -15,11 +15,13 @@ import 'execute_vi_remotely_reconstruction.dart';
 import 'for_loop_range_reconstruction.dart';
 import 'for_loop_start_increment_reconstruction.dart';
 import 'loop_invariant_code_motion_reconstruction.dart';
+import 'hex_string_display_reconstruction.dart';
 import 'mean_of_2d_array_reconstruction.dart';
 import 'multiply_rows_reconstruction.dart';
 import 'reinitialize_shift_register_reconstruction.dart';
 import 'snippet_example_reconstruction.dart';
 import 'toggle_text_reconstruction.dart';
+import 'string_to_number_reconstruction.dart';
 import 'unit_test_add_reconstruction.dart';
 import 'while_loop_infinite_reconstruction.dart';
 import 'while_loop_reconstruction.dart';
@@ -42,8 +44,10 @@ const reconstructions = <String, ViModel Function()>{
   'Display_Current_Time_in_LabVIEW_VI.png': buildCurrentTimeStamp,
   '53146805_3DSU7.png': buildArrayToSpreadsheetString,
   'Using_Test_Vector_Indexes_With_the_LabVIEW_Unit_Test_Framework_Toolkit.png': buildUnitTestAdd,
-  'LabVIEW_While.png': buildWhileLoop,
+  'Convert_from_a_String_to_a_Numeric_Data_Type_in_LabVIEW.png': buildStringToNumber,
+  'Converting_Hexadeicmal_String_from_Normal_Display_to_Hex_Display.png': buildHexStringDisplay,
   'Modifying_LabVIEW_Boolean_Control_Output_Values.png': buildBooleanOutputValues,
+  'LabVIEW_While.png': buildWhileLoop,
 };
 
 void main() {
