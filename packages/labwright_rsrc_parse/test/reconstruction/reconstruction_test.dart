@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
 import 'array_to_spreadsheet_string_reconstruction.dart';
+import 'boolean_output_values_reconstruction.dart';
 import 'crc8_reconstruction.dart';
 import 'current_time_stamp_reconstruction.dart';
 import 'dataflow.dart';
@@ -42,6 +43,7 @@ const reconstructions = <String, ViModel Function()>{
   '53146805_3DSU7.png': buildArrayToSpreadsheetString,
   'Using_Test_Vector_Indexes_With_the_LabVIEW_Unit_Test_Framework_Toolkit.png': buildUnitTestAdd,
   'LabVIEW_While.png': buildWhileLoop,
+  'Modifying_LabVIEW_Boolean_Control_Output_Values.png': buildBooleanOutputValues,
 };
 
 void main() {
