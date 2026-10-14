@@ -109,6 +109,16 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.hist when ViHistory.layout.fits(n) => HistorySection.of(
+      ViHistory(bytes),
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.picc when ViPiccRecord.layout.fits(n) => PiccSection.of(
+      ViPiccRecord(bytes),
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
@@ -1000,4 +1010,153 @@ final class StringSection extends TypedSection {
 
   @override
   List<(String, Object?)> get arguments => [('tag', tag), ('text', text)];
+}
+
+/// A revision history record (`HIST`); the four coordinates are the rectangle its words 5 and
+/// 6 hold.
+final class HistorySection extends TypedSection {
+  const HistorySection({
+    this.formatVersion = 2,
+    required this.flags,
+    required this.revisionNumber,
+    this.reserved12 = 0,
+    required this.unknown16,
+    this.top = 0,
+    this.left = 0,
+    this.bottom = 0,
+    this.right = 0,
+    this.reserved28 = const [0, 0],
+    required this.unknown36,
+    super.index,
+    super.compressed,
+  }) : super('HIST');
+
+  factory HistorySection.of(
+    ViHistory history, {
+    int index = 0,
+    bool compressed = false,
+  }) {
+    final (top, left, bottom, right) = history.windowBounds;
+    return HistorySection(
+      formatVersion: history.formatVersion,
+      flags: history.flags,
+      revisionNumber: history.revisionNumber,
+      reserved12: history.reserved12,
+      unknown16: _copy(history.unknown16),
+      top: top,
+      left: left,
+      bottom: bottom,
+      right: right,
+      reserved28: history.reserved28,
+      unknown36: _copy(history.unknown36),
+      index: index,
+      compressed: compressed,
+    );
+  }
+
+  final int formatVersion;
+  final int flags;
+  final int revisionNumber;
+  final int reserved12;
+  final Uint8List unknown16;
+  final int top;
+  final int left;
+  final int bottom;
+  final int right;
+  final List<int> reserved28;
+  final Uint8List unknown36;
+
+  @override
+  Uint8List get payload => ViHistory.encode(
+    formatVersion: formatVersion,
+    flags: flags,
+    revisionNumber: revisionNumber,
+    reserved12: reserved12,
+    unknown16: unknown16,
+    top: top,
+    left: left,
+    bottom: bottom,
+    right: right,
+    reserved28: reserved28,
+    unknown36: unknown36,
+  );
+
+  @override
+  String get constructor => 'HistorySection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    if (formatVersion != 2) ('formatVersion', formatVersion),
+    ('flags', HexInt(flags)),
+    ('revisionNumber', revisionNumber),
+    if (reserved12 != 0) ('reserved12', reserved12),
+    ('unknown16', unknown16),
+    if ((top, left, bottom, right) != (0, 0, 0, 0)) ...[
+      ('top', top),
+      ('left', left),
+      ('bottom', bottom),
+      ('right', right),
+    ],
+    if (reserved28.any((word) => word != 0)) ('reserved28', reserved28),
+    ('unknown36', unknown36),
+  ];
+}
+
+/// A `PICC` record: a kind, a flag word and a rectangle.
+final class PiccSection extends TypedSection {
+  const PiccSection({
+    required this.kind,
+    required this.flags,
+    required this.top,
+    required this.left,
+    required this.bottom,
+    required this.right,
+    super.index,
+    super.compressed,
+  }) : super('PICC');
+
+  factory PiccSection.of(
+    ViPiccRecord record, {
+    int index = 0,
+    bool compressed = false,
+  }) => PiccSection(
+    kind: record.kind,
+    flags: record.flags,
+    top: record.top,
+    left: record.left,
+    bottom: record.bottom,
+    right: record.right,
+    index: index,
+    compressed: compressed,
+  );
+
+  final int kind;
+  final int flags;
+  final int top;
+  final int left;
+  final int bottom;
+  final int right;
+
+  @override
+  Uint8List get payload => ViPiccRecord.encode(
+    kind: kind,
+    flags: flags,
+    top: top,
+    left: left,
+    bottom: bottom,
+    right: right,
+  );
+
+  @override
+  String get constructor => 'PiccSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('kind', kind),
+    ('flags', flags),
+    ('top', top),
+    ('left', left),
+    ('bottom', bottom),
+    ('right', right),
+  ];
 }

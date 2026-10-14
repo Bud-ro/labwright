@@ -4913,7 +4913,14 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
   RawSection('VPDP', _h('00000000')),
   LinkInfoSection(tag: 'LIbd', rootKind: 'BDHP', entries: []),
   LinkEntryWordsSection(tag: 'BDEx', words: []),
-  RawSection('PICC', _h('0092090201a80214019b01ef')),
+  PiccSection(
+    kind: 146,
+    flags: 2306,
+    top: 424,
+    left: 532,
+    bottom: 411,
+    right: 495,
+  ),
   HeapSection('BDHb', [
     ObjectSpec(
       HeapObjectClass.diagramRoot,
@@ -19318,11 +19325,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
   ),
   DataTypeHeapSection(heapTypeCount: 115, firstTopLevelIndex: 3),
   MaxUidSection(maxUid: 3579),
-  RawSection(
-    'HIST',
-    _h(
-      '00000002000004000000001b00000000000000000000000000000000000000000000000000000000',
-    ),
+  HistorySection(
+    flags: 0x400,
+    revisionNumber: 27,
+    unknown16: _h('00000000'),
+    unknown36: _h('00000000'),
   ),
   TypePoolSection(
     [

@@ -130,6 +130,12 @@ void main() {
       ('STRG', _b([0, 0, 0, 6, 0x61, 0x0d, 0x0a, 0x27, 0x24, 0x93])),
       ('HLPT', _b([0, 0, 0, 0])),
     ],
+    'HistorySection': [
+      ('HIST', _b([for (var i = 0; i < 40; i++) i * 3])),
+    ],
+    'PiccSection': [
+      ('PICC', _b([0, 0x92, 9, 2, 1, 0xa8, 2, 0x14, 1, 0x9b, 1, 0xef])),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -262,6 +268,17 @@ void main() {
         tag: 'STRG',
         text: 'Computes a CRC-8.\r\n\u{93}quoted\u{94}',
       ),
+    ],
+    'HistorySection': [
+      HistorySection(
+        flags: 0x400,
+        revisionNumber: 27,
+        unknown16: Uint8List(4),
+        unknown36: Uint8List(4),
+      ),
+    ],
+    'PiccSection': [
+      PiccSection(kind: 3, flags: 1, top: 10, left: 20, bottom: 12, right: -4),
     ],
     'TagStoreSection': [
       TagStoreSection(
