@@ -19,6 +19,7 @@ import '../../../packages/labwright_rsrc_parse/test/reconstruction/execute_vi_re
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_range_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_start_increment_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/hex_string_display_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/loop_invariant_code_motion_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/mean_of_2d_array_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/multiply_rows_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/reinitialize_shift_register_reconstruction.dart';
@@ -57,6 +58,8 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   'Creating_a_For_Loop_with_Alternative_Starting_Index_and_Increment_Valu.png':
       buildForLoopStartIncrement,
   '16605742_hOPNk.png': buildMultiplyRows,
+  'Loop-Invariant_Code_Motion_-_Before.png': buildLoopInvariantBefore,
+  'Loop-Invariant_Code_Motion_-_After.png': buildLoopInvariantAfter,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
