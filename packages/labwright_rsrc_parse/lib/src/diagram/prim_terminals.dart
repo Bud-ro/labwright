@@ -15,6 +15,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
   (1904, 1, 32, 32): (dx: null, dy: 16),
   (1050, 0, 32, 32): (dx: 21, dy: 16),
   (1050, 1, 32, 32): (dx: null, dy: 21),
+  (1050, 2, 32, 32): (dx: 11, dy: 11),
   (1051, 2, 32, 32): (dx: 11, dy: 11),
   (1052, 1, 32, 32): (dx: null, dy: 21),
   (1052, 2, 32, 32): (dx: null, dy: 11),
