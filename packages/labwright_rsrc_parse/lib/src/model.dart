@@ -12,7 +12,7 @@ class ViModel {
     required this.title,
     required this.components,
     this.sections = const <ViSectionBuffer>[],
-    this.file,
+    Uint8List? file,
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
     this.subViNames = const <String>[],
@@ -20,7 +20,7 @@ class ViModel {
     this.connectorPaneType,
     this.paneTerminals = const <ViHeapObject?>[],
     this.fontTable,
-  }) {
+  }) : _fileBytes = file {
     for (final section in sections) {
       section.onEdit = _record;
     }
@@ -37,8 +37,13 @@ class ViModel {
   /// The file's own sections, in file order, each holding its inflated payload.
   final List<ViSectionBuffer> sections;
 
-  /// The container the sections were loaded from, null for a model built without a file.
-  final ViVi? file;
+  final Uint8List? _fileBytes;
+
+  ViVi? _file;
+
+  /// The container the sections were loaded from, parsed when first needed; null for a model
+  /// built without a file.
+  ViVi? get file => _fileBytes == null ? null : _file ??= ViVi.parse(_fileBytes);
 
   /// The section of [tag] at [index] among the block's sections, or null when the file has
   /// none.
@@ -404,7 +409,7 @@ ViModel buildViModelFromDecoded(
           secRel: section.section.dataOffset,
         ),
     ],
-    file: file == null ? null : ViVi.parse(file),
+    file: file,
     subViNames: subViNames,
     fontTable: fontTable,
     version: ver.version,
