@@ -15,6 +15,7 @@ import 'corpus/object_color.dart';
 import 'corpus/pane_terminal_census.dart';
 import 'corpus/selector_range_census.dart';
 import 'corpus/signal_type_census.dart';
+import 'corpus/type_reencode.dart';
 import 'corpus/wire_branch_oracle.dart';
 import 'corpus/wire_one_anchored_oracle.dart';
 import 'corpus/wire_render_style_census.dart';
@@ -39,6 +40,7 @@ void main() {
   group('object_color', objectColorTests);
   group('pane_terminal_census', paneTerminalCensusTests);
   group('signal_type_census', signalTypeCensusTests);
+  group('type_reencode', typeReencodeTests);
   group('const_value_census', constValueCensusTests);
   group('corpus_coverage', corpusCoverageTests);
   group('selector_range_census', selectorRangeCensusTests);

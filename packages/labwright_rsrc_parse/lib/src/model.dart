@@ -7,7 +7,7 @@ import '../labwright_rsrc_parse.dart';
 /// names, the connector-pane type and the font table; and the sections themselves, which
 /// edits change and [serialize] writes back into the file they were loaded from.
 class ViModel {
-  const ViModel({
+  ViModel({
     required this.version,
     required this.title,
     required this.components,
@@ -36,6 +36,22 @@ class ViModel {
   /// The container the sections were loaded from, null for a model built without a file.
   final ViVi? file;
 
+  /// The section of [tag] at [index] among the block's sections, or null when the file has
+  /// none.
+  ViSectionBuffer? section(String tag, [int index = 0]) {
+    for (final section in sections) {
+      if (section.tag == tag && section.index == index) return section;
+    }
+    return null;
+  }
+
+  /// A fresh object id for a heap object: one above the highest in use, which `MUID` now
+  /// records.
+  int allocateUid() {
+    final record = ViMaxUid(section(BlockTag.muid.tag)!.writable);
+    return record.maxUid += 1;
+  }
+
   /// The file with every edited section written back: a section that was stored compressed
   /// is deflated again, the rest are copied as loaded.
   Uint8List serialize() {
@@ -60,14 +76,94 @@ class ViModel {
   final List<String> subViNames;
 
   /// The `VCTP` type pool.
-  final List<ViType> types;
+  List<ViType> types;
 
   /// The VI's call signature from `CONP`: one parameter per pane terminal; null without `CONP`.
-  final ViType? connectorPaneType;
+  ViType? connectorPaneType;
 
   /// The panel control behind each connector-pane terminal, in pane order; null where the
   /// terminal is unwired or no control answers for it. See [connectorPaneTerminals].
-  final List<ViHeapObject?> paneTerminals;
+  List<ViHeapObject?> paneTerminals;
+
+  /// Appends [descriptor] to the type pool and returns its index.
+  int addType(Uint8List descriptor) {
+    final vctp = section(BlockTag.vctp.tag)!;
+    final pool = ViTypePool(vctp.bytes);
+    final index = pool.length;
+    vctp.splice(pool.descriptorsEnd, pool.descriptorsEnd, descriptor);
+    ViTypePool.count.write(ByteData.sublistView(vctp.writable), index + 1);
+    reloadTypes();
+    return index;
+  }
+
+  /// Replaces the descriptor at [index] with [descriptor].
+  void replaceType(int index, Uint8List descriptor) {
+    final type = types[index];
+    section(BlockTag.vctp.tag)!.splice(type.offset, type.end, descriptor);
+    reloadTypes();
+  }
+
+  /// Makes [indices] the pool's top-level types, in that order.
+  void setTopLevelTypes(List<int> indices) {
+    final vctp = section(BlockTag.vctp.tag)!;
+    final pool = ViTypePool(vctp.bytes);
+    vctp.splice(pool.descriptorsEnd, vctp.length, [
+      indices.length >> 8 & 0xff,
+      indices.length & 0xff,
+      for (final index in indices) ...[index >> 8 & 0xff, index & 0xff],
+    ]);
+    reloadTypes();
+  }
+
+  /// Rebuilds what the type pool decides, after `VCTP` changed: [types], every heap object's
+  /// resolved type, [connectorPaneType] and [paneTerminals].
+  void reloadTypes() {
+    final pool = switch (section(BlockTag.vctp.tag)) {
+      final vctp? => ViTypePool(vctp.bytes),
+      null => null,
+    };
+    types = pool?.types ?? const <ViType>[];
+    for (final diagram in diagrams) {
+      for (final object in diagram.objects) {
+        object
+          ..dataType = null
+          ..resolvedType = null
+          ..resolvedElementType = null
+          ..resolvedMembers = const []
+          ..resolvedElementMembers = const [];
+      }
+    }
+    resolveDataSpaceTypes(
+      pool: types,
+      table: pool?.topLevelIndices ?? const [],
+      typeIndexBase: switch (section(BlockTag.dthp.tag)) {
+        final dthp? => switch (ViDataTypeHeap(dthp.bytes)) {
+          ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
+          _ => null,
+        },
+        null => null,
+      },
+      blockDiagrams: blockDiagrams,
+      frontPanelDiagrams: frontPanelDiagrams,
+    );
+    connectorPaneType = switch (section(BlockTag.conp.tag)) {
+      final conp? => ViConnectorPane(conp.bytes).typeIn(pool),
+      null => null,
+    };
+    paneTerminals = connectorPaneTerminals(
+      paneType: connectorPaneType,
+      frontPanelDiagrams: frontPanelDiagrams,
+      map: switch (section(BlockTag.cpmp.tag)) {
+        final cpmp? => ViConnectorPaneMap(cpmp.bytes),
+        null => null,
+      },
+      panelType: switch (section(BlockTag.fptd.tag)) {
+        final fptd? => ViFrontPanelType(fptd.bytes),
+        null => null,
+      },
+      pool: pool,
+    );
+  }
 
   final ViFontTable? fontTable;
 
@@ -112,26 +208,6 @@ ViModel buildViModelFromDecoded(
       }
     }
   }
-  final vctp = list.where((s) => s.tag == 'VCTP').map((s) => s.bytes).firstOrNull;
-  final pool = vctp == null ? null : ViTypePool(vctp);
-  final types = pool?.types ?? const <ViType>[];
-  final dthp = list.where((s) => s.tag == 'DTHP').map((s) => s.bytes).firstOrNull;
-  resolveDataSpaceTypes(
-    pool: types,
-    table: pool?.topLevelIndices ?? const [],
-    typeIndexBase: switch (dthp == null ? null : ViDataTypeHeap(dthp)) {
-      ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
-      _ => null,
-    },
-    blockDiagrams: blockDiagrams,
-    frontPanelDiagrams: frontPanelDiagrams,
-  );
-  final paneType = switch (list.where((section) => section.tag == 'CONP').firstOrNull) {
-    final DecodedSection conp => ViConnectorPane(conp.bytes).typeIn(pool),
-    null => null,
-  };
-  final cpmp = list.where((s) => s.tag == 'CPMp').map((s) => s.bytes).firstOrNull;
-  final fptd = list.where((s) => s.tag == 'FPTD').map((s) => s.bytes).firstOrNull;
   return ViModel(
     sections: [
       for (final section in list)
@@ -145,22 +221,13 @@ ViModel buildViModelFromDecoded(
     ],
     file: file == null ? null : ViVi.parse(file),
     subViNames: subViNames,
-    types: types,
     fontTable: fontTable,
-    connectorPaneType: paneType,
-    paneTerminals: connectorPaneTerminals(
-      paneType: paneType,
-      frontPanelDiagrams: frontPanelDiagrams,
-      map: cpmp == null ? null : ViConnectorPaneMap(cpmp),
-      panelType: fptd == null ? null : ViFrontPanelType(fptd),
-      pool: pool,
-    ),
     version: ver.version,
     title: ver.title,
     components: componentsFromDecoded(list),
     blockDiagrams: blockDiagrams,
     frontPanelDiagrams: frontPanelDiagrams,
-  );
+  )..reloadTypes();
 }
 
 /// The diagram with the most placed objects, or null when none has any.

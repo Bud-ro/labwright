@@ -32,6 +32,12 @@ class ViSectionBuffer {
 
   bool get edited => _edited;
 
+  /// The payload to write into in place: the section's own copy, which the first call makes.
+  Uint8List get writable {
+    if (!_edited) splice(0, 0, const []);
+    return bytes;
+  }
+
   /// Replaces the whole payload.
   void replace(List<int> payload) => splice(0, _length, payload);
 

@@ -5,7 +5,7 @@ import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
 
-const _laws = {'untouched', 'rewritten', 'count', 'tag', 'envelope', 'payload', 'grown', 'aligned'};
+const _laws = {'untouched', 'uid', 'rewritten', 'count', 'tag', 'envelope', 'payload', 'grown', 'aligned'};
 
 bool _same(Uint8List a, Uint8List b) {
   if (a.length != b.length) return false;
@@ -18,9 +18,35 @@ bool _same(Uint8List a, Uint8List b) {
 Map<String, int> _census(CorpusVi vi) {
   final c = <String, int>{};
   void bad(String k) => c[k] = (c[k] ?? 0) + 1;
-  final model = vi.model;
-  if (model == null || isNonRsrcFixture(vi.path)) return c;
-  if (!_same(model.serialize(), vi.bytes)) bad('untouched');
+  if (vi.model == null || isNonRsrcFixture(vi.path)) return c;
+  if (!_same(vi.model!.serialize(), vi.bytes)) bad('untouched');
+
+  final model = ViModel(
+    version: null,
+    title: null,
+    components: const [],
+    sections: [
+      for (final section in vi.decoded!)
+        ViSectionBuffer(
+          section.tag,
+          section.index,
+          section.bytes,
+          compressed: section.wasCompressed,
+          secRel: section.section.dataOffset,
+        ),
+    ],
+    file: ViVi.parse(vi.bytes),
+  );
+  if (model.section(BlockTag.muid.tag) case final muid?) {
+    final before = ViMaxUid(muid.bytes).maxUid;
+    final uid = model.allocateUid();
+    final after = decodeSections(model.serialize());
+    final written = after.where((s) => s.tag == BlockTag.muid.tag).map((s) => ViMaxUid(s.bytes).maxUid).firstOrNull;
+    if (uid != before + 1 || written != uid || after.length != model.sections.length) bad('uid');
+    for (var i = 0; i < after.length; i++) {
+      if (after[i].tag != BlockTag.muid.tag && !_same(after[i].bytes, model.sections[i].bytes)) bad('uid');
+    }
+  }
 
   for (final section in model.sections) {
     section.replace(section.bytes);
@@ -57,7 +83,10 @@ Map<String, int> _census(CorpusVi vi) {
 const modelSerializeLaw = CorpusLaw('model_serialize', _census);
 
 void modelSerializeTests() {
-  test('a model writes back byte-exact untouched, section-exact rewritten, and aligned when grown', () async {
-    expect(await modelSerializeLaw.nonzero(_laws), isEmpty);
-  });
+  test(
+    'a model writes back byte-exact untouched, one field edited, section-exact rewritten, aligned when grown',
+    () async {
+      expect(await modelSerializeLaw.nonzero(_laws), isEmpty);
+    },
+  );
 }
