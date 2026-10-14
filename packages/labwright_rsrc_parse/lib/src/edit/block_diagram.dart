@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import '../block_tag.dart';
 import '../blocks/VCTP_type_pool.dart';
+import '../diagram/obj_flags.dart';
 import '../diagram/objects.dart';
 import '../diagram/prim_ops.dart';
 import '../diagram/prim_terminals.dart';
@@ -265,8 +266,10 @@ class BdEditor {
 
   /// Wires [source] to [sink], typed by [type] or by whichever end declares one: a signal over
   /// the two in the frame they share, through a tunnel on every structure border between
-  /// them, and joining the signal [source] already drives in its frame.
-  BdWire connect(BdEndpoint source, BdEndpoint sink, {BdType? type, int? bendX}) {
+  /// them, and joining the signal [source] already drives in its frame. The wire turns, or
+  /// forks, in column [bendX]; a branch given [turnX] leaves the fork straight on and turns
+  /// toward [sink] in that column.
+  BdWire connect(BdEndpoint source, BdEndpoint sink, {BdType? type, int? bendX, int? turnX}) {
     if (source.isSink) throw ArgumentError.value(source, 'source', 'consumes its wire');
     if (!sink.isSink) throw ArgumentError.value(sink, 'sink', 'produces its wire');
     final wireType = type ?? source.type ?? sink.type ?? _wireFrom(source)?.type;
@@ -289,18 +292,18 @@ class BdEditor {
       _wire(from, tunnel.outer!, wireType, bendX);
       from = tunnel.inner(frame);
     }
-    return _wire(from, sink, wireType, bendX);
+    return _wire(from, sink, wireType, bendX, turnX: turnX);
   }
 
   /// The signal [source] already drives, if the editor wired one.
   BdWire? _wireFrom(BdEndpoint source) =>
       source.frameOf.wires.where((wire) => wire.source?.oid == source.oid).firstOrNull;
 
-  BdWire _wire(BdEndpoint source, BdEndpoint sink, BdType type, int? bendX) {
+  BdWire _wire(BdEndpoint source, BdEndpoint sink, BdType type, int? bendX, {int? turnX}) {
     final frame = source.frameOf;
     if (!identical(frame, sink.frameOf)) throw StateError('$source and $sink are in different frames');
     if (_wireFrom(source) case final wire?) {
-      wire._addSink(sink, bendX);
+      wire._addSink(sink, bendX, turnX);
       return wire;
     }
     final signal = object(
@@ -310,7 +313,7 @@ class BdEditor {
         list(kBdTermList, [ref(HeapRefKind.childRef, source.oid), ref(HeapRefKind.childRef, sink.oid)]),
         attr(HeapAttribute.signalState, HeapAttrWidth.u8, 1),
         HeapRecordNode(
-          encodeWireTableRecord(bdRouteFanOut(source.attachPoint, [sink.attachPoint], bendX: bendX).encode()),
+          encodeWireTableRecord(bdRouteFanOut(source.attachPoint, [sink.attachPoint], bendX: bendX ?? turnX).encode()),
         ),
         attr(HeapAttribute.lastSignalKind, HeapAttrWidth.u16, type.signalWord),
       ],
@@ -322,7 +325,8 @@ class BdEditor {
     final wire = BdWire._(frame, signal)
       .._ends = [source, sink]
       .._type = type
-      .._bendX = bendX;
+      .._bendX = bendX
+      .._turns.add(turnX);
     wires.add(wire);
     return wire;
   }
@@ -433,6 +437,7 @@ class BdFrame {
         HeapObjectClass.bdForLoop || HeapObjectClass.bdWhileLoop => BdLoop._(this, object),
         HeapObjectClass.bdStructureFrame => BdCase._(this, object),
         HeapObjectClass.bdDisableStructure => BdDisable._(this, object),
+        HeapObjectClass.controlLabel => BdText._(this, object),
         _ when objectClass.category == ViObjectKind.structure => BdStructure._(this, object),
         _ when objectClass.category == ViObjectKind.node => BdNode._(this, object),
         _ => BdPlaced._(this, object),
@@ -478,11 +483,15 @@ class BdFrame {
       final nodes = _ensureList(BdFrameList.nodes);
       nodes.children.add(ref(HeapRefKind.childRef, item.oid));
       nodes.syncCount();
+    } else if (item is BdText) {
+      final objects = _ensureList(BdFrameList.objects);
+      objects.children.add(item.node);
+      objects.syncCount();
     } else {
       _addEntry(item.node);
       _addObjectRef(item.oid);
     }
-    if (item is BdNode) {
+    if (item is BdNode || item is BdText) {
       placed.add(item);
     } else {
       final at = placed.indexWhere((p) => p is BdNode);
@@ -532,6 +541,64 @@ class BdPlaced {
   @override
   String toString() => '${objectClass.name}#$oid';
 }
+
+/// Text placed on a frame by itself: a free label, or the label of the structure frame it sits
+/// in.
+class BdText extends BdPlaced {
+  BdText._(super.frameOf, super.node) : super._();
+
+  /// A free label reading [text] in [at], on the comment background.
+  factory BdText.create(BdEditor editor, String text, {required HeapRect at}) => BdText._(
+    null,
+    object(
+      HeapObjectClass.controlLabel.code,
+      editor.allocateOid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x170002),
+        attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+        c4Rect(HeapOpcode.bounds, at),
+        worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, 0xfd95)]),
+        attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, kBdCommentColor),
+        worded(kPartText, kPartTextWord, [
+          attr(HeapAttribute.cosmFgColor, HeapAttrWidth.u16, 0x600),
+          attr(HeapAttribute.cosmColorB, HeapAttrWidth.rgb, 0x814404),
+          caption(text),
+          attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, kBdCommentColor),
+        ]),
+      ],
+    ),
+  );
+
+  /// A structure frame's subdiagram label in [at] along the frame's top: shown reading [text],
+  /// or hidden and empty without one.
+  factory BdText.subdiagramLabel(BdEditor editor, String? text, {required HeapRect at}) => BdText._(
+    null,
+    object(
+      HeapObjectClass.controlLabel.code,
+      editor.allocateOid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u24, text == null ? 0x10015a : 0x100152),
+        attr(HeapAttribute.partRole, HeapAttrWidth.u16, 0x1f58),
+        attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1000),
+        c4Rect(HeapOpcode.bounds, at),
+        worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, 0xfd95)]),
+        attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, kBdCommentColor),
+        worded(kPartText, kPartTextWord, [
+          attr(HeapAttribute.cosmFgColor, HeapAttrWidth.u16, text == null ? 0x200 : 0x600),
+          attr(HeapAttribute.cosmColorB, HeapAttrWidth.u24, 0x14424),
+          if (text == null) attr(HeapAttribute.shortText, HeapAttrWidth.u8, 0) else caption(text),
+          attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, kTransparent),
+        ]),
+      ],
+    ),
+  );
+
+  @override
+  String toString() => 'text#$oid';
+}
+
+/// The background of a free label and a subdiagram label.
+const int kBdCommentColor = 0xffffd7;
 
 /// Where a wire can start or end: an endpoint record a signal references.
 abstract class BdEndpoint {
@@ -1007,6 +1074,24 @@ class BdStructureTerminal {
       final child = children[i];
       if (child is HeapRecordNode && decodeHeapAttr(child.bytes, 0)?.attribute == HeapAttribute.termBounds) {
         children[i] = rectAttr(HeapAttribute.termBounds, rect);
+      }
+    }
+  }
+
+  /// Hides the terminal's glyph inside the structure.
+  void hideGlyph() {
+    for (final port in inners) {
+      final children = port.node.children;
+      for (var i = 0; i < children.length; i++) {
+        final child = children[i];
+        if (child is! HeapRecordNode) continue;
+        final record = decodeHeapAttr(child.bytes, 0);
+        if (record?.attribute != HeapAttribute.objFlags) continue;
+        children[i] = attr(
+          HeapAttribute.objFlags,
+          HeapAttrWidth.rgb,
+          record!.asInt! | ViObjFlag.terminalGlyphHidden.mask,
+        );
       }
     }
   }
@@ -1524,21 +1609,27 @@ class BdCase extends BdStructure {
   BdCase._(super.frameOf, super.node) : super._();
 
   /// A new Case structure over a boolean selector with [frameCount] frames, False first,
-  /// showing [displayed].
-  factory BdCase.create(BdEditor editor, {int frameCount = 2, int? displayed, HeapRect? at}) {
+  /// showing [displayed], named [label] at [labelAt] relative to it or above it.
+  factory BdCase.create(
+    BdEditor editor, {
+    int frameCount = 2,
+    int? displayed,
+    HeapRect? at,
+    String? label,
+    HeapRect? labelAt,
+  }) {
     final bounds =
         at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
     final frames = [for (var i = 0; i < frameCount; i++) BdStructure._frameNode(editor)];
     final shown = displayed ?? frameCount - 1;
     final labelText = ' ${shown == 0 ? 'False' : 'True'} ';
-    final labelWidth = bdLabelWidth(labelText);
-    final width = bounds.right - bounds.left;
     final node = object(
       HeapObjectClass.bdStructureFrame.code,
       editor.allocateOid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x10010000),
         list(kBdTermList),
+        if (label != null) _nodeLabel(editor, label, labelAt),
         c4Rect(HeapOpcode.bounds, bounds),
         c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, kBdCaseInset)),
         list(BdStructureList.tunnels.rawId),
@@ -1581,10 +1672,7 @@ class BdCase extends BdStructure {
           attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x50),
           attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
           attr(HeapAttribute.howGrow, HeapAttrWidth.u8, 0x34),
-          c4Rect(
-            HeapOpcode.bounds,
-            HeapRect(top: 0, left: (width - labelWidth) ~/ 2, bottom: 17, right: (width + labelWidth) ~/ 2),
-          ),
+          c4Rect(HeapOpcode.bounds, _selectorLabelBounds(bounds, kBdBooleanSelectorLabelWidth)),
           worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
           attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
           worded(kPartText, kPartTextWord, [
@@ -1653,6 +1741,23 @@ class BdCase extends BdStructure {
   String toString() => 'Case#$oid';
 }
 
+/// The box of the frame name shown across the top of a structure drawn in [bounds], [width]
+/// wide: centred in the selector between its narrower decrement arrow and its wider menu and
+/// increment arrows.
+HeapRect _selectorLabelBounds(HeapRect bounds, int width) {
+  final left = (bounds.right - bounds.left - width + 1) ~/ 2 - kBdSelectorLabelShift;
+  return HeapRect(top: 0, left: left, bottom: 17, right: left + width);
+}
+
+/// How far a selector's frame name sits left of the structure's centre line.
+const int kBdSelectorLabelShift = 6;
+
+/// The width of the frame name a boolean Case structure shows, the wider of ` True ` and
+/// ` False `, and of a Disable structure's, the wider of ` Disabled ` and ` Enabled `.
+const int kBdBooleanSelectorLabelWidth = 36;
+
+const int kBdDisableSelectorLabelWidth = 55;
+
 /// A Diagram Disable structure: its first frame disabled, its second enabled.
 class BdDisable extends BdStructure {
   BdDisable._(super.frameOf, super.node) : super._();
@@ -1661,8 +1766,6 @@ class BdDisable extends BdStructure {
     final bounds =
         at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
     const labelText = ' Disabled ';
-    final labelWidth = bdLabelWidth(labelText);
-    final width = bounds.right - bounds.left;
     final node = object(
       HeapObjectClass.bdDisableStructure.code,
       editor.allocateOid(),
@@ -1682,10 +1785,7 @@ class BdDisable extends BdStructure {
             attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x50),
             attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
             attr(HeapAttribute.howGrow, HeapAttrWidth.u8, 0x34),
-            c4Rect(
-              HeapOpcode.bounds,
-              HeapRect(top: 0, left: (width - labelWidth) ~/ 2, bottom: 17, right: (width + labelWidth) ~/ 2),
-            ),
+            c4Rect(HeapOpcode.bounds, _selectorLabelBounds(bounds, kBdDisableSelectorLabelWidth)),
             worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
             attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
             worded(kPartText, kPartTextWord, [
@@ -1728,7 +1828,9 @@ class BdConstant extends BdPlaced {
   BdConstant._(super.frameOf, super.node) : super._();
 
   /// A new constant of [type] holding [value]: a number, a bool, a string, or a list of
-  /// numbers or bools for an array; [label] names it on the diagram.
+  /// numbers or bools for an array; [label] names it on the diagram, shown when [showLabel].
+  /// A numeric's box fills [at] unless [boxAt] places it within, beside its label; an array
+  /// shows its index and elements as [array] lays them out.
   factory BdConstant.create(
     BdEditor editor,
     BdType type,
@@ -1736,6 +1838,9 @@ class BdConstant extends BdPlaced {
     String? label,
     HeapRect? at,
     HeapRect? labelAt,
+    bool showLabel = false,
+    HeapRect? boxAt,
+    BdArrayView? array,
   }) {
     final model = editor.model;
     final index = type.addTo(model, label: label);
@@ -1746,6 +1851,10 @@ class BdConstant extends BdPlaced {
         (type.element == ViDataType.boolean && type.dims == 0
             ? const HeapRect(top: 0, left: 0, bottom: 14, right: 16)
             : const HeapRect(top: 0, left: 0, bottom: 19, right: 36));
+    final box =
+        array?.frame ??
+        boxAt ??
+        HeapRect(top: 0, left: 0, bottom: bounds.bottom - bounds.top, right: bounds.right - bounds.left);
     final entry = object(
       kNodeEndpointDcoKind,
       editor.allocateOid(),
@@ -1770,13 +1879,32 @@ class BdConstant extends BdPlaced {
                   _ => attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x60000),
                 },
                 c4Rect(HeapOpcode.bounds, bounds),
-                list(kControlParts, _constantParts(editor, type, label, bounds, labelAt)),
+                list(
+                  kControlParts,
+                  array == null
+                      ? _constantParts(
+                          editor,
+                          type,
+                          label,
+                          box,
+                          labelAt,
+                          showLabel: showLabel,
+                        )
+                      : [
+                          if (label != null) _constantLabelPart(editor, label, labelAt, showLabel: showLabel),
+                          ..._arrayShellParts(editor, array),
+                        ],
+                ),
                 attr(HeapAttribute.typeDescIndex, HeapAttrWidth.u8, controlSlot),
                 attr(
                   HeapAttribute.mouseWheelSupport,
                   HeapAttrWidth.u8,
-                  _carrierClass(type) == HeapObjectClass.stringOrArrayControl ? 3 : 2,
+                  _carrierClass(type) == HeapObjectClass.stringOrArrayControl || array != null ? 3 : 2,
                 ),
+                if (array != null) ...[
+                  _arrayElementControl(editor, array, model.allocateTypeSlot(BdType.scalar(type.element).addTo(model))),
+                  list(kBdArrayIndexGroup, [attr(HeapAttribute.arrayElemValue, HeapAttrWidth.u16, array.firstIndex)]),
+                ],
               ],
             ),
             _constValue(type, value),
@@ -1786,10 +1914,14 @@ class BdConstant extends BdPlaced {
     );
     return BdConstant._(null, entry)
       .._type = type
+      .._box = box
       .._autoPlace = at == null;
   }
 
   BdType? _type;
+
+  /// Where the constant's box sits within its bounds; null for a loaded constant.
+  HeapRect? _box;
 
   HeapObjectNode get data => node.children.objects.firstWhere((o) => o.kind == HeapObjectClass.bdConstDco.code);
 
@@ -1812,7 +1944,9 @@ class BdConstant extends BdPlaced {
     type: _type,
     attach: () {
       final b = bounds ?? kZeroRect;
-      return (x: (b.left + b.right) ~/ 2, y: (b.top + b.bottom) ~/ 2);
+      final box = _box;
+      if (box == null) return (x: (b.left + b.right) ~/ 2, y: (b.top + b.bottom) ~/ 2);
+      return (x: b.left + (box.left + box.right) ~/ 2, y: b.top + (box.top + box.bottom) ~/ 2);
     },
   );
 
@@ -1820,29 +1954,19 @@ class BdConstant extends BdPlaced {
   String toString() => 'constant#$oid';
 }
 
-/// The parts of a constant's control: a numeric's label, display, increment buttons, frame
-/// and terminal; a boolean's button and terminal, with a label only when it has one.
-List<HeapNode> _constantParts(BdEditor editor, BdType type, String? label, HeapRect bounds, HeapRect? labelAt) {
-  final w = bounds.right - bounds.left, h = bounds.bottom - bounds.top;
-  HeapObjectNode labelPart() => object(
-    HeapObjectClass.controlLabel.code,
-    editor.allocateOid(),
-    children: [
-      attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x17114a),
-      attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x10),
-      attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
-      attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1000),
-      c4Rect(HeapOpcode.bounds, labelAt ?? HeapRect(top: -17, left: 0, bottom: 0, right: bdLabelWidth(label ?? ''))),
-      worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, 0xfd95)]),
-      attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, kTransparent),
-      attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, kTransparent),
-      worded(kPartText, kPartTextWord, [
-        attr(HeapAttribute.cosmColorB, HeapAttrWidth.u24, 0x14404),
-        if (label == null) attr(HeapAttribute.shortText, HeapAttrWidth.u8, 0) else caption(label),
-        attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, kTransparent),
-      ]),
-    ],
-  );
+/// The parts of a constant's control around its [box]: a numeric's label, display, increment
+/// buttons, frame and terminal; a boolean's button and terminal, with a label only when it has
+/// one.
+List<HeapNode> _constantParts(
+  BdEditor editor,
+  BdType type,
+  String? label,
+  HeapRect box,
+  HeapRect? labelAt, {
+  required bool showLabel,
+}) {
+  final w = box.right - box.left, h = box.bottom - box.top, x = box.left;
+  HeapObjectNode labelPart() => _constantLabelPart(editor, label, labelAt, showLabel: showLabel);
   HeapObjectNode terminalPart(int sizeExtent) => object(
     HeapObjectClass.connectorTerminal.code,
     editor.allocateOid(),
@@ -1886,7 +2010,7 @@ List<HeapNode> _constantParts(BdEditor editor, BdType type, String? label, HeapR
             attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0xa),
             attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
             attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
-            c4Rect(HeapOpcode.bounds, HeapRect(top: 1, left: 1, bottom: h - 1, right: w - 1)),
+            c4Rect(HeapOpcode.bounds, HeapRect(top: 1, left: x + 1, bottom: h - 1, right: x + w - 1)),
             worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
             attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, kTransparent),
             attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
@@ -1905,7 +2029,7 @@ List<HeapNode> _constantParts(BdEditor editor, BdType type, String? label, HeapR
             attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0xf),
             attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
             attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1008),
-            c4Rect(HeapOpcode.bounds, const HeapRect(top: 3, left: -4, bottom: 15, right: 2)),
+            c4Rect(HeapOpcode.bounds, HeapRect(top: 3, left: x - 4, bottom: 15, right: x + 2)),
             attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
             attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
             list(kPartImages, [
@@ -1921,7 +2045,7 @@ List<HeapNode> _constantParts(BdEditor editor, BdType type, String? label, HeapR
             attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1933),
             attr(HeapAttribute.partRole, HeapAttrWidth.u8, 9),
             attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
-            c4Rect(HeapOpcode.bounds, HeapRect(top: 0, left: 0, bottom: h, right: w)),
+            c4Rect(HeapOpcode.bounds, HeapRect(top: 0, left: x, bottom: h, right: x + w)),
             worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xef)]),
             attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
             attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
@@ -1992,6 +2116,304 @@ List<HeapNode> _constantParts(BdEditor editor, BdType type, String? label, HeapR
       return [labelPart()];
   }
 }
+
+/// A constant's label part reading [label], or empty, at [labelAt] or above the constant.
+HeapObjectNode _constantLabelPart(BdEditor editor, String? label, HeapRect? labelAt, {required bool showLabel}) =>
+    object(
+      HeapObjectClass.controlLabel.code,
+      editor.allocateOid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u24, showLabel ? kBdShownLabelFlags : kBdHiddenLabelFlags),
+        attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x10),
+        attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
+        attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1000),
+        c4Rect(HeapOpcode.bounds, labelAt ?? HeapRect(top: -17, left: 0, bottom: 0, right: bdLabelWidth(label ?? ''))),
+        worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, 0xfd95)]),
+        attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, kTransparent),
+        attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, kTransparent),
+        worded(kPartText, kPartTextWord, [
+          attr(HeapAttribute.cosmColorB, HeapAttrWidth.u24, 0x14404),
+          if (label == null) attr(HeapAttribute.shortText, HeapAttrWidth.u8, 0) else caption(label),
+          attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, kTransparent),
+        ]),
+      ],
+    );
+
+/// How an array constant shows itself, relative to its bounds: its index display in [index],
+/// its first element cell in [element], scrolled to [firstIndex], each element printed by the
+/// C format [format] (at most four characters) and led by its radix when [showRadix]; the
+/// element control carries a hidden, empty label part when [elementLabel].
+class BdArrayView {
+  const BdArrayView({
+    required this.index,
+    required this.element,
+    this.firstIndex = 0,
+    this.format = '%.0f',
+    this.showRadix = false,
+    this.elementLabel = false,
+  });
+
+  final HeapRect index;
+
+  final HeapRect element;
+
+  final int firstIndex;
+
+  final String format;
+
+  final bool showRadix;
+
+  final bool elementLabel;
+
+  /// The frame around the element cells.
+  HeapRect get frame => HeapRect(
+    top: element.top - kBdArrayFrameInset,
+    left: element.left - kBdArrayFrameInset,
+    bottom: element.bottom + kBdArrayFrameInset,
+    right: element.right + kBdArrayFrameInset,
+  );
+}
+
+/// How far an array constant's frame sits outside its element cells, and its index frame
+/// outside its index display.
+const int kBdArrayFrameInset = 3;
+
+const int kBdArrayIndexFrameInset = 2;
+
+/// An array constant's displayed first index, the counted group `0x15` in bank 2.
+const int kBdArrayIndexGroup = 0x215;
+
+/// A number format as the `formatStyle` attribute packs it: its characters big-endian.
+int _formatStyle(String format) {
+  if (format.length > 4) throw ArgumentError.value(format, 'format', 'is longer than four characters');
+  var word = 0;
+  for (final unit in format.codeUnits) {
+    word = word << 8 | unit;
+  }
+  return word;
+}
+
+/// The parts of an array constant's shell: its index display with its arrows, the index frame,
+/// the element area, the frame around the elements, and the shell's terminal.
+List<HeapNode> _arrayShellParts(BdEditor editor, BdArrayView view) {
+  final index = view.index, iw = index.right - index.left, ih = index.bottom - index.top;
+  final model = editor.model;
+  HeapObjectNode chrome(int flags, int role, HeapRecordNode howGrow, HeapRect at, int offset, int fg) => object(
+    HeapObjectClass.controlChrome.code,
+    editor.allocateOid(),
+    children: [
+      attr(HeapAttribute.objFlags, HeapAttrWidth.u16, flags),
+      attr(HeapAttribute.partRole, HeapAttrWidth.u8, role),
+      if (role != 9) attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
+      howGrow,
+      c4Rect(HeapOpcode.bounds, at),
+      worded(kPartOffset, kPartOffsetWord, [
+        attr(HeapAttribute.relativeOffset, offset > 0xff ? HeapAttrWidth.u16 : HeapAttrWidth.u8, offset),
+      ]),
+      attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, fg),
+      attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+    ],
+  );
+  HeapObjectNode arrow(int role, HeapRecordNode howGrow, HeapRect at, int image) => object(
+    HeapObjectClass.controlSubPart.code,
+    editor.allocateOid(),
+    children: [
+      attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x936),
+      attr(HeapAttribute.partRole, HeapAttrWidth.u8, role),
+      attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
+      howGrow,
+      c4Rect(HeapOpcode.bounds, at),
+      attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
+      attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+      list(kPartImages, [
+        for (var i = 0; i < 2; i++)
+          worded(kPartImage, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, image)]),
+      ]),
+    ],
+  );
+  final digits = HeapRect(top: 0, left: kBdArrayIndexArrowWidth, bottom: ih, right: iw);
+  final indexControl = object(
+    HeapObjectClass.numericControl.code,
+    editor.allocateOid(),
+    children: [
+      attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0xc0936),
+      attr(HeapAttribute.partRole, HeapAttrWidth.u16, 0x1f42),
+      attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 0x1e),
+      attr(HeapAttribute.howGrow, HeapAttrWidth.u8, 0x34),
+      c4Rect(HeapOpcode.bounds, index),
+      list(kControlParts, [
+        object(
+          HeapObjectClass.numericDisplay.code,
+          editor.allocateOid(),
+          children: [
+            attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x40976),
+            attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0xa),
+            attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
+            attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+            c4Rect(HeapOpcode.bounds, digits),
+            worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
+            attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
+            attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+            worded(kPartText, kPartTextWord, [
+              attr(HeapAttribute.cosmFgColor, HeapAttrWidth.u16, 0x200),
+              attr(HeapAttribute.cosmColorB, HeapAttrWidth.rgb, 0x884402),
+              attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, 0xffffff),
+            ]),
+            attr(HeapAttribute.formatStyle, HeapAttrWidth.rgb, _formatStyle('%.0f')),
+          ],
+        ),
+        arrow(
+          2,
+          attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1840),
+          HeapRect(top: 0, left: 0, bottom: ih ~/ 2, right: kBdArrayIndexArrowWidth),
+          0xff68,
+        ),
+        arrow(
+          3,
+          attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1480),
+          HeapRect(top: ih ~/ 2, left: 0, bottom: ih, right: kBdArrayIndexArrowWidth),
+          0xff67,
+        ),
+        object(
+          HeapObjectClass.controlChrome.code,
+          editor.allocateOid(),
+          children: [
+            attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x195f),
+            attr(HeapAttribute.partRole, HeapAttrWidth.u8, 9),
+            attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+            c4Rect(HeapOpcode.bounds, digits),
+            worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
+            attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
+            attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+          ],
+        ),
+        _connectorTerminalPart(editor, 0x17ae),
+      ]),
+      attr(HeapAttribute.typeDescIndex, HeapAttrWidth.u8, model.allocateTypeSlot(BdType.i32.addTo(model))),
+      attr(HeapAttribute.mouseWheelSupport, HeapAttrWidth.u8, 2),
+    ],
+  );
+  return [
+    indexControl,
+    chrome(
+      0x957,
+      0x1e,
+      attr(HeapAttribute.howGrow, HeapAttrWidth.u8, 5),
+      HeapRect(
+        top: index.top - kBdArrayIndexFrameInset,
+        left: index.left - kBdArrayIndexFrameInset,
+        bottom: index.bottom + kBdArrayIndexFrameInset,
+        right: index.right + kBdArrayIndexFrameInset,
+      ),
+      0xf5,
+      0xff,
+    ),
+    chrome(0x977, 0x1c, attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0), view.element, 0xff11, 0xb3b3b3),
+    chrome(0x955, 9, attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0), view.frame, 0xdd, 0xff),
+    _connectorTerminalPart(editor, 0x816),
+  ];
+}
+
+/// The width of the increment and decrement arrows before an array constant's index digits.
+const int kBdArrayIndexArrowWidth = 7;
+
+HeapObjectNode _connectorTerminalPart(BdEditor editor, int sizeExtent) => object(
+  HeapObjectClass.connectorTerminal.code,
+  editor.allocateOid(),
+  children: [
+    attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x42),
+    attr(HeapAttribute.refListLength, HeapAttrWidth.u8, 0),
+    attr(HeapAttribute.hGrowNodeListLength, HeapAttrWidth.u8, 0),
+    attr(HeapAttribute.sizeExtent, HeapAttrWidth.u16, sizeExtent),
+  ],
+);
+
+/// The control an array constant draws each element through, typed by [slot]: a numeric whose
+/// radix, when shown, pushes its digits right.
+HeapObjectNode _arrayElementControl(BdEditor editor, BdArrayView view, int slot) {
+  final e = view.element, w = e.right - e.left, h = e.bottom - e.top;
+  final digitsLeft = view.showRadix ? kBdRadixDigitsLeft : 1;
+  return object(
+    HeapObjectClass.numericControl.code,
+    editor.allocateOid(),
+    rawTag: HeapRefKind.ddoRef.raw,
+    children: [
+      attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x21000),
+      c4Rect(HeapOpcode.bounds, e),
+      list(kControlParts, [
+        if (view.elementLabel)
+          _constantLabelPart(editor, null, const HeapRect(top: 1, left: -9, bottom: 18, right: 0), showLabel: false),
+        object(
+          HeapObjectClass.numericDisplay.code,
+          editor.allocateOid(),
+          children: [
+            attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x101932),
+            attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0xa),
+            attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
+            attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+            c4Rect(HeapOpcode.bounds, HeapRect(top: 1, left: digitsLeft, bottom: h - 1, right: w - 1)),
+            worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
+            attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, kTransparent),
+            attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+            worded(kPartText, kPartTextWord, [
+              attr(HeapAttribute.cosmFgColor, HeapAttrWidth.u16, 0x200),
+              attr(HeapAttribute.cosmColorB, HeapAttrWidth.rgb, 0x884402),
+              attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, 0xffffff),
+            ]),
+            attr(HeapAttribute.formatStyle, HeapAttrWidth.rgb, _formatStyle(view.format)),
+          ],
+        ),
+        object(
+          HeapObjectClass.controlSubPart.code,
+          editor.allocateOid(),
+          children: [
+            attr(HeapAttribute.objFlags, HeapAttrWidth.u16, view.showRadix ? 0x1932 : 0x193a),
+            attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0xf),
+            attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
+            attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0x1008),
+            c4Rect(
+              HeapOpcode.bounds,
+              view.showRadix
+                  ? const HeapRect(top: 3, left: 2, bottom: 15, right: 8)
+                  : const HeapRect(top: 3, left: -4, bottom: 15, right: 2),
+            ),
+            attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
+            attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+            if (view.showRadix) attr(HeapAttribute.index90, HeapAttrWidth.u8, 1),
+            list(kPartImages, [
+              for (final offset in const [0xf830, 0xf82f, 0xf82e, 0xf82d, 0xf7d1])
+                worded(kPartImage, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, offset)]),
+            ]),
+          ],
+        ),
+        object(
+          HeapObjectClass.controlChrome.code,
+          editor.allocateOid(),
+          children: [
+            attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1913),
+            attr(HeapAttribute.partRole, HeapAttrWidth.u8, 9),
+            attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+            c4Rect(HeapOpcode.bounds, HeapRect(top: 0, left: 0, bottom: h, right: w)),
+            worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xef)]),
+            attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff),
+            attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+          ],
+        ),
+        _connectorTerminalPart(editor, 0x7d5),
+      ]),
+      attr(HeapAttribute.typeDescIndex, HeapAttrWidth.u8, slot),
+      attr(HeapAttribute.mouseWheelSupport, HeapAttrWidth.u8, 2),
+    ],
+  );
+}
+
+/// Where an element's digits start when its radix shows before them.
+const int kBdRadixDigitsLeft = 7;
+
+/// A label part's flags shown and hidden.
+const int kBdShownLabelFlags = 0x171142;
+
+const int kBdHiddenLabelFlags = 0x17114a;
 
 /// A part's list of images and each image's group.
 const int kPartImages = 0x11f;
@@ -2118,6 +2540,9 @@ class BdWire {
 
   int? _bendX;
 
+  /// Each sink's column to turn toward it in, when its branch leaves the fork straight on.
+  final List<int?> _turns = [];
+
   int get oid => node.oid;
 
   /// The type the editor wired the signal with; null for a loaded signal.
@@ -2138,14 +2563,20 @@ class BdWire {
 
   int? get signalKind => node.children.attr(HeapAttribute.lastSignalKind)?.asInt;
 
-  void _addSink(BdEndpoint sink, int? bendX) {
+  void _addSink(BdEndpoint sink, int? bendX, int? turnX) {
     final ends = _ends;
     if (ends == null) throw StateError('$this was loaded, not wired; its route cannot be rebuilt');
     ends.add(sink);
+    _turns.add(turnX);
     _bendX = bendX ?? _bendX;
     _refs.children.add(ref(HeapRefKind.childRef, sink.oid));
     _refs.syncCount();
-    final table = bdRouteFanOut(ends.first.attachPoint, [for (final s in sinks) s.attachPoint], bendX: _bendX).encode();
+    final table = bdRouteFanOut(
+      ends.first.attachPoint,
+      [for (final s in sinks) s.attachPoint],
+      bendX: _bendX,
+      turns: _turns,
+    ).encode();
     final children = node.children;
     for (var i = 0; i < children.length; i++) {
       final child = children[i];
@@ -2234,12 +2665,16 @@ int bdLabelWidth(String text) => text.length * 7;
 
 /// The compressed table of a wire from [from] to each of [sinks]: a straight run or one
 /// turn to a single sink; to several, a run right to a junction that forks up, down or on.
-/// The turn or junction sits in column [bendX], or halfway to the nearest sink.
-WireTable bdRouteFanOut(ViPoint from, List<ViPoint> sinks, {int? bendX}) {
+/// The turn or junction sits in column [bendX], or halfway to the nearest sink; a sink whose
+/// entry in [turns] names a column is reached straight on from the junction, turning there.
+WireTable bdRouteFanOut(ViPoint from, List<ViPoint> sinks, {int? bendX, List<int?>? turns}) {
   if (sinks.length == 1) return _bdRouteBetween(from, sinks.single, bendX);
   final byDirection = <WireRouteDirection, ViPoint>{};
-  for (final sink in sinks) {
-    final direction = sink.y == from.y
+  final turnOf = <WireRouteDirection, int>{};
+  for (final (i, sink) in sinks.indexed) {
+    final turn = turns != null && i < turns.length ? turns[i] : null;
+    if (turn != null) turnOf[WireRouteDirection.right] = turn;
+    final direction = sink.y == from.y || turn != null
         ? WireRouteDirection.right
         : sink.y < from.y
         ? WireRouteDirection.up
@@ -2270,7 +2705,11 @@ WireTable bdRouteFanOut(ViPoint from, List<ViPoint> sinks, {int? bendX}) {
   for (final (i, direction) in junction.outgoing.indexed) {
     final sink = byDirection[direction]!;
     if (i > 0) modes.add(ViWireBranchRoute.popCode);
-    if (direction == WireRouteDirection.right) {
+    final turn = turnOf[direction];
+    if (direction == WireRouteDirection.right && turn != null) {
+      lengths.addAll([turn - junctionX, (sink.y - from.y).abs(), sink.x - turn]);
+      modes.addAll([sink.y >= from.y ? 0 : 1, sink.x >= turn ? 0 : 1]);
+    } else if (direction == WireRouteDirection.right) {
       lengths.add(sink.x - junctionX);
     } else {
       lengths.add((sink.y - from.y).abs());

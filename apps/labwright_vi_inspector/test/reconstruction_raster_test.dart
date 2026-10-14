@@ -11,6 +11,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/array_to_spreadsheet_string_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/crc8_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/current_time_stamp_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/display_current_time_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/execute_vi_remotely_reconstruction.dart';
@@ -34,6 +35,7 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   '53146805_3DSU7.png': buildArrayToSpreadsheetString,
   'Using_Test_Vector_Indexes_With_the_LabVIEW_Unit_Test_Framework_Toolkit.png':
       buildUnitTestAdd,
+  'crc8.png': buildCrc8,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
