@@ -19,6 +19,7 @@ import 'wire_branch_oracle.dart';
 import 'wire_one_anchored_oracle.dart';
 import 'wire_render_style_census.dart';
 import 'wire_route_census.dart';
+import 'wire_table.dart';
 import 'writer_scoreboard.dart';
 
 /// Every corpus law, as the worker applies them to each VI.
@@ -42,5 +43,6 @@ const List<CorpusLaw<Object?>> corpusLaws = [
   wireOneAnchoredOracleLaw,
   wireRenderStyleCensusLaw,
   wireRouteCensusLaw,
+  wireTableLaw,
   writerScoreboardLaw,
 ];

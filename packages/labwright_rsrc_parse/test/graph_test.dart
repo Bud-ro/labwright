@@ -260,6 +260,33 @@ void main() {
     expect(WireRouteJunction.fromCode(0x08), isNull);
   });
 
+  test('decodeWireTable: every form, and encode gives the bytes back', () {
+    for (final (bytes, header, modes, lengths) in [
+      ([0x01], null, <int>[], <int>[]),
+      ([0x02, 0x08], null, [0x08], <int>[]),
+      ([0x04, 0x08, 0x01, 0x02, 28, 0xff, 0x01, 0x00], null, [0x08, 0x01, 0x02], [28, 256]),
+      ([0x03, 0x00, 0x08, 0x02, 10, 20], <int>[], [0x08, 0x02], [10, 20]),
+      ([0x03, 0x01, 0x01, 0x08, 0x00, 0xff, 0x01, 0xf6], [0x01], [0x08, 0x00], [502]),
+      ([0x03, 0x02, 0x03, 0x02, 0x08, 0x05, 4, 5], [0x03, 0x02], [0x08, 0x05], [4, 5]),
+    ]) {
+      final table = decodeWireTable(u8(bytes))!;
+      expect([table.header, table.modes, table.lengths], [header, modes, lengths], reason: '$bytes');
+      expect(table.encode(), bytes);
+      expect(wireTableOfRecord(encodeWireTableRecord(u8(bytes))), bytes);
+    }
+    for (final bytes in [
+      <int>[],
+      [0x01, 0x08],
+      [0x03, 0x08, 0x00, 0xff, 0x00, 0x05],
+      [0x03, 0x00, 0x08, 0x08, 10, 20],
+      [0x03, 0x00, 0x08, 0x00, 10, 20, 30],
+    ]) {
+      expect(decodeWireTable(u8(bytes)), isNull, reason: '$bytes');
+    }
+    expect(encodeWireTableRecord(u8([0x02, 0x08])), [0x45, 0xe7, 0x02, 0x08]);
+    expect(encodeWireTableRecord(u8([0x03, 0x00, 0x08, 0x02, 10, 20])), [0xc5, 0xe7, 6, 3, 0, 8, 2, 10, 20]);
+  });
+
   test('walkWireBranchRoute: each junction code branches and resumes on its catalog directions', () {
     const start = (x: 0, y: 0);
     ViWireRouteTree walk(List<int> table) => walkWireBranchRoute(decodeWireBranchRoute(u8(table))!, start);

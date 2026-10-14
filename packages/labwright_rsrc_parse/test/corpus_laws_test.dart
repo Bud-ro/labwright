@@ -22,6 +22,7 @@ import 'corpus/wire_branch_oracle.dart';
 import 'corpus/wire_one_anchored_oracle.dart';
 import 'corpus/wire_render_style_census.dart';
 import 'corpus/wire_route_census.dart';
+import 'corpus/wire_table.dart';
 import 'corpus/writer_scoreboard.dart';
 import 'corpus_dirs.dart';
 
@@ -53,4 +54,5 @@ void main() {
   group('wire_render_style_census', wireRenderStyleCensusTests);
   group('wire_one_anchored_oracle', wireOneAnchoredOracleTests);
   group('wire_branch_oracle', wireBranchOracleTests);
+  group('wire_table', wireTableTests);
 }
