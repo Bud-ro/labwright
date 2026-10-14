@@ -47,6 +47,16 @@ final class ViPasswordRecord extends ByteRecord {
     return true;
   }
 
+  /// The record of three digests, or of two when [digest3] is null.
+  static Uint8List encode({required List<int> passwordDigest, required List<int> digest2, List<int>? digest3}) {
+    final out = Uint8List(digest3 == null ? _digest2.end : _digest3.end);
+    final view = ByteData.sublistView(out);
+    _passwordDigest.write(view, passwordDigest);
+    _digest2.write(view, digest2);
+    if (digest3 != null) _digest3.write(view, digest3);
+    return out;
+  }
+
   static const _passwordDigest = Bytes(0, size: 16);
   static const _digest2 = Bytes(16, size: 16);
   static const _digest3 = Bytes(32, size: 16, optional: true);

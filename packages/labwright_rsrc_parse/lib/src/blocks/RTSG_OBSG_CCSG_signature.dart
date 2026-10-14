@@ -23,6 +23,12 @@ final class ViSignature extends ByteRecord {
   /// The digest; how it is derived is not decoded.
   Uint8List get digest => _digest.read(view);
 
+  static Uint8List encode(List<int> digest) {
+    final out = Uint8List(_digest.end);
+    _digest.write(ByteData.sublistView(out), digest);
+    return out;
+  }
+
   static const _digest = Bytes(0, size: 16);
 
   static const layout = ByteLayout([_digest]);

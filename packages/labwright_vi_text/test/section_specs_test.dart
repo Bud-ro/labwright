@@ -56,6 +56,14 @@ void main() {
     'SaveRecordSection': [
       for (final length in [96, 120, 137, 160]) ('LVSR', _saveRecord(length)),
     ],
+    'PasswordSection': [
+      ('BDPW', _b([for (var i = 0; i < 48; i++) i])),
+      ('BDPW', _b([for (var i = 0; i < 32; i++) 255 - i])),
+    ],
+    'SignatureSection': [
+      for (final tag in ['RTSG', 'OBSG', 'CCSG'])
+        (tag, _b([for (var i = 0; i < 16; i++) i * 17 & 0xff])),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -120,6 +128,16 @@ void main() {
         unknown116: -2,
         unknown120: Uint8List(16),
       ),
+    ],
+    'PasswordSection': [
+      PasswordSection(
+        passwordDigest: _b(emptyPasswordDigest),
+        digest2: Uint8List(16),
+      ),
+    ],
+    'SignatureSection': [
+      SignatureSection(tag: 'RTSG', digest: Uint8List(16)),
+      SignatureSection(tag: 'CCSG', digest: _b(emptyPasswordDigest)),
     ],
     'TagStoreSection': [
       TagStoreSection(

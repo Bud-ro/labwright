@@ -9,29 +9,41 @@ import 'vi_spec.dart';
 TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
   final DecodedSection(:tag, :bytes, :index, wasCompressed: compressed) =
       section;
+  final n = bytes.length;
   if (LegacyIconDepth.forTag(tag) case final depth?
-      when bytes.length == depth.byteLength) {
+      when n == depth.byteLength) {
     return IconSection.of(
       ViLegacyIcon(bytes, depth),
       index: index,
       compressed: compressed,
     );
   }
-  if (tag == BlockTag.lvsr.tag && ViSaveRecord.layout.fits(bytes.length)) {
-    return SaveRecordSection.of(
+  return switch (BlockTag.of(tag)) {
+    BlockTag.lvsr when ViSaveRecord.layout.fits(n) => SaveRecordSection.of(
       ViSaveRecord(bytes),
       index: index,
       compressed: compressed,
-    );
-  }
-  if (tag == BlockTag.vits.tag) {
-    return TagStoreSection.of(
+    ),
+    BlockTag.vits => TagStoreSection.of(
       ViTagStore(bytes),
       index: index,
       compressed: compressed,
-    );
-  }
-  return null;
+    ),
+    BlockTag.bdpw when n == 32 || n == 48 => PasswordSection.of(
+      ViPasswordRecord(bytes),
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.rtsg ||
+    BlockTag.obsg ||
+    BlockTag.ccsg when ViSignature.layout.fits(n) => SignatureSection.of(
+      tag,
+      ViSignature(bytes),
+      index: index,
+      compressed: compressed,
+    ),
+    _ => null,
+  };
 }
 
 /// An icon (`icl8`, `icl4`, `ICON`) as its 32 pixel rows, top to bottom: per pixel `#` for
@@ -341,3 +353,82 @@ Uint8List? _copyOrNull(Uint8List? bytes) =>
     bytes == null ? null : Uint8List.fromList(bytes);
 
 HexInt? _hexOrNull(int? value) => value == null ? null : HexInt(value);
+
+/// A block-diagram password record (`BDPW`): three digests, or two.
+final class PasswordSection extends TypedSection {
+  const PasswordSection({
+    required this.passwordDigest,
+    required this.digest2,
+    this.digest3,
+    super.index,
+    super.compressed,
+  }) : super('BDPW');
+
+  factory PasswordSection.of(
+    ViPasswordRecord record, {
+    int index = 0,
+    bool compressed = false,
+  }) => PasswordSection(
+    passwordDigest: _copy(record.passwordDigest),
+    digest2: _copy(record.digest2),
+    digest3: _copyOrNull(record.digest3),
+    index: index,
+    compressed: compressed,
+  );
+
+  final Uint8List passwordDigest;
+
+  final Uint8List digest2;
+
+  final Uint8List? digest3;
+
+  @override
+  Uint8List get payload => ViPasswordRecord.encode(
+    passwordDigest: passwordDigest,
+    digest2: digest2,
+    digest3: digest3,
+  );
+
+  @override
+  String get constructor => 'PasswordSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('passwordDigest', passwordDigest),
+    ('digest2', digest2),
+    ('digest3', digest3),
+  ];
+}
+
+/// A signature (`RTSG`, `OBSG`, `CCSG`): one digest.
+final class SignatureSection extends TypedSection {
+  const SignatureSection({
+    required String tag,
+    required this.digest,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  factory SignatureSection.of(
+    String tag,
+    ViSignature signature, {
+    int index = 0,
+    bool compressed = false,
+  }) => SignatureSection(
+    tag: tag,
+    digest: _copy(signature.digest),
+    index: index,
+    compressed: compressed,
+  );
+
+  final Uint8List digest;
+
+  @override
+  Uint8List get payload => ViSignature.encode(digest);
+
+  @override
+  String get constructor => 'SignatureSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('tag', tag), ('digest', digest)];
+}

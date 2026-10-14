@@ -39,15 +39,14 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
     unknown140: 0xffffffff,
     unknown144: _h('d41d8cd98f00b204e9800998ecf8427e'),
   ),
-  RawSection('RTSG', _h('69caf914c0a20b16e25154821b66c14f')),
+  SignatureSection(tag: 'RTSG', digest: _h('69caf914c0a20b16e25154821b66c14f')),
   RawSection('vers', _h('2100800000000432312e3000')),
   RawSection('CONP', _h('0001')),
   RawSection('LIvi', _h('00014c56494e000000000003')),
-  RawSection(
-    'BDPW',
-    _h(
-      'd41d8cd98f00b204e9800998ecf8427e353eac4d9b2950db1726432cd8d0a519e1522b62dd3a95a4541400dedc30b20b',
-    ),
+  PasswordSection(
+    passwordDigest: _h('d41d8cd98f00b204e9800998ecf8427e'),
+    digest2: _h('353eac4d9b2950db1726432cd8d0a519'),
+    digest3: _h('e1522b62dd3a95a4541400dedc30b20b'),
   ),
   RawSection(
     'STRG',
