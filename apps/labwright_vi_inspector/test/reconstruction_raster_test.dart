@@ -20,6 +20,7 @@ import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_rang
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_start_increment_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/hex_string_display_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/mean_of_2d_array_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/multiply_rows_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/reinitialize_shift_register_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/snippet_example_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/unit_test_add_reconstruction.dart';
@@ -55,6 +56,7 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   '32768403_29Tuz.png': buildToggleText,
   'Creating_a_For_Loop_with_Alternative_Starting_Index_and_Increment_Valu.png':
       buildForLoopStartIncrement,
+  '16605742_hOPNk.png': buildMultiplyRows,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
