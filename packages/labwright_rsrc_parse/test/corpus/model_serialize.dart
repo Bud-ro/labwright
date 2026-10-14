@@ -35,7 +35,7 @@ Map<String, int> _census(CorpusVi vi) {
           secRel: section.section.dataOffset,
         ),
     ],
-    file: ViVi.parse(vi.bytes),
+    file: vi.bytes,
   );
   if (model.section(BlockTag.muid.tag) case final muid?) {
     final before = ViMaxUid(muid.bytes).maxUid;
