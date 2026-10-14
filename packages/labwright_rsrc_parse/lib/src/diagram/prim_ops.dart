@@ -279,4 +279,95 @@ enum PrimOp {
 
   /// The primitive with [id], or null for an id not listed.
   static PrimOp? fromId(int id) => _byId[id];
+
+  /// The terminals in the order the node's terminal list holds them, outputs first: each one's
+  /// name as LabVIEW's own help gives it and its rectangle within a 32 by 32 node, as every
+  /// corpus node of the primitive draws it; null for a primitive not measured yet.
+  List<PrimTerminal>? get terminals => _terminals[this];
+
+  List<String>? get terminalNames => terminals?.map((t) => t.name).toList();
 }
+
+/// One terminal of a primitive: its name, whether it consumes its wire, and where it sits in
+/// the node.
+class PrimTerminal {
+  const PrimTerminal(this.name, this.top, this.left, this.bottom, this.right, {this.input = false});
+
+  const PrimTerminal.input(this.name, this.top, this.left, this.bottom, this.right) : input = true;
+
+  final String name;
+
+  final bool input;
+
+  final int top;
+
+  final int left;
+
+  final int bottom;
+
+  final int right;
+}
+
+const Map<PrimOp, List<PrimTerminal>> _terminals = {
+  PrimOp.add: [
+    PrimTerminal('x+y', 0, 10, 21, 21),
+    PrimTerminal.input('x', 10, 0, 21, 10),
+    PrimTerminal.input('y', 0, 0, 10, 10),
+  ],
+  PrimOp.subtract: [
+    PrimTerminal('x-y', 0, 10, 21, 21),
+    PrimTerminal.input('x', 10, 0, 21, 10),
+    PrimTerminal.input('y', 0, 0, 10, 10),
+  ],
+  PrimOp.multiply: [
+    PrimTerminal('x*y', 0, 10, 21, 21),
+    PrimTerminal.input('x', 10, 0, 21, 10),
+    PrimTerminal.input('y', 0, 0, 10, 10),
+  ],
+  PrimOp.divide: [
+    PrimTerminal('x/y', 0, 10, 21, 21),
+    PrimTerminal.input('x', 10, 0, 21, 10),
+    PrimTerminal.input('y', 0, 0, 10, 10),
+  ],
+  PrimOp.increment: [PrimTerminal('x+1', 0, 10, 21, 21), PrimTerminal.input('x', 0, 0, 21, 10)],
+  PrimOp.decrement: [PrimTerminal('x-1', 0, 10, 21, 21), PrimTerminal.input('x', 0, 0, 21, 10)],
+  PrimOp.and: [
+    PrimTerminal('x .and. y', 0, 12, 16, 24),
+    PrimTerminal.input('x', 8, 0, 16, 12),
+    PrimTerminal.input('y', 0, 0, 8, 12),
+  ],
+  PrimOp.or: [
+    PrimTerminal('x .or. y', 0, 10, 16, 22),
+    PrimTerminal.input('x', 8, 0, 16, 10),
+    PrimTerminal.input('y', 0, 0, 8, 10),
+  ],
+  PrimOp.exclusiveOr: [
+    PrimTerminal('x .xor. y', 0, 12, 16, 24),
+    PrimTerminal.input('x', 8, 0, 16, 12),
+    PrimTerminal.input('y', 0, 0, 8, 12),
+  ],
+  PrimOp.toLongInteger: [PrimTerminal('32-bit integer', 0, 12, 11, 25), PrimTerminal.input('number', 0, 0, 11, 12)],
+  PrimOp.toUnsignedByteInteger: [
+    PrimTerminal('8-bit integer', 0, 12, 11, 25),
+    PrimTerminal.input('number', 0, 0, 11, 12),
+  ],
+  PrimOp.rotateLeftWithCarry: [
+    PrimTerminal('result', 8, 12, 17, 25),
+    PrimTerminal('carry out', 0, 12, 8, 25),
+    PrimTerminal.input('value', 8, 0, 17, 12),
+    PrimTerminal.input('carry', 0, 0, 8, 12),
+  ],
+  PrimOp.stringToByteArray: [
+    PrimTerminal('unsigned byte array', 0, 13, 11, 25),
+    PrimTerminal.input('string', 0, 0, 11, 13),
+  ],
+  PrimOp.numberToBooleanArray: [
+    PrimTerminal('Boolean array', 0, 13, 11, 26),
+    PrimTerminal.input('number', 0, 0, 11, 13),
+  ],
+  PrimOp.booleanArrayToNumber: [
+    PrimTerminal('number', 0, 13, 11, 26),
+    PrimTerminal.input('Boolean array', 0, 0, 11, 13),
+  ],
+  PrimOp.reverse1dArray: [PrimTerminal('reversed array', 0, 16, 23, 32), PrimTerminal.input('array', 0, 0, 23, 16)],
+};

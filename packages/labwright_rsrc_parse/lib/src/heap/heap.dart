@@ -1105,6 +1105,17 @@ class HeapRect {
 
   int get height => bottom - top;
 
+  /// The four `i16`s of a rectangle record.
+  Uint8List get payload {
+    final out = Uint8List(8);
+    ByteData.sublistView(out)
+      ..setInt16(0, top)
+      ..setInt16(2, left)
+      ..setInt16(4, bottom)
+      ..setInt16(6, right);
+    return out;
+  }
+
   int get width => right - left;
 
   bool get isValid => bottom >= top && right >= left;

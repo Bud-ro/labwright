@@ -2,6 +2,95 @@ import 'dart:typed_data';
 
 import 'heap.dart';
 
+/// The records of an object or group that read as one thing: a scalar attribute by its
+/// [HeapAttribute], a C4 record by its opcode, a group by its tag, the objects inside.
+extension HeapNodeRecords on List<HeapNode> {
+  /// The scalar or flag attribute [attribute], or null.
+  HeapAttr? attr(HeapAttribute attribute) {
+    for (final node in this) {
+      if (node is HeapRecordNode) {
+        final decoded = decodeHeapAttr(node.bytes, 0);
+        if (decoded != null && decoded.attribute == attribute && decoded.length == node.bytes.length) return decoded;
+      }
+    }
+    return null;
+  }
+
+  /// The first C4 record of [opcode], or null.
+  HeapRecord? c4(HeapOpcode opcode) {
+    for (final node in this) {
+      if (node is HeapRecordNode && node.bytes[0] == kHeapRecordPrefix && node.bytes[1] == opcode.byte) {
+        return c4FrameAt(node.bytes, 0, '');
+      }
+    }
+    return null;
+  }
+
+  /// The bounds record as a rectangle, or null.
+  HeapRect? get bounds => c4(HeapOpcode.bounds)?.rect;
+
+  /// The group opened with [tag], or null.
+  HeapGroupNode? group(int tag) {
+    for (final node in this) {
+      if (node is HeapGroupNode && node.tag == tag) return node;
+    }
+    return null;
+  }
+
+  /// The objects directly inside, in order.
+  Iterable<HeapObjectNode> get objects => whereType<HeapObjectNode>();
+
+  /// The reference records inside, in order.
+  Iterable<HeapRef> get refs sync* {
+    for (final node in this) {
+      if (node is HeapRecordNode) {
+        final ref = decodeHeapRef(node.bytes, 0);
+        if (ref != null && ref.length == node.bytes.length) yield ref;
+      }
+    }
+  }
+
+  /// Replaces the first record [HeapAttribute] [attribute] names with one of the same width
+  /// holding [value]; false when there is none.
+  bool setAttr(HeapAttribute attribute, int value) {
+    for (var i = 0; i < length; i++) {
+      final node = this[i];
+      if (node is! HeapRecordNode) continue;
+      final decoded = decodeHeapAttr(node.bytes, 0);
+      if (decoded == null || decoded.attribute != attribute || decoded.length != node.bytes.length) continue;
+      this[i] = HeapRecordNode(encodeHeapScalarAttr(decoded.rawTag, decoded.width, value));
+      return true;
+    }
+    return false;
+  }
+
+  /// Replaces the bounds record with [rect]; false when there is none.
+  bool setBounds(HeapRect rect) {
+    for (var i = 0; i < length; i++) {
+      final node = this[i];
+      if (node is HeapRecordNode && node.bytes[0] == kHeapRecordPrefix && node.bytes[1] == HeapOpcode.bounds.byte) {
+        this[i] = HeapRecordNode(encodeHeapC4Record(HeapOpcode.bounds.byte, rect.payload));
+        return true;
+      }
+    }
+    return false;
+  }
+}
+
+/// A scalar or flag attribute record: the ten-bit [rawId] and [value] in [width].
+Uint8List encodeHeapScalarAttr(int rawId, HeapAttrWidth width, int value) {
+  final bank = rawId >> 8;
+  final id = rawId & 0xff;
+  return Uint8List.fromList(switch (width) {
+    HeapAttrWidth.flag => [(value == 0 ? 0x00 : 0x10) | 4 | bank, id],
+    HeapAttrWidth.u8 => [0x20 | 4 | bank, id, value & 0xff],
+    HeapAttrWidth.u16 => [0x40 | 4 | bank, id, value >> 8 & 0xff, value & 0xff],
+    HeapAttrWidth.u24 => [0x60 | 4 | bank, id, value >> 16 & 0xff, value >> 8 & 0xff, value & 0xff],
+    HeapAttrWidth.rgb => [0x80 | 4 | bank, id, value >> 24 & 0xff, value >> 16 & 0xff, value >> 8 & 0xff, value & 0xff],
+    _ => throw ArgumentError.value(width, 'width', 'is not a scalar'),
+  });
+}
+
 /// A heap body as the tree its records form: objects from their header to their close, groups
 /// from their open to their close, and every other record verbatim. [encodeHeapTree] gives
 /// back the body byte for byte.

@@ -176,6 +176,10 @@ class ViModel {
     reloadTypes();
   }
 
+  /// The block diagram as objects to place, nest and wire; lifted once from the primary
+  /// heap and written back with `write`.
+  late final BdEditor blockDiagram = BdEditor.lift(this);
+
   /// The heap section [diagram] was built from.
   ViSectionBuffer sectionOf(ViDiagram diagram) => section(diagram.sectionTag, diagram.sectionIndex)!;
 
