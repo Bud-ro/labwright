@@ -181,6 +181,7 @@ String _value(Object argument) => switch (argument) {
 
 String _enumType(Enum value) => switch (value) {
   LegacyIconDepth() => 'LegacyIconDepth',
+  ViTagValueFraming() => 'ViTagValueFraming',
   _ => throw ArgumentError.value(value, 'value', 'is not a spelled enum'),
 };
 

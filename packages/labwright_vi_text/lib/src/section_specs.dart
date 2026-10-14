@@ -17,6 +17,13 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       compressed: compressed,
     );
   }
+  if (tag == BlockTag.vits.tag) {
+    return TagStoreSection.of(
+      ViTagStore(bytes),
+      index: index,
+      compressed: compressed,
+    );
+  }
   return null;
 }
 
@@ -88,4 +95,66 @@ final class IconSection extends TypedSection {
   }
 
   static final int _black = '#'.codeUnitAt(0);
+}
+
+/// A tag store (`VITS`) as its tags in order.
+final class TagStoreSection extends TypedSection {
+  const TagStoreSection({required this.tags, super.index, super.compressed})
+    : super('VITS');
+
+  factory TagStoreSection.of(
+    ViTagStore store, {
+    int index = 0,
+    bool compressed = false,
+  }) => TagStoreSection(
+    tags: [
+      for (final entry in store.entries)
+        TagSpec(
+          name: entry.name,
+          value: Uint8List.fromList(entry.value),
+          framing: entry.framing,
+        ),
+    ],
+    index: index,
+    compressed: compressed,
+  );
+
+  final List<TagSpec> tags;
+
+  @override
+  Uint8List get payload => ViTagStore.encode([
+    for (final tag in tags)
+      (name: tag.name, framing: tag.framing, value: tag.value),
+  ]);
+
+  @override
+  String get constructor => 'TagStoreSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('tags', tags)];
+}
+
+/// One tag: its name and its flattened variant value, framed as [framing] says.
+final class TagSpec implements Spelled {
+  const TagSpec({
+    required this.name,
+    required this.value,
+    this.framing = ViTagValueFraming.lengthPrefixed,
+  });
+
+  final String name;
+
+  final Uint8List value;
+
+  final ViTagValueFraming framing;
+
+  @override
+  String get constructor => 'TagSpec';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('name', name),
+    ('value', value),
+    if (framing != ViTagValueFraming.lengthPrefixed) ('framing', framing),
+  ];
 }
