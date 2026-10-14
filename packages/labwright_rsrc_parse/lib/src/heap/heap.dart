@@ -1281,7 +1281,11 @@ enum HeapGroupTag {
   selectorRange(0x19),
 
   /// Case-selector string pool.
-  selectorStringPool(0x58);
+  selectorStringPool(0x58),
+
+  /// A list of terminals, counted by one `u16` item: the terminal objects an object owns, or
+  /// references to the terminals a signal joins.
+  termList(0x2b);
 
   const HeapGroupTag(this.tag);
 

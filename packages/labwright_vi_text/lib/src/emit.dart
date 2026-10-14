@@ -123,17 +123,37 @@ void _record(StringBuffer out, HeapSpec record, int depth) {
             : _hex(opcode);
         out.writeln('${pad}C4Spec($op, _h(${_bytes(payload)})),');
       }
-    case WireTableSpec(:final table):
+    case WireSpec(:final oid, :final endpoints, :final route, :final table):
       final args = [
-        if (table.header case final header?) 'header: ${_ints(header)}',
-        if (table.modes.isNotEmpty) 'modes: ${_ints(table.modes)}',
-        if (table.lengths.isNotEmpty) 'lengths: ${_ints(table.lengths)}',
+        if (route != null)
+          'route: [${route.map(_leg).join(', ')}]'
+        else
+          'table: ${_table(table)}',
+        'state: ${record.state}',
+        'kind: ${_hex(record.kind)}',
+        if (record.flags case final flags?) 'flags: ${_hex(flags)}',
       ];
-      out.writeln('${pad}WireTableSpec(${table.pointCount}${_named(args)}),');
+      out.writeln('${pad}WireSpec($oid, ${_ints(endpoints)}${_named(args)}),');
+    case WireTableSpec(:final table):
+      out.writeln(
+        '${pad}WireTableSpec(${table.pointCount}${_named(_tableArgs(table))}),',
+      );
     case RawSpec(:final bytes):
       out.writeln('${pad}RawSpec(_h(${_bytes(bytes)})),');
   }
 }
+
+List<String> _tableArgs(WireTable table) => [
+  if (table.header case final header?) 'header: ${_ints(header)}',
+  if (table.modes.isNotEmpty) 'modes: ${_ints(table.modes)}',
+  if (table.lengths.isNotEmpty) 'lengths: ${_ints(table.lengths)}',
+];
+
+String _table(WireTable table) =>
+    'WireTable(${table.pointCount}${_named(_tableArgs(table))})';
+
+String _leg(WireLeg leg) =>
+    'WireLeg.${leg.direction.name}(${leg.length ?? ''})';
 
 String _named(List<String> args) => args.isEmpty ? '' : ', ${args.join(', ')}';
 

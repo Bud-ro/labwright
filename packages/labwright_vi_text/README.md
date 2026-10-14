@@ -16,8 +16,10 @@ dart run packages/labwright_vi_text/bin/vi_text.dart --corpus corpus/text
   header to its close, `GroupSpec` for a group, and inside them `C4Spec` (with `bounds` and
   `caption` for the two decoded shapes), `AttrSpec` for a scalar or flag attribute by its
   ten-bit id, `RefSpec` for a reference, `WireTableSpec` for a signal's route table as its
-  point count, modes and segment lengths, and `RawSpec` for any record whose bytes are not yet
-  decided by decoded fields (string blobs, containers, floats, the walk's unframed tail).
+  point count, modes and segment lengths, `WireSpec` for a signal as the terminals it joins
+  and its route as `WireLeg`s (direction and length per segment), and `RawSpec` for any
+  record whose bytes are not yet decided by decoded fields (string blobs, containers,
+  floats, the walk's unframed tail).
 - The type pool (`VCTP`) is its descriptors, each the bytes `ViType.encode` produces, and the
   top-level list.
 - Every other section is `RawSection` over its bytes.
@@ -41,5 +43,6 @@ The container's own words (descriptor words, gaps) are not carried: `encode` lay
 container out canonically, so a rebuilt file is section-exact, not byte-exact. The sections
 written as bytes (`LVSR`, `vers`, `CONP`, icons, link info, …) have layouts in
 `labwright_rsrc_parse`; constructors from those layouts are the next step. Group open
-records and string and container attributes are carried as bytes; a wire is its signal
-object, its segment objects and the route table's words, not yet endpoints and a polyline.
+records and string and container attributes are carried as bytes. A wire's route is
+relative to its first terminal: placing it on the diagram needs the terminals' positions,
+and a branching route (a table with a header) is carried as its words, not yet as a tree.

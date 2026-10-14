@@ -12,7 +12,17 @@ sealed class HeapSpec {
   /// The typed form of [node]: typed when re-encoding the decoded fields gives the node's own
   /// bytes, else verbatim.
   static HeapSpec of(HeapNode node) => switch (node) {
-    HeapObjectNode() => ObjectSpec(
+    HeapObjectNode() => _object(node),
+    HeapGroupNode() => GroupSpec(
+      node.open,
+      close: node.closeLead == null ? null : (node.closeLead!, node.closeTag!),
+      children: [for (final child in node.children) HeapSpec.of(child)],
+    ),
+    HeapRecordNode(:final bytes) => _typedRecord(bytes) ?? RawSpec(bytes),
+  };
+
+  static HeapSpec _object(HeapObjectNode node) {
+    final object = ObjectSpec(
       HeapObjectClass.fromCode(node.kind),
       node.oid,
       kind: node.kind,
@@ -21,14 +31,10 @@ sealed class HeapSpec {
       wide: node.wide,
       close: node.closed ? (node.closeLead!, node.closeTag!) : null,
       children: [for (final child in node.children) HeapSpec.of(child)],
-    ),
-    HeapGroupNode() => GroupSpec(
-      node.open,
-      close: node.closeLead == null ? null : (node.closeLead!, node.closeTag!),
-      children: [for (final child in node.children) HeapSpec.of(child)],
-    ),
-    HeapRecordNode(:final bytes) => _typedRecord(bytes) ?? RawSpec(bytes),
-  };
+    );
+    if (node.kind != HeapObjectClass.signal.code) return object;
+    return WireSpec._of(object) ?? object;
+  }
 
   static HeapSpec? _typedRecord(Uint8List bytes) {
     final lead = bytes[0];
@@ -76,15 +82,18 @@ sealed class HeapSpec {
     return spec != null && _reproduces(spec, bytes) ? spec : null;
   }
 
+  static bool _sameBytes(Uint8List a, Uint8List b) {
+    if (a.length != b.length) return false;
+    for (var i = 0; i < a.length; i++) {
+      if (a[i] != b[i]) return false;
+    }
+    return true;
+  }
+
   static bool _reproduces(HeapSpec spec, Uint8List bytes) {
     final out = BytesBuilder(copy: false);
     spec.encodeInto(out);
-    final again = out.takeBytes();
-    if (again.length != bytes.length) return false;
-    for (var i = 0; i < bytes.length; i++) {
-      if (again[i] != bytes[i]) return false;
-    }
-    return true;
+    return _sameBytes(out.takeBytes(), bytes);
   }
 }
 
@@ -290,6 +299,229 @@ final class WireTableSpec extends HeapSpec {
   @override
   void encodeInto(BytesBuilder out) =>
       out.add(encodeWireTableRecord(table.encode()));
+}
+
+/// One segment of a plain route: the way it runs and its length in pixels; the table carries
+/// no length for a route's last segment.
+final class WireLeg {
+  const WireLeg(this.direction, [this.length]);
+
+  const WireLeg.up([this.length]) : direction = WireRouteDirection.up;
+
+  const WireLeg.left([this.length]) : direction = WireRouteDirection.left;
+
+  const WireLeg.down([this.length]) : direction = WireRouteDirection.down;
+
+  const WireLeg.right([this.length]) : direction = WireRouteDirection.right;
+
+  final WireRouteDirection direction;
+
+  final int? length;
+
+  /// The plain table that runs [legs]: each leg turns across the one before it, and only the
+  /// last has no length.
+  static WireTable tableOf(List<WireLeg> legs) {
+    if (legs.isEmpty) return const WireTable(1);
+    final modes = <int>[legs.first.direction.code];
+    for (var k = 1; k < legs.length; k++) {
+      final d = legs[k].direction;
+      if (d.isHorizontal == legs[k - 1].direction.isHorizontal) {
+        throw ArgumentError.value(legs, 'legs', 'leg $k does not turn');
+      }
+      modes.add(d.dx + d.dy > 0 ? _turnPositive : _turnNegative);
+    }
+    final lengths = [for (final leg in legs.take(legs.length - 1)) leg.length];
+    if (lengths.contains(null) || legs.last.length != null) {
+      throw ArgumentError.value(
+        legs,
+        'legs',
+        'only the last leg has no length',
+      );
+    }
+    return WireTable(
+      legs.length + 1,
+      modes: modes,
+      lengths: lengths.cast<int>(),
+    );
+  }
+
+  /// The legs of a plain [table], or null for a table with a header or a mode that is not a
+  /// turn.
+  static List<WireLeg>? legsOf(WireTable table) {
+    if (table.header != null) return null;
+    final modes = table.modes;
+    if (modes.isEmpty) return const [];
+    var d = WireRouteDirection.fromCode(modes.first);
+    if (d == null) return null;
+    final legs = <WireLeg>[];
+    for (var k = 0; k < modes.length; k++) {
+      if (k > 0) {
+        final positive = switch (modes[k]) {
+          _turnPositive => true,
+          _turnNegative => false,
+          _ => null,
+        };
+        if (positive == null) return null;
+        d = d!.isHorizontal
+            ? (positive ? WireRouteDirection.down : WireRouteDirection.up)
+            : (positive ? WireRouteDirection.right : WireRouteDirection.left);
+      }
+      legs.add(WireLeg(d!, k < table.lengths.length ? table.lengths[k] : null));
+    }
+    return legs;
+  }
+
+  static const int _turnPositive = 0;
+
+  static const int _turnNegative = 1;
+}
+
+/// A `signal` object as a wire: the terminals it joins, its route, and its words, in the order
+/// the file writes them; [HeapSpec.of] uses it only where it re-encodes the object exactly.
+final class WireSpec extends HeapSpec {
+  /// A wire over [endpoints] following [route], or [table] for a route that is not plain legs.
+  WireSpec(
+    this.oid,
+    this.endpoints, {
+    List<WireLeg>? route,
+    WireTable? table,
+    required this.state,
+    required this.kind,
+    this.flags,
+  }) : table =
+           table ??
+           WireLeg.tableOf(
+             route ?? (throw ArgumentError('a route or a table')),
+           );
+
+  final int oid;
+
+  /// The terminals the signal joins; the route starts at the first.
+  final List<int> endpoints;
+
+  final WireTable table;
+
+  /// The `signalState` word.
+  final int state;
+
+  /// The `lastSignalKind` word, a [ViSignalType].
+  final int kind;
+
+  /// The `objFlags` word, when the object carries one.
+  final int? flags;
+
+  /// [table] as legs, when it is plain.
+  List<WireLeg>? get route => WireLeg.legsOf(table);
+
+  static const int _u16ItemsTag = 0xfb;
+
+  static bool _needsWide(int oid) => oid >= 0x8000;
+
+  static Uint8List _termListOpen(int count) => Uint8List.fromList([
+    0x11,
+    HeapGroupTag.termList.tag,
+    1,
+    _u16ItemsTag,
+    count >> 8,
+    count & 0xff,
+  ]);
+
+  static final (int, int) _termListClose = (0x09, HeapGroupTag.termList.tag);
+
+  /// The `signal` object the wire is written as.
+  ObjectSpec get object => ObjectSpec(
+    HeapObjectClass.signal,
+    oid,
+    children: [
+      if (flags case final flags?)
+        AttrSpec(HeapAttribute.objFlags.raw, flags, width: _widthOf(flags)),
+      GroupSpec(
+        _termListOpen(endpoints.length),
+        close: _termListClose,
+        children: [
+          for (final e in endpoints) RefSpec(HeapRefKind.childRef.raw, e),
+        ],
+      ),
+      AttrSpec(HeapAttribute.signalState.raw, state, width: _widthOf(state)),
+      WireTableSpec.of(table),
+      AttrSpec(
+        HeapAttribute.lastSignalKind.raw,
+        kind,
+        width: HeapAttrWidth.u16,
+      ),
+    ],
+  );
+
+  @override
+  void encodeInto(BytesBuilder out) => object.encodeInto(out);
+
+  static HeapAttrWidth _widthOf(int value) => value < 0x100
+      ? HeapAttrWidth.u8
+      : value < 0x10000
+      ? HeapAttrWidth.u16
+      : value < 0x1000000
+      ? HeapAttrWidth.u24
+      : HeapAttrWidth.rgb;
+
+  /// [object] as a wire when [object] is exactly what [WireSpec.object] builds from the
+  /// fields read.
+  static WireSpec? _of(ObjectSpec object) {
+    if (object.lead != 0x10 ||
+        object.tag != 0x19 ||
+        object.close != (0x08, 0x19) ||
+        object.wide != _needsWide(object.oid)) {
+      return null;
+    }
+    var children = object.children;
+    int? flags;
+    if (children.firstOrNull case AttrSpec(
+      attribute: HeapAttribute.objFlags,
+      :final value,
+      :final width,
+    )) {
+      if (width != _widthOf(value)) return null;
+      flags = value;
+      children = children.sublist(1);
+    }
+    if (children case [
+      GroupSpec(:final open, :final close, children: final terms),
+      AttrSpec(
+        attribute: HeapAttribute.signalState,
+        value: final state,
+        width: final stateWidth,
+      ),
+      WireTableSpec(:final table),
+      AttrSpec(
+        attribute: HeapAttribute.lastSignalKind,
+        value: final kind,
+        width: HeapAttrWidth.u16,
+      ),
+    ]) {
+      if (stateWidth != _widthOf(state)) return null;
+      final endpoints = <int>[];
+      for (final term in terms) {
+        if (term is! RefSpec ||
+            term.kind != HeapRefKind.childRef ||
+            term.wide != _needsWide(term.oid)) {
+          return null;
+        }
+        endpoints.add(term.oid);
+      }
+      if (close != _termListClose ||
+          !HeapSpec._sameBytes(open, _termListOpen(endpoints.length))) {
+        return null;
+      }
+      return WireSpec(
+        object.oid,
+        endpoints,
+        table: table,
+        state: state,
+        kind: kind,
+        flags: flags,
+      );
+    }
+    return null;
+  }
 }
 
 /// A record kept verbatim.

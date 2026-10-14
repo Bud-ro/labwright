@@ -6877,58 +6877,14 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                               ),
                                                               close: (0x9, 0x8),
                                                               children: [
-                                                                ObjectSpec(
-                                                                  HeapObjectClass
-                                                                      .signal,
+                                                                WireSpec(
                                                                   251,
-                                                                  children: [
-                                                                    GroupSpec(
-                                                                      _h(
-                                                                        '112b01fb0002',
-                                                                      ),
-                                                                      close: (
-                                                                        0x9,
-                                                                        0x2b,
-                                                                      ),
-                                                                      children: [
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          231,
-                                                                        ),
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          241,
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .signalState
-                                                                          .raw,
-                                                                      0x1,
-                                                                      width:
-                                                                          HeapAttrWidth
-                                                                              .u8,
-                                                                    ),
-                                                                    WireTableSpec(
-                                                                      2,
-                                                                      modes: [
-                                                                        8,
-                                                                      ],
-                                                                    ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .lastSignalKind
-                                                                          .raw,
-                                                                      0x105,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
-                                                                    ),
+                                                                  [231, 241],
+                                                                  route: [
+                                                                    WireLeg.right(),
                                                                   ],
+                                                                  state: 1,
+                                                                  kind: 0x105,
                                                                 ),
                                                               ],
                                                             ),
@@ -7331,170 +7287,38 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                               ),
                                                               close: (0x9, 0x8),
                                                               children: [
-                                                                ObjectSpec(
-                                                                  HeapObjectClass
-                                                                      .signal,
+                                                                WireSpec(
                                                                   271,
-                                                                  children: [
-                                                                    GroupSpec(
-                                                                      _h(
-                                                                        '112b01fb0002',
-                                                                      ),
-                                                                      close: (
-                                                                        0x9,
-                                                                        0x2b,
-                                                                      ),
-                                                                      children: [
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          262,
-                                                                        ),
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          242,
-                                                                        ),
-                                                                      ],
+                                                                  [262, 242],
+                                                                  route: [
+                                                                    WireLeg.right(
+                                                                      6,
                                                                     ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .signalState
-                                                                          .raw,
-                                                                      0x1,
-                                                                      width:
-                                                                          HeapAttrWidth
-                                                                              .u8,
-                                                                    ),
-                                                                    WireTableSpec(
+                                                                    WireLeg.up(
                                                                       4,
-                                                                      modes: [
-                                                                        8,
-                                                                        1,
-                                                                        0,
-                                                                      ],
-                                                                      lengths: [
-                                                                        6,
-                                                                        4,
-                                                                      ],
                                                                     ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .lastSignalKind
-                                                                          .raw,
-                                                                      0x105,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
-                                                                    ),
+                                                                    WireLeg.right(),
                                                                   ],
+                                                                  state: 1,
+                                                                  kind: 0x105,
                                                                 ),
-                                                                ObjectSpec(
-                                                                  HeapObjectClass
-                                                                      .signal,
+                                                                WireSpec(
                                                                   274,
-                                                                  children: [
-                                                                    GroupSpec(
-                                                                      _h(
-                                                                        '112b01fb0002',
-                                                                      ),
-                                                                      close: (
-                                                                        0x9,
-                                                                        0x2b,
-                                                                      ),
-                                                                      children: [
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          237,
-                                                                        ),
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          265,
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .signalState
-                                                                          .raw,
-                                                                      0x1,
-                                                                      width:
-                                                                          HeapAttrWidth
-                                                                              .u8,
-                                                                    ),
-                                                                    WireTableSpec(
-                                                                      2,
-                                                                      modes: [
-                                                                        8,
-                                                                      ],
-                                                                    ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .lastSignalKind
-                                                                          .raw,
-                                                                      0x4105,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
-                                                                    ),
+                                                                  [237, 265],
+                                                                  route: [
+                                                                    WireLeg.right(),
                                                                   ],
+                                                                  state: 1,
+                                                                  kind: 0x4105,
                                                                 ),
-                                                                ObjectSpec(
-                                                                  HeapObjectClass
-                                                                      .signal,
+                                                                WireSpec(
                                                                   277,
-                                                                  children: [
-                                                                    GroupSpec(
-                                                                      _h(
-                                                                        '112b01fb0002',
-                                                                      ),
-                                                                      close: (
-                                                                        0x9,
-                                                                        0x2b,
-                                                                      ),
-                                                                      children: [
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          232,
-                                                                        ),
-                                                                        RefSpec(
-                                                                          HeapRefKind
-                                                                              .childRef
-                                                                              .raw,
-                                                                          268,
-                                                                        ),
-                                                                      ],
-                                                                    ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .signalState
-                                                                          .raw,
-                                                                      0x1,
-                                                                      width:
-                                                                          HeapAttrWidth
-                                                                              .u8,
-                                                                    ),
-                                                                    WireTableSpec(
-                                                                      2,
-                                                                      modes: [
-                                                                        8,
-                                                                      ],
-                                                                    ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .lastSignalKind
-                                                                          .raw,
-                                                                      0x105,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
-                                                                    ),
+                                                                  [232, 268],
+                                                                  route: [
+                                                                    WireLeg.right(),
                                                                   ],
+                                                                  state: 1,
+                                                                  kind: 0x105,
                                                                 ),
                                                               ],
                                                             ),
@@ -8577,258 +8401,51 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                               _h('110801fb0006'),
                                               close: (0x9, 0x8),
                                               children: [
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   281,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          211,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          223,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x121,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [211, 223],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x121,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   284,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          238,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          173,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [238, 173],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   287,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          182,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          233,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      4,
-                                                      modes: [8, 1, 0],
-                                                      lengths: [60, 8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x4105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
+                                                  [182, 233],
+                                                  route: [
+                                                    WireLeg.right(60),
+                                                    WireLeg.up(8),
+                                                    WireLeg.right(),
                                                   ],
+                                                  state: 1,
+                                                  kind: 0x4105,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   290,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          208,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          228,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [208, 228],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   293,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          196,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          217,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x21,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x4121,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [196, 217],
+                                                  route: [WireLeg.right()],
+                                                  state: 33,
+                                                  kind: 0x4121,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   296,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          177,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          214,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [177, 214],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
                                               ],
                                             ),
@@ -9702,190 +9319,63 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                               _h('110801fb0007'),
                               close: (0x9, 0x8),
                               children: [
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   289,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 147),
-                                        RefSpec(HeapRefKind.childRef.raw, 178),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [147, 178],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   3579,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 3315),
-                                        RefSpec(HeapRefKind.childRef.raw, 2353),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x205,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [3315, 2353],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x205,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   366,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 170),
-                                        RefSpec(HeapRefKind.childRef.raw, 3318),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(
-                                      4,
-                                      modes: [8, 1, 0],
-                                      lengths: [17, 57],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                  [170, 3318],
+                                  route: [
+                                    WireLeg.right(17),
+                                    WireLeg.up(57),
+                                    WireLeg.right(),
                                   ],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   381,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0003'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 118),
-                                        RefSpec(HeapRefKind.childRef.raw, 150),
-                                        RefSpec(HeapRefKind.childRef.raw, 3321),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(
-                                      5,
-                                      header: [],
-                                      modes: [8, 5, 0, 3],
-                                      lengths: [13, 66, 11, 247],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x103,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [118, 150, 3321],
+                                  table: WireTable(
+                                    5,
+                                    header: [],
+                                    modes: [8, 5, 0, 3],
+                                    lengths: [13, 66, 11, 247],
+                                  ),
+                                  state: 1,
+                                  kind: 0x103,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   3328,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 2359),
-                                        RefSpec(HeapRefKind.childRef.raw, 3312),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x205,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [2359, 3312],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x205,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   369,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 101),
-                                        RefSpec(HeapRefKind.childRef.raw, 179),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [101, 179],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x4105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   375,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 133),
-                                        RefSpec(HeapRefKind.childRef.raw, 166),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x21,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4103,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [133, 166],
+                                  route: [WireLeg.right()],
+                                  state: 33,
+                                  kind: 0x4103,
                                 ),
                               ],
                             ),
@@ -11290,257 +10780,47 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                               _h('110801fb0006'),
                                               close: (0x9, 0x8),
                                               children: [
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   3106,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3099,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3051,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [3099, 3051],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   3109,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3091,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3102,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x107,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [3091, 3102],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x107,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   3112,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3083,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3094,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x221,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [3083, 3094],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x221,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   3115,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3075,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3086,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x221,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [3075, 3086],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x221,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   3118,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3067,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3078,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [3067, 3078],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   3121,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3062,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          3070,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x103,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [3062, 3070],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x103,
                                                 ),
                                               ],
                                             ),
@@ -12259,30 +11539,12 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                               _h('110801fb0001'),
                               close: (0x9, 0x8),
                               children: [
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   3126,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 3030),
-                                        RefSpec(HeapRefKind.childRef.raw, 3044),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x21,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4103,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [3030, 3044],
+                                  route: [WireLeg.right()],
+                                  state: 33,
+                                  kind: 0x4103,
                                 ),
                               ],
                             ),
@@ -13593,47 +12855,12 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                               _h('110801fb0001'),
                                               close: (0x9, 0x8),
                                               children: [
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   2015,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1906,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1940,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [1906, 1940],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
                                               ],
                                             ),
@@ -14207,173 +13434,33 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                               _h('110801fb0004'),
                                               close: (0x9, 0x8),
                                               children: [
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   1952,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1346,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1944,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [1346, 1944],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   1925,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1921,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1343,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x21,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x4205,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [1921, 1343],
+                                                  route: [WireLeg.right()],
+                                                  state: 33,
+                                                  kind: 0x4205,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   1393,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1383,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1349,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x103,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [1383, 1349],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x103,
                                                 ),
-                                                ObjectSpec(
-                                                  HeapObjectClass.signal,
+                                                WireSpec(
                                                   1911,
-                                                  children: [
-                                                    GroupSpec(
-                                                      _h('112b01fb0002'),
-                                                      close: (0x9, 0x2b),
-                                                      children: [
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1907,
-                                                        ),
-                                                        RefSpec(
-                                                          HeapRefKind
-                                                              .childRef
-                                                              .raw,
-                                                          1386,
-                                                        ),
-                                                      ],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .signalState
-                                                          .raw,
-                                                      0x1,
-                                                      width: HeapAttrWidth.u8,
-                                                    ),
-                                                    WireTableSpec(
-                                                      2,
-                                                      modes: [8],
-                                                    ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .lastSignalKind
-                                                          .raw,
-                                                      0x105,
-                                                      width: HeapAttrWidth.u16,
-                                                    ),
-                                                  ],
+                                                  [1907, 1386],
+                                                  route: [WireLeg.right()],
+                                                  state: 1,
+                                                  kind: 0x105,
                                                 ),
                                               ],
                                             ),
@@ -15228,242 +14315,80 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                               _h('110801fb0009'),
                               close: (0x9, 0x8),
                               children: [
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   686,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 646),
-                                        RefSpec(HeapRefKind.childRef.raw, 580),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(
-                                      4,
-                                      modes: [8, 0, 0],
-                                      lengths: [13, 4],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                  [646, 580],
+                                  route: [
+                                    WireLeg.right(13),
+                                    WireLeg.down(4),
+                                    WireLeg.right(),
                                   ],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   695,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 584),
-                                        RefSpec(HeapRefKind.childRef.raw, 635),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [584, 635],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   2004,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 1139),
-                                        RefSpec(HeapRefKind.childRef.raw, 1896),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4121,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [1139, 1896],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x4121,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   1964,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 589),
-                                        RefSpec(HeapRefKind.childRef.raw, 1908),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [589, 1908],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   707,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 1948),
-                                        RefSpec(HeapRefKind.childRef.raw, 638),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(
-                                      4,
-                                      modes: [8, 0, 0],
-                                      lengths: [11, 26],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                  [1948, 638],
+                                  route: [
+                                    WireLeg.right(11),
+                                    WireLeg.down(26),
+                                    WireLeg.right(),
                                   ],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   1437,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 1427),
-                                        RefSpec(HeapRefKind.childRef.raw, 1922),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x21,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4205,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [1427, 1922],
+                                  route: [WireLeg.right()],
+                                  state: 33,
+                                  kind: 0x4205,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   698,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 595),
-                                        RefSpec(HeapRefKind.childRef.raw, 643),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(
-                                      4,
-                                      modes: [8, 0, 0],
-                                      lengths: [120, 80],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4205,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                  [595, 643],
+                                  route: [
+                                    WireLeg.right(120),
+                                    WireLeg.down(80),
+                                    WireLeg.right(),
                                   ],
+                                  state: 1,
+                                  kind: 0x4205,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   701,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 655),
-                                        RefSpec(HeapRefKind.childRef.raw, 649),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x103,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [655, 649],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x103,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   704,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 632),
-                                        RefSpec(HeapRefKind.childRef.raw, 658),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [632, 658],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
                               ],
                             ),
@@ -15995,30 +14920,12 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                               _h('110801fb0001'),
                               close: (0x9, 0x8),
                               children: [
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   748,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 727),
-                                        RefSpec(HeapRefKind.childRef.raw, 732),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [727, 732],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
                               ],
                             ),
@@ -16572,105 +15479,33 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                               _h('110801fb0004'),
                               close: (0x9, 0x8),
                               children: [
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   427,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 806),
-                                        RefSpec(HeapRefKind.childRef.raw, 733),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [806, 733],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   433,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 728),
-                                        RefSpec(HeapRefKind.childRef.raw, 836),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x105,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [728, 836],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x105,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   881,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 833),
-                                        RefSpec(HeapRefKind.childRef.raw, 809),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x1,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x103,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [833, 809],
+                                  route: [WireLeg.right()],
+                                  state: 1,
+                                  kind: 0x103,
                                 ),
-                                ObjectSpec(
-                                  HeapObjectClass.signal,
+                                WireSpec(
                                   884,
-                                  children: [
-                                    GroupSpec(
-                                      _h('112b01fb0002'),
-                                      close: (0x9, 0x2b),
-                                      children: [
-                                        RefSpec(HeapRefKind.childRef.raw, 738),
-                                        RefSpec(HeapRefKind.childRef.raw, 803),
-                                      ],
-                                    ),
-                                    AttrSpec(
-                                      HeapAttribute.signalState.raw,
-                                      0x21,
-                                      width: HeapAttrWidth.u8,
-                                    ),
-                                    WireTableSpec(2, modes: [8]),
-                                    AttrSpec(
-                                      HeapAttribute.lastSignalKind.raw,
-                                      0x4205,
-                                      width: HeapAttrWidth.u16,
-                                    ),
-                                  ],
+                                  [738, 803],
+                                  route: [WireLeg.right()],
+                                  state: 33,
+                                  kind: 0x4205,
                                 ),
                               ],
                             ),
@@ -20221,361 +19056,108 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
               _h('110801fb000e'),
               close: (0x9, 0x8),
               children: [
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   879,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0003'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 756),
-                        RefSpec(HeapRefKind.childRef.raw, 734),
-                        RefSpec(HeapRefKind.childRef.raw, 1431),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x21,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(
-                      7,
-                      header: [],
-                      modes: [8, 5, 0, 3, 0, 0],
-                      lengths: [29, 89, 12, 330, 127, 19],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x4205,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [756, 734, 1431],
+                  table: WireTable(
+                    7,
+                    header: [],
+                    modes: [8, 5, 0, 3, 0, 0],
+                    lengths: [29, 89, 12, 330, 127, 19],
+                  ),
+                  state: 33,
+                  kind: 0x4205,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   403,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 61),
-                        RefSpec(HeapRefKind.childRef.raw, 1143),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x121,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [61, 1143],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x121,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   917,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 2357),
-                        RefSpec(HeapRefKind.childRef.raw, 592),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(4, modes: [8, 1, 0], lengths: [20, 192]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x205,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [2357, 592],
+                  route: [WireLeg.right(20), WireLeg.up(192), WireLeg.right()],
+                  state: 1,
+                  kind: 0x205,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   2792,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 2368),
-                        RefSpec(HeapRefKind.childRef.raw, 2360),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x21,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x4205,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [2368, 2360],
+                  route: [WireLeg.right()],
+                  state: 33,
+                  kind: 0x4205,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   927,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 904),
-                        RefSpec(HeapRefKind.childRef.raw, 724),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x105,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [904, 724],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x105,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   924,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 577),
-                        RefSpec(HeapRefKind.childRef.raw, 910),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x105,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [577, 910],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x105,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   913,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 896),
-                        RefSpec(HeapRefKind.childRef.raw, 586),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x205,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [896, 586],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x205,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   399,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 389),
-                        RefSpec(HeapRefKind.childRef.raw, 88),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x21,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x4103,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [389, 88],
+                  route: [WireLeg.right()],
+                  state: 33,
+                  kind: 0x4103,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   1085,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 339),
-                        RefSpec(HeapRefKind.childRef.raw, 899),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x230,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [339, 899],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x230,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   921,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 509),
-                        RefSpec(HeapRefKind.childRef.raw, 719),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(4, modes: [8, 1, 0], lengths: [713, 33]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x121,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [509, 719],
+                  route: [WireLeg.right(713), WireLeg.up(33), WireLeg.right()],
+                  state: 1,
+                  kind: 0x121,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   2588,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 1988),
-                        RefSpec(HeapRefKind.childRef.raw, 907),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(4, modes: [8, 1, 0], lengths: [688, 25]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x105,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [1988, 907],
+                  route: [WireLeg.right(688), WireLeg.up(25), WireLeg.right()],
+                  state: 1,
+                  kind: 0x105,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   1831,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 455),
-                        RefSpec(HeapRefKind.childRef.raw, 585),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x105,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [455, 585],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x105,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   930,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 729),
-                        RefSpec(HeapRefKind.childRef.raw, 561),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x105,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [729, 561],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x105,
                 ),
-                ObjectSpec(
-                  HeapObjectClass.signal,
+                WireSpec(
                   406,
-                  children: [
-                    GroupSpec(
-                      _h('112b01fb0002'),
-                      close: (0x9, 0x2b),
-                      children: [
-                        RefSpec(HeapRefKind.childRef.raw, 84),
-                        RefSpec(HeapRefKind.childRef.raw, 98),
-                      ],
-                    ),
-                    AttrSpec(
-                      HeapAttribute.signalState.raw,
-                      0x1,
-                      width: HeapAttrWidth.u8,
-                    ),
-                    WireTableSpec(2, modes: [8]),
-                    AttrSpec(
-                      HeapAttribute.lastSignalKind.raw,
-                      0x105,
-                      width: HeapAttrWidth.u16,
-                    ),
-                  ],
+                  [84, 98],
+                  route: [WireLeg.right()],
+                  state: 1,
+                  kind: 0x105,
                 ),
               ],
             ),

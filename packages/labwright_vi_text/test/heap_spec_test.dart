@@ -85,6 +85,79 @@ void main() {
     },
   );
 
+  test(
+    'a signal reads as a wire over its endpoints and legs, and writes back',
+    () {
+      final body = _b([
+        0, 0, 0, 0, //
+        0x10, 0x19, 0x02, 0xfe, 0x00, 0x17, 0xfd, 0x01, 0x0f, // signal 271
+        0x11, 0x2b, 0x01, 0xfb, 0x00, 0x02, // two terminals
+        0x14, 0x19, 0x01, 0xfd, 0x01, 0x06, //
+        0x14, 0x19, 0x01, 0xfd, 0x00, 0xf2, //
+        0x09, 0x2b, //
+        0x25, 0x15, 0x01, // signalState
+        0xc5, 0xe7, 0x06, 0x04, 0x08, 0x01, 0x00, 0x06, 0x04, // wire table
+        0x44, 0x9f, 0x01, 0x05, // lastSignalKind
+        0x08, 0x19,
+      ]);
+      ByteData.sublistView(body).setUint32(0, body.length - 4);
+      final records = heapSpecsOf(body);
+      expect(encodeHeapSpecs(records), body);
+      final wire = records.single as WireSpec;
+      expect(
+        [wire.oid, wire.endpoints, wire.state, wire.kind, wire.flags],
+        [
+          271,
+          [262, 242],
+          1,
+          0x105,
+          null,
+        ],
+      );
+      expect(wire.route!.map((leg) => (leg.direction, leg.length)), [
+        (WireRouteDirection.right, 6),
+        (WireRouteDirection.up, 4),
+        (WireRouteDirection.right, null),
+      ]);
+      final built = WireSpec(
+        271,
+        [262, 242],
+        route: const [WireLeg.right(6), WireLeg.up(4), WireLeg.right()],
+        state: 1,
+        kind: 0x105,
+      );
+      expect(encodeHeapSpecs([built]), body);
+      expect(
+        emitViSpecDart(
+          ViSpec('w.vi', [
+            HeapSection('BDHb', [built]),
+          ]),
+          identifier: 'w',
+        ),
+        contains(
+          'WireSpec(271, [262, 242], route: [WireLeg.right(6), WireLeg.up(4), WireLeg.right()], state: 1, kind: 0x105),',
+        ),
+      );
+      for (final legs in [
+        const [WireLeg.right(6), WireLeg.left(4), WireLeg.up()],
+        const [WireLeg.right(), WireLeg.up()],
+        const [WireLeg.right(6), WireLeg.up(4)],
+      ]) {
+        expect(() => WireLeg.tableOf(legs), throwsArgumentError);
+      }
+      expect(
+        WireLeg.tableOf(const [
+          WireLeg.right(6),
+          WireLeg.up(4),
+          WireLeg.right(),
+        ]).encode(),
+        [
+          4, 8, 1, 0, 6, 4, //
+        ],
+      );
+    },
+  );
+
   test('a spec builds a file that reads back to the same sections', () {
     final spec = ViSpec('demo.vi', [
       RawSection('LVSR', _b([1, 2, 3, 4])),
