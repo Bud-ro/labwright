@@ -8,7 +8,11 @@
 #   ./format.sh --check   verify only, exit 1 if anything is unformatted (CI)
 set -euo pipefail
 cd "$(dirname "$0")"
+dirs=()
+for d in packages apps example tool test; do
+  [[ -d "$d" ]] && dirs+=("$d")
+done
 if [[ "${1:-}" == "--check" ]]; then
-  exec dart format --output=none --set-exit-if-changed packages apps example tool test
+  exec dart format --output=none --set-exit-if-changed "${dirs[@]}"
 fi
-exec dart format packages apps example tool test
+exec dart format "${dirs[@]}"
