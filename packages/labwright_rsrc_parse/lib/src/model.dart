@@ -176,6 +176,9 @@ class ViModel {
     reloadTypes();
   }
 
+  /// A VI with nothing on its panel or diagram, as LabVIEW 21.0 saves one.
+  static ViModel empty({String name = 'untitled.vi'}) => buildViModel(emptyViBytes(name: name));
+
   /// The block diagram as objects to place, nest and wire; lifted once from the primary
   /// heap and written back with `write`.
   late final BdEditor blockDiagram = BdEditor.lift(this);

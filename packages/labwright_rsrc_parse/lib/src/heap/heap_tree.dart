@@ -77,6 +77,10 @@ extension HeapNodeRecords on List<HeapNode> {
   }
 }
 
+/// A rectangle attribute record: the ten-bit [rawId] over [rect]'s four `i16`s.
+Uint8List encodeHeapRectAttr(int rawId, HeapRect rect) =>
+    Uint8List.fromList([0xc4 | (rawId >> 8), rawId & 0xff, 0x08, ...rect.payload]);
+
 /// A scalar or flag attribute record: the ten-bit [rawId] and [value] in [width].
 Uint8List encodeHeapScalarAttr(int rawId, HeapAttrWidth width, int value) {
   final bank = rawId >> 8;
@@ -102,6 +106,14 @@ sealed class HeapNode {
 
 /// An object: its header, the records inside it, and whether the walk met its close.
 final class HeapObjectNode extends HeapNode {
+  /// A new object of [kind] with id [oid], opened and closed with [tag].
+  HeapObjectNode.create(this.kind, this.oid, {this.tag = 0x19, List<HeapNode>? children})
+    : lead = 0x10,
+      wide = oid >= 0x8000,
+      children = children ?? [],
+      closeLead = 0x08,
+      closeTag = 0x19;
+
   HeapObjectNode({
     required this.lead,
     required this.tag,
@@ -146,10 +158,31 @@ final class HeapObjectNode extends HeapNode {
 final class HeapGroupNode extends HeapNode {
   HeapGroupNode({required this.open, this.children = const [], this.closeLead, this.closeTag});
 
+  /// A new counted list with the ten-bit [rawId]: its open record carries the item count,
+  /// which [syncCount] keeps in step with [children].
+  HeapGroupNode.counted(int rawId, {List<HeapNode>? children})
+    : open = Uint8List.fromList([0x10 | (rawId >> 8), rawId & 0xff, 0x01, 0xfb, 0, 0]),
+      children = children ?? [],
+      closeLead = 0x08 | (rawId >> 8),
+      closeTag = rawId & 0xff {
+    syncCount();
+  }
+
   /// The open record, `[lead, tag, …]`, verbatim.
   final Uint8List open;
 
   int get tag => open[1];
+
+  /// The ten-bit group id, from the lead's low bits and the tag.
+  int get rawId => heapRawId(open[0], open[1]);
+
+  /// Whether the open record's word counts the items, which the `fb` type tag says.
+  bool get counted => open.length >= 6 && open[3] == 0xfb;
+
+  /// Writes [children]'s length into the open record of a counted list.
+  void syncCount() {
+    if (counted) ByteData.sublistView(open).setUint16(4, children.length);
+  }
 
   final List<HeapNode> children;
 

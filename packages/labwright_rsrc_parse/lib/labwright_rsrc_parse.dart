@@ -66,6 +66,7 @@ export 'src/diagram/prim_terminals.dart';
 export 'src/diagram/wire_render.dart';
 export 'src/diagram/wire_route.dart';
 export 'src/edit/block_diagram.dart';
+export 'src/edit/empty_vi.dart';
 export 'src/generated/block_docs.dart';
 export 'src/heap/heap.dart';
 export 'src/heap/heap_tree.dart';

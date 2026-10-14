@@ -3,21 +3,24 @@ import 'dart:typed_data';
 import '../block_tag.dart';
 import '../diagram/objects.dart';
 import '../diagram/prim_ops.dart';
+import '../diagram/wire_route.dart';
 import '../heap/heap.dart';
 import '../heap/heap_tree.dart';
 import '../model.dart';
 import '../section_buffer.dart';
 
-/// The group tags a diagram frame's records open: its placed objects, its node order with the
-/// endpoint table first, and its signals.
+/// The lists a diagram frame's records open: its placed objects, its node order with the
+/// endpoint table first, and its signals; [rawId] is the ten-bit group id, [tag] its low byte.
 enum BdFrameList {
-  objects(0x4e),
-  nodes(0xc3),
-  signals(0x08);
+  objects(0x14e),
+  nodes(0x0c3),
+  signals(0x108);
 
-  const BdFrameList(this.tag);
+  const BdFrameList(this.rawId);
 
-  final int tag;
+  final int rawId;
+
+  int get tag => rawId & 0xff;
 }
 
 /// The block diagram of a model as objects to place, nest and wire, over the heap's own
@@ -56,6 +59,38 @@ class BdEditor {
 
   /// A fresh object id, which `MUID` now records.
   int allocateOid() => model.allocateUid();
+
+  /// Wires [source] to [sink] in the frame they share: a signal over the two endpoints with a
+  /// route from one to the other, typed by [type], the signal's type word.
+  BdWire connect(BdTerminal source, BdTerminal sink, {required int type}) {
+    if (source.isSink) throw ArgumentError.value(source, 'source', 'consumes its wire');
+    if (!sink.isSink) throw ArgumentError.value(sink, 'sink', 'produces its wire');
+    final frame = source.owner.frameOf;
+    if (!identical(frame, sink.owner.frameOf)) throw ArgumentError('the two terminals are in different frames');
+    final route = bdRouteBetween(source.attachPoint, sink.attachPoint);
+    final signal = HeapObjectNode.create(
+      HeapObjectClass.signal.code,
+      allocateOid(),
+      children: [
+        HeapGroupNode.counted(
+          kBdTermList,
+          children: [
+            HeapRecordNode(encodeHeapRef(0x14, HeapRefKind.childRef.raw & 0xff, source.oid)),
+            HeapRecordNode(encodeHeapRef(0x14, HeapRefKind.childRef.raw & 0xff, sink.oid)),
+          ],
+        ),
+        HeapRecordNode(encodeHeapScalarAttr(HeapAttribute.signalState.raw, HeapAttrWidth.u8, 1)),
+        HeapRecordNode(encodeWireTableRecord(route.encode())),
+        HeapRecordNode(encodeHeapScalarAttr(HeapAttribute.lastSignalKind.raw, HeapAttrWidth.u16, type)),
+      ],
+    );
+    final signals = frame._list(BdFrameList.signals);
+    signals.children.add(signal);
+    signals.syncCount();
+    final wire = BdWire._(frame, signal);
+    frame.wires.add(wire);
+    return wire;
+  }
 
   /// Writes the heap back into the model's section and rebuilds the model's diagram from it.
   void write() {
@@ -131,14 +166,30 @@ class BdFrame {
   ];
 
   Iterable<T> all<T extends BdPlaced>() => placed.whereType<T>();
+
+  /// Places [node] in this frame: its object joins the object list and the node order.
+  T add<T extends BdNode>(T node) {
+    if (node._frameOf != null) throw StateError('$node is already placed');
+    node._frameOf = this;
+    final objects = _list(BdFrameList.objects);
+    objects.children.add(node.node);
+    objects.syncCount();
+    final nodes = _list(BdFrameList.nodes);
+    nodes.children.add(HeapRecordNode(encodeHeapRef(0x14, HeapRefKind.childRef.raw & 0xff, node.oid)));
+    nodes.syncCount();
+    placed.add(node);
+    return node;
+  }
 }
 
 /// Anything placed in a frame: an object with an id, a class and usually bounds.
 class BdPlaced {
-  BdPlaced._(this.frameOf, this.node);
+  BdPlaced._(BdFrame? frameOf, this.node) : _frameOf = frameOf;
+
+  BdFrame? _frameOf;
 
   /// The frame this is placed in.
-  final BdFrame frameOf;
+  BdFrame get frameOf => _frameOf ?? (throw StateError('$this is not placed yet'));
 
   final HeapObjectNode node;
 
@@ -190,6 +241,62 @@ class BdNode extends BdPlaced {
 class BdPrimitive extends BdNode {
   BdPrimitive._(super.frameOf, super.node) : super._();
 
+  /// A new node of [op], 32 by 32 at [at], its terminals as every corpus node of the
+  /// primitive draws them; place it with [BdFrame.add].
+  factory BdPrimitive.create(BdEditor editor, PrimOp op, {HeapRect? at}) {
+    final terminals = op.terminals;
+    if (terminals == null) throw ArgumentError.value(op, 'op', 'has no measured terminals');
+    final bounds = at ?? const HeapRect(top: 0, left: 0, bottom: 32, right: 32);
+    final node = HeapObjectNode.create(
+      HeapObjectClass.bdNode.code,
+      editor.allocateOid(),
+      children: [
+        HeapRecordNode(encodeHeapScalarAttr(HeapAttribute.objFlags.raw, HeapAttrWidth.u24, 0x10000)),
+        HeapGroupNode.counted(
+          kBdTermList,
+          children: [
+            for (final terminal in terminals)
+              HeapObjectNode.create(
+                kNodeEndpointDcoKind,
+                editor.allocateOid(),
+                children: [
+                  HeapRecordNode(
+                    terminal.input
+                        ? encodeHeapScalarAttr(
+                            HeapAttribute.objFlags.raw,
+                            HeapAttrWidth.u24,
+                            kBdSinkEndpointFlag | 0x1000,
+                          )
+                        : encodeHeapScalarAttr(HeapAttribute.objFlags.raw, HeapAttrWidth.u16, 0x1000),
+                  ),
+                  HeapObjectNode.create(
+                    kBdNodeTerminalDcoKind,
+                    editor.allocateOid(),
+                    children: [
+                      HeapRecordNode(
+                        encodeHeapRectAttr(
+                          HeapAttribute.termBounds.raw,
+                          HeapRect(
+                            top: terminal.top,
+                            left: terminal.left,
+                            bottom: terminal.bottom,
+                            right: terminal.right,
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+          ],
+        ),
+        HeapRecordNode(encodeHeapC4Record(HeapOpcode.bounds.byte, bounds.payload)),
+        HeapRecordNode(encodeHeapScalarAttr(HeapAttribute.primResID.raw, HeapAttrWidth.u16, op.id)),
+      ],
+    );
+    return BdPrimitive._(null, node);
+  }
+
   int? get primResId => node.children.attr(HeapAttribute.primResID)?.asInt;
 
   PrimOp? get op => primResId == null ? null : PrimOp.fromId(primResId!);
@@ -215,6 +322,24 @@ class BdTerminal {
 
   /// Whether the terminal consumes its wire.
   bool get isSink => objFlags & (kBdSinkEndpointFlag | kBdInputEndpointFlag) != 0;
+
+  /// The terminal's rectangle within its node, from its endpoint's `termBounds`.
+  HeapRect? get termBounds {
+    for (final inner in holder.children.objects) {
+      final rect = inner.children.attr(HeapAttribute.termBounds)?.asRect;
+      if (rect != null) return rect;
+    }
+    return null;
+  }
+
+  /// Where a wire meets the terminal, in the frame: the middle of the terminal's outer edge.
+  HeapRect get attachPoint {
+    final node = owner.bounds ?? const HeapRect(top: 0, left: 0, bottom: 0, right: 0);
+    final term = termBounds ?? const HeapRect(top: 0, left: 0, bottom: 0, right: 0);
+    final y = node.top + (term.top + term.bottom) ~/ 2;
+    final x = node.left + (isSink ? term.left : term.right);
+    return HeapRect(top: y, left: x, bottom: y, right: x);
+  }
 
   /// The terminal's name: the primitive's own, else `in0`, `out0`, … by role and order.
   String get name {
@@ -303,3 +428,21 @@ class BdWire {
 const int kBdSinkEndpointFlag = 0x8000;
 
 const int kBdInputEndpointFlag = 0x4000;
+
+/// The class of the data object inside a primitive's endpoint holder.
+const int kBdNodeTerminalDcoKind = 0x30;
+
+/// A node's terminal list and a signal's endpoint list, the counted group `0x2b` in bank 1.
+const int kBdTermList = 0x12b;
+
+/// The route of a wire from [from] to [to], both points, as the compressed table spells it:
+/// straight when they share a row or column, else one turn after the horizontal leg.
+WireTable bdRouteBetween(HeapRect from, HeapRect to) {
+  final dx = to.left - from.left, dy = to.top - from.top;
+  final horizontal = dx >= 0 ? WireRouteDirection.right : WireRouteDirection.left;
+  final vertical = dy >= 0 ? WireRouteDirection.down : WireRouteDirection.up;
+  if (dy == 0) return WireTable(2, modes: [horizontal.code]);
+  if (dx == 0) return WireTable(2, modes: [vertical.code]);
+  final turn = (horizontal == WireRouteDirection.right) == (vertical == WireRouteDirection.down) ? 1 : 0;
+  return WireTable(3, modes: [horizontal.code, turn], lengths: [dx.abs()]);
+}
