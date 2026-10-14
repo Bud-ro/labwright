@@ -266,9 +266,11 @@ String? _viName(Uint8List bytes, int infoOffset) {
   if (infoOffset + 0x34 <= bytes.length) {
     final rel = ByteData.sublistView(bytes).getUint32(infoOffset + 0x30);
     final at = infoOffset + rel;
-    if (at < bytes.length) {
+    if (rel >= 0x34 && at < bytes.length) {
       final len = bytes[at];
-      if (len > 0 && at + 1 + len == bytes.length) return String.fromCharCodes(bytes.sublist(at + 1));
+      if (len > 0 && at + 1 + len <= bytes.length && _allPrintable(bytes, at + 1, at + 1 + len)) {
+        return String.fromCharCodes(bytes.sublist(at + 1, at + 1 + len));
+      }
     }
   }
   return _trailingName(bytes);

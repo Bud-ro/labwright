@@ -44,7 +44,7 @@ CorpusVi parseCorpusVi(File file) {
   try {
     sections = readViSections(bytes);
     decoded = [for (final section in sections) inflateSection(section)];
-    model = buildViModelFromDecoded(decoded, subViNames: subViNamesOf(sections, bytes));
+    model = buildViModelFromDecoded(decoded, subViNames: subViNamesOf(sections, bytes), file: bytes);
   } catch (e) {
     error = e;
   }

@@ -4,12 +4,15 @@ import '../labwright_rsrc_parse.dart';
 
 /// Everything decoded from one VI that the inspector and transpiler consume: the version and
 /// title, per-block component totals, the diagrams of both sides, the type pool, the sub-VI
-/// names, the connector-pane type and the font table.
+/// names, the connector-pane type and the font table; and the sections themselves, which
+/// edits change and [serialize] writes back into the file they were loaded from.
 class ViModel {
   const ViModel({
     required this.version,
     required this.title,
     required this.components,
+    this.sections = const <ViSectionBuffer>[],
+    this.file,
     this.blockDiagrams = const <ViDiagram>[],
     this.frontPanelDiagrams = const <ViDiagram>[],
     this.subViNames = const <String>[],
@@ -26,6 +29,24 @@ class ViModel {
   final String? title;
 
   final List<BlockComponent> components;
+
+  /// The file's own sections, in file order, each holding its inflated payload.
+  final List<ViSectionBuffer> sections;
+
+  /// The container the sections were loaded from, null for a model built without a file.
+  final ViVi? file;
+
+  /// The file with every edited section written back: a section that was stored compressed
+  /// is deflated again, the rest are copied as loaded.
+  Uint8List serialize() {
+    final file = this.file;
+    if (file == null) throw StateError('the model was built without a file to write into');
+    return file.withSectionPayloads({
+      for (final section in sections)
+        if (section.edited && section.secRel != null)
+          section.secRel!: section.compressed ? deflateHeapPayload(section.bytes) : section.bytes,
+    }).serialize();
+  }
 
   /// One diagram per `BDHb` section.
   final List<ViDiagram> blockDiagrams;
@@ -53,16 +74,24 @@ class ViModel {
   List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
 }
 
-/// Decodes every section of a VI and builds its [ViModel].
+/// Decodes every section of a VI and builds its [ViModel], which [ViModel.serialize] writes
+/// back into [viBytes]'s container.
 ViModel buildViModel(Uint8List viBytes) {
   final sections = readViSections(viBytes);
   return buildViModelFromDecoded(
     [for (final section in sections) inflateSection(section)],
     subViNames: subViNamesOf(sections, viBytes),
+    file: viBytes,
   );
 }
 
-ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> subViNames = const <String>[]}) {
+/// The model over [decoded]; with [file], the bytes they were read from, the model also holds
+/// the container that [ViModel.serialize] writes into.
+ViModel buildViModelFromDecoded(
+  Iterable<DecodedSection> decoded, {
+  List<String> subViNames = const <String>[],
+  Uint8List? file,
+}) {
   final list = decoded is List<DecodedSection> ? decoded : decoded.toList();
   final sections = list.map((d) => d.section).toList();
   final ver = versionFromSections(sections);
@@ -104,6 +133,17 @@ ViModel buildViModelFromDecoded(Iterable<DecodedSection> decoded, {List<String> 
   final cpmp = list.where((s) => s.tag == 'CPMp').map((s) => s.bytes).firstOrNull;
   final fptd = list.where((s) => s.tag == 'FPTD').map((s) => s.bytes).firstOrNull;
   return ViModel(
+    sections: [
+      for (final section in list)
+        ViSectionBuffer(
+          section.tag,
+          section.index,
+          section.bytes,
+          compressed: section.wasCompressed,
+          secRel: section.section.dataOffset,
+        ),
+    ],
+    file: file == null ? null : ViVi.parse(file),
     subViNames: subViNames,
     types: types,
     fontTable: fontTable,

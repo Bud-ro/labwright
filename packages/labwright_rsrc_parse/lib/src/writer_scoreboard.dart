@@ -116,7 +116,11 @@ WriterAttribution attributeVi(Uint8List bytes, {int depth = 0}) {
       (info.preGap == null ? 0 : ViInfoPreGap.byteSize) +
       20 * info.descriptors.length +
       info.nameTable.trailingNameRecord.length;
-  var infoRaw = info.subheader.reservedA.length + info.subheader.reservedB.length + info.nameTable.header.length;
+  var infoRaw =
+      info.subheader.reservedA.length +
+      info.subheader.reservedB.length +
+      info.nameTable.header.length +
+      info.nameTable.rest.length;
   var sectionPrefix = 0, typedPayload = 0, alignPad = 0, gaps = 0, compressed = 0, untyped = 0;
   var inflatedContent = 0, heapModel = 0, heapCopied = 0, heapBugs = 0;
   var imageCompressed = 0, imageInflated = 0, imageInflatedModel = 0, imageInflatedCopied = 0;
