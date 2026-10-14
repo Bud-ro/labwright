@@ -103,6 +103,12 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.strg || BlockTag.hlpt => StringSection(
+      tag: tag,
+      text: ViStringBlock(bytes).text,
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
@@ -973,4 +979,25 @@ final class FontSpec implements Spelled {
     ('metricA', metricA),
     ('metricB', metricB),
   ];
+}
+
+/// A text block (`STRG` the VI description, `HLPT` the help tag), one byte per character.
+final class StringSection extends TypedSection {
+  const StringSection({
+    required String tag,
+    required this.text,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  final String text;
+
+  @override
+  Uint8List get payload => ViStringBlock.encode(text);
+
+  @override
+  String get constructor => 'StringSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('tag', tag), ('text', text)];
 }

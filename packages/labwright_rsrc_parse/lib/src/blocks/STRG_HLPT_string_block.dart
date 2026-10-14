@@ -29,6 +29,16 @@ final class ViStringBlock extends ByteRecord {
   /// The text bytes.
   Uint8List get body => _text.read(view);
 
+  /// The block of [text], one byte per character.
+  static Uint8List encode(String text) {
+    final body = latin1.encode(text);
+    final out = Uint8List(_text.offset + body.length);
+    final view = ByteData.sublistView(out);
+    _length.write(view, body.length);
+    _text.write(view, body);
+    return out;
+  }
+
   static const _length = U32(0); // Bytes of text.
   static const _text = Bytes(4, count: _length);
 

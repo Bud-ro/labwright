@@ -126,6 +126,10 @@ void main() {
         ]),
       ),
     ],
+    'StringSection': [
+      ('STRG', _b([0, 0, 0, 6, 0x61, 0x0d, 0x0a, 0x27, 0x24, 0x93])),
+      ('HLPT', _b([0, 0, 0, 0])),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -251,6 +255,12 @@ void main() {
             metricB: 170,
           ),
         ],
+      ),
+    ],
+    'StringSection': [
+      StringSection(
+        tag: 'STRG',
+        text: 'Computes a CRC-8.\r\n\u{93}quoted\u{94}',
       ),
     ],
     'TagStoreSection': [

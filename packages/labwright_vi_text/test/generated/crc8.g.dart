@@ -48,11 +48,10 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
     digest2: _h('353eac4d9b2950db1726432cd8d0a519'),
     digest3: _h('e1522b62dd3a95a4541400dedc30b20b'),
   ),
-  RawSection(
-    'STRG',
-    _h(
-      '0000004a43616c63756c61746573206120382d626974204379636c696320526564756e64616e637920436865636b20284352432d382920666f7220766172696f757320616c676f726974686d732e',
-    ),
+  StringSection(
+    tag: 'STRG',
+    text:
+        'Calculates a 8-bit Cyclic Redundancy Check (CRC-8) for various algorithms.',
   ),
   IconSection(
     depth: LegacyIconDepth.mono,
