@@ -176,6 +176,30 @@ class ViModel {
     reloadTypes();
   }
 
+  /// Gives the pool's type at [index] a heap slot: a new top-level entry, which `DTHP` now
+  /// counts; returns the one-based slot a `typeDescIndex` names it by.
+  int allocateTypeSlot(int index) {
+    final vctp = section(BlockTag.vctp.tag)!;
+    final dthp = section(BlockTag.dthp.tag)!;
+    final heap = ViDataTypeHeap(dthp.bytes);
+    if (heap is! ViDataTypeHeapCompact) throw StateError('the data-type heap is not in its compact form');
+    final pool = ViTypePool(vctp.bytes);
+    final topLevel = pool.topLevelIndices;
+    final slot = topLevel.length - heap.viTypeIndexBase;
+    transact(() {
+      vctp.splice(vctp.length, vctp.length, [index >> 8 & 0xff, index & 0xff]);
+      vctp.edit((bytes) {
+        final view = ByteData.sublistView(bytes);
+        view.setUint16(pool.descriptorsEnd, topLevel.length + 1);
+      });
+      dthp.replace(
+        ViDataTypeHeapCompact.encode(heapTypeCount: slot, firstTopLevelIndex: heap.firstTopLevelIndex),
+      );
+    });
+    reloadTypes();
+    return slot;
+  }
+
   /// A VI with nothing on its panel or diagram, as LabVIEW 21.0 saves one.
   static ViModel empty({String name = 'untitled.vi'}) => buildViModel(emptyViBytes(name: name));
 

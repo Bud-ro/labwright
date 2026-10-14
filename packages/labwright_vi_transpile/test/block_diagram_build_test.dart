@@ -12,7 +12,7 @@ void main() {
     final times = editor.diagram.add(
       BdPrimitive.create(editor, PrimOp.multiply, at: const HeapRect(top: 40, left: 140, bottom: 72, right: 172)),
     );
-    editor.connect(add.terminal('x+y'), times.terminal('x'), type: 0x103);
+    editor.connect(add.terminal('x+y'), times.terminal('x'), type: BdType.i32);
     editor.write();
     final flow = buildLvDataflow(model.primaryBlockDiagram!, pool: model.types);
     expect(flow.refusal, isNull);

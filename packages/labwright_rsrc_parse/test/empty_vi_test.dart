@@ -25,11 +25,16 @@ void main() {
     ]);
     expect(
       (model.version, model.types.length, model.blockDiagrams.length, model.frontPanelDiagrams.length),
-      ('21.0', 0, 1, 1),
+      ('21.0', 2, 1, 1),
     );
+    expect((model.connectorPaneType as ViFunctionType?)?.parameterCount, kEmptyViPaneTerminals);
     final diagram = model.blockDiagram.diagram;
-    expect((diagram.placed.length, diagram.wires.length, diagram.endpointTable.oid), (0, 0, kEmptyViFirstFreeOid - 1));
+    expect(
+      (diagram.placed.length, diagram.wires.length, diagram.endpointTable?.oid),
+      (0, 0, EmptyViOid.endpointTable.oid),
+    );
     expect(model.allocateUid(), kEmptyViFirstFreeOid);
+    expect(model.frontPanelDiagrams.single.objects.map((o) => o.objectClass.name).toSet(), contains('contentViewport'));
     expect(model.primaryBlockDiagram!.objects.map((o) => o.objectClass.name), ['diagramRoot', 'bdFrame', 'bdWire']);
     final again = buildViModel(model.serialize());
     expect(again.sections.map((s) => s.bytes.length), model.sections.map((s) => s.bytes.length));
@@ -45,8 +50,8 @@ void main() {
       BdPrimitive.create(editor, PrimOp.multiply, at: const HeapRect(top: 40, left: 140, bottom: 72, right: 172)),
     );
     expect(add.terminals.map((t) => t.name), ['x+y', 'x', 'y']);
-    expect(add.terminal('x+y').attachPoint.left, 72 - 11);
-    final wire = editor.connect(add.terminal('x+y'), times.terminal('x'), type: 0x103);
+    expect(add.terminal('x+y').attachPoint.x, 72 - 11);
+    final wire = editor.connect(add.terminal('x+y'), times.terminal('x'), type: BdType.i32);
     expect(wire.endpointOids, [add.terminal('x+y').oid, times.terminal('x').oid]);
     editor.write();
     final diagram = model.primaryBlockDiagram!;

@@ -81,6 +81,15 @@ extension HeapNodeRecords on List<HeapNode> {
 Uint8List encodeHeapRectAttr(int rawId, HeapRect rect) =>
     Uint8List.fromList([0xc4 | (rawId >> 8), rawId & 0xff, 0x08, ...rect.payload]);
 
+/// A container attribute record: the ten-bit [rawId] over [payload], its length in one byte
+/// or, from `0xff` bytes on, behind an `0xff` escape as a word.
+Uint8List encodeHeapContainerAttr(int rawId, List<int> payload) => Uint8List.fromList([
+  0xc4 | (rawId >> 8),
+  rawId & 0xff,
+  if (payload.length < 0xff) payload.length else ...[0xff, payload.length >> 8 & 0xff, payload.length & 0xff],
+  ...payload,
+]);
+
 /// A scalar or flag attribute record: the ten-bit [rawId] and [value] in [width].
 Uint8List encodeHeapScalarAttr(int rawId, HeapAttrWidth width, int value) {
   final bank = rawId >> 8;
@@ -106,13 +115,15 @@ sealed class HeapNode {
 
 /// An object: its header, the records inside it, and whether the walk met its close.
 final class HeapObjectNode extends HeapNode {
-  /// A new object of [kind] with id [oid], opened and closed with [tag].
-  HeapObjectNode.create(this.kind, this.oid, {this.tag = 0x19, List<HeapNode>? children})
-    : lead = 0x10,
+  /// A new object of [kind] with id [oid], opened and closed with the ten-bit [rawTag]: the
+  /// record that relates it to its parent, `0x19` for a list item.
+  HeapObjectNode.create(this.kind, this.oid, {int rawTag = 0x19, List<HeapNode>? children})
+    : lead = 0x10 | (rawTag >> 8),
+      tag = rawTag & 0xff,
       wide = oid >= 0x8000,
       children = children ?? [],
-      closeLead = 0x08,
-      closeTag = 0x19;
+      closeLead = 0x08 | (rawTag >> 8),
+      closeTag = rawTag & 0xff;
 
   HeapObjectNode({
     required this.lead,
@@ -167,6 +178,14 @@ final class HeapGroupNode extends HeapNode {
       closeTag = rawId & 0xff {
     syncCount();
   }
+
+  /// A new group with the ten-bit [rawId] whose open record carries [word] as a `fe`-typed
+  /// value rather than a count.
+  HeapGroupNode.worded(int rawId, int word, {List<HeapNode>? children})
+    : open = Uint8List.fromList([0x10 | (rawId >> 8), rawId & 0xff, 0x01, 0xfe, word >> 8 & 0xff, word & 0xff]),
+      children = children ?? [],
+      closeLead = 0x08 | (rawId >> 8),
+      closeTag = rawId & 0xff;
 
   /// The open record, `[lead, tag, …]`, verbatim.
   final Uint8List open;
