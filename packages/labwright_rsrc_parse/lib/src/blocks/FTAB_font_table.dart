@@ -51,18 +51,22 @@ import '../byte_record.dart';
 
 final class ViFontTable extends ByteRecord {
   ViFontTable(Uint8List bytes) : super(bytes, layout) {
-    var at = nameTableOffset;
-    assert(at <= view.lengthInBytes, 'the records fit the payload');
-    for (var i = 0; i < fontCount; i++) {
-      assert(
-        view.getUint32(_records.offset + ViFontEntry.recordSize * i) == at,
-        'record $i names the next packed name',
-      );
-      assert(at < view.lengthInBytes, 'name $i has a length byte');
+    assert(namesTile(bytes), 'each record names the next packed name and the names tile the payload');
+    entries = List.generate(fontCount, (i) => ViFontEntry(this, i), growable: false);
+  }
+
+  /// Whether [bytes] hold the records, each naming the next packed name, and names that end
+  /// the payload.
+  static bool namesTile(Uint8List bytes) {
+    final view = ByteData.sublistView(bytes);
+    if (!layout.fits(bytes.length)) return false;
+    final count = _fontCount.read(view);
+    var at = _records.offset + ViFontEntry.recordSize * count;
+    for (var i = 0; i < count; i++) {
+      if (at >= bytes.length || view.getUint32(_records.offset + ViFontEntry.recordSize * i) != at) return false;
       at = PStr.endAt(view, at);
     }
-    assert(at == view.lengthInBytes, 'the names tile the payload');
-    entries = List.generate(fontCount, (i) => ViFontEntry(this, i), growable: false);
+    return at == bytes.length;
   }
 
   late final List<ViFontEntry> entries;
@@ -86,6 +90,49 @@ final class ViFontTable extends ByteRecord {
   ViFontEntry? entryForRunFontId(int fontId) {
     final index = fontId + 3;
     return index >= 0 && index < entries.length ? entries[index] : null;
+  }
+
+  /// A table of [fonts] in order, each record locating its packed name.
+  static Uint8List encode({
+    int version = 1,
+    required int platform,
+    int predefinedSlots = 3,
+    required List<
+      ({
+        String name,
+        int size,
+        int flagsByte,
+        int styleFlags,
+        int weight,
+        int resolvedSize,
+        int metricA,
+        int metricB,
+      })
+    >
+    fonts,
+  }) {
+    final namesAt = _records.offset + ViFontEntry.recordSize * fonts.length;
+    final out = Uint8List(namesAt + fonts.fold(0, (sum, font) => sum + 1 + font.name.length));
+    final view = ByteData.sublistView(out);
+    _version.write(view, version);
+    _platform.write(view, platform);
+    _predefinedSlots.write(view, predefinedSlots);
+    _fontCount.write(view, fonts.length);
+    var nameAt = namesAt;
+    for (var i = 0; i < fonts.length; i++) {
+      final font = fonts[i];
+      final record = ByteData.sublistView(out, _records.offset + ViFontEntry.recordSize * i);
+      ViFontEntry._nameOffset.write(record, nameAt);
+      ViFontEntry._size.write(record, font.size);
+      ViFontEntry._flagsByte.write(record, font.flagsByte);
+      ViFontEntry._styleFlags.write(record, font.styleFlags);
+      ViFontEntry._weight.write(record, font.weight);
+      ViFontEntry._resolvedSize.write(record, font.resolvedSize);
+      ViFontEntry._metricA.write(record, font.metricA);
+      ViFontEntry._metricB.write(record, font.metricB);
+      nameAt = PStr.writeAt(view, nameAt, font.name);
+    }
+    return out;
   }
 
   static const _version = U16(0);

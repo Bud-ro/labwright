@@ -98,6 +98,11 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
         index: index,
         compressed: compressed,
       ),
+    BlockTag.ftab when ViFontTable.namesTile(bytes) => FontTableSection.of(
+      ViFontTable(bytes),
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
@@ -846,4 +851,126 @@ final class DataTypeHeapWordSection extends TypedSection {
 
   @override
   List<(String, Object?)> get arguments => [('word', word)];
+}
+
+/// A font table (`FTAB`): the saving platform and its fonts in order, the three predefined
+/// slots first.
+final class FontTableSection extends TypedSection {
+  const FontTableSection({
+    this.version = 1,
+    required this.platform,
+    this.predefinedSlots = 3,
+    required this.fonts,
+    super.index,
+    super.compressed,
+  }) : super('FTAB');
+
+  factory FontTableSection.of(
+    ViFontTable table, {
+    int index = 0,
+    bool compressed = false,
+  }) => FontTableSection(
+    version: table.version,
+    platform: table.platform,
+    predefinedSlots: table.predefinedSlots,
+    fonts: [
+      for (final entry in table.entries)
+        FontSpec(
+          name: entry.name,
+          size: entry.size,
+          flagsByte: entry.flagsByte,
+          styleFlags: entry.styleFlags,
+          weight: entry.weight,
+          resolvedSize: entry.resolvedSize,
+          metricA: entry.metricA,
+          metricB: entry.metricB,
+        ),
+    ],
+    index: index,
+    compressed: compressed,
+  );
+
+  final int version;
+
+  final int platform;
+
+  final int predefinedSlots;
+
+  final List<FontSpec> fonts;
+
+  @override
+  Uint8List get payload => ViFontTable.encode(
+    version: version,
+    platform: platform,
+    predefinedSlots: predefinedSlots,
+    fonts: [
+      for (final font in fonts)
+        (
+          name: font.name,
+          size: font.size,
+          flagsByte: font.flagsByte,
+          styleFlags: font.styleFlags,
+          weight: font.weight,
+          resolvedSize: font.resolvedSize,
+          metricA: font.metricA,
+          metricB: font.metricB,
+        ),
+    ],
+  );
+
+  @override
+  String get constructor => 'FontTableSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    if (version != 1) ('version', version),
+    ('platform', platform),
+    if (predefinedSlots != 3) ('predefinedSlots', predefinedSlots),
+    ('fonts', fonts),
+  ];
+}
+
+/// One font record of a [FontTableSection] and its name.
+final class FontSpec implements Spelled {
+  const FontSpec({
+    required this.name,
+    required this.size,
+    required this.flagsByte,
+    required this.styleFlags,
+    required this.weight,
+    required this.resolvedSize,
+    required this.metricA,
+    required this.metricB,
+  });
+
+  final String name;
+
+  final int size;
+
+  final int flagsByte;
+
+  final int styleFlags;
+
+  final int weight;
+
+  final int resolvedSize;
+
+  final int metricA;
+
+  final int metricB;
+
+  @override
+  String get constructor => 'FontSpec';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('name', name),
+    ('size', size),
+    ('flagsByte', HexInt(flagsByte)),
+    ('styleFlags', HexInt(styleFlags)),
+    ('weight', weight),
+    ('resolvedSize', resolvedSize),
+    ('metricA', metricA),
+    ('metricB', metricB),
+  ];
 }

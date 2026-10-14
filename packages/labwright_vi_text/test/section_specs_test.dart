@@ -115,6 +115,17 @@ void main() {
     'DataTypeHeapWordSection': [
       ('DTHP', _b([0, 5])),
     ],
+    'FontTableSection': [
+      (
+        'FTAB',
+        _b([
+          0, 1, 0, 2, 0, 3, 0, 2, //
+          0, 0, 0, 40, 0, 15, 4, 0, 0, 0, 0, 15, 0, 217, 0, 212,
+          0, 0, 0, 42, 0x80, 0, 0x84, 0, 0x80, 0, 0, 15, 0x7f, 0xff, 0, 1,
+          1, 0x30, 8, ...'Segoe UI'.codeUnits,
+        ]),
+      ),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -225,6 +236,23 @@ void main() {
       DataTypeHeapSection(heapTypeCount: 115, firstTopLevelIndex: 3),
     ],
     'DataTypeHeapWordSection': [DataTypeHeapWordSection(word: 5)],
+    'FontTableSection': [
+      FontTableSection(
+        platform: 1,
+        fonts: const [
+          FontSpec(
+            name: 'Lucida Grande',
+            size: 13,
+            flagsByte: 4,
+            styleFlags: 0,
+            weight: 1000,
+            resolvedSize: 13,
+            metricA: 180,
+            metricB: 170,
+          ),
+        ],
+      ),
+    ],
     'TagStoreSection': [
       TagStoreSection(
         tags: [
