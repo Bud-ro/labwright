@@ -28,7 +28,7 @@ export 'src/naming.dart';
 export 'src/numeric.dart';
 export 'src/prim_map.dart';
 export 'src/runtime.dart';
-export 'src/stock_vis.dart';
 export 'src/subvi.dart';
 export 'src/type_map.dart';
+export 'src/vilib/vilib.dart';
 export 'src/wire_type.dart';

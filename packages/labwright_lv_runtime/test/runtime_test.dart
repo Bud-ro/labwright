@@ -177,7 +177,7 @@ void main() {
     expect(wall.elapsedMicroseconds, greaterThanOrEqualTo(20 * Duration.microsecondsPerMillisecond));
   });
 
-  test('the stock VIs: space, trimming, colour bytes, and an error from a code', () {
+  test('the vilib VIs: space, trimming, colour bytes, and an error from a code', () {
     expect(lvSpaceConstant(), ' ');
     expect(lvTrimWhitespace(string: '  a b \t\r\n'), 'a b');
     expect(lvTrimWhitespace(string: '  a b  ', location: LvTrimLocation.start), 'a b  ');

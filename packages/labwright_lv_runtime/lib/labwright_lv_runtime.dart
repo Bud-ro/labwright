@@ -4,7 +4,7 @@ export 'src/format_ops.dart';
 export 'src/match_pattern.dart';
 export 'src/numeric_ops.dart';
 export 'src/path_ops.dart';
-export 'src/stock_vis.dart';
 export 'src/string_ops.dart';
 export 'src/timing_ops.dart';
 export 'src/values.dart';
+export 'src/vilib/vilib.dart';
