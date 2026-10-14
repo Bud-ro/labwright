@@ -12,24 +12,48 @@ ViModel buildCrc8() {
   final crcOut = vi.indicator(BdType.u8, 'CRC-8');
   final xorOut = vi.control(BdType.u8, 'Xor Out (0x00)');
 
-  final bytes = vi.add(BdConstant.i32(256, label: 'bytes'));
+  final bytes = vi.add(BdConstant.i32(256, label: 'bytes', showLabel: true));
   final lut = vi.add(
-    BdConstant.array(BdType.u8, [
-      for (var i = 0; i < 256; i++) _reverseBits(i),
-    ], label: 'U8 Bits Reversed LUT'),
+    BdConstant.array(
+      BdType.u8,
+      [for (var i = 0; i < 256; i++) _reverseBits(i)],
+      label: 'U8 Bits Reversed LUT',
+      showLabel: true,
+      view: const BdArrayView(
+        index: HeapRect(top: 20, left: 3, bottom: 37, right: 35),
+        element: HeapRect(top: 21, left: 39, bottom: 40, right: 70),
+        firstIndex: 255,
+      ),
+    ),
   );
-  final zeros = vi.add(BdConstant.array(BdType.u8, List.filled(256, 0)));
+  final zeros = vi.add(
+    BdConstant.array(
+      BdType.u8,
+      List.filled(256, 0),
+      view: const BdArrayView(
+        index: HeapRect(top: 2, left: 2, bottom: 19, right: 36),
+        element: HeapRect(top: 3, left: 41, bottom: 22, right: 71),
+        firstIndex: 255,
+        format: '%02x',
+        showRadix: true,
+        elementLabel: true,
+      ),
+    ),
+  );
   final xor = vi.add(BdPrimitive(PrimOp.exclusiveOr));
   final toBytes = vi.add(BdPrimitive(PrimOp.stringToByteArray));
 
+  vi.diagram.comment('Embed the CRC-8 LUT if the\nPolynomial is a constant');
   final tableLoop = vi.add(BdLoop.forLoop());
+  tableLoop.body.comment('Create CRC-8 LUT');
   final table = tableLoop.shiftRegister(BdType.u8.array);
   final replace = tableLoop.add(BdReplaceArraySubset());
   final toU8 = tableLoop.add(BdPrimitive(PrimOp.toUnsignedByteInteger));
   final bitLoop = tableLoop.add(BdLoop.forLoop());
-  final eight = tableLoop.add(BdConstant.i32(8, label: '8-bits'));
+  final eight = tableLoop.add(BdConstant.i32(8, label: '8-bits', showLabel: true));
   final crc = bitLoop.shiftRegister(BdType.u8);
-  final bitCase = bitLoop.add(BdCase());
+  final bitCase = bitLoop.add(BdCase(label: 'XOR?'));
+  bitLoop.iteration.hideGlyph();
   final rotate = bitLoop.add(BdPrimitive(PrimOp.rotateLeftWithCarry));
   final carry = bitLoop.add(BdConstant.boolean(false, label: 'carry'));
   final rotated = bitCase.tunnel(BdType.u8, direction: BdTunnelDirection.input);
@@ -54,6 +78,7 @@ ViModel buildCrc8() {
 
   final disable = vi.add(BdDisable());
   final reverseLoop = disable.disabled.add(BdLoop.forLoop());
+  reverseLoop.body.comment('Create U8 Bits Reversed LUT');
   final reversed = reverseLoop.tunnel(BdType.u8.array, direction: BdTunnelDirection.output, indexing: true);
   final count = disable.disabled.add(BdConstant.i32(256));
   final toU8a = reverseLoop.add(BdPrimitive(PrimOp.toUnsignedByteInteger));
@@ -70,9 +95,12 @@ ViModel buildCrc8() {
   vi.connect(count, reverseLoop.count);
 
   final byteLoop = vi.add(BdLoop.forLoop());
+  byteLoop.body.comment('Calculate CRC-8');
+  byteLoop.body.comment('Uses Look Up Tables (LUTs)\nfor better performance on\nlarge data sets.');
+  byteLoop.iteration.hideGlyph();
   final running = byteLoop.shiftRegister(BdType.u8);
   final input = byteLoop.tunnel(BdType.u8.array, direction: BdTunnelDirection.input, indexing: true);
-  final reflectCase = byteLoop.add(BdCase());
+  final reflectCase = byteLoop.add(BdCase(label: 'Reflect Input?'));
   final toI32 = byteLoop.add(BdPrimitive(PrimOp.toLongInteger));
   final index = byteLoop.add(BdIndexArray());
   final mix = byteLoop.add(BdPrimitive(PrimOp.exclusiveOr));
@@ -94,7 +122,8 @@ ViModel buildCrc8() {
   vi.connect(running.left, mix.terminal('y'));
   vi.connect(input, byteIn);
 
-  final outCase = vi.add(BdCase());
+  final outCase = vi.add(BdCase(label: 'Reflect Output?'));
+  outCase.whenTrue.comment('Reverse Bits');
   final crcIn = outCase.tunnel(BdType.u8, direction: BdTunnelDirection.input);
   final crcOutT = outCase.tunnel(BdType.u8, direction: BdTunnelDirection.output);
   final toI32o = outCase.whenTrue.add(BdPrimitive(PrimOp.toLongInteger));

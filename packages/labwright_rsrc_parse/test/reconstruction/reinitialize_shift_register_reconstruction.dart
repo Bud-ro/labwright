@@ -11,6 +11,7 @@ ViModel buildReinitializeShiftRegister() {
   final zero = vi.add(BdConstant.i32(0));
   vi.add(loop);
   final register = loop.shiftRegister(BdType.i32);
+  loop.body.comment('Other Data Manipulation in the While Loop Goes Here');
   final reset = loop.add(BdCase());
   final keep = reset.tunnel(BdType.i32, direction: BdTunnelDirection.input);
   final next = reset.tunnel(BdType.i32, direction: BdTunnelDirection.output);

@@ -8,8 +8,8 @@ ViModel buildDisplayCurrentTime() {
   final stamp = vi.indicator(BdType.timestamp, 'LabVIEW TimeStamp');
 
   final format = vi.add(BdConstant.string('%m/%d/%Y%H:%M:%S%3u', label: 'time format string (%c)'));
-  final toText = vi.add(BdPrimitive(PrimOp.formatDateTimeString));
-  final now = vi.add(BdPrimitive(PrimOp.getDateTimeInSeconds));
+  final toText = vi.add(BdPrimitive(PrimOp.formatDateTimeString, label: 'Format Date/Time String'));
+  final now = vi.add(BdPrimitive(PrimOp.getDateTimeInSeconds, label: 'Get Date/Time In Seconds'));
   vi.connect(format, toText.terminal('time format string'));
   vi.connect(toText.terminal('date/time string'), formatted);
   vi.connect(now.terminal('current time'), toText.terminal('time stamp'));
