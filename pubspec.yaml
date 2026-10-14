@@ -12,6 +12,7 @@ workspace:
   - packages/labwright_rsrc_parse
   - packages/labwright_lv_runtime
   - packages/labwright_vi_transpile
+  - packages/labwright_vi_text
   - packages/labwright_seq
   - example/e2e
 
