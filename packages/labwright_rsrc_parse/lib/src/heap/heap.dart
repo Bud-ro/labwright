@@ -336,6 +336,9 @@ enum HeapAttribute {
   /// Mouse-wheel support; inferred.
   mouseWheelSupport(0x286, HeapAttrKind.enumValue, 'mouseWheelSupport', AttrConfidence.inferred),
 
+  /// Which palette constant a diagram constant drawn as a glyph is: three for the empty string; inferred.
+  fixedConstant(0x03b, HeapAttrKind.enumValue, 'fixedConstant', AttrConfidence.inferred),
+
   /// First node index; inferred.
   firstNodeIdx(0x072, HeapAttrKind.ordinal, 'firstNodeIdx', AttrConfidence.inferred),
 

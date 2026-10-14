@@ -16,6 +16,7 @@ import '../../../packages/labwright_rsrc_parse/test/reconstruction/current_time_
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/display_current_time_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/execute_vi_remotely_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_range_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/hex_string_display_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/mean_of_2d_array_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/snippet_example_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/unit_test_add_reconstruction.dart';
@@ -39,6 +40,8 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   'crc8.png': buildCrc8,
   'Convert_from_a_String_to_a_Numeric_Data_Type_in_LabVIEW.png':
       buildStringToNumber,
+  'Converting_Hexadeicmal_String_from_Normal_Display_to_Hex_Display.png':
+      buildHexStringDisplay,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(

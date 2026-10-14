@@ -1918,6 +1918,79 @@ class BdConstant extends BdPlaced {
       .._autoPlace = at == null;
   }
 
+  /// The palette's Empty String Constant: an 18 by 16 glyph at [at]'s top left, with no label.
+  factory BdConstant.emptyString(BdEditor editor, {ViPoint at = (x: 0, y: 0)}) {
+    final model = editor.model;
+    final index = BdType.string.addTo(model);
+    final slot = model.allocateTypeSlot(index);
+    final controlSlot = model.allocateTypeSlot(index);
+    final entry = object(
+      kNodeEndpointDcoKind,
+      editor.allocateOid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x21040),
+        object(
+          HeapObjectClass.bdConstDco.code,
+          editor.allocateOid(),
+          rawTag: HeapRefKind.dcoRef.raw,
+          children: [
+            attr(HeapAttribute.typeDescIndex, HeapAttrWidth.u8, slot),
+            attr(HeapAttribute.dsw, HeapAttrWidth.u16, 0x1000),
+            object(
+              HeapObjectClass.bdConstant4e.code,
+              editor.allocateOid(),
+              rawTag: HeapRefKind.ddoRef.raw,
+              children: [
+                attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1020),
+                c4Rect(
+                  HeapOpcode.bounds,
+                  HeapRect(
+                    top: at.y,
+                    left: at.x,
+                    bottom: at.y + kBdEmptyStringConstantHeight,
+                    right: at.x + kBdEmptyStringConstantWidth,
+                  ),
+                ),
+                list(kControlParts, [
+                  object(
+                    HeapObjectClass.controlChrome.code,
+                    editor.allocateOid(),
+                    children: [
+                      attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1933),
+                      attr(HeapAttribute.partRole, HeapAttrWidth.u8, 9),
+                      attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+                      c4Rect(HeapOpcode.bounds, const HeapRect(top: -8, left: -7, bottom: 24, right: 25)),
+                      worded(kPartOffset, kPartOffsetWord, [
+                        attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, kBdEmptyStringGlyph),
+                      ]),
+                      attr(HeapAttribute.fgColor, HeapAttrWidth.rgb, 0xff00ff),
+                      attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
+                    ],
+                  ),
+                  object(
+                    HeapObjectClass.connectorTerminal.code,
+                    editor.allocateOid(),
+                    children: [
+                      attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x42),
+                      attr(HeapAttribute.refListLength, HeapAttrWidth.u8, 0),
+                      attr(HeapAttribute.hGrowNodeListLength, HeapAttrWidth.u8, 0),
+                      attr(HeapAttribute.sizeExtent, HeapAttrWidth.u16, 0x5bcf),
+                    ],
+                  ),
+                ]),
+                attr(HeapAttribute.typeDescIndex, HeapAttrWidth.u8, controlSlot),
+                attr(HeapAttribute.mouseWheelSupport, HeapAttrWidth.u8, 0),
+                attr(HeapAttribute.fixedConstant, HeapAttrWidth.u8, kBdEmptyStringConstant),
+              ],
+            ),
+            _constValue(BdType.string, ''),
+          ],
+        ),
+      ],
+    );
+    return BdConstant._(null, entry).._type = BdType.string;
+  }
+
   BdType? _type;
 
   /// Where the constant's box sits within its bounds; null for a loaded constant.
@@ -2414,6 +2487,14 @@ const int kBdRadixDigitsLeft = 7;
 const int kBdShownLabelFlags = 0x171142;
 
 const int kBdHiddenLabelFlags = 0x17114a;
+/// The Empty String Constant's `fixedConstant` value, its glyph image and its size.
+const int kBdEmptyStringConstant = 3;
+
+const int kBdEmptyStringGlyph = 0xe0bd;
+
+const int kBdEmptyStringConstantWidth = 18;
+
+const int kBdEmptyStringConstantHeight = 16;
 
 /// A part's list of images and each image's group.
 const int kPartImages = 0x11f;
