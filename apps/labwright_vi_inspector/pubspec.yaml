@@ -15,8 +15,6 @@ dependencies:
   image: ^4.8.0
   labwright_rsrc_parse:
     path: ../../packages/labwright_rsrc_parse
-  labwright_vi_text:
-    path: ../../packages/labwright_vi_text
   super_clipboard: ^0.9.1
 
 dev_dependencies:
@@ -37,7 +35,3 @@ flutter:
         - asset: assets/fonts/selawk.ttf
         - asset: assets/fonts/selawkb.ttf
           weight: 700
-
-dependency_overrides:
-  labwright_rsrc_parse:
-    path: ../../packages/labwright_rsrc_parse
