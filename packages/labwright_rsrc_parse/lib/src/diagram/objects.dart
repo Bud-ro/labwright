@@ -160,7 +160,19 @@ class ViHeapObject {
   final HeapObjectClass objectClass;
 
   /// Byte offset of the object header in the heap body.
-  final int offset;
+  int offset;
+
+  /// Where the object's records end: after its closing group, or the body's end when the walk
+  /// left it open.
+  int end = 0;
+
+  /// Offset of the bounds record's payload, its four `i16`s, when the object has one.
+  int? boundsOffset;
+
+  /// Offset of the label record, header included, when the object has one, and its length.
+  int? labelOffset;
+
+  int labelLength = 0;
 
   /// The bounds record, relative to the parent object's origin.
   HeapRect? bounds;

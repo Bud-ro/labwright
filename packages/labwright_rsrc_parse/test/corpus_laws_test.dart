@@ -8,6 +8,7 @@ import 'corpus/const_value_census.dart';
 import 'corpus/corpus_coverage.dart';
 import 'corpus/corpus_invariants.dart';
 import 'corpus/corpus_snapshot.dart';
+import 'corpus/heap_edit.dart';
 import 'corpus/invariants.dart';
 import 'corpus/ir_json.dart';
 import 'corpus/model_serialize.dart';
@@ -32,6 +33,7 @@ void main() {
     );
   });
   group('invariants', invariantsTests);
+  group('heap_edit', heapEditTests);
   group('corpus_snapshot', corpusSnapshotTests);
   group('ir_json', irJsonTests);
   group('model_serialize', modelSerializeTests);
