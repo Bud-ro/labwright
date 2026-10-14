@@ -1343,6 +1343,45 @@ int heapObjectHeaderLength(Uint8List body, int offset) {
 /// The class code of the object header at [offset].
 int heapObjectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
 
+/// An object header of [lead] and [tag] opening an object of [kind] with id [oid]: the nine-byte
+/// form while the id is below 0x8000, else the thirteen-byte form.
+Uint8List encodeHeapObjectHeader(int lead, int tag, int kind, int oid) {
+  final wide = oid >= 0x8000;
+  final out = Uint8List(wide ? 13 : 9);
+  out[0] = lead;
+  out[1] = tag;
+  out[2] = 0x02;
+  out[3] = 0xfe;
+  out[4] = kind >> 8 & 0xff;
+  out[5] = kind & 0xff;
+  out[6] = 0xfd;
+  if (wide) {
+    out[7] = 0x80;
+    ByteData.sublistView(out).setUint32(9, oid);
+  } else {
+    ByteData.sublistView(out).setUint16(7, oid);
+  }
+  return out;
+}
+
+/// A reference record of [lead] and [id] to the object [oid]: six bytes while the id is
+/// below 0x8000, else ten.
+Uint8List encodeHeapRef(int lead, int id, int oid) {
+  final wide = oid >= 0x8000;
+  final out = Uint8List(wide ? 10 : 6);
+  out[0] = lead;
+  out[1] = id;
+  out[2] = 0x01;
+  out[3] = 0xfd;
+  if (wide) {
+    out[4] = 0x80;
+    ByteData.sublistView(out).setUint32(6, oid);
+  } else {
+    ByteData.sublistView(out).setUint16(4, oid);
+  }
+  return out;
+}
+
 /// The oid of the object header at [offset] whose [heapObjectHeaderLength] is [length].
 int heapObjectHeaderOid(Uint8List body, int offset, int length) => length == 13
     ? body[offset + 9] << 24 | body[offset + 10] << 16 | body[offset + 11] << 8 | body[offset + 12]
