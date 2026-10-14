@@ -48,6 +48,15 @@ Uint8List _saveRecord(int length) {
   return bytes;
 }
 
+Uint8List _printRecord(int length) {
+  final bytes = _b([for (var i = 0; i < length; i++) i * 11 & 0xff]);
+  final view = ByteData.sublistView(bytes);
+  for (final at in [32, 92, 96, 100, 104, 116]) {
+    view.setFloat32(at, at / 7, Endian.little);
+  }
+  return bytes;
+}
+
 void main() {
   final decoded = <String, List<(String, Uint8List)>>{
     'IconSection': [
@@ -135,6 +144,10 @@ void main() {
     ],
     'PiccSection': [
       ('PICC', _b([0, 0x92, 9, 2, 1, 0xa8, 2, 0x14, 1, 0x9b, 1, 0xef])),
+    ],
+    'PrintSettingsSection': [
+      ('PRT ', _printRecord(128)),
+      ('PRT ', _printRecord(136)),
     ],
     'TagStoreSection': [
       (
@@ -279,6 +292,24 @@ void main() {
     ],
     'PiccSection': [
       PiccSection(kind: 3, flags: 1, top: 10, left: 20, bottom: 12, right: -4),
+    ],
+    'PrintSettingsSection': [
+      PrintSettingsSection(
+        unknown8: Uint8List(8),
+        printableHeightPixels: 6392,
+        printableWidthPixels: 4892,
+        printableHeightPoints: 767,
+        printableWidthPoints: 587,
+        pixelsPerPoint: 8.333333015441895,
+        unknown36: _b([0, 0x4e, 0, 8]),
+        unknown40: _b([0, 0, 0, 2, 0, 0, 0, 1]),
+        unknown76: Uint8List(16),
+        marginTop: 0.18000000715255737,
+        marginLeft: 0.18000000715255737,
+        marginBottom: 0.18000000715255737,
+        marginRight: 0.18000000715255737,
+        unknown108: Uint8List(4),
+      ),
     ],
     'TagStoreSection': [
       TagStoreSection(

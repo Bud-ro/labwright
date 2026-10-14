@@ -76,6 +76,106 @@ final class ViPrintRecord extends ByteRecord {
     return (width / 72 + left + right, height / 72 + top + bottom);
   }
 
+  /// Zero.
+  int get zero0 => _zero0.read(view);
+
+  /// Always 1.
+  int get one4 => _one4.read(view);
+
+  /// Two words, zero in all but 37 files; roles TODO.
+  Uint8List get unknown8 => _unknown8.read(view);
+
+  /// Zero.
+  int get zero16 => _zero16.read(view);
+
+  /// Zero.
+  int get zero24 => _zero24.read(view);
+
+  /// 00 4e 00 08 in 2111 files, 00 4e 00 09 in 667; role TODO.
+  Uint8List get unknown36 => _unknown36.read(view);
+
+  /// A big-endian 2, 8 or 16, then 0 or 1; roles TODO.
+  Uint8List get unknown40 => _unknown40.read(view);
+
+  /// Zero.
+  Uint8List get zero48 => _zero48.read(view);
+
+  /// Zero, or the f32s 2.0, 1.0, 1.0, 1.0 in 11 files; roles TODO.
+  Uint8List get unknown76 => _unknown76.read(view);
+
+  /// Zero in all but one file.
+  Uint8List get unknown108 => _unknown108.read(view);
+
+  /// Repeats the height and width at 28 and 30 in all but one file.
+  (int, int) get printablePointsAgain =>
+      (_printableHeightPointsAgain.read(view), _printableWidthPointsAgain.read(view));
+
+  /// 0.5 in every file.
+  double get half116 => _half116.read(view);
+
+  /// Zero.
+  Uint8List get zero120 => _zero120.read(view);
+
+  /// One or two words in 103 LabVIEW 2012 files; roles TODO.
+  List<int> get extra => _extra.read(view);
+
+  /// The record of the given fields; a null zero run stays zero, and a null repeated height or
+  /// width repeats the printable points.
+  static Uint8List encode({
+    required int zero0,
+    required int one4,
+    required List<int> unknown8,
+    required int zero16,
+    required int printableHeightPixels,
+    required int printableWidthPixels,
+    required int zero24,
+    required int printableHeightPoints,
+    required int printableWidthPoints,
+    required double pixelsPerPoint,
+    required List<int> unknown36,
+    required List<int> unknown40,
+    List<int>? zero48,
+    required List<int> unknown76,
+    required double marginTop,
+    required double marginLeft,
+    required double marginBottom,
+    required double marginRight,
+    required List<int> unknown108,
+    int? printableHeightPointsAgain,
+    int? printableWidthPointsAgain,
+    required double half116,
+    List<int>? zero120,
+    List<int> extra = const [],
+  }) {
+    final out = Uint8List(_extra.offset + _extra.wordSize * extra.length);
+    final view = ByteData.sublistView(out);
+    _zero0.write(view, zero0);
+    _one4.write(view, one4);
+    _unknown8.write(view, unknown8);
+    _zero16.write(view, zero16);
+    _printableHeightPixels.write(view, printableHeightPixels);
+    _printableWidthPixels.write(view, printableWidthPixels);
+    _zero24.write(view, zero24);
+    _printableHeightPoints.write(view, printableHeightPoints);
+    _printableWidthPoints.write(view, printableWidthPoints);
+    _pixelsPerPoint.write(view, pixelsPerPoint);
+    _unknown36.write(view, unknown36);
+    _unknown40.write(view, unknown40);
+    if (zero48 != null) _zero48.write(view, zero48);
+    _unknown76.write(view, unknown76);
+    _marginTop.write(view, marginTop);
+    _marginLeft.write(view, marginLeft);
+    _marginBottom.write(view, marginBottom);
+    _marginRight.write(view, marginRight);
+    _unknown108.write(view, unknown108);
+    _printableHeightPointsAgain.write(view, printableHeightPointsAgain ?? printableHeightPoints);
+    _printableWidthPointsAgain.write(view, printableWidthPointsAgain ?? printableWidthPoints);
+    _half116.write(view, half116);
+    if (zero120 != null) _zero120.write(view, zero120);
+    _extra.write(view, extra);
+    return out;
+  }
+
   // dart format off
   static const _zero0 = U32(0, endian: Endian.little); // Zero.
   static const _one4 = U32(4, endian: Endian.little); // Always 1.

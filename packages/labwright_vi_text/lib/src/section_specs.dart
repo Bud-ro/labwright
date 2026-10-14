@@ -119,6 +119,12 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.prt when ViPrintRecord.layout.fits(n) && n % 4 == 0 =>
+      PrintSettingsSection.of(
+        ViPrintRecord(bytes),
+        index: index,
+        compressed: compressed,
+      ),
     _ => null,
   };
 }
@@ -425,6 +431,11 @@ final class SaveRecordSection extends TypedSection {
     ('unknown144', unknown144),
   ];
 }
+
+bool _isZero(List<int> bytes) => bytes.every((b) => b == 0);
+
+Uint8List? _unlessZero(Uint8List bytes) =>
+    _isZero(bytes) ? null : Uint8List.fromList(bytes);
 
 Uint8List _copy(Uint8List bytes) => Uint8List.fromList(bytes);
 
@@ -1158,5 +1169,164 @@ final class PiccSection extends TypedSection {
     ('left', left),
     ('bottom', bottom),
     ('right', right),
+  ];
+}
+
+/// Print settings (`PRT `), a little-endian record: the printable area in printer pixels and in
+/// points, the pixels per point and the margins in inches. A null zero run is all zero bytes,
+/// and a null repeated height or width repeats the printable points.
+final class PrintSettingsSection extends TypedSection {
+  const PrintSettingsSection({
+    this.zero0 = 0,
+    this.one4 = 1,
+    required this.unknown8,
+    this.zero16 = 0,
+    required this.printableHeightPixels,
+    required this.printableWidthPixels,
+    this.zero24 = 0,
+    required this.printableHeightPoints,
+    required this.printableWidthPoints,
+    required this.pixelsPerPoint,
+    required this.unknown36,
+    required this.unknown40,
+    this.zero48,
+    required this.unknown76,
+    required this.marginTop,
+    required this.marginLeft,
+    required this.marginBottom,
+    required this.marginRight,
+    required this.unknown108,
+    this.printableHeightPointsAgain,
+    this.printableWidthPointsAgain,
+    this.half116 = 0.5,
+    this.zero120,
+    this.extra = const [],
+    super.index,
+    super.compressed,
+  }) : super('PRT ');
+
+  factory PrintSettingsSection.of(
+    ViPrintRecord record, {
+    int index = 0,
+    bool compressed = false,
+  }) {
+    final (heightPixels, widthPixels) = record.printablePixels;
+    final (heightPoints, widthPoints) = record.printablePoints;
+    final (heightAgain, widthAgain) = record.printablePointsAgain;
+    final (top, left, bottom, right) = record.margins;
+    return PrintSettingsSection(
+      zero0: record.zero0,
+      one4: record.one4,
+      unknown8: _copy(record.unknown8),
+      zero16: record.zero16,
+      printableHeightPixels: heightPixels,
+      printableWidthPixels: widthPixels,
+      zero24: record.zero24,
+      printableHeightPoints: heightPoints,
+      printableWidthPoints: widthPoints,
+      pixelsPerPoint: record.pixelsPerPoint,
+      unknown36: _copy(record.unknown36),
+      unknown40: _copy(record.unknown40),
+      zero48: _unlessZero(record.zero48),
+      unknown76: _copy(record.unknown76),
+      marginTop: top,
+      marginLeft: left,
+      marginBottom: bottom,
+      marginRight: right,
+      unknown108: _copy(record.unknown108),
+      printableHeightPointsAgain: heightAgain == heightPoints
+          ? null
+          : heightAgain,
+      printableWidthPointsAgain: widthAgain == widthPoints ? null : widthAgain,
+      half116: record.half116,
+      zero120: _unlessZero(record.zero120),
+      extra: record.extra,
+      index: index,
+      compressed: compressed,
+    );
+  }
+
+  final int zero0;
+  final int one4;
+  final Uint8List unknown8;
+  final int zero16;
+  final int printableHeightPixels;
+  final int printableWidthPixels;
+  final int zero24;
+  final int printableHeightPoints;
+  final int printableWidthPoints;
+  final double pixelsPerPoint;
+  final Uint8List unknown36;
+  final Uint8List unknown40;
+  final Uint8List? zero48;
+  final Uint8List unknown76;
+  final double marginTop;
+  final double marginLeft;
+  final double marginBottom;
+  final double marginRight;
+  final Uint8List unknown108;
+  final int? printableHeightPointsAgain;
+  final int? printableWidthPointsAgain;
+  final double half116;
+  final Uint8List? zero120;
+  final List<int> extra;
+
+  @override
+  Uint8List get payload => ViPrintRecord.encode(
+    zero0: zero0,
+    one4: one4,
+    unknown8: unknown8,
+    zero16: zero16,
+    printableHeightPixels: printableHeightPixels,
+    printableWidthPixels: printableWidthPixels,
+    zero24: zero24,
+    printableHeightPoints: printableHeightPoints,
+    printableWidthPoints: printableWidthPoints,
+    pixelsPerPoint: pixelsPerPoint,
+    unknown36: unknown36,
+    unknown40: unknown40,
+    zero48: zero48,
+    unknown76: unknown76,
+    marginTop: marginTop,
+    marginLeft: marginLeft,
+    marginBottom: marginBottom,
+    marginRight: marginRight,
+    unknown108: unknown108,
+    printableHeightPointsAgain: printableHeightPointsAgain,
+    printableWidthPointsAgain: printableWidthPointsAgain,
+    half116: half116,
+    zero120: zero120,
+    extra: extra,
+  );
+
+  @override
+  String get constructor => 'PrintSettingsSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    if (zero0 != 0) ('zero0', zero0),
+    if (one4 != 1) ('one4', one4),
+    ('unknown8', unknown8),
+    if (zero16 != 0) ('zero16', zero16),
+    ('printableHeightPixels', printableHeightPixels),
+    ('printableWidthPixels', printableWidthPixels),
+    if (zero24 != 0) ('zero24', zero24),
+    ('printableHeightPoints', printableHeightPoints),
+    ('printableWidthPoints', printableWidthPoints),
+    ('pixelsPerPoint', pixelsPerPoint),
+    ('unknown36', unknown36),
+    ('unknown40', unknown40),
+    ('zero48', zero48),
+    ('unknown76', unknown76),
+    ('marginTop', marginTop),
+    ('marginLeft', marginLeft),
+    ('marginBottom', marginBottom),
+    ('marginRight', marginRight),
+    ('unknown108', unknown108),
+    ('printableHeightPointsAgain', printableHeightPointsAgain),
+    ('printableWidthPointsAgain', printableWidthPointsAgain),
+    if (half116 != 0.5) ('half116', half116),
+    ('zero120', zero120),
+    if (extra.isNotEmpty) ('extra', extra),
   ];
 }

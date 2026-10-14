@@ -169,6 +169,9 @@ String _spell(Spelled value, [List<String> extra = const []]) {
 String _value(Object argument) => switch (argument) {
   int() || bool() => '$argument',
   HexInt(:final value) => _hex(value),
+  double(isNaN: true) => 'double.nan',
+  double(isInfinite: true) =>
+    argument > 0 ? 'double.infinity' : '-double.infinity',
   double() => '$argument',
   String() => _string(argument),
   Uint8List() => '_h(${_bytes(argument)})',
