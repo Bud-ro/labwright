@@ -12,9 +12,8 @@ import 'package:labwright_vi_text/labwright_vi_text.dart';
 
 import 'util.dart';
 
-Future<Uint8List> _rgba(ui.Image image) async => (await image.toByteData(
-  format: ui.ImageByteFormat.rawRgba,
-))!.buffer.asUint8List();
+Future<Uint8List> _rgba(ui.Image image) async =>
+    (await image.toByteData())!.buffer.asUint8List();
 
 void main() {
   testWidgets(
