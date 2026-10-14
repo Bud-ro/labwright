@@ -40,7 +40,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
     unknown144: _h('d41d8cd98f00b204e9800998ecf8427e'),
   ),
   SignatureSection(tag: 'RTSG', digest: _h('69caf914c0a20b16e25154821b66c14f')),
-  RawSection('vers', _h('2100800000000432312e3000')),
+  VersionSection(versionWord: 0x21008000, versionText: '21.0'),
   RawSection('CONP', _h('0001')),
   LinkInfoSection(tag: 'LIvi', rootKind: 'LVIN', entries: []),
   PasswordSection(

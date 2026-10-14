@@ -87,6 +87,13 @@ void main() {
         ]),
       ),
     ],
+    'VersionSection': [
+      ('vers', _vers12),
+      (
+        'vers',
+        _b([0x21, 0, 0x80, 4, 0, 14, 4, ...'21.0'.codeUnits, 2, 0x61, 0x62]),
+      ),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -172,7 +179,7 @@ void main() {
       ),
     ],
     'LinkInfoSection, library form': [
-      RawSection('vers', _vers12),
+      VersionSection(versionWord: 0x12008000, versionText: '12.0'),
       LinkInfoSection(
         tag: 'LIvi',
         rootKind: 'LVIN',

@@ -51,6 +51,11 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.vers => VersionSection.of(
+      ViVersBlock(bytes),
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
@@ -569,5 +574,58 @@ final class LinkEntrySpec implements Spelled {
     if (version != 2) ('version', version),
     ('kind', kind),
     ('body', body),
+  ];
+}
+
+/// A version record (`vers`): the numeric version word, the region code and the two version
+/// strings.
+final class VersionSection extends TypedSection {
+  const VersionSection({
+    required this.versionWord,
+    this.regionCode = 0,
+    required this.versionText,
+    this.infoText = '',
+    super.index,
+    super.compressed,
+  }) : super('vers');
+
+  factory VersionSection.of(
+    ViVersBlock vers, {
+    int index = 0,
+    bool compressed = false,
+  }) => VersionSection(
+    versionWord: vers.versionWordBits,
+    regionCode: vers.regionCode,
+    versionText: vers.versionText,
+    infoText: vers.infoText,
+    index: index,
+    compressed: compressed,
+  );
+
+  final int versionWord;
+
+  final int regionCode;
+
+  final String versionText;
+
+  final String infoText;
+
+  @override
+  Uint8List get payload => ViVersBlock.encode(
+    versionWord: versionWord,
+    regionCode: regionCode,
+    versionText: versionText,
+    infoText: infoText,
+  );
+
+  @override
+  String get constructor => 'VersionSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('versionWord', HexInt(versionWord)),
+    if (regionCode != 0) ('regionCode', regionCode),
+    ('versionText', versionText),
+    if (infoText.isNotEmpty) ('infoText', infoText),
   ];
 }
