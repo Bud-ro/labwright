@@ -13,6 +13,7 @@ import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/array_to_spreadsheet_string_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/crc8_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/current_time_stamp_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/boolean_output_values_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/display_current_time_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/execute_vi_remotely_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_range_reconstruction.dart';
@@ -42,6 +43,8 @@ final Map<String, ViModel Function()> layoutReconstructions = {
       buildStringToNumber,
   'Converting_Hexadeicmal_String_from_Normal_Display_to_Hex_Display.png':
       buildHexStringDisplay,
+  'Modifying_LabVIEW_Boolean_Control_Output_Values.png':
+      buildBooleanOutputValues,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
