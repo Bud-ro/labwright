@@ -10,8 +10,11 @@ import 'dataflow.dart';
 import 'display_current_time_reconstruction.dart';
 import 'execute_vi_remotely_reconstruction.dart';
 import 'for_loop_range_reconstruction.dart';
+import 'for_loop_start_increment_reconstruction.dart';
 import 'loop_invariant_code_motion_reconstruction.dart';
 import 'mean_of_2d_array_reconstruction.dart';
+import 'multiply_rows_reconstruction.dart';
+import 'reinitialize_shift_register_reconstruction.dart';
 import 'snippet_example_reconstruction.dart';
 import 'while_loop_infinite_reconstruction.dart';
 
@@ -26,6 +29,9 @@ const reconstructions = <String, ViModel Function()>{
   'Display_Current_Time_in_LabVIEW_VI_2.png': buildDisplayCurrentTime,
   'Loop-Invariant_Code_Motion_-_Before.png': buildLoopInvariantBefore,
   'Loop-Invariant_Code_Motion_-_After.png': buildLoopInvariantAfter,
+  'Creating_a_For_Loop_with_Alternative_Starting_Index_and_Increment_Valu.png': buildForLoopStartIncrement,
+  '16605742_hOPNk.png': buildMultiplyRows,
+  'Reinitializing_a_Shift_Register_Without_Stopping_the_VI.png': buildReinitializeShiftRegister,
 };
 
 void main() {
