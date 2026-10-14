@@ -58,11 +58,17 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
     at++;
   }
   if (termIdx < 0) return null;
-  final sizedKey = (key, termIdx, box.right - box.left, box.bottom - box.top);
-  final offset = kBdPrimTerminalMeasured[sizedKey] ?? kBdPrimTerminalCensus[sizedKey];
+  final offset = bdPrimTerminalOffset(key, termIdx, box.right - box.left, box.bottom - box.top);
   if (offset == null) return null;
   return (
     x: offset.dx == null ? null : box.left + offset.dx!,
     y: offset.dy == null ? null : box.top + offset.dy!,
   );
+}
+
+/// The measured attach offset of terminal [termIdx] on a node of icon [key] drawn [width]
+/// by [height], per axis; null when nothing was measured for it.
+({int? dx, int? dy})? bdPrimTerminalOffset(int key, int termIdx, int width, int height) {
+  final sizedKey = (key, termIdx, width, height);
+  return kBdPrimTerminalMeasured[sizedKey] ?? kBdPrimTerminalCensus[sizedKey];
 }
