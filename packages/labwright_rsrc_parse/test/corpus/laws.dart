@@ -1,6 +1,7 @@
 import '../corpus_dirs.dart';
 
 import 'aux_blocks.dart';
+import 'bd_edit.dart';
 import 'const_value_census.dart';
 import 'corpus_coverage.dart';
 import 'corpus_invariants.dart';
@@ -25,6 +26,7 @@ import 'writer_scoreboard.dart';
 /// Every corpus law, as the worker applies them to each VI.
 const List<CorpusLaw<Object?>> corpusLaws = [
   auxBlocksLaw,
+  bdEditLaw,
   constValueCensusLaw,
   corpusCoverageLaw,
   corpusInvariantsLaw,

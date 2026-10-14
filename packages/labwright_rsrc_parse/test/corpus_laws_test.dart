@@ -4,6 +4,7 @@ library;
 import 'package:test/test.dart';
 
 import 'corpus/aux_blocks.dart';
+import 'corpus/bd_edit.dart';
 import 'corpus/const_value_census.dart';
 import 'corpus/corpus_coverage.dart';
 import 'corpus/corpus_invariants.dart';
@@ -36,6 +37,7 @@ void main() {
   });
   group('invariants', invariantsTests);
   group('heap_edit', heapEditTests);
+  group('bd_edit', bdEditTests);
   group('heap_tree', heapTreeTests);
   group('corpus_snapshot', corpusSnapshotTests);
   group('ir_json', irJsonTests);
