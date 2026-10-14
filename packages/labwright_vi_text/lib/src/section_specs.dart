@@ -42,9 +42,20 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.livi ||
+    BlockTag.libd ||
+    BlockTag.lifp ||
+    BlockTag.lids when n >= _linkInfoMinSize => LinkInfoSection.of(
+      tag,
+      ViLinkInfo(bytes, version: version),
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
+
+const _linkInfoMinSize = 12;
 
 /// An icon (`icl8`, `icl4`, `ICON`) as its 32 pixel rows, top to bottom: per pixel `#` for
 /// black and `.` for white at one bit, the palette index as one hex digit at four bits and as
@@ -431,4 +442,132 @@ final class SignatureSection extends TypedSection {
 
   @override
   List<(String, Object?)> get arguments => [('tag', tag), ('digest', digest)];
+}
+
+/// Link info (`LIvi`, `LIbd`, `LIfp`, `LIds`): its entries by kind, each body as bytes, and any
+/// region the entry grammar does not walk as [unwalked]; [qualifiedName] and [words] are the
+/// library form's header.
+final class LinkInfoSection extends TypedSection {
+  const LinkInfoSection({
+    required String tag,
+    this.version = 1,
+    required this.rootKind,
+    this.qualifiedName,
+    this.words = const [],
+    this.entryCount,
+    required this.entries,
+    this.unwalked,
+    this.terminator = 3,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  factory LinkInfoSection.of(
+    String tag,
+    ViLinkInfo info, {
+    int index = 0,
+    bool compressed = false,
+  }) {
+    final bytes = Uint8List.sublistView(info.view);
+    final framed = info.entries.whereType<ViLinkEntryFramed>().toList();
+    final rest = info.entries.whereType<ViLinkEntryUnwalked>().firstOrNull;
+    return LinkInfoSection(
+      tag: tag,
+      version: info.version,
+      rootKind: info.rootKind,
+      qualifiedName: info.qualifiedName,
+      words: info.words ?? const [],
+      entryCount: rest == null ? null : info.entryCount,
+      entries: [
+        for (final entry in framed)
+          LinkEntrySpec(
+            version: info.view.getUint16(
+              entry.offset + LinkInfoEntry.version.offset,
+            ),
+            kind: entry.kind,
+            body: bytes.sublist(
+              entry.offset + LinkInfoEntry.body.offset,
+              entry.end,
+            ),
+          ),
+      ],
+      unwalked: rest == null ? null : bytes.sublist(rest.offset, rest.end),
+      terminator: info.terminator,
+      index: index,
+      compressed: compressed,
+    );
+  }
+
+  final int version;
+
+  final String rootKind;
+
+  final String? qualifiedName;
+
+  final List<int> words;
+
+  /// The stored entry count when [unwalked] holds entries; null when it is [entries]' length.
+  final int? entryCount;
+
+  final List<LinkEntrySpec> entries;
+
+  final Uint8List? unwalked;
+
+  final int terminator;
+
+  @override
+  Uint8List get payload => ViLinkInfo.encode(
+    version: version,
+    rootKind: rootKind,
+    qualifiedName: qualifiedName,
+    words: words,
+    entryCount: entryCount,
+    entries: [
+      for (final entry in entries)
+        (version: entry.version, kind: entry.kind, body: entry.body),
+    ],
+    unwalked: unwalked ?? const [],
+    terminator: terminator,
+  );
+
+  @override
+  String get constructor => 'LinkInfoSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('tag', tag),
+    if (version != 1) ('version', version),
+    ('rootKind', rootKind),
+    ('qualifiedName', qualifiedName),
+    if (words.isNotEmpty) ('words', words),
+    ('entryCount', entryCount),
+    ('entries', entries),
+    ('unwalked', unwalked),
+    if (terminator != 3) ('terminator', terminator),
+  ];
+}
+
+/// One link entry: its [kind] and the body its grammar reads, as bytes.
+final class LinkEntrySpec implements Spelled {
+  const LinkEntrySpec({
+    this.version = 2,
+    required this.kind,
+    required this.body,
+  });
+
+  final int version;
+
+  final String kind;
+
+  final Uint8List body;
+
+  @override
+  String get constructor => 'LinkEntrySpec';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    if (version != 2) ('version', version),
+    ('kind', kind),
+    ('body', body),
+  ];
 }

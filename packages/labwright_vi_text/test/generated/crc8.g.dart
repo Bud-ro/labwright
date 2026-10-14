@@ -42,7 +42,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
   SignatureSection(tag: 'RTSG', digest: _h('69caf914c0a20b16e25154821b66c14f')),
   RawSection('vers', _h('2100800000000432312e3000')),
   RawSection('CONP', _h('0001')),
-  RawSection('LIvi', _h('00014c56494e000000000003')),
+  LinkInfoSection(tag: 'LIvi', rootKind: 'LVIN', entries: []),
   PasswordSection(
     passwordDigest: _h('d41d8cd98f00b204e9800998ecf8427e'),
     digest2: _h('353eac4d9b2950db1726432cd8d0a519'),
@@ -166,7 +166,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
     ],
   ),
   RawSection('CPC2', _h('0002')),
-  RawSection('LIfp', _h('000146504850000000000003')),
+  LinkInfoSection(tag: 'LIfp', rootKind: 'FPHP', entries: []),
   RawSection('FPEx', _h('00000000')),
   HeapSection('FPHb', [
     ObjectSpec(
@@ -4912,7 +4912,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
   ]),
   RawSection('FPSE', _h('00000061')),
   RawSection('VPDP', _h('00000000')),
-  RawSection('LIbd', _h('000142444850000000000003')),
+  LinkInfoSection(tag: 'LIbd', rootKind: 'BDHP', entries: []),
   RawSection('BDEx', _h('00000000')),
   RawSection('PICC', _h('0092090201a80214019b01ef')),
   HeapSection('BDHb', [

@@ -36,6 +36,8 @@ List<SectionSpec> _readBack(List<SectionSpec> sections) =>
 String _text(List<SectionSpec> sections) =>
     emitViSpecDart(ViSpec('t.vi', sections), identifier: 't');
 
+final _vers12 = _b([0x12, 0, 0x80, 0, 0, 0, 4, ...'12.0'.codeUnits, 0]);
+
 Uint8List _saveRecord(int length) {
   final bytes = _b([for (var i = 0; i < length; i++) i * 31 & 0xff]);
   ByteData.sublistView(bytes)
@@ -63,6 +65,27 @@ void main() {
     'SignatureSection': [
       for (final tag in ['RTSG', 'OBSG', 'CCSG'])
         (tag, _b([for (var i = 0; i < 16; i++) i * 17 & 0xff])),
+    ],
+    'LinkInfoSection': [
+      ('LIvi', _b([0, 1, ...'LVIN'.codeUnits, 0, 0, 0, 0, 0, 3])),
+      (
+        'LIbd',
+        _b([
+          0,
+          1,
+          ...'BDHP'.codeUnits,
+          0,
+          0,
+          0,
+          1,
+          0,
+          2,
+          ...'IUVI'.codeUnits,
+          9,
+          0,
+          3,
+        ]),
+      ),
     ],
     'TagStoreSection': [
       (
@@ -138,6 +161,25 @@ void main() {
     'SignatureSection': [
       SignatureSection(tag: 'RTSG', digest: Uint8List(16)),
       SignatureSection(tag: 'CCSG', digest: _b(emptyPasswordDigest)),
+    ],
+    'LinkInfoSection': [
+      LinkInfoSection(
+        tag: 'LIvi',
+        rootKind: 'LVIN',
+        entryCount: 1,
+        entries: const [],
+        unwalked: _b([0, 2, ...'IUVI'.codeUnits, 1, 2, 3]),
+      ),
+    ],
+    'LinkInfoSection, library form': [
+      RawSection('vers', _vers12),
+      LinkInfoSection(
+        tag: 'LIvi',
+        rootKind: 'LVIN',
+        qualifiedName: 'Lib.lvlib:Some.vi',
+        words: const [1, 2],
+        entries: const [],
+      ),
     ],
     'TagStoreSection': [
       TagStoreSection(
