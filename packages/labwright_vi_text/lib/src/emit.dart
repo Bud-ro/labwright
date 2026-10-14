@@ -54,6 +54,8 @@ void _section(StringBuffer out, SectionSpec section, int depth) {
         out.writeln('$pad  _h(${_bytes(descriptor)}),');
       }
       out.writeln('$pad], topLevel: ${_ints(topLevel)}$tail),');
+    case TypedSection():
+      out.writeln('$pad${_spell(section, extra)},');
     case RawSection(:final tag, :final bytes):
       out.writeln(
         '${pad}RawSection(${_string(tag)}, _h(${_bytes(bytes)})$tail),',
@@ -154,6 +156,33 @@ String _table(WireTable table) =>
 
 String _leg(WireLeg leg) =>
     'WireLeg.${leg.direction.name}(${leg.length ?? ''})';
+
+String _spell(Spelled value, [List<String> extra = const []]) {
+  final args = [
+    for (final (name, argument) in value.arguments)
+      if (argument != null) '$name: ${_value(argument)}',
+    ...extra,
+  ];
+  return '${value.constructor}(${args.join(', ')})';
+}
+
+String _value(Object argument) => switch (argument) {
+  int() || bool() => '$argument',
+  double() => '$argument',
+  String() => _string(argument),
+  Uint8List() => '_h(${_bytes(argument)})',
+  Enum() => '${_enumType(argument)}.${argument.name}',
+  HeapRect(:final top, :final left, :final bottom, :final right) =>
+    'HeapRect(top: $top, left: $left, bottom: $bottom, right: $right)',
+  Spelled() => _spell(argument),
+  List<Object>() => '[${argument.map(_value).join(', ')}]',
+  _ => throw ArgumentError.value(argument, 'argument', 'has no spelling'),
+};
+
+String _enumType(Enum value) => switch (value) {
+  LegacyIconDepth() => 'LegacyIconDepth',
+  _ => throw ArgumentError.value(value, 'value', 'is not a spelled enum'),
+};
 
 String _named(List<String> args) => args.isEmpty ? '' : ', ${args.join(', ')}';
 

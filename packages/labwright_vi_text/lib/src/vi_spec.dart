@@ -59,6 +59,19 @@ final class TypePoolSection extends SectionSpec {
   ]);
 }
 
+/// A value the text form spells as a call of [constructor] with the named [arguments] in
+/// order, each left out when null.
+abstract interface class Spelled {
+  String get constructor;
+
+  List<(String, Object?)> get arguments;
+}
+
+/// A section built from its decoded fields, which the text form spells as its constructor.
+abstract base class TypedSection extends SectionSpec implements Spelled {
+  const TypedSection(super.tag, {super.index, super.compressed});
+}
+
 /// A section carried as its bytes.
 final class RawSection extends SectionSpec {
   const RawSection(super.tag, this.bytes, {super.index, super.compressed});

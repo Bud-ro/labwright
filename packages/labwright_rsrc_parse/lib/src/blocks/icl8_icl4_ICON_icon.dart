@@ -81,6 +81,18 @@ final class ViLegacyIcon extends ByteRecord {
     };
   }
 
+  /// The [depth] bitmap of [pixels], one palette index per pixel, rows top to bottom.
+  static Uint8List encode(LegacyIconDepth depth, List<int> pixels) {
+    assert(pixels.length == width * height, 'an icon is $height rows of $width pixels');
+    final out = Uint8List(depth.byteLength);
+    final perByte = 8 ~/ depth.bits;
+    for (var pixel = 0; pixel < pixels.length; pixel++) {
+      assert(pixels[pixel] >> depth.bits == 0, 'pixel $pixel fits ${depth.bits} bits');
+      out[pixel ~/ perByte] |= pixels[pixel] << depth.bits * (perByte - 1 - pixel % perByte);
+    }
+    return out;
+  }
+
   /// The pixel at column [x], row [y] as `0xAARRGGBB` in the Mac system palette.
   int argbAt(int x, int y) => macIconArgb(depth, pixelAt(x, y));
 

@@ -223,6 +223,18 @@ final class PStr extends Field {
 
   String read(ByteData view) => readAt(view, offset);
 
+  /// Writes [value] as a length byte and its code units at [offset]; returns where it ends.
+  static int writeAt(ByteData view, int offset, String value) {
+    assert(value.length < 0x100, 'a Pascal string holds at most 255 bytes');
+    view.setUint8(offset, value.length);
+    for (var i = 0; i < value.length; i++) {
+      view.setUint8(offset + 1 + i, value.codeUnitAt(i));
+    }
+    return offset + 1 + value.length;
+  }
+
+  void write(ByteData view, String value) => writeAt(view, offset, value);
+
   @override
   String get typeName => 'pstr';
 }
@@ -241,6 +253,9 @@ final class Bytes extends Field {
 
   Uint8List read(ByteData view) => Uint8List.sublistView(view, offset, endIn(view));
 
+  /// Writes [value] at [offset]; a counted run's count is its own field's to write.
+  void write(ByteData view, List<int> value) => Uint8List.sublistView(view).setAll(offset, value);
+
   @override
   String get typeName => size == null ? 'u8[]' : 'u8[$size]';
 }
@@ -254,6 +269,8 @@ final class Unknown extends Field {
   final int? size;
 
   Uint8List read(ByteData view) => Uint8List.sublistView(view, offset, endIn(view));
+
+  void write(ByteData view, List<int> value) => Uint8List.sublistView(view).setAll(offset, value);
 
   @override
   String get typeName => '';
@@ -283,6 +300,12 @@ sealed class WordList extends Field {
   void setAt(ByteData view, int index, int value);
 
   List<int> read(ByteData view) => [for (var i = 0; i < lengthIn(view); i++) at(view, i)];
+
+  void write(ByteData view, List<int> values) {
+    for (var i = 0; i < values.length; i++) {
+      setAt(view, i, values[i]);
+    }
+  }
 
   String get _wordName;
 
