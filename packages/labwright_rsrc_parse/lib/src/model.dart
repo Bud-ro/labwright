@@ -115,6 +115,70 @@ class ViModel {
     reloadTypes();
   }
 
+  /// The heap section [diagram] was built from.
+  ViSectionBuffer sectionOf(ViDiagram diagram) => section(diagram.sectionTag, diagram.sectionIndex)!;
+
+  /// Moves [object] by ([dx], [dy]): its bounds record is rewritten in place, and the absolute
+  /// bounds of everything inside it follow.
+  void moveObject(ViDiagram diagram, ViHeapObject object, {required int dx, required int dy}) {
+    final at = object.boundsOffset;
+    final bounds = object.bounds;
+    if (at == null || bounds == null) throw ArgumentError('object ${object.oid} has no bounds record');
+    final moved = HeapRect(
+      top: bounds.top + dy,
+      left: bounds.left + dx,
+      bottom: bounds.bottom + dy,
+      right: bounds.right + dx,
+    );
+    ByteData.sublistView(sectionOf(diagram).writable)
+      ..setInt16(at, moved.top)
+      ..setInt16(at + 2, moved.left)
+      ..setInt16(at + 4, moved.bottom)
+      ..setInt16(at + 6, moved.right);
+    object.bounds = moved;
+    void follow(ViHeapObject inner) {
+      if (inner.absBounds case final abs?) {
+        inner.absBounds = HeapRect(
+          top: abs.top + dy,
+          left: abs.left + dx,
+          bottom: abs.bottom + dy,
+          right: abs.right + dx,
+        );
+      }
+      for (final child in diagram.childrenOf(inner)) {
+        follow(child);
+      }
+    }
+
+    follow(object);
+  }
+
+  /// Gives [object] the label [text], written as its code units in place of its label record.
+  void setLabel(ViDiagram diagram, ViHeapObject object, String text) {
+    final at = object.labelOffset;
+    if (at == null) throw ArgumentError('object ${object.oid} has no label record');
+    final record = encodeHeapC4Record(HeapOpcode.caption.byte, text.codeUnits);
+    sectionOf(diagram).splice(at, at + object.labelLength, record);
+    final delta = record.length - object.labelLength;
+    final named = diagram.parentOf(object);
+    if (named != null && named.labelOffset == null && named.label == object.label?.trim()) named.label = text.trim();
+    object
+      ..label = text
+      ..labelLength = record.length;
+    _shiftHeap(diagram, at, delta);
+  }
+
+  /// Moves every heap offset after [at] by [delta], after a splice there.
+  void _shiftHeap(ViDiagram diagram, int at, int delta) {
+    if (delta == 0) return;
+    for (final object in diagram.objects) {
+      if (object.offset > at) object.offset += delta;
+      if (object.end > at) object.end += delta;
+      if (object.boundsOffset case final bounds? when bounds > at) object.boundsOffset = bounds + delta;
+      if (object.labelOffset case final label? when label > at) object.labelOffset = label + delta;
+    }
+  }
+
   /// Rebuilds what the type pool decides, after `VCTP` changed: [types], every heap object's
   /// resolved type, [connectorPaneType] and [paneTerminals].
   void reloadTypes() {
@@ -194,7 +258,12 @@ ViModel buildViModelFromDecoded(
   List<ViDiagram> diagramsFor(BlockTag heap) => [
     for (final decodedSection in list)
       if (decodedSection.tag == heap.tag && decodedSection.bytes.length >= 6)
-        buildDiagram(decodedSection.bytes, sectionTag: decodedSection.tag, version: ver.version),
+        buildDiagram(
+          decodedSection.bytes,
+          sectionTag: decodedSection.tag,
+          version: ver.version,
+          sectionIndex: decodedSection.index,
+        ),
   ];
   final blockDiagrams = diagramsFor(BlockTag.bdhb);
   final frontPanelDiagrams = diagramsFor(BlockTag.fphb);

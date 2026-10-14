@@ -5,6 +5,7 @@ import 'const_value_census.dart';
 import 'corpus_coverage.dart';
 import 'corpus_invariants.dart';
 import 'corpus_snapshot.dart';
+import 'heap_edit.dart';
 import 'invariants.dart';
 import 'ir_json.dart';
 import 'model_serialize.dart';
@@ -26,6 +27,7 @@ const List<CorpusLaw<Object?>> corpusLaws = [
   corpusCoverageLaw,
   corpusInvariantsLaw,
   corpusSnapshotLaw,
+  heapEditLaw,
   invariantsLaw,
   irJsonLaw,
   modelSerializeLaw,

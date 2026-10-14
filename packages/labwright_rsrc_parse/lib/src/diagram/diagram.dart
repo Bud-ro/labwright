@@ -118,7 +118,7 @@ class ViObjectsByOid {
 /// The objects of one heap section, indexed by oid and parent, with the wires derived from
 /// its signals.
 class ViDiagram {
-  ViDiagram({required this.sectionTag, required this.objects, this.version})
+  ViDiagram({required this.sectionTag, required this.objects, this.version, this.sectionIndex = 0})
     : byId = ViObjectsByOid(objects),
       _childrenOf = List<List<ViHeapObject>?>.filled(objects.length, null) {
     for (var i = 0; i < objects.length; i++) {
@@ -130,8 +130,10 @@ class ViDiagram {
     }
   }
 
-  /// The section the heap came from, `FPHb` or `BDHb`.
+  /// The section the heap came from, `FPHb` or `BDHb`, and its index among that block's sections.
   final String sectionTag;
+
+  final int sectionIndex;
 
   /// The saving LabVIEW version as `major.minor`, when the caller knows it.
   final String? version;
@@ -847,7 +849,7 @@ Object? decodeBdConstantValue({
 /// After the walk, label bounds are re-based on their owner, flat-sequence frames are shifted
 /// to their declared offsets, items and help text bubble up to the owning control, unlabelled
 /// nodes take their first child label, and controls under a scrolled viewport are re-anchored.
-ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? version}) {
+ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? version, int sectionIndex = 0}) {
   final objects = <ViHeapObject>[];
   final length = body.length;
   final objectCapacity = length ~/ kHeapObjectHeaderMinLength + 1;
@@ -947,9 +949,12 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     }
     if (isHeapGroupCloseLead(lead)) {
       if (scopes.isEmpty) continue;
-      scopes.removeLast();
+      final closed = scopes.removeLast();
       final groupTag = groupTags.removeLast();
-      if (groupTag == null) continue;
+      if (groupTag == null) {
+        closed?.end = next;
+        continue;
+      }
       final owner = selectorOwner;
       if (owner != null) {
         if (selectorEntryOpen && selectorGroupDepth == 2) {
@@ -1066,6 +1071,7 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
               right: view.getInt16(start + 6),
             );
             cur.bounds = bounds;
+            cur.boundsOffset = start;
             final top = originTop[cur.index] + bounds.top;
             final left = originLeft[cur.index] + bounds.left;
             originTop[cur.index] = top;
@@ -1073,7 +1079,13 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
             cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
           }
         case 0x22:
-          cur.label ??= heapRecordText(Uint8List.sublistView(body, start, end));
+          if (cur.label == null) {
+            cur.label = heapRecordText(Uint8List.sublistView(body, start, end));
+            if (cur.label != null) {
+              cur.labelOffset = offset;
+              cur.labelLength = recordLength;
+            }
+          }
         case 0x1f:
           cur.termCount++;
         case 0x74:
@@ -1262,7 +1274,10 @@ ViDiagram buildDiagram(Uint8List body, {String sectionTag = 'BDHb', String? vers
     }
   }
 
-  final diagram = ViDiagram(sectionTag: sectionTag, objects: objects, version: version);
+  for (final object in objects) {
+    if (object.end == 0) object.end = length;
+  }
+  final diagram = ViDiagram(sectionTag: sectionTag, objects: objects, version: version, sectionIndex: sectionIndex);
   final byOid = diagram.byId;
 
   for (final object in objects) {

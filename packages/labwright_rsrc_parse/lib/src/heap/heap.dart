@@ -958,6 +958,23 @@ class HeapRecord {
       kind.shape == HeapShape.container ? scanC4Records(payload, sectionTag) : const <HeapRecord>[];
 }
 
+/// A C4 record of [opcode] over [payload]: the prefix, the opcode, then the length as one byte,
+/// or `ff` and a `u16` from 255 bytes.
+Uint8List encodeHeapC4Record(int opcode, List<int> payload) {
+  final wide = payload.length >= 0xff;
+  final out = Uint8List((wide ? 5 : 3) + payload.length);
+  out[0] = kHeapRecordPrefix;
+  out[1] = opcode;
+  if (wide) {
+    out[2] = 0xff;
+    ByteData.sublistView(out).setUint16(3, payload.length);
+  } else {
+    out[2] = payload.length;
+  }
+  out.setAll(wide ? 5 : 3, payload);
+  return out;
+}
+
 /// A string-shaped record's text, with line ends normalised; null when a byte is not text.
 String? heapRecordText(Uint8List payload) {
   if (payload.isEmpty) return null;
