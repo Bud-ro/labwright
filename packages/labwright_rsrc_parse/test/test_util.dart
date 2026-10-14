@@ -1,6 +1,7 @@
 import 'dart:math';
 import 'dart:typed_data';
 
+import 'package:archive/archive.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
@@ -108,3 +109,88 @@ Uint8List poolOf(List<List<int>> descriptors, {List<int> topLevel = const []}) =
   0, topLevel.length,
   for (final i in topLevel) ...[i >> 8, i & 0xff],
 ]);
+
+/// An RSRC file over [blocks], each tag with its sections' payloads in order, laid out as
+/// LabVIEW lays a VI out: the info area holds the header copy, the block list with its count
+/// stored one short, the pre-gap, one 20-byte descriptor per section of every block but the
+/// last, the 12-byte name-table header carrying the last block's one section as its `secRel`,
+/// then the VI name. A tag in [embeddedTags] gets the embedded namespace word.
+Uint8List buildRsrc(
+  List<({String tag, List<List<int>> sections})> blocks, {
+  Set<String> embeddedTags = const {},
+  String name = 'fixture.vi',
+}) {
+  assert(blocks.isEmpty || blocks.last.sections.length == 1, 'the last block has the one section the name table holds');
+  final data = BytesBuilder();
+  final secRels = <int>[];
+  for (final block in blocks) {
+    for (final section in block.sections) {
+      while (data.length & 3 != 0) {
+        data.addByte(0);
+      }
+      secRels.add(data.length);
+      data.add(be32(section.length));
+      data.add(section);
+    }
+  }
+  final dataBytes = data.toBytes();
+  const blockListRel = 0x34;
+  final descriptorsAt = blockListRel + 4 + blocks.length * 12 + 8;
+  final described = blocks.isEmpty ? 0 : secRels.length - 1;
+  final nameTableAt = descriptorsAt + described * 20;
+  final nameAt = nameTableAt + 12;
+  final infoSize = nameAt + 1 + name.length;
+
+  Uint8List header() => u8([
+    0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a, //
+    ...be16(3),
+    ...'LVIN'.codeUnits,
+    ...'LBVW'.codeUnits,
+    ...be32(32 + dataBytes.length),
+    ...be32(infoSize),
+    ...be32(32),
+    ...be32(dataBytes.length),
+  ]);
+
+  final info = BytesBuilder()
+    ..add(header())
+    ..add(be32(0))
+    ..add(be32(0))
+    ..add(be32(0x20))
+    ..add(be32(blockListRel))
+    ..add(be32(nameAt))
+    ..add(be32(blocks.isEmpty ? 0 : blocks.length - 1));
+  var descRel = descriptorsAt - (blockListRel + 8);
+  for (final block in blocks) {
+    info
+      ..add(block.tag.codeUnits)
+      ..add(be32(block.sections.length - 1))
+      ..add(be32(descRel));
+    descRel += block.sections.length * 20;
+  }
+  info
+    ..add(be32(0))
+    ..add(be32(embeddedTags.isEmpty ? 0 : 0xFFFFFFFF));
+  var section = 0;
+  for (final block in blocks.take(described == 0 ? 0 : blocks.length - 1)) {
+    for (var i = 0; i < block.sections.length; i++) {
+      info
+        ..add(be32(0))
+        ..add(be32(secRels[section++]))
+        ..add(be32(0))
+        ..add(be32(0))
+        ..add(be32(embeddedTags.contains(block.tag) ? 0 : 0xFFFFFFFF));
+    }
+  }
+  info
+    ..add(be32(0))
+    ..add(be32(blocks.isEmpty ? 0 : secRels.last))
+    ..add(be32(0))
+    ..add(pascal(name));
+  return u8([...header(), ...dataBytes, ...info.toBytes()]);
+}
+
+Uint8List compressedSection(List<int> payload) {
+  final z = const ZLibEncoder().encode(payload);
+  return u8([...(ByteData(4)..setUint32(0, payload.length)).buffer.asUint8List(), ...z]);
+}

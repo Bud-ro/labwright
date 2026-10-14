@@ -347,9 +347,9 @@ class ViSectionDescriptor {
 }
 
 /// The bytes after the descriptors: a header whose second word is the final entry's `secRel`,
-/// then the VI name as a Pascal string.
+/// the VI name as a Pascal string, and any bytes after the name.
 class ViNameTable {
-  ViNameTable({required this.header, required this.trailingNameRecord});
+  ViNameTable({required this.header, required this.trailingNameRecord, this.rest = const []});
 
   final Uint8List header;
 
@@ -358,20 +358,26 @@ class ViNameTable {
   ViNameTable withHeaderValue(int secRel) {
     final out = Uint8List.fromList(header);
     ByteData.sublistView(out).setUint32(4, secRel);
-    return ViNameTable(header: out, trailingNameRecord: trailingNameRecord);
+    return ViNameTable(header: out, trailingNameRecord: trailingNameRecord, rest: rest);
   }
 
   final Uint8List trailingNameRecord;
 
+  /// The bytes after the name record, which an XControl facade's name table carries.
+  final List<int> rest;
+
   String? get trailingName => trailingNameRecord.isEmpty ? null : String.fromCharCodes(trailingNameRecord, 1);
 
+  /// [tail] split at the name: at [nameStart] when the subheader gives it and a Pascal string
+  /// fits there, else at the last Pascal string that ends the tail.
   factory ViNameTable.parse(Uint8List tail, {int? nameStart}) {
     if (nameStart != null && nameStart >= 0 && nameStart < tail.length) {
       final len = tail[nameStart];
-      if (len > 0 && nameStart + 1 + len == tail.length) {
+      if (len > 0 && nameStart + 1 + len <= tail.length) {
         return ViNameTable(
           header: Uint8List.fromList(tail.sublist(0, nameStart)),
-          trailingNameRecord: Uint8List.fromList(tail.sublist(nameStart)),
+          trailingNameRecord: Uint8List.fromList(tail.sublist(nameStart, nameStart + 1 + len)),
+          rest: Uint8List.fromList(tail.sublist(nameStart + 1 + len)),
         );
       }
     }
@@ -404,7 +410,8 @@ class ViNameTable {
   Uint8List serialize() =>
       (BytesBuilder()
             ..add(header)
-            ..add(trailingNameRecord))
+            ..add(trailingNameRecord)
+            ..add(rest))
           .toBytes();
 }
 
@@ -637,6 +644,33 @@ class ViVi {
 
   ViVi withSectionEdited({required int secRel, required Uint8List newPayload}) =>
       ViVi.parse(ViExport.editSection(serialize(), secRel: secRel, newPayload: newPayload));
+
+  /// The file with the sections at [payloadBySecRel]'s keys carrying those payloads. The gaps
+  /// between sections are kept until a section changes length; from there each section is
+  /// preceded by the zero padding that keeps it four-byte aligned.
+  ViVi withSectionPayloads(Map<int, Uint8List> payloadBySecRel) {
+    final segments = <ViDataSegment>[];
+    var pos = 0, shifted = false;
+    for (final segment in dataSegments) {
+      switch (segment) {
+        case ViGap(:final bytes):
+          if (shifted) continue;
+          segments.add(segment);
+          pos += bytes.length;
+        case ViSectionData(:final secRel, :final payload):
+          if (shifted && pos & 3 != 0) {
+            final pad = Uint8List((4 - (pos & 3)) & 3);
+            segments.add(ViGap(pad));
+            pos += pad.length;
+          }
+          final edited = payloadBySecRel[secRel] ?? payload;
+          if (edited.length != payload.length) shifted = true;
+          segments.add(ViSectionData(secRel: secRel, payload: edited));
+          pos += 4 + edited.length;
+      }
+    }
+    return ViVi(header: header, dataSegments: segments, infoArea: infoArea);
+  }
 
   Uint8List serialize() {
     final data = ViExport.rebuildDataArea(dataSegments);

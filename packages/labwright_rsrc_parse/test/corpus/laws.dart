@@ -7,6 +7,7 @@ import 'corpus_invariants.dart';
 import 'corpus_snapshot.dart';
 import 'invariants.dart';
 import 'ir_json.dart';
+import 'model_serialize.dart';
 import 'object_color.dart';
 import 'pane_terminal_census.dart';
 import 'selector_range_census.dart';
@@ -26,6 +27,7 @@ const List<CorpusLaw<Object?>> corpusLaws = [
   corpusSnapshotLaw,
   invariantsLaw,
   irJsonLaw,
+  modelSerializeLaw,
   objectColorLaw,
   paneTerminalCensusLaw,
   selectorRangeCensusLaw,

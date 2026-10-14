@@ -10,6 +10,7 @@ import 'corpus/corpus_invariants.dart';
 import 'corpus/corpus_snapshot.dart';
 import 'corpus/invariants.dart';
 import 'corpus/ir_json.dart';
+import 'corpus/model_serialize.dart';
 import 'corpus/object_color.dart';
 import 'corpus/pane_terminal_census.dart';
 import 'corpus/selector_range_census.dart';
@@ -32,6 +33,7 @@ void main() {
   group('invariants', invariantsTests);
   group('corpus_snapshot', corpusSnapshotTests);
   group('ir_json', irJsonTests);
+  group('model_serialize', modelSerializeTests);
   group('writer_scoreboard', writerScoreboardTests);
   group('wire_route_census', wireRouteCensusTests);
   group('object_color', objectColorTests);

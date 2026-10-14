@@ -7,74 +7,6 @@ import 'package:test/test.dart';
 
 import 'test_util.dart';
 
-Uint8List buildRsrc(List<({String tag, List<List<int>> sections})> blocks, {Set<String> embeddedTags = const {}}) {
-  void be16(BytesBuilder b, int v) => b.add((ByteData(2)..setUint16(0, v)).buffer.asUint8List());
-  void be32(BytesBuilder b, int v) => b.add((ByteData(4)..setUint32(0, v)).buffer.asUint8List());
-
-  final data = BytesBuilder();
-  final secOff = <String, int>{};
-  for (var bi = 0; bi < blocks.length; bi++) {
-    for (var si = 0; si < blocks[bi].sections.length; si++) {
-      secOff['$bi.$si'] = data.length;
-      be32(data, blocks[bi].sections[si].length);
-      data.add(blocks[bi].sections[si]);
-    }
-  }
-  final dataBytes = data.toBytes();
-
-  Uint8List header() {
-    final h = BytesBuilder()..add(const [0x52, 0x53, 0x52, 0x43, 0x0d, 0x0a]);
-    be16(h, 3);
-    h
-      ..add('LVIN'.codeUnits)
-      ..add('LBVW'.codeUnits);
-    be32(h, 32 + dataBytes.length);
-    be32(h, 0);
-    be32(h, 32);
-    be32(h, dataBytes.length);
-    return h.toBytes();
-  }
-
-  final info = BytesBuilder()
-    ..add(header())
-    ..add(Uint8List(12));
-  be32(info, 0x34);
-  be32(info, 0);
-  be32(info, blocks.length);
-  const descBase = 0x3c;
-  var off = (0x38 + blocks.length * 12) - descBase;
-  final descOffsets = <int>[];
-  for (final b in blocks) {
-    descOffsets.add(off);
-    off += b.sections.length * 20;
-  }
-  for (var bi = 0; bi < blocks.length; bi++) {
-    info.add(blocks[bi].tag.codeUnits);
-    be32(info, blocks[bi].sections.length - 1);
-    be32(info, descOffsets[bi]);
-  }
-  for (var bi = 0; bi < blocks.length; bi++) {
-    for (var si = 0; si < blocks[bi].sections.length; si++) {
-      be32(info, si);
-      be32(info, secOff['$bi.$si']!);
-      be32(info, 0);
-      be32(info, 0);
-      be32(info, embeddedTags.contains(blocks[bi].tag) ? 0 : 0xFFFFFFFF);
-    }
-  }
-
-  return (BytesBuilder()
-        ..add(header())
-        ..add(dataBytes)
-        ..add(info.toBytes()))
-      .toBytes();
-}
-
-Uint8List compressedSection(List<int> payload) {
-  final z = const ZLibEncoder().encode(payload);
-  return u8([...(ByteData(4)..setUint32(0, payload.length)).buffer.asUint8List(), ...z]);
-}
-
 void main() {
   test('extracts each block section with its exact bytes; empty container yields none', () {
     final rsrc = buildRsrc([
@@ -119,10 +51,16 @@ void main() {
         ),
         (tag: 'LIBN', sections: ['My.lvlib'.codeUnits]),
         (tag: 'VINS', sections: [nested]),
+        (
+          tag: 'FTAB',
+          sections: [
+            [0, 0],
+          ],
+        ),
       ],
       embeddedTags: {'LIBN', 'VINS'},
     );
-    expect(readViSections(rsrc).map((s) => s.tag), ['vers'], reason: 'primary reader sees only own data');
+    expect(readViSections(rsrc).map((s) => s.tag), ['vers', 'FTAB'], reason: 'primary reader sees only own data');
     final emb = readEmbeddedSections(rsrc);
     expect(emb.map((s) => '${s.tag}#${s.index}'), ['LIBN#0', 'VINS#0']);
     expect(String.fromCharCodes(emb[0].bytes), 'My.lvlib');

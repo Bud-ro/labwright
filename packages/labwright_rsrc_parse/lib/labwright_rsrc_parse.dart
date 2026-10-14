@@ -77,6 +77,7 @@ export 'src/project/lv_flattened_text.dart';
 export 'src/project/lv_library_file.dart';
 export 'src/project/lv_project_index.dart';
 export 'src/pth0.dart';
+export 'src/section_buffer.dart';
 export 'src/snippet_png.dart';
 export 'src/viparse.dart';
 export 'src/word_grid.dart';
