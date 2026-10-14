@@ -22,6 +22,8 @@ final class ViMaxUid extends ByteRecord {
   /// The highest object id in the heaps.
   int get maxUid => _maxUid.read(view);
 
+  set maxUid(int value) => _maxUid.write(view, value);
+
   static const _maxUid = U32(0);
 
   static const layout = ByteLayout([_maxUid]);
