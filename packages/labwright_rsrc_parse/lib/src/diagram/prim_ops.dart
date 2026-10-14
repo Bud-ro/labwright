@@ -336,6 +336,10 @@ const Map<PrimOp, List<PrimTerminal>> _terminals = {
     PrimTerminal('millisecond timer value', 0, 16, 32, 32, type: ViDataType.u32),
     PrimTerminal.input('milliseconds to wait', 0, 0, 32, 16, type: ViDataType.u32),
   ],
+  PrimOp.waitUntilNextMsMultiple: [
+    PrimTerminal('millisecond timer value', 0, 16, 32, 32, type: ViDataType.u32),
+    PrimTerminal.input('millisecond multiple', 0, 0, 32, 16, type: ViDataType.u32),
+  ],
   PrimOp.getDateTimeInSeconds: [PrimTerminal('current time', 0, 0, 32, 32, type: ViDataType.measureData)],
   PrimOp.arraySize: [PrimTerminal('size(s)', 0, 16, 21, 32), PrimTerminal.input('array', 0, 0, 21, 16)],
   PrimOp.addArrayElements: [PrimTerminal('sum', 0, 12, 25, 25), PrimTerminal.input('numeric array', 0, 0, 25, 12)],

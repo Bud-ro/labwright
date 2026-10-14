@@ -16,6 +16,7 @@ import 'mean_of_2d_array_reconstruction.dart';
 import 'multiply_rows_reconstruction.dart';
 import 'reinitialize_shift_register_reconstruction.dart';
 import 'snippet_example_reconstruction.dart';
+import 'toggle_text_reconstruction.dart';
 import 'while_loop_infinite_reconstruction.dart';
 
 /// Each corpus snippet rebuilt from the editing API.
@@ -32,6 +33,7 @@ const reconstructions = <String, ViModel Function()>{
   'Creating_a_For_Loop_with_Alternative_Starting_Index_and_Increment_Valu.png': buildForLoopStartIncrement,
   '16605742_hOPNk.png': buildMultiplyRows,
   'Reinitializing_a_Shift_Register_Without_Stopping_the_VI.png': buildReinitializeShiftRegister,
+  '32768403_29Tuz.png': buildToggleText,
 };
 
 void main() {
