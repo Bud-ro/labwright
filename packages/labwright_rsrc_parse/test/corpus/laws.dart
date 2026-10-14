@@ -6,6 +6,7 @@ import 'corpus_coverage.dart';
 import 'corpus_invariants.dart';
 import 'corpus_snapshot.dart';
 import 'heap_edit.dart';
+import 'heap_tree.dart';
 import 'invariants.dart';
 import 'ir_json.dart';
 import 'model_serialize.dart';
@@ -28,6 +29,7 @@ const List<CorpusLaw<Object?>> corpusLaws = [
   corpusInvariantsLaw,
   corpusSnapshotLaw,
   heapEditLaw,
+  heapTreeLaw,
   invariantsLaw,
   irJsonLaw,
   modelSerializeLaw,

@@ -67,6 +67,7 @@ export 'src/diagram/wire_render.dart';
 export 'src/diagram/wire_route.dart';
 export 'src/generated/block_docs.dart';
 export 'src/heap/heap.dart';
+export 'src/heap/heap_tree.dart';
 export 'src/heap/heap_writer.dart';
 export 'src/heap/span_describe.dart';
 export 'src/images.dart';

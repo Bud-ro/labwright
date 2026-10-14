@@ -1344,9 +1344,9 @@ int heapObjectHeaderLength(Uint8List body, int offset) {
 int heapObjectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
 
 /// An object header of [lead] and [tag] opening an object of [kind] with id [oid]: the nine-byte
-/// form while the id is below 0x8000, else the thirteen-byte form.
-Uint8List encodeHeapObjectHeader(int lead, int tag, int kind, int oid) {
-  final wide = oid >= 0x8000;
+/// form while the id is below 0x8000 and [wide] is not asked for, else the thirteen-byte form.
+Uint8List encodeHeapObjectHeader(int lead, int tag, int kind, int oid, {bool wide = false}) {
+  wide = wide || oid >= 0x8000;
   final out = Uint8List(wide ? 13 : 9);
   out[0] = lead;
   out[1] = tag;
