@@ -108,7 +108,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'call.unnamed': 139,
   'call.via.link': 2937,
   'call.via.name': 1098,
-  'call.via.stock': 157,
+  'call.via.vilib': 157,
   'clus': 135446,
   'clus.kid.many': 265,
   'clus.kid.none': 19906,
@@ -441,9 +441,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     if (link == null && caller.links.any((l) => l.qualifiedName.lastOrNull?.toLowerCase() == name.toLowerCase())) {
       return bump('call.ambiguousLink');
     }
-    if (kLvStockVis.containsKey(name.toLowerCase()) &&
+    if (lvVilibVis.containsKey(name.toLowerCase()) &&
         (link?.path?.text.startsWith('<vilib>') ?? caller.links.isEmpty)) {
-      return bump('call.via.stock');
+      return bump('call.via.vilib');
     }
     final resolved = resolveCallee(LvCallee(caller: caller, fileName: name, link: link));
     final callee = resolved.unit;

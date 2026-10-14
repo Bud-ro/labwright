@@ -568,24 +568,25 @@ name resolves through the `.lvlib` and `.lvclass` files around it
 the sweep and `tool/generate.dart` fall back to a bare file-name index only
 when no link answers.
 
-**Stock VIs.** A call whose link points into LabVIEW's own library (`<vilib>`),
-or that a snippet draws with no link at all, reaches no file this repository
-holds. `kLvStockVis` names the ones the runtime implements — `Space Constant`,
-`Application Directory`, `Trim Whitespace`, `Color to RGB` and `Error Cluster
-From Error Code` — each as a runtime function with its terminals by pane index,
-and the call lowers to that function with named arguments. A terminal's pane
-index, direction and type are those every corpus call of the VI draws and
-wires: `Error Cluster From Error Code` is called 426 times, always with a
-ten-terminal pane, its error code at 9 (I32, wired at every call), message at
-8 (string, 348), error in at 6, show-call-chain at 5 (boolean, 258) and error
-out at 0 (403). In the exceptions error mode a stock error out is raised at the
-call site. Where the terminal order of a stock VI is not visible in a caller
-(NI's modern help is a browser application and the legacy help archive holds
-none of these five), the runtime notes what it leaves out: the call chain
-`Error Cluster From Error Code` appends to its source is not modelled.
+**`<vilib>` VIs.** A call whose link points into LabVIEW's own library
+(`<vilib>`), or that a snippet draws with no link at all, reaches no file this
+repository holds. `lvVilibVis` names the ones the runtime implements — `Space
+Constant`, `Application Directory`, `Trim Whitespace`, `Color to RGB` and
+`Error Cluster From Error Code` — each with its runtime function and its
+terminals by pane index, direction and type, and a call lowers to that
+function with the controls as named arguments. A terminal's pane index,
+direction and type are those every corpus call of the VI draws and wires:
+`Error Cluster From Error Code` is called 426 times, always with a ten-terminal
+pane, its error code at 9 (I32, wired at every call), message at 8 (string,
+348), error in at 6, show-call-chain at 5 (boolean, 258) and error out at 0
+(403). In the exceptions error mode the error out is raised at the call site.
+Where the terminal order is not visible in a caller (NI's modern help is a
+browser application and the legacy help archive holds none of these five), the
+runtime notes what it leaves out: the call chain `Error Cluster From Error
+Code` appends to its source is not modelled.
 
 Corpus, over the 3,598 call nodes in diagrams whose dataflow builds: 136
-reach a stock VI the runtime implements, 2,253 callees resolve through their
+reach a `<vilib>` VI the runtime implements, 2,253 callees resolve through their
 link and 678 through the file-name index; 2,803
 have a connector pane of the right width, and of the 8,502 wired terminals at
 those calls, 8,424 resolve a callee terminal. The caller's own wire direction
