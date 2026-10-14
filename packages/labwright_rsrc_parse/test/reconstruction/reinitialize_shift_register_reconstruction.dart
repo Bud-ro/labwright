@@ -38,7 +38,7 @@ ViModel buildReinitializeShiftRegister() {
       bd,
       displayed: 1,
       at: const HeapRect(top: 52, left: 151, bottom: 127, right: 263),
-      labelAt: const HeapRect(top: 0, left: 32, bottom: 17, right: 68),
+      selectorLabelAt: const HeapRect(top: 0, left: 32, bottom: 17, right: 68),
     ),
   );
   reset.selector.termBounds = const HeapRect(top: 20, left: 0, bottom: 32, right: 8);

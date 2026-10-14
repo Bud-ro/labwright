@@ -53,7 +53,7 @@ ViModel buildToggleText() {
     BdCase.create(
       bd,
       at: const HeapRect(top: 14, left: 103, bottom: 101, right: 198),
-      labelAt: const HeapRect(top: 0, left: 24, bottom: 17, right: 60),
+      selectorLabelAt: const HeapRect(top: 0, left: 24, bottom: 17, right: 60),
     ),
   );
   choose.selector.termBounds = const HeapRect(top: 65, left: 0, bottom: 77, right: 8);
