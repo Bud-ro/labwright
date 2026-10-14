@@ -66,6 +66,14 @@ final class ViDataTypeHeapCompact extends ViDataTypeHeap {
   /// A heap typeDescIndex is 1-based within the run that starts at the 1-based [firstTopLevelIndex].
   int get viTypeIndexBase => firstTopLevelIndex - 2;
 
+  static Uint8List encode({required int heapTypeCount, required int firstTopLevelIndex}) {
+    final out = Uint8List(layout.size!);
+    final view = ByteData.sublistView(out);
+    _heapTypeCount.write(view, heapTypeCount);
+    _firstTopLevelIndex.write(view, firstTopLevelIndex);
+    return out;
+  }
+
   static const _heapTypeCount = U16(0);
   static const _firstTopLevelIndex = U16(2);
 
@@ -78,6 +86,12 @@ final class ViDataTypeHeapWord extends ViDataTypeHeap {
 
   /// Role TODO.
   int get word => _word.read(view);
+
+  static Uint8List encode(int word) {
+    final out = Uint8List(layout.size!);
+    _word.write(ByteData.sublistView(out), word);
+    return out;
+  }
 
   static const _word = U16(0);
 

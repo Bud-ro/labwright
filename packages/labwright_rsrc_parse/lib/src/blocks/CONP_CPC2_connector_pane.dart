@@ -77,6 +77,12 @@ final class ViConnectorPaneIndex extends ViConnectorPane {
   @override
   ViType? typeIn(ViTypePool? pool) => pool == null ? null : resolve(pool);
 
+  static Uint8List encode(int typeIndex) {
+    final out = Uint8List(layout.size!);
+    _typeIndex.write(ByteData.sublistView(out), typeIndex);
+    return out;
+  }
+
   static const _typeIndex = U16(0);
 
   static const layout = ByteLayout([_typeIndex]);

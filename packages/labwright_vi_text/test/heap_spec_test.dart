@@ -172,7 +172,7 @@ void main() {
           children: [C4Spec.bounds(0, 0, 10, 10), C4Spec.caption('root')],
         ),
       ]),
-      RawSection('MUID', _b([0, 0, 0, 1])),
+      MaxUidSection(maxUid: 1),
     ]);
     final again = decodeSections(spec.encode());
     expect(again.map((s) => (s.tag, s.index, s.wasCompressed)), [
@@ -186,7 +186,7 @@ void main() {
     }
     expect(
       viSpecOf(spec.encode()).sections.map((s) => s.runtimeType.toString()),
-      ['RawSection', 'TypePoolSection', 'HeapSection', 'RawSection'],
+      ['RawSection', 'TypePoolSection', 'HeapSection', 'MaxUidSection'],
     );
   });
 

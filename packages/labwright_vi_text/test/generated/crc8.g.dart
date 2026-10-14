@@ -41,7 +41,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
   ),
   SignatureSection(tag: 'RTSG', digest: _h('69caf914c0a20b16e25154821b66c14f')),
   VersionSection(versionWord: 0x21008000, versionText: '21.0'),
-  RawSection('CONP', _h('0001')),
+  ConnectorPaneSection(tag: 'CONP', typeIndex: 1),
   LinkInfoSection(tag: 'LIvi', rootKind: 'LVIN', entries: []),
   PasswordSection(
     passwordDigest: _h('d41d8cd98f00b204e9800998ecf8427e'),
@@ -165,9 +165,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
       'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
     ],
   ),
-  RawSection('CPC2', _h('0002')),
+  ConnectorPaneSection(tag: 'CPC2', typeIndex: 2),
   LinkInfoSection(tag: 'LIfp', rootKind: 'FPHP', entries: []),
-  RawSection('FPEx', _h('00000000')),
+  LinkEntryWordsSection(tag: 'FPEx', words: []),
   HeapSection('FPHb', [
     ObjectSpec(
       HeapObjectClass.diagramRoot,
@@ -4910,10 +4910,10 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
       ],
     ),
   ]),
-  RawSection('FPSE', _h('00000061')),
+  SectionEntrySection(tag: 'FPSE', value: 97),
   RawSection('VPDP', _h('00000000')),
   LinkInfoSection(tag: 'LIbd', rootKind: 'BDHP', entries: []),
-  RawSection('BDEx', _h('00000000')),
+  LinkEntryWordsSection(tag: 'BDEx', words: []),
   RawSection('PICC', _h('0092090201a80214019b01ef')),
   HeapSection('BDHb', [
     ObjectSpec(
@@ -19296,7 +19296,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
       ],
     ),
   ]),
-  RawSection('BDSE', _h('000003dd')),
+  SectionEntrySection(tag: 'BDSE', value: 989),
   TagStoreSection(
     tags: [
       TagSpec(
@@ -19317,8 +19317,8 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
       ),
     ],
   ),
-  RawSection('DTHP', _h('00730003')),
-  RawSection('MUID', _h('00000dfb')),
+  DataTypeHeapSection(heapTypeCount: 115, firstTopLevelIndex: 3),
+  MaxUidSection(maxUid: 3579),
   RawSection(
     'HIST',
     _h(

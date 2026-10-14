@@ -35,6 +35,15 @@ final class ViSectionEntry extends ByteRecord {
   /// The LabVIEW 8.0 to 8.5 word: zero in 31 of the 49 files that carry it; null otherwise.
   int? get extra => _extra.isIn(view) ? _extra.read(view) : null;
 
+  /// One word, or two when [extra] is given.
+  static Uint8List encode(int value, {int? extra}) {
+    final out = Uint8List(extra == null ? _value.end : _extra.end);
+    final view = ByteData.sublistView(out);
+    _value.write(view, value);
+    if (extra != null) _extra.write(view, extra);
+    return out;
+  }
+
   static const _value = U32(0);
   static const _extra = U32(4, optional: true);
 

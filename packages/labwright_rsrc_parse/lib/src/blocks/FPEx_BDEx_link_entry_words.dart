@@ -28,6 +28,14 @@ final class ViLinkEntryWords extends ByteRecord {
   /// The entry's word, zero in every corpus file.
   int operator [](int index) => _words.at(view, index);
 
+  static Uint8List encode(List<int> words) {
+    final out = Uint8List(_words.offset + _words.wordSize * words.length);
+    final view = ByteData.sublistView(out);
+    _count.write(view, words.length);
+    _words.write(view, words);
+    return out;
+  }
+
   static const _count = U32(0);
   static const _words = U32List(4, count: _count);
 

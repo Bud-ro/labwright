@@ -94,6 +94,27 @@ void main() {
         _b([0x21, 0, 0x80, 4, 0, 14, 4, ...'21.0'.codeUnits, 2, 0x61, 0x62]),
       ),
     ],
+    'ConnectorPaneSection': [
+      ('CONP', _b([0, 1])),
+      ('CPC2', _b([0, 2])),
+    ],
+    'MaxUidSection': [
+      ('MUID', _b([0, 0, 0x0d, 0xfb])),
+    ],
+    'SectionEntrySection': [
+      ('FPSE', _b([0, 0, 0, 0x61])),
+      ('BDSE', _b([0, 0, 3, 0xdd, 0, 0, 0, 7])),
+    ],
+    'LinkEntryWordsSection': [
+      ('FPEx', _b([0, 0, 0, 0])),
+      ('BDEx', _b([0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 9])),
+    ],
+    'DataTypeHeapSection': [
+      ('DTHP', _b([0, 0x73, 0, 3])),
+    ],
+    'DataTypeHeapWordSection': [
+      ('DTHP', _b([0, 5])),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -188,6 +209,22 @@ void main() {
         entries: const [],
       ),
     ],
+    'ConnectorPaneSection': [
+      ConnectorPaneSection(tag: 'CONP', typeIndex: 1),
+      ConnectorPaneSection(tag: 'CPC2', typeIndex: 2),
+    ],
+    'MaxUidSection': [MaxUidSection(maxUid: 3579)],
+    'SectionEntrySection': [
+      SectionEntrySection(tag: 'FPSE', value: 97),
+      SectionEntrySection(tag: 'BDSE', value: 989, extra: 0),
+    ],
+    'LinkEntryWordsSection': [
+      LinkEntryWordsSection(tag: 'BDEx', words: const [0, 0, 0]),
+    ],
+    'DataTypeHeapSection': [
+      DataTypeHeapSection(heapTypeCount: 115, firstTopLevelIndex: 3),
+    ],
+    'DataTypeHeapWordSection': [DataTypeHeapWordSection(word: 5)],
     'TagStoreSection': [
       TagStoreSection(
         tags: [

@@ -29,11 +29,14 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
-    BlockTag.bdpw when n == 32 || n == 48 => PasswordSection.of(
-      ViPasswordRecord(bytes),
-      index: index,
-      compressed: compressed,
-    ),
+    BlockTag.bdpw
+        when n == ViPasswordRecord.layout.minSize ||
+            n == ViPasswordRecord.layout.fields.last.end =>
+      PasswordSection.of(
+        ViPasswordRecord(bytes),
+        index: index,
+        compressed: compressed,
+      ),
     BlockTag.rtsg ||
     BlockTag.obsg ||
     BlockTag.ccsg when ViSignature.layout.fits(n) => SignatureSection.of(
@@ -56,6 +59,45 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.conp || BlockTag.cpc2 when n == ViConnectorPaneIndex.layout.size =>
+      ConnectorPaneSection(
+        tag: tag,
+        typeIndex: ViConnectorPaneIndex(bytes).typeIndex,
+        index: index,
+        compressed: compressed,
+      ),
+    BlockTag.muid when n == ViMaxUid.layout.size => MaxUidSection(
+      maxUid: ViMaxUid(bytes).maxUid,
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.fpse || BlockTag.bdse
+        when n == ViSectionEntry.layout.minSize ||
+            n == ViSectionEntry.layout.fields.last.end =>
+      SectionEntrySection.of(
+        tag,
+        ViSectionEntry(bytes),
+        index: index,
+        compressed: compressed,
+      ),
+    BlockTag.fpex || BlockTag.bdex => LinkEntryWordsSection.of(
+      tag,
+      ViLinkEntryWords(bytes),
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.dthp when n == ViDataTypeHeapCompact.layout.size =>
+      DataTypeHeapSection.of(
+        ViDataTypeHeapCompact(bytes),
+        index: index,
+        compressed: compressed,
+      ),
+    BlockTag.dthp when n == ViDataTypeHeapWord.layout.size =>
+      DataTypeHeapWordSection(
+        word: ViDataTypeHeapWord(bytes).word,
+        index: index,
+        compressed: compressed,
+      ),
     _ => null,
   };
 }
@@ -628,4 +670,180 @@ final class VersionSection extends TypedSection {
     ('versionText', versionText),
     if (infoText.isNotEmpty) ('infoText', infoText),
   ];
+}
+
+/// A connector pane (`CONP`, `CPC2`) in the index form: a 1-based index among the `VCTP`
+/// top-level types.
+final class ConnectorPaneSection extends TypedSection {
+  const ConnectorPaneSection({
+    required String tag,
+    required this.typeIndex,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  final int typeIndex;
+
+  @override
+  Uint8List get payload => ViConnectorPaneIndex.encode(typeIndex);
+
+  @override
+  String get constructor => 'ConnectorPaneSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('tag', tag),
+    ('typeIndex', typeIndex),
+  ];
+}
+
+/// The highest object id the heaps use (`MUID`).
+final class MaxUidSection extends TypedSection {
+  const MaxUidSection({required this.maxUid, super.index, super.compressed})
+    : super('MUID');
+
+  final int maxUid;
+
+  @override
+  Uint8List get payload => ViMaxUid.encode(maxUid);
+
+  @override
+  String get constructor => 'MaxUidSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('maxUid', maxUid)];
+}
+
+/// A heap section entry (`FPSE`, `BDSE`): its word, and the second word some saves add.
+final class SectionEntrySection extends TypedSection {
+  const SectionEntrySection({
+    required String tag,
+    required this.value,
+    this.extra,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  factory SectionEntrySection.of(
+    String tag,
+    ViSectionEntry entry, {
+    int index = 0,
+    bool compressed = false,
+  }) => SectionEntrySection(
+    tag: tag,
+    value: entry.value,
+    extra: entry.extra,
+    index: index,
+    compressed: compressed,
+  );
+
+  final int value;
+
+  final int? extra;
+
+  @override
+  Uint8List get payload => ViSectionEntry.encode(value, extra: extra);
+
+  @override
+  String get constructor => 'SectionEntrySection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('tag', tag),
+    ('value', value),
+    ('extra', extra),
+  ];
+}
+
+/// Link-entry words (`FPEx`, `BDEx`): one word per entry of the matching link info.
+final class LinkEntryWordsSection extends TypedSection {
+  const LinkEntryWordsSection({
+    required String tag,
+    required this.words,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  factory LinkEntryWordsSection.of(
+    String tag,
+    ViLinkEntryWords words, {
+    int index = 0,
+    bool compressed = false,
+  }) => LinkEntryWordsSection(
+    tag: tag,
+    words: [for (var i = 0; i < words.count; i++) words[i]],
+    index: index,
+    compressed: compressed,
+  );
+
+  final List<int> words;
+
+  @override
+  Uint8List get payload => ViLinkEntryWords.encode(words);
+
+  @override
+  String get constructor => 'LinkEntryWordsSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('tag', tag), ('words', words)];
+}
+
+/// A data-type heap table (`DTHP`) in the two-word form.
+final class DataTypeHeapSection extends TypedSection {
+  const DataTypeHeapSection({
+    required this.heapTypeCount,
+    required this.firstTopLevelIndex,
+    super.index,
+    super.compressed,
+  }) : super('DTHP');
+
+  factory DataTypeHeapSection.of(
+    ViDataTypeHeapCompact heap, {
+    int index = 0,
+    bool compressed = false,
+  }) => DataTypeHeapSection(
+    heapTypeCount: heap.heapTypeCount,
+    firstTopLevelIndex: heap.firstTopLevelIndex,
+    index: index,
+    compressed: compressed,
+  );
+
+  final int heapTypeCount;
+
+  final int firstTopLevelIndex;
+
+  @override
+  Uint8List get payload => ViDataTypeHeapCompact.encode(
+    heapTypeCount: heapTypeCount,
+    firstTopLevelIndex: firstTopLevelIndex,
+  );
+
+  @override
+  String get constructor => 'DataTypeHeapSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('heapTypeCount', heapTypeCount),
+    ('firstTopLevelIndex', firstTopLevelIndex),
+  ];
+}
+
+/// A data-type heap table (`DTHP`) in the one-word form.
+final class DataTypeHeapWordSection extends TypedSection {
+  const DataTypeHeapWordSection({
+    required this.word,
+    super.index,
+    super.compressed,
+  }) : super('DTHP');
+
+  final int word;
+
+  @override
+  Uint8List get payload => ViDataTypeHeapWord.encode(word);
+
+  @override
+  String get constructor => 'DataTypeHeapWordSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('word', word)];
 }
