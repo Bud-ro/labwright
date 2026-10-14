@@ -125,6 +125,32 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
         index: index,
         compressed: compressed,
       ),
+    BlockTag.tm80 when n >= ViTypeMapIndexed.layout.minSize =>
+      switch (ViTypeMap(bytes)) {
+        final ViTypeMapIndexed map => TypeMapSection(
+          indexShift: map.indexShift,
+          flags: [for (var i = 0; i < map.count; i++) map.flagsAt(i)],
+          index: index,
+          compressed: compressed,
+        ),
+        ViTypeMapInline() => null,
+      },
+    BlockTag.nuid => IdTableSection(
+      ids: ViIdTable(bytes).ids,
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.suid || BlockTag.bnid => UidValueTableSection(
+      tag: tag,
+      words: ViUidValueTable(bytes).words,
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.cpmp => ConnectorPaneMapSection(
+      terminals: ViConnectorPaneMap(bytes).words,
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
@@ -1329,4 +1355,91 @@ final class PrintSettingsSection extends TypedSection {
     ('zero120', zero120),
     if (extra.isNotEmpty) ('extra', extra),
   ];
+}
+
+/// A data-space type map (`TM80`) in the word-list form: the flag word of each top-level type
+/// from [indexShift] on, bits named by [TypeMapFlag].
+final class TypeMapSection extends TypedSection {
+  const TypeMapSection({
+    required this.indexShift,
+    required this.flags,
+    super.index,
+    super.compressed,
+  }) : super('TM80');
+
+  final int indexShift;
+
+  final List<int> flags;
+
+  @override
+  Uint8List get payload =>
+      ViTypeMapIndexed.encode(indexShift: indexShift, flags: flags);
+
+  @override
+  String get constructor => 'TypeMapSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('indexShift', indexShift),
+    ('flags', [for (final word in flags) HexInt(word)]),
+  ];
+}
+
+/// The `NUID` id table: a zero, a wire id, then block-diagram object ids.
+final class IdTableSection extends TypedSection {
+  const IdTableSection({required this.ids, super.index, super.compressed})
+    : super('NUID');
+
+  final List<int> ids;
+
+  @override
+  Uint8List get payload => ViIdTable.encode(ids);
+
+  @override
+  String get constructor => 'IdTableSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('ids', ids)];
+}
+
+/// A uid-value table (`SUID`, `BNID`): its words, uid then value per pair.
+final class UidValueTableSection extends TypedSection {
+  const UidValueTableSection({
+    required String tag,
+    required this.words,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  final List<int> words;
+
+  @override
+  Uint8List get payload => ViUidValueTable.encode(words);
+
+  @override
+  String get constructor => 'UidValueTableSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('tag', tag), ('words', words)];
+}
+
+/// The connector pane map (`CPMp`): per pane terminal, the panel data item it is wired to,
+/// 0xFFFF when unwired.
+final class ConnectorPaneMapSection extends TypedSection {
+  const ConnectorPaneMapSection({
+    required this.terminals,
+    super.index,
+    super.compressed,
+  }) : super('CPMp');
+
+  final List<int> terminals;
+
+  @override
+  Uint8List get payload => ViConnectorPaneMap.encode(terminals);
+
+  @override
+  String get constructor => 'ConnectorPaneMapSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('terminals', terminals)];
 }

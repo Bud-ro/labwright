@@ -149,6 +149,19 @@ void main() {
       ('PRT ', _printRecord(128)),
       ('PRT ', _printRecord(136)),
     ],
+    'TypeMapSection': [
+      ('TM80', _b([0, 3, 0, 2, 0x20, 0, 0, 0, 0x80, 0, 0x80, 0])),
+    ],
+    'IdTableSection': [
+      ('NUID', _b([0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 9])),
+    ],
+    'UidValueTableSection': [
+      ('SUID', _b([0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 0])),
+      ('BNID', _b([0, 0, 0, 0])),
+    ],
+    'ConnectorPaneMapSection': [
+      ('CPMp', _b([2, 0, 1, 0, 0xff, 0xff])),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -310,6 +323,18 @@ void main() {
         marginRight: 0.18000000715255737,
         unknown108: Uint8List(4),
       ),
+    ],
+    'TypeMapSection': [
+      TypeMapSection(indexShift: 2, flags: const [0x2000, 0, 0x8001]),
+    ],
+    'IdTableSection': [
+      IdTableSection(ids: const [0, 12, 40]),
+    ],
+    'UidValueTableSection': [
+      UidValueTableSection(tag: 'BNID', words: const [0, 0, 77, 1]),
+    ],
+    'ConnectorPaneMapSection': [
+      ConnectorPaneMapSection(terminals: const [0, 0xffff, 1]),
     ],
     'TagStoreSection': [
       TagStoreSection(

@@ -37,6 +37,16 @@ final class ViIdTable extends ByteRecord {
   /// Object ids; the first is always zero and the second a wire.
   int operator [](int index) => _ids.at(view, index);
 
+  List<int> get ids => _ids.read(view);
+
+  static Uint8List encode(List<int> ids) {
+    final out = Uint8List(_ids.offset + _ids.wordSize * ids.length);
+    final view = ByteData.sublistView(out);
+    _count.write(view, ids.length);
+    _ids.write(view, ids);
+    return out;
+  }
+
   static const _count = U32(0);
   static const _ids = U32List(4, count: _count);
 
@@ -55,7 +65,18 @@ final class ViUidValueTable extends ByteRecord {
 
   int get pairCount => count ~/ 2;
 
+  /// The words in order, uid then value per pair.
+  List<int> get words => _words.read(view);
+
   ViUidValue operator [](int index) => ViUidValue(_words.at(view, 2 * index), _words.at(view, 2 * index + 1));
+
+  static Uint8List encode(List<int> words) {
+    final out = Uint8List(_words.offset + _words.wordSize * words.length);
+    final view = ByteData.sublistView(out);
+    _count.write(view, words.length);
+    _words.write(view, words);
+    return out;
+  }
 
   static const _count = U32(0);
   static const _words = U32List(4, count: _count); // (uid, value) pairs; the first pair is (0, 0).

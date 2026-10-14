@@ -165,6 +165,19 @@ final class PackedWord extends Scalar {
   @override
   int read(ByteData view) => readAt(view, offset);
 
+  /// The width [value] takes when written in its shortest form.
+  static int sizeOf(int value) => value < 0x8000 ? 2 : 4;
+
+  /// Writes [value] at [offset] in its shortest form; returns where it ends.
+  static int writeAt(ByteData view, int offset, int value) {
+    if (sizeOf(value) == 2) {
+      view.setUint16(offset, value);
+    } else {
+      view.setUint32(offset, value | 0x80000000);
+    }
+    return offset + sizeOf(value);
+  }
+
   /// Writes [value] in the width the word already has.
   @override
   void write(ByteData view, int value) {

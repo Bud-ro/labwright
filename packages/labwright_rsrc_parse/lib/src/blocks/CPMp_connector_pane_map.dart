@@ -83,6 +83,17 @@ final class ViConnectorPaneMap extends ByteRecord {
     return n;
   }
 
+  /// The terminal words in pane order, 0xFFFF for an unwired one.
+  List<int> get words => _terminals.read(view);
+
+  static Uint8List encode(List<int> terminals) {
+    final out = Uint8List(_terminals.offset + _terminals.wordSize * terminals.length);
+    final view = ByteData.sublistView(out);
+    _count.write(view, terminals.length);
+    _terminals.write(view, terminals);
+    return out;
+  }
+
   // dart format off
   static const _count = U16(0, endian: Endian.little);
   static const _terminals = U16List(2, endian: Endian.little, count: _count); // 0-based member of the FPTD data-item cluster, 0xFFFF when unwired.

@@ -122,6 +122,22 @@ final class ViTypeMapIndexed extends ViTypeMap {
   /// Offsets of the count word, the shift word and each flag word.
   late final List<int> _wordOffsets;
 
+  /// The map of [flags] from top-level index [indexShift], each word in its shortest form.
+  static Uint8List encode({required int indexShift, required List<int> flags}) {
+    var length = PackedWord.sizeOf(flags.length) + PackedWord.sizeOf(indexShift);
+    for (final word in flags) {
+      length += PackedWord.sizeOf(word);
+    }
+    final out = Uint8List(length);
+    final view = ByteData.sublistView(out);
+    var at = PackedWord.writeAt(view, _count.offset, flags.length);
+    at = PackedWord.writeAt(view, at, indexShift);
+    for (final word in flags) {
+      at = PackedWord.writeAt(view, at, word);
+    }
+    return out;
+  }
+
   static const _count = PackedWord(0);
   static const _indexShift = PackedWord(2);
   static const _flags = PackedWordList(4, count: _count); // Role bits per type; bit 13 marks a saved default value.
