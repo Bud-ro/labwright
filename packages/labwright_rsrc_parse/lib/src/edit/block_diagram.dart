@@ -511,7 +511,55 @@ class BdFrame {
     owner?._contain(item.bounds);
     return item;
   }
+
+  /// A free label reading [text] at [at], attached to its anchor glyph at [anchorAt].
+  BdPlaced comment(String text, {required HeapRect at, required HeapRect anchorAt}) {
+    final glyph = object(
+      HeapObjectClass.bdGlyph.code,
+      editor.allocateOid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1c39),
+        attr(HeapAttribute.howGrow, HeapAttrWidth.u8, 4),
+        c4Rect(HeapOpcode.bounds, anchorAt),
+        worded(kPartOffset, kPartOffsetWord, [
+          attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, kBdCommentAnchorImage),
+        ]),
+        attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, kBdCommentAnchorColor),
+      ],
+    );
+    final label = object(
+      HeapObjectClass.controlLabel.code,
+      editor.allocateOid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x171002),
+        attr(HeapAttribute.howGrow, HeapAttrWidth.u16, 0xf0),
+        c4Rect(HeapOpcode.bounds, at),
+        worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u16, 0xfd95)]),
+        attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, kBdCommentColor),
+        worded(kPartText, kPartTextWord, [
+          attr(HeapAttribute.cosmColorB, HeapAttrWidth.rgb, 0x814404),
+          caption(text),
+          attr(HeapAttribute.contentColor, HeapAttrWidth.rgb, kBdCommentColor),
+        ]),
+        ref(HeapRefKind.attachmentRef, glyph.oid),
+      ],
+    );
+    final objects = _ensureList(BdFrameList.objects);
+    objects.children.addAll([glyph, label]);
+    objects.syncCount();
+    final placed = this.placed;
+    final comment = BdPlaced._(this, label);
+    placed.addAll([BdPlaced._(this, glyph), comment]);
+    return comment;
+  }
 }
+
+/// A free label's pale yellow, and its anchor glyph's image and colour.
+const int kBdCommentColor = 0xffffd7;
+
+const int kBdCommentAnchorImage = 0xfcfd;
+
+const int kBdCommentAnchorColor = 0xfeffd7;
 
 /// Anything placed in a frame: an object with an id, a class and usually bounds.
 class BdPlaced {
@@ -1618,6 +1666,8 @@ class BdCase extends BdStructure {
     String? label,
     HeapRect? labelAt,
   }) {
+  /// showing [displayed], its selector label at [labelAt] or centred along the top.
+  factory BdCase.create(BdEditor editor, {int frameCount = 2, int? displayed, HeapRect? at, HeapRect? labelAt}) {
     final bounds =
         at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
     final frames = [for (var i = 0; i < frameCount; i++) BdStructure._frameNode(editor)];
@@ -1673,6 +1723,10 @@ class BdCase extends BdStructure {
           attr(HeapAttribute.masterPart, HeapAttrWidth.u8, 9),
           attr(HeapAttribute.howGrow, HeapAttrWidth.u8, 0x34),
           c4Rect(HeapOpcode.bounds, _selectorLabelBounds(bounds, kBdBooleanSelectorLabelWidth)),
+          c4Rect(
+            HeapOpcode.bounds,
+            labelAt ?? HeapRect(top: 0, left: (width - labelWidth) ~/ 2, bottom: 17, right: (width + labelWidth) ~/ 2),
+          ),
           worded(kPartOffset, kPartOffsetWord, [attr(HeapAttribute.relativeOffset, HeapAttrWidth.u8, 0xf5)]),
           attr(HeapAttribute.backgroundColor, HeapAttrWidth.rgb, 0xffffff),
           worded(kPartText, kPartTextWord, [
