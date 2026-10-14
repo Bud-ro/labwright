@@ -31,11 +31,13 @@ sealed class Field {
   String get typeName;
 }
 
-/// A field read as one integer.
+/// A field read and written as one integer.
 sealed class Scalar extends Field {
   const Scalar(super.offset, {super.optional});
 
   int read(ByteData view);
+
+  void write(ByteData view, int value);
 }
 
 final class U8 extends Scalar {
@@ -46,6 +48,9 @@ final class U8 extends Scalar {
 
   @override
   int read(ByteData view) => view.getUint8(offset);
+
+  @override
+  void write(ByteData view, int value) => view.setUint8(offset, value);
 
   @override
   String get typeName => 'u8';
@@ -63,6 +68,9 @@ final class U16 extends Scalar {
   int read(ByteData view) => view.getUint16(offset, endian);
 
   @override
+  void write(ByteData view, int value) => view.setUint16(offset, value, endian);
+
+  @override
   String get typeName => endian == Endian.big ? 'u16' : 'u16le';
 }
 
@@ -76,6 +84,9 @@ final class U32 extends Scalar {
 
   @override
   int read(ByteData view) => view.getUint32(offset, endian);
+
+  @override
+  void write(ByteData view, int value) => view.setUint32(offset, value, endian);
 
   @override
   String get typeName => endian == Endian.big ? 'u32' : 'u32le';
@@ -93,6 +104,9 @@ final class I16 extends Scalar {
   int read(ByteData view) => view.getInt16(offset, endian);
 
   @override
+  void write(ByteData view, int value) => view.setInt16(offset, value, endian);
+
+  @override
   String get typeName => endian == Endian.big ? 'i16' : 'i16le';
 }
 
@@ -108,6 +122,9 @@ final class I32 extends Scalar {
   int read(ByteData view) => view.getInt32(offset, endian);
 
   @override
+  void write(ByteData view, int value) => view.setInt32(offset, value, endian);
+
+  @override
   String get typeName => endian == Endian.big ? 'i32' : 'i32le';
 }
 
@@ -121,6 +138,8 @@ final class F32 extends Field {
   int get size => 4;
 
   double read(ByteData view) => view.getFloat32(offset, endian);
+
+  void write(ByteData view, double value) => view.setFloat32(offset, value, endian);
 
   @override
   String get typeName => endian == Endian.big ? 'f32' : 'f32le';
@@ -146,6 +165,17 @@ final class PackedWord extends Scalar {
   @override
   int read(ByteData view) => readAt(view, offset);
 
+  /// Writes [value] in the width the word already has.
+  @override
+  void write(ByteData view, int value) {
+    if (sizeAt(view, offset) == 2) {
+      assert(value < 0x8000, 'a two-byte packed word holds $value');
+      view.setUint16(offset, value);
+    } else {
+      view.setUint32(offset, value | 0x80000000);
+    }
+  }
+
   @override
   int endIn(ByteData view) => offset + sizeAt(view, offset);
 
@@ -161,6 +191,13 @@ final class FourCc extends Field {
   int get size => 4;
 
   String read(ByteData view) => String.fromCharCodes(Uint8List.sublistView(view, offset, end));
+
+  void write(ByteData view, String value) {
+    assert(value.length == 4, 'a four-character code');
+    for (var i = 0; i < 4; i++) {
+      view.setUint8(offset + i, value.codeUnitAt(i));
+    }
+  }
 
   @override
   String get typeName => '4cc';
@@ -243,6 +280,8 @@ sealed class WordList extends Field {
 
   int at(ByteData view, int index);
 
+  void setAt(ByteData view, int index, int value);
+
   List<int> read(ByteData view) => [for (var i = 0; i < lengthIn(view); i++) at(view, i)];
 
   String get _wordName;
@@ -263,6 +302,9 @@ final class U16List extends WordList {
   int at(ByteData view, int index) => view.getUint16(offset + 2 * index, endian);
 
   @override
+  void setAt(ByteData view, int index, int value) => view.setUint16(offset + 2 * index, value, endian);
+
+  @override
   String get _wordName => endian == Endian.big ? 'u16' : 'u16le';
 }
 
@@ -276,6 +318,9 @@ final class U32List extends WordList {
 
   @override
   int at(ByteData view, int index) => view.getUint32(offset + 4 * index, endian);
+
+  @override
+  void setAt(ByteData view, int index, int value) => view.setUint32(offset + 4 * index, value, endian);
 
   @override
   String get _wordName => endian == Endian.big ? 'u32' : 'u32le';
