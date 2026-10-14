@@ -5,7 +5,9 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import 'array_to_spreadsheet_string_reconstruction.dart';
 import 'crc8_reconstruction.dart';
+import 'current_time_stamp_reconstruction.dart';
 import 'dataflow.dart';
 import 'display_current_time_reconstruction.dart';
 import 'execute_vi_remotely_reconstruction.dart';
@@ -17,7 +19,9 @@ import 'multiply_rows_reconstruction.dart';
 import 'reinitialize_shift_register_reconstruction.dart';
 import 'snippet_example_reconstruction.dart';
 import 'toggle_text_reconstruction.dart';
+import 'unit_test_add_reconstruction.dart';
 import 'while_loop_infinite_reconstruction.dart';
+import 'while_loop_reconstruction.dart';
 
 /// Each corpus snippet rebuilt from the editing API.
 const reconstructions = <String, ViModel Function()>{
@@ -34,6 +38,10 @@ const reconstructions = <String, ViModel Function()>{
   '16605742_hOPNk.png': buildMultiplyRows,
   'Reinitializing_a_Shift_Register_Without_Stopping_the_VI.png': buildReinitializeShiftRegister,
   '32768403_29Tuz.png': buildToggleText,
+  'Display_Current_Time_in_LabVIEW_VI.png': buildCurrentTimeStamp,
+  '53146805_3DSU7.png': buildArrayToSpreadsheetString,
+  'Using_Test_Vector_Indexes_With_the_LabVIEW_Unit_Test_Framework_Toolkit.png': buildUnitTestAdd,
+  'LabVIEW_While.png': buildWhileLoop,
 };
 
 void main() {
