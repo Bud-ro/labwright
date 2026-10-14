@@ -54,6 +54,8 @@ const Map<String, String> kHelpOracleTerminals = {
   'Cluster To Array': '<|>',
   'Number To Decimal String': '<number|<width|>decimal integer string',
   'Decimal String To Number': '<string|<offset|<default|>offset past number|>number',
+  'Hexadecimal String To Number': '<string|<offset|<default|>offset past number|>number',
+  'Fract/Exp String To Number': '<use system decimal point|<string|<offset|<default|>offset past number|>number',
   'To Lower Case': '<string|>all lower case string',
   'Tick Count (ms)': '>millisecond timer value',
   'Wait (ms)': '<milliseconds to wait|>millisecond timer value',

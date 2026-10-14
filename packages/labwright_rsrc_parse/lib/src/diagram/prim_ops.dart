@@ -118,6 +118,10 @@ enum PrimOp {
 
   decimalStringToNumber(1184, 'Decimal String To Number', PrimNameBasis.corpusLabel),
 
+  hexadecimalStringToNumber(1185, 'Hexadecimal String To Number', PrimNameBasis.review),
+
+  fractExpStringToNumber(1187, 'Fract/Exp String To Number', PrimNameBasis.review),
+
   toLowerCase(1189, 'To Lower Case', PrimNameBasis.corpusLabel),
 
   tickCount(1300, 'Tick Count (ms)', PrimNameBasis.corpusLabel),
@@ -417,4 +421,37 @@ const Map<PrimOp, List<PrimTerminal>> _terminals = {
     PrimTerminal.input('Boolean array', 0, 0, 11, 13, type: ViDataType.boolean, dims: 1),
   ],
   PrimOp.reverse1dArray: [PrimTerminal('reversed array', 0, 16, 23, 32), PrimTerminal.input('array', 0, 0, 23, 16)],
+  PrimOp.randomNumber: [PrimTerminal('number (0 to 1)', 0, 0, 21, 19, type: ViDataType.dbl)],
+  PrimOp.select: [
+    PrimTerminal('s? t:f', 0, 14, 27, 27),
+    PrimTerminal.input('f', 19, 0, 27, 14),
+    PrimTerminal.input('s', 9, 0, 19, 14, type: ViDataType.boolean),
+    PrimTerminal.input('t', 0, 0, 9, 14),
+  ],
+  PrimOp.typeCast: [
+    PrimTerminal.input('x', 0, 0, 32, 11),
+    PrimTerminal.input('type', 0, 11, 32, 21),
+    PrimTerminal('*(type *) &x', 0, 21, 32, 32),
+  ],
+  PrimOp.arrayToSpreadsheetString: [
+    PrimTerminal('spreadsheet string', 0, 21, 32, 32, type: ViDataType.string),
+    PrimTerminal.input('delimiter', 16, 0, 32, 11, type: ViDataType.string),
+    PrimTerminal.input('array', 0, 11, 32, 21),
+    PrimTerminal.input('format string', 0, 0, 16, 11, type: ViDataType.string),
+  ],
+  PrimOp.hexadecimalStringToNumber: [
+    PrimTerminal('number', 16, 16, 32, 32),
+    PrimTerminal('offset past number', 0, 16, 16, 32),
+    PrimTerminal.input('default', 21, 0, 32, 16),
+    PrimTerminal.input('offset', 11, 0, 21, 16),
+    PrimTerminal.input('string', 0, 0, 11, 16, type: ViDataType.string),
+  ],
+  PrimOp.fractExpStringToNumber: [
+    PrimTerminal('number', 16, 21, 32, 32),
+    PrimTerminal('offset past number', 0, 21, 16, 32),
+    PrimTerminal.input('use system decimal point', 0, 11, 32, 21, type: ViDataType.boolean),
+    PrimTerminal.input('default', 21, 0, 32, 11),
+    PrimTerminal.input('offset', 11, 0, 21, 11),
+    PrimTerminal.input('string', 0, 0, 11, 11, type: ViDataType.string),
+  ],
 };
