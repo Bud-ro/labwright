@@ -19,6 +19,7 @@ import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_rang
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/mean_of_2d_array_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/snippet_example_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/unit_test_add_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/string_to_number_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/while_loop_infinite_reconstruction.dart';
 import 'util.dart';
 
@@ -36,6 +37,8 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   'Using_Test_Vector_Indexes_With_the_LabVIEW_Unit_Test_Framework_Toolkit.png':
       buildUnitTestAdd,
   'crc8.png': buildCrc8,
+  'Convert_from_a_String_to_a_Numeric_Data_Type_in_LabVIEW.png':
+      buildStringToNumber,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
