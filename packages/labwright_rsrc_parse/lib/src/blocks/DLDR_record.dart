@@ -26,6 +26,12 @@ import '../word_grid.dart';
 final class ViDldrRecord extends ViWordGrid {
   ViDldrRecord(Uint8List bytes) : super(bytes, layout);
 
+  static Uint8List encode(List<int> slots) {
+    final out = Uint8List(layout.size!);
+    _slots.write(ByteData.sublistView(out), slots);
+    return out;
+  }
+
   // dart format off
   static const _slots = U32List(0, length: 7); // Pointer-sized slots: live 32-bit pointers in the LabVIEW 7.1 file, else 1 then six zeros; roles TODO.
 

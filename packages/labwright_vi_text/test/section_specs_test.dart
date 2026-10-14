@@ -162,6 +162,29 @@ void main() {
     'ConnectorPaneMapSection': [
       ('CPMp', _b([2, 0, 1, 0, 0xff, 0xff])),
     ],
+    'TitleSection': [
+      ('TITL', _b([3, 0x61, 0x62, 0x63])),
+    ],
+    'SourceSignatureSection': [
+      ('SCSR', _b([1, 0, 0, 0, for (var i = 0; i < 16; i++) i])),
+    ],
+    'NodeUidSetSection': [
+      ('CNST', _b([0, 0, 0, 3, 0, 0, 0, 9])),
+      ('LPIN', _b([])),
+    ],
+    'DldrSection': [
+      ('DLDR', _b([0, 0, 0, 1, for (var i = 0; i < 24; i++) 0])),
+    ],
+    'BookmarksSection': [
+      (
+        'BKMK',
+        _b([
+          0, 0, 0, 1, 0, 0, 0, 7, 0, 0, 0, 8, 0, 0, 0, 2, 0x68, 0x69, //
+          0, 0, 0, 1, 0, 0, 0, 5, 0, 0, 0, 0,
+        ]),
+      ),
+      ('BKMK', _b([0, 0, 0, 0, 0, 0, 0, 0])),
+    ],
     'TagStoreSection': [
       (
         'VITS',
@@ -335,6 +358,20 @@ void main() {
     ],
     'ConnectorPaneMapSection': [
       ConnectorPaneMapSection(terminals: const [0, 0xffff, 1]),
+    ],
+    'TitleSection': [TitleSection(text: 'Panel \u{e9}')],
+    'SourceSignatureSection': [SourceSignatureSection(digest: Uint8List(16))],
+    'NodeUidSetSection': [
+      NodeUidSetSection(tag: 'LPIN', ids: const [4, 8, 15]),
+    ],
+    'DldrSection': [
+      DldrSection(slots: const [1, 0, 0, 0, 0, 0, 0]),
+    ],
+    'BookmarksSection': [
+      BookmarksSection(
+        tableA: const [BookmarkSpec(wordA: 1, wordB: 2, text: '#todo')],
+        tableB: const [BookmarkSpec(wordB: 3, text: '')],
+      ),
     ],
     'TagStoreSection': [
       TagStoreSection(

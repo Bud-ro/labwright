@@ -22,6 +22,12 @@ final class ViTitle extends ByteRecord {
   /// The window title.
   String get text => _title.read(view);
 
+  static Uint8List encode(String text) {
+    final out = Uint8List(1 + text.length);
+    _title.write(ByteData.sublistView(out), text);
+    return out;
+  }
+
   static const _title = PStr(0);
 
   static const layout = ByteLayout([_title]);

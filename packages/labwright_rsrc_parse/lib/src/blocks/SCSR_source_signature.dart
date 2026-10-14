@@ -25,6 +25,14 @@ final class ViSourceSignature extends ByteRecord {
   /// The digest; what it signs is not decoded.
   Uint8List get digest => _digest.read(view);
 
+  static Uint8List encode({int version = 1, required List<int> digest}) {
+    final out = Uint8List(layout.size!);
+    final view = ByteData.sublistView(out);
+    _version.write(view, version);
+    _digest.write(view, digest);
+    return out;
+  }
+
   static const _version = U32(0, endian: Endian.little);
   static const _digest = Bytes(4, size: 16);
 

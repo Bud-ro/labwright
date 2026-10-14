@@ -151,6 +151,33 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       index: index,
       compressed: compressed,
     ),
+    BlockTag.titl => TitleSection(
+      text: ViTitle(bytes).text,
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.scsr when ViSourceSignature.layout.fits(n) =>
+      SourceSignatureSection.of(
+        ViSourceSignature(bytes),
+        index: index,
+        compressed: compressed,
+      ),
+    BlockTag.cnst || BlockTag.lpin => NodeUidSetSection(
+      tag: tag,
+      ids: ViNodeUidSet(bytes).words,
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.dldr when ViDldrRecord.layout.fits(n) => DldrSection(
+      slots: ViDldrRecord(bytes).words,
+      index: index,
+      compressed: compressed,
+    ),
+    BlockTag.bkmk => BookmarksSection.of(
+      ViBookmarkList(bytes),
+      index: index,
+      compressed: compressed,
+    ),
     _ => null,
   };
 }
@@ -1442,4 +1469,180 @@ final class ConnectorPaneMapSection extends TypedSection {
 
   @override
   List<(String, Object?)> get arguments => [('terminals', terminals)];
+}
+
+/// The custom front-panel window title (`TITL`).
+final class TitleSection extends TypedSection {
+  const TitleSection({required this.text, super.index, super.compressed})
+    : super('TITL');
+
+  final String text;
+
+  @override
+  Uint8List get payload => ViTitle.encode(text);
+
+  @override
+  String get constructor => 'TitleSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('text', text)];
+}
+
+/// The source signature (`SCSR`): a version word and a digest.
+final class SourceSignatureSection extends TypedSection {
+  const SourceSignatureSection({
+    this.version = 1,
+    required this.digest,
+    super.index,
+    super.compressed,
+  }) : super('SCSR');
+
+  factory SourceSignatureSection.of(
+    ViSourceSignature signature, {
+    int index = 0,
+    bool compressed = false,
+  }) => SourceSignatureSection(
+    version: signature.version,
+    digest: _copy(signature.digest),
+    index: index,
+    compressed: compressed,
+  );
+
+  final int version;
+
+  final Uint8List digest;
+
+  @override
+  Uint8List get payload =>
+      ViSourceSignature.encode(version: version, digest: digest);
+
+  @override
+  String get constructor => 'SourceSignatureSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    if (version != 1) ('version', version),
+    ('digest', digest),
+  ];
+}
+
+/// A node uid set (`CNST`, `LPIN`): block-diagram object ids, rising.
+final class NodeUidSetSection extends TypedSection {
+  const NodeUidSetSection({
+    required String tag,
+    required this.ids,
+    super.index,
+    super.compressed,
+  }) : super(tag);
+
+  final List<int> ids;
+
+  @override
+  Uint8List get payload => ViNodeUidSet.encode(ids);
+
+  @override
+  String get constructor => 'NodeUidSetSection';
+
+  @override
+  List<(String, Object?)> get arguments => [('tag', tag), ('ids', ids)];
+}
+
+/// The `DLDR` record: seven pointer-sized slots.
+final class DldrSection extends TypedSection {
+  const DldrSection({required this.slots, super.index, super.compressed})
+    : super('DLDR');
+
+  final List<int> slots;
+
+  @override
+  Uint8List get payload => ViDldrRecord.encode(slots);
+
+  @override
+  String get constructor => 'DldrSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('slots', [for (final slot in slots) HexInt(slot)]),
+  ];
+}
+
+/// Bookmarks (`BKMK`): two tables of text entries, the first with an extra word.
+final class BookmarksSection extends TypedSection {
+  const BookmarksSection({
+    this.tableA = const [],
+    this.tableB = const [],
+    super.index,
+    super.compressed,
+  }) : super('BKMK');
+
+  factory BookmarksSection.of(
+    ViBookmarkList list, {
+    int index = 0,
+    bool compressed = false,
+  }) => BookmarksSection(
+    tableA: [
+      for (final entry in list.tableA)
+        BookmarkSpec(
+          wordA: entry.wordA,
+          wordB: entry.wordB,
+          text: String.fromCharCodes(entry.text),
+        ),
+    ],
+    tableB: [
+      for (final entry in list.tableB)
+        BookmarkSpec(
+          wordB: entry.wordB,
+          text: String.fromCharCodes(entry.text),
+        ),
+    ],
+    index: index,
+    compressed: compressed,
+  );
+
+  final List<BookmarkSpec> tableA;
+
+  /// Entries without [BookmarkSpec.wordA].
+  final List<BookmarkSpec> tableB;
+
+  @override
+  Uint8List get payload => ViBookmarkList.encode(
+    tableA: [
+      for (final entry in tableA)
+        (wordA: entry.wordA!, wordB: entry.wordB, text: entry.text.codeUnits),
+    ],
+    tableB: [
+      for (final entry in tableB)
+        (wordB: entry.wordB, text: entry.text.codeUnits),
+    ],
+  );
+
+  @override
+  String get constructor => 'BookmarksSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    if (tableA.isNotEmpty) ('tableA', tableA),
+    if (tableB.isNotEmpty) ('tableB', tableB),
+  ];
+}
+
+/// One bookmark entry; [wordA] only in table A.
+final class BookmarkSpec implements Spelled {
+  const BookmarkSpec({this.wordA, required this.wordB, required this.text});
+
+  final int? wordA;
+
+  final int wordB;
+
+  final String text;
+
+  @override
+  String get constructor => 'BookmarkSpec';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('wordA', wordA),
+    ('wordB', wordB),
+    ('text', text),
+  ];
 }
