@@ -10,7 +10,10 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/display_current_time_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/execute_vi_remotely_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/for_loop_range_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/mean_of_2d_array_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/snippet_example_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/while_loop_infinite_reconstruction.dart';
 import 'util.dart';
@@ -20,6 +23,10 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   'While_Loop_-_Infinite_Loop.png': buildWhileLoopInfinite,
   'snippet_example.png': buildSnippetExample,
   '30934016_6biOD.png': buildForLoopRange,
+  'Execute_VI_Remotely_by_Using_VI_Server_2.png': buildExecuteViRemotely,
+  'Display_Current_Time_in_LabVIEW_VI_2.png': buildDisplayCurrentTime,
+  'How_Can_I_Calculate_the_Mean_of_a_2D_Array_in_LabVIEW.png':
+      buildMeanOf2dArray,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(

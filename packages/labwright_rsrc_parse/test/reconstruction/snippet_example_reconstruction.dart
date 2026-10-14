@@ -24,7 +24,7 @@ ViModel buildSnippetExample() {
   );
   bd.connect(toDouble.terminal('double precision float'), asDouble.terminal);
   bd.connect(now.terminal('current time'), asTimeStamp.terminal);
-  bd.connect(now.terminal('current time'), toDouble.terminal('number'));
+  bd.connect(now.terminal('current time'), toDouble.terminal('number'), bendX: 43);
   bd.write();
   return vi;
 }

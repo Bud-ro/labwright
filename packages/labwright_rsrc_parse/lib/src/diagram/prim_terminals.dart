@@ -10,6 +10,9 @@ import 'prim_terminal_census.dart';
 /// Offsets measured from reference renders, keyed like [kBdPrimTerminalCensus]; they fill
 /// axes the census leaves null.
 const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = {
+  (1053, 2, 32, 32): (dx: 11, dy: 11),
+  (1809, 1, 32, 32): (dx: 8, dy: 15),
+  (1904, 1, 32, 32): (dx: null, dy: 16),
   (1050, 0, 32, 32): (dx: 21, dy: 16),
   (1050, 1, 32, 32): (dx: null, dy: 21),
   (1051, 2, 32, 32): (dx: 11, dy: 11),
