@@ -36,6 +36,22 @@ class ViModel {
   /// The container the sections were loaded from, null for a model built without a file.
   final ViVi? file;
 
+  /// The section of [tag] at [index] among the block's sections, or null when the file has
+  /// none.
+  ViSectionBuffer? section(String tag, [int index = 0]) {
+    for (final section in sections) {
+      if (section.tag == tag && section.index == index) return section;
+    }
+    return null;
+  }
+
+  /// A fresh object id for a heap object: one above the highest in use, which `MUID` now
+  /// records.
+  int allocateUid() {
+    final record = ViMaxUid(section(BlockTag.muid.tag)!.writable);
+    return record.maxUid += 1;
+  }
+
   /// The file with every edited section written back: a section that was stored compressed
   /// is deflated again, the rest are copied as loaded.
   Uint8List serialize() {
