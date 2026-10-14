@@ -23,9 +23,9 @@ void main() {
     expect(root.all<BdPanelTerminal>().length, 7);
     expect(root.wires.length, 14);
     final xor = root.all<BdPrimitive>().first;
-    expect(xor.terminals.map((t) => t.name), ['x .xor. y', 'x', 'y']);
+    expect(xor.terminals.map((t) => t.name), ['x .xor. y?', 'y', 'x']);
     expect(xor.terminals.map((t) => t.isSink), [false, true, true]);
-    expect(xor.terminal('y'), same(xor.inputs[1]));
+    expect(xor.terminal('x'), same(xor.inputs[1]));
     final loop = root.all<BdLoop>().first;
     expect((loop.isFor, loop.frames.length), (true, 1));
     expect(

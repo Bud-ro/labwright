@@ -46,14 +46,21 @@ enum BdStructureList {
 /// A data type a wire carries, a constant holds or a control shows: a scalar, or an array of
 /// one over [dims] dimensions.
 class BdType {
-  const BdType.scalar(this.element) : dims = 0;
+  const BdType.scalar(this.element) : dims = 0, flavor = null;
 
   /// An array over [dims] dimensions; none makes the scalar itself.
-  const BdType.array(this.element, {this.dims = 1}) : assert(dims >= 0);
+  const BdType.array(this.element, {this.dims = 1, this.flavor}) : assert(dims >= 0);
+
+  const BdType._measure(this.flavor) : element = ViDataType.measureData, dims = 0;
 
   final ViDataType element;
 
   final int dims;
+
+  /// The shape of a measurement-data element.
+  final ViMeasureDataFlavor? flavor;
+
+  static const timestamp = BdType._measure(ViMeasureDataFlavor.timeStamp);
 
   static const i32 = BdType.scalar(ViDataType.i32);
 
@@ -65,6 +72,8 @@ class BdType {
 
   static const string = BdType.scalar(ViDataType.string);
 
+  static const dbl = BdType.scalar(ViDataType.dbl);
+
   static const u8Array = BdType.array(ViDataType.u8);
 
   static const booleanArray = BdType.array(ViDataType.boolean);
@@ -72,9 +81,15 @@ class BdType {
   /// The descriptor code of [element].
   int get code => typeCodeOfDataType(element) ?? (throw ArgumentError.value(element, 'element', 'has no single code'));
 
-  /// The signal's type word: the depth above the code, two for a string, one otherwise, plus
-  /// one per array dimension.
-  int get signalWord => (((element == ViDataType.string || element == ViDataType.path ? 2 : 1) + dims) << 8) | code;
+  /// The signal's type word: the depth above the code, one for a number or boolean, two for
+  /// a string, three for measurement data, plus one per array dimension.
+  int get signalWord => ((_scalarDepth + dims) << 8) | code;
+
+  int get _scalarDepth => switch (element) {
+    ViDataType.string || ViDataType.path => 2,
+    ViDataType.measureData => 3,
+    _ => 1,
+  };
 
   /// Bytes of one flattened scalar.
   int get scalarSize => switch (element) {
@@ -91,6 +106,7 @@ class BdType {
     final scalar = switch (element) {
       ViDataType.boolean => ViBooleanType.encode(label: scalarLabel),
       ViDataType.string => ViStringType.encode(label: scalarLabel),
+      ViDataType.measureData => ViMeasureDataType.encode(flavor!, label: scalarLabel),
       _ => ViNumericType.encode(code, label: scalarLabel),
     };
     final index = model.addType(scalar);
@@ -99,7 +115,14 @@ class BdType {
   }
 
   @override
-  String toString() => dims == 0 ? element.name : '${element.name}[${',' * (dims - 1)}]';
+  bool operator ==(Object other) =>
+      other is BdType && other.element == element && other.dims == dims && other.flavor == flavor;
+
+  @override
+  int get hashCode => Object.hash(element, dims, flavor);
+
+  @override
+  String toString() => dims == 0 ? (flavor?.name ?? element.name) : '${element.name}[${',' * (dims - 1)}]';
 }
 
 /// The block diagram of a model as objects to place, nest and wire, over the heap's own
@@ -142,13 +165,17 @@ class BdEditor {
   /// A fresh object id, which `MUID` now records.
   int allocateOid() => model.allocateUid();
 
-  /// A new control of [type] named [name] on the panel, as its terminal on the diagram.
-  BdPanelTerminal control(BdType type, String name) => _panelTerminal(type, name, indicator: false);
+  /// A new control of [type] named [name] on the panel, as its terminal in [frame], the
+  /// diagram itself unless given.
+  BdPanelTerminal control(BdType type, String name, {BdFrame? frame}) =>
+      _panelTerminal(type, name, indicator: false, frame: frame);
 
-  /// A new indicator of [type] named [name] on the panel, as its terminal on the diagram.
-  BdPanelTerminal indicator(BdType type, String name) => _panelTerminal(type, name, indicator: true);
+  /// A new indicator of [type] named [name] on the panel, as its terminal in [frame], the
+  /// diagram itself unless given.
+  BdPanelTerminal indicator(BdType type, String name, {BdFrame? frame}) =>
+      _panelTerminal(type, name, indicator: true, frame: frame);
 
-  BdPanelTerminal _panelTerminal(BdType type, String name, {required bool indicator}) {
+  BdPanelTerminal _panelTerminal(BdType type, String name, {required bool indicator, BdFrame? frame}) {
     final index = type.addTo(model, label: name);
     final nodeSlot = model.allocateTypeSlot(index);
     final controlSlot = model.allocateTypeSlot(index);
@@ -192,8 +219,9 @@ class BdEditor {
     final terminal = BdPanelTerminal._(null, leaf)
       .._type = type
       .._name = name
+      .._indicator = indicator
       .._autoPlace = true;
-    return diagram.add(terminal);
+    return (frame ?? diagram).add(terminal);
   }
 
   /// Wires [source] to [sink], typed by [type] or by whichever end declares one: a signal over
@@ -202,7 +230,7 @@ class BdEditor {
   BdWire connect(BdEndpoint source, BdEndpoint sink, {BdType? type}) {
     if (source.isSink) throw ArgumentError.value(source, 'source', 'consumes its wire');
     if (!sink.isSink) throw ArgumentError.value(sink, 'sink', 'produces its wire');
-    final wireType = type ?? source.type ?? sink.type;
+    final wireType = type ?? source.type ?? sink.type ?? _wireFrom(source)?.type;
     if (wireType == null) throw ArgumentError('neither end declares a type; pass one');
     final sourcePath = source.frameOf.ancestry, sinkPath = sink.frameOf.ancestry;
     var shared = 0;
@@ -225,14 +253,16 @@ class BdEditor {
     return _wire(from, sink, wireType);
   }
 
+  /// The signal [source] already drives, if the editor wired one.
+  BdWire? _wireFrom(BdEndpoint source) =>
+      source.frameOf.wires.where((wire) => wire.source?.oid == source.oid).firstOrNull;
+
   BdWire _wire(BdEndpoint source, BdEndpoint sink, BdType type) {
     final frame = source.frameOf;
     if (!identical(frame, sink.frameOf)) throw StateError('$source and $sink are in different frames');
-    for (final wire in frame.wires) {
-      if (wire.source?.oid == source.oid) {
-        wire._addSink(sink);
-        return wire;
-      }
+    if (_wireFrom(source) case final wire?) {
+      wire._addSink(sink);
+      return wire;
     }
     final signal = object(
       HeapObjectClass.signal.code,
@@ -248,7 +278,9 @@ class BdEditor {
     final signals = frame._ensureList(BdFrameList.signals);
     signals.children.add(signal);
     signals.syncCount();
-    final wire = BdWire._(frame, signal).._ends = [source, sink];
+    final wire = BdWire._(frame, signal)
+      .._ends = [source, sink]
+      .._type = type;
     wires.add(wire);
     return wire;
   }
@@ -407,7 +439,12 @@ class BdFrame {
     } else {
       _addEntry(item.node);
     }
-    placed.add(item);
+    if (item is BdNode) {
+      placed.add(item);
+    } else {
+      final at = placed.indexWhere((p) => p is BdNode);
+      placed.insert(at < 0 ? placed.length : at, item);
+    }
     if (item._autoPlace) {
       final size = item.bounds ?? kZeroRect;
       final left = margin + _cursor;
@@ -496,8 +533,15 @@ class BdNode extends BdPlaced {
       if (!t.isSink) t,
   ];
 
-  /// The terminal named [name], as [BdTerminal.name] spells it.
-  BdTerminal terminal(String name) => terminals.firstWhere(
+  /// The terminal named [name], as [BdTerminal.name] spells it; an output before an input of
+  /// the same name, which [input] and [output] tell apart.
+  BdTerminal terminal(String name) => _named(terminals, name);
+
+  BdTerminal input(String name) => _named(inputs, name);
+
+  BdTerminal output(String name) => _named(outputs, name);
+
+  BdTerminal _named(List<BdTerminal> among, String name) => among.firstWhere(
     (t) => t.name == name,
     orElse: () => throw ArgumentError.value(name, 'name', 'no such terminal on $this'),
   );
@@ -721,6 +765,19 @@ class BdTerminal extends BdEndpoint {
     return (x: node.left + (isSink ? term.left : term.right), y: node.top + (term.top + term.bottom) ~/ 2);
   }
 
+  /// The type the primitive fixes for the terminal, when it does; a measurement scalar is a
+  /// time stamp.
+  @override
+  BdType? get type {
+    final owner = this.owner;
+    final terminals = owner is BdPrimitive ? owner.op?.terminals : null;
+    final terminal = terminals != null && index < terminals.length ? terminals[index] : null;
+    final element = terminal?.type;
+    if (element == null) return null;
+    if (element == ViDataType.measureData) return BdType.timestamp;
+    return BdType.array(element, dims: terminal!.dims);
+  }
+
   /// The terminal's name: the node's own, else `in0`, `out0`, … by role and order.
   @override
   String get name {
@@ -857,6 +914,11 @@ class BdStructureTerminal {
   }();
 
   HeapRect get termBounds => terminal.children.attr(HeapAttribute.termBounds)?.asRect ?? kZeroRect;
+
+  /// Whether a loop tunnel indexes: reads or builds one element per iteration.
+  bool get indexing => terminal.children.objects.any(
+    (o) => o.kind == HeapObjectClass.bdTunnelIndexer.code && (o.children.attr(HeapAttribute.objFlags)?.asInt ?? 0) != 0,
+  );
 
   bool get isInput => outer?.isSink ?? false;
 
@@ -1072,7 +1134,12 @@ class BdStructure extends BdNode {
       side: side,
       slot: slot,
     ).._place();
-    borderTerminals.add(border);
+    if (holder == null) {
+      borderTerminals.add(border);
+    } else {
+      final at = borderTerminals.indexWhere((t) => t.holder == null);
+      borderTerminals.insert(at < 0 ? borderTerminals.length : at, border);
+    }
     return border;
   }
 
@@ -1726,10 +1793,16 @@ class BdPanelTerminal extends BdPlaced {
 
   String? _name;
 
+  bool? _indicator;
+
   /// The panel object the terminal stands for.
   int? get panelOid => node.children.refs.where((r) => r.kind == HeapRefKind.dcoRef).firstOrNull?.targetOid;
 
-  bool get isIndicator => (node.children.attr(HeapAttribute.objFlags)?.asInt ?? 0) & kBdSinkEndpointFlag != 0;
+  /// Whether the terminal consumes its wire: what the panel object says, else the terminal's
+  /// own sink flag.
+  bool get isIndicator => _indicator ??=
+      (panelOid == null ? null : frameOf.editor.panel.isIndicator(panelOid!)) ??
+      (node.children.attr(HeapAttribute.objFlags)?.asInt ?? 0) & kBdSinkEndpointFlag != 0;
 
   /// The terminal's one endpoint: a control's output or an indicator's input.
   late final BdPort terminal = BdPort._(
@@ -1763,7 +1836,12 @@ class BdWire {
 
   List<BdEndpoint>? _ends;
 
+  BdType? _type;
+
   int get oid => node.oid;
+
+  /// The type the editor wired the signal with; null for a loaded signal.
+  BdType? get type => _type;
 
   HeapGroupNode get _refs => node.children.group(HeapGroupTag.termList.tag)!;
 

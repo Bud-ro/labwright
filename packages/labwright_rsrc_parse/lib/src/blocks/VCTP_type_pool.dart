@@ -571,6 +571,9 @@ final class ViMeasureDataType extends ViType {
 
   /// Null for a code [ViMeasureDataFlavor] does not name.
   ViMeasureDataFlavor? get flavor => ViMeasureDataFlavor.ofCode(flavorCode);
+
+  static Uint8List encode(ViMeasureDataFlavor flavor, {String? label, int flags = 0}) =>
+      ViType.descriptor(TypeCode.measureData, ViType._u16(flavor.code), label: label, flags: flags);
 }
 
 /// The measurement shape a `0x54` type carries, by its flavor word.

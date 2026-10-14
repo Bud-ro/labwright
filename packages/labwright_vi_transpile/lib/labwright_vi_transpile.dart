@@ -20,7 +20,6 @@ export 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart'
         decodeSections;
 
 export 'src/dataflow_ir.dart';
-export 'src/dataflow_signature.dart';
 export 'src/declare.dart';
 export 'src/emit.dart';
 export 'src/error_mode.dart';

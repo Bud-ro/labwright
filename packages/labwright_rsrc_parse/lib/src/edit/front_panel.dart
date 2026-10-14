@@ -65,6 +65,29 @@ class FpEditor {
   /// The controls on the pane, in record order.
   Iterable<HeapObjectNode> get controls => _controls.children.objects;
 
+  /// Whether the panel object [oid] is an indicator; null when the panel has no such object.
+  bool? isIndicator(int oid) {
+    final node = _find(tree, oid);
+    return node == null ? null : (node.children.attr(HeapAttribute.objFlags)?.asInt ?? 0) & 1 != 0;
+  }
+
+  static HeapObjectNode? _find(List<HeapNode> nodes, int oid) {
+    for (final node in nodes) {
+      switch (node) {
+        case HeapObjectNode():
+          if (node.oid == oid) return node;
+          final below = _find(node.children, oid);
+          if (below != null) return below;
+        case HeapGroupNode():
+          final below = _find(node.children, oid);
+          if (below != null) return below;
+        case HeapRecordNode():
+          break;
+      }
+    }
+    return null;
+  }
+
   /// Adds a control or indicator of the type in heap slot [slot] named [name] below the
   /// others, and returns its object id, [oid].
   int addControl(

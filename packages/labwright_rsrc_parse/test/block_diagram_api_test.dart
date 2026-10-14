@@ -21,7 +21,7 @@ void main() {
     bd.connect(loop.iteration.innerPort, add.terminal('x'));
     bd.connect(add.terminal('x+y'), times.terminal('x'), type: BdType.i32);
     bd.connect(eight.out, times.terminal('y'));
-    expect(loop.borderTerminals.map((t) => t.kind.name), ['count', 'iteration', 'loopTunnel']);
+    expect(loop.borderTerminals.map((t) => t.kind.name), ['count', 'loopTunnel', 'iteration']);
     bd.write();
     final diagram = vi.primaryBlockDiagram!;
     final classes = diagram.objects.map((o) => o.objectClass).toSet();

@@ -1,6 +1,7 @@
 /// The primitives a `primResID` names, with the basis of each name.
 library;
 
+import '../blocks/VCTP_type_pool.dart';
 import 'objects.dart' show ViTypeKind;
 
 /// Where a [PrimOp]'s name comes from.
@@ -177,6 +178,8 @@ enum PrimOp {
 
   addArrayElements(1903, 'Add Array Elements', PrimNameBasis.corpusLabel),
 
+  multiplyArrayElements(1904, 'Multiply Array Elements', PrimNameBasis.adjacency),
+
   arrayMaxAndMin(1907, 'Array Max & Min', PrimNameBasis.corpusLabel),
 
   orArrayElements(1910, 'Or Array Elements', PrimNameBasis.corpusLabel),
@@ -291,13 +294,29 @@ enum PrimOp {
 /// One terminal of a primitive: its name, whether it consumes its wire, and where it sits in
 /// the node.
 class PrimTerminal {
-  const PrimTerminal(this.name, this.top, this.left, this.bottom, this.right, {this.input = false});
+  const PrimTerminal(
+    this.name,
+    this.top,
+    this.left,
+    this.bottom,
+    this.right, {
+    this.input = false,
+    this.type,
+    this.dims = 0,
+  });
 
-  const PrimTerminal.input(this.name, this.top, this.left, this.bottom, this.right) : input = true;
+  const PrimTerminal.input(this.name, this.top, this.left, this.bottom, this.right, {this.type, this.dims = 0})
+    : input = true;
 
   final String name;
 
   final bool input;
+
+  /// The element type the terminal always carries, when the primitive fixes it, over [dims]
+  /// array dimensions; null when the wire decides.
+  final ViDataType? type;
+
+  final int dims;
 
   final int top;
 
@@ -309,65 +328,89 @@ class PrimTerminal {
 }
 
 const Map<PrimOp, List<PrimTerminal>> _terminals = {
+  PrimOp.toDoublePrecisionFloat: [
+    PrimTerminal('double precision float', 0, 13, 11, 26, type: ViDataType.dbl),
+    PrimTerminal.input('number', 0, 0, 11, 13),
+  ],
+  PrimOp.waitMs: [
+    PrimTerminal('millisecond timer value', 0, 16, 32, 32, type: ViDataType.u32),
+    PrimTerminal.input('milliseconds to wait', 0, 0, 32, 16, type: ViDataType.u32),
+  ],
+  PrimOp.getDateTimeInSeconds: [PrimTerminal('current time', 0, 0, 32, 32, type: ViDataType.measureData)],
+  PrimOp.arraySize: [PrimTerminal('size(s)', 0, 16, 21, 32), PrimTerminal.input('array', 0, 0, 21, 16)],
+  PrimOp.addArrayElements: [PrimTerminal('sum', 0, 12, 25, 25), PrimTerminal.input('numeric array', 0, 0, 25, 12)],
+  PrimOp.multiplyArrayElements: [
+    PrimTerminal('product', 0, 12, 25, 25),
+    PrimTerminal.input('numeric array', 0, 0, 25, 12),
+  ],
+  PrimOp.formatDateTimeString: [
+    PrimTerminal('date/time string', 0, 16, 32, 32, type: ViDataType.string),
+    PrimTerminal.input('UTC format', 21, 0, 32, 16, type: ViDataType.boolean),
+    PrimTerminal.input('time stamp', 11, 0, 21, 16, type: ViDataType.measureData),
+    PrimTerminal.input('time format string', 0, 0, 11, 16, type: ViDataType.string),
+  ],
   PrimOp.add: [
     PrimTerminal('x+y', 0, 10, 21, 21),
-    PrimTerminal.input('x', 10, 0, 21, 10),
-    PrimTerminal.input('y', 0, 0, 10, 10),
+    PrimTerminal.input('y', 10, 0, 21, 10),
+    PrimTerminal.input('x', 0, 0, 10, 10),
   ],
   PrimOp.subtract: [
     PrimTerminal('x-y', 0, 10, 21, 21),
-    PrimTerminal.input('x', 10, 0, 21, 10),
-    PrimTerminal.input('y', 0, 0, 10, 10),
+    PrimTerminal.input('y', 10, 0, 21, 10),
+    PrimTerminal.input('x', 0, 0, 10, 10),
   ],
   PrimOp.multiply: [
     PrimTerminal('x*y', 0, 10, 21, 21),
-    PrimTerminal.input('x', 10, 0, 21, 10),
-    PrimTerminal.input('y', 0, 0, 10, 10),
+    PrimTerminal.input('y', 10, 0, 21, 10),
+    PrimTerminal.input('x', 0, 0, 10, 10),
   ],
   PrimOp.divide: [
     PrimTerminal('x/y', 0, 10, 21, 21),
-    PrimTerminal.input('x', 10, 0, 21, 10),
-    PrimTerminal.input('y', 0, 0, 10, 10),
+    PrimTerminal.input('y', 10, 0, 21, 10),
+    PrimTerminal.input('x', 0, 0, 10, 10),
   ],
   PrimOp.increment: [PrimTerminal('x+1', 0, 10, 21, 21), PrimTerminal.input('x', 0, 0, 21, 10)],
   PrimOp.decrement: [PrimTerminal('x-1', 0, 10, 21, 21), PrimTerminal.input('x', 0, 0, 21, 10)],
   PrimOp.and: [
-    PrimTerminal('x .and. y', 0, 12, 16, 24),
-    PrimTerminal.input('x', 8, 0, 16, 12),
-    PrimTerminal.input('y', 0, 0, 8, 12),
+    PrimTerminal('x .and. y?', 0, 12, 16, 24),
+    PrimTerminal.input('y', 8, 0, 16, 12),
+    PrimTerminal.input('x', 0, 0, 8, 12),
   ],
   PrimOp.or: [
-    PrimTerminal('x .or. y', 0, 10, 16, 22),
-    PrimTerminal.input('x', 8, 0, 16, 10),
-    PrimTerminal.input('y', 0, 0, 8, 10),
+    PrimTerminal('x .or. y?', 0, 10, 16, 22),
+    PrimTerminal.input('y', 8, 0, 16, 10),
+    PrimTerminal.input('x', 0, 0, 8, 10),
   ],
   PrimOp.exclusiveOr: [
-    PrimTerminal('x .xor. y', 0, 12, 16, 24),
-    PrimTerminal.input('x', 8, 0, 16, 12),
-    PrimTerminal.input('y', 0, 0, 8, 12),
+    PrimTerminal('x .xor. y?', 0, 12, 16, 24),
+    PrimTerminal.input('y', 8, 0, 16, 12),
+    PrimTerminal.input('x', 0, 0, 8, 12),
   ],
-  PrimOp.toLongInteger: [PrimTerminal('32-bit integer', 0, 12, 11, 25), PrimTerminal.input('number', 0, 0, 11, 12)],
+  PrimOp.toLongInteger: [
+    PrimTerminal('32bit integer', 0, 12, 11, 25, type: ViDataType.i32),
+    PrimTerminal.input('number', 0, 0, 11, 12),
+  ],
   PrimOp.toUnsignedByteInteger: [
-    PrimTerminal('8-bit integer', 0, 12, 11, 25),
+    PrimTerminal('unsigned 8bit integer', 0, 12, 11, 25, type: ViDataType.u8),
     PrimTerminal.input('number', 0, 0, 11, 12),
   ],
   PrimOp.rotateLeftWithCarry: [
-    PrimTerminal('result', 8, 12, 17, 25),
-    PrimTerminal('carry out', 0, 12, 8, 25),
+    PrimTerminal('value', 8, 12, 17, 25),
+    PrimTerminal('msb carry out', 0, 12, 8, 25, type: ViDataType.boolean),
     PrimTerminal.input('value', 8, 0, 17, 12),
-    PrimTerminal.input('carry', 0, 0, 8, 12),
+    PrimTerminal.input('carry', 0, 0, 8, 12, type: ViDataType.boolean),
   ],
   PrimOp.stringToByteArray: [
-    PrimTerminal('unsigned byte array', 0, 13, 11, 25),
-    PrimTerminal.input('string', 0, 0, 11, 13),
+    PrimTerminal('unsigned byte array', 0, 13, 11, 25, type: ViDataType.u8, dims: 1),
+    PrimTerminal.input('string', 0, 0, 11, 13, type: ViDataType.string),
   ],
   PrimOp.numberToBooleanArray: [
-    PrimTerminal('Boolean array', 0, 13, 11, 26),
+    PrimTerminal('Boolean array', 0, 13, 11, 26, type: ViDataType.boolean, dims: 1),
     PrimTerminal.input('number', 0, 0, 11, 13),
   ],
   PrimOp.booleanArrayToNumber: [
-    PrimTerminal('number', 0, 13, 11, 26),
-    PrimTerminal.input('Boolean array', 0, 0, 11, 13),
+    PrimTerminal('number', 0, 13, 11, 26, type: ViDataType.u32),
+    PrimTerminal.input('Boolean array', 0, 0, 11, 13, type: ViDataType.boolean, dims: 1),
   ],
   PrimOp.reverse1dArray: [PrimTerminal('reversed array', 0, 16, 23, 32), PrimTerminal.input('array', 0, 0, 23, 16)],
 };

@@ -86,6 +86,7 @@ const Map<String, String> kHelpOracleTerminals = {
   'Search 1D Array': '<1D array|<element|<start index|>index of element',
   'Transpose 2D Array': '<2D array|>transposed array',
   'Add Array Elements': '<numeric array|>sum',
+  'Multiply Array Elements': '<numeric array|>product',
   'Array Max & Min': '<array|>max value|>max index(es)|>min value|>min index(es)',
   'Or Array Elements': '<Boolean array|>logical OR',
   'And Array Elements': '<Boolean array|>logical AND',

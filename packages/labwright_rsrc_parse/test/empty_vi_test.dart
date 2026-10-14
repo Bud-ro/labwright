@@ -49,7 +49,7 @@ void main() {
     final times = editor.diagram.add(
       BdPrimitive.create(editor, PrimOp.multiply, at: const HeapRect(top: 40, left: 140, bottom: 72, right: 172)),
     );
-    expect(add.terminals.map((t) => t.name), ['x+y', 'x', 'y']);
+    expect(add.terminals.map((t) => t.name), ['x+y', 'y', 'x']);
     expect(add.terminal('x+y').attachPoint.x, 72 - 11);
     final wire = editor.connect(add.terminal('x+y'), times.terminal('x'), type: BdType.i32);
     expect(wire.endpointOids, [add.terminal('x+y').oid, times.terminal('x').oid]);
