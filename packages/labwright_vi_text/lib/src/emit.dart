@@ -168,6 +168,7 @@ String _spell(Spelled value, [List<String> extra = const []]) {
 
 String _value(Object argument) => switch (argument) {
   int() || bool() => '$argument',
+  HexInt(:final value) => _hex(value),
   double() => '$argument',
   String() => _string(argument),
   Uint8List() => '_h(${_bytes(argument)})',
@@ -182,6 +183,10 @@ String _value(Object argument) => switch (argument) {
 String _enumType(Enum value) => switch (value) {
   LegacyIconDepth() => 'LegacyIconDepth',
   ViTagValueFraming() => 'ViTagValueFraming',
+  ViPriority() => 'ViPriority',
+  ViKind() => 'ViKind',
+  ViExecutionSystem() => 'ViExecutionSystem',
+  ViControlStyle() => 'ViControlStyle',
   _ => throw ArgumentError.value(value, 'value', 'is not a spelled enum'),
 };
 

@@ -17,6 +17,13 @@ TypedSection? typedSectionOf(DecodedSection section, {ViVersionWord? version}) {
       compressed: compressed,
     );
   }
+  if (tag == BlockTag.lvsr.tag && ViSaveRecord.layout.fits(bytes.length)) {
+    return SaveRecordSection.of(
+      ViSaveRecord(bytes),
+      index: index,
+      compressed: compressed,
+    );
+  }
   if (tag == BlockTag.vits.tag) {
     return TagStoreSection.of(
       ViTagStore(bytes),
@@ -111,7 +118,7 @@ final class TagStoreSection extends TypedSection {
       for (final entry in store.entries)
         TagSpec(
           name: entry.name,
-          value: Uint8List.fromList(entry.value),
+          value: _copy(entry.value),
           framing: entry.framing,
         ),
     ],
@@ -158,3 +165,179 @@ final class TagSpec implements Spelled {
     if (framing != ViTagValueFraming.lengthPrefixed) ('framing', framing),
   ];
 }
+
+/// A save record (`LVSR`), its optional trailing fields present up to the last one given.
+final class SaveRecordSection extends TypedSection {
+  const SaveRecordSection({
+    required this.versionWord,
+    required this.statusFlags,
+    required this.optionFlags,
+    required this.flags12,
+    required this.unknown16,
+    required this.windowFlags,
+    required this.hiddenButtons,
+    required this.frontPanelFlags,
+    required this.stateFlags,
+    required this.unknown28,
+    required this.priority,
+    required this.viType,
+    required this.executionSystem,
+    required this.unknown40,
+    required this.unknown52,
+    required this.frontPanelGrid,
+    required this.blockDiagramGrid,
+    required this.unknown76,
+    required this.controlStyle,
+    required this.unknown80,
+    this.unknown96,
+    this.unknown112,
+    this.unknown116,
+    this.unknown120,
+    this.unknown136,
+    this.unknown137,
+    this.unknown140,
+    this.unknown144,
+    super.index,
+    super.compressed,
+  }) : super('LVSR');
+
+  factory SaveRecordSection.of(
+    ViSaveRecord record, {
+    int index = 0,
+    bool compressed = false,
+  }) => SaveRecordSection(
+    versionWord: record.versionWordBits,
+    statusFlags: record.statusFlagWord,
+    optionFlags: record.optionFlagWord,
+    flags12: record.flags12,
+    unknown16: record.unknown16,
+    windowFlags: record.windowFlagWord,
+    hiddenButtons: record.hiddenButtonWord,
+    frontPanelFlags: record.frontPanelFlagWord,
+    stateFlags: record.stateFlagWord,
+    unknown28: record.unknown28,
+    priority: record.priority,
+    viType: record.kind,
+    executionSystem: record.executionSystem,
+    unknown40: _copy(record.unknown40),
+    unknown52: _copy(record.unknown52),
+    frontPanelGrid: record.frontPanelGrid,
+    blockDiagramGrid: record.blockDiagramGrid,
+    unknown76: record.unknown76,
+    controlStyle: record.controlStyle,
+    unknown80: _copy(record.unknown80),
+    unknown96: _copyOrNull(record.unknown96),
+    unknown112: record.unknown112,
+    unknown116: record.unknown116,
+    unknown120: _copyOrNull(record.unknown120),
+    unknown136: record.unknown136,
+    unknown137: _copyOrNull(record.unknown137),
+    unknown140: record.unknown140,
+    unknown144: _copyOrNull(record.unknown144),
+    index: index,
+    compressed: compressed,
+  );
+
+  final int versionWord;
+  final int statusFlags;
+  final int optionFlags;
+  final int flags12;
+  final int unknown16;
+  final int windowFlags;
+  final int hiddenButtons;
+  final int frontPanelFlags;
+  final int stateFlags;
+  final int unknown28;
+  final ViPriority priority;
+  final ViKind viType;
+  final ViExecutionSystem executionSystem;
+  final Uint8List unknown40;
+  final Uint8List unknown52;
+  final int frontPanelGrid;
+  final int blockDiagramGrid;
+  final int unknown76;
+  final ViControlStyle controlStyle;
+  final Uint8List unknown80;
+  final Uint8List? unknown96;
+  final int? unknown112;
+  final int? unknown116;
+  final Uint8List? unknown120;
+  final int? unknown136;
+  final Uint8List? unknown137;
+  final int? unknown140;
+  final Uint8List? unknown144;
+
+  @override
+  Uint8List get payload => ViSaveRecord.encode(
+    versionWord: versionWord,
+    statusFlags: statusFlags,
+    optionFlags: optionFlags,
+    flags12: flags12,
+    unknown16: unknown16,
+    windowFlags: windowFlags,
+    hiddenButtons: hiddenButtons,
+    frontPanelFlags: frontPanelFlags,
+    stateFlags: stateFlags,
+    unknown28: unknown28,
+    priority: priority,
+    viType: viType,
+    executionSystem: executionSystem,
+    unknown40: unknown40,
+    unknown52: unknown52,
+    frontPanelGrid: frontPanelGrid,
+    blockDiagramGrid: blockDiagramGrid,
+    unknown76: unknown76,
+    controlStyle: controlStyle,
+    unknown80: unknown80,
+    unknown96: unknown96,
+    unknown112: unknown112,
+    unknown116: unknown116,
+    unknown120: unknown120,
+    unknown136: unknown136,
+    unknown137: unknown137,
+    unknown140: unknown140,
+    unknown144: unknown144,
+  );
+
+  @override
+  String get constructor => 'SaveRecordSection';
+
+  @override
+  List<(String, Object?)> get arguments => [
+    ('versionWord', HexInt(versionWord)),
+    ('statusFlags', HexInt(statusFlags)),
+    ('optionFlags', HexInt(optionFlags)),
+    ('flags12', HexInt(flags12)),
+    ('unknown16', unknown16),
+    ('windowFlags', HexInt(windowFlags)),
+    ('hiddenButtons', HexInt(hiddenButtons)),
+    ('frontPanelFlags', HexInt(frontPanelFlags)),
+    ('stateFlags', HexInt(stateFlags)),
+    ('unknown28', unknown28),
+    ('priority', priority),
+    ('viType', viType),
+    ('executionSystem', executionSystem),
+    ('unknown40', unknown40),
+    ('unknown52', unknown52),
+    ('frontPanelGrid', frontPanelGrid),
+    ('blockDiagramGrid', blockDiagramGrid),
+    ('unknown76', unknown76),
+    ('controlStyle', controlStyle),
+    ('unknown80', unknown80),
+    ('unknown96', unknown96),
+    ('unknown112', _hexOrNull(unknown112)),
+    ('unknown116', unknown116),
+    ('unknown120', unknown120),
+    ('unknown136', unknown136),
+    ('unknown137', unknown137),
+    ('unknown140', _hexOrNull(unknown140)),
+    ('unknown144', unknown144),
+  ];
+}
+
+Uint8List _copy(Uint8List bytes) => Uint8List.fromList(bytes);
+
+Uint8List? _copyOrNull(Uint8List? bytes) =>
+    bytes == null ? null : Uint8List.fromList(bytes);
+
+HexInt? _hexOrNull(int? value) => value == null ? null : HexInt(value);

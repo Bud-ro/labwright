@@ -36,12 +36,25 @@ List<SectionSpec> _readBack(List<SectionSpec> sections) =>
 String _text(List<SectionSpec> sections) =>
     emitViSpecDart(ViSpec('t.vi', sections), identifier: 't');
 
+Uint8List _saveRecord(int length) {
+  final bytes = _b([for (var i = 0; i < length; i++) i * 31 & 0xff]);
+  ByteData.sublistView(bytes)
+    ..setUint16(32, ViPriority.normal.code)
+    ..setUint16(34, ViKind.standard.code)
+    ..setInt32(36, ViExecutionSystem.sameAsCaller.code)
+    ..setUint16(78, ViControlStyle.nxg.code);
+  return bytes;
+}
+
 void main() {
   final decoded = <String, List<(String, Uint8List)>>{
     'IconSection': [
       ('icl8', _b([for (var i = 0; i < 1024; i++) i * 7 & 0xff])),
       ('icl4', _b([for (var i = 0; i < 512; i++) i * 13 & 0xff])),
       ('ICON', _b([for (var i = 0; i < 128; i++) i * 29 & 0xff])),
+    ],
+    'SaveRecordSection': [
+      for (final length in [96, 120, 137, 160]) ('LVSR', _saveRecord(length)),
     ],
     'TagStoreSection': [
       (
@@ -57,11 +70,11 @@ void main() {
   };
   for (final MapEntry(key: type, value: sections) in decoded.entries) {
     test('$type: decoded sections build their own bytes', () {
-      final read = _readBack([
-        for (final (tag, bytes) in sections) RawSection(tag, bytes),
-      ]);
-      expect(read.map((s) => s.runtimeType.toString()).toSet(), {type});
-      expect(read.map((s) => s.payload), sections.map((s) => s.$2));
+      for (final (tag, bytes) in sections) {
+        final read = _readBack([RawSection(tag, bytes)]).single;
+        expect(read.runtimeType.toString(), type);
+        expect(read.payload, bytes);
+      }
     });
   }
 
@@ -78,6 +91,34 @@ void main() {
       IconSection(
         depth: LegacyIconDepth.eightBit,
         rows: [for (var y = 0; y < 32; y++) 'ff00' * 16],
+      ),
+    ],
+    'SaveRecordSection': [
+      SaveRecordSection(
+        versionWord: 0x21008000,
+        statusFlags: ViStatusFlag.reentrant.mask,
+        optionFlags: 0,
+        flags12: 0,
+        unknown16: 3,
+        windowFlags: ViWindowFlag.canClose.mask,
+        hiddenButtons: 0,
+        frontPanelFlags: ViFrontPanelFlag.titleBar.mask,
+        stateFlags: ViStateFlag.debugCapable.mask,
+        unknown28: 1,
+        priority: ViPriority.normal,
+        viType: ViKind.standard,
+        executionSystem: ViExecutionSystem.sameAsCaller,
+        unknown40: Uint8List(12),
+        unknown52: Uint8List(16),
+        frontPanelGrid: 12,
+        blockDiagramGrid: 16,
+        unknown76: 0,
+        controlStyle: ViControlStyle.modern,
+        unknown80: Uint8List(16),
+        unknown96: Uint8List(16),
+        unknown112: 0x1000,
+        unknown116: -2,
+        unknown120: Uint8List(16),
       ),
     ],
     'TagStoreSection': [

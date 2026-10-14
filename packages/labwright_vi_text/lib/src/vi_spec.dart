@@ -67,6 +67,13 @@ abstract interface class Spelled {
   List<(String, Object?)> get arguments;
 }
 
+/// An integer argument the text form spells in hexadecimal.
+final class HexInt {
+  const HexInt(this.value);
+
+  final int value;
+}
+
 /// A section built from its decoded fields, which the text form spells as its constructor.
 abstract base class TypedSection extends SectionSpec implements Spelled {
   const TypedSection(super.tag, {super.index, super.compressed});
