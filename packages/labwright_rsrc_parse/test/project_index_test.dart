@@ -112,6 +112,23 @@ void main() {
       root.deleteSync(recursive: true);
     }
   });
+  test('a project walk skips hidden and unreadable directories and stops at its budget', () {
+    final root = Directory.systemTemp.createTempSync('walk');
+    addTearDown(() => root.deleteSync(recursive: true));
+    var dir = root;
+    for (var depth = 0; depth < 30; depth++) {
+      dir = Directory('${dir.path}/d$depth')..createSync();
+      File('${dir.path}/f$depth.lvlib').writeAsStringSync(_lvlib);
+    }
+    Directory('${root.path}/.hidden').createSync();
+    File('${root.path}/.hidden/h.lvlib').writeAsStringSync(_lvlib);
+    final all = lvWalkProjectFiles(root).map((f) => f.uri.pathSegments.last).toList();
+    expect(all, hasLength(31));
+    expect(lvWalkProjectFiles(root, skipHidden: true).map((f) => f.uri.pathSegments.last), isNot(contains('h.lvlib')));
+    expect(lvWalkProjectFiles(root, directoryBudget: 5, skipHidden: true).length, 4);
+    expect(LvProjectIndex.scan(root, directoryBudget: 5, skipHidden: true).libraries, hasLength(4));
+    expect(LvProjectIndex.scan(root).libraries, hasLength(31));
+  });
 }
 
 /// [path] spelled as this platform spells it.

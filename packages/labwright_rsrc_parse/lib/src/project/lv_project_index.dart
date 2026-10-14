@@ -3,6 +3,35 @@ import 'dart:io';
 import '../blocks/LIvi_LIbd_LIfp_LIds_link_info.dart';
 import 'lv_library_file.dart';
 
+/// The directories an interactive scan of a project tree visits at most, so a scan rooted too
+/// high never walks a whole disk.
+const int kLvProjectScanDirectoryBudget = 4000;
+
+/// The files of the directories under [root], in depth-first order, stepping over directories
+/// that cannot be listed; with [directoryBudget], visiting at most that many directories, and
+/// with [skipHidden], none whose name starts with a dot.
+Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool skipHidden = false}) sync* {
+  final stack = <Directory>[root];
+  var visited = 0;
+  while (stack.isNotEmpty && (directoryBudget == null || visited < directoryBudget)) {
+    final List<FileSystemEntity> entries;
+    try {
+      entries = stack.removeLast().listSync(followLinks: false);
+    } on FileSystemException {
+      continue;
+    }
+    visited++;
+    for (final entity in entries) {
+      if (entity is Directory) {
+        final name = entity.uri.pathSegments.lastWhere((s) => s.isNotEmpty, orElse: () => '');
+        if (!skipHidden || !name.startsWith('.')) stack.add(entity);
+      } else if (entity is File) {
+        yield entity;
+      }
+    }
+  }
+}
+
 /// Every library, class and XControl file under a root, and each member's file by its
 /// library-qualified name; resolves a VI's link entries to files.
 class LvProjectIndex {
@@ -15,17 +44,20 @@ class LvProjectIndex {
 
   final Map<String, String> _byQualifiedName;
 
-  /// Reads every `.lvlib`, `.lvclass` and `.xctl` under [root].
-  factory LvProjectIndex.scan(Directory root) {
+  /// Reads every `.lvlib`, `.lvclass` and `.xctl` under [root] that [lvWalkProjectFiles]
+  /// reaches, within [directoryBudget] and past hidden directories when asked.
+  factory LvProjectIndex.scan(Directory root, {int? directoryBudget, bool skipHidden = false}) {
     final libraries = <String, LvLibraryFile>{};
-    for (final entity in root.listSync(recursive: true)) {
-      if (entity is! File) continue;
+    for (final entity in lvWalkProjectFiles(root, directoryBudget: directoryBudget, skipHidden: skipHidden)) {
       final kind = LvLibraryKind.ofPath(entity.path);
       if (kind == null || kind == LvLibraryKind.project) continue;
-      libraries[entity.path] = LvLibraryFile.parse(
-        entity.readAsStringSync(),
-        fileName: entity.uri.pathSegments.last,
-      );
+      final String text;
+      try {
+        text = entity.readAsStringSync();
+      } on FileSystemException {
+        continue;
+      }
+      libraries[entity.path] = LvLibraryFile.parse(text, fileName: entity.uri.pathSegments.last);
     }
     final owner = <String, String>{};
     for (final MapEntry(key: path, value: library) in libraries.entries) {

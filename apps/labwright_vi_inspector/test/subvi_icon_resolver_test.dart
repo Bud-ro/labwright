@@ -80,4 +80,60 @@ void main() {
     },
     tags: 'corpus',
   );
+
+  test(
+    'the search root climbs no higher than the home directory or the filesystem root',
+    () {
+      final root = Directory.systemTemp.createTempSync('climb');
+      addTearDown(() => root.deleteSync(recursive: true));
+      final caller = Directory('${root.path}/home/me/a/b/c')
+        ..createSync(recursive: true);
+      expect(
+        subViSearchRoot(caller.path, 2, home: '${root.path}/home/me').path,
+        '${root.path}/home/me/a',
+      );
+      expect(
+        subViSearchRoot(caller.path, 4, home: '${root.path}/home/me').path,
+        '${root.path}/home/me/a',
+      );
+      expect(
+        subViSearchRoot(caller.path, 99, home: '/nowhere').path,
+        isNot('/'),
+      );
+      expect(subViSearchRoot('/', 3, home: '/nowhere').path, '/');
+    },
+  );
+
+  test('the ring search visits at most its directory budget', () {
+    final root = Directory.systemTemp.createTempSync('ring');
+    addTearDown(() => root.deleteSync(recursive: true));
+    final caller = Directory('${root.path}/caller')..createSync();
+    final vi = File('${caller.path}/Caller.vi')
+      ..writeAsBytesSync(_iconViFile.readAsBytesSync());
+    var dir = root;
+    for (var depth = 0; depth < 40; depth++) {
+      dir = Directory('${dir.path}/d$depth')..createSync();
+    }
+    File(
+      '${dir.path}/Deep Target.vi',
+    ).writeAsBytesSync(_iconViFile.readAsBytesSync());
+    expect(
+      resolveSubViIcons(
+        vi.path,
+        {'Deep Target.vi'},
+        levelsUp: 1,
+        directoryBudget: 20,
+      ),
+      isEmpty,
+    );
+    expect(
+      resolveSubViIcons(
+        vi.path,
+        {'Deep Target.vi'},
+        levelsUp: 1,
+        directoryBudget: 100,
+      ).keys,
+      ['Deep Target.vi'],
+    );
+  }, tags: 'corpus');
 }

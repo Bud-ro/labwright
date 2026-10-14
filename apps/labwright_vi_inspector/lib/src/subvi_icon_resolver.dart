@@ -10,17 +10,13 @@ Map<String, ViLegacyIcon> resolveSubViIcons(
   String viPath,
   Set<String> wanted, {
   int levelsUp = 4,
+  int directoryBudget = kLvProjectScanDirectoryBudget,
 }) {
   final out = <String, ViLegacyIcon>{};
   if (wanted.isEmpty) return out;
   final remaining = {for (final name in wanted) name.toLowerCase(): name};
   final callerDir = File(viPath).parent.path;
-  var root = Directory(callerDir);
-  for (var up = 0; up < levelsUp; up++) {
-    final parent = root.parent;
-    if (parent.path == root.path) break;
-    root = parent;
-  }
+  final root = subViSearchRoot(callerDir, levelsUp);
 
   var links = const <ViLinkEntryFramed>[];
   try {
@@ -48,7 +44,11 @@ Map<String, ViLegacyIcon> resolveSubViIcons(
     if (link.qualifiedName.length > 1) byQualifiedName.add(link);
   }
   if (byQualifiedName.isNotEmpty) {
-    final index = LvProjectIndex.scan(root);
+    final index = LvProjectIndex.scan(
+      root,
+      directoryBudget: directoryBudget,
+      skipHidden: true,
+    );
     for (final link in byQualifiedName) {
       final fileName = link.qualifiedName.last.toLowerCase();
       final name = remaining[fileName];
@@ -64,33 +64,56 @@ Map<String, ViLegacyIcon> resolveSubViIcons(
 
   var ring = Directory(callerDir);
   String? searched;
-  for (var level = 0; level <= levelsUp && remaining.isNotEmpty; level++) {
-    _searchRing(ring.path, searched, remaining, out);
+  var budget = directoryBudget;
+  while (remaining.isNotEmpty && budget > 0) {
+    budget -= _searchRing(ring.path, searched, remaining, out, budget);
+    if (ring.path == root.path) break;
     searched = ring.path;
-    final parent = ring.parent;
-    if (parent.path == ring.path) break;
-    ring = parent;
+    ring = ring.parent;
   }
   return out;
 }
 
-void _searchRing(
+/// The directory [levelsUp] above [callerDir], stopping short of [home] (the user's home
+/// directory unless given) and the filesystem root, which a search must never walk.
+Directory subViSearchRoot(String callerDir, int levelsUp, {String? home}) {
+  home ??= Platform.environment['HOME'] ?? Platform.environment['USERPROFILE'];
+  var root = Directory(callerDir);
+  for (var up = 0; up < levelsUp; up++) {
+    final parent = root.parent;
+    if (parent.path == home || parent.parent.path == parent.path) break;
+    root = parent;
+  }
+  return root;
+}
+
+/// Searches [root] for the files [remaining] names, skipping the subtree [exclude] already
+/// searched, visiting at most [budget] directories; the number visited.
+int _searchRing(
   String root,
   String? exclude,
   Map<String, String> remaining,
   Map<String, ViLegacyIcon> out,
+  int budget,
 ) {
   final stack = <String>[root];
-  while (stack.isNotEmpty && remaining.isNotEmpty) {
+  var visited = 0;
+  while (stack.isNotEmpty && remaining.isNotEmpty && visited < budget) {
     final List<FileSystemEntity> entries;
     try {
       entries = Directory(stack.removeLast()).listSync(followLinks: false);
     } catch (_) {
       continue;
     }
+    visited++;
     for (final entity in entries) {
       if (entity is Directory) {
-        if (entity.path != exclude) stack.add(entity.path);
+        final name = entity.uri.pathSegments.lastWhere(
+          (s) => s.isNotEmpty,
+          orElse: () => '',
+        );
+        if (entity.path != exclude && !name.startsWith('.'))
+          stack.add(entity.path);
       } else if (entity is File) {
         final fileName = entity.uri.pathSegments.isEmpty
             ? ''
@@ -103,6 +126,7 @@ void _searchRing(
       }
     }
   }
+  return visited;
 }
 
 ViLegacyIcon? decodeViFileIcon(String path) {
