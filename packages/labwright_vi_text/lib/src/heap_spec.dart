@@ -32,6 +32,15 @@ sealed class HeapSpec {
 
   static HeapSpec? _typedRecord(Uint8List bytes) {
     final lead = bytes[0];
+    if (bytes.length > 2 &&
+        heapRawId(lead, bytes[1]) == HeapAttribute.compressedWireTable.raw) {
+      final table = wireTableOfRecord(bytes);
+      final decoded = table == null ? null : decodeWireTable(table);
+      if (decoded != null) {
+        final spec = WireTableSpec.of(decoded);
+        if (_reproduces(spec, bytes)) return spec;
+      }
+    }
     if (lead == kHeapRecordPrefix) {
       final record = c4FrameAt(bytes, 0, '');
       if (record == null) return null;
@@ -258,6 +267,29 @@ final class C4Spec extends HeapSpec {
       ..setInt16(6, right);
     return out;
   }
+}
+
+/// A signal's `compressedWireTable` attribute: its route as [WireTable] words.
+final class WireTableSpec extends HeapSpec {
+  WireTableSpec(
+    int pointCount, {
+    List<int>? header,
+    List<int> modes = const [],
+    List<int> lengths = const [],
+  }) : table = WireTable(
+         pointCount,
+         header: header,
+         modes: modes,
+         lengths: lengths,
+       );
+
+  const WireTableSpec.of(this.table);
+
+  final WireTable table;
+
+  @override
+  void encodeInto(BytesBuilder out) =>
+      out.add(encodeWireTableRecord(table.encode()));
 }
 
 /// A record kept verbatim.

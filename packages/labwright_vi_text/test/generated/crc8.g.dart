@@ -6914,13 +6914,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                                           HeapAttrWidth
                                                                               .u8,
                                                                     ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .compressedWireTable
-                                                                          .raw,
-                                                                      0x208,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
+                                                                    WireTableSpec(
+                                                                      2,
+                                                                      modes: [
+                                                                        8,
+                                                                      ],
                                                                     ),
                                                                     AttrSpec(
                                                                       HeapAttribute
@@ -7370,10 +7368,17 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                                           HeapAttrWidth
                                                                               .u8,
                                                                     ),
-                                                                    RawSpec(
-                                                                      _h(
-                                                                        'c5e706040801000604',
-                                                                      ),
+                                                                    WireTableSpec(
+                                                                      4,
+                                                                      modes: [
+                                                                        8,
+                                                                        1,
+                                                                        0,
+                                                                      ],
+                                                                      lengths: [
+                                                                        6,
+                                                                        4,
+                                                                      ],
                                                                     ),
                                                                     AttrSpec(
                                                                       HeapAttribute
@@ -7422,13 +7427,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                                           HeapAttrWidth
                                                                               .u8,
                                                                     ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .compressedWireTable
-                                                                          .raw,
-                                                                      0x208,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
+                                                                    WireTableSpec(
+                                                                      2,
+                                                                      modes: [
+                                                                        8,
+                                                                      ],
                                                                     ),
                                                                     AttrSpec(
                                                                       HeapAttribute
@@ -7477,13 +7480,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                                           HeapAttrWidth
                                                                               .u8,
                                                                     ),
-                                                                    AttrSpec(
-                                                                      HeapAttribute
-                                                                          .compressedWireTable
-                                                                          .raw,
-                                                                      0x208,
-                                                                      width: HeapAttrWidth
-                                                                          .u16,
+                                                                    WireTableSpec(
+                                                                      2,
+                                                                      modes: [
+                                                                        8,
+                                                                      ],
                                                                     ),
                                                                     AttrSpec(
                                                                       HeapAttribute
@@ -8605,12 +8606,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -8650,12 +8648,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -8695,8 +8690,10 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    RawSpec(
-                                                      _h('c5e706040801003c08'),
+                                                    WireTableSpec(
+                                                      4,
+                                                      modes: [8, 1, 0],
+                                                      lengths: [60, 8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -8736,12 +8733,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -8781,12 +8775,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x21,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -8826,12 +8817,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -9731,11 +9719,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -9760,11 +9744,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x205,
@@ -9789,7 +9769,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    RawSpec(_h('c5e706040801001139')),
+                                    WireTableSpec(
+                                      4,
+                                      modes: [8, 1, 0],
+                                      lengths: [17, 57],
+                                    ),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -9815,7 +9799,12 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    RawSpec(_h('c5e70a0500080500030d420bf7')),
+                                    WireTableSpec(
+                                      5,
+                                      header: [],
+                                      modes: [8, 5, 0, 3],
+                                      lengths: [13, 66, 11, 247],
+                                    ),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x103,
@@ -9840,11 +9829,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x205,
@@ -9869,11 +9854,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4105,
@@ -9898,11 +9879,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x21,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4103,
@@ -11342,12 +11319,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -11387,12 +11361,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -11432,12 +11403,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -11477,12 +11445,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -11522,12 +11487,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -11567,12 +11529,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -12317,11 +12276,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x21,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4103,
@@ -13667,12 +13622,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -14284,12 +14236,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -14329,12 +14278,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x21,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -14374,12 +14320,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -14419,12 +14362,9 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                                       0x1,
                                                       width: HeapAttrWidth.u8,
                                                     ),
-                                                    AttrSpec(
-                                                      HeapAttribute
-                                                          .compressedWireTable
-                                                          .raw,
-                                                      0x208,
-                                                      width: HeapAttrWidth.u16,
+                                                    WireTableSpec(
+                                                      2,
+                                                      modes: [8],
                                                     ),
                                                     AttrSpec(
                                                       HeapAttribute
@@ -15305,7 +15245,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    RawSpec(_h('c5e706040800000d04')),
+                                    WireTableSpec(
+                                      4,
+                                      modes: [8, 0, 0],
+                                      lengths: [13, 4],
+                                    ),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -15330,11 +15274,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -15359,11 +15299,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4121,
@@ -15388,11 +15324,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -15417,7 +15349,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    RawSpec(_h('c5e706040800000b1a')),
+                                    WireTableSpec(
+                                      4,
+                                      modes: [8, 0, 0],
+                                      lengths: [11, 26],
+                                    ),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -15442,11 +15378,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x21,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4205,
@@ -15471,7 +15403,11 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    RawSpec(_h('c5e706040800007850')),
+                                    WireTableSpec(
+                                      4,
+                                      modes: [8, 0, 0],
+                                      lengths: [120, 80],
+                                    ),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4205,
@@ -15496,11 +15432,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x103,
@@ -15525,11 +15457,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -16084,11 +16012,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -16665,11 +16589,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -16694,11 +16614,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x105,
@@ -16723,11 +16639,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x1,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x103,
@@ -16752,11 +16664,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                                       0x21,
                                       width: HeapAttrWidth.u8,
                                     ),
-                                    AttrSpec(
-                                      HeapAttribute.compressedWireTable.raw,
-                                      0x208,
-                                      width: HeapAttrWidth.u16,
-                                    ),
+                                    WireTableSpec(2, modes: [8]),
                                     AttrSpec(
                                       HeapAttribute.lastSignalKind.raw,
                                       0x4205,
@@ -20331,7 +20239,12 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x21,
                       width: HeapAttrWidth.u8,
                     ),
-                    RawSpec(_h('c5e71007000805000300001d590cff014a7f13')),
+                    WireTableSpec(
+                      7,
+                      header: [],
+                      modes: [8, 5, 0, 3, 0, 0],
+                      lengths: [29, 89, 12, 330, 127, 19],
+                    ),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x4205,
@@ -20356,11 +20269,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x121,
@@ -20385,7 +20294,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    RawSpec(_h('c5e7060408010014c0')),
+                    WireTableSpec(4, modes: [8, 1, 0], lengths: [20, 192]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x205,
@@ -20410,11 +20319,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x21,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x4205,
@@ -20439,11 +20344,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x105,
@@ -20468,11 +20369,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x105,
@@ -20497,11 +20394,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x205,
@@ -20526,11 +20419,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x21,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x4103,
@@ -20555,11 +20444,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x230,
@@ -20584,7 +20469,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    RawSpec(_h('c5e70804080100ff02c921')),
+                    WireTableSpec(4, modes: [8, 1, 0], lengths: [713, 33]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x121,
@@ -20609,7 +20494,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    RawSpec(_h('c5e70804080100ff02b019')),
+                    WireTableSpec(4, modes: [8, 1, 0], lengths: [688, 25]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x105,
@@ -20634,11 +20519,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x105,
@@ -20663,11 +20544,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x105,
@@ -20692,11 +20569,7 @@ final ViSpec crc8 = ViSpec('crc8.vi', [
                       0x1,
                       width: HeapAttrWidth.u8,
                     ),
-                    AttrSpec(
-                      HeapAttribute.compressedWireTable.raw,
-                      0x208,
-                      width: HeapAttrWidth.u16,
-                    ),
+                    WireTableSpec(2, modes: [8]),
                     AttrSpec(
                       HeapAttribute.lastSignalKind.raw,
                       0x105,

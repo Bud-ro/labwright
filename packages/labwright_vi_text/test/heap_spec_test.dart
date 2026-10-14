@@ -26,6 +26,8 @@ void main() {
         0x45, 0x3a, 0x12, 0x34, // typeDescIndex u16 (bank 1)
         0x04, 0x05, // flag false
         0x14, 0x19, 0x01, 0xfd, 0x00, 0x03, // childRef 3
+        0x45, 0xe7, 0x02, 0x08, // wire table, u16
+        0xc5, 0xe7, 0x06, 0x04, 0x08, 0x01, 0x00, 0x06, 0x04, // wire table
         0x11,
         0x19,
         0x02,
@@ -56,8 +58,20 @@ void main() {
         'AttrSpec',
         'AttrSpec',
         'RefSpec',
+        'WireTableSpec',
+        'WireTableSpec',
         'ObjectSpec',
       ]);
+      final table = (object.children[6] as WireTableSpec).table;
+      expect(
+        [table.pointCount, table.header, table.modes, table.lengths],
+        [
+          4,
+          null,
+          [8, 1, 0],
+          [6, 4],
+        ],
+      );
       final attr = object.children[2] as AttrSpec;
       expect(
         (attr.attribute, attr.value, attr.width),
@@ -114,6 +128,7 @@ void main() {
             C4Spec.caption('hi'),
             const AttrSpec(0x13a, 0x1234, width: HeapAttrWidth.u16),
             const RefSpec(0x019, 3),
+            WireTableSpec(3, header: [1], modes: [8, 0], lengths: [502]),
           ],
         ),
       ]),
@@ -131,6 +146,10 @@ void main() {
       ),
     );
     expect(text, contains('RefSpec(HeapRefKind.childRef.raw, 3),'));
+    expect(
+      text,
+      contains('WireTableSpec(3, header: [1], modes: [8, 0], lengths: [502]),'),
+    );
     expect(text, contains("RawSection('MUID', _h('00000007')),"));
   });
 }

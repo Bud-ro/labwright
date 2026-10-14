@@ -15,7 +15,8 @@ dart run packages/labwright_vi_text/bin/vi_text.dart --corpus corpus/text
 - A heap (`FPHb`, `BDHb`) is its records as a tree: `ObjectSpec` for an object from its
   header to its close, `GroupSpec` for a group, and inside them `C4Spec` (with `bounds` and
   `caption` for the two decoded shapes), `AttrSpec` for a scalar or flag attribute by its
-  ten-bit id, `RefSpec` for a reference, and `RawSpec` for any record whose bytes are not yet
+  ten-bit id, `RefSpec` for a reference, `WireTableSpec` for a signal's route table as its
+  point count, modes and segment lengths, and `RawSpec` for any record whose bytes are not yet
   decided by decoded fields (string blobs, containers, floats, the walk's unframed tail).
 - The type pool (`VCTP`) is its descriptors, each the bytes `ViType.encode` produces, and the
   top-level list.
@@ -40,5 +41,5 @@ The container's own words (descriptor words, gaps) are not carried: `encode` lay
 container out canonically, so a rebuilt file is section-exact, not byte-exact. The sections
 written as bytes (`LVSR`, `vers`, `CONP`, icons, link info, …) have layouts in
 `labwright_rsrc_parse`; constructors from those layouts are the next step. Group open
-records, string and container attributes and wire route tables are carried as bytes; a
-declarative wire needs the route table's encoder.
+records and string and container attributes are carried as bytes; a wire is its signal
+object, its segment objects and the route table's words, not yet endpoints and a polyline.

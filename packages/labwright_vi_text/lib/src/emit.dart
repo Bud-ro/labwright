@@ -123,6 +123,13 @@ void _record(StringBuffer out, HeapSpec record, int depth) {
             : _hex(opcode);
         out.writeln('${pad}C4Spec($op, _h(${_bytes(payload)})),');
       }
+    case WireTableSpec(:final table):
+      final args = [
+        if (table.header case final header?) 'header: ${_ints(header)}',
+        if (table.modes.isNotEmpty) 'modes: ${_ints(table.modes)}',
+        if (table.lengths.isNotEmpty) 'lengths: ${_ints(table.lengths)}',
+      ];
+      out.writeln('${pad}WireTableSpec(${table.pointCount}${_named(args)}),');
     case RawSpec(:final bytes):
       out.writeln('${pad}RawSpec(_h(${_bytes(bytes)})),');
   }
