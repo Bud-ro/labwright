@@ -16,7 +16,11 @@ String emitViSpecDart(ViSpec spec, {required String identifier}) {
     )
     ..writeln("import 'package:labwright_vi_text/labwright_vi_text.dart';")
     ..writeln()
-    ..writeln('Uint8List _b(List<int> bytes) => Uint8List.fromList(bytes);')
+    ..writeln('Uint8List _h(String hex) => Uint8List.fromList([')
+    ..writeln(
+      '  for (var i = 0; i < hex.length; i += 2) int.parse(hex.substring(i, i + 2), radix: 16),',
+    )
+    ..writeln(']);')
     ..writeln()
     ..writeln('final ViSpec $identifier = ViSpec(${_string(spec.name)}, [');
   for (final section in spec.sections) {
@@ -47,12 +51,12 @@ void _section(StringBuffer out, SectionSpec section, int depth) {
     case TypePoolSection(:final descriptors, :final topLevel):
       out.writeln('${pad}TypePoolSection([');
       for (final descriptor in descriptors) {
-        out.writeln('$pad  _b(${_bytes(descriptor)}),');
+        out.writeln('$pad  _h(${_bytes(descriptor)}),');
       }
       out.writeln('$pad], topLevel: ${_ints(topLevel)}$tail),');
     case RawSection(:final tag, :final bytes):
       out.writeln(
-        '${pad}RawSection(${_string(tag)}, _b(${_bytes(bytes)})$tail),',
+        '${pad}RawSection(${_string(tag)}, _h(${_bytes(bytes)})$tail),',
       );
   }
 }
@@ -82,7 +86,7 @@ void _record(StringBuffer out, HeapSpec record, int depth) {
         if (record.close != (0x08, 0x19)) 'close: ${_close(record.close)}',
       ];
       out.writeln(
-        '${pad}GroupSpec(_b(${_bytes(record.open)})${_named(args)}, children: [',
+        '${pad}GroupSpec(_h(${_bytes(record.open)})${_named(args)}, children: [',
       );
       for (final child in record.children) {
         _record(out, child, depth + 1);
@@ -117,10 +121,10 @@ void _record(StringBuffer out, HeapSpec record, int depth) {
         final op = kind.byte == opcode
             ? 'HeapOpcode.${kind.name}.byte'
             : _hex(opcode);
-        out.writeln('${pad}C4Spec($op, _b(${_bytes(payload)})),');
+        out.writeln('${pad}C4Spec($op, _h(${_bytes(payload)})),');
       }
     case RawSpec(:final bytes):
-      out.writeln('${pad}RawSpec(_b(${_bytes(bytes)})),');
+      out.writeln('${pad}RawSpec(_h(${_bytes(bytes)})),');
   }
 }
 
@@ -134,7 +138,7 @@ String _hex(int value) => '0x${value.toRadixString(16)}';
 String _ints(List<int> values) => '[${values.join(', ')}]';
 
 String _bytes(Uint8List bytes) =>
-    '[${[for (final b in bytes) _hex(b)].join(', ')}]';
+    "'${[for (final b in bytes) b.toRadixString(16).padLeft(2, '0')].join()}'";
 
 bool _isText(Uint8List bytes) => bytes.every((b) => b >= 0x20 && b < 0x7f);
 

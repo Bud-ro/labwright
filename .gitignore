@@ -28,6 +28,9 @@ zig-out/
 /corpus/vi
 /corpus/seq
 
+# The corpus as Dart: `dart run packages/labwright_vi_text/bin/vi_text.dart --corpus corpus/text`
+/corpus/text
+
 # Claude Junk
 .claude/
 

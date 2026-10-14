@@ -131,6 +131,6 @@ void main() {
       ),
     );
     expect(text, contains('RefSpec(HeapRefKind.childRef.raw, 3),'));
-    expect(text, contains("RawSection('MUID', _b([0x0, 0x0, 0x0, 0x7])),"));
+    expect(text, contains("RawSection('MUID', _h('00000007')),"));
   });
 }

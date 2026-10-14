@@ -88,7 +88,7 @@ jobs:
       - name: corpus tests
         shell: bash
         run: |
-          for p in packages/labwright_rsrc_parse packages/labwright_seq packages/labwright_vi_transpile; do
+          for p in packages/labwright_rsrc_parse packages/labwright_seq packages/labwright_vi_transpile packages/labwright_vi_text; do
             echo "== $p =="
             ( cd "$p" && dart test -t corpus ) || exit 1
           done
