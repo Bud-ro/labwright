@@ -1740,7 +1740,8 @@ HeapObjectClass _carrierClass(BdType type) => type.dims > 0
       };
 
 /// The `constValue` record of [value] flattened as [type]: a bool as one byte when true and a
-/// zero word when false, a number as its width, a string or array behind its length word.
+/// zero word when false, an integer as its width, a double as its eight bytes, a string or array
+/// behind its length word.
 HeapRecordNode _constValue(BdType type, Object value) {
   if (type.dims == 0) {
     switch (value) {
@@ -1757,6 +1758,8 @@ HeapRecordNode _constValue(BdType type, Object value) {
           2 => attr(HeapAttribute.constValue, HeapAttrWidth.u16, n),
           _ => attr(HeapAttribute.constValue, HeapAttrWidth.rgb, n),
         };
+      case final double d when type.element == ViDataType.dbl:
+        return containerAttr(HeapAttribute.constValue, (ByteData(8)..setFloat64(0, d)).buffer.asUint8List());
       case final String s:
         return containerAttr(HeapAttribute.constValue, [
           ...(ByteData(4)..setUint32(0, s.length)).buffer.asUint8List(),
