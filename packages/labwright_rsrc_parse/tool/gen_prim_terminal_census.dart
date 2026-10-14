@@ -36,6 +36,7 @@ void main() {
     files++;
     for (final diagram in model.blockDiagrams) {
       for (final wire in diagram.wires) {
+        _recordLeaves(diagram, wire, xObs, yObs);
         final slack = wire.routeHeadSlack;
         final points = wire.routePoints;
         if (slack == null || points == null || points.isEmpty) continue;
@@ -86,7 +87,71 @@ void main() {
   stderr.writeln(
     'files=$files slackWires=$slackWires keys=${{...xObs.keys, ...yObs.keys}.length}',
   );
+  _writeCensus(xObs, yObs);
+}
 
+/// Where each leaf of a walked branch route lands on a primitive node's terminal: the
+/// route's own lengths place it, so both axes are exact.
+void _recordLeaves(
+  ViDiagram diagram,
+  ViWire wire,
+  Map<(int, int, int, int), Map<int, int>> xObs,
+  Map<(int, int, int, int), Map<int, int>> yObs,
+) {
+  if (wire.routeTreeFidelity != WireRouteFidelity.walked) return;
+  final tree = wire.routeTree;
+  if (tree == null || tree.leaves.length != wire.endpointOids.length - 1) return;
+  final sinks = <(ViHeapObject node, HeapRect box, int termIdx)>[];
+  for (var i = 1; i < wire.endpointOids.length; i++) {
+    final dco = diagram.byId[wire.endpointOids[i]];
+    if (dco == null || dco.kind != kNodeEndpointDcoKind || dco.absBounds != null) continue;
+    final node = diagram.byId[dco.parentOid ?? -1];
+    final box = node?.absBounds;
+    if (node == null || box == null || box.width <= 0 || box.height <= 0) continue;
+    final dcos = [
+      for (final c in diagram.children(node.oid))
+        if (c.kind == kNodeEndpointDcoKind) c,
+    ];
+    final termIdx = dcos.indexWhere((c) => c.oid == dco.oid);
+    if (termIdx >= 0) sinks.add((node, box, termIdx));
+  }
+  final head = diagram.byId[wire.endpointOids.first];
+  final headNode = head == null || head.kind != kNodeEndpointDcoKind || head.absBounds != null
+      ? null
+      : diagram.byId[head.parentOid ?? -1];
+  final headBox = headNode?.absBounds;
+  if (headNode != null && headBox != null && headBox.width > 0 && headBox.height > 0) {
+    final dcos = [
+      for (final c in diagram.children(headNode.oid))
+        if (c.kind == kNodeEndpointDcoKind) c,
+    ];
+    final termIdx = dcos.indexWhere((c) => c.oid == head!.oid);
+    final origin = tree.polylines.first.first;
+    if (termIdx >= 0 &&
+        origin.x >= headBox.left &&
+        origin.x <= headBox.right &&
+        origin.y >= headBox.top &&
+        origin.y <= headBox.bottom) {
+      final key = (headNode.primResId ?? -headNode.kind, termIdx, headBox.width, headBox.height);
+      (xObs[key] ??= {}).update(origin.x - headBox.left, (c) => c + 1, ifAbsent: () => 1);
+      (yObs[key] ??= {}).update(origin.y - headBox.top, (c) => c + 1, ifAbsent: () => 1);
+    }
+  }
+  for (final leaf in tree.leaves) {
+    final inside = [
+      for (final sink in sinks)
+        if (leaf.x >= sink.$2.left && leaf.x <= sink.$2.right && leaf.y >= sink.$2.top && leaf.y <= sink.$2.bottom)
+          sink,
+    ];
+    if (inside.length != 1) continue;
+    final (node, box, termIdx) = inside.single;
+    final key = (node.primResId ?? -node.kind, termIdx, box.width, box.height);
+    (xObs[key] ??= {}).update(leaf.x - box.left, (c) => c + 1, ifAbsent: () => 1);
+    (yObs[key] ??= {}).update(leaf.y - box.top, (c) => c + 1, ifAbsent: () => 1);
+  }
+}
+
+void _writeCensus(Map<(int, int, int, int), Map<int, int>> xObs, Map<(int, int, int, int), Map<int, int>> yObs) {
   final keys = {...xObs.keys, ...yObs.keys}.toList()
     ..sort((a, b) {
       var c = a.$1.compareTo(b.$1);
