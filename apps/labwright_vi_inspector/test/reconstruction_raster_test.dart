@@ -23,6 +23,7 @@ import '../../../packages/labwright_rsrc_parse/test/reconstruction/reinitialize_
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/snippet_example_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/unit_test_add_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/string_to_number_reconstruction.dart';
+import '../../../packages/labwright_rsrc_parse/test/reconstruction/toggle_text_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/while_loop_infinite_reconstruction.dart';
 import '../../../packages/labwright_rsrc_parse/test/reconstruction/while_loop_reconstruction.dart';
 import 'util.dart';
@@ -50,6 +51,7 @@ final Map<String, ViModel Function()> layoutReconstructions = {
   'LabVIEW_While.png': buildWhileLoop,
   'Reinitializing_a_Shift_Register_Without_Stopping_the_VI.png':
       buildReinitializeShiftRegister,
+  '32768403_29Tuz.png': buildToggleText,
 };
 
 Future<ui.Image> _render(ViModel model) async => (await rasteriseBlockDiagram(
