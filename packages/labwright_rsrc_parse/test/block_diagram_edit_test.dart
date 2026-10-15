@@ -10,8 +10,7 @@ void main() {
   test('crc8 lifts into placed objects, named terminals and wires, and writes back byte for byte', () {
     final bytes = extractSnippetVi(snippetPng('crc8.png').readAsBytesSync())!;
     final model = buildViModel(bytes);
-    final editor = model.blockDiagram;
-    final root = editor.diagram;
+    final root = model.diagram;
     expect(root.all<BdPrimitive>().map((p) => p.op?.name), ['exclusiveOr', 'stringToByteArray']);
     expect(root.all<BdLoop>().length, 2);
     expect(root.all<BdStructure>().map((s) => s.objectClass.name), [
@@ -36,8 +35,7 @@ void main() {
     expect(nested.body.all<BdCase>().single.frames.length, 2);
     expect(root.wires.first.endpointOids.length, greaterThanOrEqualTo(2));
     final before = model.section('BDHb')!.bytes;
-    expect(editor.encode(), before);
-    editor.write();
+    model.write();
     expect(model.section('BDHb')!.bytes, before);
     expect(model.section('BDHb')!.edited, isFalse);
   });

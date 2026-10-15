@@ -8,9 +8,8 @@ ViModel buildSnippetExample() {
 
   final toDouble = vi.add(BdPrimitive(PrimOp.toDoublePrecisionFloat));
   final now = vi.add(BdPrimitive(PrimOp.getDateTimeInSeconds));
-  toDouble['double precision float'] >> asDouble;
-  now['current time'] >> asTimeStamp;
-  now['current time'] >> toDouble['number'];
+  vi.connect([toDouble.terminal('double precision float'), asDouble]);
+  vi.connect([now.terminal('current time'), asTimeStamp, toDouble.terminal('number')]);
   vi.write();
   return vi;
 }

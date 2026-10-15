@@ -48,8 +48,8 @@ void main() {
     );
     expect(add.terminals.map((t) => t.name), ['x+y', 'y', 'x']);
     expect(add.out.attachPoint.x, 72 - 11);
-    final wire = model.connect(add.out, times['x'], type: BdType.i32);
-    expect(wire.endpointOids, [add.out.oid, times['x'].oid]);
+    final wire = model.connect([add.out, times.terminal('x')], type: BdType.i32);
+    expect(wire.endpointOids, [add.out.oid, times.terminal('x').oid]);
     model.write();
     final diagram = model.primaryBlockDiagram!;
     final nodes = diagram.objects.where((o) => o.objectClass == HeapObjectClass.bdNode).toList();

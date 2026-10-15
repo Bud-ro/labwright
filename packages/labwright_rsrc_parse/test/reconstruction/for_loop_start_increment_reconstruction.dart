@@ -13,13 +13,13 @@ ViModel buildForLoopStartIncrement() {
   final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
   final add = loop.add(BdPrimitive(PrimOp.add));
   final multiply = loop.add(BdPrimitive(PrimOp.multiply));
-  add['x+y'] >> out;
-  vi.connect(multiply['x*y'], add['y'], type: BdType.i32);
-  increment >> multiply['x'];
-  start >> add['x'];
-  loop.iteration >> multiply['y'];
-  iterations >> loop.count;
-  out >> output;
+  vi.connect([add.terminal('x+y'), out]);
+  vi.connect([multiply.terminal('x*y'), add.terminal('y')], type: BdType.i32);
+  vi.connect([increment, multiply.terminal('x')]);
+  vi.connect([start, add.terminal('x')]);
+  vi.connect([loop.iteration, multiply.terminal('y')]);
+  vi.connect([iterations, loop.count]);
+  vi.connect([out, output]);
   vi.write();
   return vi;
 }

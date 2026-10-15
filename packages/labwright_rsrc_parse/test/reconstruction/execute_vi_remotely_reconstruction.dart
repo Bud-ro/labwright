@@ -11,9 +11,9 @@ ViModel buildExecuteViRemotely() {
   vi.add(loop);
   final halfSecond = loop.add(BdConstant.u32(500, label: 'milliseconds to wait'));
   final wait = loop.add(BdPrimitive(PrimOp.waitMs));
-  stop >> loop.conditional;
-  halfSecond >> wait['milliseconds to wait'];
-  loop.iteration >> index;
+  vi.connect([stop, loop.conditional]);
+  vi.connect([halfSecond, wait.terminal('milliseconds to wait')]);
+  vi.connect([loop.iteration, index]);
   vi.write();
   return vi;
 }

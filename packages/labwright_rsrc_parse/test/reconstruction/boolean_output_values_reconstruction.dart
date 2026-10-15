@@ -10,10 +10,10 @@ ViModel buildBooleanOutputValues() {
   final whenTrue = vi.add(BdConstant.dbl(3, label: 't'));
   final whenFalse = vi.add(BdConstant.dbl(0, label: 'f'));
   final select = vi.add(BdPrimitive(PrimOp.select));
-  button >> select['s'];
-  whenTrue >> select['t'];
-  whenFalse >> select['f'];
-  select['s? t:f'] >> value;
+  vi.connect([button, select.terminal('s')]);
+  vi.connect([whenTrue, select.terminal('t')]);
+  vi.connect([whenFalse, select.terminal('f')]);
+  vi.connect([select.terminal('s? t:f'), value]);
   vi.write();
   return vi;
 }

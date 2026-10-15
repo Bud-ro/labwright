@@ -25,21 +25,19 @@ Map<String, int> _census(CorpusVi vi) {
   if (diagram == null || panel == null) return c;
   final diagramBefore = Uint8List.fromList(diagram.bytes);
   final panelBefore = Uint8List.fromList(panel.bytes);
-  final BdEditor editor;
   try {
-    editor = model.blockDiagram;
-    for (final frame in editor.diagram.all<BdStructure>().expand((s) => s.frames)) {
+    for (final frame in model.diagram.all<BdStructure>().expand((s) => s.frames)) {
       frame.placed;
       frame.wires;
     }
-    editor.diagram.placed;
-    editor.diagram.wires;
-    editor.panel.controls;
+    model.diagram.placed;
+    model.diagram.wires;
+    model.panel.controls;
   } catch (_) {
     bump('lift');
     return c;
   }
-  editor.write();
+  model.write();
   bump('lifted');
   if (!_same(diagram.bytes, diagramBefore)) bump('diagram');
   if (!_same(panel.bytes, panelBefore)) bump('panel');

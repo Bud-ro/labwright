@@ -16,12 +16,12 @@ ViModel buildToggleText() {
   final shown = choose.tunnel(BdType.string, direction: BdTunnelDirection.output);
   final off = choose.whenFalse.add(BdConstant.string('off'));
   final on = choose.whenTrue.add(BdConstant.string('on'));
-  off >> shown.inner(choose.whenFalse);
-  on >> shown.inner(choose.whenTrue);
-  stop >> loop.conditional;
-  period >> wait['millisecond multiple'];
-  toggle >> choose.selector;
-  shown >> text;
+  vi.connect([off, shown.inner(choose.whenFalse)]);
+  vi.connect([on, shown.inner(choose.whenTrue)]);
+  vi.connect([stop, loop.conditional]);
+  vi.connect([period, wait.terminal('millisecond multiple')]);
+  vi.connect([toggle, choose.selector]);
+  vi.connect([shown, text]);
   vi.write();
   return vi;
 }

@@ -47,6 +47,7 @@ class ViModel with ViEditing {
 
   /// The section of [tag] at [index] among the block's sections, or null when the file has
   /// none.
+  @override
   ViSectionBuffer? section(String tag, [int index = 0]) {
     for (final section in sections) {
       if (section.tag == tag && section.index == index) return section;
@@ -56,6 +57,7 @@ class ViModel with ViEditing {
 
   /// A fresh object id for a heap object: one above the highest in use, which `MUID` now
   /// records.
+  @override
   int allocateUid() {
     final muid = section(BlockTag.muid.tag)!;
     final uid = ViMaxUid(muid.bytes).maxUid + 1;
@@ -122,9 +124,11 @@ class ViModel with ViEditing {
   }
 
   /// One diagram per `BDHb` section.
+  @override
   final List<ViDiagram> blockDiagrams;
 
   /// One diagram per `FPHb` section.
+  @override
   final List<ViDiagram> frontPanelDiagrams;
 
   ViDiagram? get primaryBlockDiagram => largestDiagram(blockDiagrams);
@@ -143,6 +147,7 @@ class ViModel with ViEditing {
   List<ViHeapObject?> paneTerminals;
 
   /// Appends [descriptor] to the type pool and returns its index.
+  @override
   int addType(Uint8List descriptor) {
     final vctp = section(BlockTag.vctp.tag)!;
     final pool = ViTypePool(vctp.bytes);
@@ -178,6 +183,7 @@ class ViModel with ViEditing {
 
   /// Gives the pool's type at [index] a heap slot: a new top-level entry, which `DTHP` now
   /// counts; returns the one-based slot a `typeDescIndex` names it by.
+  @override
   int allocateTypeSlot(int index) {
     final vctp = section(BlockTag.vctp.tag)!;
     final dthp = section(BlockTag.dthp.tag)!;
@@ -202,11 +208,6 @@ class ViModel with ViEditing {
 
   /// A VI with nothing on its panel or diagram, as LabVIEW 21.0 saves one.
   static ViModel empty({String name = 'untitled.vi'}) => buildViModel(emptyViBytes(name: name));
-
-  /// The block diagram as objects to place, nest and wire; lifted once from the primary
-  /// heap and written back with [write].
-  @override
-  late final BdEditor blockDiagram = BdEditor.lift(this);
 
   /// The heap section [diagram] was built from.
   ViSectionBuffer sectionOf(ViDiagram diagram) => section(diagram.sectionTag, diagram.sectionIndex)!;
@@ -301,6 +302,7 @@ class ViModel with ViEditing {
 
   /// Rebuilds [diagram] from its section, in its place among the model's diagrams, with the
   /// fonts and types resolved again.
+  @override
   ViDiagram reloadDiagram(ViDiagram diagram) {
     final section = sectionOf(diagram);
     final rebuilt = buildDiagram(

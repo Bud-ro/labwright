@@ -9,9 +9,9 @@ ViModel buildUnitTestAdd() {
   final z = vi.indicator(BdType.dbl, 'Z');
 
   final add = vi.add(BdPrimitive(PrimOp.add));
-  x >> add['x'];
-  y >> add['y'];
-  add['x+y'] >> z;
+  vi.connect([x, add.terminal('x')]);
+  vi.connect([y, add.terminal('y')]);
+  vi.connect([add.terminal('x+y'), z]);
   vi.write();
   return vi;
 }

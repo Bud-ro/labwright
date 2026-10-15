@@ -38,7 +38,7 @@ void main() {
           final model = buildViModel(extractSnippetVi(file.readAsBytesSync())!);
           final before = await _rgba(model);
           if (before == null) continue;
-          model.blockDiagram.write();
+          model.write();
           final after = await _rgba(buildViModel(model.serialize()));
           compared++;
           if (after == null || !_same(before, after))

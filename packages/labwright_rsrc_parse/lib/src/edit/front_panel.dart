@@ -4,8 +4,8 @@ import '../block_tag.dart';
 import '../diagram/objects.dart';
 import '../heap/heap.dart';
 import '../heap/heap_tree.dart';
-import '../model.dart';
 import '../section_buffer.dart';
+import 'block_diagram.dart';
 import 'empty_vi.dart';
 import 'records.dart';
 
@@ -14,7 +14,7 @@ import 'records.dart';
 class FpEditor {
   FpEditor._(this.model, this.section, this.tree, this._frame, this._viewport);
 
-  factory FpEditor.lift(ViModel model) {
+  factory FpEditor.lift(ViEditing model) {
     final section = model.section(BlockTag.fphb.tag);
     if (section == null) throw StateError('the model has no front panel heap');
     final tree = parseHeapTree(section.bytes);
@@ -44,7 +44,7 @@ class FpEditor {
     return null;
   }
 
-  final ViModel model;
+  final ViEditing model;
 
   final ViSectionBuffer section;
 

@@ -2,16 +2,18 @@ import 'dart:typed_data';
 
 import '../block_tag.dart';
 import '../blocks/VCTP_type_pool.dart';
+import '../diagram/diagram.dart';
 import '../diagram/objects.dart';
 import '../diagram/prim_ops.dart';
 import '../diagram/wire_route.dart';
 import '../heap/heap.dart';
 import '../heap/heap_tree.dart';
-import '../model.dart';
 import '../section_buffer.dart';
 import 'empty_vi.dart';
 import 'front_panel.dart';
 import 'records.dart';
+
+part 'model_editing.dart';
 
 /// The lists a diagram frame's records open: its placed objects, its node order with the
 /// endpoint table first, and its signals; [rawId] is the ten-bit group id, [tag] its low byte.
@@ -65,17 +67,29 @@ class BdType {
 
   static const timestamp = BdType._measure(ViMeasureDataFlavor.timeStamp);
 
+  static const i8 = BdType.scalar(ViDataType.i8);
+
+  static const i16 = BdType.scalar(ViDataType.i16);
+
   static const i32 = BdType.scalar(ViDataType.i32);
+
+  static const i64 = BdType.scalar(ViDataType.i64);
 
   static const u8 = BdType.scalar(ViDataType.u8);
 
+  static const u16 = BdType.scalar(ViDataType.u16);
+
   static const u32 = BdType.scalar(ViDataType.u32);
+
+  static const u64 = BdType.scalar(ViDataType.u64);
+
+  static const sgl = BdType.scalar(ViDataType.sgl);
+
+  static const dbl = BdType.scalar(ViDataType.dbl);
 
   static const boolean = BdType.scalar(ViDataType.boolean);
 
   static const string = BdType.scalar(ViDataType.string);
-
-  static const dbl = BdType.scalar(ViDataType.dbl);
 
   /// The array of this type: one dimension more.
   BdType get array => BdType.array(element, dims: dims + 1, flavor: flavor);
@@ -103,7 +117,7 @@ class BdType {
   };
 
   /// Appends the type to [model]'s pool, labelled [label], and returns its pool index.
-  int addTo(ViModel model, {String? label}) {
+  int addTo(ViEditing model, {String? label}) {
     final scalarLabel = dims == 0 ? label : null;
     final scalar = switch (element) {
       ViDataType.boolean => ViBooleanType.encode(label: scalarLabel),
@@ -127,173 +141,26 @@ class BdType {
   String toString() => dims == 0 ? (flavor?.name ?? element.name) : '${element.name}[${',' * (dims - 1)}]';
 }
 
-/// The block diagram of a model as objects to place, nest and wire, over the heap's own
-/// records: what was loaded keeps every record it came with, what is added is written as
-/// LabVIEW writes it, and [write] puts the heap back into the model.
-class BdEditor {
-  BdEditor._(this.model, this.section, this.tree, HeapObjectNode root, HeapObjectNode frame)
-    : _root = root,
-      diagram = BdFrame._lifted(null, frame) {
-    diagram._editor = this;
-  }
-
-  /// The editor over [model]'s primary block diagram heap.
-  factory BdEditor.lift(ViModel model) {
-    final section = model.section(BlockTag.bdhb.tag);
-    if (section == null) throw StateError('the model has no block diagram heap');
-    final tree = parseHeapTree(section.bytes);
-    final root = tree.objects.firstWhere((o) => o.kind == HeapObjectClass.diagramRoot.code);
-    final frame = root.children.objects.firstWhere((o) => o.kind == HeapObjectClass.bdFrame.code);
-    return BdEditor._(model, section, tree, root, frame);
-  }
-
-  final ViModel model;
-
-  final ViSectionBuffer section;
-
-  /// The heap's records; the diagram's objects live inside [diagram]'s frame.
-  final List<HeapNode> tree;
-
-  final HeapObjectNode _root;
-
-  /// The root frame: the diagram itself.
-  final BdFrame diagram;
-
-  /// The front panel, where [control] and [indicator] put their panel objects.
-  late final FpEditor panel = FpEditor.lift(model);
-
-  int get rootOid => _root.oid;
-
-  /// A fresh object id, which `MUID` now records.
-  int allocateOid() => model.allocateUid();
-
-  /// A new control of [type] named [name] on the panel, as its terminal in [frame], the
-  /// diagram itself unless given.
-  BdPanelTerminal control(BdType type, String name, {BdFrame? frame}) =>
-      (frame ?? diagram).add(BdPanelTerminal.control(type, name));
-
-  /// A new indicator of [type] named [name] on the panel, as its terminal in [frame], the
-  /// diagram itself unless given.
-  BdPanelTerminal indicator(BdType type, String name, {BdFrame? frame}) =>
-      (frame ?? diagram).add(BdPanelTerminal.indicator(type, name));
-
-  /// Wires [source] to [sink], typed by [type] or by whichever end declares one: a signal over
-  /// the two in the frame they share, through a tunnel on every structure border between
-  /// them, reusing a tunnel the source already feeds, and joining the signal [source]
-  /// already drives in its frame. A structure terminal given as an end is taken on the side
-  /// facing the other end. `source >> sink` does the same.
-  BdWire connect(BdEndpoint source, BdEndpoint sink, {BdType? type}) {
-    sink = _facing(sink, source);
-    source = _facing(source, sink);
-    if (source.isSink) throw ArgumentError.value(source, 'source', 'consumes its wire');
-    if (!sink.isSink) throw ArgumentError.value(sink, 'sink', 'produces its wire');
-    final wireType = type ?? source.type ?? sink.type ?? _wireFrom(source)?.type;
-    if (wireType == null) throw ArgumentError('neither $source nor $sink declares a type; pass one');
-    final sourcePath = source.frameOf.ancestry, sinkPath = sink.frameOf.ancestry;
-    var shared = 0;
-    while (shared < sourcePath.length && shared < sinkPath.length && identical(sourcePath[shared], sinkPath[shared])) {
-      shared++;
-    }
-    var from = source;
-    for (var i = sourcePath.length - 1; i >= shared; i--) {
-      final frame = sourcePath[i];
-      var tunnel = _fedTunnel(from, frame.owner!, wireType, output: true);
-      if (tunnel == null) {
-        tunnel = frame.owner!.tunnel(wireType, direction: BdTunnelDirection.output);
-        _wire(from, tunnel.inner(frame), wireType);
-      }
-      from = tunnel.outer;
-    }
-    for (var i = shared; i < sinkPath.length; i++) {
-      final frame = sinkPath[i];
-      var tunnel = _fedTunnel(from, frame.owner!, wireType, output: false);
-      if (tunnel == null) {
-        tunnel = frame.owner!.tunnel(wireType, direction: BdTunnelDirection.input);
-        _wire(from, tunnel.outer, wireType);
-      }
-      from = tunnel.inner(frame);
-    }
-    return _wire(from, sink, wireType);
-  }
-
-  /// [end] as the endpoint on the side of its structure that faces [other]: inside the frame
-  /// of [other]'s ancestry the structure owns, else outside.
-  static BdEndpoint _facing(BdEndpoint end, BdEndpoint other) {
-    if (end is! BdStructureTerminal) return end;
-    final near = other is BdStructureTerminal ? other._facing.frameOf : other.frameOf;
-    for (final frame in near.ancestry) {
-      if (end.owner.frames.any((f) => identical(f, frame))) return end.inner(frame);
-    }
-    return end.holder == null ? end.innerPort : end.outer;
-  }
-
-  /// A plain tunnel of [type] on [structure] the signal from [from] already reaches.
-  BdStructureTerminal? _fedTunnel(BdEndpoint from, BdStructure structure, BdType type, {required bool output}) {
-    final fed = _wireFrom(from)?.endpointOids.toSet();
-    if (fed == null) return null;
-    for (final tunnel in structure.borderTerminals) {
-      if (tunnel.holder == null || tunnel._type != type || tunnel.indexing) continue;
-      if (tunnel.kind != BdBorderKind.loopTunnel && tunnel.kind != BdBorderKind.caseTunnel) continue;
-      if (tunnel.isInput == output) continue;
-      final port = output ? tunnel.inner(from.frameOf) : tunnel.outer;
-      if (fed.contains(port.oid)) return tunnel;
-    }
-    return null;
-  }
-
-  /// The signal [source] already drives, if the editor wired one.
-  BdWire? _wireFrom(BdEndpoint source) =>
-      source.frameOf.wires.where((wire) => wire.source?.oid == source.oid).firstOrNull;
-
-  BdWire _wire(BdEndpoint source, BdEndpoint sink, BdType type) {
-    final frame = source.frameOf;
-    if (!identical(frame, sink.frameOf)) throw StateError('$source and $sink are in different frames');
-    if (_wireFrom(source) case final wire?) {
-      wire._addSink(sink);
-      return wire;
-    }
-    final signal = object(
-      HeapObjectClass.signal.code,
-      allocateOid(),
-      children: [
-        list(kBdTermList, [ref(HeapRefKind.childRef, source.oid), ref(HeapRefKind.childRef, sink.oid)]),
-        attr(HeapAttribute.signalState, HeapAttrWidth.u8, 1),
-        HeapRecordNode(encodeWireTableRecord(bdRouteFanOut(source.attachPoint, [sink.attachPoint]).encode())),
-        attr(HeapAttribute.lastSignalKind, HeapAttrWidth.u16, type.signalWord),
-      ],
-    );
-    final wires = frame.wires;
-    final signals = frame._ensureList(BdFrameList.signals);
-    signals.children.add(signal);
-    signals.syncCount();
-    final wire = BdWire._(frame, signal)
-      .._ends = [source, sink]
-      .._type = type;
-    wires.add(wire);
-    return wire;
-  }
-
-  /// Writes the heaps back into the model's sections and rebuilds the model's diagrams.
-  void write() {
-    section.replace(encodeHeapTree(tree));
-    for (final diagram in model.blockDiagrams) {
-      if (diagram.sectionIndex == section.index) model.reloadDiagram(diagram);
-    }
-    panel.write();
-  }
-
-  /// The diagram heap bytes the records encode now.
-  Uint8List encode() => encodeHeapTree(tree);
-}
-
 /// A frame: the diagram itself or one frame of a structure, holding placed objects, its
 /// node order and its signals. Objects placed without bounds flow left to right from
 /// [margin] in, [gap] apart.
 class BdFrame {
-  BdFrame._lifted(this.owner, this.node);
+  BdFrame._lifted(this.owner, this.node, {ViEditing? model}) : _model = model;
+
+  /// The root frame of the diagram heap [tree] holds.
+  BdFrame._root(ViEditing model, List<HeapNode> tree)
+    : this._lifted(
+        null,
+        tree.objects
+            .firstWhere((o) => o.kind == HeapObjectClass.diagramRoot.code)
+            .children
+            .objects
+            .firstWhere((o) => o.kind == HeapObjectClass.bdFrame.code),
+        model: model,
+      );
 
   /// A frame of a structure not yet placed: its records exist once the structure's do.
-  BdFrame._pending(this.owner);
+  BdFrame._pending(this.owner) : _model = null;
 
   /// The structure this frame belongs to, null for the diagram's root frame.
   final BdStructure? owner;
@@ -302,9 +169,9 @@ class BdFrame {
 
   bool get _built => owner == null || owner!.isPlaced;
 
-  BdEditor? _editor;
+  final ViEditing? _model;
 
-  BdEditor get editor => _editor ?? owner!.frameOf.editor;
+  ViEditing get model => _model ?? owner!.frameOf.model;
 
   int get oid => node.oid;
 
@@ -349,7 +216,7 @@ class BdFrame {
     if (existing != null) return existing;
     final table = object(
       HeapObjectClass.bdWire.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1000),
         list(kBdTermList),
@@ -432,7 +299,7 @@ class BdFrame {
   }
 
   void _place(BdPlaced item) {
-    item._build(editor);
+    item._build(model);
     final placed = this.placed;
     if (item is BdNode) {
       final objects = _ensureList(BdFrameList.objects);
@@ -498,12 +365,12 @@ class BdPlaced {
   /// The object's records.
   HeapObjectNode get node => _node ?? (throw StateError('$this is not placed yet; add it to a frame first'));
 
-  void _build(BdEditor editor) {
-    _node ??= _make(editor);
+  void _build(ViEditing model) {
+    _node ??= _make(model);
   }
 
-  /// The object's records, with ids from [editor].
-  HeapObjectNode _make(BdEditor editor) => throw UnsupportedError('$runtimeType cannot be created');
+  /// The object's records, with ids and type slots from [model].
+  HeapObjectNode _make(ViEditing model) => throw UnsupportedError('$runtimeType cannot be created');
 
   int get oid => node.oid;
 
@@ -521,8 +388,7 @@ class BdPlaced {
   String toString() => _node == null ? '$runtimeType (unplaced)' : '${objectClass.name}#$oid';
 }
 
-/// Where a wire can start or end: an endpoint record a signal references. `source >> sink`
-/// wires two endpoints.
+/// Where a wire can start or end: an endpoint record a signal references.
 abstract mixin class BdEndpoint {
   BdFrame get frameOf;
 
@@ -542,11 +408,6 @@ abstract mixin class BdEndpoint {
   BdType? get type => null;
 
   String get name;
-
-  BdEditor get _editor => frameOf.editor;
-
-  /// Wires this endpoint to [sink]: [BdEditor.connect] with the type the ends declare.
-  BdWire operator >>(BdEndpoint sink) => _editor.connect(this, sink);
 }
 
 /// A node: something with endpoint holders a wire can reach.
@@ -555,12 +416,34 @@ class BdNode extends BdPlaced {
 
   BdNode._create({super.at}) : super._create();
 
-  /// The node's terminals in record order, outputs first as LabVIEW lists them.
-  late final List<BdTerminal> terminals = [
-    for (final (i, holder)
-        in (node.children.group(HeapGroupTag.termList.tag)?.children.objects ?? const <HeapObjectNode>[]).indexed)
-      if (holder.kind == kNodeEndpointDcoKind) BdTerminal._(this, holder, i),
-  ];
+  /// The node's terminals in record order, outputs first as LabVIEW lists them, named by
+  /// [terminalNames] or `in0`, `out0`, … by role and order, each meeting its wire at the
+  /// middle of its outer edge.
+  late final List<BdTerminal> terminals = () {
+    var ins = 0, outs = 0;
+    final names = terminalNames;
+    return [
+      for (final (i, holder)
+          in (node.children.group(HeapGroupTag.termList.tag)?.children.objects ?? const <HeapObjectNode>[]).indexed)
+        if (holder.kind == kNodeEndpointDcoKind)
+          BdTerminal._(
+            frameOf,
+            holder,
+            name: names != null && i < names.length ? names[i] : (_consumes(holder) ? 'in${ins++}' : 'out${outs++}'),
+            type: terminalType(i),
+            attach: () {
+              final b = bounds ?? kZeroRect;
+              final t = holder.children.objects
+                  .map((o) => o.children.attr(HeapAttribute.termBounds)?.asRect)
+                  .firstWhere((r) => r != null, orElse: () => kZeroRect)!;
+              return (x: b.left + (_consumes(holder) ? t.left : t.right), y: b.top + (t.top + t.bottom) ~/ 2);
+            },
+          ),
+    ];
+  }();
+
+  static bool _consumes(HeapObjectNode holder) =>
+      (holder.children.attr(HeapAttribute.objFlags)?.asInt ?? 0) & (kBdSinkEndpointFlag | kBdInputEndpointFlag) != 0;
 
   List<BdTerminal> get inputs => [
     for (final t in terminals)
@@ -573,10 +456,8 @@ class BdNode extends BdPlaced {
   ];
 
   /// The terminal named [name], as [BdTerminal.name] spells it; an output before an input of
-  /// the same name, which [input] and [output] tell apart. `node[name]` is the same.
+  /// the same name, which [input] and [output] tell apart.
   BdTerminal terminal(String name) => _named(terminals, name);
-
-  BdTerminal operator [](String name) => terminal(name);
 
   /// The node's one output.
   BdTerminal get out {
@@ -596,6 +477,9 @@ class BdNode extends BdPlaced {
 
   /// The terminals' names in record order, when the node's kind fixes them.
   List<String>? get terminalNames => null;
+
+  /// The type the node fixes for its terminal at [index] in record order, when it does.
+  BdType? terminalType(int index) => null;
 }
 
 /// A primitive node.
@@ -611,21 +495,21 @@ class BdPrimitive extends BdNode {
   final PrimOp? _op;
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
+  HeapObjectNode _make(ViEditing model) {
     final op = _op!;
     return object(
       HeapObjectClass.bdNode.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x10000),
         list(kBdTermList, [
           for (final terminal in op.terminals!)
             _holder(
-              editor,
+              model,
               input: terminal.input,
               inner: object(
                 kBdNodeTerminalDcoKind,
-                editor.allocateOid(),
+                model.allocateUid(),
                 rawTag: HeapRefKind.dcoRef.raw,
                 children: [
                   if (!terminal.input) attr(HeapAttribute.objFlags, HeapAttrWidth.u8, 1),
@@ -650,13 +534,24 @@ class BdPrimitive extends BdNode {
   @override
   List<String>? get terminalNames => op?.terminalNames;
 
+  /// A measurement scalar is a time stamp.
+  @override
+  BdType? terminalType(int index) {
+    final terminals = op?.terminals;
+    final terminal = terminals != null && index < terminals.length ? terminals[index] : null;
+    final element = terminal?.type;
+    if (element == null) return null;
+    if (element == ViDataType.measureData) return BdType.timestamp;
+    return BdType.array(element, dims: terminal!.dims);
+  }
+
   @override
   String toString() => isPlaced ? 'prim ${op?.name ?? primResId}#$oid' : 'prim ${_op?.name} (unplaced)';
 }
 
-HeapObjectNode _holder(BdEditor editor, {required bool input, required HeapObjectNode inner, int flags = 0}) => object(
+HeapObjectNode _holder(ViEditing model, {required bool input, required HeapObjectNode inner, int flags = 0}) => object(
   kNodeEndpointDcoKind,
-  editor.allocateOid(),
+  model.allocateUid(),
   children: [
     input
         ? attr(HeapAttribute.objFlags, HeapAttrWidth.u24, kBdSinkEndpointFlag | 0x1000 | flags)
@@ -672,10 +567,10 @@ class BdIndexArray extends BdNode {
   BdIndexArray({super.at}) : super._create();
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
+  HeapObjectNode _make(ViEditing model) {
     final array = object(
       kBdIndexArrayTerminalKind,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x20000),
@@ -684,7 +579,7 @@ class BdIndexArray extends BdNode {
     );
     final element = object(
       kBdIndexArrayTerminalKind,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u8, 1),
@@ -694,7 +589,7 @@ class BdIndexArray extends BdNode {
     );
     final index = object(
       kBdIndexArrayTerminalKind,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x600000),
@@ -703,13 +598,13 @@ class BdIndexArray extends BdNode {
     );
     return object(
       HeapObjectClass.bdNode44.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x80000),
         list(kBdTermList, [
-          _holder(editor, input: true, inner: array, flags: 0x40),
-          _holder(editor, input: false, inner: element, flags: 0x40),
-          _holder(editor, input: true, inner: index, flags: 0x40),
+          _holder(model, input: true, inner: array, flags: 0x40),
+          _holder(model, input: false, inner: element, flags: 0x40),
+          _holder(model, input: true, inner: index, flags: 0x40),
         ]),
         c4Rect(HeapOpcode.bounds, _at ?? const HeapRect(top: 0, left: 0, bottom: 27, right: 32)),
         list(BdStructureList.list52.rawId, [ref(HeapRefKind.childRef, index.oid)]),
@@ -733,10 +628,10 @@ class BdReplaceArraySubset extends BdNode {
   BdReplaceArraySubset({super.at}) : super._create();
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
+  HeapObjectNode _make(ViEditing model) {
     HeapObjectNode terminal(List<HeapNode> children) => object(
       kBdReplaceArraySubsetTerminalKind,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: children,
     );
@@ -759,14 +654,14 @@ class BdReplaceArraySubset extends BdNode {
     ]);
     return object(
       HeapObjectClass.bdNodeB9.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x40000),
         list(kBdTermList, [
-          _holder(editor, input: true, inner: array, flags: 0x40),
-          _holder(editor, input: false, inner: out, flags: 0x40),
-          _holder(editor, input: true, inner: element, flags: 0x40),
-          _holder(editor, input: true, inner: index, flags: 0x40),
+          _holder(model, input: true, inner: array, flags: 0x40),
+          _holder(model, input: false, inner: out, flags: 0x40),
+          _holder(model, input: true, inner: element, flags: 0x40),
+          _holder(model, input: true, inner: index, flags: 0x40),
         ]),
         c4Rect(HeapOpcode.bounds, _at ?? const HeapRect(top: 0, left: 0, bottom: 33, right: 32)),
         list(BdStructureList.list52.rawId, [
@@ -788,70 +683,10 @@ class BdReplaceArraySubset extends BdNode {
   String toString() => isPlaced ? 'Replace Array Subset#$oid' : 'Replace Array Subset (unplaced)';
 }
 
-/// One terminal of a node: its endpoint holder, which signals reference.
+/// An endpoint of a node or a structure terminal: a node terminal's holder, a border
+/// terminal's holder outside its structure, or its entry inside a frame.
 class BdTerminal extends BdEndpoint {
-  BdTerminal._(this.owner, this.holder, this.index);
-
-  final BdNode owner;
-
-  final HeapObjectNode holder;
-
-  /// Position in the node's terminal list.
-  final int index;
-
-  @override
-  HeapObjectNode get node => holder;
-
-  @override
-  BdFrame get frameOf => owner.frameOf;
-
-  /// The terminal's rectangle within its node, from its endpoint's `termBounds`.
-  HeapRect? get termBounds {
-    for (final inner in holder.children.objects) {
-      final rect = inner.children.attr(HeapAttribute.termBounds)?.asRect;
-      if (rect != null) return rect;
-    }
-    return null;
-  }
-
-  /// The middle of the terminal's outer edge.
-  @override
-  ViPoint get attachPoint {
-    final node = owner.bounds ?? kZeroRect;
-    final term = termBounds ?? kZeroRect;
-    return (x: node.left + (isSink ? term.left : term.right), y: node.top + (term.top + term.bottom) ~/ 2);
-  }
-
-  /// The type the primitive fixes for the terminal, when it does; a measurement scalar is a
-  /// time stamp.
-  @override
-  BdType? get type {
-    final owner = this.owner;
-    final terminals = owner is BdPrimitive ? owner.op?.terminals : null;
-    final terminal = terminals != null && index < terminals.length ? terminals[index] : null;
-    final element = terminal?.type;
-    if (element == null) return null;
-    if (element == ViDataType.measureData) return BdType.timestamp;
-    return BdType.array(element, dims: terminal!.dims);
-  }
-
-  /// The terminal's name: the node's own, else `in0`, `out0`, … by role and order.
-  @override
-  String get name {
-    final names = owner.terminalNames;
-    if (names != null && index < names.length) return names[index];
-    final peers = isSink ? owner.inputs : owner.outputs;
-    return '${isSink ? 'in' : 'out'}${peers.indexOf(this)}';
-  }
-
-  @override
-  String toString() => '$owner.$name';
-}
-
-/// An endpoint that is an endpoint-table entry or a structure's holder: a constant's, a panel
-/// terminal's or a border terminal's.
-class BdPort extends BdEndpoint {
-  BdPort._(this.frameOf, this.node, {required this.name, required this.type, required ViPoint Function() attach})
+  BdTerminal._(this.frameOf, this.node, {required this.name, required this.type, required ViPoint Function() attach})
     : _attach = attach;
 
   @override
@@ -899,7 +734,7 @@ enum BdBorderKind {
 }
 
 /// A terminal on a structure's border: its object, the holder that is its outer endpoint,
-/// and its inner endpoint in each frame. Wired as an endpoint itself, [BdEditor.connect]
+/// and its inner endpoint in each frame. Wired as an endpoint itself, [ViEditing.connect]
 /// takes the side facing the other end; [outer] and [inner] name a side.
 class BdStructureTerminal with BdEndpoint {
   BdStructureTerminal._(
@@ -939,25 +774,25 @@ class BdStructureTerminal with BdEndpoint {
   String get name => kind.label;
 
   /// The endpoint outside the structure, in the structure's frame.
-  late final BdPort outer = holder == null
+  late final BdTerminal outer = holder == null
       ? throw StateError('$this has no endpoint outside its structure')
-      : BdPort._(owner.frameOf, holder!, name: '$owner.$name', type: _type, attach: _outerAttach);
+      : BdTerminal._(owner.frameOf, holder!, name: '$owner.$name', type: _type, attach: _outerAttach);
 
   /// The endpoint inside [frame].
-  BdPort inner(BdFrame frame) {
+  BdTerminal inner(BdFrame frame) {
     final entry = _inners[frame.oid];
     if (entry == null) throw ArgumentError.value(frame, 'frame', '$owner.$name has no endpoint in it');
     return entry;
   }
 
   /// The endpoint inside the structure's only frame.
-  BdPort get innerPort {
+  BdTerminal get innerPort {
     final inners = _inners.values;
     if (inners.length != 1) throw StateError('$this has ${inners.length} inner endpoints; name the frame');
     return inners.single;
   }
 
-  List<BdPort> get inners => _inners.values.toList();
+  List<BdTerminal> get inners => _inners.values.toList();
 
   /// The side a wire reaches when nothing says which: inside for a terminal with no outer
   /// endpoint, outside otherwise.
@@ -978,11 +813,8 @@ class BdStructureTerminal with BdEndpoint {
   @override
   BdType? get type => _facing.type;
 
-  @override
-  BdEditor get _editor => owner.frameOf.editor;
-
-  late final Map<int, BdPort> _inners = () {
-    final out = <int, BdPort>{};
+  late final Map<int, BdTerminal> _inners = () {
+    final out = <int, BdTerminal>{};
     final members = [
       for (final r in terminal.children.group(HeapGroupTag.termList.tag)?.children.refs ?? const <HeapRef>[])
         if (r.kind == HeapRefKind.childRef) r.targetOid,
@@ -991,7 +823,13 @@ class BdStructureTerminal with BdEndpoint {
       for (final member in members) {
         final entry = frame._entry(member);
         if (entry != null) {
-          out[frame.oid] = BdPort._(frame, entry, name: '$owner.$name.inner', type: _innerType, attach: _innerAttach);
+          out[frame.oid] = BdTerminal._(
+            frame,
+            entry,
+            name: '$owner.$name.inner',
+            type: _innerType,
+            attach: _innerAttach,
+          );
         }
       }
     }
@@ -1071,8 +909,8 @@ class BdStructure extends BdNode {
 
   List<BdFrame>? _createdFrames;
 
-  BdEditor get _editor =>
-      isPlaced ? frameOf.editor : throw StateError('$this is not placed yet; add it to a frame first');
+  ViEditing get _model =>
+      isPlaced ? frameOf.model : throw StateError('$this is not placed yet; add it to a frame first');
 
   bool _grows = false;
 
@@ -1179,7 +1017,7 @@ class BdStructure extends BdNode {
   /// Adds [terminal]'s holder to the terminal list and, in each frame it names, an endpoint
   /// entry with [innerFlags] referring to the terminal.
   BdStructureTerminal _addBorderTerminal(
-    BdEditor editor,
+    ViEditing model,
     BdBorderKind kind,
     HeapObjectNode terminal, {
     required int holderFlags,
@@ -1197,14 +1035,14 @@ class BdStructure extends BdNode {
         ? null
         : object(
             kNodeEndpointDcoKind,
-            editor.allocateOid(),
+            model.allocateUid(),
             children: [attr(HeapAttribute.objFlags, holderWidth, holderFlags), terminal],
           );
     final refs = terminal.children.group(HeapGroupTag.termList.tag)!;
     for (final frame in inFrames ?? frames) {
       final entry = object(
         kNodeEndpointDcoKind,
-        editor.allocateOid(),
+        model.allocateUid(),
         children: [attr(HeapAttribute.objFlags, HeapAttrWidth.u24, innerFlags), ref(HeapRefKind.dcoRef, terminal.oid)],
       );
       frame._addEntry(entry);
@@ -1240,19 +1078,19 @@ class BdStructure extends BdNode {
   }
 
   /// The records of each created frame.
-  List<HeapObjectNode> _frameNodes(BdEditor editor) => [
-    for (final frame in frames) frame.node = _frameNode(editor),
+  List<HeapObjectNode> _frameNodes(ViEditing model) => [
+    for (final frame in frames) frame.node = _frameNode(model),
   ];
 
-  static HeapObjectNode _frameNode(BdEditor editor) => object(
+  static HeapObjectNode _frameNode(ViEditing model) => object(
     HeapObjectClass.bdFrame.code,
-    editor.allocateOid(),
+    model.allocateUid(),
     children: [
       list(BdFrameList.objects.rawId),
       list(BdFrameList.nodes.rawId, [
         object(
           HeapObjectClass.bdWire.code,
-          editor.allocateOid(),
+          model.allocateUid(),
           children: [
             attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1000),
             list(kBdTermList),
@@ -1287,20 +1125,20 @@ class BdLoop extends BdStructure {
   final bool? _isFor;
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
+  HeapObjectNode _make(ViEditing model) {
     final isFor = _isFor!;
     final bounds =
         _at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
     final node = object(
       isFor ? HeapObjectClass.bdForLoop.code : HeapObjectClass.bdWhileLoop.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, isFor ? 0x10000000 : 0x10005280),
         list(kBdTermList),
         c4Rect(HeapOpcode.bounds, bounds),
         c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, 1)),
         list(BdStructureList.tunnels.rawId),
-        list(BdStructureList.frames.rawId, _frameNodes(editor)),
+        list(BdStructureList.frames.rawId, _frameNodes(model)),
         if (!isFor) attr(HeapAttribute.structColor, HeapAttrWidth.rgb, 0x7f7f7f),
       ],
     );
@@ -1308,7 +1146,7 @@ class BdLoop extends BdStructure {
     if (isFor) {
       final count = object(
         HeapObjectClass.bdCountTerminal.code,
-        editor.allocateOid(),
+        model.allocateUid(),
         rawTag: HeapRefKind.dcoRef.raw,
         children: [
           list(kBdTermList),
@@ -1318,7 +1156,7 @@ class BdLoop extends BdStructure {
         ],
       );
       _addBorderTerminal(
-        editor,
+        model,
         BdBorderKind.count,
         count,
         holderFlags: 0x9040,
@@ -1330,11 +1168,11 @@ class BdLoop extends BdStructure {
       );
     }
     _addBorderTerminal(
-      editor,
+      model,
       BdBorderKind.iteration,
       object(
         HeapObjectClass.bdIterationTerminal.code,
-        editor.allocateOid(),
+        model.allocateUid(),
         rawTag: 0xa8,
         children: [
           list(kBdTermList),
@@ -1354,11 +1192,11 @@ class BdLoop extends BdStructure {
       node.children.add(ref(HeapRefKind.loopLimitDCORef, count.terminal.oid));
     } else {
       _addBorderTerminal(
-        editor,
+        model,
         BdBorderKind.conditional,
         object(
           HeapObjectClass.bdConditionalTerminal.code,
-          editor.allocateOid(),
+          model.allocateUid(),
           rawTag: 0x1be,
           children: [
             attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x10001),
@@ -1408,13 +1246,13 @@ class BdLoop extends BdStructure {
 
   @override
   BdStructureTerminal tunnel(BdType type, {required BdTunnelDirection direction, bool indexing = false}) {
-    final editor = _editor;
+    final model = _model;
     final output = direction == BdTunnelDirection.output;
     final slot = _nextSlot(right: output);
     final refs = list(kBdTermList);
     final terminal = object(
       HeapObjectClass.bdLoopTunnel.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: [
         indexing
@@ -1426,7 +1264,7 @@ class BdLoop extends BdStructure {
     );
     if (indexing && type.dims == 0) throw ArgumentError.value(type, 'type', 'an indexing tunnel carries an array');
     final border = _addBorderTerminal(
-      editor,
+      model,
       BdBorderKind.loopTunnel,
       terminal,
       holderFlags: output ? 0x201040 : 0x209040,
@@ -1451,7 +1289,7 @@ class BdLoop extends BdStructure {
       terminal.children.addAll([
         object(
           HeapObjectClass.bdTunnelIndexer.code,
-          editor.allocateOid(),
+          model.allocateUid(),
           rawTag: 0x94,
           children: [
             attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x1000001),
@@ -1472,11 +1310,11 @@ class BdLoop extends BdStructure {
   /// A new shift register of [type]: its right terminal takes the value for the next
   /// iteration, its left terminal gives the previous one.
   BdShiftRegister shiftRegister(BdType type) {
-    final editor = _editor;
+    final model = _model;
     final y = _leftSlot;
     _leftSlot += kBdBorderSlotStep;
     _rightSlot += kBdBorderSlotStep;
-    final rightOid = editor.allocateOid(), leftOid = editor.allocateOid();
+    final rightOid = model.allocateUid(), leftOid = model.allocateUid();
     final right = object(
       HeapObjectClass.bdRightShiftRegister.code,
       rightOid,
@@ -1503,7 +1341,7 @@ class BdLoop extends BdStructure {
       ],
     );
     final rightTerminal = _addBorderTerminal(
-      editor,
+      model,
       BdBorderKind.rightShiftRegister,
       right,
       holderFlags: 0x1040,
@@ -1514,7 +1352,7 @@ class BdLoop extends BdStructure {
       slot: y,
     );
     final leftTerminal = _addBorderTerminal(
-      editor,
+      model,
       BdBorderKind.leftShiftRegister,
       left,
       holderFlags: 0x9040,
@@ -1547,7 +1385,7 @@ class BdCase extends BdStructure {
   final int? _displayed;
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
+  HeapObjectNode _make(ViEditing model) {
     final bounds =
         _at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
     final shown = _displayed!;
@@ -1556,7 +1394,7 @@ class BdCase extends BdStructure {
     final width = bounds.right - bounds.left;
     final node = object(
       HeapObjectClass.bdStructureFrame.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x10010000),
         list(kBdTermList),
@@ -1564,13 +1402,13 @@ class BdCase extends BdStructure {
         c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, 6)),
         list(BdStructureList.tunnels.rawId),
         attr(HeapAttribute.dIdx, HeapAttrWidth.u8, shown),
-        list(BdStructureList.frames.rawId, _frameNodes(editor)),
+        list(BdStructureList.frames.rawId, _frameNodes(model)),
       ],
     );
     _node = node;
     final selector = object(
       HeapObjectClass.bdSelectorTerminal.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: [
         list(kBdTermList),
@@ -1579,7 +1417,7 @@ class BdCase extends BdStructure {
       ],
     );
     _addBorderTerminal(
-      editor,
+      model,
       BdBorderKind.selector,
       selector,
       holderFlags: 0x409040,
@@ -1593,7 +1431,7 @@ class BdCase extends BdStructure {
       rawRef(kBdCaseSelectorRef, selector.oid),
       object(
         HeapObjectClass.bdSelectorLabel.code,
-        editor.allocateOid(),
+        model.allocateUid(),
         rawTag: 0x102,
         children: [
           attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x241131),
@@ -1645,12 +1483,12 @@ class BdCase extends BdStructure {
   @override
   BdStructureTerminal tunnel(BdType type, {required BdTunnelDirection direction, bool indexing = false}) {
     if (indexing) throw ArgumentError.value(indexing, 'indexing', 'a Case tunnel does not index');
-    final editor = _editor;
+    final model = _model;
     final output = direction == BdTunnelDirection.output;
     final slot = _nextSlot(right: output);
     final terminal = object(
       HeapObjectClass.bdCaseTunnel.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       rawTag: HeapRefKind.dcoRef.raw,
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x800 | (output ? 1 : 0)),
@@ -1659,7 +1497,7 @@ class BdCase extends BdStructure {
       ],
     );
     final border = _addBorderTerminal(
-      editor,
+      model,
       BdBorderKind.caseTunnel,
       terminal,
       holderFlags: output ? 0x401040 : 0x409040,
@@ -1686,7 +1524,7 @@ class BdDisable extends BdStructure {
   BdDisable({super.at}) : super._create(2);
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
+  HeapObjectNode _make(ViEditing model) {
     final bounds =
         _at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
     const labelText = ' Disabled ';
@@ -1694,17 +1532,17 @@ class BdDisable extends BdStructure {
     final width = bounds.right - bounds.left;
     return object(
       HeapObjectClass.bdDisableStructure.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x10010000),
         list(kBdTermList),
         c4Rect(HeapOpcode.bounds, bounds),
         c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, 1)),
         list(BdStructureList.tunnels.rawId),
-        list(BdStructureList.frames.rawId, _frameNodes(editor)),
+        list(BdStructureList.frames.rawId, _frameNodes(model)),
         object(
           HeapObjectClass.bdSelectorLabel.code,
-          editor.allocateOid(),
+          model.allocateUid(),
           rawTag: 0x102,
           children: [
             attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x241531),
@@ -1753,29 +1591,40 @@ class BdDisable extends BdStructure {
 class BdConstant extends BdPlaced with BdEndpoint {
   BdConstant._lifted(super.frameOf, super.node) : _value = null, _label = null, super._lifted();
 
-  /// A constant of [type] holding [value]: a number, a bool, a string, or a list of numbers
-  /// or bools for an array; [label] names it on the diagram.
-  BdConstant(BdType type, Object value, {String? label, super.at})
+  /// A constant of [type] holding [value], which [label] names on the diagram.
+  BdConstant._(BdType type, Object value, {String? label, super.at})
     : _type = type,
       _value = value,
       _label = label,
       super._create();
 
-  BdConstant.i32(int value, {String? label, HeapRect? at}) : this(BdType.i32, value, label: label, at: at);
+  BdConstant.i8(int value, {String? label, HeapRect? at}) : this._(BdType.i8, value, label: label, at: at);
 
-  BdConstant.u8(int value, {String? label, HeapRect? at}) : this(BdType.u8, value, label: label, at: at);
+  BdConstant.i16(int value, {String? label, HeapRect? at}) : this._(BdType.i16, value, label: label, at: at);
 
-  BdConstant.u32(int value, {String? label, HeapRect? at}) : this(BdType.u32, value, label: label, at: at);
+  BdConstant.i32(int value, {String? label, HeapRect? at}) : this._(BdType.i32, value, label: label, at: at);
 
-  BdConstant.dbl(double value, {String? label, HeapRect? at}) : this(BdType.dbl, value, label: label, at: at);
+  BdConstant.i64(int value, {String? label, HeapRect? at}) : this._(BdType.i64, value, label: label, at: at);
 
-  BdConstant.boolean(bool value, {String? label, HeapRect? at}) : this(BdType.boolean, value, label: label, at: at);
+  BdConstant.u8(int value, {String? label, HeapRect? at}) : this._(BdType.u8, value, label: label, at: at);
 
-  BdConstant.string(String value, {String? label, HeapRect? at}) : this(BdType.string, value, label: label, at: at);
+  BdConstant.u16(int value, {String? label, HeapRect? at}) : this._(BdType.u16, value, label: label, at: at);
 
-  /// An array constant over [element]s holding [values].
+  BdConstant.u32(int value, {String? label, HeapRect? at}) : this._(BdType.u32, value, label: label, at: at);
+
+  BdConstant.u64(int value, {String? label, HeapRect? at}) : this._(BdType.u64, value, label: label, at: at);
+
+  BdConstant.sgl(double value, {String? label, HeapRect? at}) : this._(BdType.sgl, value, label: label, at: at);
+
+  BdConstant.dbl(double value, {String? label, HeapRect? at}) : this._(BdType.dbl, value, label: label, at: at);
+
+  BdConstant.boolean(bool value, {String? label, HeapRect? at}) : this._(BdType.boolean, value, label: label, at: at);
+
+  BdConstant.string(String value, {String? label, HeapRect? at}) : this._(BdType.string, value, label: label, at: at);
+
+  /// An array constant over [element]s holding [values]: numbers or bools.
   BdConstant.array(BdType element, List<Object> values, {String? label, HeapRect? at})
-    : this(element.array, values, label: label, at: at);
+    : this._(element.array, values, label: label, at: at);
 
   BdType? _type;
 
@@ -1784,8 +1633,7 @@ class BdConstant extends BdPlaced with BdEndpoint {
   final String? _label;
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
-    final model = editor.model;
+  HeapObjectNode _make(ViEditing model) {
     final type = _type!, label = _label;
     final index = type.addTo(model, label: label);
     final slot = model.allocateTypeSlot(index);
@@ -1797,19 +1645,19 @@ class BdConstant extends BdPlaced with BdEndpoint {
             : const HeapRect(top: 0, left: 0, bottom: 19, right: 36));
     return object(
       kNodeEndpointDcoKind,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x20040),
         object(
           HeapObjectClass.bdConstDco.code,
-          editor.allocateOid(),
+          model.allocateUid(),
           rawTag: HeapRefKind.dcoRef.raw,
           children: [
             attr(HeapAttribute.typeDescIndex, HeapAttrWidth.u8, slot),
             attr(HeapAttribute.dsw, HeapAttrWidth.u16, 0x1000),
             object(
               _carrierClass(type).code,
-              editor.allocateOid(),
+              model.allocateUid(),
               rawTag: HeapRefKind.ddoRef.raw,
               children: [
                 switch (_carrierClass(type)) {
@@ -1821,7 +1669,7 @@ class BdConstant extends BdPlaced with BdEndpoint {
                 list(kControlParts, [
                   object(
                     HeapObjectClass.controlLabel.code,
-                    editor.allocateOid(),
+                    model.allocateUid(),
                     children: [
                       attr(HeapAttribute.objFlags, HeapAttrWidth.u24, label == null ? 0x17114a : 0x170142),
                       attr(HeapAttribute.partRole, HeapAttrWidth.u8, 0x10),
@@ -1907,6 +1755,8 @@ HeapRecordNode _constValue(BdType type, Object value) {
         return _flatNumber(_bigEndian(n, type.scalarSize));
       case final double d when type.element == ViDataType.dbl:
         return _flatNumber((ByteData(8)..setFloat64(0, d)).buffer.asUint8List());
+      case final double d when type.element == ViDataType.sgl:
+        return _flatNumber((ByteData(4)..setFloat32(0, d)).buffer.asUint8List());
       case final String s:
         return containerAttr(HeapAttribute.constValue, [
           ...(ByteData(4)..setUint32(0, s.length)).buffer.asUint8List(),
@@ -1985,16 +1835,15 @@ class BdPanelTerminal extends BdPlaced with BdEndpoint {
   bool? _indicator;
 
   @override
-  HeapObjectNode _make(BdEditor editor) {
-    final model = editor.model;
+  HeapObjectNode _make(ViEditing model) {
     final type = _type!, name = _name!, indicator = _indicator!;
     final index = type.addTo(model, label: name);
     final nodeSlot = model.allocateTypeSlot(index);
     final controlSlot = model.allocateTypeSlot(index);
-    final panelOid = editor.panel.addControl(
-      editor.allocateOid(),
-      controlOid: editor.allocateOid(),
-      labelOid: editor.allocateOid(),
+    final panelOid = model.panel.addControl(
+      model.allocateUid(),
+      controlOid: model.allocateUid(),
+      labelOid: model.allocateUid(),
       slot: nodeSlot,
       controlSlot: controlSlot,
       name: name,
@@ -2002,14 +1851,14 @@ class BdPanelTerminal extends BdPlaced with BdEndpoint {
     );
     return object(
       HeapObjectClass.bdLeaf.code,
-      editor.allocateOid(),
+      model.allocateUid(),
       children: [
         attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x20040 | (indicator ? kBdSinkEndpointFlag : 0)),
         ref(HeapRefKind.dcoRef, panelOid),
         c4Rect(HeapOpcode.bounds, kZeroRect),
         object(
           HeapObjectClass.controlLabel.code,
-          editor.allocateOid(),
+          model.allocateUid(),
           rawTag: 0x9e,
           children: [
             attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x170142),
@@ -2036,7 +1885,7 @@ class BdPanelTerminal extends BdPlaced with BdEndpoint {
   /// Whether the terminal consumes its wire: what the panel object says, else the terminal's
   /// own sink flag.
   bool get isIndicator => _indicator ??=
-      (panelOid == null ? null : frameOf.editor.panel.isIndicator(panelOid!)) ??
+      (panelOid == null ? null : frameOf.model.panel.isIndicator(panelOid!)) ??
       (node.children.attr(HeapAttribute.objFlags)?.asInt ?? 0) & kBdSinkEndpointFlag != 0;
 
   @override
@@ -2078,7 +1927,7 @@ class BdWire {
 
   int get oid => node.oid;
 
-  /// The type the editor wired the signal with; null for a loaded signal.
+  /// The type the signal was wired with; null for a loaded signal.
   BdType? get type => _type;
 
   HeapGroupNode get _refs => node.children.group(HeapGroupTag.termList.tag)!;
@@ -2089,7 +1938,7 @@ class BdWire {
       if (ref.kind == HeapRefKind.childRef) ref.targetOid,
   ];
 
-  /// The endpoint driving the signal, when the editor wired it.
+  /// The endpoint driving the signal, when it was wired here.
   BdEndpoint? get source => _ends?.first;
 
   List<BdEndpoint> get sinks => _ends?.sublist(1) ?? const [];

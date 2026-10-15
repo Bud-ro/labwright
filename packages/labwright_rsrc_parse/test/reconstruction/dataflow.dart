@@ -88,7 +88,7 @@ String bdDataflow(ViModel model) {
     }
   }
 
-  frame(model.blockDiagram.diagram, '');
+  frame(model.diagram, '');
   lines.sort();
   return lines.join('\n');
 }
