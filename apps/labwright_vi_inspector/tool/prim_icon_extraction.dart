@@ -167,7 +167,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
   final appDir = '${repoRoot().path}/apps/labwright_vi_inspector';
   final assetDir = Directory('$appDir/assets/prim_icons')
     ..createSync(recursive: true);
-  const primClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0x185, 0x370};
+  const primClasses = {0x3a, 0x34, 0x3e, 0x44, 0x6c, 0x93, 0x172, 0xb9, 0x370};
   final samples =
       <
         String,
