@@ -16,6 +16,9 @@ const Set<int> kWireInkPalette = {
   0xffff00,
   0xff6600,
   0x660066,
+  0xff7f00,
+  0x7f7f00,
+  0x007f7f,
 };
 
 const int kMaskArtBox = 1;

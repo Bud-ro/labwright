@@ -10,6 +10,7 @@ import '../test/bd_wire_mask_test.dart' show kWireInkPalette;
 import '../test/util.dart';
 
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
+  'prim1053': [(snippet: '25772310_GqWWr', oid: 572)],
   'prim1082': [(snippet: 'MD5', oid: 6017)],
   'prim1170': [(snippet: 'crc16', oid: 820), (snippet: 'crc16', oid: 619)],
   'prim1537': [(snippet: 'Excel_Cell_to_RowCol', oid: 477)],
@@ -204,6 +205,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       );
       if (!result.registered) continue;
       final reg = result.registration;
+      if ((reg.scale - 1).abs() > 0.001) continue;
       final placement = comparePlacement(
         diagram: bd,
         raster: raster,
