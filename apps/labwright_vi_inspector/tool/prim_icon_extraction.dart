@@ -310,6 +310,13 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     return rgba[i] < 240 || rgba[i + 1] < 240 || rgba[i + 2] < 240;
   }
 
+  bool wireInk(Uint8List rgba, int w, int x, int y) {
+    final i = (y * w + x) * 4;
+    return kWireInkPalette.contains(
+      (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
+    );
+  }
+
   void floodTransparent(img.Image icon) {
     bool nearWhite(img.Pixel p) => p.r >= 240 && p.g >= 240 && p.b >= 240;
     final iw = icon.width, ih = icon.height;
@@ -548,16 +555,17 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           }
         }
         var match = 0, union = 0;
-        for (var y = 0; y < h0; y++) {
-          for (var x = 0; x < w0; x++) {
+        for (var y = boxPad; y < boxPad + bh; y++) {
+          for (var x = boxPad; x < boxPad + bw; x++) {
             final sx = x + bx, sy = y + by;
-            final aInk = inky(a.rgba, w0, x, y);
+            final aInk = inky(a.rgba, w0, x, y) && !wireInk(a.rgba, w0, x, y);
             final bInk =
                 sx >= 0 &&
                 sy >= 0 &&
                 sx < b.w &&
                 sy < b.h &&
-                inky(b.rgba, b.w, sx, sy);
+                inky(b.rgba, b.w, sx, sy) &&
+                !wireInk(b.rgba, b.w, sx, sy);
             if (!aInk && !bInk) continue;
             union++;
             if (aInk && bInk) match++;
