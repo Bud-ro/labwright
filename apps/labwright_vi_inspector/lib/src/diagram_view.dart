@@ -310,7 +310,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       final bounds = object.absBounds!;
       var left = bounds.left.toDouble(), top = bounds.top.toDouble();
       var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
-      final key = primIconKeyOf(object);
+      final key = loadedPrimIconIdOf(object, diagram: _scene?.diagram);
       final art = key == null ? null : primIcons[key];
       if (art != null) {
         final stamp = primIconStampRect(
@@ -325,7 +325,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         bottom = math.max(bottom, stamp.bottom);
       }
       if (x >= left && x <= right && y >= top && y <= bottom) {
-        if (!primIconHit(object, x, y)) continue;
+        if (!primIconHit(object, x, y, diagram: _scene?.diagram)) continue;
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
@@ -658,14 +658,15 @@ PrimIconArt? primIconArtFor(
   ViDiagram diagram,
   Map<int, PrimIconArt> icons,
 ) {
-  final key = primIconKeyOf(object);
-  if (key == null) return null;
-  if (key >= 0) return icons[key];
-  final terms = diagram
-      .childrenOf(object)
-      .where((c) => c.kind == kNodeEndpointDcoKind)
-      .length;
-  final variant = icons[classVariantIconKey(object.kind, terms)];
+  final base = primIconKeyOf(object);
+  if (base == null) return null;
+  final key = resolvePrimIconKey(base, diagram.version)!;
+  if (base >= 0) return icons[key];
+  final variant =
+      icons[resolvePrimIconKey(
+        bdClassVariantIconKey(diagram, object),
+        diagram.version,
+      )!];
   if (variant != null) {
     final b = object.absBounds;
     if (b != null && variant.width == b.width && variant.height == b.height) {
@@ -717,11 +718,28 @@ final Map<int, PrimIconArt> primIcons = {};
 /// The disabled-structure variants of [primIcons], greyed through [_greyDisabledColor].
 final Map<int, PrimIconArt> primIconsGrey = {};
 
+/// The LabVIEW generations of each icon key that has several: the first major each one
+/// serves and its own key, in ascending order.
+final Map<int, List<(int, int)>> primIconVersions = {};
+
+/// The key of the art [key] shows in a VI saved by LabVIEW [version]: the generation that
+/// starts at or before the VI's major, else the oldest; [key] itself when it has one.
+int? resolvePrimIconKey(int? key, String? version) {
+  final generations = key == null ? null : primIconVersions[key];
+  if (generations == null) return key;
+  final major = int.tryParse((version ?? '').split('.').first) ?? 0;
+  var chosen = generations.first.$2;
+  for (final (from, id) in generations) {
+    if (from <= major) chosen = id;
+  }
+  return chosen;
+}
+
 /// Raises every icon in [kPrimIconArt] into [primIcons] and [primIconsGrey]; the app calls it
 /// before the first frame, so every painter finds its icons.
 Map<int, PrimIconArt> loadPrimIcons() {
   if (primIcons.isNotEmpty) return primIcons;
-  final indexOfCharacter = Int32List(128);
+  final indexOfCharacter = Int32List(kPrimIconPaletteCodeUnits);
   final palette = Int32List(kPrimIconPalette.length);
   var entry = 0;
   for (final MapEntry(key: character, value: argb)
@@ -736,9 +754,14 @@ Map<int, PrimIconArt> loadPrimIcons() {
   for (final MapEntry(key: key, value: art) in kPrimIconArt.entries) {
     if (kPrimIconStatus[key] == PrimIconStatus.rejected) continue;
     final id = parsePrimIconName(key)!;
+    if (primIconVersionOf(id) case (final base, final from)) {
+      (primIconVersions[base] ??= [])
+        ..add((from, id))
+        ..sort((a, b) => a.$1.compareTo(b.$1));
+    }
     final width = art.indexOf('|');
     final height = art.length ~/ (width + 1);
-    final indices = Uint8List(width * height);
+    final indices = Uint16List(width * height);
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         indices[y * width + x] =
@@ -821,7 +844,12 @@ Map<int, PrimIconArt> loadPrimIcons() {
 /// The opaque pixels of [indices] as rectangles of one palette index each, grouped by that
 /// index: every run of equal pixels in a row, merged with the identical run beneath it. The six
 /// vertices of each rectangle's two triangles follow one another.
-List<Float32List> _rects(Uint8List indices, int width, int height, int colors) {
+List<Float32List> _rects(
+  Uint16List indices,
+  int width,
+  int height,
+  int colors,
+) {
   final left = Int32List(indices.length ~/ 2 + 1);
   final top = Int32List(left.length);
   final right = Int32List(left.length);
@@ -1039,7 +1067,7 @@ ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
       ? null
-      : kPrimIconPlacement[key >= 0 ? 'prim$key' : 'class${-key}'];
+      : kPrimIconPlacement[primIconName(primIconVersionOf(key)?.$1 ?? key)];
   if (placed != null) {
     return Rect.fromLTWH(
       nodeRect.left + placed.dx,
@@ -1049,20 +1077,36 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
     );
   }
   return Rect.fromLTWH(
-    (nodeRect.center.dx - artW / 2).floorToDouble(),
-    (nodeRect.center.dy - artH / 2).floorToDouble(),
+    (nodeRect.center.dx - artW / 2).ceilToDouble(),
+    (nodeRect.center.dy - artH / 2).ceilToDouble(),
     artW.toDouble(),
     artH.toDouble(),
   );
 }
 
-int? loadedPrimIconIdOf(ViHeapObject object) {
-  final key = primIconKeyOf(object);
-  if (key == null || key >= 0) return key;
+int? loadedPrimIconIdOf(ViHeapObject object, {ViDiagram? diagram}) {
+  final version = diagram?.version;
+  final base = primIconKeyOf(object);
+  if (base == null) return null;
+  final key = resolvePrimIconKey(base, version)!;
+  if (base >= 0) return key;
   final b = object.absBounds;
   if (b == null) return key;
+  if (diagram != null) {
+    final id = resolvePrimIconKey(
+      bdClassVariantIconKey(diagram, object),
+      version,
+    )!;
+    final art = primIcons[id];
+    if (art != null && art.width == b.width && art.height == b.height) {
+      return id;
+    }
+  }
   for (var t = 0; t <= 15; t++) {
-    final id = classVariantIconKey(object.kind, t);
+    final id = resolvePrimIconKey(
+      classVariantIconKey(object.kind, t),
+      version,
+    )!;
     final art = primIcons[id];
     if (art != null && art.width == b.width && art.height == b.height) {
       return id;
@@ -1076,8 +1120,13 @@ int? loadedPrimIconIdOf(ViHeapObject object) {
   return key;
 }
 
-bool primIconHit(ViHeapObject object, double x, double y) {
-  final id = loadedPrimIconIdOf(object);
+bool primIconHit(
+  ViHeapObject object,
+  double x,
+  double y, {
+  ViDiagram? diagram,
+}) {
+  final id = loadedPrimIconIdOf(object, diagram: diagram);
   final art = id == null ? null : primIcons[id];
   final bounds = object.absBounds;
   if (art == null || bounds == null) return true;
@@ -1103,8 +1152,9 @@ int? primIconInkEdge(
   required bool horizontal,
   required int cross,
   required int sign,
+  ViDiagram? diagram,
 }) {
-  final id = loadedPrimIconIdOf(object);
+  final id = loadedPrimIconIdOf(object, diagram: diagram);
   final art = id == null ? null : primIcons[id];
   final b = object.absBounds;
   if (art == null || b == null) return null;
@@ -2168,7 +2218,9 @@ class BdDiagramPainter extends CustomPainter {
         dst,
         Paint()..filterQuality = filter,
       );
-      final ladderId = disabled ? null : loadedPrimIconIdOf(object);
+      final ladderId = disabled
+          ? null
+          : loadedPrimIconIdOf(object, diagram: scene.diagram);
       final corners =
           (ladderId == null ? null : primIcons[ladderId]?.cornerAa) ??
           const <int>{};
@@ -2556,7 +2608,7 @@ class BdDiagramPainter extends CustomPainter {
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = bdTerminalTypeColor(object);
       }
-      final iconKey = loadedPrimIconIdOf(object);
+      final iconKey = loadedPrimIconIdOf(object, diagram: scene.diagram);
       if (iconKey != null) {
         final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);
@@ -3025,6 +3077,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: true,
                 cross: (last.dy + origin.dy).round(),
                 sign: closing.dx,
+                diagram: scene.diagram,
               );
         target = Offset(
           edge != null
@@ -3040,6 +3093,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: false,
                 cross: (last.dx + origin.dx).round(),
                 sign: closing.dy,
+                diagram: scene.diagram,
               );
         target = Offset(
           last.dx,
@@ -3064,6 +3118,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: true,
                 cross: (last.dy + origin.dy).round(),
                 sign: last.dx >= prior.dx ? 1 : -1,
+                diagram: scene.diagram,
               );
         points[points.length - 1] = Offset(
           edge != null ? edge - origin.dx : inkCentre.dx,
@@ -3077,6 +3132,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: false,
                 cross: (last.dx + origin.dx).round(),
                 sign: last.dy >= prior.dy ? 1 : -1,
+                diagram: scene.diagram,
               );
         points[points.length - 1] = Offset(
           last.dx,
@@ -3229,6 +3285,7 @@ class BdDiagramPainter extends CustomPainter {
       horizontal: horizontal,
       cross: cross,
       sign: lowSide ? -1 : 1,
+      diagram: scene.diagram,
     );
     if (edge != null) return lowSide ? edge : edge - 1;
     final bounds = owner.absBounds;
@@ -3293,6 +3350,7 @@ class BdDiagramPainter extends CustomPainter {
           horizontal: closingHorizontal,
           cross: arrivalCross,
           sign: closingSign,
+          diagram: scene.diagram,
         );
         if (edge == null) break;
         final far = edge - closingSign;
@@ -3327,6 +3385,7 @@ class BdDiagramPainter extends CustomPainter {
             horizontal: dir.dx == 0,
             cross: closingCross,
             sign: -closingSign,
+            diagram: scene.diagram,
           );
           if (edge == null) break;
           final nearAttach = dir.dx == 0
@@ -3426,6 +3485,7 @@ class BdDiagramPainter extends CustomPainter {
             horizontal: closingHorizontal,
             cross: arrivalCross,
             sign: closingSign,
+            diagram: scene.diagram,
           );
           terminus = edge != null
               ? edge - closingSign
@@ -3502,6 +3562,7 @@ class BdDiagramPainter extends CustomPainter {
         horizontal: closingHorizontal,
         cross: arrivalCross,
         sign: closingSign,
+        diagram: scene.diagram,
       );
       if (edge == null) break;
       final terminus = edge - closingSign;

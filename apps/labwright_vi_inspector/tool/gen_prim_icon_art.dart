@@ -7,10 +7,20 @@ import 'package:image/image.dart' as img;
 void main() {
   final dir = Directory('assets/prim_icons');
   final pattern = RegExp(
-    r'^((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
+    r'^((?:prim|class)\d+(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
   );
   const transparent = '.';
-  const letters = 'abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  final letters = String.fromCharCodes([
+    for (var c = 0x21; c <= 0x7e; c++)
+      if (c != 0x24 && c != 0x27 && c != 0x2e && c != 0x5c && c != 0x7c) c,
+    for (var c = 0xa1; c <= 0x17f; c++)
+      if (c != 0xad) c,
+    for (var c = 0x391; c <= 0x3c9; c++)
+      if (c != 0x3a2) c,
+    for (var c = 0x410; c <= 0x44f; c++) c,
+    for (var c = 0x180; c <= 0x24f; c++) c,
+    for (var c = 0x1e00; c <= 0x1eff; c++) c,
+  ]);
   final palette = <int, String>{};
   final art = <String, String>{};
   final files = dir.listSync().whereType<File>().toList()
@@ -32,6 +42,11 @@ void main() {
         }
         final argb =
             0xff000000 | (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
+        if (palette.length >= letters.length && !palette.containsKey(argb)) {
+          throw StateError(
+            'more than ${letters.length} colours across the icons',
+          );
+        }
         rows.write(palette[argb] ??= letters[palette.length]);
       }
       rows.write('|');
@@ -54,6 +69,9 @@ void main() {
 // dart format off
 
 /// The ARGB colour of each character in a [kPrimIconArt] row; '$transparent' is transparent.
+/// Characters are code points below [kPrimIconPaletteCodeUnits].
+const int kPrimIconPaletteCodeUnits = 0x1f00;
+
 const Map<String, int> kPrimIconPalette = {
   '$transparent': 0x00000000,
 ${colours.map((e) => "  '${e.value}': 0x${e.key.toRadixString(16).padLeft(8, '0')},").join('\n')}
