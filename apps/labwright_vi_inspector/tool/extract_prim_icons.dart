@@ -24,6 +24,8 @@ void main() {
     final skippedLowQuality = extraction.skippedLowQuality;
     final verifiedKeys = extraction.verifiedKeys;
     final handKeys = extraction.handKeys;
+    final renamed = extraction.renamed;
+    String baseOf(String key) => key.replaceFirst(RegExp(r'_from\d+$'), '');
     final paletteList = extraction.palette;
     expect(
       primIconReproErrors(extraction),
@@ -51,7 +53,7 @@ void main() {
         ? const <String>{}
         : enabled.split(',').map((key) => key.trim()).toSet();
     for (final key in pending.keys.toList()..sort()) {
-      if (only.isNotEmpty && !only.contains(key)) continue;
+      if (only.isNotEmpty && !only.contains(baseOf(key))) continue;
       final e = pending[key]!;
       if (verifiedKeys.contains(key) || handKeys.contains(key)) {
         manifest.writeln(
@@ -61,7 +63,7 @@ void main() {
         continue;
       }
       final primId = key.startsWith('prim')
-          ? int.parse(key.substring(4))
+          ? int.parse(baseOf(key).substring(4))
           : null;
       final op = primId == null ? null : PrimOp.fromId(primId);
       final classCode = key.startsWith('class')
@@ -80,7 +82,9 @@ void main() {
       written++;
     }
     for (final key in observedKeys) {
-      if (!pending.containsKey(key) && !failed.containsKey(key)) {
+      if (!pending.containsKey(key) &&
+          !failed.containsKey(key) &&
+          !pending.keys.any((k) => baseOf(k) == key)) {
         failed[key] = 'every sample came from a low-registration snippet';
       }
     }
@@ -102,14 +106,15 @@ void main() {
     }
     for (final f in Directory(outDir.path).listSync().whereType<File>()) {
       final m = RegExp(
-        r'((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
+        r'((?:prim|class)\d+(?:_t\d+)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
       ).firstMatch(f.path);
       if (m == null) continue;
       final key = m.group(1)!;
-      if (only.isNotEmpty && !only.contains(key)) continue;
-      if (!pending.containsKey(key) &&
-          !verifiedKeys.contains(key) &&
-          !handKeys.contains(key)) {
+      if (only.isNotEmpty && !only.contains(baseOf(key))) continue;
+      if (renamed.containsKey(key) ||
+          !pending.containsKey(key) &&
+              !verifiedKeys.contains(key) &&
+              !handKeys.contains(key)) {
         f.deleteSync();
       }
     }
@@ -139,19 +144,20 @@ void main() {
       ).allMatches(existing))
         m.group(1)!: m.group(2)!,
     };
+    final oldKeyOf = {for (final e in renamed.entries) e.value: e.key};
     final allKeys = {
       ...pending.keys,
       ...failed.keys,
       for (final e in oldStatus.entries)
-        if (e.value != 'unverified') e.key,
+        if (e.value != 'unverified' && !renamed.containsKey(e.key)) e.key,
     }.toList()..sort();
     final entries = StringBuffer(
       'const Map<String, PrimIconStatus> kPrimIconStatus = {\n',
     );
     for (final key in allKeys) {
-      entries.writeln(
-        "  '$key': PrimIconStatus.${oldStatus[key] ?? 'unverified'},",
-      );
+      final status =
+          oldStatus[key] ?? oldStatus[oldKeyOf[key] ?? ''] ?? 'unverified';
+      entries.writeln("  '$key': PrimIconStatus.$status,");
     }
     entries.writeln('};');
     final begin = existing.indexOf(
@@ -175,7 +181,7 @@ String _manifestWithRowsReplaced(
   Set<String> only,
 ) {
   String? keyOf(String line) => RegExp(
-    r'^\| ((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
+    r'^\| ((?:prim|class)\d+(?:_t\d+)?(?:_from\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
   ).firstMatch(line)?.group(1);
   final replacements = <String, String>{
     for (final line in fresh.split('\n'))
