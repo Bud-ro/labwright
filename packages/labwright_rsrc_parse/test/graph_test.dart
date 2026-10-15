@@ -1118,7 +1118,7 @@ void main() {
       ...open(0x7e, 1),
       ...bounds(0, 0, 400, 400),
       ...open(0x1b, 2, tag: 0x1a),
-      ...open(0x170, 3, tag: 0x1b),
+      ...open(0x1ff, 3, tag: 0x1b),
       ...bounds(10, 10, 42, 42),
       ...open(0x15, 4, tag: 0x1c),
       ...close(0x1c),
@@ -1126,7 +1126,7 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[3]!.objectClass, HeapObjectClass.unknown, reason: '0x170 is not catalogued by code');
+    expect(d.byId[3]!.objectClass, HeapObjectClass.unknown, reason: '0x1ff is not catalogued by code');
     expect(d.byId[3]!.category, ViObjectKind.node);
   });
 

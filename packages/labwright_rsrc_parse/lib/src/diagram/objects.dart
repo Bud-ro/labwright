@@ -430,9 +430,9 @@ enum HeapObjectClass {
 
   subdiagramContainer(0xc7, 'Subdiagram container', ViObjectKind.structure, ClassConfidence.inferred),
 
-  rareStructure(0xef, 'Structure (rare)', ViObjectKind.structure, ClassConfidence.kindOnly),
+  rareStructure(0xef, 'Radio buttons control', ViObjectKind.structure, ClassConfidence.inferred),
 
-  nodeGroup(0xac, 'Node group', ViObjectKind.structure, ClassConfidence.kindOnly),
+  nodeGroup(0xac, 'Container (sub panel pages)', ViObjectKind.structure, ClassConfidence.inferred),
 
   contentViewport(0x11c, 'Content viewport', ViObjectKind.structure, ClassConfidence.confirmed),
 
@@ -446,61 +446,61 @@ enum HeapObjectClass {
 
   bdGrowableNode(0x63, 'Node (growable)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode8c(0x8c, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode8c(0x8c, 'Property Node', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode3a(0x3a, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode3a(0x3a, 'Build Array', ViObjectKind.node, ClassConfidence.inferred),
 
   bdNoded6(0xd6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
 
   bdNode32(0x32, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNodeC5(0xc5, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNodeC5(0xc5, 'Polymorphic VI call', ViObjectKind.node, ClassConfidence.inferred),
 
   bdNode104(0x104, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
   bdNode124(0x124, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode44(0x44, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode44(0x44, 'Index Array', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode3e(0x3e, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode3e(0x3e, 'Concatenate Strings', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode34(0x34, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode34(0x34, 'Bundle', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNodeA9(0xa9, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  bdNodeA9(0xa9, 'Invoke Node', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode93(0x93, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode93(0x93, 'Format Into String', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode172(0x172, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode172(0x172, 'Merge Errors', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode6c(0x6c, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode6c(0x6c, 'Compound Arithmetic', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode36(0x36, 'Unbundle', ViObjectKind.node, ClassConfidence.inferred),
 
   bdNode153(0x153, 'Node (In Place Element)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode150(0x150, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
+  bdNode150(0x150, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode14f(0x14f, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
+  bdNode14f(0x14f, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode152(0x152, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
+  bdNode152(0x152, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.inferred),
 
   bdCallLibrary(0x6a, 'Call Library node', ViObjectKind.node, ClassConfidence.confirmed),
 
-  bdNodeBd(0xbd, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNodeBd(0xbd, 'Delete From Array', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode114(0x114, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode114(0x114, 'Initialize Array', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNodeB6(0xb6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  bdNodeB6(0xb6, 'Static VI Reference', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNodeB9(0xb9, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNodeB9(0xb9, 'Replace Array Subset', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode48(0x48, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode48(0x48, 'Array Subset', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNodeEb(0xeb, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  bdNodeEb(0xeb, 'Register For Events', ViObjectKind.node, ClassConfidence.inferred),
 
   bdNode103(0x103, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
 
-  bdNode14a(0x14a, 'Node', ViObjectKind.node, ClassConfidence.inferred),
+  bdNode14a(0x14a, 'Feedback Node', ViObjectKind.node, ClassConfidence.inferred),
 
   bdLeaf(0x16, 'Terminal/constant (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
 
@@ -526,7 +526,39 @@ enum HeapObjectClass {
 
   numericControlVariant(0xdf, 'Numeric control (variant)', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  controlVariant(0x59, 'Control (variant)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  controlVariant(0x59, 'Meter/gauge control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  splitter(0x11d, 'Splitter bar', ViObjectKind.structure, ClassConfidence.inferred),
+
+  pictureControl(0x5f, 'Picture control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  tableControl(0xe1, 'Table control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  listboxControl(0xe6, 'Listbox control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  comboBoxControl(0xb5, 'Combo box control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  tagControl(0x94, 'Channel name (tag) control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  mapControl(0x186, 'Map control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  setControl(0x185, 'Set control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  waveformControl(0xb8, 'Waveform control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  imageControl(0xee, 'IMAQ image control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  enumControl14c(0x14c, 'Enum control (0x14C)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  subPanelControl(0xcf, 'Sub panel control', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  xcontrol(0x102, 'XControl', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  controlAf(0xaf, 'Control (0xAF)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  graphE2(0xe2, 'Graph (0xE2)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  mixedSignalPlotArea(0xf2, 'Mixed signal graph plot area', ViObjectKind.decoration, ClassConfidence.inferred),
 
   nodeTerminalCluster(0x0c, 'Terminal cluster', ViObjectKind.terminalCluster, ClassConfidence.confirmed),
 
@@ -552,13 +584,13 @@ enum HeapObjectClass {
 
   legendSubPart(0xd2, 'Legend sub-part', ViObjectKind.decoration, ClassConfidence.inferred),
 
-  rare58(0x58, 'Undetermined (0x58)', ViObjectKind.unknown, ClassConfidence.kindOnly),
+  rare58(0x58, 'Slide control', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  rareStructureC3(0xc3, 'Structure (rare 0xC3)', ViObjectKind.structure, ClassConfidence.kindOnly),
+  rareStructureC3(0xc3, 'Tab control', ViObjectKind.structure, ClassConfidence.inferred),
 
-  rareC8(0xc8, 'Undetermined (0xC8)', ViObjectKind.unknown, ClassConfidence.kindOnly),
+  rareC8(0xc8, 'Tab page', ViObjectKind.structure, ClassConfidence.inferred),
 
-  controlRare56(0x56, 'Control (rare 0x56)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  controlRare56(0x56, 'Color box control', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdFrame(0x1b, 'Structure frame', ViObjectKind.frame, ClassConfidence.inferred),
 
@@ -576,21 +608,236 @@ enum HeapObjectClass {
 
   bdRightShiftRegister(0x28, 'Right shift register', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  bdBorderTerminal2a(0x2a, 'Border terminal (0x2A)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  bdSequenceTunnel(0x2a, 'Sequence tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdCaseTunnel(0x2d, 'Case tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdSelectorTerminal(0x2e, 'Case selector terminal', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  bdTerminalStrip35(0x35, 'Node terminal strip (0x35)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  bdTerminalStrip35(0x35, 'Bundle terminal strip', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdTerminalStrip(0x62, 'Node terminal strip', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  bdBorderTerminalCb(0xcb, 'Border terminal (0xCB)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  bdFrameTunnel(0xcb, 'Sequence frame tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdDisableTunnel(0xce, 'Disable-structure tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
+  bdTerminalHolder(0x15, 'Terminal holder', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPrimTerminal(0x30, 'Primitive terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPrimClusterTerminal(
+    331,
+    'Primitive terminal (cluster arithmetic)',
+    ViObjectKind.terminal,
+    ClassConfidence.inferred,
+  ),
+
+  bdSubViTerminal(0x33, 'Sub-VI call terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdSubViCallPart(0x10b, 'Sub-VI call part', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdNode32Terminal(0x67, 'Sub-VI call (0x32) terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPolyViTerminal(0xc6, 'Polymorphic VI call terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdExpressViPart(0xcc, 'Express VI call part', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdRefErrorTerminal(0x8e, 'Reference and error terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPropertyTerminal(0x8d, 'Property terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPropertyItem(0x110, 'Property item', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPropertyAccessorItem(0x113, 'Property item (class accessor)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInvokeTerminal(0xaa, 'Invoke Node parameter terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInvokeItem(0x111, 'Invoke/property parameter item', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInvokeItem112(0x112, 'Invoke/property parameter item (0x112)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdCallLibraryTerminal(0x6b, 'Call Library parameter terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdIndexArrayTerminal(0x45, 'Index Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdBuildArrayTerminal(0x3b, 'Build Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdConcatenateTerminal(0x3f, 'Concatenate Strings terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdUnbundleTerminal(0x37, 'Unbundle terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdFormatIntoStringTerminal(0x91, 'Format Into String terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdScanFromStringTerminal(0x90, 'Scan From String terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdMergeErrorsTerminal(0x173, 'Merge Errors terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdCompoundArithmeticTerminal(0x6d, 'Compound Arithmetic terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdDeleteFromArrayTerminal(0xbe, 'Delete From Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdReplaceArraySubsetTerminal(0xba, 'Replace Array Subset terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInitializeArrayTerminal(0x115, 'Initialize Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdArraySubsetTerminal(0x49, 'Array Subset terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInsertIntoArrayTerminal(0xbc, 'Insert Into Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdDecimateArrayTerminal(0x41, 'Decimate 1D Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdReshapeArrayTerminal(0x117, 'Reshape Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdIndexBundleTerminal(0x3d, 'Index & Bundle Cluster Array terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdArrayNode42Terminal(0x43, 'Array node (0x42) terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdExpressionTerminal(0x14, 'Expression Node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdFormulaTerminal(0x4b, 'Formula Node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdViReferenceTerminal(0xb7, 'Static VI Reference terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdRegisterEventsTerminal(0xec, 'Register For Events terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdEventRefnumTerminal(0xf5, 'Event refnum node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdXnodeTerminal(0x106, 'XNode terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdFeedbackTerminal144(0x144, 'Feedback Node terminal (0x144)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdFeedbackTerminal146(0x146, 'Feedback Node terminal (0x146)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdFeedbackInitTerminal(0x145, 'Feedback Node initializer terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdFeedbackInitPart(0x16e, 'Feedback Node initializer part', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlaceNodeTerminal(0x155, 'In Place Element node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlaceNode150Terminal(
+    342,
+    'In Place Element border node (0x150) terminal',
+    ViObjectKind.terminal,
+    ClassConfidence.inferred,
+  ),
+
+  bdInPlaceNode14fTerminal(
+    355,
+    'In Place Element border node (0x14F) terminal',
+    ViObjectKind.terminal,
+    ClassConfidence.inferred,
+  ),
+
+  bdInPlaceBorderTerminal(0x14e, 'In Place Element border terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlacePart154(0x154, 'In Place Element part (0x154)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlacePart158(0x158, 'In Place Element part (0x158)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlacePart159(0x159, 'In Place Element part (0x159)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlacePart15b(0x15b, 'In Place Element part (0x15B)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdInPlacePart18f(0x18f, 'In Place Element part (0x18F)', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdEventRegistrationTerminal(
+    215,
+    'Event structure dynamic event terminal',
+    ViObjectKind.terminal,
+    ClassConfidence.inferred,
+  ),
+
+  bdEventTimeoutTerminal(0xd8, 'Event structure timeout terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdForLoopConditional(0x176, 'For loop conditional terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdParallelInstancesTerminal(
+    361,
+    'For loop parallel instances terminal',
+    ViObjectKind.terminal,
+    ClassConfidence.inferred,
+  ),
+
+  bdSequenceLocal(0x2b, 'Sequence local', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdTimedLoopTerminal(0xf9, 'Timed Loop terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdMapSetTerminal(0x18e, 'Map/set node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdWaveformTerminal(0xd1, 'Waveform node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdPythonTerminal(0x184, 'Python Node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdMatlabTerminal(0x194, 'Call MATLAB Function terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdSharedVariableTerminal(0x149, 'Shared variable node terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdVariableConnectionTerminal(0x16d, 'Variable connection terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdScriptTerminalB3(0xb3, 'Script node (0xB4) terminal', ViObjectKind.terminal, ClassConfidence.inferred),
+
+  bdNode18bTerminal(0x18c, 'Node (0x18B) terminal', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  bdStructure12aTerminal(0x12b, 'Structure (0x12A) terminal', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
+  bdPart15f(0x15f, 'Structure (0x12A) part', ViObjectKind.terminal, ClassConfidence.kindOnly),
+
   bdXnode(0x105, 'XNode', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdFeedbackInitializer(0x170, 'Feedback Node initializer', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdScanFromString(0x92, 'Scan From String', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdInsertIntoArray(0xbb, 'Insert Into Array', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdExpressionNode(0xc0, 'Expression Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdDecimateArray(0x40, 'Decimate 1D Array', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdFormulaNode(0x4a, 'Formula Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdReshapeArray(0x116, 'Reshape Array', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdIndexBundleClusterArray(0x3c, 'Index & Bundle Cluster Array', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdCallByReference(0xae, 'Call By Reference / asynchronous call', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdConstructorNode(0xed, '.NET Constructor Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdPythonNode(0x183, 'Python Node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdMatlabNode(0x193, 'Call MATLAB Function', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdSharedVariable(0x148, 'Shared variable node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdOpenVariableConnection(0x16a, 'Open Variable Connection', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdWriteVariable(0x16c, 'Write Variable', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdWaveformNode(0xd0, 'Waveform node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdMapSetNode(0x18d, 'Map/set node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdEventRefnumNode(0xf4, 'Event refnum node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdTimedLoop(0xfb, 'Timed Loop', ViObjectKind.structure, ClassConfidence.inferred),
+
+  bdTimedLoopNode(0x120, 'Timed Loop node', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdArrayNode42(0x42, 'Array node (0x42)', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdScriptNodeB4(0xb4, 'Script node (0xB4)', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdNode66(0x66, 'Node (0x66)', ViObjectKind.node, ClassConfidence.inferred),
+
+  bdNode167(0x167, 'Node (0x167)', ViObjectKind.node, ClassConfidence.kindOnly),
+
+  bdNode18b(0x18b, 'Node (0x18B)', ViObjectKind.node, ClassConfidence.kindOnly),
+
+  bdStructure12a(0x12a, 'Structure (0x12A)', ViObjectKind.structure, ClassConfidence.kindOnly),
+
+  bdFrame137(0x137, 'Frame (0x137)', ViObjectKind.frame, ClassConfidence.kindOnly),
 
   unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly);
 

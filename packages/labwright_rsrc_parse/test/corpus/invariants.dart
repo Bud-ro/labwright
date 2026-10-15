@@ -123,6 +123,14 @@ void invariantsTests() {
     expect(missing, isEmpty);
   });
 
+  test('CATALOG COMPLETENESS: every object-class kind in the corpus is catalogued', () {
+    final uncatalogued = [
+      for (final kind in kindsSeen)
+        if (HeapObjectClass.fromCode(kind) == HeapObjectClass.unknown) '0x${kind.toRadixString(16)}',
+    ];
+    expect(uncatalogued, isEmpty);
+  });
+
   test('BLOCK CATALOG: every catalogued record-heap section really is a C4 heap', () {
     expect(violations({'catHeapNotStructural'}), const <String, Map<String, int>>{});
     expect(headTags, containsAll(<String>{'FPHb', 'BDHb'}));
