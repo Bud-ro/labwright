@@ -106,7 +106,7 @@ void main() {
     }
     for (final f in Directory(outDir.path).listSync().whereType<File>()) {
       final m = RegExp(
-        r'((?:prim|class)\d+(?:_t\d+)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
+        r'((?:prim|class)\d+(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
       ).firstMatch(f.path);
       if (m == null) continue;
       final key = m.group(1)!;
@@ -181,7 +181,7 @@ String _manifestWithRowsReplaced(
   Set<String> only,
 ) {
   String? keyOf(String line) => RegExp(
-    r'^\| ((?:prim|class)\d+(?:_t\d+)?(?:_from\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
+    r'^\| ((?:prim|class)\d+(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
   ).firstMatch(line)?.group(1);
   final replacements = <String, String>{
     for (final line in fresh.split('\n'))
