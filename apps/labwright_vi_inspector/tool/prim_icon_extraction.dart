@@ -285,10 +285,10 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           anc = bd.byId[anc.parentOid ?? -1];
         }
         if (disabled) continue;
-        final taken = samples[key] ?? const [];
-        if ((key.startsWith('prim')
-                ? taken.where((s) => versionOfSnippet[s.source] == major).length
-                : taken.length) >=
+        if ((samples[key]
+                    ?.where((s) => versionOfSnippet[s.source] == major)
+                    .length ??
+                0) >=
             8) {
           continue;
         }
@@ -487,36 +487,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             sources: {...?prev?.sources, c.source},
           );
         }
-        double webSafe(Uint8List rect) {
-          var safe = 0;
-          for (var i = 0; i < rect.length; i += 4) {
-            if (rect[i] % 0x33 == 0 &&
-                rect[i + 1] % 0x33 == 0 &&
-                rect[i + 2] % 0x33 == 0) {
-              safe++;
-            }
-          }
-          return safe / (rect.length ~/ 4);
-        }
-
         final ranked = rectGroups.values.toList()
-          ..sort((a, b) {
-            final ws = key.startsWith('class')
-                ? (webSafe(b.rect) >= 0.9 ? 1 : 0) -
-                      (webSafe(a.rect) >= 0.9 ? 1 : 0)
-                : 0;
-            return ws != 0 ? ws : b.count.compareTo(a.count);
-          });
-        final webSafeGroups = ranked
-            .where((g) => webSafe(g.rect) >= 0.9)
-            .length;
-        if (key.startsWith('class') && webSafeGroups > 1) {
-          failed[key] =
-              'class key carries ${ranked.length} distinct border-exact '
-              'arts (${ranked.map((g) => '${g.count}x from ${g.sources.join('+')}').join(' | ')}) '
-              '— a per-node identity is needed, no single asset can be right';
-          continue;
-        }
+          ..sort((a, b) => b.count.compareTo(a.count));
         final win = ranked.first;
         included[key] = {...win.sources};
         final icon = img.Image(width: bw, height: bh, numChannels: 4);
@@ -959,7 +931,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     for (final key in keys) {
       final inc = included[key];
       final base = key.split('@').first;
-      if (inc == null || inc.isEmpty || !base.startsWith('prim')) continue;
+      if (inc == null || inc.isEmpty) continue;
       final all = samples[key]!;
       final left = [
         for (final s in all)
@@ -1088,61 +1060,104 @@ Map<String, String> _mergeVersionClusters({
     final members = [
       for (final k in [...pending.keys, ...failed.keys])
         if (k == base || k.startsWith('$base@')) k,
+    ]..sort((a, b) => (included[b]?.length ?? 0) - (included[a]?.length ?? 0));
+    final candidates = [
+      for (final k in members)
+        if (pending[k] != null && (included[k]?.length ?? 0) >= 2) k,
     ];
-    final generations = <({String key, int from, List<int> majors})>[];
-    members.sort(
-      (a, b) => (included[b]?.length ?? 0) - (included[a]?.length ?? 0),
-    );
-    for (final k in members) {
-      final sources = included[k] ?? const <String>{};
-      final majors = {
-        for (final src in sources) versionOfSnippet[src] ?? 0,
-      }.toList()..sort();
-      if (sources.length < 2 ||
-          generations.any(
-            (g) =>
-                majors.first <= g.majors.last && g.majors.first <= majors.last,
-          )) {
+    final votes = <int, Map<String, int>>{};
+    for (final k in candidates) {
+      for (final src in included[k]!) {
+        final major = versionOfSnippet[src] ?? 0;
+        (votes[major] ??= {})[k] = ((votes[major] ??= {})[k] ?? 0) + 1;
+      }
+    }
+    final majors = votes.keys.toList()..sort();
+    final runs = <({String key, int from, List<int> majors})>[];
+    for (final major in majors) {
+      final winner = candidates.firstWhere((k) {
+        final n = votes[major]![k] ?? 0;
+        return n > 0 && candidates.every((o) => (votes[major]![o] ?? 0) <= n);
+      });
+      if (runs.isNotEmpty && runs.last.key == winner) {
+        runs.last.majors.add(major);
+      } else {
+        runs.add((key: winner, from: major, majors: [major]));
+      }
+    }
+    for (var i = 0; i < runs.length;) {
+      final run = runs[i];
+      final support = run.majors.fold(
+        0,
+        (n, m) => n + (votes[m]![run.key] ?? 0),
+      );
+      final into = i > 0 ? i - 1 : i + 1;
+      if (support >= 2 || into >= runs.length) {
+        i++;
         continue;
       }
-      generations.add((key: k, from: majors.first, majors: majors));
+      runs[into].majors.addAll(run.majors);
+      runs[into].majors.sort();
+      runs.removeAt(i);
+      if (i > 0 && i < runs.length && runs[i].key == runs[i - 1].key) {
+        runs[i - 1].majors.addAll(runs[i].majors);
+        runs[i - 1].majors.sort();
+        runs.removeAt(i);
+      }
     }
-    generations.sort((a, b) => a.from.compareTo(b.from));
+    for (var i = 0; i < runs.length; i++) {
+      runs[i] = (
+        key: runs[i].key,
+        from: runs[i].majors.first,
+        majors: runs[i].majors,
+      );
+    }
     final committed = verifiedKeys.contains(base)
         ? _committedAsset(assetDir, base)
         : null;
     final split =
-        generations.length >= 2 &&
+        runs.map((r) => r.key).toSet().length >= 2 &&
         (committed == null ||
-            generations.any(
-              (g) =>
-                  pending[g.key] != null &&
-                  _sameArt(pending[g.key]!.icon, committed, tolerance: 0),
+            runs.any(
+              (r) => _sameArt(pending[r.key]!.icon, committed, tolerance: 0),
             ));
-    if (!split && committed == null && pending[members.first] != null) {
-      pending[base] = pending[members.first]!;
-      included[base] = included[members.first]!;
-    }
-    for (final k in members) {
-      if (split ? !generations.any((g) => g.key == k) : k != base) {
-        pending.remove(k);
-        failed.remove(k);
+    final keep = split
+        ? null
+        : committed != null
+        ? base
+        : candidates.firstOrNull ?? base;
+    if (!split) {
+      final cut = pending[keep!], inc = included[keep];
+      for (final k in members) {
+        if (k != base) {
+          pending.remove(k);
+          failed.remove(k);
+          included.remove(k);
+        }
       }
-    }
-    if (!split) continue;
-    for (final g in generations) {
-      final name = '${base}_from${g.from}';
-      final cut = pending.remove(g.key);
-      final why = failed.remove(g.key);
       if (cut != null) {
-        pending[name] = (
-          icon: cut.icon,
-          sources: '${cut.sources} [LabVIEW ${g.majors.join(', ')}]',
-        );
-        if (committed != null && _sameArt(cut.icon, committed, tolerance: 0))
-          renamed[base] = name;
-      } else if (why != null) {
-        failed[name] = why;
+        pending[base] = cut;
+        included[base] = inc!;
+      }
+      continue;
+    }
+    final cuts = {for (final k in candidates) k: pending[k]!};
+    for (final k in members) {
+      pending.remove(k);
+      failed.remove(k);
+    }
+    for (final run in runs) {
+      final name = '${base}_from${run.from}';
+      final cut = cuts[run.key]!;
+      pending[name] = (
+        icon: cut.icon,
+        sources: '${cut.sources} [LabVIEW ${run.majors.join(', ')}]',
+      );
+      included[name] = included[run.key]!;
+      if (committed != null &&
+          !renamed.containsKey(base) &&
+          _sameArt(cut.icon, committed, tolerance: 0)) {
+        renamed[base] = name;
       }
     }
   }
