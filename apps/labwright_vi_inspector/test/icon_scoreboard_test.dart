@@ -72,15 +72,11 @@ void main() {
           final key = primIconKeyOf(o);
           final b = o.absBounds;
           if (key == null || b == null) continue;
-          final terms = bd
-              .childrenOf(o)
-              .where((c) => c.kind == kNodeEndpointDcoKind)
-              .length;
           final keyName = key >= 0
               ? primIconName(key)
-              : primIconName(classVariantIconKey(o.kind, terms));
+              : primIconName(bdClassVariantIconKey(bd, o));
           final box = raster.modelRect(b);
-          final id = loadedPrimIconIdOf(o, version: bd.version);
+          final id = loadedPrimIconIdOf(o, diagram: bd);
           final art = id == null ? null : icons[id];
           final r = art == null
               ? box

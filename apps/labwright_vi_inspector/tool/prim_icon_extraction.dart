@@ -253,7 +253,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         final key = o.primitive?.primResId != null
             ? 'prim${o.primitive?.primResId}'
             : (primClasses.contains(o.kind)
-                  ? 'class${o.kind}_t${bd.children(o.oid).where((c) => c.kind == 0x15).length}'
+                  ? primIconName(bdClassVariantIconKey(bd, o))
                   : null);
         if (key == null || b == null || b.width <= 0 || b.height <= 0) {
           continue;
@@ -1180,7 +1180,7 @@ bool _sameArt(img.Image a, img.Image b, {int tolerance = 12}) {
 img.Image? _committedAsset(Directory assetDir, String key) {
   for (final f in assetDir.listSync().whereType<File>()) {
     if (RegExp(
-      '/$key(?:_(?!t\\d|from\\d)[a-z0-9-]+)?\\.png\$',
+      '/$key(?:_(?!t\\d|r[0-9a-f]+(?:_|\\.)|from\\d)[a-z0-9-]+)?\\.png\$',
     ).hasMatch(f.path)) {
       return img.decodePng(f.readAsBytesSync());
     }
@@ -1199,8 +1199,9 @@ List<String> primIconReproErrors(PrimIconExtraction extraction) {
         .listSync()
         .whereType<File>()
         .where(
-          (f) =>
-              RegExp('/$key(?:_(?!t\\d)[a-z0-9-]+)?\\.png\$').hasMatch(f.path),
+          (f) => RegExp(
+            '/$key(?:_(?!t\\d|r[0-9a-f]+(?:_|\\.)|from\\d)[a-z0-9-]+)?\\.png\$',
+          ).hasMatch(f.path),
         )
         .toList();
     if (files.isEmpty) {

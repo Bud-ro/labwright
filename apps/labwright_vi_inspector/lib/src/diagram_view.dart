@@ -263,7 +263,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       final bounds = object.absBounds!;
       var left = bounds.left.toDouble(), top = bounds.top.toDouble();
       var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
-      final key = loadedPrimIconIdOf(object, version: _scene?.diagram.version);
+      final key = loadedPrimIconIdOf(object, diagram: _scene?.diagram);
       final art = key == null ? null : primIcons[key];
       if (art != null) {
         final stamp = primIconStampRect(
@@ -278,8 +278,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
         bottom = math.max(bottom, stamp.bottom);
       }
       if (x >= left && x <= right && y >= top && y <= bottom) {
-        if (!primIconHit(object, x, y, version: _scene?.diagram.version))
-          continue;
+        if (!primIconHit(object, x, y, diagram: _scene?.diagram)) continue;
         final area = (bounds.width * bounds.height).toDouble();
         if (area <= bestArea) {
           bestArea = area;
@@ -576,13 +575,9 @@ PrimIconArt? primIconArtFor(
   if (base == null) return null;
   final key = resolvePrimIconKey(base, diagram.version)!;
   if (base >= 0) return icons[key];
-  final terms = diagram
-      .childrenOf(object)
-      .where((c) => c.objectClass == BdObjectClass.terminalHolder)
-      .length;
   final variant =
       icons[resolvePrimIconKey(
-        classVariantIconKey(object.kind, terms),
+        bdClassVariantIconKey(diagram, object),
         diagram.version,
       )!];
   if (variant != null) {
@@ -1002,13 +997,24 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   );
 }
 
-int? loadedPrimIconIdOf(BdObject object, {String? version}) {
+int? loadedPrimIconIdOf(BdObject object, {BdDiagram? diagram}) {
+  final version = diagram?.version;
   final base = primIconKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, version)!;
   if (base >= 0) return key;
   final b = object.absBounds;
   if (b == null) return key;
+  if (diagram != null) {
+    final id = resolvePrimIconKey(
+      bdClassVariantIconKey(diagram, object),
+      version,
+    )!;
+    final art = primIcons[id];
+    if (art != null && art.width == b.width && art.height == b.height) {
+      return id;
+    }
+  }
   for (var t = 0; t <= 15; t++) {
     final id = resolvePrimIconKey(
       classVariantIconKey(object.kind, t),
@@ -1027,8 +1033,13 @@ int? loadedPrimIconIdOf(BdObject object, {String? version}) {
   return key;
 }
 
-bool primIconHit(BdObject object, double x, double y, {String? version}) {
-  final id = loadedPrimIconIdOf(object, version: version);
+bool primIconHit(
+  BdObject object,
+  double x,
+  double y, {
+  BdDiagram? diagram,
+}) {
+  final id = loadedPrimIconIdOf(object, diagram: diagram);
   final art = id == null ? null : primIcons[id];
   final bounds = object.absBounds;
   if (art == null || bounds == null) return true;
@@ -1054,9 +1065,9 @@ int? primIconInkEdge(
   required bool horizontal,
   required int cross,
   required int sign,
-  String? version,
+  BdDiagram? diagram,
 }) {
-  final id = loadedPrimIconIdOf(object, version: version);
+  final id = loadedPrimIconIdOf(object, diagram: diagram);
   final art = id == null ? null : primIcons[id];
   final b = object.absBounds;
   if (art == null || b == null) return null;
@@ -2111,7 +2122,7 @@ class BdDiagramPainter extends CustomPainter {
       );
       final ladderId = disabled
           ? null
-          : loadedPrimIconIdOf(object, version: scene.diagram.version);
+          : loadedPrimIconIdOf(object, diagram: scene.diagram);
       final corners =
           (ladderId == null ? null : primIcons[ladderId]?.cornerAa) ??
           const <int>{};
@@ -2663,10 +2674,7 @@ class BdDiagramPainter extends CustomPainter {
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = bdTerminalTypeColor(object);
       }
-      final iconKey = loadedPrimIconIdOf(
-        object,
-        version: scene.diagram.version,
-      );
+      final iconKey = loadedPrimIconIdOf(object, diagram: scene.diagram);
       if (iconKey != null) {
         final boxRect = _toCanvas(bounds);
         iconNodeRects.add(boxRect);
@@ -3137,7 +3145,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: true,
                 cross: (last.dy + origin.dy).round(),
                 sign: closing.dx,
-                version: scene.diagram.version,
+                diagram: scene.diagram,
               );
         target = Offset(
           edge != null
@@ -3153,7 +3161,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: false,
                 cross: (last.dx + origin.dx).round(),
                 sign: closing.dy,
-                version: scene.diagram.version,
+                diagram: scene.diagram,
               );
         target = Offset(
           last.dx,
@@ -3178,7 +3186,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: true,
                 cross: (last.dy + origin.dy).round(),
                 sign: last.dx >= prior.dx ? 1 : -1,
-                version: scene.diagram.version,
+                diagram: scene.diagram,
               );
         points[points.length - 1] = Offset(
           edge != null ? edge - origin.dx : inkCentre.dx,
@@ -3192,7 +3200,7 @@ class BdDiagramPainter extends CustomPainter {
                 horizontal: false,
                 cross: (last.dx + origin.dx).round(),
                 sign: last.dy >= prior.dy ? 1 : -1,
-                version: scene.diagram.version,
+                diagram: scene.diagram,
               );
         points[points.length - 1] = Offset(
           last.dx,
@@ -3345,7 +3353,7 @@ class BdDiagramPainter extends CustomPainter {
       horizontal: horizontal,
       cross: cross,
       sign: lowSide ? -1 : 1,
-      version: scene.diagram.version,
+      diagram: scene.diagram,
     );
     if (edge != null) return lowSide ? edge : edge - 1;
     final bounds = owner.absBounds;
@@ -3410,7 +3418,7 @@ class BdDiagramPainter extends CustomPainter {
           horizontal: closingHorizontal,
           cross: arrivalCross,
           sign: closingSign,
-          version: scene.diagram.version,
+          diagram: scene.diagram,
         );
         if (edge == null) break;
         final far = edge - closingSign;
@@ -3445,7 +3453,7 @@ class BdDiagramPainter extends CustomPainter {
             horizontal: dir.dx == 0,
             cross: closingCross,
             sign: -closingSign,
-            version: scene.diagram.version,
+            diagram: scene.diagram,
           );
           if (edge == null) break;
           final nearAttach = dir.dx == 0
@@ -3545,7 +3553,7 @@ class BdDiagramPainter extends CustomPainter {
             horizontal: closingHorizontal,
             cross: arrivalCross,
             sign: closingSign,
-            version: scene.diagram.version,
+            diagram: scene.diagram,
           );
           terminus = edge != null
               ? edge - closingSign
@@ -3622,7 +3630,7 @@ class BdDiagramPainter extends CustomPainter {
         horizontal: closingHorizontal,
         cross: arrivalCross,
         sign: closingSign,
-        version: scene.diagram.version,
+        diagram: scene.diagram,
       );
       if (edge == null) break;
       final terminus = edge - closingSign;

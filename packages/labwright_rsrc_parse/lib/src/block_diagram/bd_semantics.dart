@@ -691,44 +691,73 @@ const kSingleOpPrimClasses = {
 int? primIconKeyOf(BdObject object) =>
     object.primitive?.primResId ?? (kSingleOpPrimClasses.contains(object.objectClass) ? -object.kind : null);
 
-/// The icon key of a class variant with [termCount] terminals, distinct from any `primResID`
-/// and any single-op class key.
-int classVariantIconKey(int kind, int termCount) => -((kind << 8) | (termCount & 0xff)) - 0x100000;
+/// The icon key of a class variant with [termCount] terminals and, when its art depends on the
+/// rows, a [rows] signature below 2^36 (0 for none), distinct from any `primResID` and any
+/// single-op class key.
+int classVariantIconKey(int kind, int termCount, {int rows = 0}) {
+  final packed = (kind << 8) | (termCount & 0xff);
+  return rows == 0 ? -packed - 0x100000 : -((packed << 36) | rows) - 0x2000000;
+}
+
+/// The icon key of a class variant node: its class and terminal count, plus for Build Array a
+/// leading 1 followed by one bit per input row from the top, set when the input concatenates.
+int bdClassVariantIconKey(ViDiagram diagram, ViHeapObject node) {
+  final holders = [
+    for (final c in diagram.children(node.oid))
+      if (c.kind == kNodeEndpointDcoKind) c,
+  ];
+  var rows = 0;
+  if (node.objectClass == HeapObjectClass.bdNode3a && holders.length >= 2 && holders.length <= 36) {
+    rows = 1;
+    for (final holder in holders.skip(1)) {
+      final concatenates = diagram.children(holder.oid).any((t) => t.hasFlag(ViObjFlag.buildArrayConcatenate));
+      rows = (rows << 1) | (concatenates ? 1 : 0);
+    }
+  }
+  return classVariantIconKey(node.kind, holders.length, rows: rows);
+}
 
 /// The icon key of the art [baseKey] shows in VIs saved by LabVIEW [fromMajor] and later,
 /// distinct from every other key.
-int primIconVersionKey(int baseKey, int fromMajor) => -0x4000000 - (((baseKey + 0x2000000) << 7) | (fromMajor & 0x7f));
+int primIconVersionKey(int baseKey, int fromMajor) =>
+    -0x2000000000000000 - (((baseKey + 0x20000000000000) << 7) | (fromMajor & 0x7f));
 
 /// The base key and first LabVIEW major of a key from [primIconVersionKey], else null.
 (int, int)? primIconVersionOf(int key) {
-  if (key > -0x4000000) return null;
-  final packed = -(key + 0x4000000);
-  return ((packed >> 7) - 0x2000000, packed & 0x7f);
+  if (key > -0x2000000000000000) return null;
+  final packed = -(key + 0x2000000000000000);
+  return ((packed >> 7) - 0x20000000000000, packed & 0x7f);
 }
 
 /// The asset name of a prim icon key: `prim<id>` for a primResID, `class<code>` for a
-/// single-op class, `class<code>_t<n>` for a class variant with `n` terminals, each with
-/// `_from<major>` when it is one LabVIEW generation of the art.
+/// single-op class, `class<code>_t<n>` for a class variant with `n` terminals (`_r<hex>` for
+/// its rows signature), each with `_from<major>` when it is one LabVIEW generation of the art.
 String primIconName(int key) {
   if (primIconVersionOf(key) case (final base, final from)) return '${primIconName(base)}_from$from';
   if (key >= 0) return 'prim$key';
   if (key > -0x100000) return 'class${-key}';
-  final packed = -(key + 0x100000);
-  return 'class${packed >> 8}_t${packed & 0xff}';
+  if (key > -0x2000000) {
+    final packed = -(key + 0x100000);
+    return 'class${packed >> 8}_t${packed & 0xff}';
+  }
+  final packed = -(key + 0x2000000);
+  final rows = packed & 0xfffffffff, variant = packed >> 36;
+  return 'class${variant >> 8}_t${variant & 0xff}_r${rows.toRadixString(16)}';
 }
 
 /// The prim icon key spelled by [name], or null when it is not one; the inverse of [primIconName].
 int? parsePrimIconName(String name) {
-  final match = RegExp(r'^(prim|class)(\d+)(?:_t(\d+))?(?:_from(\d+))?$').firstMatch(name);
+  final match = RegExp(r'^(prim|class)(\d+)(?:_t(\d+)(?:_r([0-9a-f]+))?)?(?:_from(\d+))?$').firstMatch(name);
   if (match == null) return null;
   final number = int.parse(match.group(2)!);
   final terms = match.group(3);
+  final rows = match.group(4);
   final base = match.group(1) == 'prim'
       ? number
       : terms == null
       ? -number
-      : classVariantIconKey(number, int.parse(terms));
-  final from = match.group(4);
+      : classVariantIconKey(number, int.parse(terms), rows: rows == null ? 0 : int.parse(rows, radix: 16));
+  final from = match.group(5);
   return from == null ? base : primIconVersionKey(base, int.parse(from));
 }
 
