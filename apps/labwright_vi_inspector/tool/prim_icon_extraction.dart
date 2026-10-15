@@ -942,63 +942,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     );
   }
 
-  final bucketCounts = <int, int>{};
-  final bucketModal = <int, Map<int, int>>{};
-  var opaque = 0;
+  final palette = <int>{};
   for (final e in pending.values) {
     for (final px in e.icon) {
       if (px.a == 0) continue;
-      opaque++;
-      final rgb = (px.r.toInt() << 16) | (px.g.toInt() << 8) | px.b.toInt();
-      final bucket =
-          ((px.r.toInt() >> 4) << 8) |
-          ((px.g.toInt() >> 4) << 4) |
-          (px.b.toInt() >> 4);
-      bucketCounts[bucket] = (bucketCounts[bucket] ?? 0) + 1;
-      final modal = bucketModal[bucket] ??= {};
-      modal[rgb] = (modal[rgb] ?? 0) + 1;
+      palette.add((px.r.toInt() << 16) | (px.g.toInt() << 8) | px.b.toInt());
     }
-  }
-  final palette = <int>{0x000000, 0xffffff};
-  for (final e in bucketCounts.entries) {
-    if (e.value * 500 < opaque) continue;
-    palette.add(
-      (bucketModal[e.key]!.entries.toList()..sort((a, b) => b.value - a.value))
-          .first
-          .key,
-    );
   }
   final paletteList = palette.toList()..sort();
-  int snap(int r, int g, int b) {
-    var best = 0, bd = 1 << 30;
-    for (final c in paletteList) {
-      final dr = r - ((c >> 16) & 0xff),
-          dg = g - ((c >> 8) & 0xff),
-          db = b - (c & 0xff);
-      final d = dr * dr + dg * dg + db * db;
-      if (d < bd) {
-        bd = d;
-        best = c;
-      }
-    }
-    return best;
-  }
-
-  for (final key in pending.keys.toList()..sort()) {
-    final e = pending[key]!;
-    for (final px in e.icon) {
-      if (px.a == 0) continue;
-      final c = snap(px.r.toInt(), px.g.toInt(), px.b.toInt());
-      e.icon.setPixelRgba(
-        px.x,
-        px.y,
-        (c >> 16) & 0xff,
-        (c >> 8) & 0xff,
-        c & 0xff,
-        255,
-      );
-    }
-  }
 
   return PrimIconExtraction(
     appDir: appDir,
