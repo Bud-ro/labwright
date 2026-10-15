@@ -10,9 +10,10 @@ ViModel buildDisplayCurrentTime() {
   final format = vi.add(BdConstant.string('%m/%d/%Y%H:%M:%S%3u', label: 'time format string (%c)'));
   final toText = vi.add(BdPrimitive(PrimOp.formatDateTimeString));
   final now = vi.add(BdPrimitive(PrimOp.getDateTimeInSeconds));
-  vi.connect([format, toText.terminal('time format string')]);
-  vi.connect([toText.terminal('date/time string'), formatted]);
-  vi.connect([now.terminal('current time'), toText.terminal('time stamp'), stamp]);
+  vi.connect(format, toText.terminal('time format string'));
+  vi.connect(toText.terminal('date/time string'), formatted);
+  vi.connect(now.terminal('current time'), toText.terminal('time stamp'));
+  vi.connect(now.terminal('current time'), stamp);
   vi.write();
   return vi;
 }

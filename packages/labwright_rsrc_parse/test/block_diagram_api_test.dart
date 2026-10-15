@@ -1,6 +1,8 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'reconstruction/dataflow.dart';
+
 void main() {
   test('a For loop built from the API re-reads with its terminals, and grows around its body', () {
     final vi = ViModel.empty();
@@ -16,10 +18,10 @@ void main() {
       ),
     );
     final eight = vi.add(BdConstant.i32(8, label: 'eight'));
-    vi.connect([eight, loop.count]);
-    vi.connect([loop.iteration, add.terminal('x')]);
-    vi.connect([add.terminal('x+y'), times.terminal('x')], type: BdType.i32);
-    vi.connect([eight, times.terminal('y')]);
+    vi.connect(eight, loop.count);
+    vi.connect(loop.iteration, add.terminal('x'));
+    vi.connect(add.terminal('x+y'), times.terminal('x'), type: BdType.i32);
+    vi.connect(eight, times.terminal('y'));
     expect(loop.borderTerminals.map((t) => t.kind.name), ['count', 'loopTunnel', 'iteration']);
     vi.write();
     final diagram = vi.primaryBlockDiagram!;
@@ -59,8 +61,8 @@ void main() {
     expect(outer.body.placed, [stop, inner]);
     expect(inner.whenTrue.placed, [one, negate]);
     expect(() => vi.add(inner), throwsStateError);
-    vi.connect([one, negate.terminal('x')]);
-    vi.connect([stop, outer.conditional]);
+    vi.connect(one, negate.terminal('x'));
+    vi.connect(stop, outer.conditional);
     vi.write();
     final again = buildViModel(vi.serialize()).diagram;
     expect(again.all<BdLoop>().single.body.all<BdCase>().single.whenTrue.wires.length, 1);
@@ -71,8 +73,8 @@ void main() {
     final one = vi.add(BdConstant.i32(1, at: const HeapRect(top: 60, left: 10, bottom: 79, right: 46)));
     final a = vi.add(BdPrimitive(PrimOp.increment, at: const HeapRect(top: 10, left: 100, bottom: 42, right: 132)));
     final b = vi.add(BdPrimitive(PrimOp.decrement, at: const HeapRect(top: 110, left: 100, bottom: 142, right: 132)));
-    final wire = vi.connect([one, a.terminal('x')]);
-    expect(vi.connect([one, b.terminal('x')]), same(wire));
+    final wire = vi.connect(one, a.terminal('x'));
+    expect(vi.connect(one, b.terminal('x')), same(wire));
     expect(wire.endpointOids, [one.oid, a.terminal('x').oid, b.terminal('x').oid]);
     vi.write();
     final signal = vi.primaryBlockDiagram!.wires.single;
@@ -90,7 +92,7 @@ void main() {
     final text = vi.add(BdConstant.string('hi'));
     final zero = vi.add(BdConstant.dbl(0));
     final big = vi.add(BdConstant.i16(-2));
-    vi.connect([poly, crc]);
+    vi.connect(poly, crc);
     vi.write();
     final diagram = vi.primaryBlockDiagram!;
     final leaves = diagram.objects.where((o) => o.objectClass == HeapObjectClass.bdLeaf).toList();
@@ -128,14 +130,14 @@ void main() {
     final input = choose.tunnel(BdType.i32, direction: BdTunnelDirection.input);
     final output = choose.tunnel(BdType.i32, direction: BdTunnelDirection.output);
     final negate = choose.whenTrue.add(BdPrimitive(PrimOp.decrement));
-    vi.connect([input.inner(choose.whenFalse), output.inner(choose.whenFalse)]);
-    vi.connect([input.inner(choose.whenTrue), negate.terminal('x')]);
-    vi.connect([negate.terminal('x-1'), output.inner(choose.whenTrue)]);
-    vi.connect([x, input]);
-    vi.connect([yes, choose.selector]);
-    vi.connect([output, out]);
+    vi.connect(input.inner(choose.whenFalse), output.inner(choose.whenFalse));
+    vi.connect(input.inner(choose.whenTrue), negate.terminal('x'));
+    vi.connect(negate.terminal('x-1'), output.inner(choose.whenTrue));
+    vi.connect(x, input);
+    vi.connect(yes, choose.selector);
+    vi.connect(output, out);
     final loop = vi.add(BdLoop.whileLoop());
-    vi.connect([yes, loop.conditional]);
+    vi.connect(yes, loop.conditional);
     vi.write();
     final diagram = vi.primaryBlockDiagram!;
     final structure = diagram.objects.firstWhere((o) => o.objectClass == HeapObjectClass.bdStructureFrame);
@@ -164,10 +166,10 @@ void main() {
     final choose = loop.add(BdCase());
     final add = choose.whenTrue.add(BdPrimitive(PrimOp.add));
     final times = choose.whenTrue.add(BdPrimitive(PrimOp.multiply));
-    vi.connect([n, add.terminal('x')]);
-    vi.connect([n, times.terminal('x')]);
-    vi.connect([loop.iteration, add.terminal('y')]);
-    vi.connect([add.terminal('x+y'), out], type: BdType.i32);
+    vi.connect(n, add.terminal('x'));
+    vi.connect(n, times.terminal('x'));
+    vi.connect(loop.iteration, add.terminal('y'));
+    vi.connect(add.terminal('x+y'), out, type: BdType.i32);
     expect(loop.borderTerminals.map((t) => t.kind.name), ['count', 'loopTunnel', 'loopTunnel', 'iteration']);
     expect(choose.borderTerminals.map((t) => t.kind.name), ['selector', 'caseTunnel', 'caseTunnel', 'caseTunnel']);
     final into = loop.borderTerminals[1];
@@ -178,8 +180,36 @@ void main() {
       add.terminal('x').oid,
       times.terminal('x').oid,
     ]);
-    expect(() => vi.connect([out, n]), throwsArgumentError);
-    expect(() => vi.connect([times.terminal('y'), add.terminal('y')]), throwsArgumentError);
-    expect(() => vi.connect([n]), throwsArgumentError);
+    expect(() => vi.connect(out, n), throwsArgumentError);
+    expect(() => vi.connect(times.terminal('y'), add.terminal('y')), throwsArgumentError);
+  });
+
+  test('a flat sequence carries a value frame to frame through paired tunnels, and re-reads', () {
+    final vi = ViModel.empty();
+    final n = vi.control(BdType.i32, 'n');
+    final sequence = vi.add(BdSequence(frameCount: 3));
+    final first = sequence.stages[0], last = sequence.stages[2];
+    final increment = first.add(BdPrimitive(PrimOp.increment));
+    final decrement = sequence.stages[1].add(BdPrimitive(PrimOp.decrement));
+    final out = vi.indicator(BdType.i32, 'out', frame: last.body);
+    final twice = vi.indicator(BdType.i32, 'twice', frame: last.body);
+    vi.connect(n, increment.terminal('x'));
+    vi.connect(increment.out, out);
+    vi.connect(increment.out, twice);
+    vi.connect(n, decrement.terminal('x'));
+    expect(first.borderTerminals.map((t) => t.kind.name), ['sequenceTunnel', 'frameTunnel']);
+    expect(sequence.stages[1].borderTerminals.map((t) => t.kind.name), [
+      'frameTunnel',
+      'frameTunnel',
+      'sequenceTunnel',
+    ]);
+    expect(last.borderTerminals.map((t) => t.kind.name), ['frameTunnel']);
+    expect(first.borderTerminals[1].partner, same(sequence.stages[1].borderTerminals[0]));
+    expect(vi.diagram.wires.map((w) => w.endpointOids.length), [3, 2, 2]);
+    expect(last.body.wires.single.endpointOids.length, 3);
+    vi.write();
+    final before = bdDataflow(vi);
+    expect(before, contains('bdFlatSequence displayed 0.f2.indicator out'));
+    expect(bdDataflow(buildViModel(vi.serialize())), before);
   });
 }

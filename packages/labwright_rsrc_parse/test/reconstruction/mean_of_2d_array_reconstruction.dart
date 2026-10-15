@@ -11,11 +11,12 @@ ViModel buildMeanOf2dArray() {
   final count = vi.add(BdPrimitive(PrimOp.multiplyArrayElements));
   final sizes = vi.add(BdPrimitive(PrimOp.arraySize));
   final sum = vi.add(BdPrimitive(PrimOp.addArrayElements));
-  vi.connect([array, sum.terminal('numeric array'), sizes.terminal('array')]);
-  vi.connect([divide.terminal('x/y'), mean]);
-  vi.connect([count.terminal('product'), divide.terminal('y')], type: BdType.i32);
-  vi.connect([sizes.terminal('size(s)'), count.terminal('numeric array')], type: BdType.i32.array);
-  vi.connect([sum.terminal('sum'), divide.terminal('x')], type: BdType.i32);
+  vi.connect(array, sum.terminal('numeric array'));
+  vi.connect(array, sizes.terminal('array'));
+  vi.connect(divide.terminal('x/y'), mean);
+  vi.connect(count.terminal('product'), divide.terminal('y'), type: BdType.i32);
+  vi.connect(sizes.terminal('size(s)'), count.terminal('numeric array'), type: BdType.i32.array);
+  vi.connect(sum.terminal('sum'), divide.terminal('x'), type: BdType.i32);
   vi.write();
   return vi;
 }

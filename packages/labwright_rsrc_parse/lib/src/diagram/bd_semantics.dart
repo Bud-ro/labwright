@@ -726,8 +726,8 @@ int? parsePrimIconName(String name) {
 const Set<HeapObjectClass> kBdTunnelClasses = {
   HeapObjectClass.bdLoopTunnel,
   HeapObjectClass.bdCaseTunnel,
-  HeapObjectClass.bdBorderTerminal2a,
-  HeapObjectClass.bdBorderTerminalCb,
+  HeapObjectClass.bdSequenceTunnel,
+  HeapObjectClass.bdFrameTunnel,
   HeapObjectClass.bdDisableTunnel,
 };
 

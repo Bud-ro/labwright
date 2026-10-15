@@ -17,13 +17,15 @@ ViModel buildMultiplyRows() {
   final factors = loop.tunnel(row, direction: BdTunnelDirection.input, indexing: true);
   final out = loop.tunnel(matrix, direction: BdTunnelDirection.output, indexing: true);
   final multiply = loop.add(BdPrimitive(PrimOp.multiply));
-  vi.connect([multiply.terminal('x*y'), out]);
-  vi.connect([rows, multiply.terminal('x')]);
-  vi.connect([factors, multiply.terminal('y')]);
-  vi.connect([d, rows, square.terminal('x'), square.terminal('y')]);
-  vi.connect([e, factors]);
-  vi.connect([square.terminal('x*y'), squared]);
-  vi.connect([out, scaled]);
+  vi.connect(multiply.terminal('x*y'), out);
+  vi.connect(rows, multiply.terminal('x'));
+  vi.connect(factors, multiply.terminal('y'));
+  vi.connect(d, rows);
+  vi.connect(d, square.terminal('x'));
+  vi.connect(d, square.terminal('y'));
+  vi.connect(e, factors);
+  vi.connect(square.terminal('x*y'), squared);
+  vi.connect(out, scaled);
   vi.write();
   return vi;
 }

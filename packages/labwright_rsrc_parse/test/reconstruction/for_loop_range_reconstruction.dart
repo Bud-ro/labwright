@@ -8,9 +8,9 @@ ViModel buildForLoopRange() {
 
   final loop = vi.add(BdLoop.forLoop());
   final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
-  vi.connect([loop.iteration, out]);
-  vi.connect([n, loop.count]);
-  vi.connect([out, range]);
+  vi.connect(loop.iteration, out);
+  vi.connect(n, loop.count);
+  vi.connect(out, range);
   vi.write();
   return vi;
 }

@@ -576,7 +576,7 @@ enum HeapObjectClass {
 
   bdRightShiftRegister(0x28, 'Right shift register', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  bdBorderTerminal2a(0x2a, 'Border terminal (0x2A)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  bdSequenceTunnel(0x2a, 'Sequence tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdCaseTunnel(0x2d, 'Case tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
@@ -586,7 +586,7 @@ enum HeapObjectClass {
 
   bdTerminalStrip(0x62, 'Node terminal strip', ViObjectKind.terminal, ClassConfidence.inferred),
 
-  bdBorderTerminalCb(0xcb, 'Border terminal (0xCB)', ViObjectKind.terminal, ClassConfidence.kindOnly),
+  bdFrameTunnel(0xcb, 'Sequence frame tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 
   bdDisableTunnel(0xce, 'Disable-structure tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
 

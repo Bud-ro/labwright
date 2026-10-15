@@ -43,38 +43,32 @@ mixin ViEditing {
   BdPanelTerminal indicator(BdType type, String name, {BdFrame? frame}) =>
       (frame ?? diagram).add(BdPanelTerminal.indicator(type, name));
 
-  /// Wires [ends], a source and then at least one more endpoint: every sink is wired from the
-  /// nearest source before it, so `[a, b, c]` fans `a` out to `b` and `c` while
-  /// `[a, b.x, b.out, c.x]` chains. A wire is typed by [type] or by whichever end declares
-  /// one; it runs through a tunnel on every structure border between its ends, reusing a
-  /// tunnel the source already feeds, and joins the signal its source already drives in its
-  /// frame. A structure terminal given as an end is taken on the side facing the other end.
-  BdWire connect(List<BdEndpoint> ends, {BdType? type}) {
-    if (ends.length < 2) throw ArgumentError.value(ends, 'ends', 'name a source and at least one sink');
-    var source = _facing(ends[0], ends[1]);
-    BdWire? wire;
-    for (final end in ends.skip(1)) {
-      final facing = _facing(end, source);
-      if (facing.isSink) {
-        wire = _connect(source, facing, type);
-      } else {
-        source = facing;
-      }
-    }
-    return wire ?? (throw ArgumentError.value(ends, 'ends', 'has no sink'));
-  }
+  /// Wires [source] to [sink], typed by [type] or by whichever end declares one: a signal over
+  /// the two in the frame they share, through a tunnel on every structure border between
+  /// them, reusing a tunnel the source already feeds, and joining the signal [source]
+  /// already drives in its frame. A structure terminal given as an end is taken on the side
+  /// facing the other end.
+  BdWire connect(BdEndpoint source, BdEndpoint sink, {BdType? type}) =>
+      _connect(_facing(source, sink), _facing(sink, source), type);
 
   BdWire _connect(BdEndpoint source, BdEndpoint sink, BdType? type) {
     if (source.isSink) throw ArgumentError.value(source, 'source', 'consumes its wire');
-    final wireType = type ?? source.type ?? sink.type ?? _wireFrom(source)?.type;
+    final wireType =
+        type ?? source.type ?? sink.type ?? _wireFrom(source)?.type ?? _siblingType(source) ?? _siblingType(sink);
     if (wireType == null) throw ArgumentError('neither $source nor $sink declares a type; pass one');
     final sourcePath = source.frameOf.ancestry, sinkPath = sink.frameOf.ancestry;
     var shared = 0;
     while (shared < sourcePath.length && shared < sinkPath.length && identical(sourcePath[shared], sinkPath[shared])) {
       shared++;
     }
+    final (a, b) = shared < sourcePath.length && shared < sinkPath.length
+        ? (sourcePath[shared].owner, sinkPath[shared].owner)
+        : (null, null);
+    final carried =
+        a is BdSequenceFrame && b is BdSequenceFrame && identical(a.sequence, b.sequence) && a.index < b.index;
+    final border = carried ? shared + 1 : shared;
     var from = source;
-    for (var i = sourcePath.length - 1; i >= shared; i--) {
+    for (var i = sourcePath.length - 1; i >= border; i--) {
       final frame = sourcePath[i];
       var tunnel = _fedTunnel(from, frame.owner!, wireType, output: true);
       if (tunnel == null) {
@@ -83,7 +77,19 @@ mixin ViEditing {
       }
       from = tunnel.outer;
     }
-    for (var i = shared; i < sinkPath.length; i++) {
+    if (carried) {
+      for (var stage = a; stage.index < b.index; stage = stage.sequence.stages[stage.index + 1]) {
+        var out = _fedTunnel(from, stage, wireType, output: true, kind: BdBorderKind.frameTunnel);
+        if (out == null) {
+          final pair = stage.link(stage.sequence.stages[stage.index + 1], wireType);
+          out = pair.$1;
+          _wire(from, out.innerPort, wireType);
+          _wire(out.outer, pair.$2.outer, wireType);
+        }
+        from = out.partner!.innerPort;
+      }
+    }
+    for (var i = border; i < sinkPath.length; i++) {
       final frame = sinkPath[i];
       var tunnel = _fedTunnel(from, frame.owner!, wireType, output: false);
       if (tunnel == null) {
@@ -93,6 +99,18 @@ mixin ViEditing {
       from = tunnel.inner(frame);
     }
     return _wire(from, sink, wireType);
+  }
+
+  /// The type a wire on another terminal of [end]'s node carries: a polymorphic node's
+  /// terminals share one.
+  BdType? _siblingType(BdEndpoint end) {
+    final owner = end is BdTerminal ? end.owner : null;
+    if (owner == null) return null;
+    final oids = {for (final t in owner.terminals) t.oid};
+    for (final wire in owner.frameOf.wires) {
+      if (wire.type != null && wire.endpointOids.any(oids.contains)) return wire.type;
+    }
+    return null;
   }
 
   /// [end] as the endpoint on the side of its structure that faces [other]: inside the frame
@@ -106,19 +124,28 @@ mixin ViEditing {
     return end.holder == null ? end.innerPort : end.outer;
   }
 
-  /// A plain tunnel of [type] on [structure] the signal from [from] already reaches.
-  BdStructureTerminal? _fedTunnel(BdEndpoint from, BdStructure structure, BdType type, {required bool output}) {
+  /// A tunnel of [type] on [structure] the signal from [from] already reaches: one of [kind],
+  /// else any plain one.
+  BdStructureTerminal? _fedTunnel(
+    BdEndpoint from,
+    BdStructure structure,
+    BdType type, {
+    required bool output,
+    BdBorderKind? kind,
+  }) {
     final fed = _wireFrom(from)?.endpointOids.toSet();
     if (fed == null) return null;
     for (final tunnel in structure.borderTerminals) {
       if (tunnel.holder == null || tunnel._type != type || tunnel.indexing) continue;
-      if (tunnel.kind != BdBorderKind.loopTunnel && tunnel.kind != BdBorderKind.caseTunnel) continue;
+      if (kind == null ? !_plainTunnels.contains(tunnel.kind) : tunnel.kind != kind) continue;
       if (tunnel.isInput == output) continue;
       final port = output ? tunnel.inner(from.frameOf) : tunnel.outer;
       if (fed.contains(port.oid)) return tunnel;
     }
     return null;
   }
+
+  static const _plainTunnels = {BdBorderKind.loopTunnel, BdBorderKind.caseTunnel, BdBorderKind.sequenceTunnel};
 
   /// The signal [source] already drives, if this editing wired one.
   BdWire? _wireFrom(BdEndpoint source) =>

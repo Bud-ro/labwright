@@ -9,9 +9,9 @@ ViModel buildStringToNumber() {
 
   final systemPoint = vi.add(BdConstant.boolean(true, label: 'use system decimal point (T)'));
   final parse = vi.add(BdPrimitive(PrimOp.fractExpStringToNumber));
-  vi.connect([text, parse.terminal('string')]);
-  vi.connect([systemPoint, parse.terminal('use system decimal point')]);
-  vi.connect([parse.terminal('number'), number]);
+  vi.connect(text, parse.terminal('string'));
+  vi.connect(systemPoint, parse.terminal('use system decimal point'));
+  vi.connect(parse.terminal('number'), number);
   vi.write();
   return vi;
 }

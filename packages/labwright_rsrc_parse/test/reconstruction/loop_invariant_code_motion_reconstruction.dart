@@ -11,10 +11,10 @@ ViModel buildLoopInvariantBefore() {
   final loop = vi.add(BdLoop.forLoop());
   final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
   final increment = loop.add(BdPrimitive(PrimOp.increment));
-  vi.connect([increment.terminal('x+1'), out]);
-  vi.connect([numeric, increment.terminal('x')]);
-  vi.connect([ten, loop.count]);
-  vi.connect([out, array]);
+  vi.connect(increment.terminal('x+1'), out);
+  vi.connect(numeric, increment.terminal('x'));
+  vi.connect(ten, loop.count);
+  vi.connect(out, array);
   vi.write();
   return vi;
 }
@@ -30,11 +30,11 @@ ViModel buildLoopInvariantAfter() {
   final loop = vi.add(BdLoop.forLoop());
   final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
   final input = loop.tunnel(BdType.i32, direction: BdTunnelDirection.input);
-  vi.connect([input.innerPort, out.innerPort]);
-  vi.connect([numeric, increment.terminal('x')]);
-  vi.connect([ten, loop.count]);
-  vi.connect([increment.terminal('x+1'), input]);
-  vi.connect([out, array]);
+  vi.connect(input.innerPort, out.innerPort);
+  vi.connect(numeric, increment.terminal('x'));
+  vi.connect(ten, loop.count);
+  vi.connect(increment.terminal('x+1'), input);
+  vi.connect(out, array);
   vi.write();
   return vi;
 }

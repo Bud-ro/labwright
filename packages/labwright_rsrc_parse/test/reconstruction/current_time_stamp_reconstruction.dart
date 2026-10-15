@@ -7,7 +7,7 @@ ViModel buildCurrentTimeStamp() {
   final stamp = vi.indicator(BdType.timestamp, 'LabVIEW TimeStamp 2');
 
   final now = vi.add(BdPrimitive(PrimOp.getDateTimeInSeconds));
-  vi.connect([now.terminal('current time'), stamp]);
+  vi.connect(now.terminal('current time'), stamp);
   vi.write();
   return vi;
 }

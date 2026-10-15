@@ -48,7 +48,7 @@ void main() {
     );
     expect(add.terminals.map((t) => t.name), ['x+y', 'y', 'x']);
     expect(add.out.attachPoint.x, 72 - 11);
-    final wire = model.connect([add.out, times.terminal('x')], type: BdType.i32);
+    final wire = model.connect(add.out, times.terminal('x'), type: BdType.i32);
     expect(wire.endpointOids, [add.out.oid, times.terminal('x').oid]);
     model.write();
     final diagram = model.primaryBlockDiagram!;

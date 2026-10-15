@@ -38,7 +38,8 @@ enum BdStructureList {
   list52(0x052),
   caseFrameEntries(0x256),
   caseStrings(0x258),
-  disableFrameEntries(0x228);
+  disableFrameEntries(0x228),
+  sequenceFrames(0x105);
 
   const BdStructureList(this.rawId);
 
@@ -253,6 +254,7 @@ class BdFrame {
         HeapObjectClass.bdForLoop || HeapObjectClass.bdWhileLoop => BdLoop._lifted(this, object),
         HeapObjectClass.bdStructureFrame => BdCase._lifted(this, object),
         HeapObjectClass.bdDisableStructure => BdDisable._lifted(this, object),
+        HeapObjectClass.bdFlatSequence => BdSequence._lifted(this, object),
         _ when objectClass.category == ViObjectKind.structure => BdStructure._lifted(this, object),
         _ when objectClass.category == ViObjectKind.node => BdNode._lifted(this, object),
         _ => BdPlaced._lifted(this, object),
@@ -312,6 +314,7 @@ class BdFrame {
       placed.add(item);
     } else {
       _addEntry(item.node);
+      _addObjectRef(item.oid);
       final at = placed.indexWhere((p) => p is BdNode);
       placed.insert(at < 0 ? placed.length : at, item);
     }
@@ -429,6 +432,7 @@ class BdNode extends BdPlaced {
           BdTerminal._(
             frameOf,
             holder,
+            owner: this,
             name: names != null && i < names.length ? names[i] : (_consumes(holder) ? 'in${ins++}' : 'out${outs++}'),
             type: terminalType(i),
             attach: () {
@@ -686,11 +690,20 @@ class BdReplaceArraySubset extends BdNode {
 /// An endpoint of a node or a structure terminal: a node terminal's holder, a border
 /// terminal's holder outside its structure, or its entry inside a frame.
 class BdTerminal extends BdEndpoint {
-  BdTerminal._(this.frameOf, this.node, {required this.name, required this.type, required ViPoint Function() attach})
-    : _attach = attach;
+  BdTerminal._(
+    this.frameOf,
+    this.node, {
+    required this.name,
+    required this.type,
+    required ViPoint Function() attach,
+    this.owner,
+  }) : _attach = attach;
 
   @override
   final BdFrame frameOf;
+
+  /// The node this is a terminal of; null for a structure terminal's endpoint.
+  final BdNode? owner;
 
   @override
   final HeapObjectNode node;
@@ -722,7 +735,9 @@ enum BdBorderKind {
   leftShiftRegister(HeapObjectClass.bdLeftShiftRegister, 'left shift register'),
   rightShiftRegister(HeapObjectClass.bdRightShiftRegister, 'right shift register'),
   caseTunnel(HeapObjectClass.bdCaseTunnel, 'tunnel'),
-  selector(HeapObjectClass.bdSelectorTerminal, 'selector');
+  selector(HeapObjectClass.bdSelectorTerminal, 'selector'),
+  sequenceTunnel(HeapObjectClass.bdSequenceTunnel, 'tunnel'),
+  frameTunnel(HeapObjectClass.bdFrameTunnel, 'frame tunnel');
 
   const BdBorderKind(this.objectClass, this.label);
 
@@ -837,6 +852,15 @@ class BdStructureTerminal with BdEndpoint {
   }();
 
   HeapRect get termBounds => terminal.children.attr(HeapAttribute.termBounds)?.asRect ?? kZeroRect;
+
+  /// The frame tunnel on the neighbouring frame this one passes its value to or takes it
+  /// from.
+  BdStructureTerminal? get partner {
+    final owner = this.owner;
+    if (owner is! BdSequenceFrame) return null;
+    final oid = terminal.children.refs.where((r) => r.kind == HeapRefKind.objectRef).firstOrNull?.targetOid;
+    return owner.sequence.borderTerminals.where((t) => t.terminal.oid == oid).firstOrNull;
+  }
 
   /// Whether a loop tunnel indexes: reads or builds one element per iteration.
   bool get indexing => terminal.children.objects.any(
@@ -953,18 +977,13 @@ class BdStructure extends BdNode {
   /// The rectangle the structure's inside is drawn in.
   HeapRect get typeBounds => node.children.c4(HeapOpcode.typeBounds)?.rect ?? kZeroRect;
 
-  int get _typeInset => 1;
+  /// How far the inside sits from each edge of the bounds.
+  HeapRect get _typeInsets => const HeapRect(top: 1, left: 1, bottom: 1, right: 1);
 
   @override
   set bounds(HeapRect? rect) {
     super.bounds = rect;
-    final r = rect!, inset = _typeInset;
-    final typeRect = HeapRect(
-      top: r.top + inset,
-      left: r.left + inset,
-      bottom: r.bottom - inset,
-      right: r.right - inset,
-    );
+    final typeRect = _inset(rect!, _typeInsets);
     final children = node.children;
     for (var i = 0; i < children.length; i++) {
       final child = children[i];
@@ -1078,11 +1097,11 @@ class BdStructure extends BdNode {
   }
 
   /// The records of each created frame.
-  List<HeapObjectNode> _frameNodes(ViEditing model) => [
-    for (final frame in frames) frame.node = _frameNode(model),
+  List<HeapObjectNode> _frameNodes(ViEditing model, {HeapRect tableBounds = kZeroRect}) => [
+    for (final frame in frames) frame.node = _frameNode(model, tableBounds: tableBounds),
   ];
 
-  static HeapObjectNode _frameNode(ViEditing model) => object(
+  static HeapObjectNode _frameNode(ViEditing model, {HeapRect tableBounds = kZeroRect}) => object(
     HeapObjectClass.bdFrame.code,
     model.allocateUid(),
     children: [
@@ -1094,7 +1113,7 @@ class BdStructure extends BdNode {
           children: [
             attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x1000),
             list(kBdTermList),
-            c4Rect(HeapOpcode.bounds, kZeroRect),
+            c4Rect(HeapOpcode.bounds, tableBounds),
             attr(HeapAttribute.shortCount, HeapAttrWidth.u8, 1),
           ],
         ),
@@ -1104,8 +1123,8 @@ class BdStructure extends BdNode {
     ],
   );
 
-  static HeapRect _inset(HeapRect r, int by) =>
-      HeapRect(top: r.top + by, left: r.left + by, bottom: r.bottom - by, right: r.right - by);
+  static HeapRect _inset(HeapRect r, HeapRect by) =>
+      HeapRect(top: r.top + by.top, left: r.left + by.left, bottom: r.bottom - by.bottom, right: r.right - by.right);
 }
 
 /// A For or While loop.
@@ -1136,7 +1155,7 @@ class BdLoop extends BdStructure {
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, isFor ? 0x10000000 : 0x10005280),
         list(kBdTermList),
         c4Rect(HeapOpcode.bounds, bounds),
-        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, 1)),
+        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, _typeInsets)),
         list(BdStructureList.tunnels.rawId),
         list(BdStructureList.frames.rawId, _frameNodes(model)),
         if (!isFor) attr(HeapAttribute.structColor, HeapAttrWidth.rgb, 0x7f7f7f),
@@ -1399,7 +1418,7 @@ class BdCase extends BdStructure {
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x10010000),
         list(kBdTermList),
         c4Rect(HeapOpcode.bounds, bounds),
-        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, 6)),
+        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, _typeInsets)),
         list(BdStructureList.tunnels.rawId),
         attr(HeapAttribute.dIdx, HeapAttrWidth.u8, shown),
         list(BdStructureList.frames.rawId, _frameNodes(model)),
@@ -1470,7 +1489,7 @@ class BdCase extends BdStructure {
   }
 
   @override
-  int get _typeInset => 6;
+  HeapRect get _typeInsets => const HeapRect(top: 6, left: 6, bottom: 6, right: 6);
 
   /// The selector terminal, wired from outside.
   BdStructureTerminal get selector => _requireTerminal(BdBorderKind.selector);
@@ -1537,7 +1556,7 @@ class BdDisable extends BdStructure {
         attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x10010000),
         list(kBdTermList),
         c4Rect(HeapOpcode.bounds, bounds),
-        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, 1)),
+        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, _typeInsets)),
         list(BdStructureList.tunnels.rawId),
         list(BdStructureList.frames.rawId, _frameNodes(model)),
         object(
@@ -1584,6 +1603,166 @@ class BdDisable extends BdStructure {
 
   @override
   String toString() => isPlaced ? 'Disable#$oid' : 'Disable (unplaced)';
+}
+
+/// A Flat Sequence structure: its frames run left to right, each a [BdSequenceFrame] with a
+/// body; a value crosses from one frame to the next through a pair of frame tunnels.
+class BdSequence extends BdStructure {
+  BdSequence._lifted(super.frameOf, super.node) : super._lifted();
+
+  BdSequence({int frameCount = 2, super.at}) : super._create(0) {
+    _stages = [for (var i = 0; i < frameCount; i++) BdSequenceFrame._create(this, i)];
+  }
+
+  List<BdSequenceFrame>? _stages;
+
+  /// The frames in order, as LabVIEW calls them.
+  late final List<BdSequenceFrame> stages =
+      _stages ??
+      [
+        for (final group in node.children.whereType<HeapGroupNode>())
+          for (final (i, child) in group.children.objects.indexed)
+            if (child.kind == HeapObjectClass.bdSequenceFrame.code) BdSequenceFrame._lifted(this, child, i),
+      ];
+
+  @override
+  List<BdFrame> get frames => [for (final stage in stages) stage.body];
+
+  @override
+  List<BdStructureTerminal> get borderTerminals => [for (final stage in stages) ...stage.borderTerminals];
+
+  @override
+  HeapObjectNode _make(ViEditing model) {
+    final bounds =
+        _at ?? const HeapRect(top: 0, left: 0, bottom: kBdDefaultStructureHeight, right: kBdDefaultStructureWidth);
+    final width = bounds.right - bounds.left, height = bounds.bottom - bounds.top;
+    final step = width - kBdSequenceFrameOverlap;
+    for (final (i, stage) in stages.indexed) {
+      stage._at = HeapRect(top: 0, left: i * step, bottom: height, right: i * step + width);
+      stage._build(model);
+    }
+    return object(
+      HeapObjectClass.bdFlatSequence.code,
+      model.allocateUid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x800),
+        list(BdStructureList.sequenceFrames.rawId, [for (final stage in stages) stage.node]),
+        c4Rect(
+          HeapOpcode.bounds,
+          HeapRect(
+            top: bounds.top,
+            left: bounds.left,
+            bottom: bounds.bottom,
+            right: bounds.left + width + step * (stages.length - 1),
+          ),
+        ),
+        attr(HeapAttribute.structColor, HeapAttrWidth.rgb, kBdSequenceColor),
+      ],
+    );
+  }
+
+  @override
+  String toString() => isPlaced ? 'Sequence#$oid' : 'Sequence (unplaced)';
+}
+
+/// One frame of a Flat Sequence: a structure with one body, placed by its sequence.
+class BdSequenceFrame extends BdStructure {
+  BdSequenceFrame._lifted(this.sequence, HeapObjectNode node, this.index) : super._lifted(null, node);
+
+  BdSequenceFrame._create(this.sequence, this.index) : super._create(1);
+
+  final BdSequence sequence;
+
+  /// Position among the sequence's frames.
+  final int index;
+
+  @override
+  BdFrame get frameOf => sequence.frameOf;
+
+  BdFrame get body => frames.single;
+
+  /// Places [item] in the body.
+  T add<T extends BdPlaced>(T item) => body.add(item);
+
+  @override
+  HeapRect get _typeInsets => const HeapRect(top: 10, left: 6, bottom: 10, right: 6);
+
+  @override
+  HeapObjectNode _make(ViEditing model) {
+    final bounds = _at!;
+    return object(
+      HeapObjectClass.bdSequenceFrame.code,
+      model.allocateUid(),
+      children: [
+        attr(HeapAttribute.objFlags, HeapAttrWidth.rgb, 0x10010280),
+        list(kBdTermList),
+        c4Rect(HeapOpcode.bounds, bounds),
+        c4Rect(HeapOpcode.typeBounds, BdStructure._inset(bounds, _typeInsets)),
+        list(BdStructureList.tunnels.rawId),
+        list(
+          BdStructureList.frames.rawId,
+          _frameNodes(
+            model,
+            tableBounds: HeapRect(top: 0, left: -bounds.left, bottom: 0, right: -bounds.left),
+          ),
+        ),
+        attr(HeapAttribute.structColor, HeapAttrWidth.rgb, kBdSequenceColor),
+      ],
+    );
+  }
+
+  /// A tunnel through the sequence's border into or out of this frame.
+  @override
+  BdStructureTerminal tunnel(BdType type, {required BdTunnelDirection direction, bool indexing = false}) {
+    if (indexing) throw ArgumentError.value(indexing, 'indexing', 'a sequence tunnel does not index');
+    return _tunnel(BdBorderKind.sequenceTunnel, type, output: direction == BdTunnelDirection.output);
+  }
+
+  /// The pair of frame tunnels carrying a value of [type] from this frame into [next]: the
+  /// one it leaves by and the one it enters by.
+  (BdStructureTerminal, BdStructureTerminal) link(BdSequenceFrame next, BdType type) {
+    final out = _tunnel(BdBorderKind.frameTunnel, type, output: true);
+    final into = next._tunnel(BdBorderKind.frameTunnel, type, output: false);
+    out.terminal.children.add(rawRef(kBdFrameTunnelPartnerRef, into.terminal.oid));
+    into.terminal.children.add(rawRef(kBdFrameTunnelPartnerRef, out.terminal.oid));
+    return (out, into);
+  }
+
+  BdStructureTerminal _tunnel(BdBorderKind kind, BdType type, {required bool output}) {
+    final model = _model;
+    final slot = _nextSlot(right: output);
+    final entering = kind == BdBorderKind.frameTunnel && !output;
+    final terminal = object(
+      kind.objectClass.code,
+      model.allocateUid(),
+      rawTag: HeapRefKind.dcoRef.raw,
+      children: [
+        entering
+            ? attr(HeapAttribute.objFlags, HeapAttrWidth.u24, 0x200800)
+            : attr(HeapAttribute.objFlags, HeapAttrWidth.u16, 0x800 | (output ? 1 : 0)),
+        list(kBdTermList),
+        rectAttr(HeapAttribute.termBounds, slot),
+      ],
+    );
+    final border = _addBorderTerminal(
+      model,
+      kind,
+      terminal,
+      holderFlags: output ? 0x1040 : 0x9040,
+      holderWidth: HeapAttrWidth.u16,
+      innerFlags: output ? 0x28000 : 0x20000,
+      type: type,
+      side: output ? BdBorderSide.right : BdBorderSide.left,
+      slot: slot.top,
+    );
+    final tunnels = _group(BdStructureList.tunnels);
+    tunnels.children.add(ref(HeapRefKind.childRef, terminal.oid));
+    tunnels.syncCount();
+    return border;
+  }
+
+  @override
+  String toString() => '$sequence.frame$index';
 }
 
 /// A constant: an endpoint-table entry holding its own data object, and the endpoint its
@@ -1992,6 +2171,14 @@ const int kBdIndexerTunnelRef = 0x0aa;
 
 /// A Case structure's reference to its selector terminal.
 const int kBdCaseSelectorRef = 0x034;
+
+/// A frame tunnel's reference to its partner on the neighbouring frame.
+const int kBdFrameTunnelPartnerRef = 0x0b0;
+
+/// How far neighbouring sequence frames overlap, and the grey a sequence is drawn in.
+const int kBdSequenceFrameOverlap = 5;
+
+const int kBdSequenceColor = 0xe2e2e2;
 
 /// A Replace Array Subset's reference to its array terminal.
 const int kBdReplaceArraySubsetArrayRef = 0x152;

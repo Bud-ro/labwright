@@ -10,10 +10,10 @@ ViModel buildHexStringDisplay() {
   final asString = vi.add(BdConstant.string(''));
   final parse = vi.add(BdPrimitive(PrimOp.hexadecimalStringToNumber));
   final cast = vi.add(BdPrimitive(PrimOp.typeCast));
-  vi.connect([digits, parse.terminal('string')]);
-  vi.connect([asString, cast.terminal('type')]);
-  vi.connect([parse.terminal('number'), cast.terminal('x')], type: BdType.u32);
-  vi.connect([cast.terminal('*(type *) &x'), bytes]);
+  vi.connect(digits, parse.terminal('string'));
+  vi.connect(asString, cast.terminal('type'));
+  vi.connect(parse.terminal('number'), cast.terminal('x'), type: BdType.u32);
+  vi.connect(cast.terminal('*(type *) &x'), bytes);
   vi.write();
   return vi;
 }
