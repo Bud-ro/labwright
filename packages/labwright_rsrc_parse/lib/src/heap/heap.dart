@@ -1105,6 +1105,17 @@ class HeapRect {
 
   int get height => bottom - top;
 
+  /// The four `i16`s of a rectangle record.
+  Uint8List get payload {
+    final out = Uint8List(8);
+    ByteData.sublistView(out)
+      ..setInt16(0, top)
+      ..setInt16(2, left)
+      ..setInt16(4, bottom)
+      ..setInt16(6, right);
+    return out;
+  }
+
   int get width => right - left;
 
   bool get isValid => bottom >= top && right >= left;
@@ -1281,7 +1292,11 @@ enum HeapGroupTag {
   selectorRange(0x19),
 
   /// Case-selector string pool.
-  selectorStringPool(0x58);
+  selectorStringPool(0x58),
+
+  /// A list of terminals, counted by one `u16` item: the terminal objects an object owns, or
+  /// references to the terminals a signal joins.
+  termList(0x2b);
 
   const HeapGroupTag(this.tag);
 
@@ -1344,9 +1359,9 @@ int heapObjectHeaderLength(Uint8List body, int offset) {
 int heapObjectHeaderKind(Uint8List body, int offset) => body[offset + 4] << 8 | body[offset + 5];
 
 /// An object header of [lead] and [tag] opening an object of [kind] with id [oid]: the nine-byte
-/// form while the id is below 0x8000, else the thirteen-byte form.
-Uint8List encodeHeapObjectHeader(int lead, int tag, int kind, int oid) {
-  final wide = oid >= 0x8000;
+/// form while the id is below 0x8000 and [wide] is not asked for, else the thirteen-byte form.
+Uint8List encodeHeapObjectHeader(int lead, int tag, int kind, int oid, {bool wide = false}) {
+  wide = wide || oid >= 0x8000;
   final out = Uint8List(wide ? 13 : 9);
   out[0] = lead;
   out[1] = tag;

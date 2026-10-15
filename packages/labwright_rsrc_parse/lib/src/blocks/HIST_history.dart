@@ -51,6 +51,47 @@ final class ViHistory extends ByteRecord {
   /// files.
   (int, int, int, int) get windowBounds => (_top.read(view), _left.read(view), _bottom.read(view), _right.read(view));
 
+  /// Zero.
+  int get reserved12 => _reserved12.read(view);
+
+  /// Zero, or 3, 4 or 5 when the rectangle is set; role TODO.
+  Uint8List get unknown16 => _unknown16.read(view);
+
+  /// Zero.
+  List<int> get reserved28 => _reserved28.read(view);
+
+  /// Zero, or 2 to 14 when the rectangle is set; role TODO.
+  Uint8List get unknown36 => _unknown36.read(view);
+
+  static Uint8List encode({
+    int formatVersion = 2,
+    required int flags,
+    required int revisionNumber,
+    int reserved12 = 0,
+    required List<int> unknown16,
+    int top = 0,
+    int left = 0,
+    int bottom = 0,
+    int right = 0,
+    List<int> reserved28 = const [0, 0],
+    required List<int> unknown36,
+  }) {
+    final out = Uint8List(layout.size!);
+    final view = ByteData.sublistView(out);
+    _formatVersion.write(view, formatVersion);
+    _flags.write(view, flags);
+    _revisionNumber.write(view, revisionNumber);
+    _reserved12.write(view, reserved12);
+    _unknown16.write(view, unknown16);
+    _top.write(view, top);
+    _left.write(view, left);
+    _bottom.write(view, bottom);
+    _right.write(view, right);
+    _reserved28.write(view, reserved28);
+    _unknown36.write(view, unknown36);
+    return out;
+  }
+
   // dart format off
   static const _formatVersion = U32(0);
   static const _flags = U32(4);

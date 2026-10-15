@@ -124,6 +124,35 @@ final class ViTagStore extends ByteRecord {
 
   late final List<ViTagEntry> entries;
 
+  /// A store of [tags] in order, each value framed as its entry says.
+  static Uint8List encode(List<({String name, ViTagValueFraming framing, List<int> value})> tags) {
+    var length = _entries.offset;
+    for (final tag in tags) {
+      length += VitsEntry.name.offset + tag.name.length + tag.value.length;
+      if (tag.framing != ViTagValueFraming.bare) length += VitsEntry.valueLength.size;
+    }
+    final out = Uint8List(length);
+    _count.write(ByteData.sublistView(out), tags.length);
+    var at = _entries.offset;
+    for (final (:name, :framing, :value) in tags) {
+      final entry = ByteData.sublistView(out, at);
+      VitsEntry.nameLength.write(entry, name.length);
+      VitsEntry.name.write(entry, name.codeUnits);
+      final unframed = framing == ViTagValueFraming.bare ? VitsEntry.valueLength.size : 0;
+      final afterName = ByteData.sublistView(out, at + name.length - unframed);
+      switch (framing) {
+        case ViTagValueFraming.lengthPrefixed:
+          VitsEntry.valueLength.write(afterName, value.length);
+        case ViTagValueFraming.lengthPrefixedInclusive:
+          VitsEntry.valueLength.write(afterName, VitsEntry.valueLength.size + value.length);
+        case ViTagValueFraming.bare:
+      }
+      VitsEntry.value.write(afterName, value);
+      at += name.length - unframed + VitsEntry.value.offset + value.length;
+    }
+    return out;
+  }
+
   /// Number of tags.
   int get declaredCount => _count.read(view);
 

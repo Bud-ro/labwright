@@ -112,6 +112,24 @@ final class ViVersBlock extends ByteRecord {
   /// Long version string, after versionText; empty in the corpus.
   String get infoText => PStr.readAt(view, _versionText.endIn(view));
 
+  /// The version word as stored.
+  int get versionWordBits => _versionWord.read(view);
+
+  static Uint8List encode({
+    required int versionWord,
+    int regionCode = 0,
+    required String versionText,
+    String infoText = '',
+  }) {
+    final out = Uint8List(_versionText.offset + 1 + versionText.length + 1 + infoText.length);
+    final view = ByteData.sublistView(out);
+    _versionWord.write(view, versionWord);
+    _regionCode.write(view, regionCode);
+    _versionText.write(view, versionText);
+    _infoText.write(ByteData.sublistView(out, _versionText.endIn(view) - _infoText.offset), infoText);
+    return out;
+  }
+
   static const _versionWord = U32(0);
   static const _regionCode = U16(4);
   static const _versionText = PStr(6);

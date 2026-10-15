@@ -12,5 +12,7 @@ base class ViWordGrid extends ByteRecord {
 
   int operator [](int index) => _words.at(view, index);
 
+  List<int> get words => _words.read(view);
+
   static const _words = U32List(0);
 }

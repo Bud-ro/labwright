@@ -24,6 +24,12 @@ final class ViMaxUid extends ByteRecord {
 
   set maxUid(int value) => _maxUid.write(view, value);
 
+  static Uint8List encode(int maxUid) {
+    final out = Uint8List(layout.size!);
+    _maxUid.write(ByteData.sublistView(out), maxUid);
+    return out;
+  }
+
   static const _maxUid = U32(0);
 
   static const layout = ByteLayout([_maxUid]);

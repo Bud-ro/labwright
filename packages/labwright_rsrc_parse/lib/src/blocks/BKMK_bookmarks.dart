@@ -53,6 +53,41 @@ final class ViBookmarkList extends ByteRecord {
 
   bool get isEmpty => tableA.isEmpty && tableB.isEmpty;
 
+  /// The two tables of the given entries.
+  static Uint8List encode({
+    required List<({int wordA, int wordB, List<int> text})> tableA,
+    required List<({int wordB, List<int> text})> tableB,
+  }) {
+    var length = _tableA.offset + _countB.size;
+    for (final entry in tableA) {
+      length += ViBookmarkEntryA.layout.minSize + entry.text.length;
+    }
+    for (final entry in tableB) {
+      length += ViBookmarkEntryB.layout.minSize + entry.text.length;
+    }
+    final out = Uint8List(length);
+    _countA.write(ByteData.sublistView(out), tableA.length);
+    var at = _tableA.offset;
+    for (final (:wordA, :wordB, :text) in tableA) {
+      final entry = ByteData.sublistView(out, at);
+      ViBookmarkEntryA._wordA.write(entry, wordA);
+      ViBookmarkEntryA._wordB.write(entry, wordB);
+      ViBookmarkEntryA._textLength.write(entry, text.length);
+      ViBookmarkEntryA._text.write(entry, text);
+      at += ViBookmarkEntryA.layout.minSize + text.length;
+    }
+    _countB.write(ByteData.sublistView(out, at - _countB.offset), tableB.length);
+    at += _countB.size;
+    for (final (:wordB, :text) in tableB) {
+      final entry = ByteData.sublistView(out, at);
+      ViBookmarkEntryB._wordB.write(entry, wordB);
+      ViBookmarkEntryB._textLength.write(entry, text.length);
+      ViBookmarkEntryB._text.write(entry, text);
+      at += ViBookmarkEntryB.layout.minSize + text.length;
+    }
+    return out;
+  }
+
   static const _countA = U32(0); // Entries in table A.
   static const _tableA = Entries(4, ViBookmarkEntryA.layout, count: _countA);
   static const _countB = U32(4); // Entries in table B, after table A.

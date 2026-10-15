@@ -4,11 +4,13 @@ library;
 import 'package:test/test.dart';
 
 import 'corpus/aux_blocks.dart';
+import 'corpus/bd_edit.dart';
 import 'corpus/const_value_census.dart';
 import 'corpus/corpus_coverage.dart';
 import 'corpus/corpus_invariants.dart';
 import 'corpus/corpus_snapshot.dart';
 import 'corpus/heap_edit.dart';
+import 'corpus/heap_tree.dart';
 import 'corpus/invariants.dart';
 import 'corpus/ir_json.dart';
 import 'corpus/model_serialize.dart';
@@ -21,6 +23,7 @@ import 'corpus/wire_branch_oracle.dart';
 import 'corpus/wire_one_anchored_oracle.dart';
 import 'corpus/wire_render_style_census.dart';
 import 'corpus/wire_route_census.dart';
+import 'corpus/wire_table.dart';
 import 'corpus/writer_scoreboard.dart';
 import 'corpus_dirs.dart';
 
@@ -34,6 +37,8 @@ void main() {
   });
   group('invariants', invariantsTests);
   group('heap_edit', heapEditTests);
+  group('bd_edit', bdEditTests);
+  group('heap_tree', heapTreeTests);
   group('corpus_snapshot', corpusSnapshotTests);
   group('ir_json', irJsonTests);
   group('model_serialize', modelSerializeTests);
@@ -51,4 +56,5 @@ void main() {
   group('wire_render_style_census', wireRenderStyleCensusTests);
   group('wire_one_anchored_oracle', wireOneAnchoredOracleTests);
   group('wire_branch_oracle', wireBranchOracleTests);
+  group('wire_table', wireTableTests);
 }

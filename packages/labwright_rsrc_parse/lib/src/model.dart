@@ -6,7 +6,7 @@ import '../labwright_rsrc_parse.dart';
 /// title, per-block component totals, the diagrams of both sides, the type pool, the sub-VI
 /// names, the connector-pane type and the font table; and the sections themselves, which
 /// edits change and [serialize] writes back into the file they were loaded from.
-class ViModel {
+class ViModel with ViEditing {
   ViModel({
     required this.version,
     required this.title,
@@ -47,6 +47,7 @@ class ViModel {
 
   /// The section of [tag] at [index] among the block's sections, or null when the file has
   /// none.
+  @override
   ViSectionBuffer? section(String tag, [int index = 0]) {
     for (final section in sections) {
       if (section.tag == tag && section.index == index) return section;
@@ -56,6 +57,7 @@ class ViModel {
 
   /// A fresh object id for a heap object: one above the highest in use, which `MUID` now
   /// records.
+  @override
   int allocateUid() {
     final muid = section(BlockTag.muid.tag)!;
     final uid = ViMaxUid(muid.bytes).maxUid + 1;
@@ -122,9 +124,11 @@ class ViModel {
   }
 
   /// One diagram per `BDHb` section.
+  @override
   final List<ViDiagram> blockDiagrams;
 
   /// One diagram per `FPHb` section.
+  @override
   final List<ViDiagram> frontPanelDiagrams;
 
   ViDiagram? get primaryBlockDiagram => largestDiagram(blockDiagrams);
@@ -143,6 +147,7 @@ class ViModel {
   List<ViHeapObject?> paneTerminals;
 
   /// Appends [descriptor] to the type pool and returns its index.
+  @override
   int addType(Uint8List descriptor) {
     final vctp = section(BlockTag.vctp.tag)!;
     final pool = ViTypePool(vctp.bytes);
@@ -175,6 +180,34 @@ class ViModel {
     );
     reloadTypes();
   }
+
+  /// Gives the pool's type at [index] a heap slot: a new top-level entry, which `DTHP` now
+  /// counts; returns the one-based slot a `typeDescIndex` names it by.
+  @override
+  int allocateTypeSlot(int index) {
+    final vctp = section(BlockTag.vctp.tag)!;
+    final dthp = section(BlockTag.dthp.tag)!;
+    final heap = ViDataTypeHeap(dthp.bytes);
+    if (heap is! ViDataTypeHeapCompact) throw StateError('the data-type heap is not in its compact form');
+    final pool = ViTypePool(vctp.bytes);
+    final topLevel = pool.topLevelIndices;
+    final slot = topLevel.length - heap.viTypeIndexBase;
+    transact(() {
+      vctp.splice(vctp.length, vctp.length, [index >> 8 & 0xff, index & 0xff]);
+      vctp.edit((bytes) {
+        final view = ByteData.sublistView(bytes);
+        view.setUint16(pool.descriptorsEnd, topLevel.length + 1);
+      });
+      dthp.replace(
+        ViDataTypeHeapCompact.encode(heapTypeCount: slot, firstTopLevelIndex: heap.firstTopLevelIndex),
+      );
+    });
+    reloadTypes();
+    return slot;
+  }
+
+  /// A VI with nothing on its panel or diagram, as LabVIEW 21.0 saves one.
+  static ViModel empty({String name = 'untitled.vi'}) => buildViModel(emptyViBytes(name: name));
 
   /// The heap section [diagram] was built from.
   ViSectionBuffer sectionOf(ViDiagram diagram) => section(diagram.sectionTag, diagram.sectionIndex)!;
@@ -269,6 +302,7 @@ class ViModel {
 
   /// Rebuilds [diagram] from its section, in its place among the model's diagrams, with the
   /// fonts and types resolved again.
+  @override
   ViDiagram reloadDiagram(ViDiagram diagram) {
     final section = sectionOf(diagram);
     final rebuilt = buildDiagram(

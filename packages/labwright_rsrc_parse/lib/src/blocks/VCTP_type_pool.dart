@@ -219,6 +219,12 @@ const Map<int, ViDataType> _typeCodes = {
 
 ViDataType? dataTypeOfCode(int code) => _typeCodes[code];
 
+final Map<ViDataType, int> _codesByType = {for (final MapEntry(:key, :value) in _typeCodes.entries) value: key};
+
+/// The code a descriptor of [type] carries; null for a type the pool grammar spells with
+/// several codes or none.
+int? typeCodeOfDataType(ViDataType type) => _codesByType[type];
+
 const int _descriptorHead = 4;
 
 /// The length word of a string, path or array dimension whose size is not fixed.
@@ -565,6 +571,9 @@ final class ViMeasureDataType extends ViType {
 
   /// Null for a code [ViMeasureDataFlavor] does not name.
   ViMeasureDataFlavor? get flavor => ViMeasureDataFlavor.ofCode(flavorCode);
+
+  static Uint8List encode(ViMeasureDataFlavor flavor, {String? label, int flags = 0}) =>
+      ViType.descriptor(TypeCode.measureData, ViType._u16(flavor.code), label: label, flags: flags);
 }
 
 /// The measurement shape a `0x54` type carries, by its flavor word.

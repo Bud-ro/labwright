@@ -44,6 +44,12 @@ final class ViNodeUidSet extends ViWordGrid {
     return false;
   }
 
+  static Uint8List encode(List<int> ids) {
+    final out = Uint8List(_ids.wordSize * ids.length);
+    _ids.write(ByteData.sublistView(out), ids);
+    return out;
+  }
+
   static const _ids = U32List(0); // Block-diagram object ids, rising.
 
   static const layout = ByteLayout([_ids]);

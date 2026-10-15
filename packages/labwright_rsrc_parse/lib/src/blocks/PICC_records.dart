@@ -41,6 +41,25 @@ final class ViPiccRecord extends ByteRecord {
   /// Right of [left] in most records, left of it in some.
   int get right => _right.read(view);
 
+  static Uint8List encode({
+    required int kind,
+    required int flags,
+    required int top,
+    required int left,
+    required int bottom,
+    required int right,
+  }) {
+    final out = Uint8List(layout.size!);
+    final view = ByteData.sublistView(out);
+    _kind.write(view, kind);
+    _flags.write(view, flags);
+    _top.write(view, top);
+    _left.write(view, left);
+    _bottom.write(view, bottom);
+    _right.write(view, right);
+    return out;
+  }
+
   static const _kind = U16(0);
   static const _flags = U16(2);
   static const _top = I16(4);

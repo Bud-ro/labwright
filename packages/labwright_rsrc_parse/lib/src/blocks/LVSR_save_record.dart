@@ -468,6 +468,126 @@ final class ViSaveRecord extends ByteRecord {
   /// The palette style new controls and indicators take.
   ViControlStyle get controlStyle => ViControlStyle.ofCode(_controlStyle.read(view))!;
 
+  /// Saving LabVIEW version as the word stores it.
+  int get versionWordBits => _versionWord.read(view);
+
+  /// Bit 2 is `autoHandlesMenus`; the others are clear in all but two files.
+  int get flags12 => _flags12.read(view);
+
+  /// 3, or 1 in 35 files; role TODO.
+  int get unknown16 => _unknown16.read(view);
+
+  /// 0 to 5, 1 in all but 586 files; role TODO.
+  int get unknown28 => _unknown28.read(view);
+
+  /// Zero in all but 5 files, where two four-character codes repeat and a 2 or 3 follows; roles
+  /// TODO.
+  Uint8List get unknown40 => _unknown40.read(view);
+
+  /// Digest-like: distinct in 8048 of 8316 files; role TODO.
+  Uint8List get unknown52 => _unknown52.read(view);
+
+  /// Zero in all but 53 files; role TODO.
+  int get unknown76 => _unknown76.read(view);
+
+  /// Digest-like: distinct in 8048 of 8316 files, equal to `unknown52` in 12; role TODO.
+  Uint8List get unknown80 => _unknown80.read(view);
+
+  /// `MD5("")` in every corpus file; role TODO; null in a shorter record.
+  Uint8List? get unknown96 => _unknown96.isIn(view) ? _unknown96.read(view) : null;
+
+  /// 0x1000, 0 or 0x4000; role TODO; null in a shorter record.
+  int? get unknown112 => _unknown112.isIn(view) ? _unknown112.read(view) : null;
+
+  /// Zero in all but 16 files, where it is -2 to 2; role TODO; null in a shorter record.
+  int? get unknown116 => _unknown116.isIn(view) ? _unknown116.read(view) : null;
+
+  /// Digest-like: distinct in 7831 of 8065 files, zero in 207; role TODO; null in a shorter
+  /// record.
+  Uint8List? get unknown120 => _unknown120.isIn(view) ? _unknown120.read(view) : null;
+
+  /// 0, 1 or 2; role TODO; null in a shorter record.
+  int? get unknown136 => _unknown136.isIn(view) ? _unknown136.read(view) : null;
+
+  /// Zero; null in a shorter record.
+  Uint8List? get unknown137 => _unknown137.isIn(view) ? _unknown137.read(view) : null;
+
+  /// 0xFFFFFFFF, or 0 in 403 files; role TODO; null in a shorter record.
+  int? get unknown140 => _unknown140.isIn(view) ? _unknown140.read(view) : null;
+
+  /// `MD5("")` in 5037 of 6158 files, zero in 409, 527 distinct values; role TODO; null in a
+  /// shorter record.
+  Uint8List? get unknown144 => _unknown144.isIn(view) ? _unknown144.read(view) : null;
+
+  /// A record of the given fields, as long as the last optional one given.
+  static Uint8List encode({
+    required int versionWord,
+    required int statusFlags,
+    required int optionFlags,
+    required int flags12,
+    required int unknown16,
+    required int windowFlags,
+    required int hiddenButtons,
+    required int frontPanelFlags,
+    required int stateFlags,
+    required int unknown28,
+    required ViPriority priority,
+    required ViKind viType,
+    required ViExecutionSystem executionSystem,
+    required List<int> unknown40,
+    required List<int> unknown52,
+    required int frontPanelGrid,
+    required int blockDiagramGrid,
+    required int unknown76,
+    required ViControlStyle controlStyle,
+    required List<int> unknown80,
+    List<int>? unknown96,
+    int? unknown112,
+    int? unknown116,
+    List<int>? unknown120,
+    int? unknown136,
+    List<int>? unknown137,
+    int? unknown140,
+    List<int>? unknown144,
+  }) {
+    final optional = [unknown96, unknown112, unknown116, unknown120, unknown136, unknown137, unknown140, unknown144];
+    final present = optional.lastIndexWhere((field) => field != null) + 1;
+    assert(optional.take(present).every((field) => field != null), 'the optional fields given are a prefix');
+    final out = Uint8List(
+      present == 0 ? _unknown80.end : layout.fields[layout.fields.indexOf(_unknown96) + present - 1].end,
+    );
+    final view = ByteData.sublistView(out);
+    _versionWord.write(view, versionWord);
+    _statusFlags.write(view, statusFlags);
+    _optionFlags.write(view, optionFlags);
+    _flags12.write(view, flags12);
+    _unknown16.write(view, unknown16);
+    _windowFlags.write(view, windowFlags);
+    _hiddenButtons.write(view, hiddenButtons);
+    _frontPanelFlags.write(view, frontPanelFlags);
+    _stateFlags.write(view, stateFlags);
+    _unknown28.write(view, unknown28);
+    _priority.write(view, priority.code);
+    _viType.write(view, viType.code);
+    _executionSystem.write(view, executionSystem.code);
+    _unknown40.write(view, unknown40);
+    _unknown52.write(view, unknown52);
+    _frontPanelGrid.write(view, frontPanelGrid);
+    _blockDiagramGrid.write(view, blockDiagramGrid);
+    _unknown76.write(view, unknown76);
+    _controlStyle.write(view, controlStyle.code);
+    _unknown80.write(view, unknown80);
+    if (unknown96 != null) _unknown96.write(view, unknown96);
+    if (unknown112 != null) _unknown112.write(view, unknown112);
+    if (unknown116 != null) _unknown116.write(view, unknown116);
+    if (unknown120 != null) _unknown120.write(view, unknown120);
+    if (unknown136 != null) _unknown136.write(view, unknown136);
+    if (unknown137 != null) _unknown137.write(view, unknown137);
+    if (unknown140 != null) _unknown140.write(view, unknown140);
+    if (unknown144 != null) _unknown144.write(view, unknown144);
+    return out;
+  }
+
   static const _autoHandleMenusMask = 1 << 2;
 
   // dart format off

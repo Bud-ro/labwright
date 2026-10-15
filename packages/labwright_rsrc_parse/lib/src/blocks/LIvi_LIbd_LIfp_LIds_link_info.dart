@@ -121,6 +121,72 @@ final class ViLinkInfo extends ByteRecord {
 
   bool get isWalked => entries.every((e) => e is ViLinkEntryFramed);
 
+  /// The VI's library-qualified name in the [libraryLayout] form; null in the plain form.
+  String? get qualifiedName => _wordCountOffset == null ? null : _qualifiedName.read(view);
+
+  /// The words after the qualified name in the [libraryLayout] form, role TODO; null in the
+  /// plain form.
+  List<int>? get words {
+    final at = _wordCountOffset;
+    return at == null ? null : _words.read(ByteData.sublistView(view, at - _wordCount.offset));
+  }
+
+  int? get _wordCountOffset {
+    if (entriesOffset == _entries.offset) return null;
+    final nameEnd = _qualifiedName.endIn(view);
+    final at = nameEnd.isOdd ? nameEnd + 1 : nameEnd;
+    if (at + _wordCount.size > view.lengthInBytes) return null;
+    final wordsEnd = at + _wordCount.size + _words.wordSize * view.getUint16(at);
+    return wordsEnd + _entryCount.size == entriesOffset ? at : null;
+  }
+
+  /// Link info over [entries] and the [unwalked] bytes after them, in the [libraryLayout] form
+  /// when [qualifiedName] is given; [entryCount] defaults to the number of [entries].
+  static Uint8List encode({
+    int version = 1,
+    required String rootKind,
+    String? qualifiedName,
+    List<int> words = const [],
+    int? entryCount,
+    required List<({int version, String kind, List<int> body})> entries,
+    List<int> unwalked = const [],
+    int terminator = 3,
+  }) {
+    var headEnd = _entryCount.offset;
+    if (qualifiedName != null) {
+      headEnd = _qualifiedName.offset + 1 + qualifiedName.length;
+      if (headEnd.isOdd) headEnd++;
+      headEnd += _wordCount.size + _words.wordSize * words.length;
+    }
+    final entriesAt = headEnd + _entryCount.size;
+    var length = entriesAt + unwalked.length + _terminator.size;
+    for (final entry in entries) {
+      length += LinkInfoEntry.body.offset + entry.body.length;
+    }
+    final out = Uint8List(length);
+    final view = ByteData.sublistView(out);
+    _version.write(view, version);
+    _rootKind.write(view, rootKind);
+    if (qualifiedName != null) {
+      _qualifiedName.write(view, qualifiedName);
+      final wordsView = ByteData.sublistView(out, headEnd - _words.wordSize * words.length - _words.offset);
+      _wordCount.write(wordsView, words.length);
+      _words.write(wordsView, words);
+    }
+    _entryCount.write(ByteData.sublistView(out, headEnd - _entryCount.offset), entryCount ?? entries.length);
+    var at = entriesAt;
+    for (final (:version, :kind, :body) in entries) {
+      final entry = ByteData.sublistView(out, at);
+      LinkInfoEntry.version.write(entry, version);
+      LinkInfoEntry.kind.write(entry, kind);
+      LinkInfoEntry.body.write(entry, body);
+      at += LinkInfoEntry.body.offset + body.length;
+    }
+    out.setAll(at, unwalked);
+    _terminator.write(ByteData.sublistView(out, length - _terminator.size), terminator);
+    return out;
+  }
+
   /// Names ending in a LabVIEW file extension that appear as Pascal strings anywhere in
   /// the entry region, in order of first appearance.
   List<String> get linkedNames {

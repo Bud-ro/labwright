@@ -149,12 +149,15 @@ class ViWireRoute {
   final List<int> jointSigns;
 }
 
+/// The length byte that escapes to a big-endian `u16` length.
+const int _lengthEscape = 0xff;
+
 List<int>? _decodeLengthTail(Uint8List table, int start) {
   var i = start;
   final lengths = <int>[];
   while (i < table.length) {
     var value = table[i++];
-    if (value == 0xff) {
+    if (value == _lengthEscape) {
       if (i + 1 >= table.length) return null;
       value = ByteData.sublistView(table).getUint16(i);
       i += 2;
@@ -164,7 +167,7 @@ List<int>? _decodeLengthTail(Uint8List table, int start) {
   return lengths;
 }
 
-// TODO: a residue of two-endpoint tables opening with the up code carries two trailing bytes this grammar does not explain.
+// TODO: a two-endpoint wire whose table carries a header ([WireTable.header]) is not placed yet.
 /// The route of a two-endpoint wire, or null when [table] does not follow the [ViWireRoute]
 /// grammar.
 ViWireRoute? decodeWireRoute(Uint8List table) {
@@ -189,6 +192,127 @@ ViWireRoute? decodeWireRoute(Uint8List table) {
   if (lengths == null) return null;
   if (lengths.length != n - 2) return null;
   return ViWireRoute(pointCount: n, direction: direction, segmentLengths: lengths, jointSigns: signs);
+}
+
+/// A compressed wire table word for word, in every form the table takes:
+///
+/// ```text
+/// [01]                                       a single point
+/// [n][n − 1 modes][n − 2 lengths]            plain: the first mode is one WireRouteDirection
+/// [n][k][k header bytes][n − 1 modes]        with a header: n − 1 lengths after the modes, or n − 2
+///   [lengths]
+/// ```
+///
+/// `n` counts the route's points. A length is one byte in pixels, `ff` escaping to a
+/// big-endian `u16` for 255 and over. The first mode is a set of [WireRouteDirection] bits; a
+/// later mode of `0` or `1` turns positive or negative across the previous axis,
+/// [ViWireBranchRoute.popCode] returns to the last open junction, `4`–`7` is a
+/// [WireRouteJunction], and `2` is not yet decoded. A plain table is a [ViWireRoute]; a table
+/// with an empty header and `n − 1` lengths is a [ViWireBranchRoute].
+class WireTable {
+  const WireTable(this.pointCount, {this.header, this.modes = const [], this.lengths = const []});
+
+  final int pointCount;
+
+  // TODO: what the header bytes name is not yet decoded.
+  /// The `k` bytes after the header count; null for a plain table or a single point.
+  final List<int>? header;
+
+  /// The `n − 1` modes, the first a set of [WireRouteDirection] bits.
+  final List<int> modes;
+
+  /// The segment lengths in pixels.
+  final List<int> lengths;
+
+  /// The table bytes: [decodeWireTable] of them gives back this table.
+  Uint8List encode() {
+    final header = this.header;
+    final out = BytesBuilder(copy: false)..addByte(pointCount);
+    if (header != null) {
+      out
+        ..addByte(header.length)
+        ..add(header);
+    }
+    out.add(modes);
+    for (final length in lengths) {
+      if (length < _lengthEscape) {
+        out.addByte(length);
+      } else {
+        out.add([_lengthEscape, length >> 8, length & 0xff]);
+      }
+    }
+    return out.takeBytes();
+  }
+}
+
+/// [table] as a [WireTable], or null when it follows none of the forms [WireTable] lists or
+/// spells a length other than as [WireTable.encode] does.
+WireTable? decodeWireTable(Uint8List table) {
+  if (table.isEmpty) return null;
+  final n = table[0];
+  if (n == 1) return table.length == 1 ? const WireTable(1) : null;
+  if (n < 2 || table.length < n) return null;
+  if (WireRouteDirection.fromCode(table[1]) != null) {
+    final modes = Uint8List.sublistView(table, 1, n);
+    final lengths = _canonicalLengths(table, n);
+    if (lengths != null && lengths.length == n - 2 && modes.skip(1).every((m) => m <= _maxPlainMode)) {
+      return WireTable(n, modes: modes, lengths: lengths);
+    }
+  }
+  final k = table[1];
+  final start = 2 + k;
+  if (start + n - 1 > table.length) return null;
+  final modes = Uint8List.sublistView(table, start, start + n - 1);
+  if (modes[0] == 0 || modes[0] > _directionSetMask || modes.skip(1).any((m) => m > _maxBranchMode)) return null;
+  final lengths = _canonicalLengths(table, start + n - 1);
+  if (lengths == null || lengths.length != n - 1 && lengths.length != n - 2) return null;
+  return WireTable(n, header: Uint8List.sublistView(table, 2, start), modes: modes, lengths: lengths);
+}
+
+/// The `compressedWireTable` record holding [table]: the scalar attribute `[25 e7][u8]`,
+/// `[45 e7][u16]` or `[85 e7][u32]` for a table of one, two or four bytes, else the container
+/// `[c5 e7][len][table]`.
+Uint8List encodeWireTableRecord(Uint8List table) {
+  final raw = HeapAttribute.compressedWireTable.raw;
+  final id = raw & 0xff, bank = raw >> 8;
+  final lead = switch (table.length) {
+    1 => 0x20,
+    2 => 0x40,
+    4 => 0x80,
+    _ => null,
+  };
+  if (lead != null) return Uint8List.fromList([lead | 4 | bank, id, ...table]);
+  RangeError.checkValueInInterval(table.length, 0, 0xff, 'table.length');
+  return Uint8List.fromList([kHeapRecordPrefix | bank, id, table.length, ...table]);
+}
+
+/// The table a `compressedWireTable` [record] holds, as [encodeWireTableRecord] writes it; null
+/// when [record] is another record.
+Uint8List? wireTableOfRecord(Uint8List record) {
+  final attr = decodeHeapAttr(record, 0);
+  if (attr == null || attr.attribute != HeapAttribute.compressedWireTable || attr.length != record.length) return null;
+  return switch (attr.width) {
+    HeapAttrWidth.container => attr.rawValueBytes,
+    HeapAttrWidth.u8 || HeapAttrWidth.u16 || HeapAttrWidth.rgb => Uint8List.sublistView(record, 2),
+    _ => null,
+  };
+}
+
+const int _maxPlainMode = 0x02;
+
+const int _maxBranchMode = 0x07;
+
+const int _directionSetMask = 0x0f;
+
+List<int>? _canonicalLengths(Uint8List table, int start) {
+  final lengths = _decodeLengthTail(table, start);
+  if (lengths == null) return null;
+  var i = start;
+  for (final length in lengths) {
+    if (table[i] == _lengthEscape && length < _lengthEscape) return null;
+    i += length < _lengthEscape ? 1 : 3;
+  }
+  return lengths;
 }
 
 /// A branch route mode that forks the wire: which directions leave the junction, in the order
