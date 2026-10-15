@@ -11,16 +11,19 @@ natural size.
 | asset | op | size | sources |
 |---|---|---|---|
 
-Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #444444 #4c4c3d #ccffff #ff00ff #fff3b8 #ffffcc #ffffff
+Palette (405 colours — every icon pixel is one of these): #000000 #000033 #000066 #000099 #0000ff #003366 #006600 #006699 #007f00 #007f7f #030303 #060606 #070707 #080808 #0808ff #090909 #0b0b0b #0d0d0d #0d770d #0e0e0e #101010 #111111 #121212 #13130f #141414 #151515 #161616 #171717 #181813 #181818 #1b1b1b #1c1c1c #1e1e1e #202020 #222222 #232323 #242424 #252525 #26261e #262626 #272727 #282820 #2a2a2a #2d2d2d #2e2e2e #2f2f26 #303026 #330000 #330033 #330066 #330099 #333300 #333333 #333366 #333399 #3333cc #339966 #3399cc #353535 #363636 #38382d #39392e #393939 #3a3a3a #3b3b33 #3c3c3c #3d3d3d #3f3f35 #404033 #414141 #4192f6 #444438 #444444 #454545 #474739 #48483a #484848 #49493b #494a38 #4a4b39 #4c4c3d #4c4c3e #4f4f4f #505040 #505050 #515151 #52524f #535353 #545454 #555547 #555555 #565656 #575757 #585846 #585858 #595959 #5a5a51 #5a5a59 #5a5a5a #5b5b5a #5b5b5b #5c5c5c #5d5d5d #606060 #626262 #646464 #656565 #660000 #660033 #660066 #663366 #663399 #666600 #666633 #666666 #666699 #6666ff #669999 #6699ff #66cccc #676767 #696969 #6a6a6a #6b6b6b #6f6f6f #707070 #717171 #747474 #757575 #777777 #7a7a7a #7c7c7c #7d7d7d #7e7e7e #7f7f66 #7f7f7f #82826a #83836b #838371 #84846b #84846c #85856d #87886e #88886e #89897e #8d8d88 #8e8e8c #909076 #90908c #909177 #919177 #91918b #91918c #91918d #94957b #95957b #95957d #97987e #990000 #993300 #9966ff #999966 #999999 #9999ff #99cccc #99ccff #a7a786 #a7a78a #aaaaaa #acac8e #adadad #afaf8c #afafaf #b0aa8e #b0b091 #b0b092 #b2b2b2 #b3b394 #b6b697 #b7b191 #b7b792 #b9b999 #bbb596 #bbbbbb #bcb696 #bcbc9d #bcbcbc #bdbd9e #bdbdbd #beb797 #bebea0 #bebebe #bfbf99 #bfbfbf #c0c0c0 #c1c1c1 #c3c3a3 #c4bd9a #c4c4a4 #c4c4c4 #c5c5c5 #c6c6c6 #c7c79f #c7c7c7 #c8c19c #c8c8a7 #c8c8ab #c8c8c8 #c9c9c9 #cacaa8 #cbcba9 #cbcbac #cbcbcb #cc33cc #cc6600 #cc9933 #cccc99 #cccccc #ccccff #ccff99 #ccffcc #ccffff #cdcdcd #cecece #cfcfa6 #cfcfae #cfcfcf #d0d0af #d0d0d0 #d1d1b1 #d1d1b3 #d1d1d1 #d2d2b4 #d2d2d2 #d3d3b1 #d3d3b5 #d4d4b1 #d4d4c5 #d4d4d4 #d5d5b2 #d6d6b3 #d6d6b8 #d7d7ac #d7d7b3 #d7d7c6 #d7d7d7 #d8d8b1 #d8d8d8 #d9d0a5 #d9d9c7 #d9d9d9 #dadabe #dadac8 #dbdbb7 #dbdbc8 #dbdbdb #dcdcbd #dddddd #dedede #df8227 #df8228 #dfdfb2 #dfdfc0 #dfdfdf #e0954c #e0e0e0 #e1e1ba #e1e1e1 #e2e2c2 #e2e2e2 #e3e3bc #e4e4be #e4e4bf #e4e4c5 #e4e4e4 #e59b54 #e5e5be #e5e5c0 #e5e5c2 #e5e5e5 #e6e6c0 #e6e6c7 #e6e6e6 #e7e7b9 #e7e7bf #e7e7cb #e7e7e7 #e8e8e8 #e9e9cc #e9e9e9 #eadfa9 #eaeac3 #eaeaea #ebebc3 #ebebc4 #ebebce #ebebcf #ebebeb #ececc4 #ececec #ededc4 #ededc5 #ededca #ededd1 #ee8c2c #eeeec9 #eeeecf #eeeed0 #eeeed2 #eeeeee #efefd2 #efefd3 #efefef #f0f0c6 #f0f0c7 #f0f0cf #f0f0d4 #f1f1c9 #f2f2c9 #f3f3d0 #f3f3d6 #f4f4d6 #f4f4d9 #f58a20 #f6f6cb #f6f6d8 #f6f6d9 #f7f7c6 #f7f7cb #f7f7d0 #f7f7d3 #f7f7d6 #f7f7db #f7f7dc #f8b575 #f8f8cc #f8f8d9 #f8f8dd #f9b675 #f9f9d1 #f9f9d4 #f9f9dd #f9f9de #fafacc #fafad0 #fafad1 #fafad2 #fafad8 #fafad9 #fafade #fafadf #fbfbcd #fbfbcf #fbfbd2 #fbfbd8 #fbfbdf #fcfccc #fcfccd #fcfcd7 #fcfcd8 #fcfcdf #fcfce0 #fcfce1 #fcfce7 #fdfdcd #fdfde2 #fdfde3 #fdfde6 #fefecd #fefece #fefecf #fefed0 #fefee2 #fefee3 #fefee4 #fefee5 #fefee6 #ff0000 #ff00ff #ff6600 #ff7b00 #ff7f00 #ff8308 #ff8b18 #ffbe7f #ffcc66 #ffccff #fff3b8 #ffff00 #ffff99 #ffffcc #ffffcd #ffffce #ffffcf #ffffd0 #ffffd1 #ffffd2 #ffffd3 #ffffd4 #ffffda #ffffe3 #ffffe4 #ffffe5 #ffffe6 #ffffff
 
 | class108_t3.png | class 0x6c | 24x17 | border-exact rect (1/8 ring samples agree byte-for-byte): 44072863_IqxZu |
 | class108_t4.png | class 0x6c | 24x25 | border-exact rect (1/3 ring samples agree byte-for-byte): 1_simple_tcp_server |
 | class108_t5.png | class 0x6c | 24x33 | border-exact rect (1/1 ring samples agree byte-for-byte): MD5 |
+| class108_t7.png | class 0x6c | 24x49 | border-exact rect (2/2 ring samples agree byte-for-byte): 25772310_GqWWr, 25793239_RnhZN |
 | class147_t11.png | class 0x93 | 32x69 | border-exact rect (1/1 ring samples agree byte-for-byte): LabVIEW_Report_Generation_Toolkit_Excel |
-| class147_t6.png | class 0x93 | 32x29 | border-exact rect (1/3 ring samples agree byte-for-byte): Excel_Read_XLSX |
+| class147_t6.png | class 0x93 | 32x29 | border-exact rect (2/3 ring samples agree byte-for-byte): example, Excel_Read_XLSX |
 | class147_t7.png | class 0x93 | 32x37 | border-exact rect (3/3 ring samples agree byte-for-byte): 45387243_YwSAM, 2_udp_multicast_endpoint_diagram |
 | class147_t8.png | class 0x93 | 32x45 | border-exact rect (1/1 ring samples agree byte-for-byte): 64541335_AFDxA |
 | class147_t9.png | class 0x93 | 32x53 | border-exact rect (1/1 ring samples agree byte-for-byte): 56415408_CFPul |
+| class185_t4.png | class 0xb9 | 32x33 | border-exact rect (2/2 ring samples agree byte-for-byte): crc8, crc16 |
+| class185_t5.png | class 0xb9 | 32x41 | border-exact rect (1/4 ring samples agree byte-for-byte): 48624280_j2jSl |
 | class370_t2.png | class 0x172 | 32x10 | border-exact rect (2/3 ring samples agree byte-for-byte): 2_udp_multicast_endpoint_diagram |
 | class370_t3.png | class 0x172 | 32x18 | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Variant_Elements |
 | class370_t4.png | class 0x172 | 32x26 | border-exact rect (1/6 ring samples agree byte-for-byte): 2_udp_multicast_endpoint_diagram |
@@ -32,14 +35,14 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | class52_t8.png | class 0x34 | 32x49 | border-exact rect (2/2 ring samples agree byte-for-byte): Vision_Development_Module_LabVIEW_2, How_Can_I_Display_Images_in_LabVIEW_Without_Vision_Development_Module |
 | class52_t9.png | class 0x34 | 32x57 | border-exact rect (1/1 ring samples agree byte-for-byte): 2_udp_multicast_endpoint_diagram |
 | class58_t2.png | class 0x3a | 32x9 | border-exact rect (2/4 ring samples agree byte-for-byte): GenerateTree |
-| class58_t3.png | class 0x3a | 32x17 | border-exact rect (6/6 ring samples agree byte-for-byte): Config_Load, ClassesInMemory, ClassChildren, Config_Dump2 |
-| class58_t4.png | class 0x3a | 32x25 | border-exact rect (1/6 ring samples agree byte-for-byte): How_Can_I_Display_Images_in_LabVIEW_Without_Vision_Development_Module |
+| class58_t3.png | class 0x3a | 32x17 | border-exact rect (4/6 ring samples agree byte-for-byte): ClassesInMemory, ClassChildren, Config_Dump2 |
+| class58_t4.png | class 0x3a | 32x25 | border-exact rect (1/7 ring samples agree byte-for-byte): How_Can_I_Display_Images_in_LabVIEW_Without_Vision_Development_Module |
 | class58_t5.png | class 0x3a | 32x33 | border-exact rect (4/6 ring samples agree byte-for-byte): 36650444_WEuIS, 44225965_VI5Ql, 35765857_knhaF, 44400341_Q7itp |
 | class58_t7.png | class 0x3a | 32x49 | border-exact rect (1/2 ring samples agree byte-for-byte): 2_udp_multicast_endpoint_diagram |
 | class58_t9.png | class 0x3a | 32x65 | border-exact rect (1/1 ring samples agree byte-for-byte): 55184810_pcUjk |
 | class62_t10.png | class 0x3e | 32x73 | border-exact rect (1/1 ring samples agree byte-for-byte): How_to_Continuously_Communicate_in_a_SSH_Session_Using_LabVIEW |
 | class62_t2.png | class 0x3e | 32x9 | border-exact rect (1/1 ring samples agree byte-for-byte): Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW_2 |
-| class62_t3.png | class 0x3e | 32x17 | border-exact rect (8/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
+| class62_t3.png | class 0x3e | 32x17 | border-exact rect (7/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
 | class62_t4.png | class 0x3e | 32x25 | border-exact rect (8/8 ring samples agree byte-for-byte): Config_Dump, Config_Dump2 |
 | class62_t5.png | class 0x3e | 32x33 | border-exact rect (2/7 ring samples agree byte-for-byte): Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW, Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW_2 |
 | class62_t6.png | class 0x3e | 32x41 | border-exact rect (2/5 ring samples agree byte-for-byte): code, code2 |
@@ -52,42 +55,44 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | class68_t4.png | class 0x44 | 32x35 | border-exact rect (2/5 ring samples agree byte-for-byte): chaine, Extract_Column_Data_from_Spreadsheet_Line_by_Line |
 | class68_t5.png | class 0x44 | 32x35 | border-exact rect (1/2 ring samples agree byte-for-byte): Excel_Read_XLSX |
 | class68_t7.png | class 0x44 | 32x43 | border-exact rect (2/6 ring samples agree byte-for-byte): 27957133_I67i9, 27957133_Coihp |
+| prim1045.png | (uncatalogued) | 36x31 | 25854851_Yr5FP — single-sample fallback (0/1 agreeing) |
 | prim1046.png | (uncatalogued) | 18x21 | How_to_Output_the_10MHz_Clock_From_NI_USRP_2954R, 74521931_DWPW0 — pair-seeded consensus (2/4 agreeing) |
-| prim1050 | (verified — committed asset authoritative) | | GenerateTree, IconHeader, MD5 — single-sample fallback (0/8 agreeing) |
+| prim1050 | (verified — committed asset authoritative) | | GenerateTree, IconHeader, MD5, basic — single-sample fallback (0/8 agreeing) |
 | prim1052 | (verified — committed asset authoritative) | | Config_Load, Config_Load2, Excel_Read_XLSX, IconHeader, MD5 — single-sample fallback (0/8 agreeing) |
 | prim1053_divide.png | Divide | 17x19 | How_Can_I_Display_Images_in_LabVIEW_Without_Vision_Development_Module, How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW, Convert_Date_Format_in_Excel_with_LabVIEW_Report_Generation_Toolkit_2, How_Can_I_generate_PWM_Signal_on_FPGA, Capturing_Initial_Counter_Input_Period_on_X_Series_DAQ, Dragging_Individual_Curves_Up_and_Down_in_LabVIEW_Waveform_Graph, Different_Outputs_With_Sine_and_High_Throughput_Sine_Cosine_Functions — pair-seeded consensus (6/8 agreeing) |
 | prim1056 | (verified — committed asset authoritative) | | Config_Load, Config_Load2, IconHeader, Acquiring_Large_Datasets_with_FlexRIO_Integrated_IO_Modules, MD5 — single-sample fallback after edge fusion (2/8 agreeing) |
-| prim1061 | (verified — committed asset authoritative) | | 2_udp_multicast_endpoint_diagram, LabVIEW_cDAQ, 18726000_BBgBQ, Perform_DAQmx_Device_Reset_or_Self_Test_Programmatically, MD5 — pair-seeded consensus (6/8 agreeing) |
-| prim1063 | (verified — committed asset authoritative) | | 71321004_rDU7K, MD5, crc8, crc16 — single-sample fallback after edge fusion (2/8 agreeing) |
+| prim1061 | (verified — committed asset authoritative) | | 2_udp_multicast_endpoint_diagram, LabVIEW_cDAQ, large, Perform_DAQmx_Device_Reset_or_Self_Test_Programmatically, MD5 — pair-seeded consensus (6/8 agreeing) |
+| prim1063 | (verified — committed asset authoritative) | | MD5, crc8, crc16 — single-sample fallback after edge fusion (2/8 agreeing) |
 | prim1064 | (verified — committed asset authoritative) | | Excel_Read_XLSX, ClassChildren, Fake_Exec_State, GenerateTree, MD5 — single-sample fallback (0/8 agreeing) |
 | prim1069.png | (uncatalogued) | 21x21 | 34109337_OCxvL, GenerateTree, Dragging_Individual_Curves_Up_and_Down_in_LabVIEW_Waveform_Graph — pair-seeded consensus (3/4 agreeing) |
 | prim1070 | (verified — committed asset authoritative) | | Configuring_G_Web_Applications_to_Use_Web_Service_Security_Permissions, Combining_Waveform_and_XY_Data_with_Non_Uniform_Timestamps_in_a_Single, Excel_Read_XLSX, Different_Methods_for_Representing_Data_on_an_XY_Graph, IconHeader, 1_simple_tcp_server — pair-seeded consensus (4/8 agreeing) |
-| prim1074.png | (uncatalogued) | 18x21 | incr-port2, 57670981_5aPNw — single-sample fallback (0/2 agreeing) |
-| prim1077_path-to-string.png | Path To String | 26x11 | create_dll_path_executeable, Export Palette Image WMF, create_dll_path_develop, Excel_Read_XLSX, Calling_a_Command_with_Multiple_User_Inputs_from_System_Exec_vi, Can_I_Open_Microsoft_Excel_Programmatically_from_LabVIEW, Differences_Between_the_Execution_of_TestStand_LabVIEW_Test_Steps_with — pair-seeded consensus (2/8 agreeing) |
+| prim1074.png | (uncatalogued) | 18x21 | incr-port2, 49915499_C3eVE, 57670981_5aPNw — single-sample fallback (0/3 agreeing) |
+| prim1076.png | (uncatalogued) | 27x21 | 41602853_ULjBA — single-sample fallback (0/1 agreeing) |
+| prim1077_path-to-string.png | Path To String | 26x11 | create_dll_path_executeable, Export Palette Image WMF, create_dll_path_develop, Excel_Read_XLSX, Calling_a_Command_with_Multiple_User_Inputs_from_System_Exec_vi, large — pair-seeded consensus (2/8 agreeing) |
 | prim1078_string-to-path.png | String To Path | 25x11 | Error_1_An_Input_Parameter_Is_Invalid_in_LabVIEW, 62330710_NShvG, Excel_Cell_to_Value, Dynamically_Sourcing_a_Waveform_With_Digital_Pattern_Editor_APIs_2, Formatting_XML_Files_in_LabVIEW_With_the_EasyXML_Toolkit, Upload_File_Programmatically_to_LabVIEW_Web_Service, Dynamically_Sourcing_a_Waveform_With_Digital_Pattern_Editor_APIs — pair-seeded consensus (2/8 agreeing) |
+| prim1080.png | (uncatalogued) | 22x15 | 25793239_RnhZN — single-sample fallback (0/1 agreeing) |
 | prim1082.png | (uncatalogued) | 25x15 | targeted node-box crop, 1 named instance: MD5#6017 (art at dx 4, dy 9 in the node box) |
-| prim1083_first-call.png | First Call? | 14x14 | 27957133_Coihp, 2_packet_convert_string, 2_packet_convert_cluster, LabVIEW_Call_Library_Function_Node_Not_Unloading_a_DLL_After_VI_Execut, 55417854_NngaM — single-sample fallback after edge fusion (2/5 agreeing) |
+| prim1083_first-call.png | First Call? | 15x14 | 27957133_Coihp, 2_packet_convert_string, 25793239_RnhZN, 2_packet_convert_cluster, LabVIEW_Call_Library_Function_Node_Not_Unloading_a_DLL_After_VI_Execut, 55417854_NngaM — single-sample fallback after edge fusion (2/6 agreeing) |
 | prim1086.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): datasocket |
 | prim1102_equal.png | Equal? | 21x21 | Excel_Read_XLSX, 2_udp_multicast_endpoint_diagram, ClassChildren, GenerateTree, l1ER4v6 — pair-seeded consensus (2/8 agreeing) |
 | prim1103.png | (uncatalogued) | 18x19 | 32244461_QLIrv, 18726000_BBgBQ, Generating_Data_on_a_Simulated_FPGA_Target_From_LabVIEW, Read VI Blocks, Config_Escape, What_is_a_Functional_Global_Variable — pair-seeded consensus (4/8 agreeing) |
 | prim1104.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): 75016950_8iSWg |
-| prim1105_not-equal.png | Not Equal? | 16x16 | incr-port2, Sub_Tab_Structure_with_Buttons_on_LabVIEW, Read_Index_of_Array_Element_in_Event_Structure_2, 55294492_OC7rT, Pulse_Width_Modulation_PWM_with_NI_DAQmx_and_LabVIEW, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly_2, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly, Capturing_Initial_Counter_Input_Period_on_X_Series_DAQ — pair-seeded consensus (5/8 agreeing) |
+| prim1105_not-equal.png | Not Equal? | 28x21 | incr-port2, Read_Index_of_Array_Element_in_Event_Structure_2, large, Pulse_Width_Modulation_PWM_with_NI_DAQmx_and_LabVIEW, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly_2, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly, Capturing_Initial_Counter_Input_Period_on_X_Series_DAQ — pair-seeded consensus (2/8 agreeing) |
 | prim1108_max-min.png | Max & Min | 32x32 | border-exact rect (3/3 ring samples agree byte-for-byte): original_49b367, 36698990_TznmK |
-| prim1110 | (verified — committed asset authoritative) | | Generate_Software_Timed_Trigger_with_NI_DAQmx_in_LabVIEW, 36769441_nVjHJ, 36790337_6otPV, Different_Methods_for_Representing_Data_on_an_XY_Graph, Different_Methods_for_Representing_Data_on_an_XY_Graph_3, Different_Methods_for_Representing_Data_on_an_XY_Graph_4, 43309546_cGFGy, tMAvf25 — pair-seeded consensus (7/8 agreeing) |
+| prim1110 | (verified — committed asset authoritative) | | example, Generate_Software_Timed_Trigger_with_NI_DAQmx_in_LabVIEW, Different_Methods_for_Representing_Data_on_an_XY_Graph, Different_Methods_for_Representing_Data_on_an_XY_Graph_3, 25772310_GqWWr, Different_Methods_for_Representing_Data_on_an_XY_Graph_4, tMAvf25, 25793239_RnhZN — pair-seeded consensus (6/8 agreeing) |
 | prim1111_less.png | Less? | 31x27 | 63603880_ASLDS, Different_Methods_for_Representing_Data_on_an_XY_Graph_3, 18726000_BBgBQ — pair-seeded consensus (2/4 agreeing) |
 | prim1112 | (verified — committed asset authoritative) | | Config_Load, Config_Load2, Config_Dump, Config_Dump2 — pair-seeded consensus (2/8 agreeing) |
 | prim1113_equal-to-0.png | Equal To 0? | 22x21 | Pages, Config_Load, Config_Load2, Dynamically_Modify_the_XNET_Database_or_Signal_List_for_XNET_Create_Se, code_fonction, How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW, Acquiring_Large_Datasets_with_FlexRIO_Integrated_IO_Modules, MD5 — pair-seeded consensus (3/8 agreeing) |
 | prim1114_greater-or-equal-to-0.png | Greater Or Equal To 0? | 26x21 | Config_Load, Config_Load2, Dynamically_Modify_the_XNET_Database_or_Signal_List_for_XNET_Create_Se, delmutcode, ClassChildren, Read Library Version, 55094384_3wrOI, 55101960_vZSSg — single-sample fallback after edge fusion (2/8 agreeing) |
 | prim1116_not-equal-to-0.png | Not Equal To 0? | 27x21 | Reading_Peripheral_Devices_With_Inactive_LabVIEW_Window, 54071730_mInqi, 1_simple_tcp_server, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly_2, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly — single-sample fallback after edge fusion (2/5 agreeing) |
 | prim1117_greater-than-0.png | Greater Than 0? | 20x21 | 69816018_PxZKK, 69816018_UrGYn — pair-seeded consensus (5/8 agreeing) |
-| prim1118_less-than-0.png | Less Than 0? | 20x21 | Tokenize URL, Editing_the_Header_of_Multicolumn_Listbox_Control_While_VI_is_Running, Excel_Cell_to_Value, 65218054_LYXa7 — pair-seeded consensus (2/4 agreeing) |
+| prim1118_less-than-0.png | Less Than 0? | 20x21 | Tokenize URL, Editing_the_Header_of_Multicolumn_Listbox_Control_While_VI_is_Running, Excel_Cell_to_Value, 65218054_LYXa7, 42972826_kqyrz — pair-seeded consensus (2/5 agreeing) |
 | prim1120_sort-1d-array.png | Sort 1D Array | 32x32 | border-exact rect (1/4 ring samples agree byte-for-byte): Sort_1D_Array_-_Numeric |
 | prim1124.png | (uncatalogued) | 20x22 | Read Library Version — single-sample fallback (0/1 agreeing) |
 | prim1127_in-range-and-coerce.png | In Range and Coerce | 32x24 | 55368750_UM3yy, IconHeader, 55537012_wICSF, How_to_Convert_Full_Width_Alphanumeric_Characters_to_Half_Width_Alphan, 55094384_3wrOI, Read VI Blocks, 55101960_vZSSg, 36603255_wsR3o — pair-seeded consensus (7/8 agreeing) |
 | prim1140_to-byte-integer.png | To Byte Integer | 25x11 | How_to_Programmatically_Acquire_a_Full_Screenshot_in_LabVIEW, How_to_Programmatically_Acquire_a_Full_Screenshot_in_LabVIEW_2 — pair-seeded consensus (2/4 agreeing) |
 | prim1141_to-word-integer.png | To Word Integer | 25x11 | Symbols1Bit, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly_2, DAQmx_Error_200301_When_Changing_Duty_Cycle_on_the_Fly — pair-seeded consensus (4/5 agreeing) |
-| prim1142 | (verified — committed asset authoritative) | | Synchronize_Multiple_cDAQ_or_cRIO_Chassis_Using_the_NI_9469_Module, 56468164_sOjUK, Read VI Blocks, Page1, MD5, 58672630_KsiWv, crc16 — pair-seeded consensus (4/8 agreeing) |
-| prim1143 | (verified — committed asset authoritative) | | IconHeader, Page1, write_binary_data_to_visa, 58672630_KsiWv, Using_a_PXIe_634x_Card_to_Define_All_PXI_TRIG_Lines_in_LabVIEW — pair-seeded consensus (3/8 agreeing) |
+| prim1143 | (verified — committed asset authoritative) | | IconHeader, Page1, write_binary_data_to_visa, crc8, crc16 — pair-seeded consensus (2/8 agreeing) |
 | prim1144_to-unsigned-word-integer.png | To Unsigned Word Integer | 25x11 | 2_udp_multicast_endpoint_diagram, Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW_2 — single-sample fallback after edge fusion (2/2 agreeing) |
 | prim1145_to-unsigned-long-integer.png | To Unsigned Long Integer | 25x11 | 2_udp_multicast_endpoint_diagram, How_Can_I_Get_the_Sound_Device_ID_and_Sound_Device_Name, Programmatically_Select_String_or_Numeric_Data_in_Control_2 — single-sample fallback after edge fusion (2/8 agreeing) |
 | prim1147_to-double-precision-float.png | To Double Precision Float | 23x9 | How_to_Configure_Output_DC_Offset_More_Than_50_of_Amplitude_Range, How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW, Can_PXIe_6739_Use_the_PXIe_Chassis_100_MHz_Backplane_Clock, Convert_Date_Format_in_Excel_with_LabVIEW_Report_Generation_Toolkit_2, KLgiWR6, Continuous_Data_Acquisition_Using_NI_SCOPE_With_External_Start_Trigger, How_To_Use_Start_Trigger_Function_With_NI_SCOPE — pair-seeded consensus (7/8 agreeing) |
@@ -96,19 +101,19 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | prim1163 | (verified — committed asset authoritative) | | border-exact rect (5/5 ring samples agree byte-for-byte): MD5 |
 | prim1164_flatten-to-string.png | Flatten To String | 32x32 | border-exact rect (2/6 ring samples agree byte-for-byte): 21400195_vgfH4, How_Can_I_Programmatically_Obtain_the_Size_of_a_Cluster |
 | prim1165.png | (uncatalogued) | 32x32 | border-exact rect (2/8 ring samples agree byte-for-byte): 21400195_vgfH4, 3_data_read |
-| prim1166 | (verified — committed asset authoritative) | | Excel_Cell_to_Value, Config_Escape — pair-seeded consensus (3/8 agreeing) |
+| prim1166_type-cast.png | Type Cast | 32x32 | Excel_Cell_to_Value, Config_Escape — pair-seeded consensus (3/8 agreeing) |
 | prim1167_boolean-to-0-1.png | Boolean To (0,1) | 25x11 | Config_Load, Config_Load2, Dynamically_Modify_the_XNET_Database_or_Signal_List_for_XNET_Create_Se, Using_a_PXIe_634x_Card_to_Define_All_PXI_TRIG_Lines_in_LabVIEW — single-sample fallback after edge fusion (2/7 agreeing) |
 | prim1168.png | (uncatalogued) | 25x11 | Writing_Values_to_VeriStand_Channels_Without_Data_Loss_Using_VeriStand, 22800837_BicEA — pair-seeded consensus (2/2 agreeing) |
 | prim1169_cluster-to-array.png | Cluster To Array | 26x11 | Replace_NI_DAQmx_Physical_Channel_Drop_Down_Menu_With_Check_Boxes_for — pair-seeded consensus (2/2 agreeing) |
 | prim1170.png | (uncatalogued) | 18x18 | targeted node-box crop, 2 named instances agreeing byte-for-byte: crc16#820, crc16#619 (art at dx 7, dy 7 in the node box) |
-| prim1171.png | (uncatalogued) | 16x16 | 72352838_UT2JQ, 72499494_WQO8a, IconHeader, Config_Escape — pair-seeded consensus (7/8 agreeing) |
+| prim1171.png | (uncatalogued) | 16x16 | 72352838_UT2JQ, IconHeader, Config_Escape, crc16 — pair-seeded consensus (4/8 agreeing) |
 | prim1180_number-to-decimal-string.png | Number To Decimal String | 32x32 | border-exact rect (4/8 ring samples agree byte-for-byte): taamv6d, 2_udp_multicast_endpoint_diagram, Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW, Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW_2 |
 | prim1181 | (verified — committed asset authoritative) | | border-exact rect (4/4 ring samples agree byte-for-byte): MD5 |
 | prim1184_decimal-string-to-number.png | Decimal String To Number | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Error_417_Expectation_Failed_When_Using_HTTP_Methods_in_LabVIEW_2 |
 | prim1185.png | (uncatalogued) | 32x32 | border-exact rect (1/3 ring samples agree byte-for-byte): solution |
 | prim1187.png | (uncatalogued) | 32x32 | border-exact rect (7/7 ring samples agree byte-for-byte): 43624665_hkzc5, 44061689_Pkwe4, 55368750_UM3yy, 44072863_IqxZu, 55537012_wICSF, 55094384_3wrOI, 55101960_vZSSg |
-| prim1189 | (verified — committed asset authoritative) | | ClassesInMemory, ClassChildren, Case_insensitive_Sort_1D_Array_of_Strings_in_LabVIEW, MD5 — single-sample fallback after edge fusion (3/8 agreeing) |
-| prim1200.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): 73350882_rAfzV |
+| prim1189 | (verified — committed asset authoritative) | | ClassesInMemory, ClassChildren, large — single-sample fallback after edge fusion (3/8 agreeing) |
+| prim1200.png | (uncatalogued) | 32x32 | border-exact rect (1/2 ring samples agree byte-for-byte): 42401972_Z1SeC |
 | prim1201.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): 73350882_rAfzV |
 | prim1210.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Measure_the_Dynamic_Range_of_My_Data_Acquisition_Device_with_NI_Softwa |
 | prim1300_tick-count-ms.png | Tick Count (ms) | 32x32 | border-exact rect (7/8 ring samples agree byte-for-byte): lv-mutex-efficiency_1-example_1, How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW, lv-mutex-efficiency_1-example_2, 48624280_j2jSl, tmps |
@@ -118,27 +123,27 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | prim1309.png | (uncatalogued) | 32x32 | border-exact rect (3/3 ring samples agree byte-for-byte): LabVIEW_UI, How_Do_I_Add_A_Day_To_My_LabVIEW_Timestamp |
 | prim1327_wait-until-next-ms-multiple.png | Wait Until Next ms Multiple | 32x32 | border-exact rect (1/8 ring samples agree byte-for-byte): incr-port2 |
 | prim1340_one-button-dialog.png | One Button Dialog | 34x32 | Handle_Keyboard_Events_in_Event_Structures_in_LabVIEW, Handle_Keyboard_Events_in_Event_Structures_in_LabVIEW_2, 1_simple_tcp_client, 72363146_RmwtK, Error_2000000006_With_Joystick_in_LabVIEW, 1_simple_tcp_server — pair-seeded consensus (3/6 agreeing) |
-| prim1341_two-button-dialog.png | Two Button Dialog | 32x32 | Veristand_Doesnt_Stop_on_Custom_Device_Runtime_Error_2 — single-sample fallback (0/1 agreeing) |
+| prim1341_two-button-dialog.png | Two Button Dialog | 32x32 | Veristand_Doesnt_Stop_on_Custom_Device_Runtime_Error_2, 25793239_RnhZN — pair-seeded consensus (3/3 agreeing) |
 | prim1350.png | (uncatalogued) | 32x32 | incr-port2 — single-sample fallback (0/1 agreeing) |
 | prim1419 | (verified — committed asset authoritative) | | border-exact rect (1/8 ring samples agree byte-for-byte): taamv6d |
-| prim1420_strip-path.png | Strip Path | 32x32 | border-exact rect (2/6 ring samples agree byte-for-byte): Lvdiff_Edit |
+| prim1420_strip-path.png | Strip Path | 32x32 | border-exact rect (2/5 ring samples agree byte-for-byte): Lvdiff_Edit |
 | prim1422.png | (uncatalogued) | 25x11 | 7279965_KAcFa — single-sample fallback (0/1 agreeing) |
 | prim1423.png | (uncatalogued) | 25x11 | 77047703_U6Pbe — single-sample fallback (0/1 agreeing) |
 | prim1425_vi-library.png | VI Library | 23x17 | Programmatically_Create_a_LabVIEW_Palette, Programmatically_Create_a_LabVIEW_Palette_2 — pair-seeded consensus (2/2 agreeing) |
 | prim1426_current-vi-s-path.png | Current VI's Path | 18x18 | 72499494_BVmLS, 72499494_WQO8a, 73098534_B9NNM, 69380394_2La0A — pair-seeded consensus (4/4 agreeing) |
-| prim1502 | (verified — committed asset authoritative) | | Config_Load, Config_Load2, MD5 — single-sample fallback after edge fusion (2/8 agreeing) |
+| prim1502_string-length.png | String Length | 32x17 | Config_Load, Config_Load2, MD5 — single-sample fallback after edge fusion (2/8 agreeing) |
 | prim1503 | (verified — committed asset authoritative) | | border-exact rect (2/2 ring samples agree byte-for-byte): Config_Load, Config_Load2 |
 | prim1506.png | (uncatalogued) | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): 44400341_Q7itp, 38607813_VljVk |
-| prim1516 | (verified — committed asset authoritative) | | Excel_Variant_Elements, Config_Dump, Config_Dump2, GenerateTree, MD5 — pair-seeded consensus (7/8 agreeing) |
+| prim1516 | (verified — committed asset authoritative) | | Excel_Variant_Elements, Config_Dump, Config_Dump2, large — pair-seeded consensus (8/8 agreeing) |
 | prim1534.png | (uncatalogued) | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): Excel_Cell_to_Value |
-| prim1535 | (verified — committed asset authoritative) | | border-exact rect (8/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
+| prim1535_match-pattern.png | Match Pattern | 32x32 | border-exact rect (8/8 ring samples agree byte-for-byte): ClassesInMemory, Config_Dump, ClassChildren, Config_Dump2 |
 | prim1537.png | (uncatalogued) | 29x13 | targeted node-box crop, 1 named instance: Excel_Cell_to_RowCol#477 (art at dx 1, dy 10 in the node box) |
 | prim1538_search-split-string.png | Search/Split String | 32x32 | border-exact rect (1/2 ring samples agree byte-for-byte): delmutcode |
 | prim1539_spreadsheet-string-to-array.png | Spreadsheet String To Array | 32x32 | border-exact rect (3/6 ring samples agree byte-for-byte): code, How_Can_I_Read_a_Very_Large_CSV_File_in_LabVIEW, 22800837_BicEA |
-| prim1540_array-to-spreadsheet-string.png | Array To Spreadsheet String | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): 73219950_Oq4rT, 51073212_CGpog |
+| prim1540_array-to-spreadsheet-string.png | Array To Spreadsheet String | 32x32 | border-exact rect (1/3 ring samples agree byte-for-byte): 25793239_RnhZN |
 | prim1600.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): 51073212_CGpog |
 | prim1606 | (verified — committed asset authoritative) | | crc8, crc16 — pair-seeded consensus (2/2 agreeing) |
-| prim1608 | (verified — committed asset authoritative) | | Read Library Version, 2_packet_convert_string, 2_packet_convert_cluster, Config_Escape, MD5 — pair-seeded consensus (4/8 agreeing) |
+| prim1608 | (verified — committed asset authoritative) | | Read Library Version, 2_packet_convert_cluster, Config_Escape, MD5, crc8, crc16 — pair-seeded consensus (5/8 agreeing) |
 | prim1609_byte-array-to-string.png | Byte Array To String | 32x11 | Read Library Version, 2_packet_convert_string, 2_packet_convert_cluster, Read VI Blocks — pair-seeded consensus (3/8 agreeing) |
 | prim1710.png | (uncatalogued) | 32x21 | 2_udp_multicast_endpoint_diagram, 2_packet_convert_string, 2_packet_convert_cluster — pair-seeded consensus (2/3 agreeing) |
 | prim1711.png | (uncatalogued) | 34x16 | 2_udp_multicast_endpoint_diagram, 2_packet_convert_string, 2_packet_convert_cluster — single-sample fallback (0/8 agreeing) |
@@ -150,19 +155,20 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | prim1724.png | (uncatalogued) | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): 14232057_F9CK4, 2_udp_multicast_endpoint_diagram |
 | prim1725.png | (uncatalogued) | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): 14232057_F9CK4 |
 | prim1726.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): 2_udp_multicast_endpoint_diagram |
-| prim1809 | (verified — committed asset authoritative) | | border-exact rect (1/1 ring samples agree byte-for-byte): Excel_Read_XLSX |
+| prim1809 | (verified — committed asset authoritative) | | Config_Load, Config_Load2, ClassChildren, large, Config_Escape — pair-seeded consensus (5/8 agreeing) |
 | prim1900 | (verified — committed asset authoritative) | | 72352838_UT2JQ, 65488122_wfTjJ, 72499494_WQO8a, large, 73098534_B9NNM, MD5, 58672630_KsiWv — pair-seeded consensus (7/7 agreeing) |
-| prim1901 | (verified — committed asset authoritative) | | border-exact rect (1/8 ring samples agree byte-for-byte): Excel_Read_XLSX |
+| prim1901 | (verified — committed asset authoritative) | | border-exact rect (7/7 ring samples agree byte-for-byte): ClassesInMemory, ClassChildren, Config_Dump2, Excel_Cell_to_Value |
 | prim1902_transpose-2d-array.png | Transpose 2D Array | 32x25 | 33003667_GxzDb, Which_Versions_of_LabVIEW_Run_Time_Engine_Do_I_Have_Installed, 55094384_3wrOI, Calculate_the_Sum_of_Each_Row_or_Column_in_a_LabVIEW_2D_Array_2, 55101960_vZSSg — pair-seeded consensus (8/8 agreeing) |
 | prim1903_add-array-elements.png | Add Array Elements | 22x25 | Calculate_the_Sum_of_Each_Row_or_Column_in_a_LabVIEW_2D_Array, Calculate_the_Sum_of_Each_Row_or_Column_in_a_LabVIEW_2D_Array_2, 15927128_atlW5 — pair-seeded consensus (2/3 agreeing) |
+| prim1904.png | (uncatalogued) | 22x25 | Symbols1Bit, 8850929_jswjp, 48620742_FfTo8 — pair-seeded consensus (2/3 agreeing) |
 | prim1905.png | (uncatalogued) | 32x32 | border-exact rect (2/3 ring samples agree byte-for-byte): Interpolate_1D_Array_-_Between_Elements, Interpolate_1D_Array_-_Outside_Array_Boundary |
 | prim1906.png | (uncatalogued) | 36x18 | 69539137_5Mi4k, 34109337_OCxvL, 73098534_B9NNM, Rotate_1D_Array_-_No-op — single-sample fallback after edge fusion (2/4 agreeing) |
-| prim1907_array-max-min.png | Array Max & Min | 32x32 | border-exact rect (6/8 ring samples agree byte-for-byte): 55218929_ecxGD, Array_Max_&_Min_-_Numeric_Array, 55184810_pcUjk, 55537012_wICSF, XY, 38628300_YH2YU |
+| prim1907_array-max-min.png | Array Max & Min | 32x32 | border-exact rect (7/8 ring samples agree byte-for-byte): 55218929_ecxGD, Array_Max_&_Min_-_Numeric_Array, 55184810_pcUjk, 25835168_902X7, 55537012_wICSF, XY, 38628300_YH2YU |
 | prim1908.png | (uncatalogued) | 32x32 | border-exact rect (1/2 ring samples agree byte-for-byte): Split_1D_Array_-_Split_Integer |
 | prim1909.png | (uncatalogued) | 32x32 | border-exact rect (1/2 ring samples agree byte-for-byte): 55350484_4Y2Oh |
 | prim1910_or-array-elements.png | Or Array Elements | 26x25 | 55094384_3wrOI, 55101960_vZSSg — pair-seeded consensus (2/2 agreeing) |
 | prim1911_and-array-elements.png | And Array Elements | 25x25 | 3682709_rA0WY, 55094384_3wrOI, Writing_Values_to_VeriStand_Channels_Without_Data_Loss_Using_VeriStand, 55101960_vZSSg — pair-seeded consensus (3/4 agreeing) |
-| prim1922.png | (uncatalogued) | 32x32 | border-exact rect (1/5 ring samples agree byte-for-byte): original |
+| prim1922.png | (uncatalogued) | 32x32 | border-exact rect (2/6 ring samples agree byte-for-byte): 52473219_0FHnr, original |
 | prim1925.png | (uncatalogued) | 32x32 | border-exact rect (4/8 ring samples agree byte-for-byte): 29785006_pYOlV, 43624665_hkzc5, original, 20695026_BnE3o |
 | prim1926.png | (uncatalogued) | 32x32 | border-exact rect (3/8 ring samples agree byte-for-byte): 29785006_pYOlV, original, 19115165_w8ajB |
 | prim1927.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): VISA_Open2 |
@@ -179,7 +185,7 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | prim2074_generate-user-event.png | Generate User Event | 32x32 | border-exact rect (1/5 ring samples agree byte-for-byte): 20695026_BnE3o |
 | prim2076_unregister-for-events.png | Unregister For Events | 32x32 | border-exact rect (2/4 ring samples agree byte-for-byte): 33862024_ctBR2, 20695026_BnE3o |
 | prim2302.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): VISA_Open2 |
-| prim23063_empty-array.png | Empty Array? | 21x21 | Export Palette Image WMF, Excel_Variant_Elements, ClassChildren, Excel_Cell_to_Value, GenerateTree, 55094384_3wrOI, 55101960_vZSSg — single-sample fallback (0/8 agreeing) |
+| prim23063_empty-array.png | Empty Array? | 21x21 | Export Palette Image WMF, Excel_Variant_Elements, ClassChildren, Excel_Cell_to_Value, GenerateTree, large — single-sample fallback (0/8 agreeing) |
 | prim2308.png | (uncatalogued) | 32x32 | border-exact rect (1/3 ring samples agree byte-for-byte): incr-port |
 | prim23783.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Error_1950679035_Is_Shown_in_LabVIEW_When_Communicating_an_RT_EXE_With |
 | prim24001.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Veristand_Doesnt_Stop_on_Custom_Device_Runtime_Error |
@@ -201,7 +207,7 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 | prim5561.png | (uncatalogued) | 33x26 | Generating_Data_on_a_Simulated_FPGA_Target_From_LabVIEW, Different_Outputs_With_Sine_and_High_Throughput_Sine_Cosine_Functions — single-sample fallback (0/2 agreeing) |
 | prim8000.png | (uncatalogued) | 32x32 | border-exact rect (5/5 ring samples agree byte-for-byte): Can_I_Open_Microsoft_Excel_Programmatically_from_LabVIEW_2, Modify_Excel_Chart_Series_Name_Using_ActiveX_in_LabVIEW, 74112604_6ctn2, Write_to_a_Password_Protected_Excel_File_so_That_the_Password_Prompt_I, Encrypt_and_Decrypt_Excel_File_with_Password_in_LabVIEW |
 | prim8003_variant-to-data.png | Variant To Data | 32x32 | border-exact rect (4/4 ring samples agree byte-for-byte): essai_1, essai_2, chaine, 3_data_read |
-| prim8010_open-vi-reference.png | Open VI Reference | 32x32 | border-exact rect (3/8 ring samples agree byte-for-byte): 30525137_rdUCk, 30528457_78U04, 18727533_6bdpe |
+| prim8010_open-vi-reference.png | Open VI Reference | 32x32 | border-exact rect (2/7 ring samples agree byte-for-byte): 30525137_rdUCk, 18727533_6bdpe |
 | prim8011_close-reference.png | Close Reference | 32x32 | border-exact rect (3/5 ring samples agree byte-for-byte): Change_Properties_of_All_Controls_and_Indicators_Programmatically_in_L, Asynchronously_Starting_and_Stopping_a_VI_in_TestStand |
 | prim8012.png | (uncatalogued) | 32x32 | border-exact rect (1/1 ring samples agree byte-for-byte): Execute_VI_Remotely_by_Using_VI_Server |
 | prim8013.png | (uncatalogued) | 32x32 | border-exact rect (2/2 ring samples agree byte-for-byte): 30525137_rdUCk, 30528457_78U04 |
@@ -245,6 +251,7 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 
 ## Identities without a usable asset (kept visible, never hidden)
 
+- class185_t6: every sample came from a low-registration snippet
 - class52_t31: every sample came from a low-registration snippet
 - class52_t4: class key carries 5 distinct border-exact arts (3x from Different_Methods_for_Representing_Data_on_an_XY_Graph_3+Different_Methods_for_Representing_Data_on_an_XY_Graph_4 | 1x from local-and-global-variables | 1x from PxrROgm | 1x from Combining_Waveform_and_XY_Data_with_Non_Uniform_Timestamps_in_a_Single | 1x from Case_insensitive_Sort_1D_Array_of_Strings_in_LabVIEW) — a per-node identity is needed, no single asset can be right
 - class58_t6: class key carries 3 distinct border-exact arts (1x from 47298210_Cxqbv | 1x from code2 | 1x from 55137255_O8ltm) — a per-node identity is needed, no single asset can be right
@@ -261,9 +268,9 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 - prim1060: every sample came from a low-registration snippet
 - prim1062: cleaned ink still reaches the crop edge (wire fusion; 8 samples)
 - prim1075: every sample came from a low-registration snippet
-- prim1076: every sample came from a low-registration snippet
 - prim1081: cleaned ink still reaches the crop edge (wire fusion; 2 samples)
 - prim1128: no agreeing consensus and no centred sample survived cleaning (3 samples)
+- prim1142: no agreeing consensus and no centred sample survived cleaning (8 samples)
 - prim1150: every sample came from a low-registration snippet
 - prim1151: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1155: cleaned ink still reaches the crop edge (wire fusion; 8 samples)
@@ -275,7 +282,6 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 - prim1435: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim1814: every sample came from a low-registration snippet
 - prim1815: no agreeing consensus and no centred sample survived cleaning (1 samples)
-- prim1904: no agreeing consensus and no centred sample survived cleaning (2 samples)
 - prim1999: every sample came from a low-registration snippet
 - prim2075: no agreeing consensus and no centred sample survived cleaning (4 samples)
 - prim23059: every sample came from a low-registration snippet
@@ -289,11 +295,5 @@ Palette (9 colours — every icon pixel is one of these): #000000 #0000ff #44444
 - prim8507: no agreeing consensus and no centred sample survived cleaning (1 samples)
 - prim8509: cleaned ink still reaches the crop edge (wire fusion; 2 samples)
 
-Snippets excluded from harvesting (registration below the 0.7 placement gate): Excel_Cell_to_RowCol.png, PNG CRC32.png, Resolve Path.png, ReverseBitsVim.png, broken_wires_only.png, 6yvUWO0.png, CQlD44G.png, create-modbus-rtu-over-tcp-master-exemple.png, create-modbus-tcp-master-exemple.png, 2_readme.png, 3_data_write.png, 3_readme.png, 20251203-090751.png, header_constant.png, Array_Size_-_Examples.png, Array_Subset_-_Start_at_index.png, Array_Subset_-_Start_at_index_and_limit_length.png, Bookmark.png, Delete_From_Array_-_Delete_Any_Element.png, Delete_From_Array_-_Delete_Any_Number_Of_Elements.png, Delete_From_Array_-_Delete_Last_Element.png, Index_Array_-_Get_First_Few_Elements.png, Index_Array_-_Get_Specific_Elements.png, Insert_Into_Array_-_Insert_At_Mid.png, Insert_Into_Array_-_Insert_Multiple_At_Mid.png, OOP_Example.png, Replace_Array_Subset_-_Replace_First_Element.png, Replace_Array_Subset_-_Replace_Multiple_Elements.png, Replace_Array_Subset_-_Replace_Specific_Element.png, Reverse_1D_Array_-_Numeric.png, Rotate_1D_Array_-_Rotate_Left.png, Rotate_1D_Array_-_Rotate_Right.png, SetSysColor.png, Threshold_1D_Array_-_Fractional_Index_Between_Elements.png, Array_to_Cluster_Function_in_LabVIEW_Does_Not_Accept_Cluster_Sizes_Lar.png, Build_and_Configure_a_For_Loop_in_LabVIEW.png, Byte_Splitting_and_Joining_of_Floating_Point_Data_in_LabVIEW.png, Calculate_Time_Difference_Between_Two_Dates_in_LabVIEW.png, Can_I_Display_the_24_Bit_Data_in_LabVIEW.png, Configuring_a_Stop_Trigger_using_NI_DAQmx_for_LabVIEW.png, Creating_a_For_Loop_with_Alternative_Starting_Index_and_Increment_Valu.png, Detect_Array_Element_Value_Change_in_LabVIEW.png, Error_538178_When_Reading_the_Exception_Status_in_Modbus_TCP.png, Generating_a_Unix_Timestamp_in_LabVIEW_on_a_Real_Time_Target.png, How_Can_I_Calculate_the_Mean_of_a_2D_Array_in_LabVIEW.png, How_Can_I_Read_the_Binary_Representation_of_a_Floating_Point_Number_in.png, How_Do_I_Perform_an_Offset_Null_of_My_DMM_in_LabVIEW.png, How_Do_I_Run_a_Piece_of_Code_For_a_Specified_Time_Interval_in_LabVIEW.png, How_to_Create_a_Map_With_Non_Default_Data_Type_in_Register_vi.png, How_to_Scale_a_Fixed_Point_Number_to_the_Full_Range_of_an_Integer.png, How_to_Swap_Registers_for_Modbus_Floating_Point_Values.png, LabVIEW_10.png, LabVIEW_While.png, Obtaining_Enum_Elements_in_String_Format.png, Plot_XY_Data_from_Arrays_in_LabVIEW.png, Prevent_LabVIEW_Executable_to_Run_by_Different_Windows_Users_2.png, Programmatically_Access_Metadata_From_a_TIFF_File_with_LabVIEW.png, Programmatically_Read_VI_Metadata_Without_Loading_Dependencies.png, Read_Index_of_Array_Element_in_Event_Structure.png, Testing_a_DUT_Breakdown_Voltage_Using_NI_Digital.png, Trazar_datos_XY_desde_un_arreglo_2D_en_LabVIEW.png, Using_Colors_4_Property_to_Set_Boolean_Colors_on_LabVIEW_Front_Panel.png, cRIO_s_Timestamp_Is_Offset_From_PC_s_Clock_in_LabVIEW.png, 16605742_hOPNk.png, 22024987_2xene.png, 26103724_Lk2H5.png, 27576730_U5IjJ.png, 31519152_6YCug.png, 34798212_qGHci.png, 38592583_C1mOU.png, 38592987_3zCGV.png, 41117531_WCQA4.png, 43292939_cDHQF.png, 43349806_eGR9O.png, 48456600_awYmg.png, 48456792_3Ljjt.png, 48456792_BaNvb.png, 49842204_eemsZ.png, 50027657_C1jUs.png, 50573318_rh2rd.png, 50799360_sx9Q3.png, 53173781_7AKvd.png, 53538259_DJf0i.png, 53541044_9rOae.png, 57643872_uVg1S.png, 57898106_DbvGc.png, 63563672_qPrsL.png, 64920058_UMiYq.png, 65231116_5S88U.png, 69271053_GgSSU.png, 69380394_fBJCD.png, 69808105_B2xkX.png, 76727409_pZH3c.png, 8850929_jswjp.png, Labview_code_example.png, crc32.png, crc32_lookup_table.png, decorations_only.png
+Snippets excluded from harvesting (registration below the 0.7 placement gate): PNG CRC32.png, broken_wires_only.png, crc32_lookup_table.png, decorations_only.png, Excel_Cell_to_RowCol.png, Resolve Path.png, ReverseBitsVim.png, crc32.png, 6yvUWO0.png, create-modbus-rtu-over-tcp-master-exemple.png, create-modbus-tcp-master-exemple.png, 2_readme.png, 3_data_write.png, 3_readme.png, 20251203-090751.png, Array_Size_-_Examples.png, Array_Subset_-_Start_at_index.png, Array_Subset_-_Start_at_index_and_limit_length.png, Bookmark.png, Delete_From_Array_-_Delete_Last_Element.png, Index_Array_-_Get_First_Few_Elements.png, Insert_Into_Array_-_Insert_At_Mid.png, OOP_Example.png, Replace_Array_Subset_-_Replace_First_Element.png, Replace_Array_Subset_-_Replace_Multiple_Elements.png, Reverse_1D_Array_-_Numeric.png, Rotate_1D_Array_-_Rotate_Left.png, Rotate_1D_Array_-_Rotate_Right.png, SetSysColor.png, Array_to_Cluster_Function_in_LabVIEW_Does_Not_Accept_Cluster_Sizes_Lar.png, Build_and_Configure_a_For_Loop_in_LabVIEW.png, Byte_Splitting_and_Joining_of_Floating_Point_Data_in_LabVIEW.png, Calculate_Time_Difference_Between_Two_Dates_in_LabVIEW.png, Can_I_Display_the_24_Bit_Data_in_LabVIEW.png, Configuring_a_Stop_Trigger_using_NI_DAQmx_for_LabVIEW.png, Creating_a_For_Loop_with_Alternative_Starting_Index_and_Increment_Valu.png, Detect_Array_Element_Value_Change_in_LabVIEW.png, Error_538178_When_Reading_the_Exception_Status_in_Modbus_TCP.png, Generating_a_Unix_Timestamp_in_LabVIEW_on_a_Real_Time_Target.png, How_Can_I_Calculate_the_Mean_of_a_2D_Array_in_LabVIEW.png, How_Can_I_Read_the_Binary_Representation_of_a_Floating_Point_Number_in.png, How_Do_I_Perform_an_Offset_Null_of_My_DMM_in_LabVIEW.png, How_Do_I_Run_a_Piece_of_Code_For_a_Specified_Time_Interval_in_LabVIEW.png, How_to_Create_a_Map_With_Non_Default_Data_Type_in_Register_vi.png, How_to_Scale_a_Fixed_Point_Number_to_the_Full_Range_of_an_Integer.png, How_to_Swap_Registers_for_Modbus_Floating_Point_Values.png, LabVIEW_10.png, Obtaining_Enum_Elements_in_String_Format.png, Plot_XY_Data_from_Arrays_in_LabVIEW.png, Prevent_LabVIEW_Executable_to_Run_by_Different_Windows_Users_2.png, Programmatically_Access_Metadata_From_a_TIFF_File_with_LabVIEW.png, Read_Index_of_Array_Element_in_Event_Structure.png, Testing_a_DUT_Breakdown_Voltage_Using_NI_Digital.png, Trazar_datos_XY_desde_un_arreglo_2D_en_LabVIEW.png, Using_Colors_4_Property_to_Set_Boolean_Colors_on_LabVIEW_Front_Panel.png, cRIO_s_Timestamp_Is_Offset_From_PC_s_Clock_in_LabVIEW.png, 16605742_hOPNk.png, 22024987_2xene.png, 26103724_Lk2H5.png, 27576730_U5IjJ.png, 31519152_6YCug.png, 34798212_qGHci.png, 38592583_C1mOU.png, 38592987_3zCGV.png, 41117531_WCQA4.png, 43292939_cDHQF.png, 43349806_eGR9O.png, 48456600_awYmg.png, 48456792_3Ljjt.png, 48456792_BaNvb.png, 49842204_eemsZ.png, 50027657_C1jUs.png, 50573318_rh2rd.png, 50799360_sx9Q3.png, 53173781_7AKvd.png, 53538259_DJf0i.png, 53541044_9rOae.png, 57643872_uVg1S.png, 57898106_DbvGc.png, 63563672_qPrsL.png, 64920058_UMiYq.png, 65231116_5S88U.png, 69271053_GgSSU.png, 69380394_fBJCD.png, 69808105_B2xkX.png, 76727409_pZH3c.png, Labview_code_example.png
 
-
-| class185_t4.png | class 0xb9 | 32x33 | border-exact rect (2/2 ring samples agree byte-for-byte): crc8, crc16 |
-| class185_t5.png | class 0xb9 | 32x41 | border-exact rect (1/4 ring samples agree byte-for-byte): 48624280_j2jSl |
-| class108_t7.png | class 0x6c | 24x49 | border-exact rect (2/2 ring samples agree byte-for-byte): 25772310_GqWWr, 25793239_RnhZN |
-| prim1045.png | (uncatalogued) | 36x31 | 25854851_Yr5FP — single-sample fallback (0/1 agreeing) |
-| prim1080.png | (uncatalogued) | 22x15 | 25793239_RnhZN — single-sample fallback (0/1 agreeing) |

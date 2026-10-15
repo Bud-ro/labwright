@@ -19,6 +19,7 @@ import 'util.dart';
 /// (the best imperfect occurrence of each key, reference beside render).
 void main() {
   const scoreDir = String.fromEnvironment('SCORE_DIR');
+  const keyDump = String.fromEnvironment('KEY_DUMP');
   testWidgets('SCORE_DIR=<dir> scores every icon against the snippet references', (
     tester,
   ) async {
@@ -60,6 +61,7 @@ void main() {
         );
         if (!result.registered || result.comparison.diffFraction > 0.08)
           continue;
+        if ((result.registration.scale - 1).abs() > 0.001) continue;
         final reg = result.registration;
         final refW = result.reference.width, refH = result.reference.height;
         final rgba = result.referenceRgba;
@@ -106,6 +108,7 @@ void main() {
                 mismatch++;
             }
           }
+          if (total == 0) continue;
           (rows[keyName] ??= []).add((
             name,
             mismatch,
@@ -113,8 +116,10 @@ void main() {
             o.oid,
             '${b.width}x${b.height}${art == null ? ' NOART' : ''}',
           ));
-          if (mismatch > 0 &&
-              (dumps[keyName] == null || dumps[keyName]!.$1 > mismatch)) {
+          final wanted = keyName == keyDump;
+          if (wanted ||
+              mismatch > 0 &&
+                  (dumps[keyName] == null || dumps[keyName]!.$1 > mismatch)) {
             final dump = StringBuffer(
               '--- $keyName best $name #${o.oid} mismatch $mismatch/$total box ${box.left.round()},${box.top.round()} stamp ${r.left.round()},${r.top.round()} ${r.width.round()}x${r.height.round()} reg ${reg.scale} ${reg.dx} ${reg.dy}\n',
             );
@@ -145,7 +150,10 @@ void main() {
               }
               dump.writeln('${y.toString().padLeft(4)} $a | $c');
             }
-            dumps[keyName] = (mismatch, dump.toString());
+            dumps[wanted ? '$keyName $name #${o.oid}' : keyName] = (
+              mismatch,
+              dump.toString(),
+            );
           }
         }
       }

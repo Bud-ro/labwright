@@ -721,7 +721,7 @@ final Map<int, PrimIconArt> primIconsGrey = {};
 /// before the first frame, so every painter finds its icons.
 Map<int, PrimIconArt> loadPrimIcons() {
   if (primIcons.isNotEmpty) return primIcons;
-  final indexOfCharacter = Int32List(128);
+  final indexOfCharacter = Int32List(kPrimIconPaletteCodeUnits);
   final palette = Int32List(kPrimIconPalette.length);
   var entry = 0;
   for (final MapEntry(key: character, value: argb)
@@ -738,7 +738,7 @@ Map<int, PrimIconArt> loadPrimIcons() {
     final id = parsePrimIconName(key)!;
     final width = art.indexOf('|');
     final height = art.length ~/ (width + 1);
-    final indices = Uint8List(width * height);
+    final indices = Uint16List(width * height);
     for (var y = 0; y < height; y++) {
       for (var x = 0; x < width; x++) {
         indices[y * width + x] =
@@ -821,7 +821,12 @@ Map<int, PrimIconArt> loadPrimIcons() {
 /// The opaque pixels of [indices] as rectangles of one palette index each, grouped by that
 /// index: every run of equal pixels in a row, merged with the identical run beneath it. The six
 /// vertices of each rectangle's two triangles follow one another.
-List<Float32List> _rects(Uint8List indices, int width, int height, int colors) {
+List<Float32List> _rects(
+  Uint16List indices,
+  int width,
+  int height,
+  int colors,
+) {
   final left = Int32List(indices.length ~/ 2 + 1);
   final top = Int32List(left.length);
   final right = Int32List(left.length);
