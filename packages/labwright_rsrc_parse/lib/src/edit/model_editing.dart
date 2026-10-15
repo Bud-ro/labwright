@@ -180,8 +180,10 @@ mixin ViEditing {
     return wire;
   }
 
-  /// Writes the edited heaps back into the model's sections and rebuilds its diagrams.
+  /// Lays out what has no position yet, routes the wires, writes the edited heaps back into
+  /// the model's sections and rebuilds its diagrams.
   void write() {
+    BdLayout(diagram).run();
     _bdSection.replace(encodeHeapTree(_bdTree));
     for (final diagram in blockDiagrams) {
       if (diagram.sectionIndex == _bdSection.index) reloadDiagram(diagram);

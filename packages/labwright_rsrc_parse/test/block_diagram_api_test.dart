@@ -4,19 +4,11 @@ import 'package:test/test.dart';
 import 'reconstruction/dataflow.dart';
 
 void main() {
-  test('a For loop built from the API re-reads with its terminals, and grows around its body', () {
+  test('a For loop built from the API re-reads with its terminals, laid out around its body', () {
     final vi = ViModel.empty();
     final loop = vi.add(BdLoop.forLoop());
-    expect(loop.bounds, const HeapRect(top: 20, left: 20, bottom: 120, right: 140));
     final add = loop.add(BdPrimitive(PrimOp.add));
     final times = loop.add(BdPrimitive(PrimOp.multiply));
-    expect(
-      (add.bounds, times.bounds),
-      (
-        const HeapRect(top: 20, left: 20, bottom: 52, right: 52),
-        const HeapRect(top: 20, left: 72, bottom: 52, right: 104),
-      ),
-    );
     final eight = vi.add(BdConstant.i32(8, label: 'eight'));
     vi.connect(eight, loop.count);
     vi.connect(loop.iteration, add.terminal('x'));
@@ -24,6 +16,10 @@ void main() {
     vi.connect(eight, times.terminal('y'));
     expect(loop.borderTerminals.map((t) => t.kind.name), ['count', 'loopTunnel', 'iteration']);
     vi.write();
+    expect(add.bounds!.right + vi.diagram.gap, lessThanOrEqualTo(times.bounds!.left));
+    expect(add.bounds!.top, loop.padding.top + add.margin.top);
+    expect(loop.bounds!.right - loop.bounds!.left, times.bounds!.right + times.margin.right + loop.padding.right);
+    expect(eight.bounds!.right, lessThan(loop.bounds!.left));
     final diagram = vi.primaryBlockDiagram!;
     final classes = diagram.objects.map((o) => o.objectClass).toSet();
     expect(
@@ -37,6 +33,7 @@ void main() {
       ]),
     );
     expect(diagram.wires.length, 4);
+    expect(diagram.wires.where((w) => w.routePoints != null || w.routeTree != null).length, 4);
     final structure = diagram.objects.firstWhere((o) => o.objectClass == HeapObjectClass.bdForLoop);
     expect(diagram.childrenOf(structure).where((o) => o.objectClass == HeapObjectClass.bdFrame).length, 1);
     final constant = diagram.objects.firstWhere((o) => o.objectClass == HeapObjectClass.bdConstDco);
