@@ -699,15 +699,41 @@ int classVariantIconKey(int kind, int termCount, {int rows = 0}) {
   return rows == 0 ? -packed - 0x100000 : -((packed << 36) | rows) - 0x2000000;
 }
 
-/// The icon key of a class variant node: its class and terminal count, plus for Build Array a
-/// leading 1 followed by one bit per input row from the top, set when the input concatenates.
+/// A Compound Arithmetic node's operation, bits 16–23 of its `objFlags`; the members are the
+/// bytes whose glyph the snippet references show.
+enum BdCompoundArithmeticOp {
+  multiply(0x01),
+  add(0x08),
+  or(0x0b);
+
+  const BdCompoundArithmeticOp(this.byte);
+
+  final int byte;
+
+  static int byteOf(ViHeapObject node) => ((node.objFlags ?? 0) >> 16) & 0xff;
+
+  static BdCompoundArithmeticOp? of(ViHeapObject node) {
+    final byte = byteOf(node);
+    for (final op in values) {
+      if (op.byte == byte) return op;
+    }
+    return null;
+  }
+}
+
+/// The icon key of a class variant node: its class and terminal count, plus a rows signature
+/// for the classes whose art depends on more: for Build Array a leading 1 followed by one bit
+/// per input row from the top, set when the input concatenates; for Compound Arithmetic 0x100
+/// plus its operation byte.
 int bdClassVariantIconKey(ViDiagram diagram, ViHeapObject node) {
   final holders = [
     for (final c in diagram.children(node.oid))
       if (c.kind == kNodeEndpointDcoKind) c,
   ];
   var rows = 0;
-  if (node.objectClass == HeapObjectClass.bdNode3a && holders.length >= 2 && holders.length <= 36) {
+  if (node.objectClass == HeapObjectClass.bdNode6c) {
+    rows = 0x100 | BdCompoundArithmeticOp.byteOf(node);
+  } else if (node.objectClass == HeapObjectClass.bdNode3a && holders.length >= 2 && holders.length <= 36) {
     rows = 1;
     for (final holder in holders.skip(1)) {
       final concatenates = diagram.children(holder.oid).any((t) => t.hasFlag(ViObjFlag.buildArrayConcatenate));

@@ -3,11 +3,17 @@ enum PrimIconStatus { verified, verifiedHand, unverified, rejected }
 // GENERATED-ENTRIES-BEGIN (tool/extract_prim_icons.dart rewrites this block;
 // statuses are preserved — edit them freely.)
 const Map<String, PrimIconStatus> kPrimIconStatus = {
-  'class108_t3': PrimIconStatus.unverified,
-  'class108_t4_from13': PrimIconStatus.unverified,
-  'class108_t4_from18': PrimIconStatus.unverified,
-  'class108_t5': PrimIconStatus.unverified,
-  'class108_t7': PrimIconStatus.unverified,
+  'class108_t3_r101': PrimIconStatus.unverified,
+  'class108_t3_r108': PrimIconStatus.unverified,
+  'class108_t3_r10a': PrimIconStatus.unverified,
+  'class108_t3_r10b': PrimIconStatus.unverified,
+  'class108_t4_r108': PrimIconStatus.unverified,
+  'class108_t4_r10a': PrimIconStatus.unverified,
+  'class108_t4_r10b_from13': PrimIconStatus.unverified,
+  'class108_t4_r10b_from18': PrimIconStatus.unverified,
+  'class108_t4_r10c': PrimIconStatus.unverified,
+  'class108_t5_r108': PrimIconStatus.unverified,
+  'class108_t7_r108': PrimIconStatus.unverified,
   'class147_t11': PrimIconStatus.unverified,
   'class147_t6_from10': PrimIconStatus.unverified,
   'class147_t6_from16': PrimIconStatus.unverified,
