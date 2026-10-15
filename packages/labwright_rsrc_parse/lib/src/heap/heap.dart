@@ -291,6 +291,9 @@ enum HeapAttribute {
   /// Clump number; inferred.
   clumpNum(0x03a, HeapAttrKind.ordinal, 'clumpNum', AttrConfidence.inferred),
 
+  /// Which palette constant a diagram constant drawn as a glyph is: three for the empty string; inferred.
+  fixedConstant(0x03b, HeapAttrKind.enumValue, 'fixedConstant', AttrConfidence.inferred),
+
   /// How the object grows; inferred.
   howGrow(0x089, HeapAttrKind.numeric, 'howGrow', AttrConfidence.inferred),
 

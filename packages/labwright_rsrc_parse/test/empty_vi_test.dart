@@ -56,7 +56,7 @@ void main() {
     expect(nodes.map((o) => o.primResId), [PrimOp.add.id, PrimOp.multiply.id]);
     expect(nodes.map((o) => diagram.childrenOf(o).length), [3, 3]);
     expect(diagram.wires.single.endpointOids, wire.endpointOids);
-    expect(diagram.wires.single.route?.pointCount, 3);
+    expect(diagram.wires.single.route?.pointCount, 4);
     final lifted = buildViModel(model.serialize()).diagram;
     expect(lifted.all<BdPrimitive>().map((p) => p.op?.name), ['add', 'multiply']);
     expect(lifted.wires.single.signalKind, 0x103);

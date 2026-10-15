@@ -11,7 +11,7 @@ ViModel buildWhileLoop() {
 
   vi.add(loop);
   final period = loop.add(BdConstant.u32(200, label: 'milliseconds to wait'));
-  final wait = loop.add(BdPrimitive(PrimOp.waitMs));
+  final wait = loop.add(BdPrimitive(PrimOp.waitMs, label: 'Wait (ms)'));
   final number = loop.add(BdPrimitive(PrimOp.randomNumber));
   vi.connect(stop, loop.conditional);
   vi.connect(period, wait.terminal('milliseconds to wait'));

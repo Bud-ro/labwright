@@ -8,16 +8,16 @@ ViModel buildForLoopStartIncrement() {
   final start = vi.control(BdType.i32, 'Start Value');
   final output = vi.indicator(BdType.i32.array, 'Output');
 
-  final iterations = vi.add(BdConstant.i32(10, label: 'Loop iterations'));
+  final iterations = vi.add(BdConstant.i32(10, label: 'Loop iterations', showLabel: true));
   final loop = vi.add(BdLoop.forLoop());
   final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
   final add = loop.add(BdPrimitive(PrimOp.add));
   final multiply = loop.add(BdPrimitive(PrimOp.multiply));
-  vi.connect(add.terminal('x+y'), out);
+  vi.connect(add.terminal('x+y'), out).label('B');
   vi.connect(increment, multiply.terminal('x'));
   vi.connect(start, add.terminal('x'));
   vi.connect(loop.iteration, multiply.terminal('y'));
-  vi.connect(multiply.terminal('x*y'), add.terminal('y'));
+  vi.connect(multiply.terminal('x*y'), add.terminal('y')).label('A');
   vi.connect(iterations, loop.count);
   vi.connect(out, output);
   vi.write();

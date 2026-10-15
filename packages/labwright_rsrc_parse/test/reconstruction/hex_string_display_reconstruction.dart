@@ -7,8 +7,10 @@ ViModel buildHexStringDisplay() {
   final digits = vi.control(BdType.string, 'Hexadecimal Number (Normal Display)');
   final bytes = vi.indicator(BdType.string, 'Hexadecimal String (Hex Display)');
 
-  final asString = vi.add(BdConstant.string(''));
-  final parse = vi.add(BdPrimitive(PrimOp.hexadecimalStringToNumber));
+  final asString = vi.add(BdConstant.emptyString());
+  final parse = vi.add(
+    BdPrimitive(PrimOp.hexadecimalStringToNumber, label: 'Hexadecimal String To Number', showLabel: false),
+  );
   final cast = vi.add(BdPrimitive(PrimOp.typeCast));
   vi.connect(digits, parse.terminal('string'));
   vi.connect(asString, cast.terminal('type'));
