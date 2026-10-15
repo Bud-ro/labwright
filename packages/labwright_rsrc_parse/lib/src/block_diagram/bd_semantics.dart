@@ -695,9 +695,22 @@ int? primIconKeyOf(BdObject object) =>
 /// and any single-op class key.
 int classVariantIconKey(int kind, int termCount) => -((kind << 8) | (termCount & 0xff)) - 0x100000;
 
+/// The icon key of the art [baseKey] shows in VIs saved by LabVIEW [fromMajor] and later,
+/// distinct from every other key.
+int primIconVersionKey(int baseKey, int fromMajor) => -0x4000000 - (((baseKey + 0x2000000) << 7) | (fromMajor & 0x7f));
+
+/// The base key and first LabVIEW major of a key from [primIconVersionKey], else null.
+(int, int)? primIconVersionOf(int key) {
+  if (key > -0x4000000) return null;
+  final packed = -(key + 0x4000000);
+  return ((packed >> 7) - 0x2000000, packed & 0x7f);
+}
+
 /// The asset name of a prim icon key: `prim<id>` for a primResID, `class<code>` for a
-/// single-op class, `class<code>_t<n>` for a class variant with `n` terminals.
+/// single-op class, `class<code>_t<n>` for a class variant with `n` terminals, each with
+/// `_from<major>` when it is one LabVIEW generation of the art.
 String primIconName(int key) {
+  if (primIconVersionOf(key) case (final base, final from)) return '${primIconName(base)}_from$from';
   if (key >= 0) return 'prim$key';
   if (key > -0x100000) return 'class${-key}';
   final packed = -(key + 0x100000);
@@ -706,12 +719,17 @@ String primIconName(int key) {
 
 /// The prim icon key spelled by [name], or null when it is not one; the inverse of [primIconName].
 int? parsePrimIconName(String name) {
-  final match = RegExp(r'^(prim|class)(\d+)(?:_t(\d+))?$').firstMatch(name);
+  final match = RegExp(r'^(prim|class)(\d+)(?:_t(\d+))?(?:_from(\d+))?$').firstMatch(name);
   if (match == null) return null;
   final number = int.parse(match.group(2)!);
-  if (match.group(1) == 'prim') return number;
   final terms = match.group(3);
-  return terms == null ? -number : classVariantIconKey(number, int.parse(terms));
+  final base = match.group(1) == 'prim'
+      ? number
+      : terms == null
+      ? -number
+      : classVariantIconKey(number, int.parse(terms));
+  final from = match.group(4);
+  return from == null ? base : primIconVersionKey(base, int.parse(from));
 }
 
 /// Border terminals drawn as tunnel squares.

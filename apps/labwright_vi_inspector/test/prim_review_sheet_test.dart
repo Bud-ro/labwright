@@ -18,8 +18,11 @@ void main() {
         final key = primIconName(row.primResId!);
         expect(
           row.hasIcon,
-          kPrimIconStatus.containsKey(key) &&
-              kPrimIconStatus[key] != PrimIconStatus.rejected,
+          kPrimIconStatus.entries.any(
+            (e) =>
+                (e.key == key || e.key.startsWith('${key}_from')) &&
+                e.value != PrimIconStatus.rejected,
+          ),
           reason: '$key disagrees with the icon catalogue',
         );
       }

@@ -29,6 +29,7 @@ void main() {
     }
     await loadRealTextFont();
     final rows = <String, List<(String, int, int, int, String)>>{};
+    final byVersion = <String, Map<String, (int, int)>>{};
     final dumps = <String, (int, String)>{};
     await tester.runAsync(() async {
       final icons = loadPrimIcons();
@@ -79,7 +80,7 @@ void main() {
               ? primIconName(key)
               : primIconName(classVariantIconKey(o.kind, terms));
           final box = raster.modelRect(b);
-          final id = loadedPrimIconIdOf(o);
+          final id = loadedPrimIconIdOf(o, version: bd.version);
           final art = id == null ? null : icons[id];
           final r = art == null
               ? box
@@ -109,6 +110,12 @@ void main() {
             }
           }
           if (total == 0) continue;
+          final v = model.version ?? '?';
+          final seen = (byVersion[keyName] ??= {})[v] ?? (0, 0);
+          byVersion[keyName]![v] = (
+            seen.$1 + (mismatch == 0 ? 1 : 0),
+            seen.$2 + 1,
+          );
           (rows[keyName] ??= []).add((
             name,
             mismatch,
@@ -168,7 +175,7 @@ void main() {
       rs.sort((a, b) => b.$2.compareTo(a.$2));
       final worst = rs.first, best = rs.last;
       out.writeln(
-        '${k.padRight(14)} n=${rs.length.toString().padLeft(3)} perfect=${perfect.toString().padLeft(3)} sizes=${rs.map((r) => r.$5).toSet().join(',')} best=${best.$2}/${best.$3} in ${best.$1} #${best.$4} worst=${worst.$2}/${worst.$3} in ${worst.$1} #${worst.$4}',
+        '${k.padRight(14)} n=${rs.length.toString().padLeft(3)} perfect=${perfect.toString().padLeft(3)} sizes=${rs.map((r) => r.$5).toSet().join(',')} best=${best.$2}/${best.$3} in ${best.$1} #${best.$4} worst=${worst.$2}/${worst.$3} in ${worst.$1} #${worst.$4} versions=${(byVersion[k]!.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}:${e.value.$1}/${e.value.$2}').join(' ')}',
       );
     }
     final dumpOut = StringBuffer();
