@@ -1505,6 +1505,7 @@ class BdDiagramPainter extends CustomPainter {
     _paintWireObjects(canvas, wires);
     _paintSolids(canvas, solids, labelBackings);
     _paintLabelBackings(canvas, labelBackings);
+    _paintAttachmentArrows(canvas);
     _paintCaptions(canvas);
   }
 
@@ -2329,6 +2330,99 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawRect(rect, Paint()..color = _dimFor(oid, Colors.black));
       canvas.drawRect(rect.deflate(1), Paint()..color = _dimFor(oid, backing));
     }
+  }
+
+  /// The arrow from a label to the object it is attached to: the label's attachment glyph
+  /// spans the arrow, its corner nearest the object being the head.
+  void _paintAttachmentArrows(Canvas canvas) {
+    final diagram = scene.diagram;
+    for (final label in objects) {
+      final glyph = diagram
+          .byId[label.refsOf(HeapRefKind.attachmentRef)?.firstOrNull ?? -1];
+      final target =
+          diagram.byId[glyph
+                  ?.refsOf(HeapRefKind.attachedObjectRef)
+                  ?.firstOrNull ??
+              -1];
+      final lb = label.absBounds, gb = glyph?.bounds;
+      if (glyph == null || target == null || lb == null || gb == null) continue;
+      final tb = _absRectOf(target);
+      if (tb == null) continue;
+      final span = _toCanvas(
+        HeapRect(
+          top: lb.top + gb.top,
+          left: lb.left + gb.left,
+          bottom: lb.top + gb.bottom,
+          right: lb.left + gb.right,
+        ),
+      );
+      final aim = _toCanvas(tb).center;
+      final corners = [
+        span.topLeft,
+        span.topRight,
+        span.bottomRight,
+        span.bottomLeft,
+      ];
+      var nearest = 0;
+      for (var i = 1; i < corners.length; i++) {
+        if ((corners[i] - aim).distanceSquared <
+            (corners[nearest] - aim).distanceSquared)
+          nearest = i;
+      }
+      final head = corners[nearest] + const Offset(0.5, 0.5);
+      final tail =
+          corners[(nearest + 2) % corners.length] + const Offset(0.5, 0.5);
+      final shaft = tail - head;
+      if (shaft.distance == 0) continue;
+      final along = shaft / shaft.distance;
+      final across = Offset(-along.dy, along.dx);
+      final ink = Paint()
+        ..color = _dimFor(label.oid, Colors.black)
+        ..isAntiAlias = true;
+      final base = head + along * kAttachmentArrowHeadLength;
+      final wing = across * kAttachmentArrowHeadHalfWidth;
+      canvas.drawLine(
+        tail -
+            along * kAttachmentArrowTailInset -
+            across * kAttachmentArrowShaftShift,
+        base +
+            along * kAttachmentArrowShaftGap -
+            across * kAttachmentArrowShaftShift,
+        ink
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = kAttachmentArrowWidth
+          ..strokeCap = StrokeCap.butt,
+      );
+      canvas.drawPath(
+        Path()
+          ..moveTo(head.dx, head.dy)
+          ..lineTo((base + wing).dx, (base + wing).dy)
+          ..lineTo((base - wing).dx, (base - wing).dy)
+          ..close(),
+        ink..style = PaintingStyle.fill,
+      );
+    }
+  }
+
+  /// The absolute box of [object]: its bounds, or its terminal box within the nearest bounded
+  /// ancestor.
+  HeapRect? _absRectOf(BdObject object) {
+    final bounds = object.absBounds;
+    if (bounds != null) return bounds;
+    final term = object.termBounds;
+    if (term == null) return null;
+    var owner = scene.diagram.parentOf(object);
+    while (owner != null && owner.absBounds == null) {
+      owner = scene.diagram.parentOf(owner);
+    }
+    final ob = owner?.absBounds;
+    if (ob == null) return null;
+    return HeapRect(
+      top: ob.top + term.top,
+      left: ob.left + term.left,
+      bottom: ob.top + term.bottom,
+      right: ob.left + term.right,
+    );
   }
 
   void _paintCaptions(Canvas canvas) {
@@ -5354,3 +5448,19 @@ class _ViImageStrip extends StatelessWidget {
     return tooltip == null ? tile : Tooltip(message: tooltip, child: tile);
   }
 }
+
+/// The attachment arrow's stroke width and the length and half-width of its head.
+const double kAttachmentArrowWidth = 2.2;
+
+const double kAttachmentArrowHeadLength = 11;
+
+const double kAttachmentArrowHeadHalfWidth = 4.3;
+
+/// How far short of the label's corner the shaft stops, and how far past the head's base
+/// it starts.
+const double kAttachmentArrowTailInset = 1.5;
+
+const double kAttachmentArrowShaftGap = 1.5;
+
+/// How far the shaft sits across its direction from the corner-to-corner line.
+const double kAttachmentArrowShaftShift = 0.5;
