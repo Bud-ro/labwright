@@ -294,3 +294,6 @@ Snippets excluded from harvesting (registration below the 0.7 placement gate): E
 
 | class185_t4.png | class 0xb9 | 32x33 | border-exact rect (2/2 ring samples agree byte-for-byte): crc8, crc16 |
 | class185_t5.png | class 0xb9 | 32x41 | border-exact rect (1/4 ring samples agree byte-for-byte): 48624280_j2jSl |
+| class108_t7.png | class 0x6c | 24x49 | border-exact rect (2/2 ring samples agree byte-for-byte): 25772310_GqWWr, 25793239_RnhZN |
+| prim1045.png | (uncatalogued) | 36x31 | 25854851_Yr5FP — single-sample fallback (0/1 agreeing) |
+| prim1080.png | (uncatalogued) | 22x15 | 25793239_RnhZN — single-sample fallback (0/1 agreeing) |
