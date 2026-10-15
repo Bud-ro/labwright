@@ -1130,6 +1130,20 @@ void main() {
     expect(d.byId[3]!.category, ViObjectKind.node);
   });
 
+  test('references in the second id bank are kept by kind', () {
+    final d = dia([
+      ...open(0x7e, 1),
+      ...open(0x1b, 2, tag: 0x1a),
+      ...open(0x0a, 3, tag: 0x1b),
+      ...bounds(10, 10, 20, 60),
+      ...encodeHeapRef(0x16, 0x8a, 9),
+      ...close(0x1b),
+      ...close(0x1a),
+      ...close(),
+    ]);
+    expect(d.byId[3]!.refsOf(HeapRefKind.attachmentRef), [9]);
+  });
+
   test('a BD node inherits its name from its child 0xa caption', () {
     final d = dia([
       ...open(0x7e, 1),
