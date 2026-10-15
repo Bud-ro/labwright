@@ -120,8 +120,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1083': PrimIconStatus.unverified,
   'prim1086': PrimIconStatus.unverified,
   'prim1102': PrimIconStatus.rejected,
-  'prim1102_from13': PrimIconStatus.unverified,
-  'prim1102_from16': PrimIconStatus.unverified,
+  'prim1102_from21': PrimIconStatus.unverified,
   'prim1102_from9': PrimIconStatus.unverified,
   'prim1103': PrimIconStatus.unverified,
   'prim1104': PrimIconStatus.unverified,
@@ -130,8 +129,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1110': PrimIconStatus.verifiedHand,
   'prim1111': PrimIconStatus.unverified,
   'prim1112': PrimIconStatus.verifiedHand,
-  'prim1113_from18': PrimIconStatus.unverified,
-  'prim1113_from9': PrimIconStatus.unverified,
+  'prim1113': PrimIconStatus.unverified,
   'prim1114': PrimIconStatus.rejected,
   'prim1116': PrimIconStatus.unverified,
   'prim1117': PrimIconStatus.unverified,
@@ -144,7 +142,8 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1140': PrimIconStatus.unverified,
   'prim1141': PrimIconStatus.unverified,
   'prim1142': PrimIconStatus.verifiedHand,
-  'prim1143': PrimIconStatus.verifiedHand,
+  'prim1143_from17': PrimIconStatus.unverified,
+  'prim1143_from21': PrimIconStatus.verifiedHand,
   'prim1144': PrimIconStatus.unverified,
   'prim1145': PrimIconStatus.unverified,
   'prim1147_from13': PrimIconStatus.unverified,
@@ -166,7 +165,8 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1168': PrimIconStatus.unverified,
   'prim1169': PrimIconStatus.unverified,
   'prim1170': PrimIconStatus.unverified,
-  'prim1171': PrimIconStatus.unverified,
+  'prim1171_from18': PrimIconStatus.unverified,
+  'prim1171_from21': PrimIconStatus.unverified,
   'prim1180_from11': PrimIconStatus.unverified,
   'prim1180_from18': PrimIconStatus.unverified,
   'prim1181': PrimIconStatus.verifiedHand,
@@ -219,8 +219,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1600': PrimIconStatus.unverified,
   'prim1606': PrimIconStatus.verifiedHand,
   'prim1608': PrimIconStatus.verifiedHand,
-  'prim1609_from15': PrimIconStatus.unverified,
-  'prim1609_from17': PrimIconStatus.unverified,
+  'prim1609': PrimIconStatus.unverified,
   'prim1710': PrimIconStatus.unverified,
   'prim1711': PrimIconStatus.unverified,
   'prim1713': PrimIconStatus.unverified,
@@ -279,6 +278,8 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim2302': PrimIconStatus.unverified,
   'prim23059': PrimIconStatus.unverified,
   'prim23063': PrimIconStatus.rejected,
+  'prim23063_from12': PrimIconStatus.unverified,
+  'prim23063_from21': PrimIconStatus.unverified,
   'prim2308': PrimIconStatus.unverified,
   'prim23783': PrimIconStatus.unverified,
   'prim24000': PrimIconStatus.unverified,
@@ -343,7 +344,8 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim8083': PrimIconStatus.verified,
   'prim8100': PrimIconStatus.unverified,
   'prim8101': PrimIconStatus.unverified,
-  'prim8201': PrimIconStatus.unverified,
+  'prim8201_from19': PrimIconStatus.unverified,
+  'prim8201_from9': PrimIconStatus.unverified,
   'prim8202': PrimIconStatus.unverified,
   'prim8203': PrimIconStatus.rejected,
   'prim8204': PrimIconStatus.unverified,
@@ -397,7 +399,6 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1163': (dx: 0, dy: 0), // x3
   'prim1166': (dx: 0, dy: 0), // x16
   'prim1170': (dx: 7, dy: 7), // x6
-  'prim1171': (dx: -3, dy: 7), // x4
   'prim1180': (dx: 0, dy: 0), // x2
   'prim1181': (dx: 0, dy: 0), // x3
   'prim1185': (dx: 0, dy: 0), // x1

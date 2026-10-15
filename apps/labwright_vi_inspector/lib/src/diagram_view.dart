@@ -1067,7 +1067,7 @@ ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
       ? null
-      : kPrimIconPlacement[key >= 0 ? 'prim$key' : 'class${-key}'];
+      : kPrimIconPlacement[primIconName(primIconVersionOf(key)?.$1 ?? key)];
   if (placed != null) {
     return Rect.fromLTWH(
       nodeRect.left + placed.dx,
@@ -1077,8 +1077,8 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
     );
   }
   return Rect.fromLTWH(
-    (nodeRect.center.dx - artW / 2).floorToDouble(),
-    (nodeRect.center.dy - artH / 2).floorToDouble(),
+    (nodeRect.center.dx - artW / 2).ceilToDouble(),
+    (nodeRect.center.dy - artH / 2).ceilToDouble(),
     artW.toDouble(),
     artH.toDouble(),
   );
