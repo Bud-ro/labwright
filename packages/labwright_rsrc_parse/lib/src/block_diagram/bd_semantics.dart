@@ -710,9 +710,9 @@ enum BdCompoundArithmeticOp {
 
   final int byte;
 
-  static int byteOf(ViHeapObject node) => ((node.objFlags ?? 0) >> 16) & 0xff;
+  static int byteOf(BdObject node) => ((node.objFlags ?? 0) >> 16) & 0xff;
 
-  static BdCompoundArithmeticOp? of(ViHeapObject node) {
+  static BdCompoundArithmeticOp? of(BdObject node) {
     final byte = byteOf(node);
     for (final op in values) {
       if (op.byte == byte) return op;
@@ -725,18 +725,18 @@ enum BdCompoundArithmeticOp {
 /// for the classes whose art depends on more: for Build Array a leading 1 followed by one bit
 /// per input row from the top, set when the input concatenates; for Compound Arithmetic 0x100
 /// plus its operation byte.
-int bdClassVariantIconKey(ViDiagram diagram, ViHeapObject node) {
+int bdClassVariantIconKey(BdDiagram diagram, BdObject node) {
   final holders = [
-    for (final c in diagram.children(node.oid))
-      if (c.kind == kNodeEndpointDcoKind) c,
+    for (final c in diagram.childrenOf(node))
+      if (c.objectClass == BdObjectClass.terminalHolder) c,
   ];
   var rows = 0;
-  if (node.objectClass == HeapObjectClass.bdNode6c) {
+  if (node.objectClass == BdObjectClass.compoundArithmetic) {
     rows = 0x100 | BdCompoundArithmeticOp.byteOf(node);
-  } else if (node.objectClass == HeapObjectClass.bdNode3a && holders.length >= 2 && holders.length <= 36) {
+  } else if (node.objectClass == BdObjectClass.buildArray && holders.length >= 2 && holders.length <= 36) {
     rows = 1;
     for (final holder in holders.skip(1)) {
-      final concatenates = diagram.children(holder.oid).any((t) => t.hasFlag(ViObjFlag.buildArrayConcatenate));
+      final concatenates = diagram.childrenOf(holder).any((t) => t.hasFlag(ViObjFlag.buildArrayConcatenate));
       rows = (rows << 1) | (concatenates ? 1 : 0);
     }
   }

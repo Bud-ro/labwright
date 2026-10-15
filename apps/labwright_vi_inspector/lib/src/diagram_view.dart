@@ -1033,12 +1033,7 @@ int? loadedPrimIconIdOf(BdObject object, {BdDiagram? diagram}) {
   return key;
 }
 
-bool primIconHit(
-  BdObject object,
-  double x,
-  double y, {
-  BdDiagram? diagram,
-}) {
+bool primIconHit(BdObject object, double x, double y, {BdDiagram? diagram}) {
   final id = loadedPrimIconIdOf(object, diagram: diagram);
   final art = id == null ? null : primIcons[id];
   final bounds = object.absBounds;
