@@ -4,39 +4,37 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// number on every iteration.
 ViModel buildLoopInvariantBefore() {
   final vi = ViModel.empty(name: 'Loop-Invariant Code Motion - Before.vi');
-  final bd = vi.blockDiagram;
-  final numeric = bd.control(BdType.i32, 'Numeric');
-  final array = bd.indicator(const BdType.array(ViDataType.i32), 'Array');
-  final ten = bd.diagram.add(BdConstant.create(bd, BdType.i32, 10));
-  final loop = bd.diagram.add(BdLoop.create(bd));
-  final input = loop.tunnel(BdType.i32, output: false);
-  final out = loop.tunnel(const BdType.array(ViDataType.i32), output: true, indexing: true);
-  final increment = loop.body.add(BdPrimitive.create(bd, PrimOp.increment));
-  bd.connect(increment.terminal('x+1'), out.innerPort);
-  bd.connect(input.innerPort, increment.terminal('x'));
-  bd.connect(numeric.terminal, input.outer!);
-  bd.connect(ten.out, loop.count!.outer!);
-  bd.connect(out.outer!, array.terminal);
-  bd.write();
+  final numeric = vi.control(BdType.i32, 'Numeric');
+  final array = vi.indicator(BdType.i32.array, 'Array');
+
+  final ten = vi.add(BdConstant.i32(10));
+  final loop = vi.add(BdLoop.forLoop());
+  final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
+  final increment = loop.add(BdPrimitive(PrimOp.increment));
+  increment['x+1'] >> out;
+  numeric >> increment['x'];
+  ten >> loop.count;
+  out >> array;
+  vi.write();
   return vi;
 }
 
 /// The LabVIEW wiki's "Loop-Invariant Code Motion", after: the increment moved out of the loop.
 ViModel buildLoopInvariantAfter() {
   final vi = ViModel.empty(name: 'Loop-Invariant Code Motion - After.vi');
-  final bd = vi.blockDiagram;
-  final numeric = bd.control(BdType.i32, 'Numeric');
-  final array = bd.indicator(const BdType.array(ViDataType.i32), 'Array');
-  final ten = bd.diagram.add(BdConstant.create(bd, BdType.i32, 10));
-  final increment = bd.diagram.add(BdPrimitive.create(bd, PrimOp.increment));
-  final loop = bd.diagram.add(BdLoop.create(bd));
-  final out = loop.tunnel(const BdType.array(ViDataType.i32), output: true, indexing: true);
-  final input = loop.tunnel(BdType.i32, output: false);
-  bd.connect(input.innerPort, out.innerPort);
-  bd.connect(numeric.terminal, increment.terminal('x'));
-  bd.connect(ten.out, loop.count!.outer!);
-  bd.connect(increment.terminal('x+1'), input.outer!);
-  bd.connect(out.outer!, array.terminal);
-  bd.write();
+  final numeric = vi.control(BdType.i32, 'Numeric');
+  final array = vi.indicator(BdType.i32.array, 'Array');
+
+  final ten = vi.add(BdConstant.i32(10));
+  final increment = vi.add(BdPrimitive(PrimOp.increment));
+  final loop = vi.add(BdLoop.forLoop());
+  final out = loop.tunnel(BdType.i32.array, direction: BdTunnelDirection.output, indexing: true);
+  final input = loop.tunnel(BdType.i32, direction: BdTunnelDirection.input);
+  input.innerPort >> out.innerPort;
+  numeric >> increment['x'];
+  ten >> loop.count;
+  increment['x+1'] >> input;
+  out >> array;
+  vi.write();
   return vi;
 }

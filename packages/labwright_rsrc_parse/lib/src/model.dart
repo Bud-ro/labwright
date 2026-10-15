@@ -6,7 +6,7 @@ import '../labwright_rsrc_parse.dart';
 /// title, per-block component totals, the diagrams of both sides, the type pool, the sub-VI
 /// names, the connector-pane type and the font table; and the sections themselves, which
 /// edits change and [serialize] writes back into the file they were loaded from.
-class ViModel {
+class ViModel with ViEditing {
   ViModel({
     required this.version,
     required this.title,
@@ -204,7 +204,8 @@ class ViModel {
   static ViModel empty({String name = 'untitled.vi'}) => buildViModel(emptyViBytes(name: name));
 
   /// The block diagram as objects to place, nest and wire; lifted once from the primary
-  /// heap and written back with `write`.
+  /// heap and written back with [write].
+  @override
   late final BdEditor blockDiagram = BdEditor.lift(this);
 
   /// The heap section [diagram] was built from.

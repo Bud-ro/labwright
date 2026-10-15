@@ -4,10 +4,10 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 /// stamp.
 ViModel buildCurrentTimeStamp() {
   final vi = ViModel.empty(name: 'Display Current Time.vi');
-  final bd = vi.blockDiagram;
-  final stamp = bd.indicator(BdType.timestamp, 'LabVIEW TimeStamp 2');
-  final now = bd.diagram.add(BdPrimitive.create(bd, PrimOp.getDateTimeInSeconds));
-  bd.connect(now.terminal('current time'), stamp.terminal);
-  bd.write();
+  final stamp = vi.indicator(BdType.timestamp, 'LabVIEW TimeStamp 2');
+
+  final now = vi.add(BdPrimitive(PrimOp.getDateTimeInSeconds));
+  now['current time'] >> stamp;
+  vi.write();
   return vi;
 }
