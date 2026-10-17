@@ -347,7 +347,7 @@ const ({int libraries, int entryPoints}) kCorpusForeignCalls = (libraries: 51, e
 
 const int kCorpusReviewListFloor = 150;
 
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 243, nodes: 28843, vis: 13115);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 244, nodes: 28853, vis: 13123);
 
 const int kReviewListFloor = 10;
 
