@@ -51,14 +51,6 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
   return String.fromCharCodes(chars.skipWhile((char) => char == 0));
 }
 
-Uint8List _bigEndian(int value, int bytes) {
-  final out = Uint8List(bytes);
-  for (var b = 0; b < bytes; b++) {
-    out[b] = (value >> (8 * (bytes - 1 - b))) & 0xff;
-  }
-  return out;
-}
-
 /// A case structure's selector range list or string pool.
 class _SelectorCapture extends HeapGroupCapture<BdObject> {
   _SelectorCapture(super.owner, this.frames, {required this.inPool});
@@ -172,40 +164,15 @@ class _BdWalk extends HeapWalkListener<BdObject> {
   }
 
   @override
-  void onScalarAttribute(BdObject cur, HeapAttribute attribute, int value, int scalarBytes) {
-    switch (attribute) {
-      case HeapAttribute.termBMPs:
-        cur.termBmp ??= value;
-      case HeapAttribute.cosmColorB:
-        if (cur.isTextLabel) cur.labelModeWord ??= value;
-      case HeapAttribute.primResID:
-        if (cur.primitive case final primitive? when scalarBytes == 2) primitive.primResId ??= value;
-      case HeapAttribute.dIdx:
-        cur.frames?.dIdx ??= value;
-      case HeapAttribute.selectDefaultCase:
-        if (cur.caseFrames case final frames? when value != kViNoDefaultFrame) frames.defaultFrameIndex ??= value;
-      case HeapAttribute.lastSignalKind:
-        if (cur.signal case final signal? when value <= 0xffff) signal.lastSignalKind ??= value;
-      case HeapAttribute.compressedWireTable:
-        cur.signal?.wireTableRaw ??= _bigEndian(value, scalarBytes);
-      case HeapAttribute.structColor:
-        cur.structRgb ??= heapScalarColorRgb(value);
-      default:
-        break;
-    }
-  }
-
-  @override
-  void onAttribute(BdObject cur, HeapAttr attr) {
+  void onAttribute(BdObject cur, HeapAttrReading attr) {
     switch (attr.attribute) {
       case HeapAttribute.constValue:
         final constant = cur.constant;
         if (constant == null) return;
-        final text = attr.asString;
-        if (text != null && text.isNotEmpty) constant.text ??= text;
+        if (attr.asString case final text? when text.isNotEmpty) constant.text ??= text;
         if (constant.raw == null) {
-          constant.raw = heapAttrFlatBytes(attr);
-          constant.scalar = heapAttrScalarBytes(attr.width) != null;
+          constant.raw = attr.flatBytes;
+          constant.scalar = attr.scalarBytes != null;
         }
       case HeapAttribute.cosmColorB:
         if (cur.isTextLabel) cur.labelModeWord ??= attr.asInt;
@@ -214,23 +181,11 @@ class _BdWalk extends HeapWalkListener<BdObject> {
       case HeapAttribute.termBMPs:
         cur.termBmp ??= attr.asInt;
       case HeapAttribute.primResID:
-        if (cur.primitive case final primitive? when attr.width == HeapAttrWidth.u16) {
-          primitive.primResId ??= attr.asInt;
-        }
+        if (cur.primitive case final primitive? when attr.scalarBytes == 2) primitive.primResId ??= attr.asInt;
       case HeapAttribute.dIdx:
         cur.frames?.dIdx ??= attr.asInt;
       case HeapAttribute.compressedWireTable:
-        final signal = cur.signal;
-        if (signal == null) return;
-        if (attr.width == HeapAttrWidth.container) {
-          signal.wireTableRaw ??= attr.rawValueBytes;
-        } else {
-          final scalarBytes = heapAttrScalarBytes(attr.width);
-          final value = attr.asInt;
-          if (scalarBytes != null && scalarBytes > 0 && value != null) {
-            signal.wireTableRaw ??= _bigEndian(value, scalarBytes);
-          }
-        }
+        cur.signal?.wireTableRaw ??= attr.flatBytes;
       case HeapAttribute.selectDefaultCase:
         final frame = attr.asInt;
         if (cur.caseFrames case final frames? when frame != null && frame != kViNoDefaultFrame) {
@@ -240,7 +195,7 @@ class _BdWalk extends HeapWalkListener<BdObject> {
         final word = attr.asInt;
         if (cur.signal case final signal? when word != null && word <= 0xffff) signal.lastSignalKind ??= word;
       case HeapAttribute.structColor:
-        cur.structRgb ??= heapAttrColorRgb(attr);
+        cur.structRgb ??= attr.rgb;
       default:
         break;
     }

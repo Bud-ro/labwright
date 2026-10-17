@@ -60,41 +60,22 @@ class _FpWalk extends HeapWalkListener<FpObject> {
     if (text != null && text.isNotEmpty) graph.plotNames = [...graph.plotNames, text];
   }
 
-  void _plotColor(FpObject cur, int? rgb) {
-    final graph = cur.graph;
-    if (graph == null || rgb == null) return;
-    graph.plotColors = [...graph.plotColors, rgb];
-  }
-
   @override
-  void onScalarAttribute(FpObject cur, HeapAttribute attribute, int value, int scalarBytes) {
-    switch (attribute) {
-      case HeapAttribute.cosmColorB:
-        if (cur.isTextLabel) cur.labelModeWord ??= value;
-      case HeapAttribute.conNum:
-        cur.dataObject?.conNum ??= value;
-      case HeapAttribute.borderColor:
-        cur.borderRgb ??= heapScalarColorRgb(value);
-      case HeapAttribute.plotColor:
-        _plotColor(cur, heapScalarColorRgb(value));
-      default:
-        break;
-    }
-  }
-
-  @override
-  void onAttribute(FpObject cur, HeapAttr attr) {
+  void onAttribute(FpObject cur, HeapAttrReading attr) {
     switch (attr.attribute) {
       case HeapAttribute.stdNumMin:
-        if (cur.numericRange case final range? when attr.asDouble != null) range.min ??= attr.asDouble;
+        if (attr.asDouble case final value?) cur.numericRange?.min ??= value;
       case HeapAttribute.stdNumMax:
-        if (cur.numericRange case final range? when attr.asDouble != null) range.max ??= attr.asDouble;
+        if (attr.asDouble case final value?) cur.numericRange?.max ??= value;
       case HeapAttribute.cosmColorB:
         if (cur.isTextLabel) cur.labelModeWord ??= attr.asInt;
+      case HeapAttribute.conNum:
+        cur.dataObject?.conNum ??= attr.asInt;
       case HeapAttribute.borderColor:
-        cur.borderRgb ??= heapAttrColorRgb(attr);
+        cur.borderRgb ??= attr.rgb;
       case HeapAttribute.plotColor:
-        _plotColor(cur, heapAttrColorRgb(attr));
+        final rgb = attr.rgb;
+        if (cur.graph case final graph? when rgb != null) graph.plotColors = [...graph.plotColors, rgb];
       default:
         break;
     }

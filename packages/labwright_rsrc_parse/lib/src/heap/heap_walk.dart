@@ -123,11 +123,56 @@ abstract class HeapWalkListener<T extends HeapObject> {
   /// A C4 record the shared walk does not read, with its payload at [start]..[end].
   void onRecord(T cur, int opcode, Uint8List body, int start, int end) {}
 
-  /// A scalar attribute read on the fast path: [value] is its [scalarBytes]-wide payload.
-  void onScalarAttribute(T cur, HeapAttribute attribute, int value, int scalarBytes) {}
+  /// An attribute the shared walk does not read; [attr] is reused across records.
+  void onAttribute(T cur, HeapAttrReading attr) {}
+}
 
-  /// A decoded attribute the fast path did not take.
-  void onAttribute(T cur, HeapAttr attr) {}
+/// One attribute record as the walk read it: a scalar word taken straight from the bytes, or
+/// the decoded record for every other width.
+class HeapAttrReading {
+  HeapAttribute attribute = HeapAttribute.unknown;
+  int _scalar = 0;
+  int _scalarBytes = 0;
+  HeapAttr? _decoded;
+
+  void _readScalar(HeapAttribute attribute, int value, int bytes) {
+    this.attribute = attribute;
+    _scalar = value;
+    _scalarBytes = bytes;
+    _decoded = null;
+  }
+
+  void _readDecoded(HeapAttr attr) {
+    attribute = attr.attribute;
+    _decoded = attr;
+  }
+
+  int? get asInt => _decoded == null ? _scalar : _decoded!.asInt;
+
+  double? get asDouble => _decoded?.asDouble;
+
+  String? get asString => _decoded?.asString;
+
+  String? get asciiText => _decoded?.asciiText;
+
+  HeapRect? get asRect => _decoded?.asRect;
+
+  /// The bytes of a scalar payload; null for a container or point.
+  int? get scalarBytes => _decoded == null ? _scalarBytes : heapAttrScalarBytes(_decoded!.width);
+
+  /// The payload as flat bytes: a container's raw bytes, or a scalar's big-endian bytes.
+  Uint8List? get flatBytes => _decoded == null ? _bigEndian(_scalar, _scalarBytes) : heapAttrFlatBytes(_decoded!);
+
+  /// A colour payload as `0xRRGGBB`; null for the transparent encodings.
+  int? get rgb => _decoded == null ? _scalarColorRgb(_scalar) : _attrColorRgb(_decoded!);
+}
+
+Uint8List _bigEndian(int value, int bytes) {
+  final out = Uint8List(bytes);
+  for (var b = 0; b < bytes; b++) {
+    out[b] = (value >> (8 * (bytes - 1 - b))) & 0xff;
+  }
+  return out;
 }
 
 const Set<HeapAttribute> _sharedAttributes = {
@@ -168,22 +213,15 @@ Uint8List? heapAttrFlatBytes(HeapAttr record) {
   if (raw != null) return raw;
   final scalarBytes = heapAttrScalarBytes(record.width);
   final value = record.asInt;
-  if (scalarBytes == null || scalarBytes == 0 || value == null) return null;
-  final out = Uint8List(scalarBytes);
-  for (var i = 0; i < scalarBytes; i++) {
-    out[i] = (value >> (8 * (scalarBytes - 1 - i))) & 0xff;
-  }
-  return out;
+  return scalarBytes == null || scalarBytes == 0 || value == null ? null : _bigEndian(value, scalarBytes);
 }
 
-/// A colour attribute's fast-path word as `0xRRGGBB`; null for the transparent encodings.
-int? heapScalarColorRgb(int value) {
+int? _scalarColorRgb(int value) {
   final rgb = value & 0xffffff;
   return value == 0x1 || (rgb == 0 && value >>> 24 == 0x01) ? null : rgb;
 }
 
-/// A decoded colour attribute as `0xRRGGBB`; null for the transparent encodings.
-int? heapAttrColorRgb(HeapAttr attr) {
+int? _attrColorRgb(HeapAttr attr) {
   final rawColor = attr.kind == HeapAttrKind.color && attr.value is int ? attr.value as int : null;
   return attr.isTransparent || rawColor == 0x1 ? null : attr.rgb;
 }
@@ -199,6 +237,7 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
   final originLeft = Int32List(objectCapacity);
   final view = ByteData.sublistView(body);
   final attributeRaws = _attributeTable(listener.attributes);
+  final reading = HeapAttrReading();
 
   final captures = <HeapGroupCapture<T>>[];
   final scopes = <T?>[];
@@ -334,51 +373,38 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
           attribute != HeapAttribute.shortText &&
           attribute != HeapAttribute.constValue &&
           attribute != HeapAttribute.formatStyle) {
-        final value = switch (hi) {
+        reading._readScalar(attribute, switch (hi) {
           2 => body[offset + 2],
           4 => view.getUint16(offset + 2),
           6 => (view.getUint16(offset + 2) << 8) | body[offset + 4],
           _ => view.getUint32(offset + 2),
-        };
-        switch (attribute) {
-          case HeapAttribute.typeDescIndex:
-            cur.typeDescIdx ??= value;
-          case HeapAttribute.objFlags:
-            cur.objFlags ??= value;
-          case HeapAttribute.backgroundColor:
-            cur.bgRgb ??= heapScalarColorRgb(value);
-          case HeapAttribute.fgColor:
-            cur.fgRgb ??= heapScalarColorRgb(value);
-          case HeapAttribute.contentColor:
-            cur.contentRgb ??= heapScalarColorRgb(value);
-          default:
-            listener.onScalarAttribute(cur, attribute, value, scalarBytes);
-        }
-        continue;
+        }, scalarBytes);
+      } else {
+        final attr = decodeHeapAttrIn(view, body, offset);
+        if (attr == null) continue;
+        reading._readDecoded(attr);
       }
-      final attr = decodeHeapAttrIn(view, body, offset);
-      if (attr == null) continue;
-      switch (attr.attribute) {
+      switch (attribute) {
+        case HeapAttribute.typeDescIndex:
+          cur.typeDescIdx ??= reading.asInt;
+        case HeapAttribute.objFlags:
+          cur.objFlags ??= reading.asInt;
+        case HeapAttribute.backgroundColor:
+          cur.bgRgb ??= reading.rgb;
+        case HeapAttribute.fgColor:
+          cur.fgRgb ??= reading.rgb;
+        case HeapAttribute.contentColor:
+          cur.contentRgb ??= reading.rgb;
         case HeapAttribute.shortText:
-          final text = attr.asciiText;
-          if (text != null && text.length == heapAttrScalarBytes(attr.width)) cur.label ??= text;
+          final text = reading.asciiText;
+          if (text != null && text.length == reading.scalarBytes) cur.label ??= text;
         case HeapAttribute.formatStyle:
-          final bytes = heapAttrFlatBytes(attr);
+          final bytes = reading.flatBytes;
           if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
             cur.displayFormat ??= String.fromCharCodes(bytes);
           }
-        case HeapAttribute.typeDescIndex:
-          cur.typeDescIdx ??= attr.asInt;
-        case HeapAttribute.objFlags:
-          cur.objFlags ??= attr.asInt;
-        case HeapAttribute.backgroundColor:
-          cur.bgRgb ??= heapAttrColorRgb(attr);
-        case HeapAttribute.fgColor:
-          cur.fgRgb ??= heapAttrColorRgb(attr);
-        case HeapAttribute.contentColor:
-          cur.contentRgb ??= heapAttrColorRgb(attr);
         default:
-          listener.onAttribute(cur, attr);
+          listener.onAttribute(cur, reading);
       }
     }
   }
