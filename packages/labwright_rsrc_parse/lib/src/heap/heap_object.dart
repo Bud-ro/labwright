@@ -8,6 +8,7 @@ import 'dart:typed_data';
 
 import '../blocks/FTAB_font_table.dart';
 import '../blocks/VCTP_type_pool.dart';
+import '../viparse.dart';
 import 'heap.dart';
 import 'obj_flags.dart';
 
@@ -299,11 +300,13 @@ abstract class HeapObject {
   bool get isLabelHidden => isTextLabel && hasFlag(ViObjFlag.labelHidden);
 }
 
-/// Every object of a heap by oid; the last declaration wins when a heap repeats one.
+/// Every object of a heap by oid; a heap declares each oid once.
 class HeapObjectsByOid<T extends HeapObject> {
   HeapObjectsByOid(this._objects) : _slotByOid = Int32List(_oidCount(_objects)) {
     for (var i = 0; i < _objects.length; i++) {
-      _slotByOid[_objects[i].oid] = i + 1;
+      final oid = _objects[i].oid;
+      if (_slotByOid[oid] != 0) throw ViFormatException('heap declares oid $oid twice');
+      _slotByOid[oid] = i + 1;
     }
   }
 

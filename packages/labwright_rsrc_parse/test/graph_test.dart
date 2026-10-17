@@ -1239,7 +1239,7 @@ void main() {
     }
   });
 
-  test('buildDiagram terminates on parentOid cycles and dup-oid viewport children; total over junk', () {
+  test('buildDiagram rejects a repeated oid and is total over junk', () {
     final cycle = [
       ...open(0x7e, 100),
       ...bounds(0, 0, 400, 400),
@@ -1269,9 +1269,7 @@ void main() {
       ...close(),
     ];
     for (final records in [cycle, dupUnderViewport]) {
-      final sw = Stopwatch()..start();
-      expect(() => dia(records), returnsNormally);
-      expect(sw.elapsedMilliseconds, lessThan(2000), reason: 'reanchorViewport/shiftSubtree must not loop');
+      expect(() => dia(records), throwsA(isA<ViFormatException>()));
     }
     final junk = Uint8List.fromList([for (var i = 0; i < 400; i++) (i * 17 + 3) & 0xff]);
     final d = buildBlockDiagram(junk);
