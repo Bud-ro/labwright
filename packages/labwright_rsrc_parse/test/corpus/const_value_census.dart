@@ -29,7 +29,7 @@ Map<String, int> _census(CorpusVi vi) {
         if (cur == null) return;
         final attr = decodeHeapAttr(body, offset);
         if (attr == null || attr.attribute != HeapAttribute.constValue) return;
-        if (cur.kind != BdHeapObjectClass.constant.code) {
+        if (cur.kind != BdObjectClass.constant.code) {
           bump('recordsOffDco');
           return;
         }
@@ -44,16 +44,16 @@ Map<String, int> _census(CorpusVi vi) {
     if (recs.isEmpty) continue;
     bump('multiRecordConstants', recs.values.where((r) => r.count > 1).length);
 
-    final diagram = buildDiagram(body, sectionTag: d.tag);
+    final diagram = buildBlockDiagram(body);
     decodeBdConstValues(diagram);
     for (final e in recs.entries) {
       final o = diagram.byId[e.key];
       if (o == null) continue;
       final rec = e.value;
-      if (o.constBool == null &&
-          o.kind == BdHeapObjectClass.constant.code &&
+      if (o.constant?.boolValue == null &&
+          o.kind == BdObjectClass.constant.code &&
           diagram.objects.any(
-            (k) => k.parentOid == o.oid && k.kind == BdHeapObjectClass.boolean.code,
+            (k) => k.parentOid == o.oid && k.kind == BdObjectClass.boolean.code,
           ) &&
           rec.raw == null &&
           rec.intValue != 0 &&

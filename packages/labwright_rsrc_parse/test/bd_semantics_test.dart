@@ -5,18 +5,18 @@ import 'test_util.dart';
 
 List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
 
-ViDiagram bdOf(List<int> records) =>
+BdDiagram bdOf(List<int> records) =>
     buildViModelFromDecoded([dsec(heapBody(records), tag: 'BDHb')]).blockDiagrams.first;
 
-ViHeapObject heapObj(
+BdObject heapObj(
   int kind, {
   int oid = 1,
-  ViObjectKind? cat,
+  BdObjectKind? cat,
   (int, int, int, int)? at,
   String? label,
   ViTypeKind? typeKind,
 }) {
-  final object = ViHeapObject(oid: oid, kind: kind, offset: 0, objectClass: BdHeapObjectClass.fromCode(kind));
+  final object = BdObject(oid: oid, kind: kind, offset: 0);
   if (cat != null) object.category = cat;
   if (at != null) object.absBounds = HeapRect(top: at.$1, left: at.$2, bottom: at.$3, right: at.$4);
   if (label != null) object.label = label;
@@ -142,7 +142,7 @@ void main() {
   });
 
   test('membersOf resolves declared members to DRAWN objects only', () {
-    final diagram = buildDiagram(
+    final diagram = buildBlockDiagram(
       heapBody(<int>[
         ...open(0x7e, 1),
         ...bounds(0, 0, 400, 400),
@@ -166,8 +166,7 @@ void main() {
   });
 
   group('nodesWithin', () {
-    ViHeapObject at(int oid, ViObjectKind cat, (int, int, int, int) rect) =>
-        heapObj(0x2f, oid: oid, cat: cat, at: rect);
+    BdObject at(int oid, BdObjectKind cat, (int, int, int, int) rect) => heapObj(0x2f, oid: oid, cat: cat, at: rect);
 
     test('keeps logic nodes spatially inside; drops outsiders/terminals', () {
       final loop = at(1, BdObjectKind.structure, (0, 0, 200, 200));
@@ -197,7 +196,7 @@ void main() {
   });
 
   test('wireframeAnnotation: catalog kind, recovered name, terminal type', () {
-    final rows = <(ViHeapObject, String)>[
+    final rows = <(BdObject, String)>[
       (heapObj(0x21, cat: BdObjectKind.structure), 'While Loop'),
       (heapObj(0x2c, cat: BdObjectKind.structure), 'Case structure'),
       (heapObj(0x53, cat: BdObjectKind.structure), 'Cluster'),
@@ -213,7 +212,7 @@ void main() {
   });
 
   group('computeBdOutline', () {
-    ViHeapObject struct(int kind) => heapObj(kind, oid: kind, cat: BdObjectKind.structure);
+    BdObject struct(int kind) => heapObj(kind, oid: kind, cat: BdObjectKind.structure);
 
     test('groups structures by catalog kind; lists labeled-node captions', () {
       final outline = computeBdOutline([
@@ -224,9 +223,9 @@ void main() {
         heapObj(0x12, oid: 10, cat: BdObjectKind.node, label: 'Acquire.vi'),
         heapObj(0x2f, oid: 11, cat: BdObjectKind.node),
       ]);
-      expect(outline.structuresByClass[BdHeapObjectClass.whileLoop], 2);
-      expect(outline.structuresByClass[BdHeapObjectClass.caseStructure], 1);
-      expect(outline.structuresByClass.containsKey(BdHeapObjectClass.root), isFalse);
+      expect(outline.structuresByClass[BdObjectClass.whileLoop], 2);
+      expect(outline.structuresByClass[BdObjectClass.caseStructure], 1);
+      expect(outline.structuresByClass.containsKey(BdObjectClass.root), isFalse);
       expect(outline.labeledNodes, ['Acquire.vi']);
       expect(outline.nodeCount, 2);
       expect(outline.confidence.values.fold<int>(0, (a, b) => a + b), 5);

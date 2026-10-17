@@ -1,7 +1,7 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
-ViDiagram? lvBlockDiagramOf(ViModel model) {
-  ViDiagram? best;
+BdDiagram? lvBlockDiagramOf(ViModel model) {
+  BdDiagram? best;
   for (final diagram in model.blockDiagrams) {
     if (best == null || diagram.objects.length > best.objects.length) best = diagram;
   }
@@ -59,17 +59,17 @@ class LvViUnit {
     return found;
   }
 
-  final ViDiagram diagram;
+  final BdDiagram diagram;
 
   final List<ViType> pool;
 
   /// The panel control behind each connector-pane terminal, [ViModel.paneTerminals].
-  final List<ViHeapObject?> paneTerminals;
+  final List<FpObject?> paneTerminals;
 
-  final Map<int, ViHeapObject> terminalOfDataItem;
+  final Map<int, BdObject> terminalOfDataItem;
 
   /// The block-diagram terminal of the control behind pane terminal [paneIndex].
-  ViHeapObject? paneTerminal(int paneIndex) {
+  BdObject? paneTerminal(int paneIndex) {
     if (paneIndex < 0 || paneIndex >= paneTerminals.length) return null;
     return switch (paneTerminals[paneIndex]) {
       final control? => terminalOfDataItem[control.oid],
@@ -108,8 +108,8 @@ List<ViLinkEntryFramed> lvSubViLinks(Iterable<DecodedSection> sections) {
   ];
 }
 
-Map<int, ViHeapObject> lvTerminalsOfDataItems(ViDiagram diagram) => {
+Map<int, BdObject> lvTerminalsOfDataItems(BdDiagram diagram) => {
   for (final object in diagram.objects)
-    if (object.kind == BdHeapObjectClass.panelTerminal.code)
+    if (object.kind == BdObjectClass.panelTerminal.code)
       for (final ref in object.refsOf(HeapRefKind.dcoRef) ?? const <int>[]) ref: object,
 };

@@ -476,7 +476,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusInPlaceElement(ViDiagram diagram, LvRefusal? refusal) {
+  void censusInPlaceElement(BdDiagram diagram, LvRefusal? refusal) {
     var structures = 0;
     final border = <int>[];
     for (final object in diagram.objects) {
@@ -504,7 +504,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     );
   }
 
-  void censusConditionals(ViDiagram diagram) {
+  void censusConditionals(BdDiagram diagram) {
     for (final object in diagram.objects) {
       if (object.kind != LvTerminalRole.conditional.code) continue;
       bump('cond');
@@ -575,7 +575,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
       }
       for (final endpoint in wire.endpointOids) {
         for (final part in diagram.children(endpoint)) {
-          final type = array ? part.resolvedElementType : part.resolvedType;
+          final type = array ? part.resolvedType?.elementType : part.resolvedType?.type;
           if (lvClusterBase(type) == null) continue;
           final shape = lvClusterShape(type!, pool);
           viaKid.add(shape);
@@ -720,7 +720,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusDeclarations(ViDiagram diagram, List<ViType> pool) {
+  void censusDeclarations(BdDiagram diagram, List<ViType> pool) {
     final registry = LvDeclarations();
     for (final wire in diagram.wires) {
       final signal = wire.signalType;
@@ -753,7 +753,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusIndexArrays(ViDiagram diagram) {
+  void censusIndexArrays(BdDiagram diagram) {
     for (final node in diagram.objects) {
       if (node.kind != LvNodeClass.indexArray.code) continue;
       bump('idx');
@@ -856,7 +856,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusWireTypeRefusal(ViDiagram diagram, LvRefusal refusal) {
+  void censusWireTypeRefusal(BdDiagram diagram, LvRefusal refusal) {
     final wire = diagram.wires.where((wire) => wire.signalOid == refusal.oid).firstOrNull;
     final signal = wire?.signalType;
     if (signal == null) return bump('wt.noSignalWord');
@@ -877,14 +877,15 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusPrimitives(ViDiagram diagram) {
+  void censusPrimitives(BdDiagram diagram) {
     final here = <String, int>{};
     for (final object in diagram.objects) {
       if (object.category != BdObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
-      if (object.kind == BdHeapObjectClass.callLibrary.code) continue;
-      final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
-      if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
+      if (object.kind == BdObjectClass.callLibrary.code) continue;
+      final primResId = object.primitive?.primResId;
+      final op = primResId == null ? null : PrimOp.fromId(primResId);
+      if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
       final key = _reviewKey(op, object);
       here[key] = (here[key] ?? 0) + 1;
     }
@@ -897,7 +898,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusCallPaneWidths(ViDiagram diagram) {
+  void censusCallPaneWidths(BdDiagram diagram) {
     for (final node in diagram.objects) {
       if (!kSubViCallNodeCodes.contains(node.kind)) continue;
       final name = node.label?.trim().toLowerCase();
@@ -910,14 +911,14 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     }
   }
 
-  void censusForeignCalls(ViDiagram diagram) {
+  void censusForeignCalls(BdDiagram diagram) {
     var here = 0;
     for (final object in diagram.objects) {
-      if (object.kind != BdHeapObjectClass.callLibrary.code) continue;
+      if (object.kind != BdObjectClass.callLibrary.code) continue;
       here++;
       bump('foreign.node');
-      final library = object.foreignLibraryPath;
-      final entry = object.foreignEntryPoint;
+      final library = object.foreignCall?.libraryPath;
+      final entry = object.foreignCall?.entryPoint;
       if (library == null) bump('foreign.noLibrary');
       if (entry == null) bump('foreign.noEntryPoint');
       if (library != null) foreign.add('lib|$library');
@@ -1199,8 +1200,9 @@ void main() {
       for (final object in snippetDiagram(name).objects) {
         if (object.category != BdObjectKind.node) continue;
         if (kSubViCallNodeCodes.contains(object.kind)) continue;
-        final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
-        if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
+        final primResId = object.primitive?.primResId;
+        final op = primResId == null ? null : PrimOp.fromId(primResId);
+        if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
         final key = _reviewKey(op, object);
         counts[key] = (counts[key] ?? 0) + 1;
       }
@@ -1300,10 +1302,12 @@ String _blockerKey(LvPrimUnit node) {
 }
 
 bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
-    ? node.record.constBool != null || node.record.constText != null || node.record.constNumeric != null
-    : node.record.constArray != null && node.record.constArrayDims != null;
+    ? node.record.constant?.boolValue != null ||
+          node.record.constant?.text != null ||
+          node.record.constant?.numeric != null
+    : node.record.constant?.array != null && node.record.constant?.arrayDims != null;
 
-({int signals, int resolved, int disagreeing, int unresolved}) _clusterWires(ViDiagram diagram, List<ViType> pool) {
+({int signals, int resolved, int disagreeing, int unresolved}) _clusterWires(BdDiagram diagram, List<ViType> pool) {
   var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
   for (final wire in diagram.wires) {
     final signal = wire.signalType;
@@ -1351,7 +1355,7 @@ bool _indexArrayShape(List<int> roles) {
   return true;
 }
 
-int? _refnumDims(ViHeapObject object) {
+int? _refnumDims(BdObject object) {
   ViType? unwrap(ViType? type) {
     for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
       if (type is! ViTypedefType) return type;
@@ -1360,11 +1364,11 @@ int? _refnumDims(ViHeapObject object) {
     return null;
   }
 
-  final own = unwrap(object.resolvedType);
+  final own = unwrap(object.resolvedType?.type);
   if (own == null) return null;
   if (own.kind == ViDataType.refnum) return 0;
   if (own is! ViArrayType || own.kind != ViDataType.array) return null;
-  return unwrap(object.resolvedElementType)?.kind == ViDataType.refnum ? own.dimCount : null;
+  return unwrap(object.resolvedType?.elementType)?.kind == ViDataType.refnum ? own.dimCount : null;
 }
 
 String _wireFamilyName(int code) {
@@ -1373,8 +1377,8 @@ String _wireFamilyName(int code) {
   return 'code0x${code.toRadixString(16)}';
 }
 
-String _reviewKey(PrimOp? op, ViHeapObject object) {
+String _reviewKey(PrimOp? op, BdObject object) {
   if (op != null) return '${op.opName} (primResID ${op.id})';
-  if (object.primResId case final id?) return 'primResID $id (name not decoded)';
+  if (object.primitive?.primResId case final id?) return 'primResID $id (name not decoded)';
   return 'node class 0x${object.kind.toRadixString(16)}';
 }

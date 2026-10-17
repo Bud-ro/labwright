@@ -77,7 +77,10 @@ void main() {
 
   test('a clone follows its original with fresh ids, its inner references following', () {
     final model = buildViModel(_file());
-    final (:diagram, :clone) = model.cloneObject(model.blockDiagrams.single, model.blockDiagrams.single.objects[0]);
+    final (heap: diagram, :clone) = model.cloneObject(
+      model.blockDiagrams.single,
+      model.blockDiagrams.single.objects[0],
+    );
     expect(identical(diagram, model.blockDiagrams.single), isTrue);
     expect(diagram.objects.map((o) => o.oid), [1, 2, 4, 5, 3]);
     expect(clone.oid, 4);
@@ -97,7 +100,10 @@ void main() {
 
   test('a clone whose fresh ids pass 0x8000 widens its headers and references', () {
     final model = buildViModel(_file(maxUid: 0x7ffe));
-    final (:diagram, :clone) = model.cloneObject(model.blockDiagrams.single, model.blockDiagrams.single.objects[0]);
+    final (heap: diagram, :clone) = model.cloneObject(
+      model.blockDiagrams.single,
+      model.blockDiagrams.single.objects[0],
+    );
     expect(diagram.objects.map((o) => o.oid), [1, 2, 0x7fff, 0x8000, 3]);
     final inner = diagram.childrenOf(clone).single;
     expect((inner.oid, inner.parentOid), (0x8000, 0x7fff));

@@ -10,7 +10,7 @@ import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
 
 import 'util.dart';
 
-ViDiagram _synthDiagram() => modelFromRecords(<int>[
+BdDiagram _synthDiagram() => modelFromRecords(<int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 300, 400),
   ...open(0x21, 2, tag: 0x1a),
@@ -27,7 +27,7 @@ ViDiagram _synthDiagram() => modelFromRecords(<int>[
   ...close(),
 ]).blockDiagrams.first;
 
-bool _allWithin(Iterable<ViHeapObject> drawable, Rect content) {
+bool _allWithin(Iterable<BdObject> drawable, Rect content) {
   for (final object in drawable) {
     if (object.category == BdObjectKind.wire) continue;
     final b = object.absBounds!;
@@ -205,140 +205,53 @@ void main() {
     );
 
     test('bdFillColor prefers the content colour over the background', () {
-      final o =
-          ViHeapObject(
-              oid: 1,
-              kind: 0x50,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x50),
-            )
-            ..bgRgb = 0x111111
-            ..contentRgb = 0x222222;
+      final o = BdObject(oid: 1, kind: 0x50, offset: 0)
+        ..bgRgb = 0x111111
+        ..contentRgb = 0x222222;
       expect(bdFillColor(o), const Color(0xFF222222));
-      final bgOnly = ViHeapObject(
-        oid: 2,
-        kind: 0x50,
-        offset: 0,
-        objectClass: BdHeapObjectClass.fromCode(0x50),
-      )..bgRgb = 0x111111;
+      final bgOnly = BdObject(oid: 2, kind: 0x50, offset: 0)..bgRgb = 0x111111;
       expect(bdFillColor(bgOnly), const Color(0xFF111111));
-      expect(
-        bdFillColor(
-          ViHeapObject(
-            oid: 3,
-            kind: 0x50,
-            offset: 0,
-            objectClass: BdHeapObjectClass.fromCode(0x50),
-          ),
-        ),
-        isNull,
-      );
+      expect(bdFillColor(BdObject(oid: 3, kind: 0x50, offset: 0)), isNull);
     });
 
-    ViDiagram captionDiagram({int? rgb}) {
-      final root =
-          ViHeapObject(
-              oid: 1,
-              kind: 0x7e,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x7e),
-            )
-            ..category = BdObjectKind.structure
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 80,
-              right: 220,
-            );
-      final constObj =
-          ViHeapObject(
-              oid: 2,
-              kind: 0x51,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x51),
-            )
-            ..parentOid = 1
-            ..category = BdObjectKind.terminal
-            ..absBounds = const HeapRect(
-              top: 24,
-              left: 24,
-              bottom: 44,
-              right: 200,
-            )
-            ..constText = 'report.txt'
-            ..fgRgb = rgb;
-      return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
+    BdDiagram captionDiagram({int? rgb}) {
+      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = BdObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
+      final constObj = BdObject(oid: 2, kind: 0x13, offset: 0)
+        ..parentOid = 1
+        ..category = BdObjectKind.terminal
+        ..absBounds = const HeapRect(top: 24, left: 24, bottom: 44, right: 200)
+        ..constant!.text = 'report.txt'
+        ..fgRgb = rgb;
+      return BdDiagram(objects: [root, constObj]);
     }
 
-    ViDiagram framedDiagram({int? rgb}) {
-      final root =
-          ViHeapObject(
-              oid: 1,
-              kind: 0x7e,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x7e),
-            )
-            ..category = BdObjectKind.decoration
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 120,
-              right: 160,
-            );
-      final loop =
-          ViHeapObject(
-              oid: 2,
-              kind: 0x21,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x21),
-            )
-            ..parentOid = 1
-            ..category = BdObjectKind.structure
-            ..absBounds = const HeapRect(
-              top: 16,
-              left: 16,
-              bottom: 104,
-              right: 144,
-            )
-            ..structRgb = rgb;
-      return ViDiagram(sectionTag: 'BDHb', objects: [root, loop]);
+    BdDiagram framedDiagram({int? rgb}) {
+      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = BdObjectKind.decoration
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 120, right: 160);
+      final loop = BdObject(oid: 2, kind: 0x21, offset: 0)
+        ..parentOid = 1
+        ..category = BdObjectKind.structure
+        ..absBounds = const HeapRect(top: 16, left: 16, bottom: 104, right: 144)
+        ..structRgb = rgb;
+      return BdDiagram(objects: [root, loop]);
     }
 
-    ViDiagram decorationDiagram({int? rgb}) {
-      final root =
-          ViHeapObject(
-              oid: 1,
-              kind: 0x7e,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x7e),
-            )
-            ..category = BdObjectKind.structure
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 80,
-              right: 120,
-            );
-      final deco =
-          ViHeapObject(
-              oid: 2,
-              kind: 0x15,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x15),
-            )
-            ..parentOid = 1
-            ..category = BdObjectKind.decoration
-            ..absBounds = const HeapRect(
-              top: 20,
-              left: 20,
-              bottom: 60,
-              right: 100,
-            )
-            ..bgRgb = rgb;
-      return ViDiagram(sectionTag: 'BDHb', objects: [root, deco]);
+    BdDiagram decorationDiagram({int? rgb}) {
+      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = BdObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 120);
+      final deco = BdObject(oid: 2, kind: 0x15, offset: 0)
+        ..parentOid = 1
+        ..category = BdObjectKind.decoration
+        ..absBounds = const HeapRect(top: 20, left: 20, bottom: 60, right: 100)
+        ..bgRgb = rgb;
+      return BdDiagram(objects: [root, deco]);
     }
 
-    final colourCases = <(String, int, ViDiagram Function({int? rgb}))>[
+    final colourCases = <(String, int, BdDiagram Function({int? rgb}))>[
       ('a caption inks fgRgb', 0x1040E0, captionDiagram),
       ('a loop frame inks structRgb', 0xFFFFCC, framedDiagram),
       ('a decoration inks bgRgb', 0xE01010, decorationDiagram),
@@ -393,70 +306,36 @@ void main() {
   });
 
   group('dataflow wire rendering', () {
-    ViDiagram wireDiagram({bool midNode = false}) {
-      final root =
-          ViHeapObject(
-              oid: 1,
-              kind: 0x7e,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x7e),
-            )
-            ..category = BdObjectKind.structure
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 160,
-              right: 420,
-            );
-      final a =
-          ViHeapObject(
-              oid: 2,
-              kind: 0x2f,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x2f),
-            )
-            ..parentOid = 1
-            ..category = BdObjectKind.node
-            ..absBounds = const HeapRect(
-              top: 100,
-              left: 20,
-              bottom: 140,
-              right: 60,
-            );
-      final b =
-          ViHeapObject(
-              oid: 3,
-              kind: 0x2f,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x2f),
-            )
-            ..parentOid = 1
-            ..category = BdObjectKind.node
-            ..absBounds = const HeapRect(
-              top: 100,
-              left: 360,
-              bottom: 140,
-              right: 400,
-            );
-      final signal =
-          ViHeapObject(
-              oid: 4,
-              kind: 0x17,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x17),
-            )
-            ..parentOid = 1
-            ..addRef(HeapRefKind.childRef, 2)
-            ..addRef(HeapRefKind.childRef, 3);
-      final objects = <ViHeapObject>[root, a, b];
+    BdDiagram wireDiagram({bool midNode = false}) {
+      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = BdObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 160, right: 420);
+      final a = BdObject(oid: 2, kind: 0x2f, offset: 0)
+        ..parentOid = 1
+        ..category = BdObjectKind.node
+        ..absBounds = const HeapRect(
+          top: 100,
+          left: 20,
+          bottom: 140,
+          right: 60,
+        );
+      final b = BdObject(oid: 3, kind: 0x2f, offset: 0)
+        ..parentOid = 1
+        ..category = BdObjectKind.node
+        ..absBounds = const HeapRect(
+          top: 100,
+          left: 360,
+          bottom: 140,
+          right: 400,
+        );
+      final signal = BdObject(oid: 4, kind: 0x17, offset: 0)
+        ..parentOid = 1
+        ..addRef(HeapRefKind.childRef, 2)
+        ..addRef(HeapRefKind.childRef, 3);
+      final objects = <BdObject>[root, a, b];
       if (midNode) {
         objects.add(
-          ViHeapObject(
-              oid: 5,
-              kind: 0x2f,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x2f),
-            )
+          BdObject(oid: 5, kind: 0x2f, offset: 0)
             ..parentOid = 1
             ..category = BdObjectKind.node
             ..absBounds = const HeapRect(
@@ -468,7 +347,7 @@ void main() {
         );
       }
       objects.add(signal);
-      return ViDiagram(sectionTag: 'BDHb', objects: objects);
+      return BdDiagram(objects: objects);
     }
 
     ViWire straightWire() => ViWire(
@@ -624,9 +503,9 @@ void main() {
     test('label-part classes are the free-text sub-parts', () {
       expect(
         kBdTextLabelClasses,
-        containsAll(<HeapObjectClass>[
-          BdHeapObjectClass.textLabel,
-          BdHeapObjectClass.caseSelectorLabel,
+        containsAll(<BdObjectClass>[
+          BdObjectClass.textLabel,
+          BdObjectClass.caseSelectorLabel,
         ]),
       );
     });
@@ -690,7 +569,7 @@ void main() {
       expect(tester.takeException(), isNull);
       expect(find.textContaining('objects'), findsOneWidget);
 
-      ViDiagram best = diagrams.first;
+      BdDiagram best = diagrams.first;
       for (final d in diagrams) {
         if (d.objects.where((o) => o.absBounds != null).length >
             best.objects.where((o) => o.absBounds != null).length) {
@@ -706,38 +585,16 @@ void main() {
   testWidgets('a recovered constant literal renders (vs a blank plate)', (
     tester,
   ) async {
-    ViDiagram build(String? literal) {
-      final root =
-          ViHeapObject(
-              oid: 1,
-              kind: 0x7e,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x7e),
-            )
-            ..category = BdObjectKind.structure
-            ..absBounds = const HeapRect(
-              top: 0,
-              left: 0,
-              bottom: 80,
-              right: 220,
-            );
-      final constObj =
-          ViHeapObject(
-              oid: 2,
-              kind: 0x51,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x51),
-            )
-            ..parentOid = 1
-            ..category = BdObjectKind.terminal
-            ..absBounds = const HeapRect(
-              top: 24,
-              left: 24,
-              bottom: 44,
-              right: 150,
-            )
-            ..constText = literal;
-      return ViDiagram(sectionTag: 'BDHb', objects: [root, constObj]);
+    BdDiagram build(String? literal) {
+      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
+        ..category = BdObjectKind.structure
+        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
+      final constObj = BdObject(oid: 2, kind: 0x13, offset: 0)
+        ..parentOid = 1
+        ..category = BdObjectKind.terminal
+        ..absBounds = const HeapRect(top: 24, left: 24, bottom: 44, right: 150)
+        ..constant!.text = literal;
+      return BdDiagram(objects: [root, constObj]);
     }
 
     await tester.runAsync(() async {
@@ -753,37 +610,16 @@ void main() {
 
   group('subVI icon rendering', () {
     test('subViWantedNames picks subVI-call node filenames only', () {
-      final call =
-          ViHeapObject(
-              oid: 5,
-              kind: 0x31,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x31),
-            )
-            ..category = BdObjectKind.node
-            ..label = 'Define Test.vi';
-      final another =
-          ViHeapObject(
-              oid: 6,
-              kind: 0x31,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x31),
-            )
-            ..category = BdObjectKind.node
-            ..label = 'Not In Corpus.vi';
-      final primitive =
-          ViHeapObject(
-              oid: 7,
-              kind: 0x2f,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x2f),
-            )
-            ..category = BdObjectKind.node
-            ..label = 'Add';
-      final diagram = ViDiagram(
-        sectionTag: 'BDHb',
-        objects: [call, another, primitive],
-      );
+      final call = BdObject(oid: 5, kind: 0x31, offset: 0)
+        ..category = BdObjectKind.node
+        ..label = 'Define Test.vi';
+      final another = BdObject(oid: 6, kind: 0x31, offset: 0)
+        ..category = BdObjectKind.node
+        ..label = 'Not In Corpus.vi';
+      final primitive = BdObject(oid: 7, kind: 0x2f, offset: 0)
+        ..category = BdObjectKind.node
+        ..label = 'Add';
+      final diagram = BdDiagram(objects: [call, another, primitive]);
       expect(subViWantedNames(diagram), {'Define Test.vi', 'Not In Corpus.vi'});
     });
 
@@ -793,22 +629,11 @@ void main() {
         'src/classes/Test/Define Test.vi',
       );
 
-      final call =
-          ViHeapObject(
-              oid: 5,
-              kind: 0x31,
-              offset: 0,
-              objectClass: BdHeapObjectClass.fromCode(0x31),
-            )
-            ..category = BdObjectKind.node
-            ..label = 'Define Test.vi'
-            ..absBounds = const HeapRect(
-              top: 20,
-              left: 20,
-              bottom: 52,
-              right: 52,
-            );
-      final diagram = ViDiagram(sectionTag: 'BDHb', objects: [call]);
+      final call = BdObject(oid: 5, kind: 0x31, offset: 0)
+        ..category = BdObjectKind.node
+        ..label = 'Define Test.vi'
+        ..absBounds = const HeapRect(top: 20, left: 20, bottom: 52, right: 52);
+      final diagram = BdDiagram(objects: [call]);
       final icon = decodeViFileIcon(target.path);
       expect(icon, isNotNull);
       final icons = {5: icon!};

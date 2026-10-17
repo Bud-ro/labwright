@@ -7,7 +7,7 @@ import '../corpus_dirs.dart';
 
 const _laws = {'span', 'nesting', 'boundsRecord', 'labelRecord', 'moved', 'relabelled', 'cloned', 'others', 'undone'};
 
-String _row(ViHeapObject o) {
+String _row(BdObject o) {
   final b = o.bounds;
   return '${o.oid}:${o.kind}:${o.parentOid}:${b?.top},${b?.left},${b?.bottom},${b?.right}:${o.label}:${o.typeDescIdx}';
 }
@@ -18,7 +18,7 @@ Map<String, int> _census(CorpusVi vi) {
   final model = vi.model;
   if (model == null || isNonRsrcFixture(vi.path)) return c;
 
-  for (final diagram in model.diagrams) {
+  for (final diagram in <HeapObjectTree>[...model.blockDiagrams, ...model.frontPanels]) {
     final body = model.sectionOf(diagram).bytes;
     final view = ByteData.sublistView(body);
     for (final object in diagram.objects) {
@@ -35,7 +35,7 @@ Map<String, int> _census(CorpusVi vi) {
         }
       }
       if (object.labelOffset case final at?) {
-        final record = c4FrameAt(body, at, diagram.sectionTag);
+        final record = c4FrameAt(body, at, model.sectionOf(diagram).tag);
         final matches = record != null && record.byteLength == object.labelLength && record.text == object.label;
         if (!matches) bad('labelRecord');
       }
@@ -57,7 +57,7 @@ Map<String, int> _census(CorpusVi vi) {
   var cloneIndex = -1;
   if (leaf != null && edited.section(BlockTag.muid.tag) != null) {
     final uid = ViMaxUid(edited.section(BlockTag.muid.tag)!.bytes).maxUid;
-    final (diagram: rebuilt, :clone) = edited.cloneObject(diagram, leaf);
+    final (heap: rebuilt, :clone) = edited.cloneObject(diagram, leaf);
     cloneIndex = leaf.index + 1;
     diagram = rebuilt;
     final original = _row(leaf);

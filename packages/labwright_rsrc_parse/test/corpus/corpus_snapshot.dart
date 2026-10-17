@@ -15,7 +15,7 @@ List<Object?> _summarizeVi(CorpusVi vi) {
     final blocks = parseVi(vi.bytes).blocks.toSet().toList()..sort();
     final m = vi.model;
     if (m == null) throw vi.error!;
-    final fp = m.frontPanelDiagrams.fold(0, (a, b) => a + b.objects.length);
+    final fp = m.frontPanels.fold(0, (a, b) => a + b.objects.length);
     final bd = m.blockDiagrams.fold(0, (a, b) => a + b.objects.length);
     return [false, fp, bd, blocks];
   } catch (_) {

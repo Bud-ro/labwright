@@ -28,7 +28,7 @@ void main() {
       final model = buildViModel(bytes);
       (groups[blocks.join(',')] ??= (blocks: blocks, files: [])).files.add((
         name: name,
-        fp: model.frontPanelDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
+        fp: model.frontPanels.fold<int>(0, (a, b) => a + b.objects.length),
         bd: model.blockDiagrams.fold<int>(0, (a, b) => a + b.objects.length),
       ));
     } catch (e) {

@@ -1,14 +1,16 @@
 /// What a block diagram shows: which objects and wires are drawn, in what order, with which
-/// chrome, labels and constant texts; every function here reads a [ViDiagram] and returns the
+/// chrome, labels and constant texts; every function here reads a [BdDiagram] and returns the
 /// decision, leaving the painting to the caller.
 library;
 
 import 'dart:math' show max, min;
 
 import '../heap/heap.dart' show HeapRect;
-import 'diagram.dart';
-import 'obj_flags.dart';
-import 'objects.dart';
+import '../heap/heap_object.dart';
+import '../heap/obj_flags.dart';
+import '../heap/object_class.dart';
+import 'bd_diagram.dart';
+import 'bd_object.dart';
 import 'prim_ops.dart';
 import 'wire_route.dart';
 
@@ -59,7 +61,7 @@ String? primOpGlyph(PrimOp? op) => switch (op) {
 
 /// The text each numeric constant terminal displays, by terminal oid, formatted by the
 /// constant's display format.
-Map<int, String> bdConstValueTexts(ViDiagram diagram) {
+Map<int, String> bdConstValueTexts(BdDiagram diagram) {
   final byId = diagram.byId;
   final out = <int, String>{};
   for (final object in diagram.objects) {
@@ -67,7 +69,7 @@ Map<int, String> bdConstValueTexts(ViDiagram diagram) {
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
     final parent = _parentOf(object, byId);
-    final value = parent != null && parent.objectClass == BdHeapObjectClass.constant ? parent.constNumeric : null;
+    final value = parent?.constant?.numeric;
     if (value == null) continue;
     out[object.oid] = bdFormatConstValue(
       value,
@@ -79,17 +81,17 @@ Map<int, String> bdConstValueTexts(ViDiagram diagram) {
 
 // TODO: the constant display mode (normal, backslash codes, hex) is not decoded.
 /// A string constant's text as drawn: trimmed, and only when every character is printable ASCII.
-String? bdDrawnConstText(ViHeapObject? object) {
-  final text = object?.constText;
-  if (text == null || text.codeUnits.any((code) => code < 0x20 || code >= 0x7f)) return null;
+String? bdDrawnConstText(BdObject? object) {
+  final text = object?.constant?.text;
+  if (text == null || text.codeUnits.any((int code) => code < 0x20 || code >= 0x7f)) return null;
   final trimmed = text.trim();
   return trimmed.isEmpty ? null : trimmed;
 }
 
 /// The display format of the numeric display part under [oid].
-String? bdDisplayFormatOf(ViDiagram diagram, int oid) {
+String? bdDisplayFormatOf(BdDiagram diagram, int oid) {
   for (final part in diagram.children(oid)) {
-    if (part.objectClass == BdHeapObjectClass.numericDisplay && part.displayFormat != null) {
+    if (part.objectClass == BdObjectClass.numericDisplay && part.displayFormat != null) {
       return part.displayFormat;
     }
   }
@@ -124,13 +126,13 @@ String bdFormatConstValue(num value, String? format) {
 }
 
 /// Classes drawn as text labels.
-const Set<HeapObjectClass> kBdTextLabelClasses = {
-  BdHeapObjectClass.textLabel,
-  BdHeapObjectClass.caseSelectorLabel,
+const Set<BdObjectClass> kBdTextLabelClasses = {
+  BdObjectClass.textLabel,
+  BdObjectClass.caseSelectorLabel,
 };
 
 /// A node's label, or its class name as a hint when it has none.
-({String text, bool isHint}) nodeDisplayLabel(ViHeapObject object) {
+({String text, bool isHint}) nodeDisplayLabel(BdObject object) {
   final label = object.label?.trim();
   if (label != null && label.isNotEmpty) return (text: label, isHint: false);
   final cls = object.objectClass.label;
@@ -139,10 +141,10 @@ const Set<HeapObjectClass> kBdTextLabelClasses = {
 }
 
 /// The class name shown on a structure.
-String structureBadge(ViHeapObject object) => object.objectClass.isUnknown ? 'Structure' : object.objectClass.label;
+String structureBadge(BdObject object) => object.objectClass.isUnknown ? 'Structure' : object.objectClass.label;
 
 /// The text a wireframe view annotates an object with: its badge, label and type kind.
-String? wireframeAnnotation(ViHeapObject o) {
+String? wireframeAnnotation(BdObject o) {
   if (o.category == BdObjectKind.structure) return structureBadge(o);
   final label = o.label;
   final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
@@ -153,26 +155,20 @@ String? wireframeAnnotation(ViHeapObject o) {
 /// A summary of a diagram's structures and nodes: counts per structure class, the distinct
 /// node labels, the node count and how many objects sit at each [ClassConfidence].
 ({
-  Map<HeapObjectClass, int> structuresByClass,
+  Map<BdObjectClass, int> structuresByClass,
   List<String> labeledNodes,
   int nodeCount,
   Map<ClassConfidence, int> confidence,
 })
-computeBdOutline(Iterable<ViHeapObject> objects) {
-  const notControlFlow = {
-    BdHeapObjectClass.root,
-    FpHeapObjectClass.panelProperties,
-    FpHeapObjectClass.panelRoot,
-    FpHeapObjectClass.panelRecord0101,
-  };
-  final byClass = <HeapObjectClass, int>{};
+computeBdOutline(Iterable<BdObject> objects) {
+  final byClass = <BdObjectClass, int>{};
   final labeledNodes = <String>[];
   var nodeCount = 0;
   final confidence = <ClassConfidence, int>{};
   for (final object in objects) {
     final objectClass = object.objectClass;
     if (object.category == BdObjectKind.structure) {
-      if (notControlFlow.contains(objectClass)) continue;
+      if (objectClass == BdObjectClass.root) continue;
       byClass[objectClass] = (byClass[objectClass] ?? 0) + 1;
     } else if (object.category == BdObjectKind.node) {
       nodeCount++;
@@ -193,19 +189,19 @@ computeBdOutline(Iterable<ViHeapObject> objects) {
   );
 }
 
-const Set<HeapObjectClass> _controlTerminalDrawClasses = {
-  BdHeapObjectClass.numeric,
-  BdHeapObjectClass.boolean,
-  BdHeapObjectClass.enumRing,
-  BdHeapObjectClass.path,
-  BdHeapObjectClass.string,
-  BdHeapObjectClass.refnum,
-  BdHeapObjectClass.objectRefnum,
-  BdHeapObjectClass.variant,
-  BdHeapObjectClass.colorBox,
+const Set<BdObjectClass> _controlTerminalDrawClasses = {
+  BdObjectClass.numeric,
+  BdObjectClass.boolean,
+  BdObjectClass.enumRing,
+  BdObjectClass.path,
+  BdObjectClass.string,
+  BdObjectClass.refnum,
+  BdObjectClass.objectRefnum,
+  BdObjectClass.variant,
+  BdObjectClass.colorBox,
 };
 
-bool _isInlinedSubViControl(ViHeapObject o, ViDiagram diagram) {
+bool _isInlinedSubViControl(BdObject o, BdDiagram diagram) {
   if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
   final byId = diagram.byId;
   var parentOid = o.parentOid;
@@ -214,10 +210,10 @@ bool _isInlinedSubViControl(ViHeapObject o, ViDiagram diagram) {
   while (parentOid != null && seen.add(parentOid)) {
     final parent = byId[parentOid];
     if (parent == null) break;
-    if (parent.objectClass == BdHeapObjectClass.constant || parent.kind == kNodeEndpointDcoKind) {
-      if (parent.objectClass == BdHeapObjectClass.constant &&
-          o.typeKind == ViTypeKind.numericInt &&
-          (parent.constNumeric != null || parent.constBool != null || parent.constText != null)) {
+    if (parent.objectClass == BdObjectClass.constant || parent.kind == kNodeEndpointDcoKind) {
+      if (parent.constant case final constant?
+          when o.typeKind == ViTypeKind.numericInt &&
+              (constant.numeric != null || constant.boolValue != null || constant.text != null)) {
         return false;
       }
       underConstOrStruct = true;
@@ -229,19 +225,18 @@ bool _isInlinedSubViControl(ViHeapObject o, ViDiagram diagram) {
   return diagram
       .childrenOf(o)
       .any(
-        (c) =>
-            c.objectClass == BdHeapObjectClass.textLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
+        (c) => c.objectClass == BdObjectClass.textLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
       );
 }
 
-bool _isScaffolding(ViHeapObject o, ViObjectsByOid byId) {
-  if (o.objectClass == BdHeapObjectClass.chrome || o.objectClass == BdHeapObjectClass.pane) return true;
-  if (o.objectClass == BdHeapObjectClass.polymorphicSelector) return true;
-  if (o.objectClass == BdHeapObjectClass.connectorTerminal && o.bounds == null) return true;
-  if (o.objectClass == BdHeapObjectClass.numericDisplay ||
-      o.objectClass == BdHeapObjectClass.controlPart ||
-      o.objectClass == BdHeapObjectClass.terminalCluster ||
-      o.objectClass == BdHeapObjectClass.itemList) {
+bool _isScaffolding(BdObject o, HeapObjectsByOid<BdObject> byId) {
+  if (o.objectClass == BdObjectClass.chrome || o.objectClass == BdObjectClass.pane) return true;
+  if (o.objectClass == BdObjectClass.polymorphicSelector) return true;
+  if (o.objectClass == BdObjectClass.connectorTerminal && o.bounds == null) return true;
+  if (o.objectClass == BdObjectClass.numericDisplay ||
+      o.objectClass == BdObjectClass.controlPart ||
+      o.objectClass == BdObjectClass.terminalCluster ||
+      o.objectClass == BdObjectClass.itemList) {
     var cur = o;
     var depth = 0;
     while (depth++ < 64) {
@@ -258,10 +253,7 @@ bool _isScaffolding(ViHeapObject o, ViObjectsByOid byId) {
       final parent = _parentOf(cur, byId);
       if (parent == null) break;
       final bounds = parent.absBounds;
-      if (parent.objectClass == BdHeapObjectClass.cluster &&
-          bounds != null &&
-          bounds.width <= 40 &&
-          bounds.height <= 24) {
+      if (parent.objectClass == BdObjectClass.cluster && bounds != null && bounds.width <= 40 && bounds.height <= 24) {
         return true;
       }
       cur = parent;
@@ -271,7 +263,7 @@ bool _isScaffolding(ViHeapObject o, ViObjectsByOid byId) {
 }
 
 /// The bounded, non-scaffolding objects [o] refers to as members.
-Set<ViHeapObject> membersOf(ViHeapObject? o, ViObjectsByOid byId) {
+Set<BdObject> membersOf(BdObject? o, HeapObjectsByOid<BdObject> byId) {
   if (o == null) return const {};
   return {
     for (final oid in o.memberOids)
@@ -280,13 +272,13 @@ Set<ViHeapObject> membersOf(ViHeapObject? o, ViObjectsByOid byId) {
 }
 
 /// The nodes and structures whose bounds lie inside [structure]'s.
-Set<ViHeapObject> nodesWithin(
-  ViHeapObject structure,
-  Iterable<ViHeapObject> objects,
+Set<BdObject> nodesWithin(
+  BdObject structure,
+  Iterable<BdObject> objects,
 ) {
   final structureBounds = structure.absBounds;
   if (structureBounds == null) return const {};
-  final out = <ViHeapObject>{};
+  final out = <BdObject>{};
   for (final object in objects) {
     if (identical(object, structure)) continue;
     if (object.category != BdObjectKind.node && object.category != BdObjectKind.structure) {
@@ -309,10 +301,10 @@ Set<ViHeapObject> nodesWithin(
 /// The oids under the frames a multi-frame structure does not show: the frames other than the
 /// displayed one, or when the displayed index is unknown, the frames whose contents overlap the
 /// fullest frame.
-Set<int> bdHiddenFrameOids(ViDiagram diagram) {
+Set<int> bdHiddenFrameOids(BdDiagram diagram) {
   final hidden = <int>{};
 
-  void hideSubtree(ViHeapObject root) {
+  void hideSubtree(BdObject root) {
     hidden.add(root.oid);
     for (final child in diagram.childrenOf(root)) {
       hideSubtree(child);
@@ -339,7 +331,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
     for (final frame in frames) {
       var count = 0;
       var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
-      void visit(ViHeapObject o) {
+      void visit(BdObject o) {
         final bounds = o.absBounds;
         if (bounds != null && bounds.width > 0 && bounds.height > 0) {
           final cx = (bounds.left + bounds.right) / 2, cy = (bounds.top + bounds.bottom) / 2;
@@ -403,7 +395,7 @@ Set<int> bdHiddenFrameOids(ViDiagram diagram) {
 
 /// The wires drawn: those outside hidden frames and inlined instances, with missing anchors
 /// re-based on the nearest visible bounded ancestor, and at least two distinct anchors.
-List<ViWire> bdVisibleWires(ViDiagram diagram) {
+List<ViWire> bdVisibleWires(BdDiagram diagram) {
   final hidden = bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
   final byId = diagram.byId;
 
@@ -469,9 +461,9 @@ List<ViWire> bdVisibleWires(ViDiagram diagram) {
 }
 
 /// The oids under every XNode, whose contents are not drawn.
-Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
+Set<int> bdInlinedInstanceOids(BdDiagram diagram) {
   final out = <int>{};
-  void collect(ViHeapObject root) {
+  void collect(BdObject root) {
     for (final child in diagram.childrenOf(root)) {
       if (out.add(child.oid)) collect(child);
     }
@@ -485,7 +477,7 @@ Set<int> bdInlinedInstanceOids(ViDiagram diagram) {
 
 /// Per structure oid, the terminal boxes on its border with the glyph each draws.
 Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
-  ViDiagram diagram,
+  BdDiagram diagram,
 ) {
   final byId = diagram.byId;
   final out = <int, List<({HeapRect box, int bmp})>>{};
@@ -506,12 +498,12 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
   return out;
 }
 
-ViHeapObject? _parentOf(ViHeapObject object, ViObjectsByOid byId) {
+BdObject? _parentOf(BdObject object, HeapObjectsByOid<BdObject> byId) {
   final parentOid = object.parentOid;
   return parentOid == null ? null : byId[parentOid];
 }
 
-bool _nestedInStructure(ViHeapObject object, ViObjectsByOid byId) {
+bool _nestedInStructure(BdObject object, HeapObjectsByOid<BdObject> byId) {
   var cur = _parentOf(object, byId);
   var depth = 0;
   while (cur != null && depth++ < 16) {
@@ -526,7 +518,7 @@ bool _nestedInStructure(ViHeapObject object, ViObjectsByOid byId) {
 /// The objects drawn: bounded, plausibly sized, outside hidden frames and inlined instances,
 /// inside their constant and structure boxes, and neither scaffolding nor an inlined subVI
 /// control.
-List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
+List<BdObject> bdDrawableObjects(BdDiagram diagram) {
   final byId = diagram.byId;
   final hidden = bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
   return [
@@ -537,7 +529,7 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
             bounds.width < 8000 &&
             bounds.height < 8000 &&
             !hidden.contains(object.oid) &&
-            !(object.objectClass == BdHeapObjectClass.attachmentArrow &&
+            !(object.objectClass == BdObjectClass.attachmentArrow &&
                 (bounds.left < 0 || bounds.top < 0 || _nestedInStructure(object, byId))) &&
             !_escapesConstantBox(object, byId) &&
             !_escapesStructureBox(object, byId) &&
@@ -548,15 +540,15 @@ List<ViHeapObject> bdDrawableObjects(ViDiagram diagram) {
   ];
 }
 
-bool _escapesConstantBox(ViHeapObject object, ViObjectsByOid byId) {
-  final chain = <ViHeapObject>[];
+bool _escapesConstantBox(BdObject object, HeapObjectsByOid<BdObject> byId) {
+  final chain = <BdObject>[];
   var cur = object;
   var depth = 0;
   var underConst = false;
   while (depth++ < 64) {
     final parent = _parentOf(cur, byId);
     if (parent == null) break;
-    if (parent.objectClass == BdHeapObjectClass.constant) {
+    if (parent.objectClass == BdObjectClass.constant) {
       underConst = true;
       break;
     }
@@ -587,8 +579,8 @@ bool _escapesConstantBox(ViHeapObject object, ViObjectsByOid byId) {
 }
 
 bool _escapesStructureBox(
-  ViHeapObject object,
-  ViObjectsByOid byId, {
+  BdObject object,
+  HeapObjectsByOid<BdObject> byId, {
   int slack = 32,
 }) {
   if (kBdTextLabelClasses.contains(object.objectClass)) return false;
@@ -600,7 +592,7 @@ bool _escapesStructureBox(
   while (depth++ < 64) {
     final parent = _parentOf(cur, byId);
     if (parent == null) return false;
-    if (parent.objectClass == BdHeapObjectClass.wire) return false;
+    if (parent.objectClass == BdObjectClass.wire) return false;
     final box = parent.absBounds;
     if (parent.category == BdObjectKind.structure && box != null && box.width > 0 && box.height > 0) {
       return bounds.right <= box.left - slack ||
@@ -614,7 +606,7 @@ bool _escapesStructureBox(
 }
 
 /// The VI file names the diagram's subVI call nodes are labelled with.
-Set<String> subViWantedNames(ViDiagram diagram) => {
+Set<String> subViWantedNames(BdDiagram diagram) => {
   for (final object in diagram.objects)
     if (kSubViCallNodeCodes.contains(object.kind))
       if (object.label?.trim() case final name? when name.isNotEmpty && _isViFileName(name)) name,
@@ -626,14 +618,14 @@ bool _isViFileName(String name) {
 }
 
 /// [drawable] sorted shallowest first, so containers paint under their contents.
-List<ViHeapObject> bdPaintOrder(
-  List<ViHeapObject> drawable,
-  ViObjectsByOid byId,
+List<BdObject> bdPaintOrder(
+  List<BdObject> drawable,
+  HeapObjectsByOid<BdObject> byId,
 ) => [...drawable]..sort((a, b) => _depthOf(a, byId).compareTo(_depthOf(b, byId)));
 
 /// The outermost chrome boxes of an array shell that wrap its elements, excluding chrome that
 /// sits inside a larger box around the same numeric part.
-List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
+List<HeapRect> bdArrayShellWrapRects(BdDiagram diagram, int shellOid) {
   final children = diagram.children(shellOid).toList();
   bool contains(HeapRect outer, HeapRect inner) =>
       outer.left <= inner.left && outer.top <= inner.top && outer.right >= inner.right && outer.bottom >= inner.bottom;
@@ -641,7 +633,7 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
     var bestArea = -1;
     for (final child in children) {
       final bounds = child.absBounds;
-      if (child.objectClass != BdHeapObjectClass.chrome || bounds == null || !contains(bounds, partBounds)) {
+      if (child.objectClass != BdObjectClass.chrome || bounds == null || !contains(bounds, partBounds)) {
         continue;
       }
       final area = bounds.width * bounds.height;
@@ -652,11 +644,11 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
 
   return [
     for (final wrap in children)
-      if (wrap.objectClass == BdHeapObjectClass.chrome)
+      if (wrap.objectClass == BdObjectClass.chrome)
         if (wrap.absBounds case final wrapBounds?)
           if (!children.any((other) {
                 final otherBounds = other.absBounds;
-                return other.objectClass == BdHeapObjectClass.chrome &&
+                return other.objectClass == BdObjectClass.chrome &&
                     !identical(other, wrap) &&
                     otherBounds != null &&
                     contains(otherBounds, wrapBounds) &&
@@ -664,7 +656,7 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
               }) &&
               !children.any((part) {
                 final partBounds = part.absBounds;
-                return part.objectClass == BdHeapObjectClass.numeric &&
+                return part.objectClass == BdObjectClass.numeric &&
                     partBounds != null &&
                     contains(wrapBounds, partBounds) &&
                     wrapBounds.width * wrapBounds.height < largestContainerArea(partBounds);
@@ -673,7 +665,7 @@ List<HeapRect> bdArrayShellWrapRects(ViDiagram diagram, int shellOid) {
   ];
 }
 
-int _depthOf(ViHeapObject object, ViObjectsByOid byId) {
+int _depthOf(BdObject object, HeapObjectsByOid<BdObject> byId) {
   var depth = 0;
   var cur = object;
   while (depth < 64) {
@@ -687,19 +679,19 @@ int _depthOf(ViHeapObject object, ViObjectsByOid byId) {
 
 /// Node classes that each stand for one primitive and so key their icon by class code.
 const kSingleOpPrimClasses = {
-  BdHeapObjectClass.buildArray,
-  BdHeapObjectClass.bundle,
-  BdHeapObjectClass.concatenateStrings,
-  BdHeapObjectClass.indexArray,
-  BdHeapObjectClass.compoundArithmetic,
-  BdHeapObjectClass.formatIntoString,
-  BdHeapObjectClass.mergeErrors,
-  BdHeapObjectClass.replaceArraySubset,
+  BdObjectClass.buildArray,
+  BdObjectClass.bundle,
+  BdObjectClass.concatenateStrings,
+  BdObjectClass.indexArray,
+  BdObjectClass.compoundArithmetic,
+  BdObjectClass.formatIntoString,
+  BdObjectClass.mergeErrors,
+  BdObjectClass.replaceArraySubset,
 };
 
 /// The icon key of a node: its `primResID`, or the negated class code for a single-op class.
-int? primIconKeyOf(ViHeapObject object) =>
-    object.primResId ?? (kSingleOpPrimClasses.contains(object.objectClass) ? -object.kind : null);
+int? primIconKeyOf(BdObject object) =>
+    object.primitive?.primResId ?? (kSingleOpPrimClasses.contains(object.objectClass) ? -object.kind : null);
 
 /// The icon key of a class variant with [termCount] terminals, distinct from any `primResID`
 /// and any single-op class key.
@@ -725,33 +717,33 @@ int? parsePrimIconName(String name) {
 }
 
 /// Border terminals drawn as tunnel squares.
-const Set<HeapObjectClass> kBdTunnelClasses = {
-  BdHeapObjectClass.loopTunnel,
-  BdHeapObjectClass.caseTunnel,
-  BdHeapObjectClass.sequenceTunnel,
-  BdHeapObjectClass.sequenceFrameTunnel,
-  BdHeapObjectClass.disableTunnel,
+const Set<BdObjectClass> kBdTunnelClasses = {
+  BdObjectClass.loopTunnel,
+  BdObjectClass.caseTunnel,
+  BdObjectClass.sequenceTunnel,
+  BdObjectClass.sequenceFrameTunnel,
+  BdObjectClass.disableTunnel,
 };
 
 /// The left and right shift register classes.
-const Set<HeapObjectClass> kBdShiftRegisterClasses = {
-  BdHeapObjectClass.leftShiftRegister,
-  BdHeapObjectClass.rightShiftRegister,
+const Set<BdObjectClass> kBdShiftRegisterClasses = {
+  BdObjectClass.leftShiftRegister,
+  BdObjectClass.rightShiftRegister,
 };
 
 /// Border terminals whose chrome is established: tunnels, shift registers and the case selector.
-const Set<HeapObjectClass> kBdBorderTerminalClasses = {
+const Set<BdObjectClass> kBdBorderTerminalClasses = {
   ...kBdTunnelClasses,
   ...kBdShiftRegisterClasses,
-  BdHeapObjectClass.caseSelectorTerminal,
+  BdObjectClass.caseSelectorTerminal,
 };
 
 /// How a border terminal is drawn: its class, hollow when flagged or wired at more than one array
 /// depth, with a centre dot when flagged, dimmed when inside a disabled frame.
-typedef BdBorderTerminal = ({HeapObjectClass objectClass, bool hollow, bool centreDot, bool disabled});
+typedef BdBorderTerminal = ({BdObjectClass objectClass, bool hollow, bool centreDot, bool disabled});
 
 /// The chrome of every border terminal a visible wire attaches to, by attach box.
-Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(ViDiagram diagram) {
+Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(BdDiagram diagram) {
   final disabledOids = bdDisabledObjectOids(diagram);
   final out = <HeapRect, BdBorderTerminal>{};
   final wires = bdVisibleWires(diagram);
@@ -786,24 +778,24 @@ Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(ViDiagram diagram) {
 }
 
 /// Case structures whose selector label reads `No Error`, drawn with the error-case chrome.
-Set<int> bdErrorCaseOids(ViDiagram diagram) => {
+Set<int> bdErrorCaseOids(BdDiagram diagram) => {
   for (final o in diagram.objects)
-    if (o.objectClass == BdHeapObjectClass.caseStructure &&
+    if (o.objectClass == BdObjectClass.caseStructure &&
         diagram
             .childrenOf(o)
             .any(
-              (k) => k.objectClass == BdHeapObjectClass.caseSelectorLabel && k.label?.trim() == 'No Error',
+              (k) => k.objectClass == BdObjectClass.caseSelectorLabel && k.label?.trim() == 'No Error',
             ))
       o.oid,
 };
 
 /// The oids inside the shown frame of every disable structure whose selector reads `Disabled`.
-Set<int> bdDisabledObjectOids(ViDiagram diagram) {
+Set<int> bdDisabledObjectOids(BdDiagram diagram) {
   final out = <int>{};
   for (final o in diagram.objects) {
-    if (o.objectClass != BdHeapObjectClass.disableStructure) continue;
+    if (o.objectClass != BdObjectClass.disableStructure) continue;
     final kids = diagram.childrenOf(o).toList();
-    final selector = kids.firstWhere((k) => k.objectClass == BdHeapObjectClass.caseSelectorLabel, orElse: () => o);
+    final selector = kids.firstWhere((k) => k.objectClass == BdObjectClass.caseSelectorLabel, orElse: () => o);
     if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
       continue;
     }
@@ -825,18 +817,18 @@ class ViDiagramSemantics {
   ViDiagramSemantics(
     this.diagram, {
     List<ViWire>? wires,
-    List<ViHeapObject>? drawable,
+    List<BdObject>? drawable,
   }) : wires = wires ?? bdVisibleWires(diagram),
        drawable = drawable ?? bdDrawableObjects(diagram);
 
-  final ViDiagram diagram;
+  final BdDiagram diagram;
 
-  final List<ViHeapObject> drawable;
+  final List<BdObject> drawable;
 
   final List<ViWire> wires;
 
   /// [drawable] in paint order.
-  late final List<ViHeapObject> ordered = bdPaintOrder(drawable, diagram.byId);
+  late final List<BdObject> ordered = bdPaintOrder(drawable, diagram.byId);
 
   late final Set<int> disabledOids = bdDisabledObjectOids(diagram);
 
@@ -851,7 +843,7 @@ class ViDiagramSemantics {
   /// The boxes of chrome and numeric display parts, drawn as furniture.
   late final List<HeapRect> furnitureBounds = [
     for (final object in diagram.objects)
-      if (object.objectClass == BdHeapObjectClass.chrome || object.objectClass == BdHeapObjectClass.numericDisplay)
+      if (object.objectClass == BdObjectClass.chrome || object.objectClass == BdObjectClass.numericDisplay)
         if (object.absBounds case final bounds?) bounds,
   ];
 }

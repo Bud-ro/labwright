@@ -10,6 +10,7 @@ import 'package:labwright_rsrc_parse/testing.dart';
 import 'bd_oracle.dart';
 import 'coverage_view.dart';
 import 'diagram_view.dart';
+import 'front_panel_view.dart';
 import 'hex_view.dart';
 import 'images_view.dart';
 import 'representative_vis.dart';
@@ -450,12 +451,9 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                                         );
                                       },
                                     ),
-                                    ViDiagramView(
+                                    FrontPanelView(
                                       key: ValueKey('fp:$_loadSerial'),
-                                      diagrams: _model?.frontPanelDiagrams,
-                                      emptyHint:
-                                          'No front-panel objects recovered in this file.',
-                                      isFrontPanel: true,
+                                      panels: _model?.frontPanels,
                                     ),
                                     Column(
                                       children: [

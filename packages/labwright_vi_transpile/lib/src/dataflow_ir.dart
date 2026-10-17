@@ -13,9 +13,9 @@ const int kLvInputEndpointFlag = 0x4000;
 
 /// Whether a signal endpoint consumes the wire: a pane terminal by its indicator bit, any other by
 /// [kLvSinkEndpointFlag] or [kLvInputEndpointFlag].
-bool lvEndpointIsSink(ViHeapObject object) {
-  if (object.kind == BdHeapObjectClass.panelTerminal.code) {
-    if (object.isIndicator case final indicator?) return indicator;
+bool lvEndpointIsSink(BdObject object) {
+  if (object.kind == BdObjectClass.panelTerminal.code) {
+    if (object.panelTerminal?.isIndicator case final indicator?) return indicator;
   }
   return ((object.objFlags ?? 0) & (kLvSinkEndpointFlag | kLvInputEndpointFlag)) != 0;
 }
@@ -48,7 +48,7 @@ const int kInPlaceArrayTerminalFlag = 0x800000;
 
 const int kInPlaceIndexTerminalFlag = 0xe00000;
 
-bool lvTunnelAutoIndexes(Iterable<ViHeapObject> children) =>
+bool lvTunnelAutoIndexes(Iterable<BdObject> children) =>
     children.any((child) => child.kind == kLvTunnelIndexerCode && (child.objFlags ?? 0) != 0);
 
 /// Which boolean a loop's conditional terminal exits on, from bit `0x10000` of its record's
@@ -259,9 +259,9 @@ class LvPrimUnit extends LvUnit {
   final Map<int, String> portMemberName;
 }
 
-String lvForeignCallDetail(ViHeapObject node) {
-  final entry = node.foreignEntryPoint;
-  final library = node.foreignLibraryPath;
+String lvForeignCallDetail(BdObject node) {
+  final entry = node.foreignCall?.entryPoint;
+  final library = node.foreignCall?.libraryPath;
   return 'the diagram calls ${entry == null ? 'an entry point' : '`$entry`'} in '
       '${library == null ? 'a native shared library the node names no path for' : '`$library`'}, '
       'whose behaviour is not in the VI';
@@ -306,7 +306,7 @@ class LvConstUnit extends LvUnit {
 
   final int port;
 
-  final ViHeapObject record;
+  final BdObject record;
 
   final String? label;
 
@@ -515,7 +515,7 @@ class LvDataflow {
 /// Builds the dataflow of [diagram]. With [caller] and [resolve], a cluster wire no endpoint of
 /// its own types takes its member shape from the connector-pane control of the callee it reaches.
 ({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(
-  ViDiagram diagram, {
+  BdDiagram diagram, {
   List<ViType> pool = const [],
   LvDeclarations? declarations,
   LvViUnit? caller,
@@ -536,13 +536,13 @@ class _Builder {
   _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve, this.resolveClass)
     : byId = diagram.byId;
 
-  final ViDiagram diagram;
+  final BdDiagram diagram;
   final List<ViType> pool;
   final LvDeclarations declarations;
   final LvViUnit? caller;
   final LvViResolver? resolve;
   final LvClassResolver? resolveClass;
-  final ViObjectsByOid byId;
+  final HeapObjectsByOid<BdObject> byId;
 
   final Map<String, ViModel?> _classData = {};
 
@@ -550,7 +550,7 @@ class _Builder {
       _classData.putIfAbsent(qualifiedName.join(':'), () => resolveClass?.call(qualifiedName));
 
   /// Each sub-VI call port by its oid: the call node and the pane index the port draws.
-  late final Map<int, (ViHeapObject node, int pane)> _callPorts = {
+  late final Map<int, (BdObject node, int pane)> _callPorts = {
     for (final node in diagram.objects)
       if (kSubViCallNodeCodes.contains(node.kind))
         for (final (pane, holder) in diagram.childrenOf(node).where((c) => c.kind == kNodeEndpointDcoKind).indexed)
@@ -560,7 +560,7 @@ class _Builder {
   /// The callee behind a sub-VI call port, resolved through the caller's link entry.
   final Map<int, LvViUnit?> _calleeOfNode = {};
 
-  LvViUnit? _calleeOf(ViHeapObject node) => _calleeOfNode.putIfAbsent(node.oid, () {
+  LvViUnit? _calleeOf(BdObject node) => _calleeOfNode.putIfAbsent(node.oid, () {
     final unit = caller;
     final name = node.label?.trim();
     if (unit == null || resolve == null || name == null) return null;
@@ -607,10 +607,7 @@ class _Builder {
   int _rootFrame() {
     for (final object in diagram.objects) {
       if (object.parentOid == null) {
-        final frame = diagram
-            .childrenOf(object)
-            .where((child) => child.objectClass == BdHeapObjectClass.frame)
-            .firstOrNull;
+        final frame = diagram.childrenOf(object).where((child) => child.objectClass == BdObjectClass.frame).firstOrNull;
         if (frame != null) return frame.oid;
       }
     }
@@ -742,7 +739,7 @@ class _Builder {
       if (parent == null) return null;
       final object = byId[parent];
       if (object == null) return null;
-      if (object.objectClass == BdHeapObjectClass.frame) return object.oid;
+      if (object.objectClass == BdObjectClass.frame) return object.oid;
       current = object;
     }
     return null;
@@ -758,7 +755,7 @@ class _Builder {
         case BdObjectKind.structure:
           units.add(_structUnit(child));
         case _:
-          if (child.kind == BdHeapObjectClass.wire.code) units.addAll(_wireRecordUnits(child));
+          if (child.kind == BdObjectClass.wire.code) units.addAll(_wireRecordUnits(child));
       }
     }
     final edges = [
@@ -771,7 +768,7 @@ class _Builder {
 
   int _sourceOf(ViWire wire) => wire.endpointOids.firstWhere((oid) => !_isSink(oid));
 
-  LvSubViUnit _subViUnit(ViHeapObject node) {
+  LvSubViUnit _subViUnit(BdObject node) {
     final ports = <int>[];
     final inputs = <int>[], outputs = <int>[];
     for (final holder in diagram.childrenOf(node)) {
@@ -796,7 +793,7 @@ class _Builder {
     return lower.endsWith('.vi') || lower.endsWith('.vim');
   }
 
-  LvPrimUnit _primUnit(ViHeapObject node) {
+  LvPrimUnit _primUnit(BdObject node) {
     final inputs = <int>[], outputs = <int>[];
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
@@ -814,8 +811,11 @@ class _Builder {
     return LvPrimUnit(
       oid: node.oid,
       classCode: node.kind,
-      op: node.primResId == null ? null : PrimOp.fromId(node.primResId!),
-      primResId: node.primResId,
+      op: switch (node.primitive?.primResId) {
+        final id? => PrimOp.fromId(id),
+        null => null,
+      },
+      primResId: node.primitive?.primResId,
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
@@ -826,10 +826,10 @@ class _Builder {
     );
   }
 
-  List<LvUnit> _wireRecordUnits(ViHeapObject record) {
+  List<LvUnit> _wireRecordUnits(BdObject record) {
     final units = <LvUnit>[];
     for (final child in diagram.childrenOf(record)) {
-      if (child.kind == BdHeapObjectClass.panelTerminal.code) {
+      if (child.kind == BdObjectClass.panelTerminal.code) {
         ownerOfPort[child.oid] = child.oid;
         units.add(
           LvInterfaceUnit(
@@ -845,7 +845,7 @@ class _Builder {
       if (child.memberOids.isNotEmpty) continue;
       final constant = diagram
           .childrenOf(child)
-          .where((child) => child.kind == BdHeapObjectClass.constant.code)
+          .where((child) => child.kind == BdObjectClass.constant.code)
           .firstOrNull;
       if (constant == null) {
         lvRefuse(
@@ -862,15 +862,15 @@ class _Builder {
     return units;
   }
 
-  static String? _captionOf(ViHeapObject node) {
+  static String? _captionOf(BdObject node) {
     final label = nodeDisplayLabel(node);
     return label.isHint ? null : label.text;
   }
 
-  String? _constantLabel(ViHeapObject constant) {
+  String? _constantLabel(BdObject constant) {
     for (final shell in diagram.childrenOf(constant)) {
       for (final part in diagram.childrenOf(shell)) {
-        if (part.kind == BdHeapObjectClass.textLabel.code) {
+        if (part.kind == BdObjectClass.textLabel.code) {
           final text = part.label?.trim();
           if (text != null && text.isNotEmpty) return text;
         }
@@ -879,7 +879,7 @@ class _Builder {
     return null;
   }
 
-  LvStructUnit _structUnit(ViHeapObject structure) {
+  LvStructUnit _structUnit(BdObject structure) {
     final kind = LvStructureKind.ofCode(structure.kind);
     if (kind == null) {
       lvRefuse(
@@ -891,12 +891,12 @@ class _Builder {
     }
     final frames = [
       for (final child in diagram.childrenOf(structure))
-        if (child.objectClass == BdHeapObjectClass.frame) child.oid,
+        if (child.objectClass == BdObjectClass.frame) child.oid,
       if (kind == LvStructureKind.flatSequence)
         for (final sequenceFrame in diagram.childrenOf(structure))
-          if (sequenceFrame.objectClass == BdHeapObjectClass.sequenceFrame)
+          if (sequenceFrame.objectClass == BdObjectClass.sequenceFrame)
             for (final child in diagram.childrenOf(sequenceFrame))
-              if (child.objectClass == BdHeapObjectClass.frame) child.oid,
+              if (child.objectClass == BdObjectClass.frame) child.oid,
     ];
     final frameSet = frames.toSet();
     final terminals = <LvStructTerminal>[];
@@ -936,7 +936,7 @@ class _Builder {
     }
     final label = diagram
         .childrenOf(structure)
-        .where((child) => child.kind == BdHeapObjectClass.caseSelectorLabel.code)
+        .where((child) => child.kind == BdObjectClass.caseSelectorLabel.code)
         .firstOrNull;
     _pairConditions(terminals);
     var pairs = const <LvInPlaceArrayPair>[];
@@ -954,11 +954,11 @@ class _Builder {
       inPlacePairs: pairs,
       inPlaceClusterPairs: clusterPairs,
       frames: [for (final frame in frames) _region(frame)],
-      displayedFrame: structure.visibleFrameIndex,
+      displayedFrame: structure.frames?.visibleFrameIndex ?? 0,
       displayedCase: label?.label?.trim(),
-      selectorRanges: structure.selectorRanges,
-      selectorStrings: structure.selectorStrings,
-      defaultFrame: structure.defaultFrameIndex ?? kViFirstFrameIsDefault,
+      selectorRanges: structure.caseFrames?.selectorRanges ?? const [],
+      selectorStrings: structure.caseFrames?.selectorStrings ?? const [],
+      defaultFrame: structure.caseFrames?.defaultFrameIndex ?? kViFirstFrameIsDefault,
     );
   }
 
@@ -968,12 +968,12 @@ class _Builder {
   /// element terminals are the frame's ports; a cluster element terminal's type name is the
   /// member it reads or writes.
   ({List<LvStructTerminal> terminals, List<LvInPlaceArrayPair> pairs, List<LvInPlaceClusterPair> clusterPairs})
-  _inPlacePairs(ViHeapObject structure, int? frameOid) {
+  _inPlacePairs(BdObject structure, int? frameOid) {
     final markers = [
       for (final child in diagram.childrenOf(structure))
         if (child.kind != kNodeEndpointDcoKind &&
-            child.objectClass != BdHeapObjectClass.frame &&
-            child.kind != BdHeapObjectClass.textLabel.code)
+            child.objectClass != BdObjectClass.frame &&
+            child.kind != BdObjectClass.textLabel.code)
           child.kind,
     ];
     if (frameOid == null ||
@@ -1162,13 +1162,13 @@ class _Builder {
     return record == null ? null : record.absBounds ?? record.termBounds;
   }
 
-  Iterable<ViHeapObject> _terminalRecords(ViHeapObject structure) sync* {
+  Iterable<BdObject> _terminalRecords(BdObject structure) sync* {
     for (final child in diagram.childrenOf(structure)) {
       if (LvTerminalRole.ofCode(child.kind) != null) {
         yield child;
         continue;
       }
-      if (child.objectClass == BdHeapObjectClass.sequenceFrame) {
+      if (child.objectClass == BdObjectClass.sequenceFrame) {
         for (final holder in diagram.childrenOf(child)) {
           yield* _holderRecords(holder);
         }
@@ -1178,7 +1178,7 @@ class _Builder {
     }
   }
 
-  Iterable<ViHeapObject> _holderRecords(ViHeapObject holder) sync* {
+  Iterable<BdObject> _holderRecords(BdObject holder) sync* {
     if (holder.kind != kNodeEndpointDcoKind) return;
     for (final record in diagram.childrenOf(holder)) {
       if (LvTerminalRole.ofCode(record.kind) != null) yield record;

@@ -34,7 +34,7 @@ class BdRaster {
 }
 
 GlobalHatchOffset deriveHatchOffset({
-  required ViDiagram diagram,
+  required BdDiagram diagram,
   required BdRaster raster,
   required BdRegistration registration,
   required Uint8List referenceRgba,
@@ -51,7 +51,7 @@ GlobalHatchOffset deriveHatchOffset({
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
   for (final frame in diagram.objects) {
-    if (frame.objectClass != BdHeapObjectClass.caseStructure ||
+    if (frame.objectClass != BdObjectClass.caseStructure ||
         !drawableOids.contains(frame.oid)) {
       continue;
     }
@@ -251,7 +251,7 @@ GlobalHatchOffset deriveWireCycleOffset({
 }
 
 Future<BdRaster?> rasteriseBlockDiagram(
-  ViDiagram diagram, {
+  BdDiagram diagram, {
   int maxDimension = 2000,
   double pixelRatio = 1.0,
   double? scale,
@@ -260,7 +260,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   Map<int, PrimIconArt> primIcons = const {},
   Map<int, ui.Image> xnodeFacades = const {},
   List<ViWire>? wires,
-  List<ViHeapObject>? drawable,
+  List<BdObject>? drawable,
   BdScene? scene,
   BdRenderStyle style = const BdRenderStyle(),
 }) async {
@@ -631,9 +631,9 @@ Future<BdOracleResult> compareToReference(
 }
 
 List<Rect> bdStructureAnchorRects(
-  ViDiagram diagram,
+  BdDiagram diagram,
   BdRaster raster, {
-  List<ViHeapObject>? drawable,
+  List<BdObject>? drawable,
 }) {
   drawable ??= bdDrawableObjects(diagram);
   final extent = bdContentRect(drawable, includeWires: false, margin: 0);
@@ -651,7 +651,7 @@ List<Rect> bdStructureAnchorRects(
   return out;
 }
 
-ViDiagram? bestBlockDiagram(ViModel model) => model.primaryBlockDiagram;
+BdDiagram? bestBlockDiagram(ViModel model) => model.primaryBlockDiagram;
 
 Future<Uint8List> imageToPng(ui.Image image) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -734,14 +734,14 @@ class PlacementComparison {
 }
 
 PlacementComparison comparePlacement({
-  required ViDiagram diagram,
+  required BdDiagram diagram,
   required BdRaster raster,
   required BdRegistration registration,
   required Uint8List referenceRgba,
   required int width,
   required int height,
   Uint8List? referenceEdges,
-  List<ViHeapObject>? drawable,
+  List<BdObject>? drawable,
   int tolerance = 2,
   int edgeThreshold = kBdEdgeThreshold,
   int minSide = 6,
@@ -1160,7 +1160,7 @@ class BdOracleView extends StatefulWidget {
     this.subViIcons = const {},
   });
 
-  final ViDiagram? diagram;
+  final BdDiagram? diagram;
 
   final Uint8List? referenceBytes;
 

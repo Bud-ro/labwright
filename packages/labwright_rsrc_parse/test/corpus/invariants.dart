@@ -44,7 +44,7 @@ List<Object?> _summarize(CorpusVi vi) {
     if (dthp is ViDataTypeHeapCompact && topLevel.isNotEmpty) {
       if (dthp.firstTopLevelIndex + dthp.heapTypeCount - 1 != topLevel.length) bad('dthpRunNotAtTail');
       final indices = [
-        for (final d in [...m.blockDiagrams, ...m.frontPanelDiagrams])
+        for (final d in <HeapObjectTree>[...m.blockDiagrams, ...m.frontPanels])
           for (final o in d.objects)
             if (o.typeDescIdx != null) o.typeDescIdx!,
       ];
@@ -55,8 +55,8 @@ List<Object?> _summarize(CorpusVi vi) {
     }
   }
 
-  for (final d in [...m.blockDiagrams, ...m.frontPanelDiagrams]) {
-    final kinds = d.sectionTag.startsWith('FP') ? fpKinds : bdKinds;
+  for (final d in <HeapObjectTree>[...m.blockDiagrams, ...m.frontPanels]) {
+    final kinds = d is FpPanel ? fpKinds : bdKinds;
     for (final o in d.objects) {
       kinds.add(o.kind);
       final r = o.absBounds;
@@ -85,7 +85,7 @@ List<Object?> _summarize(CorpusVi vi) {
         built = null;
       }
       if (built == null) continue;
-      for (final o in [...built.blockDiagrams, ...built.frontPanelDiagrams].expand((d) => d.objects)) {
+      for (final o in <HeapObjectTree>[...built.blockDiagrams, ...built.frontPanels].expand((d) => d.objects)) {
         final r = o.absBounds;
         if (r != null && _wild(r)) {
           bad('fuzzWild');
@@ -121,9 +121,9 @@ void invariantsTests() {
 
   test('CATALOG INTEGRITY: every catalogued object class occurs in its heap in the corpus', () {
     final missing = [
-      for (final c in BdHeapObjectClass.values)
+      for (final c in BdObjectClass.values)
         if (!c.isUnknown && !bdKindsSeen.contains(c.code)) 'BD ${c.name}',
-      for (final c in FpHeapObjectClass.values)
+      for (final c in FpObjectClass.values)
         if (!c.isUnknown && !fpKindsSeen.contains(c.code)) 'FP ${c.name}',
     ];
     expect(missing, isEmpty);
@@ -132,9 +132,9 @@ void invariantsTests() {
   test('CATALOG COMPLETENESS: every object class in the corpus is catalogued for its heap', () {
     final uncatalogued = [
       for (final kind in bdKindsSeen)
-        if (BdHeapObjectClass.fromCode(kind).isUnknown) 'BD 0x${kind.toRadixString(16)}',
+        if (BdObjectClass.fromCode(kind).isUnknown) 'BD 0x${kind.toRadixString(16)}',
       for (final kind in fpKindsSeen)
-        if (FpHeapObjectClass.fromCode(kind).isUnknown) 'FP 0x${kind.toRadixString(16)}',
+        if (FpObjectClass.fromCode(kind).isUnknown) 'FP 0x${kind.toRadixString(16)}',
     ];
     expect(uncatalogued, isEmpty);
   });

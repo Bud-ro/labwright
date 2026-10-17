@@ -525,7 +525,7 @@ enum BlockTag {
   /// `tool/gen_block_docs.dart`; null while the layout is not decoded.
   final ByteLayout? layout;
 
-  /// The C4 record heaps that `walkHeapBody` and `buildDiagram` read.
+  /// The C4 record heaps that `walkHeapBody`, `buildBlockDiagram` and `buildFrontPanel` read.
   static const Set<BlockTag> recordHeaps = {fphb, bdhb};
 
   /// The front panel's object heap in every encoding.

@@ -29,7 +29,7 @@ void main() {
         withBounds++;
         if (bounds.top == bounds.bottom || bounds.left == bounds.right) lineLike++;
       }
-      for (final object in model.frontPanelDiagrams.expand((d) => d.objects)) {
+      for (final object in model.frontPanels.expand((d) => d.objects)) {
         if (object.kind == 0x1d) fpWires++;
       }
     }
@@ -70,7 +70,7 @@ void main() {
         }
         wireObjects += diagram.wires.length;
       }
-      for (final object in model.frontPanelDiagrams.expand((d) => d.objects)) {
+      for (final object in model.frontPanels.expand((d) => d.objects)) {
         if (object.kind == 0x17) fpSignals++;
       }
     }
@@ -138,7 +138,7 @@ void main() {
   });
 }
 
-ViHeapObject? _boundedOwner(ViDiagram d, int oid) {
+BdObject? _boundedOwner(BdDiagram d, int oid) {
   var object = d.byId[oid];
   final seen = <int>{};
   while (object != null && seen.add(object.oid)) {

@@ -1,7 +1,7 @@
 /// The primitives a `primResID` names, with the basis of each name.
 library;
 
-import 'objects.dart' show ViTypeKind;
+import '../heap/heap_object.dart';
 
 /// Where a [PrimOp]'s name comes from.
 enum PrimNameBasis {

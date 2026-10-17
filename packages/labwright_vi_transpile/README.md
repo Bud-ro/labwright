@@ -399,7 +399,7 @@ or returns an `LvRefusal` naming the decoded fact that is missing.
 
 ### The IR
 
-A `ViDiagram` becomes an `LvDataflow`: **units** (primitive nodes, diagram
+A `BdDiagram` becomes an `LvDataflow`: **units** (primitive nodes, diagram
 constants, connector-pane terminals, structures) joined by typed **edges**, and
 grouped into one `LvRegion` per structure frame.
 

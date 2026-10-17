@@ -29,7 +29,7 @@ Uint8List _file() => buildRsrc([
 
 void main() {
   test('the walker records each object\'s span, bounds payload and label record', () {
-    final diagram = buildDiagram(heapBody(_heap()));
+    final diagram = buildBlockDiagram(heapBody(_heap()));
     final [outer, inner, last] = diagram.objects;
     expect((outer.offset, outer.end), (4, 4 + _heap().length - (9 + 11 + 2)));
     expect(

@@ -809,7 +809,7 @@ void main() {
       for (final (sig, value) in [(375, 8), (3126, 256), (399, 256)]) {
         final w = wires.firstWhere((w) => w.signalOid == sig);
         expect(
-          bd.endpointConstant(w.endpointOids[0])?.constNumeric,
+          bd.endpointConstant(w.endpointOids[0])?.constant?.numeric,
           value,
           reason: 'feeder $sig must wrap the $value constant',
         );

@@ -19,7 +19,7 @@ import 'wire_type.dart';
 const int kLvEmitPageWidth = 120;
 
 ({String? source, LvRefusal? refusal}) emitLvFunction(
-  ViDiagram diagram, {
+  BdDiagram diagram, {
   required String functionName,
   String? sourceNote,
   List<ViType> pool = const [],
@@ -213,7 +213,7 @@ class _Library {
   /// The type of a connector-pane control nothing reads: a parameter the function takes and
   /// never uses, typed by the control's own descriptor.
   LvWireType _unwiredControlType(_Callable callable, LvInterfaceUnit control) {
-    final descriptor = callable.unit.diagram.byId[control.oid]?.resolvedType;
+    final descriptor = callable.unit.diagram.byId[control.oid]?.resolvedType?.type;
     final mapped = descriptor == null
         ? const LvTypeMapping.unmapped('the terminal resolves no descriptor')
         : mapLvType(descriptor, callable.unit.pool, 0, declarations);
@@ -327,7 +327,7 @@ class _FunctionEmitter {
 
   String run() {
     for (final node in callable.unit.diagram.objects) {
-      if (node.kind == BdHeapObjectClass.callLibrary.code) {
+      if (node.kind == BdObjectClass.callLibrary.code) {
         lvRefuse(LvRefusalKind.foreignCall, lvForeignCallDetail(node), oid: node.oid);
       }
     }
@@ -546,9 +546,9 @@ class _FunctionEmitter {
       valueOf[unit.port] = literal;
       return;
     }
-    final dims = record.constArrayDims;
-    final numbers = record.constArray;
-    final texts = record.constTextArray;
+    final dims = record.constant?.arrayDims;
+    final numbers = record.constant?.array;
+    final texts = record.constant?.textArray;
     final String flat;
     final String elements;
     if (dims != null && dims.length == type.dims && numbers != null && type.numeric != null) {
@@ -614,15 +614,15 @@ class _FunctionEmitter {
     return '0x${integer.toRadixString(16).toUpperCase().padLeft(kind.bits ~/ 4, '0')}';
   }
 
-  String? _scalarLiteral(ViHeapObject record, LvWireType type) {
+  String? _scalarLiteral(BdObject record, LvWireType type) {
     if (type.carrier == LvCarrier.boolean) {
-      return record.constBool?.toString();
+      return record.constant?.boolValue?.toString();
     }
     if (type.carrier == LvCarrier.text) {
-      final text = record.constText;
+      final text = record.constant?.text;
       return text == null ? null : _stringLiteral(text);
     }
-    final value = record.constNumeric;
+    final value = record.constant?.numeric;
     return value == null ? null : _numberLiteral(value, type);
   }
 
@@ -656,7 +656,7 @@ class _FunctionEmitter {
         roleFlags: unit.portRoleFlags[port] ?? 0,
         expression: isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label),
         memberName: unit.portMemberName[port],
-        constantText: producer is LvConstUnit ? producer.record.constText : null,
+        constantText: producer is LvConstUnit ? producer.record.constant?.text : null,
       );
     }
 

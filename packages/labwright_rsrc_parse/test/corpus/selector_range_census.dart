@@ -8,7 +8,7 @@ const int _kOpenLow = -0x80000000;
 
 const String _kDefaultSuffix = ', Default';
 
-int _defaultFrame(ViHeapObject structure) => structure.defaultFrameIndex ?? kViFirstFrameIsDefault;
+int _defaultFrame(BdObject structure) => structure.caseFrames?.defaultFrameIndex ?? kViFirstFrameIsDefault;
 
 String? _renderNumeric(ViSelectorRange range) {
   if (range.isSingle) return '${range.low}';
@@ -54,7 +54,7 @@ Map<int, int> _statedCounts(List<DecodedSection> sections) {
       body,
       onObjectOpen: (offset, kind, oid, parent) => (kind, oid),
       onRecord: (offset, length, lead, enclosing) {
-        if (enclosing == null || enclosing.$1 != BdHeapObjectClass.caseStructure.code) return;
+        if (enclosing == null || enclosing.$1 != BdObjectClass.caseStructure.code) return;
         final attr = decodeHeapAttr(body, offset);
         if (attr?.rawTag == HeapAttribute.selectNRightType.raw && attr?.asInt != null) {
           stated[enclosing.$2] ??= attr!.asInt!;
@@ -79,13 +79,14 @@ Map<String, int> _census(CorpusVi vi) {
   }
   for (final diagram in model.blockDiagrams) {
     for (final structure in diagram.objects) {
-      if (structure.objectClass != BdHeapObjectClass.caseStructure) continue;
-      final ranges = structure.selectorRanges;
+      if (structure.objectClass != BdObjectClass.caseStructure) continue;
+      final frames = structure.caseFrames!;
+      final ranges = frames.selectorRanges;
       if (ranges.isEmpty) continue;
       if (stated[structure.oid] case final count? when count != ranges.length) bump('countDisagree');
       final frameCount = diagram
           .childrenOf(structure)
-          .where((child) => child.objectClass == BdHeapObjectClass.frame)
+          .where((child) => child.objectClass == BdObjectClass.frame)
           .length;
       for (final range in ranges) {
         if (range.frame < 0 || range.frame >= frameCount) bump('frameOutOfRange');
@@ -98,7 +99,7 @@ Map<String, int> _census(CorpusVi vi) {
 
       final selectorLabel = diagram
           .childrenOf(structure)
-          .where((child) => child.objectClass == BdHeapObjectClass.caseSelectorLabel)
+          .where((child) => child.objectClass == BdObjectClass.caseSelectorLabel)
           .map((child) => child.label)
           .whereType<String>()
           .firstOrNull;
@@ -108,7 +109,7 @@ Map<String, int> _census(CorpusVi vi) {
       if (wantsDefault) want = want == 'Default' ? '' : want.substring(0, want.length - _kDefaultSuffix.length);
       final displayed = [
         for (final range in ranges)
-          if (range.frame == structure.visibleFrameIndex) range,
+          if (range.frame == structure.frames?.visibleFrameIndex) range,
       ];
       if (displayed.isEmpty) continue;
       if (const {'True', 'False', 'Error', 'No Error'}.contains(want)) {
@@ -121,8 +122,8 @@ Map<String, int> _census(CorpusVi vi) {
         bump('$shape${agrees ? 'Agree' : 'Disagree'}');
         continue;
       }
-      if (structure.selectorStrings.isNotEmpty) {
-        final pool = structure.selectorStrings;
+      final pool = frames.selectorStrings;
+      if (pool.isNotEmpty) {
         final values = [
           for (final range in displayed)
             if (range.isSingle && range.low >= 0 && range.low < pool.length) pool[range.low] else null,

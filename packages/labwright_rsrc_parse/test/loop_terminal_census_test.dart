@@ -36,7 +36,7 @@ void main() {
       3030: (256, (197, 189, 216, 214)),
     };
     feeders.forEach((oid, want) {
-      expect(d.endpointConstant(oid)?.constNumeric, want.$1, reason: 'endpoint $oid value');
+      expect(d.endpointConstant(oid)?.constant?.numeric, want.$1, reason: 'endpoint $oid value');
       final r = d.endpointConstantBounds(oid)!;
       expect((r.top, r.left, r.bottom, r.right), want.$2, reason: 'endpoint $oid shell');
     });

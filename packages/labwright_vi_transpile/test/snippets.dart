@@ -7,7 +7,7 @@ import '../../../tool/corpus.dart';
 
 export '../../../tool/corpus.dart';
 
-({ViDiagram diagram, List<ViType> pool}) snippetVi(String name) {
+({BdDiagram diagram, List<ViType> pool}) snippetVi(String name) {
   final unit = snippetUnit(name);
   return (diagram: unit.diagram, pool: unit.pool);
 }
@@ -17,6 +17,6 @@ LvViUnit snippetUnit(String name) {
   return LvViUnit.fromSections(decodeSections(Uint8List.fromList(vi)), fileName: '$name.vi')!;
 }
 
-ViDiagram snippetDiagram(String name) => snippetVi(name).diagram;
+BdDiagram snippetDiagram(String name) => snippetVi(name).diagram;
 
 List<String> corpusViPaths() => [for (final file in corpusFiles(corpusVi, '.vi')) file.path];
