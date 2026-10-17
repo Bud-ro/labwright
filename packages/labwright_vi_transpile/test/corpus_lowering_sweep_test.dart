@@ -880,9 +880,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
   void censusPrimitives(ViDiagram diagram) {
     final here = <String, int>{};
     for (final object in diagram.objects) {
-      if (object.category != ViObjectKind.node) continue;
+      if (object.category != BdObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
-      if (object.kind == HeapObjectClass.bdCallLibrary.code) continue;
+      if (object.kind == BdHeapObjectClass.callLibrary.code) continue;
       final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
       if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;
       final key = _reviewKey(op, object);
@@ -913,7 +913,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
   void censusForeignCalls(ViDiagram diagram) {
     var here = 0;
     for (final object in diagram.objects) {
-      if (object.kind != HeapObjectClass.bdCallLibrary.code) continue;
+      if (object.kind != BdHeapObjectClass.callLibrary.code) continue;
       here++;
       bump('foreign.node');
       final library = object.foreignLibraryPath;
@@ -1197,7 +1197,7 @@ void main() {
     final counts = <String, int>{};
     for (final name in snippets) {
       for (final object in snippetDiagram(name).objects) {
-        if (object.category != ViObjectKind.node) continue;
+        if (object.category != BdObjectKind.node) continue;
         if (kSubViCallNodeCodes.contains(object.kind)) continue;
         final op = object.primResId == null ? null : PrimOp.fromId(object.primResId!);
         if (lvPrimHasRule(op: op, classCode: object.kind, primResId: object.primResId)) continue;

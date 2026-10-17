@@ -16,11 +16,11 @@ bool _structuralHeap(Uint8List b) {
   return ByteData.sublistView(b).getUint32(0) == b.length - 4 && _heapLead(b[4]);
 }
 
-/// Counts, object kinds seen, then record-heap tags seen.
+/// Counts, block-diagram and front-panel object kinds seen, then record-heap tags seen.
 List<Object?> _summarize(CorpusVi vi) {
   final bytes = vi.bytes;
   final c = <String, int>{};
-  final kinds = <int>{};
+  final bdKinds = <int>{}, fpKinds = <int>{};
   final headTags = <String>{};
   void bad(String key) => c[key] = (c[key] ?? 0) + 1;
 
@@ -33,7 +33,7 @@ List<Object?> _summarize(CorpusVi vi) {
   }
 
   final m = vi.model;
-  if (m == null) return [c, kinds.toList(), headTags.toList()];
+  if (m == null) return [c, bdKinds.toList(), fpKinds.toList(), headTags.toList()];
 
   if (dsecs != null) {
     Uint8List? bodyOf(String tag) => dsecs.where((s) => s.tag == tag).map((s) => s.bytes).firstOrNull;
@@ -55,10 +55,13 @@ List<Object?> _summarize(CorpusVi vi) {
     }
   }
 
-  for (final o in [...m.blockDiagrams, ...m.frontPanelDiagrams].expand((d) => d.objects)) {
-    kinds.add(o.kind);
-    final r = o.absBounds;
-    if (r != null && _wild(r)) bad('wildBounds');
+  for (final d in [...m.blockDiagrams, ...m.frontPanelDiagrams]) {
+    final kinds = d.sectionTag.startsWith('FP') ? fpKinds : bdKinds;
+    for (final o in d.objects) {
+      kinds.add(o.kind);
+      final r = o.absBounds;
+      if (r != null && _wild(r)) bad('wildBounds');
+    }
   }
 
   for (final s in dsecs ?? const <DecodedSection>[]) {
@@ -92,7 +95,7 @@ List<Object?> _summarize(CorpusVi vi) {
     }
   }
 
-  return [c, kinds.toList(), headTags.toList()];
+  return [c, bdKinds.toList(), fpKinds.toList(), headTags.toList()];
 }
 
 const invariantsLaw = CorpusLaw('invariants', _summarize);
@@ -100,13 +103,14 @@ const invariantsLaw = CorpusLaw('invariants', _summarize);
 void invariantsTests() {
   final all = corpusVis.files;
   late final List<Map<String, int>> counts;
-  late final Set<int> kindsSeen;
+  late final Set<int> bdKindsSeen, fpKindsSeen;
   late final Set<String> headTags;
   setUpAll(() async {
     final res = await invariantsLaw.results;
-    counts = [for (final [c as Map<String, int>, _, _] in res) c];
-    kindsSeen = {for (final [_, k as List<int>, _] in res) ...k};
-    headTags = {for (final [_, _, h as List<String>] in res) ...h};
+    counts = [for (final [c as Map<String, int>, _, _, _] in res) c];
+    bdKindsSeen = {for (final [_, k as List<int>, _, _] in res) ...k};
+    fpKindsSeen = {for (final [_, _, k as List<int>, _] in res) ...k};
+    headTags = {for (final [_, _, _, h as List<String>] in res) ...h};
   });
 
   Map<String, Map<String, int>> violations(Set<String> laws) => perFileNonzero(all, counts, laws);
@@ -115,18 +119,22 @@ void invariantsTests() {
     expect(violations({'wildBounds', 'fuzzWild'}), const <String, Map<String, int>>{});
   });
 
-  test('CATALOG INTEGRITY: every catalogued object-class kind occurs in the corpus', () {
+  test('CATALOG INTEGRITY: every catalogued object class occurs in its heap in the corpus', () {
     final missing = [
-      for (final c in HeapObjectClass.values)
-        if (c != HeapObjectClass.unknown && !kindsSeen.contains(c.code)) c.name,
+      for (final c in BdHeapObjectClass.values)
+        if (!c.isUnknown && !bdKindsSeen.contains(c.code)) 'BD ${c.name}',
+      for (final c in FpHeapObjectClass.values)
+        if (!c.isUnknown && !fpKindsSeen.contains(c.code)) 'FP ${c.name}',
     ];
     expect(missing, isEmpty);
   });
 
-  test('CATALOG COMPLETENESS: every object-class kind in the corpus is catalogued', () {
+  test('CATALOG COMPLETENESS: every object class in the corpus is catalogued for its heap', () {
     final uncatalogued = [
-      for (final kind in kindsSeen)
-        if (HeapObjectClass.fromCode(kind) == HeapObjectClass.unknown) '0x${kind.toRadixString(16)}',
+      for (final kind in bdKindsSeen)
+        if (BdHeapObjectClass.fromCode(kind).isUnknown) 'BD 0x${kind.toRadixString(16)}',
+      for (final kind in fpKindsSeen)
+        if (FpHeapObjectClass.fromCode(kind).isUnknown) 'FP 0x${kind.toRadixString(16)}',
     ];
     expect(uncatalogued, isEmpty);
   });

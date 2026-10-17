@@ -1017,13 +1017,13 @@ class _RecoverySummary extends StatelessWidget {
       for (final diagram in model.blockDiagrams) ...diagram.objects,
     ];
     final classified = objs
-        .where((o) => o.category != ViObjectKind.unknown)
+        .where((o) => o.category != BdObjectKind.unknown)
         .length;
     final unknown = objs.length - classified;
     final structures = objs
-        .where((o) => o.category == ViObjectKind.structure)
+        .where((o) => o.category == BdObjectKind.structure)
         .length;
-    final nodes = objs.where((o) => o.category == ViObjectKind.node).length;
+    final nodes = objs.where((o) => o.category == BdObjectKind.node).length;
     final parts = <String>[
       '${objs.length} BD objects',
       '$classified classified / $unknown unknown',

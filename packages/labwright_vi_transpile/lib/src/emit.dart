@@ -327,7 +327,7 @@ class _FunctionEmitter {
 
   String run() {
     for (final node in callable.unit.diagram.objects) {
-      if (node.kind == HeapObjectClass.bdCallLibrary.code) {
+      if (node.kind == BdHeapObjectClass.callLibrary.code) {
         lvRefuse(LvRefusalKind.foreignCall, lvForeignCallDetail(node), oid: node.oid);
       }
     }

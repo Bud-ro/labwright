@@ -8,8 +8,8 @@ import 'test_util.dart';
 
 void main() {
   test('GOLDEN: emitted top-level + node key sets are pinned (update if the IR shape changes)', () {
-    final node = ViHeapObject(oid: 7, kind: 0x12, offset: 0)
-      ..category = ViObjectKind.node
+    final node = ViHeapObject(oid: 7, kind: 0x2f, offset: 0, objectClass: BdHeapObjectClass.primitive)
+      ..category = BdObjectKind.node
       ..parentOid = 1
       ..label = 'doit'
       ..bounds = const HeapRect(top: 1, left: 2, bottom: 3, right: 4)
@@ -75,8 +75,8 @@ void main() {
   });
 
   test('non-finite control range sentinels are dropped and the IR stays jsonEncode-safe', () {
-    final node = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
-      ..category = ViObjectKind.terminal
+    final node = ViHeapObject(oid: 1, kind: 0x50, offset: 0, objectClass: BdHeapObjectClass.fromCode(0x50))
+      ..category = BdObjectKind.terminal
       ..absBounds = const HeapRect(top: 0, left: 0, bottom: 10, right: 10)
       ..controlMin = double.negativeInfinity
       ..controlMax = double.infinity;

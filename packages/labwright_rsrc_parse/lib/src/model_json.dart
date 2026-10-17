@@ -17,10 +17,10 @@ Map<String, Object?> _objectToJson(ViHeapObject object) {
     'kindCode': object.kind,
     'class': {
       'label': cls.label,
-      'category': cls.category.name,
+      'category': cls.category.label,
       'confidence': cls.confidence.name,
     },
-    'objectKind': object.category.name,
+    'objectKind': object.category.label,
     'typeKind': object.typeKind.name,
     if (object.dataType != null) 'dataType': object.dataType!.name,
     if (object.typeName != null) 'typeName': object.typeName,

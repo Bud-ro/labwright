@@ -127,7 +127,12 @@ ViHeapObject heapObj(
   String? help,
   ViTypeKind? typeKind,
 }) {
-  final o = ViHeapObject(oid: oid, kind: kind, offset: 0);
+  final o = ViHeapObject(
+    oid: oid,
+    kind: kind,
+    offset: 0,
+    objectClass: BdHeapObjectClass.fromCode(kind),
+  );
   if (cat != null) o.category = cat;
   if (plotColors != null) o.plotColors = plotColors;
   if (at != null) {

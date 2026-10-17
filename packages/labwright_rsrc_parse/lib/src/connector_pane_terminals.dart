@@ -55,7 +55,7 @@ List<ViHeapObject?> connectorPaneTerminals({
 List<ViHeapObject> panelControls(List<ViDiagram> frontPanelDiagrams) => [
   for (final panel in frontPanelDiagrams)
     for (final object in panel.objects)
-      if (object.kind == HeapObjectClass.node.code && object.typeDescIdx != null) object,
+      if (object.kind == FpHeapObjectClass.dco.code && object.typeDescIdx != null) object,
 ];
 
 /// The panel's data items in `CPMp` order: the members of the cluster `FPTD` names

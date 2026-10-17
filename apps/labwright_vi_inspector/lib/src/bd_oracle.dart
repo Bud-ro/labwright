@@ -51,7 +51,7 @@ GlobalHatchOffset deriveHatchOffset({
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
   for (final frame in diagram.objects) {
-    if (frame.objectClass != HeapObjectClass.bdStructureFrame ||
+    if (frame.objectClass != BdHeapObjectClass.caseStructure ||
         !drawableOids.contains(frame.oid)) {
       continue;
     }
@@ -639,7 +639,7 @@ List<Rect> bdStructureAnchorRects(
   final extent = bdContentRect(drawable, includeWires: false, margin: 0);
   final out = <Rect>[];
   for (final object in drawable) {
-    if (object.category != ViObjectKind.structure) continue;
+    if (object.category != BdObjectKind.structure) continue;
     final bounds = object.absBounds!;
     if (bounds.width < 24 || bounds.height < 24) continue;
     if (bounds.width >= extent.width * 0.95 &&
@@ -764,10 +764,10 @@ PlacementComparison comparePlacement({
   final extent = bdContentRect(drawable, includeWires: false, margin: 0);
   final perObject = <({int oid, double support})>[];
   for (final object in drawable) {
-    if (object.category != ViObjectKind.structure &&
-        object.category != ViObjectKind.node &&
-        object.category != ViObjectKind.terminal &&
-        object.category != ViObjectKind.decoration) {
+    if (object.category != BdObjectKind.structure &&
+        object.category != BdObjectKind.node &&
+        object.category != BdObjectKind.terminal &&
+        object.category != BdObjectKind.decoration) {
       continue;
     }
     if (kBdTextLabelClasses.contains(object.objectClass)) continue;

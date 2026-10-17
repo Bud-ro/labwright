@@ -742,7 +742,7 @@ void main() {
     List<int> caseWithFrames(int oid, int? dIdx, int frames) => [
       ...open(0x2c, oid),
       if (dIdx != null) ...attrU8(0x4d, dIdx),
-      for (var i = 0; i < frames; i++) ...[...open(HeapObjectClass.bdFrame.code, oid * 10 + i), ...close()],
+      for (var i = 0; i < frames; i++) ...[...open(BdHeapObjectClass.frame.code, oid * 10 + i), ...close()],
       ...close(),
     ];
     final d = dia([
@@ -840,7 +840,7 @@ void main() {
       ...close(0x55),
       ...close(),
     ]).byId[1]!;
-    expect(s.category, ViObjectKind.structure);
+    expect(s.category, BdObjectKind.structure);
     expect(s.refs, [9], reason: 's.refs is the backward-compatible childRef subset');
     expect(s.refsOf(HeapRefKind.childRef), [9]);
     expect(s.refsOf(HeapRefKind.dcoRef), [11]);
@@ -866,7 +866,7 @@ void main() {
       ...open(0x68, 1),
       ...bounds(0, 0, 17, 17),
       ...close(),
-      ...open(0x12, 2),
+      ...open(0x2f, 2),
       ...bounds(0, 0, 40, 40),
       ...close(),
       ...open(0x50, 3),
@@ -882,8 +882,8 @@ void main() {
       ...enum2e(['Low', 'High']),
       ...close(),
     ]);
-    expect(d.byId[1]!.category, ViObjectKind.terminal);
-    expect(d.byId[2]!.category, ViObjectKind.node);
+    expect(d.byId[1]!.category, BdObjectKind.terminal);
+    expect(d.byId[2]!.category, BdObjectKind.node);
     expect(d.byId[3]!.typeKind, ViTypeKind.numericFloat);
     expect(d.byId[4]!.typeKind, ViTypeKind.numericInt);
     expect(d.byId[5]!.typeKind, ViTypeKind.enumRing);
@@ -930,56 +930,50 @@ void main() {
     expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300], reason: 'not under 0x11c: untouched');
   });
 
-  test('HeapObjectClass catalog: unique codes, round-trip, category agreement', () {
-    final seen = <int>{};
-    for (final c in HeapObjectClass.values) {
-      if (c == HeapObjectClass.unknown) continue;
-      expect(seen.add(c.code), isTrue, reason: 'duplicate code 0x${c.code.toRadixString(16)}');
-      expect(HeapObjectClass.fromCode(c.code), c);
-      expect(c.label, isNotEmpty);
+  test('class catalogues: unique codes, round-trip, category agreement', () {
+    void check(List<HeapObjectClass> values, HeapObjectClass Function(int) fromCode) {
+      final seen = <int>{};
+      for (final c in values) {
+        if (c.isUnknown) continue;
+        expect(seen.add(c.code), isTrue, reason: 'duplicate code 0x${c.code.toRadixString(16)}');
+        expect(fromCode(c.code), c);
+        expect(c.label, isNotEmpty);
+      }
+      expect(fromCode(0xabcd).isUnknown, isTrue);
     }
-    expect(HeapObjectClass.fromCode(0xabcd), HeapObjectClass.unknown);
-    expect(HeapObjectClass.fromCode(0x50).label, 'Numeric control');
 
-    const byCategory = <ViObjectKind, List<int>>{
-      ViObjectKind.node: [
-        0x12, 0x2f, 0x31, 0x63, 0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, //
+    check(BdHeapObjectClass.values, BdHeapObjectClass.fromCode);
+    check(FpHeapObjectClass.values, FpHeapObjectClass.fromCode);
+    expect(BdHeapObjectClass.fromCode(0x50).label, 'Numeric');
+    expect(FpHeapObjectClass.fromCode(0x53).label, 'Cluster');
+    expect(BdHeapObjectClass.fromCode(0x53).label, 'Cluster');
+
+    const byCategory = <BdObjectKind, List<int>>{
+      BdObjectKind.node: [
+        0x2f, 0x31, 0x63, 0x8c, 0x3a, 0xd6, 0x32, 0xc5, 0x104, 0x44, 0x3e, 0x34, 0xa9, 0x93, 0x172, //
         0x6c, 0x36, 0x153, 0x6a, 0xbd, 0x114, 0xb6, 0xb9, 0x48, 0xeb, 0x103, 0x14a, 0x124, //
         0x150, 0x14f, 0x152,
       ],
-      ViObjectKind.terminal: [0x68, 0x16, 0x95, 0x55, 0x4e, 0x10c, 0xc2],
-      ViObjectKind.structure: [0x53, 0x2c, 0xca, 0x29, 0xd5, 0x121, 0x20, 0x21, 0xcd, 0x14d],
-      ViObjectKind.decoration: [0x177],
+      BdObjectKind.terminal: [0x68, 0x16, 0x95, 0x55, 0x4e, 0x10c, 0xc2],
+      BdObjectKind.structure: [0x53, 0x2c, 0xca, 0x29, 0xd5, 0x121, 0x20, 0x21, 0xcd, 0x14d],
+      BdObjectKind.decoration: [0x177],
     };
     byCategory.forEach((category, kinds) {
       for (final k in kinds) {
         expect(
-          classifyObject(objectClass: HeapObjectClass.fromCode(k), termCount: 0),
+          classifyObject(objectClass: BdHeapObjectClass.fromCode(k), termCount: 0),
           category,
           reason: '0x${k.toRadixString(16)}',
         );
       }
     });
+    expect(classifyObject(objectClass: FpHeapObjectClass.fromCode(0x12), termCount: 0), FpObjectKind.control);
+    expect(classifyObject(objectClass: FpHeapObjectClass.fromCode(0x11c), termCount: 0), FpObjectKind.pane);
     expect(
-      classifyObject(objectClass: HeapObjectClass.numericControl, termCount: 2),
-      ViObjectKind.terminalCluster,
+      classifyObject(objectClass: BdHeapObjectClass.numeric, termCount: 2),
+      BdObjectKind.terminalCluster,
       reason: 'the C4-1F terminal signal wins over the catalog category',
     );
-  });
-
-  test('section-dependent class labels stay honest about what was observed', () {
-    final loop = HeapObjectClass.fromCode(0x53).label;
-    expect(loop, contains('(BD)'), reason: '0x53 is genuinely dual-role: BD loops + FP containers');
-    expect(loop, contains('(FP)'));
-    expect(loop, isNot('Loop (while/for)'), reason: 'a section-blind label would mislabel FP containers');
-    for (final code in [0x12, 0x4c]) {
-      final label = HeapObjectClass.fromCode(code).label;
-      expect(label, contains('(FP)'), reason: '0x${code.toRadixString(16)} lost its FP-role tag');
-      expect(label, isNot(contains('(BD)')), reason: '0x${code.toRadixString(16)} re-asserts an unobserved BD role');
-    }
-    final c52 = HeapObjectClass.fromCode(0x52).label;
-    expect(c52, isNot(contains('case')));
-    expect(c52, isNot(contains('Case')));
   });
 
   test('enum/ring items parse and propagate up to the enclosing control', () {
@@ -1126,8 +1120,8 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[3]!.objectClass, HeapObjectClass.unknown, reason: '0x1ff is not catalogued by code');
-    expect(d.byId[3]!.category, ViObjectKind.node);
+    expect(d.byId[3]!.objectClass, BdHeapObjectClass.unknown, reason: '0x1ff is not catalogued by code');
+    expect(d.byId[3]!.category, BdObjectKind.node);
   });
 
   test('a BD node inherits its name from its child 0xa caption', () {
@@ -1274,7 +1268,7 @@ void resolveTypesTests() {
   final dthp = ViDataTypeHeap(Uint8List.fromList([0, 4, 0, 3])) as ViDataTypeHeapCompact;
 
   ViHeapObject obj(int oid, int kind, {int? tdi}) {
-    final o = ViHeapObject(oid: oid, kind: kind, offset: 0);
+    final o = ViHeapObject(oid: oid, kind: kind, offset: 0, objectClass: BdHeapObjectClass.fromCode(kind));
     if (tdi != null) o.typeDescIdx = tdi;
     return o;
   }
@@ -1398,7 +1392,8 @@ void resolveTypesTests() {
   });
 
   test('a hand-built diagram links parents and children from parentOid in either order', () {
-    ViHeapObject obj(int oid, [int? parentOid]) => ViHeapObject(oid: oid, kind: 0x50, offset: 0)..parentOid = parentOid;
+    ViHeapObject obj(int oid, [int? parentOid]) =>
+        ViHeapObject(oid: oid, kind: 0x50, offset: 0, objectClass: BdHeapObjectClass.numeric)..parentOid = parentOid;
     for (final objects in [
       [obj(1), obj(2, 1), obj(3, 1)],
       [obj(2, 1), obj(3, 1), obj(1)],
@@ -1412,7 +1407,7 @@ void resolveTypesTests() {
   });
 
   test('references are kept per kind in record order; refs is the childRef list', () {
-    final o = ViHeapObject(oid: 1, kind: 0x50, offset: 0);
+    final o = ViHeapObject(oid: 1, kind: 0x50, offset: 0, objectClass: BdHeapObjectClass.numeric);
     expect(HeapRefKind.values.map(o.refsOf), everyElement(isNull));
     expect(o.refs, isEmpty);
     o.addRef(HeapRefKind.dcoRef, 3);

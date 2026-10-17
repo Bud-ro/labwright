@@ -14,7 +14,7 @@ const int kLvInputEndpointFlag = 0x4000;
 /// Whether a signal endpoint consumes the wire: a pane terminal by its indicator bit, any other by
 /// [kLvSinkEndpointFlag] or [kLvInputEndpointFlag].
 bool lvEndpointIsSink(ViHeapObject object) {
-  if (object.kind == HeapObjectClass.bdLeaf.code) {
+  if (object.kind == BdHeapObjectClass.panelTerminal.code) {
     if (object.isIndicator case final indicator?) return indicator;
   }
   return ((object.objFlags ?? 0) & (kLvSinkEndpointFlag | kLvInputEndpointFlag)) != 0;
@@ -609,7 +609,7 @@ class _Builder {
       if (object.parentOid == null) {
         final frame = diagram
             .childrenOf(object)
-            .where((child) => child.objectClass == HeapObjectClass.bdFrame)
+            .where((child) => child.objectClass == BdHeapObjectClass.frame)
             .firstOrNull;
         if (frame != null) return frame.oid;
       }
@@ -742,7 +742,7 @@ class _Builder {
       if (parent == null) return null;
       final object = byId[parent];
       if (object == null) return null;
-      if (object.objectClass == HeapObjectClass.bdFrame) return object.oid;
+      if (object.objectClass == BdHeapObjectClass.frame) return object.oid;
       current = object;
     }
     return null;
@@ -752,13 +752,13 @@ class _Builder {
     final units = <LvUnit>[];
     for (final child in diagram.children(frameOid)) {
       switch (child.category) {
-        case ViObjectKind.node:
+        case BdObjectKind.node:
           if (child.kind == kInPlaceBorderNodeKind || child.kind == kInPlaceClusterNodeKind) continue;
           units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
-        case ViObjectKind.structure:
+        case BdObjectKind.structure:
           units.add(_structUnit(child));
         case _:
-          if (child.kind == HeapObjectClass.bdWire.code) units.addAll(_wireRecordUnits(child));
+          if (child.kind == BdHeapObjectClass.wire.code) units.addAll(_wireRecordUnits(child));
       }
     }
     final edges = [
@@ -829,7 +829,7 @@ class _Builder {
   List<LvUnit> _wireRecordUnits(ViHeapObject record) {
     final units = <LvUnit>[];
     for (final child in diagram.childrenOf(record)) {
-      if (child.kind == HeapObjectClass.bdLeaf.code) {
+      if (child.kind == BdHeapObjectClass.panelTerminal.code) {
         ownerOfPort[child.oid] = child.oid;
         units.add(
           LvInterfaceUnit(
@@ -845,7 +845,7 @@ class _Builder {
       if (child.memberOids.isNotEmpty) continue;
       final constant = diagram
           .childrenOf(child)
-          .where((child) => child.kind == HeapObjectClass.bdConstDco.code)
+          .where((child) => child.kind == BdHeapObjectClass.constant.code)
           .firstOrNull;
       if (constant == null) {
         lvRefuse(
@@ -870,7 +870,7 @@ class _Builder {
   String? _constantLabel(ViHeapObject constant) {
     for (final shell in diagram.childrenOf(constant)) {
       for (final part in diagram.childrenOf(shell)) {
-        if (part.kind == HeapObjectClass.controlLabel.code) {
+        if (part.kind == BdHeapObjectClass.textLabel.code) {
           final text = part.label?.trim();
           if (text != null && text.isNotEmpty) return text;
         }
@@ -891,12 +891,12 @@ class _Builder {
     }
     final frames = [
       for (final child in diagram.childrenOf(structure))
-        if (child.objectClass == HeapObjectClass.bdFrame) child.oid,
+        if (child.objectClass == BdHeapObjectClass.frame) child.oid,
       if (kind == LvStructureKind.flatSequence)
         for (final sequenceFrame in diagram.childrenOf(structure))
-          if (sequenceFrame.objectClass == HeapObjectClass.bdSequenceFrame)
+          if (sequenceFrame.objectClass == BdHeapObjectClass.sequenceFrame)
             for (final child in diagram.childrenOf(sequenceFrame))
-              if (child.objectClass == HeapObjectClass.bdFrame) child.oid,
+              if (child.objectClass == BdHeapObjectClass.frame) child.oid,
     ];
     final frameSet = frames.toSet();
     final terminals = <LvStructTerminal>[];
@@ -936,7 +936,7 @@ class _Builder {
     }
     final label = diagram
         .childrenOf(structure)
-        .where((child) => child.kind == HeapObjectClass.bdSelectorLabel.code)
+        .where((child) => child.kind == BdHeapObjectClass.caseSelectorLabel.code)
         .firstOrNull;
     _pairConditions(terminals);
     var pairs = const <LvInPlaceArrayPair>[];
@@ -972,8 +972,8 @@ class _Builder {
     final markers = [
       for (final child in diagram.childrenOf(structure))
         if (child.kind != kNodeEndpointDcoKind &&
-            child.objectClass != HeapObjectClass.bdFrame &&
-            child.kind != HeapObjectClass.controlLabel.code)
+            child.objectClass != BdHeapObjectClass.frame &&
+            child.kind != BdHeapObjectClass.textLabel.code)
           child.kind,
     ];
     if (frameOid == null ||
@@ -1168,7 +1168,7 @@ class _Builder {
         yield child;
         continue;
       }
-      if (child.objectClass == HeapObjectClass.bdSequenceFrame) {
+      if (child.objectClass == BdHeapObjectClass.sequenceFrame) {
         for (final holder in diagram.childrenOf(child)) {
           yield* _holderRecords(holder);
         }
