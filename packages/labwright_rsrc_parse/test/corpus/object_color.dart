@@ -43,7 +43,7 @@ List<int> _tally(CorpusVi vi) {
       if (object.structRgb != null) {
         out[8]++;
         if (bounded) out[9]++;
-        if (isBd && object.category == ViObjectKind.structure) out[10]++;
+        if (isBd && object.category == BdObjectKind.structure) out[10]++;
       }
       if (object.borderRgb != null) out[11]++;
       if (inRange(object.structRgb)) out[12]++;
@@ -53,7 +53,7 @@ List<int> _tally(CorpusVi vi) {
         if (bounded) out[14]++;
         out[15] += object.plotColors.length;
         out[16] += object.plotColors.where(inRange).length;
-        if (object.objectClass == HeapObjectClass.graphIndicator) out[17]++;
+        if (object.objectClass == FpHeapObjectClass.graph) out[17]++;
       }
     }
   }

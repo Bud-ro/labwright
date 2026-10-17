@@ -411,7 +411,7 @@ void main() {
       // TODO: the structure band is not byte-faithful; its edge corridors are excluded from the surround check.
       final structureEdgeRects = [
         for (final o in drawable)
-          if (o.category == ViObjectKind.structure) o.absBounds!,
+          if (o.category == BdObjectKind.structure) o.absBounds!,
       ];
       // Modeled structure-terminal boxes are excluded: which ones LabVIEW shows is not decoded.
       final modeledTerminalRects = [
@@ -505,7 +505,7 @@ void main() {
 
       final leafRects = [
         for (final o in drawable)
-          if (o.category != ViObjectKind.structure && o.absBounds != null)
+          if (o.category != BdObjectKind.structure && o.absBounds != null)
             o.absBounds!,
         for (final w in wires) ...w.endpointAttachRects.whereType<HeapRect>(),
       ];

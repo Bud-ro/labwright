@@ -62,7 +62,7 @@ void main() {
         0x56,
         ...close(),
       ], compressed: true),
-      one: ['Numeric control', 'backgroundColor'],
+      one: ['Object · Numeric', 'backgroundColor'],
       some: ['bounds'],
       taps: [('caption', 'Hi', true)],
     ),

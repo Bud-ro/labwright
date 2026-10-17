@@ -1,5 +1,5 @@
 /// The objects of a diagram: [ViHeapObject] with the fields [buildDiagram] fills from the heap
-/// records, [HeapObjectClass] naming the object classes, the drawing kinds [ViObjectKind] and
+/// records, [BdHeapObjectClass] and [FpHeapObjectClass] naming the object classes, the roles [ViObjectKind] and
 /// [ViTypeKind], the case-selector ranges, and [ViSignalType], a wire's type word.
 library;
 
@@ -12,32 +12,74 @@ import 'diagram.dart';
 import 'obj_flags.dart';
 import 'prim_ops.dart';
 
-/// What role an object plays on a diagram; [classifyObject] assigns it from the object's
-/// [HeapObjectClass] and terminal count.
-enum ViObjectKind {
-  /// An object that carries terminals: a node's terminal group or any object with a size record.
-  terminalCluster,
+/// What role an object plays: a [BdObjectKind] on a block diagram, an [FpObjectKind] on a front
+/// panel; [classifyObject] assigns it from the object's class and terminal count.
+sealed class ViObjectKind {
+  bool get isUnknown;
+}
 
-  /// A control, indicator, label, constant or other single terminal object.
-  terminal,
+extension ViObjectKindName on ViObjectKind {
+  String get label => switch (this) {
+    BdObjectKind(:final name) => name,
+    FpObjectKind(:final name) => name,
+  };
+}
 
-  /// A primitive, subVI call or other executable node.
-  node,
-
+/// The role of a block-diagram object.
+enum BdObjectKind implements ViObjectKind {
   /// A loop, case, sequence or other container that owns a sub-diagram.
   structure,
 
   /// One sub-diagram frame of a multi-frame structure.
   frame,
 
-  /// Chrome, glyphs and free decorations that carry no data.
-  decoration,
+  /// A primitive, sub-VI call or other executable node.
+  node,
 
-  /// A signal or wire segment.
+  /// A terminal, constant, label or other single-terminal object.
+  terminal,
+
+  /// An object that carries terminals: a terminal group or any object with a size record.
+  terminalCluster,
+
+  /// A signal or wire.
   wire,
 
+  /// Glyphs and chrome that carry no data.
+  decoration,
+
   /// A class whose role is not established.
-  unknown,
+  unknown;
+
+  @override
+  bool get isUnknown => this == unknown;
+}
+
+/// The role of a front-panel object.
+enum FpObjectKind implements ViObjectKind {
+  /// The panel root and its per-panel records.
+  root,
+
+  /// A pane or the splitter between panes.
+  pane,
+
+  /// An array, cluster, tab control or other control that holds controls.
+  container,
+
+  /// A control or indicator, or the data object that owns one.
+  control,
+
+  /// A label, scale, numeric display, chrome or other part of a control.
+  part,
+
+  /// An object that carries terminals: a terminal group or any object with a size record.
+  terminalCluster,
+
+  /// A class whose role is not established.
+  unknown;
+
+  @override
+  bool get isUnknown => this == unknown;
 }
 
 /// The broad data type of an object or wire; [inferTypeKind] guesses it from the object's
@@ -145,8 +187,8 @@ class ViSelectorRange {
 /// fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to the
 /// parent's origin and [absBounds] to the diagram's.
 class ViHeapObject {
-  ViHeapObject({required this.oid, required this.kind, required this.offset})
-    : objectClass = HeapObjectClass.fromCode(kind);
+  ViHeapObject({required this.oid, required this.kind, required this.offset, required this.objectClass})
+    : category = objectClass.category;
 
   /// Position in [ViDiagram.objects], heap order; the diagram assigns it.
   int index = 0;
@@ -215,7 +257,7 @@ class ViHeapObject {
 
   bool get labelIsBold => labelFont?.isBold ?? false;
 
-  ViObjectKind category = ViObjectKind.unknown;
+  ViObjectKind category;
 
   ViTypeKind typeKind = ViTypeKind.unknown;
 
@@ -363,7 +405,7 @@ class ViHeapObject {
   /// Whether every bit of [flag] is set in [objFlags].
   bool hasFlag(ViObjFlag flag) => ((objFlags ?? 0) & flag.mask) == flag.mask;
 
-  bool get isLabelHidden => objectClass == HeapObjectClass.controlLabel && hasFlag(ViObjFlag.labelHidden);
+  bool get isLabelHidden => objectClass.isLabel && hasFlag(ViObjFlag.labelHidden);
 
   /// Whether a front-panel control is an indicator, from its [ViObjFlag.indicator] bit or its
   /// `dcoRef` target's; null until [resolveDataSpaceTypes] runs or when neither states it.
@@ -373,7 +415,7 @@ class ViHeapObject {
   List<int> plotColors = const [];
 }
 
-/// How well a [HeapObjectClass] row's role is established.
+/// How well a heap object class's role is established.
 enum ClassConfidence {
   /// Named from a corpus law or a reference render.
   confirmed,
@@ -385,267 +427,391 @@ enum ClassConfidence {
   kindOnly,
 }
 
-/// The classes an object header declares, by code; [label] is the display name and
-/// [category] the role [classifyObject] starts from.
-enum HeapObjectClass {
-  diagramRoot(0x7e, 'Diagram root', ViObjectKind.structure, ClassConfidence.confirmed),
-
-  diagramFrame(0x4c, 'Panel root frame (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
-
-  diagramProps(0x7f, 'Diagram properties', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdWire(0x1d, 'Wire segment (BD)', ViObjectKind.wire, ClassConfidence.inferred),
-
-  signal(0x17, 'Signal / dataflow wire (BD)', ViObjectKind.wire, ClassConfidence.inferred),
-
-  rootAux(0x101, 'Root auxiliary', ViObjectKind.unknown, ClassConfidence.kindOnly),
-
-  loop(0x53, 'Loop (BD) / container (FP)', ViObjectKind.structure, ClassConfidence.confirmed),
-
-  caseOrSequence(0x52, 'Container (placed controls)', ViObjectKind.structure, ClassConfidence.inferred),
-
-  clusterShell(0x64, 'Cluster/array shell', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdStructureFrame(0x2c, 'Case structure', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdForLoop(0x20, 'For loop', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdWhileLoop(0x21, 'While loop', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdDisableStructure(0xcd, 'Disable structure', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdInPlaceStructure(0x14d, 'In Place Element structure', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdFlatSequence(0xca, 'Flat Sequence structure', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdStackedSequence(0x29, 'Stacked Sequence structure', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdEventStructure(0xd5, 'Event structure', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdSequenceFrame(0x121, 'Sequence frame', ViObjectKind.structure, ClassConfidence.inferred),
-
-  bdSelectorLabel(0x95, 'Case selector label', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdGlyph(0x177, 'Node glyph', ViObjectKind.decoration, ClassConfidence.kindOnly),
-
-  subdiagramContainer(0xc7, 'Subdiagram container', ViObjectKind.structure, ClassConfidence.inferred),
-
-  rareStructure(0xef, 'Structure (rare)', ViObjectKind.structure, ClassConfidence.kindOnly),
-
-  nodeGroup(0xac, 'Node group', ViObjectKind.structure, ClassConfidence.kindOnly),
-
-  contentViewport(0x11c, 'Content viewport', ViObjectKind.structure, ClassConfidence.confirmed),
-
-  node(0x12, 'Content group (FP)', ViObjectKind.node, ClassConfidence.confirmed),
-
-  bdConstDco(0x13, 'Constant DCO (BD)', ViObjectKind.unknown, ClassConfidence.inferred),
-
-  bdNode(0x2f, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNamedNode(0x31, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdGrowableNode(0x63, 'Node (growable)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode8c(0x8c, 'Node', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode3a(0x3a, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNoded6(0xd6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode32(0x32, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNodeC5(0xc5, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode104(0x104, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode124(0x124, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode44(0x44, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode3e(0x3e, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode34(0x34, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNodeA9(0xa9, 'Node', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode93(0x93, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode172(0x172, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode6c(0x6c, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode36(0x36, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode153(0x153, 'Node (In Place Element)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode150(0x150, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
-
-  bdNode14f(0x14f, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
-
-  bdNode152(0x152, 'Node (In Place Element border)', ViObjectKind.node, ClassConfidence.kindOnly),
-
-  bdCallLibrary(0x6a, 'Call Library node', ViObjectKind.node, ClassConfidence.confirmed),
-
-  bdNodeBd(0xbd, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode114(0x114, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNodeB6(0xb6, 'Node', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNodeB9(0xb9, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode48(0x48, 'Node (primitive)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNodeEb(0xeb, 'Node', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode103(0x103, 'Node (subVI call)', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdNode14a(0x14a, 'Node', ViObjectKind.node, ClassConfidence.inferred),
-
-  bdLeaf(0x16, 'Terminal/constant (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdConstant4e(0x4e, 'Constant/terminal (BD)', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  numericControl(0x50, 'Numeric control', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  enumRingControl(0x57, 'Enum/ring control', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  booleanOrClusterControl(0x4f, 'Boolean/cluster control', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  stringOrArrayControl(0x51, 'String/array control', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  controlTerminal55(0x55, 'Control terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  controlTerminal10c(0x10c, 'Control terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  constantC2(0xc2, 'Constant/terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  pathControl(0x5b, 'Path control', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  graphIndicator(0x5e, 'Graph/chart indicator', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  numericControlVariant(0xdf, 'Numeric control (variant)', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  controlVariant(0x59, 'Control (variant)', ViObjectKind.terminal, ClassConfidence.kindOnly),
-
-  nodeTerminalCluster(0x0c, 'Terminal cluster', ViObjectKind.terminalCluster, ClassConfidence.confirmed),
-
-  controlLabel(0x0a, 'Label', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  connectorTerminal(0x68, 'Connector terminal', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  controlSubPart(0x0b, 'Control sub-part', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  numericDisplay(0xe0, 'Numeric display', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  enumItemList(0x0d, 'Enum item list', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  tipStrip(0xc1, 'Tip strip', ViObjectKind.terminal, ClassConfidence.confirmed),
-
-  bdPolySelector(0xe5, 'Polymorphic instance selector (BD)', ViObjectKind.unknown, ClassConfidence.inferred),
-
-  controlChrome(0x09, 'Resize handle/chrome', ViObjectKind.decoration, ClassConfidence.inferred),
-
-  freeDecoration(0x8f, 'Decoration', ViObjectKind.decoration, ClassConfidence.inferred),
-
-  graphLegend(0xe7, 'Graph legend', ViObjectKind.decoration, ClassConfidence.inferred),
-
-  legendSubPart(0xd2, 'Legend sub-part', ViObjectKind.decoration, ClassConfidence.inferred),
-
-  rare58(0x58, 'Undetermined (0x58)', ViObjectKind.unknown, ClassConfidence.kindOnly),
-
-  rareStructureC3(0xc3, 'Structure (rare 0xC3)', ViObjectKind.structure, ClassConfidence.kindOnly),
-
-  rareC8(0xc8, 'Undetermined (0xC8)', ViObjectKind.unknown, ClassConfidence.kindOnly),
-
-  controlRare56(0x56, 'Control (rare 0x56)', ViObjectKind.terminal, ClassConfidence.kindOnly),
-
-  bdFrame(0x1b, 'Structure frame', ViObjectKind.frame, ClassConfidence.inferred),
-
-  bdLoopTunnel(0x22, 'Loop tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdTunnelIndexer(0x23, 'Tunnel indexer', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdIterationTerminal(0x24, 'Iteration terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdConditionalTerminal(0x25, 'Conditional terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdCountTerminal(0x26, 'Count terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdLeftShiftRegister(0x27, 'Left shift register', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdRightShiftRegister(0x28, 'Right shift register', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdBorderTerminal2a(0x2a, 'Border terminal (0x2A)', ViObjectKind.terminal, ClassConfidence.kindOnly),
-
-  bdCaseTunnel(0x2d, 'Case tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdSelectorTerminal(0x2e, 'Case selector terminal', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdTerminalStrip35(0x35, 'Node terminal strip (0x35)', ViObjectKind.terminal, ClassConfidence.kindOnly),
-
-  bdTerminalStrip(0x62, 'Node terminal strip', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdBorderTerminalCb(0xcb, 'Border terminal (0xCB)', ViObjectKind.terminal, ClassConfidence.kindOnly),
-
-  bdDisableTunnel(0xce, 'Disable-structure tunnel', ViObjectKind.terminal, ClassConfidence.inferred),
-
-  bdXnode(0x105, 'XNode', ViObjectKind.node, ClassConfidence.inferred),
-
-  unknown(-1, 'Unknown class', ViObjectKind.unknown, ClassConfidence.kindOnly);
-
-  const HeapObjectClass(this.code, this.label, this.category, this.confidence);
-
-  final int code;
-
-  final String label;
-
-  final ViObjectKind category;
-
-  final ClassConfidence confidence;
-
-  static final List<HeapObjectClass> _byCode = () {
-    final codeCount = values.fold(0, (count, objectClass) => objectClass.code >= count ? objectClass.code + 1 : count);
-    final table = List<HeapObjectClass>.filled(codeCount, unknown);
-    for (final objectClass in values) {
-      if (objectClass != unknown) table[objectClass.code] = objectClass;
-    }
-    return table;
-  }();
-
-  /// The class with [code], or [unknown].
-  static HeapObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
-
-  static final List<bool> _controlTerminal = [
-    for (final objectClass in values) kControlTerminalClasses.contains(objectClass),
-  ];
-
-  static final List<bool> _multiFrameStructure = [
-    for (final objectClass in values) kMultiFrameStructureClasses.contains(objectClass),
-  ];
-
-  /// Whether the class is in [kControlTerminalClasses].
-  bool get isControlTerminal => _controlTerminal[index];
-
-  /// Whether the class is in [kMultiFrameStructureClasses].
-  bool get isMultiFrameStructure => _multiFrameStructure[index];
+/// The class an object header declares: a [BdHeapObjectClass] in a block-diagram heap, an
+/// [FpHeapObjectClass] in a front-panel heap. [label] is the display name and [category] the role
+/// [classifyObject] starts from.
+sealed class HeapObjectClass {
+  int get code;
+  String get label;
+  ViObjectKind get category;
+  ClassConfidence get confidence;
+  bool get isUnknown;
+
+  /// Whether the class is one of the typed control bodies that carry a value.
+  bool get isControlTerminal;
+
+  /// Whether the class holds one frame per case, event or sequence step and shows one at a time.
+  bool get isMultiFrameStructure;
 }
 
-/// Classes of the terminal objects that carry a control's value: numeric, boolean/cluster,
-/// enum/ring, path and string/array.
-const kControlTerminalClasses = {
-  HeapObjectClass.numericControl,
-  HeapObjectClass.booleanOrClusterControl,
-  HeapObjectClass.enumRingControl,
-  HeapObjectClass.pathControl,
-  HeapObjectClass.stringOrArrayControl,
+/// The classes both heaps hold under the same code.
+extension HeapObjectClassRoles on HeapObjectClass {
+  bool get isLabel => this == BdHeapObjectClass.textLabel || this == FpHeapObjectClass.textLabel;
+  bool get isChrome => this == BdHeapObjectClass.chrome || this == FpHeapObjectClass.chrome;
+  bool get isArray => this == BdHeapObjectClass.array || this == FpHeapObjectClass.array;
+  bool get isPane => this == BdHeapObjectClass.pane || this == FpHeapObjectClass.pane;
+  bool get isConnectorTerminal =>
+      this == BdHeapObjectClass.connectorTerminal || this == FpHeapObjectClass.connectorTerminal;
+}
+
+/// The classes of block-diagram heap objects, by code.
+enum BdHeapObjectClass implements HeapObjectClass {
+  chrome(0x0009, 'Chrome', BdObjectKind.decoration, ClassConfidence.inferred),
+  textLabel(0x000a, 'Label', BdObjectKind.terminal, ClassConfidence.confirmed),
+  controlPart(0x000b, 'Control part', BdObjectKind.terminal, ClassConfidence.inferred),
+  terminalCluster(0x000c, 'Terminal cluster', BdObjectKind.terminalCluster, ClassConfidence.confirmed),
+  itemList(0x000d, 'Enum/ring item list', BdObjectKind.terminal, ClassConfidence.confirmed),
+  constant(0x0013, 'Constant', BdObjectKind.unknown, ClassConfidence.inferred),
+  expressionNodeTerminal(0x0014, 'Expression Node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  terminalHolder(0x0015, 'Terminal holder', BdObjectKind.terminal, ClassConfidence.inferred),
+  panelTerminal(0x0016, 'Front-panel terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  signal(0x0017, 'Signal', BdObjectKind.wire, ClassConfidence.inferred),
+  frame(0x001b, 'Structure frame', BdObjectKind.frame, ClassConfidence.inferred),
+  wire(0x001d, 'Wire', BdObjectKind.wire, ClassConfidence.inferred),
+  forLoop(0x0020, 'For Loop', BdObjectKind.structure, ClassConfidence.inferred),
+  whileLoop(0x0021, 'While Loop', BdObjectKind.structure, ClassConfidence.inferred),
+  loopTunnel(0x0022, 'Loop tunnel', BdObjectKind.terminal, ClassConfidence.inferred),
+  tunnelIndexer(0x0023, 'Tunnel indexer', BdObjectKind.terminal, ClassConfidence.inferred),
+  iterationTerminal(0x0024, 'Iteration terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  conditionalTerminal(0x0025, 'Conditional terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  countTerminal(0x0026, 'Count terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  leftShiftRegister(0x0027, 'Left shift register', BdObjectKind.terminal, ClassConfidence.inferred),
+  rightShiftRegister(0x0028, 'Right shift register', BdObjectKind.terminal, ClassConfidence.inferred),
+  stackedSequence(0x0029, 'Stacked Sequence structure', BdObjectKind.structure, ClassConfidence.inferred),
+  sequenceTunnel(0x002a, 'Sequence tunnel', BdObjectKind.terminal, ClassConfidence.inferred),
+  sequenceLocal(0x002b, 'Sequence local', BdObjectKind.terminal, ClassConfidence.inferred),
+  caseStructure(0x002c, 'Case structure', BdObjectKind.structure, ClassConfidence.inferred),
+  caseTunnel(0x002d, 'Case tunnel', BdObjectKind.terminal, ClassConfidence.inferred),
+  caseSelectorTerminal(0x002e, 'Case selector terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  primitive(0x002f, 'Primitive', BdObjectKind.node, ClassConfidence.inferred),
+  primitiveTerminal(0x0030, 'Primitive terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  subViCall(0x0031, 'Sub-VI call', BdObjectKind.node, ClassConfidence.inferred),
+  staticViReference(0x0032, 'Static VI Reference', BdObjectKind.node, ClassConfidence.inferred),
+  subViTerminal(0x0033, 'Sub-VI call terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  bundle(0x0034, 'Bundle', BdObjectKind.node, ClassConfidence.inferred),
+  bundleTerminal(0x0035, 'Bundle terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  unbundle(0x0036, 'Unbundle', BdObjectKind.node, ClassConfidence.inferred),
+  unbundleTerminal(0x0037, 'Unbundle terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  buildArray(0x003a, 'Build Array', BdObjectKind.node, ClassConfidence.inferred),
+  buildArrayTerminal(0x003b, 'Build Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  indexBundleClusterArray(0x003c, 'Index & Bundle Cluster Array', BdObjectKind.node, ClassConfidence.inferred),
+  indexBundleClusterArrayTerminal(0x003d, 'Index & Bundle terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  concatenateStrings(0x003e, 'Concatenate Strings', BdObjectKind.node, ClassConfidence.inferred),
+  concatenateStringsTerminal(0x003f, 'Concatenate Strings terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  decimateArray(0x0040, 'Decimate 1D Array', BdObjectKind.node, ClassConfidence.inferred),
+  decimateArrayTerminal(0x0041, 'Decimate 1D Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  indexArray(0x0044, 'Index Array', BdObjectKind.node, ClassConfidence.inferred),
+  indexArrayTerminal(0x0045, 'Index Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  arraySubset(0x0048, 'Array Subset', BdObjectKind.node, ClassConfidence.inferred),
+  arraySubsetTerminal(0x0049, 'Array Subset terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  formulaNode(0x004a, 'Formula Node', BdObjectKind.node, ClassConfidence.inferred),
+  formulaNodeTerminal(0x004b, 'Formula Node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  iconConstant(0x004e, 'Iconic constant (Empty String, Not A Path…)', BdObjectKind.terminal, ClassConfidence.inferred),
+  boolean(0x004f, 'Boolean', BdObjectKind.terminal, ClassConfidence.inferred),
+  numeric(0x0050, 'Numeric', BdObjectKind.terminal, ClassConfidence.confirmed),
+  string(0x0051, 'String', BdObjectKind.terminal, ClassConfidence.inferred),
+  array(0x0052, 'Array', BdObjectKind.structure, ClassConfidence.inferred),
+  cluster(0x0053, 'Cluster', BdObjectKind.structure, ClassConfidence.inferred),
+  refnum(0x0055, 'Refnum (queue, event, DVR)', BdObjectKind.terminal, ClassConfidence.inferred),
+  colorBox(0x0056, 'Color box', BdObjectKind.terminal, ClassConfidence.inferred),
+  enumRing(0x0057, 'Enum/ring', BdObjectKind.terminal, ClassConfidence.confirmed),
+  path(0x005b, 'Path', BdObjectKind.terminal, ClassConfidence.inferred),
+  picture(0x005f, 'Picture', BdObjectKind.terminal, ClassConfidence.inferred),
+  byNameTerminal(0x0062, 'Bundle/Unbundle By Name terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  bundleByName(0x0063, 'Bundle/Unbundle By Name', BdObjectKind.node, ClassConfidence.inferred),
+  typeDefinition(0x0064, 'Type definition instance', BdObjectKind.structure, ClassConfidence.inferred),
+  convertUnit(0x0066, 'Convert Unit', BdObjectKind.node, ClassConfidence.inferred),
+  staticViReferenceTerminal(0x0067, 'Static VI Reference terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  connectorTerminal(0x0068, 'Connector terminal', BdObjectKind.terminal, ClassConfidence.confirmed),
+  callLibrary(0x006a, 'Call Library Function Node', BdObjectKind.node, ClassConfidence.confirmed),
+  callLibraryTerminal(0x006b, 'Call Library parameter terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  compoundArithmetic(0x006c, 'Compound Arithmetic', BdObjectKind.node, ClassConfidence.inferred),
+  compoundArithmeticTerminal(0x006d, 'Compound Arithmetic terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  root(0x007e, 'Diagram root', BdObjectKind.structure, ClassConfidence.confirmed),
+  propertyNode(0x008c, 'Property Node', BdObjectKind.node, ClassConfidence.inferred),
+  propertyTerminal(0x008d, 'Property terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  refErrorTerminal(0x008e, 'Reference and error terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  scanFromStringTerminal(0x0090, 'Scan From String terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  formatIntoStringTerminal(0x0091, 'Format Into String terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  scanFromString(0x0092, 'Scan From String', BdObjectKind.node, ClassConfidence.inferred),
+  formatIntoString(0x0093, 'Format Into String', BdObjectKind.node, ClassConfidence.inferred),
+  ioName(0x0094, 'I/O name (channel, tag)', BdObjectKind.terminal, ClassConfidence.inferred),
+  caseSelectorLabel(0x0095, 'Case selector label', BdObjectKind.terminal, ClassConfidence.inferred),
+  invokeNode(0x00a9, 'Invoke Node', BdObjectKind.node, ClassConfidence.inferred),
+  invokeTerminal(0x00aa, 'Invoke Node parameter terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  callByReference(0x00ae, 'Call By Reference / asynchronous call', BdObjectKind.node, ClassConfidence.inferred),
+  matlabScriptTerminal(0x00b3, 'MATLAB script node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  matlabScriptNode(0x00b4, 'MATLAB script node', BdObjectKind.node, ClassConfidence.inferred),
+  comboBox(0x00b5, 'Combo box', BdObjectKind.terminal, ClassConfidence.inferred),
+  localVariable(0x00b6, 'Local variable', BdObjectKind.node, ClassConfidence.inferred),
+  localVariableTerminal(0x00b7, 'Local variable terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  waveform(0x00b8, 'Waveform', BdObjectKind.terminal, ClassConfidence.inferred),
+  replaceArraySubset(0x00b9, 'Replace Array Subset', BdObjectKind.node, ClassConfidence.inferred),
+  replaceArraySubsetTerminal(0x00ba, 'Replace Array Subset terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  insertIntoArray(0x00bb, 'Insert Into Array', BdObjectKind.node, ClassConfidence.inferred),
+  insertIntoArrayTerminal(0x00bc, 'Insert Into Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  deleteFromArray(0x00bd, 'Delete From Array', BdObjectKind.node, ClassConfidence.inferred),
+  deleteFromArrayTerminal(0x00be, 'Delete From Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  expressionNode(0x00c0, 'Expression Node', BdObjectKind.node, ClassConfidence.inferred),
+  tipStrip(0x00c1, 'Tip strip', BdObjectKind.terminal, ClassConfidence.confirmed),
+  variant(0x00c2, 'Variant', BdObjectKind.terminal, ClassConfidence.inferred),
+  polymorphicViCall(0x00c5, 'Polymorphic VI call', BdObjectKind.node, ClassConfidence.inferred),
+  polymorphicViTerminal(0x00c6, 'Polymorphic VI call terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  flatSequence(0x00ca, 'Flat Sequence structure', BdObjectKind.structure, ClassConfidence.inferred),
+  sequenceFrameTunnel(0x00cb, 'Sequence frame tunnel', BdObjectKind.terminal, ClassConfidence.inferred),
+  expressViPart(0x00cc, 'Express VI call part', BdObjectKind.terminal, ClassConfidence.inferred),
+  disableStructure(0x00cd, 'Disable structure', BdObjectKind.structure, ClassConfidence.inferred),
+  disableTunnel(0x00ce, 'Disable structure tunnel', BdObjectKind.terminal, ClassConfidence.inferred),
+  waveformNode(0x00d0, 'Waveform node', BdObjectKind.node, ClassConfidence.inferred),
+  waveformNodeTerminal(0x00d1, 'Waveform node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  listItem(0x00d2, 'Listbox/legend item', BdObjectKind.decoration, ClassConfidence.inferred),
+  eventStructure(0x00d5, 'Event structure', BdObjectKind.structure, ClassConfidence.inferred),
+  eventDataNode(0x00d6, 'Event Data Node', BdObjectKind.node, ClassConfidence.inferred),
+  eventDataTerminal(0x00d7, 'Event Data Node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  eventTimeoutTerminal(0x00d8, 'Event structure timeout terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  timeStamp(0x00df, 'Time stamp', BdObjectKind.terminal, ClassConfidence.inferred),
+  numericDisplay(0x00e0, 'Numeric display', BdObjectKind.terminal, ClassConfidence.confirmed),
+  polymorphicSelector(0x00e5, 'Polymorphic instance selector', BdObjectKind.unknown, ClassConfidence.inferred),
+  listbox(0x00e6, 'Listbox', BdObjectKind.terminal, ClassConfidence.inferred),
+  registerForEvents(0x00eb, 'Register For Events', BdObjectKind.node, ClassConfidence.inferred),
+  registerForEventsTerminal(0x00ec, 'Register For Events terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  constructorNode(0x00ed, '.NET Constructor Node', BdObjectKind.node, ClassConfidence.inferred),
+  eventRefnumNode(0x00f4, 'Event refnum node', BdObjectKind.node, ClassConfidence.inferred),
+  eventRefnumTerminal(0x00f5, 'Event refnum node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  timedLoopTerminal(0x00f9, 'Timed Loop terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  timedLoop(0x00fb, 'Timed Loop', BdObjectKind.structure, ClassConfidence.inferred),
+  strictStaticViReference(0x0103, 'Static VI Reference (strictly typed)', BdObjectKind.node, ClassConfidence.inferred),
+  classMethodCall(0x0104, 'Class method call', BdObjectKind.node, ClassConfidence.inferred),
+  xnode(0x0105, 'XNode', BdObjectKind.node, ClassConfidence.inferred),
+  xnodeTerminal(0x0106, 'XNode terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  classMethodCallPart(0x010b, 'Class method call part', BdObjectKind.terminal, ClassConfidence.inferred),
+  objectRefnum(0x010c, 'Refnum (VI Server, LabVIEW object)', BdObjectKind.terminal, ClassConfidence.inferred),
+  propertyItem(0x0110, 'Property item', BdObjectKind.terminal, ClassConfidence.inferred),
+  propertyAccessorItem(0x0113, 'Property item (class accessor)', BdObjectKind.terminal, ClassConfidence.inferred),
+  initializeArray(0x0114, 'Initialize Array', BdObjectKind.node, ClassConfidence.inferred),
+  initializeArrayTerminal(0x0115, 'Initialize Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  reshapeArray(0x0116, 'Reshape Array', BdObjectKind.node, ClassConfidence.inferred),
+  reshapeArrayTerminal(0x0117, 'Reshape Array terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  pane(0x011c, 'Array element viewport', BdObjectKind.structure, ClassConfidence.confirmed),
+  timedLoopNode(0x0120, 'Timed Loop node', BdObjectKind.node, ClassConfidence.inferred),
+  sequenceFrame(0x0121, 'Sequence frame', BdObjectKind.structure, ClassConfidence.inferred),
+  mathScriptNode(0x012a, 'MathScript Node', BdObjectKind.structure, ClassConfidence.inferred),
+  mathScriptTerminal(0x012b, 'MathScript Node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  mathScriptFrame(0x0137, 'MathScript Node frame', BdObjectKind.frame, ClassConfidence.inferred),
+  feedbackInitializerTerminal(0x0145, 'Feedback Node init terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  sharedVariable(0x0148, 'Shared variable node', BdObjectKind.node, ClassConfidence.inferred),
+  sharedVariableTerminal(0x0149, 'Shared variable node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  feedbackNode(0x014a, 'Feedback Node', BdObjectKind.node, ClassConfidence.inferred),
+  primitiveClusterTerminal(0x014b, 'Cluster arithmetic terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlaceElementStructure(0x014d, 'In Place Element structure', BdObjectKind.structure, ClassConfidence.inferred),
+  inPlaceBorderTerminal(0x014e, 'In Place Element border terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  mathScriptPart(0x015f, 'MathScript Node part', BdObjectKind.terminal, ClassConfidence.inferred),
+  mathScriptSubVi(0x0167, 'MathScript generated sub-VI', BdObjectKind.node, ClassConfidence.inferred),
+  parallelInstancesTerminal(0x0169, 'Parallel instances terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  openVariableConnection(0x016a, 'Open Variable Connection', BdObjectKind.node, ClassConfidence.inferred),
+  writeVariable(0x016c, 'Write Variable', BdObjectKind.node, ClassConfidence.inferred),
+  variableConnectionTerminal(0x016d, 'Variable connection terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  feedbackInitializerPart(0x016e, 'Feedback Node initializer part', BdObjectKind.terminal, ClassConfidence.inferred),
+  feedbackInitializer(0x0170, 'Feedback Node initializer', BdObjectKind.node, ClassConfidence.inferred),
+  mergeErrors(0x0172, 'Merge Errors', BdObjectKind.node, ClassConfidence.inferred),
+  mergeErrorsTerminal(0x0173, 'Merge Errors terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  forLoopConditionalTerminal(0x0176, 'For Loop conditional terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  attachmentArrow(0x0177, 'Comment attachment arrow', BdObjectKind.decoration, ClassConfidence.inferred),
+  pythonNode(0x0183, 'Python Node', BdObjectKind.node, ClassConfidence.inferred),
+  pythonTerminal(0x0184, 'Python Node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  set(0x0185, 'Set', BdObjectKind.terminal, ClassConfidence.inferred),
+  map(0x0186, 'Map', BdObjectKind.terminal, ClassConfidence.inferred),
+  mapSetNode(0x018d, 'Map/set node', BdObjectKind.node, ClassConfidence.inferred),
+  mapSetTerminal(0x018e, 'Map/set node terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  matlabNode(0x0193, 'Call MATLAB Function', BdObjectKind.node, ClassConfidence.inferred),
+  matlabTerminal(0x0194, 'Call MATLAB Function terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+
+  node0042(0x0042, 'Array node (0x0042)', BdObjectKind.node, ClassConfidence.kindOnly),
+  terminal0043(0x0043, 'Array node (0x0042) terminal', BdObjectKind.terminal, ClassConfidence.kindOnly),
+
+  invokeParameter0111(0x0111, 'Invoke parameter item (0x0111)', BdObjectKind.terminal, ClassConfidence.inferred),
+  invokeParameter0112(0x0112, 'Invoke parameter item (0x0112)', BdObjectKind.terminal, ClassConfidence.inferred),
+
+  classMethodCall0124(0x0124, 'Class method call (0x0124)', BdObjectKind.node, ClassConfidence.inferred),
+
+  feedbackTerminal0144(0x0144, 'Feedback Node terminal (0x0144)', BdObjectKind.terminal, ClassConfidence.inferred),
+  feedbackTerminal0146(0x0146, 'Feedback Node terminal (0x0146)', BdObjectKind.terminal, ClassConfidence.inferred),
+
+  inPlaceNode014f(0x014f, 'In Place Element border node (0x014f)', BdObjectKind.node, ClassConfidence.inferred),
+  inPlaceNode0150(0x0150, 'In Place Element border node (0x0150)', BdObjectKind.node, ClassConfidence.inferred),
+  inPlaceNode0152(0x0152, 'In Place Element border node (0x0152)', BdObjectKind.node, ClassConfidence.inferred),
+  inPlaceNode0153(0x0153, 'In Place Element node (0x0153)', BdObjectKind.node, ClassConfidence.inferred),
+  inPlacePart0154(0x0154, 'In Place Element part (0x0154)', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlaceTerminal0155(0x0155, 'In Place node (0x0153) terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlaceTerminal0156(0x0156, 'In Place node (0x0150) terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlacePart0158(0x0158, 'In Place Element part (0x0158)', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlacePart0159(0x0159, 'In Place Element part (0x0159)', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlacePart015b(0x015b, 'In Place Element part (0x015b)', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlaceTerminal0163(0x0163, 'In Place node (0x014f) terminal', BdObjectKind.terminal, ClassConfidence.inferred),
+  inPlacePart018f(0x018f, 'In Place Element part (0x018f)', BdObjectKind.terminal, ClassConfidence.inferred),
+
+  node018b(0x018b, 'Node (0x018b)', BdObjectKind.node, ClassConfidence.kindOnly),
+  terminal018c(0x018c, 'Node (0x018b) terminal', BdObjectKind.terminal, ClassConfidence.kindOnly),
+
+  waveform00e2(0x00e2, 'Waveform (0x00e2)', BdObjectKind.terminal, ClassConfidence.inferred),
+
+  unknown(-0x0001, 'Unknown class', BdObjectKind.unknown, ClassConfidence.kindOnly);
+
+  const BdHeapObjectClass(this.code, this.label, this.category, this.confidence);
+
+  @override
+  final int code;
+  @override
+  final String label;
+  @override
+  final BdObjectKind category;
+  @override
+  final ClassConfidence confidence;
+
+  static final List<BdHeapObjectClass> _byCode = _classTable(values, unknown);
+
+  /// The class with [code], or [unknown].
+  static BdHeapObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
+
+  static final List<bool> _controlTerminal = [for (final c in values) kBdControlTerminalClasses.contains(c)];
+  static final List<bool> _multiFrame = [for (final c in values) kMultiFrameStructureClasses.contains(c)];
+
+  @override
+  bool get isUnknown => this == unknown;
+  @override
+  bool get isControlTerminal => _controlTerminal[index];
+  @override
+  bool get isMultiFrameStructure => _multiFrame[index];
+}
+
+/// The classes of front-panel heap objects, by code.
+enum FpHeapObjectClass implements HeapObjectClass {
+  chrome(0x0009, 'Chrome', FpObjectKind.part, ClassConfidence.inferred),
+  textLabel(0x000a, 'Label', FpObjectKind.part, ClassConfidence.confirmed),
+  controlPart(0x000b, 'Control part', FpObjectKind.part, ClassConfidence.inferred),
+  terminalCluster(0x000c, 'Terminal cluster', FpObjectKind.terminalCluster, ClassConfidence.confirmed),
+  itemList(0x000d, 'Enum/ring/boolean item list', FpObjectKind.part, ClassConfidence.confirmed),
+  dco(0x0012, 'Control data object', FpObjectKind.control, ClassConfidence.confirmed),
+  panelRoot(0x004c, 'Panel root frame', FpObjectKind.root, ClassConfidence.confirmed),
+  boolean(0x004f, 'Boolean', FpObjectKind.control, ClassConfidence.inferred),
+  numeric(0x0050, 'Numeric', FpObjectKind.control, ClassConfidence.confirmed),
+  string(0x0051, 'String', FpObjectKind.control, ClassConfidence.inferred),
+  array(0x0052, 'Array', FpObjectKind.container, ClassConfidence.inferred),
+  cluster(0x0053, 'Cluster', FpObjectKind.container, ClassConfidence.inferred),
+  refnum(0x0055, 'Refnum (queue, event, DVR)', FpObjectKind.control, ClassConfidence.inferred),
+  colorBox(0x0056, 'Color box', FpObjectKind.control, ClassConfidence.inferred),
+  enumRing(0x0057, 'Enum/ring', FpObjectKind.control, ClassConfidence.confirmed),
+  slide(0x0058, 'Slide', FpObjectKind.control, ClassConfidence.inferred),
+  gauge(0x0059, 'Meter/gauge', FpObjectKind.control, ClassConfidence.inferred),
+  path(0x005b, 'Path', FpObjectKind.control, ClassConfidence.inferred),
+  graph(0x005e, 'Graph/chart', FpObjectKind.control, ClassConfidence.inferred),
+  picture(0x005f, 'Picture', FpObjectKind.control, ClassConfidence.inferred),
+  typeDefinition(0x0064, 'Type definition instance', FpObjectKind.container, ClassConfidence.inferred),
+  connectorTerminal(0x0068, 'Connector terminal', FpObjectKind.part, ClassConfidence.confirmed),
+  root(0x007e, 'Panel root', FpObjectKind.root, ClassConfidence.confirmed),
+  panelProperties(0x007f, 'Panel properties', FpObjectKind.root, ClassConfidence.inferred),
+  scale(0x008f, 'Scale', FpObjectKind.part, ClassConfidence.inferred),
+  ioName(0x0094, 'I/O name (channel, tag)', FpObjectKind.control, ClassConfidence.inferred),
+  ringText(0x0095, 'Combo box / I/O name text', FpObjectKind.part, ClassConfidence.inferred),
+  controlGroup(0x00ac, 'Grouped controls', FpObjectKind.container, ClassConfidence.inferred),
+  automationRefnum(0x00af, '.NET/ActiveX refnum', FpObjectKind.control, ClassConfidence.inferred),
+  comboBox(0x00b5, 'Combo box', FpObjectKind.control, ClassConfidence.inferred),
+  waveform(0x00b8, 'Waveform', FpObjectKind.control, ClassConfidence.inferred),
+  tipStrip(0x00c1, 'Tip strip', FpObjectKind.part, ClassConfidence.confirmed),
+  variant(0x00c2, 'Variant', FpObjectKind.control, ClassConfidence.inferred),
+  tabControl(0x00c3, 'Tab control', FpObjectKind.container, ClassConfidence.inferred),
+  tabPages(0x00c7, 'Tab control pages', FpObjectKind.container, ClassConfidence.inferred),
+  tabPage(0x00c8, 'Tab page', FpObjectKind.container, ClassConfidence.inferred),
+  subPanel(0x00cf, 'Sub panel', FpObjectKind.control, ClassConfidence.inferred),
+  legendItem(0x00d2, 'Legend/list item', FpObjectKind.part, ClassConfidence.inferred),
+  timeStamp(0x00df, 'Time stamp', FpObjectKind.control, ClassConfidence.inferred),
+  numericDisplay(0x00e0, 'Numeric display', FpObjectKind.part, ClassConfidence.confirmed),
+  table(0x00e1, 'Table', FpObjectKind.control, ClassConfidence.inferred),
+  listbox(0x00e6, 'Listbox', FpObjectKind.control, ClassConfidence.inferred),
+  graphLegend(0x00e7, 'Graph legend', FpObjectKind.part, ClassConfidence.inferred),
+  image(0x00ee, 'IMAQ image', FpObjectKind.control, ClassConfidence.inferred),
+  radioButtons(0x00ef, 'Radio buttons', FpObjectKind.container, ClassConfidence.inferred),
+  mixedSignalPlotArea(0x00f2, 'Mixed signal graph plot area', FpObjectKind.part, ClassConfidence.inferred),
+  xcontrol(0x0102, 'XControl', FpObjectKind.control, ClassConfidence.inferred),
+  objectRefnum(0x010c, 'Refnum (VI Server, LabVIEW object)', FpObjectKind.control, ClassConfidence.inferred),
+  pane(0x011c, 'Pane', FpObjectKind.pane, ClassConfidence.confirmed),
+  splitter(0x011d, 'Splitter bar', FpObjectKind.pane, ClassConfidence.inferred),
+  set(0x0185, 'Set', FpObjectKind.control, ClassConfidence.inferred),
+  map(0x0186, 'Map', FpObjectKind.control, ClassConfidence.inferred),
+
+  waveform00e2(0x00e2, 'Waveform (0x00e2)', FpObjectKind.control, ClassConfidence.inferred),
+
+  panelRecord0101(0x0101, 'Panel record (0x0101)', FpObjectKind.root, ClassConfidence.kindOnly),
+
+  enum014c(0x014c, 'Enum (0x014c)', FpObjectKind.control, ClassConfidence.inferred),
+
+  unknown(-0x0001, 'Unknown class', FpObjectKind.unknown, ClassConfidence.kindOnly);
+
+  const FpHeapObjectClass(this.code, this.label, this.category, this.confidence);
+
+  @override
+  final int code;
+  @override
+  final String label;
+  @override
+  final FpObjectKind category;
+  @override
+  final ClassConfidence confidence;
+
+  static final List<FpHeapObjectClass> _byCode = _classTable(values, unknown);
+
+  /// The class with [code], or [unknown].
+  static FpHeapObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
+
+  static final List<bool> _controlTerminal = [for (final c in values) kFpControlTerminalClasses.contains(c)];
+
+  @override
+  bool get isUnknown => this == unknown;
+  @override
+  bool get isControlTerminal => _controlTerminal[index];
+  @override
+  bool get isMultiFrameStructure => false;
+}
+
+List<T> _classTable<T extends HeapObjectClass>(List<T> values, T unknown) {
+  final codeCount = values.fold(0, (count, c) => c.code >= count ? c.code + 1 : count);
+  final table = List<T>.filled(codeCount, unknown);
+  for (final c in values) {
+    if (c != unknown) table[c.code] = c;
+  }
+  return table;
+}
+
+/// The class of [kind] in the heap [sectionTag] names: a front-panel class for `FPH*`, else a
+/// block-diagram class.
+HeapObjectClass heapObjectClassOf(String sectionTag, int kind) =>
+    sectionTag.startsWith('FP') ? FpHeapObjectClass.fromCode(kind) : BdHeapObjectClass.fromCode(kind);
+
+/// The block-diagram classes of the typed control bodies that carry a value: numeric, boolean,
+/// enum/ring, path and string.
+const kBdControlTerminalClasses = {
+  BdHeapObjectClass.numeric,
+  BdHeapObjectClass.boolean,
+  BdHeapObjectClass.enumRing,
+  BdHeapObjectClass.path,
+  BdHeapObjectClass.string,
 };
 
-/// Class codes a signal's endpoint references target: a node endpoint DCO or a leaf.
-final Set<int> kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, HeapObjectClass.bdLeaf.code};
+/// The front-panel classes of the typed controls that carry a value: numeric, boolean, enum/ring,
+/// path and string.
+const kFpControlTerminalClasses = {
+  FpHeapObjectClass.numeric,
+  FpHeapObjectClass.boolean,
+  FpHeapObjectClass.enumRing,
+  FpHeapObjectClass.path,
+  FpHeapObjectClass.string,
+};
 
-/// The class code of a node's endpoint DCO, the object a wire ends on inside a node.
-const int kNodeEndpointDcoKind = 0x15;
+/// Class codes a signal's endpoint references target: a terminal holder or a front-panel terminal.
+final Set<int> kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, BdHeapObjectClass.panelTerminal.code};
+
+/// The class code of a terminal holder, the object a wire ends on inside a node.
+const int kNodeEndpointDcoKind = 0x0015;
 
 /// Pixels a wire's attach point moves left of a right shift register's column centre.
 const int kShiftRegisterColumnLeftOffset = 4;
@@ -654,7 +820,7 @@ const int kShiftRegisterColumnLeftOffset = 4;
 const int kShiftRegisterColumnRightOffset = 4;
 
 /// Classes of a node's terminal strip, the column of terminals along its edge.
-const kBdTerminalStripClasses = {HeapObjectClass.bdTerminalStrip, HeapObjectClass.bdTerminalStrip35};
+const kBdTerminalStripClasses = {BdHeapObjectClass.byNameTerminal, BdHeapObjectClass.bundleTerminal};
 
 /// Width in pixels of a terminal strip's attach box.
 const int kTerminalStripColumnWidth = 8;
@@ -664,10 +830,10 @@ const int kTerminalStripTargetLeftOffset = 8;
 
 /// Structures that hold one frame per case, event or sequence step and show one at a time.
 const kMultiFrameStructureClasses = {
-  HeapObjectClass.bdStructureFrame,
-  HeapObjectClass.bdDisableStructure,
-  HeapObjectClass.bdEventStructure,
-  HeapObjectClass.bdStackedSequence,
+  BdHeapObjectClass.caseStructure,
+  BdHeapObjectClass.disableStructure,
+  BdHeapObjectClass.eventStructure,
+  BdHeapObjectClass.stackedSequence,
 };
 
 String _fmtNum(double v) => v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
@@ -694,10 +860,16 @@ final RegExp _interiorSpaces = RegExp(r'[ \t]{2,}');
 
 /// The role of an object: a terminal cluster when it is one or carries a size record, else
 /// its class's category.
-ViObjectKind classifyObject({required HeapObjectClass objectClass, required int termCount}) =>
-    objectClass == HeapObjectClass.nodeTerminalCluster || termCount >= 1
-    ? ViObjectKind.terminalCluster
-    : objectClass.category;
+ViObjectKind classifyObject({required HeapObjectClass objectClass, required int termCount}) => switch (objectClass) {
+  BdHeapObjectClass() =>
+    objectClass == BdHeapObjectClass.terminalCluster || termCount >= 1
+        ? BdObjectKind.terminalCluster
+        : objectClass.category,
+  FpHeapObjectClass() =>
+    objectClass == FpHeapObjectClass.terminalCluster || termCount >= 1
+        ? FpObjectKind.terminalCluster
+        : objectClass.category,
+};
 
 const _intConvChars = {0x62, 0x64, 0x6f, 0x78, 0x58};
 

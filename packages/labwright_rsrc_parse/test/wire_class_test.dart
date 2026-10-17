@@ -23,7 +23,7 @@ void main() {
       for (final object in model.blockDiagrams.expand((d) => d.objects)) {
         if (object.kind != 0x1d) continue;
         bdWires++;
-        expect(object.category, ViObjectKind.wire);
+        expect(object.category, BdObjectKind.wire);
         final bounds = object.bounds;
         if (bounds == null) continue;
         withBounds++;
@@ -51,7 +51,7 @@ void main() {
       for (final diagram in model.blockDiagrams) {
         for (final object in diagram.objects) {
           if (object.kind != 0x17) continue;
-          expect(object.category, ViObjectKind.wire);
+          expect(object.category, BdObjectKind.wire);
           if (object.absBounds != null) withOwnBounds++;
         }
         for (final wire in diagram.wires) {
@@ -116,7 +116,7 @@ void main() {
             final terminal = diagram.endpointTerminal(wire.endpointOids[i]);
             if (pos == null || terminal == null) continue;
             final frame = _boundedOwner(diagram, terminal.oid);
-            if (frame == null || frame.objectClass.category != ViObjectKind.structure) continue;
+            if (frame == null || frame.objectClass.category != BdObjectKind.structure) continue;
             structFramed++;
             final f = frame.absBounds!;
             if (_touchesRing(pos, f)) {

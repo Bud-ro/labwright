@@ -4,7 +4,7 @@ library;
 
 import 'dart:typed_data';
 
-import '../diagram/objects.dart' show HeapObjectClass, ClassConfidence;
+import '../diagram/objects.dart' show ClassConfidence, heapObjectClassOf;
 import 'heap.dart';
 
 /// The record family a heap span belongs to.
@@ -187,7 +187,7 @@ HeapSpanInfo describeHeapSpan(Uint8List body, HeapSpan span, String sectionTag) 
   final header = heapObjectHeaderAt(body, offset);
   if (header != null) {
     final (:kind, :oid, length: _) = header;
-    final cls = HeapObjectClass.fromCode(kind);
+    final cls = heapObjectClassOf(sectionTag, kind);
     return make(
       HeapSpanKind.objectOpen,
       'Object · ${cls.label}',

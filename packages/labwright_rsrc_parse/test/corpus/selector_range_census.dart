@@ -54,7 +54,7 @@ Map<int, int> _statedCounts(List<DecodedSection> sections) {
       body,
       onObjectOpen: (offset, kind, oid, parent) => (kind, oid),
       onRecord: (offset, length, lead, enclosing) {
-        if (enclosing == null || enclosing.$1 != HeapObjectClass.bdStructureFrame.code) return;
+        if (enclosing == null || enclosing.$1 != BdHeapObjectClass.caseStructure.code) return;
         final attr = decodeHeapAttr(body, offset);
         if (attr?.rawTag == HeapAttribute.selectNRightType.raw && attr?.asInt != null) {
           stated[enclosing.$2] ??= attr!.asInt!;
@@ -79,13 +79,13 @@ Map<String, int> _census(CorpusVi vi) {
   }
   for (final diagram in model.blockDiagrams) {
     for (final structure in diagram.objects) {
-      if (structure.objectClass != HeapObjectClass.bdStructureFrame) continue;
+      if (structure.objectClass != BdHeapObjectClass.caseStructure) continue;
       final ranges = structure.selectorRanges;
       if (ranges.isEmpty) continue;
       if (stated[structure.oid] case final count? when count != ranges.length) bump('countDisagree');
       final frameCount = diagram
           .childrenOf(structure)
-          .where((child) => child.objectClass == HeapObjectClass.bdFrame)
+          .where((child) => child.objectClass == BdHeapObjectClass.frame)
           .length;
       for (final range in ranges) {
         if (range.frame < 0 || range.frame >= frameCount) bump('frameOutOfRange');
@@ -98,7 +98,7 @@ Map<String, int> _census(CorpusVi vi) {
 
       final selectorLabel = diagram
           .childrenOf(structure)
-          .where((child) => child.objectClass == HeapObjectClass.bdSelectorLabel)
+          .where((child) => child.objectClass == BdHeapObjectClass.caseSelectorLabel)
           .map((child) => child.label)
           .whereType<String>()
           .firstOrNull;

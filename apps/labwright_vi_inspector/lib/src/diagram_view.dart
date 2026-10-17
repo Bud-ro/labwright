@@ -180,7 +180,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             for (final entry in _counts.entries)
               _LegendChip(
                 color: _kindColor(entry.key),
-                label: '${entry.key.name} ${entry.value}',
+                label: '${entry.key.label} ${entry.value}',
               ),
           ],
         ),
@@ -335,7 +335,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     }
     setState(() {
       _selected = hit;
-      _members = hit != null && hit.category == ViObjectKind.structure
+      _members = hit != null && hit.category == BdObjectKind.structure
           ? nodesWithin(hit, _drawable)
           : membersOf(hit, _byId);
     });
@@ -383,18 +383,18 @@ Color _typeColor(ViTypeKind kind) => switch (kind) {
 };
 
 Color _kindColor(ViObjectKind kind) => switch (kind) {
-  ViObjectKind.node => const Color(0xFFE8C547),
-  ViObjectKind.terminal => const Color(0xFF5C9BD6),
-  ViObjectKind.terminalCluster => const Color(0xFF2BB8A8),
-  ViObjectKind.structure => const Color(0xFF9A6B2E),
-  ViObjectKind.frame => const Color(0xFF9A6B2E),
-  ViObjectKind.decoration => const Color(0xFFBDBDBD),
-  ViObjectKind.wire => const Color(0xFF303030),
-  ViObjectKind.unknown => const Color(0xFF9E9E9E),
+  BdObjectKind.node => const Color(0xFFE8C547),
+  BdObjectKind.terminal => const Color(0xFF5C9BD6),
+  BdObjectKind.terminalCluster => const Color(0xFF2BB8A8),
+  BdObjectKind.structure => const Color(0xFF9A6B2E),
+  BdObjectKind.frame => const Color(0xFF9A6B2E),
+  BdObjectKind.decoration => const Color(0xFFBDBDBD),
+  BdObjectKind.wire => const Color(0xFF303030),
+  BdObjectKind.unknown || FpObjectKind() => const Color(0xFF9E9E9E),
 };
 
 Color _objectColor(ViHeapObject object) =>
-    object.category == ViObjectKind.terminal &&
+    object.category == BdObjectKind.terminal &&
         object.typeKind != ViTypeKind.unknown
     ? _typeColor(object.typeKind)
     : _kindColor(object.category);
@@ -608,7 +608,7 @@ Rect bdContentRect(
   var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
   var any = false;
   for (final object in objects) {
-    if (!includeWires && object.category == ViObjectKind.wire) continue;
+    if (!includeWires && object.category == BdObjectKind.wire) continue;
     final bounds = object.absBounds;
     if (bounds == null) continue;
     any = true;
@@ -953,7 +953,7 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
 ) async {
   final xnodes = [
     for (final o in diagram.objects)
-      if (o.objectClass == HeapObjectClass.bdXnode && o.absBounds != null) o,
+      if (o.objectClass == BdHeapObjectClass.xnode && o.absBounds != null) o,
   ];
   if (xnodes.isEmpty) return const {};
   final dsims = [
@@ -991,7 +991,7 @@ Future<Map<int, ui.Image>> loadXnodeFacades(
   ViDiagram diagram,
 ) async {
   if (!diagram.objects.any(
-    (o) => o.objectClass == HeapObjectClass.bdXnode && o.absBounds != null,
+    (o) => o.objectClass == BdHeapObjectClass.xnode && o.absBounds != null,
   )) {
     return const {};
   }
@@ -1552,21 +1552,21 @@ class BdDiagramPainter extends CustomPainter {
     if (drawDotGrid) _drawDotGrid(canvas, size);
 
     final structures = objects
-        .where((o) => o.category == ViObjectKind.structure)
+        .where((o) => o.category == BdObjectKind.structure)
         .toList();
     final decorations = objects
-        .where((o) => o.category == ViObjectKind.decoration)
+        .where((o) => o.category == BdObjectKind.decoration)
         .toList();
     final wires = objects
-        .where((o) => o.category == ViObjectKind.wire)
+        .where((o) => o.category == BdObjectKind.wire)
         .toList();
     final solids =
         objects
             .where(
               (o) =>
-                  o.category != ViObjectKind.structure &&
-                  o.category != ViObjectKind.decoration &&
-                  o.category != ViObjectKind.wire,
+                  o.category != BdObjectKind.structure &&
+                  o.category != BdObjectKind.decoration &&
+                  o.category != BdObjectKind.wire,
             )
             .toList()
           ..sort(
@@ -1577,8 +1577,7 @@ class BdDiagramPainter extends CustomPainter {
 
     final arrayShellOids = {
       for (final o in objects)
-        if (o.objectClass == HeapObjectClass.numericControl &&
-            o.parentOid != null)
+        if (o.objectClass == BdHeapObjectClass.numeric && o.parentOid != null)
           o.parentOid!,
     };
     final tunnelSquares = <(Rect, BdBorderTerminal, Color)>[];
@@ -1606,9 +1605,9 @@ class BdDiagramPainter extends CustomPainter {
   void _paintDecorations(Canvas canvas, List<ViHeapObject> decorations) {
     final backdropCandidates = [
       for (final other in objects)
-        if (other.category == ViObjectKind.node ||
-            other.category == ViObjectKind.structure ||
-            other.category == ViObjectKind.terminal)
+        if (other.category == BdObjectKind.node ||
+            other.category == BdObjectKind.structure ||
+            other.category == BdObjectKind.terminal)
           other,
     ];
     bool isBackdrop(ViHeapObject deco) {
@@ -1655,7 +1654,7 @@ class BdDiagramPainter extends CustomPainter {
     required Set<Rect> chromeOwnedRects,
   }) {
     for (final object in structures) {
-      if (object.objectClass == HeapObjectClass.loop) {
+      if (object.objectClass == BdHeapObjectClass.cluster) {
         final rect = _rectOf(object);
         if (rect.width <= 40 && rect.height <= 24) {
           _drawSmallClusterBox(canvas, object, rect);
@@ -1672,22 +1671,22 @@ class BdDiagramPainter extends CustomPainter {
       };
       final terminals =
           structureTerminals[object.oid] ?? const <({HeapRect box, int bmp})>[];
-      if (object.objectClass == HeapObjectClass.caseOrSequence &&
+      if (object.objectClass == BdHeapObjectClass.array &&
           arrayShellOids.contains(object.oid)) {
         _drawArrayConstantShell(canvas, object);
         continue;
       }
       switch (object.objectClass) {
-        case HeapObjectClass.bdForLoop:
+        case BdHeapObjectClass.forLoop:
           _drawForLoopBorder(canvas, rect, disabled: structDisabled);
-        case HeapObjectClass.bdWhileLoop:
+        case BdHeapObjectClass.whileLoop:
           _drawWhileLoopBand(
             canvas,
             rect,
             structColor,
             disabled: structDisabled,
           );
-        case HeapObjectClass.bdStructureFrame:
+        case BdHeapObjectClass.caseStructure:
           _drawStructureHatchBorder(
             canvas,
             rect,
@@ -1704,16 +1703,16 @@ class BdDiagramPainter extends CustomPainter {
               oid: object.oid,
             );
           }
-        case HeapObjectClass.bdFlatSequence:
+        case BdHeapObjectClass.flatSequence:
           _drawFlatSequenceBorder(canvas, rect, object);
-        case HeapObjectClass.bdSequenceFrame:
+        case BdHeapObjectClass.sequenceFrame:
           break;
-        case HeapObjectClass.bdDisableStructure:
+        case BdHeapObjectClass.disableStructure:
           final showsDisabled = scene.diagram
               .childrenOf(object)
               .any(
                 (k) =>
-                    k.objectClass == HeapObjectClass.bdSelectorLabel &&
+                    k.objectClass == BdHeapObjectClass.caseSelectorLabel &&
                     k.label?.trim().toLowerCase() == 'disabled',
               );
           if (showsDisabled) {
@@ -1778,7 +1777,7 @@ class BdDiagramPainter extends CustomPainter {
         default:
           final frame =
               structColor ??
-              _dimFor(object.oid, _kindColor(ViObjectKind.structure));
+              _dimFor(object.oid, _kindColor(BdObjectKind.structure));
           if (structColor != null) {
             canvas.drawRect(
               rect,
@@ -1813,7 +1812,7 @@ class BdDiagramPainter extends CustomPainter {
 
   void _paintCaseSelectorStrips(Canvas canvas, List<ViHeapObject> solids) {
     for (final object in solids) {
-      if (object.objectClass == HeapObjectClass.bdSelectorLabel)
+      if (object.objectClass == BdHeapObjectClass.caseSelectorLabel)
         _drawCaseSelector(canvas, _rectOf(object));
     }
   }
@@ -1834,7 +1833,7 @@ class BdDiagramPainter extends CustomPainter {
 
   void _paintWireObjects(Canvas canvas, List<ViHeapObject> wires) {
     final wirePaint = Paint()
-      ..color = _kindColor(ViObjectKind.wire)
+      ..color = _kindColor(BdObjectKind.wire)
       ..strokeWidth = 1.6
       ..strokeCap = StrokeCap.square;
     for (final object in wires) {
@@ -1853,11 +1852,11 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in solids) {
       final rect = _rectOf(object);
       if (kBdTextLabelClasses.contains(object.objectClass)) {
-        if (object.objectClass == HeapObjectClass.bdSelectorLabel) continue;
+        if (object.objectClass == BdHeapObjectClass.caseSelectorLabel) continue;
         final holder = scene.diagram.byId[object.parentOid ?? -1];
         final backed =
-            holder?.objectClass == HeapObjectClass.bdFrame ||
-            (holder?.objectClass == HeapObjectClass.caseOrSequence &&
+            holder?.objectClass == BdHeapObjectClass.frame ||
+            (holder?.objectClass == BdHeapObjectClass.array &&
                 !object.hasFlag(ViObjFlag.labelNoBacking));
         final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
@@ -1865,16 +1864,16 @@ class BdDiagramPainter extends CustomPainter {
         if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
-      if (object.objectClass == HeapObjectClass.loop &&
+      if (object.objectClass == BdHeapObjectClass.cluster &&
           rect.width <= 40 &&
           rect.height <= 24) {
         _drawSmallClusterBox(canvas, object, rect);
         continue;
       }
       switch (object.category) {
-        case ViObjectKind.terminal:
+        case BdObjectKind.terminal:
           _paintTerminal(canvas, object, rect);
-        case ViObjectKind.node:
+        case BdObjectKind.node:
           _paintNode(canvas, object, rect, stampedPrimIcons);
         default:
           _paintPlainSolid(canvas, object, rect);
@@ -1888,14 +1887,14 @@ class BdDiagramPainter extends CustomPainter {
       final kids = scene.diagram.childrenOf(object);
       final named = kids.any(
         (c) =>
-            c.objectClass == HeapObjectClass.controlLabel &&
+            c.objectClass == BdHeapObjectClass.textLabel &&
             !c.isLabelHidden &&
             (c.label?.trim().isNotEmpty ?? false),
       );
       if (named) {
         for (final c in kids) {
           final b = c.absBounds;
-          if (c.objectClass == HeapObjectClass.controlChrome &&
+          if (c.objectClass == BdHeapObjectClass.chrome &&
               b != null &&
               b.right > b.left) {
             box = _toCanvas(b);
@@ -1905,7 +1904,7 @@ class BdDiagramPainter extends CustomPainter {
       }
     }
     final constHolder = scene.diagram.byId[object.parentOid ?? -1];
-    final boolValue = constHolder?.objectClass == HeapObjectClass.bdConstDco
+    final boolValue = constHolder?.objectClass == BdHeapObjectClass.constant
         ? constHolder!.constBool
         : null;
     if (boolValue != null && box.width == 16 && box.height == 14) {
@@ -1951,8 +1950,8 @@ class BdDiagramPainter extends CustomPainter {
     final border = typed ? tint : _dimFor(object.oid, const Color(0xFF5A5A5A));
     final constValue = constValues[object.oid];
     final shellParent = scene.diagram.byId[object.parentOid ?? -1];
-    if (object.objectClass == HeapObjectClass.numericControl &&
-        shellParent?.objectClass == HeapObjectClass.caseOrSequence) {
+    if (object.objectClass == BdHeapObjectClass.numeric &&
+        shellParent?.objectClass == BdHeapObjectClass.array) {
       return;
     }
     if (object.isIndicator == true) {
@@ -1977,14 +1976,13 @@ class BdDiagramPainter extends CustomPainter {
           ..style = PaintingStyle.stroke
           ..strokeWidth = 2.0,
       );
-      if (object.objectClass == HeapObjectClass.stringOrArrayControl &&
-          box.width > 8) {
+      if (object.objectClass == BdHeapObjectClass.string && box.width > 8) {
         canvas.drawRect(
           Rect.fromLTWH(box.left, box.top, 4, box.height),
           _solidNoAa(border),
         );
       }
-      if (object.objectClass == HeapObjectClass.pathControl &&
+      if (object.objectClass == BdHeapObjectClass.path &&
           box.width > 14 &&
           box.height >= 17) {
         const glyphRows = [
@@ -2013,7 +2011,7 @@ class BdDiagramPainter extends CustomPainter {
     }
     final isConstant =
         constValue != null ||
-        shellParent?.objectClass == HeapObjectClass.bdConstDco;
+        shellParent?.objectClass == BdHeapObjectClass.constant;
     if (object.isIndicator != true &&
         !isConstant &&
         box.width > 10 &&
@@ -2065,7 +2063,7 @@ class BdDiagramPainter extends CustomPainter {
                 .childrenOf(object)
                 .where(
                   (part) =>
-                      part.objectClass == HeapObjectClass.controlSubPart &&
+                      part.objectClass == BdHeapObjectClass.controlPart &&
                       part.absBounds != null,
                 )
                 .firstOrNull;
@@ -2101,7 +2099,7 @@ class BdDiagramPainter extends CustomPainter {
     final glyph =
         constValue != null ||
             object.dataType == null ||
-            (shellParent?.objectClass == HeapObjectClass.bdConstDco &&
+            (shellParent?.objectClass == BdHeapObjectClass.constant &&
                 bdDrawnConstText(shellParent) != null)
         ? null
         : dataTypeGlyph(object.dataType!);
@@ -2135,7 +2133,7 @@ class BdDiagramPainter extends CustomPainter {
       );
       return;
     }
-    if (object.objectClass == HeapObjectClass.bdGrowableNode) {
+    if (object.objectClass == BdHeapObjectClass.bundleByName) {
       _paintGrowableNode(canvas, object, rect);
       return;
     }
@@ -2268,7 +2266,7 @@ class BdDiagramPainter extends CustomPainter {
       if (dco.kind != kNodeEndpointDcoKind) continue;
       for (final t in scene.diagram.childrenOf(dco)) {
         final tb = t.termBounds;
-        if (t.objectClass != HeapObjectClass.bdTerminalStrip || tb == null)
+        if (t.objectClass != BdHeapObjectClass.byNameTerminal || tb == null)
           continue;
         if (tb.height >= nodeH) {
           cells.add(tb);
@@ -2433,7 +2431,7 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in objects) {
       if (kBdTextLabelClasses.contains(object.objectClass)) {
         if (object.isLabelHidden) continue;
-        var text = object.objectClass == HeapObjectClass.bdSelectorLabel
+        var text = object.objectClass == BdHeapObjectClass.caseSelectorLabel
             ? (object.label?.trim().isEmpty ?? true ? null : object.label)
             : object.label?.trim();
         if (text == null || text.isEmpty) {
@@ -2455,7 +2453,8 @@ class BdDiagramPainter extends CustomPainter {
         if (text == null || text.isEmpty) continue;
         final rect = _rectOf(object);
         if (rect.width < 8 || rect.height < 8) continue;
-        final selector = object.objectClass == HeapObjectClass.bdSelectorLabel;
+        final selector =
+            object.objectClass == BdHeapObjectClass.caseSelectorLabel;
         final labelFont = object.labelFont;
         final fontSize = labelFont == null
             ? kBdTextSize
@@ -2486,8 +2485,8 @@ class BdDiagramPainter extends CustomPainter {
         continue;
       }
       final String? text;
-      if (object.category == ViObjectKind.structure ||
-          object.category == ViObjectKind.node) {
+      if (object.category == BdObjectKind.structure ||
+          object.category == BdObjectKind.node) {
         text = null;
       } else {
         final literal = bdDrawnConstText(object);
@@ -2541,7 +2540,7 @@ class BdDiagramPainter extends CustomPainter {
     for (final object in objects) {
       final bounds = object.absBounds;
       if (bounds == null) continue;
-      if (object.category == ViObjectKind.node &&
+      if (object.category == BdObjectKind.node &&
           bounds.width > 0 &&
           bounds.height > 0) {
         nodeCoverRects.add(_toCanvas(bounds));
@@ -2552,7 +2551,7 @@ class BdDiagramPainter extends CustomPainter {
         bounds.bottom,
         bounds.right,
       );
-      if (object.category == ViObjectKind.terminal &&
+      if (object.category == BdObjectKind.terminal &&
           object.typeKind != ViTypeKind.unknown) {
         typedTerminalColors[packed] = bdTerminalTypeColor(object);
       }
@@ -3598,7 +3597,7 @@ class BdDiagramPainter extends CustomPainter {
       var runLo = faceLo, runHi = faceHi;
       for (final shell in scene.drawable) {
         final bounds = shell.absBounds;
-        if (shell.objectClass != HeapObjectClass.caseOrSequence ||
+        if (shell.objectClass != BdHeapObjectClass.array ||
             bounds == null ||
             bounds.left != container.left ||
             bounds.top != container.top ||
@@ -3847,7 +3846,7 @@ class BdDiagramPainter extends CustomPainter {
           .childrenOf(seq)
           .where(
             (c) =>
-                c.objectClass == HeapObjectClass.bdSequenceFrame &&
+                c.objectClass == BdHeapObjectClass.sequenceFrame &&
                 c.absBounds != null,
           )
           .toList();
@@ -3865,7 +3864,7 @@ class BdDiagramPainter extends CustomPainter {
     ViTypeKind elementType = ViTypeKind.unknown;
     ViHeapObject? element;
     for (final c in children) {
-      if (c.objectClass != HeapObjectClass.numericControl) continue;
+      if (c.objectClass != BdHeapObjectClass.numeric) continue;
       if (c.typeKind != ViTypeKind.unknown) elementType = c.typeKind;
       if (c.absBounds != null &&
           (element == null || c.absBounds!.right > element.absBounds!.right)) {
@@ -3906,16 +3905,16 @@ class BdDiagramPainter extends CustomPainter {
     }
     for (final c in children) {
       final b = c.absBounds;
-      if (c.objectClass == HeapObjectClass.numericControl &&
+      if (c.objectClass == BdHeapObjectClass.numeric &&
           b != null &&
           !identical(c, element)) {
         for (final part in scene.diagram.childrenOf(c)) {
           final pb = part.absBounds;
           if (pb == null) continue;
-          if (part.objectClass == HeapObjectClass.controlSubPart ||
-              part.objectClass == HeapObjectClass.controlChrome)
+          if (part.objectClass == BdHeapObjectClass.controlPart ||
+              part.objectClass == BdHeapObjectClass.chrome)
             border(pb);
-          if (part.objectClass == HeapObjectClass.controlChrome &&
+          if (part.objectClass == BdHeapObjectClass.chrome &&
               pb.width >= 10 &&
               pb.height >= 12) {
             final indexText = '${shell.arrayIndex ?? 0}';
@@ -3933,7 +3932,7 @@ class BdDiagramPainter extends CustomPainter {
               ),
             );
           }
-          if (part.objectClass == HeapObjectClass.controlSubPart) {
+          if (part.objectClass == BdHeapObjectClass.controlPart) {
             final up = pb.top == b.top;
             final cx = (pb.left + 3 - origin.dx).toDouble();
             for (var i = 0; i < 4; i++) {
@@ -3961,7 +3960,7 @@ class BdDiagramPainter extends CustomPainter {
     var gridArea = 1 << 60;
     for (final c in children) {
       final b = c.absBounds;
-      if (c.objectClass != HeapObjectClass.controlChrome ||
+      if (c.objectClass != BdHeapObjectClass.chrome ||
           b == null ||
           !contains(b, cell))
         continue;
@@ -3974,17 +3973,17 @@ class BdDiagramPainter extends CustomPainter {
     final cols = math.max(1, grid.width ~/ cellW);
     final rows = math.max(1, grid.height ~/ cellH);
     final holder = scene.diagram.byId[shell.parentOid ?? -1];
-    final values = holder?.objectClass == HeapObjectClass.bdConstDco
+    final values = holder?.objectClass == BdHeapObjectClass.constant
         ? holder!.constArray
         : null;
-    final dims = holder?.objectClass == HeapObjectClass.bdConstDco
+    final dims = holder?.objectClass == BdHeapObjectClass.constant
         ? holder!.constArrayDims
         : null;
     final format = bdDisplayFormatOf(scene.diagram, element.oid);
     final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
     var radixDx = 2, radixDy = 3;
     for (final part in scene.diagram.childrenOf(element)) {
-      if (part.objectClass == HeapObjectClass.controlSubPart &&
+      if (part.objectClass == BdHeapObjectClass.controlPart &&
           part.absBounds != null) {
         radixDx = part.absBounds!.left - cell.left;
         radixDy = part.absBounds!.top - cell.top;
@@ -4398,9 +4397,9 @@ class BdDiagramPainter extends CustomPainter {
 
   static int _chromeZOrder(HeapObjectClass objectClass) =>
       switch (objectClass) {
-        HeapObjectClass.bdLoopTunnel || HeapObjectClass.bdCaseTunnel => 0,
-        HeapObjectClass.bdLeftShiftRegister ||
-        HeapObjectClass.bdRightShiftRegister => 1,
+        BdHeapObjectClass.loopTunnel || BdHeapObjectClass.caseTunnel => 0,
+        BdHeapObjectClass.leftShiftRegister ||
+        BdHeapObjectClass.rightShiftRegister => 1,
         _ => 2,
       };
 
@@ -4492,7 +4491,7 @@ class BdDiagramPainter extends CustomPainter {
         canvas.drawRect(t, noAa);
         canvas.drawRect(t.deflate(2), _solidNoAa(creamColor));
         if (t.width == 16 && t.height == 12) {
-          final down = objectClass == HeapObjectClass.bdLeftShiftRegister;
+          final down = objectClass == BdHeapObjectClass.leftShiftRegister;
           for (var i = 0; i < 5; i++) {
             final width = down ? 10 - 2 * i : 2 + 2 * i;
             final row = (down ? 2 + i : 1 + i).toDouble();
@@ -4508,7 +4507,7 @@ class BdDiagramPainter extends CustomPainter {
           }
         }
       }
-    } else if (objectClass == HeapObjectClass.bdSelectorTerminal) {
+    } else if (objectClass == BdHeapObjectClass.caseSelectorTerminal) {
       {
         canvas.drawRect(t, noAa);
         canvas.drawRect(t.deflate(1), _solidNoAa(creamColor));
@@ -5074,7 +5073,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
     canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
     if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass !=
-        HeapObjectClass.bdConstDco) {
+        BdHeapObjectClass.constant) {
       return;
     }
     const glyphRows = [
@@ -5277,12 +5276,12 @@ class _DetailsCard extends StatelessWidget {
                 children: [
                   Text(
                     object.label ??
-                        (cls != HeapObjectClass.unknown
+                        (!cls.isUnknown
                             ? cls.label
                             : switch (object.category) {
-                                ViObjectKind.node => 'Node',
-                                ViObjectKind.structure => 'Structure',
-                                ViObjectKind.terminal => 'Terminal',
+                                BdObjectKind.node => 'Node',
+                                BdObjectKind.structure => 'Structure',
+                                BdObjectKind.terminal => 'Terminal',
                                 _ => cls.label,
                               }),
                     style: const TextStyle(fontWeight: FontWeight.bold),

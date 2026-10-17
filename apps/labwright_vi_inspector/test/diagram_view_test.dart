@@ -28,7 +28,7 @@ ViModel modelWithControls() => modelFromRecords(<int>[
 ViModel modelWithDiagram() => modelFromRecords(<int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
-  ...open(0x12, 2, tag: 0x1a),
+  ...open(0x2f, 2, tag: 0x1a),
   ...bounds(10, 20, 40, 160),
   ...caption('Acquire'),
   ...close(0x1a),
@@ -163,7 +163,7 @@ void main() {
         ...open(0x21, 2, tag: 0x1a),
         ...bounds(10, 10, 200, 200),
         ...close(0x1a),
-        ...open(0x12, 3, tag: 0x1b),
+        ...open(0x31, 3, tag: 0x1b),
         ...bounds(20, 220, 50, 360),
         ...caption('Acquire.vi'),
         ...close(0x1b),
@@ -171,7 +171,7 @@ void main() {
       ]),
     );
     expect(find.text('Control flow:'), findsOneWidget);
-    expect(find.text('While loop ×1'), findsOneWidget);
+    expect(find.text('While Loop ×1'), findsOneWidget);
     expect(
       find.textContaining('Diagram-labeled nodes (1): Acquire.vi'),
       findsOneWidget,

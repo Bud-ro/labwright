@@ -110,6 +110,6 @@ List<ViLinkEntryFramed> lvSubViLinks(Iterable<DecodedSection> sections) {
 
 Map<int, ViHeapObject> lvTerminalsOfDataItems(ViDiagram diagram) => {
   for (final object in diagram.objects)
-    if (object.kind == HeapObjectClass.bdLeaf.code)
+    if (object.kind == BdHeapObjectClass.panelTerminal.code)
       for (final ref in object.refsOf(HeapRefKind.dcoRef) ?? const <int>[]) ref: object,
 };

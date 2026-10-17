@@ -29,7 +29,7 @@ Map<String, int> _census(CorpusVi vi) {
         if (cur == null) return;
         final attr = decodeHeapAttr(body, offset);
         if (attr == null || attr.attribute != HeapAttribute.constValue) return;
-        if (cur.kind != HeapObjectClass.bdConstDco.code) {
+        if (cur.kind != BdHeapObjectClass.constant.code) {
           bump('recordsOffDco');
           return;
         }
@@ -51,9 +51,9 @@ Map<String, int> _census(CorpusVi vi) {
       if (o == null) continue;
       final rec = e.value;
       if (o.constBool == null &&
-          o.kind == HeapObjectClass.bdConstDco.code &&
+          o.kind == BdHeapObjectClass.constant.code &&
           diagram.objects.any(
-            (k) => k.parentOid == o.oid && k.kind == HeapObjectClass.booleanOrClusterControl.code,
+            (k) => k.parentOid == o.oid && k.kind == BdHeapObjectClass.boolean.code,
           ) &&
           rec.raw == null &&
           rec.intValue != 0 &&
