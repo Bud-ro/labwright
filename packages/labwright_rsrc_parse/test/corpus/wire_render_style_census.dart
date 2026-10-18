@@ -2,6 +2,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import '../shape_probe.dart';
 import '../wire_style_oracle.dart';
 
 Map<String, int> _censusSnippet(CorpusVi entry) {
@@ -76,9 +77,9 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
   }
 
   bool inDisabledFrame(int oid) {
-    var o = bd.byId[oid];
+    var o = bd.byOid(oid);
     for (var i = 0; o != null && i < 64; i++) {
-      final p = o.parentOid == null ? null : bd.byId[o.parentOid!];
+      final p = o.parentOid == null ? null : bd.byOid(o.parentOid!);
       if (p != null && o.kind == 0x1b && p.kind == 0xcd) {
         if ((selectorLabel(p.oid) ?? '').toLowerCase().contains('disabled')) return true;
       }
@@ -93,7 +94,7 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
   }
 
   for (final run in runs) {
-    final o = bd.byId[run.sigOid]!;
+    final o = bd.byOid(run.sigOid)!;
     final k = o.signal?.lastSignalKind ?? 0;
     final cell = '${(k & 0xff).toRadixString(16).padLeft(2, '0')}_d${(k >> 8) & 0xf}';
     final dis = inDisabledFrame(run.sigOid);
@@ -121,7 +122,7 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
         _ => hdrOf[run.sigOid] ?? '-',
       }}|$name',
     );
-    bump('objf|$cell$axis@o${o.objFlags?.toRadixString(16) ?? '-'}|$name');
+    bump('objf|$cell$axis@o${o.objFlags.toRadixString(16)}|$name');
   }
 
   for (final o in bd.objects) {
@@ -187,7 +188,7 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
       final s = r.style;
       if (s != null && solid.contains(s)) return false;
       if (s != null && !const {'blank', 'unsampled', 'aperiodic'}.contains(s)) return true;
-      final word = bd.byId[r.sigOid]?.signal?.lastSignalKind;
+      final word = bd.byOid(r.sigOid)?.signal?.lastSignalKind;
       final pred = word == null ? null : ViSignalType(word).renderStyleEstimate?.name;
       return pred == null || !solid.contains(pred);
     }

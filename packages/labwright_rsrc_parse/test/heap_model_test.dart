@@ -173,6 +173,7 @@ void main() {
     test('the JSON export lists Call Library entry points and library paths once each', () {
       List<int> cln(int oid) => [
         ...open(BdObjectClass.callLibrary.code, oid),
+        ...bounds(0, 0, 32, 64),
         ...c4(0xc4, 'ps5000RunStreaming'.codeUnits),
         ...c4(0xa4, pth0('ps5000.dll')),
         ...close(),

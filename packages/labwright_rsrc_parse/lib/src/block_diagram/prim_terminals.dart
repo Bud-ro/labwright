@@ -39,18 +39,17 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
 /// The attach point of the wire head at [endpointOid] on its primitive node, per axis, or
 /// null when the endpoint is not a node terminal or no offset is known for the node's icon.
 ({int? x, int? y})? bdPrimTerminalOf(BdDiagram diagram, int endpointOid) {
-  final head = diagram.byId[endpointOid];
-  final parentOid = head?.parentOid;
-  if (head == null || head.objectClass != BdObjectClass.terminalHolder || parentOid == null) return null;
-  final parent = diagram.byId[parentOid];
-  final box = parent?.absBounds;
-  if (parent == null || box == null) return null;
+  final head = diagram.byOid(endpointOid);
+  if (head is! BdTerminalHolder) return null;
+  final parent = diagram.parentOf(head);
+  if (parent is! BdPlaced) return null;
+  final box = parent.absBounds;
   final key = primIconKeyOf(parent);
   if (key == null) return null;
   var termIdx = -1;
   var at = 0;
-  for (final c in diagram.children(parentOid)) {
-    if (c.objectClass != BdObjectClass.terminalHolder) continue;
+  for (final c in diagram.childrenOf(parent)) {
+    if (c is! BdTerminalHolder) continue;
     if (c.oid == head.oid) {
       termIdx = at;
       break;

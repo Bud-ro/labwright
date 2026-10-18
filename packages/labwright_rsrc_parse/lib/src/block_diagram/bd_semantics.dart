@@ -59,22 +59,16 @@ String? primOpGlyph(PrimOp? op) => switch (op) {
   _ => null,
 };
 
-/// The text each numeric constant terminal displays, by terminal oid, formatted by the
-/// constant's display format.
+/// The text each numeric constant body displays, by body oid, formatted by the constant's
+/// display format.
 Map<int, String> bdConstValueTexts(BdDiagram diagram) {
-  final byId = diagram.byId;
   final out = <int, String>{};
-  for (final object in diagram.objects) {
-    if (object.category != BdObjectKind.terminal) continue;
-    final bounds = object.absBounds;
-    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
-    final parent = byId[object.parentOid];
-    final value = parent?.constant?.numeric;
-    if (value == null) continue;
-    out[object.oid] = bdFormatConstValue(
-      value,
-      bdDisplayFormatOf(diagram, object.oid),
-    );
+  for (final body in diagram.controlBodies) {
+    final bounds = body.absBounds;
+    if (bounds.width <= 0 || bounds.height <= 0) continue;
+    if (diagram.parentOf(body) case BdConstant(numeric: final value?)) {
+      out[body.oid] = bdFormatConstValue(value, bdDisplayFormatOf(diagram, body.oid));
+    }
   }
   return out;
 }
@@ -82,7 +76,7 @@ Map<int, String> bdConstValueTexts(BdDiagram diagram) {
 // TODO: the constant display mode (normal, backslash codes, hex) is not decoded.
 /// A string constant's text as drawn: trimmed, and only when every character is printable ASCII.
 String? bdDrawnConstText(BdObject? object) {
-  final text = object?.constant?.text;
+  final text = object is BdConstant ? object.text : null;
   if (text == null || text.codeUnits.any((int code) => code < 0x20 || code >= 0x7f)) return null;
   final trimmed = text.trim();
   return trimmed.isEmpty ? null : trimmed;
@@ -91,9 +85,7 @@ String? bdDrawnConstText(BdObject? object) {
 /// The display format of the numeric display part under [oid].
 String? bdDisplayFormatOf(BdDiagram diagram, int oid) {
   for (final part in diagram.children(oid)) {
-    if (part.objectClass == BdObjectClass.numericDisplay && part.displayFormat != null) {
-      return part.displayFormat;
-    }
+    if (part case BdNumericDisplay(displayFormat: final format?)) return format;
   }
   return null;
 }
@@ -147,7 +139,8 @@ String structureBadge(BdObject object) => object.objectClass.isUnknown ? 'Struct
 String? wireframeAnnotation(BdObject o) {
   if (o.category == BdObjectKind.structure) return structureBadge(o);
   final label = o.label;
-  final type = o.typeKind == ViTypeKind.unknown ? null : o.typeKind.name;
+  final typeKind = o is HeapTypeBearer ? (o as HeapTypeBearer).typeKind : ViTypeKind.unknown;
+  final type = typeKind == ViTypeKind.unknown ? null : typeKind.name;
   if (label != null && type != null) return '$label · $type';
   return label ?? type;
 }
@@ -201,91 +194,70 @@ const Set<BdObjectClass> _controlTerminalDrawClasses = {
   BdObjectClass.colorBox,
 };
 
-bool _isInlinedSubViControl(BdObject o, BdDiagram diagram) {
-  if (!_controlTerminalDrawClasses.contains(o.objectClass)) return false;
-  final byId = diagram.byId;
-  var parentOid = o.parentOid;
-  final seen = <int>{};
+bool _isInlinedSubViControl(BdPlaced o, BdDiagram diagram) {
+  if (o is! BdControlBody || !_controlTerminalDrawClasses.contains(o.objectClass)) return false;
   var underConstOrStruct = false;
-  while (parentOid != null && seen.add(parentOid)) {
-    final parent = byId[parentOid];
-    if (parent == null) break;
-    if (parent.objectClass == BdObjectClass.constant || parent.objectClass == BdObjectClass.terminalHolder) {
-      if (parent.constant case final constant?
-          when o.typeKind == ViTypeKind.numericInt &&
-              (constant.numeric != null || constant.boolValue != null || constant.text != null)) {
+  for (final parent in diagram.ancestorsOf(o)) {
+    if (parent is BdConstant || parent is BdTerminalHolder) {
+      if (parent case BdConstant(
+        :final numeric,
+        :final boolValue,
+        :final text,
+      ) when o.typeKind == ViTypeKind.numericInt && (numeric != null || boolValue != null || text != null)) {
         return false;
       }
       underConstOrStruct = true;
       break;
     }
-    parentOid = parent.parentOid;
   }
   if (!underConstOrStruct) return false;
-  return diagram
-      .childrenOf(o)
-      .any(
-        (c) => c.objectClass == BdObjectClass.textLabel && !c.isLabelHidden && (c.label?.trim().isNotEmpty ?? false),
-      );
+  return diagram.childrenOf(o).any((c) => c is BdText && !c.isHidden && (c.label?.trim().isNotEmpty ?? false));
 }
 
-bool _isScaffolding(BdObject o, HeapObjectsByOid<BdObject> byId) {
-  if (o.objectClass == BdObjectClass.chrome || o.objectClass == BdObjectClass.pane) return true;
+bool _isScaffolding(BdObject o, BdDiagram diagram) {
+  if (o.objectClass == BdObjectClass.chrome || o is BdPane) return true;
   if (o.objectClass == BdObjectClass.polymorphicSelector) return true;
-  if (o.objectClass == BdObjectClass.connectorTerminal && o.bounds == null) return true;
+  if (o.objectClass == BdObjectClass.connectorTerminal && o is! BdPlaced) return true;
   if (o.objectClass == BdObjectClass.numericDisplay ||
       o.objectClass == BdObjectClass.controlPart ||
       o.objectClass == BdObjectClass.terminalCluster ||
       o.objectClass == BdObjectClass.itemList) {
-    var cur = o;
     var depth = 0;
-    while (depth++ < 64) {
-      final parent = byId[cur.parentOid];
-      if (parent == null) break;
+    for (final parent in diagram.ancestorsOf(o)) {
+      if (depth++ >= 64) break;
       if (parent.objectClass.isControlTerminal) return true;
-      cur = parent;
     }
   }
-  {
-    var cur = o;
-    var depth = 0;
-    while (depth++ < 8) {
-      final parent = byId[cur.parentOid];
-      if (parent == null) break;
-      final bounds = parent.absBounds;
-      if (parent.objectClass == BdObjectClass.cluster && bounds != null && bounds.width <= 40 && bounds.height <= 24) {
-        return true;
-      }
-      cur = parent;
+  var depth = 0;
+  for (final parent in diagram.ancestorsOf(o)) {
+    if (depth++ >= 8) break;
+    if (parent case BdContainer(
+      objectClass: BdObjectClass.cluster,
+      absBounds: final bounds,
+    ) when bounds.width <= 40 && bounds.height <= 24) {
+      return true;
     }
   }
   return false;
 }
 
-/// The bounded, non-scaffolding objects [o] refers to as members.
-Set<BdObject> membersOf(BdObject? o, HeapObjectsByOid<BdObject> byId) {
+/// The placed, non-scaffolding objects [o] refers to as members.
+Set<BdPlaced> membersOf(BdObject? o, BdDiagram diagram) {
   if (o == null) return const {};
   return {
     for (final oid in o.memberOids)
-      if (byId[oid] case final m? when m.absBounds != null && !identical(m, o) && !_isScaffolding(m, byId)) m,
+      if (diagram.byOid(oid) case final BdPlaced m when !identical(m, o) && !_isScaffolding(m, diagram)) m,
   };
 }
 
 /// The nodes and structures whose bounds lie inside [structure]'s.
-Set<BdObject> nodesWithin(
-  BdObject structure,
-  Iterable<BdObject> objects,
-) {
+Set<BdPlaced> nodesWithin(BdPlaced structure, Iterable<BdPlaced> objects) {
   final structureBounds = structure.absBounds;
-  if (structureBounds == null) return const {};
-  final out = <BdObject>{};
+  final out = <BdPlaced>{};
   for (final object in objects) {
     if (identical(object, structure)) continue;
-    if (object.category != BdObjectKind.node && object.category != BdObjectKind.structure) {
-      continue;
-    }
+    if (object.category != BdObjectKind.node && object.category != BdObjectKind.structure) continue;
     final bounds = object.absBounds;
-    if (bounds == null) continue;
     if (bounds.left < structureBounds.left ||
         bounds.top < structureBounds.top ||
         bounds.right > structureBounds.right ||
@@ -314,14 +286,14 @@ Set<int> bdHiddenFrameOids(BdDiagram diagram) {
     }
   }
 
-  for (final structure in diagram.objects) {
+  for (final structure in diagram.structures) {
     if (structure.category != BdObjectKind.structure) continue;
     final box = structure.absBounds;
-    if (box == null || box.width <= 0 || box.height <= 0) continue;
+    if (box.width <= 0 || box.height <= 0) continue;
     final frames = diagram.framesOf(structure);
     if (frames.length < 2) continue;
 
-    final visible = diagram.displayedFrameIndex(structure);
+    final visible = structure is BdMultiFrameStructure ? diagram.displayedFrameIndex(structure) : null;
     if (visible != null) {
       for (var i = 0; i < frames.length; i++) {
         if (i != visible) hideSubtree(frames[i]);
@@ -335,8 +307,7 @@ Set<int> bdHiddenFrameOids(BdDiagram diagram) {
       var count = 0;
       var l = 1 << 30, t = 1 << 30, r = -(1 << 30), b = -(1 << 30);
       void visit(BdObject o) {
-        final bounds = o.absBounds;
-        if (bounds != null && bounds.width > 0 && bounds.height > 0) {
+        if (o case BdPlaced(absBounds: final bounds) when bounds.width > 0 && bounds.height > 0) {
           final cx = (bounds.left + bounds.right) / 2, cy = (bounds.top + bounds.bottom) / 2;
           if (cx >= box.left - 8 && cx <= box.right + 8 && cy >= box.top - 8 && cy <= box.bottom + 8) {
             count++;
@@ -353,9 +324,7 @@ Set<int> bdHiddenFrameOids(BdDiagram diagram) {
 
       visit(frame);
       inBoxCounts.add(count);
-      inBoxBoxes.add(
-        count == 0 ? null : HeapRect(top: t, left: l, bottom: b, right: r),
-      );
+      inBoxBoxes.add(count == 0 ? null : HeapRect(top: t, left: l, bottom: b, right: r));
     }
     final candidates = [
       for (var i = 0; i < frames.length; i++)
@@ -397,21 +366,17 @@ Set<int> bdHiddenFrameOids(BdDiagram diagram) {
 }
 
 /// The wires drawn: those outside hidden frames and inlined instances, with missing anchors
-/// re-based on the nearest visible bounded ancestor, and at least two distinct anchors.
+/// re-based on the nearest visible placed ancestor, and at least two distinct anchors.
 List<ViWire> bdVisibleWires(BdDiagram diagram, {Set<int>? undrawn}) {
   final hidden = undrawn ?? bdUndrawnOids(diagram);
-  final byId = diagram.byId;
 
   HeapRect? reanchor(int endpointOid) {
-    var cur = byId[endpointOid];
     var depth = 0;
-    while (cur != null && depth++ < 64) {
-      final bounds = cur.absBounds;
-      final parentOid = cur.parentOid;
-      if (!hidden.contains(cur.oid) && bounds != null && bounds.width > 0 && bounds.height > 0) {
-        return parentOid == null ? null : bounds;
+    for (var cur = diagram.byOid(endpointOid); cur != null && depth++ < 64; cur = diagram.parentOf(cur)) {
+      if (!hidden.contains(cur.oid) && cur is BdPlaced) {
+        final bounds = cur.absBounds;
+        if (bounds.width > 0 && bounds.height > 0) return cur.parentOid == null ? null : bounds;
       }
-      cur = parentOid == null ? null : byId[parentOid];
     }
     return null;
   }
@@ -472,92 +437,84 @@ Set<int> bdInlinedInstanceOids(BdDiagram diagram) {
     }
   }
 
-  for (final object in diagram.objects) {
-    if (object.kind == 0x105) collect(object);
+  for (final object in diagram.nodes) {
+    if (object.objectClass == BdObjectClass.xnode) collect(object);
   }
   return out;
 }
 
 /// Per structure oid, the terminal boxes on its border with the glyph each draws.
-Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
-  BdDiagram diagram,
-) {
-  final byId = diagram.byId;
+Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(BdDiagram diagram) {
   final out = <int, List<({HeapRect box, int bmp})>>{};
-  for (final object in diagram.objects) {
-    final box = object.termBounds;
-    final bmp = object.termBmp;
-    if (box == null || bmp == null) continue;
-    if (box.width <= 0 || box.height <= 0) continue;
-    if (diagram.terminalGlyphHidden(object.oid)) continue;
-    var cur = byId[object.parentOid];
+  for (final terminal in diagram.terminals) {
+    final box = terminal.termBounds;
+    final bmp = terminal.termBmp;
+    if (bmp == null || box.width <= 0 || box.height <= 0) continue;
+    if (diagram.terminalGlyphHidden(terminal.oid)) continue;
+    BdObject? owner;
     var depth = 0;
-    while (cur != null && cur.category != BdObjectKind.structure && depth++ < 8) {
-      cur = byId[cur.parentOid];
+    for (final parent in diagram.ancestorsOf(terminal)) {
+      if (parent.category == BdObjectKind.structure) {
+        owner = parent;
+        break;
+      }
+      if (depth++ >= 8) break;
     }
-    if (cur == null || cur.category != BdObjectKind.structure) continue;
-    (out[cur.oid] ??= []).add((box: box, bmp: bmp));
+    if (owner == null) continue;
+    (out[owner.oid] ??= []).add((box: box, bmp: bmp));
   }
   return out;
 }
 
-bool _nestedInStructure(BdObject object, HeapObjectsByOid<BdObject> byId) {
-  var cur = byId[object.parentOid];
+bool _nestedInStructure(BdObject object, BdDiagram diagram) {
   var depth = 0;
-  while (cur != null && depth++ < 16) {
-    if (cur.category == BdObjectKind.structure && cur.parentOid != null) {
-      return true;
-    }
-    cur = byId[cur.parentOid];
+  for (final parent in diagram.ancestorsOf(object)) {
+    if (depth++ >= 16) break;
+    if (parent.category == BdObjectKind.structure && parent.parentOid != null) return true;
   }
   return false;
 }
 
-/// The objects drawn: bounded, plausibly sized, outside hidden frames and inlined instances,
+/// The objects drawn: placed, plausibly sized, outside hidden frames and inlined instances,
 /// inside their constant and structure boxes, and neither scaffolding nor an inlined subVI
 /// control.
-List<BdObject> bdDrawableObjects(BdDiagram diagram, {Set<int>? undrawn}) {
-  final byId = diagram.byId;
+List<BdPlaced> bdDrawableObjects(BdDiagram diagram, {Set<int>? undrawn}) {
   final hidden = undrawn ?? bdUndrawnOids(diagram);
   return [
-    for (final object in diagram.objects)
-      if (object.absBounds case final bounds?)
-        if (bounds.isValid &&
-            (object.category == BdObjectKind.wire || (bounds.width > 0 && bounds.height > 0)) &&
-            bounds.width < 8000 &&
-            bounds.height < 8000 &&
-            !hidden.contains(object.oid) &&
-            !(object.objectClass == BdObjectClass.attachmentArrow &&
-                (bounds.left < 0 || bounds.top < 0 || _nestedInStructure(object, byId))) &&
-            !_escapesConstantBox(object, byId) &&
-            !_escapesStructureBox(object, byId) &&
-            !(kBdTextLabelClasses.contains(object.objectClass) && bounds.left == 0 && bounds.bottom == 0) &&
-            !_isInlinedSubViControl(object, diagram) &&
-            !_isScaffolding(object, byId))
-          object,
+    for (final object in diagram.placed)
+      if (object.absBounds case final bounds
+          when bounds.isValid &&
+              (object is BdWire || (bounds.width > 0 && bounds.height > 0)) &&
+              bounds.width < 8000 &&
+              bounds.height < 8000 &&
+              !hidden.contains(object.oid) &&
+              !(object.objectClass == BdObjectClass.attachmentArrow &&
+                  (bounds.left < 0 || bounds.top < 0 || _nestedInStructure(object, diagram))) &&
+              !_escapesConstantBox(object, diagram) &&
+              !_escapesStructureBox(object, diagram) &&
+              !(object is BdText && bounds.left == 0 && bounds.bottom == 0) &&
+              !_isInlinedSubViControl(object, diagram) &&
+              !_isScaffolding(object, diagram))
+        object,
   ];
 }
 
-bool _escapesConstantBox(BdObject object, HeapObjectsByOid<BdObject> byId) {
+bool _escapesConstantBox(BdPlaced object, BdDiagram diagram) {
   final chain = <BdObject>[];
-  var cur = object;
-  var depth = 0;
   var underConst = false;
-  while (depth++ < 64) {
-    final parent = byId[cur.parentOid];
-    if (parent == null) break;
-    if (parent.objectClass == BdObjectClass.constant) {
+  var depth = 0;
+  for (final parent in diagram.ancestorsOf(object)) {
+    if (depth++ >= 64) break;
+    if (parent is BdConstant) {
       underConst = true;
       break;
     }
     chain.add(parent);
-    cur = parent;
   }
   if (!underConst) return false;
   HeapRect? anchor;
   for (final shell in chain.reversed) {
-    final bounds = shell.absBounds;
-    if (bounds != null && bounds.width > 0 && bounds.height > 0) {
+    if (shell case BdPlaced(absBounds: final bounds) when bounds.width > 0 && bounds.height > 0) {
       anchor = bounds;
       break;
     }
@@ -566,48 +523,42 @@ bool _escapesConstantBox(BdObject object, HeapObjectsByOid<BdObject> byId) {
   if (box == null) return false;
   bool outside(HeapRect b) => b.right <= box.left || b.left >= box.right || b.bottom <= box.top || b.top >= box.bottom;
   for (final ancestor in chain) {
-    final bounds = ancestor.absBounds;
-    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
-    if (identical(bounds, box)) continue;
-    if (outside(bounds)) return true;
+    if (ancestor case BdPlaced(absBounds: final bounds) when bounds.width > 0 && bounds.height > 0) {
+      if (identical(bounds, box)) continue;
+      if (outside(bounds)) return true;
+    }
   }
-  if (kBdTextLabelClasses.contains(object.objectClass)) return false;
+  if (object is BdText) return false;
   final bounds = object.absBounds;
-  return bounds != null && bounds.width > 0 && bounds.height > 0 && outside(bounds);
+  return bounds.width > 0 && bounds.height > 0 && outside(bounds);
 }
 
-bool _escapesStructureBox(
-  BdObject object,
-  HeapObjectsByOid<BdObject> byId, {
-  int slack = 32,
-}) {
-  if (kBdTextLabelClasses.contains(object.objectClass)) return false;
-  if (object.category == BdObjectKind.wire) return false;
+bool _escapesStructureBox(BdPlaced object, BdDiagram diagram, {int slack = 32}) {
+  if (object is BdText || object is BdWire) return false;
   final bounds = object.absBounds;
-  if (bounds == null || bounds.width <= 0 || bounds.height <= 0) return false;
-  var cur = object;
+  if (bounds.width <= 0 || bounds.height <= 0) return false;
   var depth = 0;
-  while (depth++ < 64) {
-    final parent = byId[cur.parentOid];
-    if (parent == null) return false;
-    if (parent.objectClass == BdObjectClass.wire) return false;
-    final box = parent.absBounds;
-    if (parent.category == BdObjectKind.structure && box != null && box.width > 0 && box.height > 0) {
+  for (final parent in diagram.ancestorsOf(object)) {
+    if (depth++ >= 64) break;
+    if (parent is BdWire) return false;
+    if (parent case BdPlaced(
+      absBounds: final box,
+      category: BdObjectKind.structure,
+    ) when box.width > 0 && box.height > 0) {
       return bounds.right <= box.left - slack ||
           bounds.left >= box.right + slack ||
           bounds.bottom <= box.top - slack ||
           bounds.top >= box.bottom + slack;
     }
-    cur = parent;
   }
   return false;
 }
 
 /// The VI file names the diagram's subVI call nodes are labelled with.
 Set<String> subViWantedNames(BdDiagram diagram) => {
-  for (final object in diagram.objects)
-    if (kSubViCallNodeCodes.contains(object.kind))
-      if (object.label?.trim() case final name? when name.isNotEmpty && _isViFileName(name)) name,
+  for (final node in diagram.nodes)
+    if (kSubViCallNodeCodes.contains(node.kind))
+      if (node.label?.trim() case final name? when name.isNotEmpty && _isViFileName(name)) name,
 };
 
 bool _isViFileName(String name) {
@@ -616,24 +567,27 @@ bool _isViFileName(String name) {
 }
 
 /// [drawable] sorted shallowest first, so containers paint under their contents.
-List<BdObject> bdPaintOrder(
-  List<BdObject> drawable,
-  HeapObjectsByOid<BdObject> byId,
-) => [...drawable]..sort((a, b) => _depthOf(a, byId).compareTo(_depthOf(b, byId)));
+List<BdPlaced> bdPaintOrder(List<BdPlaced> drawable, BdDiagram diagram) =>
+    [...drawable]..sort((a, b) => diagram.depthOf(a).compareTo(diagram.depthOf(b)));
 
 /// The outermost chrome boxes of an array shell that wrap its elements, excluding chrome that
 /// sits inside a larger box around the same numeric part.
 List<HeapRect> bdArrayShellWrapRects(BdDiagram diagram, int shellOid) {
-  final children = diagram.children(shellOid).toList();
+  final children = diagram.children(shellOid);
+  final chrome = [
+    for (final child in children)
+      if (child case BdPart(objectClass: BdObjectClass.chrome, :final absBounds)) absBounds,
+  ];
+  final numericParts = [
+    for (final child in children)
+      if (child case BdControlBody(objectClass: BdObjectClass.numeric, :final absBounds)) absBounds,
+  ];
   bool contains(HeapRect outer, HeapRect inner) =>
       outer.left <= inner.left && outer.top <= inner.top && outer.right >= inner.right && outer.bottom >= inner.bottom;
   int largestContainerArea(HeapRect partBounds) {
     var bestArea = -1;
-    for (final child in children) {
-      final bounds = child.absBounds;
-      if (child.objectClass != BdObjectClass.chrome || bounds == null || !contains(bounds, partBounds)) {
-        continue;
-      }
+    for (final bounds in chrome) {
+      if (!contains(bounds, partBounds)) continue;
       final area = bounds.width * bounds.height;
       if (area > bestArea) bestArea = area;
     }
@@ -641,38 +595,20 @@ List<HeapRect> bdArrayShellWrapRects(BdDiagram diagram, int shellOid) {
   }
 
   return [
-    for (final wrap in children)
-      if (wrap.objectClass == BdObjectClass.chrome)
-        if (wrap.absBounds case final wrapBounds?)
-          if (!children.any((other) {
-                final otherBounds = other.absBounds;
-                return other.objectClass == BdObjectClass.chrome &&
-                    !identical(other, wrap) &&
-                    otherBounds != null &&
-                    contains(otherBounds, wrapBounds) &&
-                    !contains(wrapBounds, otherBounds);
-              }) &&
-              !children.any((part) {
-                final partBounds = part.absBounds;
-                return part.objectClass == BdObjectClass.numeric &&
-                    partBounds != null &&
-                    contains(wrapBounds, partBounds) &&
-                    wrapBounds.width * wrapBounds.height < largestContainerArea(partBounds);
-              }))
-            wrapBounds,
+    for (final wrapBounds in chrome)
+      if (!chrome.any(
+            (otherBounds) =>
+                !identical(otherBounds, wrapBounds) &&
+                contains(otherBounds, wrapBounds) &&
+                !contains(wrapBounds, otherBounds),
+          ) &&
+          !numericParts.any(
+            (partBounds) =>
+                contains(wrapBounds, partBounds) &&
+                wrapBounds.width * wrapBounds.height < largestContainerArea(partBounds),
+          ))
+        wrapBounds,
   ];
-}
-
-int _depthOf(BdObject object, HeapObjectsByOid<BdObject> byId) {
-  var depth = 0;
-  var cur = object;
-  while (depth < 64) {
-    final parent = byId[cur.parentOid];
-    if (parent == null) break;
-    cur = parent;
-    depth++;
-  }
-  return depth;
 }
 
 /// Node classes that each stand for one primitive and so key their icon by class code.
@@ -688,8 +624,11 @@ const kSingleOpPrimClasses = {
 };
 
 /// The icon key of a node: its `primResID`, or the negated class code for a single-op class.
-int? primIconKeyOf(BdObject object) =>
-    object.primitive?.primResId ?? (kSingleOpPrimClasses.contains(object.objectClass) ? -object.kind : null);
+int? primIconKeyOf(BdObject object) => switch (object) {
+  BdPrimitive(:final primResId) => primResId,
+  _ when kSingleOpPrimClasses.contains(object.objectClass) => -object.kind,
+  _ => null,
+};
 
 /// The icon key of a class variant with [termCount] terminals, distinct from any `primResID`
 /// and any single-op class key.
@@ -777,33 +716,26 @@ Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(BdDiagram diagram, {Set<in
 
 /// Case structures whose selector label reads `No Error`, drawn with the error-case chrome.
 Set<int> bdErrorCaseOids(BdDiagram diagram) => {
-  for (final o in diagram.objects)
-    if (o.objectClass == BdObjectClass.caseStructure &&
-        diagram
-            .childrenOf(o)
-            .any(
-              (k) => k.objectClass == BdObjectClass.caseSelectorLabel && k.label?.trim() == 'No Error',
-            ))
-      o.oid,
+  for (final o in diagram.structures)
+    if (o is BdCaseStructure && diagram.childrenOf(o).any((k) => _selectorLabelOf(k) == 'No Error')) o.oid,
 };
+
+String? _selectorLabelOf(BdObject object) =>
+    object is BdText && object.objectClass == BdObjectClass.caseSelectorLabel ? object.label?.trim() : null;
 
 /// The oids inside the shown frame of every disable structure whose selector reads `Disabled`.
 Set<int> bdDisabledObjectOids(BdDiagram diagram) {
   final out = <int>{};
-  for (final o in diagram.objects) {
-    if (o.objectClass != BdObjectClass.disableStructure) continue;
-    final kids = diagram.childrenOf(o).toList();
-    final selector = kids.firstWhere((k) => k.objectClass == BdObjectClass.caseSelectorLabel, orElse: () => o);
-    if (identical(selector, o) || selector.label?.trim().toLowerCase() != 'disabled') {
-      continue;
-    }
+  for (final o in diagram.structures) {
+    if (o is! BdMultiFrameStructure || o.objectClass != BdObjectClass.disableStructure) continue;
+    final selector = diagram.childrenOf(o).map(_selectorLabelOf).whereType<String>().firstOrNull;
+    if (selector?.toLowerCase() != 'disabled') continue;
     final shown = diagram.displayedFrameIndex(o);
     if (shown == null) continue;
-    final stack = [diagram.framesOf(o)[shown].oid];
+    final stack = <BdObject>[diagram.framesOf(o)[shown]];
     while (stack.isNotEmpty) {
-      final oid = stack.removeLast();
-      for (final kid in diagram.children(oid)) {
-        if (out.add(kid.oid)) stack.add(kid.oid);
+      for (final kid in diagram.childrenOf(stack.removeLast())) {
+        if (out.add(kid.oid)) stack.add(kid);
       }
     }
   }
@@ -812,7 +744,7 @@ Set<int> bdDisabledObjectOids(BdDiagram diagram) {
 
 /// The drawing decisions for one diagram, each computed once on first use.
 class ViDiagramSemantics {
-  factory ViDiagramSemantics(BdDiagram diagram, {List<ViWire>? wires, List<BdObject>? drawable}) {
+  factory ViDiagramSemantics(BdDiagram diagram, {List<ViWire>? wires, List<BdPlaced>? drawable}) {
     final undrawn = wires == null || drawable == null ? bdUndrawnOids(diagram) : null;
     return ViDiagramSemantics._(
       diagram,
@@ -825,12 +757,12 @@ class ViDiagramSemantics {
 
   final BdDiagram diagram;
 
-  final List<BdObject> drawable;
+  final List<BdPlaced> drawable;
 
   final List<ViWire> wires;
 
   /// [drawable] in paint order.
-  late final List<BdObject> ordered = bdPaintOrder(drawable, diagram.byId);
+  late final List<BdPlaced> ordered = bdPaintOrder(drawable, diagram);
 
   late final Set<int> disabledOids = bdDisabledObjectOids(diagram);
 
@@ -847,8 +779,7 @@ class ViDiagramSemantics {
 
   /// The boxes of chrome and numeric display parts, drawn as furniture.
   late final List<HeapRect> furnitureBounds = [
-    for (final object in diagram.objects)
-      if (object.objectClass == BdObjectClass.chrome || object.objectClass == BdObjectClass.numericDisplay)
-        if (object.absBounds case final bounds?) bounds,
+    for (final object in diagram.placed)
+      if (object.objectClass == BdObjectClass.chrome || object is BdNumericDisplay) object.absBounds,
   ];
 }

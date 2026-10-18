@@ -1,19 +1,20 @@
 /// Builds a [BdDiagram] from a `BDHb` body: [buildBlockDiagram] runs the shared heap walk
-/// with the block diagram's own records and attributes, then the passes that depend on the
-/// finished tree. [decodeBdConstValues] runs once the data-space join has resolved each
-/// constant's type.
+/// with the block diagram's own records and attributes, shapes each object as its class and
+/// records call for, then runs the passes that depend on the finished tree.
+/// [decodeBdConstValues] runs once the data-space join has resolved each constant's type.
 ///
 /// Which records feed which block-diagram fields, beyond the shared ones:
 ///
 /// ```text
 /// record                                   field
 /// C4 path (0xa4), symbolName (0xc4)        BdForeignCall.libraryPath, entryPoint
-/// attributes                               BdConstant.raw and text, termBounds, termBmp,
-///                                          BdPrimitive.primResId, BdFrames.dIdx,
-///                                          BdSignal.wireTableRaw and lastSignalKind,
-///                                          BdCaseFrames.defaultFrameIndex, structRgb
-/// case selector groups                     BdCaseFrames.selectorRanges, selectorStrings
-/// array index group                        arrayIndex
+/// attributes                               BdConstant.raw and text, BdTerminal.termBounds and
+///                                          termBmp, BdPrimitive.primResId,
+///                                          BdMultiFrameStructure.dIdx, BdSignal.wireTableRaw
+///                                          and lastSignalKind, BdCaseStructure.defaultFrameIndex,
+///                                          BdStructure.structRgb
+/// case selector groups                     BdCaseStructure.selectorRanges, selectorStrings
+/// array index group                        BdContainer.arrayIndex
 /// ```
 library;
 
@@ -51,11 +52,50 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
   return String.fromCharCodes(chars.skipWhile((char) => char == 0));
 }
 
+class _BdScratch extends HeapScratch {
+  Uint8List? constRaw;
+  bool constScalar = false;
+  String? constText;
+  HeapRect? termBounds;
+  int? termBmp;
+  int? primResId;
+  int? dIdx;
+  Uint8List? wireTableRaw;
+  int? lastSignalKind;
+  int? defaultFrameIndex;
+  int? structRgb;
+  String? libraryPath;
+  String? entryPoint;
+  List<ViSelectorRange>? selectorRanges;
+  List<String>? selectorStrings;
+
+  BdObjectClass get objectClass => BdObjectClass.fromCode(kind);
+
+  @override
+  void reset() {
+    super.reset();
+    constRaw = null;
+    constScalar = false;
+    constText = null;
+    termBounds = null;
+    termBmp = null;
+    primResId = null;
+    dIdx = null;
+    wireTableRaw = null;
+    lastSignalKind = null;
+    defaultFrameIndex = null;
+    structRgb = null;
+    libraryPath = null;
+    entryPoint = null;
+    selectorRanges = null;
+    selectorStrings = null;
+  }
+}
+
 /// A case structure's selector range list or string pool.
 class _SelectorCapture extends HeapGroupCapture {
-  _SelectorCapture(super.owner, this.frames, {required this.inPool});
+  _SelectorCapture(_BdScratch super.owner, {required this.inPool});
 
-  final BdCaseFrames frames;
   final bool inPool;
   final List<ViSelectorRange> _ranges = [];
   final List<String> _strings = [];
@@ -85,10 +125,11 @@ class _SelectorCapture extends HeapGroupCapture {
       _entryOpen = false;
     }
     if (depth != 0) return;
+    final scratch = owner as _BdScratch;
     if (inPool) {
-      if (frames.selectorStrings.isEmpty) frames.selectorStrings = _strings;
-    } else if (frames.selectorRanges.isEmpty) {
-      frames.selectorRanges = _ranges;
+      scratch.selectorStrings ??= _strings;
+    } else {
+      scratch.selectorRanges ??= _ranges;
     }
   }
 
@@ -122,15 +163,14 @@ class _SelectorCapture extends HeapGroupCapture {
   }
 }
 
-class _BdWalk extends HeapWalkListener<BdObject> {
+class _BdWalk extends HeapWalkListener<BdObject, _BdScratch> {
   @override
-  BdObject createObject({required int oid, required int kind, required int offset}) =>
-      BdObject(oid: oid, kind: kind, offset: offset);
+  _BdScratch createScratch() => _BdScratch();
 
   @override
-  HeapGroupCapture? captureGroup(BdObject owner, int tag) {
-    if (owner.caseFrames case final frames? when kViSelectorGroupTags.contains(tag)) {
-      return _SelectorCapture(owner, frames, inPool: tag == HeapGroupTag.selectorStringPool.tag);
+  HeapGroupCapture? captureGroup(_BdScratch owner, int tag) {
+    if (owner.objectClass == BdObjectClass.caseStructure && kViSelectorGroupTags.contains(tag)) {
+      return _SelectorCapture(owner, inPool: tag == HeapGroupTag.selectorStringPool.tag);
     }
     if (tag == HeapGroupTag.arrayIndex.tag && owner.objectClass == BdObjectClass.array) {
       return ArrayIndexCapture(owner);
@@ -152,114 +192,589 @@ class _BdWalk extends HeapWalkListener<BdObject> {
   };
 
   @override
-  void onRecord(BdObject cur, int opcode, Uint8List body, int start, int end) {
-    final call = cur.foreignCall;
-    if (call == null) return;
+  void onRecord(_BdScratch cur, int opcode, Uint8List body, int start, int end) {
+    if (cur.objectClass != BdObjectClass.callLibrary) return;
     if (opcode == HeapOpcode.path.byte) {
-      call.libraryPath ??= heapRecordPath(Uint8List.sublistView(body, start, end));
+      cur.libraryPath ??= heapRecordPath(Uint8List.sublistView(body, start, end));
     } else if (opcode == HeapOpcode.symbolName.byte) {
-      call.entryPoint ??= heapRecordText(Uint8List.sublistView(body, start, end));
+      cur.entryPoint ??= heapRecordText(Uint8List.sublistView(body, start, end));
     }
   }
 
   @override
-  void onAttribute(BdObject cur, HeapAttrReading attr) {
+  void onAttribute(_BdScratch cur, HeapAttrReading attr) {
     switch (attr.attribute) {
       case HeapAttribute.constValue:
-        final constant = cur.constant;
-        if (constant == null) return;
-        if (attr.asString case final text? when text.isNotEmpty) constant.text ??= text;
-        if (constant.raw == null) {
-          constant.raw = attr.flatBytes;
-          constant.scalar = attr.scalarBytes != null;
+        if (cur.objectClass != BdObjectClass.constant) return;
+        if (attr.asString case final text? when text.isNotEmpty) cur.constText ??= text;
+        if (cur.constRaw == null) {
+          cur.constRaw = attr.flatBytes;
+          cur.constScalar = attr.scalarBytes != null;
         }
       case HeapAttribute.termBounds:
         cur.termBounds ??= attr.asRect;
       case HeapAttribute.termBMPs:
         cur.termBmp ??= attr.asInt;
       case HeapAttribute.primResID:
-        if (cur.primitive case final primitive? when attr.scalarBytes == 2) primitive.primResId ??= attr.asInt;
+        if (cur.objectClass == BdObjectClass.primitive && attr.scalarBytes == 2) cur.primResId ??= attr.asInt;
       case HeapAttribute.dIdx:
-        cur.frames?.dIdx ??= attr.asInt;
+        if (cur.objectClass.isMultiFrameStructure) cur.dIdx ??= attr.asInt;
       case HeapAttribute.compressedWireTable:
-        cur.signal?.wireTableRaw ??= attr.flatBytes;
+        if (cur.objectClass == BdObjectClass.signal) cur.wireTableRaw ??= attr.flatBytes;
       case HeapAttribute.selectDefaultCase:
         final frame = attr.asInt;
-        if (cur.caseFrames case final frames? when frame != null && frame != kViNoDefaultFrame) {
-          frames.defaultFrameIndex ??= frame;
+        if (cur.objectClass == BdObjectClass.caseStructure && frame != null && frame != kViNoDefaultFrame) {
+          cur.defaultFrameIndex ??= frame;
         }
       case HeapAttribute.lastSignalKind:
         final word = attr.asInt;
-        if (cur.signal case final signal? when word != null && word <= 0xffff) signal.lastSignalKind ??= word;
+        if (cur.objectClass == BdObjectClass.signal && word != null && word <= 0xffff) cur.lastSignalKind ??= word;
       case HeapAttribute.structColor:
         cur.structRgb ??= attr.rgb;
       default:
         break;
     }
   }
+
+  @override
+  BdObject finalize(_BdScratch s, List<BdObject> children) {
+    final cls = s.objectClass;
+    final bounds = s.bounds;
+    final absBounds = s.absBounds;
+    if (bounds == null || absBounds == null) {
+      return switch (cls) {
+        BdObjectClass.root => BdRoot(oid: s.oid, kind: s.kind, offset: s.offset, end: s.end, refs: s.refs),
+        BdObjectClass.frame => BdFrame(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+          caption: s.caption,
+        ),
+        BdObjectClass.signal => BdSignal(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          endpoints: s.refs,
+          wireTableRaw: s.wireTableRaw,
+          lastSignalKind: s.lastSignalKind,
+          caption: s.caption,
+        ),
+        BdObjectClass.terminalHolder => BdTerminalHolder(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          dcoRef: s.dcoRefs?.firstOrNull,
+          caption: s.caption,
+        ),
+        BdObjectClass.constant when s.typeDescIdx != null => BdConstant(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          refs: s.refs,
+          helpText: s.helpText,
+          typeDescIdx: s.typeDescIdx!,
+          raw: s.constRaw,
+          scalar: s.constScalar,
+          text: s.constText,
+          typeKind: s.typeKind,
+          caption: s.caption,
+        ),
+        BdObjectClass.tunnelIndexer when s.typeDescIdx != null => BdTunnelIndexer(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          typeDescIdx: s.typeDescIdx!,
+          typeKind: s.typeKind,
+          caption: s.caption,
+        ),
+        BdObjectClass.formulaNodeTerminal ||
+        BdObjectClass.matlabScriptTerminal when s.termBounds != null && s.typeDescIdx != null => BdScriptTerminal(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          termBounds: s.termBounds!,
+          typeDescIdx: s.typeDescIdx!,
+          termBmp: s.termBmp,
+          caption: s.caption,
+          typeKind: s.typeKind,
+          fontRuns: s.fontRuns,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+        ),
+        _ when s.termBounds != null && s.typeDescIdx != null => BdTerminal(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          termBounds: s.termBounds!,
+          typeDescIdx: s.typeDescIdx!,
+          termBmp: s.termBmp,
+          caption: s.caption,
+          typeKind: s.typeKind,
+        ),
+        _ => BdUnplaced(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          caption: s.caption,
+        ),
+      };
+    }
+    switch (cls) {
+      case BdObjectClass.primitive when s.primResId != null:
+        return BdPrimitive(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          primResId: s.primResId!,
+        );
+      case BdObjectClass.formulaNode || BdObjectClass.matlabScriptNode:
+        return BdScriptNode(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          typeKind: s.typeKind,
+          fontRuns: s.fontRuns,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+        );
+      case BdObjectClass.callLibrary:
+        return BdForeignCall(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          typeKind: s.typeKind,
+          libraryPath: s.libraryPath,
+          entryPoint: s.entryPoint,
+        );
+      case BdObjectClass.caseStructure:
+        return BdCaseStructure(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          structRgb: s.structRgb,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+          dIdx: s.dIdx,
+          selectorRanges: s.selectorRanges ?? const [],
+          selectorStrings: s.selectorStrings ?? const [],
+          defaultFrameIndex: s.defaultFrameIndex,
+        );
+      case BdObjectClass.disableStructure || BdObjectClass.eventStructure || BdObjectClass.stackedSequence:
+        return BdMultiFrameStructure(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          structRgb: s.structRgb,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+          dIdx: s.dIdx,
+        );
+      case BdObjectClass.cluster || BdObjectClass.array || BdObjectClass.typeDefinition when s.typeDescIdx != null:
+        return BdContainer(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          typeDescIdx: s.typeDescIdx!,
+          arrayIndex: s.arrayIndex,
+          typeKind: s.typeKind,
+        );
+      case BdObjectClass.pane:
+        return BdPane(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+        );
+      case BdObjectClass.wire:
+        return BdWire(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+        );
+      case BdObjectClass.panelTerminal when s.dcoRefs?.firstOrNull != null:
+        return BdPanelTerminal(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          dcoRef: s.dcoRefs!.first,
+          typeKind: s.typeKind,
+        );
+      case BdObjectClass.textLabel || BdObjectClass.caseSelectorLabel:
+        return BdText(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          fontRuns: s.fontRuns,
+          modeWord: cls == BdObjectClass.textLabel ? s.labelModeWord ?? 0 : 0,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+        );
+      case BdObjectClass.numericDisplay:
+        return BdNumericDisplay(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+          displayFormat: s.displayFormat,
+          fontRuns: s.fontRuns,
+          typeKind: s.typeKind,
+        );
+      case BdObjectClass.itemList:
+        return BdItemList(
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+          items: s.items,
+          fontRuns: s.fontRuns,
+          typeKind: s.typeKind,
+        );
+      default:
+        break;
+    }
+    switch (cls.category) {
+      case BdObjectKind.node:
+        return BdNode(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          typeKind: s.typeKind,
+        );
+      case BdObjectKind.structure:
+        return BdStructure(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          structRgb: s.structRgb,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+        );
+      case BdObjectKind.terminal || BdObjectKind.unknown when s.typeDescIdx != null:
+        return BdControlBody(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          typeDescIdx: s.typeDescIdx!,
+          items: s.items,
+          typeKind: s.typeKind,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+        );
+      case BdObjectKind.terminal || BdObjectKind.decoration || BdObjectKind.terminalCluster:
+        return BdPart(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          bgRgb: s.bgRgb,
+          fgRgb: s.fgRgb,
+          contentRgb: s.contentRgb,
+          typeKind: s.typeKind,
+        );
+      case BdObjectKind.unknown when _looksLikeNode(s, children):
+        return BdNode(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+          typeKind: s.typeKind,
+        );
+      case BdObjectKind.unknown || BdObjectKind.frame || BdObjectKind.wire:
+        return BdUnknownPlaced(
+          cls,
+          oid: s.oid,
+          kind: s.kind,
+          offset: s.offset,
+          end: s.end,
+          parentOid: s.parentOid,
+          objFlags: s.objFlags ?? 0,
+          helpText: s.helpText,
+          refs: s.refs,
+          bounds: bounds,
+          boundsOffset: s.boundsOffset,
+          absBounds: absBounds,
+          caption: s.caption,
+          termCount: s.termCount,
+        );
+    }
+  }
+}
+
+/// Whether a placed object of an unknown class sits in a frame, is node-sized and holds
+/// terminal holders but no connector terminal, so it is drawn as a node.
+bool _looksLikeNode(_BdScratch s, List<BdObject> children) {
+  final bounds = s.absBounds!;
+  if (bounds.width <= 0 || bounds.height <= 0 || bounds.width * bounds.height >= _structureAreaCap) return false;
+  if (children.isEmpty || BdObjectClass.fromCode(s.parentKind ?? -1) != BdObjectClass.frame) return false;
+  return children.any((c) => c is BdTerminalHolder) &&
+      !children.any((c) => c.objectClass == BdObjectClass.connectorTerminal);
 }
 
 /// Builds the object tree of a `BDHb` body (the section payload including its length word).
 /// After the walk, label bounds are re-based on their owner, flat-sequence frames are shifted
-/// to their declared offsets, objects with size records become terminal clusters, items and
-/// help text bubble up to the owning control, unknown classes that look like nodes become
-/// nodes, unlabelled nodes take their first child label, and controls under a scrolled viewport
-/// are re-anchored.
+/// to their declared offsets, items and help text bubble up to the owning control, unlabelled
+/// nodes take their first child label, and controls under a scrolled viewport are re-anchored.
 BdDiagram buildBlockDiagram(Uint8List body, {String? version, int sectionIndex = 0}) {
   final diagram = BdDiagram(objects: walkHeap(body, _BdWalk()), version: version, sectionIndex: sectionIndex);
   rebaseLabelBounds(diagram);
   _shiftFlatSequenceFrames(diagram);
-  for (final object in diagram.objects) {
-    if (object.termCount >= 1) object.category = BdObjectKind.terminalCluster;
-  }
   bubbleItemsToControls(diagram);
   bubbleHelpText(diagram);
-  _promoteUnknownNodes(diagram);
   _labelNodesFromChildren(diagram);
   reanchorScrolledControls(diagram);
   return diagram;
 }
 
 void _shiftFlatSequenceFrames(BdDiagram diagram) {
-  for (final object in diagram.objects) {
-    if (object.objectClass != BdObjectClass.flatSequence || object.absBounds == null) continue;
+  for (final object in diagram.structures) {
+    if (object.objectClass != BdObjectClass.flatSequence) continue;
     for (final frame in diagram.childrenOf(object)) {
-      final local = frame.bounds;
-      final abs = frame.absBounds;
-      final owner = object.absBounds;
-      if (frame.objectClass != BdObjectClass.sequenceFrame || local == null || abs == null || owner == null) {
-        continue;
-      }
+      if (frame is! BdStructure || frame.objectClass != BdObjectClass.sequenceFrame) continue;
+      final local = frame.bounds, abs = frame.absBounds, owner = object.absBounds;
       shiftSubtree(diagram, frame, dTop: owner.top + local.top - abs.top, dLeft: owner.left + local.left - abs.left);
     }
   }
 }
 
-void _promoteUnknownNodes(BdDiagram diagram) {
-  for (final object in diagram.objects) {
-    if (object.category != BdObjectKind.unknown) continue;
-    final bounds = object.absBounds;
-    if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
-    if (bounds.width * bounds.height >= _structureAreaCap) continue;
-    if (diagram.parentOf(object)?.objectClass != BdObjectClass.frame) continue;
-    final cs = diagram.childrenOf(object);
-    if (cs.isEmpty) continue;
-    final hasStructural = cs.any((c) => c.objectClass == BdObjectClass.terminalHolder);
-    final hasConnector = cs.any((c) => c.objectClass == BdObjectClass.connectorTerminal);
-    if (!hasStructural || hasConnector) continue;
-    object.category = BdObjectKind.node;
-  }
-}
-
 void _labelNodesFromChildren(BdDiagram diagram) {
-  for (final object in diagram.objects) {
-    if (object.category != BdObjectKind.node || object.label != null) continue;
-    final caps = diagram
-        .childrenOf(object)
-        .where((c) => c.isTextLabel)
-        .map((c) => c.label?.trim())
-        .where((cap) => cap != null && cap.isNotEmpty);
-    if (caps.isNotEmpty) object.label = caps.first;
+  for (final node in diagram.nodes) {
+    if (node.caption != null) continue;
+    for (final child in diagram.childrenOf(node)) {
+      final text = child is BdText ? child.caption?.text.trim() : null;
+      if (text != null && text.isNotEmpty) {
+        node.caption = HeapCaption(text);
+        break;
+      }
+    }
   }
 }
 
@@ -447,7 +962,7 @@ void _typedConstDecode(BdConstant constant, ViResolvedType resolved) {
 /// [decodeBdConstantValue] for the fields still unset.
 void decodeBdConstValues(BdDiagram diagram) {
   bool subtreeHasItems(BdObject o, [int depth = 0]) {
-    if (o.items.isNotEmpty) return true;
+    if (o case HeapItems(:final items) when items.isNotEmpty) return true;
     if (depth >= 16) return false;
     for (final kid in diagram.childrenOf(o)) {
       if (subtreeHasItems(kid, depth + 1)) return true;
@@ -455,11 +970,10 @@ void decodeBdConstValues(BdDiagram diagram) {
     return false;
   }
 
-  for (final object in diagram.objects) {
-    final constant = object.constant;
-    if (constant == null || constant.raw == null) continue;
-    if (object.resolvedType case final resolved?) _typedConstDecode(constant, resolved);
-    final kids = diagram.childrenOf(object);
+  for (final constant in diagram.constants) {
+    if (constant.raw == null) continue;
+    if (constant.resolvedType case final resolved?) _typedConstDecode(constant, resolved);
+    final kids = diagram.childrenOf(constant);
     if (kids.isEmpty) continue;
     final carrier = kids.first.objectClass;
     final wantsItems = carrier == BdObjectClass.enumRing || carrier == BdObjectClass.typeDefinition;
@@ -467,7 +981,7 @@ void decodeBdConstValues(BdDiagram diagram) {
       carrier: carrier,
       flat: constant.raw,
       scalar: constant.scalar,
-      hasEnumItems: wantsItems && subtreeHasItems(object),
+      hasEnumItems: wantsItems && subtreeHasItems(constant),
     );
     if (value is bool) constant.boolValue ??= value;
     if (value is num) constant.numeric ??= value;

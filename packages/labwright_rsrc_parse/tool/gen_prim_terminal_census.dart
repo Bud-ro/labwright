@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import '../../../tool/corpus.dart';
+import '../test/shape_probe.dart';
 
 /// Run: `dart run tool/gen_prim_terminal_census.dart`; writes `lib/src/block_diagram/prim_terminal_census.dart`.
 void main() {
@@ -41,14 +42,14 @@ void main() {
         if (slack == null || points == null || points.isEmpty) continue;
         BdObject? dco;
         for (final oid in wire.endpointOids) {
-          final o = diagram.byId[oid];
+          final o = diagram.byOid(oid);
           if (o != null && o.objectClass == BdObjectClass.terminalHolder && o.absBounds == null) {
             dco = o;
             break;
           }
         }
         if (dco == null) continue;
-        final node = diagram.byId[dco.parentOid ?? -1];
+        final node = diagram.byOid(dco.parentOid ?? -1);
         final box = node?.absBounds;
         if (node == null || box == null || box.width <= 0 || box.height <= 0) {
           continue;

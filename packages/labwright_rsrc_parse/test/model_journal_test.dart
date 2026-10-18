@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'shape_probe.dart';
 import 'test_util.dart';
 
 List<int> _heap() => [
@@ -38,8 +39,8 @@ void main() {
   test('every edit lands in the journal, grouped by transaction', () {
     final model = buildViModel(_file());
     final diagram = model.blockDiagrams.single;
-    model.moveObject(diagram, diagram.objects[0], dx: 1, dy: 1);
-    model.setLabel(diagram, diagram.objects[0], 'o');
+    model.moveObject(diagram, diagram.objects[0] as HeapPlaced, dx: 1, dy: 1);
+    model.setLabel(diagram, diagram.objects[0] as HeapCaptioned, 'o');
     model.transact(() {
       model.allocateUid();
       model.addType(ViBooleanType.encode(label: 'b'));
@@ -58,8 +59,8 @@ void main() {
     final bytes = _file();
     final model = buildViModel(bytes);
     var diagram = model.blockDiagrams.single;
-    model.moveObject(diagram, diagram.objects[0], dx: 1, dy: 1);
-    model.setLabel(diagram, diagram.objects[0], 'outermost');
+    model.moveObject(diagram, diagram.objects[0] as HeapPlaced, dx: 1, dy: 1);
+    model.setLabel(diagram, diagram.objects[0] as HeapCaptioned, 'outermost');
     model.addType(ViBooleanType.encode(label: 'b'));
     expect(model.types, hasLength(2));
     expect(model.undo(), isTrue);
@@ -111,6 +112,6 @@ void main() {
     expect(inner.end - inner.offset, diagram.objects[1].end - diagram.objects[1].offset + 4);
     final again = buildViModel(model.serialize()).blockDiagrams.single;
     expect(again.objects.map((o) => o.oid), [1, 2, 0x7fff, 0x8000, 3]);
-    expect(again.childrenOf(again.byId[0x7fff]!).single.refs, [0x7fff]);
+    expect(again.childrenOf(again.byOid(0x7fff)!).single.refs, [0x7fff]);
   });
 }

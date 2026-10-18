@@ -1,12 +1,15 @@
-/// The objects of a block diagram: [BdObject] with the fields [buildBlockDiagram] fills from
-/// the heap records, [BdObjectClass] naming the object classes, [BdObjectKind] the roles, the
-/// per-class payloads ([BdPayload]) and the case-selector ranges.
+/// The objects of a block diagram, one shape per record layout: [BdObject] is the sealed root,
+/// [BdPlaced] the objects with a bounds record, and the leaves ([BdNode], [BdStructure],
+/// [BdTerminal], [BdSignal], [BdConstant], …) carry exactly the fields their records give them.
+/// [BdObjectClass] names the object classes and [BdObjectKind] the roles.
 library;
 
 import 'dart:typed_data';
 
+import '../blocks/FTAB_font_table.dart';
 import '../heap/heap.dart';
 import '../heap/heap_object.dart';
+import '../heap/obj_flags.dart';
 import '../heap/object_class.dart';
 import 'prim_ops.dart';
 
@@ -101,159 +104,867 @@ class ViSelectorRange {
   bool get isClosed => lowBound == ViSelectorBound.inclusive && highBound == ViSelectorBound.inclusive;
 }
 
-/// What an object's class adds to the shared fields; [BdPayload.forClass] picks the payload a
-/// class carries.
-sealed class BdPayload {
-  BdPayload();
-
-  /// The payload objects of [objectClass] carry, or null for a class with none.
-  static BdPayload? forClass(BdObjectClass objectClass) => switch (objectClass) {
-    BdObjectClass.constant => BdConstant(),
-    BdObjectClass.caseStructure => BdCaseFrames(),
-    BdObjectClass.disableStructure || BdObjectClass.eventStructure || BdObjectClass.stackedSequence => BdFrames(),
-    BdObjectClass.signal => BdSignal(),
-    BdObjectClass.primitive => BdPrimitive(),
-    BdObjectClass.callLibrary => BdForeignCall(),
-    BdObjectClass.panelTerminal => BdPanelTerminal(),
-    _ => null,
-  };
-}
-
-/// A constant's value: the flat bytes of its `constValue` attribute and what
-/// [decodeBdConstValues] reads out of them.
-final class BdConstant extends BdPayload {
-  /// The flat bytes of the `constValue` attribute.
-  Uint8List? raw;
-
-  /// Whether [raw] came from a scalar attribute width rather than a container blob.
-  bool scalar = false;
-
-  /// The constant's text, from the attribute's string form or the decoded bytes.
-  String? text;
-
-  num? numeric;
-
-  bool? boolValue;
-
-  /// A numeric array's elements in row-major order.
-  List<num>? array;
-
-  /// A string array's elements in row-major order.
-  List<String>? textArray;
-
-  /// The dimension sizes of [array] or [textArray].
-  List<int>? arrayDims;
-}
-
-/// A structure that holds one frame per case, event or sequence step and shows one at a time.
-class BdFrames extends BdPayload {
-  /// The `dIdx` attribute.
-  int? dIdx;
-
-  /// The frame the structure shows: [dIdx] without its high bit.
-  int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
-}
-
-/// A case structure: its frames and the selector that picks one.
-final class BdCaseFrames extends BdFrames {
-  List<ViSelectorRange> selectorRanges = const [];
-
-  List<String> selectorStrings = const [];
-
-  /// The default frame, null when the attribute holds [kViNoDefaultFrame].
-  int? defaultFrameIndex;
-}
-
-/// A signal: the packed wire route and type word of the wire it draws.
-final class BdSignal extends BdPayload {
-  /// The `compressedWireTable` attribute, decoded by [decodeWireRoute] and
-  /// [decodeWireBranchRoute].
-  Uint8List? wireTableRaw;
-
-  /// The `lastSignalKind` attribute; [ViSignalType] reads it.
-  int? lastSignalKind;
-}
-
-/// A primitive node: which operation it performs.
-final class BdPrimitive extends BdPayload {
-  /// The `primResID` attribute; [PrimOp] names the ids.
-  int? primResId;
-
-  String? get primName {
-    final id = primResId;
-    return id == null ? null : PrimOp.fromId(id)?.opName;
-  }
-}
-
-/// A Call Library Function node: the library and symbol it calls.
-final class BdForeignCall extends BdPayload {
-  /// The library path record.
-  String? libraryPath;
-
-  /// The symbol name record.
-  String? entryPoint;
-}
-
-/// A front-panel terminal: what the data-space join learned from the panel control it
-/// references.
-final class BdPanelTerminal extends BdPayload {
-  /// Whether the panel control is an indicator; null until the join runs or when the control
-  /// was not found.
-  bool? isIndicator;
-}
-
-/// One object of a block-diagram heap.
-class BdObject extends HeapObject {
-  BdObject({required super.oid, required super.kind, required super.offset})
-    : objectClass = BdObjectClass.fromCode(kind),
-      category = BdObjectClass.fromCode(kind).category;
+/// One object of a block-diagram heap. The shape says what records the object has; the class
+/// says what LabVIEW object it is.
+sealed class BdObject extends HeapObject implements HeapCaptioned {
+  BdObject(
+    this.objectClass, {
+    required super.oid,
+    int? kind,
+    super.offset = 0,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    this.refs = const [],
+    this.caption,
+  }) : super(kind: kind ?? objectClass.code);
 
   final BdObjectClass objectClass;
 
-  /// The class's role, until [buildBlockDiagram] promotes an object with a size record to a
-  /// terminal cluster or an unknown class that looks like a node to a node.
-  BdObjectKind category;
+  /// The role the class gives the object; a promoted object overrides it.
+  BdObjectKind get category => objectClass.category;
 
-  /// The class's payload, see [BdPayload.forClass].
-  late final BdPayload? payload = BdPayload.forClass(objectClass);
+  /// Targets of the object's `childRef` references, in record order.
+  final List<int> refs;
 
-  T? _as<T extends BdPayload>() {
-    final payload = this.payload;
-    return payload is T ? payload : null;
-  }
+  /// Every object the object refers to: [refs], plus a `dcoRef` where the shape has one.
+  Iterable<int> get memberOids => refs;
 
-  BdConstant? get constant => _as();
+  /// The caption record, else the `shortText` attribute; a node without one takes its first
+  /// child label.
+  @override
+  HeapCaption? caption;
 
-  BdFrames? get frames => _as();
+  String? get label => caption?.text;
+}
 
-  BdCaseFrames? get caseFrames => _as();
+/// The diagram's root object.
+final class BdRoot extends BdObject {
+  BdRoot({required super.oid, super.kind, super.offset, super.end, super.refs}) : super(BdObjectClass.root);
+}
 
-  BdSignal? get signal => _as();
+/// One sub-diagram frame of a multi-frame structure; the frame has no bounds of its own.
+final class BdFrame extends BdObject {
+  BdFrame({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    super.caption,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  }) : super(BdObjectClass.frame);
 
-  BdPrimitive? get primitive => _as();
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+}
 
-  BdForeignCall? get foreignCall => _as();
+/// A signal: the data path a wire draws, from its first endpoint to the others.
+final class BdSignal extends BdObject {
+  BdSignal({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.caption,
+    required List<int> endpoints,
+    this.wireTableRaw,
+    this.lastSignalKind,
+  }) : super(BdObjectClass.signal, refs: endpoints);
 
-  BdPanelTerminal? get panelTerminal => _as();
+  /// The endpoint objects, source first: the `childRef` targets.
+  List<int> get endpoints => refs;
 
-  /// The `termBounds` attribute: a terminal's box relative to the nearest bounded ancestor's
-  /// origin.
-  HeapRect? termBounds;
+  /// The `compressedWireTable` attribute's bytes, the encoded route.
+  final Uint8List? wireTableRaw;
 
-  /// The `termBMPs` attribute: which glyph the terminal draws.
-  int? termBmp;
+  /// The `lastSignalKind` word, the wire's type encoding.
+  final int? lastSignalKind;
+}
+
+/// A terminal holder: the object a wire ends on inside a node, which may name the node's data
+/// object through `dcoRef` and then takes that object's type in the data-space join.
+final class BdTerminalHolder extends BdObject implements HeapTypeBearer {
+  BdTerminalHolder({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    super.caption,
+    this.dcoRef,
+    this.typeKind = ViTypeKind.unknown,
+  }) : super(BdObjectClass.terminalHolder);
+
+  final int? dcoRef;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+
+  @override
+  Iterable<int> get memberOids => dcoRef == null ? refs : [...refs, dcoRef!];
+}
+
+/// A node's terminal: placed by its `termBounds` relative to the nearest placed ancestor,
+/// typed, drawn with the glyph [termBmp] names.
+class BdTerminal extends BdObject implements HeapTyped {
+  BdTerminal(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required this.termBounds,
+    required this.typeDescIdx,
+    this.termBmp,
+    super.caption,
+    this.typeKind = ViTypeKind.unknown,
+  });
+
+  final HeapRect termBounds;
+
+  @override
+  final int typeDescIdx;
+
+  final int? termBmp;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+}
+
+/// A Formula Node or MATLAB script node terminal: a terminal captioned with its variable name,
+/// drawn in a font on a coloured box.
+final class BdScriptTerminal extends BdTerminal implements HeapFontRuns {
+  BdScriptTerminal(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.termBounds,
+    required super.typeDescIdx,
+    super.termBmp,
+    super.caption,
+    super.typeKind,
+    this.fontRuns = const [],
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  });
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+}
+
+/// A tunnel's auto-index marker.
+final class BdTunnelIndexer extends BdObject implements HeapTyped {
+  BdTunnelIndexer({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    super.caption,
+    required this.typeDescIdx,
+    this.typeKind = ViTypeKind.unknown,
+  }) : super(BdObjectClass.tunnelIndexer);
+
+  @override
+  final int typeDescIdx;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+}
+
+/// A constant: typed, holding its value as the flat bytes of its `constValue` attribute, drawn
+/// by the control body it owns.
+final class BdConstant extends BdObject implements HeapTyped {
+  BdConstant({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.refs,
+    super.caption,
+    super.helpText,
+    required this.typeDescIdx,
+    this.raw,
+    this.scalar = false,
+    this.text,
+    this.typeKind = ViTypeKind.unknown,
+  }) : super(BdObjectClass.constant);
+
+  @override
+  final int typeDescIdx;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+
+  /// The flat bytes of the `constValue` attribute.
+  final Uint8List? raw;
+
+  /// Whether [raw] came from a scalar attribute width rather than a container blob.
+  final bool scalar;
+
+  /// The value as text, when the attribute decodes to a string or [decodeBdConstValues] reads one.
+  String? text;
+
+  /// The value as a number, when [decodeBdConstValues] reads one.
+  num? numeric;
+
+  /// The value as a boolean, when [decodeBdConstValues] reads one.
+  bool? boolValue;
+
+  /// The elements of a numeric array constant, row-major.
+  List<num>? array;
+
+  /// The elements of a string array constant, row-major.
+  List<String>? textArray;
+
+  /// The dimension sizes of an array constant.
+  List<int>? arrayDims;
+}
+
+/// An object with no bounds record and no shape of its own: connector terminals, property items
+/// and the parts of nodes, or a class that wants bounds but was saved without them.
+final class BdUnplaced extends BdObject {
+  BdUnplaced(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    super.caption,
+  });
+}
+
+/// An object with a bounds record.
+sealed class BdPlaced extends BdObject implements HeapPlaced {
+  BdPlaced(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required this.bounds,
+    this.boundsOffset = 0,
+    HeapRect? absBounds,
+    super.caption,
+    this.termCount = 0,
+  }) : absBounds = absBounds ?? bounds;
+
+  @override
+  HeapRect bounds;
+
+  @override
+  int boundsOffset;
+
+  @override
+  HeapRect absBounds;
+
+  /// The number of size records the object carries; one or more makes it a terminal cluster.
+  final int termCount;
+
+  @override
+  BdObjectKind get category => termCount >= 1 ? BdObjectKind.terminalCluster : objectClass.category;
+}
+
+/// A primitive, sub-VI call or other executable node.
+class BdNode extends BdPlaced implements HeapCaptioned {
+  BdNode(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    this.typeKind = ViTypeKind.unknown,
+  });
+
+  /// The data kind the node's own records imply: a symbol name on a Call Library node, a path
+  /// record on a path node.
+  final ViTypeKind typeKind;
+
+  @override
+  BdObjectKind get category => termCount >= 1 ? BdObjectKind.terminalCluster : BdObjectKind.node;
+}
+
+/// A primitive node, drawn by the icon its `primResID` names.
+final class BdPrimitive extends BdNode {
+  BdPrimitive({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.typeKind,
+    required this.primResId,
+  }) : super(BdObjectClass.primitive);
+
+  final int primResId;
+
+  /// The catalogued name of the primitive, when [PrimOp] knows it.
+  String? get primName => PrimOp.fromId(primResId)?.opName;
+}
+
+/// A Call Library Function Node: the library and symbol it calls.
+final class BdForeignCall extends BdNode {
+  BdForeignCall({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.typeKind,
+    this.libraryPath,
+    this.entryPoint,
+  }) : super(BdObjectClass.callLibrary);
+
+  /// The path record's text.
+  final String? libraryPath;
+
+  /// The symbol name record's text.
+  final String? entryPoint;
+}
+
+/// A Formula Node or MATLAB script node: a node whose caption is its script, drawn in a font
+/// on a coloured box.
+final class BdScriptNode extends BdNode implements HeapFontRuns {
+  BdScriptNode(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.typeKind,
+    this.fontRuns = const [],
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  });
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+}
+
+/// A loop, sequence frame, In Place Element or other structure that owns a sub-diagram.
+class BdStructure extends BdPlaced {
+  BdStructure(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    this.structRgb,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  });
 
   /// The `structColor` attribute as `0xRRGGBB`; null when absent or transparent.
-  int? structRgb;
+  final int? structRgb;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+}
+
+/// A structure that holds one frame per case, event or sequence step and shows one at a time.
+class BdMultiFrameStructure extends BdStructure {
+  BdMultiFrameStructure(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.structRgb,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    this.dIdx,
+  });
+
+  /// The `dIdx` attribute: the index of the frame shown; absent means the first.
+  final int? dIdx;
+
+  /// The frame shown: [dIdx] without its bit 31, which is a flag.
+  int get visibleFrameIndex => (dIdx ?? 0) & 0x7fffffff;
+}
+
+/// A case structure: its selector ranges and strings and its default frame.
+final class BdCaseStructure extends BdMultiFrameStructure {
+  BdCaseStructure({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.structRgb,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    super.dIdx,
+    this.selectorRanges = const [],
+    this.selectorStrings = const [],
+    this.defaultFrameIndex,
+  }) : super(BdObjectClass.caseStructure);
+
+  /// The selector range list: which values select which frame.
+  final List<ViSelectorRange> selectorRanges;
+
+  /// The selector string pool, for a string or enum selector.
+  final List<String> selectorStrings;
+
+  /// The `selectDefaultCase` attribute: the default frame's index, null without one.
+  final int? defaultFrameIndex;
+}
+
+/// A cluster, array or type definition shell: a typed container of control bodies, drawn
+/// around a constant's or a terminal's elements.
+final class BdContainer extends BdPlaced implements HeapTyped {
+  BdContainer(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    required this.typeDescIdx,
+    this.arrayIndex,
+    this.typeKind = ViTypeKind.unknown,
+  });
 
   @override
-  bool get isTextLabel => objectClass == BdObjectClass.textLabel;
+  final int typeDescIdx;
 
   @override
-  bool get isControlTerminal => objectClass.isControlTerminal;
+  ViResolvedType? resolvedType;
 
   @override
-  bool get isPane => objectClass == BdObjectClass.pane;
+  ViTypeKind typeKind;
+
+  /// The displayed element index of an array shell, from its array index group.
+  final int? arrayIndex;
+}
+
+/// A pane: the scrolled viewport the diagram's objects are placed in.
+final class BdPane extends BdPlaced implements HeapPane {
+  BdPane({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+  }) : super(BdObjectClass.pane);
+}
+
+/// A wire's drawn segments; the signal it draws is its `signal` sibling.
+final class BdWire extends BdPlaced {
+  BdWire({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+  }) : super(BdObjectClass.wire);
+}
+
+/// A front-panel terminal on the diagram: it names its panel data object through `dcoRef` and
+/// takes that object's type and direction in the data-space join.
+final class BdPanelTerminal extends BdPlaced implements HeapTypeBearer {
+  BdPanelTerminal({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    required this.dcoRef,
+    this.isIndicator,
+    this.typeKind = ViTypeKind.unknown,
+  }) : super(BdObjectClass.panelTerminal);
+
+  final int dcoRef;
+
+  /// Whether the panel control is an indicator; null until the join runs or when the control
+  /// was not found.
+  bool? isIndicator;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+
+  @override
+  Iterable<int> get memberOids => [...refs, dcoRef];
+}
+
+/// A typed control body on the diagram: the face of a constant or terminal, carrying its value.
+final class BdControlBody extends BdPlaced implements HeapControlBody {
+  BdControlBody(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    required this.typeDescIdx,
+    this.items = const [],
+    this.typeKind = ViTypeKind.unknown,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  });
+
+  @override
+  final int typeDescIdx;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+
+  /// Enum or ring item names, from the body's own string table or its item list part.
+  @override
+  List<String> items;
+
+  @override
+  bool get isValueControl => objectClass.isControlTerminal;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+}
+
+/// A text label: a node's or a control's name, or a case structure's selector label.
+final class BdText extends BdPlaced implements HeapTextLabel {
+  BdText(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    this.fontRuns = const [],
+    this.modeWord = 0,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  });
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+
+  @override
+  final int modeWord;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+
+  /// Whether a text label is hidden; the bit is not decoded on a case selector label.
+  @override
+  bool get isHidden => objectClass == BdObjectClass.textLabel && hasFlag(ViObjFlag.labelHidden);
+
+  @override
+  bool get isBold => font?.isBold ?? false;
+
+  @override
+  bool get justifyCenter => modeWord & 0x20 != 0;
+
+  /// The inset between the label's box and its text, in pixels.
+  int get textInset => modeWord & 0x800000 != 0 ? 2 : 1;
+}
+
+/// A placed part of a node or control: chrome, a control part, a glyph.
+class BdPart extends BdPlaced {
+  BdPart(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+    this.typeKind = ViTypeKind.unknown,
+  });
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+
+  /// The data kind the part's own records imply: a format string on a numeric display, an item
+  /// table on an item list.
+  final ViTypeKind typeKind;
+}
+
+/// A numeric display part: the digits of a numeric control body, formatted by [displayFormat].
+final class BdNumericDisplay extends BdPart implements HeapFontRuns {
+  BdNumericDisplay({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    super.typeKind,
+    this.displayFormat,
+    this.fontRuns = const [],
+  }) : super(BdObjectClass.numericDisplay);
+
+  /// The `formatStyle` attribute, a `%` format string.
+  final String? displayFormat;
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+}
+
+/// An enum, ring or boolean item list part.
+final class BdItemList extends BdPart implements HeapItems, HeapFontRuns {
+  BdItemList({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    super.typeKind,
+    this.items = const [],
+    this.fontRuns = const [],
+  }) : super(BdObjectClass.itemList);
+
+  @override
+  final List<String> items;
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+}
+
+/// A placed object of a class whose role is not established.
+final class BdUnknownPlaced extends BdPlaced {
+  BdUnknownPlaced(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+  });
 }
 
 /// The classes of block-diagram heap objects, by code.
@@ -477,6 +1188,10 @@ enum BdObjectClass {
 
   /// Whether the class is one of the typed control bodies that carry a value.
   bool get isControlTerminal => _controlTerminal[index];
+
+  /// Whether the class holds one frame per case, event or sequence step and shows one at a time.
+  bool get isMultiFrameStructure =>
+      this == caseStructure || this == disableStructure || this == eventStructure || this == stackedSequence;
 
   /// Whether a signal's endpoint reference can target the class: a terminal holder inside a node
   /// or a front-panel terminal.

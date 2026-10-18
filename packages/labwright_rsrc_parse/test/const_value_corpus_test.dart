@@ -8,6 +8,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'shape_probe.dart';
 
 void main() {
   test('corpus pins: known constant values', () {
@@ -22,26 +23,26 @@ void main() {
       750: null,
     };
     pins.forEach((oid, want) {
-      final o = bd.byId[oid]!;
+      final o = bd.byOid(oid)!;
       expect(o.constant?.boolValue ?? o.constant?.numeric, want, reason: 'crc8 oid $oid');
     });
-    expect(bd.byId[757]!.arrayIndex, 255, reason: 'LUT shell index');
-    expect(bd.byId[2369]!.arrayIndex, 255, reason: 'zero-LUT shell index');
-    expect(bd.byId[750]!.constant?.array![255], 255, reason: 'LUT[255]');
+    expect(bd.byOid(757)!.arrayIndex, 255, reason: 'LUT shell index');
+    expect(bd.byOid(2369)!.arrayIndex, 255, reason: 'zero-LUT shell index');
+    expect(bd.byOid(750)!.constant?.array![255], 255, reason: 'LUT[255]');
 
     final md5 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/MD5.png');
     final bdM = buildViModel(extractSnippetVi(md5.readAsBytesSync())!).blockDiagrams.single;
-    expect(bdM.byId[821]!.constant?.numeric, 0x67452301, reason: 's1 in');
-    expect(bdM.byId[796]!.constant?.numeric, 0xEFCDAB89, reason: 's2 in: leading byte >= 0x80, typed u32');
-    expect(bdM.byId[757]!.constant?.numeric, 0x10325476, reason: 's4 in: above the SGL-alias ceiling, typed u32');
-    expect(bdM.byId[4928]!.constant?.arrayDims, [4, 16], reason: 'Indices 2D');
-    expect(bdM.byId[4928]!.constant?.array!.take(4), [0, 1, 2, 3]);
-    expect(bdM.byId[4969]!.constant?.arrayDims, [64], reason: 'T 1D');
-    expect(bdM.byId[4969]!.constant?.array!.first, 0xD76AA478);
-    expect(bdM.byId[943]!.constant?.arrayDims, [0], reason: 'empty array: dims + 1 zero pad byte');
-    expect(bdM.byId[943]!.constant?.array, isEmpty);
-    expect(bdM.byId[814]!.displayFormat, '%08x', reason: 's1 value window');
-    expect(bdM.byId[4996]!.displayFormat, '%x', reason: 'T element window');
+    expect(bdM.byOid(821)!.constant?.numeric, 0x67452301, reason: 's1 in');
+    expect(bdM.byOid(796)!.constant?.numeric, 0xEFCDAB89, reason: 's2 in: leading byte >= 0x80, typed u32');
+    expect(bdM.byOid(757)!.constant?.numeric, 0x10325476, reason: 's4 in: above the SGL-alias ceiling, typed u32');
+    expect(bdM.byOid(4928)!.constant?.arrayDims, [4, 16], reason: 'Indices 2D');
+    expect(bdM.byOid(4928)!.constant?.array!.take(4), [0, 1, 2, 3]);
+    expect(bdM.byOid(4969)!.constant?.arrayDims, [64], reason: 'T 1D');
+    expect(bdM.byOid(4969)!.constant?.array!.first, 0xD76AA478);
+    expect(bdM.byOid(943)!.constant?.arrayDims, [0], reason: 'empty array: dims + 1 zero pad byte');
+    expect(bdM.byOid(943)!.constant?.array, isEmpty);
+    expect(bdM.byOid(814)!.displayFormat, '%08x', reason: 's1 value window');
+    expect(bdM.byOid(4996)!.displayFormat, '%x', reason: 'T element window');
 
     final test5 = File(
       '${corpusViDir.path}/vi-corpus/sources/NEVSTOP-LAB__Communicable-State-Machine/'
@@ -50,11 +51,11 @@ void main() {
     expect(test5.existsSync(), isTrue, reason: 'the pinned VI must be fetched with the corpus');
     final bytes = test5.readAsBytesSync();
     final bd5 = buildViModel(bytes).blockDiagrams.single;
-    expect(bd5.byId[1148]!.constant?.numeric, 10, reason: 'milliseconds to wait');
-    expect(bd5.byId[2592]!.constant?.boolValue, true);
-    expect(bd5.byId[2692]!.constant?.text, 'Test Status');
-    expect(bd5.byId[2924]!.resolvedType?.kind, ViDataType.i32);
-    expect(bd5.byId[2924]!.constant?.numeric, -1);
+    expect(bd5.byOid(1148)!.constant?.numeric, 10, reason: 'milliseconds to wait');
+    expect(bd5.byOid(2592)!.constant?.boolValue, true);
+    expect(bd5.byOid(2692)!.constant?.text, 'Test Status');
+    expect(bd5.byOid(2924)!.resolvedType?.kind, ViDataType.i32);
+    expect(bd5.byOid(2924)!.constant?.numeric, -1);
 
     final sections = readViSections(bytes);
     final dfdsSection = sections.firstWhere((s) => s.tag == 'DFDS');
@@ -71,7 +72,7 @@ void main() {
     expect(numSlot.length, 4);
     expect(
       ByteData.sublistView(dfds, numSlot.offset, numSlot.offset + 4).getUint32(0),
-      bd5.byId[1148]!.constant?.numeric,
+      bd5.byOid(1148)!.constant?.numeric,
       reason: 'decoded constant value byte-matches its data-space slot',
     );
   });
@@ -100,7 +101,7 @@ void main() {
       final diagram = diagrams[snippet] ??= buildViModel(
         extractSnippetVi(snippetPng('$snippet.png').readAsBytesSync())!,
       ).blockDiagrams.single;
-      final constant = diagram.byId[oid]!;
+      final constant = diagram.byOid(oid)!;
       expect(constant.constant?.text, value, reason: '$snippet oid $oid value');
       final box = diagram.children(oid).firstWhere((child) => child.absBounds != null).absBounds!;
       expect((box.width, box.height), (width, height), reason: '$snippet oid $oid box');
@@ -124,7 +125,7 @@ void main() {
     ];
     for (final (path, oid, dims, texts) in pins) {
       final diagram = buildViModel(File('${corpusViDir.path}/$path').readAsBytesSync()).blockDiagrams.single;
-      final constant = diagram.byId[oid]!;
+      final constant = diagram.byOid(oid)!;
       expect(constant.constant?.arrayDims, dims, reason: '$path oid $oid dims');
       expect(constant.constant?.textArray, texts, reason: '$path oid $oid elements');
       expect(constant.constant?.array, isNull, reason: '$path oid $oid numbers');

@@ -4,6 +4,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import '../shape_probe.dart';
 
 class _Rec {
   _Rec(this.op, this.intValue, this.raw);
@@ -47,7 +48,7 @@ Map<String, int> _census(CorpusVi vi) {
     final diagram = buildBlockDiagram(body);
     decodeBdConstValues(diagram);
     for (final e in recs.entries) {
-      final o = diagram.byId[e.key];
+      final o = diagram.byOid(e.key);
       if (o == null) continue;
       final rec = e.value;
       if (o.constant?.boolValue == null &&

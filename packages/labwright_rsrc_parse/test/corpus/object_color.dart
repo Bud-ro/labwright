@@ -2,6 +2,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import '../shape_probe.dart';
 
 // Per-VI tallies of decoded object colours: how many objects carry each colour
 // attribute, and how many of those are BOUNDED (drawable).

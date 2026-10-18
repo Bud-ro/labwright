@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'shape_probe.dart';
 import 'test_util.dart';
 
 List<int> cvU8(int v) => [0x26, 0x6c, v];
@@ -14,10 +15,20 @@ List<int> f64(double v) => (ByteData(8)..setFloat64(0, v)).buffer.asUint8List();
 
 List<int> constant(int oid, int inner, List<int> rec, {List<int> innerBody = const []}) => [
   ...open(0x13, oid),
+  ...typeIndex(0),
   ...open(inner, oid + 1),
+  ...bounds(0, 0, 17, 80),
+  ...typeIndex(0),
   ...innerBody,
   ...close(),
   ...rec,
+  ...close(),
+];
+
+List<int> itemList(int oid, List<String> items) => [
+  ...open(0x0d, oid),
+  ...bounds(0, 0, 10, 60),
+  ...enum2e(items),
   ...close(),
 ];
 
@@ -58,15 +69,15 @@ void main() {
       (constant(1, 0x50, cvRaw(List.filled(4, 0))), null),
       (constant(1, 0x50, cvRaw(List.filled(17, 0))), null),
       (constant(1, 0x50, cvRaw(const [])), null),
-      (constant(1, 0x57, cvU16(3), innerBody: enum2e(['a', 'b', 'c', 'd'])), 3),
+      (constant(1, 0x57, cvU16(3), innerBody: itemList(3, ['a', 'b', 'c', 'd'])), 3),
       (constant(1, 0x57, cvU16(3)), null),
-      (constant(1, 0x64, cvU8(1), innerBody: enum2e(['off', 'on'])), 1),
+      (constant(1, 0x64, cvU8(1), innerBody: itemList(3, ['off', 'on'])), 1),
       (constant(1, 0x64, cvU8(1)), null),
       (constant(1, 0x52, cvRaw(f64(2.0))), null),
       (constant(1, 0x51, cvU32(1)), null),
     ];
     for (final (records, want) in rows) {
-      final o = dia(records).byId[1]!;
+      final o = dia(records).byOid(1)!;
       expect(
         (o.constant?.boolValue, o.constant?.numeric, o.constant?.text),
         (want is bool ? want : null, want is num ? want : null, null),

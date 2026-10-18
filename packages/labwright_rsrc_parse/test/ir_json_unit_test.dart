@@ -8,17 +8,16 @@ import 'test_util.dart';
 
 void main() {
   test('GOLDEN: emitted top-level + node key sets are pinned (update if the IR shape changes)', () {
-    final node = BdObject(oid: 7, kind: 0x2f, offset: 0)
-      ..category = BdObjectKind.node
-      ..parentOid = 1
-      ..label = 'doit'
-      ..bounds = const HeapRect(top: 1, left: 2, bottom: 3, right: 4)
-      ..absBounds = const HeapRect(top: 5, left: 6, bottom: 7, right: 8)
-      ..items = const ['a', 'b']
-      ..termCount = 2
-      ..helpText = 'help'
-      ..primitive?.primResId = 1051;
-    node.addRef(HeapRefKind.childRef, 1);
+    final node = BdPrimitive(
+      oid: 7,
+      parentOid: 1,
+      caption: const HeapCaption('doit'),
+      bounds: const HeapRect(top: 1, left: 2, bottom: 3, right: 4),
+      absBounds: const HeapRect(top: 5, left: 6, bottom: 7, right: 8),
+      helpText: 'help',
+      refs: const [1],
+      primResId: 1051,
+    );
 
     final model = ViModel(
       version: '10.0',
@@ -54,8 +53,6 @@ void main() {
         'label',
         'bounds',
         'absBounds',
-        'items',
-        'termCount',
         'memberOids',
         'helpText',
         'primResId',
@@ -71,10 +68,14 @@ void main() {
   });
 
   test('non-finite control range sentinels are dropped and the IR stays jsonEncode-safe', () {
-    final control = FpObject(oid: 1, kind: 0x50, offset: 0)
-      ..absBounds = const HeapRect(top: 0, left: 0, bottom: 10, right: 10)
-      ..numericRange!.min = double.negativeInfinity
-      ..numericRange!.max = double.infinity;
+    final control = FpNumericControl(
+      FpObjectClass.numeric,
+      oid: 1,
+      bounds: const HeapRect(top: 0, left: 0, bottom: 10, right: 10),
+      typeDescIdx: 0,
+      min: double.negativeInfinity,
+      max: double.infinity,
+    );
 
     final model = ViModel(
       version: null,

@@ -4,6 +4,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import '../shape_probe.dart';
 
 Map<String, int> _census(CorpusVi vi) {
   final c = <String, int>{};
@@ -12,11 +13,11 @@ Map<String, int> _census(CorpusVi vi) {
   if (model == null) return c;
   for (final d in model.blockDiagrams) {
     for (final w in d.wires) {
-      final raw = d.byId[w.signalOid]?.signal?.wireTableRaw;
+      final raw = d.byOid(w.signalOid)?.signal?.wireTableRaw;
       if (raw == null) continue;
       final eps = w.endpointOids.length;
       for (final oid in w.endpointOids) {
-        final ep = d.byId[oid];
+        final ep = d.byOid(oid);
         if (ep != null && ep.kind == 0x15 && ep.absBounds != null) bump('bounded15Endpoints');
       }
       if (raw.length == 3) bump('tables3Byte');

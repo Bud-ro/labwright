@@ -2,6 +2,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import '../shape_probe.dart';
 
 const int _kOpenHigh = 0x7fffffff;
 const int _kOpenLow = -0x80000000;

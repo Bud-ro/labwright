@@ -18,7 +18,7 @@ class ViModel {
     this.subViNames = const <String>[],
     this.types = const <ViType>[],
     this.connectorPaneType,
-    this.paneTerminals = const <FpObject?>[],
+    this.paneTerminals = const <FpDataObject?>[],
     this.fontTable,
   }) : _fileBytes = file {
     for (final section in sections) {
@@ -138,7 +138,7 @@ class ViModel {
 
   /// The panel control behind each connector-pane terminal, in pane order; null where the
   /// terminal is unwired or no control answers for it. See [connectorPaneTerminals].
-  List<FpObject?> paneTerminals;
+  List<FpDataObject?> paneTerminals;
 
   /// Appends [descriptor] to the type pool and returns its index.
   int addType(Uint8List descriptor) {
@@ -183,28 +183,29 @@ class ViModel {
 
   /// Moves [object] by ([dx], [dy]): its bounds record is rewritten in place, and the absolute
   /// bounds of everything inside it follow.
-  void moveObject<T extends HeapObject>(HeapObjectTree<T> heap, T object, {required int dx, required int dy}) {
-    final at = object.boundsOffset;
-    final bounds = object.bounds;
-    if (at == null || bounds == null) throw ArgumentError('object ${object.oid} has no bounds record');
-    final moved = bounds.shift(dy, dx);
-    transact(() => sectionOf(heap).write(at, moved.toPayload()));
+  void moveObject(HeapObjectTree heap, HeapPlaced object, {required int dx, required int dy}) {
+    final moved = object.bounds.shift(dy, dx);
+    transact(() => sectionOf(heap).write(object.boundsOffset, moved.toPayload()));
     object.bounds = moved;
     shiftSubtree(heap, object, dTop: dy, dLeft: dx);
   }
 
-  /// Gives [object] the label [text], written as its code units in place of its label record.
-  void setLabel<T extends HeapObject>(HeapObjectTree<T> heap, T object, String text) {
-    final at = object.labelOffset;
-    if (at == null) throw ArgumentError('object ${object.oid} has no label record');
+  /// Gives [object] the label [text], written as its code units in place of its caption record.
+  void setLabel(HeapObjectTree heap, HeapCaptioned object, String text) {
+    final caption = object.caption;
+    final at = caption?.recordOffset;
+    if (caption == null || at == null) throw ArgumentError('object ${object.oid} has no caption record');
     final record = encodeHeapC4Record(HeapOpcode.caption.byte, text.codeUnits);
-    transact(() => sectionOf(heap).splice(at, at + object.labelLength, record));
-    final delta = record.length - object.labelLength;
-    final named = heap.parentOf(object);
-    if (named != null && named.labelOffset == null && named.label == object.label?.trim()) named.label = text.trim();
-    object
-      ..label = text
-      ..labelLength = record.length;
+    transact(() => sectionOf(heap).splice(at, at + caption.recordLength, record));
+    final delta = record.length - caption.recordLength;
+    final parent = heap.parentOf(object);
+    if (parent is HeapCaptioned) {
+      final named = parent.caption;
+      if (named != null && named.recordOffset == null && named.text == caption.text.trim()) {
+        parent.caption = HeapCaption(text.trim());
+      }
+    }
+    object.caption = HeapCaption(text, recordOffset: at, recordLength: record.length);
     _shiftHeap(heap, at, delta);
   }
 
@@ -241,7 +242,7 @@ class ViModel {
       section.splice(object.end, object.end, copy.takeBytes());
       return reloadHeap(heap);
     });
-    return (heap: rebuilt, clone: rebuilt.byId[ids[object.oid]!]!);
+    return (heap: rebuilt, clone: rebuilt.byOid(ids[object.oid]!)!);
   }
 
   /// Rebuilds [heap] from its section, in its place among the model's diagrams or panels, with
@@ -272,8 +273,12 @@ class ViModel {
     for (final object in heap.objects) {
       if (object.offset > at) object.offset += delta;
       if (object.end > at) object.end += delta;
-      if (object.boundsOffset case final bounds? when bounds > at) object.boundsOffset = bounds + delta;
-      if (object.labelOffset case final label? when label > at) object.labelOffset = label + delta;
+      if (object case HeapPlaced(:final boundsOffset) when boundsOffset > at) {
+        object.boundsOffset = boundsOffset + delta;
+      }
+      if (object case HeapCaptioned(caption: final caption?) when (caption.recordOffset ?? -1) > at) {
+        object.caption = caption.shifted(delta);
+      }
     }
   }
 
@@ -284,7 +289,7 @@ class ViModel {
     types = pool?.types ?? const <ViType>[];
     for (final heap in heaps) {
       for (final object in heap.objects) {
-        object.resolvedType = null;
+        if (object case final HeapTypeBearer bearer) bearer.resolvedType = null;
       }
     }
     final dataSpace = ViDataSpaceTypes(
@@ -317,8 +322,9 @@ class ViModel {
 
 void _resolveFonts(HeapObjectTree heap, ViFontTable fonts) {
   for (final object in heap.objects) {
-    if (object.textStyleRuns.isEmpty) continue;
-    object.labelFont = fonts.entryForRunFontId(object.textStyleRuns.first.fontId);
+    if (object is HeapFontRuns && object.fontRuns.isNotEmpty) {
+      object.font = fonts.entryForRunFontId(object.fontRuns.first.fontId);
+    }
   }
 }
 
@@ -386,7 +392,7 @@ H? largestHeap<H extends HeapObjectTree>(List<H> heaps) {
   for (final heap in heaps) {
     var count = 0;
     for (final object in heap.objects) {
-      if (object.absBounds != null) count++;
+      if (object is HeapPlaced) count++;
     }
     if (count > bestCount) {
       best = heap;

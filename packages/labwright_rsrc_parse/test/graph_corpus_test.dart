@@ -12,7 +12,7 @@ void main() {
   test('corpus pin: crc8 scalar-width caption', () {
     final crc8 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/crc8.png');
     final vi = extractSnippetVi(crc8.readAsBytesSync())!;
-    final o = buildViModel(vi).blockDiagrams.single.byId[221]!;
+    final o = buildViModel(vi).blockDiagrams.single.byOid(221)!;
     expect((o.kind, o.label, o.parentOid), (0x0a, 'XOR?', 220));
   });
 }

@@ -7,6 +7,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'shape_probe.dart';
 
 void main() {
   final all = corpusVis.files;
@@ -58,7 +59,7 @@ void main() {
           signals++;
           expect(
             wire.endpointOids.length,
-            diagram.byId[wire.signalOid]!.refs.length,
+            diagram.byOid(wire.signalOid)!.refs.length,
             reason: 'endpoints are the signal\'s 14 19 childRefs',
           );
           expect(wire.endpointAnchors.length, wire.endpointOids.length, reason: 'anchors index-align endpoints');
@@ -139,11 +140,11 @@ void main() {
 }
 
 BdObject? _boundedOwner(BdDiagram d, int oid) {
-  var object = d.byId[oid];
+  var object = d.byOid(oid);
   final seen = <int>{};
   while (object != null && seen.add(object.oid)) {
     if (object.absBounds != null) return object;
-    object = object.parentOid == null ? null : d.byId[object.parentOid!];
+    object = object.parentOid == null ? null : d.byOid(object.parentOid!);
   }
   return null;
 }

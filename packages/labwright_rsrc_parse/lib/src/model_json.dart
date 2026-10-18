@@ -15,49 +15,59 @@ Map<String, Object?> fpPanelToJson(FpPanel panel) => {
   'objects': [for (final object in panel.objects) _fpObjectToJson(object)],
 };
 
-Map<String, Object?> _heapObjectToJson(HeapObject object) => {
-  'oid': object.oid,
-  'kindCode': object.kind,
-  'typeKind': object.typeKind.name,
-  if (object.dataType != null) 'dataType': object.dataType!.name,
-  if (object.typeName != null) 'typeName': object.typeName,
-  if (object.parentOid != null) 'parentOid': object.parentOid,
-  if (object.label != null) 'label': object.label,
-  if (object.isLabelHidden) 'labelHidden': true,
-  if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),
-  if (object.absBounds != null) 'absBounds': _rectToJson(object.absBounds!),
-  if (object.items.isNotEmpty) 'items': object.items,
-  if (object.termCount != 0) 'termCount': object.termCount,
-  if (object.memberOids.isNotEmpty) 'memberOids': object.memberOids.toList(),
-  if (object.helpText != null) 'helpText': object.helpText,
-};
+Map<String, Object?> _heapObjectToJson(HeapObject object, {required String? label, required Iterable<int> memberOids}) {
+  final typed = object is HeapTypeBearer ? object : null;
+  final items = object is HeapItems ? object.items : const <String>[];
+  return {
+    'oid': object.oid,
+    'kindCode': object.kind,
+    'typeKind': (typed?.typeKind ?? ViTypeKind.unknown).name,
+    if (typed?.dataType != null) 'dataType': typed!.dataType!.name,
+    if (typed?.typeName != null) 'typeName': typed!.typeName,
+    if (object.parentOid != null) 'parentOid': object.parentOid,
+    if (label != null) 'label': label,
+    if (object case HeapTextLabel(isHidden: true)) 'labelHidden': true,
+    if (object case HeapPlaced(:final bounds, :final absBounds)) ...{
+      'bounds': _rectToJson(bounds),
+      'absBounds': _rectToJson(absBounds),
+    },
+    if (items.isNotEmpty) 'items': items,
+    if (object case BdPlaced(:final termCount) || FpPlaced(:final termCount) when termCount != 0)
+      'termCount': termCount,
+    if (memberOids.isNotEmpty) 'memberOids': memberOids.toList(),
+    if (object.helpText != null) 'helpText': object.helpText,
+  };
+}
 
 Map<String, Object?> _bdObjectToJson(BdObject object) {
   final cls = object.objectClass;
-  final primitive = object.primitive;
-  final constant = object.constant;
   return {
-    ..._heapObjectToJson(object),
+    ..._heapObjectToJson(object, label: object.label, memberOids: object.memberOids),
     'class': {'label': cls.label, 'category': cls.category.name, 'confidence': cls.confidence.name},
     'objectKind': object.category.name,
-    if (primitive?.primResId != null) 'primResId': primitive!.primResId,
-    if (primitive?.primName != null) 'primName': primitive!.primName,
-    if (object.frames?.dIdx != null) 'visibleFrameIndex': object.frames!.visibleFrameIndex,
-    if (constant?.text != null) 'constText': constant!.text,
-    if (constant?.numeric != null) 'constNumeric': constant!.numeric,
-    if (constant?.boolValue != null) 'constBool': constant!.boolValue,
+    if (object case BdPrimitive(:final primResId, :final primName)) ...{
+      'primResId': primResId,
+      if (primName != null) 'primName': primName,
+    },
+    if (object case BdMultiFrameStructure(dIdx: final dIdx?)) 'visibleFrameIndex': dIdx,
+    if (object case BdConstant(:final text, :final numeric, :final boolValue)) ...{
+      if (text != null) 'constText': text,
+      if (numeric != null) 'constNumeric': numeric,
+      if (boolValue != null) 'constBool': boolValue,
+    },
   };
 }
 
 Map<String, Object?> _fpObjectToJson(FpObject object) {
   final cls = object.objectClass;
-  final range = object.numericRange;
   return {
-    ..._heapObjectToJson(object),
+    ..._heapObjectToJson(object, label: object.label, memberOids: object.refs),
     'class': {'label': cls.label, 'category': cls.category.name, 'confidence': cls.confidence.name},
     'objectKind': object.category.name,
-    if (range?.min?.isFinite ?? false) 'controlMin': range!.min,
-    if (range?.max?.isFinite ?? false) 'controlMax': range!.max,
+    if (object case FpNumericControl(:final min, :final max)) ...{
+      if (min?.isFinite ?? false) 'controlMin': min,
+      if (max?.isFinite ?? false) 'controlMax': max,
+    },
   };
 }
 
@@ -87,11 +97,13 @@ Map<String, Object?> viModelToJson(ViModel m) {
   final named = namedTypes(m.types);
   final symbolNames = _dedupe([
     for (final d in m.blockDiagrams)
-      for (final o in d.objects) o.foreignCall?.entryPoint,
+      for (final o in d.nodes)
+        if (o is BdForeignCall) o.entryPoint,
   ]);
   final libraryPaths = _dedupe([
     for (final d in m.blockDiagrams)
-      for (final o in d.objects) o.foreignCall?.libraryPath,
+      for (final o in d.nodes)
+        if (o is BdForeignCall) o.libraryPath,
   ]);
   return {
     if (m.version != null) 'labviewVersion': m.version,

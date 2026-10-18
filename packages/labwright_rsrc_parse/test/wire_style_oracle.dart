@@ -5,6 +5,8 @@ import 'dart:typed_data';
 
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'shape_probe.dart';
+
 typedef Raster = ({int width, int height, Uint8List rgba});
 
 Raster decodePngRaster(Uint8List png) {
@@ -112,9 +114,9 @@ List<File> listSnippetPngs(Directory corpusViDir) =>
       ..sort((a, b) => a.path.compareTo(b.path));
 
 bool objectVisibleInRender(BdDiagram bd, int oid) {
-  var o = bd.byId[oid];
+  var o = bd.byOid(oid);
   for (var i = 0; o != null && i < 64; i++) {
-    final p = o.parentOid == null ? null : bd.byId[o.parentOid!];
+    final p = o.parentOid == null ? null : bd.byOid(o.parentOid!);
     if (p != null && o.kind == 0x1b && p.frames != null) {
       var idx = 0;
       for (final sib in bd.objects) {

@@ -164,7 +164,7 @@ void main() {
         ink(rect.left, y);
         ink(rect.right - 1, y);
       }
-      final loop = BdObject(oid: 1, kind: 0x20, offset: 0)..absBounds = rect;
+      final loop = BdStructure(BdObjectClass.forLoop, oid: 1, bounds: rect);
       final bd = BdDiagram(objects: [loop]);
       final reg = registerDiagram(bd, (width: w, height: h, rgba: rgba), (left: 0, top: 0, right: w, bottom: h));
       expect((reg.dx, reg.dy), (dx, dy));

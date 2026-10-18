@@ -1,6 +1,6 @@
-/// The object tree of one block-diagram heap: [BdDiagram] indexes the objects by oid and
-/// parent and derives one [ViWire] per `signal` object, with its endpoints, anchors and
-/// decoded route.
+/// The object tree of one block-diagram heap: [BdDiagram] indexes the objects by oid, parent
+/// and shape, and derives one [ViWire] per [BdSignal], with its endpoints, anchors and decoded
+/// route.
 library;
 
 import '../heap/heap.dart';
@@ -21,64 +21,102 @@ bool _predatesFrameRelativeTermBounds(String? version) {
   return major < 8 || (major == 8 && minor < 6);
 }
 
-/// The objects of one `BDHb` section, indexed by oid and parent, with the wires derived from
-/// its signals.
+/// The objects of one `BDHb` section, indexed by oid, parent and shape, with the wires derived
+/// from its signals.
 class BdDiagram extends HeapObjectTree<BdObject> {
-  BdDiagram({required super.objects, super.version, super.sectionIndex});
+  BdDiagram({required super.objects, super.version, super.sectionIndex}) {
+    for (final object in objects) {
+      switch (object) {
+        case BdPlaced():
+          placed.add(object);
+          switch (object) {
+            case BdNode():
+              nodes.add(object);
+            case BdStructure():
+              structures.add(object);
+            case BdPanelTerminal():
+              panelTerminals.add(object);
+            case BdText():
+              textLabels.add(object);
+            case BdControlBody():
+              controlBodies.add(object);
+            case BdContainer() || BdPane() || BdWire() || BdPart() || BdUnknownPlaced():
+              break;
+          }
+        case BdSignal():
+          signals.add(object);
+        case BdTerminal():
+          terminals.add(object);
+        case BdConstant():
+          constants.add(object);
+        case BdRoot() || BdFrame() || BdTerminalHolder() || BdTunnelIndexer() || BdUnplaced():
+          break;
+      }
+    }
+  }
+
+  /// Every object with bounds, in heap order.
+  final List<BdPlaced> placed = [];
+
+  final List<BdNode> nodes = [];
+
+  final List<BdStructure> structures = [];
+
+  final List<BdSignal> signals = [];
+
+  final List<BdTerminal> terminals = [];
+
+  final List<BdPanelTerminal> panelTerminals = [];
+
+  final List<BdConstant> constants = [];
+
+  final List<BdText> textLabels = [];
+
+  final List<BdControlBody> controlBodies = [];
 
   late final bool _predatesFrameRelativeTerms = _predatesFrameRelativeTermBounds(version);
 
   /// The frame objects of a structure, in heap order.
-  List<BdObject> framesOf(BdObject structure) => [
-    for (final child in children(structure.oid))
-      if (child.objectClass == BdObjectClass.frame) child,
+  List<BdFrame> framesOf(BdStructure structure) => [
+    for (final child in childrenOf(structure))
+      if (child is BdFrame) child,
   ];
 
-  /// The frame a multi-frame structure shows, null for other objects or an index past its frames.
-  int? displayedFrameIndex(BdObject structure) {
-    final frames = structure.frames;
-    if (frames == null) return null;
-    final index = frames.visibleFrameIndex;
+  /// The frame a multi-frame structure shows, null for an index past its frames.
+  int? displayedFrameIndex(BdMultiFrameStructure structure) {
+    final index = structure.visibleFrameIndex;
     return index < framesOf(structure).length ? index : null;
   }
 
-  /// One wire per `signal` object.
-  late final List<ViWire> wires = [
-    for (final object in objects)
-      if (object.signal case final signal?) _buildWire(object, signal),
-  ];
+  /// One wire per signal.
+  late final List<ViWire> wires = [for (final signal in signals) _buildWire(signal)];
 
-  ViWire _buildWire(BdObject object, BdSignal signal) {
+  ViWire _buildWire(BdSignal signal) {
+    final refs = signal.endpoints;
     final raw = signal.wireTableRaw;
     final route = raw == null ? null : decodeWireRoute(raw);
-    final branchRoute = raw == null || object.refs.length < 3 ? null : decodeWireBranchRoute(raw);
-    final constantBounds = [for (final oid in object.refs) endpointConstantBounds(oid)];
-    final attachRects = [
-      for (var i = 0; i < object.refs.length; i++) endpointTerminalBounds(object.refs[i]) ?? constantBounds[i],
-    ];
-    final attachPoints = [
-      for (var i = 0; i < object.refs.length; i++) _attachPointFrom(attachRects[i], object.refs[i]),
-    ];
+    final branchRoute = raw == null || refs.length < 3 ? null : decodeWireBranchRoute(raw);
+    final constantBounds = [for (final oid in refs) endpointConstantBounds(oid)];
+    final attachRects = [for (var i = 0; i < refs.length; i++) endpointTerminalBounds(refs[i]) ?? constantBounds[i]];
+    final attachPoints = [for (var i = 0; i < refs.length; i++) _attachPointFrom(attachRects[i], refs[i])];
     final altAttachPoints = [
-      for (var i = 0; i < object.refs.length; i++)
-        switch (endpointConstantElementBounds(object.refs[i])) {
+      for (var i = 0; i < refs.length; i++)
+        switch (endpointConstantElementBounds(refs[i])) {
           null => null,
-          final elem => attachPoints[i] == null ? null : _attachPointFrom(elem, object.refs[i]),
+          final elem => attachPoints[i] == null ? null : _attachPointFrom(elem, refs[i]),
         },
     ];
     final stripTargets = [
-      for (var i = 0; i < object.refs.length; i++) _stripFarTarget(object.refs[i], attachRects[i], attachPoints[i]),
+      for (var i = 0; i < refs.length; i++) _stripFarTarget(refs[i], attachRects[i], attachPoints[i]),
     ];
-    final anchors = [
-      for (var i = 0; i < object.refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(object.refs[i]),
-    ];
+    final anchors = [for (var i = 0; i < refs.length; i++) constantBounds[i] ?? _boundedOwnerBounds(refs[i])];
     final signalKind = signal.lastSignalKind;
-    final points = route == null || object.refs.length != 2
+    final points = route == null || refs.length != 2
         ? null
-        : _routePointsFor(route, object.refs, attachPoints, anchors, altAttachPoints, stripTargets);
+        : _routePointsFor(route, refs, attachPoints, anchors, altAttachPoints, stripTargets);
     return ViWire(
-      signalOid: object.oid,
-      endpointOids: List<int>.of(object.refs),
+      signalOid: signal.oid,
+      endpointOids: List<int>.of(refs),
       endpointAnchors: anchors,
       endpointAttachRects: attachRects,
       route: route,
@@ -91,7 +129,7 @@ class BdDiagram extends HeapObjectTree<BdObject> {
           ? null
           : () =>
                 _shippableRouteTree(branchRoute, attachPoints, altAttachPoints, stripTargets, anchors[0]) ??
-                _dcoChildRouteTree(branchRoute, object.refs, attachPoints, altAttachPoints, stripTargets),
+                _dcoChildRouteTree(branchRoute, refs, attachPoints, altAttachPoints, stripTargets),
       signalType: signalKind == null ? null : ViSignalType(signalKind),
     );
   }
@@ -132,12 +170,7 @@ class BdDiagram extends HeapObjectTree<BdObject> {
     if (_exactAttach(refs[anchoredIndex])) {
       final farBox = anchors[1 - anchoredIndex];
       if (farBox != null) {
-        final walked = walkOneAnchoredRoute(
-          route,
-          anchor: anchorPoint,
-          anchoredIndex: anchoredIndex,
-          farBox: farBox,
-        );
+        final walked = walkOneAnchoredRoute(route, anchor: anchorPoint, anchoredIndex: anchoredIndex, farBox: farBox);
         if (walked != null) {
           return (
             points: walked.points,
@@ -214,9 +247,9 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   bool _exactAttach(int oid) {
     final terminal = endpointTerminal(oid);
     if (terminal == null) return endpointConstantBounds(oid) == null;
-    final parent = byId[terminal.parentOid];
-    final frame = parent == null ? null : boundedOwnerOf(parent);
-    return frame != null && frame.category == BdObjectKind.structure;
+    final parent = parentOf(terminal);
+    final frame = parent == null ? null : boundedOwnerOf(parent) as BdObject?;
+    return frame?.category == BdObjectKind.structure;
   }
 
   static ({ViWireRouteTree tree, WireRouteFidelity fidelity})? _shippableRouteTree(
@@ -374,70 +407,72 @@ class BdDiagram extends HeapObjectTree<BdObject> {
 
   /// The terminal each endpoint belongs to, and the endpoint that names each terminal as its
   /// DCO; a key claimed by two owners has no entry.
-  late final ({Map<int, int> terminalByEndpoint, Map<int, int> dcoByTerminal}) _terminalIndex = _buildTerminalIndex();
+  late final ({Map<int, BdTerminal> terminalByEndpoint, Map<int, BdObject> dcoByTerminal}) _terminalIndex =
+      _buildTerminalIndex();
 
-  ({Map<int, int> terminalByEndpoint, Map<int, int> dcoByTerminal}) _buildTerminalIndex() {
-    final terminalByEndpoint = <int, int>{}, dcoByTerminal = <int, int>{};
+  ({Map<int, BdTerminal> terminalByEndpoint, Map<int, BdObject> dcoByTerminal}) _buildTerminalIndex() {
+    final terminalByEndpoint = <int, BdTerminal>{}, dcoByTerminal = <int, BdObject>{};
     final ambiguousEndpoints = <int>{}, ambiguousTerminals = <int>{};
-    for (final terminal in objects) {
-      if (terminal.termBounds == null) continue;
+    for (final terminal in terminals) {
       for (final target in terminal.refs) {
-        _claim(terminalByEndpoint, ambiguousEndpoints, target, terminal.oid);
-        final candidate = byId[target];
-        if (candidate == null || !candidate.objectClass.isSignalEndpoint) continue;
-        if (!(candidate.refsOf(HeapRefKind.dcoRef) ?? const <int>[]).contains(terminal.oid)) continue;
-        _claim(dcoByTerminal, ambiguousTerminals, terminal.oid, candidate.oid);
+        _claim(terminalByEndpoint, ambiguousEndpoints, target, terminal);
+        final candidate = byOid(target);
+        final dcoRef = switch (candidate) {
+          BdTerminalHolder(:final dcoRef) => dcoRef,
+          BdPanelTerminal(:final dcoRef) => dcoRef,
+          _ => null,
+        };
+        if (candidate == null || dcoRef != terminal.oid) continue;
+        _claim(dcoByTerminal, ambiguousTerminals, terminal.oid, candidate);
       }
     }
     return (terminalByEndpoint: terminalByEndpoint, dcoByTerminal: dcoByTerminal);
   }
 
-  static void _claim(Map<int, int> index, Set<int> ambiguous, int key, int owner) {
+  static void _claim<V>(Map<int, V> index, Set<int> ambiguous, int key, V owner) {
     if (ambiguous.contains(key)) return;
     final prev = index[key];
     if (prev == null) {
       index[key] = owner;
-    } else if (prev != owner) {
+    } else if (!identical(prev, owner)) {
       index.remove(key);
       ambiguous.add(key);
     }
   }
 
-  /// The terminal object whose `childRef` names the endpoint [oid]; null for an object that is
-  /// not an endpoint or is claimed by two terminals.
-  BdObject? endpointTerminal(int oid) {
-    final endpoint = byId[oid];
-    if (endpoint == null || !endpoint.objectClass.isSignalEndpoint) return null;
-    final terminalOid = _terminalIndex.terminalByEndpoint[oid];
-    return terminalOid == null ? null : byId[terminalOid];
-  }
+  /// Whether the object with [oid] is a signal endpoint: a terminal holder or a panel terminal.
+  bool isSignalEndpoint(int oid) => switch (byOid(oid)) {
+    BdTerminalHolder() || BdPanelTerminal() => true,
+    _ => false,
+  };
+
+  /// The terminal whose `childRef` names the endpoint [oid]; null for an object that is not an
+  /// endpoint or is claimed by two terminals.
+  BdTerminal? endpointTerminal(int oid) => isSignalEndpoint(oid) ? _terminalIndex.terminalByEndpoint[oid] : null;
 
   /// The endpoint DCO the terminal [oid] refers back to through `dcoRef`.
-  BdObject? terminalDco(int oid) {
-    final dcoOid = _terminalIndex.dcoByTerminal[oid];
-    return dcoOid == null ? null : byId[dcoOid];
-  }
+  BdObject? terminalDco(int oid) => _terminalIndex.dcoByTerminal[oid];
 
   /// Whether the terminal's DCO carries [ViObjFlag.terminalGlyphHidden].
   bool terminalGlyphHidden(int oid) => terminalDco(oid)?.hasFlag(ViObjFlag.terminalGlyphHidden) ?? false;
 
-  /// The constant DCO under the node endpoint [oid], when the endpoint feeds a constant.
-  BdObject? endpointConstant(int oid) {
-    final endpoint = byId[oid];
-    if (endpoint == null || endpoint.objectClass != BdObjectClass.terminalHolder) return null;
-    for (final child in children(oid)) {
-      if (child.objectClass == BdObjectClass.constant) return child;
+  /// The constant under the terminal holder [oid], when the endpoint feeds a constant.
+  BdConstant? endpointConstant(int oid) {
+    final endpoint = byOid(oid);
+    if (endpoint is! BdTerminalHolder) return null;
+    for (final child in childrenOf(endpoint)) {
+      if (child is BdConstant) return child;
     }
     return null;
   }
 
-  /// The bounds of the constant's first bounded child; null before LabVIEW 8.6.
+  /// The bounds of the constant's first placed child; null before LabVIEW 8.6.
   HeapRect? endpointConstantBounds(int oid) {
     if (_predatesFrameRelativeTerms) return null;
     final constant = endpointConstant(oid);
     if (constant == null) return null;
-    for (final child in children(constant.oid)) {
-      if (child.absBounds != null) return child.absBounds;
+    for (final child in childrenOf(constant)) {
+      if (child is BdPlaced) return child.absBounds;
     }
     return null;
   }
@@ -447,20 +482,13 @@ class BdDiagram extends HeapObjectTree<BdObject> {
     if (_predatesFrameRelativeTerms) return null;
     final constant = endpointConstant(oid);
     if (constant == null) return null;
-    for (final child in children(constant.oid)) {
-      if (child.absBounds == null) continue;
+    for (final child in childrenOf(constant)) {
+      if (child is! BdPlaced) continue;
       if (child.objectClass != BdObjectClass.array) return null;
       HeapRect? element;
-      for (final kid in children(child.oid)) {
-        final kidBounds = kid.absBounds;
-        if (kid.objectClass == BdObjectClass.chrome ||
-            kid.objectClass == BdObjectClass.textLabel ||
-            kidBounds == null) {
-          continue;
-        }
-        if (element == null || kidBounds.left > element.left) {
-          element = kidBounds;
-        }
+      for (final kid in childrenOf(child)) {
+        if (kid is! BdPlaced || kid.objectClass == BdObjectClass.chrome || kid is BdText) continue;
+        if (element == null || kid.absBounds.left > element.left) element = kid.absBounds;
       }
       return element;
     }
@@ -468,42 +496,36 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   }
 
   /// The endpoint's terminal box in diagram pixels: its `termBounds` shifted by the nearest
-  /// bounded ancestor's origin; null before LabVIEW 8.6.
+  /// placed ancestor's origin; null before LabVIEW 8.6.
   HeapRect? endpointTerminalBounds(int oid) {
     if (_predatesFrameRelativeTerms) return null;
     final terminal = endpointTerminal(oid);
-    final rel = terminal?.termBounds;
-    if (terminal == null || rel == null) return null;
-    final parentOid = terminal.parentOid;
-    final frame = parentOid == null ? null : _boundedOwnerBounds(parentOid);
-    return frame == null ? null : rel.shift(frame.top, frame.left);
+    if (terminal == null) return null;
+    final parent = parentOf(terminal);
+    final frame = parent == null ? null : boundedOwnerOf(parent)?.absBounds;
+    return frame == null ? null : terminal.termBounds.shift(frame.top, frame.left);
   }
 
-  /// For a node endpoint without bounds whose single child carries `termBounds`: the centre of
-  /// that box, and whether the child is a wide terminal strip.
+  /// For a terminal holder whose single child is a terminal: the centre of that terminal's box,
+  /// and whether the terminal is a wide terminal strip.
   ({List<ViPoint> candidates, bool wideRow})? dcoChildTerminalAttach(int oid) {
     if (_predatesFrameRelativeTerms) return null;
-    final endpoint = byId[oid];
-    if (endpoint == null || endpoint.objectClass != BdObjectClass.terminalHolder || endpoint.absBounds != null) {
-      return null;
-    }
-    BdObject? part;
-    for (final child in children(oid)) {
-      if (child.termBounds == null) continue;
+    final endpoint = byOid(oid);
+    if (endpoint is! BdTerminalHolder) return null;
+    BdTerminal? part;
+    for (final child in childrenOf(endpoint)) {
+      if (child is! BdTerminal) continue;
       if (part != null) return null;
       part = child;
     }
-    final rel = part?.termBounds;
-    if (part == null || rel == null) return null;
-    final frame = _boundedOwnerBounds(oid);
+    if (part == null) return null;
+    final frame = boundedOwnerOf(endpoint)?.absBounds;
     if (frame == null) return null;
+    final rel = part.termBounds;
     final left = frame.left + rel.left, top = frame.top + rel.top;
     final width = rel.right - rel.left, height = rel.bottom - rel.top;
     final centre = (x: left + width ~/ 2, y: top + height ~/ 2);
-    return (
-      candidates: [centre],
-      wideRow: part.objectClass == BdObjectClass.byNameTerminal && width > height,
-    );
+    return (candidates: [centre], wideRow: part.objectClass == BdObjectClass.byNameTerminal && width > height);
   }
 
   /// The centre of the endpoint's terminal or constant box, shifted inward for shift registers.
@@ -514,10 +536,9 @@ class BdDiagram extends HeapObjectTree<BdObject> {
     var rect = attachRect;
     if (rect == null) {
       if (_predatesFrameRelativeTerms) return null;
-      final endpoint = byId[oid];
-      if (endpoint == null || endpoint.objectClass != BdObjectClass.panelTerminal) return null;
+      final endpoint = byOid(oid);
+      if (endpoint is! BdPanelTerminal) return null;
       rect = endpoint.absBounds;
-      if (rect == null) return null;
     }
     var x = rect.left + (rect.right - rect.left) ~/ 2;
     if (attachRect != null) {
@@ -553,7 +574,7 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   }
 
   HeapRect? _boundedOwnerBounds(int oid) {
-    final start = byId[oid];
+    final start = byOid(oid);
     return start == null ? null : boundedOwnerOf(start)?.absBounds;
   }
 }

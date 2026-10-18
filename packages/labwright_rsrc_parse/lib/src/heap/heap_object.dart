@@ -1,7 +1,9 @@
-/// What every object of a C4 record heap carries whichever heap it sits in: [HeapObject] holds
-/// the fields the shared walk fills ([walkHeap]), [HeapObjectTree] indexes a heap's objects by
-/// oid and parent, [ViTypeKind] is the drawing kind of an object's data and [ViResolvedType]
-/// its type once the data-space type map is joined.
+/// What every object of a C4 record heap carries whichever heap it sits in, and the interfaces
+/// the heaps' object shapes implement so the shared passes can read them: [HeapObject] is the
+/// identity every object has, [HeapPlaced] an object with a bounds record, [HeapTextLabel] a
+/// label, [HeapTyped] an object with a `typeDescIndex`. [HeapObjectTree] indexes a heap's
+/// objects by oid and parent, [ViTypeKind] is the drawing kind of an object's data and
+/// [ViResolvedType] its type once the data-space type map is joined.
 library;
 
 import 'dart:typed_data';
@@ -175,11 +177,37 @@ class ViResolvedType {
   }
 }
 
-/// One object of a record heap with the fields every heap's walk decodes from its records;
-/// unset fields are null, zero or empty. Coordinates are in pixels; [bounds] is relative to
-/// the parent's origin and [absBounds] to the heap's.
+/// A font run of an object's text: it starts at a character index and names an `FTAB` font id.
+typedef HeapFontRun = ({int start, int fontId});
+
+/// An object's caption: the text of its caption record, or of its `shortText` attribute when
+/// [recordOffset] is null.
+final class HeapCaption {
+  const HeapCaption(this.text, {this.recordOffset, this.recordLength = 0});
+
+  final String text;
+
+  /// Offset of the caption record, header included, when the text came from one.
+  final int? recordOffset;
+
+  final int recordLength;
+
+  HeapCaption shifted(int delta) =>
+      HeapCaption(text, recordOffset: recordOffset == null ? null : recordOffset! + delta, recordLength: recordLength);
+}
+
+/// One object of a record heap: its header's identity and where its records lie. Coordinates
+/// are in pixels.
 abstract class HeapObject {
-  HeapObject({required this.oid, required this.kind, required this.offset});
+  HeapObject({
+    required this.oid,
+    required this.kind,
+    required this.offset,
+    this.end = 0,
+    this.parentOid,
+    this.objFlags = 0,
+    this.helpText,
+  });
 
   /// Position in the heap's object list, heap order; the tree assigns it.
   int index = 0;
@@ -195,124 +223,117 @@ abstract class HeapObject {
 
   /// Where the object's records end: after its closing group, or the body's end when the walk
   /// left it open.
-  int end = 0;
+  int end;
 
-  /// Offset of the bounds record's payload, its four `i16`s, when the object has one.
-  int? boundsOffset;
+  /// The enclosing object's oid, null for a root.
+  final int? parentOid;
 
-  /// Offset of the label record, header included, when the object has one, and its length.
-  int? labelOffset;
-
-  int labelLength = 0;
-
-  /// The bounds record, relative to the parent object's origin.
-  HeapRect? bounds;
-
-  /// [bounds] shifted by every ancestor's origin; null for objects without a bounds record.
-  HeapRect? absBounds;
-
-  /// The enclosing object, null for a root.
-  int? parentOid;
-
-  /// The caption record, else the `shortText` attribute, else for a node the first child label.
-  String? label;
-
-  List<List<int>?>? _refsByKind;
-
-  /// Targets of the object's references of [kind], in record order; null when it has none.
-  List<int>? refsOf(HeapRefKind kind) => _refsByKind?[kind.index];
-
-  void addRef(HeapRefKind kind, int target) {
-    final byKind = _refsByKind ??= List<List<int>?>.filled(HeapRefKind.values.length, null);
-    (byKind[kind.index] ??= <int>[]).add(target);
-  }
-
-  /// Targets of the object's `childRef` references, in record order; a signal's are its endpoints.
-  List<int> get refs => refsOf(HeapRefKind.childRef) ?? const <int>[];
-
-  /// The `childRef` and `dcoRef` targets together.
-  Iterable<int> get memberOids => <int>{...?refsOf(HeapRefKind.childRef), ...?refsOf(HeapRefKind.dcoRef)};
-
-  /// The number of size records ([HeapOpcode.size]) the object carries.
-  int termCount = 0;
-
-  // TODO: a font run's colour record (raw 0x029) is not captured.
-  /// The font runs of the object's text: each starts at a character index and names an `FTAB`
-  /// font id.
-  List<({int start, int fontId})> textStyleRuns = const [];
-
-  /// The `FTAB` entry of the label's first font run, set by the model once the font table is read.
-  ViFontEntry? labelFont;
-
-  bool get labelIsBold => labelFont?.isBold ?? false;
-
-  ViTypeKind typeKind = ViTypeKind.unknown;
-
-  /// Enum or ring item names from the string table record, copied up to the owning control.
-  List<String> items = const [];
-
-  /// The description record, copied up to the nearest bounded ancestor when the object has no bounds.
-  String? helpText;
-
-  /// The `cosmColorB` word of a label, read as a mode word: `0x20` centres the text, `0x800000`
-  /// widens the text inset.
-  int? labelModeWord;
-
-  bool get labelJustifyCenter => ((labelModeWord ?? 0) & 0x20) != 0;
-
-  /// The inset between a label's box and its text, in pixels.
-  int get labelTextInset => ((labelModeWord ?? 0) & 0x800000) != 0 ? 2 : 1;
-
-  /// The displayed element index of an array container, from its array index group.
-  int? arrayIndex;
-
-  /// The `formatStyle` attribute of a numeric display, a `%` format string.
-  String? displayFormat;
-
-  /// The `backgroundColor` attribute as `0xRRGGBB`; null when absent or transparent.
-  int? bgRgb;
-
-  /// The `fgColor` attribute as `0xRRGGBB`; null when absent or transparent.
-  int? fgRgb;
-
-  /// The `contentColor` attribute as `0xRRGGBB`; null when absent or transparent.
-  int? contentRgb;
-
-  /// The `objFlags` attribute; [ViObjFlag] names the decoded bits.
-  int? objFlags;
+  /// The `objFlags` attribute, zero when absent; [ViObjFlag] names the decoded bits.
+  final int objFlags;
 
   /// Whether every bit of [flag] is set in [objFlags].
-  bool hasFlag(ViObjFlag flag) => ((objFlags ?? 0) & flag.mask) == flag.mask;
+  bool hasFlag(ViObjFlag flag) => objFlags & flag.mask == flag.mask;
 
-  /// The `typeDescIndex` attribute: an index into the data-space type map.
-  int? typeDescIdx;
+  /// The description record, copied up to the nearest placed ancestor when the object has no
+  /// bounds.
+  String? helpText;
+}
 
-  /// The pool type [typeDescIdx] resolves to, else the one of the object's `dcoRef` target.
-  ViResolvedType? resolvedType;
+/// An object with a bounds record; [bounds] is relative to the parent's origin and [absBounds]
+/// to the heap's.
+abstract interface class HeapPlaced implements HeapObject {
+  HeapRect get bounds;
+  set bounds(HeapRect value);
 
+  /// Offset of the bounds record's payload, its four `i16`s.
+  int get boundsOffset;
+  set boundsOffset(int value);
+
+  HeapRect get absBounds;
+  set absBounds(HeapRect value);
+}
+
+/// An object that may carry a caption.
+abstract interface class HeapCaptioned implements HeapObject {
+  HeapCaption? get caption;
+  set caption(HeapCaption? value);
+}
+
+/// An object with text drawn in a font: a label, a numeric display, an item list.
+abstract interface class HeapFontRuns implements HeapObject {
+  // TODO: a font run's colour record (raw 0x029) is not captured.
+  List<HeapFontRun> get fontRuns;
+
+  /// The `FTAB` entry of the first font run, set by the model once the font table is read.
+  ViFontEntry? get font;
+  set font(ViFontEntry? value);
+}
+
+/// A text label: a placed, captioned object with font runs and a mode word.
+abstract interface class HeapTextLabel implements HeapPlaced, HeapCaptioned, HeapFontRuns {
+  /// The `cosmColorB` word read as a mode word: `0x20` centres the text, `0x800000` widens the
+  /// text inset; zero when absent.
+  int get modeWord;
+
+  /// Whether the label is hidden ([ViObjFlag.labelHidden]).
+  bool get isHidden;
+
+  bool get isBold;
+
+  bool get justifyCenter;
+}
+
+/// An object whose data has a type: resolved from its own type index or, for a block-diagram
+/// terminal, copied from the data object it names.
+abstract interface class HeapTypeBearer implements HeapObject {
+  ViResolvedType? get resolvedType;
+  set resolvedType(ViResolvedType? value);
+
+  ViTypeKind get typeKind;
+  set typeKind(ViTypeKind value);
+}
+
+/// An object with a `typeDescIndex` attribute: an index into the data-space type map.
+abstract interface class HeapTyped implements HeapTypeBearer {
+  int get typeDescIdx;
+}
+
+extension HeapTypeBearerNames on HeapTypeBearer {
   ViDataType? get dataType => resolvedType?.kind;
 
   String? get typeName => resolvedType?.name;
-
-  /// Whether the object is a text label.
-  bool get isTextLabel;
-
-  /// Whether the object is a typed control body that carries a value.
-  bool get isControlTerminal;
-
-  /// Whether the object is a pane: a scrolled viewport whose controls are placed relative to it.
-  bool get isPane;
-
-  bool get isLabelHidden => isTextLabel && hasFlag(ViObjFlag.labelHidden);
 }
 
-/// Every object of a heap by oid; a heap declares each oid once.
-class HeapObjectsByOid<T extends HeapObject> {
-  HeapObjectsByOid(this._objects) : _slotByOid = Int32List(_oidCount(_objects)) {
-    for (var i = 0; i < _objects.length; i++) {
-      final oid = _objects[i].oid;
-      if (_slotByOid[oid] != 0) throw ViFormatException('heap declares oid $oid twice');
-      _slotByOid[oid] = i + 1;
+/// An object that lists enum or ring item names.
+abstract interface class HeapItems implements HeapObject {
+  List<String> get items;
+}
+
+/// A typed control body: the face of a control, indicator or constant.
+abstract interface class HeapControlBody implements HeapPlaced, HeapTyped, HeapItems {
+  set items(List<String> value);
+
+  /// Whether the body carries a value of its own: numeric, boolean, enum or ring, path, string.
+  bool get isValueControl;
+}
+
+/// A pane: a scrolled viewport whose controls are placed relative to it.
+abstract interface class HeapPane implements HeapPlaced {}
+
+/// The objects of one heap section, indexed by oid and parent.
+abstract class HeapObjectTree<T extends HeapObject> {
+  HeapObjectTree({required this.objects, this.version, this.sectionIndex = 0})
+    : _slotByOid = Int32List(_oidCount(objects)),
+      _childrenOf = List<List<T>?>.filled(objects.length, null) {
+    for (var i = 0; i < objects.length; i++) {
+      final object = objects[i];
+      object.index = i;
+      if (_slotByOid[object.oid] != 0) throw ViFormatException('heap declares oid ${object.oid} twice');
+      _slotByOid[object.oid] = i + 1;
+    }
+    for (final object in objects) {
+      final parent = parentOf(object);
+      if (parent != null) (_childrenOf[parent.index] ??= <T>[]).add(object);
     }
   }
 
@@ -324,32 +345,6 @@ class HeapObjectsByOid<T extends HeapObject> {
     return top + 1;
   }
 
-  final List<T> _objects;
-
-  /// One past the object's position in [_objects]; zero where no object has the oid.
-  final Int32List _slotByOid;
-
-  T? operator [](int? oid) {
-    if (oid == null || oid < 0 || oid >= _slotByOid.length) return null;
-    final slot = _slotByOid[oid];
-    return slot == 0 ? null : _objects[slot - 1];
-  }
-}
-
-/// The objects of one heap section, indexed by oid and parent.
-abstract class HeapObjectTree<T extends HeapObject> {
-  HeapObjectTree({required this.objects, this.version, this.sectionIndex = 0})
-    : byId = HeapObjectsByOid(objects),
-      _childrenOf = List<List<T>?>.filled(objects.length, null) {
-    for (var i = 0; i < objects.length; i++) {
-      objects[i].index = i;
-    }
-    for (final object in objects) {
-      final parent = parentOf(object);
-      if (parent != null) (_childrenOf[parent.index] ??= <T>[]).add(object);
-    }
-  }
-
   /// The section's index among its block's sections.
   final int sectionIndex;
 
@@ -359,30 +354,52 @@ abstract class HeapObjectTree<T extends HeapObject> {
   /// Every object in heap order.
   final List<T> objects;
 
-  final HeapObjectsByOid<T> byId;
+  /// One past the object's position in [objects]; zero where no object has the oid.
+  final Int32List _slotByOid;
 
   final List<List<T>?> _childrenOf;
 
-  /// The object [object]'s [HeapObject.parentOid] names, null for a root.
-  T? parentOf(T object) {
-    final parentOid = object.parentOid;
-    return parentOid == null ? null : byId[parentOid];
+  /// The object with [oid], null for none.
+  T? byOid(int? oid) {
+    if (oid == null || oid < 0 || oid >= _slotByOid.length) return null;
+    final slot = _slotByOid[oid];
+    return slot == 0 ? null : objects[slot - 1];
   }
+
+  /// The object [object]'s [HeapObject.parentOid] names, null for a root.
+  T? parentOf(T object) => byOid(object.parentOid);
 
   /// The objects whose [HeapObject.parentOid] is [object]'s oid, in heap order.
   List<T> childrenOf(T object) => _childrenOf[object.index] ?? const [];
 
+  /// The children of the object with [oid]; empty for none.
   List<T> children(int oid) {
-    final object = byId[oid];
+    final object = byOid(oid);
     return object == null ? const [] : childrenOf(object);
   }
 
-  /// The nearest of [start] and its ancestors with absolute bounds.
-  T? boundedOwnerOf(T start) {
+  /// The nearest of [start] and its ancestors that is placed.
+  HeapPlaced? boundedOwnerOf(T start) {
     for (T? object = start; object != null; object = parentOf(object)) {
-      if (object.absBounds != null) return object;
+      if (object is HeapPlaced) return object;
     }
     return null;
+  }
+
+  /// The ancestors of [object], nearest first.
+  Iterable<T> ancestorsOf(T object) sync* {
+    for (var parent = parentOf(object); parent != null; parent = parentOf(parent)) {
+      yield parent;
+    }
+  }
+
+  /// How many ancestors [object] has.
+  int depthOf(T object) {
+    var depth = 0;
+    for (var parent = parentOf(object); parent != null; parent = parentOf(parent)) {
+      depth++;
+    }
+    return depth;
   }
 }
 

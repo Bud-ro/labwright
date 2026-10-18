@@ -1,8 +1,11 @@
-/// The objects of a front panel: [FpObject] with the fields [buildFrontPanel] fills from the
-/// heap records, [FpObjectClass] naming the object classes, [FpObjectKind] the roles and the
-/// per-class payloads ([FpPayload]).
+/// The objects of a front panel, one shape per record layout: [FpObject] is the sealed root,
+/// [FpPlaced] the objects with a bounds record, and the leaves ([FpControl], [FpContainer],
+/// [FpDataObject], [FpText], …) carry exactly the fields their records give them.
+/// [FpObjectClass] names the object classes and [FpObjectKind] the roles.
 library;
 
+import '../blocks/FTAB_font_table.dart';
+import '../heap/heap.dart';
 import '../heap/heap_object.dart';
 import '../heap/obj_flags.dart';
 import '../heap/object_class.dart';
@@ -31,89 +34,485 @@ enum FpObjectKind {
   unknown,
 }
 
-/// What an object's class adds to the shared fields; [FpPayload.forClass] picks the payload a
-/// class carries.
-sealed class FpPayload {
-  FpPayload();
-
-  /// The payload objects of [objectClass] carry, or null for a class with none.
-  static FpPayload? forClass(FpObjectClass objectClass) => switch (objectClass) {
-    FpObjectClass.dco => FpDataObject(),
-    FpObjectClass.numeric || FpObjectClass.enumRing => FpNumericRange(),
-    FpObjectClass.graph => FpGraph(),
-    _ => null,
-  };
-}
-
-/// A control's data object: where it sits on the connector pane.
-final class FpDataObject extends FpPayload {
-  /// The `conNum` attribute: the control's connector-pane terminal, [kViNotOnPane] off the
-  /// pane; a control saved without it sits on terminal 0.
-  int? conNum;
-}
-
-/// A numeric control's range.
-final class FpNumericRange extends FpPayload {
-  /// The `stdNumMin` attribute.
-  double? min;
-
-  /// The `stdNumMax` attribute.
-  double? max;
-}
-
-/// A graph or chart: its plots.
-final class FpGraph extends FpPayload {
-  /// One name per plot-name record.
-  List<String> plotNames = const [];
-
-  /// The `plotColor` attributes as `0xRRGGBB`, one per plot.
-  List<int> plotColors = const [];
-}
-
 /// Which terminal of the connector pane each panel control is wired to, read from its `conNum`
 /// attribute: a control saved without the attribute sits on terminal 0, and this word marks one
 /// that is not on the pane at all.
 const int kViNotOnPane = 0xff;
 
-/// One object of a front-panel heap.
-class FpObject extends HeapObject {
-  FpObject({required super.oid, required super.kind, required super.offset})
-    : objectClass = FpObjectClass.fromCode(kind);
+/// One object of a front-panel heap. The shape says what records the object has; the class
+/// says what LabVIEW object it is.
+sealed class FpObject extends HeapObject implements HeapCaptioned {
+  FpObject(
+    this.objectClass, {
+    required super.oid,
+    int? kind,
+    super.offset = 0,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    this.refs = const [],
+    this.caption,
+  }) : super(kind: kind ?? objectClass.code);
 
   final FpObjectClass objectClass;
 
-  /// The class's role; any object with a size record is a terminal cluster.
+  /// The role the class gives the object; a terminal cluster overrides it.
+  FpObjectKind get category => objectClass.category;
+
+  /// Targets of the object's `childRef` references, in record order.
+  final List<int> refs;
+
+  /// The caption record, else the `shortText` attribute.
+  @override
+  HeapCaption? caption;
+
+  String? get label => caption?.text;
+}
+
+/// The panel's root object, or a per-panel record object.
+final class FpRecord extends FpObject {
+  FpRecord(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.refs,
+    super.caption,
+  });
+}
+
+/// A control's data object: typed, placed on the connector pane by `conNum`, and an indicator
+/// when its flags say so; the control body it owns is a child.
+final class FpDataObject extends FpObject implements HeapTyped {
+  FpDataObject({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    super.caption,
+    required this.typeDescIdx,
+    this.conNum,
+    this.typeKind = ViTypeKind.unknown,
+  }) : super(FpObjectClass.dco);
+
+  @override
+  final int typeDescIdx;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  ViTypeKind typeKind;
+
+  /// The `conNum` attribute: the control's connector-pane terminal, [kViNotOnPane] off the
+  /// pane; a control saved without it sits on terminal 0.
+  final int? conNum;
+
+  /// Whether the control is an indicator, from its [ViObjFlag.indicator] bit.
+  bool get isIndicator => hasFlag(ViObjFlag.indicator);
+}
+
+/// An object with no bounds record and no shape of its own: a connector terminal, a tip strip,
+/// or a class that wants bounds but was saved without them.
+final class FpUnplaced extends FpObject {
+  FpUnplaced(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    super.caption,
+  });
+}
+
+/// An object with a bounds record.
+sealed class FpPlaced extends FpObject implements HeapPlaced {
+  FpPlaced(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required this.bounds,
+    this.boundsOffset = 0,
+    HeapRect? absBounds,
+    super.caption,
+    this.termCount = 0,
+  }) : absBounds = absBounds ?? bounds;
+
+  @override
+  HeapRect bounds;
+
+  @override
+  int boundsOffset;
+
+  @override
+  HeapRect absBounds;
+
+  /// The number of size records the object carries; one or more makes it a terminal cluster.
+  final int termCount;
+
+  @override
   FpObjectKind get category => termCount >= 1 ? FpObjectKind.terminalCluster : objectClass.category;
+}
 
-  /// The class's payload, see [FpPayload.forClass].
-  late final FpPayload? payload = FpPayload.forClass(objectClass);
+/// The panel's root frame.
+final class FpPanelRoot extends FpPlaced {
+  FpPanelRoot({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+  }) : super(FpObjectClass.panelRoot);
+}
 
-  T? _as<T extends FpPayload>() {
-    final payload = this.payload;
-    return payload is T ? payload : null;
-  }
+/// A pane, or the splitter between panes.
+final class FpPane extends FpPlaced implements HeapPane {
+  FpPane(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+  });
+}
 
-  FpDataObject? get dataObject => _as();
+/// A control or indicator body: typed, with the items of an enum, ring or boolean.
+class FpControl extends FpPlaced implements HeapControlBody {
+  FpControl(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    required this.typeDescIdx,
+    this.items = const [],
+    this.typeKind = ViTypeKind.unknown,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+    this.borderRgb,
+    super.caption,
+    super.termCount,
+  });
 
-  FpNumericRange? get numericRange => _as();
+  @override
+  final int typeDescIdx;
 
-  FpGraph? get graph => _as();
+  @override
+  ViResolvedType? resolvedType;
 
-  /// Whether a typed data object is an indicator, from its [ViObjFlag.indicator] bit; null for
-  /// any other object.
-  bool? get isIndicator => dataObject == null || typeDescIdx == null ? null : hasFlag(ViObjFlag.indicator);
+  @override
+  ViTypeKind typeKind;
+
+  @override
+  List<String> items;
+
+  @override
+  bool get isValueControl => objectClass.isControlTerminal;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
 
   /// The `borderColor` attribute as `0xRRGGBB`; null when absent or transparent.
-  int? borderRgb;
+  final int? borderRgb;
+}
+
+/// A numeric or enum/ring control body with its range.
+final class FpNumericControl extends FpControl {
+  FpNumericControl(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    required super.typeDescIdx,
+    super.items,
+    super.typeKind,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    super.borderRgb,
+    super.caption,
+    super.termCount,
+    this.min,
+    this.max,
+  });
+
+  /// The `stdNumMin` attribute.
+  final double? min;
+
+  /// The `stdNumMax` attribute.
+  final double? max;
+}
+
+/// A graph or chart body: its plots.
+final class FpGraph extends FpControl {
+  FpGraph({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    required super.typeDescIdx,
+    super.items,
+    super.typeKind,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    super.borderRgb,
+    super.caption,
+    super.termCount,
+    this.plotNames = const [],
+    this.plotColors = const [],
+  }) : super(FpObjectClass.graph);
+
+  /// One name per plot-name record.
+  final List<String> plotNames;
+
+  /// The `plotColor` attributes as `0xRRGGBB`, one per plot.
+  final List<int> plotColors;
+}
+
+/// A typed container of controls: a cluster, array, type definition, tab control or radio group.
+final class FpContainer extends FpPlaced implements HeapTyped {
+  FpContainer(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    required this.typeDescIdx,
+    this.typeKind = ViTypeKind.unknown,
+  });
 
   @override
-  bool get isTextLabel => objectClass == FpObjectClass.textLabel;
+  final int typeDescIdx;
 
   @override
-  bool get isControlTerminal => objectClass.isControlTerminal;
+  ViResolvedType? resolvedType;
 
   @override
-  bool get isPane => objectClass == FpObjectClass.pane;
+  ViTypeKind typeKind;
+}
+
+/// A text label.
+final class FpText extends FpPlaced implements HeapTextLabel {
+  FpText({
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    this.fontRuns = const [],
+    this.modeWord = 0,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+  }) : super(FpObjectClass.textLabel);
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+
+  @override
+  final int modeWord;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+
+  @override
+  bool get isHidden => hasFlag(ViObjFlag.labelHidden);
+
+  @override
+  bool get isBold => font?.isBold ?? false;
+
+  @override
+  bool get justifyCenter => modeWord & 0x20 != 0;
+}
+
+/// A placed part of a control: chrome, a scale, a legend, a display.
+class FpPart extends FpPlaced implements HeapItems, HeapFontRuns {
+  FpPart(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    this.bgRgb,
+    this.fgRgb,
+    this.contentRgb,
+    this.borderRgb,
+    this.displayFormat,
+    this.items = const [],
+    super.caption,
+    super.termCount,
+    this.fontRuns = const [],
+    ViTypeKind typeKind = ViTypeKind.unknown,
+  }) : _typeKind = typeKind;
+
+  final int? bgRgb;
+  final int? fgRgb;
+  final int? contentRgb;
+  final int? borderRgb;
+
+  ViTypeKind _typeKind;
+
+  /// The data kind the part's own records imply: a format string on a display, an item table
+  /// on an item list.
+  ViTypeKind get typeKind => _typeKind;
+
+  /// The `formatStyle` attribute of a numeric display or scale, a `%` format string.
+  final String? displayFormat;
+
+  /// The item names of an item list part.
+  @override
+  final List<String> items;
+
+  @override
+  final List<HeapFontRun> fontRuns;
+
+  @override
+  ViFontEntry? font;
+}
+
+/// A typed part of a control: a graph legend.
+final class FpTypedPart extends FpPart implements HeapTyped {
+  FpTypedPart(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+    super.bgRgb,
+    super.fgRgb,
+    super.contentRgb,
+    super.borderRgb,
+    super.displayFormat,
+    super.items,
+    super.fontRuns,
+    required this.typeDescIdx,
+    super.typeKind,
+  });
+
+  @override
+  final int typeDescIdx;
+
+  @override
+  ViResolvedType? resolvedType;
+
+  @override
+  set typeKind(ViTypeKind value) => _typeKind = value;
+}
+
+/// A placed object of a class whose role is not established.
+final class FpUnknownPlaced extends FpPlaced {
+  FpUnknownPlaced(
+    super.objectClass, {
+    required super.oid,
+    super.kind,
+    super.offset,
+    super.end,
+    super.parentOid,
+    super.objFlags,
+    super.helpText,
+    super.refs,
+    required super.bounds,
+    super.boundsOffset,
+    super.absBounds,
+    super.caption,
+    super.termCount,
+  });
 }
 
 /// The classes of front-panel heap objects, by code.

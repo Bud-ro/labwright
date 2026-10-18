@@ -6,6 +6,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import '../../../tool/corpus.dart';
 import '../tool/corpus_vis.dart';
+import 'shape_probe.dart';
 
 export '../../../tool/corpus.dart';
 export '../tool/corpus_vis.dart';

@@ -116,7 +116,7 @@ Map<String, int> _census(CorpusVi entry) {
           record('oa2_slack', [w.routePoints!]);
           bump('oa2_slack_anchor');
           if (onInk(w.routePoints!.last)) bump('oa2_slack_anchor_ink');
-          final head = bd.byId[w.endpointOids[0]];
+          final head = bd.byOid(w.endpointOids[0]);
           if (head != null && head.kind == 0x15 && head.parentOid != null) {
             bump('oa2_slack_head_dco');
           }

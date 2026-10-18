@@ -14,7 +14,7 @@ Map<String, int> _census(CorpusVi vi) {
   final conp = ViConnectorPane(vi.decoded!.firstWhere((s) => s.tag == 'CONP').bytes);
   final paneTypes = conp is ViConnectorPaneInline ? conp.pool.types : model.types;
   final terminals = model.paneTerminals;
-  final controls = [for (final panel in model.frontPanels) ...panel.controls];
+  final controls = [for (final panel in model.frontPanels) ...panel.dataObjects];
   final hasMap = vi.decoded!.any((s) => s.tag == 'CPMp');
   for (var i = 0; i < pane.parameterCount; i++) {
     final parameter = paneTypes[pane.parameterIndexAt(i)];
@@ -27,11 +27,11 @@ Map<String, int> _census(CorpusVi vi) {
     if (conp is! ViConnectorPaneInline && control.resolvedType?.type.offset != parameter.offset) bump('typeDiff');
     if (control.typeName != parameter.label) bump('labelDiff');
     if (hasMap) {
-      final numbered = controls.where((o) => o.dataObject?.conNum == i).toList();
+      final numbered = controls.where((o) => o.conNum == i).toList();
       if (numbered.length == 1 && numbered.single != control) bump('conNumDisagrees');
     }
   }
-  if (!hasMap && controls.where((o) => o.dataObject?.conNum == null).length > 1) bump('unnumberedMany');
+  if (!hasMap && controls.where((o) => o.conNum == null).length > 1) bump('unnumberedMany');
   return c;
 }
 

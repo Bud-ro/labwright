@@ -7,6 +7,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'shape_probe.dart';
 
 void main() {
   test('crc8: N feeders resolve to their constant boxes; hidden i glyphs decode', () {

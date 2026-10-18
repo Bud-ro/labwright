@@ -1,24 +1,26 @@
-/// The record walk both heaps share: [walkHeap] replays a heap body and turns every object
-/// header into a [HeapObject] through a [HeapWalkListener], fills the fields every heap
-/// carries, and hands the records it does not read to the listener. The passes after the walk
-/// ([rebaseLabelBounds], [bubbleItemsToControls], [bubbleHelpText],
-/// [reanchorScrolledControls]) read the finished [HeapObjectTree].
+/// The record walk both heaps share: [walkHeap] replays a heap body, gathers each object's
+/// records on a [HeapScratch] while the object is open, and hands the scratch to the heap's
+/// [HeapWalkListener.finalize] when the object closes, which builds the object in the shape its
+/// class and records call for. The passes after the walk ([rebaseLabelBounds],
+/// [bubbleItemsToControls], [bubbleHelpText], [reanchorScrolledControls]) read the finished
+/// [HeapObjectTree].
 ///
-/// Which records feed which shared fields:
+/// Which records feed which shared scratch fields:
 ///
 /// ```text
 /// record                                   field
 /// object header                            oid, kind, offset, parentOid
 /// C4 bounds (0x2d)                         bounds; absBounds accumulates the ancestors' origins
 /// C4 size (0x1f)                           termCount, one per record
-/// C4 caption (0x22), attribute shortText   label
+/// C4 caption (0x22), attribute shortText   caption
 /// C4 formatString (0x74)                   typeKind (format conversion character)
 /// C4 stringTable (0x2e)                    items
 /// C4 description (0x19)                    helpText
-/// reference records                        refs (childRef targets), refsOf (every kind)
+/// reference records                        childRefs, dcoRefs
 /// attributes                               typeDescIdx, objFlags, displayFormat, bgRgb, fgRgb,
 ///                                          contentRgb, labelModeWord
-/// font run groups                          textStyleRuns
+/// font run groups                          fontRuns
+/// array index group                        arrayIndex
 /// ```
 library;
 
@@ -28,12 +30,81 @@ import 'dart:typed_data';
 import 'heap.dart';
 import 'heap_object.dart';
 
+/// The records of one object gathered while the walk is inside it; a heap's listener extends
+/// it with the fields its own records and attributes fill. One scratch serves many objects in
+/// turn, so [reset] clears every field.
+abstract class HeapScratch {
+  int oid = 0;
+  int kind = 0;
+  int offset = 0;
+  int end = 0;
+  int index = 0;
+  int? parentOid;
+
+  /// The enclosing object's class code, null for a root.
+  int? parentKind;
+
+  /// The heap-absolute origin the object's children are placed against: the enclosing origin
+  /// until the object's bounds record arrives, its own top-left after.
+  int originTop = 0;
+  int originLeft = 0;
+
+  HeapRect? bounds;
+  int boundsOffset = 0;
+  HeapRect? absBounds;
+  HeapCaption? caption;
+  List<int>? childRefs;
+  List<int>? dcoRefs;
+  int termCount = 0;
+  List<String> items = const [];
+  String? helpText;
+  List<HeapFontRun> fontRuns = const [];
+  int typeKindEvidence = 0;
+  int? typeDescIdx;
+  int? objFlags;
+  int? bgRgb;
+  int? fgRgb;
+  int? contentRgb;
+  String? displayFormat;
+  int? labelModeWord;
+  int? arrayIndex;
+
+  ViTypeKind get typeKind => inferTypeKind(typeKindEvidence);
+
+  /// The `childRef` targets, empty for none.
+  List<int> get refs => childRefs ?? const [];
+
+  void reset() {
+    oid = kind = offset = end = index = 0;
+    parentOid = null;
+    parentKind = null;
+    originTop = originLeft = 0;
+    bounds = null;
+    boundsOffset = 0;
+    absBounds = null;
+    caption = null;
+    childRefs = null;
+    dcoRefs = null;
+    termCount = 0;
+    items = const [];
+    helpText = null;
+    fontRuns = const [];
+    typeKindEvidence = 0;
+    typeDescIdx = null;
+    objFlags = null;
+    bgRgb = fgRgb = contentRgb = null;
+    displayFormat = null;
+    labelModeWord = null;
+    arrayIndex = null;
+  }
+}
+
 /// A group of records the walk routes to one owner object until the group closes: font runs,
 /// an array's index group, a case structure's selector lists.
 abstract class HeapGroupCapture {
   HeapGroupCapture(this.owner);
 
-  final HeapObject owner;
+  final HeapScratch owner;
 
   /// How many groups are open inside the capture, the capture's own group included.
   int depth = 1;
@@ -53,7 +124,7 @@ abstract class HeapGroupCapture {
 class FontRunCapture extends HeapGroupCapture {
   FontRunCapture(super.owner);
 
-  final List<({int start, int fontId})> _runs = [];
+  final List<HeapFontRun> _runs = [];
   bool _runOpen = false;
   int _start = 0;
   int _fontId = 0;
@@ -73,7 +144,7 @@ class FontRunCapture extends HeapGroupCapture {
       _runs.add((start: _start, fontId: _fontId));
       _runOpen = false;
     }
-    if (depth == 0 && _runs.isNotEmpty && owner.textStyleRuns.isEmpty) owner.textStyleRuns = _runs;
+    if (depth == 0 && _runs.isNotEmpty && owner.fontRuns.isEmpty) owner.fontRuns = _runs;
   }
 
   @override
@@ -108,23 +179,27 @@ class ArrayIndexCapture extends HeapGroupCapture {
   }
 }
 
-/// What one heap adds to the shared walk: its object type, the groups it captures and the
-/// records and attributes it reads beyond the shared ones.
-abstract class HeapWalkListener<T extends HeapObject> {
-  T createObject({required int oid, required int kind, required int offset});
+/// What one heap adds to the shared walk: its scratch, the groups it captures, the records and
+/// attributes it reads beyond the shared ones, and the object each finished scratch becomes.
+abstract class HeapWalkListener<T extends HeapObject, S extends HeapScratch> {
+  S createScratch();
 
   /// A capture for the group [tag] that opened under [owner], or null to let the records
   /// through; one capture of a kind is open at a time.
-  HeapGroupCapture? captureGroup(T owner, int tag) => null;
+  HeapGroupCapture? captureGroup(S owner, int tag) => null;
 
   /// The attributes the heap reads beyond the shared ones; the walk decodes no other.
   Set<HeapAttribute> get attributes;
 
   /// A C4 record the shared walk does not read, with its payload at [start]..[end].
-  void onRecord(T cur, int opcode, Uint8List body, int start, int end) {}
+  void onRecord(S cur, int opcode, Uint8List body, int start, int end) {}
 
   /// An attribute the shared walk does not read; [attr] is reused across records.
-  void onAttribute(T cur, HeapAttrReading attr) {}
+  void onAttribute(S cur, HeapAttrReading attr) {}
+
+  /// The object for a scratch whose records are complete; [children] are its finished children
+  /// in heap order.
+  T finalize(S scratch, List<T> children);
 }
 
 /// One attribute record as the walk read it: a scalar word taken straight from the bytes, or
@@ -225,68 +300,95 @@ int? _scalarColorRgb(int value) {
 int? _attrColorRgb(HeapAttr attr) =>
     attr.kind == HeapAttrKind.color && attr.value is int ? _scalarColorRgb(attr.value as int) : null;
 
-/// Replays a heap body (the section payload including its length word) into [listener]'s
-/// objects, each with its [HeapObject.end] and inferred [HeapObject.typeKind] set.
-List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> listener) {
-  final objects = <T>[];
+/// Replays a heap body (the section payload including its length word) into the objects
+/// [listener] builds, in header order.
+List<T> walkHeap<T extends HeapObject, S extends HeapScratch>(Uint8List body, HeapWalkListener<T, S> listener) {
   final length = body.length;
-  final objectCapacity = length ~/ kHeapObjectHeaderMinLength + 1;
-  final typeKindEvidence = Int32List(objectCapacity);
-  final originTop = Int32List(objectCapacity);
-  final originLeft = Int32List(objectCapacity);
+  final objects = <T?>[];
   final view = ByteData.sublistView(body);
   final attributeRaws = _attributeTable(listener.attributes);
   final reading = HeapAttrReading();
-
+  final pool = <S>[];
   final captures = <HeapGroupCapture>[];
-  final scopes = <T?>[];
-  final groupTags = <int?>[];
+
+  final scopes = <S?>[];
+  final childrenOfScope = <List<T>?>[];
+  final rootChildren = <T>[];
+
+  S? cur;
+  var curChildren = rootChildren;
+
+  void refreshCurrent() {
+    cur = null;
+    curChildren = rootChildren;
+    for (var i = scopes.length - 1; i >= 0; i--) {
+      if (scopes[i] case final scratch?) {
+        cur = scratch;
+        curChildren = childrenOfScope[i]!;
+        break;
+      }
+    }
+  }
+
+  void closeObject(S scratch, List<T> children, int end) {
+    scratch.end = end;
+    final object = listener.finalize(scratch, children);
+    object.index = scratch.index;
+    objects[scratch.index] = object;
+    scratch.reset();
+    pool.add(scratch);
+    refreshCurrent();
+    curChildren.add(object);
+  }
+
   var next = 4;
   while (next < length) {
     final offset = next;
     final step = recordSkip(body, offset);
     if (step == null || offset + step > length) break;
     next = offset + step;
-    final recordLength = step;
     final lead = body[offset];
-    final cur = scopes.isEmpty ? null : scopes.last;
     final headerLength = isHeapObjectHeaderLead(lead) ? heapObjectHeaderLength(body, offset) : 0;
     if (headerLength != 0) {
-      final index = objects.length;
-      final object = listener.createObject(
-        oid: heapObjectHeaderOid(body, offset, headerLength),
-        kind: heapObjectHeaderKind(body, offset),
-        offset: offset,
-      )..index = index;
-      object.parentOid = cur?.oid;
-      originTop[index] = cur == null ? 0 : originTop[cur.index];
-      originLeft[index] = cur == null ? 0 : originLeft[cur.index];
-      objects.add(object);
-      scopes.add(object);
-      groupTags.add(null);
+      final scratch = pool.isEmpty ? listener.createScratch() : pool.removeLast();
+      scratch.oid = heapObjectHeaderOid(body, offset, headerLength);
+      scratch.kind = heapObjectHeaderKind(body, offset);
+      scratch.offset = offset;
+      scratch.index = objects.length;
+      scratch.parentOid = cur?.oid;
+      scratch.parentKind = cur?.kind;
+      scratch.originTop = cur?.originTop ?? 0;
+      scratch.originLeft = cur?.originLeft ?? 0;
+      objects.add(null);
+      final children = <T>[];
+      scopes.add(scratch);
+      childrenOfScope.add(children);
+      cur = scratch;
+      curChildren = children;
       continue;
     }
     if (isHeapGroupOpenLead(lead) && offset + 4 <= length && isHeapTypeTag(body[offset + 3])) {
       final groupTag = body[offset + 1];
-      scopes.add(cur);
-      groupTags.add(groupTag);
+      scopes.add(null);
+      childrenOfScope.add(null);
       for (final capture in captures) {
         capture.depth++;
         capture.openGroup(groupTag);
       }
-      if (cur == null) continue;
+      final owner = cur;
+      if (owner == null) continue;
       final capture = groupTag == HeapGroupTag.fontRunList.tag
-          ? FontRunCapture(cur)
-          : listener.captureGroup(cur, groupTag);
+          ? FontRunCapture(owner)
+          : listener.captureGroup(owner, groupTag);
       if (capture != null && !captures.any((open) => open.runtimeType == capture.runtimeType)) captures.add(capture);
       continue;
     }
     if (isHeapGroupCloseLead(lead)) {
       if (scopes.isEmpty) continue;
       final closed = scopes.removeLast();
-      final groupTag = groupTags.removeLast();
-      if (groupTag == null) {
-        closed?.end = next;
+      final children = childrenOfScope.removeLast();
+      if (closed != null) {
+        closeObject(closed, children!, next);
         continue;
       }
       for (var i = 0; i < captures.length; i++) {
@@ -297,10 +399,11 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
       }
       continue;
     }
-    if (cur == null) continue;
+    final scratch = cur;
+    if (scratch == null) continue;
     var consumed = false;
     for (final capture in captures) {
-      if (identical(cur, capture.owner) && capture.record(body, view, offset, lead, recordLength)) {
+      if (identical(scratch, capture.owner) && capture.record(body, view, offset, lead, step)) {
         consumed = true;
         break;
       }
@@ -309,54 +412,56 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
     if (lead == kHeapRecordPrefix) {
       final opcode = body[offset + 1];
       final start = offset + (body[offset + 2] == 0xff ? 5 : 3);
-      final end = offset + recordLength;
-      typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofOpcode(opcode);
+      final end = offset + step;
+      scratch.typeKindEvidence |= ViTypeKindEvidence.ofOpcode(opcode);
       switch (opcode) {
         case 0x2d:
-          if (cur.bounds == null && end - start == 8) {
+          if (scratch.bounds == null && end - start == 8) {
             final bounds = HeapRect(
               top: view.getInt16(start),
               left: view.getInt16(start + 2),
               bottom: view.getInt16(start + 4),
               right: view.getInt16(start + 6),
             );
-            cur.bounds = bounds;
-            cur.boundsOffset = start;
-            final top = originTop[cur.index] + bounds.top;
-            final left = originLeft[cur.index] + bounds.left;
-            originTop[cur.index] = top;
-            originLeft[cur.index] = left;
-            cur.absBounds = bounds.shift(top - bounds.top, left - bounds.left);
+            scratch.bounds = bounds;
+            scratch.boundsOffset = start;
+            final top = scratch.originTop + bounds.top;
+            final left = scratch.originLeft + bounds.left;
+            scratch.originTop = top;
+            scratch.originLeft = left;
+            scratch.absBounds = bounds.shift(top - bounds.top, left - bounds.left);
           }
         case 0x22:
-          if (cur.label == null) {
-            cur.label = heapRecordText(Uint8List.sublistView(body, start, end));
-            if (cur.label != null) {
-              cur.labelOffset = offset;
-              cur.labelLength = recordLength;
-            }
+          if (scratch.caption == null) {
+            final text = heapRecordText(Uint8List.sublistView(body, start, end));
+            if (text != null) scratch.caption = HeapCaption(text, recordOffset: offset, recordLength: step);
           }
         case 0x1f:
-          cur.termCount++;
+          scratch.termCount++;
         case 0x74:
-          if (typeKindEvidence[cur.index] & ViTypeKindEvidence.numeric.bit == 0) {
-            typeKindEvidence[cur.index] |= ViTypeKindEvidence.ofFormat(Uint8List.sublistView(body, start, end));
+          if (scratch.typeKindEvidence & ViTypeKindEvidence.numeric.bit == 0) {
+            scratch.typeKindEvidence |= ViTypeKindEvidence.ofFormat(Uint8List.sublistView(body, start, end));
           }
         case 0x2e:
-          if (cur.items.isEmpty) cur.items = _parseEnumItems(Uint8List.sublistView(body, start, end));
+          if (scratch.items.isEmpty) scratch.items = _parseEnumItems(Uint8List.sublistView(body, start, end));
         case 0x19:
-          cur.helpText ??= heapDescriptionText(Uint8List.sublistView(body, start, end));
+          scratch.helpText ??= heapDescriptionText(Uint8List.sublistView(body, start, end));
         default:
-          listener.onRecord(cur, opcode, body, start, end);
+          listener.onRecord(scratch, opcode, body, start, end);
       }
     } else if (lead == 0x14) {
       if (offset + 6 <= length && body[offset + 2] == 0x01 && body[offset + 3] == 0xfd) {
         final wide = (body[offset + 4] & 0x80) != 0;
         if (!wide || offset + 10 <= length) {
-          cur.addRef(
-            HeapRefKind.fromRaw(heapRawId(lead, body[offset + 1])),
-            wide ? view.getUint32(offset + 6) : view.getUint16(offset + 4),
-          );
+          final target = wide ? view.getUint32(offset + 6) : view.getUint16(offset + 4);
+          switch (HeapRefKind.fromRaw(heapRawId(lead, body[offset + 1]))) {
+            case HeapRefKind.childRef:
+              (scratch.childRefs ??= <int>[]).add(target);
+            case HeapRefKind.dcoRef:
+              (scratch.dcoRefs ??= <int>[]).add(target);
+            default:
+              break;
+          }
         }
       }
     } else if (offset + 1 < length && attributeRaws[heapRawId(lead, body[offset + 1])]) {
@@ -382,36 +487,37 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
       }
       switch (attribute) {
         case HeapAttribute.typeDescIndex:
-          cur.typeDescIdx ??= reading.asInt;
+          scratch.typeDescIdx ??= reading.asInt;
         case HeapAttribute.objFlags:
-          cur.objFlags ??= reading.asInt;
+          scratch.objFlags ??= reading.asInt;
         case HeapAttribute.backgroundColor:
-          cur.bgRgb ??= reading.rgb;
+          scratch.bgRgb ??= reading.rgb;
         case HeapAttribute.fgColor:
-          cur.fgRgb ??= reading.rgb;
+          scratch.fgRgb ??= reading.rgb;
         case HeapAttribute.contentColor:
-          cur.contentRgb ??= reading.rgb;
+          scratch.contentRgb ??= reading.rgb;
         case HeapAttribute.cosmColorB:
-          if (cur.isTextLabel) cur.labelModeWord ??= reading.asInt;
+          scratch.labelModeWord ??= reading.asInt;
         case HeapAttribute.shortText:
           final text = reading.asciiText;
-          if (text != null && text.length == reading.scalarBytes) cur.label ??= text;
+          if (text != null && text.length == reading.scalarBytes) scratch.caption ??= HeapCaption(text);
         case HeapAttribute.formatStyle:
           final bytes = reading.flatBytes;
           if (bytes != null && bytes.isNotEmpty && bytes.first == 0x25 && bytes.every((b) => b >= 0x20 && b < 0x7f)) {
-            cur.displayFormat ??= String.fromCharCodes(bytes);
+            scratch.displayFormat ??= String.fromCharCodes(bytes);
           }
         default:
-          listener.onAttribute(cur, reading);
+          listener.onAttribute(scratch, reading);
       }
     }
   }
 
-  for (final object in objects) {
-    if (object.end == 0) object.end = length;
-    object.typeKind = inferTypeKind(typeKindEvidence[object.index]);
+  while (scopes.isNotEmpty) {
+    final closed = scopes.removeLast();
+    final children = childrenOfScope.removeLast();
+    if (closed != null) closeObject(closed, children!, length);
   }
-  return objects;
+  return objects.cast<T>();
 }
 
 List<String> _parseEnumItems(List<int> payload) {
@@ -433,20 +539,20 @@ List<String> _parseEnumItems(List<int> payload) {
 /// relative to the owner rather than the enclosing origin.
 void rebaseLabelBounds<T extends HeapObject>(HeapObjectTree<T> tree) {
   for (final object in tree.objects) {
-    if (!object.isTextLabel) continue;
-    final local = object.bounds;
-    final ownerAbs = tree.parentOf(object)?.absBounds;
-    if (local != null && ownerAbs != null) object.absBounds = local.shift(ownerAbs.top, ownerAbs.left);
+    if (object is! HeapTextLabel) continue;
+    if (tree.parentOf(object) case HeapPlaced(absBounds: final ownerAbs)) {
+      object.absBounds = object.bounds.shift(ownerAbs.top, ownerAbs.left);
+    }
   }
 }
 
-/// Copies enum and ring items up to the nearest control terminal, at most twelve levels up.
+/// Copies enum and ring items up to the nearest control body, at most twelve levels up.
 void bubbleItemsToControls<T extends HeapObject>(HeapObjectTree<T> tree) {
   for (final object in tree.objects) {
-    if (object.items.isEmpty) continue;
+    if (object is! HeapItems || object.items.isEmpty) continue;
     var depth = 0;
     for (var po = tree.parentOf(object); po != null && depth < 12; po = tree.parentOf(po), depth++) {
-      if (po.isControlTerminal) {
+      if (po is HeapControlBody && po.isValueControl) {
         if (po.items.isEmpty) po.items = object.items;
         break;
       }
@@ -454,13 +560,13 @@ void bubbleItemsToControls<T extends HeapObject>(HeapObjectTree<T> tree) {
   }
 }
 
-/// Copies an unbounded object's help text up to its nearest bounded ancestor.
+/// Copies an unplaced object's help text up to its nearest placed ancestor.
 void bubbleHelpText<T extends HeapObject>(HeapObjectTree<T> tree) {
   for (final object in tree.objects) {
     final helpText = object.helpText;
-    if (helpText == null || helpText.isEmpty || object.absBounds != null) continue;
+    if (helpText == null || helpText.isEmpty || object is HeapPlaced) continue;
     for (var po = tree.parentOf(object); po != null; po = tree.parentOf(po)) {
-      if (po.absBounds != null) {
+      if (po is HeapPlaced) {
         po.helpText ??= helpText;
         break;
       }
@@ -468,44 +574,43 @@ void bubbleHelpText<T extends HeapObject>(HeapObjectTree<T> tree) {
   }
 }
 
-/// Shifts the absolute bounds of [root] and everything inside it by ([dLeft], [dTop]).
+/// Shifts the absolute bounds of [root] and every placed object inside it by ([dLeft], [dTop]).
 void shiftSubtree<T extends HeapObject>(HeapObjectTree<T> tree, T root, {required int dTop, required int dLeft}) {
   if (dTop == 0 && dLeft == 0) return;
   final work = <T>[root];
   while (work.isNotEmpty) {
     final object = work.removeLast();
-    object.absBounds = object.absBounds?.shift(dTop, dLeft);
+    if (object is HeapPlaced) object.absBounds = object.absBounds.shift(dTop, dLeft);
     work.addAll(tree.childrenOf(object));
   }
 }
 
-/// Moves the control terminals under a scrolled pane so the group's top-left sits at the pane's
+/// Moves the control bodies under a scrolled pane so the group's top-left sits at the pane's
 /// origin.
 void reanchorScrolledControls<T extends HeapObject>(HeapObjectTree<T> tree) {
   T? paneOf(T object) {
     for (var po = tree.parentOf(object); po != null; po = tree.parentOf(po)) {
-      if (po.isPane) return po;
-      if (po.isControlTerminal || po.bounds != null) return null;
+      if (po is HeapPane) return po;
+      if (po is HeapControlBody && po.isValueControl || po is HeapPlaced) return null;
     }
     return null;
   }
 
-  final groups = <T, List<T>>{};
+  final groups = <T, List<HeapControlBody>>{};
   for (final object in tree.objects) {
-    if (!object.isControlTerminal || object.bounds == null || object.absBounds == null) continue;
+    if (object is! HeapControlBody || !object.isValueControl) continue;
     final pane = paneOf(object);
-    if (pane != null) (groups[pane] ??= <T>[]).add(object);
+    if (pane != null) (groups[pane] ??= []).add(object);
   }
 
   for (final MapEntry(key: pane, value: controls) in groups.entries) {
-    final paneAbs = pane.absBounds;
-    if (paneAbs == null) continue;
-    final minTop = controls.map((c) => c.bounds!.top).reduce(min);
-    final minLeft = controls.map((c) => c.bounds!.left).reduce(min);
+    final paneAbs = (pane as HeapPlaced).absBounds;
+    final minTop = controls.map((c) => c.bounds.top).reduce(min);
+    final minLeft = controls.map((c) => c.bounds.left).reduce(min);
     for (final control in controls) {
-      final newTop = paneAbs.top + (control.bounds!.top - minTop);
-      final newLeft = paneAbs.left + (control.bounds!.left - minLeft);
-      shiftSubtree(tree, control, dTop: newTop - control.absBounds!.top, dLeft: newLeft - control.absBounds!.left);
+      final newTop = paneAbs.top + (control.bounds.top - minTop);
+      final newLeft = paneAbs.left + (control.bounds.left - minLeft);
+      shiftSubtree(tree, control as T, dTop: newTop - control.absBounds.top, dLeft: newLeft - control.absBounds.left);
     }
   }
 }

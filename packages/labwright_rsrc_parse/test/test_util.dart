@@ -49,6 +49,11 @@ List<int> bounds(int top, int left, int bottom, int right) => [
 
 List<int> childRef(int oid) => [0x14, 0x19, 0x01, 0xfd, ...be16(oid)];
 
+List<int> dcoRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
+
+/// A `typeDescIndex` attribute (raw `0x13a`) as a u16 scalar.
+List<int> typeIndex(int index) => [0x45, 0x3a, ...be16(index)];
+
 List<int> caption(String text) => [0xc4, 0x22, text.length, ...text.codeUnits];
 
 List<int> help(String text) => [0xc4, 0x19, text.length, ...text.codeUnits];

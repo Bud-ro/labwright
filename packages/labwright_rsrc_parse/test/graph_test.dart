@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'shape_probe.dart';
 import 'test_util.dart';
 
 BdDiagram dia(List<int> records, {String? version}) => buildBlockDiagram(heapBody(records), version: version);
@@ -14,6 +15,7 @@ List<int> endpoint(int oid, {int kind = 0x15}) => [...open(kind, oid, tag: 0x1a)
 List<int> terminal(int oid, int endpointOid, (int, int, int, int) rect, {int kind = 0x22}) => [
   ...open(kind, oid, tag: 0x1a),
   ...childRef(endpointOid),
+  ...typeIndex(0),
   ...c5(0x29, [...be16(rect.$1), ...be16(rect.$2), ...be16(rect.$3), ...be16(rect.$4)]),
   ...close(0x1a),
 ];
@@ -51,12 +53,13 @@ void main() {
       ...attrU16(0xea, 1051),
       ...close(),
       ...open(0x2f, 2),
+      ...bounds(10, 10, 36, 42),
       ...attrU16(0xea, 9999),
       ...close(),
     ]);
-    expect((d.byId[1]!.primitive?.primResId, d.byId[1]!.primitive?.primName), (1051, 'Subtract'));
+    expect((d.byOid(1)!.primitive?.primResId, d.byOid(1)!.primitive?.primName), (1051, 'Subtract'));
     expect(
-      (d.byId[2]!.primitive?.primResId, d.byId[2]!.primitive?.primName),
+      (d.byOid(2)!.primitive?.primResId, d.byOid(2)!.primitive?.primName),
       (9999, null),
       reason: 'uncatalogued ids stay unnamed',
     );
@@ -68,13 +71,14 @@ void main() {
       ...attrU16(0xea, 1051),
       ...close(),
       ...open(0x2f, 2),
+      ...bounds(10, 10, 36, 42),
       0xe4,
       0xea,
       ...attrU16(0xea, 1051),
       ...close(),
     ]);
-    expect(d.byId[1]!.primitive?.primResId, isNull, reason: 'off-class carriers are not primitive identities');
-    expect(d.byId[2]!.primitive?.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
+    expect(d.byOid(1)!.primitive?.primResId, isNull, reason: 'off-class carriers are not primitive identities');
+    expect(d.byOid(2)!.primitive?.primResId, 1051, reason: 'the u16 record wins; the flag form is inert');
   });
 
   test('scalar-width 0x22: printable full-width tokens are labels, everything else stays numeric', () {
@@ -93,7 +97,7 @@ void main() {
     ];
     for (final (records, want) in rows) {
       final d = dia([...open(0x0a, 1), ...records, ...close()]);
-      expect(d.byId[1]!.label, want, reason: records.map((b) => b.toRadixString(16)).join(' '));
+      expect(d.byOid(1)!.label, want, reason: records.map((b) => b.toRadixString(16)).join(' '));
     }
   });
 
@@ -202,6 +206,7 @@ void main() {
       ...frame([...tunnel(3, (10, 5, 19, 14))]),
       ...open(endpointKind, 5),
       ...bounds(6, 100, 22, 132),
+      if (endpointKind == 0x16) ...dcoRef(99),
       ...close(),
       ...signal([3, 5], [0x45, 0xe7, 0x02, 0x08]),
     ];
@@ -614,6 +619,7 @@ void main() {
       ...bounds(0, 0, 200, 200),
       ...open(0x15, 3, tag: 0x1a),
       ...open(0x13, 10, tag: 0x1b),
+      ...typeIndex(0),
       ...open(0x2f, 11, tag: 0x1c),
       ...bounds(10, 10, 26, 42),
       ...close(0x1c),
@@ -704,21 +710,24 @@ void main() {
   test('isLabelHidden: objFlags bit 0x08 on label parts only', () {
     final d = dia([
       ...open(0xa, 1),
+      ...bounds(0, 0, 10, 40),
       ...caption('hidden'),
       ...attrU24(0xcb, 0x17114a),
       ...close(),
       ...open(0xa, 2),
+      ...bounds(0, 0, 10, 40),
       ...caption('shown'),
       ...attrU24(0xcb, 0x171142),
       ...close(),
       ...open(0x95, 3),
+      ...bounds(0, 0, 10, 40),
       ...attrU24(0xcb, 0x17114a),
       ...close(),
     ]);
-    expect(d.byId[1]!.isLabelHidden, isTrue);
-    expect(d.byId[2]!.isLabelHidden, isFalse);
+    expect(d.byOid(1)!.isLabelHidden, isTrue);
+    expect(d.byOid(2)!.isLabelHidden, isFalse);
     expect(
-      d.byId[3]!.isLabelHidden,
+      d.byOid(3)!.isLabelHidden,
       isFalse,
       reason: 'the getter is scoped to label parts; the bit is undecoded elsewhere',
     );
@@ -727,26 +736,32 @@ void main() {
   test('visibleFrameIndex: dIdx on multi-frame structure kinds, bit-31 masked', () {
     final d = dia([
       ...open(0x2c, 1),
+      ...bounds(0, 0, 100, 100),
       ...attrU8(0x4d, 1),
       ...close(),
       ...open(0x2c, 2),
+      ...bounds(0, 0, 100, 100),
       ...attrU32(0x4d, 0x80000002),
       ...close(),
       ...open(0x2c, 3),
+      ...bounds(0, 0, 100, 100),
       ...close(),
       ...open(0x50, 4),
+      ...bounds(0, 0, 17, 80),
+      ...typeIndex(0),
       ...attrU8(0x4d, 1),
       ...close(),
     ]);
-    expect(d.byId[1]!.frames?.visibleFrameIndex, 1);
-    expect(d.byId[2]!.frames?.visibleFrameIndex, 2, reason: 'bit 31 is a flag, not index');
-    expect(d.byId[3]!.frames?.visibleFrameIndex, 0, reason: 'absent record displays the first frame');
-    expect(d.byId[4]!.frames?.dIdx, isNull, reason: 'capture is gated to the multi-frame structure kinds');
+    expect(d.byOid(1)!.frames?.visibleFrameIndex, 1);
+    expect(d.byOid(2)!.frames?.visibleFrameIndex, 2, reason: 'bit 31 is a flag, not index');
+    expect(d.byOid(3)!.frames?.visibleFrameIndex, 0, reason: 'absent record displays the first frame');
+    expect(d.byOid(4)!.frames?.dIdx, isNull, reason: 'capture is gated to the multi-frame structure kinds');
   });
 
   test('displayedFrameIndex: the stored index resolved against the frames that exist', () {
     List<int> caseWithFrames(int oid, int? dIdx, int frames) => [
       ...open(0x2c, oid),
+      ...bounds(0, 0, 100, 100),
       if (dIdx != null) ...attrU8(0x4d, dIdx),
       for (var i = 0; i < frames; i++) ...[...open(BdObjectClass.frame.code, oid * 10 + i), ...close()],
       ...close(),
@@ -759,12 +774,13 @@ void main() {
       ...open(0x50, 5),
       ...close(),
     ]);
-    expect(d.framesOf(d.byId[1]!).map((f) => f.oid), [10, 11]);
-    expect(d.displayedFrameIndex(d.byId[1]!), 1);
-    expect(d.displayedFrameIndex(d.byId[2]!), isNull, reason: 'index past the frame count names no frame');
-    expect(d.displayedFrameIndex(d.byId[3]!), 0, reason: 'absent record displays the first frame');
-    expect(d.displayedFrameIndex(d.byId[4]!), isNull, reason: 'no frames, nothing to display');
-    expect(d.displayedFrameIndex(d.byId[5]!), isNull, reason: 'not a stacked multi-frame class');
+    BdMultiFrameStructure multi(int oid) => d.byOid(oid) as BdMultiFrameStructure;
+    expect(d.framesOf(multi(1)).map((f) => f.oid), [10, 11]);
+    expect(d.displayedFrameIndex(multi(1)), 1);
+    expect(d.displayedFrameIndex(multi(2)), isNull, reason: 'index past the frame count names no frame');
+    expect(d.displayedFrameIndex(multi(3)), 0, reason: 'absent record displays the first frame');
+    expect(d.displayedFrameIndex(multi(4)), isNull, reason: 'no frames, nothing to display');
+    expect(d.byOid(5), isNot(isA<BdMultiFrameStructure>()), reason: 'not a stacked multi-frame class');
   });
 
   test('an owned label composes against its owner even when the owner bounds record trails it', () {
@@ -780,7 +796,7 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    final label = d.byId[3]!.absBounds!;
+    final label = d.byOid(3)!.absBounds!;
     expect([label.top, label.left], [133, 240], reason: 'owner abs (150,240) + local (-17,0)');
   });
 
@@ -812,7 +828,7 @@ void main() {
     ]);
     expect(d.objects.length, 2);
     expect(d.objects.where((o) => o.parentOid == null).map((o) => o.oid), [1]);
-    final child = d.byId[2]!;
+    final child = d.byOid(2)!;
     expect((child.parentOid, child.label), (1, 'Trigger'));
     final r = child.absBounds!;
     expect([r.top, r.left, r.bottom, r.right], [10, 20, 30, 40], reason: 'abs = parent origin (0,0) + local');
@@ -830,7 +846,7 @@ void main() {
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
-    ]).byId[3]!;
+    ]).byOid(3)!;
     expect([leaf.absBounds!.top, leaf.absBounds!.left], [106, 207], reason: 'top 100+5+1, left 200+5+2');
   });
 
@@ -845,14 +861,10 @@ void main() {
       ...hx('14 53 01 fd 0007'),
       ...close(0x55),
       ...close(),
-    ]).byId[1]!;
+    ]).byOid(1)!;
     expect(s.category, BdObjectKind.structure);
-    expect(s.refs, [9], reason: 's.refs is the backward-compatible childRef subset');
-    expect(s.refsOf(HeapRefKind.childRef), [9]);
-    expect(s.refsOf(HeapRefKind.dcoRef), [11]);
-    expect(s.refsOf(HeapRefKind.dcoAggRef), [12]);
-    expect(s.refsOf(HeapRefKind.ddoRef), [7], reason: '14 53 is a cross-heap display-object reference');
-    expect(s.memberOids.toSet(), {9, 11}, reason: 'memberOids = childRef ∪ dcoRef');
+    expect(s.refs, [9], reason: 'refs is the childRef list; a cluster shell carries no dcoRef');
+    expect(s.memberOids.toSet(), {9});
 
     final multi = dia([
       ...open(0x53, 1),
@@ -862,7 +874,7 @@ void main() {
       ...hx('14 19 01 fd 000a'),
       ...close(0x55),
       ...close(),
-    ]).byId[1]!;
+    ]).byOid(1)!;
     expect(multi.refs, [9, 10], reason: 'child-membership refs inside the 0x55 group attach to the structure');
   });
 
@@ -877,10 +889,12 @@ void main() {
       ...close(),
       ...open(0x50, 3),
       ...bounds(0, 0, 17, 80),
+      ...typeIndex(0),
       ...fmt74('%#_6g'),
       ...close(),
       ...open(0x50, 4),
       ...bounds(0, 0, 17, 80),
+      ...typeIndex(0),
       ...fmt74('%04d'),
       ...close(),
       ...open(0x0d, 5),
@@ -888,11 +902,11 @@ void main() {
       ...enum2e(['Low', 'High']),
       ...close(),
     ]);
-    expect(d.byId[1]!.category, BdObjectKind.terminal);
-    expect(d.byId[2]!.category, BdObjectKind.node);
-    expect(d.byId[3]!.typeKind, ViTypeKind.numericFloat);
-    expect(d.byId[4]!.typeKind, ViTypeKind.numericInt);
-    expect(d.byId[5]!.typeKind, ViTypeKind.enumRing);
+    expect(d.byOid(1)!.category, BdObjectKind.terminal);
+    expect(d.byOid(2)!.category, BdObjectKind.node);
+    expect(d.byOid(3)!.typeKind, ViTypeKind.numericFloat);
+    expect(d.byOid(4)!.typeKind, ViTypeKind.numericInt);
+    expect(d.byOid(5)!.items, ['Low', 'High']);
   });
 
   test('scrolled-cluster control terminals are re-anchored to their viewport', () {
@@ -905,35 +919,39 @@ void main() {
       ...bounds(10, 5, 160, 130),
       ...open(0x50, 4),
       ...bounds(-300, 9, -256, 105),
+      ...typeIndex(0),
       ...open(0xa, 6),
       ...bounds(0, 11, 17, 107),
       ...caption('Start'),
       ...close(),
       ...open(0x4f, 8),
       ...bounds(5, 10, 17, 30),
+      ...typeIndex(0),
       ...close(),
       ...close(),
       ...open(0x50, 5),
       ...bounds(-262, 9, -218, 105),
+      ...typeIndex(0),
       ...close(),
       ...close(),
       ...close(),
       ...open(0x50, 7),
       ...bounds(300, 300, 320, 350),
+      ...typeIndex(0),
       ...close(),
       ...close(),
     ]);
-    final viewport = d.byId[3]!.absBounds!;
-    final upper = d.byId[4]!.absBounds!, lower = d.byId[5]!.absBounds!;
+    final viewport = d.byOid(3)!.absBounds!;
+    final upper = d.byOid(4)!.absBounds!, lower = d.byOid(5)!.absBounds!;
     expect([upper.top, upper.left], [210, 55], reason: '#4 re-anchored to the viewport origin');
     expect(lower.top, 248, reason: '#5 sits 38px below #4 (-262 vs -300) -> 210+38');
     for (final control in [upper, lower]) {
       final centre = (control.top + control.bottom) ~/ 2;
       expect(centre >= viewport.top && centre <= viewport.bottom, isTrue, reason: 'control center inside viewport');
     }
-    expect(d.byId[6]!.absBounds!.top, 210, reason: "#4's label subtree rides along");
-    expect([d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left], [215, 65], reason: 'nested control rides parent');
-    expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300], reason: 'not under 0x11c: untouched');
+    expect(d.byOid(6)!.absBounds!.top, 210, reason: "#4's label subtree rides along");
+    expect([d.byOid(8)!.absBounds!.top, d.byOid(8)!.absBounds!.left], [215, 65], reason: 'nested control rides parent');
+    expect([d.byOid(7)!.absBounds!.top, d.byOid(7)!.absBounds!.left], [300, 300], reason: 'not under 0x11c: untouched');
   });
 
   test('class catalogues: unique codes, round-trip, category agreement', () {
@@ -1001,9 +1019,9 @@ void main() {
       ...close(0x1a),
       ...close(),
     ];
-    expect(panel(sized(0x50)).byId[2]!.category, FpObjectKind.terminalCluster);
-    expect(dia(sized(0x50)).byId[2]!.category, BdObjectKind.terminalCluster);
-    expect(dia(sized(0x50)).byId[2]!.termCount, 1);
+    expect(panel(sized(0x50)).byOid(2)!.category, FpObjectKind.terminalCluster);
+    expect(dia(sized(0x50)).byOid(2)!.category, BdObjectKind.terminalCluster);
+    expect(dia(sized(0x50)).byOid(2)!.termCount, 1);
   });
 
   test('enum/ring items parse and propagate up to the enclosing control', () {
@@ -1012,6 +1030,7 @@ void main() {
       ...bounds(0, 0, 400, 400),
       ...open(0x57, 2, tag: 0x1a),
       ...bounds(10, 10, 30, 110),
+      ...typeIndex(0),
       ...open(0x0d, 3, tag: 0x1b),
       ...bounds(12, 12, 28, 100),
       ...enum2e(['Low', 'Med', 'High']),
@@ -1019,8 +1038,8 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[3]!.items, ['Low', 'Med', 'High']);
-    expect(d.byId[2]!.items, ['Low', 'Med', 'High'], reason: 'items propagate up to the enclosing 0x57 control');
+    expect(d.byOid(3)!.items, ['Low', 'Med', 'High']);
+    expect(d.byOid(2)!.items, ['Low', 'Med', 'High'], reason: 'items propagate up to the enclosing 0x57 control');
   });
 
   test('graph plot names (C4 27) attach to the 0x5E graph object, in heap order', () {
@@ -1030,13 +1049,14 @@ void main() {
       ...bounds(0, 0, 400, 400),
       ...open(0x5e, 2, tag: 0x1a),
       ...bounds(10, 10, 200, 300),
+      ...typeIndex(0),
       ...plot('Plot 0'),
       ...plot('Plot 1'),
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[2]!.graph?.plotNames, ['Plot 0', 'Plot 1']);
-    expect(d.byId[1]!.graph, isNull, reason: 'plot names attach to the graph, not the root');
+    expect(d.byOid(2)!.graph?.plotNames, ['Plot 0', 'Plot 1']);
+    expect(d.byOid(1)!.graph, isNull, reason: 'plot names attach to the graph, not the root');
   });
 
   test('enum item parsing rejects the WHOLE table on overrun or non-printable bytes', () {
@@ -1052,8 +1072,8 @@ void main() {
       ...close(0x1b),
       ...close(),
     ]);
-    expect(build([0x0a, 0x41, 0x42, 0x43]).byId[2]!.items, isEmpty, reason: 'item claims 10 bytes, 3 follow');
-    expect(build([0x03, 0x41, 0x00, 0x43]).byId[2]!.items, isEmpty, reason: 'embedded 0x00 rejects the table');
+    expect(build([0x0a, 0x41, 0x42, 0x43]).byOid(2)!.items, isEmpty, reason: 'item claims 10 bytes, 3 follow');
+    expect(build([0x03, 0x41, 0x00, 0x43]).byOid(2)!.items, isEmpty, reason: 'embedded 0x00 rejects the table');
   });
 
   test('control range (C6 20/21 f64) + help (C4 19) collect ONLY on controls, not decorations', () {
@@ -1067,6 +1087,7 @@ void main() {
       ...bounds(0, 0, 400, 400),
       ...open(0x50, 2, tag: 0x1a),
       ...bounds(0, 0, 17, 80),
+      ...typeIndex(0),
       ...f64rec(0x20, -5.0),
       ...f64rec(0x21, 10.0),
       ...help('a tooltip'),
@@ -1078,7 +1099,7 @@ void main() {
       ...close(0x1b),
       ...close(),
     ]);
-    final ctl = d.byId[2]!, deco = d.byId[3]!;
+    final ctl = d.byOid(2)!, deco = d.byOid(3)!;
     expect((ctl.numericRange?.min, ctl.numericRange?.max, ctl.helpText), (-5.0, 10.0, 'a tooltip'));
     expect(deco.numericRange, isNull, reason: 'range must not attach to a 0x8f decoration');
   });
@@ -1095,8 +1116,8 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(direct.byId[3]!.absBounds, isNull, reason: 'the 0xc1 tip-strip is not drawable');
-    expect(direct.byId[2]!.helpText, 'hover help');
+    expect(direct.byOid(3)!.absBounds, isNull, reason: 'the 0xc1 tip-strip is not drawable');
+    expect(direct.byOid(2)!.helpText, 'hover help');
 
     final skip = dia([
       ...open(0x7e, 1),
@@ -1111,9 +1132,9 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(skip.byId[3]!.absBounds, isNull);
-    expect(skip.byId[3]!.helpText, isNull, reason: 'help does not land on the skipped intermediate');
-    expect(skip.byId[2]!.helpText, 'deep help');
+    expect(skip.byOid(3)!.absBounds, isNull);
+    expect(skip.byOid(3)!.helpText, isNull, reason: 'help does not land on the skipped intermediate');
+    expect(skip.byOid(2)!.helpText, 'deep help');
 
     final struct = dia([
       ...open(0x53, 1),
@@ -1123,7 +1144,7 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(struct.byId[1]!.helpText, 'structure help');
+    expect(struct.byOid(1)!.helpText, 'structure help');
 
     final own = dia([
       ...open(0x50, 1),
@@ -1134,7 +1155,7 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(own.byId[1]!.helpText, 'own help', reason: "first-wins: the control's own help is preserved");
+    expect(own.byOid(1)!.helpText, 'own help', reason: "first-wins: the control's own help is preserved");
   });
 
   test('structural node fallback: unknown drawable under 0x1b with only 0x15 children -> node', () {
@@ -1150,8 +1171,8 @@ void main() {
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[3]!.objectClass, BdObjectClass.unknown, reason: '0x1ff is not catalogued by code');
-    expect(d.byId[3]!.category, BdObjectKind.node);
+    expect(d.byOid(3)!.objectClass, BdObjectClass.unknown, reason: '0x1ff is not catalogued by code');
+    expect(d.byOid(3)!.category, BdObjectKind.node);
   });
 
   test('a BD node inherits its name from its child 0xa caption', () {
@@ -1161,13 +1182,14 @@ void main() {
       ...open(0x2f, 2, tag: 0x1a),
       ...bounds(10, 10, 42, 42),
       ...open(0xa, 3, tag: 0x1b),
+      ...bounds(0, 0, 10, 60),
       ...caption('Build Array'),
       ...close(0x1b),
       ...close(0x1a),
       ...close(),
     ]);
-    expect(d.byId[3]!.label, 'Build Array', reason: 'the child 0xa carries the C4 22 caption');
-    expect(d.byId[2]!.label, 'Build Array', reason: 'the caption propagates up to name the 0x2f node');
+    expect(d.byOid(3)!.label, 'Build Array', reason: 'the child 0xa carries the C4 22 caption');
+    expect(d.byOid(2)!.label, 'Build Array', reason: 'the caption propagates up to name the 0x2f node');
   });
 
   test(
@@ -1175,17 +1197,17 @@ void main() {
     () {
       final blob = dia([
         ...open(0x13, 1),
-        ...bounds(0, 0, 17, 80),
+        ...typeIndex(0),
         ...c6blob(0x6c, 'ps2000aRunStreaming'),
         ...close(),
-      ]).byId[1]!;
+      ]).byOid(1)!;
       expect(blob.constant?.text, 'ps2000aRunStreaming', reason: 'raw 0x26C is a BD string constant value, not help');
       expect(blob.helpText, isNull);
 
       const s = 'ps2000aRunStreaming';
       final u8tok = dia([
         ...open(0x13, 1),
-        ...bounds(0, 0, 17, 80),
+        ...typeIndex(0),
         0xc6,
         0x6c,
         4 + s.length,
@@ -1195,7 +1217,7 @@ void main() {
         s.length,
         ...s.codeUnits,
         ...close(),
-      ]).byId[1]!;
+      ]).byOid(1)!;
       expect(
         (u8tok.helpText, u8tok.constant?.text),
         (null, s),
@@ -1295,11 +1317,9 @@ void resolveTypesTests() {
   const table = [0, 0, 1, 2, 3, 1];
   final dthp = ViDataTypeHeap(Uint8List.fromList([0, 4, 0, 3])) as ViDataTypeHeapCompact;
 
-  BdObject obj(int oid, int kind, {int? tdi}) {
-    final o = BdObject(oid: oid, kind: kind, offset: 0);
-    if (tdi != null) o.typeDescIdx = tdi;
-    return o;
-  }
+  const zero = HeapRect(top: 0, left: 0, bottom: 0, right: 0);
+  BdControlBody obj(int oid, int kind, {required int tdi}) =>
+      BdControlBody(BdObjectClass.fromCode(kind), oid: oid, bounds: zero, typeDescIdx: tdi);
 
   BdDiagram bd(List<BdObject> objects) => BdDiagram(objects: objects);
 
@@ -1312,11 +1332,8 @@ void resolveTypesTests() {
     final strConst = obj(1, 0x51, tdi: 1);
     final boolConst = obj(2, 0x4f, tdi: 2);
     final loopCount = obj(3, 0x24, tdi: 3);
-    final dco = FpObject(oid: 10, kind: 0x12, offset: 0)
-      ..typeDescIdx = 4
-      ..objFlags = ViObjFlag.indicator.mask;
-    final terminal = obj(11, 0x16);
-    terminal.addRef(HeapRefKind.dcoRef, 10);
+    final dco = FpDataObject(oid: 10, typeDescIdx: 4, objFlags: ViObjFlag.indicator.mask);
+    final terminal = BdPanelTerminal(oid: 11, bounds: zero, dcoRef: 10);
     final types = ViDataSpaceTypes(pool: pool, table: table, typeIndexBase: dthp.viTypeIndexBase);
     final panels = [
       FpPanel(objects: [dco]),
@@ -1328,7 +1345,7 @@ void resolveTypesTests() {
       panels,
       types,
     );
-    expect(terminal.panelTerminal?.isIndicator, isTrue, reason: 'the terminal learns its direction from the panel');
+    expect(terminal.isIndicator, isTrue, reason: 'the terminal learns its direction from the panel');
     expect(strConst.typeKind, ViTypeKind.string);
     expect(boolConst.typeKind, ViTypeKind.boolean);
     expect(loopCount.dataType, ViDataType.i32);
@@ -1403,7 +1420,7 @@ void resolveTypesTests() {
       ),
     ];
     for (final (why, records, want) in rows) {
-      final b = dia(records).byId[2]!.absBounds!;
+      final b = dia(records).byOid(2)!.absBounds!;
       expect((b.top, b.left), want, reason: why);
     }
   });
@@ -1421,36 +1438,33 @@ void resolveTypesTests() {
   });
 
   test('a hand-built diagram links parents and children from parentOid in either order', () {
-    BdObject obj(int oid, [int? parentOid]) => BdObject(oid: oid, kind: 0x50, offset: 0)..parentOid = parentOid;
+    BdObject obj(int oid, [int? parentOid]) => BdControlBody(
+      BdObjectClass.numeric,
+      oid: oid,
+      parentOid: parentOid,
+      bounds: const HeapRect(top: 0, left: 0, bottom: 0, right: 0),
+      typeDescIdx: 0,
+    );
     for (final objects in [
       [obj(1), obj(2, 1), obj(3, 1)],
       [obj(2, 1), obj(3, 1), obj(1)],
     ]) {
       final d = BdDiagram(objects: objects);
       expect(d.children(1).map((o) => o.oid), [2, 3]);
-      expect(d.childrenOf(d.byId[1]!), d.children(1));
-      expect(d.parentOf(d.byId[2]!)?.oid, 1);
+      expect(d.childrenOf(d.byOid(1)!), d.children(1));
+      expect(d.parentOf(d.byOid(2)!)?.oid, 1);
       expect(d.objects.map((o) => o.index), [0, 1, 2]);
     }
   });
 
-  test('references are kept per kind in record order; refs is the childRef list', () {
-    final o = BdObject(oid: 1, kind: 0x50, offset: 0);
-    expect(HeapRefKind.values.map(o.refsOf), everyElement(isNull));
-    expect(o.refs, isEmpty);
-    o.addRef(HeapRefKind.dcoRef, 3);
-    o.addRef(HeapRefKind.childRef, 9);
-    o.addRef(HeapRefKind.childRef, 4);
-    expect(
-      [o.refsOf(HeapRefKind.childRef), o.refsOf(HeapRefKind.dcoRef), o.refsOf(HeapRefKind.ownerRef)],
-      [
-        [9, 4],
-        [3],
-        null,
-      ],
-    );
-    expect(o.refs, [9, 4]);
-    expect(o.memberOids, [9, 4, 3]);
+  test('refs is the childRef list in record order; a terminal holder adds its dcoRef to memberOids', () {
+    final bare = BdTerminalHolder(oid: 1);
+    expect(bare.refs, isEmpty);
+    expect(bare.dcoRef, isNull);
+    expect(bare.memberOids, isEmpty);
+    final holder = BdTerminalHolder(oid: 1, refs: [9, 4], dcoRef: 3);
+    expect(holder.refs, [9, 4]);
+    expect(holder.memberOids, [9, 4, 3]);
   });
 
   test('type-kind evidence: record bits, format conversion characters, strongest kind wins', () {

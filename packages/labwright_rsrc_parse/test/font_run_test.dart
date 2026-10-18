@@ -7,6 +7,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
+import 'shape_probe.dart';
 
 void main() {
   const cases = <(String, int, int, bool, int, String?)>[

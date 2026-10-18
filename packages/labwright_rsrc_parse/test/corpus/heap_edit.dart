@@ -4,6 +4,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
 import '../corpus_dirs.dart';
+import '../shape_probe.dart';
 
 const _laws = {'span', 'nesting', 'boundsRecord', 'labelRecord', 'moved', 'relabelled', 'cloned', 'others', 'undone'};
 
@@ -47,9 +48,9 @@ Map<String, int> _census(CorpusVi vi) {
   if (primary == null) return c;
   var diagram = primary;
   final before = [for (final o in diagram.objects) _row(o)];
-  final movable = diagram.objects.where((o) => o.boundsOffset != null).firstOrNull;
-  final labelled = diagram.objects.where((o) => o.labelOffset != null).firstOrNull;
-  final leaf = diagram.objects.where((o) => o.boundsOffset != null && diagram.childrenOf(o).isEmpty).firstOrNull;
+  final movable = diagram.placed.firstOrNull;
+  final labelled = diagram.placed.where((o) => o.caption?.recordOffset != null).firstOrNull;
+  final leaf = diagram.placed.where((o) => diagram.childrenOf(o).isEmpty).firstOrNull;
   if (movable == null && labelled == null && leaf == null) return c;
   if (movable != null) edited.moveObject(diagram, movable, dx: 3, dy: 5);
   if (labelled != null) edited.setLabel(diagram, labelled, '${labelled.label}+');

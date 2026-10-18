@@ -1,6 +1,7 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:test/test.dart';
 
+import 'shape_probe.dart';
 import 'test_util.dart';
 
 List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
@@ -8,7 +9,7 @@ List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
 BdDiagram bdOf(List<int> records) =>
     buildViModelFromDecoded([dsec(heapBody(records), tag: 'BDHb')]).blockDiagrams.first;
 
-BdObject heapObj(
+BdPlaced heapObj(
   int kind, {
   int oid = 1,
   BdObjectKind? cat,
@@ -16,12 +17,25 @@ BdObject heapObj(
   String? label,
   ViTypeKind? typeKind,
 }) {
-  final object = BdObject(oid: oid, kind: kind, offset: 0);
-  if (cat != null) object.category = cat;
-  if (at != null) object.absBounds = HeapRect(top: at.$1, left: at.$2, bottom: at.$3, right: at.$4);
-  if (label != null) object.label = label;
-  if (typeKind != null) object.typeKind = typeKind;
-  return object;
+  final cls = BdObjectClass.fromCode(kind);
+  final rect = at == null
+      ? const HeapRect(top: 0, left: 0, bottom: 0, right: 0)
+      : HeapRect(top: at.$1, left: at.$2, bottom: at.$3, right: at.$4);
+  final caption = label == null ? null : HeapCaption(label);
+  return switch (cat ?? cls.category) {
+    BdObjectKind.node => BdNode(cls, oid: oid, bounds: rect, caption: caption),
+    BdObjectKind.structure => BdStructure(cls, oid: oid, bounds: rect, caption: caption),
+    BdObjectKind.terminal => BdControlBody(
+      cls,
+      oid: oid,
+      bounds: rect,
+      caption: caption,
+      typeDescIdx: 0,
+      typeKind: typeKind ?? ViTypeKind.unknown,
+    ),
+    BdObjectKind.wire => BdWire(oid: oid, bounds: rect, caption: caption),
+    _ => BdUnknownPlaced(cls, oid: oid, bounds: rect, caption: caption),
+  };
 }
 
 final inlinedSubViControlBd = <int>[
@@ -30,8 +44,10 @@ final inlinedSubViControlBd = <int>[
   ...open(0x1b, 2, tag: 0x1a),
   ...open(0x15, 3, tag: 0x1b),
   ...open(0x13, 4, tag: 0x1c),
+  ...typeIndex(0),
   ...open(0x51, 5, tag: 0x1d),
   ...bounds(200, 200, 220, 300),
+  ...typeIndex(0),
   ...open(0x0a, 6, tag: 0x1e),
   ...bounds(180, 200, 197, 285),
   ...caption('Requirement ID'),
@@ -39,6 +55,7 @@ final inlinedSubViControlBd = <int>[
   ...close(0x1d),
   ...open(0x50, 7, tag: 0x1d),
   ...bounds(120, 120, 140, 160),
+  ...typeIndex(0),
   ...close(0x1d),
   ...close(0x1c),
   ...close(0x1b),
@@ -122,7 +139,7 @@ void main() {
 
   test('a numeric constant with a hidden name label is kept, not treated as inlined', () {
     final diagram = bdOf(hiddenLabeledConstantBd);
-    final namePart = diagram.byId[4]!;
+    final namePart = diagram.byOid(4)!;
     expect(namePart.label, 'x', reason: 'the scalar caption is decoded on the name part');
     expect(namePart.isLabelHidden, isTrue, reason: 'the name part is hidden');
     expect(bdDrawableObjects(diagram).map((o) => o.oid), contains(3));
@@ -161,12 +178,21 @@ void main() {
         ...close(),
       ]),
     );
-    expect(membersOf(diagram.byId[2], diagram.byId).map((m) => m.oid).toSet(), {9});
-    expect(membersOf(null, diagram.byId), isEmpty);
+    expect(membersOf(diagram.byOid(2), diagram).map((m) => m.oid).toSet(), {9});
+    expect(membersOf(null, diagram), isEmpty);
   });
 
   group('nodesWithin', () {
-    BdObject at(int oid, BdObjectKind cat, (int, int, int, int) rect) => heapObj(0x2f, oid: oid, cat: cat, at: rect);
+    BdPlaced at(int oid, BdObjectKind cat, (int, int, int, int) rect) => heapObj(
+      switch (cat) {
+        BdObjectKind.structure => 0x20,
+        BdObjectKind.terminal => 0x50,
+        _ => 0x2f,
+      },
+      oid: oid,
+      cat: cat,
+      at: rect,
+    );
 
     test('keeps logic nodes spatially inside; drops outsiders/terminals', () {
       final loop = at(1, BdObjectKind.structure, (0, 0, 200, 200));
