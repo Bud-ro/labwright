@@ -115,7 +115,7 @@ bool objectVisibleInRender(BdDiagram bd, int oid) {
   var o = bd.byId[oid];
   for (var i = 0; o != null && i < 64; i++) {
     final p = o.parentOid == null ? null : bd.byId[o.parentOid!];
-    if (p != null && o.kind == 0x1b && kMultiFrameStructureClasses.contains(p.objectClass)) {
+    if (p != null && o.kind == 0x1b && p.frames != null) {
       var idx = 0;
       for (final sib in bd.objects) {
         if (sib.parentOid == p.oid && sib.kind == 0x1b) {

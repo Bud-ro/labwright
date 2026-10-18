@@ -68,7 +68,7 @@ Map<int, String> bdConstValueTexts(BdDiagram diagram) {
     if (object.category != BdObjectKind.terminal) continue;
     final bounds = object.absBounds;
     if (bounds == null || bounds.width <= 0 || bounds.height <= 0) continue;
-    final parent = _parentOf(object, byId);
+    final parent = byId[object.parentOid];
     final value = parent?.constant?.numeric;
     if (value == null) continue;
     out[object.oid] = bdFormatConstValue(
@@ -210,7 +210,7 @@ bool _isInlinedSubViControl(BdObject o, BdDiagram diagram) {
   while (parentOid != null && seen.add(parentOid)) {
     final parent = byId[parentOid];
     if (parent == null) break;
-    if (parent.objectClass == BdObjectClass.constant || parent.kind == kNodeEndpointDcoKind) {
+    if (parent.objectClass == BdObjectClass.constant || parent.objectClass == BdObjectClass.terminalHolder) {
       if (parent.constant case final constant?
           when o.typeKind == ViTypeKind.numericInt &&
               (constant.numeric != null || constant.boolValue != null || constant.text != null)) {
@@ -240,7 +240,7 @@ bool _isScaffolding(BdObject o, HeapObjectsByOid<BdObject> byId) {
     var cur = o;
     var depth = 0;
     while (depth++ < 64) {
-      final parent = _parentOf(cur, byId);
+      final parent = byId[cur.parentOid];
       if (parent == null) break;
       if (parent.objectClass.isControlTerminal) return true;
       cur = parent;
@@ -250,7 +250,7 @@ bool _isScaffolding(BdObject o, HeapObjectsByOid<BdObject> byId) {
     var cur = o;
     var depth = 0;
     while (depth++ < 8) {
-      final parent = _parentOf(cur, byId);
+      final parent = byId[cur.parentOid];
       if (parent == null) break;
       final bounds = parent.absBounds;
       if (parent.objectClass == BdObjectClass.cluster && bounds != null && bounds.width <= 40 && bounds.height <= 24) {
@@ -297,6 +297,9 @@ Set<BdObject> nodesWithin(
   }
   return out;
 }
+
+/// The objects not drawn: everything inside a hidden frame or an inlined instance.
+Set<int> bdUndrawnOids(BdDiagram diagram) => bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
 
 /// The oids under the frames a multi-frame structure does not show: the frames other than the
 /// displayed one, or when the displayed index is unknown, the frames whose contents overlap the
@@ -395,8 +398,8 @@ Set<int> bdHiddenFrameOids(BdDiagram diagram) {
 
 /// The wires drawn: those outside hidden frames and inlined instances, with missing anchors
 /// re-based on the nearest visible bounded ancestor, and at least two distinct anchors.
-List<ViWire> bdVisibleWires(BdDiagram diagram) {
-  final hidden = bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
+List<ViWire> bdVisibleWires(BdDiagram diagram, {Set<int>? undrawn}) {
+  final hidden = undrawn ?? bdUndrawnOids(diagram);
   final byId = diagram.byId;
 
   HeapRect? reanchor(int endpointOid) {
@@ -487,10 +490,10 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
     if (box == null || bmp == null) continue;
     if (box.width <= 0 || box.height <= 0) continue;
     if (diagram.terminalGlyphHidden(object.oid)) continue;
-    var cur = _parentOf(object, byId);
+    var cur = byId[object.parentOid];
     var depth = 0;
     while (cur != null && cur.category != BdObjectKind.structure && depth++ < 8) {
-      cur = _parentOf(cur, byId);
+      cur = byId[cur.parentOid];
     }
     if (cur == null || cur.category != BdObjectKind.structure) continue;
     (out[cur.oid] ??= []).add((box: box, bmp: bmp));
@@ -498,19 +501,14 @@ Map<int, List<({HeapRect box, int bmp})>> bdStructureTerminals(
   return out;
 }
 
-BdObject? _parentOf(BdObject object, HeapObjectsByOid<BdObject> byId) {
-  final parentOid = object.parentOid;
-  return parentOid == null ? null : byId[parentOid];
-}
-
 bool _nestedInStructure(BdObject object, HeapObjectsByOid<BdObject> byId) {
-  var cur = _parentOf(object, byId);
+  var cur = byId[object.parentOid];
   var depth = 0;
   while (cur != null && depth++ < 16) {
     if (cur.category == BdObjectKind.structure && cur.parentOid != null) {
       return true;
     }
-    cur = _parentOf(cur, byId);
+    cur = byId[cur.parentOid];
   }
   return false;
 }
@@ -518,9 +516,9 @@ bool _nestedInStructure(BdObject object, HeapObjectsByOid<BdObject> byId) {
 /// The objects drawn: bounded, plausibly sized, outside hidden frames and inlined instances,
 /// inside their constant and structure boxes, and neither scaffolding nor an inlined subVI
 /// control.
-List<BdObject> bdDrawableObjects(BdDiagram diagram) {
+List<BdObject> bdDrawableObjects(BdDiagram diagram, {Set<int>? undrawn}) {
   final byId = diagram.byId;
-  final hidden = bdHiddenFrameOids(diagram)..addAll(bdInlinedInstanceOids(diagram));
+  final hidden = undrawn ?? bdUndrawnOids(diagram);
   return [
     for (final object in diagram.objects)
       if (object.absBounds case final bounds?)
@@ -546,7 +544,7 @@ bool _escapesConstantBox(BdObject object, HeapObjectsByOid<BdObject> byId) {
   var depth = 0;
   var underConst = false;
   while (depth++ < 64) {
-    final parent = _parentOf(cur, byId);
+    final parent = byId[cur.parentOid];
     if (parent == null) break;
     if (parent.objectClass == BdObjectClass.constant) {
       underConst = true;
@@ -590,7 +588,7 @@ bool _escapesStructureBox(
   var cur = object;
   var depth = 0;
   while (depth++ < 64) {
-    final parent = _parentOf(cur, byId);
+    final parent = byId[cur.parentOid];
     if (parent == null) return false;
     if (parent.objectClass == BdObjectClass.wire) return false;
     final box = parent.absBounds;
@@ -669,7 +667,7 @@ int _depthOf(BdObject object, HeapObjectsByOid<BdObject> byId) {
   var depth = 0;
   var cur = object;
   while (depth < 64) {
-    final parent = _parentOf(cur, byId);
+    final parent = byId[cur.parentOid];
     if (parent == null) break;
     cur = parent;
     depth++;
@@ -743,8 +741,8 @@ const Set<BdObjectClass> kBdBorderTerminalClasses = {
 typedef BdBorderTerminal = ({BdObjectClass objectClass, bool hollow, bool centreDot, bool disabled});
 
 /// The chrome of every border terminal a visible wire attaches to, by attach box.
-Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(BdDiagram diagram) {
-  final disabledOids = bdDisabledObjectOids(diagram);
+Map<HeapRect, BdBorderTerminal> bdBorderTerminalKinds(BdDiagram diagram, {Set<int>? disabledOids}) {
+  disabledOids ??= bdDisabledObjectOids(diagram);
   final out = <HeapRect, BdBorderTerminal>{};
   final wires = bdVisibleWires(diagram);
   final dimsByTerminal = <int, Set<int>>{};
@@ -814,12 +812,16 @@ Set<int> bdDisabledObjectOids(BdDiagram diagram) {
 
 /// The drawing decisions for one diagram, each computed once on first use.
 class ViDiagramSemantics {
-  ViDiagramSemantics(
-    this.diagram, {
-    List<ViWire>? wires,
-    List<BdObject>? drawable,
-  }) : wires = wires ?? bdVisibleWires(diagram),
-       drawable = drawable ?? bdDrawableObjects(diagram);
+  factory ViDiagramSemantics(BdDiagram diagram, {List<ViWire>? wires, List<BdObject>? drawable}) {
+    final undrawn = wires == null || drawable == null ? bdUndrawnOids(diagram) : null;
+    return ViDiagramSemantics._(
+      diagram,
+      wires ?? bdVisibleWires(diagram, undrawn: undrawn),
+      drawable ?? bdDrawableObjects(diagram, undrawn: undrawn),
+    );
+  }
+
+  ViDiagramSemantics._(this.diagram, this.wires, this.drawable);
 
   final BdDiagram diagram;
 
@@ -834,7 +836,10 @@ class ViDiagramSemantics {
 
   late final Set<int> errorCaseOids = bdErrorCaseOids(diagram);
 
-  late final Map<HeapRect, BdBorderTerminal> borderTerminalKinds = bdBorderTerminalKinds(diagram);
+  late final Map<HeapRect, BdBorderTerminal> borderTerminalKinds = bdBorderTerminalKinds(
+    diagram,
+    disabledOids: disabledOids,
+  );
 
   late final Map<int, List<({HeapRect box, int bmp})>> structureTerminals = bdStructureTerminals(diagram);
 

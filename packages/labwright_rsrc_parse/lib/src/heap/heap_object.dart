@@ -297,6 +297,12 @@ abstract class HeapObject {
   /// Whether the object is a text label.
   bool get isTextLabel;
 
+  /// Whether the object is a typed control body that carries a value.
+  bool get isControlTerminal;
+
+  /// Whether the object is a pane: a scrolled viewport whose controls are placed relative to it.
+  bool get isPane;
+
   bool get isLabelHidden => isTextLabel && hasFlag(ViObjFlag.labelHidden);
 }
 
@@ -357,8 +363,6 @@ abstract class HeapObjectTree<T extends HeapObject> {
 
   final List<List<T>?> _childrenOf;
 
-  Iterable<T> get roots => objects.where((o) => o.parentOid == null);
-
   /// The object [object]'s [HeapObject.parentOid] names, null for a root.
   T? parentOf(T object) {
     final parentOid = object.parentOid;
@@ -373,16 +377,10 @@ abstract class HeapObjectTree<T extends HeapObject> {
     return object == null ? const [] : childrenOf(object);
   }
 
-  /// Every object with a bounds record.
-  Iterable<T> get nodes => objects.where((o) => o.absBounds != null);
-
   /// The nearest of [start] and its ancestors with absolute bounds.
   T? boundedOwnerOf(T start) {
-    T? object = start;
-    for (var depth = 0; object != null && depth < objects.length; depth++) {
+    for (T? object = start; object != null; object = parentOf(object)) {
       if (object.absBounds != null) return object;
-      final parentOid = object.parentOid;
-      object = parentOid == null ? null : byId[parentOid];
     }
     return null;
   }

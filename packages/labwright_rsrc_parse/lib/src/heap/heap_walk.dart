@@ -17,7 +17,7 @@
 /// C4 description (0x19)                    helpText
 /// reference records                        refs (childRef targets), refsOf (every kind)
 /// attributes                               typeDescIdx, objFlags, displayFormat, bgRgb, fgRgb,
-///                                          contentRgb
+///                                          contentRgb, labelModeWord
 /// font run groups                          textStyleRuns
 /// ```
 library;
@@ -30,10 +30,10 @@ import 'heap_object.dart';
 
 /// A group of records the walk routes to one owner object until the group closes: font runs,
 /// an array's index group, a case structure's selector lists.
-abstract class HeapGroupCapture<T extends HeapObject> {
+abstract class HeapGroupCapture {
   HeapGroupCapture(this.owner);
 
-  final T owner;
+  final HeapObject owner;
 
   /// How many groups are open inside the capture, the capture's own group included.
   int depth = 1;
@@ -50,7 +50,7 @@ abstract class HeapGroupCapture<T extends HeapObject> {
 }
 
 /// The font runs of an object's text.
-class FontRunCapture<T extends HeapObject> extends HeapGroupCapture<T> {
+class FontRunCapture extends HeapGroupCapture {
   FontRunCapture(super.owner);
 
   final List<({int start, int fontId})> _runs = [];
@@ -95,7 +95,7 @@ class FontRunCapture<T extends HeapObject> extends HeapGroupCapture<T> {
 }
 
 /// The displayed element index of an array container.
-class ArrayIndexCapture<T extends HeapObject> extends HeapGroupCapture<T> {
+class ArrayIndexCapture extends HeapGroupCapture {
   ArrayIndexCapture(super.owner);
 
   @override
@@ -114,8 +114,8 @@ abstract class HeapWalkListener<T extends HeapObject> {
   T createObject({required int oid, required int kind, required int offset});
 
   /// A capture for the group [tag] that opened under [owner], or null to let the records
-  /// through.
-  HeapGroupCapture<T>? captureGroup(T owner, int tag) => null;
+  /// through; one capture of a kind is open at a time.
+  HeapGroupCapture? captureGroup(T owner, int tag) => null;
 
   /// The attributes the heap reads beyond the shared ones; the walk decodes no other.
   Set<HeapAttribute> get attributes;
@@ -178,6 +178,7 @@ Uint8List _bigEndian(int value, int bytes) {
 const Set<HeapAttribute> _sharedAttributes = {
   HeapAttribute.backgroundColor,
   HeapAttribute.contentColor,
+  HeapAttribute.cosmColorB,
   HeapAttribute.fgColor,
   HeapAttribute.formatStyle,
   HeapAttribute.objFlags,
@@ -221,10 +222,8 @@ int? _scalarColorRgb(int value) {
   return value == 0x1 || (rgb == 0 && value >>> 24 == 0x01) ? null : rgb;
 }
 
-int? _attrColorRgb(HeapAttr attr) {
-  final rawColor = attr.kind == HeapAttrKind.color && attr.value is int ? attr.value as int : null;
-  return attr.isTransparent || rawColor == 0x1 ? null : attr.rgb;
-}
+int? _attrColorRgb(HeapAttr attr) =>
+    attr.kind == HeapAttrKind.color && attr.value is int ? _scalarColorRgb(attr.value as int) : null;
 
 /// Replays a heap body (the section payload including its length word) into [listener]'s
 /// objects, each with its [HeapObject.end] and inferred [HeapObject.typeKind] set.
@@ -239,7 +238,7 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
   final attributeRaws = _attributeTable(listener.attributes);
   final reading = HeapAttrReading();
 
-  final captures = <HeapGroupCapture<T>>[];
+  final captures = <HeapGroupCapture>[];
   final scopes = <T?>[];
   final groupTags = <int?>[];
   var next = 4;
@@ -271,18 +270,15 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
       final groupTag = body[offset + 1];
       scopes.add(cur);
       groupTags.add(groupTag);
-      var fontRunsOpen = false;
       for (final capture in captures) {
         capture.depth++;
         capture.openGroup(groupTag);
-        if (capture is FontRunCapture<T>) fontRunsOpen = true;
       }
       if (cur == null) continue;
-      if (groupTag == HeapGroupTag.fontRunList.tag) {
-        if (!fontRunsOpen) captures.add(FontRunCapture(cur));
-      } else if (listener.captureGroup(cur, groupTag) case final capture?) {
-        captures.add(capture);
-      }
+      final capture = groupTag == HeapGroupTag.fontRunList.tag
+          ? FontRunCapture(cur)
+          : listener.captureGroup(cur, groupTag);
+      if (capture != null && !captures.any((open) => open.runtimeType == capture.runtimeType)) captures.add(capture);
       continue;
     }
     if (isHeapGroupCloseLead(lead)) {
@@ -330,7 +326,7 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
             final left = originLeft[cur.index] + bounds.left;
             originTop[cur.index] = top;
             originLeft[cur.index] = left;
-            cur.absBounds = HeapRect(top: top, left: left, bottom: top + bounds.height, right: left + bounds.width);
+            cur.absBounds = bounds.shift(top - bounds.top, left - bounds.left);
           }
         case 0x22:
           if (cur.label == null) {
@@ -395,6 +391,8 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
           cur.fgRgb ??= reading.rgb;
         case HeapAttribute.contentColor:
           cur.contentRgb ??= reading.rgb;
+        case HeapAttribute.cosmColorB:
+          if (cur.isTextLabel) cur.labelModeWord ??= reading.asInt;
         case HeapAttribute.shortText:
           final text = reading.asciiText;
           if (text != null && text.length == reading.scalarBytes) cur.label ??= text;
@@ -436,35 +434,22 @@ List<String> _parseEnumItems(List<int> payload) {
 void rebaseLabelBounds<T extends HeapObject>(HeapObjectTree<T> tree) {
   for (final object in tree.objects) {
     if (!object.isTextLabel) continue;
-    final parent = tree.parentOf(object);
     final local = object.bounds;
-    final ownerBounds = parent?.bounds;
-    final ownerAbs = parent?.absBounds;
-    if (local == null || ownerBounds == null || ownerAbs == null) continue;
-    object.absBounds = HeapRect(
-      top: ownerAbs.top + local.top,
-      left: ownerAbs.left + local.left,
-      bottom: ownerAbs.top + local.top + local.height,
-      right: ownerAbs.left + local.left + local.width,
-    );
+    final ownerAbs = tree.parentOf(object)?.absBounds;
+    if (local != null && ownerAbs != null) object.absBounds = local.shift(ownerAbs.top, ownerAbs.left);
   }
 }
 
-/// Copies enum and ring items up to the nearest ancestor [isControl] accepts.
-void bubbleItemsToControls<T extends HeapObject>(HeapObjectTree<T> tree, {required bool Function(T) isControl}) {
+/// Copies enum and ring items up to the nearest control terminal, at most twelve levels up.
+void bubbleItemsToControls<T extends HeapObject>(HeapObjectTree<T> tree) {
   for (final object in tree.objects) {
     if (object.items.isEmpty) continue;
-    var parentOid = object.parentOid;
     var depth = 0;
-    while (parentOid != null && depth < 12) {
-      final po = tree.byId[parentOid];
-      if (po == null) break;
-      if (isControl(po)) {
+    for (var po = tree.parentOf(object); po != null && depth < 12; po = tree.parentOf(po), depth++) {
+      if (po.isControlTerminal) {
         if (po.items.isEmpty) po.items = object.items;
         break;
       }
-      parentOid = po.parentOid;
-      depth++;
     }
   }
 }
@@ -474,16 +459,11 @@ void bubbleHelpText<T extends HeapObject>(HeapObjectTree<T> tree) {
   for (final object in tree.objects) {
     final helpText = object.helpText;
     if (helpText == null || helpText.isEmpty || object.absBounds != null) continue;
-    var parentOid = object.parentOid;
-    final seen = <int>{};
-    while (parentOid != null && seen.add(parentOid)) {
-      final po = tree.byId[parentOid];
-      if (po == null) break;
+    for (var po = tree.parentOf(object); po != null; po = tree.parentOf(po)) {
       if (po.absBounds != null) {
         po.helpText ??= helpText;
         break;
       }
-      parentOid = po.parentOid;
     }
   }
 }
@@ -491,69 +471,41 @@ void bubbleHelpText<T extends HeapObject>(HeapObjectTree<T> tree) {
 /// Shifts the absolute bounds of [root] and everything inside it by ([dLeft], [dTop]).
 void shiftSubtree<T extends HeapObject>(HeapObjectTree<T> tree, T root, {required int dTop, required int dLeft}) {
   if (dTop == 0 && dLeft == 0) return;
-  final seen = <T>{root};
-  final expanded = <int>{};
   final work = <T>[root];
   while (work.isNotEmpty) {
     final object = work.removeLast();
-    final bounds = object.absBounds;
-    if (bounds != null) {
-      object.absBounds = HeapRect(
-        top: bounds.top + dTop,
-        left: bounds.left + dLeft,
-        bottom: bounds.bottom + dTop,
-        right: bounds.right + dLeft,
-      );
-    }
-    if (!expanded.add(object.oid)) continue;
-    for (final child in tree.childrenOf(object)) {
-      if (seen.add(child)) work.add(child);
-    }
+    object.absBounds = object.absBounds?.shift(dTop, dLeft);
+    work.addAll(tree.childrenOf(object));
   }
 }
 
-/// Moves the controls under a scrolled viewport ([isPane]) so the group's top-left sits at the
-/// viewport's origin.
-void reanchorScrolledControls<T extends HeapObject>(
-  HeapObjectTree<T> tree, {
-  required bool Function(T) isPane,
-  required bool Function(T) isControl,
-}) {
-  final objects = tree.objects;
-  final byOid = tree.byId;
-  int? reanchorViewport(T object) {
-    var parentOid = object.parentOid;
-    for (var depth = 0; parentOid != null && depth < objects.length; depth++) {
-      final po = byOid[parentOid];
-      if (po == null) return null;
-      if (isPane(po)) return po.oid;
-      if (isControl(po) || po.bounds != null) return null;
-      parentOid = po.parentOid;
+/// Moves the control terminals under a scrolled pane so the group's top-left sits at the pane's
+/// origin.
+void reanchorScrolledControls<T extends HeapObject>(HeapObjectTree<T> tree) {
+  T? paneOf(T object) {
+    for (var po = tree.parentOf(object); po != null; po = tree.parentOf(po)) {
+      if (po.isPane) return po;
+      if (po.isControlTerminal || po.bounds != null) return null;
     }
     return null;
   }
 
-  final groups = <int, List<T>>{};
-  for (final object in objects) {
-    if (!isControl(object) || object.bounds == null || object.absBounds == null) continue;
-    final viewport = reanchorViewport(object);
-    if (viewport != null) (groups[viewport] ??= <T>[]).add(object);
+  final groups = <T, List<T>>{};
+  for (final object in tree.objects) {
+    if (!object.isControlTerminal || object.bounds == null || object.absBounds == null) continue;
+    final pane = paneOf(object);
+    if (pane != null) (groups[pane] ??= <T>[]).add(object);
   }
 
-  for (final MapEntry(key: vOid, value: controls) in groups.entries) {
-    final viewport = byOid[vOid];
-    if (viewport?.absBounds == null) continue;
+  for (final MapEntry(key: pane, value: controls) in groups.entries) {
+    final paneAbs = pane.absBounds;
+    if (paneAbs == null) continue;
     final minTop = controls.map((c) => c.bounds!.top).reduce(min);
     final minLeft = controls.map((c) => c.bounds!.left).reduce(min);
     for (final control in controls) {
-      final newTop = viewport!.absBounds!.top + (control.bounds!.top - minTop);
-      final newLeft = viewport.absBounds!.left + (control.bounds!.left - minLeft);
-      shiftSubtree(
-        tree,
-        control,
-        dTop: newTop - control.absBounds!.top,
-        dLeft: newLeft - control.absBounds!.left,
-      );
+      final newTop = paneAbs.top + (control.bounds!.top - minTop);
+      final newLeft = paneAbs.left + (control.bounds!.left - minLeft);
+      shiftSubtree(tree, control, dTop: newTop - control.absBounds!.top, dLeft: newLeft - control.absBounds!.left);
     }
   }
 }

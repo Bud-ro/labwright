@@ -100,13 +100,8 @@ class ViModel {
     }
     _recordsEdits = true;
     final touched = {for (final edit in group) edit.section};
-    for (final section in touched) {
-      for (final diagram in List.of(blockDiagrams)) {
-        if (section.tag == BlockTag.bdhb.tag && section.index == diagram.sectionIndex) reloadHeap(diagram);
-      }
-      for (final panel in List.of(frontPanels)) {
-        if (section.tag == BlockTag.fphb.tag && section.index == panel.sectionIndex) reloadHeap(panel);
-      }
+    for (final heap in heaps) {
+      if (touched.contains(sectionOf(heap))) reloadHeap(heap);
     }
     if (touched.any((s) => s.tag == BlockTag.vctp.tag)) reloadTypes();
     return true;
@@ -179,14 +174,12 @@ class ViModel {
     reloadTypes();
   }
 
-  /// The heap section [heap] was built from.
-  ViSectionBuffer sectionOf(HeapObjectTree heap) => section(_tagOf(heap).tag, heap.sectionIndex)!;
+  /// Every heap, block diagrams first.
+  List<HeapObjectTree> get heaps => [...blockDiagrams, ...frontPanels];
 
-  static BlockTag _tagOf(HeapObjectTree heap) => switch (heap) {
-    BdDiagram() => BlockTag.bdhb,
-    FpPanel() => BlockTag.fphb,
-    _ => throw ArgumentError.value(heap, 'heap', 'not a diagram or panel'),
-  };
+  /// The heap section [heap] was built from.
+  ViSectionBuffer sectionOf(HeapObjectTree heap) =>
+      section(heap is BdDiagram ? BlockTag.bdhb.tag : BlockTag.fphb.tag, heap.sectionIndex)!;
 
   /// Moves [object] by ([dx], [dy]): its bounds record is rewritten in place, and the absolute
   /// bounds of everything inside it follow.
@@ -194,35 +187,10 @@ class ViModel {
     final at = object.boundsOffset;
     final bounds = object.bounds;
     if (at == null || bounds == null) throw ArgumentError('object ${object.oid} has no bounds record');
-    final moved = HeapRect(
-      top: bounds.top + dy,
-      left: bounds.left + dx,
-      bottom: bounds.bottom + dy,
-      right: bounds.right + dx,
-    );
-    final payload = Uint8List(8);
-    ByteData.sublistView(payload)
-      ..setInt16(0, moved.top)
-      ..setInt16(2, moved.left)
-      ..setInt16(4, moved.bottom)
-      ..setInt16(6, moved.right);
-    transact(() => sectionOf(heap).write(at, payload));
+    final moved = bounds.shift(dy, dx);
+    transact(() => sectionOf(heap).write(at, moved.toPayload()));
     object.bounds = moved;
-    void follow(T inner) {
-      if (inner.absBounds case final abs?) {
-        inner.absBounds = HeapRect(
-          top: abs.top + dy,
-          left: abs.left + dx,
-          bottom: abs.bottom + dy,
-          right: abs.right + dx,
-        );
-      }
-      for (final child in heap.childrenOf(inner)) {
-        follow(child);
-      }
-    }
-
-    follow(object);
+    shiftSubtree(heap, object, dTop: dy, dLeft: dx);
   }
 
   /// Gives [object] the label [text], written as its code units in place of its label record.
@@ -312,12 +280,9 @@ class ViModel {
   /// Rebuilds what the type pool decides, after `VCTP` changed: [types], every heap object's
   /// resolved type, [connectorPaneType] and [paneTerminals].
   void reloadTypes() {
-    final pool = switch (section(BlockTag.vctp.tag)) {
-      final vctp? => ViTypePool(vctp.bytes),
-      null => null,
-    };
+    final pool = _decode(BlockTag.vctp, ViTypePool.new);
     types = pool?.types ?? const <ViType>[];
-    for (final heap in <HeapObjectTree>[...blockDiagrams, ...frontPanels]) {
+    for (final heap in heaps) {
       for (final object in heap.objects) {
         object.resolvedType = null;
       }
@@ -325,34 +290,27 @@ class ViModel {
     final dataSpace = ViDataSpaceTypes(
       pool: types,
       table: pool?.topLevelIndices ?? const [],
-      typeIndexBase: switch (section(BlockTag.dthp.tag)) {
-        final dthp? => switch (ViDataTypeHeap(dthp.bytes)) {
-          ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
-          _ => null,
-        },
-        null => null,
+      typeIndexBase: switch (_decode(BlockTag.dthp, ViDataTypeHeap.new)) {
+        ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
+        _ => null,
       },
     );
-    resolvePanelTypes(frontPanels, dataSpace);
-    resolveDiagramTypes(blockDiagrams, frontPanels, dataSpace);
-    connectorPaneType = switch (section(BlockTag.conp.tag)) {
-      final conp? => ViConnectorPane(conp.bytes).typeIn(pool),
-      null => null,
-    };
+    resolveDataSpaceTypes(blockDiagrams, frontPanels, dataSpace);
+    connectorPaneType = _decode(BlockTag.conp, ViConnectorPane.new)?.typeIn(pool);
     paneTerminals = connectorPaneTerminals(
       paneType: connectorPaneType,
       panels: frontPanels,
-      map: switch (section(BlockTag.cpmp.tag)) {
-        final cpmp? => ViConnectorPaneMap(cpmp.bytes),
-        null => null,
-      },
-      panelType: switch (section(BlockTag.fptd.tag)) {
-        final fptd? => ViFrontPanelType(fptd.bytes),
-        null => null,
-      },
+      map: _decode(BlockTag.cpmp, ViConnectorPaneMap.new),
+      panelType: _decode(BlockTag.fptd, ViFrontPanelType.new),
       pool: pool,
     );
   }
+
+  /// The block [tag]'s first section decoded by [decode], null without one.
+  T? _decode<T>(BlockTag tag, T Function(Uint8List) decode) => switch (section(tag.tag)) {
+    final s? => decode(s.bytes),
+    null => null,
+  };
 
   final ViFontTable? fontTable;
 }

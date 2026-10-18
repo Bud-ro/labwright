@@ -47,38 +47,28 @@ void _resolveOwn(HeapObject object, ViDataSpaceTypes types) {
   object.resolvedType = resolved;
 }
 
-/// Resolves every panel object's own type index.
-void resolvePanelTypes(List<FpPanel> panels, ViDataSpaceTypes types) {
-  if (!types.resolvable) return;
-  for (final panel in panels) {
-    for (final object in panel.objects) {
-      _resolveOwn(object, types);
-    }
-  }
-}
-
-/// Resolves every diagram object's own type index, copies a data object's type and direction
-/// to the terminals that reference it through `dcoRef`, on the diagram or the panels, then
-/// decodes constant values.
-void resolveDiagramTypes(List<BdDiagram> diagrams, List<FpPanel> panels, ViDataSpaceTypes types) {
+/// Resolves every object's own type index, copies a data object's type and direction to the
+/// terminals that reference it through `dcoRef` (on the same diagram, another diagram or a
+/// panel, searched in that order), then decodes constant values.
+void resolveDataSpaceTypes(List<BdDiagram> diagrams, List<FpPanel> panels, ViDataSpaceTypes types) {
   HeapObject? findDco(BdDiagram own, int oid) {
     final local = own.byId[oid];
     if (local != null) return local;
-    for (final panel in panels) {
-      final hit = panel.byId[oid];
-      if (hit != null) return hit;
-    }
     for (final diagram in diagrams) {
       if (identical(diagram, own)) continue;
       final hit = diagram.byId[oid];
+      if (hit != null) return hit;
+    }
+    for (final panel in panels) {
+      final hit = panel.byId[oid];
       if (hit != null) return hit;
     }
     return null;
   }
 
   if (types.resolvable) {
-    for (final diagram in diagrams) {
-      for (final object in diagram.objects) {
+    for (final heap in <HeapObjectTree>[...panels, ...diagrams]) {
+      for (final object in heap.objects) {
         _resolveOwn(object, types);
       }
     }
@@ -90,7 +80,7 @@ void resolveDiagramTypes(List<BdDiagram> diagrams, List<FpPanel> panels, ViDataS
       final dco = findDco(diagram, dcoRefs.first);
       if (dco == null) continue;
       if (object.panelTerminal case final terminal? when dco is FpObject) {
-        terminal.isIndicator ??= dco.dataObject?.isIndicator;
+        terminal.isIndicator ??= dco.isIndicator;
       }
       if (!types.resolvable || object.typeDescIdx != null) continue;
       if (dco.typeKind != ViTypeKind.unknown) object.typeKind = dco.typeKind;

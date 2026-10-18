@@ -42,7 +42,7 @@ void main() {
         BdObject? dco;
         for (final oid in wire.endpointOids) {
           final o = diagram.byId[oid];
-          if (o != null && o.kind == kNodeEndpointDcoKind && o.absBounds == null) {
+          if (o != null && o.objectClass == BdObjectClass.terminalHolder && o.absBounds == null) {
             dco = o;
             break;
           }
@@ -55,7 +55,7 @@ void main() {
         }
         final dcos = [
           for (final c in diagram.children(node.oid))
-            if (c.kind == kNodeEndpointDcoKind) c,
+            if (c.objectClass == BdObjectClass.terminalHolder) c,
         ];
         final termIdx = dcos.indexWhere((c) => c.oid == dco!.oid);
         if (termIdx < 0) continue;

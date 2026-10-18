@@ -41,7 +41,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
 ({int? x, int? y})? bdPrimTerminalOf(BdDiagram diagram, int endpointOid) {
   final head = diagram.byId[endpointOid];
   final parentOid = head?.parentOid;
-  if (head == null || head.kind != kNodeEndpointDcoKind || parentOid == null) return null;
+  if (head == null || head.objectClass != BdObjectClass.terminalHolder || parentOid == null) return null;
   final parent = diagram.byId[parentOid];
   final box = parent?.absBounds;
   if (parent == null || box == null) return null;
@@ -50,7 +50,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
   var termIdx = -1;
   var at = 0;
   for (final c in diagram.children(parentOid)) {
-    if (c.kind != kNodeEndpointDcoKind) continue;
+    if (c.objectClass != BdObjectClass.terminalHolder) continue;
     if (c.oid == head.oid) {
       termIdx = at;
       break;

@@ -553,7 +553,8 @@ class _Builder {
   late final Map<int, (BdObject node, int pane)> _callPorts = {
     for (final node in diagram.objects)
       if (kSubViCallNodeCodes.contains(node.kind))
-        for (final (pane, holder) in diagram.childrenOf(node).where((c) => c.kind == kNodeEndpointDcoKind).indexed)
+        for (final (pane, holder)
+            in diagram.childrenOf(node).where((c) => c.objectClass == BdObjectClass.terminalHolder).indexed)
           holder.oid: (node, pane),
   };
 
@@ -772,7 +773,7 @@ class _Builder {
     final ports = <int>[];
     final inputs = <int>[], outputs = <int>[];
     for (final holder in diagram.childrenOf(node)) {
-      if (holder.kind != kNodeEndpointDcoKind) continue;
+      if (holder.objectClass != BdObjectClass.terminalHolder) continue;
       ownerOfPort[holder.oid] = node.oid;
       ports.add(holder.oid);
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
@@ -799,7 +800,7 @@ class _Builder {
     final drawnTop = <int, int>{};
     final memberName = <int, String>{};
     for (final holder in diagram.childrenOf(node)) {
-      if (holder.kind != kNodeEndpointDcoKind) continue;
+      if (holder.objectClass != BdObjectClass.terminalHolder) continue;
       ownerOfPort[holder.oid] = node.oid;
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
       final record = diagram.childrenOf(holder).firstOrNull;
@@ -841,7 +842,7 @@ class _Builder {
         );
         continue;
       }
-      if (child.kind != kNodeEndpointDcoKind) continue;
+      if (child.objectClass != BdObjectClass.terminalHolder) continue;
       if (child.memberOids.isNotEmpty) continue;
       final constant = diagram
           .childrenOf(child)
@@ -909,7 +910,7 @@ class _Builder {
       for (final member in terminal.memberOids) {
         final object = byId[member];
         if (object == null) continue;
-        if (object.kind != kNodeEndpointDcoKind) {
+        if (object.objectClass != BdObjectClass.terminalHolder) {
           if (LvTerminalRole.ofCode(object.kind) != null) partner = object.oid;
           continue;
         }
@@ -971,7 +972,7 @@ class _Builder {
   _inPlacePairs(BdObject structure, int? frameOid) {
     final markers = [
       for (final child in diagram.childrenOf(structure))
-        if (child.kind != kNodeEndpointDcoKind &&
+        if (child.objectClass != BdObjectClass.terminalHolder &&
             child.objectClass != BdObjectClass.frame &&
             child.kind != BdObjectClass.textLabel.code)
           child.kind,
@@ -996,7 +997,7 @@ class _Builder {
       int? anchor;
       final indices = <int>[], names = <String>[], elements = <int>[];
       for (final holder in diagram.childrenOf(node)) {
-        if (holder.kind != kNodeEndpointDcoKind) continue;
+        if (holder.objectClass != BdObjectClass.terminalHolder) continue;
         final record = diagram.childrenOf(holder).firstOrNull;
         if (record == null) continue;
         final kindBits = (record.objFlags ?? 0) & kInPlaceIndexTerminalFlag;
@@ -1179,7 +1180,7 @@ class _Builder {
   }
 
   Iterable<BdObject> _holderRecords(BdObject holder) sync* {
-    if (holder.kind != kNodeEndpointDcoKind) return;
+    if (holder.objectClass != BdObjectClass.terminalHolder) return;
     for (final record in diagram.childrenOf(holder)) {
       if (LvTerminalRole.ofCode(record.kind) != null) yield record;
     }

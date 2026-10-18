@@ -206,51 +206,35 @@ final class BdPanelTerminal extends BdPayload {
 class BdObject extends HeapObject {
   BdObject({required super.oid, required super.kind, required super.offset})
     : objectClass = BdObjectClass.fromCode(kind),
-      category = BdObjectClass.fromCode(kind).category {
-    payload = BdPayload.forClass(objectClass);
-  }
+      category = BdObjectClass.fromCode(kind).category;
 
   final BdObjectClass objectClass;
 
+  /// The class's role, until [buildBlockDiagram] promotes an object with a size record to a
+  /// terminal cluster or an unknown class that looks like a node to a node.
   BdObjectKind category;
 
   /// The class's payload, see [BdPayload.forClass].
-  BdPayload? payload;
+  late final BdPayload? payload = BdPayload.forClass(objectClass);
 
-  BdConstant? get constant => switch (payload) {
-    final BdConstant constant => constant,
-    _ => null,
-  };
+  T? _as<T extends BdPayload>() {
+    final payload = this.payload;
+    return payload is T ? payload : null;
+  }
 
-  BdFrames? get frames => switch (payload) {
-    final BdFrames frames => frames,
-    _ => null,
-  };
+  BdConstant? get constant => _as();
 
-  BdCaseFrames? get caseFrames => switch (payload) {
-    final BdCaseFrames frames => frames,
-    _ => null,
-  };
+  BdFrames? get frames => _as();
 
-  BdSignal? get signal => switch (payload) {
-    final BdSignal signal => signal,
-    _ => null,
-  };
+  BdCaseFrames? get caseFrames => _as();
 
-  BdPrimitive? get primitive => switch (payload) {
-    final BdPrimitive primitive => primitive,
-    _ => null,
-  };
+  BdSignal? get signal => _as();
 
-  BdForeignCall? get foreignCall => switch (payload) {
-    final BdForeignCall call => call,
-    _ => null,
-  };
+  BdPrimitive? get primitive => _as();
 
-  BdPanelTerminal? get panelTerminal => switch (payload) {
-    final BdPanelTerminal terminal => terminal,
-    _ => null,
-  };
+  BdForeignCall? get foreignCall => _as();
+
+  BdPanelTerminal? get panelTerminal => _as();
 
   /// The `termBounds` attribute: a terminal's box relative to the nearest bounded ancestor's
   /// origin.
@@ -264,6 +248,12 @@ class BdObject extends HeapObject {
 
   @override
   bool get isTextLabel => objectClass == BdObjectClass.textLabel;
+
+  @override
+  bool get isControlTerminal => objectClass.isControlTerminal;
+
+  @override
+  bool get isPane => objectClass == BdObjectClass.pane;
 }
 
 /// The classes of block-diagram heap objects, by code.
@@ -482,15 +472,15 @@ enum BdObjectClass {
   static BdObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
 
   static final List<bool> _controlTerminal = [for (final c in values) kBdControlTerminalClasses.contains(c)];
-  static final List<bool> _multiFrame = [for (final c in values) kMultiFrameStructureClasses.contains(c)];
 
   bool get isUnknown => this == unknown;
 
   /// Whether the class is one of the typed control bodies that carry a value.
   bool get isControlTerminal => _controlTerminal[index];
 
-  /// Whether the class holds one frame per case, event or sequence step and shows one at a time.
-  bool get isMultiFrameStructure => _multiFrame[index];
+  /// Whether a signal's endpoint reference can target the class: a terminal holder inside a node
+  /// or a front-panel terminal.
+  bool get isSignalEndpoint => this == terminalHolder || this == panelTerminal;
 }
 
 /// The block-diagram classes of the typed control bodies that carry a value: numeric, boolean,
@@ -502,12 +492,6 @@ const kBdControlTerminalClasses = {
   BdObjectClass.path,
   BdObjectClass.string,
 };
-
-/// Class codes a signal's endpoint references target: a terminal holder or a front-panel terminal.
-final Set<int> kSignalEndpointDcoKinds = {kNodeEndpointDcoKind, BdObjectClass.panelTerminal.code};
-
-/// The class code of a terminal holder, the object a wire ends on inside a node.
-const int kNodeEndpointDcoKind = 0x0015;
 
 /// Pixels a wire's attach point moves left of a right shift register's column centre.
 const int kShiftRegisterColumnLeftOffset = 4;
@@ -523,11 +507,3 @@ const int kTerminalStripColumnWidth = 8;
 
 /// Pixels a wire's target lies left of a terminal strip's attach point.
 const int kTerminalStripTargetLeftOffset = 8;
-
-/// Structures that hold one frame per case, event or sequence step and show one at a time.
-const kMultiFrameStructureClasses = {
-  BdObjectClass.caseStructure,
-  BdObjectClass.disableStructure,
-  BdObjectClass.eventStructure,
-  BdObjectClass.stackedSequence,
-};

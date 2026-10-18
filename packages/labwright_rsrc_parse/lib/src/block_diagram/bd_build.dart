@@ -52,7 +52,7 @@ String? _selectorPoolString(Uint8List body, int offset, int lead, int span) {
 }
 
 /// A case structure's selector range list or string pool.
-class _SelectorCapture extends HeapGroupCapture<BdObject> {
+class _SelectorCapture extends HeapGroupCapture {
   _SelectorCapture(super.owner, this.frames, {required this.inPool});
 
   final BdCaseFrames frames;
@@ -128,7 +128,7 @@ class _BdWalk extends HeapWalkListener<BdObject> {
       BdObject(oid: oid, kind: kind, offset: offset);
 
   @override
-  HeapGroupCapture<BdObject>? captureGroup(BdObject owner, int tag) {
+  HeapGroupCapture? captureGroup(BdObject owner, int tag) {
     if (owner.caseFrames case final frames? when kViSelectorGroupTags.contains(tag)) {
       return _SelectorCapture(owner, frames, inPool: tag == HeapGroupTag.selectorStringPool.tag);
     }
@@ -142,7 +142,6 @@ class _BdWalk extends HeapWalkListener<BdObject> {
   Set<HeapAttribute> get attributes => const {
     HeapAttribute.compressedWireTable,
     HeapAttribute.constValue,
-    HeapAttribute.cosmColorB,
     HeapAttribute.dIdx,
     HeapAttribute.lastSignalKind,
     HeapAttribute.primResID,
@@ -174,8 +173,6 @@ class _BdWalk extends HeapWalkListener<BdObject> {
           constant.raw = attr.flatBytes;
           constant.scalar = attr.scalarBytes != null;
         }
-      case HeapAttribute.cosmColorB:
-        if (cur.isTextLabel) cur.labelModeWord ??= attr.asInt;
       case HeapAttribute.termBounds:
         cur.termBounds ??= attr.asRect;
       case HeapAttribute.termBMPs:
@@ -204,22 +201,22 @@ class _BdWalk extends HeapWalkListener<BdObject> {
 
 /// Builds the object tree of a `BDHb` body (the section payload including its length word).
 /// After the walk, label bounds are re-based on their owner, flat-sequence frames are shifted
-/// to their declared offsets, items and help text bubble up to the owning control, unknown
-/// classes that look like nodes become nodes, unlabelled nodes take their first child label,
-/// and controls under a scrolled viewport are re-anchored.
+/// to their declared offsets, objects with size records become terminal clusters, items and
+/// help text bubble up to the owning control, unknown classes that look like nodes become
+/// nodes, unlabelled nodes take their first child label, and controls under a scrolled viewport
+/// are re-anchored.
 BdDiagram buildBlockDiagram(Uint8List body, {String? version, int sectionIndex = 0}) {
   final diagram = BdDiagram(objects: walkHeap(body, _BdWalk()), version: version, sectionIndex: sectionIndex);
   rebaseLabelBounds(diagram);
   _shiftFlatSequenceFrames(diagram);
-  bubbleItemsToControls(diagram, isControl: (o) => o.objectClass.isControlTerminal);
+  for (final object in diagram.objects) {
+    if (object.termCount >= 1) object.category = BdObjectKind.terminalCluster;
+  }
+  bubbleItemsToControls(diagram);
   bubbleHelpText(diagram);
   _promoteUnknownNodes(diagram);
   _labelNodesFromChildren(diagram);
-  reanchorScrolledControls(
-    diagram,
-    isPane: (o) => o.objectClass == BdObjectClass.pane,
-    isControl: (o) => o.objectClass.isControlTerminal,
-  );
+  reanchorScrolledControls(diagram);
   return diagram;
 }
 
@@ -247,7 +244,7 @@ void _promoteUnknownNodes(BdDiagram diagram) {
     if (diagram.parentOf(object)?.objectClass != BdObjectClass.frame) continue;
     final cs = diagram.childrenOf(object);
     if (cs.isEmpty) continue;
-    final hasStructural = cs.any((c) => c.kind == kNodeEndpointDcoKind);
+    final hasStructural = cs.any((c) => c.objectClass == BdObjectClass.terminalHolder);
     final hasConnector = cs.any((c) => c.objectClass == BdObjectClass.connectorTerminal);
     if (!hasStructural || hasConnector) continue;
     object.category = BdObjectKind.node;

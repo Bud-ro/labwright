@@ -8,12 +8,10 @@ import 'heap/heap_object.dart';
 import 'model.dart';
 
 Map<String, Object?> bdDiagramToJson(BdDiagram diagram) => {
-  'sectionTag': 'BDHb',
   'objects': [for (final object in diagram.objects) _bdObjectToJson(object)],
 };
 
 Map<String, Object?> fpPanelToJson(FpPanel panel) => {
-  'sectionTag': 'FPHb',
   'objects': [for (final object in panel.objects) _fpObjectToJson(object)],
 };
 

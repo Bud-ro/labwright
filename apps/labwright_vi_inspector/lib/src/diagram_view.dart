@@ -661,7 +661,7 @@ PrimIconArt? primIconArtFor(
   if (key >= 0) return icons[key];
   final terms = diagram
       .childrenOf(object)
-      .where((c) => c.kind == kNodeEndpointDcoKind)
+      .where((c) => c.objectClass == BdObjectClass.terminalHolder)
       .length;
   final variant = icons[classVariantIconKey(object.kind, terms)];
   if (variant != null) {
@@ -2260,7 +2260,7 @@ class BdDiagramPainter extends CustomPainter {
     final nodeH = object.absBounds!.bottom - object.absBounds!.top;
     final nodeW = object.absBounds!.right - object.absBounds!.left;
     for (final dco in scene.diagram.childrenOf(object)) {
-      if (dco.kind != kNodeEndpointDcoKind) continue;
+      if (dco.objectClass != BdObjectClass.terminalHolder) continue;
       for (final t in scene.diagram.childrenOf(dco)) {
         final tb = t.termBounds;
         if (t.objectClass != BdObjectClass.byNameTerminal || tb == null)

@@ -4,6 +4,7 @@
 library;
 
 import '../heap/heap_object.dart';
+import '../heap/obj_flags.dart';
 import '../heap/object_class.dart';
 
 /// The role of a front-panel object.
@@ -44,14 +45,11 @@ sealed class FpPayload {
   };
 }
 
-/// A control's data object: where it sits on the connector pane and which way its data flows.
+/// A control's data object: where it sits on the connector pane.
 final class FpDataObject extends FpPayload {
   /// The `conNum` attribute: the control's connector-pane terminal, [kViNotOnPane] off the
   /// pane; a control saved without it sits on terminal 0.
   int? conNum;
-
-  /// Whether the control is an indicator, from its [ViObjFlag.indicator] bit.
-  bool isIndicator = false;
 }
 
 /// A numeric control's range.
@@ -80,38 +78,42 @@ const int kViNotOnPane = 0xff;
 /// One object of a front-panel heap.
 class FpObject extends HeapObject {
   FpObject({required super.oid, required super.kind, required super.offset})
-    : objectClass = FpObjectClass.fromCode(kind),
-      category = FpObjectClass.fromCode(kind).category {
-    payload = FpPayload.forClass(objectClass);
-  }
+    : objectClass = FpObjectClass.fromCode(kind);
 
   final FpObjectClass objectClass;
 
-  FpObjectKind category;
+  /// The class's role; any object with a size record is a terminal cluster.
+  FpObjectKind get category => termCount >= 1 ? FpObjectKind.terminalCluster : objectClass.category;
 
   /// The class's payload, see [FpPayload.forClass].
-  FpPayload? payload;
+  late final FpPayload? payload = FpPayload.forClass(objectClass);
 
-  FpDataObject? get dataObject => switch (payload) {
-    final FpDataObject dco => dco,
-    _ => null,
-  };
+  T? _as<T extends FpPayload>() {
+    final payload = this.payload;
+    return payload is T ? payload : null;
+  }
 
-  FpNumericRange? get numericRange => switch (payload) {
-    final FpNumericRange range => range,
-    _ => null,
-  };
+  FpDataObject? get dataObject => _as();
 
-  FpGraph? get graph => switch (payload) {
-    final FpGraph graph => graph,
-    _ => null,
-  };
+  FpNumericRange? get numericRange => _as();
+
+  FpGraph? get graph => _as();
+
+  /// Whether a typed data object is an indicator, from its [ViObjFlag.indicator] bit; null for
+  /// any other object.
+  bool? get isIndicator => dataObject == null || typeDescIdx == null ? null : hasFlag(ViObjFlag.indicator);
 
   /// The `borderColor` attribute as `0xRRGGBB`; null when absent or transparent.
   int? borderRgb;
 
   @override
   bool get isTextLabel => objectClass == FpObjectClass.textLabel;
+
+  @override
+  bool get isControlTerminal => objectClass.isControlTerminal;
+
+  @override
+  bool get isPane => objectClass == FpObjectClass.pane;
 }
 
 /// The classes of front-panel heap objects, by code.
@@ -189,23 +191,14 @@ enum FpObjectClass {
   /// The class with [code], or [unknown].
   static FpObjectClass fromCode(int code) => code >= 0 && code < _byCode.length ? _byCode[code] : unknown;
 
-  static final List<bool> _controlTerminal = [for (final c in values) kFpControlTerminalClasses.contains(c)];
-
   bool get isUnknown => this == unknown;
 
   /// Whether the class is one of the typed controls that carry a value.
-  bool get isControlTerminal => _controlTerminal[index];
+  bool get isControlTerminal => switch (this) {
+    numeric || boolean || enumRing || path || string => true,
+    _ => false,
+  };
 }
-
-/// The front-panel classes of the typed controls that carry a value: numeric, boolean, enum/ring,
-/// path and string.
-const kFpControlTerminalClasses = {
-  FpObjectClass.numeric,
-  FpObjectClass.boolean,
-  FpObjectClass.enumRing,
-  FpObjectClass.path,
-  FpObjectClass.string,
-};
 
 String _fmtNum(double v) => v == v.roundToDouble() && v.abs() < 1e15 ? v.toInt().toString() : v.toString();
 

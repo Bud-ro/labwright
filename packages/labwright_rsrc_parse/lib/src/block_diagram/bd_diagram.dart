@@ -38,12 +38,8 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   int? displayedFrameIndex(BdObject structure) {
     final frames = structure.frames;
     if (frames == null) return null;
-    var count = 0;
-    for (final child in children(structure.oid)) {
-      if (child.objectClass == BdObjectClass.frame) count++;
-    }
     final index = frames.visibleFrameIndex;
-    return index < count ? index : null;
+    return index < framesOf(structure).length ? index : null;
   }
 
   /// One wire per `signal` object.
@@ -218,8 +214,7 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   bool _exactAttach(int oid) {
     final terminal = endpointTerminal(oid);
     if (terminal == null) return endpointConstantBounds(oid) == null;
-    final parentOid = terminal.parentOid;
-    final parent = parentOid == null ? null : byId[parentOid];
+    final parent = byId[terminal.parentOid];
     final frame = parent == null ? null : boundedOwnerOf(parent);
     return frame != null && frame.category == BdObjectKind.structure;
   }
@@ -377,19 +372,24 @@ class BdDiagram extends HeapObjectTree<BdObject> {
     return null;
   }
 
-  /// The terminal each endpoint belongs to; an endpoint claimed by two terminals has no entry.
-  late final Map<int, int> _terminalOidByMemberOid = _buildTerminalIndex();
+  /// The terminal each endpoint belongs to, and the endpoint that names each terminal as its
+  /// DCO; a key claimed by two owners has no entry.
+  late final ({Map<int, int> terminalByEndpoint, Map<int, int> dcoByTerminal}) _terminalIndex = _buildTerminalIndex();
 
-  Map<int, int> _buildTerminalIndex() {
-    final index = <int, int>{};
-    final ambiguous = <int>{};
-    for (final object in objects) {
-      if (object.termBounds == null) continue;
-      for (final target in object.refs) {
-        _claim(index, ambiguous, target, object.oid);
+  ({Map<int, int> terminalByEndpoint, Map<int, int> dcoByTerminal}) _buildTerminalIndex() {
+    final terminalByEndpoint = <int, int>{}, dcoByTerminal = <int, int>{};
+    final ambiguousEndpoints = <int>{}, ambiguousTerminals = <int>{};
+    for (final terminal in objects) {
+      if (terminal.termBounds == null) continue;
+      for (final target in terminal.refs) {
+        _claim(terminalByEndpoint, ambiguousEndpoints, target, terminal.oid);
+        final candidate = byId[target];
+        if (candidate == null || !candidate.objectClass.isSignalEndpoint) continue;
+        if (!(candidate.refsOf(HeapRefKind.dcoRef) ?? const <int>[]).contains(terminal.oid)) continue;
+        _claim(dcoByTerminal, ambiguousTerminals, terminal.oid, candidate.oid);
       }
     }
-    return index;
+    return (terminalByEndpoint: terminalByEndpoint, dcoByTerminal: dcoByTerminal);
   }
 
   static void _claim(Map<int, int> index, Set<int> ambiguous, int key, int owner) {
@@ -407,32 +407,14 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   /// not an endpoint or is claimed by two terminals.
   BdObject? endpointTerminal(int oid) {
     final endpoint = byId[oid];
-    if (endpoint == null || !kSignalEndpointDcoKinds.contains(endpoint.kind)) return null;
-    final terminalOid = _terminalOidByMemberOid[oid];
+    if (endpoint == null || !endpoint.objectClass.isSignalEndpoint) return null;
+    final terminalOid = _terminalIndex.terminalByEndpoint[oid];
     return terminalOid == null ? null : byId[terminalOid];
-  }
-
-  /// The endpoint that names each terminal as its DCO; a terminal named by two has no entry.
-  late final Map<int, int> _dcoOidByTerminalOid = _buildTerminalDcoIndex();
-
-  Map<int, int> _buildTerminalDcoIndex() {
-    final index = <int, int>{};
-    final ambiguous = <int>{};
-    for (final terminal in objects) {
-      if (terminal.termBounds == null) continue;
-      for (final target in terminal.refs) {
-        final candidate = byId[target];
-        if (candidate == null || !kSignalEndpointDcoKinds.contains(candidate.kind)) continue;
-        if (!(candidate.refsOf(HeapRefKind.dcoRef) ?? const <int>[]).contains(terminal.oid)) continue;
-        _claim(index, ambiguous, terminal.oid, candidate.oid);
-      }
-    }
-    return index;
   }
 
   /// The endpoint DCO the terminal [oid] refers back to through `dcoRef`.
   BdObject? terminalDco(int oid) {
-    final dcoOid = _dcoOidByTerminalOid[oid];
+    final dcoOid = _terminalIndex.dcoByTerminal[oid];
     return dcoOid == null ? null : byId[dcoOid];
   }
 
@@ -442,7 +424,7 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   /// The constant DCO under the node endpoint [oid], when the endpoint feeds a constant.
   BdObject? endpointConstant(int oid) {
     final endpoint = byId[oid];
-    if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind) return null;
+    if (endpoint == null || endpoint.objectClass != BdObjectClass.terminalHolder) return null;
     for (final child in children(oid)) {
       if (child.objectClass == BdObjectClass.constant) return child;
     }
@@ -494,13 +476,7 @@ class BdDiagram extends HeapObjectTree<BdObject> {
     if (terminal == null || rel == null) return null;
     final parentOid = terminal.parentOid;
     final frame = parentOid == null ? null : _boundedOwnerBounds(parentOid);
-    if (frame == null) return null;
-    return HeapRect(
-      top: frame.top + rel.top,
-      left: frame.left + rel.left,
-      bottom: frame.top + rel.bottom,
-      right: frame.left + rel.right,
-    );
+    return frame == null ? null : rel.shift(frame.top, frame.left);
   }
 
   /// For a node endpoint without bounds whose single child carries `termBounds`: the centre of
@@ -508,7 +484,9 @@ class BdDiagram extends HeapObjectTree<BdObject> {
   ({List<ViPoint> candidates, bool wideRow})? dcoChildTerminalAttach(int oid) {
     if (_predatesFrameRelativeTerms) return null;
     final endpoint = byId[oid];
-    if (endpoint == null || endpoint.kind != kNodeEndpointDcoKind || endpoint.absBounds != null) return null;
+    if (endpoint == null || endpoint.objectClass != BdObjectClass.terminalHolder || endpoint.absBounds != null) {
+      return null;
+    }
     BdObject? part;
     for (final child in children(oid)) {
       if (child.termBounds == null) continue;

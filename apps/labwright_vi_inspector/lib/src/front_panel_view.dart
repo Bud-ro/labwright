@@ -139,7 +139,7 @@ class _FrontPanelViewState extends State<FrontPanelView> {
           ListTile(
             dense: true,
             leading: Icon(
-              control.dataObject!.isIndicator ? Icons.output : Icons.input,
+              control.isIndicator == true ? Icons.output : Icons.input,
               size: 16,
             ),
             title: Text(
@@ -471,7 +471,7 @@ class _FpDetailsCard extends StatelessWidget {
                   if (dco != null)
                     _detail(
                       'data object',
-                      '${dco.isIndicator ? 'indicator' : 'control'}'
+                      '${object.isIndicator == true ? 'indicator' : 'control'}'
                           '${switch (dco.conNum) {
                             null => ' · pane terminal 0 (unnumbered)',
                             kViNotOnPane => ' · not on the pane',

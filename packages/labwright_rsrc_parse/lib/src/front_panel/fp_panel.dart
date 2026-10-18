@@ -9,7 +9,6 @@
 /// C4 plotName (0x27)                       FpGraph.plotNames
 /// attributes                               FpDataObject.conNum, FpNumericRange.min and max,
 ///                                          borderRgb, FpGraph.plotColors
-/// array index group                        arrayIndex
 /// ```
 library;
 
@@ -18,7 +17,6 @@ import 'dart:typed_data';
 import '../heap/heap.dart';
 import '../heap/heap_object.dart';
 import '../heap/heap_walk.dart';
-import '../heap/obj_flags.dart';
 import 'fp_object.dart';
 
 /// The objects of one `FPHb` section, indexed by oid and parent.
@@ -38,14 +36,9 @@ class _FpWalk extends HeapWalkListener<FpObject> {
       FpObject(oid: oid, kind: kind, offset: offset);
 
   @override
-  HeapGroupCapture<FpObject>? captureGroup(FpObject owner, int tag) =>
-      tag == HeapGroupTag.arrayIndex.tag && owner.objectClass == FpObjectClass.array ? ArrayIndexCapture(owner) : null;
-
-  @override
   Set<HeapAttribute> get attributes => const {
     HeapAttribute.borderColor,
     HeapAttribute.conNum,
-    HeapAttribute.cosmColorB,
     HeapAttribute.plotColor,
     HeapAttribute.stdNumMax,
     HeapAttribute.stdNumMin,
@@ -67,8 +60,6 @@ class _FpWalk extends HeapWalkListener<FpObject> {
         if (attr.asDouble case final value?) cur.numericRange?.min ??= value;
       case HeapAttribute.stdNumMax:
         if (attr.asDouble case final value?) cur.numericRange?.max ??= value;
-      case HeapAttribute.cosmColorB:
-        if (cur.isTextLabel) cur.labelModeWord ??= attr.asInt;
       case HeapAttribute.conNum:
         cur.dataObject?.conNum ??= attr.asInt;
       case HeapAttribute.borderColor:
@@ -83,24 +74,13 @@ class _FpWalk extends HeapWalkListener<FpObject> {
 }
 
 /// Builds the object tree of an `FPHb` body (the section payload including its length word).
-/// After the walk, label bounds are re-based on their owner, objects with size records become
-/// terminal clusters, data objects learn whether they are indicators, items and help text
-/// bubble up to the owning control, and controls under a scrolled pane are re-anchored.
+/// After the walk, label bounds are re-based on their owner, items and help text bubble up to
+/// the owning control, and controls under a scrolled pane are re-anchored.
 FpPanel buildFrontPanel(Uint8List body, {String? version, int sectionIndex = 0}) {
   final panel = FpPanel(objects: walkHeap(body, _FpWalk()), version: version, sectionIndex: sectionIndex);
   rebaseLabelBounds(panel);
-  for (final object in panel.objects) {
-    if (object.objectClass == FpObjectClass.terminalCluster || object.termCount >= 1) {
-      object.category = FpObjectKind.terminalCluster;
-    }
-    object.dataObject?.isIndicator = object.hasFlag(ViObjFlag.indicator);
-  }
-  bubbleItemsToControls(panel, isControl: (o) => o.objectClass.isControlTerminal);
+  bubbleItemsToControls(panel);
   bubbleHelpText(panel);
-  reanchorScrolledControls(
-    panel,
-    isPane: (o) => o.objectClass == FpObjectClass.pane,
-    isControl: (o) => o.objectClass.isControlTerminal,
-  );
+  reanchorScrolledControls(panel);
   return panel;
 }

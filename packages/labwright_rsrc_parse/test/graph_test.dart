@@ -811,7 +811,7 @@ void main() {
       ...close(),
     ]);
     expect(d.objects.length, 2);
-    expect(d.roots.map((o) => o.oid), [1]);
+    expect(d.objects.where((o) => o.parentOid == null).map((o) => o.oid), [1]);
     final child = d.byId[2]!;
     expect((child.parentOid, child.label), (1, 'Trigger'));
     final r = child.absBounds!;
@@ -1002,7 +1002,7 @@ void main() {
       ...close(),
     ];
     expect(panel(sized(0x50)).byId[2]!.category, FpObjectKind.terminalCluster);
-    expect(dia(sized(0x50)).byId[2]!.category, BdObjectKind.terminal);
+    expect(dia(sized(0x50)).byId[2]!.category, BdObjectKind.terminalCluster);
     expect(dia(sized(0x50)).byId[2]!.termCount, 1);
   });
 
@@ -1314,15 +1314,14 @@ void resolveTypesTests() {
     final loopCount = obj(3, 0x24, tdi: 3);
     final dco = FpObject(oid: 10, kind: 0x12, offset: 0)
       ..typeDescIdx = 4
-      ..dataObject!.isIndicator = true;
+      ..objFlags = ViObjFlag.indicator.mask;
     final terminal = obj(11, 0x16);
     terminal.addRef(HeapRefKind.dcoRef, 10);
     final types = ViDataSpaceTypes(pool: pool, table: table, typeIndexBase: dthp.viTypeIndexBase);
     final panels = [
       FpPanel(objects: [dco]),
     ];
-    resolvePanelTypes(panels, types);
-    resolveDiagramTypes(
+    resolveDataSpaceTypes(
       [
         bd([strConst, boolConst, loopCount, terminal]),
       ],
@@ -1339,7 +1338,7 @@ void resolveTypesTests() {
 
   test('no base leaves every type unresolved', () {
     final only = obj(1, 0x51, tdi: 1);
-    resolveDiagramTypes(
+    resolveDataSpaceTypes(
       [
         bd([only]),
       ],

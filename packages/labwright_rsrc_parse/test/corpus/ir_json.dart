@@ -37,7 +37,7 @@ List<Object?> _summarizeVi(CorpusVi vi) {
   ]) {
     n('diagrams');
     final emitted = (json['objects'] as List<Map<String, Object?>>).map((o) => o['oid'] as int).toSet();
-    final missing = heap.nodes.where((o) => !emitted.contains(o.oid));
+    final missing = heap.objects.where((o) => o.absBounds != null).where((o) => !emitted.contains(o.oid));
     if (missing.isNotEmpty) {
       bad('drawable', 'MISSING ${missing.first.oid} in $name/$tag');
       break;
