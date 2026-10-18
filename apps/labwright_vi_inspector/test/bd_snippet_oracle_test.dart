@@ -326,7 +326,7 @@ void main() {
                 b == null ||
                 b.width != 32 ||
                 b.height != 16 ||
-                (o.isIndicator == true) != indicator ||
+                (o.panelTerminal?.isIndicator == true) != indicator ||
                 (o.dataType ?? _artKindOf(o.typeKind)) != dataType) {
               continue;
             }
@@ -493,18 +493,18 @@ void main() {
   testWidgets('placement scores a self-reference high and a shift low', (
     tester,
   ) async {
-    final root = ViHeapObject(oid: 1, kind: 0x7e, offset: 0)
-      ..category = ViObjectKind.structure
+    final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
+      ..category = BdObjectKind.structure
       ..absBounds = const HeapRect(top: 0, left: 0, bottom: 160, right: 240);
-    final loop = ViHeapObject(oid: 2, kind: 0x21, offset: 0)
+    final loop = BdObject(oid: 2, kind: 0x21, offset: 0)
       ..parentOid = 1
-      ..category = ViObjectKind.structure
+      ..category = BdObjectKind.structure
       ..absBounds = const HeapRect(top: 24, left: 24, bottom: 136, right: 216);
-    final node = ViHeapObject(oid: 3, kind: 0x2f, offset: 0)
+    final node = BdObject(oid: 3, kind: 0x2f, offset: 0)
       ..parentOid = 2
-      ..category = ViObjectKind.node
+      ..category = BdObjectKind.node
       ..absBounds = const HeapRect(top: 60, left: 80, bottom: 100, right: 120);
-    final diagram = ViDiagram(sectionTag: 'BDHb', objects: [root, loop, node]);
+    final diagram = BdDiagram(objects: [root, loop, node]);
 
     await tester.runAsync(() async {
       final raster = (await rasteriseBlockDiagram(

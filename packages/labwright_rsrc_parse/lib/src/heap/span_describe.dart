@@ -4,8 +4,10 @@ library;
 
 import 'dart:typed_data';
 
-import '../diagram/objects.dart' show HeapObjectClass, ClassConfidence;
+import '../block_diagram/bd_object.dart' show BdObjectClass;
+import '../front_panel/fp_object.dart' show FpObjectClass;
 import 'heap.dart';
+import 'object_class.dart';
 
 /// The record family a heap span belongs to.
 enum HeapSpanKind {
@@ -187,12 +189,14 @@ HeapSpanInfo describeHeapSpan(Uint8List body, HeapSpan span, String sectionTag) 
   final header = heapObjectHeaderAt(body, offset);
   if (header != null) {
     final (:kind, :oid, length: _) = header;
-    final cls = HeapObjectClass.fromCode(kind);
+    final (label, confidence) = sectionTag.startsWith('FP')
+        ? (FpObjectClass.fromCode(kind).label, FpObjectClass.fromCode(kind).confidence)
+        : (BdObjectClass.fromCode(kind).label, BdObjectClass.fromCode(kind).confidence);
     return make(
       HeapSpanKind.objectOpen,
-      'Object · ${cls.label}',
+      'Object · $label',
       'Declares object #$oid of class 0x${kind.toRadixString(16)}.',
-      confidence: cls.confidence == ClassConfidence.confirmed ? null : cls.confidence.name,
+      confidence: confidence == ClassConfidence.confirmed ? null : confidence.name,
       value: HeapNumberValue(oid, HeapAttrWidth.u16),
     );
   }

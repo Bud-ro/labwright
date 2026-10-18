@@ -94,7 +94,7 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
 
   for (final run in runs) {
     final o = bd.byId[run.sigOid]!;
-    final k = o.lastSignalKind ?? 0;
+    final k = o.signal?.lastSignalKind ?? 0;
     final cell = '${(k & 0xff).toRadixString(16).padLeft(2, '0')}_d${(k >> 8) & 0xf}';
     final dis = inDisabledFrame(run.sigOid);
     if (run.color != null) {
@@ -116,7 +116,10 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
     bump('flag|$cell$axis@f${(k >> 12) & 0xf}|$name');
     bump('state|$cell$axis@s${(state[run.sigOid] ?? -1).toRadixString(16)}|$name');
     bump(
-      'hdr|$cell$axis@${o.wireTableRaw != null && o.wireTableRaw!.length > 1 ? 'c${o.wireTableRaw![1].toRadixString(16)}' : (hdrOf[run.sigOid] ?? '-')}|$name',
+      'hdr|$cell$axis@${switch (o.signal?.wireTableRaw) {
+        final raw? when raw.length > 1 => 'c${raw[1].toRadixString(16)}',
+        _ => hdrOf[run.sigOid] ?? '-',
+      }}|$name',
     );
     bump('objf|$cell$axis@o${o.objFlags?.toRadixString(16) ?? '-'}|$name');
   }
@@ -184,7 +187,7 @@ Map<String, int> _censusSnippet(CorpusVi entry) {
       final s = r.style;
       if (s != null && solid.contains(s)) return false;
       if (s != null && !const {'blank', 'unsampled', 'aperiodic'}.contains(s)) return true;
-      final word = bd.byId[r.sigOid]?.lastSignalKind;
+      final word = bd.byId[r.sigOid]?.signal?.lastSignalKind;
       final pred = word == null ? null : ViSignalType(word).renderStyleEstimate?.name;
       return pred == null || !solid.contains(pred);
     }

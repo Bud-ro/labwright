@@ -10,6 +10,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'heap_view_chrome.dart';
+
 import 'diagram_view.dart';
 import 'image_clipboard.dart';
 import 'oracle_gif.dart';
@@ -34,7 +36,7 @@ class BdRaster {
 }
 
 GlobalHatchOffset deriveHatchOffset({
-  required ViDiagram diagram,
+  required BdDiagram diagram,
   required BdRaster raster,
   required BdRegistration registration,
   required Uint8List referenceRgba,
@@ -51,7 +53,7 @@ GlobalHatchOffset deriveHatchOffset({
   final score = List.generate(4, (_) => List.filled(4, 0));
   var samples = 0;
   for (final frame in diagram.objects) {
-    if (frame.objectClass != HeapObjectClass.bdStructureFrame ||
+    if (frame.objectClass != BdObjectClass.caseStructure ||
         !drawableOids.contains(frame.oid)) {
       continue;
     }
@@ -251,7 +253,7 @@ GlobalHatchOffset deriveWireCycleOffset({
 }
 
 Future<BdRaster?> rasteriseBlockDiagram(
-  ViDiagram diagram, {
+  BdDiagram diagram, {
   int maxDimension = 2000,
   double pixelRatio = 1.0,
   double? scale,
@@ -260,7 +262,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   Map<int, PrimIconArt> primIcons = const {},
   Map<int, ui.Image> xnodeFacades = const {},
   List<ViWire>? wires,
-  List<ViHeapObject>? drawable,
+  List<BdObject>? drawable,
   BdScene? scene,
   BdRenderStyle style = const BdRenderStyle(),
 }) async {
@@ -271,9 +273,8 @@ Future<BdRaster?> rasteriseBlockDiagram(
     if (ownScene) activeScene.dispose();
     return null;
   }
-  final content = bdContentRect(
-    activeScene.drawable,
-    includeWires: false,
+  final content = heapContentRect(
+    activeScene.drawable.where((o) => o.category != BdObjectKind.wire),
     margin: margin,
   );
   if (content.width <= 0 || content.height <= 0) {
@@ -631,15 +632,18 @@ Future<BdOracleResult> compareToReference(
 }
 
 List<Rect> bdStructureAnchorRects(
-  ViDiagram diagram,
+  BdDiagram diagram,
   BdRaster raster, {
-  List<ViHeapObject>? drawable,
+  List<BdObject>? drawable,
 }) {
   drawable ??= bdDrawableObjects(diagram);
-  final extent = bdContentRect(drawable, includeWires: false, margin: 0);
+  final extent = heapContentRect(
+    drawable.where((o) => o.category != BdObjectKind.wire),
+    margin: 0,
+  );
   final out = <Rect>[];
   for (final object in drawable) {
-    if (object.category != ViObjectKind.structure) continue;
+    if (object.category != BdObjectKind.structure) continue;
     final bounds = object.absBounds!;
     if (bounds.width < 24 || bounds.height < 24) continue;
     if (bounds.width >= extent.width * 0.95 &&
@@ -651,7 +655,7 @@ List<Rect> bdStructureAnchorRects(
   return out;
 }
 
-ViDiagram? bestBlockDiagram(ViModel model) => model.primaryBlockDiagram;
+BdDiagram? bestBlockDiagram(ViModel model) => model.primaryBlockDiagram;
 
 Future<Uint8List> imageToPng(ui.Image image) async {
   final data = await image.toByteData(format: ui.ImageByteFormat.png);
@@ -734,14 +738,14 @@ class PlacementComparison {
 }
 
 PlacementComparison comparePlacement({
-  required ViDiagram diagram,
+  required BdDiagram diagram,
   required BdRaster raster,
   required BdRegistration registration,
   required Uint8List referenceRgba,
   required int width,
   required int height,
   Uint8List? referenceEdges,
-  List<ViHeapObject>? drawable,
+  List<BdObject>? drawable,
   int tolerance = 2,
   int edgeThreshold = kBdEdgeThreshold,
   int minSide = 6,
@@ -761,13 +765,16 @@ PlacementComparison comparePlacement({
   final chance = pixels == 0 ? 0.0 : edgePixels / pixels;
 
   drawable ??= bdDrawableObjects(diagram);
-  final extent = bdContentRect(drawable, includeWires: false, margin: 0);
+  final extent = heapContentRect(
+    drawable.where((o) => o.category != BdObjectKind.wire),
+    margin: 0,
+  );
   final perObject = <({int oid, double support})>[];
   for (final object in drawable) {
-    if (object.category != ViObjectKind.structure &&
-        object.category != ViObjectKind.node &&
-        object.category != ViObjectKind.terminal &&
-        object.category != ViObjectKind.decoration) {
+    if (object.category != BdObjectKind.structure &&
+        object.category != BdObjectKind.node &&
+        object.category != BdObjectKind.terminal &&
+        object.category != BdObjectKind.decoration) {
       continue;
     }
     if (kBdTextLabelClasses.contains(object.objectClass)) continue;
@@ -1160,7 +1167,7 @@ class BdOracleView extends StatefulWidget {
     this.subViIcons = const {},
   });
 
-  final ViDiagram? diagram;
+  final BdDiagram? diagram;
 
   final Uint8List? referenceBytes;
 

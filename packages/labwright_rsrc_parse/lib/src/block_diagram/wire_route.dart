@@ -6,7 +6,8 @@ library;
 import 'dart:typed_data';
 
 import '../heap/heap.dart';
-import 'objects.dart';
+import '../heap/heap_object.dart';
+import 'signal_type.dart';
 
 /// How a decoded route was placed on the diagram.
 enum WireRouteFidelity {

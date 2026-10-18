@@ -8,18 +8,16 @@ import 'test_util.dart';
 
 void main() {
   test('GOLDEN: emitted top-level + node key sets are pinned (update if the IR shape changes)', () {
-    final node = ViHeapObject(oid: 7, kind: 0x12, offset: 0)
-      ..category = ViObjectKind.node
+    final node = BdObject(oid: 7, kind: 0x2f, offset: 0)
+      ..category = BdObjectKind.node
       ..parentOid = 1
       ..label = 'doit'
       ..bounds = const HeapRect(top: 1, left: 2, bottom: 3, right: 4)
       ..absBounds = const HeapRect(top: 5, left: 6, bottom: 7, right: 8)
       ..items = const ['a', 'b']
       ..termCount = 2
-      ..controlMin = 0.0
-      ..controlMax = 10.0
       ..helpText = 'help'
-      ..primResId = 1051;
+      ..primitive?.primResId = 1051;
     node.addRef(HeapRefKind.childRef, 1);
 
     final model = ViModel(
@@ -27,7 +25,7 @@ void main() {
       title: 'T',
       components: const [],
       blockDiagrams: [
-        ViDiagram(sectionTag: 'BDHb', objects: [node]),
+        BdDiagram(objects: [node]),
       ],
       subViNames: const ['Helper.vi'],
     );
@@ -35,7 +33,7 @@ void main() {
     final json = viModelToJson(model);
     expect(
       json.keys.toSet(),
-      {'labviewVersion', 'title', 'subViNames', 'blockDiagrams', 'frontPanelDiagrams'},
+      {'labviewVersion', 'title', 'subViNames', 'blockDiagrams', 'frontPanels'},
       reason:
           'top-level key set changed (IR shape) — update this golden expectation. '
           'symbolNames/libraryPaths are absent here because this model has no Call Library nodes.',
@@ -59,8 +57,6 @@ void main() {
         'items',
         'termCount',
         'memberOids',
-        'controlMin',
-        'controlMax',
         'helpText',
         'primResId',
         'primName',
@@ -75,24 +71,22 @@ void main() {
   });
 
   test('non-finite control range sentinels are dropped and the IR stays jsonEncode-safe', () {
-    final node = ViHeapObject(oid: 1, kind: 0x50, offset: 0)
-      ..category = ViObjectKind.terminal
+    final control = FpObject(oid: 1, kind: 0x50, offset: 0)
       ..absBounds = const HeapRect(top: 0, left: 0, bottom: 10, right: 10)
-      ..controlMin = double.negativeInfinity
-      ..controlMax = double.infinity;
+      ..numericRange!.min = double.negativeInfinity
+      ..numericRange!.max = double.infinity;
 
     final model = ViModel(
       version: null,
       title: null,
       components: const [],
-      blockDiagrams: [
-        ViDiagram(sectionTag: 'BDHb', objects: [node]),
+      frontPanels: [
+        FpPanel(objects: [control]),
       ],
     );
 
     final json = viModelToJson(model);
-    final emitted =
-        (json['blockDiagrams'] as List<Map<String, Object?>>).first['objects'] as List<Map<String, Object?>>;
+    final emitted = (json['frontPanels'] as List<Map<String, Object?>>).first['objects'] as List<Map<String, Object?>>;
     final keys = emitted.first.keys;
     expect(keys, isNot(contains('controlMin')));
     expect(keys, isNot(contains('controlMax')));

@@ -1,46 +1,63 @@
+import 'block_diagram/bd_diagram.dart';
+import 'block_diagram/bd_object.dart';
 import 'blocks/VCTP_type_pool.dart';
-import 'diagram/diagram.dart';
-import 'diagram/objects.dart';
+import 'front_panel/fp_object.dart';
+import 'front_panel/fp_panel.dart';
 import 'heap/heap.dart';
+import 'heap/heap_object.dart';
 import 'model.dart';
 
-Map<String, Object?> viDiagramToJson(ViDiagram d) => {
-  'sectionTag': d.sectionTag,
-  'objects': d.objects.map(_objectToJson).toList(),
+Map<String, Object?> bdDiagramToJson(BdDiagram diagram) => {
+  'objects': [for (final object in diagram.objects) _bdObjectToJson(object)],
 };
 
-Map<String, Object?> _objectToJson(ViHeapObject object) {
+Map<String, Object?> fpPanelToJson(FpPanel panel) => {
+  'objects': [for (final object in panel.objects) _fpObjectToJson(object)],
+};
+
+Map<String, Object?> _heapObjectToJson(HeapObject object) => {
+  'oid': object.oid,
+  'kindCode': object.kind,
+  'typeKind': object.typeKind.name,
+  if (object.dataType != null) 'dataType': object.dataType!.name,
+  if (object.typeName != null) 'typeName': object.typeName,
+  if (object.parentOid != null) 'parentOid': object.parentOid,
+  if (object.label != null) 'label': object.label,
+  if (object.isLabelHidden) 'labelHidden': true,
+  if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),
+  if (object.absBounds != null) 'absBounds': _rectToJson(object.absBounds!),
+  if (object.items.isNotEmpty) 'items': object.items,
+  if (object.termCount != 0) 'termCount': object.termCount,
+  if (object.memberOids.isNotEmpty) 'memberOids': object.memberOids.toList(),
+  if (object.helpText != null) 'helpText': object.helpText,
+};
+
+Map<String, Object?> _bdObjectToJson(BdObject object) {
   final cls = object.objectClass;
-  final primName = object.primName;
+  final primitive = object.primitive;
+  final constant = object.constant;
   return {
-    'oid': object.oid,
-    'kindCode': object.kind,
-    'class': {
-      'label': cls.label,
-      'category': cls.category.name,
-      'confidence': cls.confidence.name,
-    },
+    ..._heapObjectToJson(object),
+    'class': {'label': cls.label, 'category': cls.category.name, 'confidence': cls.confidence.name},
     'objectKind': object.category.name,
-    'typeKind': object.typeKind.name,
-    if (object.dataType != null) 'dataType': object.dataType!.name,
-    if (object.typeName != null) 'typeName': object.typeName,
-    if (object.primResId != null) 'primResId': object.primResId,
-    if (primName != null) 'primName': primName,
-    if (object.parentOid != null) 'parentOid': object.parentOid,
-    if (object.label != null) 'label': object.label,
-    if (object.isLabelHidden) 'labelHidden': true,
-    if (object.dIdx != null) 'visibleFrameIndex': object.visibleFrameIndex,
-    if (object.bounds != null) 'bounds': _rectToJson(object.bounds!),
-    if (object.absBounds != null) 'absBounds': _rectToJson(object.absBounds!),
-    if (object.items.isNotEmpty) 'items': object.items,
-    if (object.termCount != 0) 'termCount': object.termCount,
-    if (object.memberOids.isNotEmpty) 'memberOids': object.memberOids.toList(),
-    if (object.controlMin?.isFinite ?? false) 'controlMin': object.controlMin,
-    if (object.controlMax?.isFinite ?? false) 'controlMax': object.controlMax,
-    if (object.helpText != null) 'helpText': object.helpText,
-    if (object.constText != null) 'constText': object.constText,
-    if (object.constNumeric != null) 'constNumeric': object.constNumeric,
-    if (object.constBool != null) 'constBool': object.constBool,
+    if (primitive?.primResId != null) 'primResId': primitive!.primResId,
+    if (primitive?.primName != null) 'primName': primitive!.primName,
+    if (object.frames?.dIdx != null) 'visibleFrameIndex': object.frames!.visibleFrameIndex,
+    if (constant?.text != null) 'constText': constant!.text,
+    if (constant?.numeric != null) 'constNumeric': constant!.numeric,
+    if (constant?.boolValue != null) 'constBool': constant!.boolValue,
+  };
+}
+
+Map<String, Object?> _fpObjectToJson(FpObject object) {
+  final cls = object.objectClass;
+  final range = object.numericRange;
+  return {
+    ..._heapObjectToJson(object),
+    'class': {'label': cls.label, 'category': cls.category.name, 'confidence': cls.confidence.name},
+    'objectKind': object.category.name,
+    if (range?.min?.isFinite ?? false) 'controlMin': range!.min,
+    if (range?.max?.isFinite ?? false) 'controlMax': range!.max,
   };
 }
 
@@ -69,12 +86,12 @@ Map<String, Object?> viModelToJson(ViModel m) {
   final terminals = _conpaneTerminals(m);
   final named = namedTypes(m.types);
   final symbolNames = _dedupe([
-    for (final d in m.diagrams)
-      for (final o in d.objects) o.foreignEntryPoint,
+    for (final d in m.blockDiagrams)
+      for (final o in d.objects) o.foreignCall?.entryPoint,
   ]);
   final libraryPaths = _dedupe([
-    for (final d in m.diagrams)
-      for (final o in d.objects) o.foreignLibraryPath,
+    for (final d in m.blockDiagrams)
+      for (final o in d.objects) o.foreignCall?.libraryPath,
   ]);
   return {
     if (m.version != null) 'labviewVersion': m.version,
@@ -101,8 +118,8 @@ Map<String, Object?> viModelToJson(ViModel m) {
             if (type is ViEnumType) 'items': type.items,
           },
       ],
-    'blockDiagrams': [for (final diagram in m.blockDiagrams) viDiagramToJson(diagram)],
-    'frontPanelDiagrams': [for (final diagram in m.frontPanelDiagrams) viDiagramToJson(diagram)],
+    'blockDiagrams': [for (final diagram in m.blockDiagrams) bdDiagramToJson(diagram)],
+    'frontPanels': [for (final panel in m.frontPanels) fpPanelToJson(panel)],
   };
 }
 

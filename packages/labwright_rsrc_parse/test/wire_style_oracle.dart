@@ -111,11 +111,11 @@ List<File> listSnippetPngs(Directory corpusViDir) =>
         .toList()
       ..sort((a, b) => a.path.compareTo(b.path));
 
-bool objectVisibleInRender(ViDiagram bd, int oid) {
+bool objectVisibleInRender(BdDiagram bd, int oid) {
   var o = bd.byId[oid];
   for (var i = 0; o != null && i < 64; i++) {
     final p = o.parentOid == null ? null : bd.byId[o.parentOid!];
-    if (p != null && o.kind == 0x1b && kMultiFrameStructureClasses.contains(p.objectClass)) {
+    if (p != null && o.kind == 0x1b && p.frames != null) {
       var idx = 0;
       for (final sib in bd.objects) {
         if (sib.parentOid == p.oid && sib.kind == 0x1b) {
@@ -123,7 +123,7 @@ bool objectVisibleInRender(ViDiagram bd, int oid) {
           idx++;
         }
       }
-      if (idx != p.visibleFrameIndex) return false;
+      if (idx != p.frames?.visibleFrameIndex) return false;
     }
     o = p;
   }
@@ -134,7 +134,7 @@ typedef Interior = ({int left, int top, int right, int bottom});
 
 typedef Registration = ({int dx, int dy, int score, int max, bool leafMode});
 
-Registration registerDiagram(ViDiagram bd, Raster raster, Interior interior) {
+Registration registerDiagram(BdDiagram bd, Raster raster, Interior interior) {
   final w = interior.right - interior.left, h = interior.bottom - interior.top;
   if (w <= 0 || h <= 0) return (dx: 0, dy: 0, score: 0, max: 1, leafMode: false);
   final colInk = List<double>.filled(w, 0), rowInk = List<double>.filled(h, 0);
@@ -248,7 +248,7 @@ class WireRun {
   int? color;
 }
 
-List<WireRun> wireRuns(ViDiagram bd) {
+List<WireRun> wireRuns(BdDiagram bd) {
   final runs = <WireRun>[];
   final shells = <HeapRect>[
     for (final w in bd.wires)

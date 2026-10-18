@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/front_panel_view.dart';
 import 'package:labwright_vi_inspector/src/types_view.dart';
 import 'package:labwright_vi_inspector/src/vi_screen.dart';
 import 'package:labwright_rsrc_parse/testing.dart';
@@ -219,7 +220,7 @@ void main() {
     drop(paths[0]);
     await tester.pump();
     for (final (tab, view) in [
-      ('Front Panel', find.byType(ViDiagramView)),
+      ('Front Panel', find.byType(FrontPanelView)),
       ('Block Diagram', find.byType(ViDiagramView)),
       ('Types', find.byType(ViTypesView)),
       ('Oracle', find.byType(BdOracleView)),

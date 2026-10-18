@@ -21,8 +21,8 @@ List<int> constant(int oid, int inner, List<int> rec, {List<int> innerBody = con
   ...close(),
 ];
 
-ViDiagram dia(List<int> records) {
-  final d = buildDiagram(heapBody(records));
+BdDiagram dia(List<int> records) {
+  final d = buildBlockDiagram(heapBody(records));
   decodeBdConstValues(d);
   return d;
 }
@@ -68,7 +68,7 @@ void main() {
     for (final (records, want) in rows) {
       final o = dia(records).byId[1]!;
       expect(
-        (o.constBool, o.constNumeric, o.constText),
+        (o.constant?.boolValue, o.constant?.numeric, o.constant?.text),
         (want is bool ? want : null, want is num ? want : null, null),
         reason: records.map((b) => b.toRadixString(16)).join(' '),
       );

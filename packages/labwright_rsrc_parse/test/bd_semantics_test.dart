@@ -5,18 +5,18 @@ import 'test_util.dart';
 
 List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, ...be16(oid)];
 
-ViDiagram bdOf(List<int> records) =>
+BdDiagram bdOf(List<int> records) =>
     buildViModelFromDecoded([dsec(heapBody(records), tag: 'BDHb')]).blockDiagrams.first;
 
-ViHeapObject heapObj(
+BdObject heapObj(
   int kind, {
   int oid = 1,
-  ViObjectKind? cat,
+  BdObjectKind? cat,
   (int, int, int, int)? at,
   String? label,
   ViTypeKind? typeKind,
 }) {
-  final object = ViHeapObject(oid: oid, kind: kind, offset: 0);
+  final object = BdObject(oid: oid, kind: kind, offset: 0);
   if (cat != null) object.category = cat;
   if (at != null) object.absBounds = HeapRect(top: at.$1, left: at.$2, bottom: at.$3, right: at.$4);
   if (label != null) object.label = label;
@@ -69,20 +69,20 @@ List<int> stackedCaseBd(List<int> structAttrs) => <int>[
   ...bounds(50, 50, 250, 250),
   ...structAttrs,
   ...open(0x1b, 11, tag: 0x1b),
-  ...open(0x12, 21, tag: 0x1c),
+  ...open(0x2f, 21, tag: 0x1c),
   ...bounds(60, 60, 90, 90),
   ...close(0x1c),
   ...close(0x1b),
   ...open(0x1b, 12, tag: 0x1b),
-  ...open(0x12, 22, tag: 0x1c),
+  ...open(0x2f, 22, tag: 0x1c),
   ...bounds(60, 60, 90, 90),
   ...close(0x1c),
-  ...open(0x12, 32, tag: 0x1c),
+  ...open(0x2f, 32, tag: 0x1c),
   ...bounds(100, 100, 130, 130),
   ...close(0x1c),
   ...close(0x1b),
   ...open(0x1b, 13, tag: 0x1b),
-  ...open(0x12, 23, tag: 0x1c),
+  ...open(0x2f, 23, tag: 0x1c),
   ...bounds(60, 60, 90, 90),
   ...close(0x1c),
   ...close(0x1b),
@@ -129,9 +129,9 @@ void main() {
   });
 
   test('nodeDisplayLabel prefers a real name, hints from the class catalog', () {
-    final named = heapObj(0x31, cat: ViObjectKind.node, label: 'Do Thing.vi');
+    final named = heapObj(0x31, cat: BdObjectKind.node, label: 'Do Thing.vi');
     expect(nodeDisplayLabel(named), (text: 'Do Thing.vi', isHint: false));
-    final bare = heapObj(0x2f, cat: ViObjectKind.node);
+    final bare = heapObj(0x2f, cat: BdObjectKind.node);
     expect(nodeDisplayLabel(bare).isHint, isTrue);
     expect(nodeDisplayLabel(bare).text, isNotEmpty);
   });
@@ -142,7 +142,7 @@ void main() {
   });
 
   test('membersOf resolves declared members to DRAWN objects only', () {
-    final diagram = buildDiagram(
+    final diagram = buildBlockDiagram(
       heapBody(<int>[
         ...open(0x7e, 1),
         ...bounds(0, 0, 400, 400),
@@ -166,15 +166,14 @@ void main() {
   });
 
   group('nodesWithin', () {
-    ViHeapObject at(int oid, ViObjectKind cat, (int, int, int, int) rect) =>
-        heapObj(0x2f, oid: oid, cat: cat, at: rect);
+    BdObject at(int oid, BdObjectKind cat, (int, int, int, int) rect) => heapObj(0x2f, oid: oid, cat: cat, at: rect);
 
     test('keeps logic nodes spatially inside; drops outsiders/terminals', () {
-      final loop = at(1, ViObjectKind.structure, (0, 0, 200, 200));
-      final inside = at(2, ViObjectKind.node, (20, 20, 60, 100));
-      final innerLoop = at(3, ViObjectKind.structure, (30, 30, 90, 150));
-      final outside = at(4, ViObjectKind.node, (300, 300, 340, 400));
-      final termInside = at(5, ViObjectKind.terminal, (25, 25, 35, 45));
+      final loop = at(1, BdObjectKind.structure, (0, 0, 200, 200));
+      final inside = at(2, BdObjectKind.node, (20, 20, 60, 100));
+      final innerLoop = at(3, BdObjectKind.structure, (30, 30, 90, 150));
+      final outside = at(4, BdObjectKind.node, (300, 300, 340, 400));
+      final termInside = at(5, BdObjectKind.terminal, (25, 25, 35, 45));
       final within = nodesWithin(loop, [loop, inside, innerLoop, outside, termInside]);
       expect(within, containsAll([inside, innerLoop]));
       expect(within, isNot(contains(outside)));
@@ -183,13 +182,13 @@ void main() {
     });
 
     test('a structure with no bounds yields nothing', () {
-      expect(nodesWithin(heapObj(0x53, cat: ViObjectKind.structure), const []), isEmpty);
+      expect(nodesWithin(heapObj(0x53, cat: BdObjectKind.structure), const []), isEmpty);
     });
 
     test('an exactly-filling child is included; an exact-bounds clone is not', () {
-      final frame = at(1, ViObjectKind.structure, (0, 0, 100, 100));
-      final fillingClone = at(2, ViObjectKind.structure, (0, 0, 100, 100));
-      final insetBody = at(3, ViObjectKind.structure, (0, 0, 100, 99));
+      final frame = at(1, BdObjectKind.structure, (0, 0, 100, 100));
+      final fillingClone = at(2, BdObjectKind.structure, (0, 0, 100, 100));
+      final insetBody = at(3, BdObjectKind.structure, (0, 0, 100, 99));
       final within = nodesWithin(frame, [frame, fillingClone, insetBody]);
       expect(within, contains(insetBody));
       expect(within, isNot(contains(fillingClone)));
@@ -197,13 +196,13 @@ void main() {
   });
 
   test('wireframeAnnotation: catalog kind, recovered name, terminal type', () {
-    final rows = <(ViHeapObject, String)>[
-      (heapObj(0x21, cat: ViObjectKind.structure), 'While loop'),
-      (heapObj(0x2c, cat: ViObjectKind.structure), 'Case structure'),
-      (heapObj(0x53, cat: ViObjectKind.structure), 'Loop (BD) / container (FP)'),
-      (heapObj(0x2f, cat: ViObjectKind.node, label: 'PicoScope2000aOpen.vi'), 'PicoScope2000aOpen.vi'),
+    final rows = <(BdObject, String)>[
+      (heapObj(0x21, cat: BdObjectKind.structure), 'While Loop'),
+      (heapObj(0x2c, cat: BdObjectKind.structure), 'Case structure'),
+      (heapObj(0x53, cat: BdObjectKind.structure), 'Cluster'),
+      (heapObj(0x2f, cat: BdObjectKind.node, label: 'PicoScope2000aOpen.vi'), 'PicoScope2000aOpen.vi'),
       (
-        heapObj(0x50, cat: ViObjectKind.terminal, label: 'count', typeKind: ViTypeKind.numericInt),
+        heapObj(0x50, cat: BdObjectKind.terminal, label: 'count', typeKind: ViTypeKind.numericInt),
         'count · numericInt',
       ),
     ];
@@ -213,7 +212,7 @@ void main() {
   });
 
   group('computeBdOutline', () {
-    ViHeapObject struct(int kind) => heapObj(kind, oid: kind, cat: ViObjectKind.structure);
+    BdObject struct(int kind) => heapObj(kind, oid: kind, cat: BdObjectKind.structure);
 
     test('groups structures by catalog kind; lists labeled-node captions', () {
       final outline = computeBdOutline([
@@ -221,12 +220,12 @@ void main() {
         struct(0x21),
         struct(0x2c),
         struct(0x7e),
-        heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
-        heapObj(0x2f, oid: 11, cat: ViObjectKind.node),
+        heapObj(0x12, oid: 10, cat: BdObjectKind.node, label: 'Acquire.vi'),
+        heapObj(0x2f, oid: 11, cat: BdObjectKind.node),
       ]);
-      expect(outline.structuresByClass[HeapObjectClass.bdWhileLoop], 2);
-      expect(outline.structuresByClass[HeapObjectClass.bdStructureFrame], 1);
-      expect(outline.structuresByClass.containsKey(HeapObjectClass.diagramRoot), isFalse);
+      expect(outline.structuresByClass[BdObjectClass.whileLoop], 2);
+      expect(outline.structuresByClass[BdObjectClass.caseStructure], 1);
+      expect(outline.structuresByClass.containsKey(BdObjectClass.root), isFalse);
       expect(outline.labeledNodes, ['Acquire.vi']);
       expect(outline.nodeCount, 2);
       expect(outline.confidence.values.fold<int>(0, (a, b) => a + b), 5);
@@ -236,8 +235,8 @@ void main() {
       final outline = computeBdOutline([
         struct(0x21),
         struct(0x2c),
-        heapObj(0x12, oid: 10, cat: ViObjectKind.node, label: 'Acquire.vi'),
-        heapObj(0x12, oid: 11, cat: ViObjectKind.node, label: 'Write.vi'),
+        heapObj(0x12, oid: 10, cat: BdObjectKind.node, label: 'Acquire.vi'),
+        heapObj(0x12, oid: 11, cat: BdObjectKind.node, label: 'Write.vi'),
       ]);
       final text = [
         ...outline.structuresByClass.keys.map((c) => c.label),

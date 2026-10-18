@@ -55,7 +55,7 @@ void main() {
       0x08, 0x19, // close signal
       0x08, 0x19, // close root
     ]);
-    final wires = buildDiagram(body).wires;
+    final wires = buildBlockDiagram(body).wires;
     expect(wires, hasLength(1));
     expect(wires.single.signalType?.raw, 0x0203);
     expect(wires.single.typeKind, ViTypeKind.array);
@@ -71,7 +71,7 @@ void main() {
       0x08, 0x19, // close signal
       0x08, 0x19, // close root
     ]);
-    final wire = buildDiagram(body).wires.single;
+    final wire = buildBlockDiagram(body).wires.single;
     expect(wire.signalType, isNull);
     expect(wire.typeKind, isNull);
     expect(wire.elementTypeKind, isNull);
@@ -87,7 +87,7 @@ void main() {
       0x08, 0x19, // close signal
       0x08, 0x19, // close root
     ]);
-    final wire = buildDiagram(body).wires.single;
+    final wire = buildBlockDiagram(body).wires.single;
     expect(wire.signalType?.raw, 0x83ff);
     expect(wire.typeKind, isNull);
     expect(wire.elementTypeKind, isNull);

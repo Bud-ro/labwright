@@ -1,13 +1,8 @@
 import 'blocks/CPMp_connector_pane_map.dart';
 import 'blocks/FPTD_front_panel_datalog_type.dart';
 import 'blocks/VCTP_type_pool.dart';
-import 'diagram/diagram.dart';
-import 'diagram/objects.dart';
-
-/// Which terminal of the connector pane each panel control is wired to, read from its `conNum`
-/// attribute: a control saved without the attribute sits on terminal 0, and this word marks one
-/// that is not on the pane at all.
-const int kViNotOnPane = 0xff;
+import 'front_panel/fp_object.dart';
+import 'front_panel/fp_panel.dart';
 
 /// The panel control behind each connector-pane terminal, in pane order, null where the terminal
 /// is unwired or no control answers for it.
@@ -15,15 +10,15 @@ const int kViNotOnPane = 0xff;
 /// A `CPMp` map names each terminal's data item outright. Without one, the terminal is the
 /// control whose `conNum` attribute says so, and terminal 0 is the one top-level control saved
 /// without the attribute.
-List<ViHeapObject?> connectorPaneTerminals({
+List<FpObject?> connectorPaneTerminals({
   required ViType? paneType,
-  required List<ViDiagram> frontPanelDiagrams,
+  required List<FpPanel> panels,
   required ViConnectorPaneMap? map,
   required ViFrontPanelType? panelType,
   required ViTypePool? pool,
 }) {
   if (paneType is! ViFunctionType) return const [];
-  final controls = panelControls(frontPanelDiagrams);
+  final controls = [for (final panel in panels) ...panel.controls];
   if (map != null) {
     final items = panelDataItems(controls, panelType: panelType, pool: pool);
     return [
@@ -36,13 +31,13 @@ List<ViHeapObject?> connectorPaneTerminals({
   }
   final unnumbered = [
     for (final control in controls)
-      if (control.conNum == null) control,
+      if (control.dataObject!.conNum == null) control,
   ];
   return [
     for (var i = 0; i < paneType.parameterCount; i++)
       switch ([
         for (final control in controls)
-          if (control.conNum == i) control,
+          if (control.dataObject!.conNum == i) control,
       ]) {
         [final control] => control,
         [] when i == 0 && unnumbered.length == 1 => unnumbered.single,
@@ -51,19 +46,12 @@ List<ViHeapObject?> connectorPaneTerminals({
   ];
 }
 
-/// The panel's top-level controls and indicators: the content groups with a type index.
-List<ViHeapObject> panelControls(List<ViDiagram> frontPanelDiagrams) => [
-  for (final panel in frontPanelDiagrams)
-    for (final object in panel.objects)
-      if (object.kind == HeapObjectClass.node.code && object.typeDescIdx != null) object,
-];
-
 /// The panel's data items in `CPMp` order: the members of the cluster `FPTD` names
 /// ([ViFrontPanelType.panelItemsIn]), each matched to the top-level control with the same name
 /// and, when both pools are the VI's, the same type. Without `FPTD` the top-level controls
 /// stand in reverse heap order, which is the same list wherever the corpus has both.
-List<ViHeapObject?> panelDataItems(
-  List<ViHeapObject> controls, {
+List<FpObject?> panelDataItems(
+  List<FpObject> controls, {
   required ViFrontPanelType? panelType,
   required ViTypePool? pool,
 }) {
@@ -73,11 +61,11 @@ List<ViHeapObject?> panelDataItems(
   if (items == null) return reversed;
   final types = panelType is ViFrontPanelTypeInline ? panelType.pool.types : pool!.types;
   final sameTypes = panelType is! ViFrontPanelTypeInline;
-  final bound = <ViHeapObject>{};
-  ViHeapObject? match(int i, ViType member) {
-    bool free(ViHeapObject o) => !bound.contains(o);
-    bool sameType(ViHeapObject o) => !sameTypes || o.resolvedType?.offset == member.offset;
-    bool sameName(ViHeapObject o) => member.label != null && o.typeName == member.label;
+  final bound = <FpObject>{};
+  FpObject? match(int i, ViType member) {
+    bool free(FpObject o) => !bound.contains(o);
+    bool sameType(FpObject o) => !sameTypes || o.resolvedType?.type.offset == member.offset;
+    bool sameName(FpObject o) => member.label != null && o.typeName == member.label;
     final positional = i < reversed.length && free(reversed[i]) ? reversed[i] : null;
     final hit = switch (positional) {
       final o? when sameType(o) && sameName(o) => o,

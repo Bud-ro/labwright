@@ -2,8 +2,8 @@
 ///
 /// The block-diagram object heap: a length word and a stream of records, stored in the zlib
 /// envelope that [inflateHeapPayload] opens; the layout is the inflated body. `BDHb` is the C4
-/// record heap that [walkHeapBody] frames and [decodeBlockDiagram] turns into a [ViDiagram]
-/// through [buildDiagram]; the `c` and `P` encodings are not decoded.
+/// record heap that [walkHeapBody] frames and [decodeBlockDiagram] turns into a [BdDiagram]
+/// through [buildBlockDiagram]; the `c` and `P` encodings are not decoded.
 ///
 /// ```text
 /// offset  size  field    type   meaning
@@ -14,9 +14,10 @@ library;
 
 import 'dart:typed_data';
 
+import '../block_diagram/bd_build.dart';
+import '../block_diagram/bd_diagram.dart';
 import '../byte_layout.dart';
 import '../decode.dart' show inflateHeapPayload;
-import '../diagram/diagram.dart';
 import '../heap/heap.dart';
 
 /// The fields of a `BDHb` payload.
@@ -27,4 +28,4 @@ abstract final class Bdhb {
   static const layout = ByteLayout([length, records]);
 }
 
-ViDiagram decodeBlockDiagram(Uint8List bytes) => buildDiagram(bytes);
+BdDiagram decodeBlockDiagram(Uint8List bytes) => buildBlockDiagram(bytes);

@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/front_panel_view.dart';
 
 import 'util.dart';
 
@@ -28,7 +29,7 @@ ViModel modelWithControls() => modelFromRecords(<int>[
 ViModel modelWithDiagram() => modelFromRecords(<int>[
   ...open(0x7e, 1),
   ...bounds(0, 0, 400, 400),
-  ...open(0x12, 2, tag: 0x1a),
+  ...open(0x2f, 2, tag: 0x1a),
   ...bounds(10, 20, 40, 160),
   ...caption('Acquire'),
   ...close(0x1a),
@@ -126,15 +127,42 @@ void main() {
     );
     expect(tester.takeException(), isNull);
     expect(find.textContaining('VI icon'), findsOneWidget);
-    await pumpBody(
-      tester,
-      ViDiagramView(
-        diagrams: modelWithDiagram().blockDiagrams,
-        viImages: images,
-        isFrontPanel: true,
-      ),
-    );
-    expect(find.textContaining('VI icon'), findsNothing);
+  });
+
+  testWidgets('the front panel view lists its controls and selects on tap', (
+    tester,
+  ) async {
+    final model = buildViModelFromDecoded([
+      heapSection(<int>[
+        ...open(0x7e, 1),
+        ...bounds(0, 0, 400, 400),
+        ...open(0x12, 2, tag: 0x1a),
+        ...open(0x50, 3, tag: 0x1b),
+        ...bounds(20, 20, 50, 160),
+        ...caption('Gain'),
+        ...close(0x1b),
+        ...close(0x1a),
+        ...close(),
+      ], tag: 'FPHb'),
+    ]);
+    model.frontPanels.single.byId[2]!.typeDescIdx = 0;
+    await pumpBody(tester, FrontPanelView(panels: model.frontPanels));
+    expect(tester.takeException(), isNull);
+    expect(find.textContaining('objects'), findsOneWidget);
+    expect(find.text('control 2'), findsOneWidget);
+    await tester.tap(find.text('control 2'));
+    await tester.pump();
+    expect(find.textContaining('oid 2'), findsOneWidget);
+    await tester.tapAt(const Offset(120, 120));
+    await tester.pump();
+    expect(tester.takeException(), isNull);
+  });
+
+  testWidgets('the front panel view shows a placeholder without panels', (
+    tester,
+  ) async {
+    await pumpBody(tester, const FrontPanelView(panels: null));
+    expect(find.textContaining('No front-panel objects'), findsOneWidget);
   });
 
   testWidgets('empty model shows an honest placeholder, not a crash', (
@@ -163,7 +191,7 @@ void main() {
         ...open(0x21, 2, tag: 0x1a),
         ...bounds(10, 10, 200, 200),
         ...close(0x1a),
-        ...open(0x12, 3, tag: 0x1b),
+        ...open(0x31, 3, tag: 0x1b),
         ...bounds(20, 220, 50, 360),
         ...caption('Acquire.vi'),
         ...close(0x1b),
@@ -171,7 +199,7 @@ void main() {
       ]),
     );
     expect(find.text('Control flow:'), findsOneWidget);
-    expect(find.text('While loop ×1'), findsOneWidget);
+    expect(find.text('While Loop ×1'), findsOneWidget);
     expect(
       find.textContaining('Diagram-labeled nodes (1): Acquire.vi'),
       findsOneWidget,

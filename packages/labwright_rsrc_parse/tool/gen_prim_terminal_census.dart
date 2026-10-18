@@ -5,7 +5,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import '../../../tool/corpus.dart';
 
-/// Run: `dart run tool/gen_prim_terminal_census.dart`; writes `lib/src/diagram/prim_terminal_census.dart`.
+/// Run: `dart run tool/gen_prim_terminal_census.dart`; writes `lib/src/block_diagram/prim_terminal_census.dart`.
 void main() {
   final root = corpusVi;
   final xObs = <(int, int, int, int), Map<int, int>>{};
@@ -39,10 +39,10 @@ void main() {
         final slack = wire.routeHeadSlack;
         final points = wire.routePoints;
         if (slack == null || points == null || points.isEmpty) continue;
-        ViHeapObject? dco;
+        BdObject? dco;
         for (final oid in wire.endpointOids) {
           final o = diagram.byId[oid];
-          if (o != null && o.kind == kNodeEndpointDcoKind && o.absBounds == null) {
+          if (o != null && o.objectClass == BdObjectClass.terminalHolder && o.absBounds == null) {
             dco = o;
             break;
           }
@@ -55,12 +55,12 @@ void main() {
         }
         final dcos = [
           for (final c in diagram.children(node.oid))
-            if (c.kind == kNodeEndpointDcoKind) c,
+            if (c.objectClass == BdObjectClass.terminalHolder) c,
         ];
         final termIdx = dcos.indexWhere((c) => c.oid == dco!.oid);
         if (termIdx < 0) continue;
         final key = (
-          node.primResId ?? -node.kind,
+          node.primitive?.primResId ?? -node.kind,
           termIdx,
           box.width,
           box.height,
@@ -129,7 +129,9 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalCensus = {
   }
   out.writeln('};');
   stderr.writeln('entries=$shipped axisConflictsDropped=$axisConflicts');
-  final target = File('${File.fromUri(Platform.script).parent.parent.path}/lib/src/diagram/prim_terminal_census.dart');
+  final target = File(
+    '${File.fromUri(Platform.script).parent.parent.path}/lib/src/block_diagram/prim_terminal_census.dart',
+  );
   target.writeAsStringSync(out.toString());
   stderr.writeln('wrote ${target.path}');
 }

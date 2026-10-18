@@ -45,8 +45,8 @@ Uint8List sceneExclusionMask({
   for (final o in scene.drawable) {
     final b = o.absBounds;
     if (b == null) continue;
-    if (o.category == ViObjectKind.node ||
-        o.category == ViObjectKind.terminal ||
+    if (o.category == BdObjectKind.node ||
+        o.category == BdObjectKind.terminal ||
         kBdTextLabelClasses.contains(o.objectClass)) {
       fill(
         b.left - 1 - cl,

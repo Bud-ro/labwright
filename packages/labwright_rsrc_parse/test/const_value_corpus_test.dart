@@ -23,23 +23,23 @@ void main() {
     };
     pins.forEach((oid, want) {
       final o = bd.byId[oid]!;
-      expect(o.constBool ?? o.constNumeric, want, reason: 'crc8 oid $oid');
+      expect(o.constant?.boolValue ?? o.constant?.numeric, want, reason: 'crc8 oid $oid');
     });
     expect(bd.byId[757]!.arrayIndex, 255, reason: 'LUT shell index');
     expect(bd.byId[2369]!.arrayIndex, 255, reason: 'zero-LUT shell index');
-    expect(bd.byId[750]!.constArray![255], 255, reason: 'LUT[255]');
+    expect(bd.byId[750]!.constant?.array![255], 255, reason: 'LUT[255]');
 
     final md5 = File('${corpusViDir.path}/vi-corpus/sources/rcpacini__VI-Snippets/MD5.png');
     final bdM = buildViModel(extractSnippetVi(md5.readAsBytesSync())!).blockDiagrams.single;
-    expect(bdM.byId[821]!.constNumeric, 0x67452301, reason: 's1 in');
-    expect(bdM.byId[796]!.constNumeric, 0xEFCDAB89, reason: 's2 in: leading byte >= 0x80, typed u32');
-    expect(bdM.byId[757]!.constNumeric, 0x10325476, reason: 's4 in: above the SGL-alias ceiling, typed u32');
-    expect(bdM.byId[4928]!.constArrayDims, [4, 16], reason: 'Indices 2D');
-    expect(bdM.byId[4928]!.constArray!.take(4), [0, 1, 2, 3]);
-    expect(bdM.byId[4969]!.constArrayDims, [64], reason: 'T 1D');
-    expect(bdM.byId[4969]!.constArray!.first, 0xD76AA478);
-    expect(bdM.byId[943]!.constArrayDims, [0], reason: 'empty array: dims + 1 zero pad byte');
-    expect(bdM.byId[943]!.constArray, isEmpty);
+    expect(bdM.byId[821]!.constant?.numeric, 0x67452301, reason: 's1 in');
+    expect(bdM.byId[796]!.constant?.numeric, 0xEFCDAB89, reason: 's2 in: leading byte >= 0x80, typed u32');
+    expect(bdM.byId[757]!.constant?.numeric, 0x10325476, reason: 's4 in: above the SGL-alias ceiling, typed u32');
+    expect(bdM.byId[4928]!.constant?.arrayDims, [4, 16], reason: 'Indices 2D');
+    expect(bdM.byId[4928]!.constant?.array!.take(4), [0, 1, 2, 3]);
+    expect(bdM.byId[4969]!.constant?.arrayDims, [64], reason: 'T 1D');
+    expect(bdM.byId[4969]!.constant?.array!.first, 0xD76AA478);
+    expect(bdM.byId[943]!.constant?.arrayDims, [0], reason: 'empty array: dims + 1 zero pad byte');
+    expect(bdM.byId[943]!.constant?.array, isEmpty);
     expect(bdM.byId[814]!.displayFormat, '%08x', reason: 's1 value window');
     expect(bdM.byId[4996]!.displayFormat, '%x', reason: 'T element window');
 
@@ -50,11 +50,11 @@ void main() {
     expect(test5.existsSync(), isTrue, reason: 'the pinned VI must be fetched with the corpus');
     final bytes = test5.readAsBytesSync();
     final bd5 = buildViModel(bytes).blockDiagrams.single;
-    expect(bd5.byId[1148]!.constNumeric, 10, reason: 'milliseconds to wait');
-    expect(bd5.byId[2592]!.constBool, true);
-    expect(bd5.byId[2692]!.constText, 'Test Status');
+    expect(bd5.byId[1148]!.constant?.numeric, 10, reason: 'milliseconds to wait');
+    expect(bd5.byId[2592]!.constant?.boolValue, true);
+    expect(bd5.byId[2692]!.constant?.text, 'Test Status');
     expect(bd5.byId[2924]!.resolvedType?.kind, ViDataType.i32);
-    expect(bd5.byId[2924]!.constNumeric, -1);
+    expect(bd5.byId[2924]!.constant?.numeric, -1);
 
     final sections = readViSections(bytes);
     final dfdsSection = sections.firstWhere((s) => s.tag == 'DFDS');
@@ -71,7 +71,7 @@ void main() {
     expect(numSlot.length, 4);
     expect(
       ByteData.sublistView(dfds, numSlot.offset, numSlot.offset + 4).getUint32(0),
-      bd5.byId[1148]!.constNumeric,
+      bd5.byId[1148]!.constant?.numeric,
       reason: 'decoded constant value byte-matches its data-space slot',
     );
   });
@@ -95,13 +95,13 @@ void main() {
       ('Config_Dump', 2448, '\n', 27, 19),
       ('Config_Dump', 1575, '=', 17, 19),
     ];
-    final diagrams = <String, ViDiagram>{};
+    final diagrams = <String, BdDiagram>{};
     for (final (snippet, oid, value, width, height) in pins) {
       final diagram = diagrams[snippet] ??= buildViModel(
         extractSnippetVi(snippetPng('$snippet.png').readAsBytesSync())!,
       ).blockDiagrams.single;
       final constant = diagram.byId[oid]!;
-      expect(constant.constText, value, reason: '$snippet oid $oid value');
+      expect(constant.constant?.text, value, reason: '$snippet oid $oid value');
       final box = diagram.children(oid).firstWhere((child) => child.absBounds != null).absBounds!;
       expect((box.width, box.height), (width, height), reason: '$snippet oid $oid box');
       expect(bdDrawnConstText(constant), value.codeUnits.every((c) => c >= 0x20 && c < 0x7f) ? value : isNull);
@@ -125,9 +125,9 @@ void main() {
     for (final (path, oid, dims, texts) in pins) {
       final diagram = buildViModel(File('${corpusViDir.path}/$path').readAsBytesSync()).blockDiagrams.single;
       final constant = diagram.byId[oid]!;
-      expect(constant.constArrayDims, dims, reason: '$path oid $oid dims');
-      expect(constant.constTextArray, texts, reason: '$path oid $oid elements');
-      expect(constant.constArray, isNull, reason: '$path oid $oid numbers');
+      expect(constant.constant?.arrayDims, dims, reason: '$path oid $oid dims');
+      expect(constant.constant?.textArray, texts, reason: '$path oid $oid elements');
+      expect(constant.constant?.array, isNull, reason: '$path oid $oid numbers');
     }
   });
 }

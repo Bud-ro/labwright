@@ -2,9 +2,9 @@
 /// ([kBdPrimTerminalCensus]) completed by offsets measured against LabVIEW's own renders.
 library;
 
+import 'bd_diagram.dart';
+import 'bd_object.dart';
 import 'bd_semantics.dart';
-import 'diagram.dart';
-import 'objects.dart';
 import 'prim_terminal_census.dart';
 
 /// Offsets measured from reference renders, keyed like [kBdPrimTerminalCensus]; they fill
@@ -38,10 +38,10 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
 
 /// The attach point of the wire head at [endpointOid] on its primitive node, per axis, or
 /// null when the endpoint is not a node terminal or no offset is known for the node's icon.
-({int? x, int? y})? bdPrimTerminalOf(ViDiagram diagram, int endpointOid) {
+({int? x, int? y})? bdPrimTerminalOf(BdDiagram diagram, int endpointOid) {
   final head = diagram.byId[endpointOid];
   final parentOid = head?.parentOid;
-  if (head == null || head.kind != kNodeEndpointDcoKind || parentOid == null) return null;
+  if (head == null || head.objectClass != BdObjectClass.terminalHolder || parentOid == null) return null;
   final parent = diagram.byId[parentOid];
   final box = parent?.absBounds;
   if (parent == null || box == null) return null;
@@ -50,7 +50,7 @@ const Map<(int, int, int, int), ({int? dx, int? dy})> kBdPrimTerminalMeasured = 
   var termIdx = -1;
   var at = 0;
   for (final c in diagram.children(parentOid)) {
-    if (c.kind != kNodeEndpointDcoKind) continue;
+    if (c.objectClass != BdObjectClass.terminalHolder) continue;
     if (c.oid == head.oid) {
       termIdx = at;
       break;

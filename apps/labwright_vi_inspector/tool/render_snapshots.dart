@@ -10,6 +10,7 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
+import 'package:labwright_vi_inspector/src/front_panel_view.dart';
 
 import '../test/util.dart';
 
@@ -88,10 +89,10 @@ void main() {
           return;
         }
         final modelMs = lap();
-        final diagrams = isFrontPanel
-            ? model.frontPanelDiagrams
-            : model.blockDiagrams;
-        if (!diagrams.any((d) => d.objects.isNotEmpty)) return;
+        final heaps = isFrontPanel
+            ? <HeapObjectTree>[...model.frontPanels]
+            : <HeapObjectTree>[...model.blockDiagrams];
+        if (!heaps.any((d) => d.objects.isNotEmpty)) return;
         await tester.binding.setSurfaceSize(const Size(1400, 900));
         addTearDown(() => tester.binding.setSurfaceSize(null));
         final key = GlobalKey();
@@ -100,10 +101,9 @@ void main() {
             home: Scaffold(
               body: RepaintBoundary(
                 key: key,
-                child: ViDiagramView(
-                  diagrams: diagrams,
-                  isFrontPanel: isFrontPanel,
-                ),
+                child: isFrontPanel
+                    ? FrontPanelView(panels: model.frontPanels)
+                    : ViDiagramView(diagrams: model.blockDiagrams),
               ),
             ),
           ),

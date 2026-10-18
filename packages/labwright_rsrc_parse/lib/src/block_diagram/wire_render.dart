@@ -4,7 +4,7 @@ library;
 import 'dart:math' show min;
 
 import '../blocks/VCTP_type_pool.dart';
-import 'objects.dart' show ViSignalType;
+import 'signal_type.dart';
 
 /// The line styles LabVIEW draws wires in.
 enum ViWireRenderStyle {

@@ -12,7 +12,7 @@ Map<String, int> _census(CorpusVi vi) {
   if (model == null) return c;
   for (final d in model.blockDiagrams) {
     for (final w in d.wires) {
-      final raw = d.byId[w.signalOid]?.wireTableRaw;
+      final raw = d.byId[w.signalOid]?.signal?.wireTableRaw;
       if (raw == null) continue;
       final eps = w.endpointOids.length;
       for (final oid in w.endpointOids) {
@@ -80,7 +80,7 @@ Map<String, int> _census(CorpusVi vi) {
   return c;
 }
 
-void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
+void _extCensus(BdDiagram d, ViWire w, void Function(String, [int]) bump) {
   final branch = w.branchRoute;
   if (branch == null) {
     bump('extUndecoded');
@@ -172,7 +172,7 @@ void _extCensus(ViDiagram d, ViWire w, void Function(String, [int]) bump) {
   }
 }
 
-ViPoint? _stripTargetOf(ViDiagram d, ViWire w, int i) {
+ViPoint? _stripTargetOf(BdDiagram d, ViWire w, int i) {
   final rect = w.endpointAttachRects[i];
   final p = d.wireAttachPoint(w.endpointOids[i]);
   if (rect == null || p == null) return null;

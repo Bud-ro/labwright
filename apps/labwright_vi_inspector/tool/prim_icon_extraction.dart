@@ -242,8 +242,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 
       for (final o in bd.objects) {
         final b = o.absBounds;
-        final key = o.primResId != null
-            ? 'prim${o.primResId}'
+        final key = o.primitive?.primResId != null
+            ? 'prim${o.primitive?.primResId}'
             : (primClasses.contains(o.kind)
                   ? 'class${o.kind}_t${bd.children(o.oid).where((c) => c.kind == 0x15).length}'
                   : null);

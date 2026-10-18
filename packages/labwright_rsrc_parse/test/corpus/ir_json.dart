@@ -31,13 +31,15 @@ List<Object?> _summarizeVi(CorpusVi vi) {
     bad('json', 'THREW $name: $e');
   }
 
-  for (final d in [...model.blockDiagrams, ...model.frontPanelDiagrams]) {
+  for (final (tag, heap, json) in <(String, HeapObjectTree, Map<String, Object?>)>[
+    for (final d in model.blockDiagrams) ('BDHb', d, bdDiagramToJson(d)),
+    for (final p in model.frontPanels) ('FPHb', p, fpPanelToJson(p)),
+  ]) {
     n('diagrams');
-    final json = viDiagramToJson(d);
     final emitted = (json['objects'] as List<Map<String, Object?>>).map((o) => o['oid'] as int).toSet();
-    final missing = d.nodes.where((o) => !emitted.contains(o.oid));
+    final missing = heap.objects.where((o) => o.absBounds != null).where((o) => !emitted.contains(o.oid));
     if (missing.isNotEmpty) {
-      bad('drawable', 'MISSING ${missing.first.oid} in $name/${d.sectionTag}');
+      bad('drawable', 'MISSING ${missing.first.oid} in $name/$tag');
       break;
     }
   }

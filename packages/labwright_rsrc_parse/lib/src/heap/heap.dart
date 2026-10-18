@@ -1109,6 +1109,21 @@ class HeapRect {
 
   bool get isValid => bottom >= top && right >= left;
 
+  /// This rectangle moved down by [dTop] and right by [dLeft].
+  HeapRect shift(int dTop, int dLeft) =>
+      HeapRect(top: top + dTop, left: left + dLeft, bottom: bottom + dTop, right: right + dLeft);
+
+  /// The eight bytes of a bounds record payload.
+  Uint8List toPayload() {
+    final payload = Uint8List(8);
+    ByteData.sublistView(payload)
+      ..setInt16(0, top)
+      ..setInt16(2, left)
+      ..setInt16(4, bottom)
+      ..setInt16(6, right);
+    return payload;
+  }
+
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||

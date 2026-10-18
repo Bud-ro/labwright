@@ -411,7 +411,7 @@ void main() {
       // TODO: the structure band is not byte-faithful; its edge corridors are excluded from the surround check.
       final structureEdgeRects = [
         for (final o in drawable)
-          if (o.category == ViObjectKind.structure) o.absBounds!,
+          if (o.category == BdObjectKind.structure) o.absBounds!,
       ];
       // Modeled structure-terminal boxes are excluded: which ones LabVIEW shows is not decoded.
       final modeledTerminalRects = [
@@ -505,7 +505,7 @@ void main() {
 
       final leafRects = [
         for (final o in drawable)
-          if (o.category != ViObjectKind.structure && o.absBounds != null)
+          if (o.category != BdObjectKind.structure && o.absBounds != null)
             o.absBounds!,
         for (final w in wires) ...w.endpointAttachRects.whereType<HeapRect>(),
       ];
@@ -809,7 +809,7 @@ void main() {
       for (final (sig, value) in [(375, 8), (3126, 256), (399, 256)]) {
         final w = wires.firstWhere((w) => w.signalOid == sig);
         expect(
-          bd.endpointConstant(w.endpointOids[0])?.constNumeric,
+          bd.endpointConstant(w.endpointOids[0])?.constant?.numeric,
           value,
           reason: 'feeder $sig must wrap the $value constant',
         );

@@ -17,44 +17,50 @@ List<int> _tally(CorpusVi vi) {
   final model = vi.model;
   if (model == null) return out;
   bool inRange(int? rgb) => rgb != null && rgb >= 0 && rgb <= 0xffffff;
-  for (final diagram in [
-    ...model.frontPanelDiagrams,
-    ...model.blockDiagrams,
-  ]) {
-    final isBd = diagram.sectionTag == 'BDHb';
+  void shared(HeapObject object) {
+    out[6]++;
+    final bounded = object.absBounds != null;
+    for (final rgb in [object.bgRgb, object.fgRgb, object.contentRgb]) {
+      if (inRange(rgb)) out[7]++;
+    }
+    if (object.bgRgb != null) {
+      out[0]++;
+      if (bounded) out[1]++;
+    }
+    if (object.fgRgb != null) {
+      out[2]++;
+      if (bounded) out[3]++;
+    }
+    if (object.contentRgb != null) {
+      out[4]++;
+      if (bounded) out[5]++;
+    }
+  }
+
+  for (final panel in model.frontPanels) {
+    for (final object in panel.objects) {
+      shared(object);
+      if (object.borderRgb != null) out[11]++;
+      if (inRange(object.borderRgb)) out[12]++;
+      final plotColors = object.graph?.plotColors ?? const [];
+      if (plotColors.isNotEmpty) {
+        out[13]++;
+        if (object.absBounds != null) out[14]++;
+        out[15] += plotColors.length;
+        out[16] += plotColors.where(inRange).length;
+        if (object.objectClass == FpObjectClass.graph) out[17]++;
+      }
+    }
+  }
+  for (final diagram in model.blockDiagrams) {
     for (final object in diagram.objects) {
-      out[6]++;
-      final bounded = object.absBounds != null;
-      for (final rgb in [object.bgRgb, object.fgRgb, object.contentRgb]) {
-        if (inRange(rgb)) out[7]++;
-      }
-      if (object.bgRgb != null) {
-        out[0]++;
-        if (bounded) out[1]++;
-      }
-      if (object.fgRgb != null) {
-        out[2]++;
-        if (bounded) out[3]++;
-      }
-      if (object.contentRgb != null) {
-        out[4]++;
-        if (bounded) out[5]++;
-      }
+      shared(object);
       if (object.structRgb != null) {
         out[8]++;
-        if (bounded) out[9]++;
-        if (isBd && object.category == ViObjectKind.structure) out[10]++;
+        if (object.absBounds != null) out[9]++;
+        if (object.category == BdObjectKind.structure) out[10]++;
       }
-      if (object.borderRgb != null) out[11]++;
       if (inRange(object.structRgb)) out[12]++;
-      if (inRange(object.borderRgb)) out[12]++;
-      if (object.plotColors.isNotEmpty) {
-        out[13]++;
-        if (bounded) out[14]++;
-        out[15] += object.plotColors.length;
-        out[16] += object.plotColors.where(inRange).length;
-        if (object.objectClass == HeapObjectClass.graphIndicator) out[17]++;
-      }
     }
   }
   return out;

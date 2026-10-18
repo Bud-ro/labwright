@@ -3,9 +3,9 @@ import 'dart:typed_data';
 import '../labwright_rsrc_parse.dart';
 
 /// Everything decoded from one VI that the inspector and transpiler consume: the version and
-/// title, per-block component totals, the diagrams of both sides, the type pool, the sub-VI
-/// names, the connector-pane type and the font table; and the sections themselves, which
-/// edits change and [serialize] writes back into the file they were loaded from.
+/// title, per-block component totals, the block diagrams and front panels, the type pool, the
+/// sub-VI names, the connector-pane type and the font table; and the sections themselves,
+/// which edits change and [serialize] writes back into the file they were loaded from.
 class ViModel {
   ViModel({
     required this.version,
@@ -13,12 +13,12 @@ class ViModel {
     required this.components,
     this.sections = const <ViSectionBuffer>[],
     Uint8List? file,
-    this.blockDiagrams = const <ViDiagram>[],
-    this.frontPanelDiagrams = const <ViDiagram>[],
+    this.blockDiagrams = const <BdDiagram>[],
+    this.frontPanels = const <FpPanel>[],
     this.subViNames = const <String>[],
     this.types = const <ViType>[],
     this.connectorPaneType,
-    this.paneTerminals = const <ViHeapObject?>[],
+    this.paneTerminals = const <FpObject?>[],
     this.fontTable,
   }) : _fileBytes = file {
     for (final section in sections) {
@@ -89,8 +89,8 @@ class ViModel {
   }
 
   /// Takes back the newest group of edits, byte for byte, and rebuilds what those sections
-  /// decide: a diagram after its heap, the types after `VCTP` or a heap. False when there is
-  /// nothing to undo.
+  /// decide: a heap's tree after the heap, the types after `VCTP` or a heap. False when there
+  /// is nothing to undo.
   bool undo() {
     if (journal.isEmpty) return false;
     final group = journal.removeLast();
@@ -100,10 +100,8 @@ class ViModel {
     }
     _recordsEdits = true;
     final touched = {for (final edit in group) edit.section};
-    for (final section in touched) {
-      for (final diagram in diagrams) {
-        if (diagram.sectionTag == section.tag && diagram.sectionIndex == section.index) reloadDiagram(diagram);
-      }
+    for (final heap in heaps) {
+      if (touched.contains(sectionOf(heap))) reloadHeap(heap);
     }
     if (touched.any((s) => s.tag == BlockTag.vctp.tag)) reloadTypes();
     return true;
@@ -122,12 +120,12 @@ class ViModel {
   }
 
   /// One diagram per `BDHb` section.
-  final List<ViDiagram> blockDiagrams;
+  final List<BdDiagram> blockDiagrams;
 
-  /// One diagram per `FPHb` section.
-  final List<ViDiagram> frontPanelDiagrams;
+  /// One panel per `FPHb` section.
+  final List<FpPanel> frontPanels;
 
-  ViDiagram? get primaryBlockDiagram => largestDiagram(blockDiagrams);
+  BdDiagram? get primaryBlockDiagram => largestHeap(blockDiagrams);
 
   /// Sub-VI names recovered from `LIbd`, see [readSubViNames].
   final List<String> subViNames;
@@ -140,7 +138,7 @@ class ViModel {
 
   /// The panel control behind each connector-pane terminal, in pane order; null where the
   /// terminal is unwired or no control answers for it. See [connectorPaneTerminals].
-  List<ViHeapObject?> paneTerminals;
+  List<FpObject?> paneTerminals;
 
   /// Appends [descriptor] to the type pool and returns its index.
   int addType(Uint8List descriptor) {
@@ -176,66 +174,45 @@ class ViModel {
     reloadTypes();
   }
 
-  /// The heap section [diagram] was built from.
-  ViSectionBuffer sectionOf(ViDiagram diagram) => section(diagram.sectionTag, diagram.sectionIndex)!;
+  /// Every heap, block diagrams first.
+  List<HeapObjectTree> get heaps => [...blockDiagrams, ...frontPanels];
+
+  /// The heap section [heap] was built from.
+  ViSectionBuffer sectionOf(HeapObjectTree heap) =>
+      section(heap is BdDiagram ? BlockTag.bdhb.tag : BlockTag.fphb.tag, heap.sectionIndex)!;
 
   /// Moves [object] by ([dx], [dy]): its bounds record is rewritten in place, and the absolute
   /// bounds of everything inside it follow.
-  void moveObject(ViDiagram diagram, ViHeapObject object, {required int dx, required int dy}) {
+  void moveObject<T extends HeapObject>(HeapObjectTree<T> heap, T object, {required int dx, required int dy}) {
     final at = object.boundsOffset;
     final bounds = object.bounds;
     if (at == null || bounds == null) throw ArgumentError('object ${object.oid} has no bounds record');
-    final moved = HeapRect(
-      top: bounds.top + dy,
-      left: bounds.left + dx,
-      bottom: bounds.bottom + dy,
-      right: bounds.right + dx,
-    );
-    final payload = Uint8List(8);
-    ByteData.sublistView(payload)
-      ..setInt16(0, moved.top)
-      ..setInt16(2, moved.left)
-      ..setInt16(4, moved.bottom)
-      ..setInt16(6, moved.right);
-    transact(() => sectionOf(diagram).write(at, payload));
+    final moved = bounds.shift(dy, dx);
+    transact(() => sectionOf(heap).write(at, moved.toPayload()));
     object.bounds = moved;
-    void follow(ViHeapObject inner) {
-      if (inner.absBounds case final abs?) {
-        inner.absBounds = HeapRect(
-          top: abs.top + dy,
-          left: abs.left + dx,
-          bottom: abs.bottom + dy,
-          right: abs.right + dx,
-        );
-      }
-      for (final child in diagram.childrenOf(inner)) {
-        follow(child);
-      }
-    }
-
-    follow(object);
+    shiftSubtree(heap, object, dTop: dy, dLeft: dx);
   }
 
   /// Gives [object] the label [text], written as its code units in place of its label record.
-  void setLabel(ViDiagram diagram, ViHeapObject object, String text) {
+  void setLabel<T extends HeapObject>(HeapObjectTree<T> heap, T object, String text) {
     final at = object.labelOffset;
     if (at == null) throw ArgumentError('object ${object.oid} has no label record');
     final record = encodeHeapC4Record(HeapOpcode.caption.byte, text.codeUnits);
-    transact(() => sectionOf(diagram).splice(at, at + object.labelLength, record));
+    transact(() => sectionOf(heap).splice(at, at + object.labelLength, record));
     final delta = record.length - object.labelLength;
-    final named = diagram.parentOf(object);
+    final named = heap.parentOf(object);
     if (named != null && named.labelOffset == null && named.label == object.label?.trim()) named.label = text.trim();
     object
       ..label = text
       ..labelLength = record.length;
-    _shiftHeap(diagram, at, delta);
+    _shiftHeap(heap, at, delta);
   }
 
   /// Duplicates [object] with everything inside it right after it, every object in the copy
   /// under a fresh id and the references between them following, widened where a fresh id
-  /// needs it. The diagram is rebuilt; the result is that diagram and the copy.
-  ({ViDiagram diagram, ViHeapObject clone}) cloneObject(ViDiagram diagram, ViHeapObject object) {
-    final section = sectionOf(diagram);
+  /// needs it. The heap's tree is rebuilt; the result is that tree and the copy.
+  ({H heap, T clone}) cloneObject<H extends HeapObjectTree<T>, T extends HeapObject>(H heap, T object) {
+    final section = sectionOf(heap);
     final body = section.bytes;
     final view = ByteData.sublistView(body);
     final ids = <int, int>{};
@@ -262,37 +239,37 @@ class ViModel {
         at += step;
       }
       section.splice(object.end, object.end, copy.takeBytes());
-      return reloadDiagram(diagram);
+      return reloadHeap(heap);
     });
-    return (diagram: rebuilt, clone: rebuilt.byId[ids[object.oid]!]!);
+    return (heap: rebuilt, clone: rebuilt.byId[ids[object.oid]!]!);
   }
 
-  /// Rebuilds [diagram] from its section, in its place among the model's diagrams, with the
-  /// fonts and types resolved again.
-  ViDiagram reloadDiagram(ViDiagram diagram) {
-    final section = sectionOf(diagram);
-    final rebuilt = buildDiagram(
-      section.bytes,
-      sectionTag: diagram.sectionTag,
-      version: diagram.version,
-      sectionIndex: diagram.sectionIndex,
-    );
-    final list = diagram.sectionTag == BlockTag.bdhb.tag ? blockDiagrams : frontPanelDiagrams;
-    list[list.indexOf(diagram)] = rebuilt;
-    if (fontTable case final fonts?) {
-      for (final object in rebuilt.objects) {
-        if (object.textStyleRuns.isEmpty) continue;
-        object.labelFont = fonts.entryForRunFontId(object.textStyleRuns.first.fontId);
-      }
+  /// Rebuilds [heap] from its section, in its place among the model's diagrams or panels, with
+  /// the fonts and types resolved again.
+  H reloadHeap<H extends HeapObjectTree>(H heap) {
+    final section = sectionOf(heap);
+    final H rebuilt;
+    switch (heap) {
+      case BdDiagram():
+        final diagram = buildBlockDiagram(section.bytes, version: heap.version, sectionIndex: heap.sectionIndex);
+        blockDiagrams[blockDiagrams.indexOf(heap)] = diagram;
+        rebuilt = diagram as H;
+      case FpPanel():
+        final panel = buildFrontPanel(section.bytes, version: heap.version, sectionIndex: heap.sectionIndex);
+        frontPanels[frontPanels.indexOf(heap)] = panel;
+        rebuilt = panel as H;
+      default:
+        throw ArgumentError.value(heap, 'heap', 'not a diagram or panel');
     }
+    if (fontTable case final fonts?) _resolveFonts(rebuilt, fonts);
     reloadTypes();
     return rebuilt;
   }
 
   /// Moves every heap offset after [at] by [delta], after a splice there.
-  void _shiftHeap(ViDiagram diagram, int at, int delta) {
+  void _shiftHeap(HeapObjectTree heap, int at, int delta) {
     if (delta == 0) return;
-    for (final object in diagram.objects) {
+    for (final object in heap.objects) {
       if (object.offset > at) object.offset += delta;
       if (object.end > at) object.end += delta;
       if (object.boundsOffset case final bounds? when bounds > at) object.boundsOffset = bounds + delta;
@@ -303,56 +280,46 @@ class ViModel {
   /// Rebuilds what the type pool decides, after `VCTP` changed: [types], every heap object's
   /// resolved type, [connectorPaneType] and [paneTerminals].
   void reloadTypes() {
-    final pool = switch (section(BlockTag.vctp.tag)) {
-      final vctp? => ViTypePool(vctp.bytes),
-      null => null,
-    };
+    final pool = _decode(BlockTag.vctp, ViTypePool.new);
     types = pool?.types ?? const <ViType>[];
-    for (final diagram in diagrams) {
-      for (final object in diagram.objects) {
-        object
-          ..dataType = null
-          ..resolvedType = null
-          ..resolvedElementType = null
-          ..resolvedMembers = const []
-          ..resolvedElementMembers = const [];
+    for (final heap in heaps) {
+      for (final object in heap.objects) {
+        object.resolvedType = null;
       }
     }
-    resolveDataSpaceTypes(
+    final dataSpace = ViDataSpaceTypes(
       pool: types,
       table: pool?.topLevelIndices ?? const [],
-      typeIndexBase: switch (section(BlockTag.dthp.tag)) {
-        final dthp? => switch (ViDataTypeHeap(dthp.bytes)) {
-          ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
-          _ => null,
-        },
-        null => null,
+      typeIndexBase: switch (_decode(BlockTag.dthp, ViDataTypeHeap.new)) {
+        ViDataTypeHeapCompact(:final viTypeIndexBase) => viTypeIndexBase,
+        _ => null,
       },
-      blockDiagrams: blockDiagrams,
-      frontPanelDiagrams: frontPanelDiagrams,
     );
-    connectorPaneType = switch (section(BlockTag.conp.tag)) {
-      final conp? => ViConnectorPane(conp.bytes).typeIn(pool),
-      null => null,
-    };
+    resolveDataSpaceTypes(blockDiagrams, frontPanels, dataSpace);
+    connectorPaneType = _decode(BlockTag.conp, ViConnectorPane.new)?.typeIn(pool);
     paneTerminals = connectorPaneTerminals(
       paneType: connectorPaneType,
-      frontPanelDiagrams: frontPanelDiagrams,
-      map: switch (section(BlockTag.cpmp.tag)) {
-        final cpmp? => ViConnectorPaneMap(cpmp.bytes),
-        null => null,
-      },
-      panelType: switch (section(BlockTag.fptd.tag)) {
-        final fptd? => ViFrontPanelType(fptd.bytes),
-        null => null,
-      },
+      panels: frontPanels,
+      map: _decode(BlockTag.cpmp, ViConnectorPaneMap.new),
+      panelType: _decode(BlockTag.fptd, ViFrontPanelType.new),
       pool: pool,
     );
   }
 
-  final ViFontTable? fontTable;
+  /// The block [tag]'s first section decoded by [decode], null without one.
+  T? _decode<T>(BlockTag tag, T Function(Uint8List) decode) => switch (section(tag.tag)) {
+    final s? => decode(s.bytes),
+    null => null,
+  };
 
-  List<ViDiagram> get diagrams => [...blockDiagrams, ...frontPanelDiagrams];
+  final ViFontTable? fontTable;
+}
+
+void _resolveFonts(HeapObjectTree heap, ViFontTable fonts) {
+  for (final object in heap.objects) {
+    if (object.textStyleRuns.isEmpty) continue;
+    object.labelFont = fonts.entryForRunFontId(object.textStyleRuns.first.fontId);
+  }
 }
 
 /// Decodes every section of a VI and builds its [ViModel], which [ViModel.serialize] writes
@@ -376,26 +343,18 @@ ViModel buildViModelFromDecoded(
   final list = decoded is List<DecodedSection> ? decoded : decoded.toList();
   final sections = list.map((d) => d.section).toList();
   final ver = versionFromSections(sections);
-  List<ViDiagram> diagramsFor(BlockTag heap) => [
-    for (final decodedSection in list)
-      if (decodedSection.tag == heap.tag && decodedSection.bytes.length >= 6)
-        buildDiagram(
-          decodedSection.bytes,
-          sectionTag: decodedSection.tag,
-          version: ver.version,
-          sectionIndex: decodedSection.index,
-        ),
+  Iterable<DecodedSection> heapsOf(BlockTag heap) => list.where((s) => s.tag == heap.tag && s.bytes.length >= 6);
+  final blockDiagrams = [
+    for (final s in heapsOf(BlockTag.bdhb)) buildBlockDiagram(s.bytes, version: ver.version, sectionIndex: s.index),
   ];
-  final blockDiagrams = diagramsFor(BlockTag.bdhb);
-  final frontPanelDiagrams = diagramsFor(BlockTag.fphb);
+  final frontPanels = [
+    for (final s in heapsOf(BlockTag.fphb)) buildFrontPanel(s.bytes, version: ver.version, sectionIndex: s.index),
+  ];
   final ftab = list.where((s) => s.tag == 'FTAB').map((s) => s.bytes).firstOrNull;
   final fontTable = ftab == null ? null : ViFontTable(ftab);
   if (fontTable != null) {
-    for (final diagram in [...blockDiagrams, ...frontPanelDiagrams]) {
-      for (final object in diagram.objects) {
-        if (object.textStyleRuns.isEmpty) continue;
-        object.labelFont = fontTable.entryForRunFontId(object.textStyleRuns.first.fontId);
-      }
+    for (final heap in <HeapObjectTree>[...blockDiagrams, ...frontPanels]) {
+      _resolveFonts(heap, fontTable);
     }
   }
   return ViModel(
@@ -416,21 +375,21 @@ ViModel buildViModelFromDecoded(
     title: ver.title,
     components: componentsFromDecoded(list),
     blockDiagrams: blockDiagrams,
-    frontPanelDiagrams: frontPanelDiagrams,
+    frontPanels: frontPanels,
   )..reloadTypes();
 }
 
-/// The diagram with the most placed objects, or null when none has any.
-ViDiagram? largestDiagram(List<ViDiagram> diagrams) {
-  ViDiagram? best;
+/// The heap with the most placed objects, or null when none has any.
+H? largestHeap<H extends HeapObjectTree>(List<H> heaps) {
+  H? best;
   var bestCount = 0;
-  for (final diagram in diagrams) {
+  for (final heap in heaps) {
     var count = 0;
-    for (final object in diagram.objects) {
+    for (final object in heap.objects) {
       if (object.absBounds != null) count++;
     }
     if (count > bestCount) {
-      best = diagram;
+      best = heap;
       bestCount = count;
     }
   }
