@@ -145,9 +145,14 @@ void main() {
         ...close(),
       ], tag: 'FPHb'),
     ]);
+    model.frontPanels.single.byId[2]!.typeDescIdx = 0;
     await pumpBody(tester, FrontPanelView(panels: model.frontPanels));
     expect(tester.takeException(), isNull);
     expect(find.textContaining('objects'), findsOneWidget);
+    expect(find.text('control 2'), findsOneWidget);
+    await tester.tap(find.text('control 2'));
+    await tester.pump();
+    expect(find.textContaining('oid 2'), findsOneWidget);
     await tester.tapAt(const Offset(120, 120));
     await tester.pump();
     expect(tester.takeException(), isNull);

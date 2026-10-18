@@ -4,6 +4,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/heap_view_chrome.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/subvi_icon_resolver.dart';
@@ -538,7 +539,9 @@ void main() {
     final diagram = _synthDiagram();
     final drawable = bdDrawableObjects(diagram);
     expect(drawable, isNotEmpty);
-    final content = bdContentRect(drawable, includeWires: false);
+    final content = heapContentRect(
+      drawable.where((o) => o.category != BdObjectKind.wire),
+    );
     expect(_allWithin(drawable, content), isTrue);
     final loop = diagram.byId[2]!;
     final members = nodesWithin(loop, drawable);
@@ -577,7 +580,9 @@ void main() {
         }
       }
       final drawable = bdDrawableObjects(best);
-      final content = bdContentRect(drawable, includeWires: false);
+      final content = heapContentRect(
+        drawable.where((o) => o.category != BdObjectKind.wire),
+      );
       expect(_allWithin(drawable, content), isTrue);
     }, tags: 'corpus');
   });

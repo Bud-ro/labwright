@@ -10,6 +10,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:flutter/material.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'heap_view_chrome.dart';
+
 import 'diagram_view.dart';
 import 'image_clipboard.dart';
 import 'oracle_gif.dart';
@@ -271,9 +273,8 @@ Future<BdRaster?> rasteriseBlockDiagram(
     if (ownScene) activeScene.dispose();
     return null;
   }
-  final content = bdContentRect(
-    activeScene.drawable,
-    includeWires: false,
+  final content = heapContentRect(
+    activeScene.drawable.where((o) => o.category != BdObjectKind.wire),
     margin: margin,
   );
   if (content.width <= 0 || content.height <= 0) {
@@ -636,7 +637,10 @@ List<Rect> bdStructureAnchorRects(
   List<BdObject>? drawable,
 }) {
   drawable ??= bdDrawableObjects(diagram);
-  final extent = bdContentRect(drawable, includeWires: false, margin: 0);
+  final extent = heapContentRect(
+    drawable.where((o) => o.category != BdObjectKind.wire),
+    margin: 0,
+  );
   final out = <Rect>[];
   for (final object in drawable) {
     if (object.category != BdObjectKind.structure) continue;
@@ -761,7 +765,10 @@ PlacementComparison comparePlacement({
   final chance = pixels == 0 ? 0.0 : edgePixels / pixels;
 
   drawable ??= bdDrawableObjects(diagram);
-  final extent = bdContentRect(drawable, includeWires: false, margin: 0);
+  final extent = heapContentRect(
+    drawable.where((o) => o.category != BdObjectKind.wire),
+    margin: 0,
+  );
   final perObject = <({int oid, double support})>[];
   for (final object in drawable) {
     if (object.category != BdObjectKind.structure &&

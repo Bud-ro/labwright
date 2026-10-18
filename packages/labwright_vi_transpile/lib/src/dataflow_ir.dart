@@ -14,9 +14,7 @@ const int kLvInputEndpointFlag = 0x4000;
 /// Whether a signal endpoint consumes the wire: a pane terminal by its indicator bit, any other by
 /// [kLvSinkEndpointFlag] or [kLvInputEndpointFlag].
 bool lvEndpointIsSink(BdObject object) {
-  if (object.kind == BdObjectClass.panelTerminal.code) {
-    if (object.panelTerminal?.isIndicator case final indicator?) return indicator;
-  }
+  if (object.panelTerminal?.isIndicator case final indicator?) return indicator;
   return ((object.objFlags ?? 0) & (kLvSinkEndpointFlag | kLvInputEndpointFlag)) != 0;
 }
 
