@@ -8,6 +8,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_rsrc_parse/testing.dart';
 
 import 'bd_oracle.dart';
+import 'corpus_browser.dart';
 import 'coverage_view.dart';
 import 'diagram_view.dart';
 import 'front_panel_view.dart';
@@ -32,9 +33,13 @@ class ViInspectorScreen extends StatefulWidget {
     this.initialAttribution,
     this.initialImages,
     this.fetchBytes = fetchViBytes,
+    this.loadCorpus = _loadCorpusLibrary,
   });
 
   final Future<Uint8List> Function(Uri) fetchBytes;
+
+  /// Loads the fetched corpus for the Examples browser; null when none is fetched.
+  final Future<CorpusLibrary?> Function() loadCorpus;
 
   final ViSummary? initial;
 
@@ -56,6 +61,11 @@ class ViInspectorScreen extends StatefulWidget {
 
   @override
   State<ViInspectorScreen> createState() => _ViInspectorScreenState();
+}
+
+Future<CorpusLibrary?> _loadCorpusLibrary() async {
+  final directory = CorpusLibrary.locate();
+  return directory == null ? null : CorpusLibrary.load(directory);
 }
 
 class _ViInspectorScreenState extends State<ViInspectorScreen> {
@@ -80,6 +90,8 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
   String? _fetchingRep;
 
   Directory? _repProjectDir;
+
+  Future<CorpusLibrary?>? _corpus;
 
   Map<String, ViLegacyIcon> _subViIcons = const {};
 
@@ -247,6 +259,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
     }
   }
 
+  void _openCorpusBrowser() {
+    _corpus ??= widget.loadCorpus();
+    showCorpusBrowser(
+      context,
+      library: _corpus!,
+      fetching: _fetchingRep,
+      onOpen: (library, entry) => _loadPath(library.fileOf(entry).path),
+      onOpenFeatured: _openRepresentative,
+    );
+  }
+
   Future<void> _browse() async {
     final result = await FilePicker.pickFiles(
       dialogTitle: 'Open a LabVIEW VI (or a VI-snippet PNG)',
@@ -327,61 +350,17 @@ class _ViInspectorScreenState extends State<ViInspectorScreen> {
                   icon: const Icon(Icons.science_outlined),
                   label: const Text('Load demo VI'),
                 ),
-                MenuAnchor(
-                  menuChildren: [
-                    for (final vi in kRepresentativeVis)
-                      MenuItemButton(
-                        onPressed: _fetchingRep == null
-                            ? () => _openRepresentative(vi)
-                            : null,
-                        leadingIcon: _fetchingRep == vi.name
-                            ? const SizedBox(
-                                width: 16,
-                                height: 16,
-                                child: CircularProgressIndicator(
-                                  strokeWidth: 2,
-                                ),
-                              )
-                            : const Icon(
-                                Icons.cloud_download_outlined,
-                                size: 16,
-                              ),
-                        child: ConstrainedBox(
-                          constraints: const BoxConstraints(maxWidth: 460),
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(vi.name),
-                              Text(
-                                vi.feature +
-                                    (vi.missingNote == null
-                                        ? ''
-                                        : ' · ${vi.missingNote}'),
-                                style: const TextStyle(
-                                  fontSize: 11,
-                                  color: Colors.grey,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ),
-                      ),
-                  ],
-                  builder: (context, controller, _) => OutlinedButton.icon(
-                    key: const Key('examples'),
-                    onPressed: () => controller.isOpen
-                        ? controller.close()
-                        : controller.open(),
-                    icon: _fetchingRep != null
-                        ? const SizedBox(
-                            width: 16,
-                            height: 16,
-                            child: CircularProgressIndicator(strokeWidth: 2),
-                          )
-                        : const Icon(Icons.auto_awesome_outlined),
-                    label: const Text('Examples'),
-                  ),
+                OutlinedButton.icon(
+                  key: const Key('examples'),
+                  onPressed: _fetchingRep == null ? _openCorpusBrowser : null,
+                  icon: _fetchingRep != null
+                      ? const SizedBox(
+                          width: 16,
+                          height: 16,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        )
+                      : const Icon(Icons.auto_awesome_outlined),
+                  label: const Text('Examples'),
                 ),
               ],
             ),

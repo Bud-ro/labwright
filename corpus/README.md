@@ -20,4 +20,16 @@ source never churns an assertion and a regression names the file.
 
 Provenance, licenses and the list of surveyed-but-not-vendored repositories
 live in the corpus repositories themselves; `dart run tool/vendor_corpus.dart`
-adds an upstream repository to one of them.
+adds an upstream repository to one of them, and its `--repair` mode restores
+files an upstream `.gitignore` or `.gitattributes` kept out of a commit.
+
+Each corpus repository also carries `index.json` files (one per vendored source,
+or one at the root of a snippet collection) listing what every VI, control,
+snippet, library, class and project file holds: its name and saving version, the
+raw `primResID`s and heap class codes with their object counts, and its sub-VI
+and library names. The inspector's Examples button searches them, resolving the
+ids through the parser's catalogues. `dart run tool/index_corpus.dart <repository>`
+rebuilds them (`--check` reports stale ones), `dart run tool/check_corpus.dart
+<repository>` checks every metadata file of a corpus repository against its tree,
+and the corpus tests run `index_corpus --check` over every fetched repository,
+failing when an index no longer matches what the parser reads.

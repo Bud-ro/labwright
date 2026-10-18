@@ -65,6 +65,7 @@ export 'src/byte_record.dart';
 export 'src/connector_pane_terminals.dart';
 export 'src/container.dart';
 export 'src/content_exact.dart';
+export 'src/corpus_index.dart';
 export 'src/data_space_types.dart';
 export 'src/decode.dart';
 export 'src/front_panel/fp_object.dart';

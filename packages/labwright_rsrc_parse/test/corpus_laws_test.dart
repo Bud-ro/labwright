@@ -6,6 +6,7 @@ import 'package:test/test.dart';
 import 'corpus/aux_blocks.dart';
 import 'corpus/const_value_census.dart';
 import 'corpus/corpus_coverage.dart';
+import 'corpus/corpus_index.dart';
 import 'corpus/corpus_invariants.dart';
 import 'corpus/corpus_snapshot.dart';
 import 'corpus/heap_edit.dart';
@@ -45,6 +46,7 @@ void main() {
   group('type_reencode', typeReencodeTests);
   group('const_value_census', constValueCensusTests);
   group('corpus_coverage', corpusCoverageTests);
+  group('corpus_index', corpusIndexTests);
   group('selector_range_census', selectorRangeCensusTests);
   group('aux_blocks', auxBlocksTests);
   group('corpus_invariants', corpusInvariantsTests);

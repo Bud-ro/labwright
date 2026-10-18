@@ -6,9 +6,23 @@ import 'package:archive/archive.dart';
 import 'package:crypto/crypto.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'corpus_indexing.dart';
+
 /// Run: `dart run tool/vendor_corpus.dart <corpus-dir> owner/repo@sha[:SPDX] ...`
+///
+/// Vendors each repository at its commit into `<corpus-dir>/sources/<owner>__<repo>/` with its
+/// `manifest.json`, `LICENSE.md` and `index.json`, and commits it. Files are added with the
+/// attributes an upstream `.gitattributes` sets switched off, so the blobs are the upstream
+/// bytes. With `--repair` in place of the repositories, re-downloads every vendored source whose
+/// manifest lists files the repository does not track or holds with other bytes (an upstream
+/// `.gitignore` or `.gitattributes` got in the way of the commit), adds them and commits each
+/// restored source; a source whose manifest is itself untracked is vendored again.
 Future<void> main(List<String> args) async {
   final corpus = Directory(args.first).absolute;
+  if (args.length == 2 && args[1] == '--repair') {
+    if (!await _repair(corpus)) exitCode = 1;
+    return;
+  }
   final config = jsonDecode(File('${corpus.path}/corpus.json').readAsStringSync()) as Map<String, dynamic>;
   final keep = (config['keep'] as List).cast<String>();
   final budget = config['budget'] as int?;
@@ -196,6 +210,7 @@ Future<bool> _vendor(Directory corpus, _Source source, List<String> keep, Future
       'external': selection.external.toList()..sort(),
     };
     File('${dest.path}/manifest.json').writeAsStringSync('${const JsonEncoder.withIndent(' ').convert(manifest)}\n');
+    File('${dest.path}/${CorpusIndex.fileName}').writeAsStringSync((await buildCorpusIndex(dest)).encode());
     _appendSourcesJson(corpus, source, spdx, files.length, bytes);
     stdout.writeln('  ${files.length} files, ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB, $spdx');
     await _commit(corpus, source, files.length, bytes);
@@ -537,11 +552,148 @@ void _appendSourcesJson(Directory corpus, _Source source, String spdx, int files
 
 Future<void> _commit(Directory corpus, _Source source, int files, int bytes) async {
   final paths = ['sources/${source.name}', 'sources.json'];
-  final add = await Process.run('git', ['-C', corpus.path, 'add', ...paths]);
-  if (add.exitCode != 0) throw StateError('git add failed: ${add.stderr}');
   final message =
       'Vendor ${source.repo} @ ${source.commit.substring(0, 12)}\n\n'
       '$files files, ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB.\n';
-  final commit = await Process.run('git', ['-C', corpus.path, 'commit', '-q', '--only', '-m', message, '--', ...paths]);
-  if (commit.exitCode != 0) throw StateError('git commit failed: ${commit.stderr}');
+  await _commitRaw(corpus, paths, message);
+}
+
+Future<bool> _repair(Directory corpus) async {
+  final sources = (jsonDecode(File('${corpus.path}/sources.json').readAsStringSync()) as List)
+      .cast<Map<String, dynamic>>();
+  final work = Directory('${corpus.path}/.vendor')..createSync(recursive: true);
+  var ok = true;
+  for (final entry in sources) {
+    final source = _Source(entry['repo'] as String, entry['commit'] as String, entry['license'] as String?);
+    final dest = Directory('${corpus.path}/sources/${source.name}');
+    final manifestFile = File('${dest.path}/manifest.json');
+    final tracked = await _tracked(corpus, 'sources/${source.name}');
+    if (!tracked.containsKey('sources/${source.name}/manifest.json')) {
+      stdout.writeln('${source.repo}: manifest.json is not tracked; vendoring again');
+      if (dest.existsSync()) dest.deleteSync(recursive: true);
+      final config = jsonDecode(File('${corpus.path}/corpus.json').readAsStringSync()) as Map<String, dynamic>;
+      if (!await _vendor(corpus, source, (config['keep'] as List).cast<String>(), null)) ok = false;
+      continue;
+    }
+    if (!manifestFile.existsSync()) continue;
+    final manifest = jsonDecode(manifestFile.readAsStringSync()) as Map<String, dynamic>;
+    final missing = <String, String>{};
+    for (final file in (manifest['files'] as List).cast<Map<String, dynamic>>()) {
+      final path = file['path'] as String, sha = file['sha256'] as String;
+      final onDisk = File('${dest.path}/$path');
+      if (tracked['sources/${source.name}/$path'] != file['bytes'] ||
+          onDisk.existsSync() && sha256.convert(onDisk.readAsBytesSync()).toString() != sha) {
+        missing[path] = sha;
+      }
+    }
+    if (missing.isEmpty) continue;
+    stdout.writeln('${source.repo}: ${missing.length} files listed in manifest.json are untracked or altered');
+    final tar = _tarOf(work, source);
+    final tree = Directory('${work.path}/${source.name}');
+    try {
+      if (!await _ghTarball(source, tar)) {
+        ok = false;
+        continue;
+      }
+      if (tree.existsSync()) tree.deleteSync(recursive: true);
+      tree.createSync();
+      final extracted = await Process.run('tar', ['-xzf', tar.path, '-C', tree.path, '--strip-components=1']);
+      if (extracted.exitCode != 0) {
+        stderr.writeln('  tar failed: ${extracted.stderr}');
+        ok = false;
+        continue;
+      }
+      final restored = <String>[];
+      for (final MapEntry(key: path, value: sha) in missing.entries) {
+        final upstream = File('${tree.path}/$path');
+        if (!upstream.existsSync()) {
+          stderr.writeln('  $path: not in the upstream tree');
+          ok = false;
+          continue;
+        }
+        final content = upstream.readAsBytesSync();
+        if (sha256.convert(content).toString() != sha) {
+          stderr.writeln('  $path: upstream content does not match the manifest sha256');
+          ok = false;
+          continue;
+        }
+        File('${dest.path}/$path')
+          ..parent.createSync(recursive: true)
+          ..writeAsBytesSync(content);
+        restored.add('sources/${source.name}/$path');
+      }
+      if (restored.isEmpty) continue;
+      final index = 'sources/${source.name}/${CorpusIndex.fileName}';
+      File('${corpus.path}/$index').writeAsStringSync((await buildCorpusIndex(dest)).encode());
+      final message =
+          'Restore ${restored.length == 1 ? 'a file' : '${restored.length} files'} of ${source.repo} '
+          'that upstream git rules altered\n\n'
+          'manifest.json lists them; they were untracked or held with other bytes, and the '
+          'index now covers them.\n';
+      await _commitRaw(corpus, [...restored, index], message);
+      stdout.writeln('  restored ${restored.length}');
+    } finally {
+      if (tar.existsSync()) tar.deleteSync();
+      if (tree.existsSync()) tree.deleteSync(recursive: true);
+    }
+  }
+  return ok;
+}
+
+/// The files git tracks under [path], each with the size of its committed blob.
+Future<Map<String, int>> _tracked(Directory corpus, String path) async {
+  final result = await Process.run('git', [
+    '-C',
+    corpus.path,
+    'ls-tree',
+    '-r',
+    '-l',
+    '-z',
+    'HEAD',
+    '--',
+    path,
+  ], stdoutEncoding: utf8);
+  if (result.exitCode != 0) throw StateError('git ls-tree failed: ${result.stderr}');
+  final out = <String, int>{};
+  for (final line in (result.stdout as String).split('\x00')) {
+    if (line.isEmpty) continue;
+    final tab = line.indexOf('\t');
+    final meta = line.substring(0, tab).split(RegExp(' +'));
+    out[line.substring(tab + 1)] = int.parse(meta[3]);
+  }
+  return out;
+}
+
+/// Stages [paths] and commits them, with every git attribute switched off for both steps, so
+/// the blobs hold the files' bytes however an upstream `.gitattributes` would convert them.
+Future<void> _commitRaw(Directory corpus, List<String> paths, String message) async {
+  final gitDir = await Process.run('git', ['-C', corpus.path, 'rev-parse', '--absolute-git-dir']);
+  if (gitDir.exitCode != 0) throw StateError('git rev-parse failed: ${gitDir.stderr}');
+  final attributes = File('${(gitDir.stdout as String).trim()}/info/attributes');
+  final previous = attributes.existsSync() ? attributes.readAsStringSync() : null;
+  attributes
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync('* -text -eol -filter -diff -merge -crlf -ident\n');
+  try {
+    final add = await Process.run('git', ['-C', corpus.path, 'add', '-f', '--', ...paths]);
+    if (add.exitCode != 0) throw StateError('git add failed: ${add.stderr}');
+    final commit = await Process.run('git', [
+      '-C',
+      corpus.path,
+      'commit',
+      '-q',
+      '--only',
+      '-m',
+      message,
+      '--',
+      ...paths,
+    ]);
+    if (commit.exitCode != 0) throw StateError('git commit failed: ${commit.stderr}');
+  } finally {
+    if (previous == null) {
+      attributes.deleteSync();
+    } else {
+      attributes.writeAsStringSync(previous);
+    }
+  }
 }
