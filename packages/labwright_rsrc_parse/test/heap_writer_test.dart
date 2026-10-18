@@ -59,10 +59,10 @@ void main() {
     expect(split.modelBugs, 0);
   });
 
-  test('a VCTP body that does not tile violates the decoder precondition', () {
+  test('a VCTP body that does not tile is rejected by the decoder', () {
     final body = hx('00000003 0005 0005 00');
-    expect(() => serializeHeapBody(body, 'VCTP'), throwsA(isA<AssertionError>()));
-    expect(() => attributeHeapBody(body, 'VCTP'), throwsA(isA<AssertionError>()));
+    expect(() => serializeHeapBody(body, 'VCTP'), throwsA(isA<ViFormatException>()));
+    expect(() => attributeHeapBody(body, 'VCTP'), throwsA(isA<ViFormatException>()));
   });
 
   test('a VICD body re-serializes byte-exact and models the whole descriptor', () {
