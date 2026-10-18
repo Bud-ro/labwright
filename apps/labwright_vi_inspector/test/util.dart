@@ -95,6 +95,9 @@ List<int> enum2e(List<String> items) {
 }
 
 List<int> childRef(int oid) => [0x14, 0x19, 0x01, 0xfd, oid >> 8, oid & 0xff];
+
+/// A `typeDescIndex` attribute (raw `0x13a`) as a u16 scalar.
+List<int> typeIndex(int index) => [0x45, 0x3a, index >> 8, index & 0xff];
 List<int> memberRef(int oid) => [0x14, 0x4f, 0x01, 0xfd, oid >> 8, oid & 0xff];
 
 DecodedSection heapSection(

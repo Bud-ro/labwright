@@ -73,7 +73,6 @@ void main() {
         final bias = <(int, int), int>{};
         for (final o in drawable) {
           final b = o.absBounds;
-          if (b == null) continue;
           final key = primIconKeyOf(o);
           if (key == null) continue;
           final art = icons[key];

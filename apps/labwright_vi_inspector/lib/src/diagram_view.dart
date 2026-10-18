@@ -54,8 +54,8 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     }
   }
 
-  BdObject? _selected;
-  Set<BdObject> _members = const {};
+  BdPlaced? _selected;
+  Set<BdPlaced> _members = const {};
   Size? _lastViewport;
   Rect? _lastContent;
   bool _fitted = false;
@@ -66,9 +66,6 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => null,
     final diagrams => largestHeap(diagrams),
   };
-  late final HeapObjectsByOid<BdObject> _byId =
-      _diagram?.byId ?? HeapObjectsByOid<BdObject>(const []);
-
   late final Map<int, ViLegacyIcon> _subViIcons = {
     if (_diagram case final diagram?)
       for (final object in diagram.objects)
@@ -82,7 +79,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     null => null,
     final diagram => BdScene(diagram),
   };
-  List<BdObject> get _drawable => _scene?.drawable ?? const [];
+  List<BdPlaced> get _drawable => _scene?.drawable ?? const [];
   Rect get _content => _scene?.content ?? Rect.zero;
   late final Map<BdObjectKind, int> _counts = countBy(
     _drawable,
@@ -176,7 +173,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     ),
   );
 
-  Widget _diagramStack(Rect content, List<BdObject> ordered) {
+  Widget _diagramStack(Rect content, List<BdPlaced> ordered) {
     return Stack(
       children: [
         Positioned.fill(
@@ -254,13 +251,13 @@ class _ViDiagramViewState extends State<ViDiagramView> {
     );
   }
 
-  void _selectAt(Offset local, List<BdObject> objects, Rect content) {
+  void _selectAt(Offset local, List<BdPlaced> objects, Rect content) {
     final x = local.dx + content.left;
     final y = local.dy + content.top;
-    BdObject? hit;
+    BdPlaced? hit;
     var bestArea = double.infinity;
     for (final object in objects) {
-      final bounds = object.absBounds!;
+      final bounds = object.absBounds;
       var left = bounds.left.toDouble(), top = bounds.top.toDouble();
       var right = bounds.right.toDouble(), bottom = bounds.bottom.toDouble();
       final key = primIconKeyOf(object);
@@ -290,7 +287,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
       _selected = hit;
       _members = hit != null && hit.category == BdObjectKind.structure
           ? nodesWithin(hit, _drawable)
-          : membersOf(hit, _byId);
+          : membersOf(hit, _diagram!);
     });
   }
 
@@ -445,7 +442,7 @@ Color? bdDecodedColor(int? rgb) =>
 
 int bdLabelBackingRgb(int rgb) => rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
 
-Color? bdFillColor(BdObject object) =>
+Color? bdFillColor(BdPlaced object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
 
 Color bdDimDisabled(Color color) =>
@@ -546,7 +543,7 @@ String? _primDetail(BdObject object) {
   final status = kPrimIconStatus[name];
   final iconPart =
       'icon $name${status == null ? ' (no asset)' : ' ${status.name}'}';
-  if (object.primitive?.primResId case final primResId?) {
+  if (object case BdPrimitive(:final primResId)) {
     final op = PrimOp.fromId(primResId);
     final opPart = op == null
         ? 'primResID $primResId (uncatalogued — numeric id only)'
@@ -579,14 +576,13 @@ PrimIconArt? primIconArtFor(
       .where((c) => c.objectClass == BdObjectClass.terminalHolder)
       .length;
   final variant = icons[classVariantIconKey(object.kind, terms)];
+  final b = object is BdPlaced ? object.absBounds : null;
   if (variant != null) {
-    final b = object.absBounds;
     if (b != null && variant.width == b.width && variant.height == b.height) {
       return variant;
     }
   }
   final legacy = icons[key];
-  final b = object.absBounds;
   if (legacy == null || b == null) return legacy;
   return legacy.width == b.width && legacy.height == b.height ? legacy : null;
 }
@@ -865,8 +861,8 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
   BdDiagram diagram,
 ) async {
   final xnodes = [
-    for (final o in diagram.objects)
-      if (o.objectClass == BdObjectClass.xnode && o.absBounds != null) o,
+    for (final o in diagram.placed)
+      if (o.objectClass == BdObjectClass.xnode) o,
   ];
   if (xnodes.isEmpty) return const {};
   final dsims = [
@@ -880,7 +876,7 @@ Future<Map<int, ui.Image>> xnodeFacadesFromSections(
     final image = ViDataSpaceImage(payload);
     if (image is! ViDataSpacePng) continue;
     final png = image.png;
-    final b = xnodes[k].absBounds!;
+    final b = xnodes[k].absBounds;
     if (png.width != b.right - b.left || png.height != b.bottom - b.top) {
       continue;
     }
@@ -903,9 +899,7 @@ Future<Map<int, ui.Image>> loadXnodeFacades(
   Uint8List viBytes,
   BdDiagram diagram,
 ) async {
-  if (!diagram.objects.any(
-    (o) => o.objectClass == BdObjectClass.xnode && o.absBounds != null,
-  )) {
+  if (!diagram.placed.any((o) => o.objectClass == BdObjectClass.xnode)) {
     return const {};
   }
   List<DecodedSection> sections;
@@ -972,7 +966,7 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
 int? loadedPrimIconIdOf(BdObject object) {
   final key = primIconKeyOf(object);
   if (key == null || key >= 0) return key;
-  final b = object.absBounds;
+  final b = object is BdPlaced ? object.absBounds : null;
   if (b == null) return key;
   for (var t = 0; t <= 15; t++) {
     final id = classVariantIconKey(object.kind, t);
@@ -992,7 +986,7 @@ int? loadedPrimIconIdOf(BdObject object) {
 bool primIconHit(BdObject object, double x, double y) {
   final id = loadedPrimIconIdOf(object);
   final art = id == null ? null : primIcons[id];
-  final bounds = object.absBounds;
+  final bounds = object is BdPlaced ? object.absBounds : null;
   if (art == null || bounds == null) return true;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
@@ -1019,7 +1013,7 @@ int? primIconInkEdge(
 }) {
   final id = loadedPrimIconIdOf(object);
   final art = id == null ? null : primIcons[id];
-  final b = object.absBounds;
+  final b = object is BdPlaced ? object.absBounds : null;
   if (art == null || b == null) return null;
   final stamp = primIconStampRect(
     Rect.fromLTRB(
@@ -1080,18 +1074,18 @@ typedef _BdWireAnchors = ({
 });
 
 class BdScene {
-  BdScene(BdDiagram diagram, {List<ViWire>? wires, List<BdObject>? drawable})
+  BdScene(BdDiagram diagram, {List<ViWire>? wires, List<BdPlaced>? drawable})
     : semantics = ViDiagramSemantics(diagram, wires: wires, drawable: drawable);
 
   final ViDiagramSemantics semantics;
 
   BdDiagram get diagram => semantics.diagram;
 
-  List<BdObject> get drawable => semantics.drawable;
+  List<BdPlaced> get drawable => semantics.drawable;
 
   List<ViWire> get wires => semantics.wires;
 
-  List<BdObject> get ordered => semantics.ordered;
+  List<BdPlaced> get ordered => semantics.ordered;
 
   Set<int> get disabledOids => semantics.disabledOids;
 
@@ -1377,7 +1371,7 @@ class BdDiagramPainter extends CustomPainter {
 
   final Offset origin;
 
-  List<BdObject> get objects => scene.ordered;
+  List<BdPlaced> get objects => scene.ordered;
   List<ViWire> get wires => scene.wires;
   Set<int> get disabledOids => scene.disabledOids;
   Set<int> get errorCaseOids => scene.errorCaseOids;
@@ -1447,7 +1441,7 @@ class BdDiagramPainter extends CustomPainter {
 
   final bool drawDotGrid;
 
-  Rect _rectOf(BdObject object) => _toCanvas(object.absBounds!);
+  Rect _rectOf(BdPlaced object) => _toCanvas(object.absBounds);
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -1476,8 +1470,8 @@ class BdDiagramPainter extends CustomPainter {
             )
             .toList()
           ..sort(
-            (a, b) => (b.absBounds!.width * b.absBounds!.height).compareTo(
-              a.absBounds!.width * a.absBounds!.height,
+            (a, b) => (b.absBounds.width * b.absBounds.height).compareTo(
+              a.absBounds.width * a.absBounds.height,
             ),
           );
 
@@ -1508,7 +1502,7 @@ class BdDiagramPainter extends CustomPainter {
     _paintCaptions(canvas);
   }
 
-  void _paintDecorations(Canvas canvas, List<BdObject> decorations) {
+  void _paintDecorations(Canvas canvas, List<BdPlaced> decorations) {
     final backdropCandidates = [
       for (final other in objects)
         if (other.category == BdObjectKind.node ||
@@ -1516,11 +1510,11 @@ class BdDiagramPainter extends CustomPainter {
             other.category == BdObjectKind.terminal)
           other,
     ];
-    bool isBackdrop(BdObject deco) {
-      final bounds = deco.absBounds!;
+    bool isBackdrop(BdPlaced deco) {
+      final bounds = deco.absBounds;
       for (final other in backdropCandidates) {
         if (identical(other, deco)) continue;
-        final b = other.absBounds!;
+        final b = other.absBounds;
         if (b.left >= bounds.left &&
             b.top >= bounds.top &&
             b.right <= bounds.right &&
@@ -1555,7 +1549,7 @@ class BdDiagramPainter extends CustomPainter {
 
   void _paintStructures(
     Canvas canvas,
-    List<BdObject> structures, {
+    List<BdPlaced> structures, {
     required Set<int> arrayShellOids,
     required Set<Rect> chromeOwnedRects,
   }) {
@@ -1569,9 +1563,10 @@ class BdDiagramPainter extends CustomPainter {
       }
       final rect = _rectOf(object);
       final structDisabled = disabledOids.contains(object.oid);
-      final structColor = switch (object.structRgb == kDefaultStructureRgb
+      final structRgb = object is BdStructure ? object.structRgb : null;
+      final structColor = switch (structRgb == kDefaultStructureRgb
           ? null
-          : bdDecodedColor(object.structRgb)) {
+          : bdDecodedColor(structRgb)) {
         null => null,
         final c => _dimFor(object.oid, c),
       };
@@ -1596,8 +1591,8 @@ class BdDiagramPainter extends CustomPainter {
           _drawStructureHatchBorder(
             canvas,
             rect,
-            object.absBounds!.left,
-            object.absBounds!.top,
+            object.absBounds.left,
+            object.absBounds.top,
             disabled: structDisabled,
             error: errorCaseOids.contains(object.oid),
           );
@@ -1716,7 +1711,7 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _paintCaseSelectorStrips(Canvas canvas, List<BdObject> solids) {
+  void _paintCaseSelectorStrips(Canvas canvas, List<BdPlaced> solids) {
     for (final object in solids) {
       if (object.objectClass == BdObjectClass.caseSelectorLabel)
         _drawCaseSelector(canvas, _rectOf(object));
@@ -1737,7 +1732,7 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _paintWireObjects(Canvas canvas, List<BdObject> wires) {
+  void _paintWireObjects(Canvas canvas, List<BdPlaced> wires) {
     final wirePaint = Paint()
       ..color = _kindColor(BdObjectKind.wire)
       ..strokeWidth = 1.6
@@ -1751,20 +1746,20 @@ class BdDiagramPainter extends CustomPainter {
 
   void _paintSolids(
     Canvas canvas,
-    List<BdObject> solids,
+    List<BdPlaced> solids,
     List<(int, Rect, Color)> labelBackings,
   ) {
     final stampedPrimIcons = <({Rect dst, int id})>[];
     for (final object in solids) {
       final rect = _rectOf(object);
-      if (kBdTextLabelClasses.contains(object.objectClass)) {
+      if (object is BdText) {
         if (object.objectClass == BdObjectClass.caseSelectorLabel) continue;
-        final holder = scene.diagram.byId[object.parentOid ?? -1];
+        final holder = scene.diagram.byOid(object.parentOid);
         final backed =
             holder?.objectClass == BdObjectClass.frame ||
             (holder?.objectClass == BdObjectClass.array &&
                 !object.hasFlag(ViObjFlag.labelNoBacking));
-        final backing = object.isLabelHidden || !backed || object.bgRgb == null
+        final backing = object.isHidden || !backed || object.bgRgb == null
             ? null
             : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
         if (backing != null) labelBackings.add((object.oid, rect, backing));
@@ -1787,31 +1782,31 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _paintTerminal(Canvas canvas, BdObject object, Rect rect) {
-    final isIndicator = object.panelTerminal?.isIndicator;
+  void _paintTerminal(Canvas canvas, BdPlaced object, Rect rect) {
+    final isIndicator = object is BdPanelTerminal ? object.isIndicator : null;
     var box = rect;
     if (constValues[object.oid] != null) {
       final kids = scene.diagram.childrenOf(object);
       final named = kids.any(
         (c) =>
+            c is BdText &&
             c.objectClass == BdObjectClass.textLabel &&
-            !c.isLabelHidden &&
+            !c.isHidden &&
             (c.label?.trim().isNotEmpty ?? false),
       );
       if (named) {
         for (final c in kids) {
+          if (c is! BdPlaced) continue;
           final b = c.absBounds;
-          if (c.objectClass == BdObjectClass.chrome &&
-              b != null &&
-              b.right > b.left) {
+          if (c.objectClass == BdObjectClass.chrome && b.right > b.left) {
             box = _toCanvas(b);
             break;
           }
         }
       }
     }
-    final constHolder = scene.diagram.byId[object.parentOid ?? -1];
-    final boolValue = constHolder?.constant?.boolValue;
+    final constHolder = scene.diagram.byOid(object.parentOid);
+    final boolValue = constHolder is BdConstant ? constHolder.boolValue : null;
     if (boolValue != null && box.width == 16 && box.height == 14) {
       _drawBoolConstant(
         canvas,
@@ -1851,7 +1846,7 @@ class BdDiagramPainter extends CustomPainter {
     );
     final border = typed ? tint : _dimFor(object.oid, const Color(0xFF5A5A5A));
     final constValue = constValues[object.oid];
-    final shellParent = scene.diagram.byId[object.parentOid ?? -1];
+    final shellParent = scene.diagram.byOid(object.parentOid);
     if (object.objectClass == BdObjectClass.numeric &&
         shellParent?.objectClass == BdObjectClass.array) {
       return;
@@ -1963,15 +1958,12 @@ class BdDiagramPainter extends CustomPainter {
           ? null
           : scene.diagram
                 .childrenOf(object)
-                .where(
-                  (part) =>
-                      part.objectClass == BdObjectClass.controlPart &&
-                      part.absBounds != null,
-                )
+                .whereType<BdPlaced>()
+                .where((part) => part.objectClass == BdObjectClass.controlPart)
                 .firstOrNull;
       if (marker != null && radixPart != null) {
         final (dx, dy, rows) = marker;
-        final corner = _toCanvas(radixPart.absBounds!).topLeft;
+        final corner = _toCanvas(radixPart.absBounds).topLeft;
         hasRadixMarker = true;
         final ink = _solidNoAa(tint);
         for (var r = 0; r < rows.length; r++) {
@@ -2020,7 +2012,7 @@ class BdDiagramPainter extends CustomPainter {
 
   void _paintNode(
     Canvas canvas,
-    BdObject object,
+    BdPlaced object,
     Rect rect,
     List<({Rect dst, int id})> stampedPrimIcons,
   ) {
@@ -2136,10 +2128,9 @@ class BdDiagramPainter extends CustomPainter {
         ring,
       );
     }
-    final glyph = switch (object.primitive?.primResId) {
-      final id? when icon == null && primIcon == null => primOpGlyph(
-        PrimOp.fromId(id),
-      ),
+    final glyph = switch (object) {
+      BdPrimitive(primResId: final id) when icon == null && primIcon == null =>
+        primOpGlyph(PrimOp.fromId(id)),
       _ => null,
     };
     if (glyph != null && rect.width >= 14 && rect.height >= 12) {
@@ -2153,7 +2144,7 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _paintGrowableNode(Canvas canvas, BdObject object, Rect rect) {
+  void _paintGrowableNode(Canvas canvas, BdPlaced object, Rect rect) {
     canvas.drawRect(
       rect,
       Paint()..color = _dimFor(object.oid, const Color(0xFF444444)),
@@ -2163,16 +2154,16 @@ class BdDiagramPainter extends CustomPainter {
       Paint()..color = _dimFor(object.oid, Colors.white),
     );
     final rows = <HeapRect>[];
-    final rowTerms = <(BdObject, HeapRect)>[];
+    final rowTerms = <(BdTerminal, HeapRect)>[];
     final cells = <HeapRect>[];
-    final nodeH = object.absBounds!.bottom - object.absBounds!.top;
-    final nodeW = object.absBounds!.right - object.absBounds!.left;
+    final nodeH = object.absBounds.bottom - object.absBounds.top;
+    final nodeW = object.absBounds.right - object.absBounds.left;
     for (final dco in scene.diagram.childrenOf(object)) {
       if (dco.objectClass != BdObjectClass.terminalHolder) continue;
       for (final t in scene.diagram.childrenOf(dco)) {
-        final tb = t.termBounds;
-        if (t.objectClass != BdObjectClass.byNameTerminal || tb == null)
+        if (t is! BdTerminal || t.objectClass != BdObjectClass.byNameTerminal)
           continue;
+        final tb = t.termBounds;
         if (tb.height >= nodeH) {
           cells.add(tb);
         } else {
@@ -2305,7 +2296,7 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _paintPlainSolid(Canvas canvas, BdObject object, Rect rect) {
+  void _paintPlainSolid(Canvas canvas, BdPlaced object, Rect rect) {
     final rr = RRect.fromRectAndRadius(rect, const Radius.circular(2.5));
     final fill = _dimFor(
       object.oid,
@@ -2334,17 +2325,16 @@ class BdDiagramPainter extends CustomPainter {
   void _paintCaptions(Canvas canvas) {
     final byOid = {for (final o in objects) o.oid: o};
     for (final object in objects) {
-      if (kBdTextLabelClasses.contains(object.objectClass)) {
-        if (object.isLabelHidden) continue;
+      if (object is BdText) {
+        if (object.isHidden) continue;
         var text = object.objectClass == BdObjectClass.caseSelectorLabel
             ? (object.label?.trim().isEmpty ?? true ? null : object.label)
             : object.label?.trim();
         if (text == null || text.isEmpty) {
-          final diagramById = scene.diagram.byId;
           String? constValue;
           var ancestorOid = object.parentOid;
           for (var hop = 0; hop < 4 && ancestorOid != null; hop++) {
-            final ancestor = diagramById[ancestorOid];
+            final ancestor = scene.diagram.byOid(ancestorOid);
             if (ancestor == null) break;
             final decoded = bdDrawnConstText(ancestor);
             if (decoded != null) {
@@ -2359,7 +2349,7 @@ class BdDiagramPainter extends CustomPainter {
         final rect = _rectOf(object);
         if (rect.width < 8 || rect.height < 8) continue;
         final selector = object.objectClass == BdObjectClass.caseSelectorLabel;
-        final labelFont = object.labelFont;
+        final labelFont = object.font;
         final fontSize = labelFont == null
             ? kBdTextSize
             : bdEmForCellHeight(labelFont.resolvedSize);
@@ -2370,10 +2360,10 @@ class BdDiagramPainter extends CustomPainter {
             bdDecodedColor(object.fgRgb) ?? Colors.black,
           ),
           fontSize: fontSize,
-          fontWeight: object.labelIsBold ? FontWeight.w700 : FontWeight.w400,
+          fontWeight: object.isBold ? FontWeight.w700 : FontWeight.w400,
           maxLines: math.max(1, (rect.height / bdLineBox(fontSize)).round()),
         );
-        final centered = !selector && object.labelJustifyCenter;
+        final centered = !selector && object.justifyCenter;
         _paintText(
           canvas,
           run,
@@ -2381,7 +2371,7 @@ class BdDiagramPainter extends CustomPainter {
               ? Offset(rect.left + 1, bdCentredTextTop(rect, run.height))
               : centered
               ? Offset(bdCentredLabelLeft(rect, run.width), rect.top + 1)
-              : rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
+              : rect.topLeft + Offset(object.textInset.toDouble(), 1),
           clip: selector
               ? Rect.fromLTRB(rect.left, rect.top, rect.right - 4, rect.bottom)
               : null,
@@ -2408,7 +2398,7 @@ class BdDiagramPainter extends CustomPainter {
       _paintText(
         canvas,
         run,
-        rect.topLeft + Offset(object.labelTextInset.toDouble(), 1),
+        rect.topLeft + const Offset(1, 1),
         clip: rect.deflate(1),
       );
     }
@@ -2443,7 +2433,6 @@ class BdDiagramPainter extends CustomPainter {
     final nodeCoverRects = <Rect>[];
     for (final object in objects) {
       final bounds = object.absBounds;
-      if (bounds == null) continue;
       if (object.category == BdObjectKind.node &&
           bounds.width > 0 &&
           bounds.height > 0) {
@@ -2476,9 +2465,9 @@ class BdDiagramPainter extends CustomPainter {
           iconInkRects[boxRect] = ink.shift(stamp.topLeft);
         }
       }
-      final output = switch (object.primitive?.primResId) {
-        final id? => PrimOp.fromId(id)?.output,
-        null => null,
+      final output = switch (object) {
+        BdPrimitive(:final primResId) => PrimOp.fromId(primResId)?.output,
+        _ => null,
       };
       if (output != null) {
         sourceOutputColors[packed] = labviewTypeColor(output);
@@ -2571,7 +2560,7 @@ class BdDiagramPainter extends CustomPainter {
         );
       }
       for (final oid in wire.endpointOids) {
-        final endpoint = scene.diagram.byId[oid];
+        final endpoint = scene.diagram.byOid(oid);
         if (endpoint == null) continue;
         final resolved = endpoint.resolvedType;
         if (resolved != null && isErrorClusterShape(resolved.members)) {
@@ -3124,10 +3113,10 @@ class BdDiagramPainter extends CustomPainter {
           ? (lowSide ? attach.right : attach.left - 1)
           : (lowSide ? attach.bottom : attach.top - 1);
     }
-    final dco = scene.diagram.byId[wire.endpointOids[endpointIndex]];
+    final dco = scene.diagram.byOid(wire.endpointOids[endpointIndex]);
     final owner = dco?.parentOid == null
         ? null
-        : scene.diagram.byId[dco!.parentOid!];
+        : scene.diagram.byOid(dco!.parentOid!);
     if (owner == null) return null;
     final edge = primIconInkEdge(
       owner,
@@ -3136,7 +3125,7 @@ class BdDiagramPainter extends CustomPainter {
       sign: lowSide ? -1 : 1,
     );
     if (edge != null) return lowSide ? edge : edge - 1;
-    final bounds = owner.absBounds;
+    final bounds = owner is BdPlaced ? owner.absBounds : null;
     if (bounds == null) return null;
     final inSpan = horizontal
         ? cross >= bounds.top && cross < bounds.bottom
@@ -3166,11 +3155,11 @@ class BdDiagramPainter extends CustomPainter {
       }
       if (wire.endpointAttachRects[head] != null) continue;
       final terminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[head]);
-      final headObj = scene.diagram.byId[wire.endpointOids[head]];
+      final headObj = scene.diagram.byOid(wire.endpointOids[head]);
       final headOwner = headObj?.parentOid == null
           ? null
-          : scene.diagram.byId[headObj!.parentOid!];
-      final headBox = headOwner?.absBounds;
+          : scene.diagram.byOid(headObj!.parentOid!);
+      final headBox = headOwner is BdPlaced ? headOwner.absBounds : null;
       final closingSign = bdRouteClosingSign(route, dir);
       if (headOwner == null || headBox == null) break;
       final start = (
@@ -3320,11 +3309,11 @@ class BdDiagramPainter extends CustomPainter {
             }
           }
         }
-        final farObj = scene.diagram.byId[wire.endpointOids[1]];
+        final farObj = scene.diagram.byOid(wire.endpointOids[1]);
         final farOwner = farObj?.parentOid == null
             ? null
-            : scene.diagram.byId[farObj!.parentOid!];
-        final farBox = farOwner?.absBounds;
+            : scene.diagram.byOid(farObj!.parentOid!);
+        final farBox = farOwner is BdPlaced ? farOwner.absBounds : null;
         if (farCross == arrivalCross && farBox != null) {
           final edge = primIconInkEdge(
             farOwner!,
@@ -3397,10 +3386,10 @@ class BdDiagramPainter extends CustomPainter {
       final terminal = bdPrimTerminalOf(scene.diagram, wire.endpointOids[head]);
       final catalogued = closingHorizontal ? terminal?.y : terminal?.x;
       if (catalogued == null || catalogued != arrivalCross) break;
-      final headObj = scene.diagram.byId[wire.endpointOids[head]];
+      final headObj = scene.diagram.byOid(wire.endpointOids[head]);
       final headOwner = headObj?.parentOid == null
           ? null
-          : scene.diagram.byId[headObj!.parentOid!];
+          : scene.diagram.byOid(headObj!.parentOid!);
       if (headOwner == null) break;
       final edge = primIconInkEdge(
         headOwner,
@@ -3504,7 +3493,6 @@ class BdDiagramPainter extends CustomPainter {
       for (final shell in scene.drawable) {
         final bounds = shell.absBounds;
         if (shell.objectClass != BdObjectClass.array ||
-            bounds == null ||
             bounds.left != container.left ||
             bounds.top != container.top ||
             bounds.right != container.right ||
@@ -3750,14 +3738,11 @@ class BdDiagramPainter extends CustomPainter {
       var cum = 0.0;
       final frames = scene.diagram
           .childrenOf(seq)
-          .where(
-            (c) =>
-                c.objectClass == BdObjectClass.sequenceFrame &&
-                c.absBounds != null,
-          )
+          .whereType<BdPlaced>()
+          .where((c) => c.objectClass == BdObjectClass.sequenceFrame)
           .toList();
       for (var i = 0; i + 1 < frames.length; i++) {
-        cum += frames[i].absBounds!.right - frames[i].absBounds!.left;
+        cum += frames[i].absBounds.right - frames[i].absBounds.left;
         px(blackFill, l + cum - 6, innerTop, 1, sideH);
         px(greyFill, l + cum - 5, innerTop - 1, 5, sideH + 2);
         px(blackFill, l + cum, innerTop, 1, sideH);
@@ -3765,15 +3750,15 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _drawArrayConstantShell(Canvas canvas, BdObject shell) {
+  void _drawArrayConstantShell(Canvas canvas, BdPlaced shell) {
     final children = scene.diagram.childrenOf(shell).toList();
     ViTypeKind elementType = ViTypeKind.unknown;
-    BdObject? element;
+    BdPlaced? element;
     for (final c in children) {
       if (c.objectClass != BdObjectClass.numeric) continue;
       if (c.typeKind != ViTypeKind.unknown) elementType = c.typeKind;
-      if (c.absBounds != null &&
-          (element == null || c.absBounds!.right > element.absBounds!.right)) {
+      if (c is BdPlaced &&
+          (element == null || c.absBounds.right > element.absBounds.right)) {
         element = c;
       }
     }
@@ -3810,20 +3795,21 @@ class BdDiagramPainter extends CustomPainter {
       border(b);
     }
     for (final c in children) {
-      final b = c.absBounds;
-      if (c.objectClass == BdObjectClass.numeric &&
-          b != null &&
+      if (c is BdPlaced &&
+          c.objectClass == BdObjectClass.numeric &&
           !identical(c, element)) {
+        final b = c.absBounds;
         for (final part in scene.diagram.childrenOf(c)) {
+          if (part is! BdPlaced) continue;
           final pb = part.absBounds;
-          if (pb == null) continue;
           if (part.objectClass == BdObjectClass.controlPart ||
               part.objectClass == BdObjectClass.chrome)
             border(pb);
           if (part.objectClass == BdObjectClass.chrome &&
               pb.width >= 10 &&
               pb.height >= 12) {
-            final indexText = '${shell.arrayIndex ?? 0}';
+            final indexText =
+                '${shell is BdContainer ? shell.arrayIndex ?? 0 : 0}';
             final run = _layoutText(
               indexText,
               color: _dimFor(shell.oid, Colors.black),
@@ -3859,17 +3845,15 @@ class BdDiagramPainter extends CustomPainter {
       }
     }
     if (element == null) return;
-    final cell = element.absBounds!;
+    final cell = element.absBounds;
     final cellW = cell.width, cellH = cell.height;
     if (cellW <= 0 || cellH <= 0) return;
     HeapRect grid = cell;
     var gridArea = 1 << 60;
     for (final c in children) {
+      if (c is! BdPlaced || c.objectClass != BdObjectClass.chrome) continue;
       final b = c.absBounds;
-      if (c.objectClass != BdObjectClass.chrome ||
-          b == null ||
-          !contains(b, cell))
-        continue;
+      if (!contains(b, cell)) continue;
       final area = b.width * b.height;
       if (area < gridArea) {
         grid = b;
@@ -3878,22 +3862,21 @@ class BdDiagramPainter extends CustomPainter {
     }
     final cols = math.max(1, grid.width ~/ cellW);
     final rows = math.max(1, grid.height ~/ cellH);
-    final holder = scene.diagram.byId[shell.parentOid ?? -1];
-    final values = holder?.constant?.array;
-    final dims = holder?.constant?.arrayDims;
+    final holder = scene.diagram.byOid(shell.parentOid);
+    final values = holder is BdConstant ? holder.array : null;
+    final dims = holder is BdConstant ? holder.arrayDims : null;
     final format = bdDisplayFormatOf(scene.diagram, element.oid);
     final marker = kBdRadixMarkerGlyphs[bdFormatConversion(format)];
     var radixDx = 2, radixDy = 3;
     for (final part in scene.diagram.childrenOf(element)) {
-      if (part.objectClass == BdObjectClass.controlPart &&
-          part.absBounds != null) {
-        radixDx = part.absBounds!.left - cell.left;
-        radixDy = part.absBounds!.top - cell.top;
+      if (part is BdPlaced && part.objectClass == BdObjectClass.controlPart) {
+        radixDx = part.absBounds.left - cell.left;
+        radixDy = part.absBounds.top - cell.top;
       }
     }
     final windowStart = dims != null && dims.length >= 2
         ? 0
-        : (shell.arrayIndex ?? 0);
+        : (shell is BdContainer ? shell.arrayIndex ?? 0 : 0);
     for (var j = 0; j < rows; j++) {
       for (var i = 0; i < cols; i++) {
         final index = dims != null && dims.length >= 2
@@ -4961,7 +4944,7 @@ class BdDiagramPainter extends CustomPainter {
   ];
   static const _selectorDropdown = ['#######', '.#####.', '..###..', '...#...'];
 
-  void _drawSmallClusterBox(Canvas canvas, BdObject object, Rect rect) {
+  void _drawSmallClusterBox(Canvas canvas, BdPlaced object, Rect rect) {
     final tint = _dimFor(object.oid, switch (object.resolvedType) {
       final resolved? when resolved.members.isNotEmpty => _clusterTint(
         resolved.members,
@@ -4972,7 +4955,7 @@ class BdDiagramPainter extends CustomPainter {
     canvas.drawRect(rect.deflate(1), _solidNoAa(Colors.white));
     canvas.drawRect(rect.deflate(2), _solidNoAa(tint));
     canvas.drawRect(rect.deflate(3), _solidNoAa(Colors.white));
-    if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass !=
+    if (scene.diagram.byOid(object.parentOid)?.objectClass !=
         BdObjectClass.constant) {
       return;
     }
@@ -5056,13 +5039,13 @@ class _OverlayPainter extends CustomPainter {
   });
 
   final Offset origin;
-  final BdObject? selected;
-  final Set<BdObject> members;
+  final BdPlaced? selected;
+  final Set<BdPlaced> members;
 
   final double canvasScale;
 
-  Rect _rectOf(BdObject o) {
-    final bounds = o.absBounds!;
+  Rect _rectOf(BdPlaced o) {
+    final bounds = o.absBounds;
     final rect = Rect.fromLTRB(
       bounds.left - origin.dx,
       bounds.top - origin.dy,
@@ -5085,12 +5068,11 @@ class _OverlayPainter extends CustomPainter {
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2;
       for (final member in members) {
-        if (member.absBounds != null)
-          canvas.drawRect(_rectOf(member).inflate(1.5), mp);
+        canvas.drawRect(_rectOf(member).inflate(1.5), mp);
       }
     }
     final sel = selected;
-    if (sel != null && sel.absBounds != null) {
+    if (sel != null) {
       canvas.drawRect(
         _rectOf(sel).inflate(2.5),
         Paint()
@@ -5116,10 +5098,10 @@ class _DetailsCard extends StatelessWidget {
     required this.onClose,
     this.members = const {},
   });
-  final BdObject object;
+  final BdPlaced object;
   final VoidCallback onClose;
 
-  final Set<BdObject> members;
+  final Set<BdPlaced> members;
 
   static String _contentLabel(BdObject o) {
     final label = o.label?.trim();
@@ -5147,28 +5129,28 @@ class _DetailsCard extends StatelessWidget {
                 }),
       subtitle:
           '${cls.label}$conf · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
-          '${object.isLabelHidden ? ' · hidden' : ''}'
-          '${switch (object.frames) {
-            final frames? => ' · shows frame ${frames.visibleFrameIndex + 1}',
-            null => '',
+          '${switch (object) {
+            BdText(isHidden: true) => ' · hidden',
+            _ => '',
+          }}'
+          '${switch (object) {
+            BdMultiFrameStructure(:final visibleFrameIndex) => ' · shows frame ${visibleFrameIndex + 1}',
+            _ => '',
           }}'
           '${_iconStatusSuffix(object)}'
           '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
-          '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
+          ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})'
           '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
       details: [
         if (_primDetail(object) case final prim?) detailLine('primitive', prim),
-        if (object.items.isNotEmpty)
+        if (object case HeapItems(:final items) when items.isNotEmpty)
           detailLine(
             'values',
-            object.items.take(8).join(', ') +
-                (object.items.length > 8 ? ', …' : ''),
+            items.take(8).join(', ') + (items.length > 8 ? ', …' : ''),
           ),
         if (object.helpText != null &&
             stripHelpMarkup(object.helpText!).isNotEmpty)
           detailLine('help', stripHelpMarkup(object.helpText!)),
-        if (object.constant?.text case final text? when text.isNotEmpty)
-          detailLine('const', text),
         if (members.isNotEmpty)
           detailLine(
             'contains',

@@ -213,7 +213,7 @@ class _Library {
   /// The type of a connector-pane control nothing reads: a parameter the function takes and
   /// never uses, typed by the control's own descriptor.
   LvWireType _unwiredControlType(_Callable callable, LvInterfaceUnit control) {
-    final descriptor = callable.unit.diagram.byId[control.oid]?.resolvedType?.type;
+    final descriptor = callable.unit.diagram.byOid(control.oid)?.resolvedType?.type;
     final mapped = descriptor == null
         ? const LvTypeMapping.unmapped('the terminal resolves no descriptor')
         : mapLvType(descriptor, callable.unit.pool, 0, declarations);
@@ -546,9 +546,9 @@ class _FunctionEmitter {
       valueOf[unit.port] = literal;
       return;
     }
-    final dims = record.constant?.arrayDims;
-    final numbers = record.constant?.array;
-    final texts = record.constant?.textArray;
+    final dims = _constantOf(record)?.arrayDims;
+    final numbers = _constantOf(record)?.array;
+    final texts = _constantOf(record)?.textArray;
     final String flat;
     final String elements;
     if (dims != null && dims.length == type.dims && numbers != null && type.numeric != null) {
@@ -616,13 +616,13 @@ class _FunctionEmitter {
 
   String? _scalarLiteral(BdObject record, LvWireType type) {
     if (type.carrier == LvCarrier.boolean) {
-      return record.constant?.boolValue?.toString();
+      return _constantOf(record)?.boolValue?.toString();
     }
     if (type.carrier == LvCarrier.text) {
-      final text = record.constant?.text;
+      final text = _constantOf(record)?.text;
       return text == null ? null : _stringLiteral(text);
     }
-    final value = record.constant?.numeric;
+    final value = _constantOf(record)?.numeric;
     return value == null ? null : _numberLiteral(value, type);
   }
 
@@ -637,6 +637,8 @@ class _FunctionEmitter {
   }
 
   static String _stringLiteral(String text) => lvDartStringLiteral(text);
+
+  static BdConstant? _constantOf(BdObject record) => record is BdConstant ? record : null;
 
   void _emitPrimitive(LvPrimUnit unit) {
     LvPrimTerminal terminal(int port, {required bool isInput}) {
@@ -656,7 +658,7 @@ class _FunctionEmitter {
         roleFlags: unit.portRoleFlags[port] ?? 0,
         expression: isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label),
         memberName: unit.portMemberName[port],
-        constantText: producer is LvConstUnit ? producer.record.constant?.text : null,
+        constantText: producer is LvConstUnit ? _constantOf(producer.record)?.text : null,
       );
     }
 

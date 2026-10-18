@@ -240,14 +240,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         return (rgba: crop, w: w, h: h);
       }
 
-      for (final o in bd.objects) {
+      for (final o in bd.placed) {
         final b = o.absBounds;
-        final key = o.primitive?.primResId != null
-            ? 'prim${o.primitive?.primResId}'
+        final key = o is BdPrimitive
+            ? 'prim${o.primResId}'
             : (primClasses.contains(o.kind)
                   ? 'class${o.kind}_t${bd.children(o.oid).where((c) => c.kind == 0x15).length}'
                   : null);
-        if (key == null || b == null || b.width <= 0 || b.height <= 0) {
+        if (key == null || b.width <= 0 || b.height <= 0) {
           continue;
         }
         observedKeys.add(key);
@@ -266,7 +266,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           }
         }
         if (lowQuality) continue;
-        var anc = bd.byId[o.parentOid ?? -1];
+        var anc = bd.byOid(o.parentOid);
         var hops = 0;
         var disabled = false;
         while (anc != null && hops++ < 12) {
@@ -274,7 +274,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             disabled = true;
             break;
           }
-          anc = bd.byId[anc.parentOid ?? -1];
+          anc = bd.byOid(anc.parentOid);
         }
         if (disabled) continue;
         if ((samples[key]?.length ?? 0) >= 8) continue;

@@ -57,9 +57,9 @@ GlobalHatchOffset deriveHatchOffset({
         !drawableOids.contains(frame.oid)) {
       continue;
     }
-    if (errorOids.contains(frame.oid) != errorStyle) continue;
+    if (errorOids.contains(frame.oid) != errorStyle || frame is! BdPlaced)
+      continue;
     final bounds = frame.absBounds;
-    if (bounds == null) continue;
     for (var y = bounds.top; y <= bounds.bottom; y++) {
       for (var x = bounds.left; x <= bounds.right; x++) {
         final inset = math.min(
@@ -262,7 +262,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
   Map<int, PrimIconArt> primIcons = const {},
   Map<int, ui.Image> xnodeFacades = const {},
   List<ViWire>? wires,
-  List<BdObject>? drawable,
+  List<BdPlaced>? drawable,
   BdScene? scene,
   BdRenderStyle style = const BdRenderStyle(),
 }) async {
@@ -634,7 +634,7 @@ Future<BdOracleResult> compareToReference(
 List<Rect> bdStructureAnchorRects(
   BdDiagram diagram,
   BdRaster raster, {
-  List<BdObject>? drawable,
+  List<BdPlaced>? drawable,
 }) {
   drawable ??= bdDrawableObjects(diagram);
   final extent = heapContentRect(
@@ -644,7 +644,7 @@ List<Rect> bdStructureAnchorRects(
   final out = <Rect>[];
   for (final object in drawable) {
     if (object.category != BdObjectKind.structure) continue;
-    final bounds = object.absBounds!;
+    final bounds = object.absBounds;
     if (bounds.width < 24 || bounds.height < 24) continue;
     if (bounds.width >= extent.width * 0.95 &&
         bounds.height >= extent.height * 0.95) {
@@ -745,7 +745,7 @@ PlacementComparison comparePlacement({
   required int width,
   required int height,
   Uint8List? referenceEdges,
-  List<BdObject>? drawable,
+  List<BdPlaced>? drawable,
   int tolerance = 2,
   int edgeThreshold = kBdEdgeThreshold,
   int minSide = 6,
@@ -778,7 +778,7 @@ PlacementComparison comparePlacement({
       continue;
     }
     if (kBdTextLabelClasses.contains(object.objectClass)) continue;
-    final bounds = object.absBounds!;
+    final bounds = object.absBounds;
     if (bounds.width < minSide || bounds.height < minSide) continue;
     if (bounds.width >= extent.width * 0.95 &&
         bounds.height >= extent.height * 0.95) {

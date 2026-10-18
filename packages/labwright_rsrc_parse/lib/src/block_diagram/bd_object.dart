@@ -7,6 +7,7 @@ library;
 import 'dart:typed_data';
 
 import '../blocks/FTAB_font_table.dart';
+import '../blocks/VCTP_type_pool.dart';
 import '../heap/heap.dart';
 import '../heap/heap_object.dart';
 import '../heap/obj_flags.dart';
@@ -137,6 +138,22 @@ sealed class BdObject extends HeapObject implements HeapCaptioned {
   HeapCaption? caption;
 
   String? get label => caption?.text;
+
+  /// The kind of the object's data: resolved through the type pool for a typed object, inferred
+  /// from its own records for a node or part, unknown for the rest.
+  ViTypeKind get typeKind => switch (this) {
+    final HeapTypeBearer typed => typed.typeKind,
+    final BdNode node => node.typeKind,
+    final BdPart part => part.typeKind,
+    _ => ViTypeKind.unknown,
+  };
+
+  /// The object's pool type once the data-space join ran; null for a shape without a type.
+  ViResolvedType? get resolvedType => this is HeapTypeBearer ? (this as HeapTypeBearer).resolvedType : null;
+
+  ViDataType? get dataType => resolvedType?.kind;
+
+  String? get typeName => resolvedType?.name;
 }
 
 /// The diagram's root object.
@@ -420,6 +437,36 @@ sealed class BdPlaced extends BdObject implements HeapPlaced {
 
   @override
   BdObjectKind get category => termCount >= 1 ? BdObjectKind.terminalCluster : objectClass.category;
+
+  /// The `backgroundColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get bgRgb => switch (this) {
+    BdStructure(:final bgRgb) ||
+    BdControlBody(:final bgRgb) ||
+    BdText(:final bgRgb) ||
+    BdPart(:final bgRgb) ||
+    BdScriptNode(:final bgRgb) => bgRgb,
+    _ => null,
+  };
+
+  /// The `fgColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get fgRgb => switch (this) {
+    BdStructure(:final fgRgb) ||
+    BdControlBody(:final fgRgb) ||
+    BdText(:final fgRgb) ||
+    BdPart(:final fgRgb) ||
+    BdScriptNode(:final fgRgb) => fgRgb,
+    _ => null,
+  };
+
+  /// The `contentColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get contentRgb => switch (this) {
+    BdStructure(:final contentRgb) ||
+    BdControlBody(:final contentRgb) ||
+    BdText(:final contentRgb) ||
+    BdPart(:final contentRgb) ||
+    BdScriptNode(:final contentRgb) => contentRgb,
+    _ => null,
+  };
 }
 
 /// A primitive, sub-VI call or other executable node.
@@ -444,6 +491,7 @@ class BdNode extends BdPlaced implements HeapCaptioned {
 
   /// The data kind the node's own records imply: a symbol name on a Call Library node, a path
   /// record on a path node.
+  @override
   final ViTypeKind typeKind;
 
   @override
@@ -535,8 +583,13 @@ final class BdScriptNode extends BdNode implements HeapFontRuns {
   @override
   ViFontEntry? font;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 }
 
@@ -566,8 +619,13 @@ class BdStructure extends BdPlaced {
   /// The `structColor` attribute as `0xRRGGBB`; null when absent or transparent.
   final int? structRgb;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 }
 
@@ -791,8 +849,13 @@ final class BdControlBody extends BdPlaced implements HeapControlBody {
   @override
   bool get isValueControl => objectClass.isControlTerminal;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 }
 
@@ -829,8 +892,13 @@ final class BdText extends BdPlaced implements HeapTextLabel {
   @override
   final int modeWord;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 
   /// Whether a text label is hidden; the bit is not decoded on a case selector label.
@@ -870,12 +938,18 @@ class BdPart extends BdPlaced {
     this.typeKind = ViTypeKind.unknown,
   });
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 
   /// The data kind the part's own records imply: a format string on a numeric display, an item
   /// table on an item list.
+  @override
   final ViTypeKind typeKind;
 }
 

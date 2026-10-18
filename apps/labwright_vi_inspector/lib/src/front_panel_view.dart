@@ -19,8 +19,8 @@ class FrontPanelView extends StatefulWidget {
 class _FrontPanelViewState extends State<FrontPanelView> {
   final _transform = TransformationController();
 
-  FpObject? _selected;
-  Set<FpObject> _members = const {};
+  FpPlaced? _selected;
+  Set<FpPlaced> _members = const {};
   Size? _lastViewport;
   bool _fitted = false;
   bool _shelfOpen = true;
@@ -30,7 +30,7 @@ class _FrontPanelViewState extends State<FrontPanelView> {
     final panels => largestHeap(panels),
   };
 
-  late final List<FpObject> _drawable = fpDrawableObjects(_panel);
+  late final List<FpPlaced> _drawable = fpDrawableObjects(_panel);
 
   late final Rect _content = heapContentRect(_drawable, margin: 16);
 
@@ -93,25 +93,22 @@ class _FrontPanelViewState extends State<FrontPanelView> {
           ],
         ),
         const SizedBox(height: 8),
-        for (final control in _panel!.controls)
+        for (final dco in _panel!.dataObjects)
           ListTile(
             dense: true,
             leading: Icon(
-              control.isIndicator == true ? Icons.output : Icons.input,
+              dco.isIndicator ? Icons.output : Icons.input,
               size: 16,
             ),
-            title: Text(
-              control.typeName ?? control.label ?? 'control ${control.oid}',
-            ),
+            title: Text(dco.typeName ?? dco.label ?? 'control ${dco.oid}'),
             subtitle: Text(
               [
-                if (control.dataType case final type?) type.name,
-                if (control.dataObject!.conNum case final conNum?
-                    when conNum != kViNotOnPane)
+                if (dco.dataType case final type?) type.name,
+                if (dco.conNum case final conNum? when conNum != kViNotOnPane)
                   'pane $conNum',
               ].join(' · '),
             ),
-            onTap: () => _select(control),
+            onTap: () => _select(_bodyOf(dco)),
           ),
       ],
     ),
@@ -155,6 +152,7 @@ class _FrontPanelViewState extends State<FrontPanelView> {
           right: 8,
           bottom: 8,
           child: _FpDetailsCard(
+            panel: _panel!,
             object: selected,
             members: _members,
             onClose: () => _select(null),
@@ -163,7 +161,13 @@ class _FrontPanelViewState extends State<FrontPanelView> {
     ],
   );
 
-  void _select(FpObject? object) => setState(() {
+  /// The placed body of a data object: its first placed child, or the object itself when it
+  /// has none in the drawable list.
+  FpPlaced? _bodyOf(FpDataObject dco) =>
+      _panel!.childrenOf(dco).whereType<FpPlaced>().firstOrNull ??
+      _drawable.where((o) => o.parentOid == dco.oid).firstOrNull;
+
+  void _select(FpPlaced? object) => setState(() {
     _selected = object;
     _members = object != null && object.category == FpObjectKind.container
         ? fpMembersOf(_panel!, object, _drawable)
@@ -173,10 +177,10 @@ class _FrontPanelViewState extends State<FrontPanelView> {
   void _selectAt(Offset local) {
     final x = local.dx + _content.left;
     final y = local.dy + _content.top;
-    FpObject? hit;
+    FpPlaced? hit;
     var bestArea = double.infinity;
     for (final object in _drawable) {
-      final bounds = object.absBounds!;
+      final bounds = object.absBounds;
       if (x < bounds.left ||
           x > bounds.right ||
           y < bounds.top ||
@@ -204,17 +208,12 @@ class _FrontPanelViewState extends State<FrontPanelView> {
 /// The objects of [panel] drawn as boxes, in paint order (shallower first): everything with a
 /// positive, plausible area except the per-panel records, chrome, and the display parts of a
 /// control, which the control's own box stands for.
-List<FpObject> fpDrawableObjects(FpPanel? panel) {
+List<FpPlaced> fpDrawableObjects(FpPanel? panel) {
   if (panel == null) return const [];
-  final depth = <FpObject, int>{};
-  int depthOf(FpObject object) =>
-      depth[object] ??= switch (panel.parentOf(object)) {
-        null => 0,
-        final parent => depthOf(parent) + 1,
-      };
   bool underControl(FpObject object) {
     for (var p = panel.parentOf(object); p != null; p = panel.parentOf(p)) {
-      if (p.isControlTerminal) return true;
+      if (p is HeapControlBody && (p as HeapControlBody).isValueControl)
+        return true;
     }
     return false;
   }
@@ -228,29 +227,29 @@ List<FpObject> fpDrawableObjects(FpPanel? panel) {
     _ => false,
   };
   final drawable = [
-    for (final object in panel.objects)
-      if (object.absBounds case final bounds?
+    for (final object in panel.placed)
+      if (object.absBounds case final bounds
           when bounds.isValid &&
               bounds.width > 0 &&
               bounds.height > 0 &&
               bounds.width < 8000 &&
               bounds.height < 8000)
         if (object.category != FpObjectKind.root &&
-            !(object.isTextLabel && bounds.left == 0 && bounds.bottom == 0) &&
+            !(object is FpText && bounds.left == 0 && bounds.bottom == 0) &&
             !scaffolding(object))
           object,
   ];
   return drawable..sort((a, b) {
-    final byDepth = depthOf(a).compareTo(depthOf(b));
+    final byDepth = panel.depthOf(a).compareTo(panel.depthOf(b));
     return byDepth != 0 ? byDepth : a.index.compareTo(b.index);
   });
 }
 
 /// The drawable objects inside [container].
-Set<FpObject> fpMembersOf(
+Set<FpPlaced> fpMembersOf(
   FpPanel panel,
-  FpObject container,
-  List<FpObject> drawable,
+  FpPlaced container,
+  List<FpPlaced> drawable,
 ) => {
   for (final object in drawable)
     if (!identical(object, container))
@@ -280,13 +279,13 @@ class FrontPanelPainter extends CustomPainter {
     this.members = const {},
   });
 
-  final List<FpObject> drawable;
+  final List<FpPlaced> drawable;
   final Offset origin;
-  final FpObject? selected;
-  final Set<FpObject> members;
+  final FpPlaced? selected;
+  final Set<FpPlaced> members;
 
-  Rect _rectOf(FpObject object) {
-    final b = object.absBounds!;
+  Rect _rectOf(FpPlaced object) {
+    final b = object.absBounds;
     return Rect.fromLTRB(
       b.left - origin.dx,
       b.top - origin.dy,
@@ -303,7 +302,7 @@ class FrontPanelPainter extends CustomPainter {
       ..strokeWidth = 1;
     for (final object in drawable) {
       final rect = _rectOf(object);
-      if (object.isTextLabel) {
+      if (object is FpText) {
         _paintLabel(canvas, object, rect);
         continue;
       }
@@ -331,7 +330,7 @@ class FrontPanelPainter extends CustomPainter {
     for (final member in members) {
       canvas.drawRect(_rectOf(member).inflate(1.5), memberPaint);
     }
-    if (selected case final object? when object.absBounds != null) {
+    if (selected case final object?) {
       canvas.drawRect(
         _rectOf(object).inflate(1),
         Paint()
@@ -342,9 +341,9 @@ class FrontPanelPainter extends CustomPainter {
     }
   }
 
-  void _paintLabel(Canvas canvas, FpObject object, Rect rect) {
+  void _paintLabel(Canvas canvas, FpText object, Rect rect) {
     final text = object.label?.trim();
-    if (text == null || text.isEmpty || object.isLabelHidden) return;
+    if (text == null || text.isEmpty || object.isHidden) return;
     if (_rgb(object.bgRgb) case final color?) {
       canvas.drawRect(rect, Paint()..color = color);
     }
@@ -354,14 +353,14 @@ class FrontPanelPainter extends CustomPainter {
         style: TextStyle(
           color: _rgb(object.fgRgb) ?? Colors.black,
           fontSize: 12,
-          fontWeight: object.labelIsBold ? FontWeight.bold : FontWeight.normal,
+          fontWeight: object.isBold ? FontWeight.bold : FontWeight.normal,
         ),
       ),
       textDirection: TextDirection.ltr,
       maxLines: 1,
       ellipsis: '…',
     )..layout(maxWidth: math.max(rect.width - 2, 1));
-    final dx = object.labelJustifyCenter
+    final dx = object.justifyCenter
         ? rect.left + (rect.width - painter.width) / 2
         : rect.left + 1;
     painter.paint(
@@ -382,13 +381,16 @@ class FrontPanelPainter extends CustomPainter {
 
 class _FpDetailsCard extends StatelessWidget {
   const _FpDetailsCard({
+    required this.panel,
     required this.object,
     required this.members,
     required this.onClose,
   });
 
-  final FpObject object;
-  final Set<FpObject> members;
+  final FpPanel panel;
+
+  final FpPlaced object;
+  final Set<FpPlaced> members;
   final VoidCallback onClose;
 
   static String _contentLabel(FpObject o) {
@@ -403,45 +405,66 @@ class _FpDetailsCard extends StatelessWidget {
     final conf = cls.confidence == ClassConfidence.confirmed
         ? ''
         : ' (${cls.confidence.name})';
-    final dco = object.dataObject;
-    final range = object.numericRange;
-    final graph = object.graph;
+    final dco = switch (object) {
+      FpControl() =>
+        panel.parentOf(object) is FpDataObject
+            ? panel.parentOf(object) as FpDataObject
+            : null,
+      _ => null,
+    };
+    final range = switch (object) {
+      final FpNumericControl control => control,
+      _ => null,
+    };
+    final graph = switch (object) {
+      final FpGraph graph => graph,
+      _ => null,
+    };
+    final items = switch (object) {
+      HeapItems(:final items) => items,
+      _ => const <String>[],
+    };
+    final displayFormat = switch (object) {
+      FpPart(:final displayFormat) => displayFormat,
+      _ => null,
+    };
     return HeapDetailsCard(
       swatch: fpKindColor(object.category),
       title: object.label ?? cls.label,
       subtitle:
           '${cls.label}$conf · ${object.category.name} · class 0x${object.kind.toRadixString(16)} · oid ${object.oid}'
-          '${object.isLabelHidden ? ' · hidden' : ''}'
+          '${switch (object) {
+            FpText(isHidden: true) => ' · hidden',
+            _ => '',
+          }}'
           '${object.typeName != null ? ' · ${object.typeName}' : ''}'
           '${object.dataType != null
               ? ' · ${object.dataType!.name}'
               : object.typeKind != ViTypeKind.unknown
               ? ' · type ${object.typeKind.name}'
               : ''}'
-          '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
+          ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})'
           '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
       details: [
         if (dco != null)
           detailLine(
             'data object',
-            '${object.isIndicator == true ? 'indicator' : 'control'}'
+            '${dco.isIndicator ? 'indicator' : 'control'}'
                 '${switch (dco.conNum) {
                   null => ' · pane terminal 0 (unnumbered)',
                   kViNotOnPane => ' · not on the pane',
                   final conNum => ' · pane terminal $conNum',
                 }}',
           ),
-        if (object.items.isNotEmpty)
+        if (items.isNotEmpty)
           detailLine(
             'values',
-            object.items.take(8).join(', ') +
-                (object.items.length > 8 ? ', …' : ''),
+            items.take(8).join(', ') + (items.length > 8 ? ', …' : ''),
           ),
         if (range != null)
           if (formatControlRange(range.min, range.max) case final text?)
             detailLine('range', text),
-        if (object.displayFormat case final format?)
-          detailLine('format', format),
+        if (displayFormat case final format?) detailLine('format', format),
         if (graph != null && graph.plotNames.isNotEmpty)
           detailLine('plots', graph.plotNames.join(', ')),
         if (object.helpText case final help?

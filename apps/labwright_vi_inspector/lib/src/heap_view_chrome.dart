@@ -92,12 +92,11 @@ Map<K, int> countBy<T, K>(Iterable<T> items, K Function(T) key) {
 }
 
 /// The rectangle that holds every bounded object, with a margin; empty for none.
-Rect heapContentRect(Iterable<HeapObject> objects, {int margin = 40}) {
+Rect heapContentRect(Iterable<HeapPlaced> objects, {int margin = 40}) {
   var minX = 1 << 30, minY = 1 << 30, maxX = -(1 << 30), maxY = -(1 << 30);
   var any = false;
   for (final object in objects) {
     final bounds = object.absBounds;
-    if (bounds == null) continue;
     any = true;
     if (bounds.left < minX) minX = bounds.left;
     if (bounds.top < minY) minY = bounds.top;

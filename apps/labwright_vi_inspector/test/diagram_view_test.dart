@@ -137,7 +137,9 @@ void main() {
         ...open(0x7e, 1),
         ...bounds(0, 0, 400, 400),
         ...open(0x12, 2, tag: 0x1a),
+        ...typeIndex(0),
         ...open(0x50, 3, tag: 0x1b),
+        ...typeIndex(0),
         ...bounds(20, 20, 50, 160),
         ...caption('Gain'),
         ...close(0x1b),
@@ -145,14 +147,17 @@ void main() {
         ...close(),
       ], tag: 'FPHb'),
     ]);
-    model.frontPanels.single.byId[2]!.typeDescIdx = 0;
     await pumpBody(tester, FrontPanelView(panels: model.frontPanels));
     expect(tester.takeException(), isNull);
     expect(find.textContaining('objects'), findsOneWidget);
     expect(find.text('control 2'), findsOneWidget);
     await tester.tap(find.text('control 2'));
     await tester.pump();
-    expect(find.textContaining('oid 2'), findsOneWidget);
+    expect(
+      find.textContaining('oid 3'),
+      findsOneWidget,
+      reason: "the tile selects the data object's body",
+    );
     await tester.tapAt(const Offset(120, 120));
     await tester.pump();
     expect(tester.takeException(), isNull);

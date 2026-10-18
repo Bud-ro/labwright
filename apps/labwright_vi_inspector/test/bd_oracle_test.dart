@@ -28,10 +28,10 @@ BdDiagram _synthDiagram() => modelFromRecords(<int>[
   ...close(),
 ]).blockDiagrams.first;
 
-bool _allWithin(Iterable<BdObject> drawable, Rect content) {
+bool _allWithin(Iterable<BdPlaced> drawable, Rect content) {
   for (final object in drawable) {
     if (object.category == BdObjectKind.wire) continue;
-    final b = object.absBounds!;
+    final b = object.absBounds;
     if (b.left < content.left ||
         b.top < content.top ||
         b.right > content.right ||
@@ -206,49 +206,69 @@ void main() {
     );
 
     test('bdFillColor prefers the content colour over the background', () {
-      final o = BdObject(oid: 1, kind: 0x50, offset: 0)
-        ..bgRgb = 0x111111
-        ..contentRgb = 0x222222;
-      expect(bdFillColor(o), const Color(0xFF222222));
-      final bgOnly = BdObject(oid: 2, kind: 0x50, offset: 0)..bgRgb = 0x111111;
-      expect(bdFillColor(bgOnly), const Color(0xFF111111));
-      expect(bdFillColor(BdObject(oid: 3, kind: 0x50, offset: 0)), isNull);
+      BdControlBody body(int oid, {int? bgRgb, int? contentRgb}) =>
+          BdControlBody(
+            BdObjectClass.numeric,
+            oid: oid,
+            bounds: const HeapRect(top: 0, left: 0, bottom: 10, right: 10),
+            typeDescIdx: 0,
+            bgRgb: bgRgb,
+            contentRgb: contentRgb,
+          );
+      expect(
+        bdFillColor(body(1, bgRgb: 0x111111, contentRgb: 0x222222)),
+        const Color(0xFF222222),
+      );
+      expect(bdFillColor(body(2, bgRgb: 0x111111)), const Color(0xFF111111));
+      expect(bdFillColor(body(3)), isNull);
     });
 
     BdDiagram captionDiagram({int? rgb}) {
-      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
-        ..category = BdObjectKind.structure
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
-      final constObj = BdObject(oid: 2, kind: 0x13, offset: 0)
-        ..parentOid = 1
-        ..category = BdObjectKind.terminal
-        ..absBounds = const HeapRect(top: 24, left: 24, bottom: 44, right: 200)
-        ..constant!.text = 'report.txt'
-        ..fgRgb = rgb;
-      return BdDiagram(objects: [root, constObj]);
+      final root = BdStructure(
+        BdObjectClass.root,
+        oid: 1,
+        bounds: const HeapRect(top: 0, left: 0, bottom: 80, right: 220),
+      );
+      final caption = BdText(
+        BdObjectClass.textLabel,
+        oid: 2,
+        parentOid: 1,
+        bounds: const HeapRect(top: 24, left: 24, bottom: 44, right: 200),
+        caption: const HeapCaption('report.txt'),
+        fgRgb: rgb,
+      );
+      return BdDiagram(objects: [root, caption]);
     }
 
     BdDiagram framedDiagram({int? rgb}) {
-      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
-        ..category = BdObjectKind.decoration
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 120, right: 160);
-      final loop = BdObject(oid: 2, kind: 0x21, offset: 0)
-        ..parentOid = 1
-        ..category = BdObjectKind.structure
-        ..absBounds = const HeapRect(top: 16, left: 16, bottom: 104, right: 144)
-        ..structRgb = rgb;
+      final root = BdPart(
+        BdObjectClass.listItem,
+        oid: 1,
+        bounds: const HeapRect(top: 0, left: 0, bottom: 120, right: 160),
+      );
+      final loop = BdStructure(
+        BdObjectClass.whileLoop,
+        oid: 2,
+        parentOid: 1,
+        bounds: const HeapRect(top: 16, left: 16, bottom: 104, right: 144),
+        structRgb: rgb,
+      );
       return BdDiagram(objects: [root, loop]);
     }
 
     BdDiagram decorationDiagram({int? rgb}) {
-      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
-        ..category = BdObjectKind.structure
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 120);
-      final deco = BdObject(oid: 2, kind: 0x15, offset: 0)
-        ..parentOid = 1
-        ..category = BdObjectKind.decoration
-        ..absBounds = const HeapRect(top: 20, left: 20, bottom: 60, right: 100)
-        ..bgRgb = rgb;
+      final root = BdStructure(
+        BdObjectClass.root,
+        oid: 1,
+        bounds: const HeapRect(top: 0, left: 0, bottom: 80, right: 120),
+      );
+      final deco = BdPart(
+        BdObjectClass.listItem,
+        oid: 2,
+        parentOid: 1,
+        bounds: const HeapRect(top: 20, left: 20, bottom: 60, right: 100),
+        bgRgb: rgb,
+      );
       return BdDiagram(objects: [root, deco]);
     }
 
@@ -308,43 +328,30 @@ void main() {
 
   group('dataflow wire rendering', () {
     BdDiagram wireDiagram({bool midNode = false}) {
-      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
-        ..category = BdObjectKind.structure
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 160, right: 420);
-      final a = BdObject(oid: 2, kind: 0x2f, offset: 0)
-        ..parentOid = 1
-        ..category = BdObjectKind.node
-        ..absBounds = const HeapRect(
-          top: 100,
-          left: 20,
-          bottom: 140,
-          right: 60,
-        );
-      final b = BdObject(oid: 3, kind: 0x2f, offset: 0)
-        ..parentOid = 1
-        ..category = BdObjectKind.node
-        ..absBounds = const HeapRect(
-          top: 100,
-          left: 360,
-          bottom: 140,
-          right: 400,
-        );
-      final signal = BdObject(oid: 4, kind: 0x17, offset: 0)
-        ..parentOid = 1
-        ..addRef(HeapRefKind.childRef, 2)
-        ..addRef(HeapRefKind.childRef, 3);
+      final root = BdStructure(
+        BdObjectClass.root,
+        oid: 1,
+        bounds: const HeapRect(top: 0, left: 0, bottom: 160, right: 420),
+      );
+      BdNode node(int oid, HeapRect bounds) => BdNode(
+        BdObjectClass.primitive,
+        oid: oid,
+        parentOid: 1,
+        bounds: bounds,
+      );
+      final a = node(
+        2,
+        const HeapRect(top: 100, left: 20, bottom: 140, right: 60),
+      );
+      final b = node(
+        3,
+        const HeapRect(top: 100, left: 360, bottom: 140, right: 400),
+      );
+      final signal = BdSignal(oid: 4, parentOid: 1, endpoints: const [2, 3]);
       final objects = <BdObject>[root, a, b];
       if (midNode) {
         objects.add(
-          BdObject(oid: 5, kind: 0x2f, offset: 0)
-            ..parentOid = 1
-            ..category = BdObjectKind.node
-            ..absBounds = const HeapRect(
-              top: 100,
-              left: 180,
-              bottom: 140,
-              right: 240,
-            ),
+          node(5, const HeapRect(top: 100, left: 180, bottom: 140, right: 240)),
         );
       }
       objects.add(signal);
@@ -543,7 +550,7 @@ void main() {
       drawable.where((o) => o.category != BdObjectKind.wire),
     );
     expect(_allWithin(drawable, content), isTrue);
-    final loop = diagram.byId[2]!;
+    final loop = diagram.byOid(2) as BdPlaced;
     final members = nodesWithin(loop, drawable);
     expect(members.map((m) => m.oid), contains(3));
   });
@@ -574,8 +581,7 @@ void main() {
 
       BdDiagram best = diagrams.first;
       for (final d in diagrams) {
-        if (d.objects.where((o) => o.absBounds != null).length >
-            best.objects.where((o) => o.absBounds != null).length) {
+        if (d.placed.length > best.placed.length) {
           best = d;
         }
       }
@@ -591,15 +597,20 @@ void main() {
     tester,
   ) async {
     BdDiagram build(String? literal) {
-      final root = BdObject(oid: 1, kind: 0x7e, offset: 0)
-        ..category = BdObjectKind.structure
-        ..absBounds = const HeapRect(top: 0, left: 0, bottom: 80, right: 220);
-      final constObj = BdObject(oid: 2, kind: 0x13, offset: 0)
-        ..parentOid = 1
-        ..category = BdObjectKind.terminal
-        ..absBounds = const HeapRect(top: 24, left: 24, bottom: 44, right: 150)
-        ..constant!.text = literal;
-      return BdDiagram(objects: [root, constObj]);
+      final root = BdStructure(
+        BdObjectClass.root,
+        oid: 1,
+        bounds: const HeapRect(top: 0, left: 0, bottom: 80, right: 220),
+      );
+      final body = BdControlBody(
+        BdObjectClass.string,
+        oid: 2,
+        parentOid: 1,
+        bounds: const HeapRect(top: 24, left: 24, bottom: 44, right: 150),
+        typeDescIdx: 0,
+        caption: literal == null ? null : HeapCaption(literal),
+      );
+      return BdDiagram(objects: [root, body]);
     }
 
     await tester.runAsync(() async {
@@ -615,15 +626,16 @@ void main() {
 
   group('subVI icon rendering', () {
     test('subViWantedNames picks subVI-call node filenames only', () {
-      final call = BdObject(oid: 5, kind: 0x31, offset: 0)
-        ..category = BdObjectKind.node
-        ..label = 'Define Test.vi';
-      final another = BdObject(oid: 6, kind: 0x31, offset: 0)
-        ..category = BdObjectKind.node
-        ..label = 'Not In Corpus.vi';
-      final primitive = BdObject(oid: 7, kind: 0x2f, offset: 0)
-        ..category = BdObjectKind.node
-        ..label = 'Add';
+      const zero = HeapRect(top: 0, left: 0, bottom: 0, right: 0);
+      BdNode named(int oid, int kind, String name) => BdNode(
+        BdObjectClass.fromCode(kind),
+        oid: oid,
+        bounds: zero,
+        caption: HeapCaption(name),
+      );
+      final call = named(5, 0x31, 'Define Test.vi');
+      final another = named(6, 0x31, 'Not In Corpus.vi');
+      final primitive = named(7, 0x2f, 'Add');
       final diagram = BdDiagram(objects: [call, another, primitive]);
       expect(subViWantedNames(diagram), {'Define Test.vi', 'Not In Corpus.vi'});
     });
@@ -634,10 +646,12 @@ void main() {
         'src/classes/Test/Define Test.vi',
       );
 
-      final call = BdObject(oid: 5, kind: 0x31, offset: 0)
-        ..category = BdObjectKind.node
-        ..label = 'Define Test.vi'
-        ..absBounds = const HeapRect(top: 20, left: 20, bottom: 52, right: 52);
+      final call = BdNode(
+        BdObjectClass.fromCode(0x31),
+        oid: 5,
+        bounds: const HeapRect(top: 20, left: 20, bottom: 52, right: 52),
+        caption: const HeapCaption('Define Test.vi'),
+      );
       final diagram = BdDiagram(objects: [call]);
       final icon = decodeViFileIcon(target.path);
       expect(icon, isNotNull);

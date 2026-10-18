@@ -33,7 +33,7 @@ void main() {
     }
     final model = buildViModel(viFile.readAsBytesSync());
     final diagram = model.blockDiagrams
-        .where((d) => d.objects.any((o) => o.absBounds != null))
+        .where((d) => d.placed.isNotEmpty)
         .firstOrNull;
     if (diagram == null) {
       fail('no placed block diagram in ${viFile.path}');

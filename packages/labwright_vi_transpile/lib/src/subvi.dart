@@ -109,7 +109,5 @@ List<ViLinkEntryFramed> lvSubViLinks(Iterable<DecodedSection> sections) {
 }
 
 Map<int, BdObject> lvTerminalsOfDataItems(BdDiagram diagram) => {
-  for (final object in diagram.objects)
-    if (object.kind == BdObjectClass.panelTerminal.code)
-      for (final ref in object.refsOf(HeapRefKind.dcoRef) ?? const <int>[]) ref: object,
+  for (final terminal in diagram.panelTerminals) terminal.dcoRef: terminal,
 };

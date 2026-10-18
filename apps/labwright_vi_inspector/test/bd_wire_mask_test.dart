@@ -44,7 +44,6 @@ Uint8List sceneExclusionMask({
   final cl = raster.content.left.toInt(), ct = raster.content.top.toInt();
   for (final o in scene.drawable) {
     final b = o.absBounds;
-    if (b == null) continue;
     if (o.category == BdObjectKind.node ||
         o.category == BdObjectKind.terminal ||
         kBdTextLabelClasses.contains(o.objectClass)) {

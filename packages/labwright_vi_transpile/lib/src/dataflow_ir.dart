@@ -14,8 +14,8 @@ const int kLvInputEndpointFlag = 0x4000;
 /// Whether a signal endpoint consumes the wire: a pane terminal by its indicator bit, any other by
 /// [kLvSinkEndpointFlag] or [kLvInputEndpointFlag].
 bool lvEndpointIsSink(BdObject object) {
-  if (object.panelTerminal?.isIndicator case final indicator?) return indicator;
-  return ((object.objFlags ?? 0) & (kLvSinkEndpointFlag | kLvInputEndpointFlag)) != 0;
+  if (object case BdPanelTerminal(isIndicator: final indicator?)) return indicator;
+  return (object.objFlags & (kLvSinkEndpointFlag | kLvInputEndpointFlag)) != 0;
 }
 
 const int kLvTunnelIndexerCode = 0x23;
@@ -47,7 +47,7 @@ const int kInPlaceArrayTerminalFlag = 0x800000;
 const int kInPlaceIndexTerminalFlag = 0xe00000;
 
 bool lvTunnelAutoIndexes(Iterable<BdObject> children) =>
-    children.any((child) => child.kind == kLvTunnelIndexerCode && (child.objFlags ?? 0) != 0);
+    children.any((child) => child.kind == kLvTunnelIndexerCode && child.objFlags != 0);
 
 /// Which boolean a loop's conditional terminal exits on, from bit `0x10000` of its record's
 /// flags: set stops the loop on true, clear continues it on true.
@@ -258,8 +258,9 @@ class LvPrimUnit extends LvUnit {
 }
 
 String lvForeignCallDetail(BdObject node) {
-  final entry = node.foreignCall?.entryPoint;
-  final library = node.foreignCall?.libraryPath;
+  final call = node is BdForeignCall ? node : null;
+  final entry = call?.entryPoint;
+  final library = call?.libraryPath;
   return 'the diagram calls ${entry == null ? 'an entry point' : '`$entry`'} in '
       '${library == null ? 'a native shared library the node names no path for' : '`$library`'}, '
       'whose behaviour is not in the VI';
@@ -531,8 +532,7 @@ class LvDataflow {
 }
 
 class _Builder {
-  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve, this.resolveClass)
-    : byId = diagram.byId;
+  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve, this.resolveClass);
 
   final BdDiagram diagram;
   final List<ViType> pool;
@@ -540,8 +540,6 @@ class _Builder {
   final LvViUnit? caller;
   final LvViResolver? resolve;
   final LvClassResolver? resolveClass;
-  final HeapObjectsByOid<BdObject> byId;
-
   final Map<String, ViModel?> _classData = {};
 
   ViModel? _privateDataOf(List<String> qualifiedName) =>
@@ -614,7 +612,7 @@ class _Builder {
   }
 
   bool _isSink(int oid) {
-    final holder = byId[oid];
+    final holder = diagram.byOid(oid);
     if (holder == null) {
       lvRefuse(LvRefusalKind.endpointBinding, 'signal endpoint $oid resolves to no heap object', oid: oid);
     }
@@ -732,11 +730,11 @@ class _Builder {
   }
 
   int? _frameOf(int oid) {
-    var current = byId[oid];
+    var current = diagram.byOid(oid);
     for (var depth = 0; current != null && depth < 64; depth++) {
       final parent = current.parentOid;
       if (parent == null) return null;
-      final object = byId[parent];
+      final object = diagram.byOid(parent);
       if (object == null) return null;
       if (object.objectClass == BdObjectClass.frame) return object.oid;
       current = object;
@@ -759,7 +757,7 @@ class _Builder {
     }
     final edges = [
       for (final wire in diagram.wires)
-        if (_frameOf(wire.signalOid) == frameOid || byId[wire.signalOid]?.parentOid == frameOid)
+        if (_frameOf(wire.signalOid) == frameOid || diagram.byOid(wire.signalOid)?.parentOid == frameOid)
           if (edgeBySource[_sourceOf(wire)] case final edge?) edge,
     ];
     return LvRegion(frameOid: frameOid, units: units, edges: edges);
@@ -807,14 +805,15 @@ class _Builder {
       final attach = diagram.dcoChildTerminalAttach(holder.oid);
       if (attach != null) drawnTop[holder.oid] = attach.candidates.first.y;
     }
+    final primResId = node is BdPrimitive ? node.primResId : null;
     return LvPrimUnit(
       oid: node.oid,
       classCode: node.kind,
-      op: switch (node.primitive?.primResId) {
+      op: switch (primResId) {
         final id? => PrimOp.fromId(id),
         null => null,
       },
-      primResId: node.primitive?.primResId,
+      primResId: primResId,
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
@@ -828,7 +827,7 @@ class _Builder {
   List<LvUnit> _wireRecordUnits(BdObject record) {
     final units = <LvUnit>[];
     for (final child in diagram.childrenOf(record)) {
-      if (child.kind == BdObjectClass.panelTerminal.code) {
+      if (child is BdPanelTerminal) {
         ownerOfPort[child.oid] = child.oid;
         units.add(
           LvInterfaceUnit(
@@ -906,7 +905,7 @@ class _Builder {
       final inner = <int, int>{};
       int? partner;
       for (final member in terminal.memberOids) {
-        final object = byId[member];
+        final object = diagram.byOid(member);
         if (object == null) continue;
         if (object.objectClass != BdObjectClass.terminalHolder) {
           if (LvTerminalRole.ofCode(object.kind) != null) partner = object.oid;
@@ -929,7 +928,7 @@ class _Builder {
           autoIndexing: lvTunnelAutoIndexes(diagram.childrenOf(terminal)),
           partnerOid: partner,
           outerIsSink: outer != null && _isSink(outer),
-          polarity: role == LvTerminalRole.conditional ? LvConditionalPolarity.ofFlags(terminal.objFlags ?? 0) : null,
+          polarity: role == LvTerminalRole.conditional ? LvConditionalPolarity.ofFlags(terminal.objFlags) : null,
         ),
       );
     }
@@ -953,11 +952,13 @@ class _Builder {
       inPlacePairs: pairs,
       inPlaceClusterPairs: clusterPairs,
       frames: [for (final frame in frames) _region(frame)],
-      displayedFrame: structure.frames?.visibleFrameIndex ?? 0,
+      displayedFrame: structure is BdMultiFrameStructure ? structure.visibleFrameIndex : 0,
       displayedCase: label?.label?.trim(),
-      selectorRanges: structure.caseFrames?.selectorRanges ?? const [],
-      selectorStrings: structure.caseFrames?.selectorStrings ?? const [],
-      defaultFrame: structure.caseFrames?.defaultFrameIndex ?? kViFirstFrameIsDefault,
+      selectorRanges: structure is BdCaseStructure ? structure.selectorRanges : const [],
+      selectorStrings: structure is BdCaseStructure ? structure.selectorStrings : const [],
+      defaultFrame: structure is BdCaseStructure
+          ? structure.defaultFrameIndex ?? kViFirstFrameIsDefault
+          : kViFirstFrameIsDefault,
     );
   }
 
@@ -991,14 +992,14 @@ class _Builder {
     final sides = <int, List<({int anchor, List<int> indices, List<String> names, List<int> elements, bool left})>>{};
     for (final node in diagram.children(frameOid)) {
       if (node.kind != kInPlaceBorderNodeKind && node.kind != kInPlaceClusterNodeKind) continue;
-      final isLeft = ((node.objFlags ?? 0) & kInPlaceLeftNodeFlag) != 0;
+      final isLeft = (node.objFlags & kInPlaceLeftNodeFlag) != 0;
       int? anchor;
       final indices = <int>[], names = <String>[], elements = <int>[];
       for (final holder in diagram.childrenOf(node)) {
         if (holder.objectClass != BdObjectClass.terminalHolder) continue;
         final record = diagram.childrenOf(holder).firstOrNull;
         if (record == null) continue;
-        final kindBits = (record.objFlags ?? 0) & kInPlaceIndexTerminalFlag;
+        final kindBits = record.objFlags & kInPlaceIndexTerminalFlag;
         if (kindBits == 0) {
           ownerOfPort[holder.oid] = structure.oid;
           elements.add(holder.oid);
@@ -1026,7 +1027,9 @@ class _Builder {
           );
           continue;
         }
-        final outer = record.memberOids.where((member) => byId[member]?.parentOid == structure.oid).firstOrNull;
+        final outer = record.memberOids
+            .where((member) => diagram.byOid(member)?.parentOid == structure.oid)
+            .firstOrNull;
         if (outer == null) continue;
         ownerOfPort[outer] = structure.oid;
         final role = kindBits == kInPlaceArrayTerminalFlag ? LvTerminalRole.inPlaceArray : LvTerminalRole.inPlaceIndex;
@@ -1156,10 +1159,11 @@ class _Builder {
     }
   }
 
-  HeapRect? _recordBounds(int oid) {
-    final record = byId[oid];
-    return record == null ? null : record.absBounds ?? record.termBounds;
-  }
+  HeapRect? _recordBounds(int oid) => switch (diagram.byOid(oid)) {
+    BdPlaced(:final absBounds) => absBounds,
+    BdTerminal(:final termBounds) => termBounds,
+    _ => null,
+  };
 
   Iterable<BdObject> _terminalRecords(BdObject structure) sync* {
     for (final child in diagram.childrenOf(structure)) {

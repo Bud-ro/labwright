@@ -3,7 +3,6 @@ import 'blocks/FPTD_front_panel_datalog_type.dart';
 import 'blocks/VCTP_type_pool.dart';
 import 'front_panel/fp_object.dart';
 import 'front_panel/fp_panel.dart';
-import 'heap/heap_object.dart';
 
 /// The panel data object behind each connector-pane terminal, in pane order, null where the
 /// terminal is unwired or no data object answers for it.

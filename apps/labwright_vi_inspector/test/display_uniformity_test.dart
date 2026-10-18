@@ -117,7 +117,6 @@ void main() {
         if (bd == null) continue;
         for (final o in bdDrawableObjects(bd)) {
           final b = o.absBounds;
-          if (b == null) continue;
           final key = primIconKeyOf(o);
           final art = key == null ? null : icons[key];
           if (art == null) continue;
@@ -240,7 +239,7 @@ void main() {
       final display = await boxDownscale(fitted3, ss * n);
       final out = (await display.toByteData())!.buffer.asUint8List();
       int lum(int x, int y) => out[(y * display.width + x) * 4];
-      final o = bd.byId[894]!.absBounds!;
+      final o = (bd.byOid(894) as BdPlaced).absBounds;
       final reg = result.registration;
       final art1608b = icons[1608]!;
       final stampRef = primIconStampRect(
@@ -300,7 +299,7 @@ void main() {
         ('prim1608', 1608, 894, icons[1608]!),
         ('prim1900 disabled', 1900, 3081, greyIcons[1900]!),
       ]) {
-        final b = bd.byId[oid]!.absBounds!;
+        final b = (bd.byOid(oid) as BdPlaced).absBounds;
         final stamp = primIconStampRect(
           ui.Rect.fromLTRB(
             b.left - raster.content.left,
@@ -342,7 +341,7 @@ void main() {
         );
       }
 
-      final u8 = bd.byId[894]!.absBounds!;
+      final u8 = (bd.byOid(894) as BdPlaced).absBounds;
       final u8cx = (u8.left + u8.right) / 2;
       ViPoint? exitPt, inputPt;
       for (final w in wires) {
@@ -411,13 +410,13 @@ void main() {
       // TODO: the structure band is not byte-faithful; its edge corridors are excluded from the surround check.
       final structureEdgeRects = [
         for (final o in drawable)
-          if (o.category == BdObjectKind.structure) o.absBounds!,
+          if (o.category == BdObjectKind.structure) o.absBounds,
       ];
       // Modeled structure-terminal boxes are excluded: which ones LabVIEW shows is not decoded.
       final modeledTerminalRects = [
         for (final e in bdStructureTerminals(bd).entries)
           for (final t in e.value)
-            if (bd.byId[e.key]?.absBounds case final s?)
+            if (bd.byOid(e.key) case BdPlaced(absBounds: final s))
               (
                 left: s.left + t.box.left,
                 top: s.top + t.box.top,
@@ -505,8 +504,7 @@ void main() {
 
       final leafRects = [
         for (final o in drawable)
-          if (o.category != BdObjectKind.structure && o.absBounds != null)
-            o.absBounds!,
+          if (o.category != BdObjectKind.structure) o.absBounds,
         for (final w in wires) ...w.endpointAttachRects.whereType<HeapRect>(),
       ];
       bool covered(int x, int y) => leafRects.any(
@@ -616,7 +614,7 @@ void main() {
       expect(ours(503, 297), green);
       expect(ours(502, 297), white);
 
-      final constBox = bd.byId[3033]!.absBounds!;
+      final constBox = (bd.byOid(3033) as BdPlaced).absBounds;
       var borderPx = 0, borderMismatched = 0, dimBlue = 0;
       for (var y = constBox.top; y < constBox.bottom; y++) {
         for (var x = constBox.left; x < constBox.right; x++) {
@@ -781,9 +779,9 @@ void main() {
         return 255 - (c[0] * 299 + c[1] * 587 + c[2] * 114) ~/ 1000;
       }
 
-      final xorLabel = bd.byId[221]!;
+      final xorLabel = bd.byOid(221)!;
       expect(xorLabel.label, 'XOR?');
-      final xbox = xorLabel.absBounds!;
+      final xbox = (xorLabel as BdPlaced).absBounds;
       var xorInk = 0, xorMass = 0, xorRefMass = 0;
       for (var y = xbox.top; y < xbox.bottom; y++) {
         for (var x = xbox.left; x < xbox.right; x++) {
@@ -809,7 +807,7 @@ void main() {
       for (final (sig, value) in [(375, 8), (3126, 256), (399, 256)]) {
         final w = wires.firstWhere((w) => w.signalOid == sig);
         expect(
-          bd.endpointConstant(w.endpointOids[0])?.constant?.numeric,
+          bd.endpointConstant(w.endpointOids[0])?.numeric,
           value,
           reason: 'feeder $sig must wrap the $value constant',
         );
@@ -907,13 +905,12 @@ void main() {
 
         final maskRects = <ui.Rect>[
           for (final o in drawable)
-            if (o.absBounds != null)
-              ui.Rect.fromLTRB(
-                o.absBounds!.left - raster.content.left - 3,
-                o.absBounds!.top - raster.content.top - 3,
-                o.absBounds!.right - raster.content.left + 3,
-                o.absBounds!.bottom - raster.content.top + 3,
-              ),
+            ui.Rect.fromLTRB(
+              o.absBounds.left - raster.content.left - 3,
+              o.absBounds.top - raster.content.top - 3,
+              o.absBounds.right - raster.content.left + 3,
+              o.absBounds.bottom - raster.content.top + 3,
+            ),
         ];
         bool masked(int x, int y) {
           final p = Offset(x.toDouble(), y.toDouble());

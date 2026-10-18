@@ -5,6 +5,7 @@
 library;
 
 import '../blocks/FTAB_font_table.dart';
+import '../blocks/VCTP_type_pool.dart';
 import '../heap/heap.dart';
 import '../heap/heap_object.dart';
 import '../heap/obj_flags.dart';
@@ -68,6 +69,21 @@ sealed class FpObject extends HeapObject implements HeapCaptioned {
   HeapCaption? caption;
 
   String? get label => caption?.text;
+
+  /// The kind of the object's data: resolved through the type pool for a typed object, inferred
+  /// from its own records for a part, unknown for the rest.
+  ViTypeKind get typeKind => switch (this) {
+    final HeapTypeBearer typed => typed.typeKind,
+    final FpPart part => part.typeKind,
+    _ => ViTypeKind.unknown,
+  };
+
+  /// The object's pool type once the data-space join ran; null for a shape without a type.
+  ViResolvedType? get resolvedType => this is HeapTypeBearer ? (this as HeapTypeBearer).resolvedType : null;
+
+  ViDataType? get dataType => resolvedType?.kind;
+
+  String? get typeName => resolvedType?.name;
 }
 
 /// The panel's root object, or a per-panel record object.
@@ -169,6 +185,30 @@ sealed class FpPlaced extends FpObject implements HeapPlaced {
 
   @override
   FpObjectKind get category => termCount >= 1 ? FpObjectKind.terminalCluster : objectClass.category;
+
+  /// The `backgroundColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get bgRgb => switch (this) {
+    FpControl(:final bgRgb) || FpText(:final bgRgb) || FpPart(:final bgRgb) => bgRgb,
+    _ => null,
+  };
+
+  /// The `fgColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get fgRgb => switch (this) {
+    FpControl(:final fgRgb) || FpText(:final fgRgb) || FpPart(:final fgRgb) => fgRgb,
+    _ => null,
+  };
+
+  /// The `contentColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get contentRgb => switch (this) {
+    FpControl(:final contentRgb) || FpText(:final contentRgb) || FpPart(:final contentRgb) => contentRgb,
+    _ => null,
+  };
+
+  /// The `borderColor` attribute as `0xRRGGBB`, on the shapes that carry one.
+  int? get borderRgb => switch (this) {
+    FpControl(:final borderRgb) || FpPart(:final borderRgb) => borderRgb,
+    _ => null,
+  };
 }
 
 /// The panel's root frame.
@@ -251,11 +291,17 @@ class FpControl extends FpPlaced implements HeapControlBody {
   @override
   bool get isValueControl => objectClass.isControlTerminal;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 
   /// The `borderColor` attribute as `0xRRGGBB`; null when absent or transparent.
+  @override
   final int? borderRgb;
 }
 
@@ -391,8 +437,13 @@ final class FpText extends FpPlaced implements HeapTextLabel {
   @override
   final int modeWord;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
 
   @override
@@ -432,15 +483,23 @@ class FpPart extends FpPlaced implements HeapItems, HeapFontRuns {
     ViTypeKind typeKind = ViTypeKind.unknown,
   }) : _typeKind = typeKind;
 
+  @override
   final int? bgRgb;
+
+  @override
   final int? fgRgb;
+
+  @override
   final int? contentRgb;
+
+  @override
   final int? borderRgb;
 
   ViTypeKind _typeKind;
 
   /// The data kind the part's own records imply: a format string on a display, an item table
   /// on an item list.
+  @override
   ViTypeKind get typeKind => _typeKind;
 
   /// The `formatStyle` attribute of a numeric display or scale, a `%` format string.

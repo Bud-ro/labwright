@@ -79,7 +79,7 @@ int? lvRefnumWireDims(BdDiagram diagram, ViWire wire) {
   }
   if (answer != null) return answer;
   for (final endpoint in wire.endpointOids) {
-    final object = diagram.byId[endpoint];
+    final object = diagram.byOid(endpoint);
     if (object != null && _refnumDimsOf(object) == 0) return 0;
   }
   return null;
@@ -88,7 +88,7 @@ int? lvRefnumWireDims(BdDiagram diagram, ViWire wire) {
 /// The class a refnum wire carries, read from the class-instance descriptor of an endpoint or
 /// one of its node-terminal parts; null when none names one.
 List<String>? lvClassOfEndpoint(BdDiagram diagram, int endpoint, {required bool array}) {
-  final objects = [if (diagram.byId[endpoint] case final object?) object, ...diagram.children(endpoint)];
+  final objects = [if (diagram.byOid(endpoint) case final object?) object, ...diagram.children(endpoint)];
   for (final object in objects) {
     final resolved = object.resolvedType;
     final own = _throughTypedefs(array ? resolved?.elementType ?? resolved?.type : resolved?.type);
@@ -102,7 +102,7 @@ List<String>? lvClassOfEndpoint(BdDiagram diagram, int endpoint, {required bool 
 /// Whether an endpoint of a measure-data wire resolves a timestamp descriptor (the element's for
 /// an [array] wire), itself or through typedefs.
 bool lvEndpointIsTimestamp(BdDiagram diagram, int oid, {required bool array}) {
-  final object = diagram.byId[oid];
+  final object = diagram.byOid(oid);
   if (object == null) return false;
   final type = _throughTypedefs(array ? object.resolvedType?.elementType : object.resolvedType?.type);
   return type is ViMeasureDataType && type.flavor == ViMeasureDataFlavor.timeStamp;
@@ -117,7 +117,7 @@ const int kLvUntypedSignalCode = 0xff;
 ViType? lvScalarOfEndpoints(BdDiagram diagram, ViWire wire, List<ViType> pool) {
   ViType? reading;
   for (final endpoint in wire.endpointOids) {
-    final own = _throughTypedefs(diagram.byId[endpoint]?.resolvedType?.type);
+    final own = _throughTypedefs(diagram.byOid(endpoint)?.resolvedType?.type);
     if (own == null || own is ViArrayType) continue;
     if (reading != null && !identical(reading, own) && !_sameDescriptor(reading, own, pool)) return null;
     reading ??= own;
@@ -190,7 +190,7 @@ String lvClusterShape(ViType type, List<ViType> pool) {
 /// [array] wire), else its parent's; a scalar wire whose endpoint resolves a one-dimensional
 /// array of clusters carries that array's element.
 ViType? lvClusterOfEndpoint(BdDiagram diagram, int oid, {required bool array}) {
-  var object = diagram.byId[oid];
+  var object = diagram.byOid(oid);
   for (var depth = 0; object != null && depth < 2; depth++) {
     final resolved = object.resolvedType;
     final type = array ? resolved?.elementType : resolved?.type;
@@ -202,7 +202,7 @@ ViType? lvClusterOfEndpoint(BdDiagram diagram, int oid, {required bool array}) {
       }
     }
     final parent = object.parentOid;
-    object = parent == null ? null : diagram.byId[parent];
+    object = parent == null ? null : diagram.byOid(parent);
   }
   return null;
 }

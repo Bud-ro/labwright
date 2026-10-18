@@ -494,7 +494,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     final blocked =
         refusal != null &&
         refusal.kind == LvRefusalKind.structure &&
-        diagram.byId[refusal.oid]?.kind == kLvInPlaceElementClass;
+        diagram.byOid(refusal.oid)?.kind == kLvInPlaceElementClass;
     if (!blocked) return;
     bump('ipe.blocked');
     bump(
@@ -508,7 +508,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
     for (final object in diagram.objects) {
       if (object.kind != LvTerminalRole.conditional.code) continue;
       bump('cond');
-      bump('cond.glyph${object.termBmp ?? 'None'}');
+      bump('cond.glyph${object is BdTerminal ? object.termBmp ?? 'None' : 'None'}');
       final dcoFlags = diagram.terminalDco(object.oid)?.objFlags ?? 0;
       if (dcoFlags & 0x1 != 0) bump('cond.dcoBit0');
       if (dcoFlags & 0x1000 != 0) bump('cond.dcoBit12');
@@ -687,9 +687,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
           if (!anyTyped) return 'noneUntyped';
           final anyIndex = wire.endpointOids.any(
             (endpoint) => [
-              if (diagram.byId[endpoint] case final object?) object,
+              if (diagram.byOid(endpoint) case final object?) object,
               ...diagram.children(endpoint),
-            ].any((object) => object.typeDescIdx != null),
+            ].any((object) => object is HeapTyped),
           );
           return anyIndex ? 'noneNoCluster' : 'noneNoIndex';
         }
@@ -715,7 +715,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
       if (cause == 'noneUntyped') bump('clus.noneUntyped');
       if (cause == 'noneNoIndex') bump('clus.noneNoIndex');
       for (final endpoint in wire.endpointOids) {
-        if (diagram.byId[endpoint]?.typeDescIdx != null) bump('clus.epTypeIdx');
+        if (diagram.byOid(endpoint) is HeapTyped) bump('clus.epTypeIdx');
       }
     }
   }
@@ -786,14 +786,14 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
         bump(dims == null ? 'ref.undecided' : 'ref.scalar');
         final viaEndpoint = <int>{}, viaPart = <int>{}, viaPane = <int>{};
         for (final endpoint in wire.endpointOids) {
-          var walker = diagram.byId[endpoint];
+          var walker = diagram.byOid(endpoint);
           for (var depth = 0; walker != null && depth < 2; depth++) {
             if (_refnumDims(walker) case final answer?) {
               viaEndpoint.add(answer);
               break;
             }
             final parent = walker.parentOid;
-            walker = parent == null ? null : diagram.byId[parent];
+            walker = parent == null ? null : diagram.byOid(parent);
           }
           for (final part in diagram.children(endpoint)) {
             if (_refnumDims(part) case final answer?) viaPart.add(answer);
@@ -801,14 +801,14 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
           if (paneOf[endpoint] case (final callee, final pane)) {
             final terminal = callee.paneTerminal(pane);
             if (terminal == null) continue;
-            var calleeWalker = callee.diagram.byId[terminal.oid];
+            var calleeWalker = callee.diagram.byOid(terminal.oid);
             for (var depth = 0; calleeWalker != null && depth < 2; depth++) {
               if (_refnumDims(calleeWalker) case final answer?) {
                 viaPane.add(answer);
                 break;
               }
               final parent = calleeWalker.parentOid;
-              calleeWalker = parent == null ? null : callee.diagram.byId[parent];
+              calleeWalker = parent == null ? null : callee.diagram.byOid(parent);
             }
           }
         }
@@ -883,7 +883,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
       if (object.category != BdObjectKind.node) continue;
       if (kSubViCallNodeCodes.contains(object.kind)) continue;
       if (object.kind == BdObjectClass.callLibrary.code) continue;
-      final primResId = object.primitive?.primResId;
+      final primResId = object is BdPrimitive ? object.primResId : null;
       final op = primResId == null ? null : PrimOp.fromId(primResId);
       if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
       final key = _reviewKey(op, object);
@@ -917,8 +917,8 @@ const ({int vis, int sources}) kEmittedSources = (vis: 795, sources: 534);
       if (object.kind != BdObjectClass.callLibrary.code) continue;
       here++;
       bump('foreign.node');
-      final library = object.foreignCall?.libraryPath;
-      final entry = object.foreignCall?.entryPoint;
+      final library = object is BdForeignCall ? object.libraryPath : null;
+      final entry = object is BdForeignCall ? object.entryPoint : null;
       if (library == null) bump('foreign.noLibrary');
       if (entry == null) bump('foreign.noEntryPoint');
       if (library != null) foreign.add('lib|$library');
@@ -1200,7 +1200,7 @@ void main() {
       for (final object in snippetDiagram(name).objects) {
         if (object.category != BdObjectKind.node) continue;
         if (kSubViCallNodeCodes.contains(object.kind)) continue;
-        final primResId = object.primitive?.primResId;
+        final primResId = object is BdPrimitive ? object.primResId : null;
         final op = primResId == null ? null : PrimOp.fromId(primResId);
         if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
         final key = _reviewKey(op, object);
@@ -1301,11 +1301,12 @@ String _blockerKey(LvPrimUnit node) {
   return 'node class 0x${node.classCode.toRadixString(16)}';
 }
 
-bool _constantHasValue(LvConstUnit node, LvWireType type) => type.dims == 0
-    ? node.record.constant?.boolValue != null ||
-          node.record.constant?.text != null ||
-          node.record.constant?.numeric != null
-    : node.record.constant?.array != null && node.record.constant?.arrayDims != null;
+bool _constantHasValue(LvConstUnit node, LvWireType type) {
+  final constant = node.record is BdConstant ? node.record as BdConstant : null;
+  return type.dims == 0
+      ? constant?.boolValue != null || constant?.text != null || constant?.numeric != null
+      : constant?.array != null && constant?.arrayDims != null;
+}
 
 ({int signals, int resolved, int disagreeing, int unresolved}) _clusterWires(BdDiagram diagram, List<ViType> pool) {
   var signals = 0, resolved = 0, disagreeing = 0, unresolved = 0;
@@ -1379,6 +1380,6 @@ String _wireFamilyName(int code) {
 
 String _reviewKey(PrimOp? op, BdObject object) {
   if (op != null) return '${op.opName} (primResID ${op.id})';
-  if (object.primitive?.primResId case final id?) return 'primResID $id (name not decoded)';
+  if (object case BdPrimitive(:final primResId)) return 'primResID $primResId (name not decoded)';
   return 'node class 0x${object.kind.toRadixString(16)}';
 }
