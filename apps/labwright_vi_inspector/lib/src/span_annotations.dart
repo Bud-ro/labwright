@@ -278,13 +278,40 @@ class LegacyIconPainter extends CustomPainter {
   bool shouldRepaint(LegacyIconPainter old) => !identical(old.icon, icon);
 }
 
+/// The pixels of [icon] that LabVIEW leaves transparent on a diagram: the white region
+/// reachable from the icon's edge. White pixels walled off by non-white ones stay opaque.
+List<bool> legacyIconTransparency(ViLegacyIcon icon) {
+  const dim = ViLegacyIcon.width;
+  final transparent = List<bool>.filled(dim * dim, false);
+  final stack = <int>[];
+  for (var i = 0; i < dim; i++) {
+    stack.addAll([i, (dim - 1) * dim + i, i * dim, i * dim + dim - 1]);
+  }
+  while (stack.isNotEmpty) {
+    final index = stack.removeLast();
+    final x = index % dim, y = index ~/ dim;
+    if (transparent[index] || icon.argbAt(x, y) != kLegacyIconWhite) continue;
+    transparent[index] = true;
+    if (x > 0) stack.add(index - 1);
+    if (x < dim - 1) stack.add(index + 1);
+    if (y > 0) stack.add(index - dim);
+    if (y < dim - 1) stack.add(index + dim);
+  }
+  return transparent;
+}
+
+/// The Mac palette's white, the colour LabVIEW treats as transparent at an icon's edge.
+const int kLegacyIconWhite = 0xFFFFFFFF;
+
 void paintLegacyIcon(Canvas canvas, ViLegacyIcon icon, Rect rect) {
-  const dim = 32;
+  const dim = ViLegacyIcon.width;
+  final transparent = legacyIconTransparency(icon);
   final cw = rect.width / dim;
   final ch = rect.height / dim;
   final paint = Paint();
   for (var y = 0; y < dim; y++) {
     for (var x = 0; x < dim; x++) {
+      if (transparent[y * dim + x]) continue;
       paint.color = Color(icon.argbAt(x, y));
       canvas.drawRect(
         Rect.fromLTWH(
