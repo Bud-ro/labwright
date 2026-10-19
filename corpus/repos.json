@@ -2,7 +2,7 @@
  "vi": [
   {
    "repo": "https://github.com/Bud-ro/vi-corpus.git",
-   "ref": "faa92c288901e1c19f38c3500e5eb13629c45530",
+   "ref": "7c7495f4df580268bf8e021d5a6011630d061249",
    "paths": [
     "sources/picotech__picosdk-ni-labview-examples",
     "sources/ni__grpc-labview",
@@ -46,13 +46,13 @@
   },
   {
    "repo": "https://github.com/Bud-ro/vi-snippets.git",
-   "ref": "882d1672121a88bd7e2f5e177f8d1ddf51038b6a"
+   "ref": "eef559b72407f5c688982815859faf191e6b00a9"
   }
  ],
  "seq": [
   {
    "repo": "https://github.com/Bud-ro/seq-corpus.git",
-   "ref": "bb4608df0a88e515b1386a3d8d87fd5ef070a696"
+   "ref": "b52244f53ccfc44f9f1d0895b527d18fcfa38ce6"
   }
  ]
 }
