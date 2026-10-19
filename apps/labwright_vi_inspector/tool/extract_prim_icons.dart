@@ -36,12 +36,15 @@ void main() {
     final manifest = StringBuffer(
       '# Primitive icon assets\n\n'
       'Generated from LabVIEW\'s own renders in the snippet corpus (see\n'
-      'tool/extract_prim_icons.dart): per identity, the samples are\n'
-      'aligned and consensus-voted per pixel (attached wires and neighbour\n'
-      'ink vanish where the samples disagree), edge-touching wire stubs are\n'
-      'erased, the result is trimmed to its ink and the exterior background\n'
-      'made transparent. Hand-edits welcome — the painter stamps these at\n'
-      'natural size.\n\n'
+      'tool/extract_prim_icons.dart): per identity, the hard-edged samples\n'
+      '(every colour in the node box tiles at least three pixels; renders\n'
+      'that anti-alias the icon are set aside) are aligned and\n'
+      'consensus-voted per pixel (attached wires and neighbour ink vanish\n'
+      'where the samples disagree), edge-touching wire stubs are erased, the\n'
+      'result is trimmed to its ink and the exterior background made\n'
+      'transparent. An identity with no hard-edged render is cut from its\n'
+      'anti-aliased ones and says so. Hand-edits welcome — the painter\n'
+      'stamps these at natural size.\n\n'
       '| asset | op | size | sources |\n|---|---|---|---|\n',
     );
     var written = 0;
@@ -76,8 +79,16 @@ void main() {
           (classCode != null
               ? 'class 0x${classCode.toRadixString(16)}'
               : '(uncatalogued)');
+      final base = baseOf(key);
+      final softNote = extraction.softOnly.contains(base)
+          ? ' — anti-aliased renders only, no hard-edged sample'
+          : '';
+      final aside = extraction.antiAliased[base]?.length ?? 0;
+      final asideNote = aside == 0 || softNote.isNotEmpty
+          ? ''
+          : ' ($aside anti-aliased render${aside == 1 ? '' : 's'} set aside)';
       manifest.writeln(
-        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources} |',
+        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources}$softNote$asideNote |',
       );
       written++;
     }

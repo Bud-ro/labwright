@@ -7,7 +7,15 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 
 import '../test/bd_wire_mask_test.dart' show kWireInkPalette;
+
 import '../test/util.dart';
+
+/// Wire colours erased from icon crops: the wire-ink palette plus the Boolean green of newer
+/// LabVIEW renders.
+const Set<int> kIconStubInk = {...kWireInkPalette, 0x007f00};
+
+/// The reference renders' diagram dot grid, background rather than ink.
+const int kDiagramGridDotRgb = 0xe2e2e2;
 
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   'prim1053': [(snippet: '25772310_GqWWr', oid: 572)],
@@ -27,7 +35,7 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   final pixels = Uint8List.fromList(crop);
   for (var i = 0; i < pixels.length; i += 4) {
     final rgb = (pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2];
-    if (kWireInkPalette.contains(rgb)) {
+    if (kIconStubInk.contains(rgb)) {
       pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
     }
   }
@@ -132,6 +140,27 @@ bool _sameBytes(Uint8List a, Uint8List b) {
   return true;
 }
 
+/// Whether a reference crop is a hard-edged render: every colour inside the node box, wire
+/// ink and the white background aside, tiles at least [kHardEdgeMinRun] pixels. Anti-aliased
+/// renders blend the icon's edges into dozens of colours that occur once or twice.
+bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad) {
+  final counts = <int, int>{};
+  for (var y = pad; y < h - pad; y++) {
+    for (var x = pad; x < w - pad; x++) {
+      final i = (y * w + x) * 4;
+      final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
+      if (r >= 240 && g >= 240 && b >= 240) continue;
+      final rgb = (r << 16) | (g << 8) | b;
+      if (kIconStubInk.contains(rgb)) continue;
+      counts[rgb] = (counts[rgb] ?? 0) + 1;
+    }
+  }
+  return counts.values.every((n) => n >= kHardEdgeMinRun);
+}
+
+/// The fewest pixels a colour must cover in a node box for the render to count as hard-edged.
+const int kHardEdgeMinRun = 3;
+
 class PrimIconExtraction {
   const PrimIconExtraction({
     required this.appDir,
@@ -140,6 +169,8 @@ class PrimIconExtraction {
     required this.failed,
     required this.observedKeys,
     required this.skippedLowQuality,
+    required this.antiAliased,
+    required this.softOnly,
     required this.palette,
     required this.verifiedKeys,
     required this.handKeys,
@@ -156,6 +187,12 @@ class PrimIconExtraction {
   final Set<String> observedKeys;
 
   final List<String> skippedLowQuality;
+
+  /// Per key, the snippets whose render of it was anti-aliased and therefore set aside.
+  final Map<String, Set<String>> antiAliased;
+
+  /// Keys cut from anti-aliased renders because no hard-edged render of them exists.
+  final Set<String> softOnly;
 
   final List<int> palette;
 
@@ -181,6 +218,12 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       >{};
   final skippedLowQuality = <String>[];
   final observedKeys = <String>{};
+  final soft =
+      <
+        String,
+        List<({Uint8List rgba, int w, int h, String source, double quality})>
+      >{};
+  final antiAliased = <String, Set<String>>{};
   final targeted =
       <
         String,
@@ -247,6 +290,11 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             ((top + y) * refW + left) * 4,
           );
         }
+        for (var i = 0; i < crop.length; i += 4) {
+          final rgb = (crop[i] << 16) | (crop[i + 1] << 8) | crop[i + 2];
+          if (rgb == kDiagramGridDotRgb)
+            crop[i] = crop[i + 1] = crop[i + 2] = 255;
+        }
         return (rgba: crop, w: w, h: h);
       }
 
@@ -287,16 +335,19 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           anc = bd.byId[anc.parentOid ?? -1];
         }
         if (disabled) continue;
-        if ((samples[key]
+        final crop = cropOf(b);
+        if (crop == null) continue;
+        final hard = isHardEdgedCrop(crop.rgba, crop.w, crop.h, pad);
+        final bucket = hard ? samples : soft;
+        if (!hard) (antiAliased[key] ??= {}).add(name);
+        if ((bucket[key]
                     ?.where((s) => versionOfSnippet[s.source] == major)
                     .length ??
                 0) >=
             8) {
           continue;
         }
-        final crop = cropOf(b);
-        if (crop == null) continue;
-        (samples[key] ??= []).add((
+        (bucket[key] ??= []).add((
           rgba: crop.rgba,
           w: crop.w,
           h: crop.h,
@@ -307,6 +358,13 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     }
   });
 
+  final softOnly = <String>{};
+  for (final entry in soft.entries) {
+    if (samples.containsKey(entry.key)) continue;
+    samples[entry.key] = entry.value;
+    softOnly.add(entry.key);
+  }
+
   bool inky(Uint8List rgba, int w, int x, int y) {
     final i = (y * w + x) * 4;
     return rgba[i] < 240 || rgba[i + 1] < 240 || rgba[i + 2] < 240;
@@ -314,7 +372,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 
   bool wireInk(Uint8List rgba, int w, int x, int y) {
     final i = (y * w + x) * 4;
-    return kWireInkPalette.contains(
+    return kIconStubInk.contains(
       (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
     );
   }
@@ -595,7 +653,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             if (!aInk && !bInk) continue;
             final ca = (a.rgba[i] << 16) | (a.rgba[i + 1] << 8) | a.rgba[i + 2];
             final cb = (b.rgba[j] << 16) | (b.rgba[j + 1] << 8) | b.rgba[j + 2];
-            if (kWireInkPalette.contains(ca) || kWireInkPalette.contains(cb))
+            if (kIconStubInk.contains(ca) || kIconStubInk.contains(cb))
               continue;
             counted++;
             if (ca == cb) same++;
@@ -799,19 +857,36 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 
       keepMainCluster(consensus);
       int l = w0, t = h0, r = -1, btm = -1;
+
+      /// The ink's bounds; wire ink lying on the boundary is a stub and is erased, so
+      /// the bounds shrink until no boundary pixel is wire-coloured.
       void measure(Uint8List rgba) {
-        l = w0;
-        t = h0;
-        r = -1;
-        btm = -1;
-        for (var y = 0; y < h0; y++) {
-          for (var x = 0; x < w0; x++) {
-            if (!inky(rgba, w0, x, y)) continue;
-            if (x < l) l = x;
-            if (x > r) r = x;
-            if (y < t) t = y;
-            if (y > btm) btm = y;
+        while (true) {
+          l = w0;
+          t = h0;
+          r = -1;
+          btm = -1;
+          for (var y = 0; y < h0; y++) {
+            for (var x = 0; x < w0; x++) {
+              if (!inky(rgba, w0, x, y)) continue;
+              if (x < l) l = x;
+              if (x > r) r = x;
+              if (y < t) t = y;
+              if (y > btm) btm = y;
+            }
           }
+          if (r < 0) return;
+          var erased = false;
+          for (var y = t; y <= btm; y++) {
+            for (var x = l; x <= r; x++) {
+              if (y != t && y != btm && x != l && x != r) continue;
+              if (!wireInk(rgba, w0, x, y)) continue;
+              final i = (y * w0 + x) * 4;
+              rgba[i] = rgba[i + 1] = rgba[i + 2] = 255;
+              erased = true;
+            }
+          }
+          if (!erased) return;
         }
       }
 
@@ -951,7 +1026,17 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       samples['$base@${++round}'] = left;
       added = true;
     }
-    if (!added) break;
+    if (added) continue;
+    var retried = false;
+    for (final key in failed.keys.toList()) {
+      final fallback = soft[key];
+      if (fallback == null || softOnly.contains(key)) continue;
+      samples[key] = fallback;
+      failed.remove(key);
+      softOnly.add(key);
+      retried = true;
+    }
+    if (!retried) break;
   }
 
   final renamed = _mergeVersionClusters(
@@ -1042,6 +1127,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     failed: failed,
     observedKeys: observedKeys,
     skippedLowQuality: skippedLowQuality,
+    antiAliased: antiAliased,
+    softOnly: softOnly,
     palette: paletteList,
     verifiedKeys: verifiedKeys,
     handKeys: handKeys,

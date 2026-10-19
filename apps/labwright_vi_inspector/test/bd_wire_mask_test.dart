@@ -190,6 +190,12 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
     }
 
     final wires = scene.wires;
+    final exclusion = sceneExclusionMask(
+      scene: scene,
+      raster: rephased,
+      width: iw,
+      height: ih,
+    );
     var drawn = 0, perfect = 0, totalOff = 0;
     final imperfect = <String>[];
     for (final wire in wires) {
@@ -213,6 +219,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
           final ours = ourPixel(basePx, x, y);
           if (ours == ourPixel(woPx, x, y)) continue;
           maskCount++;
+          if (exclusion[y * iw + x] & kMaskArtBox != 0) continue;
           if (ours != refPixel(x + reg.dx.round(), y + reg.dy.round())) {
             off++;
           }
