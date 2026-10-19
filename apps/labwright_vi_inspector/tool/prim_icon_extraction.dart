@@ -161,6 +161,25 @@ bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad) {
 /// The fewest pixels a colour must cover in a node box for the render to count as hard-edged.
 const int kHardEdgeMinRun = 3;
 
+/// Whether the node box of a reference crop holds icon ink at all: at least
+/// [kIconInkMinPixels] pixels that are neither white nor wire ink. A node the reference does not
+/// show, such as one inside a frame the structure is not displaying, crops to a blank box.
+bool hasIconInk(Uint8List rgba, int w, int h, int pad) {
+  var ink = 0;
+  for (var y = pad; y < h - pad; y++) {
+    for (var x = pad; x < w - pad; x++) {
+      final i = (y * w + x) * 4;
+      final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
+      if (r >= 240 && g >= 240 && b >= 240) continue;
+      if (kIconStubInk.contains((r << 16) | (g << 8) | b)) continue;
+      if (++ink >= kIconInkMinPixels) return true;
+    }
+  }
+  return false;
+}
+
+const int kIconInkMinPixels = 16;
+
 class PrimIconExtraction {
   const PrimIconExtraction({
     required this.appDir,
@@ -336,7 +355,9 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
         if (disabled) continue;
         final crop = cropOf(b);
-        if (crop == null) continue;
+        if (crop == null || !hasIconInk(crop.rgba, crop.w, crop.h, pad)) {
+          continue;
+        }
         final hard = isHardEdgedCrop(crop.rgba, crop.w, crop.h, pad);
         final bucket = hard ? samples : soft;
         if (!hard) (antiAliased[key] ??= {}).add(name);
