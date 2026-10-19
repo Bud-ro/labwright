@@ -1533,6 +1533,7 @@ class BdDiagramPainter extends CustomPainter {
     }
 
     for (final object in decorations) {
+      if (object.objectClass == BdObjectClass.attachmentArrow) continue;
       final rect = _rectOf(object);
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
