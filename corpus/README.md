@@ -20,4 +20,11 @@ source never churns an assertion and a regression names the file.
 
 Provenance, licenses and the list of surveyed-but-not-vendored repositories
 live in the corpus repositories themselves; `dart run tool/vendor_corpus.dart`
-adds an upstream repository to one of them.
+adds an upstream repository to one of them, recording each file's git blob id
+in the source's `manifest.json` so the repository's own `tool/check.dart` can
+check its metadata against its tree. Vendored trees carry their upstream
+`.gitattributes`, so the vendor tool commits with every attribute switched off
+and `fetch_corpus` checks out the same way. Each corpus repository also
+publishes a SQLite index of itself as a release (`index-<commit>`), built by
+its own `tool/index` against this parser; the VI inspector's Examples button
+fetches and searches it.

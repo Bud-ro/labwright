@@ -58,6 +58,7 @@ const _rsrc = ['.vi', '.ctl', '.vim', '.vit', '.ctt', '.llb', '.lvlibp'];
 const _lvXml = ['.lvproj', '.lvlib', '.lvclass', '.xctl', '.lvsc', '.xnode', '.lvtest'];
 const _teststand = ['.seq', '.ini', '.cfg', '.tsw', '.tpj'];
 const _notVendored = [
+  '.gitattributes',
   '.exe',
   '.msi',
   '.zip',
@@ -174,7 +175,13 @@ Future<bool> _vendor(Directory corpus, _Source source, List<String> keep, Future
       File('${dest.path}/$path')
         ..parent.createSync(recursive: true)
         ..writeAsBytesSync(content);
-      files.add({'path': path, 'bytes': content.length, 'sha256': sha256.convert(content).toString(), 'via': via});
+      files.add({
+        'path': path,
+        'bytes': content.length,
+        'sha256': sha256.convert(content).toString(),
+        'blob': gitBlobId(content),
+        'via': via,
+      });
       bytes += content.length;
     }
     File('${dest.path}/LICENSE.md').writeAsBytesSync(license.readAsBytesSync());
@@ -535,13 +542,62 @@ void _appendSourcesJson(Directory corpus, _Source source, String spdx, int files
   file.writeAsStringSync('${const JsonEncoder.withIndent(' ').convert(list)}\n');
 }
 
+/// Stages and commits the source with every git attribute switched off, so the blobs hold the
+/// upstream bytes however a vendored `.gitattributes` would convert them, and `git add -f` takes
+/// files a vendored `.gitignore` would leave out.
 Future<void> _commit(Directory corpus, _Source source, int files, int bytes) async {
   final paths = ['sources/${source.name}', 'sources.json'];
-  final add = await Process.run('git', ['-C', corpus.path, 'add', ...paths]);
-  if (add.exitCode != 0) throw StateError('git add failed: ${add.stderr}');
-  final message =
-      'Vendor ${source.repo} @ ${source.commit.substring(0, 12)}\n\n'
-      '$files files, ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB.\n';
-  final commit = await Process.run('git', ['-C', corpus.path, 'commit', '-q', '--only', '-m', message, '--', ...paths]);
-  if (commit.exitCode != 0) throw StateError('git commit failed: ${commit.stderr}');
+  final gitDir = await Process.run('git', ['-C', corpus.path, 'rev-parse', '--absolute-git-dir']);
+  if (gitDir.exitCode != 0) throw StateError('git rev-parse failed: ${gitDir.stderr}');
+  final attributes = File('${(gitDir.stdout as String).trim()}/info/attributes');
+  final previous = attributes.existsSync() ? attributes.readAsStringSync() : null;
+  attributes
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync('* -text -eol -filter -diff -merge -crlf -ident\n');
+  try {
+    final add = await Process.run('git', ['-C', corpus.path, 'add', '-f', '--', ...paths]);
+    if (add.exitCode != 0) throw StateError('git add failed: ${add.stderr}');
+    final message =
+        'Vendor ${source.repo} @ ${source.commit.substring(0, 12)}\n\n'
+        '$files files, ${(bytes / 1024 / 1024).toStringAsFixed(1)} MB.\n';
+    final commit = await Process.run('git', [
+      '-C',
+      corpus.path,
+      'commit',
+      '-q',
+      '--only',
+      '-m',
+      message,
+      '--',
+      ...paths,
+    ]);
+    if (commit.exitCode != 0) throw StateError('git commit failed: ${commit.stderr}');
+  } finally {
+    if (previous == null) {
+      attributes.deleteSync();
+    } else {
+      attributes.writeAsStringSync(previous);
+    }
+  }
+}
+
+/// The id git gives a blob holding [content], which the corpus repository's own check compares
+/// against its tree.
+String gitBlobId(Uint8List content) {
+  final sink = _DigestSink();
+  sha1.startChunkedConversion(sink)
+    ..add(utf8.encode('blob ${content.length}\x00'))
+    ..add(content)
+    ..close();
+  return sink.digest.toString();
+}
+
+class _DigestSink implements Sink<Digest> {
+  late Digest digest;
+
+  @override
+  void add(Digest data) => digest = data;
+
+  @override
+  void close() {}
 }

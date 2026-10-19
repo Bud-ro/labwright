@@ -31,6 +31,9 @@ Future<void> _checkout(Directory dest, Map<String, dynamic> repo) async {
   dest.createSync(recursive: true);
   stdout.writeln('${dest.path}: $url @ ${ref.substring(0, 12)}${paths.isEmpty ? '' : ', ${paths.length} paths'}');
   await _git(dest, ['init', '-q']);
+  File('${dest.path}/.git/info/attributes')
+    ..parent.createSync(recursive: true)
+    ..writeAsStringSync('* -text -eol -filter -diff -merge -crlf -ident\n');
   await _git(dest, ['remote', 'add', 'origin', url]);
   if (paths.isNotEmpty) await _git(dest, ['sparse-checkout', 'set', '--cone', ...paths]);
   await _git(dest, ['fetch', '-q', '--depth', '1', '--filter=blob:none', 'origin', ref]);
@@ -48,7 +51,17 @@ Future<bool> _isCurrent(Directory dest, String ref, List<String> paths) async {
   return listed.toSet().containsAll(paths) && listed.length == paths.length;
 }
 
+/// Vendored trees carry their upstream `.gitattributes`; with every attribute switched off in
+/// the clone and LFS not smudging, a checkout holds the bytes the corpus committed.
 Future<void> _git(Directory dir, List<String> args) async {
-  final result = await Process.run('git', ['-C', dir.path, ...args]);
+  final result = await Process.run(
+    'git',
+    [
+      '-C',
+      dir.path,
+      ...args,
+    ],
+    environment: const {'GIT_LFS_SKIP_SMUDGE': '1'},
+  );
   if (result.exitCode != 0) throw StateError('git ${args.join(' ')} failed in ${dir.path}: ${result.stderr}');
 }
