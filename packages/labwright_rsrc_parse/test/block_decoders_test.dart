@@ -473,6 +473,15 @@ void main() {
     expect(() => ViConnectorPane(Uint8List(28)), throwsA(isA<AssertionError>()));
   });
 
+  test('a type pool whose count word claims more descriptors than its bytes hold fails before allocating', () {
+    expect(() => ViTypePool(u8([0x40, 0, 0, 0x10, 0, 0])), throwsA(isA<ViFormatException>()));
+    expect(() => ViTypePool(u8([0, 0, 0, 2, 0, 4, 0, 0])), throwsA(isA<ViFormatException>()));
+    expect(
+      () => ViType.at(u8([0, 0x10, 0, 0xf1, 0, 0, 0, 1, 0x40, 0, 0, 0, 0, 0, 0, 0]), 0, 16),
+      throwsA(isA<ViFormatException>()),
+    );
+  });
+
   test('front-panel datalog type (FPTD) names the data-item cluster a CPMp word indexes', () {
     final pool = ViTypePool(
       hx(

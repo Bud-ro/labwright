@@ -30,6 +30,7 @@ import 'dart:typed_data';
 import '../byte_layout.dart';
 import '../byte_record.dart';
 import '../decode.dart' show inflateHeapPayload;
+import '../viparse.dart';
 
 /// One type descriptor, the grammar `TM80` and `DTHP` reuse inline.
 abstract final class VctpDescriptor {
@@ -773,7 +774,7 @@ final class ViTypedefType extends ViType {
     final view = ByteData.sublistView(bytes);
     assert(length >= _descriptorHead + 8, 'a typedef has its id and component count');
     final count = view.getUint32(offset + _descriptorHead + 4);
-    assert(count <= length, 'the component count fits the descriptor');
+    if (count > length) throw ViFormatException('a typedef claims $count components in $length bytes');
     final offsets = List<int>.filled(count, 0);
     var at = offset + _descriptorHead + 8;
     for (var i = 0; i < count; i++) {
@@ -802,7 +803,9 @@ final class ViUnknownType extends ViType {
 /// length word.
 List<int> descriptorOffsets(Uint8List bytes, int start, int count) {
   final view = ByteData.sublistView(bytes);
-  assert(count <= (bytes.length - start) ~/ _descriptorHead, 'the descriptor count fits the bytes');
+  if (count > (bytes.length - start) ~/ _descriptorHead) {
+    throw ViFormatException('a type pool claims $count descriptors in ${bytes.length - start} bytes');
+  }
   final offsets = List<int>.filled(count, 0);
   var at = start;
   for (var i = 0; i < count; i++) {
