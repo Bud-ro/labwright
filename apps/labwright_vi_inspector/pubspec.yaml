@@ -13,8 +13,10 @@ dependencies:
   flutter:
     sdk: flutter
   image: ^4.8.0
+  archive: ^4.0.9
   labwright_rsrc_parse:
     path: ../../packages/labwright_rsrc_parse
+  sqlite3: ^3.3.1
   super_clipboard: ^0.9.1
 
 dev_dependencies:
