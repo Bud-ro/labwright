@@ -1505,6 +1505,7 @@ class BdDiagramPainter extends CustomPainter {
     _paintWireObjects(canvas, wires);
     _paintSolids(canvas, solids, labelBackings);
     _paintLabelBackings(canvas, labelBackings);
+    _paintAttachmentArrows(canvas);
     _paintCaptions(canvas);
   }
 
@@ -1532,6 +1533,7 @@ class BdDiagramPainter extends CustomPainter {
     }
 
     for (final object in decorations) {
+      if (object.objectClass == BdObjectClass.attachmentArrow) continue;
       final rect = _rectOf(object);
       final decoded =
           bdDecodedColor(object.bgRgb) ?? bdDecodedColor(object.contentRgb);
@@ -2329,6 +2331,167 @@ class BdDiagramPainter extends CustomPainter {
       canvas.drawRect(rect, Paint()..color = _dimFor(oid, Colors.black));
       canvas.drawRect(rect.deflate(1), Paint()..color = _dimFor(oid, backing));
     }
+  }
+
+  /// The arrow from a label to the object it is attached to. Its tip is the pixel where the
+  /// line between the two centres enters the target's drawn box, its tail the pixel where the
+  /// line from that tip to the label's centre leaves the label, and the shaft runs from the
+  /// tail toward the target's centre, stopping short of the tip.
+  void _paintAttachmentArrows(Canvas canvas) {
+    final diagram = scene.diagram;
+    for (final label in objects) {
+      final glyph = diagram
+          .byId[label.refsOf(HeapRefKind.attachmentRef)?.firstOrNull ?? -1];
+      final target =
+          diagram.byId[glyph
+                  ?.refsOf(HeapRefKind.attachedObjectRef)
+                  ?.firstOrNull ??
+              -1];
+      final lb = label.absBounds;
+      if (glyph == null || target == null || lb == null) continue;
+      final targetRect = _attachmentTargetRect(target);
+      if (targetRect == null) continue;
+      final labelRect = _toCanvas(lb);
+      final labelCentre = _pixelOf(labelRect.center);
+      final targetCentre = _pixelOf(targetRect.center);
+      final tip = _rayPixelAt(labelCentre, targetCentre, (p, d) {
+        return _rayEntersRect(p, d, targetRect);
+      });
+      if (tip == null) continue;
+      final tail = _rayPixelAt(tip, labelCentre, (p, d) {
+        return _rayEntersRect(p, d, labelRect);
+      });
+      if (tail == null) continue;
+      final head = tip + const Offset(0.5, 0.5);
+      final foot = tail + const Offset(0.5, 0.5);
+      final aim = targetCentre + const Offset(0.5, 0.5) - foot;
+      if (aim.distance == 0) continue;
+      final along = aim / aim.distance;
+      final across = Offset(-along.dy, along.dx);
+      final reach =
+          (head - foot).dx * along.dx +
+          (head - foot).dy * along.dy -
+          kAttachmentArrowShaftEnd;
+      final ink = Paint()
+        ..color = _dimFor(label.oid, Colors.black)
+        ..isAntiAlias = true;
+      if (reach > 0) {
+        canvas.drawLine(
+          foot,
+          foot + along * reach,
+          ink
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = kAttachmentArrowShaftWidth
+            ..strokeCap = StrokeCap.butt,
+        );
+      }
+      final base = head - along * kAttachmentArrowHeadLength;
+      final wing = across * kAttachmentArrowHeadHalfWidth;
+      final notch = base + along * kAttachmentArrowHeadNotch;
+      canvas.drawPath(
+        Path()
+          ..moveTo(head.dx, head.dy)
+          ..lineTo((base + wing).dx, (base + wing).dy)
+          ..lineTo(notch.dx, notch.dy)
+          ..lineTo((base - wing).dx, (base - wing).dy)
+          ..close(),
+        ink..style = PaintingStyle.fill,
+      );
+    }
+  }
+
+  /// The box an attachment arrow aims at: the icon art stamped for a primitive, the element
+  /// frame of an array, else the object's absolute box.
+  Rect? _attachmentTargetRect(BdObject target) {
+    final bounds = _absRectOf(target);
+    if (bounds == null) return null;
+    if (target.objectClass == BdObjectClass.array) {
+      final frame = _arrayElementFrame(target, bounds);
+      if (frame != null) return _toCanvas(frame);
+    }
+    final rect = _toCanvas(bounds);
+    final id = loadedPrimIconIdOf(target);
+    final art = id == null ? null : primIcons[id];
+    if (art == null) return rect;
+    return primIconStampRect(rect, art.width, art.height, key: id);
+  }
+
+  /// The frame around an array's elements: the largest chrome child that reaches the
+  /// array's bottom-right corner without starting at its top-left.
+  HeapRect? _arrayElementFrame(BdObject array, HeapRect bounds) {
+    HeapRect? frame;
+    for (final child in scene.diagram.childrenOf(array)) {
+      final b = child.bounds;
+      if (child.objectClass != BdObjectClass.chrome || b == null) continue;
+      if (b.right != bounds.width || b.bottom != bounds.height) continue;
+      if (b.left <= 0 && b.top <= 0) continue;
+      if (frame == null || b.width * b.height > frame.width * frame.height) {
+        frame = b;
+      }
+    }
+    if (frame == null) return null;
+    return HeapRect(
+      top: bounds.top + frame.top,
+      left: bounds.left + frame.left,
+      bottom: bounds.top + frame.bottom,
+      right: bounds.left + frame.right,
+    );
+  }
+
+  /// The pixel holding [point], as its top-left corner.
+  static Offset _pixelOf(Offset point) =>
+      Offset(point.dx.floorToDouble(), point.dy.floorToDouble());
+
+  /// The pixel where the ray from [from] through [to] crosses the box that [crossing]
+  /// measures, or null when the ray never does.
+  static Offset? _rayPixelAt(
+    Offset from,
+    Offset to,
+    double? Function(Offset origin, Offset direction) crossing,
+  ) {
+    final span = to - from;
+    if (span.distance == 0) return null;
+    final direction = span / span.distance;
+    final distance = crossing(from, direction);
+    if (distance == null || distance < 0) return null;
+    return _pixelOf(from + direction * distance);
+  }
+
+  /// How far along [direction] from [origin] the ray enters [rect].
+  static double? _rayEntersRect(Offset origin, Offset direction, Rect rect) {
+    var distance = double.negativeInfinity;
+    if (direction.dx > 0) {
+      distance = math.max(distance, (rect.left - origin.dx) / direction.dx);
+    } else if (direction.dx < 0) {
+      distance = math.max(distance, (rect.right - origin.dx) / direction.dx);
+    }
+    if (direction.dy > 0) {
+      distance = math.max(distance, (rect.top - origin.dy) / direction.dy);
+    } else if (direction.dy < 0) {
+      distance = math.max(distance, (rect.bottom - origin.dy) / direction.dy);
+    }
+    return distance.isFinite ? distance : null;
+  }
+
+  /// The absolute box of [object]: its bounds, or its terminal box within the nearest bounded
+  /// ancestor.
+  HeapRect? _absRectOf(BdObject object) {
+    final bounds = object.absBounds;
+    if (bounds != null) return bounds;
+    final term = object.termBounds;
+    if (term == null) return null;
+    var owner = scene.diagram.parentOf(object);
+    while (owner != null && owner.absBounds == null) {
+      owner = scene.diagram.parentOf(owner);
+    }
+    final ob = owner?.absBounds;
+    if (ob == null) return null;
+    return HeapRect(
+      top: ob.top + term.top,
+      left: ob.left + term.left,
+      bottom: ob.top + term.bottom,
+      right: ob.left + term.right,
+    );
   }
 
   void _paintCaptions(Canvas canvas) {
@@ -5354,3 +5517,16 @@ class _ViImageStrip extends StatelessWidget {
     return tooltip == null ? tile : Tooltip(message: tooltip, child: tile);
   }
 }
+
+/// The attachment arrow's shaft width, and how far short of the tip the shaft ends.
+const double kAttachmentArrowShaftWidth = 2;
+
+const double kAttachmentArrowShaftEnd = 11;
+
+/// The attachment arrow's head: its length from tip to barbs, half its width across the
+/// barbs, and how far the notch between the barbs cuts back toward the tip.
+const double kAttachmentArrowHeadLength = 11.75;
+
+const double kAttachmentArrowHeadHalfWidth = 3.75;
+
+const double kAttachmentArrowHeadNotch = 3;

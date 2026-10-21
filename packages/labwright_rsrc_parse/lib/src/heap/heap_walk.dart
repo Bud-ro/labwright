@@ -349,7 +349,7 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
         default:
           listener.onRecord(cur, opcode, body, start, end);
       }
-    } else if (lead == 0x14) {
+    } else if (lead & 0xfc == 0x14) {
       if (offset + 6 <= length && body[offset + 2] == 0x01 && body[offset + 3] == 0xfd) {
         final wide = (body[offset + 4] & 0x80) != 0;
         if (!wide || offset + 10 <= length) {
