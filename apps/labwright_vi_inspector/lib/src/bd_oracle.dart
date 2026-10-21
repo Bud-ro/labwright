@@ -74,6 +74,7 @@ BdRenderStyle deriveSnippetStyle({
       height: height,
     ),
     bitmapText: bilevel ?? false,
+    labelBackingMapped: !(bilevel ?? false),
   );
   return deriveGridStyle(
         raster: raster,
@@ -92,7 +93,8 @@ bool snippetStyleRephases(BdRenderStyle style) =>
     style.errorHatchOffset != kNoHatchOffset ||
     style.wireCycleOffset != kNoHatchOffset ||
     style.gridPitch > 0 ||
-    style.bitmapText;
+    style.bitmapText ||
+    !style.labelBackingMapped;
 
 /// Whether a reference draws its text bi-level: inside the rectangles text was painted in,
 /// fewer than [kBdBilevelTintedFringe] of the 4-neighbours of black pixels carry the tint
@@ -181,6 +183,7 @@ BdRenderStyle? deriveGridStyle({
     errorHatchOffset: base.errorHatchOffset,
     wireCycleOffset: base.wireCycleOffset,
     bitmapText: base.bitmapText,
+    labelBackingMapped: base.labelBackingMapped,
     gridPitch: pitch,
     gridPhase: Offset(
       (column - registration.dx) / scale + raster.content.left,

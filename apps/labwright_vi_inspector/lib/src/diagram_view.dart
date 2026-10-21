@@ -224,6 +224,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           style: const BdRenderStyle(
                             gridPitch: kBdDefaultGridPitch,
                             bitmapText: true,
+                            labelBackingMapped: false,
                           ),
                         ),
                         foregroundPainter: _OverlayPainter(
@@ -431,11 +432,16 @@ class BdRenderStyle {
     this.gridPhase = Offset.zero,
     this.gridLines = true,
     this.bitmapText = false,
+    this.labelBackingMapped = true,
   });
 
   /// Whether 12 px text is drawn from the bi-level glyph bitmaps rather than through the
   /// font rasteriser.
   final bool bitmapText;
+
+  /// Whether a label's stored backing colour 0xFFFFD7 is drawn as 0xFFFFCC, as newer
+  /// LabVIEW renders do; the bi-level renders draw the stored colour.
+  final bool labelBackingMapped;
 
   /// The alignment grid drawn under the diagram: its pitch in diagram pixels (0 draws none),
   /// the diagram coordinates of one of its crossings, and whether it is drawn as lines
@@ -469,7 +475,8 @@ const int kBdDefaultGridPitch = 16;
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 
-int bdLabelBackingRgb(int rgb) => rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
+int bdLabelBackingRgb(int rgb, {bool mapped = true}) =>
+    mapped && rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
 
 Color? bdFillColor(BdObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
@@ -1915,7 +1922,12 @@ class BdDiagramPainter extends CustomPainter {
                 !object.hasFlag(ViObjFlag.labelNoBacking));
         final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
-            : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
+            : bdDecodedColor(
+                bdLabelBackingRgb(
+                  object.bgRgb!,
+                  mapped: style.labelBackingMapped,
+                ),
+              );
         if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
