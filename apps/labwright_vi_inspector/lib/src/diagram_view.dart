@@ -5122,7 +5122,7 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final grey = tint ?? dim(style.whileBandGrey);
+    final grey = tint ?? dim(style.eraColor(style.whileBandGrey));
     final l = rect.left.round(), t = rect.top.round();
     final r = rect.right.round(), b = rect.bottom.round();
     const band = _kWhileBand;
