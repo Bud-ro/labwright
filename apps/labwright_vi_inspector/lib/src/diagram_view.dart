@@ -2400,16 +2400,42 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// The box an attachment arrow aims at: the icon art stamped for a primitive, else the
-  /// object's absolute box.
+  /// The box an attachment arrow aims at: the icon art stamped for a primitive, the element
+  /// frame of an array, else the object's absolute box.
   Rect? _attachmentTargetRect(BdObject target) {
     final bounds = _absRectOf(target);
     if (bounds == null) return null;
+    if (target.objectClass == BdObjectClass.array) {
+      final frame = _arrayElementFrame(target, bounds);
+      if (frame != null) return _toCanvas(frame);
+    }
     final rect = _toCanvas(bounds);
     final id = loadedPrimIconIdOf(target);
     final art = id == null ? null : primIcons[id];
     if (art == null) return rect;
     return primIconStampRect(rect, art.width, art.height, key: id);
+  }
+
+  /// The frame around an array's elements: the largest chrome child that reaches the
+  /// array's bottom-right corner without starting at its top-left.
+  HeapRect? _arrayElementFrame(BdObject array, HeapRect bounds) {
+    HeapRect? frame;
+    for (final child in scene.diagram.childrenOf(array)) {
+      final b = child.bounds;
+      if (child.objectClass != BdObjectClass.chrome || b == null) continue;
+      if (b.right != bounds.width || b.bottom != bounds.height) continue;
+      if (b.left <= 0 && b.top <= 0) continue;
+      if (frame == null || b.width * b.height > frame.width * frame.height) {
+        frame = b;
+      }
+    }
+    if (frame == null) return null;
+    return HeapRect(
+      top: bounds.top + frame.top,
+      left: bounds.left + frame.left,
+      bottom: bounds.top + frame.bottom,
+      right: bounds.left + frame.right,
+    );
   }
 
   /// The pixel holding [point], as its top-left corner.
