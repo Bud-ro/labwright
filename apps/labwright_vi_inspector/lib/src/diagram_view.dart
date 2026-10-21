@@ -555,6 +555,29 @@ const List<String> kBdEventGlyph = [
   'bbbbbbbbbbbbbb',
 ];
 
+/// The arrow glyph of a local variable, anti-aliased as LabVIEW draws it: `#` black, then
+/// greys 0x22, 0x55, 0x88, 0xBB and 0xCC for `1` to `5`.
+const List<String> kBdLocalVariableGlyph = [
+  '...#####..',
+  '....2###..',
+  '...4####..',
+  '..4###2#..',
+  '..##14.#..',
+  '.41#4.....',
+  '.4#3......',
+  '..3#5.....',
+  '...3#.....',
+];
+
+const Map<String, Color> kBdLocalVariableGlyphInks = {
+  '#': Color(0xFF000000),
+  '1': Color(0xFF222222),
+  '2': Color(0xFF555555),
+  '3': Color(0xFF888888),
+  '4': Color(0xFFBBBBBB),
+  '5': Color(0xFFCCCCCC),
+};
+
 /// An enum constant's increment/decrement glyph and its drop-down triangle.
 const List<String> kBdEnumStepGlyph = [
   '..#.#..',
@@ -2311,6 +2334,52 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  /// A local variable of a control reference: a 2 px frame in the control class's type
+  /// colour around the terminal fill, the arrow glyph, and the class's name in the same
+  /// colour ending 5 px before the frame's right edge. False when the variable's terminal
+  /// is not a control reference the catalogue names.
+  bool _paintLocalVariable(Canvas canvas, BdObject object, Rect rect) {
+    ViControlRefClass? refClass;
+    for (final holder in scene.diagram.childrenOf(object)) {
+      for (final terminal in scene.diagram.childrenOf(holder)) {
+        final type = terminal.resolvedType?.type;
+        if (type is ViRefnumType) refClass ??= type.controlRefClass;
+      }
+    }
+    if (refClass == null) return false;
+    final tint = _dimFor(
+      object.oid,
+      labviewTypeColor(switch (refClass) {
+        ViControlRefClass.digital => ViTypeKind.numericInt,
+        ViControlRefClass.string => ViTypeKind.string,
+        ViControlRefClass.enumeration => ViTypeKind.enumRing,
+      }),
+    );
+    canvas.drawRect(rect, _solidNoAa(tint));
+    canvas.drawRect(
+      rect.deflate(2),
+      _solidNoAa(_dimFor(object.oid, kBdTerminalFill)),
+    );
+    for (final e in kBdLocalVariableGlyphInks.entries) {
+      _stampBitmap(
+        canvas,
+        _solidNoAa(_dimFor(object.oid, e.value)),
+        kBdLocalVariableGlyph,
+        rect.left + 3,
+        rect.top + 5,
+        on: e.key,
+      );
+    }
+    final run = _layoutText(refClass.displayName, color: tint, maxLines: 1);
+    _paintText(
+      canvas,
+      run,
+      Offset(rect.right - 5 - run.width, rect.top + 2),
+      clip: rect.deflate(2),
+    );
+    return true;
+  }
+
   /// An enum constant: the step glyph in the box's corner, the selected item's name in the
   /// item list part and the drop-down triangle in the control part. False when the item name
   /// cannot be found, which leaves the numeric value to the caller.
@@ -2425,6 +2494,10 @@ class BdDiagramPainter extends CustomPainter {
     }
     if (object.objectClass == BdObjectClass.bundleByName) {
       _paintGrowableNode(canvas, object, rect);
+      return;
+    }
+    if (object.objectClass == BdObjectClass.localVariable &&
+        _paintLocalVariable(canvas, object, rect)) {
       return;
     }
     final icon = subViIcons[object.oid];
