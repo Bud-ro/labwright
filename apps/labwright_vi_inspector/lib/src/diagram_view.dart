@@ -2333,8 +2333,10 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  /// The arrow from a label to the object it is attached to: the label's attachment glyph
-  /// spans the arrow, its corner nearest the object being the head.
+  /// The arrow from a label to the object it is attached to. Its tip is the pixel where the
+  /// line between the two centres enters the target's drawn box, its tail the pixel where the
+  /// line from that tip to the label's centre leaves the label, and the shaft runs from the
+  /// tail toward the target's centre, stopping short of the tip.
   void _paintAttachmentArrows(Canvas canvas) {
     final diagram = scene.diagram;
     for (final label in objects) {
@@ -2345,64 +2347,104 @@ class BdDiagramPainter extends CustomPainter {
                   ?.refsOf(HeapRefKind.attachedObjectRef)
                   ?.firstOrNull ??
               -1];
-      final lb = label.absBounds, gb = glyph?.bounds;
-      if (glyph == null || target == null || lb == null || gb == null) continue;
-      final tb = _absRectOf(target);
-      if (tb == null) continue;
-      final span = _toCanvas(
-        HeapRect(
-          top: lb.top + gb.top,
-          left: lb.left + gb.left,
-          bottom: lb.top + gb.bottom,
-          right: lb.left + gb.right,
-        ),
-      );
-      final aim = _toCanvas(tb).center;
-      final corners = [
-        span.topLeft,
-        span.topRight,
-        span.bottomRight,
-        span.bottomLeft,
-      ];
-      var nearest = 0;
-      for (var i = 1; i < corners.length; i++) {
-        if ((corners[i] - aim).distanceSquared <
-            (corners[nearest] - aim).distanceSquared)
-          nearest = i;
-      }
-      final head = corners[nearest] + const Offset(0.5, 0.5);
-      final tail =
-          corners[(nearest + 2) % corners.length] + const Offset(0.5, 0.5);
-      final shaft = tail - head;
-      if (shaft.distance == 0) continue;
-      final along = shaft / shaft.distance;
+      final lb = label.absBounds;
+      if (glyph == null || target == null || lb == null) continue;
+      final targetRect = _attachmentTargetRect(target);
+      if (targetRect == null) continue;
+      final labelRect = _toCanvas(lb);
+      final labelCentre = _pixelOf(labelRect.center);
+      final targetCentre = _pixelOf(targetRect.center);
+      final tip = _rayPixelAt(labelCentre, targetCentre, (p, d) {
+        return _rayEntersRect(p, d, targetRect);
+      });
+      if (tip == null) continue;
+      final tail = _rayPixelAt(tip, labelCentre, (p, d) {
+        return _rayEntersRect(p, d, labelRect);
+      });
+      if (tail == null) continue;
+      final head = tip + const Offset(0.5, 0.5);
+      final foot = tail + const Offset(0.5, 0.5);
+      final aim = targetCentre + const Offset(0.5, 0.5) - foot;
+      if (aim.distance == 0) continue;
+      final along = aim / aim.distance;
       final across = Offset(-along.dy, along.dx);
+      final reach =
+          (head - foot).dx * along.dx +
+          (head - foot).dy * along.dy -
+          kAttachmentArrowShaftEnd;
       final ink = Paint()
         ..color = _dimFor(label.oid, Colors.black)
         ..isAntiAlias = true;
-      final base = head + along * kAttachmentArrowHeadLength;
+      if (reach > 0) {
+        canvas.drawLine(
+          foot,
+          foot + along * reach,
+          ink
+            ..style = PaintingStyle.stroke
+            ..strokeWidth = kAttachmentArrowShaftWidth
+            ..strokeCap = StrokeCap.butt,
+        );
+      }
+      final base = head - along * kAttachmentArrowHeadLength;
       final wing = across * kAttachmentArrowHeadHalfWidth;
-      canvas.drawLine(
-        tail -
-            along * kAttachmentArrowTailInset -
-            across * kAttachmentArrowShaftShift,
-        base +
-            along * kAttachmentArrowShaftGap -
-            across * kAttachmentArrowShaftShift,
-        ink
-          ..style = PaintingStyle.stroke
-          ..strokeWidth = kAttachmentArrowWidth
-          ..strokeCap = StrokeCap.butt,
-      );
+      final notch = base + along * kAttachmentArrowHeadNotch;
       canvas.drawPath(
         Path()
           ..moveTo(head.dx, head.dy)
           ..lineTo((base + wing).dx, (base + wing).dy)
+          ..lineTo(notch.dx, notch.dy)
           ..lineTo((base - wing).dx, (base - wing).dy)
           ..close(),
         ink..style = PaintingStyle.fill,
       );
     }
+  }
+
+  /// The box an attachment arrow aims at: the icon art stamped for a primitive, else the
+  /// object's absolute box.
+  Rect? _attachmentTargetRect(BdObject target) {
+    final bounds = _absRectOf(target);
+    if (bounds == null) return null;
+    final rect = _toCanvas(bounds);
+    final id = loadedPrimIconIdOf(target);
+    final art = id == null ? null : primIcons[id];
+    if (art == null) return rect;
+    return primIconStampRect(rect, art.width, art.height, key: id);
+  }
+
+  /// The pixel holding [point], as its top-left corner.
+  static Offset _pixelOf(Offset point) =>
+      Offset(point.dx.floorToDouble(), point.dy.floorToDouble());
+
+  /// The pixel where the ray from [from] through [to] crosses the box that [crossing]
+  /// measures, or null when the ray never does.
+  static Offset? _rayPixelAt(
+    Offset from,
+    Offset to,
+    double? Function(Offset origin, Offset direction) crossing,
+  ) {
+    final span = to - from;
+    if (span.distance == 0) return null;
+    final direction = span / span.distance;
+    final distance = crossing(from, direction);
+    if (distance == null || distance < 0) return null;
+    return _pixelOf(from + direction * distance);
+  }
+
+  /// How far along [direction] from [origin] the ray enters [rect].
+  static double? _rayEntersRect(Offset origin, Offset direction, Rect rect) {
+    var distance = double.negativeInfinity;
+    if (direction.dx > 0) {
+      distance = math.max(distance, (rect.left - origin.dx) / direction.dx);
+    } else if (direction.dx < 0) {
+      distance = math.max(distance, (rect.right - origin.dx) / direction.dx);
+    }
+    if (direction.dy > 0) {
+      distance = math.max(distance, (rect.top - origin.dy) / direction.dy);
+    } else if (direction.dy < 0) {
+      distance = math.max(distance, (rect.bottom - origin.dy) / direction.dy);
+    }
+    return distance.isFinite ? distance : null;
   }
 
   /// The absolute box of [object]: its bounds, or its terminal box within the nearest bounded
@@ -5450,18 +5492,15 @@ class _ViImageStrip extends StatelessWidget {
   }
 }
 
-/// The attachment arrow's stroke width and the length and half-width of its head.
-const double kAttachmentArrowWidth = 2.2;
+/// The attachment arrow's shaft width, and how far short of the tip the shaft ends.
+const double kAttachmentArrowShaftWidth = 2;
 
-const double kAttachmentArrowHeadLength = 11;
+const double kAttachmentArrowShaftEnd = 11;
 
-const double kAttachmentArrowHeadHalfWidth = 4.3;
+/// The attachment arrow's head: its length from tip to barbs, half its width across the
+/// barbs, and how far the notch between the barbs cuts back toward the tip.
+const double kAttachmentArrowHeadLength = 11.75;
 
-/// How far short of the label's corner the shaft stops, and how far past the head's base
-/// it starts.
-const double kAttachmentArrowTailInset = 1.5;
+const double kAttachmentArrowHeadHalfWidth = 3.75;
 
-const double kAttachmentArrowShaftGap = 1.5;
-
-/// How far the shaft sits across its direction from the corner-to-corner line.
-const double kAttachmentArrowShaftShift = 0.5;
+const double kAttachmentArrowHeadNotch = 3;
