@@ -449,6 +449,17 @@ class BdRenderStyle {
   Color get tunnelBorder =>
       era == BdRenderEra.bilevel ? Colors.black : kBdTunnelBorder;
 
+  /// [color] as this era draws it: the bi-level renderer paints floating-point orange
+  /// 0xFF7F00, Boolean green 0x007F00 and the while band 0x7F7F7F where the current one
+  /// paints 0xFF6600, 0x006600 and 0x777777.
+  Color eraColor(Color color) {
+    if (era != BdRenderEra.bilevel) return color;
+    if (color == kBdFloatOrange) return kBdBilevelFloatOrange;
+    if (color == kBdBooleanGreen) return kBdBilevelBooleanGreen;
+    if (color == whileBandGrey) return kBdBilevelWhileBandGrey;
+    return color;
+  }
+
   /// A terminal's two lighter shades of [base] as the bi-level renderer draws them,
   /// lightened by 75/255 and 178/255; the current renderer's shades are the art's own.
   (Color, Color) terminalShades(Color base) {
@@ -486,6 +497,19 @@ class BdRenderStyle {
 
 const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 
+/// Floating-point orange and Boolean green as the current renderer and the bi-level
+/// renderer draw them.
+const Color kBdFloatOrange = Color(0xFFFF6600);
+
+const Color kBdBilevelFloatOrange = Color(0xFFFF7F00);
+
+const Color kBdBooleanGreen = Color(0xFF006600);
+
+const Color kBdBilevelBooleanGreen = Color(0xFF007F00);
+
+/// The while loop's band grey as the bi-level renderer draws it.
+const Color kBdBilevelWhileBandGrey = Color(0xFF7F7F7F);
+
 /// The two LabVIEW renderers the corpus shows: the current one, which anti-aliases text and
 /// tints a few colours, and the bi-level one of the 2015-era renders, which draws text from
 /// hinted bitmaps and the stored colours.
@@ -496,6 +520,40 @@ enum BdRenderEra { current, bilevel }
 const Color kBdTypeDefinitionMark = Color(0xFF464646);
 
 const int kBdTypeDefinitionMarkSize = 8;
+
+/// The structure colour an event structure defaults to.
+const Color kBdEventStructureColor = Color(0xFFFFFFE5);
+
+/// An event structure's border band: its width, the stripes' diagonal period, how many of
+/// those diagonals are the structure colour and how many its darker tint, and that tint.
+const int kBdEventBandWidth = 7;
+
+const int kBdEventStripePeriod = 18;
+
+const int kBdEventStripeLight = 6;
+
+const int kBdEventStripeDark = 8;
+
+const double kBdEventStripeDarkening = 216 / 255;
+
+/// The event glyph in an event structure's top-left corner: `b` blue, `c` cream.
+const List<String> kBdEventGlyph = [
+  'bbbbbbbbbbbbbb',
+  'bbbbbbbbbbbbbb',
+  'bbccccccccccbb',
+  'bbcbbbbbbbbcbb',
+  'bbccbccccbccbb',
+  'bbccbccccbccbb',
+  'bbcccbbbbcccbb',
+  'bbccccbbccccbb',
+  'bbcccbccbcccbb',
+  'bbccbccccbccbb',
+  'bbccbbbbbbccbb',
+  'bbcbbbbbbbbcbb',
+  'bbccccccccccbb',
+  'bbbbbbbbbbbbbb',
+  'bbbbbbbbbbbbbb',
+];
 
 /// An enum constant's increment/decrement glyph and its drop-down triangle.
 const List<String> kBdEnumStepGlyph = [
@@ -1621,9 +1679,12 @@ class BdDiagramPainter extends CustomPainter {
     return points.isNotEmpty;
   }
 
-  Color _dimFor(int oid, Color color) => disabledOids.contains(oid)
-      ? bdDimDisabled(color).withValues(alpha: color.a)
-      : color;
+  Color _dimFor(int oid, Color color) {
+    final drawn = style.eraColor(color);
+    return disabledOids.contains(oid)
+        ? bdDimDisabled(drawn).withValues(alpha: drawn.a)
+        : drawn;
+  }
 
   final FilterQuality iconFilterQuality;
 
@@ -1811,6 +1872,13 @@ class BdDiagramPainter extends CustomPainter {
               oid: object.oid,
             );
           }
+        case BdObjectClass.eventStructure:
+          _drawEventStructureBorder(
+            canvas,
+            rect,
+            structColor ?? kBdEventStructureColor,
+            disabled: structDisabled,
+          );
         case BdObjectClass.flatSequence:
           _drawFlatSequenceBorder(canvas, rect, object);
         case BdObjectClass.sequenceFrame:
@@ -3136,7 +3204,7 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     final tunnels = _wireTunnelChrome(wire);
     final net = nets[wire.signalOid]!;
-    var color = net.color ?? kBdWireColor;
+    var color = this.style.eraColor(net.color ?? kBdWireColor);
     var errorBraid = false;
     if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
       errorBraid =
@@ -4199,6 +4267,67 @@ class BdDiagramPainter extends CustomPainter {
     drawn.addAll(mine);
   }
 
+  /// An event structure's border: a 7 px band of diagonal stripes in the structure colour
+  /// and its darker tint between two 1 px black outlines.
+  void _drawEventStructureBorder(
+    Canvas canvas,
+    Rect rect,
+    Color light, {
+    required bool disabled,
+  }) {
+    Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
+    final dark = Color.fromARGB(
+      255,
+      (light.r * 255 * kBdEventStripeDarkening).round(),
+      (light.g * 255 * kBdEventStripeDarkening).round(),
+      (light.b * 255 * kBdEventStripeDarkening).round(),
+    );
+    final inks = [_solidNoAa(dim(light)), _solidNoAa(dim(dark))];
+    final black = _solidNoAa(dim(Colors.black));
+    final l = rect.left.round(), t = rect.top.round();
+    final r = rect.right.round(), b = rect.bottom.round();
+    void stripe(int x0, int y0, int x1, int y1) {
+      for (var y = y0; y < y1; y++) {
+        var x = x0;
+        while (x < x1) {
+          final v = (x - l + y - t) % kBdEventStripePeriod;
+          final isDark =
+              v >= kBdEventStripeLight &&
+              v < kBdEventStripeLight + kBdEventStripeDark;
+          final run = isDark
+              ? kBdEventStripeLight + kBdEventStripeDark - v
+              : (v < kBdEventStripeLight
+                    ? kBdEventStripeLight - v
+                    : kBdEventStripePeriod - v);
+          final end = math.min(x1, x + run);
+          canvas.drawRect(
+            Rect.fromLTRB(x.toDouble(), y.toDouble(), end.toDouble(), y + 1.0),
+            inks[isDark ? 1 : 0],
+          );
+          x = end;
+        }
+      }
+    }
+
+    const band = kBdEventBandWidth;
+    stripe(l + 1, t + 1, r - 1, t + 1 + band);
+    stripe(l + 1, b - 1 - band, r - 1, b - 1);
+    stripe(l + 1, t + 1 + band, l + 1 + band, b - 1 - band);
+    stripe(r - 1 - band, t + 1 + band, r - 1, b - 1 - band);
+    for (final box in [rect, rect.deflate(band + 1.0)]) {
+      canvas.drawRect(Rect.fromLTWH(box.left, box.top, box.width, 1), black);
+      canvas.drawRect(
+        Rect.fromLTWH(box.left, box.bottom - 1, box.width, 1),
+        black,
+      );
+      canvas.drawRect(Rect.fromLTWH(box.left, box.top, 1, box.height), black);
+      canvas.drawRect(
+        Rect.fromLTWH(box.right - 1, box.top, 1, box.height),
+        black,
+      );
+    }
+  }
+
   void _drawFlatSequenceBorder(Canvas canvas, Rect rect, BdObject seq) {
     final black = _dimFor(seq.oid, Colors.black);
     final grey = _dimFor(seq.oid, const Color(0xFFDDDDDD));
@@ -4993,7 +5122,7 @@ class BdDiagramPainter extends CustomPainter {
     bool disabled = false,
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
-    final grey = tint ?? dim(style.whileBandGrey);
+    final grey = tint ?? dim(style.eraColor(style.whileBandGrey));
     final l = rect.left.round(), t = rect.top.round();
     final r = rect.right.round(), b = rect.bottom.round();
     const band = _kWhileBand;
@@ -5212,6 +5341,8 @@ class BdDiagramPainter extends CustomPainter {
   static const _bmpRightShiftRegister = 4;
   static const _bmpCaseSelector = 5;
   static const _bmpConditional = 192;
+  static const _bmpEventDynamic = 214;
+  static const _bmpEventTimeout = 215;
 
   static const _forLoopNGlyph = (
     origin: (4, 3),
@@ -5407,6 +5538,24 @@ class BdDiagramPainter extends CustomPainter {
         _drawConditionalTerminal(canvas, box, disabled: disabled);
         continue;
       }
+      if (t.bmp == _bmpEventTimeout) {
+        final inks = {
+          'b': _solidNoAa(dim(const Color(0xFF0000FF))),
+          'c': _solidNoAa(dim(const Color(0xFFFFFFCC))),
+        };
+        for (final e in inks.entries) {
+          _stampBitmap(
+            canvas,
+            e.value,
+            kBdEventGlyph,
+            box.left,
+            box.top,
+            on: e.key,
+          );
+        }
+        continue;
+      }
+      if (t.bmp == _bmpEventDynamic) continue;
       final border = switch (t.bmp) {
         _bmpConditional => dim(const Color(0xFF007F00)),
         _ => dim(_loopBlue),
