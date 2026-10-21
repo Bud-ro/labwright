@@ -97,10 +97,13 @@ bool snippetStyleRephases(BdRenderStyle style) =>
     style.gridPitch > 0 ||
     style.era != BdRenderEra.current;
 
-/// Whether a reference draws its 12 px text bi-level: inside the rectangles that text was
-/// painted in, fewer than [kBdBilevelTintedFringe] of the 4-neighbours of black pixels carry
-/// the tint that anti-aliasing leaves. Null when no such text was painted. Larger text is
-/// anti-aliased even in the bi-level renders, so it is left out.
+/// Whether a reference draws its 12 px text bi-level. Each rectangle that text was painted
+/// in votes: bi-level when fewer than [kBdBilevelTintedFringe] of the 4-neighbours of its
+/// black pixels carry the tint that anti-aliasing leaves, anti-aliased otherwise; rectangles
+/// with fewer than [kBdBilevelVoteInk] black pixels abstain. The majority decides, a tie
+/// counts as anti-aliased, and null means no rectangle voted. Larger text is anti-aliased
+/// even in the bi-level renders, so callers pass only 12 px text, and an anti-aliased
+/// attachment arrow crossing one label sways only that label's vote.
 bool? referenceTextIsBilevel({
   required Uint8List referenceRgba,
   required int width,
@@ -108,13 +111,14 @@ bool? referenceTextIsBilevel({
   required BdRegistration registration,
   required Iterable<Rect> textRects,
 }) {
-  var black = 0, tinted = 0;
+  var bilevel = 0, antiAliased = 0;
   for (final rect in textRects) {
     final mapped = registration.mapRect(rect);
     final x0 = math.max(1, mapped.left.floor());
     final x1 = math.min(width - 1, mapped.right.ceil());
     final y0 = math.max(1, mapped.top.floor());
     final y1 = math.min(height - 1, mapped.bottom.ceil());
+    var black = 0, tinted = 0;
     for (var y = y0; y < y1; y++) {
       for (var x = x0; x < x1; x++) {
         final i = (y * width + x) * 4;
@@ -134,10 +138,19 @@ bool? referenceTextIsBilevel({
         }
       }
     }
+    if (black < kBdBilevelVoteInk) continue;
+    if (tinted < black * kBdBilevelTintedFringe) {
+      bilevel++;
+    } else {
+      antiAliased++;
+    }
   }
-  if (black == 0) return null;
-  return tinted < black * kBdBilevelTintedFringe;
+  if (bilevel + antiAliased == 0) return null;
+  return bilevel > antiAliased;
 }
+
+/// How many black pixels a text rectangle needs before it votes.
+const int kBdBilevelVoteInk = 20;
 
 /// The tinted-fringe share below which a reference's text counts as bi-level: bi-level
 /// renders measure about 0.001 in their text, sub-pixel anti-aliased ones 0.01 and above.
