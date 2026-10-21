@@ -23,6 +23,20 @@ RANGES = [
 ]
 FACES = [('Regular', 'segoeui.ttf'), ('Bold', 'segoeuib.ttf')]
 
+# Glyphs as LabVIEW draws them in the corpus's bi-level renders (vi-snippets/erdos-miller,
+# LabVIEW 2015) where they differ from the font on hand (Segoe UI 5.62): a wider T, a
+# narrower x, a serifed I and a footed 1. Each entry is (advance, top, rows); rows None keeps
+# the font's.
+OVERRIDES = {
+    'Regular': {
+        0x49: (3, 4, ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '.#.', '.#.', '###']),
+        0x54: (7, None, None),
+        0x78: (5, None, None),
+        0x31: (6, 4, ['...#', '.###', '...#', '...#', '...#', '...#', '...#', '...#', '.#####']),
+    },
+    'Bold': {},
+}
+
 
 def glyph(face, cp):
     ch = chr(cp)
@@ -62,6 +76,11 @@ def main():
         for block in RANGES:
             for cp in block:
                 advance, top, rows = glyph(face, cp)
+                override = OVERRIDES[name].get(cp)
+                if override is not None:
+                    advance = override[0]
+                    if override[2] is not None:
+                        top, rows = override[1], override[2]
                 lines.append(f"  0x{cp:04x}: '{advance};{top};{'|'.join(rows)}',")
         lines.append('};')
         lines.append('')
