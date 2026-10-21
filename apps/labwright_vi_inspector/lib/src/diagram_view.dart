@@ -452,7 +452,7 @@ class BdRenderStyle {
   /// A terminal's two lighter shades of [base] as the bi-level renderer draws them,
   /// lightened by 75/255 and 178/255; the current renderer's shades are the art's own.
   (Color, Color) terminalShades(Color base) {
-    const (mid, light) = (75 / 255, 178 / 255);
+    final (mid, light) = (75 / 255, 178 / 255);
     Color lighten(double t) => Color.fromARGB(
       255,
       (base.r * 255 + (255 - base.r * 255) * t).round(),
