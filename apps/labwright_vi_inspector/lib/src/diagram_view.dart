@@ -449,12 +449,10 @@ class BdRenderStyle {
   Color get tunnelBorder =>
       era == BdRenderEra.bilevel ? Colors.black : kBdTunnelBorder;
 
-  /// A terminal's two lighter shades of [base]: the current renderer lightens by 20% and
-  /// 60%, the bi-level one by 75/255 and 178/255.
+  /// A terminal's two lighter shades of [base] as the bi-level renderer draws them,
+  /// lightened by 75/255 and 178/255; the current renderer's shades are the art's own.
   (Color, Color) terminalShades(Color base) {
-    final (mid, light) = era == BdRenderEra.bilevel
-        ? (75 / 255, 178 / 255)
-        : (0.2, 0.6);
+    const (mid, light) = (75 / 255, 178 / 255);
     Color lighten(double t) => Color.fromARGB(
       255,
       (base.r * 255 + (255 - base.r * 255) * t).round(),
@@ -5163,7 +5161,9 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
-    final (mid, light) = style.terminalShades(art.base);
+    final (mid, light) = style.era == BdRenderEra.bilevel
+        ? style.terminalShades(art.base)
+        : (art.mid, art.light);
     final inks = {
       'B': _solidNoAa(dim(art.base)),
       'M': _solidNoAa(dim(mid)),
