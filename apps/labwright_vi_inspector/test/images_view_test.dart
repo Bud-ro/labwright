@@ -43,9 +43,12 @@ Future<({Uint8List rgba, int stride})> _renderIcon(
         body: Center(
           child: RepaintBoundary(
             key: key,
-            child: CustomPaint(
-              size: Size(side, side),
-              painter: LegacyIconPainter(icon),
+            child: ColoredBox(
+              color: Colors.white,
+              child: CustomPaint(
+                size: Size(side, side),
+                painter: LegacyIconPainter(icon),
+              ),
             ),
           ),
         ),
@@ -271,6 +274,7 @@ void main() {
     tester,
   ) async {
     final icon = _iconWithCells(8, {
+      for (var i = 0; i < 32 * 32; i++) i: 255,
       5 * 32 + 5: 0,
       5 * 32 + 6: 35,
       5 * 32 + 7: 5,
