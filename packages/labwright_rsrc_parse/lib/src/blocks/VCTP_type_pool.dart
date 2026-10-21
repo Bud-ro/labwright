@@ -627,6 +627,15 @@ final class ViRefnumType extends ViType {
   /// Null for a code [ViRefnumKind] does not name.
   ViRefnumKind? get refnumKind => ViRefnumKind.ofCode(refKind);
 
+  int? get controlClassCode {
+    if (refnumKind != ViRefnumKind.lvObjectControl) return null;
+    final at = offset + _descriptorHead + 4 + 2 * clientCount;
+    if (at + 2 > end) return null;
+    return ByteData.sublistView(bytes).getUint16(at);
+  }
+
+  ViControlRefClass? get controlRefClass => ViControlRefClass.ofCode(controlClassCode);
+
   /// For a [ViRefnumKind.classInstance], the class's library-qualified name, outermost first:
   /// after the client words, a byte counting the rest, then the components as Pascal strings
   /// padded to an even length (`Option Parser.lvlib`, `Option.lvclass`); the root class is the
@@ -651,6 +660,25 @@ final class ViRefnumType extends ViType {
       pos += 1 + length;
     }
     return names;
+  }
+}
+
+/// The class of control a [ViRefnumKind.lvObjectControl] reference is to, by the code after
+/// its client indices, with the name LabVIEW shows on a local variable of it.
+// TODO(control-ref-class): the rest of the code table is not yet decoded.
+enum ViControlRefClass {
+  digital(0x12, 'Digital'),
+  string(0x1b, 'String'),
+  enumeration(0x23, 'Enum');
+
+  const ViControlRefClass(this.code, this.displayName);
+  final int code;
+  final String displayName;
+  static ViControlRefClass? ofCode(int? code) {
+    for (final value in values) {
+      if (value.code == code) return value;
+    }
+    return null;
   }
 }
 

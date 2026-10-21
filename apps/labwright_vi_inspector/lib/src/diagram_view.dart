@@ -443,6 +443,26 @@ class BdRenderStyle {
 
 const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 
+const List<String> kBdLocalVariableGlyph = [
+  '...#####..',
+  '....2###..',
+  '...4####..',
+  '..4###2#..',
+  '..##14.#..',
+  '.41#4.....',
+  '.4#3......',
+  '..3#5.....',
+  '...3#.....',
+];
+const Map<String, Color> kBdLocalVariableGlyphInks = {
+  '#': Color(0xFF000000),
+  '1': Color(0xFF222222),
+  '2': Color(0xFF555555),
+  '3': Color(0xFF888888),
+  '4': Color(0xFFBBBBBB),
+  '5': Color(0xFFCCCCCC),
+};
+
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 
@@ -2079,6 +2099,48 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
+  bool _paintLocalVariable(Canvas canvas, BdObject object, Rect rect) {
+    ViControlRefClass? refClass;
+    for (final holder in scene.diagram.childrenOf(object)) {
+      for (final terminal in scene.diagram.childrenOf(holder)) {
+        final type = terminal.resolvedType?.type;
+        if (type is ViRefnumType) refClass ??= type.controlRefClass;
+      }
+    }
+    if (refClass == null) return false;
+    final tint = _dimFor(
+      object.oid,
+      labviewTypeColor(switch (refClass) {
+        ViControlRefClass.digital => ViTypeKind.numericInt,
+        ViControlRefClass.string => ViTypeKind.string,
+        ViControlRefClass.enumeration => ViTypeKind.enumRing,
+      }),
+    );
+    canvas.drawRect(rect, _solidNoAa(tint));
+    canvas.drawRect(
+      rect.deflate(2),
+      _solidNoAa(_dimFor(object.oid, kBdTerminalFill)),
+    );
+    for (final e in kBdLocalVariableGlyphInks.entries) {
+      _stampBitmap(
+        canvas,
+        _solidNoAa(_dimFor(object.oid, e.value)),
+        kBdLocalVariableGlyph,
+        rect.left + 3,
+        rect.top + 5,
+        on: e.key,
+      );
+    }
+    final run = _layoutText(refClass.displayName, color: tint, maxLines: 1);
+    _paintText(
+      canvas,
+      run,
+      Offset(rect.right - 5 - run.width, rect.top + 2),
+      clip: rect.deflate(2),
+    );
+    return true;
+  }
+
   void _paintNode(
     Canvas canvas,
     BdObject object,
@@ -2098,6 +2160,10 @@ class BdDiagramPainter extends CustomPainter {
     }
     if (object.objectClass == BdObjectClass.bundleByName) {
       _paintGrowableNode(canvas, object, rect);
+      return;
+    }
+    if (object.objectClass == BdObjectClass.localVariable &&
+        _paintLocalVariable(canvas, object, rect)) {
       return;
     }
     final icon = subViIcons[object.oid];
