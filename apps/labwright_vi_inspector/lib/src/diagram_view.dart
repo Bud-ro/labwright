@@ -223,6 +223,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           canvasScale: _anchorScale,
                           style: const BdRenderStyle(
                             gridPitch: kBdDefaultGridPitch,
+                            bitmapText: true,
                           ),
                         ),
                         foregroundPainter: _OverlayPainter(
@@ -429,7 +430,12 @@ class BdRenderStyle {
     this.gridPitch = 0,
     this.gridPhase = Offset.zero,
     this.gridLines = true,
+    this.bitmapText = false,
   });
+
+  /// Whether 12 px text is drawn from the bi-level glyph bitmaps rather than through the
+  /// font rasteriser.
+  final bool bitmapText;
 
   /// The alignment grid drawn under the diagram: its pitch in diagram pixels (0 draws none),
   /// the diagram coordinates of one of its crossings, and whether it is drawn as lines
@@ -1328,13 +1334,13 @@ class BdDiagramPainter extends CustomPainter {
       fontSize,
       fontWeight,
       fontStyle,
-      bdTextFontFamily,
+      style.bitmapText ? kBdBitmapTextFamily : bdTextFontFamily,
     );
     final cached = scene.textGlyphCache[key];
     if (cached != null) return cached;
     final bold = fontWeight.value >= FontWeight.w700.value;
     final bitmap =
-        bdBitmapText &&
+        style.bitmapText &&
             fontSize == kBdTextSize &&
             fontStyle != FontStyle.italic &&
             glyph.length == 1
@@ -1427,7 +1433,7 @@ class BdDiagramPainter extends CustomPainter {
       fontWeight,
       fontStyle,
       lineCount,
-      bdTextFontFamily,
+      style.bitmapText ? kBdBitmapTextFamily : bdTextFontFamily,
     );
     final cached = scene.textLayoutCache[key];
     if (cached != null) return cached;

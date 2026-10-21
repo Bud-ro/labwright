@@ -66,6 +66,7 @@ BdRenderStyle deriveSnippetStyle({
       width: width,
       height: height,
     ),
+    bitmapText: referenceTextIsBilevel(referenceRgba, width, height),
   );
   return deriveGridStyle(
         raster: raster,
@@ -83,7 +84,32 @@ bool snippetStyleRephases(BdRenderStyle style) =>
     style.hatchOffset != kNoHatchOffset ||
     style.errorHatchOffset != kNoHatchOffset ||
     style.wireCycleOffset != kNoHatchOffset ||
-    style.gridPitch > 0;
+    style.gridPitch > 0 ||
+    style.bitmapText;
+
+/// Whether a reference draws its text bi-level: among the 4-neighbours of its black pixels,
+/// fewer than [kBdBilevelTintedFringe] are the tinted fringe sub-pixel anti-aliasing leaves.
+bool referenceTextIsBilevel(Uint8List rgba, int width, int height) {
+  var black = 0, tinted = 0;
+  for (var y = 1; y < height - 1; y++) {
+    for (var x = 1; x < width - 1; x++) {
+      final i = (y * width + x) * 4;
+      if (rgba[i] != 0 || rgba[i + 1] != 0 || rgba[i + 2] != 0) continue;
+      black++;
+      for (final j in [i - 4, i + 4, i - width * 4, i + width * 4]) {
+        final r = rgba[j], g = rgba[j + 1], b = rgba[j + 2];
+        final lo = math.min(r, math.min(g, b)),
+            hi = math.max(r, math.max(g, b));
+        if (lo > 40 && hi < 250 && hi - lo > 12) tinted++;
+      }
+    }
+  }
+  return black > 0 && tinted < black * kBdBilevelTintedFringe;
+}
+
+/// The tinted-fringe share below which a reference's text counts as bi-level: bi-level
+/// renders measure about 0.001, sub-pixel anti-aliased ones 0.01 and above.
+const double kBdBilevelTintedFringe = 0.005;
 
 /// The alignment grid a snippet reference shows, as a render style: the pitch and the
 /// diagram coordinates of one crossing, found from the first column and row of grid ink,
@@ -126,6 +152,7 @@ BdRenderStyle? deriveGridStyle({
     hatchOffset: base.hatchOffset,
     errorHatchOffset: base.errorHatchOffset,
     wireCycleOffset: base.wireCycleOffset,
+    bitmapText: base.bitmapText,
     gridPitch: pitch,
     gridPhase: Offset(
       (column - registration.dx) / scale + raster.content.left,

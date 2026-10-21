@@ -6,10 +6,6 @@ import 'generated/bd_text_glyphs.dart';
 
 String bdTextFontFamily = 'Selawik';
 
-/// Whether diagram text at [kBdTextPpem] is drawn from the bi-level glyph bitmaps in
-/// `generated/bd_text_glyphs.dart` rather than through the font rasteriser.
-bool bdBitmapText = true;
-
 /// One bi-level glyph: its hinted advance, the row of its first ink below the ascent line,
 /// and its rows as `#` for ink.
 class BdTextGlyphBitmap {
@@ -49,6 +45,9 @@ BdTextGlyphBitmap? bdTextGlyphBitmap(int rune, {required bool bold}) {
 }
 
 const String kBdSystemUiFamily = 'BdSystemUi';
+
+/// The name the glyph caches file bi-level bitmap text under.
+const String kBdBitmapTextFamily = 'BdBitmap';
 
 const int kBdTextPpem = 12;
 
