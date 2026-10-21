@@ -895,7 +895,7 @@ void main() {
     expect(d.byId[5]!.typeKind, ViTypeKind.enumRing);
   });
 
-  test('scrolled-cluster control terminals are re-anchored to their viewport', () {
+  test("a cluster pane's members sit at the pane plus their bounds plus the cluster's position", () {
     final d = dia([
       ...open(0x7e, 1),
       ...bounds(0, 0, 500, 500),
@@ -923,16 +923,12 @@ void main() {
       ...close(),
       ...close(),
     ]);
-    final viewport = d.byId[3]!.absBounds!;
+    expect([d.byId[3]!.absBounds!.top, d.byId[3]!.absBounds!.left], [210, 55], reason: 'pane at cluster + bounds');
     final upper = d.byId[4]!.absBounds!, lower = d.byId[5]!.absBounds!;
-    expect([upper.top, upper.left], [210, 55], reason: '#4 re-anchored to the viewport origin');
-    expect(lower.top, 248, reason: '#5 sits 38px below #4 (-262 vs -300) -> 210+38');
-    for (final control in [upper, lower]) {
-      final centre = (control.top + control.bottom) ~/ 2;
-      expect(centre >= viewport.top && centre <= viewport.bottom, isTrue, reason: 'control center inside viewport');
-    }
-    expect(d.byId[6]!.absBounds!.top, 210, reason: "#4's label subtree rides along");
-    expect([d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left], [215, 65], reason: 'nested control rides parent');
+    expect([upper.top, upper.left], [110, 114], reason: '#4 at pane (210,55) + (-300,9) + cluster (200,50)');
+    expect([lower.top, lower.left], [148, 114], reason: '#5 sits 38px below #4');
+    expect([d.byId[6]!.absBounds!.top, d.byId[6]!.absBounds!.left], [110, 125], reason: "#4's label rides along");
+    expect([d.byId[8]!.absBounds!.top, d.byId[8]!.absBounds!.left], [115, 124], reason: 'nested control rides parent');
     expect([d.byId[7]!.absBounds!.top, d.byId[7]!.absBounds!.left], [300, 300], reason: 'not under 0x11c: untouched');
   });
 

@@ -128,6 +128,9 @@ class _BdWalk extends HeapWalkListener<BdObject> {
       BdObject(oid: oid, kind: kind, offset: offset);
 
   @override
+  bool panePlacesMembersFromOwner(int kind) => kind == BdObjectClass.cluster.code;
+
+  @override
   HeapGroupCapture? captureGroup(BdObject owner, int tag) {
     if (owner.caseFrames case final frames? when kViSelectorGroupTags.contains(tag)) {
       return _SelectorCapture(owner, frames, inPool: tag == HeapGroupTag.selectorStringPool.tag);
@@ -203,8 +206,7 @@ class _BdWalk extends HeapWalkListener<BdObject> {
 /// After the walk, label bounds are re-based on their owner, flat-sequence frames are shifted
 /// to their declared offsets, objects with size records become terminal clusters, items and
 /// help text bubble up to the owning control, unknown classes that look like nodes become
-/// nodes, unlabelled nodes take their first child label, and controls under a scrolled viewport
-/// are re-anchored.
+/// nodes, and unlabelled nodes take their first child label.
 BdDiagram buildBlockDiagram(Uint8List body, {String? version, int sectionIndex = 0}) {
   final diagram = BdDiagram(objects: walkHeap(body, _BdWalk()), version: version, sectionIndex: sectionIndex);
   rebaseLabelBounds(diagram);
@@ -216,7 +218,6 @@ BdDiagram buildBlockDiagram(Uint8List body, {String? version, int sectionIndex =
   bubbleHelpText(diagram);
   _promoteUnknownNodes(diagram);
   _labelNodesFromChildren(diagram);
-  reanchorScrolledControls(diagram);
   return diagram;
 }
 

@@ -36,6 +36,9 @@ class _FpWalk extends HeapWalkListener<FpObject> {
       FpObject(oid: oid, kind: kind, offset: offset);
 
   @override
+  bool panePlacesMembersFromOwner(int kind) => kind == FpObjectClass.cluster.code;
+
+  @override
   Set<HeapAttribute> get attributes => const {
     HeapAttribute.borderColor,
     HeapAttribute.conNum,
@@ -75,12 +78,11 @@ class _FpWalk extends HeapWalkListener<FpObject> {
 
 /// Builds the object tree of an `FPHb` body (the section payload including its length word).
 /// After the walk, label bounds are re-based on their owner, items and help text bubble up to
-/// the owning control, and controls under a scrolled pane are re-anchored.
+/// the owning control.
 FpPanel buildFrontPanel(Uint8List body, {String? version, int sectionIndex = 0}) {
   final panel = FpPanel(objects: walkHeap(body, _FpWalk()), version: version, sectionIndex: sectionIndex);
   rebaseLabelBounds(panel);
   bubbleItemsToControls(panel);
   bubbleHelpText(panel);
-  reanchorScrolledControls(panel);
   return panel;
 }
