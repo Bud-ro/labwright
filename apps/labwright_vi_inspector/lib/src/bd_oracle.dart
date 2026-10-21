@@ -157,8 +157,13 @@ const int kBdBilevelVoteInk = 20;
 const double kBdBilevelTintedFringe = 0.005;
 
 /// The alignment grid a snippet reference shows, as a render style: the pitch and the
-/// diagram coordinates of one crossing, found from the first column and row of grid ink,
-/// or null when no grid is drawn.
+/// diagram coordinates of one crossing, found as the column and row residues modulo the
+/// pitch that hold [kBdGridPhaseLead] times the grid ink of any other residue, or null when
+/// no grid of lines is drawn; a grid of dots spreads its ink evenly and so draws none.
+/// How many times the grid ink of the runner-up residue a line's residue must hold: full
+/// lines hold the pitch times the ink the crossing lines leave on every other residue.
+const int kBdGridPhaseLead = 4;
+
 BdRenderStyle? deriveGridStyle({
   required BdRaster raster,
   required BdRegistration registration,
@@ -175,19 +180,30 @@ BdRenderStyle? deriveGridStyle({
         referenceRgba[i + 2] == 0xE2;
   }
 
-  int? firstLine(int extent, int across, bool Function(int at, int t) ink) {
-    for (var at = 0; at < extent && at < pitch * 2; at++) {
+  int? phaseOf(int extent, int across, bool Function(int at, int t) ink) {
+    final perResidue = List<int>.filled(pitch, 0);
+    for (var at = 0; at < extent; at++) {
       var hits = 0;
       for (var t = 0; t < across; t++) {
         if (ink(at, t)) hits++;
       }
-      if (hits * 4 >= across) return at;
+      perResidue[at % pitch] += hits;
     }
-    return null;
+    var best = 0;
+    for (var residue = 1; residue < pitch; residue++) {
+      if (perResidue[residue] > perResidue[best]) best = residue;
+    }
+    var runnerUp = 0;
+    for (var residue = 0; residue < pitch; residue++) {
+      if (residue != best && perResidue[residue] > runnerUp) {
+        runnerUp = perResidue[residue];
+      }
+    }
+    return perResidue[best] > kBdGridPhaseLead * runnerUp ? best : null;
   }
 
-  final column = firstLine(width, height, (x, y) => isInk(x, y));
-  final row = firstLine(height, width, (y, x) => isInk(x, y));
+  final column = phaseOf(width, height, (x, y) => isInk(x, y));
+  final row = phaseOf(height, width, (y, x) => isInk(x, y));
   if (column == null || row == null) return null;
   final scale = registration.scale;
   return BdRenderStyle(
