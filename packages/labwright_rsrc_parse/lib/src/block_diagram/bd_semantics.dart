@@ -534,11 +534,32 @@ List<BdObject> bdDrawableObjects(BdDiagram diagram, {Set<int>? undrawn}) {
                 (bounds.left < 0 || bounds.top < 0 || _nestedInStructure(object, byId))) &&
             !_escapesConstantBox(object, byId) &&
             !_escapesStructureBox(object, byId) &&
+            !_escapesPane(object, byId) &&
             !(kBdTextLabelClasses.contains(object.objectClass) && bounds.left == 0 && bounds.bottom == 0) &&
             !_isInlinedSubViControl(object, diagram) &&
             !_isScaffolding(object, byId))
           object,
   ];
+}
+
+/// Whether [object] belongs to a pane member whose own bounds, relative to the pane, lie
+/// wholly outside it: a cluster shown as an icon keeps its elements scrolled off its pane,
+/// and nothing of them is drawn.
+bool _escapesPane(BdObject object, HeapObjectsByOid<BdObject> byId) {
+  var cur = object;
+  var depth = 0;
+  while (depth++ < 64) {
+    final parent = byId[cur.parentOid];
+    if (parent == null) return false;
+    if (parent.objectClass == BdObjectClass.pane) {
+      final pane = parent.bounds;
+      final member = cur.bounds;
+      if (pane == null || member == null) return false;
+      return member.right <= 0 || member.left >= pane.width || member.bottom <= 0 || member.top >= pane.height;
+    }
+    cur = parent;
+  }
+  return false;
 }
 
 bool _escapesConstantBox(BdObject object, HeapObjectsByOid<BdObject> byId) {

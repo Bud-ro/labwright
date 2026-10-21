@@ -1895,6 +1895,11 @@ class BdDiagramPainter extends CustomPainter {
               oid: object.oid,
             );
           }
+        case BdObjectClass.typeDefinition:
+          continue;
+        case BdObjectClass.cluster when _isIconViewCluster(object):
+          _drawIconViewCluster(canvas, object, rect);
+          continue;
         case BdObjectClass.eventStructure:
           _drawEventStructureBorder(
             canvas,
@@ -2380,6 +2385,75 @@ class BdDiagramPainter extends CustomPainter {
     return true;
   }
 
+  /// The triangle in the top-left corner of a constant linked to a type definition, with
+  /// the 1 px gap of canvas colour that separates it from the frame.
+  void _paintTypeDefinitionMark(Canvas canvas, BdObject object, Rect box) {
+    final mark = _solidNoAa(_dimFor(object.oid, kBdTypeDefinitionMark));
+    final gap = _solidNoAa(kBdCanvas);
+    for (var r = 0; r <= kBdTypeDefinitionMarkSize; r++) {
+      canvas.drawRect(
+        Rect.fromLTWH(
+          box.left,
+          box.top + r,
+          (kBdTypeDefinitionMarkSize + 1 - r).toDouble(),
+          1,
+        ),
+        gap,
+      );
+      if (r < kBdTypeDefinitionMarkSize) {
+        canvas.drawRect(
+          Rect.fromLTWH(
+            box.left,
+            box.top + r,
+            (kBdTypeDefinitionMarkSize - r).toDouble(),
+            1,
+          ),
+          mark,
+        );
+      }
+    }
+  }
+
+  /// Whether a cluster shows as an icon: it has a pane and nothing drawable inside it.
+  bool _isIconViewCluster(BdObject cluster) {
+    final drawable = {for (final o in objects) o.oid};
+    var hasPane = false;
+    for (final child in scene.diagram.childrenOf(cluster)) {
+      if (child.objectClass != BdObjectClass.pane) continue;
+      hasPane = true;
+      for (final member in scene.diagram.childrenOf(child)) {
+        if (member.objectClass == BdObjectClass.chrome ||
+            member.objectClass == BdObjectClass.textLabel) {
+          continue;
+        }
+        if (drawable.contains(member.oid)) return false;
+      }
+    }
+    return hasPane;
+  }
+
+  /// A cluster shown as an icon: its 2 px frame in its chrome's colour around canvas colour,
+  /// and the type-definition mark when it is wrapped in one. The icon itself is not in the
+  /// file.
+  void _drawIconViewCluster(Canvas canvas, BdObject cluster, Rect rect) {
+    Color? frameColor;
+    for (final child in scene.diagram.childrenOf(cluster)) {
+      if (child.objectClass == BdObjectClass.chrome && child.fgRgb != null) {
+        frameColor = bdDecodedColor(child.fgRgb);
+      }
+    }
+    final frame = _dimFor(
+      cluster.oid,
+      frameColor ?? labviewTypeColor(ViTypeKind.cluster),
+    );
+    canvas.drawRect(rect, _solidNoAa(frame));
+    canvas.drawRect(rect.deflate(2), _solidNoAa(kBdCanvas));
+    if (scene.diagram.byId[cluster.parentOid ?? -1]?.objectClass ==
+        BdObjectClass.typeDefinition) {
+      _paintTypeDefinitionMark(canvas, cluster, rect);
+    }
+  }
+
   /// An enum constant: the step glyph in the box's corner, the selected item's name in the
   /// item list part and the drop-down triangle in the control part. False when the item name
   /// cannot be found, which leaves the numeric value to the caller.
@@ -2410,30 +2484,7 @@ class BdDiagramPainter extends CustomPainter {
     _stampRows(canvas, kBdEnumStepGlyph, box.left + 3, box.top + 7, ink);
     if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass ==
         BdObjectClass.typeDefinition) {
-      final mark = _solidNoAa(_dimFor(object.oid, kBdTypeDefinitionMark));
-      final gap = _solidNoAa(kBdCanvas);
-      for (var r = 0; r <= kBdTypeDefinitionMarkSize; r++) {
-        canvas.drawRect(
-          Rect.fromLTWH(
-            box.left,
-            box.top + r,
-            (kBdTypeDefinitionMarkSize + 1 - r).toDouble(),
-            1,
-          ),
-          gap,
-        );
-        if (r < kBdTypeDefinitionMarkSize) {
-          canvas.drawRect(
-            Rect.fromLTWH(
-              box.left,
-              box.top + r,
-              (kBdTypeDefinitionMarkSize - r).toDouble(),
-              1,
-            ),
-            mark,
-          );
-        }
-      }
+      _paintTypeDefinitionMark(canvas, object, box);
     }
     final dropDown = partRect(BdObjectClass.controlPart);
     if (dropDown != null) {
