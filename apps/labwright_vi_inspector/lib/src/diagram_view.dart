@@ -221,6 +221,10 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           primIconsGrey: primIconsGrey,
                           iconFilterQuality: FilterQuality.low,
                           canvasScale: _anchorScale,
+                          style: const BdRenderStyle(
+                            gridPitch: kBdDefaultGridPitch,
+                            era: BdRenderEra.bilevel,
+                          ),
                         ),
                         foregroundPainter: _OverlayPainter(
                           origin: content.topLeft,
@@ -423,7 +427,49 @@ class BdRenderStyle {
     this.hatchOffset = kNoHatchOffset,
     this.errorHatchOffset = kNoHatchOffset,
     this.wireCycleOffset = kNoHatchOffset,
+    this.gridPitch = 0,
+    this.gridPhase = Offset.zero,
+    this.gridLines = true,
+    this.era = BdRenderEra.current,
   });
+
+  /// Which LabVIEW renderer's conventions the diagram follows.
+  final BdRenderEra era;
+
+  /// Whether 12 px text is drawn from the bi-level glyph bitmaps rather than through the
+  /// font rasteriser.
+  bool get bitmapText => era == BdRenderEra.bilevel;
+
+  /// Whether a label's stored backing colour 0xFFFFD7 is drawn as 0xFFFFCC, as the current
+  /// renderer does; the bi-level renderer draws the stored colour.
+  bool get labelBackingMapped => era == BdRenderEra.current;
+
+  /// The ring around a tunnel: 0x444444 under the current renderer, black under the
+  /// bi-level one.
+  Color get tunnelBorder =>
+      era == BdRenderEra.bilevel ? Colors.black : kBdTunnelBorder;
+
+  /// A terminal's two lighter shades of [base] as the bi-level renderer draws them,
+  /// lightened by 75/255 and 178/255; the current renderer's shades are the art's own.
+  (Color, Color) terminalShades(Color base) {
+    final (mid, light) = (75 / 255, 178 / 255);
+    Color lighten(double t) => Color.fromARGB(
+      255,
+      (base.r * 255 + (255 - base.r * 255) * t).round(),
+      (base.g * 255 + (255 - base.g * 255) * t).round(),
+      (base.b * 255 + (255 - base.b * 255) * t).round(),
+    );
+    return (lighten(mid), lighten(light));
+  }
+
+  /// The alignment grid drawn under the diagram: its pitch in diagram pixels (0 draws none),
+  /// the diagram coordinates of one of its crossings, and whether it is drawn as lines
+  /// rather than dots.
+  final int gridPitch;
+
+  final Offset gridPhase;
+
+  final bool gridLines;
 
   final Color whileBandGrey;
 
@@ -440,10 +486,21 @@ class BdRenderStyle {
 
 const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 
+/// The two LabVIEW renderers the corpus shows: the current one, which anti-aliases text and
+/// tints a few colours, and the bi-level one of the 2015-era renders, which draws text from
+/// hinted bitmaps and the stored colours.
+enum BdRenderEra { current, bilevel }
+
+/// The alignment grid's ink, and the pitch LabVIEW uses on a block diagram.
+const Color kBdGridInk = Color(0xFFE2E2E2);
+
+const int kBdDefaultGridPitch = 16;
+
 Color? bdDecodedColor(int? rgb) =>
     rgb == null ? null : Color(0xFF000000 | (rgb & 0xFFFFFF));
 
-int bdLabelBackingRgb(int rgb) => rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
+int bdLabelBackingRgb(int rgb, {bool mapped = true}) =>
+    mapped && rgb == 0xFFFFD7 ? 0xFFFFCC : rgb;
 
 Color? bdFillColor(BdObject object) =>
     bdDecodedColor(object.contentRgb) ?? bdDecodedColor(object.bgRgb);
@@ -1200,6 +1257,9 @@ const double kBdTextSize = 12.0;
 
 const double kBdTextLineHeight = 14.5 / kBdTextSize;
 
+/// The row of a line box on which bi-level glyphs put their baseline.
+const double kBdTextBaselineRow = 12;
+
 double bdLineBox(double fontSize) =>
     (fontSize * kBdTextLineHeight).ceilToDouble();
 
@@ -1224,19 +1284,23 @@ class BdGlyph {
     required this.dim,
     required this.advance,
     required this.baseline,
+    this.bitmap,
   });
 
-  final TextPainter main;
+  final TextPainter? main;
 
-  final TextPainter dim;
+  final TextPainter? dim;
 
   final int advance;
 
   final double baseline;
 
+  final ui.Picture? bitmap;
+
   void dispose() {
-    main.dispose();
-    dim.dispose();
+    main?.dispose();
+    dim?.dispose();
+    bitmap?.dispose();
   }
 }
 
@@ -1301,10 +1365,56 @@ class BdDiagramPainter extends CustomPainter {
       fontSize,
       fontWeight,
       fontStyle,
-      bdTextFontFamily,
+      style.bitmapText ? kBdBitmapTextFamily : bdTextFontFamily,
     );
     final cached = scene.textGlyphCache[key];
     if (cached != null) return cached;
+    final bold = fontWeight.value >= FontWeight.w700.value;
+    final bitmap =
+        style.bitmapText &&
+            fontSize == kBdTextSize &&
+            fontStyle != FontStyle.italic &&
+            glyph.length == 1
+        ? bdTextGlyphBitmap(glyph.codeUnitAt(0), bold: bold)
+        : null;
+    if (bitmap != null) {
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder);
+      final ink = Paint()..color = color;
+      for (var y = 0; y < bitmap.rows.length; y++) {
+        final row = bitmap.rows[y];
+        var x = 0;
+        while (x < row.length) {
+          if (row.codeUnitAt(x) != 0x23) {
+            x++;
+            continue;
+          }
+          var end = x + 1;
+          while (end < row.length && row.codeUnitAt(end) == 0x23) {
+            end++;
+          }
+          canvas.drawRect(
+            Rect.fromLTWH(
+              x.toDouble(),
+              (bitmap.top + y).toDouble(),
+              (end - x).toDouble(),
+              1,
+            ),
+            ink,
+          );
+          x = end;
+        }
+      }
+      final slot = BdGlyph(
+        main: null,
+        dim: null,
+        advance: bitmap.advance,
+        baseline: bitmap.ascent.toDouble(),
+        bitmap: recorder.endRecording(),
+      );
+      scene.textGlyphCache[key] = slot;
+      return slot;
+    }
     TextPainter build(Color inkColor) => TextPainter(
       text: TextSpan(
         text: glyph,
@@ -1321,14 +1431,9 @@ class BdDiagramPainter extends CustomPainter {
     )..layout();
     final main = build(color);
     final hinted = fontSize == kBdTextSize && glyph.length == 1
-        ? bdHintedAdvance(
-            glyph.codeUnitAt(0),
-            bold: fontWeight.value >= FontWeight.w700.value,
-          )
+        ? bdHintedAdvance(glyph.codeUnitAt(0), bold: bold)
         : null;
-    final overdraw = fontWeight.value >= FontWeight.w700.value
-        ? kBdTextOverdrawAlphaBold
-        : kBdTextOverdrawAlpha;
+    final overdraw = bold ? kBdTextOverdrawAlphaBold : kBdTextOverdrawAlpha;
     final slot = BdGlyph(
       main: main,
       dim: build(color.withValues(alpha: color.a * overdraw)),
@@ -1359,7 +1464,7 @@ class BdDiagramPainter extends CustomPainter {
       fontWeight,
       fontStyle,
       lineCount,
-      bdTextFontFamily,
+      style.bitmapText ? kBdBitmapTextFamily : bdTextFontFamily,
     );
     final cached = scene.textLayoutCache[key];
     if (cached != null) return cached;
@@ -1381,11 +1486,23 @@ class BdDiagramPainter extends CustomPainter {
             fontWeight,
             fontStyle,
           );
+          final picture = slot.bitmap;
+          if (picture != null) {
+            if (!dimPass) {
+              canvas
+                ..save()
+                ..translate(x, lineTop + kBdTextBaselineRow - slot.baseline)
+                ..drawPicture(picture)
+                ..restore();
+            }
+            x += slot.advance;
+            continue;
+          }
           final pen = Offset(
             x,
             lineTop + slot.baseline.roundToDouble() - slot.baseline,
           );
-          (dimPass ? slot.dim : slot.main).paint(canvas, pen);
+          (dimPass ? slot.dim! : slot.main!).paint(canvas, pen);
           x += slot.advance;
         }
         width = math.max(width, x);
@@ -1500,7 +1617,11 @@ class BdDiagramPainter extends CustomPainter {
     canvas.scale(canvasScale);
     size = Size(size.width / canvasScale, size.height / canvasScale);
     canvas.drawRect(Offset.zero & size, Paint()..color = kBdCanvas);
-    if (drawDotGrid) _drawDotGrid(canvas, size);
+    if (style.gridPitch > 0) {
+      _drawGrid(canvas, size);
+    } else if (drawDotGrid) {
+      _drawDotGrid(canvas, size);
+    }
 
     final structures = objects
         .where((o) => o.category == BdObjectKind.structure)
@@ -1538,7 +1659,19 @@ class BdDiagramPainter extends CustomPainter {
     final labelBackings = <(int, Rect, Color)>[];
 
     _paintDecorations(canvas, decorations);
-    _drawWires(canvas, tunnelSquares: tunnelSquares);
+    if (style.gridPitch > 0) {
+      final recorder = ui.PictureRecorder();
+      final segments = _drawWires(
+        Canvas(recorder),
+        tunnelSquares: tunnelSquares,
+      );
+      final picture = recorder.endRecording();
+      _paintWireHalos(canvas, segments);
+      canvas.drawPicture(picture);
+      picture.dispose();
+    } else {
+      _drawWires(canvas, tunnelSquares: tunnelSquares);
+    }
     _paintStructures(
       canvas,
       structures,
@@ -1701,6 +1834,19 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
 
+            final band = _solidNoAa(kBdCanvas);
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, 3, rect.height),
+              band,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.right - 3, rect.top, 3, rect.height),
+              band,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 3),
+              band,
+            );
             for (var y = rect.top; y < rect.bottom; y++) {
               for (var k = 0; k < 3; k++) {
                 hatchCell(rect.left + k, y);
@@ -1813,7 +1959,12 @@ class BdDiagramPainter extends CustomPainter {
                 !object.hasFlag(ViObjFlag.labelNoBacking));
         final backing = object.isLabelHidden || !backed || object.bgRgb == null
             ? null
-            : bdDecodedColor(bdLabelBackingRgb(object.bgRgb!));
+            : bdDecodedColor(
+                bdLabelBackingRgb(
+                  object.bgRgb!,
+                  mapped: style.labelBackingMapped,
+                ),
+              );
         if (backing != null) labelBackings.add((object.oid, rect, backing));
         continue;
       }
@@ -2624,14 +2775,15 @@ class BdDiagramPainter extends CustomPainter {
     }
   }
 
-  void _drawWires(
+  /// Draws every wire and returns the segments it stroked.
+  List<_BdWireSeg> _drawWires(
     Canvas canvas, {
     List<(Rect, BdBorderTerminal, Color)>? tunnelSquares,
   }) {
-    if (wires.isEmpty) return;
+    final drawn = <_BdWireSeg>[];
+    if (wires.isEmpty) return drawn;
     final anchors = _collectWireAnchors();
     final nets = _resolveWireNets(anchors);
-    final drawn = <_BdWireSeg>[];
     for (final wire in wires) {
       _drawOneWire(
         canvas,
@@ -2641,6 +2793,29 @@ class BdDiagramPainter extends CustomPainter {
         drawn: drawn,
         tunnelSquares: tunnelSquares,
       );
+    }
+    return drawn;
+  }
+
+  /// The 1 px of canvas colour around every wire segment that keeps the alignment grid
+  /// off the wires.
+  void _paintWireHalos(Canvas canvas, List<_BdWireSeg> segments) {
+    final halo = Paint()..color = kBdCanvas;
+    for (final seg in segments) {
+      final rect = seg.horizontal
+          ? Rect.fromLTRB(
+              seg.lo - 1.0,
+              seg.bandLo - 1.0,
+              seg.hi + 2.0,
+              seg.bandHi + 2.0,
+            )
+          : Rect.fromLTRB(
+              seg.bandLo - 1.0,
+              seg.lo - 1.0,
+              seg.bandHi + 2.0,
+              seg.hi + 2.0,
+            );
+      canvas.drawRect(rect, halo);
     }
   }
 
@@ -4566,7 +4741,9 @@ class BdDiagramPainter extends CustomPainter {
     Color wireColor,
   ) {
     final objectClass = info.objectClass;
-    final ringColor = info.disabled ? kBdDisabledChromeGrey : kBdTunnelBorder;
+    final ringColor = info.disabled
+        ? kBdDisabledChromeGrey
+        : style.tunnelBorder;
     final creamColor = info.disabled
         ? bdDimDisabled(kBdTerminalFill)
         : kBdTerminalFill;
@@ -4984,10 +5161,13 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    final (mid, light) = style.era == BdRenderEra.bilevel
+        ? style.terminalShades(art.base)
+        : (art.mid, art.light);
     final inks = {
       'B': _solidNoAa(dim(art.base)),
-      'M': _solidNoAa(dim(art.mid)),
-      'L': _solidNoAa(dim(art.light)),
+      'M': _solidNoAa(dim(mid)),
+      'L': _solidNoAa(dim(light)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
     };
     for (final e in inks.entries) {
@@ -5237,6 +5417,34 @@ class BdDiagramPainter extends CustomPainter {
     _stampBitmap(canvas, ink, _selectorLeftPager, l - 7, t + 5);
     _stampBitmap(canvas, ink, _selectorDropdown, r + 1, t + 6);
     _stampBitmap(canvas, ink, _selectorRightPager, r + 11, t + 5);
+  }
+
+  /// The alignment grid of [style], as 1 px lines or dots on the diagram's pixel lattice.
+  void _drawGrid(Canvas canvas, Size size) {
+    final pitch = style.gridPitch.toDouble();
+    final ink = Paint()..color = kBdGridInk;
+    final w = size.width / canvasScale, h = size.height / canvasScale;
+    double first(double phase, double originAt) {
+      final at = (phase - originAt) % pitch;
+      return at < 0 ? at + pitch : at;
+    }
+
+    final x0 = first(style.gridPhase.dx, origin.dx);
+    final y0 = first(style.gridPhase.dy, origin.dy);
+    if (style.gridLines) {
+      for (var x = x0; x < w; x += pitch) {
+        canvas.drawRect(Rect.fromLTWH(x, 0, 1, h), ink);
+      }
+      for (var y = y0; y < h; y += pitch) {
+        canvas.drawRect(Rect.fromLTWH(0, y, w, 1), ink);
+      }
+      return;
+    }
+    for (var x = x0; x < w; x += pitch) {
+      for (var y = y0; y < h; y += pitch) {
+        canvas.drawRect(Rect.fromLTWH(x, y, 1, 1), ink);
+      }
+    }
   }
 
   void _drawDotGrid(Canvas canvas, Size size) {

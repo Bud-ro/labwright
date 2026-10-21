@@ -2,9 +2,52 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 
+import 'generated/bd_text_glyphs.dart';
+
 String bdTextFontFamily = 'Selawik';
 
+/// One bi-level glyph: its hinted advance, the row of its first ink below the ascent line,
+/// and its rows as `#` for ink.
+class BdTextGlyphBitmap {
+  const BdTextGlyphBitmap({
+    required this.advance,
+    required this.top,
+    required this.rows,
+    required this.ascent,
+  });
+
+  final int advance;
+
+  final int top;
+
+  final List<String> rows;
+
+  final int ascent;
+
+  int get width => rows.fold(0, (w, row) => row.length > w ? row.length : w);
+}
+
+final Map<(int, bool), BdTextGlyphBitmap?> _bitmapCache = {};
+
+/// The bi-level bitmap for [rune] at [kBdTextPpem], or null when the atlas lacks it.
+BdTextGlyphBitmap? bdTextGlyphBitmap(int rune, {required bool bold}) {
+  return _bitmapCache.putIfAbsent((rune, bold), () {
+    final packed = (bold ? kBdTextGlyphsBold : kBdTextGlyphsRegular)[rune];
+    if (packed == null) return null;
+    final parts = packed.split(';');
+    return BdTextGlyphBitmap(
+      advance: int.parse(parts[0]),
+      top: int.parse(parts[1]),
+      rows: parts[2].isEmpty ? const [] : parts[2].split('|'),
+      ascent: bold ? kBdTextGlyphAscentBold : kBdTextGlyphAscentRegular,
+    );
+  });
+}
+
 const String kBdSystemUiFamily = 'BdSystemUi';
+
+/// The name the glyph caches file bi-level bitmap text under.
+const String kBdBitmapTextFamily = 'BdBitmap';
 
 const int kBdTextPpem = 12;
 
