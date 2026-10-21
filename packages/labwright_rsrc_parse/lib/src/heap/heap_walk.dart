@@ -22,7 +22,6 @@
 /// ```
 library;
 
-import 'dart:math';
 import 'dart:typed_data';
 
 import 'heap.dart';
@@ -125,6 +124,10 @@ abstract class HeapWalkListener<T extends HeapObject> {
 
   /// An attribute the shared walk does not read; [attr] is reused across records.
   void onAttribute(T cur, HeapAttrReading attr) {}
+
+  /// Whether a pane under class [kind] stores its members relative to the pane with the
+  /// owner's absolute position subtracted, so that the walk adds it back.
+  bool panePlacesMembersFromOwner(int kind) => false;
 }
 
 /// One attribute record as the walk read it: a scalar word taken straight from the bytes, or
@@ -234,6 +237,7 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
   final typeKindEvidence = Int32List(objectCapacity);
   final originTop = Int32List(objectCapacity);
   final originLeft = Int32List(objectCapacity);
+  final parentIndex = Int32List(objectCapacity);
   final view = ByteData.sublistView(body);
   final attributeRaws = _attributeTable(listener.attributes);
   final reading = HeapAttrReading();
@@ -259,8 +263,17 @@ List<T> walkHeap<T extends HeapObject>(Uint8List body, HeapWalkListener<T> liste
         offset: offset,
       )..index = index;
       object.parentOid = cur?.oid;
+      parentIndex[index] = cur?.index ?? -1;
       originTop[index] = cur == null ? 0 : originTop[cur.index];
       originLeft[index] = cur == null ? 0 : originLeft[cur.index];
+      if (cur != null && cur.isPane && parentIndex[cur.index] >= 0) {
+        final owner = objects[parentIndex[cur.index]];
+        final ownerBounds = owner.absBounds;
+        if (ownerBounds != null && listener.panePlacesMembersFromOwner(owner.kind)) {
+          originTop[index] += ownerBounds.top;
+          originLeft[index] += ownerBounds.left;
+        }
+      }
       objects.add(object);
       scopes.add(object);
       groupTags.add(null);
@@ -476,36 +489,5 @@ void shiftSubtree<T extends HeapObject>(HeapObjectTree<T> tree, T root, {require
     final object = work.removeLast();
     object.absBounds = object.absBounds?.shift(dTop, dLeft);
     work.addAll(tree.childrenOf(object));
-  }
-}
-
-/// Moves the control terminals under a scrolled pane so the group's top-left sits at the pane's
-/// origin.
-void reanchorScrolledControls<T extends HeapObject>(HeapObjectTree<T> tree) {
-  T? paneOf(T object) {
-    for (var po = tree.parentOf(object); po != null; po = tree.parentOf(po)) {
-      if (po.isPane) return po;
-      if (po.isControlTerminal || po.bounds != null) return null;
-    }
-    return null;
-  }
-
-  final groups = <T, List<T>>{};
-  for (final object in tree.objects) {
-    if (!object.isControlTerminal || object.bounds == null || object.absBounds == null) continue;
-    final pane = paneOf(object);
-    if (pane != null) (groups[pane] ??= <T>[]).add(object);
-  }
-
-  for (final MapEntry(key: pane, value: controls) in groups.entries) {
-    final paneAbs = pane.absBounds;
-    if (paneAbs == null) continue;
-    final minTop = controls.map((c) => c.bounds!.top).reduce(min);
-    final minLeft = controls.map((c) => c.bounds!.left).reduce(min);
-    for (final control in controls) {
-      final newTop = paneAbs.top + (control.bounds!.top - minTop);
-      final newLeft = paneAbs.left + (control.bounds!.left - minLeft);
-      shiftSubtree(tree, control, dTop: newTop - control.absBounds!.top, dLeft: newLeft - control.absBounds!.left);
-    }
   }
 }

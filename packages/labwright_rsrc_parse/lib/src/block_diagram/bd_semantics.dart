@@ -552,10 +552,13 @@ bool _escapesPane(BdObject object, HeapObjectsByOid<BdObject> byId) {
     final parent = byId[cur.parentOid];
     if (parent == null) return false;
     if (parent.objectClass == BdObjectClass.pane) {
-      final pane = parent.bounds;
-      final member = cur.bounds;
+      final pane = parent.absBounds;
+      final member = cur.absBounds;
       if (pane == null || member == null) return false;
-      return member.right <= 0 || member.left >= pane.width || member.bottom <= 0 || member.top >= pane.height;
+      return member.right <= pane.left ||
+          member.left >= pane.right ||
+          member.bottom <= pane.top ||
+          member.top >= pane.bottom;
     }
     cur = parent;
   }
