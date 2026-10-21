@@ -51,7 +51,10 @@ BdRenderStyle deriveSnippetStyle({
     width: width,
     height: height,
     registration: registration,
-    textRects: [for (final painted in scene.paintedText) painted.rect],
+    textRects: [
+      for (final painted in scene.paintedText)
+        if (painted.fontSize == kBdTextSize) painted.rect,
+    ],
   );
   GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
     diagram: diagram,
@@ -94,9 +97,10 @@ bool snippetStyleRephases(BdRenderStyle style) =>
     style.gridPitch > 0 ||
     style.era != BdRenderEra.current;
 
-/// Whether a reference draws its text bi-level: inside the rectangles text was painted in,
-/// fewer than [kBdBilevelTintedFringe] of the 4-neighbours of black pixels carry the tint
-/// that sub-pixel anti-aliasing leaves. Null when no text was painted.
+/// Whether a reference draws its 12 px text bi-level: inside the rectangles that text was
+/// painted in, fewer than [kBdBilevelTintedFringe] of the 4-neighbours of black pixels carry
+/// the tint that anti-aliasing leaves. Null when no such text was painted. Larger text is
+/// anti-aliased even in the bi-level renders, so it is left out.
 bool? referenceTextIsBilevel({
   required Uint8List referenceRgba,
   required int width,
