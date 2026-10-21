@@ -493,6 +493,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
     primIcons: primIcons,
     xnodeFacades: xnodeFacades,
     primIconsGrey: primIconsGrey,
+    primIconsBilevel: primIconsBilevel,
     drawDotGrid: false,
     style: style,
   ).paint(canvas, content.size);
@@ -835,6 +836,7 @@ List<Rect> bdStructureAnchorRects(
     final backedLabel =
         object.objectClass == BdObjectClass.textLabel && object.bgRgb != null;
     if (object.category != BdObjectKind.structure && !backedLabel) continue;
+    if (object.objectClass == BdObjectClass.typeDefinition) continue;
     final bounds = object.absBounds!;
     if (bounds.width < 24 || bounds.height < (backedLabel ? 16 : 24)) continue;
     if (bounds.width >= extent.width * 0.95 &&

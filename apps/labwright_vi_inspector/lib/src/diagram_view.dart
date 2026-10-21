@@ -219,6 +219,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           xnodeFacades: _xnodeFacades,
                           primIcons: primIcons,
                           primIconsGrey: primIconsGrey,
+                          primIconsBilevel: primIconsBilevel,
                           iconFilterQuality: FilterQuality.low,
                           canvasScale: _anchorScale,
                           style: const BdRenderStyle(
@@ -380,31 +381,45 @@ ViDataType? _dataTypeOfTypeKind(ViTypeKind kind) => switch (kind) {
   _ => null,
 };
 
+const Color kBdErrorClusterOlive = Color(0xFF666600);
+const Color kBdMixedClusterPink = Color(0xFFFF00FF);
+const Color kBdNumericClusterBrown = Color(0xFF993300);
+
 Color _clusterTint(List<ViType> members) => isErrorClusterShape(members)
-    ? const Color(0xFF666600)
+    ? kBdErrorClusterOlive
     : members.any((m) => !m.kind.isNumeric)
-    ? const Color(0xFFFF00FF)
-    : labviewTypeColor(ViTypeKind.cluster);
+    ? kBdMixedClusterPink
+    : kBdNumericClusterBrown;
+
+/// The object's type kind, read through any typedef when its own kind is unknown.
+ViTypeKind bdObjectTypeKind(BdObject object) {
+  if (object.typeKind != ViTypeKind.unknown) return object.typeKind;
+  final base = object.resolvedType?.baseKind;
+  return base == null
+      ? ViTypeKind.unknown
+      : typeKindOfDataType(base) ?? ViTypeKind.unknown;
+}
 
 Color bdTerminalTypeColor(BdObject object) {
   final resolved = object.resolvedType;
-  if (object.typeKind == ViTypeKind.array && resolved != null) {
-    if (resolved.elementType case final element?) {
+  final kind = bdObjectTypeKind(object);
+  if (kind == ViTypeKind.array && resolved != null) {
+    if (resolved.elementBase case final element?) {
       if (element.kind == ViDataType.cluster &&
-          resolved.elementMembers.isNotEmpty) {
-        return _clusterTint(resolved.elementMembers);
+          resolved.elementBaseMembers.isNotEmpty) {
+        return _clusterTint(resolved.elementBaseMembers);
       }
       return labviewTypeColor(
         typeKindOfDataType(element.kind) ?? ViTypeKind.unknown,
       );
     }
   }
-  if (object.typeKind == ViTypeKind.cluster &&
+  if (kind == ViTypeKind.cluster &&
       resolved != null &&
-      resolved.members.isNotEmpty) {
-    return _clusterTint(resolved.members);
+      resolved.baseMembers.isNotEmpty) {
+    return _clusterTint(resolved.baseMembers);
   }
-  return labviewTypeColor(object.typeKind);
+  return labviewTypeColor(kind);
 }
 
 const int kDefaultStructureRgb = 0x7F7F7F;
@@ -450,13 +465,20 @@ class BdRenderStyle {
       era == BdRenderEra.bilevel ? Colors.black : kBdTunnelBorder;
 
   /// [color] as this era draws it: the bi-level renderer paints floating-point orange
-  /// 0xFF7F00, Boolean green 0x007F00 and the while band 0x7F7F7F where the current one
-  /// paints 0xFF6600, 0x006600 and 0x777777.
+  /// 0xFF7F00, Boolean green 0x007F00, the while band 0x7F7F7F, the error case field
+  /// 0xB2FFB2, error olive 0x7F7F00, variant purple 0x7F007F, refnum teal 0x007F7F and
+  /// the sequence band 0xE2E2E2 where the current one paints 0xFF6600, 0x006600,
+  /// 0x777777, 0x99FF99, 0x666600, 0x660066, 0x006666 and 0xDDDDDD.
   Color eraColor(Color color) {
     if (era != BdRenderEra.bilevel) return color;
     if (color == kBdFloatOrange) return kBdBilevelFloatOrange;
     if (color == kBdBooleanGreen) return kBdBilevelBooleanGreen;
     if (color == whileBandGrey) return kBdBilevelWhileBandGrey;
+    if (color == errorCaseGreen) return kBdBilevelErrorCaseGreen;
+    if (color == kBdErrorClusterOlive) return kBdBilevelErrorClusterOlive;
+    if (color == kBdVariantPurple) return kBdBilevelVariantPurple;
+    if (color == kBdRefnumTeal) return kBdBilevelRefnumTeal;
+    if (color == kBdSequenceGrey) return kBdBilevelSequenceGrey;
     return color;
   }
 
@@ -509,6 +531,28 @@ const Color kBdBilevelBooleanGreen = Color(0xFF007F00);
 
 /// The while loop's band grey as the bi-level renderer draws it.
 const Color kBdBilevelWhileBandGrey = Color(0xFF7F7F7F);
+
+/// The error case's field green and the error cluster's olive as the bi-level renderer
+/// draws them.
+const Color kBdBilevelErrorCaseGreen = Color(0xFFB2FFB2);
+
+const Color kBdBilevelErrorClusterOlive = Color(0xFF7F7F00);
+
+/// Variant purple and refnum teal as the current renderer and the bi-level renderer
+/// draw them.
+const Color kBdVariantPurple = Color(0xFF660066);
+
+const Color kBdBilevelVariantPurple = Color(0xFF7F007F);
+
+const Color kBdRefnumTeal = Color(0xFF006666);
+
+const Color kBdBilevelRefnumTeal = Color(0xFF007F7F);
+
+/// The sequence structure's band grey as the current renderer and the bi-level renderer
+/// draw it.
+const Color kBdSequenceGrey = Color(0xFFDDDDDD);
+
+const Color kBdBilevelSequenceGrey = Color(0xFFE2E2E2);
 
 /// The two LabVIEW renderers the corpus shows: the current one, which anti-aliases text and
 /// tints a few colours, and the bi-level one of the 2015-era renders, which draws text from
@@ -597,6 +641,9 @@ const List<String> kBdEnumDropDownGlyph = [
 /// The alignment grid's ink, and the pitch LabVIEW uses on a block diagram.
 const Color kBdGridInk = Color(0xFFE2E2E2);
 
+/// The grid's first row and column, drawn darker than the rest.
+const Color kBdGridFirstLineInk = Color(0xFFC9C9C9);
+
 const int kBdDefaultGridPitch = 16;
 
 Color? bdDecodedColor(int? rgb) =>
@@ -679,6 +726,7 @@ Color bdWireColor(
         )];
     if (color != null) return color;
   }
+  if (wire.signalType?.dataType == ViDataType.variant) return kBdVariantPurple;
   final wordKind = wire.elementTypeKind;
   if (wordKind != null && wordKind != ViTypeKind.unknown) {
     return labviewTypeColor(wordKind);
@@ -791,6 +839,12 @@ final Map<int, PrimIconArt> primIcons = {};
 /// The disabled-structure variants of [primIcons], greyed through [_greyDisabledColor].
 final Map<int, PrimIconArt> primIconsGrey = {};
 
+/// The bi-level era's variants of [primIcons]: the current icons' dark grey 0x444444
+/// outline drawn black.
+final Map<int, PrimIconArt> primIconsBilevel = {};
+
+const int kPrimIconOutlineGrey = 0xFF444444;
+
 /// The LabVIEW generations of each icon key that has several: the first major each one
 /// serves and its own key, in ascending order.
 final Map<int, List<(int, int)>> primIconVersions = {};
@@ -824,6 +878,10 @@ Map<int, PrimIconArt> loadPrimIcons() {
     0,
     for (final argb in palette.skip(1)) _greyDisabledColor(argb),
   ]);
+  final bilevelPalette = Int32List.fromList([
+    for (final argb in palette)
+      argb == kPrimIconOutlineGrey ? 0xFF000000 : argb,
+  ]);
   for (final MapEntry(key: key, value: art) in kPrimIconArt.entries) {
     if (kPrimIconStatus[key] == PrimIconStatus.rejected) continue;
     final id = parsePrimIconName(key)!;
@@ -843,6 +901,7 @@ Map<int, PrimIconArt> loadPrimIcons() {
     }
     final pixels = Uint8List(width * height * 4);
     final greyPixels = Uint8List(width * height * 4);
+    final bilevelPixels = Uint8List(width * height * 4);
     final alpha = Uint8List(width * height);
     for (var i = 0; i < indices.length; i++) {
       final index = indices[i];
@@ -854,6 +913,11 @@ Map<int, PrimIconArt> loadPrimIcons() {
       pixels[i * 4 + 3] = 0xff;
       greyPixels[i * 4] = greyPixels[i * 4 + 1] = greyPixels[i * 4 + 2] = grey;
       greyPixels[i * 4 + 3] = 0xff;
+      final bilevel = bilevelPalette[index];
+      bilevelPixels[i * 4] = (bilevel >> 16) & 0xff;
+      bilevelPixels[i * 4 + 1] = (bilevel >> 8) & 0xff;
+      bilevelPixels[i * 4 + 2] = bilevel & 0xff;
+      bilevelPixels[i * 4 + 3] = 0xff;
       alpha[i] = 0xff;
     }
     final corners = <int>{};
@@ -890,6 +954,7 @@ Map<int, PrimIconArt> loadPrimIcons() {
     final rects = _rects(indices, width, height, palette.length);
     final image = _imageOf(rects, palette, width, height);
     final greyImage = _imageOf(rects, greyPalette, width, height);
+    final bilevelImage = _imageOf(rects, bilevelPalette, width, height);
     primIcons[id] = PrimIconArt(
       width: width,
       height: height,
@@ -909,6 +974,16 @@ Map<int, PrimIconArt> loadPrimIcons() {
       inkBounds: inkBounds,
       image: greyImage,
       sharp: _prescaled(greyImage),
+    );
+    primIconsBilevel[id] = PrimIconArt(
+      width: width,
+      height: height,
+      rgba: bilevelPixels,
+      alpha: alpha,
+      cornerAa: corners,
+      inkBounds: inkBounds,
+      image: bilevelImage,
+      sharp: _prescaled(bilevelImage),
     );
   }
   return primIcons;
@@ -1447,6 +1522,7 @@ class BdDiagramPainter extends CustomPainter {
     this.xnodeFacades = const {},
     this.primIcons = const {},
     this.primIconsGrey = const {},
+    this.primIconsBilevel = const {},
     this.iconFilterQuality = FilterQuality.none,
     this.canvasScale = 1,
     this.drawDotGrid = true,
@@ -1659,6 +1735,8 @@ class BdDiagramPainter extends CustomPainter {
   final Map<int, PrimIconArt> primIcons;
 
   final Map<int, PrimIconArt> primIconsGrey;
+
+  final Map<int, PrimIconArt> primIconsBilevel;
 
   final BdRenderStyle style;
 
@@ -1897,8 +1975,13 @@ class BdDiagramPainter extends CustomPainter {
           }
         case BdObjectClass.typeDefinition:
           continue;
-        case BdObjectClass.cluster when _isIconViewCluster(object):
-          _drawIconViewCluster(canvas, object, rect);
+        case BdObjectClass.cluster when _hasPane(object):
+          _drawClusterFrame(
+            canvas,
+            object,
+            rect,
+            iconView: _isIconViewCluster(object),
+          );
           continue;
         case BdObjectClass.eventStructure:
           _drawEventStructureBorder(
@@ -2143,7 +2226,7 @@ class BdDiagramPainter extends CustomPainter {
         box.width == 32 &&
         box.height == 16) {
       final elementKind = artType == ViDataType.array
-          ? object.resolvedType?.elementType?.kind
+          ? object.resolvedType?.elementBase?.kind
           : null;
       final art = elementKind != null
           ? bdArrayTerminalArtFor(elementKind, indicator: isIndicator == true)
@@ -2347,7 +2430,7 @@ class BdDiagramPainter extends CustomPainter {
     ViControlRefClass? refClass;
     for (final holder in scene.diagram.childrenOf(object)) {
       for (final terminal in scene.diagram.childrenOf(holder)) {
-        final type = terminal.resolvedType?.type;
+        final type = terminal.resolvedType?.base;
         if (type is ViRefnumType) refClass ??= type.controlRefClass;
       }
     }
@@ -2415,6 +2498,10 @@ class BdDiagramPainter extends CustomPainter {
   }
 
   /// Whether a cluster shows as an icon: it has a pane and nothing drawable inside it.
+  bool _hasPane(BdObject cluster) => scene.diagram
+      .childrenOf(cluster)
+      .any((child) => child.objectClass == BdObjectClass.pane);
+
   bool _isIconViewCluster(BdObject cluster) {
     final drawable = {for (final o in objects) o.oid};
     var hasPane = false;
@@ -2435,7 +2522,14 @@ class BdDiagramPainter extends CustomPainter {
   /// A cluster shown as an icon: its 2 px frame in its chrome's colour around canvas colour,
   /// and the type-definition mark when it is wrapped in one. The icon itself is not in the
   /// file.
-  void _drawIconViewCluster(Canvas canvas, BdObject cluster, Rect rect) {
+  /// A cluster's two 1 px frames, the inner one 2 px inside the outer, in the chrome's colour
+  /// or the cluster's content tint; an icon view keeps canvas between and inside them.
+  void _drawClusterFrame(
+    Canvas canvas,
+    BdObject cluster,
+    Rect rect, {
+    required bool iconView,
+  }) {
     Color? frameColor;
     for (final child in scene.diagram.childrenOf(cluster)) {
       if (child.objectClass == BdObjectClass.chrome && child.fgRgb != null) {
@@ -2444,10 +2538,27 @@ class BdDiagramPainter extends CustomPainter {
     }
     final frame = _dimFor(
       cluster.oid,
-      frameColor ?? labviewTypeColor(ViTypeKind.cluster),
+      frameColor ??
+          switch (cluster.resolvedType) {
+            final resolved? when resolved.baseMembers.isNotEmpty =>
+              _clusterTint(resolved.baseMembers),
+            _ => labviewTypeColor(ViTypeKind.cluster),
+          },
     );
-    canvas.drawRect(rect, _solidNoAa(frame));
-    canvas.drawRect(rect.deflate(2), _solidNoAa(kBdCanvas));
+    final ink = _solidNoAa(frame);
+    if (iconView) canvas.drawRect(rect, _solidNoAa(kBdCanvas));
+    for (final box in [rect, rect.deflate(2)]) {
+      canvas.drawRect(Rect.fromLTWH(box.left, box.top, box.width, 1), ink);
+      canvas.drawRect(
+        Rect.fromLTWH(box.left, box.bottom - 1, box.width, 1),
+        ink,
+      );
+      canvas.drawRect(Rect.fromLTWH(box.left, box.top, 1, box.height), ink);
+      canvas.drawRect(
+        Rect.fromLTWH(box.right - 1, box.top, 1, box.height),
+        ink,
+      );
+    }
     if (scene.diagram.byId[cluster.parentOid ?? -1]?.objectClass ==
         BdObjectClass.typeDefinition) {
       _paintTypeDefinitionMark(canvas, cluster, rect);
@@ -2464,7 +2575,7 @@ class BdDiagramPainter extends CustomPainter {
     Color tint,
     String constValue,
   ) {
-    final items = switch (object.resolvedType?.type) {
+    final items = switch (object.resolvedType?.base) {
       ViEnumType(:final items) => items,
       _ => null,
     };
@@ -2557,6 +2668,9 @@ class BdDiagramPainter extends CustomPainter {
     final primIcon =
         (disabled
             ? primIconArtFor(object, scene.diagram, primIconsGrey)
+            : null) ??
+        (style.era == BdRenderEra.bilevel
+            ? primIconArtFor(object, scene.diagram, primIconsBilevel)
             : null) ??
         primIconArtFor(object, scene.diagram, primIcons);
     if (primIcon != null) {
@@ -2796,8 +2910,8 @@ class BdDiagramPainter extends CustomPainter {
     for (final (term, tb) in rowTerms) {
       final name = term.typeName?.trim();
       if (name == null || name.isEmpty) continue;
-      final elementKind = term.typeKind == ViTypeKind.array
-          ? term.resolvedType?.elementType?.kind
+      final elementKind = bdObjectTypeKind(term) == ViTypeKind.array
+          ? term.resolvedType?.elementBase?.kind
           : null;
       final rowColor = elementKind != null
           ? labviewTypeColor(
@@ -3155,7 +3269,7 @@ class BdDiagramPainter extends CustomPainter {
         bounds.right,
       );
       if (object.category == BdObjectKind.terminal &&
-          object.typeKind != ViTypeKind.unknown) {
+          bdObjectTypeKind(object) != ViTypeKind.unknown) {
         typedTerminalColors[packed] = bdTerminalTypeColor(object);
       }
       final iconKey = loadedPrimIconIdOf(object, diagram: scene.diagram);
@@ -3195,6 +3309,20 @@ class BdDiagramPainter extends CustomPainter {
       nodeCoverRects: nodeCoverRects,
       furnitureRects: furnitureRects,
     );
+  }
+
+  /// The wire endpoint [oid], or when it is an untyped holder its first typed child.
+  BdObject? _typedEndpoint(int oid) {
+    final endpoint = scene.diagram.byId[oid];
+    if (endpoint == null ||
+        endpoint.resolvedType != null ||
+        endpoint.objectClass != BdObjectClass.terminalHolder) {
+      return endpoint;
+    }
+    for (final child in scene.diagram.childrenOf(endpoint)) {
+      if (child.resolvedType != null) return child;
+    }
+    return endpoint;
   }
 
   Map<int, ({Color? color, bool error})> _resolveWireNets(
@@ -3270,15 +3398,15 @@ class BdDiagramPainter extends CustomPainter {
         );
       }
       for (final oid in wire.endpointOids) {
-        final endpoint = scene.diagram.byId[oid];
+        final endpoint = _typedEndpoint(oid);
         if (endpoint == null) continue;
         final resolved = endpoint.resolvedType;
-        if (resolved != null && isErrorClusterShape(resolved.members)) {
+        if (resolved != null && isErrorClusterShape(resolved.baseMembers)) {
           netError[root] = true;
         }
-        if ((resolved?.members.isNotEmpty ?? false) ||
-            (resolved?.elementMembers.isNotEmpty ?? false) ||
-            endpoint.typeKind != ViTypeKind.unknown) {
+        if ((resolved?.baseMembers.isNotEmpty ?? false) ||
+            (resolved?.elementBaseMembers.isNotEmpty ?? false) ||
+            bdObjectTypeKind(endpoint) != ViTypeKind.unknown) {
           consider(1, bdTerminalTypeColor(endpoint));
         }
       }
@@ -3297,12 +3425,15 @@ class BdDiagramPainter extends CustomPainter {
           )],
         );
       }
+      if (wire.signalType?.dataType == ViDataType.variant) {
+        consider(3, kBdVariantPurple);
+      }
       final wordKind = wire.elementTypeKind;
       if (wordKind != null && wordKind != ViTypeKind.unknown) {
         consider(
           3,
           wordKind == ViTypeKind.refnum
-              ? const Color(0xFF006666)
+              ? kBdRefnumTeal
               : labviewTypeColor(wordKind),
         );
       }
@@ -3332,8 +3463,10 @@ class BdDiagramPainter extends CustomPainter {
     var errorBraid = false;
     if (wire.signalType?.renderStyle == ViWireRenderStyle.braid) {
       errorBraid =
-          net.error || net.color == null || color == const Color(0xFF666600);
-      if (errorBraid) color = const Color(0xFF666600);
+          net.error ||
+          net.color == null ||
+          color == this.style.eraColor(kBdErrorClusterOlive);
+      if (errorBraid) color = this.style.eraColor(kBdErrorClusterOlive);
     }
     final wireDisabled = disabledOids.contains(wire.signalOid);
     if (wireDisabled) color = bdDimDisabled(color);
@@ -4454,7 +4587,7 @@ class BdDiagramPainter extends CustomPainter {
 
   void _drawFlatSequenceBorder(Canvas canvas, Rect rect, BdObject seq) {
     final black = _dimFor(seq.oid, Colors.black);
-    final grey = _dimFor(seq.oid, const Color(0xFFDDDDDD));
+    final grey = _dimFor(seq.oid, style.eraColor(kBdSequenceGrey));
     final blackFill = _solidNoAa(black);
     final greyFill = _solidNoAa(grey);
     final whiteFill = _solidNoAa(Colors.white);
@@ -4804,7 +4937,7 @@ class BdDiagramPainter extends CustomPainter {
     final (bandLo, bandHi) = band;
     if (style == ViWireRenderStyle.braid) {
       if (errorBraid) {
-        final olive = _solidNoAa(const Color(0xFF666600));
+        final olive = _solidNoAa(this.style.eraColor(kBdErrorClusterOlive));
         final yellow = _solidNoAa(const Color(0xFFFFFF00));
         final black = _solidNoAa(Colors.black);
         const rows = ['o###o', '###W#', 'WWWWW', 'WWWWW', 'o###o', '.ooo.'];
@@ -5020,7 +5153,7 @@ class BdDiagramPainter extends CustomPainter {
           }
         }
       case ViWireRenderStyle.braid when errorBraid:
-        final olive = _solidNoAa(const Color(0xFF666600));
+        final olive = _solidNoAa(this.style.eraColor(kBdErrorClusterOlive));
         final yellow = _solidNoAa(const Color(0xFFFFFF00));
         final black = _solidNoAa(Colors.black);
         canvas.drawRect(span(-1, -1), olive);
@@ -5412,12 +5545,14 @@ class BdDiagramPainter extends CustomPainter {
       }
     }
     if (field != null) {
-      _drawCellPoints(canvas, field, dim(style.errorCaseGreen));
+      _drawCellPoints(canvas, field, dim(style.eraColor(style.errorCaseGreen)));
     }
     _drawCellPoints(
       canvas,
       band,
-      error ? dim(style.whileBandGrey) : dim(const Color(0xFF000000)),
+      error
+          ? dim(style.eraColor(style.whileBandGrey))
+          : dim(const Color(0xFF000000)),
     );
   }
 
@@ -5538,11 +5673,12 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    final base = style.eraColor(art.base);
     final (mid, light) = style.era == BdRenderEra.bilevel
-        ? style.terminalShades(art.base)
+        ? style.terminalShades(base)
         : (art.mid, art.light);
     final inks = {
-      'B': _solidNoAa(dim(art.base)),
+      'B': _solidNoAa(dim(base)),
       'M': _solidNoAa(dim(mid)),
       'L': _solidNoAa(dim(light)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
@@ -5757,8 +5893,8 @@ class BdDiagramPainter extends CustomPainter {
 
   void _drawSmallClusterBox(Canvas canvas, BdObject object, Rect rect) {
     final tint = _dimFor(object.oid, switch (object.resolvedType) {
-      final resolved? when resolved.members.isNotEmpty => _clusterTint(
-        resolved.members,
+      final resolved? when resolved.baseMembers.isNotEmpty => _clusterTint(
+        resolved.baseMembers,
       ),
       _ => labviewTypeColor(object.typeKind),
     });
@@ -5827,11 +5963,18 @@ class BdDiagramPainter extends CustomPainter {
     final x0 = first(style.gridPhase.dx, origin.dx);
     final y0 = first(style.gridPhase.dy, origin.dy);
     if (style.gridLines) {
+      final firstInk = Paint()..color = kBdGridFirstLineInk;
       for (var x = x0; x < w; x += pitch) {
-        canvas.drawRect(Rect.fromLTWH(x, 0, 1, h), ink);
+        canvas.drawRect(
+          Rect.fromLTWH(x, y0, 1, h - y0),
+          x == x0 ? firstInk : ink,
+        );
       }
       for (var y = y0; y < h; y += pitch) {
-        canvas.drawRect(Rect.fromLTWH(0, y, w, 1), ink);
+        canvas.drawRect(
+          Rect.fromLTWH(x0, y, w - x0, 1),
+          y == y0 ? firstInk : ink,
+        );
       }
       return;
     }
@@ -5862,6 +6005,7 @@ class BdDiagramPainter extends CustomPainter {
       !identical(old.xnodeFacades, xnodeFacades) ||
       !identical(old.primIcons, primIcons) ||
       !identical(old.primIconsGrey, primIconsGrey) ||
+      !identical(old.primIconsBilevel, primIconsBilevel) ||
       !identical(old.style, style) ||
       old.iconFilterQuality != iconFilterQuality ||
       old.canvasScale != canvasScale ||
