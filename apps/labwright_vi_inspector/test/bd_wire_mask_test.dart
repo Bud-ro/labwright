@@ -2,24 +2,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import 'util.dart';
-
-const Set<int> kWireInkPalette = {
-  0xff00ff,
-  0x006666,
-  0x0000ff,
-  0x006600,
-  0x666600,
-  0xffff00,
-  0xff6600,
-  0x660066,
-  0xff7f00,
-  0x7f7f00,
-  0x007f7f,
-};
 
 const int kMaskArtBox = 1;
 
@@ -95,7 +82,7 @@ bool isTextFringe(int Function(int, int) refPixel, int rx, int ry) {
   for (var py = 0; py < height; py++) {
     for (var px = 0; px < width; px++) {
       final ref = refPixel(px + dx, py + dy);
-      if (!kWireInkPalette.contains(ref)) continue;
+      if (!isWireInk(ref)) continue;
       if (ourPixel(px, py) != 0xffffff) continue;
       final bits = mask[py * width + px];
       if (bits & kMaskArtBox != 0) continue;

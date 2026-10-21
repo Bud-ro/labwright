@@ -3,13 +3,15 @@ library;
 
 import 'dart:io';
 import 'dart:typed_data';
+import 'dart:ui' show Rect;
 
 import 'package:flutter_test/flutter_test.dart';
+import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-import 'bd_wire_mask_test.dart' show kWireInkPalette;
 import 'util.dart';
 
 /// Export is opt-in (it writes files outside the build tree):
@@ -20,6 +22,7 @@ import 'util.dart';
 void main() {
   const scoreDir = String.fromEnvironment('SCORE_DIR');
   const keyDump = String.fromEnvironment('KEY_DUMP');
+  const reviewDir = String.fromEnvironment('REVIEW_DIR');
   testWidgets('SCORE_DIR=<dir> scores every icon against the snippet references', (
     tester,
   ) async {
@@ -31,6 +34,8 @@ void main() {
     final rows = <String, List<(String, int, int, int, String)>>{};
     final byVersion = <String, Map<String, (int, int)>>{};
     final dumps = <String, (int, String)>{};
+    final crops = <String, List<ReviewCrop>>{};
+    final titles = <String, String>{};
     await tester.runAsync(() async {
       final icons = loadPrimIcons();
       for (final f in snippetCorpusPngs()) {
@@ -97,12 +102,10 @@ void main() {
                 continue;
               final i = (ry * refW + rx) * 4, j = (y * oursW + x) * 4;
               final refRgb = (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
-              if (kWireInkPalette.contains(refRgb)) continue;
+              if (isWireInk(refRgb)) continue;
               total++;
-              if (rgba[i] != ours[j] ||
-                  rgba[i + 1] != ours[j + 1] ||
-                  rgba[i + 2] != ours[j + 2])
-                mismatch++;
+              final ourRgb = (ours[j] << 16) | (ours[j + 1] << 8) | ours[j + 2];
+              if (!BdColorAlias.sameColor(refRgb, ourRgb)) mismatch++;
             }
           }
           if (total == 0) continue;
@@ -119,6 +122,37 @@ void main() {
             o.oid,
             '${b.width}x${b.height}${art == null ? ' NOART' : ''}',
           ));
+          if (reviewDir.isNotEmpty) {
+            final file =
+                'crops/$keyName/${(crops[keyName]?.length ?? 0) + 1}.png';
+            File('$reviewDir/$file')
+              ..parent.createSync(recursive: true)
+              ..writeAsBytesSync(
+                reviewCropPng(
+                  box: box,
+                  ours: ours,
+                  oursW: oursW,
+                  oursH: oursH,
+                  reference: rgba,
+                  refW: refW,
+                  refH: refH,
+                  reg: reg,
+                ),
+              );
+            titles[keyName] = switch (o.primitive?.primResId) {
+              final id? => PrimOp.fromId(id)?.opName ?? '',
+              null => o.objectClass.label,
+            };
+            (crops[keyName] ??= []).add((
+              file: file,
+              snippet: name,
+              version: model.version ?? '?',
+              oid: o.oid,
+              mismatch: mismatch,
+              total: total,
+              size: '${b.width}x${b.height}${art == null ? ' no art' : ''}',
+            ));
+          }
           final wanted = keyName == keyDump;
           if (wanted ||
               mismatch > 0 &&
@@ -181,5 +215,147 @@ void main() {
     File('$scoreDir/icon_dumps.txt').writeAsStringSync(dumpOut.toString());
     out.writeln('keys ${keys.length} perfect-keys $perfectKeys');
     File('$scoreDir/icon_score.txt').writeAsStringSync(out.toString());
+    if (reviewDir.isNotEmpty) {
+      File(
+        '$reviewDir/index.html',
+      ).writeAsStringSync(reviewIndexHtml(crops, titles));
+    }
   }, tags: 'corpus');
+}
+
+typedef ReviewCrop = ({
+  String file,
+  String snippet,
+  String version,
+  int oid,
+  int mismatch,
+  int total,
+  String size,
+});
+
+/// The review margin around a node box and the magnification of a review crop.
+const int kReviewMargin = 16;
+const int kReviewScale = 3;
+
+/// A PNG of the reference beside the render around [box] (render pixels), each magnified
+/// [kReviewScale] times with [kReviewMargin] pixels of context, the reference read through
+/// [reg]; pixels outside either image are grey.
+List<int> reviewCropPng({
+  required Rect box,
+  required Uint8List ours,
+  required int oursW,
+  required int oursH,
+  required Uint8List reference,
+  required int refW,
+  required int refH,
+  required BdRegistration reg,
+}) {
+  final left = box.left.round() - kReviewMargin,
+      top = box.top.round() - kReviewMargin;
+  final w = box.width.round() + 2 * kReviewMargin,
+      h = box.height.round() + 2 * kReviewMargin;
+  const gap = 2;
+  final out = img.Image(
+    width: (2 * w + gap) * kReviewScale,
+    height: h * kReviewScale,
+  );
+  img.fill(out, color: img.ColorRgb8(0x80, 0x80, 0x80));
+  void blit(int originX, int Function(int x, int y) rgbAt) {
+    for (var y = 0; y < h; y++) {
+      for (var x = 0; x < w; x++) {
+        final rgb = rgbAt(left + x, top + y);
+        if (rgb < 0) continue;
+        img.fillRect(
+          out,
+          x1: (originX + x) * kReviewScale,
+          y1: y * kReviewScale,
+          x2: (originX + x + 1) * kReviewScale - 1,
+          y2: (y + 1) * kReviewScale - 1,
+          color: img.ColorRgb8(rgb >> 16, (rgb >> 8) & 0xff, rgb & 0xff),
+        );
+      }
+    }
+  }
+
+  int at(Uint8List px, int pw, int ph, int x, int y) {
+    if (x < 0 || y < 0 || x >= pw || y >= ph) return -1;
+    final i = (y * pw + x) * 4;
+    return (px[i] << 16) | (px[i + 1] << 8) | px[i + 2];
+  }
+
+  blit(
+    0,
+    (x, y) => at(
+      reference,
+      refW,
+      refH,
+      (x * reg.scale + reg.dx).round(),
+      (y * reg.scale + reg.dy).round(),
+    ),
+  );
+  blit(w + gap, (x, y) => at(ours, oursW, oursH, x, y));
+  return img.encodePng(out);
+}
+
+/// An HTML page of every review crop, keys with the most imperfect occurrences first and,
+/// within a key, the worst occurrences first; each crop shows the reference on the left and
+/// the render on the right.
+String reviewIndexHtml(
+  Map<String, List<ReviewCrop>> crops,
+  Map<String, String> titles,
+) {
+  String esc(String s) => s
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('"', '&quot;');
+  final keys = crops.keys.toList()
+    ..sort((a, b) {
+      final ia = crops[a]!.where((c) => c.mismatch > 0).length,
+          ib = crops[b]!.where((c) => c.mismatch > 0).length;
+      return ib != ia ? ib.compareTo(ia) : a.compareTo(b);
+    });
+  final html = StringBuffer('''
+<!doctype html>
+<meta charset="utf-8">
+<title>Icon review</title>
+<style>
+body{font:14px system-ui;margin:16px;background:#fff;color:#222}
+h2{margin:32px 0 8px;font-size:18px}
+h2 small{font-weight:normal;color:#666}
+.row{display:flex;flex-wrap:wrap;gap:12px}
+figure{margin:0;border:1px solid #ddd;padding:6px;background:#fafafa}
+figure.bad{border-color:#c33}
+img{display:block;image-rendering:pixelated}
+figcaption{font:12px monospace;color:#444;margin-top:4px;max-width:420px}
+nav a{display:inline-block;margin:0 8px 6px 0;font:12px monospace}
+</style>
+<h1>Icon review</h1>
+<p>Each crop: reference render on the left, inspector render on the right, ${kReviewScale}× with $kReviewMargin px of context. Red border: pixels differ (color aliases and wire ink aside).</p>
+<nav>
+''');
+  for (final k in keys) {
+    final list = crops[k]!;
+    final bad = list.where((c) => c.mismatch > 0).length;
+    html.writeln(
+      '<a href="#${esc(k)}">${esc(k)} ${esc(titles[k] ?? '')} ${list.length - bad}/${list.length}</a>',
+    );
+  }
+  html.writeln('</nav>');
+  for (final k in keys) {
+    final list = crops[k]!..sort((a, b) => b.mismatch.compareTo(a.mismatch));
+    final bad = list.where((c) => c.mismatch > 0).length;
+    html.writeln(
+      '<h2 id="${esc(k)}">${esc(k)} ${esc(titles[k] ?? '')} <small>${list.length - bad} of ${list.length} exact</small></h2>',
+    );
+    html.writeln('<div class="row">');
+    for (final c in list) {
+      html.writeln(
+        '<figure class="${c.mismatch > 0 ? 'bad' : 'ok'}"><img src="${esc(c.file)}" loading="lazy">'
+        '<figcaption>${esc(c.snippet)} v${esc(c.version)} #${c.oid} ${c.size}<br>'
+        '${c.mismatch}/${c.total} pixels differ</figcaption></figure>',
+      );
+    }
+    html.writeln('</div>');
+  }
+  return html.toString();
 }

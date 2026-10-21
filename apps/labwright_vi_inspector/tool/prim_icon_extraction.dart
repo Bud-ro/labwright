@@ -4,15 +4,10 @@ import 'dart:typed_data';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 
-import '../test/bd_wire_mask_test.dart' show kWireInkPalette;
-
 import '../test/util.dart';
-
-/// Wire colours erased from icon crops: the wire-ink palette plus the Boolean green of newer
-/// LabVIEW renders.
-const Set<int> kIconStubInk = {...kWireInkPalette, 0x007f00};
 
 /// The reference renders' diagram dot grid, background rather than ink.
 const int kDiagramGridDotRgb = 0xe2e2e2;
@@ -35,7 +30,7 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   final pixels = Uint8List.fromList(crop);
   for (var i = 0; i < pixels.length; i += 4) {
     final rgb = (pixels[i] << 16) | (pixels[i + 1] << 8) | pixels[i + 2];
-    if (kIconStubInk.contains(rgb)) {
+    if (isWireInk(rgb)) {
       pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
     }
   }
@@ -151,7 +146,7 @@ bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad) {
       final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
       if (r >= 240 && g >= 240 && b >= 240) continue;
       final rgb = (r << 16) | (g << 8) | b;
-      if (kIconStubInk.contains(rgb)) continue;
+      if (isWireInk(rgb)) continue;
       counts[rgb] = (counts[rgb] ?? 0) + 1;
     }
   }
@@ -171,7 +166,7 @@ bool hasIconInk(Uint8List rgba, int w, int h, int pad) {
       final i = (y * w + x) * 4;
       final r = rgba[i], g = rgba[i + 1], b = rgba[i + 2];
       if (r >= 240 && g >= 240 && b >= 240) continue;
-      if (kIconStubInk.contains((r << 16) | (g << 8) | b)) continue;
+      if (isWireInk((r << 16) | (g << 8) | b)) continue;
       if (++ink >= kIconInkMinPixels) return true;
     }
   }
@@ -393,9 +388,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 
   bool wireInk(Uint8List rgba, int w, int x, int y) {
     final i = (y * w + x) * 4;
-    return kIconStubInk.contains(
-      (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
-    );
+    return isWireInk((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
   }
 
   void floodTransparent(img.Image icon) {
@@ -674,8 +667,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
             if (!aInk && !bInk) continue;
             final ca = (a.rgba[i] << 16) | (a.rgba[i + 1] << 8) | a.rgba[i + 2];
             final cb = (b.rgba[j] << 16) | (b.rgba[j + 1] << 8) | b.rgba[j + 2];
-            if (kIconStubInk.contains(ca) || kIconStubInk.contains(cb))
-              continue;
+            if (isWireInk(ca) || isWireInk(cb)) continue;
             counted++;
             if (ca == cb) same++;
           }
