@@ -491,6 +491,28 @@ const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
 /// hinted bitmaps and the stored colours.
 enum BdRenderEra { current, bilevel }
 
+/// The triangle in the top-left corner of a constant linked to a type definition: its ink
+/// and the length of its sides; a 1 px gap of canvas colour separates it from the frame.
+const Color kBdTypeDefinitionMark = Color(0xFF464646);
+
+const int kBdTypeDefinitionMarkSize = 8;
+
+/// An enum constant's increment/decrement glyph and its drop-down triangle.
+const List<String> kBdEnumStepGlyph = [
+  '..#.#..',
+  '.##.##.',
+  '###.###',
+  '.##.##.',
+  '..#.#..',
+];
+
+const List<String> kBdEnumDropDownGlyph = [
+  '#######',
+  '.#####.',
+  '..###..',
+  '...#...',
+];
+
 /// The alignment grid's ink, and the pitch LabVIEW uses on a block diagram.
 const Color kBdGridInk = Color(0xFFE2E2E2);
 
@@ -2183,6 +2205,11 @@ class BdDiagramPainter extends CustomPainter {
         }
       }
     }
+    if (constValue != null &&
+        object.objectClass == BdObjectClass.enumRing &&
+        _paintEnumConstant(canvas, object, box, tint, constValue)) {
+      return;
+    }
     if (constValue != null && box.width >= 12 && box.height >= 12) {
       final run = _layoutText(
         constValue,
@@ -2213,6 +2240,101 @@ class BdDiagramPainter extends CustomPainter {
         fontWeight: FontWeight.w700,
       );
       _paintText(canvas, run, bdCentredTextAnchor(box, run.size));
+    }
+  }
+
+  /// An enum constant: the step glyph in the box's corner, the selected item's name in the
+  /// item list part and the drop-down triangle in the control part. False when the item name
+  /// cannot be found, which leaves the numeric value to the caller.
+  bool _paintEnumConstant(
+    Canvas canvas,
+    BdObject object,
+    Rect box,
+    Color tint,
+    String constValue,
+  ) {
+    final items = switch (object.resolvedType?.type) {
+      ViEnumType(:final items) => items,
+      _ => null,
+    };
+    final index = int.tryParse(constValue);
+    if (items == null || index == null || index < 0 || index >= items.length) {
+      return false;
+    }
+    Rect? partRect(BdObjectClass part) {
+      final child = scene.diagram
+          .childrenOf(object)
+          .where((c) => c.objectClass == part && c.absBounds != null)
+          .firstOrNull;
+      return child == null ? null : _toCanvas(child.absBounds!);
+    }
+
+    final ink = _solidNoAa(tint);
+    _stampRows(canvas, kBdEnumStepGlyph, box.left + 3, box.top + 7, ink);
+    if (scene.diagram.byId[object.parentOid ?? -1]?.objectClass ==
+        BdObjectClass.typeDefinition) {
+      final mark = _solidNoAa(_dimFor(object.oid, kBdTypeDefinitionMark));
+      final gap = _solidNoAa(kBdCanvas);
+      for (var r = 0; r <= kBdTypeDefinitionMarkSize; r++) {
+        canvas.drawRect(
+          Rect.fromLTWH(
+            box.left,
+            box.top + r,
+            (kBdTypeDefinitionMarkSize + 1 - r).toDouble(),
+            1,
+          ),
+          gap,
+        );
+        if (r < kBdTypeDefinitionMarkSize) {
+          canvas.drawRect(
+            Rect.fromLTWH(
+              box.left,
+              box.top + r,
+              (kBdTypeDefinitionMarkSize - r).toDouble(),
+              1,
+            ),
+            mark,
+          );
+        }
+      }
+    }
+    final dropDown = partRect(BdObjectClass.controlPart);
+    if (dropDown != null) {
+      _stampRows(
+        canvas,
+        kBdEnumDropDownGlyph,
+        dropDown.left + 2,
+        dropDown.top + 6,
+        ink,
+      );
+    }
+    final list = partRect(BdObjectClass.itemList);
+    final run = _layoutText(
+      items[index],
+      color: _dimFor(object.oid, Colors.black),
+      maxLines: 1,
+    );
+    _paintText(
+      canvas,
+      run,
+      Offset((list?.left ?? box.left + 10) + 2, box.top + 2),
+      clip: (list ?? box).intersect(box.deflate(2)),
+    );
+    return true;
+  }
+
+  void _stampRows(
+    Canvas canvas,
+    List<String> rows,
+    double x,
+    double y,
+    Paint ink,
+  ) {
+    for (var r = 0; r < rows.length; r++) {
+      for (var c = 0; c < rows[r].length; c++) {
+        if (rows[r].codeUnitAt(c) != 0x23) continue;
+        canvas.drawRect(Rect.fromLTWH(x + c, y + r, 1, 1), ink);
+      }
     }
   }
 
