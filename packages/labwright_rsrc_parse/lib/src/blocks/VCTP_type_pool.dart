@@ -918,6 +918,20 @@ List<ViType> clusterFields(ViType c, List<ViType> types) => switch (c) {
   _ => const [],
 };
 
+/// [clusterFields] with each member's typedef unwound to the type it defines.
+List<ViType> clusterBaseFields(ViType c, List<ViType> types) => [
+  for (final member in clusterFields(c, types)) typedefBase(member),
+];
+
+/// [type] with any typedef wrapping unwound to the type it defines.
+ViType typedefBase(ViType type) {
+  var base = type;
+  while (base is ViTypedefType) {
+    base = base.base;
+  }
+  return base;
+}
+
 String typeLabel(ViType t, List<ViType> types) {
   if (t case ViArrayType(:final elementIndex) when elementIndex < types.length) {
     return 'array<${types[elementIndex].kind.name}>';

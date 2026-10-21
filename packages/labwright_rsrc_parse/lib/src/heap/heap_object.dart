@@ -133,40 +133,70 @@ ViTypeKind inferTypeKind(int evidence) {
 }
 
 /// An object's pool type once its `typeDescIndex` is resolved: the type, the element type when
-/// it is an array, and the member types when it or its element is a cluster.
+/// it is an array, and the member types when it or its element is a cluster; each also seen
+/// through any typedef as [base], [elementBase], [baseMembers] and [elementBaseMembers].
 class ViResolvedType {
   const ViResolvedType({
     required this.type,
+    ViType? base,
     this.elementType,
+    this.elementBase,
     this.members = const [],
+    this.baseMembers = const [],
     this.elementMembers = const [],
-  });
+    this.elementBaseMembers = const [],
+  }) : base = base ?? type;
 
-  /// [type] with its element and members read out of [pool].
+  /// [type] with its element and members read out of [pool], as stored and through typedefs.
   factory ViResolvedType.inPool(ViType type, List<ViType> pool) {
-    ViType? elementType;
-    var elementMembers = const <ViType>[];
+    final base = typedefBase(type);
+    ViType? elementType, elementBase;
+    var elementMembers = const <ViType>[], elementBaseMembers = const <ViType>[];
     if (type case ViArrayType(:final elementIndex) when elementIndex < pool.length) {
       elementType = pool[elementIndex];
       if (elementType.kind == ViDataType.cluster) elementMembers = clusterFields(elementType, pool);
     }
+    if (base case ViArrayType(:final elementIndex) when elementIndex < pool.length) {
+      elementBase = typedefBase(pool[elementIndex]);
+      if (elementBase.kind == ViDataType.cluster) elementBaseMembers = clusterBaseFields(elementBase, pool);
+    }
     return ViResolvedType(
       type: type,
+      base: base,
       elementType: elementType,
+      elementBase: elementBase,
       members: type.kind == ViDataType.cluster ? clusterFields(type, pool) : const [],
+      baseMembers: base.kind == ViDataType.cluster ? clusterBaseFields(base, pool) : const [],
       elementMembers: elementMembers,
+      elementBaseMembers: elementBaseMembers,
     );
   }
 
+  /// The pool entry itself, a typedef included.
   final ViType type;
+
+  /// [type] with any typedef unwound to the type it defines.
+  final ViType base;
 
   final ViType? elementType;
 
+  /// [elementType] with any typedef unwound.
+  final ViType? elementBase;
+
   final List<ViType> members;
+
+  /// The members of [base], each with any typedef unwound.
+  final List<ViType> baseMembers;
 
   final List<ViType> elementMembers;
 
+  /// The members of [elementBase], each with any typedef unwound.
+  final List<ViType> elementBaseMembers;
+
   ViDataType get kind => type.kind;
+
+  /// The kind of [base].
+  ViDataType get baseKind => base.kind;
 
   /// The pool type's label, trimmed; null when it has none.
   String? get name {
