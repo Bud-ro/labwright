@@ -46,6 +46,13 @@ BdRenderStyle deriveSnippetStyle({
   required int width,
   required int height,
 }) {
+  final bilevel = referenceTextIsBilevel(
+    referenceRgba: referenceRgba,
+    width: width,
+    height: height,
+    registration: registration,
+    textRects: [for (final painted in scene.paintedText) painted.rect],
+  );
   GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
     diagram: diagram,
     raster: raster,
@@ -66,7 +73,7 @@ BdRenderStyle deriveSnippetStyle({
       width: width,
       height: height,
     ),
-    bitmapText: referenceTextIsBilevel(referenceRgba, width, height),
+    bitmapText: bilevel ?? false,
   );
   return deriveGridStyle(
         raster: raster,
@@ -87,28 +94,49 @@ bool snippetStyleRephases(BdRenderStyle style) =>
     style.gridPitch > 0 ||
     style.bitmapText;
 
-/// Whether a reference draws its text bi-level: among the 4-neighbours of its black pixels,
-/// fewer than [kBdBilevelTintedFringe] are the tinted fringe sub-pixel anti-aliasing leaves.
-bool referenceTextIsBilevel(Uint8List rgba, int width, int height) {
+/// Whether a reference draws its text bi-level: inside the rectangles text was painted in,
+/// fewer than [kBdBilevelTintedFringe] of the 4-neighbours of black pixels carry the tint
+/// that sub-pixel anti-aliasing leaves. Null when no text was painted.
+bool? referenceTextIsBilevel({
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+  required BdRegistration registration,
+  required Iterable<Rect> textRects,
+}) {
   var black = 0, tinted = 0;
-  for (var y = 1; y < height - 1; y++) {
-    for (var x = 1; x < width - 1; x++) {
-      final i = (y * width + x) * 4;
-      if (rgba[i] != 0 || rgba[i + 1] != 0 || rgba[i + 2] != 0) continue;
-      black++;
-      for (final j in [i - 4, i + 4, i - width * 4, i + width * 4]) {
-        final r = rgba[j], g = rgba[j + 1], b = rgba[j + 2];
-        final lo = math.min(r, math.min(g, b)),
-            hi = math.max(r, math.max(g, b));
-        if (lo > 40 && hi < 250 && hi - lo > 12) tinted++;
+  for (final rect in textRects) {
+    final mapped = registration.mapRect(rect);
+    final x0 = math.max(1, mapped.left.floor());
+    final x1 = math.min(width - 1, mapped.right.ceil());
+    final y0 = math.max(1, mapped.top.floor());
+    final y1 = math.min(height - 1, mapped.bottom.ceil());
+    for (var y = y0; y < y1; y++) {
+      for (var x = x0; x < x1; x++) {
+        final i = (y * width + x) * 4;
+        if (referenceRgba[i] != 0 ||
+            referenceRgba[i + 1] != 0 ||
+            referenceRgba[i + 2] != 0) {
+          continue;
+        }
+        black++;
+        for (final j in [i - 4, i + 4, i - width * 4, i + width * 4]) {
+          final r = referenceRgba[j],
+              g = referenceRgba[j + 1],
+              b = referenceRgba[j + 2];
+          final lo = math.min(r, math.min(g, b)),
+              hi = math.max(r, math.max(g, b));
+          if (lo > 100 && hi < 250 && hi - lo > 8) tinted++;
+        }
       }
     }
   }
-  return black > 0 && tinted < black * kBdBilevelTintedFringe;
+  if (black == 0) return null;
+  return tinted < black * kBdBilevelTintedFringe;
 }
 
 /// The tinted-fringe share below which a reference's text counts as bi-level: bi-level
-/// renders measure about 0.001, sub-pixel anti-aliased ones 0.01 and above.
+/// renders measure about 0.001 in their text, sub-pixel anti-aliased ones 0.01 and above.
 const double kBdBilevelTintedFringe = 0.005;
 
 /// The alignment grid a snippet reference shows, as a render style: the pitch and the
@@ -1377,7 +1405,7 @@ class _BdOracleViewState extends State<BdOracleView>
     final bytes = widget.referenceBytes;
     final reference = bytes == null ? null : await decodeReferenceImage(bytes);
     final snippet = reference?.snippetCropped ?? false;
-    final scene = BdScene(diagram);
+    final scene = BdScene(diagram)..recordPaintedText = true;
     final drawable = scene.drawable;
     final snippetVi = bytes == null ? null : extractSnippetVi(bytes);
     final facades = snippetVi == null

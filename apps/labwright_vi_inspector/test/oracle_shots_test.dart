@@ -40,7 +40,7 @@ void main() {
         );
         final bytes = file.readAsBytesSync();
         final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
-        final scene = BdScene(bd);
+        final scene = BdScene(bd)..recordPaintedText = true;
         final drawable = scene.drawable;
         Future<BdRaster> render(BdRenderStyle style) async =>
             (await rasteriseBlockDiagram(
