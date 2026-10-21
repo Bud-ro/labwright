@@ -223,8 +223,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           canvasScale: _anchorScale,
                           style: const BdRenderStyle(
                             gridPitch: kBdDefaultGridPitch,
-                            bitmapText: true,
-                            labelBackingMapped: false,
+                            era: BdRenderEra.bilevel,
                           ),
                         ),
                         foregroundPainter: _OverlayPainter(
@@ -431,17 +430,39 @@ class BdRenderStyle {
     this.gridPitch = 0,
     this.gridPhase = Offset.zero,
     this.gridLines = true,
-    this.bitmapText = false,
-    this.labelBackingMapped = true,
+    this.era = BdRenderEra.current,
   });
+
+  /// Which LabVIEW renderer's conventions the diagram follows.
+  final BdRenderEra era;
 
   /// Whether 12 px text is drawn from the bi-level glyph bitmaps rather than through the
   /// font rasteriser.
-  final bool bitmapText;
+  bool get bitmapText => era == BdRenderEra.bilevel;
 
-  /// Whether a label's stored backing colour 0xFFFFD7 is drawn as 0xFFFFCC, as newer
-  /// LabVIEW renders do; the bi-level renders draw the stored colour.
-  final bool labelBackingMapped;
+  /// Whether a label's stored backing colour 0xFFFFD7 is drawn as 0xFFFFCC, as the current
+  /// renderer does; the bi-level renderer draws the stored colour.
+  bool get labelBackingMapped => era == BdRenderEra.current;
+
+  /// The ring around a tunnel: 0x444444 under the current renderer, black under the
+  /// bi-level one.
+  Color get tunnelBorder =>
+      era == BdRenderEra.bilevel ? Colors.black : kBdTunnelBorder;
+
+  /// A terminal's two lighter shades of [base]: the current renderer lightens by 20% and
+  /// 60%, the bi-level one by 75/255 and 178/255.
+  (Color, Color) terminalShades(Color base) {
+    final (mid, light) = era == BdRenderEra.bilevel
+        ? (75 / 255, 178 / 255)
+        : (0.2, 0.6);
+    Color lighten(double t) => Color.fromARGB(
+      255,
+      (base.r * 255 + (255 - base.r * 255) * t).round(),
+      (base.g * 255 + (255 - base.g * 255) * t).round(),
+      (base.b * 255 + (255 - base.b * 255) * t).round(),
+    );
+    return (lighten(mid), lighten(light));
+  }
 
   /// The alignment grid drawn under the diagram: its pitch in diagram pixels (0 draws none),
   /// the diagram coordinates of one of its crossings, and whether it is drawn as lines
@@ -466,6 +487,11 @@ class BdRenderStyle {
 }
 
 const Color kBdDisabledChromeGrey = Color(0xFFAAAAAA);
+
+/// The two LabVIEW renderers the corpus shows: the current one, which anti-aliases text and
+/// tints a few colours, and the bi-level one of the 2015-era renders, which draws text from
+/// hinted bitmaps and the stored colours.
+enum BdRenderEra { current, bilevel }
 
 /// The alignment grid's ink, and the pitch LabVIEW uses on a block diagram.
 const Color kBdGridInk = Color(0xFFE2E2E2);
@@ -1810,6 +1836,19 @@ class BdDiagramPainter extends CustomPainter {
               }
             }
 
+            final band = _solidNoAa(kBdCanvas);
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.top, 3, rect.height),
+              band,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.right - 3, rect.top, 3, rect.height),
+              band,
+            );
+            canvas.drawRect(
+              Rect.fromLTWH(rect.left, rect.bottom - 3, rect.width, 3),
+              band,
+            );
             for (var y = rect.top; y < rect.bottom; y++) {
               for (var k = 0; k < 3; k++) {
                 hatchCell(rect.left + k, y);
@@ -4704,7 +4743,9 @@ class BdDiagramPainter extends CustomPainter {
     Color wireColor,
   ) {
     final objectClass = info.objectClass;
-    final ringColor = info.disabled ? kBdDisabledChromeGrey : kBdTunnelBorder;
+    final ringColor = info.disabled
+        ? kBdDisabledChromeGrey
+        : style.tunnelBorder;
     final creamColor = info.disabled
         ? bdDimDisabled(kBdTerminalFill)
         : kBdTerminalFill;
@@ -5122,10 +5163,11 @@ class BdDiagramPainter extends CustomPainter {
   }) {
     Color dim(Color c) => disabled ? bdDimDisabled(c) : c;
     canvas.drawRect(box, _solidNoAa(dim(Colors.white)));
+    final (mid, light) = style.terminalShades(art.base);
     final inks = {
       'B': _solidNoAa(dim(art.base)),
-      'M': _solidNoAa(dim(art.mid)),
-      'L': _solidNoAa(dim(art.light)),
+      'M': _solidNoAa(dim(mid)),
+      'L': _solidNoAa(dim(light)),
       'X': _solidNoAa(dim(const Color(0xFF000000))),
     };
     for (final e in inks.entries) {
