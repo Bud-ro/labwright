@@ -40,23 +40,44 @@ void main() {
         );
         final bytes = file.readAsBytesSync();
         final bd = bestBlockDiagram(buildViModel(extractSnippetVi(bytes)!))!;
-        final drawable = bdDrawableObjects(bd);
-        final wires = bdVisibleWires(bd);
-        final raster = (await rasteriseBlockDiagram(
-          bd,
-          primIcons: icons,
-          scale: 1.0,
-          margin: 2,
-          wires: wires,
-          drawable: drawable,
-        ))!;
+        final scene = BdScene(bd);
+        final drawable = scene.drawable;
+        Future<BdRaster> render(BdRenderStyle style) async =>
+            (await rasteriseBlockDiagram(
+              bd,
+              primIcons: icons,
+              scale: 1.0,
+              margin: 2,
+              scene: scene,
+              style: style,
+            ))!;
+        var raster = await render(const BdRenderStyle());
         final reference = await decodeReferenceImage(bytes);
-        final result = await compareToReference(
+        var result = await compareToReference(
           raster.image,
           reference.image,
           lockScale: 1.0 / raster.scale,
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
         );
+        final style = deriveSnippetStyle(
+          diagram: bd,
+          scene: scene,
+          raster: raster,
+          registration: result.registration,
+          referenceRgba: result.referenceRgba,
+          width: reference.image.width,
+          height: reference.image.height,
+        );
+        if (snippetStyleRephases(style)) {
+          raster = await render(style);
+          result = await compareToReference(
+            raster.image,
+            reference.image,
+            lockScale: 1.0 / raster.scale,
+            knownRegistration: result.registration,
+            knownReferenceEdges: result.referenceEdges,
+          );
+        }
         final base = name.substring(0, name.length - '.png'.length);
         final ours = await upscaleNearest(result.fitted, 2);
         final labview = await upscaleNearest(reference.image, 2);

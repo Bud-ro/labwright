@@ -35,6 +35,105 @@ class BdRaster {
   );
 }
 
+/// The render style a snippet reference calls for once a first render is registered to it:
+/// the hatch, error-hatch and wire-cycle phases, and the alignment grid when one is drawn.
+BdRenderStyle deriveSnippetStyle({
+  required BdDiagram diagram,
+  required BdScene scene,
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+}) {
+  GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
+    diagram: diagram,
+    raster: raster,
+    registration: registration,
+    referenceRgba: referenceRgba,
+    width: width,
+    height: height,
+    errorStyle: errorStyle,
+  );
+  final style = BdRenderStyle(
+    hatchOffset: derive(errorStyle: false),
+    errorHatchOffset: derive(errorStyle: true),
+    wireCycleOffset: deriveWireCycleOffset(
+      scene: scene,
+      raster: raster,
+      registration: registration,
+      referenceRgba: referenceRgba,
+      width: width,
+      height: height,
+    ),
+  );
+  return deriveGridStyle(
+        raster: raster,
+        registration: registration,
+        referenceRgba: referenceRgba,
+        width: width,
+        height: height,
+        base: style,
+      ) ??
+      style;
+}
+
+/// Whether [style] changes anything a default render would show.
+bool snippetStyleRephases(BdRenderStyle style) =>
+    style.hatchOffset != kNoHatchOffset ||
+    style.errorHatchOffset != kNoHatchOffset ||
+    style.wireCycleOffset != kNoHatchOffset ||
+    style.gridPitch > 0;
+
+/// The alignment grid a snippet reference shows, as a render style: the pitch and the
+/// diagram coordinates of one crossing, found from the first column and row of grid ink,
+/// or null when no grid is drawn.
+BdRenderStyle? deriveGridStyle({
+  required BdRaster raster,
+  required BdRegistration registration,
+  required Uint8List referenceRgba,
+  required int width,
+  required int height,
+  BdRenderStyle base = const BdRenderStyle(),
+  int pitch = kBdDefaultGridPitch,
+}) {
+  bool isInk(int x, int y) {
+    final i = (y * width + x) * 4;
+    return referenceRgba[i] == 0xE2 &&
+        referenceRgba[i + 1] == 0xE2 &&
+        referenceRgba[i + 2] == 0xE2;
+  }
+
+  int? firstLine(int extent, int across, bool Function(int at, int t) ink) {
+    for (var at = 0; at < extent && at < pitch * 2; at++) {
+      var hits = 0;
+      for (var t = 0; t < across; t++) {
+        if (ink(at, t)) hits++;
+      }
+      if (hits * 4 >= across) return at;
+    }
+    return null;
+  }
+
+  final column = firstLine(width, height, (x, y) => isInk(x, y));
+  final row = firstLine(height, width, (y, x) => isInk(x, y));
+  if (column == null || row == null) return null;
+  final scale = registration.scale;
+  return BdRenderStyle(
+    whileBandGrey: base.whileBandGrey,
+    errorCaseGreen: base.errorCaseGreen,
+    booleanGreen: base.booleanGreen,
+    hatchOffset: base.hatchOffset,
+    errorHatchOffset: base.errorHatchOffset,
+    wireCycleOffset: base.wireCycleOffset,
+    gridPitch: pitch,
+    gridPhase: Offset(
+      (column - registration.dx) / scale + raster.content.left,
+      (row - registration.dy) / scale + raster.content.top,
+    ),
+  );
+}
+
 GlobalHatchOffset deriveHatchOffset({
   required BdDiagram diagram,
   required BdRaster raster,
@@ -1295,30 +1394,16 @@ class _BdOracleViewState extends State<BdOracleView>
     );
     var style = const BdRenderStyle();
     if (snippet) {
-      GlobalHatchOffset derive({required bool errorStyle}) => deriveHatchOffset(
+      style = deriveSnippetStyle(
         diagram: diagram,
-        raster: raster!,
+        scene: scene,
+        raster: raster,
         registration: result.registration,
         referenceRgba: result.referenceRgba,
         width: reference.image.width,
         height: reference.image.height,
-        errorStyle: errorStyle,
       );
-      style = BdRenderStyle(
-        hatchOffset: derive(errorStyle: false),
-        errorHatchOffset: derive(errorStyle: true),
-        wireCycleOffset: deriveWireCycleOffset(
-          scene: scene,
-          raster: raster,
-          registration: result.registration,
-          referenceRgba: result.referenceRgba,
-          width: reference.image.width,
-          height: reference.image.height,
-        ),
-      );
-      if (style.hatchOffset != kNoHatchOffset ||
-          style.errorHatchOffset != kNoHatchOffset ||
-          style.wireCycleOffset != kNoHatchOffset) {
+      if (snippetStyleRephases(style)) {
         final rephased = await render(
           maxDimension: widget.maxDimension,
           scale: 1.0,
