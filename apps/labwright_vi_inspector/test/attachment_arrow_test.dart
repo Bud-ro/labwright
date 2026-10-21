@@ -76,7 +76,11 @@ void main() {
         expect(red(190, 56), greaterThan(240), reason: 'gap before the notch');
         expect(red(195, 56), lessThan(40), reason: 'head interior');
         expect(red(199, 56), inInclusiveRange(60, 130), reason: 'tip pixel');
-        expect(red(198, 54), greaterThan(240), reason: 'head tapers to the tip');
+        expect(
+          red(198, 54),
+          greaterThan(240),
+          reason: 'head tapers to the tip',
+        );
         expect(red(189, 53), lessThan(200), reason: 'upper barb');
         expect(red(189, 59), lessThan(200), reason: 'lower barb');
         expect(red(189, 52), greaterThan(240), reason: 'head is 8 px wide');
