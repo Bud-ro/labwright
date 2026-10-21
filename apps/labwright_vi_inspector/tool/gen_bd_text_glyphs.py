@@ -25,8 +25,8 @@ FACES = [('Regular', 'segoeui.ttf'), ('Bold', 'segoeuib.ttf')]
 
 # Glyphs as LabVIEW draws them in the corpus's bi-level renders (vi-snippets/erdos-miller,
 # LabVIEW 2015) where they differ from the font on hand (Segoe UI 5.62): a wider T, a
-# narrower x, a serifed I, a footed 1 and a narrower 0. Each entry is (advance, top, rows);
-# rows None keeps the font's.
+# narrower x, a serifed I, a footed 1, a narrower 0 and a 3 without the top-left pixel. Each
+# entry is (advance, top, rows); rows None keeps the font's.
 OVERRIDES = {
     'Regular': {
         0x49: (3, 4, ['###', '.#.', '.#.', '.#.', '.#.', '.#.', '.#.', '.#.', '###']),
@@ -34,6 +34,7 @@ OVERRIDES = {
         0x78: (5, None, None),
         0x31: (6, 4, ['...#', '.###', '...#', '...#', '...#', '...#', '...#', '...#', '.#####']),
         0x30: (6, 4, ['.##.', '#..#', '#..#', '#..#', '#..#', '#..#', '#..#', '#..#', '.##.']),
+        0x33: (6, 4, ['###.', '...#', '...#', '...#', '.##.', '...#', '...#', '...#', '###.']),
     },
     'Bold': {},
 }
