@@ -7,7 +7,7 @@ import 'package:image/image.dart' as img;
 void main() {
   final dir = Directory('assets/prim_icons');
   final pattern = RegExp(
-    r'^((?:prim|class)\d+(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
+    r'^((?:prim\d+|class0x[0-9a-f]+)(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
   );
   const transparent = '.';
   final letters = String.fromCharCodes([

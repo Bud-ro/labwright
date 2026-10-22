@@ -756,26 +756,26 @@ int primIconVersionKey(int baseKey, int fromMajor) =>
 }
 
 /// The asset name of a prim icon key: `prim<id>` for a primResID, `class<code>` for a
-/// single-op class, `class<code>_t<n>` for a class variant with `n` terminals (`_r<hex>` for
+/// single-op class (the code in hex), `class<code>_t<n>` for a class variant with `n` terminals (`_r<hex>` for
 /// its rows signature), each with `_from<major>` when it is one LabVIEW generation of the art.
 String primIconName(int key) {
   if (primIconVersionOf(key) case (final base, final from)) return '${primIconName(base)}_from$from';
   if (key >= 0) return 'prim$key';
-  if (key > -0x100000) return 'class${-key}';
+  if (key > -0x100000) return 'class0x${(-key).toRadixString(16)}';
   if (key > -0x2000000) {
     final packed = -(key + 0x100000);
-    return 'class${packed >> 8}_t${packed & 0xff}';
+    return 'class0x${(packed >> 8).toRadixString(16)}_t${packed & 0xff}';
   }
   final packed = -(key + 0x2000000);
   final rows = packed & 0xfffffffff, variant = packed >> 36;
-  return 'class${variant >> 8}_t${variant & 0xff}_r${rows.toRadixString(16)}';
+  return 'class0x${(variant >> 8).toRadixString(16)}_t${variant & 0xff}_r${rows.toRadixString(16)}';
 }
 
 /// The prim icon key spelled by [name], or null when it is not one; the inverse of [primIconName].
 int? parsePrimIconName(String name) {
-  final match = RegExp(r'^(prim|class)(\d+)(?:_t(\d+)(?:_r([0-9a-f]+))?)?(?:_from(\d+))?$').firstMatch(name);
+  final match = RegExp(r'^(prim|class0x)([0-9a-f]+)(?:_t(\d+)(?:_r([0-9a-f]+))?)?(?:_from(\d+))?$').firstMatch(name);
   if (match == null) return null;
-  final number = int.parse(match.group(2)!);
+  final number = int.parse(match.group(2)!, radix: match.group(1) == 'prim' ? 10 : 16);
   final terms = match.group(3);
   final rows = match.group(4);
   final base = match.group(1) == 'prim'

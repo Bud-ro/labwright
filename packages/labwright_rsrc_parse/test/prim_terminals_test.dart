@@ -18,9 +18,9 @@ void main() {
       expect(parsePrimIconName(primIconName(key)), key, reason: primIconName(key));
     }
     expect(primIconName(1050), 'prim1050');
-    expect(primIconName(-0x44), 'class68');
-    expect(primIconName(classVariantIconKey(0x44, 3)), 'class68_t3');
-    expect(primIconName(primIconVersionKey(classVariantIconKey(0x3a, 3, rows: 0x6), 21)), 'class58_t3_r6_from21');
+    expect(primIconName(-0x44), 'class0x44');
+    expect(primIconName(classVariantIconKey(0x44, 3)), 'class0x44_t3');
+    expect(primIconName(primIconVersionKey(classVariantIconKey(0x3a, 3, rows: 0x6), 21)), 'class0x3a_t3_r6_from21');
     expect(parsePrimIconName('icon7'), isNull);
     expect(parsePrimIconName('prim'), isNull);
   });
