@@ -204,6 +204,7 @@ void main() {
             'name': name,
             'file': file,
             'status': kPrimIconStatus[name]?.name,
+            'colors': _colorsOf(art.rgba),
             'width': art.width,
             'height': art.height,
             'box': [boxW, boxH],
@@ -236,6 +237,7 @@ void main() {
             'name': name,
             'file': file,
             'status': status.name,
+            'colors': _colorsOf(rgba),
             'width': art.width,
             'height': art.height,
             'box': [boxW, boxH],
@@ -347,6 +349,18 @@ void main() {
     }
   }
   return (boxW, boxH, canvas, stamp);
+}
+
+/// The distinct colors of the opaque pixels in [rgba], as `rrggbb`, sorted.
+List<String> _colorsOf(Uint8List rgba) {
+  final seen = <int>{};
+  for (var i = 0; i < rgba.length; i += 4) {
+    if (rgba[i + 3] == 0) continue;
+    seen.add((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
+  }
+  return [
+    for (final c in seen.toList()..sort()) c.toRadixString(16).padLeft(6, '0'),
+  ];
 }
 
 /// The committed PNG of icon [name] under assets/prim_icons, by file name.
