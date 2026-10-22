@@ -12,6 +12,7 @@ import 'heap_view_chrome.dart';
 import 'terminal_bitmaps.dart';
 
 import 'prim_icon_catalog.dart';
+import 'prim_icon_border.dart';
 import 'span_annotations.dart';
 
 class ViDiagramView extends StatefulWidget {
@@ -606,7 +607,7 @@ class PrimIconArt {
     required this.inkBounds,
     required this.image,
     required this.sharp,
-  });
+  }) : border = primIconBorderMask(alpha, width, height);
 
   final int width;
 
@@ -615,6 +616,9 @@ class PrimIconArt {
   final Uint8List rgba;
 
   final Uint8List alpha;
+
+  /// 1 for each opaque pixel on the art's outline, see [primIconBorderMask].
+  final Uint8List border;
 
   final Set<int> cornerAa;
 

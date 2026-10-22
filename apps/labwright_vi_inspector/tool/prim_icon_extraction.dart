@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/prim_icon_border.dart';
 
 import '../test/util.dart';
 
@@ -185,6 +186,7 @@ class PrimIconExtraction {
     required this.skippedLowQuality,
     required this.antiAliased,
     required this.softOnly,
+    required this.inferredBorders,
     required this.palette,
     required this.verifiedKeys,
     required this.handKeys,
@@ -207,6 +209,10 @@ class PrimIconExtraction {
 
   /// Keys cut from anti-aliased renders because no hard-edged render of them exists.
   final Set<String> softOnly;
+
+  /// Per key cut from anti-aliased renders, how its border was replaced by the canonical
+  /// border of the hard-edged icons that share its silhouette, see [inferIconBorders].
+  final Map<String, String> inferredBorders;
 
   final List<int> palette;
 
@@ -306,8 +312,16 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
         for (var i = 0; i < crop.length; i += 4) {
           final rgb = (crop[i] << 16) | (crop[i + 1] << 8) | crop[i + 2];
-          if (rgb == kDiagramGridDotRgb)
+          if (rgb == kDiagramGridDotRgb) {
             crop[i] = crop[i + 1] = crop[i + 2] = 255;
+            continue;
+          }
+          final canonical = BdColorAlias.canonicalRgb(rgb);
+          if (canonical != rgb) {
+            crop[i] = canonical >> 16;
+            crop[i + 1] = (canonical >> 8) & 0xff;
+            crop[i + 2] = canonical & 0xff;
+          }
         }
         return (rgba: crop, w: w, h: h);
       }
@@ -1052,6 +1066,12 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     if (!retried) break;
   }
 
+  final inferredBorders = inferIconBorders(
+    pending: pending,
+    softOnly: softOnly,
+    assetDir: assetDir,
+  );
+
   final renamed = _mergeVersionClusters(
     pending: pending,
     failed: failed,
@@ -1142,6 +1162,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     skippedLowQuality: skippedLowQuality,
     antiAliased: antiAliased,
     softOnly: softOnly,
+    inferredBorders: inferredBorders,
     palette: paletteList,
     verifiedKeys: verifiedKeys,
     handKeys: handKeys,
@@ -1274,13 +1295,14 @@ Map<String, String> _mergeVersionClusters({
   return renamed;
 }
 
-/// Whether two cuts are the same art: the same size and at most [tolerance] differing pixels.
+/// Whether two cuts are the same art: the same size and at most [tolerance] pixels that
+/// differ in colour once aliased or in transparency.
 bool _sameArt(img.Image a, img.Image b, {int tolerance = 12}) {
   if (a.width != b.width || a.height != b.height) return false;
   var diffs = 0;
   for (final px in a) {
     final q = b.getPixel(px.x, px.y);
-    if (px.r != q.r || px.g != q.g || px.b != q.b || px.a != q.a) diffs++;
+    if (px.a != q.a || !BdColorAlias.sameColor(_rgbOf(px), _rgbOf(q))) diffs++;
     if (diffs > tolerance) return false;
   }
   return true;
@@ -1338,7 +1360,7 @@ List<String> primIconReproErrors(PrimIconExtraction extraction) {
     var diffs = 0;
     for (final px in fresh) {
       final cp = committed.getPixel(px.x, px.y);
-      if (px.r != cp.r || px.g != cp.g || px.b != cp.b || px.a != cp.a) {
+      if (px.a != cp.a || !BdColorAlias.sameColor(_rgbOf(px), _rgbOf(cp))) {
         diffs++;
       }
     }
@@ -1349,4 +1371,182 @@ List<String> primIconReproErrors(PrimIconExtraction extraction) {
     }
   }
   return reproErrors;
+}
+
+int _rgbOf(img.Pixel p) =>
+    (p.r.toInt() << 16) | (p.g.toInt() << 8) | p.b.toInt();
+
+/// A silhouette the hard-edged assets share: its size and opaque mask, the positions of its
+/// border pixels, and each distinct colouring of that border with the keys that carry it.
+class _IconShape {
+  _IconShape(this.width, this.height, this.mask, this.border);
+
+  final int width;
+  final int height;
+  final Uint8List mask;
+  final List<int> border;
+  final Map<String, List<String>> rings = {};
+  int get area => mask.fold(0, (sum, v) => sum + v);
+}
+
+/// The least an anti-aliased cut's silhouette must overlap a hard-edged shape, as the
+/// intersection over the union of their opaque pixels, for the shape to be its outline.
+const double kInferredBorderMinOverlap = 0.9;
+
+/// Replaces the border of every icon in [softOnly] (cut from anti-aliased renders, so its
+/// outline is blended with the background) by the canonical border of the hard-edged assets
+/// in [assetDir] that share its silhouette: the shape of the same size, or up to two pixels
+/// smaller in each direction, whose opaque mask overlaps the cut's by at least
+/// [kInferredBorderMinOverlap] at the best offset, keeping the cut's interior pixels and
+/// taking the border colouring, among the shape's, nearest the cut's own border pixels.
+/// Returns a note per key whose border was replaced; a key without a matching shape keeps
+/// its cut and gets no note.
+Map<String, String> inferIconBorders({
+  required Map<String, ({img.Image icon, String sources})> pending,
+  required Set<String> softOnly,
+  required Directory assetDir,
+}) {
+  String keyOf(File f) => f.uri.pathSegments.last
+      .replaceFirst(RegExp(r'\.png$'), '')
+      .replaceFirst(
+        RegExp(r'_(?!t\d|r[0-9a-f]+(?:_|$)|from\d)[a-z0-9-]+$'),
+        '',
+      );
+  final shapes = <String, _IconShape>{};
+  for (final f in assetDir.listSync().whereType<File>()) {
+    if (!f.path.endsWith('.png')) continue;
+    final key = keyOf(f);
+    if (softOnly.contains(key.replaceFirst(RegExp(r'_from\d+$'), ''))) continue;
+    final image = img.decodePng(f.readAsBytesSync());
+    if (image == null) continue;
+    final w = image.width, h = image.height;
+    final alpha = Uint8List(w * h);
+    for (final px in image) {
+      alpha[px.y * w + px.x] = px.a == 0 ? 0 : 1;
+    }
+    final border = primIconBorderMask(alpha, w, h);
+    final positions = [
+      for (var i = 0; i < border.length; i++)
+        if (border[i] != 0) i,
+    ];
+    final id = '${w}x$h:${String.fromCharCodes(alpha.map((v) => v + 0x30))}';
+    final shape = shapes[id] ??= _IconShape(w, h, alpha, positions);
+    final ring = positions
+        .map(
+          (i) => BdColorAlias.canonicalRgb(
+            _rgbOf(image.getPixel(i % w, i ~/ w)),
+          ).toRadixString(16).padLeft(6, '0'),
+        )
+        .join(',');
+    (shape.rings[ring] ??= []).add(key);
+  }
+  final notes = <String, String>{};
+  for (final key in softOnly) {
+    final cut = pending[key];
+    if (cut == null) continue;
+    final icon = cut.icon;
+    final w = icon.width, h = icon.height;
+    final soft = Uint8List(w * h);
+    var softArea = 0;
+    for (final px in icon) {
+      if (px.a == 0) continue;
+      soft[px.y * w + px.x] = 1;
+      softArea++;
+    }
+    _IconShape? best;
+    var bestOverlap = 0.0, bestDx = 0, bestDy = 0;
+    for (final shape in shapes.values) {
+      if (shape.width > w || shape.height > h) continue;
+      if (w - shape.width > 2 || h - shape.height > 2) continue;
+      for (var dy = 0; dy <= h - shape.height; dy++) {
+        for (var dx = 0; dx <= w - shape.width; dx++) {
+          var both = 0;
+          for (var y = 0; y < shape.height; y++) {
+            for (var x = 0; x < shape.width; x++) {
+              if (shape.mask[y * shape.width + x] != 0 &&
+                  soft[(y + dy) * w + x + dx] != 0) {
+                both++;
+              }
+            }
+          }
+          final overlap = both / (shape.area + softArea - both);
+          if (overlap > bestOverlap) {
+            bestOverlap = overlap;
+            best = shape;
+            bestDx = dx;
+            bestDy = dy;
+          }
+        }
+      }
+    }
+    if (best == null || bestOverlap < kInferredBorderMinOverlap) continue;
+    final shape = best;
+    String? chosenRing;
+    var chosenDistance = 1 << 40;
+    for (final ring in shape.rings.keys) {
+      final colours = ring.split(',');
+      var distance = 0;
+      for (var n = 0; n < shape.border.length; n++) {
+        final i = shape.border[n];
+        final x = i % shape.width + bestDx, y = i ~/ shape.width + bestDy;
+        final px = icon.getPixel(x, y);
+        final rgb = int.parse(colours[n], radix: 16);
+        distance +=
+            (px.r.toInt() - (rgb >> 16)).abs() +
+            (px.g.toInt() - ((rgb >> 8) & 0xff)).abs() +
+            (px.b.toInt() - (rgb & 0xff)).abs();
+      }
+      final support = shape.rings[ring]!.length;
+      if (distance < chosenDistance ||
+          distance == chosenDistance &&
+              support > shape.rings[chosenRing]!.length) {
+        chosenDistance = distance;
+        chosenRing = ring;
+      }
+    }
+    final colours = chosenRing!.split(',');
+    final rebuilt = img.Image(
+      width: shape.width,
+      height: shape.height,
+      numChannels: 4,
+    );
+    for (var y = 0; y < shape.height; y++) {
+      for (var x = 0; x < shape.width; x++) {
+        if (shape.mask[y * shape.width + x] == 0) continue;
+        final px = icon.getPixel(x + bestDx, y + bestDy);
+        rebuilt.setPixelRgba(
+          x,
+          y,
+          px.a == 0 ? 255 : px.r.toInt(),
+          px.a == 0 ? 255 : px.g.toInt(),
+          px.a == 0 ? 255 : px.b.toInt(),
+          255,
+        );
+      }
+    }
+    for (var n = 0; n < shape.border.length; n++) {
+      final i = shape.border[n];
+      final rgb = int.parse(colours[n], radix: 16);
+      rebuilt.setPixelRgba(
+        i % shape.width,
+        i ~/ shape.width,
+        rgb >> 16,
+        (rgb >> 8) & 0xff,
+        rgb & 0xff,
+        255,
+      );
+    }
+    final carriers = shape.rings[chosenRing]!;
+    final sharing = shape.rings.values.fold(
+      0,
+      (sum, keys) => sum + keys.length,
+    );
+    pending[key] = (icon: rebuilt, sources: cut.sources);
+    notes[key] =
+        'border inferred: the ${shape.width}x${shape.height} silhouette of '
+        '$sharing hard-edged icon${sharing == 1 ? '' : 's'} overlaps the cut by '
+        '${(bestOverlap * 100).toStringAsFixed(1)}%, its border coloured as '
+        '${carriers.first}${carriers.length > 1 ? ' and ${carriers.length - 1} more' : ''}';
+  }
+  return notes;
 }

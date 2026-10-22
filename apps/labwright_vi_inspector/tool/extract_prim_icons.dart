@@ -42,9 +42,11 @@ void main() {
       'consensus-voted per pixel (attached wires and neighbour ink vanish\n'
       'where the samples disagree), edge-touching wire stubs are erased, the\n'
       'result is trimmed to its ink and the exterior background made\n'
-      'transparent. An identity with no hard-edged render is cut from its\n'
-      'anti-aliased ones and says so. Hand-edits welcome — the painter\n'
-      'stamps these at natural size.\n\n'
+      'transparent. Colours are the canonical ones of the inspector\'s colour\n'
+      'aliases. An identity with no hard-edged render is cut from its\n'
+      'anti-aliased ones and says so; where its silhouette is one the\n'
+      'hard-edged icons share, its border is theirs and the row says which.\n'
+      'Hand-edits welcome — the painter stamps these at natural size.\n\n'
       '| asset | op | size | sources |\n|---|---|---|---|\n',
     );
     var written = 0;
@@ -80,8 +82,10 @@ void main() {
               ? 'class 0x${classCode.toRadixString(16)}'
               : '(uncatalogued)');
       final base = baseOf(key);
+      final inferred = extraction.inferredBorders[base];
       final softNote = extraction.softOnly.contains(base)
           ? ' — anti-aliased renders only, no hard-edged sample'
+                '${inferred == null ? '' : '; $inferred'}'
           : '';
       final aside = extraction.antiAliased[base]?.length ?? 0;
       final asideNote = aside == 0 || softNote.isNotEmpty

@@ -31,7 +31,7 @@ void main() {
       return;
     }
     await loadRealTextFont();
-    final rows = <String, List<(String, int, int, int, String)>>{};
+    final rows = <String, List<(String, int, int, int, String, int)>>{};
     final byVersion = <String, Map<String, (int, int)>>{};
     final dumps = <String, (int, String)>{};
     final crops = <String, List<ReviewCrop>>{};
@@ -86,9 +86,14 @@ void main() {
           final r = art == null
               ? box
               : primIconStampRect(box, art.width, art.height, key: id);
-          var mismatch = 0, total = 0;
+          var mismatch = 0, total = 0, interior = 0;
           for (var y = r.top.round(); y < r.bottom.round(); y++) {
             for (var x = r.left.round(); x < r.right.round(); x++) {
+              final onBorder =
+                  art != null &&
+                  art.border[(y - r.top.round()) * art.width +
+                          (x - r.left.round())] !=
+                      0;
               final rx = (x * reg.scale + reg.dx).round(),
                   ry = (y * reg.scale + reg.dy).round();
               if (rx < 0 ||
@@ -105,7 +110,10 @@ void main() {
               if (isWireInk(refRgb)) continue;
               total++;
               final ourRgb = (ours[j] << 16) | (ours[j + 1] << 8) | ours[j + 2];
-              if (!BdColorAlias.sameColor(refRgb, ourRgb)) mismatch++;
+              if (!BdColorAlias.sameColor(refRgb, ourRgb)) {
+                mismatch++;
+                if (!onBorder) interior++;
+              }
             }
           }
           if (total == 0) continue;
@@ -121,6 +129,7 @@ void main() {
             total,
             o.oid,
             '${b.width}x${b.height}${art == null ? ' NOART' : ''}',
+            interior,
           ));
           if (reviewDir.isNotEmpty) {
             final file =
@@ -149,6 +158,7 @@ void main() {
               version: model.version ?? '?',
               oid: o.oid,
               mismatch: mismatch,
+              interior: interior,
               total: total,
               size: '${b.width}x${b.height}${art == null ? ' no art' : ''}',
             ));
@@ -197,15 +207,17 @@ void main() {
     });
     final out = StringBuffer();
     final keys = rows.keys.toList()..sort();
-    var perfectKeys = 0;
+    var perfectKeys = 0, interiorKeys = 0;
     for (final k in keys) {
       final rs = rows[k]!;
       final perfect = rs.where((r) => r.$2 == 0).length;
+      final inside = rs.where((r) => r.$6 == 0).length;
       if (perfect == rs.length) perfectKeys++;
+      if (inside == rs.length) interiorKeys++;
       rs.sort((a, b) => b.$2.compareTo(a.$2));
       final worst = rs.first, best = rs.last;
       out.writeln(
-        '${k.padRight(14)} n=${rs.length.toString().padLeft(3)} perfect=${perfect.toString().padLeft(3)} sizes=${rs.map((r) => r.$5).toSet().join(',')} best=${best.$2}/${best.$3} in ${best.$1} #${best.$4} worst=${worst.$2}/${worst.$3} in ${worst.$1} #${worst.$4} versions=${(byVersion[k]!.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}:${e.value.$1}/${e.value.$2}').join(' ')}',
+        '${k.padRight(14)} n=${rs.length.toString().padLeft(3)} perfect=${perfect.toString().padLeft(3)} interior=${inside.toString().padLeft(3)} sizes=${rs.map((r) => r.$5).toSet().join(',')} best=${best.$2}/${best.$3} in ${best.$1} #${best.$4} worst=${worst.$2}/${worst.$3} in ${worst.$1} #${worst.$4} versions=${(byVersion[k]!.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}:${e.value.$1}/${e.value.$2}').join(' ')}',
       );
     }
     final dumpOut = StringBuffer();
@@ -213,7 +225,9 @@ void main() {
       dumpOut.writeln(d.$2);
     }
     File('$scoreDir/icon_dumps.txt').writeAsStringSync(dumpOut.toString());
-    out.writeln('keys ${keys.length} perfect-keys $perfectKeys');
+    out.writeln(
+      'keys ${keys.length} perfect-keys $perfectKeys interior-perfect-keys $interiorKeys',
+    );
     File('$scoreDir/icon_score.txt').writeAsStringSync(out.toString());
     if (reviewDir.isNotEmpty) {
       File(
@@ -229,6 +243,7 @@ typedef ReviewCrop = ({
   String version,
   int oid,
   int mismatch,
+  int interior,
   int total,
   String size,
 });
@@ -297,9 +312,10 @@ List<int> reviewCropPng({
   return img.encodePng(out);
 }
 
-/// An HTML page of every review crop, keys with the most imperfect occurrences first and,
-/// within a key, the worst occurrences first; each crop shows the reference on the left and
-/// the render on the right.
+/// An HTML page of every review crop, keys with the most occurrences differing inside the
+/// border first and, within a key, the worst occurrences first; each crop shows the reference
+/// on the left and the render on the right, bordered red when the interior differs, amber when
+/// only the border does.
 String reviewIndexHtml(
   Map<String, List<ReviewCrop>> crops,
   Map<String, String> titles,
@@ -310,8 +326,8 @@ String reviewIndexHtml(
       .replaceAll('"', '&quot;');
   final keys = crops.keys.toList()
     ..sort((a, b) {
-      final ia = crops[a]!.where((c) => c.mismatch > 0).length,
-          ib = crops[b]!.where((c) => c.mismatch > 0).length;
+      final ia = crops[a]!.where((c) => c.interior > 0).length,
+          ib = crops[b]!.where((c) => c.interior > 0).length;
       return ib != ia ? ib.compareTo(ia) : a.compareTo(b);
     });
   final html = StringBuffer('''
@@ -325,34 +341,45 @@ h2 small{font-weight:normal;color:#666}
 .row{display:flex;flex-wrap:wrap;gap:12px}
 figure{margin:0;border:1px solid #ddd;padding:6px;background:#fafafa}
 figure.bad{border-color:#c33}
+figure.edge{border-color:#d89b1e}
 img{display:block;image-rendering:pixelated}
 figcaption{font:12px monospace;color:#444;margin-top:4px;max-width:420px}
 nav a{display:inline-block;margin:0 8px 6px 0;font:12px monospace}
 </style>
 <h1>Icon review</h1>
-<p>Each crop: reference render on the left, inspector render on the right, ${kReviewScale}× with $kReviewMargin px of context. Red border: pixels differ (color aliases and wire ink aside).</p>
+<p>Each crop: reference render on the left, inspector render on the right, ${kReviewScale}× with $kReviewMargin px of context. Red border: pixels differ inside the icon's outline; amber: only the outline differs (color aliases and wire ink aside).</p>
 <nav>
 ''');
   for (final k in keys) {
     final list = crops[k]!;
-    final bad = list.where((c) => c.mismatch > 0).length;
+    final bad = list.where((c) => c.interior > 0).length;
     html.writeln(
       '<a href="#${esc(k)}">${esc(k)} ${esc(titles[k] ?? '')} ${list.length - bad}/${list.length}</a>',
     );
   }
   html.writeln('</nav>');
   for (final k in keys) {
-    final list = crops[k]!..sort((a, b) => b.mismatch.compareTo(a.mismatch));
-    final bad = list.where((c) => c.mismatch > 0).length;
+    final list = crops[k]!
+      ..sort(
+        (a, b) => b.interior != a.interior
+            ? b.interior.compareTo(a.interior)
+            : b.mismatch.compareTo(a.mismatch),
+      );
+    final bad = list.where((c) => c.interior > 0).length;
+    final exact = list.where((c) => c.mismatch == 0).length;
     html.writeln(
-      '<h2 id="${esc(k)}">${esc(k)} ${esc(titles[k] ?? '')} <small>${list.length - bad} of ${list.length} exact</small></h2>',
+      '<h2 id="${esc(k)}">${esc(k)} ${esc(titles[k] ?? '')} <small>$exact of ${list.length} exact, ${list.length - bad} inside the outline</small></h2>',
     );
     html.writeln('<div class="row">');
     for (final c in list) {
       html.writeln(
-        '<figure class="${c.mismatch > 0 ? 'bad' : 'ok'}"><img src="${esc(c.file)}" loading="lazy">'
+        '<figure class="${c.interior > 0
+            ? 'bad'
+            : c.mismatch > 0
+            ? 'edge'
+            : 'ok'}"><img src="${esc(c.file)}" loading="lazy">'
         '<figcaption>${esc(c.snippet)} v${esc(c.version)} #${c.oid} ${c.size}<br>'
-        '${c.mismatch}/${c.total} pixels differ</figcaption></figure>',
+        '${c.mismatch}/${c.total} pixels differ, ${c.interior} inside the outline</figcaption></figure>',
       );
     }
     html.writeln('</div>');
