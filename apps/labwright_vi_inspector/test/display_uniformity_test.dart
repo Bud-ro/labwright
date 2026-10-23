@@ -240,9 +240,11 @@ void main() {
       final display = await boxDownscale(fitted3, ss * n);
       final out = (await display.toByteData())!.buffer.asUint8List();
       int lum(int x, int y) => out[(y * display.width + x) * 4];
-      final o = bd.byId[894]!.absBounds!;
+      final node = bd.byId[894]!;
+      final o = node.absBounds!;
       final reg = result.registration;
-      final art1608b = icons[1608]!;
+      final id1608 = loadedPrimIconIdOf(node, diagram: bd)!;
+      final art1608b = icons[id1608]!;
       final stampRef = primIconStampRect(
         ui.Rect.fromLTRB(
           o.left - raster.content.left + reg.dx,
@@ -252,7 +254,7 @@ void main() {
         ),
         art1608b.width,
         art1608b.height,
-        key: 1608,
+        key: id1608,
       );
       final topRow = stampRef.top.toInt() ~/ n;
       final botRow = (stampRef.bottom.toInt() - 1) ~/ n;
@@ -297,7 +299,7 @@ void main() {
 
       final greyIcons = primIconsGrey;
       for (final (label, key, oid, art) in [
-        ('prim1608', 1608, 894, icons[1608]!),
+        ('prim1608', id1608, 894, icons[id1608]!),
         ('prim1900 disabled', 1900, 3081, greyIcons[1900]!),
       ]) {
         final b = bd.byId[oid]!.absBounds!;

@@ -17,6 +17,7 @@ enum PrimNameBasis {
 
 /// A primitive node, keyed by its `primResID`.
 enum PrimOp {
+  complexToPolar(1045, 'Complex To Polar', PrimNameBasis.review),
   add(1050, 'Add', PrimNameBasis.adjacency),
 
   subtract(1051, 'Subtract', PrimNameBasis.corpusLabel),

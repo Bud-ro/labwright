@@ -2,21 +2,11 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
 import 'util.dart';
-
-const Set<int> kWireInkPalette = {
-  0xff00ff,
-  0x006666,
-  0x0000ff,
-  0x006600,
-  0x666600,
-  0xffff00,
-  0xff6600,
-  0x660066,
-};
 
 const int kMaskArtBox = 1;
 
@@ -92,7 +82,7 @@ bool isTextFringe(int Function(int, int) refPixel, int rx, int ry) {
   for (var py = 0; py < height; py++) {
     for (var px = 0; px < width; px++) {
       final ref = refPixel(px + dx, py + dy);
-      if (!kWireInkPalette.contains(ref)) continue;
+      if (!isWireInk(ref)) continue;
       if (ourPixel(px, py) != 0xffffff) continue;
       final bits = mask[py * width + px];
       if (bits & kMaskArtBox != 0) continue;
@@ -187,6 +177,12 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
     }
 
     final wires = scene.wires;
+    final exclusion = sceneExclusionMask(
+      scene: scene,
+      raster: rephased,
+      width: iw,
+      height: ih,
+    );
     var drawn = 0, perfect = 0, totalOff = 0;
     final imperfect = <String>[];
     for (final wire in wires) {
@@ -210,6 +206,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
           final ours = ourPixel(basePx, x, y);
           if (ours == ourPixel(woPx, x, y)) continue;
           maskCount++;
+          if (exclusion[y * iw + x] & kMaskArtBox != 0) continue;
           if (ours != refPixel(x + reg.dx.round(), y + reg.dy.round())) {
             off++;
           }
