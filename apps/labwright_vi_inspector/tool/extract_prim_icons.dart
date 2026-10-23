@@ -103,6 +103,23 @@ void main() {
         failed[key] = 'every sample came from a low-registration snippet';
       }
     }
+    for (final key in extraction.watermarkedOnlyKeys) {
+      if (handKeys.contains(key)) {
+        manifest.writeln(
+          '| ${_assetFileOf(outDir, key) ?? key} | ${PrimOp.fromId(int.tryParse(key.replaceFirst('prim', '')) ?? -1)?.opName ?? '(uncatalogued)'} | | hand-drawn: seen only in watermarked snippets |',
+        );
+        written++;
+      } else {
+        failed[key] = 'seen only in watermarked snippets';
+      }
+    }
+    if (extraction.watermarkedSnippets.isNotEmpty) {
+      manifest.writeln(
+        '\nSnippets left unharvested because their saving LabVIEW watermarks '
+        'its renders (LVSR status flags): '
+        '${extraction.watermarkedSnippets.join(', ')}\n',
+      );
+    }
     if (failed.isNotEmpty) {
       manifest.writeln(
         '\n## Identities without a usable asset (kept visible, never hidden)\n',
@@ -121,7 +138,7 @@ void main() {
     }
     for (final f in Directory(outDir.path).listSync().whereType<File>()) {
       final m = RegExp(
-        r'((?:prim|class)\d+(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
+        r'((?:prim\d+|class0x[0-9a-f]+)(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
       ).firstMatch(f.path);
       if (m == null) continue;
       final key = m.group(1)!;
@@ -213,4 +230,17 @@ String _manifestWithRowsReplaced(
   }
   out.addAll(replacements.values);
   return out.join('\n');
+}
+
+/// The file name of the committed asset of [key] in [dir], or null.
+String? _assetFileOf(Directory dir, String key) {
+  for (final f in dir.listSync().whereType<File>()) {
+    final name = f.uri.pathSegments.last;
+    if (RegExp(
+      '^$key(?:_(?!t\\d|r[0-9a-f]+(?:_|\\.)|from\\d)[a-z0-9-]+)?\\.png\$',
+    ).hasMatch(name)) {
+      return name;
+    }
+  }
+  return null;
 }

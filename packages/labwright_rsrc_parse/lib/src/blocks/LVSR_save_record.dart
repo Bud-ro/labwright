@@ -422,6 +422,11 @@ final class ViSaveRecord extends ByteRecord {
 
   Set<ViStatusFlag> get statusFlags => _flagsIn(statusFlagWord, ViStatusFlag.values, (f) => f.mask);
 
+  /// Whether the saving LabVIEW stamps its block-diagram images with a watermark, see
+  /// [ViStatusFlag.evaluationWatermark] and [ViStatusFlag.studentWatermark].
+  bool get rendersWatermark =>
+      statusFlagWord & (ViStatusFlag.evaluationWatermark.mask | ViStatusFlag.studentWatermark.mask) != 0;
+
   /// Bit set named by [ViOptionFlag].
   int get optionFlagWord => _optionFlags.read(view);
 

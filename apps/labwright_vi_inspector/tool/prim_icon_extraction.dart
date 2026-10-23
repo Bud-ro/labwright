@@ -14,7 +14,6 @@ import '../test/util.dart';
 const int kDiagramGridDotRgb = 0xe2e2e2;
 
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
-  'prim1053': [(snippet: '25772310_GqWWr', oid: 572)],
   'prim1082': [(snippet: 'MD5', oid: 6017)],
   'prim1170': [(snippet: 'crc16', oid: 820), (snippet: 'crc16', oid: 619)],
   'prim1537': [(snippet: 'Excel_Cell_to_RowCol', oid: 477)],
@@ -186,6 +185,8 @@ class PrimIconExtraction {
     required this.skippedLowQuality,
     required this.antiAliased,
     required this.softOnly,
+    required this.watermarkedSnippets,
+    required this.watermarkedOnlyKeys,
     required this.inferredBorders,
     required this.palette,
     required this.verifiedKeys,
@@ -209,6 +210,13 @@ class PrimIconExtraction {
 
   /// Keys cut from anti-aliased renders because no hard-edged render of them exists.
   final Set<String> softOnly;
+
+  /// Snippets whose saving LabVIEW watermarks its renders, see [ViSaveRecord.rendersWatermark];
+  /// nothing is harvested from them.
+  final List<String> watermarkedSnippets;
+
+  /// Keys seen only in [watermarkedSnippets], so with no render to cut from.
+  final Set<String> watermarkedOnlyKeys;
 
   /// Per key cut from anti-aliased renders, how its border was replaced by the canonical
   /// border of the hard-edged icons that share its silhouette, see [inferIconBorders].
@@ -250,6 +258,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         List<({Uint8List rgba, int w, int h, int pad, String source})>
       >{};
   final versionOfSnippet = <String, int>{};
+  final watermarkedSnippets = <String>[];
+  final watermarkedKeys = <String>{};
   await tester.runAsync(() async {
     for (final f in pngs) {
       final vi = extractSnippetVi(f.readAsBytesSync());
@@ -257,6 +267,18 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       final model = buildViModel(vi);
       final bd = bestBlockDiagram(model);
       if (bd == null) continue;
+      if (model.saveRecord?.rendersWatermark ?? false) {
+        watermarkedSnippets.add(f.uri.pathSegments.last.replaceAll('.png', ''));
+        for (final o in bd.objects) {
+          final key = o.primitive?.primResId != null
+              ? 'prim${o.primitive?.primResId}'
+              : (primClasses.contains(o.kind)
+                    ? primIconName(bdClassVariantIconKey(bd, o))
+                    : null);
+          if (key != null) watermarkedKeys.add(key);
+        }
+        continue;
+      }
       final raster = await rasteriseBlockDiagram(bd, scale: 1.0, margin: 2);
       if (raster == null) continue;
       final reference = await decodeReferenceImage(f.readAsBytesSync());
@@ -1159,6 +1181,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     pending: pending,
     failed: failed,
     observedKeys: observedKeys,
+    watermarkedSnippets: watermarkedSnippets,
+    watermarkedOnlyKeys: watermarkedKeys.difference(observedKeys),
     skippedLowQuality: skippedLowQuality,
     antiAliased: antiAliased,
     softOnly: softOnly,

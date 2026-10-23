@@ -50,6 +50,7 @@ void main() {
       final variants = <String, Map<String, _Variant>>{};
       final boxSizes = <String, Map<String, int>>{};
       var snippets = 0, registered = 0, occurrences = 0;
+      final watermarked = <String>[];
       await tester.runAsync(() async {
         for (final f in snippetCorpusPngs()) {
           final bytes = f.readAsBytesSync();
@@ -64,6 +65,10 @@ void main() {
           final bd = bestBlockDiagram(model);
           if (bd == null) continue;
           snippets++;
+          final hasWatermark = model.saveRecord?.rendersWatermark ?? false;
+          if (hasWatermark) {
+            watermarked.add(f.uri.pathSegments.last.replaceAll('.png', ''));
+          }
           final raster = await rasteriseBlockDiagram(bd, scale: 1.0, margin: 2);
           if (raster == null) continue;
           final reference = await decodeReferenceImage(bytes);
@@ -161,6 +166,7 @@ void main() {
               oid: o.oid,
               lowQuality: lowQuality,
               disabled: disabled,
+              watermarked: hasWatermark,
             ));
             final size = '${b.width}x${b.height}';
             (boxSizes[key] ??= {})[size] = (boxSizes[key]![size] ?? 0) + 1;
@@ -272,6 +278,7 @@ void main() {
               ..sort()),
             'lowQuality': v.sources.every((s) => s.lowQuality),
             'disabled': v.sources.every((s) => s.disabled),
+            'watermarked': v.sources.every((s) => s.watermarked),
             'sources': [
               for (final s in v.sources.take(12))
                 '${s.snippet} v${s.version} #${s.oid}',
@@ -295,6 +302,7 @@ void main() {
           'pad': kIconReviewPad,
           'snippets': snippets,
           'registered': registered,
+          'watermarked': watermarked,
           'occurrences': occurrences,
           'icons': index,
         }),
@@ -402,6 +410,7 @@ class _Variant {
           int oid,
           bool lowQuality,
           bool disabled,
+          bool watermarked,
         })
       >[];
 }
