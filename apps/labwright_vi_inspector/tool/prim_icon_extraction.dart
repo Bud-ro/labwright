@@ -1197,7 +1197,8 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 /// Folds the appearances of each key (`key`, `key@1`, …: samples that did not agree with
 /// an earlier cut, from other LabVIEW majors) into generations named `key_from<major>` by
 /// the first LabVIEW major each appearance comes from. A verified key's committed asset
-/// names the generation it equals.
+/// names the generation it equals; when one cut serves every major, a verified generation
+/// it equals folds back into the plain key.
 Map<String, String> _mergeVersionClusters({
   required Map<String, ({img.Image icon, String sources})> pending,
   required Map<String, String> failed,
@@ -1293,6 +1294,13 @@ Map<String, String> _mergeVersionClusters({
       if (cut != null) {
         pending[base] = cut;
         included[base] = inc!;
+        for (final generation in verifiedKeys) {
+          if (!generation.startsWith('${base}_from')) continue;
+          final art = _committedAsset(assetDir, generation);
+          if (art != null && _sameArt(cut.icon, art, tolerance: 0)) {
+            renamed[generation] = base;
+          }
+        }
       }
       continue;
     }

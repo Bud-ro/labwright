@@ -187,8 +187,10 @@ void main() {
       'const Map<String, PrimIconStatus> kPrimIconStatus = {\n',
     );
     for (final key in allKeys) {
-      final status =
-          oldStatus[key] ?? oldStatus[oldKeyOf[key] ?? ''] ?? 'unverified';
+      final own = oldStatus[key], folded = oldStatus[oldKeyOf[key] ?? ''];
+      final status = own == null || own == 'unverified'
+          ? folded ?? own ?? 'unverified'
+          : own;
       entries.writeln("  '$key': PrimIconStatus.$status,");
     }
     entries.writeln('};');

@@ -31,10 +31,10 @@ enum BdColorAlias {
   /// A free label's yellow backing: 0xFFFFCC or 0xFFFFD7.
   labelBacking(0xFFFFCC, {0xFFFFD7}),
 
-  /// The frame of a sized node (Build Array, Index Array, Bundle, …): 0x444444 in the 2021
-  /// renders of one source, 0x474747 in other 2021 renders and 0x4C4C3D from 2016 to 2020 and
-  /// from 2024 on.
-  nodeFrameGrey(0x444444, {0x474747, 0x4C4C3D});
+  /// The ink of a node's frame and icon: black through 2015, 0x4C4C3D from 2016 to 2020 and
+  /// from 2024 on, 0x444444 in the 2021 renders of one source and 0x474747 in other 2021
+  /// renders.
+  nodeInk(0x000000, {0x444444, 0x474747, 0x4C4C3D});
 
   const BdColorAlias(this.canonical, this.variants);
 
