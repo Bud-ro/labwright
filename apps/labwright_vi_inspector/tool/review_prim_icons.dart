@@ -155,7 +155,7 @@ void main() {
                 rgba: crop,
                 width: w,
                 height: h,
-                hard: isHardEdgedCrop(crop, w, h, kIconReviewPad),
+                hard: isHardEdgedCrop(crop, w, h, kIconReviewPad, key: key),
                 ink: hasIconInk(crop, w, h, kIconReviewPad),
                 generation: resolved == null ? null : primIconName(resolved),
               ),

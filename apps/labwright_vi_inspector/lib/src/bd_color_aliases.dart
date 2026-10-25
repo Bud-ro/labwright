@@ -73,3 +73,11 @@ const Set<int> kWireInkPalette = {
 /// Whether a reference pixel of color [rgb] (0xRRGGBB) is wire ink.
 bool isWireInk(int rgb) =>
     kWireInkPalette.contains(BdColorAlias.canonicalRgb(rgb));
+
+/// The red of a coercion dot, which LabVIEW draws over a terminal whose wire it converts to
+/// the terminal's type.
+const int kCoercionDotRgb = 0xFF0000;
+
+/// Whether a reference pixel of color [rgb] (0xRRGGBB) is drawn over a node rather than being
+/// part of it: wire ink or a coercion dot.
+bool isOverlayInk(int rgb) => isWireInk(rgb) || rgb == kCoercionDotRgb;

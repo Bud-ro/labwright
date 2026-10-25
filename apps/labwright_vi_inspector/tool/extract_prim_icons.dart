@@ -39,8 +39,9 @@ void main() {
       'tool/extract_prim_icons.dart): per identity, the hard-edged samples\n'
       '(every colour in the node box tiles at least three pixels; renders\n'
       'that anti-alias the icon are set aside) are aligned and\n'
-      'consensus-voted per pixel (attached wires and neighbour ink vanish\n'
-      'where the samples disagree), edge-touching wire stubs are erased, the\n'
+      'consensus-voted per pixel (wires, coercion dots and neighbour ink are\n'
+      'outvoted by the icon beneath; a primitive\'s own ink is black and its\n'
+      'yellow fill), edge-touching wire stubs are erased, the\n'
       'result is trimmed to its ink and the exterior background made\n'
       'transparent. Colours are the canonical ones of the inspector\'s colour\n'
       'aliases. An identity with no hard-edged render is cut from its\n'
@@ -57,6 +58,11 @@ void main() {
     final only = enabled == '1'
         ? const <String>{}
         : enabled.split(',').map((key) => key.trim()).toSet();
+    final generationsVerified = {
+      for (final key in [...verifiedKeys, ...handKeys])
+        if (key.contains('_from')) baseOf(key),
+    };
+    pending.removeWhere((key, _) => generationsVerified.contains(key));
     for (final key in pending.keys.toList()..sort()) {
       if (only.isNotEmpty && !only.contains(baseOf(key))) continue;
       final e = pending[key]!;
@@ -75,6 +81,15 @@ void main() {
           ? int.parse(key.substring(5).split('_').first)
           : null;
       final file = op != null ? '${key}_${op.slug}.png' : '$key.png';
+      for (final stale in outDir.listSync().whereType<File>()) {
+        final name = stale.uri.pathSegments.last;
+        if (name != file &&
+            RegExp(
+              '^$key(?:_(?!t\\d|r[0-9a-f]+(?:_|\\.)|from\\d)[a-z0-9-]+)?\\.png\$',
+            ).hasMatch(name)) {
+          stale.deleteSync();
+        }
+      }
       File('${outDir.path}/$file').writeAsBytesSync(img.encodePng(e.icon));
       final label =
           op?.opName ??
@@ -91,16 +106,25 @@ void main() {
       final asideNote = aside == 0 || softNote.isNotEmpty
           ? ''
           : ' ($aside anti-aliased render${aside == 1 ? '' : 's'} set aside)';
+      final lowRegNote = extraction.lowRegistrationOnly.contains(base)
+          ? ' — low-registration snippets only, no other render shows the node'
+          : '';
       manifest.writeln(
-        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources}$softNote$asideNote |',
+        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources}$softNote$asideNote$lowRegNote |',
       );
       written++;
     }
     for (final key in observedKeys) {
+      if (handKeys.contains(key) ||
+          verifiedKeys.contains(key) ||
+          generationsVerified.contains(key)) {
+        continue;
+      }
       if (!pending.containsKey(key) &&
           !failed.containsKey(key) &&
           !pending.keys.any((k) => baseOf(k) == key)) {
-        failed[key] = 'every sample came from a low-registration snippet';
+        failed[key] =
+            'no render admitted: every instance is disabled, inkless or capped';
       }
     }
     for (final key in extraction.watermarkedOnlyKeys) {
@@ -132,8 +156,9 @@ void main() {
     }
     if (skippedLowQuality.isNotEmpty) {
       manifest.writeln(
-        '\nSnippets excluded from harvesting (registration below the 0.7 '
-        'placement gate): ${skippedLowQuality.toSet().join(', ')}\n',
+        '\nSnippets whose registration is below the 0.7 placement gate, '
+        'harvested only for identities no other snippet shows: '
+        '${skippedLowQuality.toSet().join(', ')}\n',
       );
     }
     for (final f in Directory(outDir.path).listSync().whereType<File>()) {
