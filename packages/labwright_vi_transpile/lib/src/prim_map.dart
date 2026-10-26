@@ -172,10 +172,9 @@ enum LvNodeClass {
 
 const int kLvRotatePrimResId = 1082;
 
-const int kLvHexStringPrimResId = 1181;
-
 final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
   PrimOp.exclusiveOr: (call) => _binaryCommutative(call, '^'),
+  PrimOp.numberToHexadecimalString: _hexString,
   PrimOp.and: (call) => _binaryCommutative(call, '&'),
   PrimOp.or: (call) => _binaryCommutative(call, '|'),
   PrimOp.add: (call) => _binaryCommutative(call, '+'),
@@ -244,10 +243,7 @@ final Map<LvNodeClass, LvLowering> kLvNodeClassLowerings = {
   LvNodeClass.initializeArray: _initializeArray,
 };
 
-final Map<int, LvLowering> kLvPrimResIdLowerings = {
-  kLvRotatePrimResId: _rotate,
-  kLvHexStringPrimResId: _hexString,
-};
+final Map<int, LvLowering> kLvPrimResIdLowerings = {kLvRotatePrimResId: _rotate};
 
 final Set<PrimOp> kLvMappedPrimOps = kLvPrimOpLowerings.keys.toSet();
 
