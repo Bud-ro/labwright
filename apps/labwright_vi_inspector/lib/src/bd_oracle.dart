@@ -12,6 +12,7 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'heap_view_chrome.dart';
 
+import 'bd_color_aliases.dart';
 import 'diagram_view.dart';
 import 'image_clipboard.dart';
 import 'oracle_gif.dart';
@@ -341,13 +342,7 @@ class ImageComparison {
   final Uint8List diff;
 }
 
-ImageComparison compareRgba(
-  Uint8List a,
-  Uint8List b,
-  int width,
-  int height, {
-  int threshold = 16,
-}) {
+ImageComparison compareRgba(Uint8List a, Uint8List b, int width, int height) {
   assert(a.length == b.length, 'buffers differ in length');
   assert(a.length == width * height * 4, 'buffer is not width*height*4');
   final diff = Uint8List(a.length);
@@ -358,8 +353,12 @@ ImageComparison compareRgba(
     final dg = (a[i + 1] - b[i + 1]).abs();
     final db = (a[i + 2] - b[i + 2]).abs();
     sum += dr + dg + db;
-    final maxChannel = math.max(dr, math.max(dg, db));
-    if (maxChannel > threshold) changed++;
+    if (!BdColorAlias.sameColor(
+      (a[i] << 16) | (a[i + 1] << 8) | a[i + 2],
+      (b[i] << 16) | (b[i + 1] << 8) | b[i + 2],
+    )) {
+      changed++;
+    }
     diff[i] = dr;
     diff[i + 1] = dg;
     diff[i + 2] = db;
@@ -527,7 +526,6 @@ class BdOracleResult {
 Future<BdOracleResult> compareToReference(
   ui.Image rendered,
   ui.Image reference, {
-  int threshold = 16,
   double? lockScale,
   List<Rect> anchorRects = const [],
   BdRegistration? knownRegistration,
@@ -598,13 +596,7 @@ Future<BdOracleResult> compareToReference(
   final renderedRgba = await _rgbaOf(fitted);
   final cmp = await Isolate.run(
     () => (
-      comparison: compareRgba(
-        renderedRgba,
-        referenceRgba,
-        width,
-        height,
-        threshold: threshold,
-      ),
+      comparison: compareRgba(renderedRgba, referenceRgba, width, height),
       structural: compareStructural(
         renderedRgba,
         referenceRgba,

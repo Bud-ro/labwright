@@ -19,7 +19,11 @@ enum ViObjFlag {
   tunnelHollow(0x1000000),
 
   /// `0x1000000` on a case structure: selector strings match case-insensitively.
-  caseInsensitiveSelector(0x1000000);
+  caseInsensitiveSelector(0x1000000),
+
+  /// On a Build Array input terminal: the input concatenates (an array input drawn with the
+  /// array glyph) instead of adding a dimension.
+  buildArrayConcatenate(0x10000);
 
   const ViObjFlag(this.mask);
 

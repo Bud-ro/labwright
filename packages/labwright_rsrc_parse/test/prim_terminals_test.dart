@@ -3,13 +3,24 @@ import 'package:test/test.dart';
 
 void main() {
   test('prim icon names round-trip through primIconName and parsePrimIconName', () {
-    final keys = [1050, 0, -0x44, -0x3a, classVariantIconKey(0x44, 3), classVariantIconKey(0x3a, 0)];
+    final keys = [
+      1050,
+      0,
+      -0x44,
+      -0x3a,
+      classVariantIconKey(0x44, 3),
+      classVariantIconKey(0x3a, 0),
+      classVariantIconKey(0x3a, 3, rows: 0x6),
+      primIconVersionKey(1050, 16),
+      primIconVersionKey(classVariantIconKey(0x3a, 3, rows: 0x6), 21),
+    ];
     for (final key in keys) {
       expect(parsePrimIconName(primIconName(key)), key, reason: primIconName(key));
     }
     expect(primIconName(1050), 'prim1050');
-    expect(primIconName(-0x44), 'class68');
-    expect(primIconName(classVariantIconKey(0x44, 3)), 'class68_t3');
+    expect(primIconName(-0x44), 'class0x44');
+    expect(primIconName(classVariantIconKey(0x44, 3)), 'class0x44_t3');
+    expect(primIconName(primIconVersionKey(classVariantIconKey(0x3a, 3, rows: 0x6), 21)), 'class0x3a_t3_r6_from21');
     expect(parsePrimIconName('icon7'), isNull);
     expect(parsePrimIconName('prim'), isNull);
   });

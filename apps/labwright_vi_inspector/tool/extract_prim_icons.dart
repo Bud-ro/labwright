@@ -24,6 +24,8 @@ void main() {
     final skippedLowQuality = extraction.skippedLowQuality;
     final verifiedKeys = extraction.verifiedKeys;
     final handKeys = extraction.handKeys;
+    final renamed = extraction.renamed;
+    String baseOf(String key) => key.replaceFirst(RegExp(r'_from\d+$'), '');
     final paletteList = extraction.palette;
     expect(
       primIconReproErrors(extraction),
@@ -34,12 +36,18 @@ void main() {
     final manifest = StringBuffer(
       '# Primitive icon assets\n\n'
       'Generated from LabVIEW\'s own renders in the snippet corpus (see\n'
-      'tool/extract_prim_icons.dart): per identity, the samples are\n'
-      'aligned and consensus-voted per pixel (attached wires and neighbour\n'
-      'ink vanish where the samples disagree), edge-touching wire stubs are\n'
-      'erased, the result is trimmed to its ink and the exterior background\n'
-      'made transparent. Hand-edits welcome — the painter stamps these at\n'
-      'natural size.\n\n'
+      'tool/extract_prim_icons.dart): per identity, the hard-edged samples\n'
+      '(every colour in the node box tiles at least three pixels; renders\n'
+      'that anti-alias the icon are set aside) are aligned and\n'
+      'consensus-voted per pixel (wires, coercion dots and neighbour ink are\n'
+      'outvoted by the icon beneath; a primitive\'s own ink is black and its\n'
+      'yellow fill), edge-touching wire stubs are erased, the\n'
+      'result is trimmed to its ink and the exterior background made\n'
+      'transparent. Colours are the canonical ones of the inspector\'s colour\n'
+      'aliases. An identity with no hard-edged render is cut from its\n'
+      'anti-aliased ones and says so; where its silhouette is one the\n'
+      'hard-edged icons share, its border is theirs and the row says which.\n'
+      'Hand-edits welcome — the painter stamps these at natural size.\n\n'
       '| asset | op | size | sources |\n|---|---|---|---|\n',
     );
     var written = 0;
@@ -50,8 +58,13 @@ void main() {
     final only = enabled == '1'
         ? const <String>{}
         : enabled.split(',').map((key) => key.trim()).toSet();
+    final generationsVerified = {
+      for (final key in [...verifiedKeys, ...handKeys])
+        if (key.contains('_from')) baseOf(key),
+    };
+    pending.removeWhere((key, _) => generationsVerified.contains(key));
     for (final key in pending.keys.toList()..sort()) {
-      if (only.isNotEmpty && !only.contains(key)) continue;
+      if (only.isNotEmpty && !only.contains(baseOf(key))) continue;
       final e = pending[key]!;
       if (verifiedKeys.contains(key) || handKeys.contains(key)) {
         manifest.writeln(
@@ -61,28 +74,75 @@ void main() {
         continue;
       }
       final primId = key.startsWith('prim')
-          ? int.parse(key.substring(4))
+          ? int.parse(baseOf(key).substring(4))
           : null;
       final op = primId == null ? null : PrimOp.fromId(primId);
       final classCode = key.startsWith('class')
           ? int.parse(key.substring(5).split('_').first)
           : null;
       final file = op != null ? '${key}_${op.slug}.png' : '$key.png';
+      for (final stale in outDir.listSync().whereType<File>()) {
+        final name = stale.uri.pathSegments.last;
+        if (name != file &&
+            RegExp(
+              '^$key(?:_(?!t\\d|r[0-9a-f]+(?:_|\\.)|from\\d)[a-z0-9-]+)?\\.png\$',
+            ).hasMatch(name)) {
+          stale.deleteSync();
+        }
+      }
       File('${outDir.path}/$file').writeAsBytesSync(img.encodePng(e.icon));
       final label =
           op?.opName ??
           (classCode != null
               ? 'class 0x${classCode.toRadixString(16)}'
               : '(uncatalogued)');
+      final base = baseOf(key);
+      final inferred = extraction.inferredBorders[base];
+      final softNote = extraction.softOnly.contains(base)
+          ? ' — anti-aliased renders only, no hard-edged sample'
+                '${inferred == null ? '' : '; $inferred'}'
+          : '';
+      final aside = extraction.antiAliased[base]?.length ?? 0;
+      final asideNote = aside == 0 || softNote.isNotEmpty
+          ? ''
+          : ' ($aside anti-aliased render${aside == 1 ? '' : 's'} set aside)';
+      final lowRegNote = extraction.lowRegistrationOnly.contains(base)
+          ? ' — low-registration snippets only, no other render shows the node'
+          : '';
       manifest.writeln(
-        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources} |',
+        '| $file | $label | ${e.icon.width}x${e.icon.height} | ${e.sources}$softNote$asideNote$lowRegNote |',
       );
       written++;
     }
     for (final key in observedKeys) {
-      if (!pending.containsKey(key) && !failed.containsKey(key)) {
-        failed[key] = 'every sample came from a low-registration snippet';
+      if (handKeys.contains(key) ||
+          verifiedKeys.contains(key) ||
+          generationsVerified.contains(key)) {
+        continue;
       }
+      if (!pending.containsKey(key) &&
+          !failed.containsKey(key) &&
+          !pending.keys.any((k) => baseOf(k) == key)) {
+        failed[key] =
+            'no render admitted: every instance is disabled, inkless or capped';
+      }
+    }
+    for (final key in extraction.watermarkedOnlyKeys) {
+      if (handKeys.contains(key)) {
+        manifest.writeln(
+          '| ${_assetFileOf(outDir, key) ?? key} | ${PrimOp.fromId(int.tryParse(key.replaceFirst('prim', '')) ?? -1)?.opName ?? '(uncatalogued)'} | | hand-drawn: seen only in watermarked snippets |',
+        );
+        written++;
+      } else {
+        failed[key] = 'seen only in watermarked snippets';
+      }
+    }
+    if (extraction.watermarkedSnippets.isNotEmpty) {
+      manifest.writeln(
+        '\nSnippets left unharvested because their saving LabVIEW watermarks '
+        'its renders (LVSR status flags): '
+        '${extraction.watermarkedSnippets.join(', ')}\n',
+      );
     }
     if (failed.isNotEmpty) {
       manifest.writeln(
@@ -96,20 +156,22 @@ void main() {
     }
     if (skippedLowQuality.isNotEmpty) {
       manifest.writeln(
-        '\nSnippets excluded from harvesting (registration below the 0.7 '
-        'placement gate): ${skippedLowQuality.toSet().join(', ')}\n',
+        '\nSnippets whose registration is below the 0.7 placement gate, '
+        'harvested only for identities no other snippet shows: '
+        '${skippedLowQuality.toSet().join(', ')}\n',
       );
     }
     for (final f in Directory(outDir.path).listSync().whereType<File>()) {
       final m = RegExp(
-        r'((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?\.png$',
+        r'((?:prim\d+|class0x[0-9a-f]+)(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
       ).firstMatch(f.path);
       if (m == null) continue;
       final key = m.group(1)!;
-      if (only.isNotEmpty && !only.contains(key)) continue;
-      if (!pending.containsKey(key) &&
-          !verifiedKeys.contains(key) &&
-          !handKeys.contains(key)) {
+      if (only.isNotEmpty && !only.contains(baseOf(key))) continue;
+      if (renamed.containsKey(key) ||
+          !pending.containsKey(key) &&
+              !verifiedKeys.contains(key) &&
+              !handKeys.contains(key)) {
         f.deleteSync();
       }
     }
@@ -139,19 +201,22 @@ void main() {
       ).allMatches(existing))
         m.group(1)!: m.group(2)!,
     };
+    final oldKeyOf = {for (final e in renamed.entries) e.value: e.key};
     final allKeys = {
       ...pending.keys,
       ...failed.keys,
       for (final e in oldStatus.entries)
-        if (e.value != 'unverified') e.key,
+        if (e.value != 'unverified' && !renamed.containsKey(e.key)) e.key,
     }.toList()..sort();
     final entries = StringBuffer(
       'const Map<String, PrimIconStatus> kPrimIconStatus = {\n',
     );
     for (final key in allKeys) {
-      entries.writeln(
-        "  '$key': PrimIconStatus.${oldStatus[key] ?? 'unverified'},",
-      );
+      final own = oldStatus[key], folded = oldStatus[oldKeyOf[key] ?? ''];
+      final status = own == null || own == 'unverified'
+          ? folded ?? own ?? 'unverified'
+          : own;
+      entries.writeln("  '$key': PrimIconStatus.$status,");
     }
     entries.writeln('};');
     final begin = existing.indexOf(
@@ -175,7 +240,7 @@ String _manifestWithRowsReplaced(
   Set<String> only,
 ) {
   String? keyOf(String line) => RegExp(
-    r'^\| ((?:prim|class)\d+(?:_t\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
+    r'^\| ((?:prim|class)\d+(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?(?:\.png)? \|',
   ).firstMatch(line)?.group(1);
   final replacements = <String, String>{
     for (final line in fresh.split('\n'))
@@ -192,4 +257,17 @@ String _manifestWithRowsReplaced(
   }
   out.addAll(replacements.values);
   return out.join('\n');
+}
+
+/// The file name of the committed asset of [key] in [dir], or null.
+String? _assetFileOf(Directory dir, String key) {
+  for (final f in dir.listSync().whereType<File>()) {
+    final name = f.uri.pathSegments.last;
+    if (RegExp(
+      '^$key(?:_(?!t\\d|r[0-9a-f]+(?:_|\\.)|from\\d)[a-z0-9-]+)?\\.png\$',
+    ).hasMatch(name)) {
+      return name;
+    }
+  }
+  return null;
 }
