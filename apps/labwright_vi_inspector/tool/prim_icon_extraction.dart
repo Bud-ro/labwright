@@ -38,18 +38,22 @@ const int kErasedRgb = 0xFEFEFE;
 /// Specific Class draws its 32x16 art at the top of the box instead.
 const int kPrimitiveArtMaxOffCentre = 2;
 
-/// Whitens every ink component of [rgba] ([w] by [h], node box inset by [pad]) that is not the
-/// icon: the icon is the component whose bounds hold the box's centre (the largest when
-/// several do, or when none does) together with the components inside its bounds and the
-/// non-wire-like components within two pixels of it that keep the union centred in the box
-/// to within two pixels.
+/// Whitens every ink of [rgba] ([w] by [h], node box inset by [pad]) that is not the icon.
+/// Components form over [componentInk]: the icon is the component whose bounds hold the
+/// box's centre (the largest when several do, or when none does) together with the
+/// components inside its bounds and the non-wire-like components within two pixels of it
+/// that keep the union centred in the box to within two pixels. Every other pixel of
+/// [anyInk] farther than [kStrayInkReach] pixels from the kept components is whitened too,
+/// so a neighbour's ink goes while the blended fringe and the wires against the icon stay.
 void _keepMainCluster(
   Uint8List rgba,
   int w,
   int h,
   int pad,
-  bool Function(Uint8List rgba, int w, int x, int y) inky,
+  bool Function(Uint8List rgba, int w, int x, int y) componentInk,
+  bool Function(Uint8List rgba, int w, int x, int y) anyInk,
 ) {
+  final inky = componentInk;
   final compOf = List<int>.filled(w * h, -1);
   final comps = <({List<int> px, int l, int t, int r, int b})>[];
   for (var y = 0; y < h; y++) {
@@ -84,7 +88,7 @@ void _keepMainCluster(
       comps.add((px: pixels, l: cl, t: ct, r: cr, b: cb));
     }
   }
-  if (comps.length < 2) return;
+  if (comps.isEmpty) return;
   final cx = w ~/ 2, cy = h ~/ 2;
   var main = -1;
   for (var i = 0; i < comps.length; i++) {
@@ -132,13 +136,31 @@ void _keepMainCluster(
       }
     }
   }
-  for (var i = 0; i < comps.length; i++) {
-    if (kept.contains(i)) continue;
+  final near = List<bool>.filled(w * h, false);
+  for (final i in kept) {
     for (final idx in comps[i].px) {
+      final x = idx % w, y = idx ~/ w;
+      for (var dy = -kStrayInkReach; dy <= kStrayInkReach; dy++) {
+        for (var dx = -kStrayInkReach; dx <= kStrayInkReach; dx++) {
+          final nx = x + dx, ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= w || ny >= h) continue;
+          near[ny * w + nx] = true;
+        }
+      }
+    }
+  }
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
+      final idx = y * w + x;
+      if (near[idx] || !anyInk(rgba, w, x, y)) continue;
       rgba[idx * 4] = rgba[idx * 4 + 1] = rgba[idx * 4 + 2] = 255;
     }
   }
 }
+
+/// How far, in pixels, ink may lie from the icon's cluster and still belong to the cut: the
+/// blended fringe of an anti-aliased edge and the wire pixels against the icon.
+const int kStrayInkReach = 2;
 
 /// The reference renders' diagram dot grid, background rather than ink.
 const int kDiagramGridDotRgb = 0xe2e2e2;
@@ -186,16 +208,11 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
       pixels[i] = pixels[i + 1] = pixels[i + 2] = 255;
     }
   }
-  _keepMainCluster(
-    pixels,
-    w,
-    h,
-    pad,
-    (rgba, w, x, y) =>
-        rgba[(y * w + x) * 4] < 240 ||
-        rgba[(y * w + x) * 4 + 1] < 240 ||
-        rgba[(y * w + x) * 4 + 2] < 240,
-  );
+  bool inky(Uint8List rgba, int w, int x, int y) =>
+      rgba[(y * w + x) * 4] < 240 ||
+      rgba[(y * w + x) * 4 + 1] < 240 ||
+      rgba[(y * w + x) * 4 + 2] < 240;
+  _keepMainCluster(pixels, w, h, pad, inky, inky);
   final background = List<bool>.filled(w * h, false);
   bool nearWhite(int idx) =>
       pixels[idx * 4] >= 240 &&
@@ -872,17 +889,18 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
 
       const boxPad = 5;
       final bw = w0 - 2 * boxPad, bh = h0 - 2 * boxPad;
+      bool ringInk(Uint8List rgba, int x, int y) =>
+          iconInk(rgba, w0, x, y) ||
+          primitive && !antiAliased && foreign(rgba, w0, x, y);
       bool ringComplete(Uint8List rgba) {
         if (bw < 8 || bh < 8) return false;
         for (var x = boxPad; x < boxPad + bw; x++) {
-          if (!iconInk(rgba, w0, x, boxPad) ||
-              !iconInk(rgba, w0, x, boxPad + bh - 1)) {
+          if (!ringInk(rgba, x, boxPad) || !ringInk(rgba, x, boxPad + bh - 1)) {
             return false;
           }
         }
         for (var y = boxPad; y < boxPad + bh; y++) {
-          if (!iconInk(rgba, w0, boxPad, y) ||
-              !iconInk(rgba, w0, boxPad + bw - 1, y)) {
+          if (!ringInk(rgba, boxPad, y) || !ringInk(rgba, boxPad + bw - 1, y)) {
             return false;
           }
         }
@@ -1180,8 +1198,24 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           }
         }
       }
-      void keepMainCluster(Uint8List rgba) =>
-          _keepMainCluster(rgba, w0, h0, boxPad, iconInk);
+      bool paletteInk(Uint8List rgba, int w, int x, int y) {
+        final i = (y * w + x) * 4;
+        return inky(rgba, w, x, y) &&
+            kPrimitiveInkPalette.contains(
+              BdColorAlias.canonicalRgb(
+                (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2],
+              ),
+            );
+      }
+
+      void keepMainCluster(Uint8List rgba) => _keepMainCluster(
+        rgba,
+        w0,
+        h0,
+        boxPad,
+        primitive ? paletteInk : iconInk,
+        inky,
+      );
 
       if (debug) _debugPng('$key/consensus_voted', consensus, w0, h0);
       keepMainCluster(consensus);
@@ -1552,6 +1586,16 @@ Map<String, String> _mergeVersionClusters({
         included[k] = {};
       }
     }
+    if (base.startsWith('prim')) {
+      final defects = {
+        for (final k in candidates) k: _primDefects(pending[k]!.icon),
+      };
+      candidates.sort(
+        (a, b) => defects[a]! != defects[b]!
+            ? defects[a]!.compareTo(defects[b]!)
+            : included[b]!.length.compareTo(included[a]!.length),
+      );
+    }
     final votes = <int, Map<String, int>>{};
     for (final k in candidates) {
       for (final src in included[k]!) {
@@ -1685,6 +1729,42 @@ Map<String, String> _mergeVersionClusters({
     }
   }
   return renamed;
+}
+
+/// The pixels of a primitive's cut that cannot be its art: opaque pixels outside
+/// [kPrimitiveInkPalette] and transparent pixels enclosed by the art (a hole where a wire or
+/// coercion dot hid the icon in every sample).
+int _primDefects(img.Image icon) {
+  final w = icon.width, h = icon.height;
+  final outside = List<bool>.filled(w * h, false);
+  final stack = <int>[];
+  for (var x = 0; x < w; x++) {
+    stack.addAll([x, (h - 1) * w + x]);
+  }
+  for (var y = 0; y < h; y++) {
+    stack.addAll([y * w, y * w + w - 1]);
+  }
+  while (stack.isNotEmpty) {
+    final idx = stack.removeLast();
+    if (outside[idx] || icon.getPixel(idx % w, idx ~/ w).a != 0) continue;
+    outside[idx] = true;
+    final x = idx % w, y = idx ~/ w;
+    if (x > 0) stack.add(idx - 1);
+    if (x < w - 1) stack.add(idx + 1);
+    if (y > 0) stack.add(idx - w);
+    if (y < h - 1) stack.add(idx + w);
+  }
+  var defects = 0;
+  for (final p in icon) {
+    if (p.a == 0) {
+      if (!outside[p.y * w + p.x]) defects++;
+    } else if (!kPrimitiveInkPalette.contains(
+      BdColorAlias.canonicalRgb(_rgbOf(p)),
+    )) {
+      defects++;
+    }
+  }
+  return defects;
 }
 
 /// Whether two cuts are the same art: the same size and at most [tolerance] pixels that

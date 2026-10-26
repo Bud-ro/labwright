@@ -105,30 +105,46 @@ void main() {
             if (key == null || b == null || b.width <= 0 || b.height <= 0) {
               continue;
             }
+            final resolved = loadedPrimIconIdOf(o, diagram: bd);
+            final art = resolved == null ? null : icons[resolved];
+            final region = _regionOf(b.width, b.height, art, resolved);
             final left =
                 ((b.left - raster.content.left) * raster.scale * reg.scale +
                         reg.dx)
-                    .round() -
+                    .round() +
+                region.left.round() -
                 kIconReviewPad;
             final top =
                 ((b.top - raster.content.top) * raster.scale * reg.scale +
                         reg.dy)
-                    .round() -
+                    .round() +
+                region.top.round() -
                 kIconReviewPad;
-            final w = b.width + 2 * kIconReviewPad,
-                h = b.height + 2 * kIconReviewPad;
-            if (left < 0 || top < 0 || left + w > refW || top + h > refH) {
+            final w = region.width.round() + 2 * kIconReviewPad,
+                h = region.height.round() + 2 * kIconReviewPad;
+            if (left + w <= 0 || top + h <= 0 || left >= refW || top >= refH) {
               continue;
             }
-            final crop = Uint8List(w * h * 4);
+            final crop = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
             for (var y = 0; y < h; y++) {
+              final sy = top + y;
+              if (sy < 0 || sy >= refH) continue;
+              final x0 = left < 0 ? -left : 0;
+              final x1 = left + w > refW ? refW - left : w;
+              if (x1 <= x0) continue;
               crop.setRange(
-                y * w * 4,
-                (y + 1) * w * 4,
+                (y * w + x0) * 4,
+                (y * w + x1) * 4,
                 result.referenceRgba,
-                ((top + y) * refW + left) * 4,
+                (sy * refW + left + x0) * 4,
               );
             }
+            final boxRect = [
+              kIconReviewPad - region.left.round(),
+              kIconReviewPad - region.top.round(),
+              b.width,
+              b.height,
+            ];
             for (var i = 0; i < crop.length; i += 4) {
               final rgb = (crop[i] << 16) | (crop[i + 1] << 8) | crop[i + 2];
               final canonical = rgb == kDiagramGridDotRgb
@@ -148,13 +164,13 @@ void main() {
               }
               anc = bd.byId[anc.parentOid ?? -1];
             }
-            final resolved = loadedPrimIconIdOf(o, diagram: bd);
             final variant = (variants[key] ??= {}).putIfAbsent(
               base64Encode(crop),
               () => _Variant(
                 rgba: crop,
                 width: w,
                 height: h,
+                boxRect: boxRect,
                 hard: isHardEdgedCrop(crop, w, h, kIconReviewPad, key: key),
                 ink: hasIconInk(crop, w, h, kIconReviewPad),
                 generation: resolved == null ? null : primIconName(resolved),
@@ -197,12 +213,13 @@ void main() {
         for (final id in byBase[key] ?? const <int>[]) {
           final art = icons[id]!;
           final name = primIconName(id);
-          final (boxW, boxH, canvas, stamp) = _stampedAsset(
+          final (boxW, boxH, canvas, stamp, boxAt) = _stampedAsset(
             art.width,
             art.height,
             art.rgba,
             commonSize,
             id,
+            art,
           );
           final file = '$key/asset_$name.png';
           File('$reviewDir/$file').writeAsBytesSync(img.encodePng(canvas));
@@ -214,9 +231,10 @@ void main() {
             'width': art.width,
             'height': art.height,
             'box': [boxW, boxH],
+            'boxRect': [boxAt[0], boxAt[1], boxW, boxH],
             'stamp': [
-              stamp.left.round() - kIconReviewPad,
-              stamp.top.round() - kIconReviewPad,
+              stamp.left.round() - boxAt[0],
+              stamp.top.round() - boxAt[1],
             ],
           });
         }
@@ -230,12 +248,13 @@ void main() {
           if (png == null) continue;
           final art = img.decodePng(png.readAsBytesSync())!;
           final rgba = art.convert(numChannels: 4).toUint8List();
-          final (boxW, boxH, canvas, stamp) = _stampedAsset(
+          final (boxW, boxH, canvas, stamp, boxAt) = _stampedAsset(
             art.width,
             art.height,
             rgba,
             commonSize,
             parsePrimIconName(name)!,
+            null,
           );
           final file = '$key/asset_$name.png';
           File('$reviewDir/$file').writeAsBytesSync(img.encodePng(canvas));
@@ -247,9 +266,10 @@ void main() {
             'width': art.width,
             'height': art.height,
             'box': [boxW, boxH],
+            'boxRect': [boxAt[0], boxAt[1], boxW, boxH],
             'stamp': [
-              stamp.left.round() - kIconReviewPad,
-              stamp.top.round() - kIconReviewPad,
+              stamp.left.round() - boxAt[0],
+              stamp.top.round() - boxAt[1],
             ],
           });
         }
@@ -270,6 +290,7 @@ void main() {
             'file': file,
             'width': v.width,
             'height': v.height,
+            'boxRect': v.boxRect,
             'count': v.sources.length,
             'hard': v.hard,
             'ink': v.ink,
@@ -311,20 +332,38 @@ void main() {
   );
 }
 
+/// The area a crop of a node box [boxW] by [boxH] covers, relative to the box: the box itself
+/// and, when the painter stamps [art] beyond it, the stamp too.
+Rect _regionOf(int boxW, int boxH, PrimIconArt? art, int? id) {
+  final box = Rect.fromLTWH(0, 0, boxW.toDouble(), boxH.toDouble());
+  if (art == null || id == null) return box;
+  return box.expandToInclude(
+    primIconStampRect(box, art.width, art.height, key: id),
+  );
+}
+
 /// [art] over a white node box of [commonSize] (else the art's own size) with
-/// [kIconReviewPad] around it, placed as the painter stamps icon [id].
-(int, int, img.Image, Rect) _stampedAsset(
+/// [kIconReviewPad] around it, placed as the painter stamps icon [id]; the canvas covers the
+/// box and the stamp. Returns the box's size, the canvas, the stamp and the box's offset in
+/// the canvas.
+(int, int, img.Image, Rect, List<int>) _stampedAsset(
   int artW,
   int artH,
   Uint8List rgba,
   List<int>? commonSize,
   int id,
+  PrimIconArt? art,
 ) {
   final boxW = commonSize?[0] ?? artW, boxH = commonSize?[1] ?? artH;
+  final region = _regionOf(boxW, boxH, art, id);
+  final boxAt = [
+    kIconReviewPad - region.left.round(),
+    kIconReviewPad - region.top.round(),
+  ];
   final stamp = primIconStampRect(
     Rect.fromLTWH(
-      kIconReviewPad.toDouble(),
-      kIconReviewPad.toDouble(),
+      boxAt[0].toDouble(),
+      boxAt[1].toDouble(),
       boxW.toDouble(),
       boxH.toDouble(),
     ),
@@ -333,8 +372,8 @@ void main() {
     key: id,
   );
   final canvas = img.Image(
-    width: boxW + 2 * kIconReviewPad,
-    height: boxH + 2 * kIconReviewPad,
+    width: region.width.round() + 2 * kIconReviewPad,
+    height: region.height.round() + 2 * kIconReviewPad,
   );
   img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
   for (var y = 0; y < artH; y++) {
@@ -356,7 +395,7 @@ void main() {
       );
     }
   }
-  return (boxW, boxH, canvas, stamp);
+  return (boxW, boxH, canvas, stamp, boxAt);
 }
 
 /// The distinct colors of the opaque pixels in [rgba], as `rrggbb`, sorted.
@@ -391,6 +430,7 @@ class _Variant {
     required this.rgba,
     required this.width,
     required this.height,
+    required this.boxRect,
     required this.hard,
     required this.ink,
     required this.generation,
@@ -399,6 +439,9 @@ class _Variant {
   final Uint8List rgba;
   final int width;
   final int height;
+
+  /// The node box within the crop, as left, top, width, height.
+  final List<int> boxRect;
   final bool hard;
   final bool ink;
   final String? generation;
