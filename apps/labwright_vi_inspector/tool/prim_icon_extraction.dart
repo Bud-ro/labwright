@@ -33,6 +33,11 @@ void _debugPng(String name, Uint8List rgba, int w, int h) {
 /// unknown in every vote.
 const int kErasedRgb = 0xFEFEFE;
 
+/// How far, in pixels, a primitive's art sits from the centre of its node box on either axis
+/// when it is centred: Not's negation bubble pulls its bounds one pixel left. To More
+/// Specific Class draws its 32x16 art at the top of the box instead.
+const int kPrimitiveArtMaxOffCentre = 2;
+
 /// Whitens every ink component of [rgba] ([w] by [h], node box inset by [pad]) that is not the
 /// icon: the icon is the component whose bounds hold the box's centre (the largest when
 /// several do, or when none does) together with the components inside its bounds and the
@@ -259,8 +264,8 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
     }
   }
   var left = w, top = h, right = -1, bottom = -1;
-  for (var y = pad; y < h - pad; y++) {
-    for (var x = pad; x < w - pad; x++) {
+  for (var y = 0; y < h; y++) {
+    for (var x = 0; x < w; x++) {
       if (background[y * w + x]) continue;
       if (x < left) left = x;
       if (x > right) right = x;
@@ -269,6 +274,14 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
     }
   }
   if (right < 0) return null;
+  if (right - left + 1 > boxWidth) {
+    if (left < pad) left = pad;
+    if (right > w - 1 - pad) right = w - 1 - pad;
+  }
+  if (bottom - top + 1 > boxHeight) {
+    if (top < pad) top = pad;
+    if (bottom > h - 1 - pad) bottom = h - 1 - pad;
+  }
   final artWidth = right - left + 1, artHeight = bottom - top + 1;
   final art = Uint8List(artWidth * artHeight * 4);
   for (var y = 0; y < artHeight; y++) {
@@ -670,7 +683,12 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         foreignRgb((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
   }
 
-  var erodable = foreign;
+  bool Function(int rgb) erodableRgb = isOverlayInk;
+  bool erodable(Uint8List rgba, int w, int x, int y) {
+    final i = (y * w + x) * 4;
+    return inky(rgba, w, x, y) &&
+        erodableRgb((rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2]);
+  }
 
   bool iconInk(Uint8List rgba, int w, int x, int y) =>
       inky(rgba, w, x, y) && !foreign(rgba, w, x, y);
@@ -834,10 +852,13 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     for (final key in keys) {
       final identity = key.split('@').first;
       final antiAliased = softOnly.contains(identity);
+      final primitive = identity.startsWith('prim');
       foreignRgb = antiAliased
           ? isOverlayInk
           : (rgb) => isForeignInk(identity, rgb);
-      erodable = antiAliased ? inky : foreign;
+      erodableRgb = primitive && !antiAliased
+          ? (rgb) => isForeignInk(identity, rgb)
+          : isOverlayInk;
       final all = samples[key]!;
       final dims = <String, int>{};
       for (final s in all) {
@@ -1199,9 +1220,16 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
       }
 
+      /// Whether ink bounds sit within [kPrimitiveArtMaxOffCentre] pixels of the node box's
+      /// centre on both axes, as most primitives' art does; a single sample that is wins over
+      /// one that is not, since a neighbour fused to the icon pulls the bounds off centre.
+      bool centredInBox(int l, int t, int r, int b) =>
+          ((l + r) - (w0 - 1)).abs() <= 2 * kPrimitiveArtMaxOffCentre &&
+          ((t + b) - (h0 - 1)).abs() <= 2 * kPrimitiveArtMaxOffCentre;
+
       String? singleSource;
       Uint8List? centredSingle() {
-        var bestInk = 0;
+        var bestInk = 0, bestCentred = false;
         Uint8List? single;
         for (final s in group) {
           final copy = Uint8List.fromList(s.rgba);
@@ -1218,6 +1246,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
           if (l == 0 || t == 0 || r == w0 - 1 || btm == h0 - 1) continue;
           final cx = w0 ~/ 2, cy = h0 ~/ 2;
           if (l > cx || r < cx || t > cy || btm < cy) continue;
+          final centred = !primitive || centredInBox(l, t, r, btm);
           if (r - l + 1 > w0 - 4 || btm - t + 1 > h0 - 4) continue;
           var ink = 0;
           for (var y = t; y <= btm; y++) {
@@ -1225,13 +1254,16 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
               if (inky(copy, w0, x, y)) ink++;
             }
           }
-          if (ink > bestInk) {
+          if (ink < 60) continue;
+          if (centred && !bestCentred ||
+              centred == bestCentred && ink > bestInk) {
             bestInk = ink;
+            bestCentred = centred;
             single = copy;
             singleSource = s.source;
           }
         }
-        return bestInk < 60 ? null : single;
+        return single;
       }
 
       var method = seeded ? 'pair-seeded consensus' : 'single-sample fallback';
@@ -1266,10 +1298,14 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         consensus.setAll(0, single);
         measure(consensus);
       }
-      if (l < boxPad) l = boxPad;
-      if (t < boxPad) t = boxPad;
-      if (r > w0 - 1 - boxPad) r = w0 - 1 - boxPad;
-      if (btm > h0 - 1 - boxPad) btm = h0 - 1 - boxPad;
+      if (r - l + 1 > bw) {
+        if (l < boxPad) l = boxPad;
+        if (r > w0 - 1 - boxPad) r = w0 - 1 - boxPad;
+      }
+      if (btm - t + 1 > bh) {
+        if (t < boxPad) t = boxPad;
+        if (btm > h0 - 1 - boxPad) btm = h0 - 1 - boxPad;
+      }
       final w = r - l + 1, h = btm - t + 1;
       final icon = img.Image(width: w, height: h, numChannels: 4);
       for (var y = 0; y < h; y++) {

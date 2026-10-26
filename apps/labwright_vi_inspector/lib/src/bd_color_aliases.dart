@@ -7,8 +7,9 @@ enum BdColorAlias {
   /// 2015.
   floatOrange(0xFF6600, {0xFF7F00}),
 
-  /// Boolean wires and terminals: 0x006600, or 0x007F00 in the same older renders.
-  booleanGreen(0x006600, {0x007F00}),
+  /// Boolean wires and terminals: 0x006600, 0x007F00 in the same older renders, 0x007B00 in
+  /// the 2011 and 2015 renders of two sources.
+  booleanGreen(0x006600, {0x007F00, 0x007B00}),
 
   /// Error cluster wires and the olive of error terminals: 0x666600 or 0x7F7F00.
   errorOlive(0x666600, {0x7F7F00}),
@@ -28,8 +29,9 @@ enum BdColorAlias {
   /// The sequence structure's band and the diagram's alignment grid: 0xDDDDDD or 0xE2E2E2.
   sequenceGrey(0xDDDDDD, {0xE2E2E2}),
 
-  /// A free label's yellow backing: 0xFFFFCC or 0xFFFFD7.
-  labelBacking(0xFFFFCC, {0xFFFFD7}),
+  /// A free label's yellow backing and a primitive icon's fill: 0xFFFFCC, 0xFFFFD7, or 0xFFFFCE
+  /// in renders from 2011 to 2018 of several sources.
+  labelBacking(0xFFFFCC, {0xFFFFD7, 0xFFFFCE}),
 
   /// The ink of a node's frame and icon: black through 2015, 0x4C4C3D from 2016 to 2020 and
   /// from 2024 on, 0x444444 in the 2021 renders of one source and 0x474747 in other 2021
