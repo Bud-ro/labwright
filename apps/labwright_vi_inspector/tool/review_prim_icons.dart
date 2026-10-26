@@ -24,7 +24,9 @@ const int kIconReviewPad = 1;
 /// is each committed generation of the art stamped in a white node box, and `<key>/<n>.png`
 /// each distinct appearance of the node box in LabVIEW's reference renders, cropped at natural
 /// size with [kIconReviewPad] pixels around the box, color aliases canonicalised and grid dots
-/// cleared, with how often and where it appears. `index.json` describes them all.
+/// cleared, with how often and where it appears, and `<key>/<n>_cut.png` the icon ink the
+/// extraction cuts from that appearance on its own, placed in the box. `index.json` describes
+/// them all.
 void main() {
   const reviewDir = String.fromEnvironment('ICON_REVIEW_DIR');
   testWidgets(
@@ -108,53 +110,36 @@ void main() {
             final resolved = loadedPrimIconIdOf(o, diagram: bd);
             final art = resolved == null ? null : icons[resolved];
             final region = _regionOf(b.width, b.height, art, resolved);
-            final left =
+            final boxLeft =
                 ((b.left - raster.content.left) * raster.scale * reg.scale +
                         reg.dx)
-                    .round() +
-                region.left.round() -
-                kIconReviewPad;
-            final top =
+                    .round();
+            final boxTop =
                 ((b.top - raster.content.top) * raster.scale * reg.scale +
                         reg.dy)
-                    .round() +
-                region.top.round() -
-                kIconReviewPad;
+                    .round();
+            final left = boxLeft + region.left.round() - kIconReviewPad;
+            final top = boxTop + region.top.round() - kIconReviewPad;
             final w = region.width.round() + 2 * kIconReviewPad,
                 h = region.height.round() + 2 * kIconReviewPad;
             if (left + w <= 0 || top + h <= 0 || left >= refW || top >= refH) {
               continue;
             }
-            final crop = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
-            for (var y = 0; y < h; y++) {
-              final sy = top + y;
-              if (sy < 0 || sy >= refH) continue;
-              final x0 = left < 0 ? -left : 0;
-              final x1 = left + w > refW ? refW - left : w;
-              if (x1 <= x0) continue;
-              crop.setRange(
-                (y * w + x0) * 4,
-                (y * w + x1) * 4,
-                result.referenceRgba,
-                (sy * refW + left + x0) * 4,
-              );
-            }
+            final crop = _cropReference(
+              result.referenceRgba,
+              refW,
+              refH,
+              left,
+              top,
+              w,
+              h,
+            );
             final boxRect = [
               kIconReviewPad - region.left.round(),
               kIconReviewPad - region.top.round(),
               b.width,
               b.height,
             ];
-            for (var i = 0; i < crop.length; i += 4) {
-              final rgb = (crop[i] << 16) | (crop[i + 1] << 8) | crop[i + 2];
-              final canonical = rgb == kDiagramGridDotRgb
-                  ? 0xffffff
-                  : BdColorAlias.canonicalRgb(rgb);
-              crop[i] = canonical >> 16;
-              crop[i + 1] = (canonical >> 8) & 0xff;
-              crop[i + 2] = canonical & 0xff;
-              crop[i + 3] = 0xff;
-            }
             var anc = bd.byId[o.parentOid ?? -1];
             var hops = 0, disabled = false;
             while (anc != null && hops++ < 12) {
@@ -174,6 +159,16 @@ void main() {
                 hard: isHardEdgedCrop(crop, w, h, kIconReviewPad, key: key),
                 ink: hasIconInk(crop, w, h, kIconReviewPad),
                 generation: resolved == null ? null : primIconName(resolved),
+                cut: _cutOf(
+                  key,
+                  result.referenceRgba,
+                  refW,
+                  refH,
+                  boxLeft,
+                  boxTop,
+                  b.width,
+                  b.height,
+                ),
               ),
             );
             variant.sources.add((
@@ -286,6 +281,29 @@ void main() {
           );
           final file = '$key/${i + 1}.png';
           File('$reviewDir/$file').writeAsBytesSync(img.encodePng(image));
+          final cut = v.cut;
+          Map<String, Object?>? cutEntry;
+          if (cut != null) {
+            final canvas = img.Image(width: v.width, height: v.height);
+            img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
+            _stampOver(
+              canvas,
+              cut.rgba,
+              cut.w,
+              cut.h,
+              v.boxRect[0] + cut.dx,
+              v.boxRect[1] + cut.dy,
+            );
+            final cutFile = '$key/${i + 1}_cut.png';
+            File('$reviewDir/$cutFile').writeAsBytesSync(img.encodePng(canvas));
+            cutEntry = {
+              'file': cutFile,
+              'width': cut.w,
+              'height': cut.h,
+              'at': [cut.dx, cut.dy],
+              'colors': _colorsOf(cut.rgba),
+            };
+          }
           refs.add({
             'file': file,
             'width': v.width,
@@ -295,6 +313,8 @@ void main() {
             'hard': v.hard,
             'ink': v.ink,
             'generation': v.generation,
+            'cut': cutEntry,
+            'tier': _tierOf(v),
             'versions': (v.sources.map((s) => s.version).toSet().toList()
               ..sort()),
             'lowQuality': v.sources.every((s) => s.lowQuality),
@@ -376,12 +396,26 @@ Rect _regionOf(int boxW, int boxH, PrimIconArt? art, int? id) {
     height: region.height.round() + 2 * kIconReviewPad,
   );
   img.fill(canvas, color: img.ColorRgb8(255, 255, 255));
+  _stampOver(canvas, rgba, artW, artH, stamp.left.round(), stamp.top.round());
+  return (boxW, boxH, canvas, stamp, boxAt);
+}
+
+/// Composites the [artW] by [artH] RGBA [rgba] over the white [canvas] with its top-left at
+/// ([left], [top]); pixels outside the canvas are dropped.
+void _stampOver(
+  img.Image canvas,
+  Uint8List rgba,
+  int artW,
+  int artH,
+  int left,
+  int top,
+) {
   for (var y = 0; y < artH; y++) {
     for (var x = 0; x < artW; x++) {
       final i = (y * artW + x) * 4;
       final a = rgba[i + 3];
       if (a == 0) continue;
-      final cx = stamp.left.round() + x, cy = stamp.top.round() + y;
+      final cx = left + x, cy = top + y;
       if (cx < 0 || cy < 0 || cx >= canvas.width || cy >= canvas.height) {
         continue;
       }
@@ -395,7 +429,83 @@ Rect _regionOf(int boxW, int boxH, PrimIconArt? art, int? id) {
       );
     }
   }
-  return (boxW, boxH, canvas, stamp, boxAt);
+}
+
+/// The [w] by [h] window of the reference at ([left], [top]) as opaque RGBA, white where
+/// the window leaves the image, grid dots cleared and colour aliases canonicalised.
+Uint8List _cropReference(
+  Uint8List referenceRgba,
+  int refW,
+  int refH,
+  int left,
+  int top,
+  int w,
+  int h,
+) {
+  final crop = Uint8List(w * h * 4)..fillRange(0, w * h * 4, 255);
+  for (var y = 0; y < h; y++) {
+    final sy = top + y;
+    if (sy < 0 || sy >= refH) continue;
+    final x0 = left < 0 ? -left : 0;
+    final x1 = left + w > refW ? refW - left : w;
+    if (x1 <= x0) continue;
+    crop.setRange(
+      (y * w + x0) * 4,
+      (y * w + x1) * 4,
+      referenceRgba,
+      (sy * refW + left + x0) * 4,
+    );
+  }
+  for (var i = 0; i < crop.length; i += 4) {
+    final rgb = (crop[i] << 16) | (crop[i + 1] << 8) | crop[i + 2];
+    final canonical = rgb == kDiagramGridDotRgb
+        ? 0xffffff
+        : BdColorAlias.canonicalRgb(rgb);
+    crop[i] = canonical >> 16;
+    crop[i + 1] = (canonical >> 8) & 0xff;
+    crop[i + 2] = canonical & 0xff;
+    crop[i + 3] = 0xff;
+  }
+  return crop;
+}
+
+/// What the extraction cuts from this one appearance of [key]'s node box on its own, see
+/// [cleanNodeBoxCrop]; null when the box holds no icon ink.
+({Uint8List rgba, int w, int h, int dx, int dy})? _cutOf(
+  String key,
+  Uint8List referenceRgba,
+  int refW,
+  int refH,
+  int boxLeft,
+  int boxTop,
+  int boxW,
+  int boxH,
+) {
+  const pad = kPrimIconCropPad;
+  final w = boxW + 2 * pad, h = boxH + 2 * pad;
+  final crop = _cropReference(
+    referenceRgba,
+    refW,
+    refH,
+    boxLeft - pad,
+    boxTop - pad,
+    w,
+    h,
+  );
+  if (!hasIconInk(crop, w, h, pad)) return null;
+  return cleanNodeBoxCrop(crop, w, h, pad, (rgb) => isForeignInk(key, rgb));
+}
+
+/// How the extraction treats the appearances of [v]: `watermarked`, `disabled` and `blank`
+/// renders are never harvested, `low registration` ones serve only keys no other snippet
+/// shows, `anti-aliased` ones only keys with no hard-edged render, `hard-edged` ones vote.
+String _tierOf(_Variant v) {
+  if (v.sources.every((s) => s.watermarked)) return 'watermarked';
+  if (v.sources.every((s) => s.disabled)) return 'disabled';
+  if (!v.ink) return 'blank';
+  if (v.sources.every((s) => s.lowQuality)) return 'low registration';
+  if (!v.hard) return 'anti-aliased';
+  return 'hard-edged';
 }
 
 /// The distinct colors of the opaque pixels in [rgba], as `rrggbb`, sorted.
@@ -434,6 +544,7 @@ class _Variant {
     required this.hard,
     required this.ink,
     required this.generation,
+    required this.cut,
   });
 
   final Uint8List rgba;
@@ -445,6 +556,9 @@ class _Variant {
   final bool hard;
   final bool ink;
   final String? generation;
+
+  /// The icon ink this appearance yields on its own, placed in the node box, see [_cutOf].
+  final ({Uint8List rgba, int w, int h, int dx, int dy})? cut;
   final sources =
       <
         ({

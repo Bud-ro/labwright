@@ -192,7 +192,13 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   ],
 };
 
-({Uint8List rgba, int w, int h, int dx, int dy})? _cleanNodeBoxCrop(
+/// The background pixels kept around a node box in an extraction crop.
+const int kPrimIconCropPad = 5;
+
+/// The icon ink of one node-box crop ([pad] pixels around the box) on its own: [foreign]
+/// colours whitened, the cluster holding the box centre kept, the rest transparent, cut to
+/// the ink's bounds and clipped to the box when larger. `dx`, `dy` place the cut in the box.
+({Uint8List rgba, int w, int h, int dx, int dy})? cleanNodeBoxCrop(
   Uint8List crop,
   int w,
   int h,
@@ -556,7 +562,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       final name = f.uri.pathSegments.last.replaceAll('.png', '');
       final major = int.tryParse((model.version ?? '').split('.').first) ?? 0;
       versionOfSnippet[name] = major;
-      const pad = 5;
+      const pad = kPrimIconCropPad;
       ({Uint8List rgba, int w, int h})? cropOf(HeapRect bounds) {
         final left =
             ((bounds.left - raster.content.left) * raster.scale * reg.scale +
@@ -887,7 +893,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         ..sort((a, b) => b.quality.compareTo(a.quality));
       final w0 = group.first.w, h0 = group.first.h;
 
-      const boxPad = 5;
+      const boxPad = kPrimIconCropPad;
       final bw = w0 - 2 * boxPad, bh = h0 - 2 * boxPad;
       bool ringInk(Uint8List rgba, int x, int y) =>
           iconInk(rgba, w0, x, y) ||
@@ -1356,7 +1362,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
       }
       floodTransparent(icon);
-      final maxW = w0 - 2 * 5 + 6, maxH = h0 - 2 * 5 + 6;
+      final maxW = w0 - 2 * boxPad + 6, maxH = h0 - 2 * boxPad + 6;
       var finalIcon = peelForeign(icon);
       if (finalIcon.width > maxW || finalIcon.height > maxH) {
         final single = centredSingle();
@@ -1390,7 +1396,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         if (rebuilt == null) {
           failed[key] =
               'extracted ink ${finalIcon.width}x${finalIcon.height} exceeds '
-              'the node box (${w0 - 10}x${h0 - 10}) — displaced model bounds '
+              'the node box (${w0 - 2 * boxPad}x${h0 - 2 * boxPad}) — displaced model bounds '
               'suspected (sources: ${group.map((s) => s.source).toSet().join(', ')})';
           continue;
         }
@@ -1458,7 +1464,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     }
     final cleaned = [
       for (final crop in crops)
-        if (_cleanNodeBoxCrop(
+        if (cleanNodeBoxCrop(
               crop.rgba,
               crop.w,
               crop.h,
