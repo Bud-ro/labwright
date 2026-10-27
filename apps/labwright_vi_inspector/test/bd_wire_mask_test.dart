@@ -139,6 +139,7 @@ perWireMaskGauge(WidgetTester tester, String pngName) async {
       reference.image,
       lockScale: 1.0 / raster.scale,
       anchorRects: bdStructureAnchorRects(bd, raster, drawable: scene.drawable),
+      exactRects: bdPrimIconStampRects(bd, raster, drawable: scene.drawable),
     );
     final wirePhase = deriveWireCycleOffset(
       scene: scene,

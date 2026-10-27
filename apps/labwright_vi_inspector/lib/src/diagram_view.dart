@@ -541,7 +541,7 @@ int _packRect(int top, int left, int bottom, int right) =>
     (right + 0x8000);
 
 String? _primDetail(BdObject object) {
-  final key = primIconKeyOf(object);
+  final key = primIconArtKeyOf(object);
   if (key == null) return null;
   final name = primIconName(key);
   final status = kPrimIconStatus[name];
@@ -560,7 +560,7 @@ String? _primDetail(BdObject object) {
 }
 
 String _iconStatusSuffix(BdObject object) {
-  final key = primIconKeyOf(object);
+  final key = primIconArtKeyOf(object);
   if (key == null) return '';
   final name = primIconName(key);
   final status = kPrimIconStatus[name];
@@ -572,7 +572,7 @@ PrimIconArt? primIconArtFor(
   BdDiagram diagram,
   Map<int, PrimIconArt> icons,
 ) {
-  final base = primIconKeyOf(object);
+  final base = primIconArtKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, diagram.version)!;
   if (base >= 0) return icons[key];
@@ -984,7 +984,9 @@ ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
       ? null
-      : kPrimIconPlacement[primIconName(primIconVersionOf(key)?.$1 ?? key)];
+      : kPrimIconPlacement[primIconName(
+          primIconVersionOf(key)?.$1 ?? primIconOptionOf(key)?.$1 ?? key,
+        )];
   if (placed != null) {
     return Rect.fromLTWH(
       nodeRect.left + placed.dx,
@@ -1003,7 +1005,7 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
 
 int? loadedPrimIconIdOf(BdObject object, {BdDiagram? diagram}) {
   final version = diagram?.version;
-  final base = primIconKeyOf(object);
+  final base = primIconArtKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, version)!;
   if (base >= 0) return key;
@@ -2091,7 +2093,7 @@ class BdDiagramPainter extends CustomPainter {
       return;
     }
     final icon = subViIcons[object.oid];
-    final iconKey = primIconKeyOf(object);
+    final iconKey = primIconArtKeyOf(object);
     final disabled = disabledOids.contains(object.oid);
     final primIcon =
         (disabled
@@ -5292,7 +5294,7 @@ class _OverlayPainter extends CustomPainter {
       bounds.right - origin.dx,
       bounds.bottom - origin.dy,
     );
-    final key = primIconKeyOf(o);
+    final key = primIconArtKeyOf(o);
     final art = key == null ? null : primIcons[key];
     return art == null
         ? rect

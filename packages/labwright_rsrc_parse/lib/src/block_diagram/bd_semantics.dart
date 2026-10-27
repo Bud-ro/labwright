@@ -743,6 +743,63 @@ int bdClassVariantIconKey(BdDiagram diagram, BdObject node) {
   return classVariantIconKey(node.kind, holders.length, rows: rows);
 }
 
+/// A primitive option that changes the node's art: the flag that sets it on the node of the
+/// one `primResID` it applies to, and the suffix its icon's asset name carries.
+enum BdPrimIconOption {
+  /// Read from Text File reading lines.
+  lines(8070, ViObjFlag.readLines, 'lines'),
+
+  /// Type Cast converting LabVIEW 4.x data.
+  legacyData(1166, ViObjFlag.convertLegacyData, '4x');
+
+  const BdPrimIconOption(this.primResId, this.flag, this.suffix);
+
+  final int primResId;
+
+  final ViObjFlag flag;
+
+  final String suffix;
+
+  static BdPrimIconOption? of(BdObject node) {
+    final id = node.primitive?.primResId;
+    if (id == null) return null;
+    for (final option in values) {
+      if (option.primResId == id && node.hasFlag(option.flag)) return option;
+    }
+    return null;
+  }
+
+  static BdPrimIconOption? bySuffix(String suffix) {
+    for (final option in values) {
+      if (option.suffix == suffix) return option;
+    }
+    return null;
+  }
+}
+
+const int _kPrimIconOptionKeyBase = -0x1800000000000000;
+
+/// The icon key of the art primitive [primResId] shows with [option] set, distinct from every
+/// other key; option keys have no LabVIEW generations.
+int primIconOptionKey(int primResId, BdPrimIconOption option) =>
+    _kPrimIconOptionKeyBase - ((primResId << 8) | option.index);
+
+/// The `primResID` and option of a key from [primIconOptionKey], else null.
+(int, BdPrimIconOption)? primIconOptionOf(int key) {
+  if (key > _kPrimIconOptionKeyBase || key <= -0x2000000000000000) return null;
+  final packed = _kPrimIconOptionKeyBase - key;
+  return (packed >> 8, BdPrimIconOption.values[packed & 0xff]);
+}
+
+/// The icon key of the art a node shows: [primIconKeyOf], or its option variant when the node
+/// sets an option that changes the art.
+int? primIconArtKeyOf(BdObject object) {
+  final key = primIconKeyOf(object);
+  if (key == null) return null;
+  final option = BdPrimIconOption.of(object);
+  return option == null ? key : primIconOptionKey(key, option);
+}
+
 /// The icon key of the art [baseKey] shows in VIs saved by LabVIEW [fromMajor] and later,
 /// distinct from every other key.
 int primIconVersionKey(int baseKey, int fromMajor) =>
@@ -755,11 +812,13 @@ int primIconVersionKey(int baseKey, int fromMajor) =>
   return ((packed >> 7) - 0x20000000000000, packed & 0x7f);
 }
 
-/// The asset name of a prim icon key: `prim<id>` for a primResID, `class<code>` for a
-/// single-op class (the code in hex), `class<code>_t<n>` for a class variant with `n` terminals (`_r<hex>` for
-/// its rows signature), each with `_from<major>` when it is one LabVIEW generation of the art.
+/// The asset name of a prim icon key: `prim<id>` for a primResID (`prim<id>_<option>` for its
+/// option variant), `class<code>` for a single-op class (the code in hex), `class<code>_t<n>`
+/// for a class variant with `n` terminals (`_r<hex>` for its rows signature), each with
+/// `_from<major>` when it is one LabVIEW generation of the art.
 String primIconName(int key) {
   if (primIconVersionOf(key) case (final base, final from)) return '${primIconName(base)}_from$from';
+  if (primIconOptionOf(key) case (final id, final option)) return 'prim${id}_${option.suffix}';
   if (key >= 0) return 'prim$key';
   if (key > -0x100000) return 'class0x${(-key).toRadixString(16)}';
   if (key > -0x2000000) {
@@ -773,17 +832,24 @@ String primIconName(int key) {
 
 /// The prim icon key spelled by [name], or null when it is not one; the inverse of [primIconName].
 int? parsePrimIconName(String name) {
-  final match = RegExp(r'^(prim|class0x)([0-9a-f]+)(?:_t(\d+)(?:_r([0-9a-f]+))?)?(?:_from(\d+))?$').firstMatch(name);
+  final suffixes = BdPrimIconOption.values.map((option) => option.suffix).join('|');
+  final match = RegExp(
+    '^(prim|class0x)([0-9a-f]+)(?:_t(\\d+)(?:_r([0-9a-f]+))?)?(?:_($suffixes))?(?:_from(\\d+))?\$',
+  ).firstMatch(name);
   if (match == null) return null;
-  final number = int.parse(match.group(2)!, radix: match.group(1) == 'prim' ? 10 : 16);
+  final isPrim = match.group(1) == 'prim';
+  final number = int.parse(match.group(2)!, radix: isPrim ? 10 : 16);
   final terms = match.group(3);
   final rows = match.group(4);
-  final base = match.group(1) == 'prim'
+  final suffix = match.group(5);
+  final from = match.group(6);
+  if (suffix != null && (!isPrim || terms != null || from != null)) return null;
+  final base = isPrim
       ? number
       : terms == null
       ? -number
       : classVariantIconKey(number, int.parse(terms), rows: rows == null ? 0 : int.parse(rows, radix: 16));
-  final from = match.group(5);
+  if (suffix != null) return primIconOptionKey(base, BdPrimIconOption.bySuffix(suffix)!);
   return from == null ? base : primIconVersionKey(base, int.parse(from));
 }
 

@@ -129,6 +129,7 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim1164': PrimIconStatus.verifiedHand,
   'prim1165': PrimIconStatus.verifiedHand,
   'prim1166': PrimIconStatus.verifiedHand,
+  'prim1166_4x': PrimIconStatus.verifiedHand,
   'prim1167': PrimIconStatus.verifiedHand,
   'prim1168': PrimIconStatus.verifiedHand,
   'prim1169': PrimIconStatus.verifiedHand,
@@ -268,7 +269,9 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
   'prim8063': PrimIconStatus.unverified,
   'prim8065': PrimIconStatus.verifiedHand,
   'prim8068': PrimIconStatus.verifiedHand,
-  'prim8070': PrimIconStatus.verifiedHand,
+  'prim8070_from12': PrimIconStatus.unverified,
+  'prim8070_from13': PrimIconStatus.verifiedHand,
+  'prim8070_lines': PrimIconStatus.unverified,
   'prim8073': PrimIconStatus.verifiedHand,
   'prim8074': PrimIconStatus.verifiedHand,
   'prim8076': PrimIconStatus.verifiedHand,
@@ -394,11 +397,11 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1902': (dx: 0, dy: 4), // x11
   'prim1903': (dx: 4, dy: 4), // x3
   'prim1904': (dx: 4, dy: 4), // x5
-  'prim1905': (dx: 0, dy: 0), // x3
+  'prim1905': (dx: 0, dy: 0), // x1
   'prim1906': (dx: 0, dy: 7), // x4
   'prim1907': (dx: 0, dy: 0), // x7
   'prim1908': (dx: 0, dy: 0), // x1
-  'prim1909': (dx: 0, dy: 0), // x6
+  'prim1909': (dx: 0, dy: 0), // x2
   'prim1910': (dx: 4, dy: 4), // x2
   'prim1911': (dx: 4, dy: 4), // x4
   'prim1922': (dx: 0, dy: 0), // x7
@@ -423,12 +426,12 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim8010': (dx: 0, dy: 0), // x6
   'prim8011': (dx: 0, dy: 0), // x8
   'prim8013': (dx: 0, dy: 0), // x2
+  'prim8016': (dx: 0, dy: 0), // x3
   'prim8050': (dx: 0, dy: 0), // x6
   'prim8051': (dx: 0, dy: 0), // x1
   'prim8052': (dx: 0, dy: 0), // x6
   'prim8053': (dx: 0, dy: 0), // x1
   'prim8062': (dx: 0, dy: 0), // x1
-  'prim8070': (dx: 0, dy: 0), // x2
   'prim8073': (dx: 0, dy: 0), // x3
   'prim8074': (dx: 0, dy: 0), // x1
   'prim8080': (dx: 0, dy: 0), // x6

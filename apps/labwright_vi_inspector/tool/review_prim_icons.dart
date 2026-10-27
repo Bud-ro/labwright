@@ -22,11 +22,12 @@ const int kIconReviewPad = 1;
 ///
 /// For every icon key the snippet corpus shows or an asset exists for, `<key>/asset_<name>.png`
 /// is each committed generation of the art stamped in a white node box, and `<key>/<n>.png`
-/// each distinct appearance of the node box in LabVIEW's reference renders, cropped at natural
-/// size with [kIconReviewPad] pixels around the box, color aliases canonicalised and grid dots
-/// cleared, with how often and where it appears, and `<key>/<n>_cut.png` the icon ink the
-/// extraction cuts from that appearance on its own, placed in the box. `index.json` describes
-/// them all.
+/// each distinct appearance of a drawn node's box in LabVIEW's reference renders, cropped at
+/// natural size with [kIconReviewPad] pixels around the box, color aliases canonicalised and
+/// grid dots cleared, with how often and where it appears, and `<key>/<n>_cut.png` the icon
+/// ink the extraction cuts from that appearance on its own, placed in the box. `index.json`
+/// describes them all, each appearance with how the committed art sits in it (`match`, see
+/// [_matchOf]).
 void main() {
   const reviewDir = String.fromEnvironment('ICON_REVIEW_DIR');
   testWidgets(
@@ -71,14 +72,23 @@ void main() {
           if (hasWatermark) {
             watermarked.add(f.uri.pathSegments.last.replaceAll('.png', ''));
           }
-          final raster = await rasteriseBlockDiagram(bd, scale: 1.0, margin: 2);
+          final drawable = bdDrawableObjects(bd);
+          final raster = await rasteriseBlockDiagram(
+            bd,
+            primIcons: icons,
+            scale: 1.0,
+            margin: 2,
+            wires: bdVisibleWires(bd),
+            drawable: drawable,
+          );
           if (raster == null) continue;
           final reference = await decodeReferenceImage(bytes);
           final result = await compareToReference(
             raster.image,
             reference.image,
             lockScale: 1.0 / raster.scale,
-            anchorRects: bdStructureAnchorRects(bd, raster),
+            anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+            exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
           );
           if (!result.registered) continue;
           final reg = result.registration;
@@ -97,13 +107,9 @@ void main() {
           final refW = reference.image.width, refH = reference.image.height;
           final name = f.uri.pathSegments.last.replaceAll('.png', '');
           final version = model.version ?? '?';
-          for (final o in bd.objects) {
+          for (final o in drawable) {
             final b = o.absBounds;
-            final key = o.primitive?.primResId != null
-                ? 'prim${o.primitive?.primResId}'
-                : (primClasses.contains(o.kind)
-                      ? primIconName(bdClassVariantIconKey(bd, o))
-                      : null);
+            final key = iconReviewKeyOf(bd, o, primClasses);
             if (key == null || b == null || b.width <= 0 || b.height <= 0) {
               continue;
             }
@@ -304,11 +310,20 @@ void main() {
               'colors': _colorsOf(cut.rgba),
             };
           }
+          final matchedId = (byBase[key] ?? const <int>[]).isEmpty
+              ? null
+              : byBase[key]!.firstWhere(
+                  (id) => primIconName(id) == v.generation,
+                  orElse: () => byBase[key]!.first,
+                );
           refs.add({
             'file': file,
             'width': v.width,
             'height': v.height,
             'boxRect': v.boxRect,
+            'match': matchedId == null
+                ? null
+                : _matchOf(v, matchedId, icons[matchedId]!),
             'count': v.sources.length,
             'hard': v.hard,
             'ink': v.ink,
@@ -495,6 +510,76 @@ Uint8List _cropReference(
   if (!hasIconInk(crop, w, h, pad)) return null;
   return cleanNodeBoxCrop(crop, w, h, pad, (rgb) => isForeignInk(key, rgb));
 }
+
+/// Where and how well the committed [art] of icon [id] appears in reference crop [v]:
+/// `exact` when every art pixel matches at the painter's stamp, `near` when at least 95% do
+/// (coercion dots, wires and option markers over the art), `shifted` when 95% match at an
+/// offset of up to [kIconMatchSearch] pixels, `occluded` when 80% match at the stamp,
+/// `absent` otherwise; `fraction` is the share matching at the stamp and `at` the offset of
+/// the best match found.
+Map<String, Object?> _matchOf(_Variant v, int id, PrimIconArt art) {
+  final box = Rect.fromLTWH(
+    v.boxRect[0].toDouble(),
+    v.boxRect[1].toDouble(),
+    v.boxRect[2].toDouble(),
+    v.boxRect[3].toDouble(),
+  );
+  final stamp = primIconStampRect(box, art.width, art.height, key: id);
+  final sx = stamp.left.round(), sy = stamp.top.round();
+  double fractionAt(int dx, int dy) {
+    var ok = 0, total = 0;
+    for (var y = 0; y < art.height; y++) {
+      for (var x = 0; x < art.width; x++) {
+        final a = (y * art.width + x) * 4;
+        if (art.rgba[a + 3] == 0) continue;
+        total++;
+        final cx = sx + dx + x, cy = sy + dy + y;
+        if (cx < 0 || cy < 0 || cx >= v.width || cy >= v.height) continue;
+        final r = (cy * v.width + cx) * 4;
+        if (art.rgba[a] == v.rgba[r] &&
+            art.rgba[a + 1] == v.rgba[r + 1] &&
+            art.rgba[a + 2] == v.rgba[r + 2]) {
+          ok++;
+        }
+      }
+    }
+    return total == 0 ? 0 : ok / total;
+  }
+
+  final here = fractionAt(0, 0);
+  var best = here, bestDx = 0, bestDy = 0;
+  if (here < 1) {
+    for (var dy = -kIconMatchSearch; dy <= kIconMatchSearch; dy++) {
+      for (var dx = -kIconMatchSearch; dx <= kIconMatchSearch; dx++) {
+        if (dx == 0 && dy == 0) continue;
+        final f = fractionAt(dx, dy);
+        if (f > best) {
+          best = f;
+          bestDx = dx;
+          bestDy = dy;
+        }
+      }
+    }
+  }
+  final kind = here >= 1
+      ? 'exact'
+      : here >= 0.95
+      ? 'near'
+      : best >= 0.95
+      ? 'shifted'
+      : here >= 0.8
+      ? 'occluded'
+      : 'absent';
+  return {
+    'kind': kind,
+    'fraction': double.parse(here.toStringAsFixed(3)),
+    'at': [bestDx, bestDy],
+    'best': double.parse(best.toStringAsFixed(3)),
+  };
+}
+
+/// How far [_matchOf] looks for the art around the painter's stamp.
+const int kIconMatchSearch = 8;
 
 /// How the extraction treats the appearances of [v]: `watermarked`, `disabled` and `blank`
 /// renders are never harvested, `low registration` ones serve only keys no other snippet

@@ -63,6 +63,7 @@ void main() {
           reference.image,
           lockScale: 1.0 / raster.scale,
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
         );
         final reg = result.registration;
         final refPx = (await reference.image.toByteData())!.buffer
@@ -84,12 +85,18 @@ void main() {
           final cy = (b.top - raster.content.top + reg.dy).round();
           final px0 = cx + ((bw - aw) / 2).floor();
           final py0 = cy + ((bh - ah) / 2).floor();
+          (int, int)? nearest;
           for (final px in [artBytes[key], greyBytes[key]]) {
             if (px == null) continue;
-            for (var dy = -4; dy <= 4; dy++) {
-              for (var dx = -4; dx <= 4; dx++) {
-                final ox = px0 + dx, oy = py0 + dy;
+            for (var oy = cy - 4; oy <= cy + bh - ah + 4; oy++) {
+              for (var ox = cx - 4; ox <= cx + bw - aw + 4; ox++) {
+                final dx = ox - px0, dy = oy - py0;
                 if (ox < 0 || oy < 0 || ox + aw > rw || oy + ah > rh) continue;
+                if (nearest != null &&
+                    dx.abs() + dy.abs() >=
+                        nearest.$1.abs() + nearest.$2.abs()) {
+                  continue;
+                }
                 var ok = true;
                 for (var y = 0; y < ah && ok; y++) {
                   for (var x = 0; x < aw; x++) {
@@ -104,13 +111,15 @@ void main() {
                     }
                   }
                 }
-                if (!ok) continue;
-                final kn = key >= 0 ? 'prim$key' : 'class${-key}';
-                hits.add((kn, ox - cx, oy - cy, dx, dy));
-                if (aw == bw && ah == bh) {
-                  bias[(dx, dy)] = (bias[(dx, dy)] ?? 0) + 1;
-                }
+                if (ok) nearest = (dx, dy);
               }
+            }
+          }
+          if (nearest case (final dx, final dy)) {
+            final kn = key >= 0 ? 'prim$key' : 'class${-key}';
+            hits.add((kn, px0 + dx - cx, py0 + dy - cy, dx, dy));
+            if (aw == bw && ah == bh) {
+              bias[(dx, dy)] = (bias[(dx, dy)] ?? 0) + 1;
             }
           }
         }

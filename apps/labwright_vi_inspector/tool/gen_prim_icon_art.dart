@@ -1,13 +1,17 @@
 import 'dart:io';
 
 import 'package:image/image.dart' as img;
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 /// Writes lib/src/generated/prim_icon_art.dart from assets/prim_icons: one line per icon, its
 /// pixel rows as palette characters, keyed by the asset's status key.
 void main() {
   final dir = Directory('assets/prim_icons');
+  final options = BdPrimIconOption.values
+      .map((option) => option.suffix)
+      .join('|');
   final pattern = RegExp(
-    r'^((?:prim\d+|class0x[0-9a-f]+)(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
+    '^((?:prim\\d+(?:_(?:$options))?|class0x[0-9a-f]+)(?:_t\\d+(?:_r[0-9a-f]+)?)?(?:_from\\d+)?)(?:_[a-z0-9-]+)?\\.png\$',
   );
   const transparent = '.';
   final letters = String.fromCharCodes([

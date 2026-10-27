@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/prim_icon_border.dart';
 
 import '../test/util.dart';
@@ -191,6 +192,16 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
     ),
   ],
 };
+
+/// The asset key of [o]'s icon: its primitive's art key (an option variant when the node sets
+/// one), or the class variant key of a single-op class in [primClasses]; null for other
+/// objects.
+String? iconReviewKeyOf(BdDiagram bd, BdObject o, Set<int> primClasses) {
+  if (o.primitive?.primResId != null) return primIconName(primIconArtKeyOf(o)!);
+  return primClasses.contains(o.kind)
+      ? primIconName(bdClassVariantIconKey(bd, o))
+      : null;
+}
 
 /// The background pixels kept around a node box in an extraction crop.
 const int kPrimIconCropPad = 5;
@@ -525,24 +536,29 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       if (bd == null) continue;
       if (model.saveRecord?.rendersWatermark ?? false) {
         watermarkedSnippets.add(f.uri.pathSegments.last.replaceAll('.png', ''));
-        for (final o in bd.objects) {
-          final key = o.primitive?.primResId != null
-              ? 'prim${o.primitive?.primResId}'
-              : (primClasses.contains(o.kind)
-                    ? primIconName(bdClassVariantIconKey(bd, o))
-                    : null);
+        for (final o in bdDrawableObjects(bd)) {
+          final key = iconReviewKeyOf(bd, o, primClasses);
           if (key != null) watermarkedKeys.add(key);
         }
         continue;
       }
-      final raster = await rasteriseBlockDiagram(bd, scale: 1.0, margin: 2);
+      final drawable = bdDrawableObjects(bd);
+      final raster = await rasteriseBlockDiagram(
+        bd,
+        primIcons: loadPrimIcons(),
+        scale: 1.0,
+        margin: 2,
+        wires: bdVisibleWires(bd),
+        drawable: drawable,
+      );
       if (raster == null) continue;
       final reference = await decodeReferenceImage(f.readAsBytesSync());
       final result = await compareToReference(
         raster.image,
         reference.image,
         lockScale: 1.0 / raster.scale,
-        anchorRects: bdStructureAnchorRects(bd, raster),
+        anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+        exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
       );
       if (!result.registered) continue;
       final reg = result.registration;
@@ -612,13 +628,9 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         return (rgba: crop, w: w, h: h);
       }
 
-      for (final o in bd.objects) {
+      for (final o in drawable) {
         final b = o.absBounds;
-        final key = o.primitive?.primResId != null
-            ? 'prim${o.primitive?.primResId}'
-            : (primClasses.contains(o.kind)
-                  ? primIconName(bdClassVariantIconKey(bd, o))
-                  : null);
+        final key = iconReviewKeyOf(bd, o, primClasses);
         if (key == null || b == null || b.width <= 0 || b.height <= 0) {
           continue;
         }
