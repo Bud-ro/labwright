@@ -6,6 +6,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
@@ -68,6 +69,14 @@ void main() {
         final reg = result.registration;
         final refPx = (await reference.image.toByteData())!.buffer
             .asUint8List();
+        for (var i = 0; i < refPx.length; i += 4) {
+          final canonical = BdColorAlias.canonicalRgb(
+            (refPx[i] << 16) | (refPx[i + 1] << 8) | refPx[i + 2],
+          );
+          refPx[i] = canonical >> 16;
+          refPx[i + 1] = (canonical >> 8) & 0xff;
+          refPx[i + 2] = canonical & 0xff;
+        }
         final rw = reference.image.width;
         final rh = reference.image.height;
         final hits = <(String, int, int, int, int)>[];
@@ -111,7 +120,21 @@ void main() {
                     }
                   }
                 }
-                if (ok) nearest = (dx, dy);
+                if (!ok ||
+                    _nearerAnotherNode(
+                      drawable,
+                      o,
+                      b,
+                      raster,
+                      reg,
+                      ox,
+                      oy,
+                      aw,
+                      ah,
+                    )) {
+                  continue;
+                }
+                nearest = (dx, dy);
               }
             }
           }
@@ -201,6 +224,36 @@ void main() {
       );
     });
   }, timeout: const Timeout(Duration(minutes: 12)));
+}
+
+/// Whether the art matched at ([ox], [oy]) in the reference sits nearer the centre of another
+/// drawn node's box than [own]'s, as a stacked neighbour's art does.
+bool _nearerAnotherNode(
+  List<BdObject> drawable,
+  BdObject own,
+  HeapRect b,
+  BdRaster raster,
+  BdRegistration reg,
+  int ox,
+  int oy,
+  int aw,
+  int ah,
+) {
+  final artX = ox + aw / 2, artY = oy + ah / 2;
+  double distanceTo(HeapRect box) {
+    final cx = (box.left + box.right) / 2 - raster.content.left + reg.dx;
+    final cy = (box.top + box.bottom) / 2 - raster.content.top + reg.dy;
+    return (cx - artX).abs() + (cy - artY).abs();
+  }
+
+  final ownDistance = distanceTo(b);
+  for (final other in drawable) {
+    if (identical(other, own) || other.category != BdObjectKind.node) continue;
+    final box = other.absBounds;
+    if (box == null || box.width <= 0 || box.height <= 0) continue;
+    if (distanceTo(box) < ownDistance) return true;
+  }
+  return false;
 }
 
 List<String> _rowsWithReplacements(

@@ -304,81 +304,107 @@ const Map<String, PrimIconStatus> kPrimIconStatus = {
 
 // GENERATED-PLACEMENT-BEGIN
 const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
+  'prim1046': (dx: 6, dy: 6), // x5
   'prim1049': (dx: 6, dy: 6), // x1
   'prim1050': (dx: 6, dy: 6), // x25
-  'prim1051': (dx: 6, dy: 6), // x25
-  'prim1052': (dx: 6, dy: 6), // x31
+  'prim1051': (dx: 6, dy: 6), // x27
+  'prim1052': (dx: 6, dy: 6), // x33
   'prim1053': (dx: 6, dy: 6), // x6
   'prim1054': (dx: 6, dy: 6), // x1
-  'prim1056': (dx: 5, dy: 5), // x10
+  'prim1056': (dx: 5, dy: 5), // x26
   'prim1057': (dx: 6, dy: 6), // x15
-  'prim1058': (dx: 6, dy: 6), // x2
-  'prim1061': (dx: 4, dy: 8), // x4
-  'prim1062': (dx: 6, dy: 8), // x22
+  'prim1058': (dx: 6, dy: 6), // x3
+  'prim1061': (dx: 4, dy: 8), // x18
+  'prim1062': (dx: 6, dy: 8), // x68
+  'prim1063': (dx: 4, dy: 8), // x17
   'prim1064': (dx: 6, dy: 8), // x9
   'prim1069': (dx: 6, dy: 6), // x1
-  'prim1070': (dx: 8, dy: 5), // x25
+  'prim1070': (dx: 8, dy: 5), // x49
   'prim1074': (dx: 6, dy: 6), // x1
   'prim1075': (dx: 6, dy: 6), // x1
   'prim1076': (dx: 6, dy: 6), // x2
-  'prim1077': (dx: 4, dy: 11), // x3
-  'prim1078': (dx: 4, dy: 11), // x1
+  'prim1077': (dx: 4, dy: 11), // x26
+  'prim1078': (dx: 4, dy: 11), // x12
   'prim1080': (dx: 6, dy: 9), // x1
-  'prim1083': (dx: 10, dy: 8), // x5
+  'prim1081': (dx: 4, dy: 9), // x7
+  'prim1082': (dx: 4, dy: 9), // x1
+  'prim1083': (dx: 10, dy: 8), // x7
   'prim1086': (dx: 0, dy: 0), // x1
-  'prim1102': (dx: 6, dy: 6), // x21
-  'prim1103': (dx: 6, dy: 6), // x1
+  'prim1102': (dx: 6, dy: 6), // x23
+  'prim1103': (dx: 6, dy: 6), // x3
   'prim1105': (dx: 6, dy: 6), // x3
   'prim1108': (dx: 0, dy: 0), // x7
-  'prim1110': (dx: 6, dy: 6), // x7
-  'prim1111': (dx: 6, dy: 6), // x2
+  'prim1110': (dx: 6, dy: 6), // x8
+  'prim1111': (dx: 6, dy: 6), // x4
   'prim1112': (dx: 6, dy: 6), // x2
   'prim1113': (dx: 6, dy: 6), // x7
   'prim1114': (dx: 6, dy: 6), // x3
   'prim1116': (dx: 6, dy: 6), // x5
   'prim1117': (dx: 6, dy: 6), // x2
   'prim1118': (dx: 6, dy: 6), // x2
-  'prim1120': (dx: 0, dy: 0), // x2
-  'prim1127': (dx: 0, dy: 4), // x3
+  'prim1120': (dx: 0, dy: 0), // x5
+  'prim1127': (dx: 0, dy: 4), // x6
   'prim1128': (dx: 6, dy: 6), // x1
-  'prim1141': (dx: 4, dy: 11), // x2
-  'prim1142': (dx: 4, dy: 11), // x2
-  'prim1143': (dx: 4, dy: 11), // x8
+  'prim1140': (dx: 4, dy: 11), // x4
+  'prim1141': (dx: 4, dy: 11), // x7
+  'prim1142': (dx: 4, dy: 11), // x20
+  'prim1143': (dx: 4, dy: 11), // x23
   'prim1144': (dx: 4, dy: 11), // x2
-  'prim1145': (dx: 4, dy: 11), // x2
-  'prim1147': (dx: 3, dy: 11), // x5
-  'prim1164': (dx: 0, dy: 0), // x3
-  'prim1165': (dx: 0, dy: 0), // x2
-  'prim1166': (dx: 0, dy: 0), // x13
-  'prim1167': (dx: 4, dy: 11), // x1
-  'prim1168': (dx: 4, dy: 11), // x1
-  'prim1170': (dx: 7, dy: 7), // x3
-  'prim1180': (dx: 0, dy: 0), // x6
-  'prim1184': (dx: 0, dy: 0), // x1
-  'prim1185': (dx: 0, dy: 0), // x1
+  'prim1145': (dx: 4, dy: 11), // x6
+  'prim1147': (dx: 3, dy: 11), // x24
+  'prim1151': (dx: 3, dy: 11), // x1
+  'prim1155': (dx: 4, dy: 11), // x3
+  'prim1156': (dx: 4, dy: 11), // x1
+  'prim1162': (dx: 0, dy: 0), // x5
+  'prim1163': (dx: 0, dy: 0), // x5
+  'prim1164': (dx: 0, dy: 0), // x9
+  'prim1165': (dx: 0, dy: 0), // x8
+  'prim1166': (dx: 0, dy: 0), // x40
+  'prim1167': (dx: 4, dy: 11), // x2
+  'prim1168': (dx: 4, dy: 11), // x3
+  'prim1169': (dx: 4, dy: 11), // x3
+  'prim1170': (dx: 7, dy: 7), // x10
+  'prim1171': (dx: 7, dy: 7), // x23
+  'prim1180': (dx: 0, dy: 0), // x12
+  'prim1181': (dx: 0, dy: 0), // x4
+  'prim1184': (dx: 0, dy: 0), // x5
+  'prim1185': (dx: 0, dy: 0), // x3
   'prim1187': (dx: 0, dy: 0), // x10
-  'prim1200': (dx: 0, dy: 0), // x1
+  'prim1188': (dx: 4, dy: 11), // x6
+  'prim1189': (dx: 4, dy: 11), // x9
+  'prim1200': (dx: 0, dy: 0), // x2
+  'prim1201': (dx: 0, dy: 0), // x1
   'prim1210': (dx: 0, dy: 0), // x1
-  'prim1300': (dx: 0, dy: 0), // x10
-  'prim1302': (dx: 0, dy: 0), // x47
-  'prim1303': (dx: 0, dy: 0), // x9
-  'prim1309': (dx: 0, dy: 0), // x1
-  'prim1327': (dx: 0, dy: 0), // x6
-  'prim1341': (dx: 0, dy: 0), // x2
+  'prim1213': (dx: 0, dy: 0), // x1
+  'prim1300': (dx: 0, dy: 0), // x16
+  'prim1302': (dx: 0, dy: 0), // x102
+  'prim1303': (dx: 0, dy: 0), // x34
+  'prim1308': (dx: 0, dy: 0), // x2
+  'prim1309': (dx: 0, dy: 0), // x4
+  'prim1327': (dx: 0, dy: 0), // x20
+  'prim1340': (dx: 0, dy: 0), // x3
+  'prim1341': (dx: 0, dy: 0), // x3
   'prim1350': (dx: 0, dy: 0), // x1
-  'prim1419': (dx: 0, dy: 0), // x1
-  'prim1420': (dx: 0, dy: 0), // x2
+  'prim1352': (dx: 0, dy: 0), // x1
+  'prim1419': (dx: 0, dy: 0), // x53
+  'prim1420': (dx: 0, dy: 0), // x10
   'prim1422': (dx: 4, dy: 11), // x1
-  'prim1502': (dx: 0, dy: 7), // x8
-  'prim1503': (dx: 0, dy: 0), // x2
+  'prim1423': (dx: 4, dy: 11), // x1
+  'prim1426': (dx: 7, dy: 7), // x9
+  'prim1435': (dx: 4, dy: 8), // x1
+  'prim1502': (dx: 0, dy: 7), // x16
+  'prim1503': (dx: 0, dy: 0), // x13
   'prim1506': (dx: 0, dy: 0), // x2
-  'prim1516': (dx: 2, dy: 2), // x9
-  'prim1537': (dx: 1, dy: 10), // x2
-  'prim1538': (dx: 0, dy: 0), // x2
-  'prim1539': (dx: 0, dy: 0), // x4
-  'prim1540': (dx: 0, dy: 0), // x3
-  'prim1608': (dx: 3, dy: 11), // x5
-  'prim1609': (dx: 3, dy: 11), // x3
+  'prim1516': (dx: 2, dy: 2), // x10
+  'prim1534': (dx: 0, dy: 0), // x1
+  'prim1537': (dx: 1, dy: 10), // x3
+  'prim1538': (dx: 0, dy: 0), // x3
+  'prim1539': (dx: 0, dy: 0), // x7
+  'prim1540': (dx: 0, dy: 0), // x6
+  'prim1600': (dx: 0, dy: 0), // x1
+  'prim1606': (dx: 4, dy: 8), // x3
+  'prim1608': (dx: 3, dy: 11), // x15
+  'prim1609': (dx: 3, dy: 11), // x11
   'prim1710': (dx: 0, dy: 7), // x2
   'prim1711': (dx: 0, dy: 11), // x3
   'prim1713': (dx: 0, dy: 0), // x6
@@ -389,71 +415,105 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1724': (dx: 0, dy: 0), // x2
   'prim1725': (dx: 0, dy: 0), // x1
   'prim1726': (dx: 0, dy: 0), // x1
-  'prim1809': (dx: 0, dy: 5), // x16
-  'prim1814': (dx: 3, dy: 11), // x4
-  'prim1815': (dx: 3, dy: 11), // x4
-  'prim1900': (dx: 0, dy: 5), // x5
-  'prim1901': (dx: 0, dy: 0), // x6
+  'prim1809': (dx: 0, dy: 5), // x56
+  'prim1814': (dx: 3, dy: 11), // x5
+  'prim1815': (dx: 3, dy: 11), // x5
+  'prim1900': (dx: 0, dy: 5), // x14
+  'prim1901': (dx: 0, dy: 0), // x20
   'prim1902': (dx: 0, dy: 4), // x11
   'prim1903': (dx: 4, dy: 4), // x3
   'prim1904': (dx: 4, dy: 4), // x5
   'prim1905': (dx: 0, dy: 0), // x1
-  'prim1906': (dx: 0, dy: 7), // x4
-  'prim1907': (dx: 0, dy: 0), // x7
-  'prim1908': (dx: 0, dy: 0), // x1
+  'prim1906': (dx: 0, dy: 7), // x6
+  'prim1907': (dx: 0, dy: 0), // x9
+  'prim1908': (dx: 0, dy: 0), // x2
   'prim1909': (dx: 0, dy: 0), // x2
   'prim1910': (dx: 4, dy: 4), // x2
   'prim1911': (dx: 4, dy: 4), // x4
-  'prim1922': (dx: 0, dy: 0), // x7
-  'prim1925': (dx: 0, dy: 0), // x11
-  'prim1926': (dx: 0, dy: 0), // x8
+  'prim1922': (dx: 0, dy: 0), // x12
+  'prim1925': (dx: 0, dy: 0), // x21
+  'prim1926': (dx: 0, dy: 0), // x13
+  'prim1927': (dx: 0, dy: 0), // x1
   'prim1940': (dx: 0, dy: 0), // x1
   'prim1941': (dx: 0, dy: 0), // x1
   'prim1942': (dx: 0, dy: 0), // x1
-  'prim2012': (dx: 0, dy: 0), // x3
-  'prim2013': (dx: 0, dy: 0), // x3
+  'prim2010': (dx: 0, dy: 0), // x4
+  'prim2011': (dx: 0, dy: 0), // x3
+  'prim2012': (dx: 0, dy: 0), // x9
+  'prim2013': (dx: 0, dy: 0), // x6
   'prim2014': (dx: 0, dy: 0), // x3
-  'prim2073': (dx: 0, dy: 0), // x1
-  'prim2074': (dx: 0, dy: 0), // x1
-  'prim2075': (dx: 0, dy: 0), // x1
-  'prim2076': (dx: 0, dy: 0), // x2
-  'prim2308': (dx: 0, dy: 0), // x1
+  'prim2016': (dx: 0, dy: 0), // x2
+  'prim2073': (dx: 0, dy: 0), // x5
+  'prim2074': (dx: 0, dy: 0), // x4
+  'prim2075': (dx: 0, dy: 0), // x2
+  'prim2076': (dx: 0, dy: 0), // x5
+  'prim2302': (dx: 0, dy: 0), // x1
+  'prim2308': (dx: 0, dy: 0), // x2
   'prim2408': (dx: 0, dy: 0), // x1
-  'prim3914': (dx: 0, dy: 0), // x9
+  'prim2452': (dx: 0, dy: 0), // x2
+  'prim2457': (dx: 0, dy: 0), // x1
+  'prim2458': (dx: 0, dy: 0), // x1
+  'prim3914': (dx: 0, dy: 0), // x13
   'prim3915': (dx: 6, dy: 2), // x1
-  'prim5560': (dx: 3, dy: 11), // x2
-  'prim8003': (dx: 0, dy: 0), // x8
-  'prim8010': (dx: 0, dy: 0), // x6
-  'prim8011': (dx: 0, dy: 0), // x8
+  'prim5560': (dx: 3, dy: 11), // x4
+  'prim5561': (dx: 3, dy: 11), // x2
+  'prim5566': (dx: 0, dy: 2), // x1
+  'prim5567': (dx: 0, dy: 2), // x1
+  'prim8000': (dx: 0, dy: 0), // x5
+  'prim8003': (dx: 0, dy: 0), // x17
+  'prim8010': (dx: 0, dy: 0), // x14
+  'prim8011': (dx: 0, dy: 0), // x57
+  'prim8012': (dx: 0, dy: 0), // x1
   'prim8013': (dx: 0, dy: 0), // x2
-  'prim8016': (dx: 0, dy: 0), // x3
-  'prim8050': (dx: 0, dy: 0), // x6
-  'prim8051': (dx: 0, dy: 0), // x1
-  'prim8052': (dx: 0, dy: 0), // x6
-  'prim8053': (dx: 0, dy: 0), // x1
+  'prim8016': (dx: 0, dy: 0), // x9
+  'prim8017': (dx: 0, dy: 11), // x1
+  'prim8018': (dx: 0, dy: 0), // x1
+  'prim8050': (dx: 0, dy: 0), // x17
+  'prim8051': (dx: 0, dy: 0), // x5
+  'prim8052': (dx: 0, dy: 0), // x15
+  'prim8053': (dx: 0, dy: 0), // x2
+  'prim8055': (dx: 0, dy: 0), // x1
+  'prim8056': (dx: 0, dy: 0), // x3
   'prim8062': (dx: 0, dy: 0), // x1
-  'prim8073': (dx: 0, dy: 0), // x3
+  'prim8065': (dx: 0, dy: 0), // x1
+  'prim8068': (dx: 0, dy: 0), // x1
+  'prim8073': (dx: 0, dy: 0), // x6
   'prim8074': (dx: 0, dy: 0), // x1
-  'prim8080': (dx: 0, dy: 0), // x6
-  'prim8100': (dx: 0, dy: 0), // x1
-  'prim8201': (dx: 3, dy: 11), // x6
+  'prim8076': (dx: 0, dy: 0), // x1
+  'prim8078': (dx: 0, dy: 0), // x1
+  'prim8080': (dx: 0, dy: 0), // x15
+  'prim8082': (dx: 0, dy: 0), // x2
+  'prim8083': (dx: 0, dy: 0), // x4
+  'prim8100': (dx: 0, dy: 0), // x6
+  'prim8101': (dx: 0, dy: 0), // x1
+  'prim8201': (dx: 3, dy: 11), // x12
   'prim8202': (dx: 0, dy: 0), // x2
-  'prim8204': (dx: 0, dy: 0), // x2
+  'prim8203': (dx: 0, dy: 0), // x1
+  'prim8204': (dx: 0, dy: 0), // x4
   'prim8205': (dx: 0, dy: 0), // x1
-  'prim9101': (dx: 0, dy: 0), // x1
-  'prim9102': (dx: 0, dy: 0), // x1
+  'prim8507': (dx: 0, dy: 5), // x1
+  'prim9101': (dx: 0, dy: 0), // x2
+  'prim9102': (dx: 0, dy: 0), // x2
   'prim9104': (dx: 0, dy: 0), // x1
-  'prim9105': (dx: 0, dy: 0), // x1
-  'prim9108': (dx: 0, dy: 0), // x6
-  'prim9109': (dx: 0, dy: 0), // x5
-  'prim9110': (dx: 0, dy: 0), // x1
-  'prim9111': (dx: 0, dy: 0), // x6
-  'prim9113': (dx: 0, dy: 0), // x5
-  'prim9114': (dx: 0, dy: 0), // x1
+  'prim9105': (dx: 0, dy: 0), // x2
+  'prim9108': (dx: 0, dy: 0), // x14
+  'prim9109': (dx: 0, dy: 0), // x9
+  'prim9110': (dx: 0, dy: 0), // x5
+  'prim9111': (dx: 0, dy: 0), // x12
+  'prim9113': (dx: 0, dy: 0), // x10
+  'prim9114': (dx: 0, dy: 0), // x3
+  'prim9129': (dx: 0, dy: 0), // x1
   'prim23063': (dx: 6, dy: 6), // x3
+  'prim23783': (dx: 0, dy: 0), // x1
   'prim24000': (dx: 0, dy: 0), // x1
-  'prim24001': (dx: 0, dy: 0), // x1
-  'prim24002': (dx: 0, dy: 0), // x1
+  'prim24001': (dx: 0, dy: 0), // x2
+  'prim24002': (dx: 0, dy: 0), // x2
   'prim24130': (dx: 0, dy: 0), // x1
+  'prim24201': (dx: 0, dy: 0), // x3
+  'prim24202': (dx: 0, dy: 0), // x3
+  'prim24206': (dx: 0, dy: 0), // x5
+  'prim24207': (dx: 0, dy: 0), // x5
+  'prim24208': (dx: 0, dy: 0), // x1
+  'prim24209': (dx: 0, dy: 0), // x1
 };
 // GENERATED-PLACEMENT-END
