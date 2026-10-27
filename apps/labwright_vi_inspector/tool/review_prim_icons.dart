@@ -513,8 +513,8 @@ Uint8List _cropReference(
 
 /// Where and how well the committed [art] of icon [id] appears in reference crop [v]:
 /// `exact` when every art pixel matches at the painter's stamp, `near` when at least 95% do
-/// (coercion dots, wires and option markers over the art), `shifted` when 95% match at an
-/// offset of up to [kIconMatchSearch] pixels, `occluded` when 80% match at the stamp,
+/// (coercion dots, wires and option markers over the art), `occluded` when at least 80% do,
+/// `shifted` when fewer do but 95% match at an offset of up to [kIconMatchSearch] pixels,
 /// `absent` otherwise; `fraction` is the share matching at the stamp and `at` the offset of
 /// the best match found.
 Map<String, Object?> _matchOf(_Variant v, int id, PrimIconArt art) {
@@ -565,10 +565,10 @@ Map<String, Object?> _matchOf(_Variant v, int id, PrimIconArt art) {
       ? 'exact'
       : here >= 0.95
       ? 'near'
-      : best >= 0.95
-      ? 'shifted'
       : here >= 0.8
       ? 'occluded'
+      : best >= 0.95
+      ? 'shifted'
       : 'absent';
   return {
     'kind': kind,
