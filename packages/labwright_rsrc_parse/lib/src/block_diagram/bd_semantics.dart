@@ -777,7 +777,17 @@ enum BdPrimIconOption {
   }
 }
 
+/// Icon keys partition the integers: a `primResID` is its own key, a single-op class key is
+/// negative above [_kPrimIconOptionKeyBase], an option key counts down from
+/// [_kPrimIconOptionKeyBase], and a generation key counts down from
+/// [_kPrimIconVersionKeyBase], which packs any key above it offset by [_kPrimIconKeyBias].
 const int _kPrimIconOptionKeyBase = -0x1800000000000000;
+
+/// See [_kPrimIconOptionKeyBase].
+const int _kPrimIconVersionKeyBase = -0x2000000000000000;
+
+/// See [_kPrimIconOptionKeyBase].
+const int _kPrimIconKeyBias = 0x20000000000000;
 
 /// The icon key of the art primitive [primResId] shows with [option] set, distinct from every
 /// other key; option keys have no LabVIEW generations.
@@ -786,7 +796,7 @@ int primIconOptionKey(int primResId, BdPrimIconOption option) =>
 
 /// The `primResID` and option of a key from [primIconOptionKey], else null.
 (int, BdPrimIconOption)? primIconOptionOf(int key) {
-  if (key > _kPrimIconOptionKeyBase || key <= -0x2000000000000000) return null;
+  if (key > _kPrimIconOptionKeyBase || key <= _kPrimIconVersionKeyBase) return null;
   final packed = _kPrimIconOptionKeyBase - key;
   return (packed >> 8, BdPrimIconOption.values[packed & 0xff]);
 }
@@ -803,13 +813,13 @@ int? primIconArtKeyOf(BdObject object) {
 /// The icon key of the art [baseKey] shows in VIs saved by LabVIEW [fromMajor] and later,
 /// distinct from every other key.
 int primIconVersionKey(int baseKey, int fromMajor) =>
-    -0x2000000000000000 - (((baseKey + 0x20000000000000) << 7) | (fromMajor & 0x7f));
+    _kPrimIconVersionKeyBase - (((baseKey + _kPrimIconKeyBias) << 7) | (fromMajor & 0x7f));
 
 /// The base key and first LabVIEW major of a key from [primIconVersionKey], else null.
 (int, int)? primIconVersionOf(int key) {
-  if (key > -0x2000000000000000) return null;
-  final packed = -(key + 0x2000000000000000);
-  return ((packed >> 7) - 0x20000000000000, packed & 0x7f);
+  if (key > _kPrimIconVersionKeyBase) return null;
+  final packed = _kPrimIconVersionKeyBase - key;
+  return ((packed >> 7) - _kPrimIconKeyBias, packed & 0x7f);
 }
 
 /// The asset name of a prim icon key: `prim<id>` for a primResID (`prim<id>_<option>` for its

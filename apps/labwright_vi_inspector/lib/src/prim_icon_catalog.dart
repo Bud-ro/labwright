@@ -361,7 +361,7 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim1163': (dx: 0, dy: 0), // x5
   'prim1164': (dx: 0, dy: 0), // x9
   'prim1165': (dx: 0, dy: 0), // x8
-  'prim1166': (dx: 0, dy: 0), // x40
+  'prim1166': (dx: 0, dy: 0), // x41
   'prim1167': (dx: 4, dy: 11), // x2
   'prim1168': (dx: 4, dy: 11), // x3
   'prim1169': (dx: 4, dy: 11), // x3
@@ -482,6 +482,7 @@ const Map<String, ({int dx, int dy})> kPrimIconPlacement = {
   'prim8062': (dx: 0, dy: 0), // x1
   'prim8065': (dx: 0, dy: 0), // x1
   'prim8068': (dx: 0, dy: 0), // x1
+  'prim8070': (dx: 0, dy: 0), // x1
   'prim8073': (dx: 0, dy: 0), // x6
   'prim8074': (dx: 0, dy: 0), // x1
   'prim8076': (dx: 0, dy: 0), // x1

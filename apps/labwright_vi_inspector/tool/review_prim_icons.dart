@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math' as math;
 import 'dart:typed_data';
 import 'dart:ui' show Rect;
 
@@ -513,8 +514,10 @@ Uint8List _cropReference(
 
 /// Where and how well the committed [art] of icon [id] appears in reference crop [v]:
 /// `exact` when every art pixel matches at the painter's stamp, `near` when at least 95% do
-/// (coercion dots, wires and option markers over the art), `occluded` when at least 80% do,
-/// `shifted` when fewer do but 95% match at an offset of up to [kIconMatchSearch] pixels,
+/// (coercion dots, wires and option markers over the art), `shifted` when 95% match at an
+/// offset of up to [kIconMatchSearch] pixels and the stamp holds under 80% or the offset is
+/// within [kIconMatchMisplacement] (a stacked twin of the art further off leaves the stamp
+/// occluded, a misplaced stamp does not), `occluded` when at least 80% match at the stamp,
 /// `absent` otherwise; `fraction` is the share matching at the stamp and `at` the offset of
 /// the best match found.
 Map<String, Object?> _matchOf(_Variant v, int id, PrimIconArt art) {
@@ -561,14 +564,19 @@ Map<String, Object?> _matchOf(_Variant v, int id, PrimIconArt art) {
       }
     }
   }
+  final shifted =
+      best >= 0.95 &&
+      best > here &&
+      (here < 0.8 ||
+          math.max(bestDx.abs(), bestDy.abs()) <= kIconMatchMisplacement);
   final kind = here >= 1
       ? 'exact'
       : here >= 0.95
       ? 'near'
+      : shifted
+      ? 'shifted'
       : here >= 0.8
       ? 'occluded'
-      : best >= 0.95
-      ? 'shifted'
       : 'absent';
   return {
     'kind': kind,
@@ -580,6 +588,9 @@ Map<String, Object?> _matchOf(_Variant v, int id, PrimIconArt art) {
 
 /// How far [_matchOf] looks for the art around the painter's stamp.
 const int kIconMatchSearch = 8;
+
+/// The largest offset [_matchOf] reports as a misplaced stamp rather than a neighbour's art.
+const int kIconMatchMisplacement = 2;
 
 /// How the extraction treats the appearances of [v]: `watermarked`, `disabled` and `blank`
 /// renders are never harvested, `low registration` ones serve only keys no other snippet

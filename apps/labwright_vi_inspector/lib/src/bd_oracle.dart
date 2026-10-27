@@ -22,11 +22,15 @@ class BdRaster {
     required this.image,
     required this.content,
     required this.scale,
+    this.primIcons = const {},
   });
 
   final ui.Image image;
   final Rect content;
   final double scale;
+
+  /// The icon arts the raster was painted with, by key.
+  final Map<int, PrimIconArt> primIcons;
 
   Rect modelRect(HeapRect bounds) => Rect.fromLTRB(
     (bounds.left - content.left) * scale,
@@ -316,6 +320,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
       image: await picture.toImage(width, height),
       content: content,
       scale: pxScale,
+      primIcons: primIcons,
     );
   } finally {
     picture.dispose();
@@ -663,7 +668,7 @@ List<Rect> bdPrimIconStampRects(
   for (final object in drawable) {
     final bounds = object.absBounds;
     if (bounds == null || object.category != BdObjectKind.node) continue;
-    final art = primIconArtFor(object, diagram, primIcons);
+    final art = primIconArtFor(object, diagram, raster.primIcons);
     if (art == null) continue;
     out.add(
       primIconStampRect(
@@ -1151,6 +1156,10 @@ extension _ExactSnap on BdRegistration {
 /// The trusted pixels a render needs before the ink snap scores them alone.
 const int kBdInkSnapMinimum = 200;
 
+/// Which of the render's ink [_InkSnap._inkSnap] votes with, the first tier holding at least
+/// [kBdInkSnapMinimum] pixels.
+enum _InkSnapTier { exact, black, all }
+
 extension _InkSnap on BdRegistration {
   /// This registration moved by up to [radius] pixels to where the most of the render's
   /// trusted ink lands on a reference pixel of the same color, aliases equal: the ink inside
@@ -1174,7 +1183,9 @@ extension _InkSnap on BdRegistration {
         dy != dy.roundToDouble()) {
       return this;
     }
-    final exact = Uint8List(renderWidth * renderHeight);
+    final exact = exactRects.isEmpty
+        ? null
+        : Uint8List(renderWidth * renderHeight);
     for (final rect in exactRects) {
       for (
         var y = math.max(0, rect.top.round());
@@ -1186,16 +1197,40 @@ extension _InkSnap on BdRegistration {
           x < math.min(renderWidth, rect.right.round());
           x++
         ) {
-          exact[y * renderWidth + x] = 1;
+          exact![y * renderWidth + x] = 1;
         }
       }
     }
-    var ink = <int>[];
-    var colors = <int>[];
-    final blackInk = <int>[];
-    final blackColors = <int>[];
-    final allInk = <int>[];
-    final allColors = <int>[];
+    var exactCount = 0, blackCount = 0, allCount = 0;
+    for (var y = 0; y < renderHeight; y++) {
+      for (var x = 0; x < renderWidth; x++) {
+        final i = (y * renderWidth + x) * 4;
+        if (renderRgba[i + 3] == 0) continue;
+        final rgb =
+            (renderRgba[i] << 16) |
+            (renderRgba[i + 1] << 8) |
+            renderRgba[i + 2];
+        if (rgb == 0xffffff) continue;
+        allCount++;
+        if (exact != null && exact[y * renderWidth + x] != 0) exactCount++;
+        if (BdColorAlias.canonicalRgb(rgb) == BdColorAlias.nodeInk.canonical) {
+          blackCount++;
+        }
+      }
+    }
+    final tier = exactCount >= kBdInkSnapMinimum
+        ? _InkSnapTier.exact
+        : blackCount >= kBdInkSnapMinimum
+        ? _InkSnapTier.black
+        : _InkSnapTier.all;
+    final count = switch (tier) {
+      _InkSnapTier.exact => exactCount,
+      _InkSnapTier.black => blackCount,
+      _InkSnapTier.all => allCount,
+    };
+    final ink = Int32List(count * 2);
+    final colors = Int32List(count);
+    var n = 0;
     for (var y = 0; y < renderHeight; y++) {
       for (var x = 0; x < renderWidth; x++) {
         final i = (y * renderWidth + x) * 4;
@@ -1206,31 +1241,17 @@ extension _InkSnap on BdRegistration {
             renderRgba[i + 2];
         if (rgb == 0xffffff) continue;
         final canonical = BdColorAlias.canonicalRgb(rgb);
-        allInk
-          ..add(x)
-          ..add(y);
-        allColors.add(canonical);
-        if (exact[y * renderWidth + x] != 0) {
-          ink
-            ..add(x)
-            ..add(y);
-          colors.add(canonical);
-        }
-        if (canonical == BdColorAlias.nodeInk.canonical) {
-          blackInk
-            ..add(x)
-            ..add(y);
-          blackColors.add(canonical);
-        }
+        final take = switch (tier) {
+          _InkSnapTier.exact => exact![y * renderWidth + x] != 0,
+          _InkSnapTier.black => canonical == BdColorAlias.nodeInk.canonical,
+          _InkSnapTier.all => true,
+        };
+        if (!take) continue;
+        ink[n * 2] = x;
+        ink[n * 2 + 1] = y;
+        colors[n] = canonical;
+        n++;
       }
-    }
-    if (colors.length < kBdInkSnapMinimum) {
-      ink = blackInk;
-      colors = blackColors;
-    }
-    if (colors.length < kBdInkSnapMinimum) {
-      ink = allInk;
-      colors = allColors;
     }
     if (ink.isEmpty) return this;
     final ox0 = dx.round(), oy0 = dy.round();

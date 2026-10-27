@@ -177,8 +177,24 @@ const Set<int> kPrimitiveInkPalette = {0x000000, 0xFFFFCC};
 bool isForeignInk(String key, int rgb) =>
     rgb != 0xFFFFFF &&
     (key.startsWith('prim')
-        ? !kPrimitiveInkPalette.contains(BdColorAlias.canonicalRgb(rgb))
+        ? !primitiveInkOf(key).contains(BdColorAlias.canonicalRgb(rgb))
         : isOverlayInk(rgb));
+
+/// The ink of the option markers that join [kPrimitiveInkPalette] on an option variant's art.
+const Map<BdPrimIconOption, Set<int>> kPrimIconOptionMarkerInk = {
+  BdPrimIconOption.legacyData: {0xFF0000},
+};
+
+/// The colours the art of primitive icon [key] is made of: [kPrimitiveInkPalette], plus the
+/// marker ink of the option the key names.
+Set<int> primitiveInkOf(String key) {
+  final id = parsePrimIconName(key);
+  final option = id == null ? null : primIconOptionOf(id)?.$2;
+  final marker = option == null ? null : kPrimIconOptionMarkerInk[option];
+  return marker == null
+      ? kPrimitiveInkPalette
+      : {...kPrimitiveInkPalette, ...marker};
+}
 
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   'prim1069': [(snippet: '34109337_OCxvL', oid: 599)],
@@ -361,7 +377,7 @@ bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad, {String? key}) {
       final rgb = (r << 16) | (g << 8) | b;
       if (isOverlayInk(rgb)) continue;
       if (primitive) {
-        if (!kPrimitiveInkPalette.contains(BdColorAlias.canonicalRgb(rgb))) {
+        if (!primitiveInkOf(key!).contains(BdColorAlias.canonicalRgb(rgb))) {
           stray[y * w + x] = true;
         }
         continue;

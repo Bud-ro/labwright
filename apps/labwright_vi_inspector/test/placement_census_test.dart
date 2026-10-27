@@ -86,7 +86,9 @@ void main() {
         for (final o in drawable) {
           final b = o.absBounds;
           if (b == null) continue;
-          final key = primIconKeyOf(o);
+          final base = primIconKeyOf(o);
+          if (base == null) continue;
+          final key = base >= 0 ? loadedPrimIconIdOf(o, diagram: bd) : base;
           if (key == null) continue;
           final art = icons[key];
           if (art == null) continue;
@@ -96,8 +98,9 @@ void main() {
           final cy = (b.top - raster.content.top + reg.dy).round();
           final px0 = cx + ((bw - aw) / 2).floor();
           final py0 = cy + ((bh - ah) / 2).floor();
-          final kn = key >= 0 ? 'prim$key' : 'class${-key}';
+          final kn = base >= 0 ? 'prim$base' : 'class${-base}';
           (int, int)? nearest;
+          var tied = false;
           (int, int, int)? leastCovered;
           for (final px in [artBytes[key], greyBytes[key]]) {
             if (px == null) continue;
@@ -106,8 +109,7 @@ void main() {
                 final dx = ox - px0, dy = oy - py0;
                 if (ox < 0 || oy < 0 || ox + aw > rw || oy + ah > rh) continue;
                 if (nearest != null &&
-                    dx.abs() + dy.abs() >=
-                        nearest.$1.abs() + nearest.$2.abs()) {
+                    dx.abs() + dy.abs() > nearest.$1.abs() + nearest.$2.abs()) {
                   continue;
                 }
                 var opaque = 0, covered = 0;
@@ -147,6 +149,10 @@ void main() {
                   continue;
                 }
                 if (covered == 0) {
+                  tied =
+                      nearest != null &&
+                      dx.abs() + dy.abs() ==
+                          nearest.$1.abs() + nearest.$2.abs();
                   nearest = (dx, dy);
                 } else if (leastCovered == null ||
                     covered < leastCovered.$1 ||
@@ -158,6 +164,7 @@ void main() {
               }
             }
           }
+          if (tied) continue;
           final found =
               nearest ??
               (leastCovered == null
