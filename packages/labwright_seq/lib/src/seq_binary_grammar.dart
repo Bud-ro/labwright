@@ -2,28 +2,30 @@
 ///
 /// Every multi-byte integer is little endian and the stream is not aligned: a `u8` field shifts
 /// everything after it by one byte. Strings are indices into the NUL-separated pool that follows the
-/// record region; the index `0xffffffff` ([binaryNullIndex]) is the null string.
+/// record region; the index `0xffffffff` ([binaryNullIndex]) is the null string. Array element counts
+/// come from the bound strings and are capped at [maxArrayElements].
 ///
 /// ```text
 /// body
 ///   u32                 typeCount
 ///   TypeEntry[typeCount]
 ///   Record              data root, class SequenceFileData (Obj in TestStand 4.x), name Data
-///   u32                 tailWord              TODO: zero in every corpus file, purpose not yet decoded
+///   u32                 tailWord              TODO: purpose not yet decoded
 ///   u32                 0xffffffff
 ///   u32                 poolCount
-///   cstr[poolCount]     pool, NUL terminated, unique, Latin-1
+///   cstr[poolCount]     pool, NUL-separated, unique, Windows-1252; the last NUL may be absent
+///   u8[]                poolTail              TODO: bytes after the last string, purpose not yet decoded
 ///
 /// TypeEntry
 ///   u32                 entryFlags            BinaryPropertyFlag bits; typeFlags (0x10) gates the typeflags word
-///   u32                 entryWord             TODO: 1 in every corpus file, purpose not yet decoded
+///   u32                 entryWord             TODO: purpose not yet decoded
 ///   u32                 class                 pool index
 ///   u32                 name                  pool index
 ///   ValuePart           bounds/elemproto for array classes, enum items and value for Enum
 ///   u32?                comment               pool index, when entryFlags & comment
 ///   u32                 typeCategory          1 step type, 2 custom data type, 3 built-in type
 ///   u32                 timestamp             seconds since 1970
-///   u32                 timestampHigh         ts2014 and later only; zero in every corpus file
+///   u32                 timestampHigh         ts2014 and later only; upper half of the timestamp
 ///   u32                 typeVersion           pool index
 ///   u32                 typeLastModVersion    pool index
 ///   u32                 typeMinProdVersion    pool index
@@ -44,7 +46,7 @@
 ///
 /// Record
 ///   u32                 flags                 BinaryPropertyFlag bits
-///   u32                 flagsHigh             TODO: zero in every corpus file; not yet decoded
+///   u32                 flagsHigh             TODO: not yet decoded; nonzero values stop the parse
 ///   u32                 class                 pool index, or null to inherit the class from the type
 ///   u32?                typeRef               index into the type table, when flags & typed
 ///   u32                 name                  pool index, null for array elements and elemprotos
@@ -67,7 +69,7 @@
 ///   Ref                 nothing; the value bit carries no payload
 ///   Nums/Strs/Bools/Refs u32 lbound, u32 ubound (pool indices like '[0]' '[3]'), then one f64/u32/u8/u32 per element
 ///   Objs/Containers     u32 lbound, u32 ubound, u8 hasElemProto, Record? elemproto, Record[elements]
-///   Enum                flags & enumItems: u32 itemsWord (TODO: 1 in every corpus file), Record items (an Objs array)
+///   Enum                flags & enumItems: u32 itemsWord (TODO: not yet decoded), Record items (an Objs array)
 ///                       flags & enumValue: u32 enumerator name pool index, f64 enumerator value
 ///   other               nothing; the record is a container
 ///
@@ -81,10 +83,10 @@
 /// ```
 library;
 
-import 'dart:convert';
 import 'dart:typed_data';
 
 import 'seq_binary_header.dart';
+import 'seq_binary_text.dart';
 import 'seq_property.dart';
 
 /// Pool index of the null string, also the class slot of a record that inherits its class from its type.
@@ -141,15 +143,14 @@ enum BinaryPropertyFlag {
 
   final int bit;
 
-  static const int knownMask =
-      0x1 | 0x2 | 0x4 | 0x8 | 0x10 | 0x20 | 0x40 | 0x80 | 0x100 | 0x200 | 0x800 | 0x1000 | 0x4000 | 0x10000 | 0x20000;
+  static final int knownMask = values.fold(0, (mask, flag) => mask | flag.bit);
 
   bool isSetIn(int flags) => flags & bit != 0;
 }
 
 /// Bits of the valueflags word the XML writer reports as `structureflags` rather than `valueflags`.
 ///
-/// TODO: only these three bits occur in the corpus; the full mask is not yet decoded.
+/// TODO: the full set of structure bits is not yet decoded; these are the bits decoded so far.
 const structureFlagMask = 0x20000 | 0x80000 | 0x200000;
 
 /// Representation word of a `Num` whose value is stored as a 64-bit integer instead of a double.
@@ -164,11 +165,12 @@ enum BinaryNumericRepresentation {
 
   final String xmlName;
 
-  static BinaryNumericRepresentation? of(int? code) => switch (code) {
-    2 => int64,
-    3 => uint64,
-    _ => null,
-  };
+  static BinaryNumericRepresentation? of(int? code) {
+    for (final representation in values) {
+      if (representation.code == code) return representation;
+    }
+    return null;
+  }
 }
 
 /// `extdata` controller names and their field layouts.
@@ -340,6 +342,12 @@ final class BinaryRecord {
   /// Pool indices of a `Strs` array's elements.
   List<int>? elementIndices;
 
+  /// Body offset of the stored value: a `Num`'s eight bytes, or an array's first element; -1 when none is stored.
+  int valueOffset = -1;
+
+  /// Body offset of an `Enum`'s current enumerator value; -1 when none is stored.
+  int enumValueOffset = -1;
+
   int? representation;
 
   /// A `double`, an `int` (integer representations), a `String?` or a `bool`; null when no value is stored.
@@ -428,7 +436,7 @@ final class BinaryTypeEntry {
 
   final int entryFlags;
 
-  /// TODO: 1 in every corpus file; purpose not yet decoded.
+  /// TODO: purpose not yet decoded.
   final int entryWord;
 
   final BinaryRecord root;
@@ -505,6 +513,9 @@ final class Tof1Body {
     required this.tailWord,
     required this.pool,
     required this.poolOffsets,
+    required this.lastStringTerminated,
+    required this.poolTail,
+    required this.nullIndexCount,
     required this.tiers,
   });
 
@@ -519,13 +530,22 @@ final class Tof1Body {
 
   final BinaryRecord data;
 
-  /// TODO: zero in every corpus file; purpose not yet decoded.
+  /// TODO: purpose not yet decoded.
   final int tailWord;
 
   final List<String> pool;
 
   /// Body offset of each pool string's first byte.
   final List<int> poolOffsets;
+
+  /// Whether the last pool string ends with a NUL; a body may end on the string itself.
+  final bool lastStringTerminated;
+
+  /// TODO: bytes after the last pool string; purpose not yet decoded.
+  final Uint8List poolTail;
+
+  /// Null pool indices and terminators the parser read: null strings, inherited class slots, the record-region end.
+  final int nullIndexCount;
 
   /// [BinaryByteTier] per body byte.
   final Uint8List tiers;
@@ -541,38 +561,25 @@ const _maxDepth = 200;
 
 const _maxExtData = 64;
 
-/// Splits the pool region into strings; `offsets` receives each string's body offset.
-List<String> binaryPoolStrings(Uint8List body, int poolOffset, int count, List<int> offsets) {
+/// Splits `count` Windows-1252 strings off the pool region; `offsets` receives each string's body offset.
+///
+/// Returns the strings, the body offset just past the last one (past its NUL when it has one), and whether
+/// the last string has its NUL.
+(List<String>, int, bool) binaryPoolStrings(Uint8List body, int poolOffset, int count, List<int> offsets) {
   final pool = <String>[];
   var at = poolOffset;
+  var terminated = true;
   while (pool.length < count && at < body.length) {
     final start = at;
     while (at < body.length && body[at] != 0) {
       at++;
     }
     offsets.add(start);
-    pool.add(decodePoolString(body, start, at));
-    at++;
+    pool.add(decodeWindows1252(body, start, at));
+    terminated = at < body.length;
+    if (terminated) at++;
   }
-  return pool;
-}
-
-/// Pool strings are Latin-1 where they are not valid UTF-8.
-String decodePoolString(Uint8List body, int start, int end) {
-  var ascii = true;
-  for (var i = start; i < end; i++) {
-    if (body[i] >= 0x80) {
-      ascii = false;
-      break;
-    }
-  }
-  if (ascii) return String.fromCharCodes(body, start, end);
-  final slice = Uint8List.sublistView(body, start, end);
-  try {
-    return utf8.decode(slice);
-  } on FormatException {
-    return latin1.decode(slice);
-  }
+  return (pool, at, terminated);
 }
 
 /// Decodes an inflated body; throws [Tof1FormatException] where the bytes leave the grammar.
@@ -602,6 +609,8 @@ final class _Tof1BodyParser {
 
   int at = 0;
 
+  int nullIndexCount = 0;
+
   Tof1Body parse() {
     final poolCountAt = recordRegionLength;
     if (recordRegionLength < 2 * _u32 || poolCountAt + _u32 > body.length) {
@@ -609,12 +618,18 @@ final class _Tof1BodyParser {
     }
     final poolCount = view.getUint32(poolCountAt, Endian.little);
     poolOffsets = <int>[];
-    pool = binaryPoolStrings(body, poolCountAt + _u32, poolCount, poolOffsets);
+    final (strings, poolEnd, lastStringTerminated) = binaryPoolStrings(
+      body,
+      poolCountAt + _u32,
+      poolCount,
+      poolOffsets,
+    );
+    pool = strings;
     if (pool.length != poolCount) {
       throw Tof1FormatException('pool count $poolCount but ${pool.length} strings follow', poolCountAt);
     }
     _mark(poolCountAt, _u32, BinaryByteTier.structural);
-    _mark(poolCountAt + _u32, body.length - poolCountAt - _u32, BinaryByteTier.pool);
+    _mark(poolCountAt + _u32, poolEnd - poolCountAt - _u32, BinaryByteTier.pool);
 
     final typeCount = _u32s(BinaryByteTier.structural);
     if (typeCount > recordRegionLength ~/ _minRecordBytes) {
@@ -629,6 +644,7 @@ final class _Tof1BodyParser {
     if (sentinel != binaryNullIndex) {
       throw Tof1FormatException('expected the 0xffffffff sentinel before the pool count', at - _u32);
     }
+    nullIndexCount++;
     if (at != recordRegionLength) {
       throw Tof1FormatException(
         'record region ends at 0x${at.toRadixString(16)}, pool count at 0x${recordRegionLength.toRadixString(16)}',
@@ -644,6 +660,9 @@ final class _Tof1BodyParser {
       tailWord: tailWord,
       pool: pool,
       poolOffsets: poolOffsets,
+      lastStringTerminated: lastStringTerminated,
+      poolTail: Uint8List.sublistView(body, poolEnd),
+      nullIndexCount: nullIndexCount,
       tiers: tiers,
     );
   }
@@ -696,6 +715,7 @@ final class _Tof1BodyParser {
   /// Reads a pool index; null strings decode to null.
   int _strIndex(BinaryByteTier tier) {
     final index = _u32s(tier);
+    if (index == binaryNullIndex) nullIndexCount++;
     if (index != binaryNullIndex && index >= pool.length) {
       throw Tof1FormatException('pool index $index beyond the ${pool.length}-string pool', at - _u32);
     }
@@ -857,11 +877,18 @@ final class _Tof1BodyParser {
           elementDefinition = record.elemProto ?? definition?.elemProto;
         }
         final count = arrayBoundCount(record.lbound, record.ubound);
+        if (count == null) {
+          throw Tof1FormatException(
+            'array bounds ${record.lbound}..${record.ubound} exceed $maxArrayElements elements',
+            record.offset,
+          );
+        }
         if (count > recordRegionLength - at) {
           throw Tof1FormatException('$count array elements exceed the record region', at);
         }
         final elements = List<Object?>.filled(count, null);
         final indices = record.kind == SeqValueClass.strings ? List<int>.filled(count, 0) : null;
+        record.valueOffset = at;
         for (var i = 0; i < count; i++) {
           switch (record.kind) {
             case SeqValueClass.numbers:
@@ -885,6 +912,7 @@ final class _Tof1BodyParser {
           record.representation = _u32s(BinaryByteTier.semantic);
         }
         if (hasValue) {
+          record.valueOffset = at;
           final representation = BinaryNumericRepresentation.of(_representationOf(record));
           record.value = switch (representation) {
             null => _f64s(),
@@ -909,6 +937,7 @@ final class _Tof1BodyParser {
         if (BinaryPropertyFlag.enumValue.isSetIn(flags)) {
           record.enumValueIndex = _strIndex(BinaryByteTier.semantic);
           record.enumValueName = _str(record.enumValueIndex);
+          record.enumValueOffset = at;
           record.enumValue = _f64s();
         }
       case SeqValueClass.object || SeqValueClass.step || SeqValueClass.sequence || SeqValueClass.other:
@@ -1041,19 +1070,30 @@ final class _Tof1BodyParser {
   }
 }
 
-/// Element count of a TestStand array from its `[l]…` and `[u]…` bound strings; 0 for an unbounded `[]`.
-int arrayBoundCount(String? lbound, String? ubound) {
+/// The largest element count [arrayBoundCount] reports; larger bounds cannot fit any body.
+const maxArrayElements = 0x7fffffff;
+
+/// Element count of a TestStand array from its `[l]…` and `[u]…` bound strings: 0 for an empty or
+/// malformed pair (`[]` is empty), null when the count exceeds [maxArrayElements].
+int? arrayBoundCount(String? lbound, String? ubound) {
   final lower = _dims(lbound);
   final upper = _dims(ubound);
   if (lower == null || upper == null || lower.length != upper.length) return 0;
   var count = 1;
   for (var i = 0; i < lower.length; i++) {
+    if (upper[i] == _oversizedBound) return null;
     final extent = upper[i] - lower[i] + 1;
     if (extent <= 0) return 0;
+    if (extent > maxArrayElements || count > maxArrayElements ~/ extent) return null;
     count *= extent;
   }
   return count;
 }
+
+/// Stands for a decimal bound past [maxArrayElements]; it is never a valid index.
+const _oversizedBound = maxArrayElements + 1;
+
+final _decimal = RegExp(r'^[0-9]+$');
 
 List<int>? _dims(String? bounds) {
   if (bounds == null || bounds.isEmpty) return null;
@@ -1064,10 +1104,9 @@ List<int>? _dims(String? bounds) {
     final close = bounds.indexOf(']', i);
     if (close < 0) return null;
     final digits = bounds.substring(i + 1, close);
-    if (digits.isEmpty) return null;
+    if (!_decimal.hasMatch(digits)) return null;
     final value = int.tryParse(digits);
-    if (value == null) return null;
-    out.add(value);
+    out.add(value == null || value > maxArrayElements ? _oversizedBound : value);
     i = close + 1;
   }
   return out.isEmpty ? null : out;

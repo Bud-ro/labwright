@@ -5,13 +5,13 @@
 /// pool entry while every record keeps referring to it by index.
 library;
 
-import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 
 import 'seq_binary.dart';
 import 'seq_binary_grammar.dart';
 import 'seq_binary_header.dart';
+import 'seq_binary_text.dart';
 import 'seq_property.dart';
 
 final class BinarySeqWriteModel {
@@ -37,7 +37,7 @@ final class BinarySeqWriteModel {
 
   int get recordRegionLength => body.recordRegionLength;
 
-  /// Body byte range `(start, end)` of pool entry [index] in the written body.
+  /// Body byte range `(start, end)` of pool entry [index] in the written body, without its NUL.
   (int, int) poolEntryRange(int index) {
     var at = body.recordRegionLength + 4;
     for (var i = 0; i < index; i++) {
@@ -58,43 +58,59 @@ final class BinarySeqWriteModel {
     return replaced;
   }
 
-  /// Body offsets of every `Num` double equal to [value].
-  List<int> f64Sites(double value) {
-    final sites = <int>[];
-    _walk(body, (record) {
-      if (record.value is double && record.value == value) sites.add(record.end - _valueTailBytes(record) - 8);
-    });
-    return sites;
-  }
+  /// Body offsets of every stored double equal to [value]: `Num` values, `Nums` elements and `Enum` values.
+  List<int> f64Sites(double value) => [
+    for (final slot in _f64Slots())
+      if (slot.value == value) slot.offset,
+  ];
 
+  /// Replaces every stored double equal to [from] with [to]; returns how many were replaced.
   int replaceF64(double from, double to) {
     var replaced = 0;
-    _walk(body, (record) {
-      if (record.value is double && record.value == from) {
-        record.value = to;
+    for (final slot in _f64Slots()) {
+      if (slot.value == from) {
+        slot.write(to);
         replaced++;
       }
-    });
+    }
     return replaced;
   }
 
-  /// Every stored `Num` double, in record order.
-  List<double> get f64Values {
-    final values = <double>[];
+  /// Every stored double in body order: `Num` values, `Nums` elements and `Enum` values.
+  List<double> get f64Values => [for (final slot in _f64Slots()) slot.value];
+
+  List<_F64Slot> _f64Slots() {
+    final slots = <_F64Slot>[];
     _walk(body, (record) {
-      if (record.value case final double value) values.add(value);
+      final value = record.value;
+      if (value is double) {
+        slots.add(_F64Slot(record.valueOffset, value, (v) => record.value = v));
+      }
+      if (record.kind == SeqValueClass.numbers) {
+        final elements = record.elements!;
+        for (var i = 0; i < elements.length; i++) {
+          slots.add(_F64Slot(record.valueOffset + 8 * i, elements[i]! as double, (v) => elements[i] = v));
+        }
+      }
+      final enumValue = record.enumValue;
+      if (enumValue != null) {
+        slots.add(_F64Slot(record.enumValueOffset, enumValue, (v) => record.enumValue = v));
+      }
     });
-    return values;
+    slots.sort((a, b) => a.offset.compareTo(b.offset));
+    return slots;
   }
 
+  /// The body: the record region from the record tree, then the pool, keeping an unterminated last string
+  /// unterminated and any bytes after the pool.
   Uint8List writeBody() {
     final out = _ByteSink(body.bytes.length + 64);
     _Tof1BodyWriter(out, generation).body(body);
     for (var i = 0; i < pool.length; i++) {
-      out
-        ..bytes(_entryBytes(i))
-        ..u8(0);
+      out.bytes(_entryBytes(i));
+      if (i < pool.length - 1 || body.lastStringTerminated) out.u8(0);
     }
+    out.bytes(body.poolTail);
     return out.take();
   }
 
@@ -111,24 +127,13 @@ final class BinarySeqWriteModel {
     return out;
   }
 
+  /// The Windows-1252 bytes of pool entry [index]; throws [ArgumentError] for a character the code page lacks.
   Uint8List _entryBytes(int index) {
     final original = poolBytes[index];
     if (original != null) return original;
-    final text = pool[index];
-    for (var i = 0; i < text.length; i++) {
-      if (text.codeUnitAt(i) > 0xff) return utf8.encode(text);
-    }
-    return latin1.encode(text);
-  }
-
-  static int _valueTailBytes(BinaryRecord record) {
-    var tail = 4;
-    if (record.has(BinaryPropertyFlag.comment)) tail += 4;
-    if (record.has(BinaryPropertyFlag.numericFormat)) tail += 4;
-    if (record.has(BinaryPropertyFlag.flagsForInstances)) tail += 4;
-    if (record.has(BinaryPropertyFlag.instanceOverrideFlags)) tail += 4;
-    if (record.valueFlagsWord != null) tail += 4;
-    return tail;
+    final encoded = encodeWindows1252(pool[index]);
+    if (encoded == null) throw ArgumentError('pool entry $index is not Windows-1252: ${pool[index]}');
+    return encoded;
   }
 
   static void _walk(Tof1Body body, void Function(BinaryRecord) visit) {
@@ -178,11 +183,22 @@ BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
   );
 }
 
+/// A stored double of the record tree: where it sits in the body and how to change it.
+final class _F64Slot {
+  _F64Slot(this.offset, this.value, this.write);
+
+  final int offset;
+
+  final double value;
+
+  final void Function(double) write;
+}
+
 /// An append-only little-endian byte buffer.
 final class _ByteSink {
-  _ByteSink(int capacity) : _buffer = Uint8List(capacity), _view = ByteData.sublistView(Uint8List(capacity)) {
-    _view = ByteData.sublistView(_buffer);
-  }
+  _ByteSink(int capacity) : this._(Uint8List(capacity));
+
+  _ByteSink._(Uint8List buffer) : _buffer = buffer, _view = ByteData.sublistView(buffer);
 
   Uint8List _buffer;
 

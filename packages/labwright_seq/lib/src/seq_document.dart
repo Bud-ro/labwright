@@ -1,7 +1,6 @@
 import 'dart:typed_data';
 
 import 'seq_binary.dart';
-import 'seq_binary_model.dart';
 import 'seq_file.dart';
 import 'seq_format.dart';
 
@@ -23,19 +22,10 @@ sealed class SeqDocument {
       case SeqFormat.xml:
         return structured(XmlSeqDocument.new);
       case SeqFormat.binary:
-        final body = inflateBinaryBody(bytes);
-        final analysis = body == null ? null : analyzeBinary(bytes, body: body);
-        SeqFile? partial;
-        if (body != null) {
-          try {
-            partial = parseBinarySeqFile(bytes, body: body);
-          } catch (_) {
-            partial = null;
-          }
-        }
+        final analysis = analyzeBinary(bytes);
         return BinarySeqDocument(
           header: detectSeqHeader(bytes),
-          partialFile: partial,
+          partialFile: analysis?.file,
           inflatedSize: analysis?.inflatedSize ?? 0,
           strings: analysis?.strings ?? const [],
           stringTable: analysis?.stringTable ?? const [],

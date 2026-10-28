@@ -184,7 +184,8 @@ class BinaryBodyLayout {
 
   final int stringCount;
 
-  /// `0xffffffff` words inside the record region: null strings, inherited class slots and the terminator.
+  /// `0xffffffff` sentinels in the record region: under the grammar, the null strings, inherited class slots
+  /// and terminator it read; otherwise every offset holding the word.
   final int sentinelCount;
 
   final int segmentCount;
@@ -252,6 +253,7 @@ class BinaryAnalysis {
     required this.scalarDoubles,
     required this.namedRecords,
     this.decode,
+    this.file,
   });
 
   final int inflatedSize;
@@ -282,6 +284,9 @@ class BinaryAnalysis {
 
   final Tof1Decode? decode;
 
+  /// The lifted model, when the grammar applies.
+  final SeqFile? file;
+
   bool get grammarApplies => decode?.grammar != null;
 }
 
@@ -297,18 +302,13 @@ BinaryAnalysis _analysisFromGrammar(Tof1Decode decode, Tof1Body grammar) {
   final pool = [
     for (var i = 0; i < grammar.pool.length; i++) (offset: grammar.poolOffsets[i], text: grammar.pool[i]),
   ];
-  final objectNames = <String>[];
-  try {
-    final file = tof1BodyToSeqFile(grammar, decode.header!);
-    for (final sequence in file.sequences) {
-      objectNames.add(sequence.name);
-      for (final step in sequence.steps) {
-        objectNames.add(step.name);
-      }
-    }
-  } on FormatException {
-    objectNames.clear();
-  }
+  final file = tof1BodyToSeqFile(grammar, decode.header!);
+  final objectNames = <String>[
+    for (final sequence in file.sequences) ...[
+      sequence.name,
+      for (final step in sequence.steps) step.name,
+    ],
+  ];
   return BinaryAnalysis(
     inflatedSize: grammar.bytes.length,
     strings: pool,
@@ -317,7 +317,7 @@ BinaryAnalysis _analysisFromGrammar(Tof1Decode decode, Tof1Body grammar) {
       inflatedSize: grammar.bytes.length,
       recordRegionLength: grammar.recordRegionLength,
       stringCount: grammar.pool.length,
-      sentinelCount: _countSentinels(grammar.bytes, grammar.recordRegionLength),
+      sentinelCount: grammar.nullIndexCount,
       segmentCount: 1,
       leadingWords: [grammar.types.length],
     ),
@@ -331,13 +331,15 @@ BinaryAnalysis _analysisFromGrammar(Tof1Decode decode, Tof1Body grammar) {
     scalarDoubles: const [],
     namedRecords: const [],
     decode: decode,
+    file: file,
   );
 }
 
+/// `0xffffffff` words at every byte offset before [end]; the record stream is not aligned.
 int _countSentinels(Uint8List body, int end) {
   final view = ByteData.sublistView(body);
   var count = 0;
-  for (var i = 0; i + 4 <= end; i += 4) {
+  for (var i = 0; i + 4 <= end; i++) {
     if (view.getUint32(i, Endian.little) == binaryNullIndex) count++;
   }
   return count;

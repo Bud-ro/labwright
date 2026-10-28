@@ -45,19 +45,39 @@ class _BodyBuilder {
     }
     if (BinaryPropertyFlag.comment.isSetIn(flags)) str('a comment');
     if (BinaryPropertyFlag.numericFormat.isSetIn(flags)) str('%.2f');
+    if (BinaryPropertyFlag.extData.isSetIn(flags)) {
+      u32(1);
+      str('CLUST');
+      u8(1);
+      u8(0);
+      str('label');
+    }
     u32(0);
   }
 
-  Uint8List finish() {
+  void nums(String name, List<double> values) {
+    u32(BinaryPropertyFlag.value.bit);
+    u32(0);
+    str('Nums');
+    str(name);
+    str('[0]');
+    str('[${values.length - 1}]');
+    for (final v in values) {
+      f64(v);
+    }
+    u32(0);
+  }
+
+  Uint8List finish({bool terminateLast = true, List<int> tail = const []}) {
     u32(0);
     u32(binaryNullIndex);
     final recordRegionLength = _bytes.length;
     u32(pool.length);
-    for (final entry in pool) {
-      _bytes
-        ..add(latin1.encode(entry))
-        ..addByte(0);
+    for (var i = 0; i < pool.length; i++) {
+      _bytes.add(encodeWindows1252(pool[i])!);
+      if (i < pool.length - 1 || terminateLast) _bytes.addByte(0);
     }
+    _bytes.add(tail);
     return _file(_bytes.toBytes(), recordRegionLength);
   }
 
@@ -78,7 +98,7 @@ class _BodyBuilder {
 
 /// One typedef (a `Str` named `Expression`-like leaf and an `Obj` step type) and a data root with one
 /// sequence holding one step and one local.
-Uint8List _synthetic() {
+Uint8List _synthetic({bool terminateLast = true, List<int> tail = const []}) {
   final b = _BodyBuilder();
   for (final name in ['SequenceFileData', 'Data', 'Objs', 'Seq', '[0]', 'Sequence', 'MainSequence', 'Obj']) {
     b.s(name);
@@ -158,8 +178,15 @@ Uint8List _synthetic() {
   b.u32(0);
   b.str('Obj');
   b.str('Locals');
-  b.u32(1);
-  b.leaf('Num', 'Voltage', value: 5.5, flags: BinaryPropertyFlag.comment.bit | BinaryPropertyFlag.numericFormat.bit);
+  b.u32(3);
+  b.leaf(
+    'Num',
+    'Voltage',
+    value: 5.5,
+    flags: BinaryPropertyFlag.comment.bit | BinaryPropertyFlag.numericFormat.bit | BinaryPropertyFlag.extData.bit,
+  );
+  b.nums('Readings', [1.25, 2.5]);
+  b.leaf('Str', 'Quote', value: '\u201cdone\u201d');
   b.u32(BinaryPropertyFlag.value.bit);
   b.u32(0);
   b.str('Objs');
@@ -186,7 +213,7 @@ Uint8List _synthetic() {
   b.u32(0);
   b.u32(0);
   b.u32(0);
-  return b.finish();
+  return b.finish(terminateLast: terminateLast, tail: tail);
 }
 
 void main() {
@@ -264,7 +291,8 @@ void main() {
       expect(file.typelistEntries!.map((e) => e.attributes['typelistordernum']), ['1', '2']);
       final sequence = file.sequences.single;
       expect(sequence.name, 'MainSequence');
-      final local = sequence.locals.single;
+      expect(sequence.locals.map((l) => l.name), ['Voltage', 'Readings', 'Quote']);
+      final local = sequence.locals.first;
       expect((local.name, local.type, local.value), ('Voltage', 'Num', '5.5'));
       expect(local.comment, 'a comment');
       expect(local.raw.numericFormat, '%.2f');
@@ -310,7 +338,7 @@ void main() {
       expect(parseSeqFile(model.writeFile()).sequences.single.main.single.name, 'Measure it twice');
       expect(model.f64Sites(5.5), hasLength(1));
       expect(model.replaceF64(5.5, 6.5), 1);
-      expect(parseSeqFile(model.writeFile()).sequences.single.locals.single.value, '6.5');
+      expect(parseSeqFile(model.writeFile()).sequences.single.locals.first.value, '6.5');
     });
 
     test('stops with the offset when the bytes leave the grammar', () {
@@ -326,6 +354,138 @@ void main() {
       expect(decode.grammar, isNull);
       expect(decode.error, contains('Tof1FormatException'));
     });
+  });
+
+  group('stored doubles', () {
+    test('every site points at its own eight bytes, past extdata and in arrays', () {
+      final bytes = _synthetic();
+      final body = inflateBinaryBody(bytes)!;
+      final view = ByteData.sublistView(body);
+      final model = parseBinarySeqWriteModel(bytes)!;
+      expect(model.f64Values, [5.5, 1.25, 2.5]);
+      for (final value in model.f64Values) {
+        final site = model.f64Sites(value).single;
+        expect(view.getFloat64(site, Endian.little), value, reason: 'site of $value');
+      }
+    });
+
+    test('a Nums element changes its eight bytes and its array element alone', () {
+      final bytes = _synthetic();
+      final body = inflateBinaryBody(bytes)!;
+      final model = parseBinarySeqWriteModel(bytes)!;
+      final site = model.f64Sites(2.5).single;
+      expect(model.replaceF64(2.5, 3.75), 1);
+      final written = model.writeBody();
+      for (var i = 0; i < body.length; i++) {
+        if (i < site || i >= site + 8) expect(written[i], body[i], reason: 'byte $i outside the element');
+      }
+      final readings = parseSeqFile(model.writeFile()).sequences.single.locals[1];
+      expect([for (final e in readings.raw.array!) e.scalar], ['1.25', '3.75']);
+    });
+  });
+
+  group('pool encoding and framing', () {
+    test('Windows-1252 decodes every byte and encodes it back', () {
+      final bytes = Uint8List.fromList([0x41, 0x93, 0x94, 0x80, 0x81, 0x9d, 0xbb, 0xb5, 0xff]);
+      final text = decodeWindows1252(bytes, 0, bytes.length);
+      expect(text, 'A\u201c\u201d\u20ac\u0081\u009d\u00bb\u00b5\u00ff');
+      expect(encodeWindows1252(text), bytes);
+      final all = Uint8List.fromList([for (var b = 0; b < 256; b++) b]);
+      expect(encodeWindows1252(decodeWindows1252(all, 0, all.length)), all);
+      expect(encodeWindows1252('\u03c0'), isNull);
+    });
+
+    test('pool strings read and write as Windows-1252', () {
+      final bytes = _synthetic();
+      final quote = parseSeqFile(bytes).sequences.single.locals[2];
+      expect(quote.value, '\u201cdone\u201d');
+      final model = parseBinarySeqWriteModel(bytes)!;
+      final index = model.pool.indexOf('\u201cdone\u201d');
+      expect(model.replacePoolEntry('\u201cdone\u201d', '\u2018ok\u2019'), 1);
+      final (start, end) = model.poolEntryRange(index);
+      expect(model.writeBody().sublist(start, end), [0x91, 0x6f, 0x6b, 0x92]);
+      model.replacePoolEntry('\u2018ok\u2019', '\u03c0');
+      expect(model.writeBody, throwsArgumentError);
+    });
+
+    test('an unterminated last string and bytes after the pool write back unchanged', () {
+      for (final bytes in [
+        _synthetic(terminateLast: false),
+        _synthetic(tail: [7, 0, 9]),
+      ]) {
+        final body = inflateBinaryBody(bytes)!;
+        expect(parseBinarySeqWriteModel(bytes)!.writeBody(), body);
+      }
+      final open = decodeTof1(_synthetic(terminateLast: false))!.grammar!;
+      expect(open.lastStringTerminated, isFalse);
+      expect(open.poolTail, isEmpty);
+      final tailed = decodeTof1(_synthetic(tail: [7, 0, 9]))!.grammar!;
+      expect(tailed.lastStringTerminated, isTrue);
+      expect(tailed.poolTail, [7, 0, 9]);
+      final coverage = bodyByteCoverage(tailed);
+      expect(coverage.poolTailBytes, 3);
+      expect(coverage.recordRegionBytes, tailed.recordRegionLength);
+      final span = binaryUndecodedSpans(tailed).last;
+      expect(
+        (span.start, span.end, span.field),
+        (tailed.bytes.length - 3, tailed.bytes.length, BinaryUndecodedField.poolTail),
+      );
+    });
+
+    test('the sentinel count is the null indices the parser read, not aligned words', () {
+      final analysis = analyzeBinary(_synthetic())!;
+      expect(analysis.decode!.grammar!.nullIndexCount, 6);
+      expect(analysis.layout!.sentinelCount, 6);
+    });
+  });
+
+  group('array bounds', () {
+    test('counts past maxArrayElements are reported as null, never wrapped', () {
+      expect(arrayBoundCount('[0][0]', '[65536][65536]'), isNull);
+      expect(arrayBoundCount('[0][0][0]', '[2097151][2097151][2097151]'), isNull);
+      expect(arrayBoundCount('[0]', '[99999999999999999999]'), isNull);
+      expect(arrayBoundCount('[0]', '[${maxArrayElements - 1}]'), maxArrayElements);
+      expect(arrayBoundCount('[0]', '[$maxArrayElements]'), isNull);
+    });
+
+    test('an oversized array stops the parse with a FormatException', () {
+      final b = _BodyBuilder();
+      b.s('SequenceFileData');
+      b.u32(0);
+      b.u32(BinaryPropertyFlag.value.bit);
+      b.u32(0);
+      b.str('Nums');
+      b.str('Data');
+      b.str('[0][0]');
+      b.str('[2097151][2097151]');
+      b.u32(0);
+      final bytes = b.finish();
+      expect(decodeTof1(bytes)!.error, contains('exceed'));
+      expect(() => parseSeqFile(bytes), throwsFormatException);
+      expect(SeqDocument.parse(bytes), isA<BinarySeqDocument>());
+    });
+  });
+
+  group('catalogues', () {
+    test('the known flag mask is the union of the flags and nothing else', () {
+      expect(BinaryPropertyFlag.knownMask, BinaryPropertyFlag.values.fold(0, (m, f) => m | f.bit));
+      expect(BinaryPropertyFlag.knownMask & 0x400, 0);
+    });
+
+    test('numeric representations are looked up by their code', () {
+      for (final representation in BinaryNumericRepresentation.values) {
+        expect(BinaryNumericRepresentation.of(representation.code), representation);
+      }
+      expect(BinaryNumericRepresentation.of(1), isNull);
+      expect(BinaryNumericRepresentation.of(null), isNull);
+    });
+  });
+
+  test('SeqDocument.parse carries the lifted model of a grammar-conforming body', () {
+    final doc = SeqDocument.parse(_synthetic()) as BinarySeqDocument;
+    expect(doc.partialFile!.binary, isNotNull);
+    expect(doc.partialFile!.sequences.single.main.single.name, 'Measure it');
+    expect(doc.objectNames, ['MainSequence', 'Measure it']);
   });
 
   group('recon lenses for bodies outside the grammar', () {
