@@ -67,6 +67,7 @@ abstract final class LvRuntimeCall {
   static const String deleteFromArrayElement = 'lvDeleteFromArrayElement';
   static const String decimate1dArray = 'lvDecimate1dArray';
   static const String reshapeArray = 'lvReshapeArray';
+  static const String reshapeDims = 'lvReshapeDims';
   static const String registerForEvents = 'lvRegisterForEvents';
   static const String randomNumber = 'lvRandomNumber';
   static const String hexString = 'lvHexString';

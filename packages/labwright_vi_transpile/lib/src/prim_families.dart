@@ -1,5 +1,6 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'format_string.dart';
 import 'naming.dart';
 import 'numeric.dart';
 import 'prim_map.dart';
@@ -173,7 +174,9 @@ List<String>? _unaryRuntime(
   String output,
   bool Function(LvWireType) accepts,
   String wanted,
-  String Function(String operand, LvPrimTerminal source, LvPrimTerminal? out) body, {
+  bool Function(LvWireType) produces,
+  String produced,
+  String Function(String operand, LvPrimTerminal source, LvPrimTerminal out) body, {
   bool runtime = true,
 }) {
   final sig = LvSignedCall.of(call);
@@ -183,7 +186,9 @@ List<String>? _unaryRuntime(
   if (!accepts(source.type)) return sig.typeRefusal(input, source.type, wanted);
   final out = sig.output(output);
   if (out == null) return const [];
+  if (!produces(out.type)) return sig.typeRefusal(output, out.type, produced);
   if (runtime) call.requireImport(kLvRuntimeImport);
+  if (out.type.numeric == LvNumericKind.sgl) call.requireImport('dart:typed_data');
   return ['final ${out.type.dartType} ${out.expression} = ${body(source.expression!, source, out)};'];
 }
 
@@ -280,21 +285,27 @@ List<String>? _floatFunction(LvPrimCall call, String runtimeCall) => _unaryRunti
   LvPrimSignature.of(call.op!, call.ports.length)?.terminals.first.name ?? '',
   _isNumber,
   'a scalar number',
-  (operand, source, out) {
-    if (out != null && !_isFloat(out.type)) return 'double.nan';
-    return '$runtimeCall($operand)';
-  },
+  _isFloat,
+  'a floating-point number',
+  (operand, source, out) => lvWrapped(out.type, '$runtimeCall($operand)'),
 );
 
-List<String>? _square(LvPrimCall call) => _unaryRuntime(
-  call,
-  'x',
-  'x^2',
-  _isNumber,
-  'a scalar number',
-  (operand, source, out) => lvWrapped(out!.type, '$operand * $operand'),
-  runtime: false,
-);
+List<String>? _square(LvPrimCall call) {
+  final sig = LvSignedCall.of(call);
+  if (sig == null) return null;
+  final x = sig.input('x');
+  if (x == null) return sig.refuse('has its "x" terminal unwired');
+  if (!_isNumber(x.type)) return sig.typeRefusal('x', x.type, 'a scalar number');
+  final out = sig.output('x^2');
+  if (out == null) return const [];
+  if (out.type.dartType != x.type.dartType) {
+    return sig.typeRefusal('x^2', out.type, 'the representation of x, ${x.type.dartType}');
+  }
+  if (out.type.numeric == LvNumericKind.sgl) call.requireImport('dart:typed_data');
+  return [
+    'final ${out.type.dartType} ${out.expression} = ${lvWrapped(out.type, '${x.expression} * ${x.expression}')};',
+  ];
+}
 
 List<String>? _powerOfX(LvPrimCall call) {
   final sig = LvSignedCall.of(call);
@@ -315,6 +326,8 @@ List<String>? _booleanToZeroOne(LvPrimCall call) => _unaryRuntime(
   '0, 1',
   _isBool,
   'a boolean',
+  _isInt,
+  'an integer',
   (operand, source, out) => '($operand ? 1 : 0)',
   runtime: false,
 );
@@ -345,6 +358,8 @@ List<String>? _toUpperCase(LvPrimCall call) => _unaryRuntime(
   'all upper case string',
   _isText,
   'a string',
+  _isText,
+  'a string',
   (operand, source, out) => '${LvRuntimeCall.toUpperCase}($operand)',
 );
 
@@ -352,6 +367,8 @@ List<String>? _reverseString(LvPrimCall call) => _unaryRuntime(
   call,
   'string',
   'reversed',
+  _isText,
+  'a string',
   _isText,
   'a string',
   (operand, source, out) => '${LvRuntimeCall.reverseString}($operand)',
@@ -595,21 +612,24 @@ List<String>? _searchAndReplaceString(LvPrimCall call) {
   return lines;
 }
 
-/// The element conversion a spreadsheet function's constant format string selects.
-String? _spreadsheetFormat(LvSignedCall sig, LvPrimTerminal? format) {
-  if (format == null) return 'LvSpreadsheetFormat.float';
+/// The one specifier of a spreadsheet function's format string, a diagram constant; null (with
+/// the call refused) when the string is unwired, not a constant, or not a single specifier this
+/// lowering spells. An unwired format string's default is not stated by the reference.
+LvFormatSpecifier? _spreadsheetSpecifier(LvSignedCall sig) {
+  final format = sig.input('format string');
+  if (format == null) {
+    return sig.refuse('has its format string unwired, and the default the function takes then is not decoded');
+  }
   final text = format.constantText;
   if (text == null) {
-    sig.refuse('has a format string that is not a diagram constant, so its conversion is not decided here');
-    return null;
+    return sig.refuse('has a format string that is not a diagram constant, so its conversion is not decided here');
   }
-  final match = RegExp(r'%[-+#0 ]*\d*(?:\.\d+)?([sdfeg])').firstMatch(text);
-  return switch (match?.group(1)) {
-    's' => 'LvSpreadsheetFormat.text',
-    'd' => 'LvSpreadsheetFormat.integer',
-    'f' || 'e' || 'g' => 'LvSpreadsheetFormat.float',
-    _ => sig.refuse('has the format string "$text", whose conversion this lowering does not spell'),
-  };
+  final pieces = lvFormatPieces(text);
+  final specifiers = pieces?.whereType<LvFormatSpecifier>().toList();
+  if (pieces == null || specifiers!.length != 1 || pieces.length != 1) {
+    return sig.refuse('has the format string "$text", which is not one specifier this lowering spells');
+  }
+  return specifiers.single;
 }
 
 List<String>? _spreadsheetStringToArray(LvPrimCall call) {
@@ -626,17 +646,18 @@ List<String>? _spreadsheetStringToArray(LvPrimCall call) {
   final out = sig.output('array');
   if (out == null) return const [];
   final element = out.type.element;
-  final format = _spreadsheetFormat(sig, sig.input('format string'));
-  if (format == null) return null;
-  final expectedFormat = switch (element.carrier) {
-    LvCarrier.text => 'LvSpreadsheetFormat.text',
-    LvCarrier.integer => 'LvSpreadsheetFormat.integer',
-    LvCarrier.float => 'LvSpreadsheetFormat.float',
+  final specifier = _spreadsheetSpecifier(sig);
+  if (specifier == null) return null;
+  final format = switch ((specifier.conversion, element.carrier)) {
+    (LvFormatConversion.text, LvCarrier.text) => 'LvSpreadsheetFormat.text',
+    (LvFormatConversion.decimal, LvCarrier.integer) => 'LvSpreadsheetFormat.integer',
+    (LvFormatConversion.fixed, LvCarrier.float) => 'LvSpreadsheetFormat.float',
     _ => null,
   };
-  if (expectedFormat == null) return sig.typeRefusal('array', out.type, 'an array of strings or numbers');
-  if (expectedFormat != format) {
-    return sig.refuse('converts with $format into an array of ${element.dartType}, a pairing not decided here');
+  if (format == null) {
+    return sig.refuse(
+      'converts with ${specifier.conversion.name} into an array of ${element.dartType}, a pairing not decided here',
+    );
   }
   final delimiter = sig.input('delimiter');
   final String delimiters;
@@ -692,20 +713,10 @@ List<String>? _arrayToSpreadsheetString(LvPrimCall call) {
   if (!_inputsAre(sig, {'delimiter': (_isText, 'a string'), 'format string': (_isText, 'a string')})) return null;
   final out = sig.output('spreadsheet string');
   if (out == null) return const [];
-  final element = array.type.element;
-  final format = sig.input('format string');
-  final spell = switch (element.carrier) {
-    LvCarrier.text =>
-      format == null || _spreadsheetFormat(sig, format) == 'LvSpreadsheetFormat.text'
-          ? '(value) => value as String'
-          : null,
-    LvCarrier.integer => '(value) => \'\$value\'',
-    LvCarrier.float => _floatSpell(sig, format),
-    _ => null,
-  };
-  if (spell == null) {
-    return call.refusal != null ? null : sig.typeRefusal('array', array.type, 'an array of strings or numbers');
-  }
+  final specifier = _spreadsheetSpecifier(sig);
+  if (specifier == null) return null;
+  final spell = _elementSpell(sig, specifier, array.type);
+  if (spell == null) return null;
   final delimiter = sig.arg('delimiter');
   if (delimiter == null) return null;
   final String rows;
@@ -725,25 +736,46 @@ List<String>? _arrayToSpreadsheetString(LvPrimCall call) {
   ];
 }
 
-/// How a float element is spelled by a spreadsheet format: `%.Nf` through [lvFormatFixed] at
-/// its precision, `%f` at six digits, `%d` as a rounded integer, `%s` as Dart spells it.
-String? _floatSpell(LvSignedCall sig, LvPrimTerminal? format) {
-  if (format == null) return '(value) => ${LvRuntimeCall.formatFixed}(value as double, 3)';
-  final text = format.constantText;
-  if (text == null) {
-    return sig.refuse('has a format string that is not a diagram constant, so its conversion is not decided here');
-  }
-  final match = RegExp(r'^%[-+#0 ]*(\d*)(?:\.(\d+))?([sdfeg])$').firstMatch(text.trim());
-  if (match == null) return sig.refuse('has the format string "$text", whose conversion this lowering does not spell');
-  switch (match.group(3)) {
-    case 'f':
-      return '(value) => ${LvRuntimeCall.formatFixed}(value as double, ${match.group(2) ?? '6'})';
-    case 'd':
-      return '(value) => \'\${${LvRuntimeCall.roundToInteger}(value as double, 64, signed: true)}\'';
-    case 's':
-      return '(value) => \'\$value\'';
+/// How one element of [array] is spelled by a spreadsheet format's [spec], as Format Into String
+/// spells it: `%s` a string, `%d` an integer, `%x`/`%X` an integer at its own width, `%f` a
+/// float or integer, each with the specifier's width and flags.
+String? _elementSpell(LvSignedCall sig, LvFormatSpecifier spec, LvWireType array) {
+  final element = array.element;
+  final kind = element.numeric;
+  final padding = [
+    if (spec.width case final width?) 'width: $width',
+    if (spec.zeroPad) 'zeroPad: true',
+    if (spec.leftJustify) 'leftJustify: true',
+  ];
+  final signing = [if (spec.plusSign) 'plusSign: true'];
+  String call(String function, String value, List<String> named) =>
+      '(value) => $function(${[value, ...named].join(', ')})';
+  switch (spec.conversion) {
+    case LvFormatConversion.text when element.carrier == LvCarrier.text && !spec.plusSign && !spec.zeroPad:
+      return call(LvRuntimeCall.formatText, 'value as String', [
+        ...padding,
+        if (spec.precision case final precision?) 'maxLength: $precision',
+      ]);
+    case LvFormatConversion.decimal when kind != null && !kind.isFloat && spec.precision == null:
+      if (kind.hazards.isNotEmpty) return sig.refuse('spells U64 elements, which Dart reads as signed');
+      return call(LvRuntimeCall.formatInt, 'value as int', [...padding, ...signing]);
+    case LvFormatConversion.hexadecimal || LvFormatConversion.hexadecimalUpper
+        when kind != null && !kind.isFloat && spec.precision == null && !spec.plusSign:
+      return call(LvRuntimeCall.formatRadix, 'value as int', [
+        '16',
+        '${kind.bits}',
+        ...padding,
+        if (spec.conversion == LvFormatConversion.hexadecimalUpper) 'upper: true',
+      ]);
+    case LvFormatConversion.fixed when kind != null:
+      final value = kind.isFloat ? 'value as double' : '(value as int).toDouble()';
+      return call(LvRuntimeCall.formatFixed, value, [
+        '${spec.precision ?? kLvFormatDefaultPrecision}',
+        ...padding,
+        ...signing,
+      ]);
     case _:
-      return sig.refuse('has the format string "$text", whose conversion this lowering does not spell');
+      return sig.refuse('spells ${element.dartType} elements with ${spec.conversion.name}, which is not decided here');
   }
 }
 
@@ -880,6 +912,8 @@ List<String>? _pathToString(LvPrimCall call) => _unaryRuntime(
   'string',
   _isPath,
   'a path',
+  _isText,
+  'a string',
   (operand, source, out) => '${LvRuntimeCall.pathToString}($operand)',
 );
 
@@ -889,6 +923,8 @@ List<String>? _stringToPath(LvPrimCall call) => _unaryRuntime(
   'path',
   _isText,
   'a string',
+  _isPath,
+  'a path',
   (operand, source, out) => '${LvRuntimeCall.pathOfString}($operand)',
 );
 
@@ -912,6 +948,8 @@ List<String>? _isPathAndNotEmpty(LvPrimCall call) => _unaryRuntime(
   'type',
   _isPath,
   'a path',
+  _isInt,
+  'an integer',
   (operand, source, out) => '${LvRuntimeCall.pathType}($operand)',
 );
 
@@ -1062,6 +1100,8 @@ List<String>? _booleanArrayReduction(LvPrimCall call, String runtimeCall, String
   output,
   (type) => _is1d(type) && type.element.carrier == LvCarrier.boolean,
   'a 1-D boolean array',
+  _isBool,
+  'a boolean',
   (operand, source, out) => '$runtimeCall($operand)',
 );
 
@@ -1223,13 +1263,23 @@ List<String>? _arrayToCluster(LvPrimCall call) {
 
 // Variants.
 
+/// [expression] as a variant, recording its numeric representation when it is a number or a
+/// 1-D numeric array.
+String _variantOf(String expression, LvWireType type) {
+  final kind = type.numeric;
+  final numeric = kind != null && type.dims <= 1 ? ', numeric: LvNumericType.${kind.name}' : '';
+  return '${LvRuntimeCall.toVariant}($expression$numeric)';
+}
+
 List<String>? _toVariant(LvPrimCall call) => _unaryRuntime(
   call,
   'anything',
   'variant',
   (type) => type.isMapped,
   'a mapped value',
-  (operand, source, out) => '${LvRuntimeCall.toVariant}($operand)',
+  _isVariant,
+  'a variant',
+  (operand, source, out) => _variantOf(operand, source.type),
 );
 
 List<String>? _variantToData(LvPrimCall call) {
@@ -1346,7 +1396,7 @@ List<String>? _setVariantAttribute(LvPrimCall call) {
   call.requireImport(kLvRuntimeImport);
   return _bindFields(
     sig,
-    '${LvRuntimeCall.setVariantAttribute}(${variant.expression}, ${name.expression}, ${value.expression}, errorIn: $errorIn)',
+    '${LvRuntimeCall.setVariantAttribute}(${variant.expression}, ${name.expression}, ${_variantOf(value.expression!, value.type)}, errorIn: $errorIn)',
     [('variant', 'variant out'), ('replaced', 'replaced'), ('errorOut', 'error out')],
   );
 }
@@ -1492,6 +1542,8 @@ List<String>? _toTimeStamp(LvPrimCall call) => _unaryRuntime(
   'time stamp',
   _isNumber,
   'a scalar number',
+  _isTimestamp,
+  'a timestamp',
   (operand, source, out) =>
       '${LvRuntimeCall.toTimeStamp}(${source.type.numeric!.isFloat ? operand : '$operand.toDouble()'})',
 );
