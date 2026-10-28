@@ -1183,6 +1183,7 @@ class _DartExporter {
     if (trimmed.isEmpty) return "''";
 
     if (_splitTopLevelCommas(trimmed).length > 1) return _evalFallback(raw);
+    if (_hasUnterminatedQuote(trimmed)) return _evalFallback(raw);
 
     final rebuilt = StringBuffer();
     for (final (segment, isString) in _segments(trimmed)) {
@@ -1279,6 +1280,9 @@ class _DartExporter {
           return _evalFallback(raw);
         }
       }
+      for (final m in RegExp(r'(?<![.A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_]').allMatches(code)) {
+        if (_scalarSlots.contains(_idTypes[m.group(1)])) return _evalFallback(raw);
+      }
       for (final m in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
         for (final idm in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(m.group(1)!)) {
           if (_idTypes[idm.group(0)] == _DartSlot.number) return _evalFallback(raw);
@@ -1314,6 +1318,26 @@ class _DartExporter {
   }
 
   String _evalFallback(String raw) => "ts.eval('${_escape(raw)}')";
+
+  static bool _hasUnterminatedQuote(String text) {
+    String? open;
+    var i = 0;
+    while (i < text.length) {
+      final c = text[i];
+      if (open == null) {
+        if (c == '"' || c == "'") open = c;
+      } else if (c == r'\') {
+        i++;
+      } else if (c == open) {
+        open = null;
+      }
+      i++;
+    }
+    return open != null;
+  }
+
+  /// Slots whose Dart type has no TestStand subproperties: a member access on one is a PropertyObject API use.
+  static const _scalarSlots = {_DartSlot.integer, _DartSlot.number, _DartSlot.flag, _DartSlot.text};
 
   String _cond(String raw) {
     final e = _expr(raw);
@@ -1464,7 +1488,7 @@ class _DartExporter {
     }
     final cls = local.raw.valueClass;
     if (cls == SeqValueClass.reference || (cls == null && local.raw.subProps.isEmpty)) {
-      return 'dynamic $id;${_typeComment(local)}';
+      return 'dynamic $id = null;${_typeComment(local)}';
     }
     return 'dynamic $id = ${_propObjInit(local.raw, {})};'
         '${_typeComment(local)}';
@@ -2567,7 +2591,7 @@ class _DartExporter {
       case SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path:
         return (_DartSlot.text, "String $name = '${_escape(scalar ?? '')}';$note");
       case SeqValueClass.reference:
-        return (_DartSlot.untyped, 'dynamic $name;$note');
+        return (_DartSlot.untyped, 'dynamic $name = null;$note');
       default:
         return (_DartSlot.untyped, 'dynamic $name = ${_propObjInit(c, {})};$note');
     }
