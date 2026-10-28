@@ -13,6 +13,7 @@ export 'src/seq_ini.dart';
 export 'src/seq_module.dart';
 export 'src/seq_property.dart';
 export 'src/seq_step.dart';
+export 'src/seq_tree_export.dart';
 export 'src/seq_typedefs.dart';
 export 'src/seq_write_ini.dart';
 export 'src/seq_write_xml.dart';

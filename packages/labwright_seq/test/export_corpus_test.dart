@@ -1,7 +1,9 @@
 @Tags(['corpus'])
 library;
 
+import 'dart:convert';
 import 'dart:io';
+import 'dart:isolate';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
@@ -174,4 +176,135 @@ void main() {
     },
     timeout: const Timeout(Duration(minutes: 4)),
   );
+
+  test(
+    'tree export: every source tree lowers to a package with its VIs beside the sequences, '
+    'the packages analyze clean, and the measures hold',
+    () {
+      final sources = Directory('${corpusSeqDir.path}/seq-corpus/sources');
+      final trees = [
+        ...sources.listSync().whereType<Directory>(),
+        Directory('${corpusSeqDir.path}/seq-corpus/rosetta'),
+      ]..sort((a, b) => a.path.compareTo(b.path));
+      final out = Directory.systemTemp.createTempSync('seq_tree_export_');
+      try {
+        final stopwatch = Stopwatch()..start();
+        var sequenceFiles = 0, unparsed = 0, labViewSteps = 0, lowered = 0, stubbed = 0, withoutDiagram = 0;
+        var viFunctions = 0, viLowered = 0, viStubbed = 0, declarations = 0, files = 0;
+        final unlocated = <String, int>{};
+        final refusals = <String, int>{};
+        final seq = SeqExportStats();
+        for (final tree in trees) {
+          final name = tree.uri.pathSegments.lastWhere((s) => s.isNotEmpty);
+          final target = Directory('${out.path}/$name');
+          final export = exportSeqTree(
+            tree,
+            packageName: seqSnakeCase(name),
+            pathDependencies: {
+              for (final package in const ['labwright', 'labwright_lv_runtime'])
+                package: seqRelativeDirectory(from: target.path, to: '${pkgRoot.path}/packages/$package'),
+            },
+          );
+          export.write(target);
+          final m = export.measures;
+          files += export.files.length;
+          sequenceFiles += m.sequenceFiles;
+          unparsed += m.unparsedSequenceFiles;
+          labViewSteps += m.labViewSteps;
+          lowered += m.stepsLowered;
+          stubbed += m.stepsStubbed;
+          withoutDiagram += m.stepsWithoutDiagram;
+          m.stepsUnlocated.forEach((kind, n) => unlocated[kind.name] = (unlocated[kind.name] ?? 0) + n);
+          viFunctions += m.viFunctions;
+          viLowered += m.viLowered;
+          viStubbed += m.viStubbed;
+          m.refusalsByKind.forEach((kind, n) => refusals[kind] = (refusals[kind] ?? 0) + n);
+          declarations += m.declarations;
+          seq
+            ..viCallSites += m.seq.viCallSites
+            ..viCallSitesStubbed += m.seq.viCallSitesStubbed
+            ..viCallSitesUnboundInputs += m.seq.viCallSitesUnboundInputs
+            ..viArgsTranslated += m.seq.viArgsTranslated
+            ..viArgsEvalFallback += m.seq.viArgsEvalFallback
+            ..viOutputsBound += m.seq.viOutputsBound
+            ..viOutputsUnbound += m.seq.viOutputsUnbound
+            ..viParametersNotTaken += m.seq.viParametersNotTaken;
+        }
+        print(
+          'tree export: ${trees.length} trees · $files files · ${stopwatch.elapsed} · '
+          '$sequenceFiles sequence files ($unparsed not parsed) · $labViewSteps LabVIEW steps: '
+          '$lowered lowered · $stubbed refused · $withoutDiagram without diagram · unlocated $unlocated · '
+          'VIs: $viFunctions emitted · $viLowered lowered · $viStubbed refused $refusals · '
+          '$declarations declarations · call sites: ${seq.viCallSites} · ${seq.viCallSitesUnboundInputs} with '
+          'inputs the step leaves unwired · args ${seq.viArgsTranslated} translated / '
+          '${seq.viArgsEvalFallback} eval · outputs ${seq.viOutputsBound} bound / ${seq.viOutputsUnbound} unbound · '
+          '${seq.viParametersNotTaken} parameters not taken',
+        );
+        _writePackageConfig(out);
+        final analyze = Process.runSync('dart', ['analyze', out.path]);
+        expect(analyze.exitCode, 0, reason: 'exported trees must analyze clean:\n${analyze.stdout}');
+        expect(
+          (
+            sequenceFiles: sequenceFiles,
+            unparsed: unparsed,
+            labViewSteps: labViewSteps,
+            lowered: lowered,
+            stubbed: stubbed,
+            withoutDiagram: withoutDiagram,
+            unlocated: [for (final kind in unlocated.keys.toList()..sort()) '$kind ${unlocated[kind]}'].join(', '),
+            viFunctions: viFunctions,
+            viLowered: viLowered,
+            viStubbed: viStubbed,
+            declarations: declarations,
+            callSites: seq.viCallSites,
+            unwiredInputs: seq.viCallSitesUnboundInputs,
+            argsTranslated: seq.viArgsTranslated,
+            argsEval: seq.viArgsEvalFallback,
+            outputsBound: seq.viOutputsBound,
+            outputsUnbound: seq.viOutputsUnbound,
+            notTaken: seq.viParametersNotTaken,
+          ),
+          kSeqTreeExportMeasures,
+        );
+      } finally {
+        out.deleteSync(recursive: true);
+      }
+    },
+    timeout: const Timeout(Duration(minutes: 5)),
+  );
+}
+
+/// What exporting every corpus source tree yields.
+const kSeqTreeExportMeasures = (
+  sequenceFiles: 45,
+  unparsed: 0,
+  labViewSteps: 89,
+  lowered: 0,
+  stubbed: 87,
+  withoutDiagram: 0,
+  unlocated: 'project 2',
+  viFunctions: 75,
+  viLowered: 4,
+  viStubbed: 71,
+  declarations: 5,
+  callSites: 87,
+  unwiredInputs: 61,
+  argsTranslated: 36,
+  argsEval: 9,
+  outputsBound: 3,
+  outputsUnbound: 2,
+  notTaken: 0,
+);
+
+/// Resolves the exported packages' imports from this test's own package configuration, so the
+/// analyzer runs without a `pub get` in the scratch directory.
+void _writePackageConfig(Directory out) {
+  final configUri = Isolate.packageConfigSync!;
+  final config = jsonDecode(File.fromUri(configUri).readAsStringSync()) as Map<String, dynamic>;
+  for (final package in (config['packages']! as List<dynamic>).cast<Map<String, dynamic>>()) {
+    package['rootUri'] = configUri.resolve(package['rootUri']! as String).toString();
+  }
+  Directory('${out.path}/.dart_tool').createSync();
+  File('${out.path}/.dart_tool/package_config.json').writeAsStringSync(jsonEncode(config));
+  File('${out.path}/pubspec.yaml').writeAsStringSync('name: seq_tree_exports\nenvironment:\n  sdk: ^3.11.0\n');
 }

@@ -52,12 +52,126 @@ const int kLvEmitPageWidth = 120;
     sourceNote: sourceNote,
   );
   try {
-    library.emit(entry, entryName: functionName);
+    library.declare(entry, name: functionName);
+    library.emitDeclared();
     return (source: library.assemble(), refusal: null);
   } on LvRefusedException catch (error) {
     return (source: null, refusal: error.refusal);
   }
 }
+
+/// One connector-pane terminal of an emitted function: the pane index the caller wires, and the
+/// Dart parameter or record field it became.
+class LvEmittedPort {
+  const LvEmittedPort({required this.pane, required this.name, required this.dartType});
+
+  final int pane;
+
+  final String name;
+
+  final String dartType;
+}
+
+/// One VI of an emitted set: a function with the body its block diagram lowers to, or, when the
+/// lowering refused, the signature its connector pane gives it over a body that throws.
+class LvEmittedFunction {
+  const LvEmittedFunction({
+    required this.unit,
+    required this.functionName,
+    required this.parameters,
+    required this.results,
+    required this.undecided,
+    required this.elided,
+    required this.refusal,
+    required this.source,
+    required this.callees,
+  });
+
+  final LvViUnit unit;
+
+  final String functionName;
+
+  final List<LvEmittedPort> parameters;
+
+  final List<LvEmittedPort> results;
+
+  /// Connector-pane terminals left out of a refused function's signature, by pane index, with
+  /// why no Dart type is decided for them.
+  final Map<int, String> undecided;
+
+  /// Connector-pane terminals the error mode leaves out of the signature, by pane index.
+  final Set<int> elided;
+
+  final LvRefusal? refusal;
+
+  /// The function's Dart source, unformatted, without imports or declarations.
+  final String source;
+
+  /// The function names of the VIs this body calls.
+  final Set<String> callees;
+
+  bool get isLowered => refusal == null;
+}
+
+/// Every function one set of entry VIs reaches: the entries, the VIs they call, and so on, each
+/// named once, with the type declarations and file constants their sources spell.
+class LvEmittedSet {
+  const LvEmittedSet({required this.functions, required this.declarations, required this.constants});
+
+  final List<LvEmittedFunction> functions;
+
+  /// In dependency order, so a declaration follows the ones its fields name.
+  final List<LvTypeDecl> declarations;
+
+  /// A file constant's source by the private name a function body spells.
+  final Map<String, String> constants;
+}
+
+/// Lowers [entries] and every VI they reach through [resolveSubVi]. A VI whose lowering refuses
+/// becomes a function that throws, typed by its connector pane, and its callers still lower
+/// against that signature; [emitLvLibrary] refuses the whole library instead.
+LvEmittedSet emitLvFunctions(
+  Iterable<LvViUnit> entries, {
+  LvErrorMode errorMode = LvErrorMode.exceptions,
+  LvViResolver? resolveSubVi,
+  LvClassResolver? resolveClass,
+}) {
+  final library = _Library(
+    errorMode: errorMode,
+    resolve: resolveSubVi,
+    resolveClass: resolveClass,
+    sourceNote: null,
+    stubRefusals: true,
+  );
+  for (final entry in entries) {
+    library.declare(entry);
+  }
+  library.emitDeclared();
+  return library.emitted();
+}
+
+/// The imports a piece of emitted Dart needs for the runtime and typed-data names its code
+/// spells, outside comments and string literals.
+Set<String> lvImportsSpelledIn(String source) {
+  final code = lvCodeOf(source);
+  return {
+    if (_spellsRuntime.hasMatch(code)) kLvRuntimeImport,
+    if (_spellsTypedData.hasMatch(code)) 'dart:typed_data',
+  };
+}
+
+final RegExp _commentOrStringLiteral = RegExp(r"//[^\n]*|'(?:[^'\\\n]|\\.)*'");
+
+/// [source] with its line comments and single-quoted string literals blanked, so a name test
+/// over it reads only code.
+String lvCodeOf(String source) => source.replaceAll(_commentOrStringLiteral, ' ');
+
+/// Formats emitted Dart the way [emitLvLibrary] formats a library.
+String lvFormatDart(String source) => DartFormatter(
+  languageVersion: DartFormatter.latestLanguageVersion,
+  pageWidth: kLvEmitPageWidth,
+  trailingCommas: TrailingCommas.preserve,
+).format(source);
 
 class _Port {
   const _Port({required this.terminal, required this.name, required this.type});
@@ -70,12 +184,21 @@ class _Port {
 }
 
 class _Callable {
-  _Callable({required this.unit, required this.functionName, required this.flow, required this.names});
+  _Callable({required this.unit, required this.functionName, required this.flow, required this.names, this.refusal});
 
   final LvViUnit unit;
   final String functionName;
-  final LvDataflow flow;
+
+  /// Null for a function whose lowering refused before its dataflow was built.
+  final LvDataflow? flow;
   final LvNaming names;
+
+  LvRefusal? refusal;
+
+  final Set<String> callees = <String>{};
+
+  /// Connector-pane terminals of a refused function with no decided Dart type, by pane index.
+  final Map<int, String> undecided = <int, String>{};
 
   final List<_Port> parameters = <_Port>[];
 
@@ -102,9 +225,19 @@ final RegExp _spellsTypedData = RegExp(
 );
 
 class _Library {
-  _Library({required this.errorMode, required this.resolve, required this.resolveClass, required this.sourceNote});
+  _Library({
+    required this.errorMode,
+    required this.resolve,
+    required this.resolveClass,
+    required this.sourceNote,
+    this.stubRefusals = false,
+  });
 
   final LvErrorMode errorMode;
+
+  /// Whether a refused function becomes a throwing stub its callers lower against, rather than
+  /// refusing the library.
+  final bool stubRefusals;
   final LvViResolver? resolve;
   final LvClassResolver? resolveClass;
   final String? sourceNote;
@@ -115,6 +248,7 @@ class _Library {
 
   final Map<String, String> fileConstants = <String, String>{};
 
+  /// Each declared function by its VI's path, or by its file name for a VI held in memory.
   final Map<String, _Callable> byFile = <String, _Callable>{};
 
   final List<_Callable> functions = <_Callable>[];
@@ -125,19 +259,43 @@ class _Library {
   /// Every local named so far in any function, which no later function may take.
   final Set<String> localNames = <String>{};
 
-  void emit(LvViUnit unit, {required String entryName}) {
-    final entry = declare(unit, name: entryName);
+  void emitDeclared() {
     // Callees declared while a body runs append to `functions`; index over it.
     for (var i = 0; i < functions.length; i++) {
       final callable = functions[i];
-      callable.source ??= _FunctionEmitter(this, callable).run();
+      if (callable.source != null) continue;
+      if (callable.flow == null) {
+        callable.source = _stubSource(callable);
+        continue;
+      }
+      try {
+        callable.source = _FunctionEmitter(this, callable).run();
+      } on LvRefusedException catch (error) {
+        if (!stubRefusals) rethrow;
+        callable.refusal = error.refusal;
+        callable.callees.clear();
+        callable.source = _stubSource(callable);
+      }
     }
-    assert(entry.source != null);
   }
 
   _Callable declare(LvViUnit unit, {String? name}) {
-    final key = unit.fileName.toLowerCase();
+    final key = unit.path ?? unit.fileName.toLowerCase();
     if (byFile[key] case final existing?) return existing;
+    final functionName = _uniqueName(name ?? lvFieldName(unit.fileName.replaceAll(RegExp(r'\.\w+$'), '')));
+    _Callable callable;
+    try {
+      callable = _lowered(unit, functionName);
+    } on LvRefusedException catch (error) {
+      if (!stubRefusals) rethrow;
+      callable = _stub(unit, functionName, error.refusal);
+    }
+    byFile[key] = callable;
+    functions.add(callable);
+    return callable;
+  }
+
+  _Callable _lowered(LvViUnit unit, String functionName) {
     final built = buildLvDataflow(
       unit.diagram,
       pool: unit.pool,
@@ -149,14 +307,113 @@ class _Library {
     if (built.refusal case final refusal?) throw LvRefusedException(refusal);
     final callable = _Callable(
       unit: unit,
-      functionName: _uniqueName(name ?? lvFieldName(unit.fileName.replaceAll(RegExp(r'\.\w+$'), ''))),
+      functionName: functionName,
       flow: built.dataflow!,
       names: LvNaming(reserved: takenNames, shared: localNames),
     );
-    byFile[key] = callable;
-    functions.add(callable);
     _declareSignature(callable);
     return callable;
+  }
+
+  /// A refused function's signature from its connector pane: each wired pane terminal's
+  /// block-diagram terminal gives the direction and the descriptor, and a terminal that types
+  /// nothing is left out and recorded in [_Callable.undecided].
+  _Callable _stub(LvViUnit unit, String functionName, LvRefusal refusal) {
+    final callable = _Callable(
+      unit: unit,
+      functionName: functionName,
+      flow: null,
+      names: LvNaming(reserved: takenNames, shared: localNames),
+      refusal: refusal,
+    );
+    for (var pane = 0; pane < unit.paneTerminals.length; pane++) {
+      if (unit.paneTerminals[pane] == null) continue;
+      final terminal = unit.paneTerminal(pane);
+      if (terminal == null) {
+        callable.undecided[pane] = 'no block-diagram terminal draws its control';
+        continue;
+      }
+      final descriptor = terminal.resolvedType?.type;
+      final mapped = descriptor == null
+          ? const LvTypeMapping.unmapped('the terminal resolves no descriptor')
+          : mapLvType(descriptor, unit.pool, 0, declarations);
+      if (!mapped.isMapped) {
+        callable.undecided[pane] = mapped.note ?? 'its descriptor has no decided Dart type';
+        continue;
+      }
+      final type = LvWireType.scalarOf(mapped);
+      if (_elides(type)) {
+        callable.elided.add(terminal.oid);
+        continue;
+      }
+      final isIndicator = lvEndpointIsSink(terminal);
+      final port = _Port(
+        terminal: terminal.oid,
+        name: isIndicator ? callable.names.resultField(terminal.typeName) : callable.names.parameter(terminal.typeName),
+        type: type,
+      );
+      (isIndicator ? callable.results : callable.parameters).add(port);
+      callable.byTerminal[terminal.oid] = port;
+      noteImportsFor(type);
+    }
+    return callable;
+  }
+
+  String _stubSource(_Callable callable) {
+    final refusal = callable.refusal!;
+    final out = StringBuffer()..writeln('/// `${callable.unit.fileName}` is not lowered: ${_prose(refusal.detail)}.');
+    for (final MapEntry(key: pane, value: note) in callable.undecided.entries) {
+      out.writeln('/// Connector-pane terminal $pane is not in this signature: ${_prose(note)}.');
+    }
+    final signature = [
+      for (final parameter in callable.parameters) 'required ${parameter.type.dartType} ${parameter.name}',
+    ];
+    out
+      ..writeln(
+        '${callable.returnType} ${callable.functionName}'
+        '(${signature.isEmpty ? '' : '{${signature.join(', ')}}'}) =>',
+      )
+      ..writeln('throw UnimplementedError(${lvDartStringLiteral('${callable.unit.fileName}: $refusal')});');
+    return out.toString();
+  }
+
+  static String _prose(String text) => text.replaceAll(RegExp(r'\s+'), ' ').trim();
+
+  LvEmittedSet emitted() {
+    final emitted = <LvEmittedFunction>[];
+    for (final callable in functions) {
+      LvEmittedPort portOf(_Port port) =>
+          LvEmittedPort(pane: _paneOf(callable.unit, port.terminal), name: port.name, dartType: port.type.dartType!);
+      emitted.add(
+        LvEmittedFunction(
+          unit: callable.unit,
+          functionName: callable.functionName,
+          parameters: [for (final port in callable.parameters) portOf(port)],
+          results: [for (final port in callable.results) portOf(port)],
+          undecided: Map.unmodifiable(callable.undecided),
+          elided: {for (final terminal in callable.elided) _paneOf(callable.unit, terminal)},
+          refusal: callable.refusal,
+          source: callable.source!,
+          callees: Set.unmodifiable(callable.callees),
+        ),
+      );
+    }
+    final spelled = [for (final callable in functions) callable.source!, ...fileConstants.values].join('\n');
+    return LvEmittedSet(
+      functions: emitted,
+      declarations: lvDeclarationClosure([
+        for (final declaration in declarations.all)
+          if (RegExp('\\b${declaration.name}\\b').hasMatch(spelled)) declaration,
+      ]),
+      constants: Map.unmodifiable(fileConstants),
+    );
+  }
+
+  static int _paneOf(LvViUnit unit, int terminal) {
+    for (var pane = 0; pane < unit.paneTerminals.length; pane++) {
+      if (unit.paneTerminal(pane)?.oid == terminal) return pane;
+    }
+    return -1;
   }
 
   String _uniqueName(String stem) {
@@ -169,14 +426,14 @@ class _Library {
 
   void _declareSignature(_Callable callable) {
     final interface = [
-      for (final unit in callable.flow.root.units)
+      for (final unit in callable.flow!.root.units)
         if (unit is LvInterfaceUnit) unit,
     ];
     final controls = interface.where((unit) => !unit.isIndicator).toList()..sort(_byDrawnPosition);
     final indicators = interface.where((unit) => unit.isIndicator).toList()..sort(_byDrawnPosition);
 
     for (final control in controls) {
-      final edge = callable.flow.outOf(control.oid);
+      final edge = callable.flow!.outOf(control.oid);
       final type = edge?.type ?? _unwiredControlType(callable, control);
       if (_elides(type)) {
         callable.elided.add(control.oid);
@@ -188,7 +445,7 @@ class _Library {
       noteImportsFor(type);
     }
     for (final indicator in indicators) {
-      final edge = callable.flow.into(indicator.oid);
+      final edge = callable.flow!.into(indicator.oid);
       if (edge == null) {
         lvRefuse(
           LvRefusalKind.unwiredTerminal,
@@ -306,7 +563,7 @@ class _FunctionEmitter {
   final _Library library;
   final _Callable callable;
 
-  LvDataflow get flow => callable.flow;
+  LvDataflow get flow => callable.flow!;
   LvNaming get names => callable.names;
 
   final StringBuffer body = StringBuffer();
@@ -811,6 +1068,7 @@ class _FunctionEmitter {
     }
     final callee = _resolveCallee(unit);
     final target = library.declare(callee);
+    callable.callees.add(target.functionName);
     if (callee.paneTerminals.length != unit.panePorts.length) {
       lvRefuse(
         LvRefusalKind.subViCall,
@@ -837,7 +1095,10 @@ class _FunctionEmitter {
         lvRefuse(
           LvRefusalKind.subViCall,
           'connector-pane terminal $paneIndex of "${callee.fileName}" is wired here but '
-          'is not part of the callee\'s signature',
+          '${switch (target.undecided[paneIndex]) {
+            final note? => 'has no decided Dart type: $note',
+            null => 'is not part of the callee\'s signature',
+          }}',
           oid: unit.oid,
         );
       }
