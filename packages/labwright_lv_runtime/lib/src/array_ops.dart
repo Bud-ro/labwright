@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'string_ops.dart';
 import 'values.dart';
 
 class LvArrayNd<T extends List<Object?>> {
@@ -55,23 +56,19 @@ int lvCompareValues(Object? a, Object? b) {
     if (b is double && b.isNaN) return -1;
     return a.compareTo(b);
   }
-  if (a is String && b is String) return _compareCodeUnits(a, b);
+  if (a is String && b is String) return lvCompareStrings(a, b);
   if (a is bool && b is bool) return a == b ? 0 : (a ? 1 : -1);
-  if (a is LvPath && b is LvPath) return _compareCodeUnits(a.components.join('/'), b.components.join('/'));
+  if (a is LvPath && b is LvPath) return lvCompareStrings(a.components.join('/'), b.components.join('/'));
   if (a is LvTimestamp && b is LvTimestamp) {
-    return a.seconds != b.seconds ? a.seconds.compareTo(b.seconds) : a.fraction.compareTo(b.fraction);
+    return a.seconds != b.seconds
+        ? a.seconds.compareTo(b.seconds)
+        : (a.fraction ^ _kSignBit).compareTo(b.fraction ^ _kSignBit);
   }
   throw UnsupportedError("LabVIEW's ordering of ${a.runtimeType} against ${b.runtimeType} is not decoded");
 }
 
-int _compareCodeUnits(String a, String b) {
-  final length = a.length < b.length ? a.length : b.length;
-  for (var i = 0; i < length; i++) {
-    final difference = a.codeUnitAt(i) - b.codeUnitAt(i);
-    if (difference != 0) return difference;
-  }
-  return a.length - b.length;
-}
+/// The sign bit of a 64-bit integer; flipping it orders unsigned patterns as signed ones.
+const int _kSignBit = -0x8000000000000000;
 
 /// Transpose 2D Array: `[i, j]` becomes `[j, i]`.
 LvArrayNd<T> lvTranspose2dArray<T extends List<Object?>>(LvArrayNd<T> array, T Function(int length) allocate) {
@@ -190,6 +187,7 @@ double lvThreshold1dArray(List<num> array, num threshold, [int startIndex = 0]) 
 /// Decimate 1D Array: element `i` of [array] goes to output `i % outputs`, and every output has
 /// as many elements as the shortest, so a remainder is dropped.
 List<List<T>> lvDecimate1dArray<T>(List<T> array, int outputs) {
+  if (outputs < 1) throw ArgumentError.value(outputs, 'outputs', 'Decimate 1D Array draws at least one output');
   final length = array.length ~/ outputs;
   return [
     for (var output = 0; output < outputs; output++) [for (var i = 0; i < length; i++) array[output + i * outputs]],
@@ -198,6 +196,9 @@ List<List<T>> lvDecimate1dArray<T>(List<T> array, int outputs) {
 
 /// Reshape Array: [data] read row-major into an array of [dims], cut short or padded with
 /// [padding] to fill the new shape; a dimension below zero reads as zero.
+/// Reshape Array's dimension sizes as the result carries them, a size below zero read as zero.
+Uint32List lvReshapeDims(List<int> dims) => Uint32List.fromList([for (final dim in dims) dim < 0 ? 0 : dim]);
+
 List<T> lvReshapeArray<T>(List<T> data, List<int> dims, T padding) {
   var count = 1;
   for (final dim in dims) {

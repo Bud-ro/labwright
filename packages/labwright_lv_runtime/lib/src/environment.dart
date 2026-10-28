@@ -154,8 +154,9 @@ final class LvEnvironmentUnavailable extends Error {
   String toString() => 'LabVIEW operation "$operation" needs an LvEnvironment, and none is installed';
 }
 
-/// The environment a program runs in until a host installs one: every operation raises.
-final class LvUnavailableEnvironment extends LvEnvironment {
+/// The environment a program runs in until a host installs one: every operation raises. A host
+/// that provides only some operations extends it and overrides those.
+class LvUnavailableEnvironment extends LvEnvironment {
   const LvUnavailableEnvironment();
 
   Never _raise(String operation) => throw LvEnvironmentUnavailable(operation);

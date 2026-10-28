@@ -80,17 +80,16 @@ final class LvEventRegistration {
     LvError errorIn = LvError.none,
   }) {
     if (errorIn.status) return (registration: LvRefnum.none, errorOut: errorIn);
+    if (userEvents.any((source) => lvReferenceTarget<LvUserEvent<Object?>>(source) == null)) {
+      return (registration: LvRefnum.none, errorOut: LvErrorCode.invalidReference.error('Register For Events'));
+    }
     final registration = lvReferenceTarget<LvEventRegistration>(existing) ?? LvEventRegistration._();
     for (final source in registration._sources) {
       lvReferenceTarget<LvUserEvent<Object?>>(source)?._registrations.remove(registration);
     }
     registration._sources.clear();
     for (final source in userEvents) {
-      final event = lvReferenceTarget<LvUserEvent<Object?>>(source);
-      if (event == null) {
-        return (registration: LvRefnum.none, errorOut: LvErrorCode.invalidReference.error('Register For Events'));
-      }
-      event._registrations.add(registration);
+      lvReferenceTarget<LvUserEvent<Object?>>(source)!._registrations.add(registration);
       registration._sources.add(source);
     }
     final refnum = lvReferenceIsLive(existing) ? existing : lvRegisterReference(registration);
@@ -121,10 +120,12 @@ final class LvEventRegistration {
   }
 }
 
-/// Register For Events over [sources]: user events register in the runtime; any other source
-/// is a panel object, VI or application the environment registers.
+/// Register For Events over [sources], each named by the entry of [events] at its index:
+/// user events register in the runtime; any other source is a panel object, VI or application
+/// the environment registers under its event name.
 ({LvRefnum registration, LvError errorOut}) lvRegisterForEvents(
   List<LvRefnum> sources, {
+  List<String> events = const [],
   LvRefnum existing = LvRefnum.none,
   LvError errorIn = LvError.none,
 }) {
@@ -133,7 +134,7 @@ final class LvEventRegistration {
   }
   return lvEnvironment.registerForEvents(
     [
-      for (final source in sources) (event: '', source: source),
+      for (var i = 0; i < sources.length; i++) (event: i < events.length ? events[i] : '', source: sources[i]),
     ],
     existing,
     errorIn,
