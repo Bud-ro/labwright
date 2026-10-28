@@ -16,32 +16,11 @@ int _countOverrides(SeqProperty p, [int depth = 0]) {
       .fold(p.isInstanceOverride ? 1 : 0, (n, c) => n + _countOverrides(c, depth + 1));
 }
 
-bool _bodyContains(List<int> body, String ascii) {
-  final pat = ascii.codeUnits;
-  outer:
-  for (var i = 0; i + pat.length <= body.length; i++) {
-    for (var j = 0; j < pat.length; j++) {
-      if (body[i + j] != pat[j]) continue outer;
-    }
-    return true;
-  }
-  return false;
-}
-
 const _maxProbeBytes = 8 * 1024 * 1024;
-
-bool _isExprLike(String s) =>
-    (s.contains('.') && RegExp(r'[A-Za-z]\.[A-Za-z]').hasMatch(s)) ||
-    s.contains('(') ||
-    s.contains(')') ||
-    s.contains('"') ||
-    (RegExp(r'[+\-*/=<>!]').hasMatch(s) && RegExp(r'[A-Za-z0-9]').hasMatch(s));
 
 const kXmlIniNonzero = <String, Map<String, int>>{};
 
 const kXmlIniMismatches = <String, Map<String, int>>{};
-
-const kBinaryReconMismatches = <String, Map<String, int>>{};
 
 void main() {
   final seqs =
@@ -433,22 +412,10 @@ void main() {
     expect(tally.mismatches('iniAdapters', 'iniStepCount'), const <String, int>{}, reason: 'INI adapter partition');
   });
 
-  test('binary corpus (single pass): partial model is honest, recon lenses never fabricate', () {
+  test('binary corpus (single pass): the lifted model carries the same lenses as XML', () {
     final tally = Tally();
     final failures = <String>[];
-
-    int u32(List<int> b, int i) => b[i] | b[i + 1] << 8 | b[i + 2] << 16 | b[i + 3] << 24;
-    bool tripletExists(List<int> body, int rr, int idx) {
-      for (var i = 0; i + 12 <= rr; i++) {
-        if (u32(body, i) != idx) continue;
-        final field = u32(body, i + 4);
-        final count = u32(body, i + 8);
-        if (field < 1 || field > 100000) continue;
-        if (count < 1 || count > 1000) continue;
-        if (i < 4 || u32(body, i - 4) == 0 || u32(body, i - 4) == 0xffffffff) return true;
-      }
-      return false;
-    }
+    var coverage = const SeqCoverage(total: 0, modeled: 0);
 
     for (final f in seqs) {
       tally.file = corpusSeqRelativePath(f.path);
@@ -456,31 +423,17 @@ void main() {
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
       tally.bump('binary');
 
-      final partial = parseSeqFile(bytes);
-      if (partial.sequences.isNotEmpty) tally.bump('binaryWithSequences');
-      final partialTypeNames = {for (final t in partial.types) t.name};
-      final walkBacked = {
-        for (final o in binarySequenceOutlines(bytes))
-          if (o.groupArrays.isNotEmpty) o.name,
-      };
-      for (final seq in partial.sequences) {
+      final file = parseSeqFile(bytes);
+      expect(file.binary, isNotNull, reason: f.path);
+      if (file.sequences.isNotEmpty) tally.bump('binaryWithSequences');
+      final typeNames = {for (final t in file.types) t.name};
+      for (final seq in file.sequences) {
         expect(seq.name, isNotEmpty);
-        if (!walkBacked.contains(seq.name)) {
-          expect(
-            const {'Sequence', 'Calls', 'ResultList', 'Objs', 'Seq', 'Obj', 'Data'},
-            isNot(contains(seq.name)),
-            reason: '${f.path}: structural token as sequence name',
-          );
-        }
         tally.bump('binaryStepsRecovered', seq.steps.length);
         for (final step in seq.steps) {
           if (step.type != null) {
             tally.bump('binaryTypedSteps');
-            expect(
-              partialTypeNames,
-              contains(step.type),
-              reason: '${f.path}: step ${step.name} type outside the table',
-            );
+            expect(typeNames, contains(step.type), reason: '${f.path}: step ${step.name} type outside the table');
           }
           final m = step.module;
           if (m.adapter != SeqAdapter.none && m.adapter != SeqAdapter.unknown) {
@@ -492,133 +445,30 @@ void main() {
               expect(m.pythonModulePath, endsWith('.py'), reason: '${f.path}: ${step.name} python module');
             }
           }
+          if (step.flowControl != null) tally.bump('binaryFlowSteps');
         }
       }
+      coverage = coverage + measureCoverage(file);
       final bh = detectSeqHeader(bytes);
       expect(bh.fileType, 'SequenceFile');
       expect(bh.productName, 'TestStand');
-      final body = inflateBinaryBody(bytes);
-      expect(body, isNotNull, reason: '${f.path}: no inflatable body');
-      if (body != null) {
-        tally.bump('withBinaryBody');
-        expect(_bodyContains(body, 'Sequence'), isTrue, reason: '${f.path}: body lacks the Sequence token');
-        final bodyNames = binaryBodyStrings(bytes).map((s) => s.text).toSet();
-        expect(
-          ['Sequence', 'Step', 'Locals'].any(bodyNames.contains),
-          isTrue,
-          reason: '${f.path}: body strings missing all core model names',
-        );
-        expect(
-          binaryStringTable(bytes).length,
-          greaterThanOrEqualTo(5),
-          reason: '${f.path}: no contiguous string table',
-        );
+      expect(bh.fileVersion, isNotNull);
+
+      final analysis = analyzeBinary(bytes);
+      if (analysis == null || !analysis.grammarApplies) {
+        failures.add('${f.path}: grammar does not apply');
+        continue;
       }
-
-      final layout = analyzeBinaryBody(bytes);
-      if (layout == null) {
-        failures.add('${f.path}: no layout');
-      } else {
-        tally.bump('framed');
-        tally.bump('totalStrings', layout.stringCount);
-        if (layout.sentinelCount > 0) tally.bump('withSentinels');
-        if (layout.recordRegionLength <= 0 ||
-            layout.recordRegionLength >= layout.inflatedSize ||
-            layout.stringCount < 5) {
-          failures.add('${f.path}: $layout');
-        }
-        final w = layout.leadingWords;
-        if (w.length >= 3 && w[2] == 1) tally.bump('word2Is1');
-        final segments = binaryStringSegments(bytes);
-        if (layout.segmentCount != segments.length || layout.segmentCount < 2) {
-          failures.add('${f.path}: ${layout.segmentCount} segments');
-        }
-
-        final name = binaryNameTable(bytes);
-        if (name == null) {
-          failures.add('${f.path}: no name table');
-        } else {
-          tally.bump('nameFound');
-          final texts = {for (final e in name.entries) e.text};
-          if (['Step', 'Sequence', 'Locals'].any(texts.contains)) {
-            tally.bump('hasModelTokens');
-          } else {
-            failures.add('${f.path}: name table lacks core model tokens');
-          }
-          if (segments.any((s) => s.entries.length > name.entries.length)) tally.bump('notLargest');
-          if (segments.isNotEmpty && name.offset == segments.first.offset) tally.bump('isFirst');
-          if (segments.any((s) => s.offset != name.offset && s.entries.any((e) => _isExprLike(e.text)))) {
-            tally.bump('valuesOutsideName');
-          }
-
-          final names = [for (final e in name.entries) e.text];
-          if (names.isNotEmpty && names.first == 'SequenceFileData') {
-            tally.bump('rooted');
-            if (names.length >= 2 && names[1] == 'Data') {
-              tally.bump('prefix2Ok');
-            } else {
-              failures.add('${f.path}: prefix ${names.take(2).toList()} != [SequenceFileData, Data]');
-            }
-            final n = binaryNameScaffold.length;
-            if (names.length >= n && Iterable<int>.generate(n).every((i) => names[i] == binaryNameScaffold[i])) {
-              tally.bump('scaffold5Ok');
-            }
-            final words = binaryRecordWords(bytes);
-            if (words.length >= 3 && words[2] == 1 && names[1] == 'Data') tally.bump('recordIndexesData');
-            final objNames = binaryObjectNames(bytes);
-            if (objNames.isNotEmpty && objNames.first != 'SequenceFileData') {
-              tally.bump('objNamesOk');
-            } else if (objNames.isNotEmpty) {
-              failures.add('${f.path}: scaffold prefix not dropped ($objNames)');
-            }
-          }
-
-          final nameLen = name.entries.length;
-          if (body != null && nameLen > 5) {
-            final rr = layout.recordRegionLength.clamp(0, body.length);
-            for (var idx = 5; idx < nameLen; idx++) {
-              tally.bump('realTot');
-              if (tripletExists(body, rr, idx)) tally.bump('realHit');
-            }
-            for (var k = 0; k < nameLen - 5; k++) {
-              tally.bump('fakeTot');
-              if (tripletExists(body, rr, nameLen + 1 + k)) tally.bump('fakeHit');
-            }
-          }
-        }
-      }
-
-      final a = analyzeBinary(bytes);
-      if (a == null) {
-        failures.add('${f.path}: analyzeBinary null');
-      } else {
-        tally.bump('analyzeChecked');
-        final ok =
-            a.inflatedSize == (inflateBinaryBody(bytes)?.length ?? 0) &&
-            a.strings.length == binaryBodyStrings(bytes).length &&
-            a.stringTable.length == binaryStringTable(bytes).length &&
-            a.layout?.recordRegionLength == analyzeBinaryBody(bytes)?.recordRegionLength &&
-            a.nameTable.length == (binaryNameTable(bytes)?.entries.length ?? 0) &&
-            a.objectNames.length == binaryObjectNames(bytes).length &&
-            a.modulePaths.length == binaryModulePaths(bytes).length &&
-            a.stepReferences.length == binaryStepReferences(bytes).length &&
-            a.expressions.length == binaryExpressions(bytes).length &&
-            a.quotedLiterals.length == binaryQuotedLiterals(bytes).length &&
-            a.namedScalars.length == binaryNamedScalarRecords(bytes).length &&
-            a.scalarDoubles.length == binaryScalarDoubles(bytes).length &&
-            a.namedRecords.length == binaryNamedRecords(bytes).length;
-        if (!ok) failures.add('${f.path}: analyzeBinary != helpers');
-      }
-
-      final paths = binaryModulePaths(bytes);
+      tally.bump('framed');
+      final paths = analysis.modulePaths;
       for (final p in paths) {
         if (!isBinaryModulePath(p)) failures.add('${f.path}: path $p');
       }
-      for (final e in binaryExpressions(bytes)) {
+      for (final e in analysis.expressions) {
         if (!isBinaryExpression(e)) failures.add('${f.path}: expr $e');
         if (isBinaryModulePath(e) || e.startsWith('ID#:')) failures.add('${f.path}: expr overlaps path/id $e');
       }
-      for (final l in binaryQuotedLiterals(bytes)) {
+      for (final l in analysis.quotedLiterals) {
         if (!isBinaryQuotedLiteral(l)) failures.add('${f.path}: lit $l');
         if (isBinaryExpression(l) || isBinaryModulePath(l) || l.startsWith('ID#:')) {
           failures.add('${f.path}: literal overlaps expr/path/id $l');
@@ -629,40 +479,26 @@ void main() {
         tally.bump('totalPaths', paths.length);
         tally.bump('nonAsciiPaths', paths.where((p) => p.codeUnits.any((u) => u >= 0x80)).length);
       }
-      if (binaryStepReferences(bytes).isNotEmpty) tally.bump('withId');
-      if (binaryExpressions(bytes).isNotEmpty) tally.bump('withExpr');
-      if (binaryQuotedLiterals(bytes).isNotEmpty) tally.bump('withLit');
+      final stepNames = {
+        for (final seq in file.sequences)
+          for (final step in seq.steps) step.name,
+      };
+      if (!analysis.objectNames.toSet().containsAll(stepNames)) failures.add('${f.path}: object names miss steps');
     }
 
-    final realRate = tally['realHit'] / tally['realTot'];
-    final fakeRate = tally['fakeHit'] / tally['fakeTot'];
     print(
-      'binary recon: ${tally['binary']} binaries · ${tally['binaryWithSequences']} with sequences · '
+      'binary corpus: ${tally['binary']} binaries · ${tally['binaryWithSequences']} with sequences · '
       '${tally['binaryStepsRecovered']} steps (${tally['binaryTypedSteps']} typed, '
-      '${tally['binaryModuleSteps']} with modules) · ${tally['framed']} framed '
-      '(${tally['withSentinels']} sentinels, ${tally['totalStrings']} strings) · '
-      '${tally['rooted']} rooted (${tally['scaffold5Ok']} scaffold, ${tally['isFirst']} first-segment) · '
-      'triplet ${(realRate * 100).toStringAsFixed(1)}% vs control ${(fakeRate * 100).toStringAsFixed(1)}% · '
+      '${tally['binaryModuleSteps']} with modules, ${tally['binaryFlowSteps']} flow control) · '
+      'model coverage ${(coverage.ratio * 100).toStringAsFixed(1)}% · '
       '${tally['withPath']} with paths (${tally['totalPaths']}, ${tally['nonAsciiPaths']} non-ASCII)',
     );
     expect(failures, isEmpty, reason: failures.take(8).join('\n'));
-
-    for (final (a, b) in const [
-      ('withBinaryBody', 'binary'),
-      ('framed', 'binary'),
-      ('word2Is1', 'binary'),
-      ('nameFound', 'binary'),
-      ('hasModelTokens', 'binary'),
-      ('valuesOutsideName', 'binary'),
-      ('prefix2Ok', 'rooted'),
-      ('recordIndexesData', 'rooted'),
-      ('objNamesOk', 'rooted'),
-      ('analyzeChecked', 'binary'),
-    ]) {
-      expect(tally.mismatches(a, b), kBinaryReconMismatches['$a/$b'] ?? const <String, int>{}, reason: '$a == $b');
-    }
+    expect(tally['binaryWithSequences'], tally['binary'], reason: 'every binary lifts its sequences');
+    expect(tally['framed'], tally['binary']);
+    expect(tally['binaryTypedSteps'], tally['binaryStepsRecovered'], reason: 'every binary step names its type');
+    expect(coverage.ratio, greaterThan(0.3));
   });
-
   group('pinned corpus files (reader correctness)', () {
     File? pin(String suffix) => seqs.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
 

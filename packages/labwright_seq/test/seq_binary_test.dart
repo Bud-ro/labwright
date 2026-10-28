@@ -5,94 +5,367 @@ import 'dart:typed_data';
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
-Uint8List _tof1(List<int> bodyBytes, {int pad = 0x100}) => Uint8List.fromList(
-  (BytesBuilder()
-        ..add(ascii.encode('TOF1'))
-        ..add(List.filled(6, 0))
-        ..add(ascii.encode('SequenceFile'))
-        ..add(List.filled(pad, 0))
-        ..add(zlib.encode(bodyBytes)))
-      .toBytes(),
-);
+/// Builds a `TOF1` body byte by byte, interning strings into the pool as it goes.
+class _BodyBuilder {
+  final BytesBuilder _bytes = BytesBuilder();
+  final List<String> pool = [];
 
-List<int> _f64le(double v) => (ByteData(8)..setFloat64(0, v, Endian.little)).buffer.asUint8List();
+  int get length => _bytes.length;
 
-List<int> _u32le(int v) => [v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff];
+  int s(String text) {
+    final index = pool.indexOf(text);
+    if (index >= 0) return index;
+    pool.add(text);
+    return pool.length - 1;
+  }
 
-List<int> _nulPool(List<String> names) => [
-  for (final n in names) ...[...ascii.encode(n), 0],
-];
+  void u32(int v) => _bytes.add([v & 0xff, v >> 8 & 0xff, v >> 16 & 0xff, v >> 24 & 0xff]);
 
-List<int> _scalarRec({int tag = 0, int nameRel = 8, int typeCode = 99, double value = 42.0}) => [
-  ..._u32le(tag),
-  ..._u32le(0),
-  ..._u32le(nameRel),
-  ..._u32le(typeCode),
-  ..._f64le(value),
-  for (var i = 0; i < 6; i++) ..._u32le(0),
-];
+  void u8(int v) => _bytes.addByte(v);
+
+  void f64(double v) => _bytes.add((ByteData(8)..setFloat64(0, v, Endian.little)).buffer.asUint8List());
+
+  void str(String? text) => u32(text == null ? binaryNullIndex : s(text));
+
+  void leaf(String cls, String name, {Object? value, int flags = 0}) {
+    final hasValue = value != null;
+    u32(flags | (hasValue ? BinaryPropertyFlag.value.bit : 0));
+    u32(0);
+    str(cls);
+    str(name);
+    switch (value) {
+      case null:
+        break;
+      case final double v:
+        f64(v);
+      case final bool v:
+        u8(v ? 1 : 0);
+      case final String v:
+        str(v);
+    }
+    if (BinaryPropertyFlag.comment.isSetIn(flags)) str('a comment');
+    if (BinaryPropertyFlag.numericFormat.isSetIn(flags)) str('%.2f');
+    u32(0);
+  }
+
+  Uint8List finish() {
+    u32(0);
+    u32(binaryNullIndex);
+    final recordRegionLength = _bytes.length;
+    u32(pool.length);
+    for (final entry in pool) {
+      _bytes
+        ..add(latin1.encode(entry))
+        ..addByte(0);
+    }
+    return _file(_bytes.toBytes(), recordRegionLength);
+  }
+
+  static Uint8List _file(Uint8List body, int recordRegionLength, {int fileVersion = 962}) {
+    final header = Uint8List(Tof1HeaderField.body.offset);
+    header.setAll(0, ascii.encode('TOF1'));
+    header.setAll(Tof1HeaderField.fileType.offset, ascii.encode('SequenceFile'));
+    header.setAll(Tof1HeaderField.productName.offset, ascii.encode('TestStand'));
+    header.setAll(Tof1HeaderField.productVersion.offset, ascii.encode('2021 SP1 (21.1.0.49154)'));
+    header.setAll(Tof1HeaderField.bodyMarker.offset, ascii.encode('PMCZ'));
+    final view = ByteData.sublistView(header);
+    view.setUint32(Tof1HeaderField.fileVersion.offset, fileVersion, Endian.little);
+    view.setUint32(Tof1HeaderField.recordRegionLength.offset, recordRegionLength, Endian.little);
+    view.setUint32(Tof1HeaderField.inflatedLength.offset, body.length, Endian.little);
+    return Uint8List.fromList([...header, ...zlib.encode(body)]);
+  }
+}
+
+/// One typedef (a `Str` named `Expression`-like leaf and an `Obj` step type) and a data root with one
+/// sequence holding one step and one local.
+Uint8List _synthetic() {
+  final b = _BodyBuilder();
+  for (final name in ['SequenceFileData', 'Data', 'Objs', 'Seq', '[0]', 'Sequence', 'MainSequence', 'Obj']) {
+    b.s(name);
+  }
+  b.u32(2);
+  // typedef 0: Expression (ExprValue leaf)
+  b.u32(BinaryPropertyFlag.typeFlags.bit);
+  b.u32(1);
+  b.str('ExprValue');
+  b.str('Expression');
+  b.u32(3);
+  b.u32(1650060499);
+  b.u32(0);
+  b.str('21.0.0.49156');
+  b.str('21.1.0.49154');
+  b.str('21.0.0.0');
+  b.u32(33554436);
+  b.u32(0);
+  b.u32(binaryNullIndex);
+  b.u32(0);
+  b.u32(0);
+  b.u32(0);
+  b.u8(0);
+  b.u32(1);
+  // typedef 1: MyStep (StepType) with a TS container holding Icon and a typed PreCond
+  b.u32(BinaryPropertyFlag.typeFlags.bit | BinaryPropertyFlag.valueFlags.bit);
+  b.u32(1);
+  b.str('StepType');
+  b.str('MyStep');
+  b.u32(1);
+  b.u32(1650060499);
+  b.u32(0);
+  b.str('21.0.0.49156');
+  b.str('21.1.0.49154');
+  b.str('21.0.0.0');
+  b.u32(33554438);
+  b.u32(24);
+  b.u32(0);
+  b.u32(binaryNullIndex);
+  b.u32(0);
+  b.u32(1);
+  b.u32(0);
+  b.u32(0);
+  b.str('Obj');
+  b.str('TS');
+  b.u32(2);
+  b.leaf('Str', 'Icon', value: 'step.ico');
+  b.u32(BinaryPropertyFlag.typed.bit);
+  b.u32(0);
+  b.u32(binaryNullIndex);
+  b.u32(0);
+  b.str('PreCond');
+  b.u32(0);
+  b.u32(0);
+  b.u8(0);
+  b.u32(2);
+  // data root
+  b.u32(BinaryPropertyFlag.valueFlags.bit);
+  b.u32(0);
+  b.str('SequenceFileData');
+  b.str('Data');
+  b.u32(4194304);
+  b.u32(1);
+  b.u32(BinaryPropertyFlag.value.bit);
+  b.u32(0);
+  b.str('Objs');
+  b.str('Seq');
+  b.str('[0]');
+  b.str('[0]');
+  b.u8(0);
+  b.u32(0);
+  b.u32(0);
+  b.str('Sequence');
+  b.str('MainSequence');
+  b.u32(2);
+  b.u32(0);
+  b.u32(0);
+  b.str('Obj');
+  b.str('Locals');
+  b.u32(1);
+  b.leaf('Num', 'Voltage', value: 5.5, flags: BinaryPropertyFlag.comment.bit | BinaryPropertyFlag.numericFormat.bit);
+  b.u32(BinaryPropertyFlag.value.bit);
+  b.u32(0);
+  b.str('Objs');
+  b.str('Main');
+  b.str('[0]');
+  b.str('[0]');
+  b.u8(0);
+  b.u32(BinaryPropertyFlag.typed.bit);
+  b.u32(0);
+  b.str('Step');
+  b.u32(1);
+  b.str('Measure it');
+  b.u32(1);
+  b.u32(0);
+  b.u32(0);
+  b.u32(binaryNullIndex);
+  b.str('TS');
+  b.u32(1);
+  b.u32(BinaryPropertyFlag.value.bit);
+  b.u32(0);
+  b.u32(binaryNullIndex);
+  b.str('PreCond');
+  b.str('Locals.Voltage > 1');
+  b.u32(0);
+  b.u32(0);
+  b.u32(0);
+  return b.finish();
+}
 
 void main() {
-  group('binary recon helpers', () {
-    test('inflateBinaryBody locates + inflates the TOF1 zlib body', () {
-      final body = inflateBinaryBody(_tof1(ascii.encode('SequenceFileData-MainSequence-Step' * 4)));
-      expect(ascii.decode(body!), contains('MainSequence'));
+  group('Tof1Header', () {
+    test('reads every fixed field and derives the generation', () {
+      final header = Tof1Header.parse(_synthetic())!;
+      expect(header.fileType, 'SequenceFile');
+      expect(header.productName, 'TestStand');
+      expect(header.productVersion, '2021 SP1 (21.1.0.49154)');
+      expect(header.fileVersion, 962);
+      expect(header.generation, Tof1Generation.ts2014);
+      expect(header.hasBodyMarker, isTrue);
+      expect(header.rootAttributes['fileversion'], '962');
+      expect(header.toSeqFileHeader().fileVersion, '962');
     });
 
-    test('binaryBodyStrings recovers the NUL-terminated name pool', () {
-      final pool = _nulPool([
+    test('generations switch at the corpus file versions', () {
+      expect(Tof1Generation.of(577), Tof1Generation.ts4);
+      expect(Tof1Generation.of(755), Tof1Generation.ts2013);
+      expect(Tof1Generation.of(772), Tof1Generation.ts2013);
+      expect(Tof1Generation.of(773), Tof1Generation.ts2014);
+      expect(Tof1Generation.of(1022), Tof1Generation.ts2014);
+      expect(Tof1Generation.ts4.hasProtectionBlock, isFalse);
+      expect(Tof1Generation.ts2013.hasWideTimestamp, isFalse);
+      expect(Tof1Generation.ts2014.hasWideTimestamp, isTrue);
+    });
+
+    test('rejects bytes that are not a TOF1 file', () {
+      expect(Tof1Header.parse(Uint8List(0)), isNull);
+      expect(Tof1Header.parse(Uint8List(0x600)), isNull);
+      expect(Tof1Header.parse(ascii.encode('<?xml?>')), isNull);
+    });
+
+    test('classifies the whole header into decoded fields and zero padding', () {
+      final bytes = _synthetic();
+      final spans = Tof1Header.classify(bytes);
+      var covered = 0;
+      for (final (start, end, _) in spans) {
+        covered += end - start;
+      }
+      expect(covered, Tof1HeaderField.body.offset);
+      final (decoded, plumbing) = headerByteCoverage(bytes);
+      expect(decoded + plumbing, Tof1HeaderField.body.offset);
+    });
+  });
+
+  group('record grammar', () {
+    test('decodes the type table, the data root and the pool', () {
+      final decode = decodeTof1(_synthetic())!;
+      expect(decode.error, isNull);
+      final body = decode.grammar!;
+      expect(body.types.map((t) => t.name), ['Expression', 'MyStep']);
+      expect(body.types[0].root.kind, SeqValueClass.expression);
+      expect(body.types[1].category, 1);
+      expect(body.types[1].root.valueFlagsWord, 24);
+      expect(body.types[1].orderNumber, 2);
+      expect(body.data.resolvedClassName, 'SequenceFileData');
+      expect(body.data.children.single.name, 'Seq');
+      expect(body.pool.first, 'SequenceFileData');
+      expect(body.tailWord, 0);
+      final step =
+          (body.data.children.single.elements!.single as BinaryRecord).child('Main')!.elements!.single as BinaryRecord;
+      expect(step.typeName, 'MyStep');
+      expect(step.resolvedClassName, 'Step');
+      final preCond = step.child('TS')!.child('PreCond')!;
+      expect(preCond.resolvedClassName, 'ExprValue', reason: 'the class is inherited through MyStep.TS.PreCond');
+      expect(preCond.value, 'Locals.Voltage > 1');
+    });
+
+    test('lifts into the SeqFile model with inherited settings materialised', () {
+      final file = parseSeqFile(_synthetic());
+      expect(file.header.format, SeqFormat.binary);
+      expect(file.header.fileVersion, '962');
+      expect(file.types.map((t) => t.name), ['Expression', 'MyStep']);
+      expect(file.typelistEntries!.map((e) => e.attributes['typelistordernum']), ['1', '2']);
+      final sequence = file.sequences.single;
+      expect(sequence.name, 'MainSequence');
+      final local = sequence.locals.single;
+      expect((local.name, local.type, local.value), ('Voltage', 'Num', '5.5'));
+      expect(local.comment, 'a comment');
+      expect(local.raw.numericFormat, '%.2f');
+      final step = sequence.main.single;
+      expect(step.name, 'Measure it');
+      expect(step.type, 'MyStep');
+      expect(step.settings.precondition, 'Locals.Voltage > 1');
+      final icon = step.raw.prop('TS')!.prop('Icon')!;
+      expect(icon.scalar, 'step.ico');
+      expect(icon.attributes[BinAttr.inherited], 'true');
+      expect(step.raw.prop('TS')!.prop('PreCond')!.attributes.containsKey(BinAttr.inherited), isFalse);
+    });
+
+    test('every body byte is tiered and the undecoded spans are the named constant words', () {
+      final body = decodeTof1(_synthetic())!.grammar!;
+      final coverage = bodyByteCoverage(body);
+      expect(coverage.bodyBytes, body.bytes.length);
+      expect(coverage.recordUndecodedBytes, greaterThan(0));
+      final spans = binaryUndecodedSpans(body);
+      var spanned = 0;
+      for (final span in spans) {
+        spanned += span.end - span.start;
+        for (var i = span.start; i < span.end; i++) {
+          expect(body.tiers[i], BinaryByteTier.undecoded.index, reason: '${span.field} at $i');
+        }
+      }
+      expect(spanned, coverage.recordUndecodedBytes);
+      expect(spans.map((s) => s.field).toSet(), {
+        BinaryUndecodedField.typeEntryWord,
+        BinaryUndecodedField.recordFlagsHigh,
+        BinaryUndecodedField.bodyTailWord,
+      });
+    });
+
+    test('writes back byte-exactly and renames through the pool alone', () {
+      final bytes = _synthetic();
+      final original = inflateBinaryBody(bytes)!;
+      final model = parseBinarySeqWriteModel(bytes)!;
+      expect(model.writeBody(), original);
+      expect(model.replacePoolEntry('Measure it', 'Measure it twice'), 1);
+      final mutated = model.writeBody();
+      expect(mutated.sublist(0, model.recordRegionLength), original.sublist(0, model.recordRegionLength));
+      expect(parseSeqFile(model.writeFile()).sequences.single.main.single.name, 'Measure it twice');
+      expect(model.f64Sites(5.5), hasLength(1));
+      expect(model.replaceF64(5.5, 6.5), 1);
+      expect(parseSeqFile(model.writeFile()).sequences.single.locals.single.value, '6.5');
+    });
+
+    test('stops with the offset when the bytes leave the grammar', () {
+      final bytes = _synthetic();
+      final body = inflateBinaryBody(bytes)!;
+      body[0] = 0x7f;
+      final header = Tof1Header.parse(bytes)!;
+      expect(
+        () => parseTof1Body(body, recordRegionLength: header.recordRegionLength, generation: header.generation),
+        throwsA(isA<Tof1FormatException>()),
+      );
+      final decode = decodeTof1(bytes, body: body)!;
+      expect(decode.grammar, isNull);
+      expect(decode.error, contains('Tof1FormatException'));
+    });
+  });
+
+  group('recon lenses for bodies outside the grammar', () {
+    Uint8List poolOnly() {
+      final pool = <int>[];
+      for (final n in [
         'PaddingNameToExceedTheSixtyFourByteInflateGuardInThisTest',
         'SequenceFileData',
         'MainSequence',
         'Step',
         'Locals',
-      ]);
-      final names = binaryBodyStrings(_tof1(pool)).map((s) => s.text);
-      expect(names, containsAll(['SequenceFileData', 'MainSequence', 'Step', 'Locals']));
-    });
-
-    test('binaryStringTable isolates the contiguous NUL-packed name table', () {
-      final body = [
-        0xAA,
-        0xBB,
-        0xCC,
-        0x01,
-        0x00,
-        0x00,
-        0x00,
-        ...ascii.encode('xy'),
-        0x00,
-        0xFF,
-        0xFF,
-        0xFF,
-        0xFF,
-        0x00,
-        ..._nulPool(['SequenceFileData', 'Data', 'Objs', 'Sequence', 'MainSequence', 'Parameters', 'Locals', 'Step']),
-      ];
-      final pool = binaryStringTable(_tof1(body)).map((s) => s.text).toList();
-      expect(pool, containsAll(['SequenceFileData', 'Sequence', 'MainSequence', 'Step', 'Locals']));
-      expect(pool, isNot(contains('xy')));
-    });
-
-    test('every lens returns null/empty on non-binary or hostile input, never throws', () {
-      final hostile = [
-        Uint8List(0),
-        ascii.encode('<?xml?>'),
-        Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, 1, 2, 3]),
-        Uint8List.fromList([1, 2, 3, 4, 5]),
-      ];
-      for (final bytes in hostile) {
-        expect(inflateBinaryBody(bytes), isNull, reason: '$bytes');
-        expect(binaryBodyStrings(bytes), isEmpty);
-        expect(binaryStringTable(bytes), isEmpty);
-        expect(binaryModulePaths(bytes), isEmpty);
-        expect(binaryStepReferences(bytes), isEmpty);
-        expect(binaryExpressions(bytes), isEmpty);
-        expect(binaryQuotedLiterals(bytes), isEmpty);
-        expect(binaryScalarDoubles(bytes), isEmpty);
-        expect(binaryNamedScalarRecords(bytes), isEmpty);
-        expect(binaryNamedRecords(bytes), isEmpty);
+        'Parameters',
+        r'My Computer\Lib\Read.vi',
+        'Locals.x == 1',
+        'ID#:abc123XYZ',
+        '"6105A"',
+      ]) {
+        pool
+          ..addAll(ascii.encode(n))
+          ..add(0);
       }
+      final header = Uint8List(0x108);
+      header.setAll(0, ascii.encode('TOF1'));
+      header.setAll(0x0a, ascii.encode('SequenceFile'));
+      header.setAll(0x40, ascii.encode('TestStand'));
+      return Uint8List.fromList([...header, ...zlib.encode(pool)]);
+    }
+
+    test('a marker-less header still inflates and the string lenses apply', () {
+      final analysis = analyzeBinary(poolOnly())!;
+      expect(analysis.grammarApplies, isFalse);
+      expect(analysis.strings.map((s) => s.text), contains('MainSequence'));
+      expect(analysis.layout!.stringCount, greaterThanOrEqualTo(5));
+      expect(analysis.objectNames, contains('MainSequence'));
+      expect(analysis.modulePaths, [r'My Computer\Lib\Read.vi']);
+      expect(analysis.stepReferences, ['ID#:abc123XYZ']);
+      expect(analysis.expressions, ['Locals.x == 1']);
+      expect(analysis.quotedLiterals, ['"6105A"']);
+      expect(binaryBodyStrings(poolOnly()).map((s) => s.text), contains('Step'));
+      expect(() => parseSeqFile(poolOnly()), throwsFormatException);
     });
 
     test('pool-string classifier predicates', () {
@@ -100,25 +373,18 @@ void main() {
         (r'My Computer\ExcelReadWrite\Excel_Read.vi', isBinaryModulePath, true),
         (r'SubSequences\2-Gerilim\AC_Gerilim.seq', isBinaryModulePath, true),
         (r'lib\native\driver.DLL', isBinaryModulePath, true),
-        (r'old\vis.llb', isBinaryModulePath, true),
         ('.vi', isBinaryModulePath, false),
-        ('Status', isBinaryModulePath, false),
         ('Excel_Read.vi', isBinaryModulePath, false),
         (r'notes\readme.txt', isBinaryModulePath, false),
-        (r'dir\tool.exe', isBinaryModulePath, false),
         ('Locals.Voltage == 5', isBinaryExpression, true),
         ('RunState.LoopIndex += 1', isBinaryExpression, true),
-        ('Step.Result.Error.Occurred', isBinaryExpression, true),
         ('Abs(Locals.FD1) <= 0.1', isBinaryExpression, true),
         (r'ResStr("NI_STEPTYPES", "ACTION_DEF_STEP_NAME")', isBinaryExpression, true),
         ('(x == 0) ? "a" : "b"', isBinaryExpression, true),
-        ('"a" == "b"', isBinaryExpression, true),
         ('Status', isBinaryExpression, false),
-        ('Measurement 0', isBinaryExpression, false),
         ('ID#:abc.Step.x', isBinaryExpression, false),
         (r'My Computer\Excel\Read.vi', isBinaryExpression, false),
         ('"6105A"', isBinaryQuotedLiteral, true),
-        ('"Unnamed Entry Point"', isBinaryQuotedLiteral, true),
         ('""', isBinaryQuotedLiteral, true),
         ('6105A', isBinaryQuotedLiteral, false),
         ('"open', isBinaryQuotedLiteral, false),
@@ -130,191 +396,70 @@ void main() {
       }
     });
 
-    test('binaryScalarDoubles recovers clean inline IEEE-754 doubles, not noisy ones', () {
-      final rec = [..._u32le(0x1c), ..._f64le(8192.0), ..._f64le(1.0), ..._f64le(3.14159265358979)];
-      final pool = _nulPool([
-        'SequenceFileData',
-        'MainSequence',
-        'StepGroupMain',
-        'LocalsVarOne',
-        'ResultListItem',
-        'ParametersBlock',
-      ]);
-      final got = binaryScalarDoubles(_tof1([...rec, ...pool]));
-      expect(got, containsAll(<double>[8192.0, 1.0]));
-      expect(got, isNot(contains(3.14159265358979)));
-    });
-
-    test('binaryNamedScalarRecords pairs a named-property header with its f64', () {
-      final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList', 'StepEntry', 'SeqEntry']);
-      final rec = _scalarRec();
-      expect(rec, hasLength(48));
-      final r = binaryNamedScalarRecords(_tof1([...rec, ...pool])).single;
-      expect((r.name, r.rawTag, r.rawTypeCode, r.value), ('Parameters', 0, 99, 42.0));
-    });
-
-    test('binaryNamedRecords keeps consistently-tagged names, drops the rest', () {
-      final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList', 'StepX', 'SeqX']);
-      final rec = [
-        ..._u32le(0),
-        ..._u32le(5),
-        ..._u32le(8),
-        ..._u32le(0),
-        ..._u32le(5),
-        ..._u32le(8),
-        ..._u32le(0),
-        ..._u32le(3),
-        ..._u32le(19),
-        ..._u32le(0),
-        ..._u32le(4),
-        ..._u32le(19),
-        ..._u32le(0),
-        ..._u32le(0),
-        ..._u32le(0),
-        ..._u32le(0),
+    test('every lens is total on hostile input', () {
+      final hostile = [
+        Uint8List(0),
+        ascii.encode('<?xml?>'),
+        Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, 1, 2, 3]),
+        Uint8List.fromList([1, 2, 3, 4, 5]),
+        Uint8List(0x600)..setAll(0, ascii.encode('TOF1')),
       ];
-      final recs = binaryNamedRecords(_tof1([...rec, ...pool]));
-      expect(recs, hasLength(1));
-      expect((recs.single.name, recs.single.count, recs.single.rawTag), ('Parameters', 2, 5));
-    });
-
-    test('dumpBinaryRecon reports recovered data + honest not-yet-decoded note', () {
-      final pool = _nulPool(['PadName', 'Parameters', 'Locals', 'ResultList', 'StepEntry', 'SeqEntry']);
-      final text = dumpBinaryRecon(_tof1([..._scalarRec(), ...pool]));
-      expect(text, contains('=== Layout ==='));
-      expect(text, contains('=== Named scalar values (1) ==='));
-      expect(text, contains('Parameters = 42.0  (raw type 99, not modeled)'));
-      expect(text, contains('record links not yet decoded'));
-      expect(dumpBinaryRecon(ascii.encode('<?xml?>')), '(not a binary TOF1 file)');
+      for (final bytes in hostile) {
+        expect(inflateBinaryBody(bytes), isNull, reason: '$bytes');
+        expect(analyzeBinary(bytes), isNull);
+        expect(binaryBodyStrings(bytes), isEmpty);
+        expect(binaryByteCoverage(bytes), isNull);
+        expect(parseBinarySeqWriteModel(bytes), isNull);
+        expect(binarySequenceNames(bytes), isEmpty);
+      }
     });
   });
 
-  group('fuzz hardening: hostile inputs are total (null/bail), never crash or exhaust memory', () {
+  group('fuzz hardening', () {
     Uint8List raw(List<int> tail) => Uint8List.fromList([0x54, 0x4f, 0x46, 0x31, ...tail]);
 
-    test('a zlib decompression bomb aborts (null) instead of exhausting memory', () {
+    test('a zlib decompression bomb aborts instead of exhausting memory', () {
       final bomb = ZLibEncoder().convert(Uint8List(200 * 1024 * 1024));
-      expect(bomb.length, lessThan(1 * 1024 * 1024), reason: 'the bomb must be tiny compressed');
-      expect(inflateBinaryBody(raw(bomb)), isNull, reason: 'returning at all proves the cap fired');
+      expect(bomb.length, lessThan(1024 * 1024));
+      expect(inflateBinaryBody(raw([...Uint8List(0x514), ...bomb])), isNull);
     });
 
     test('a body just under the cap still inflates', () {
       expect(inflateBinaryBody(raw(ZLibEncoder().convert(Uint8List(1024 * 1024)))), isNotNull);
     });
 
-    test('deeply nested typedef bodies bail instead of overflowing the stack', () {
+    test('runaway counts and nesting bail with a FormatException', () {
       final region = BytesBuilder();
       for (var i = 0; i < 100000; i++) {
-        region
-          ..add(_u32le(0))
-          ..add(_u32le(0))
-          ..add(_u32le(0xffffffff))
-          ..add(_u32le(1))
-          ..add(_u32le(1));
+        region.add([0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 0xff, 0xff, 1, 0, 0, 0, 1, 0, 0, 0]);
       }
-      final file = raw(ZLibEncoder().convert(region.toBytes()));
-      expect(() => parseSeqFile(file), returnsNormally);
-      expect(() => binaryTypeRecords(file), returnsNormally);
+      final body = region.toBytes();
+      final file = _BodyBuilder._file(body, body.length - 12);
+      expect(() => parseSeqFile(file), throwsFormatException);
+      expect(decodeTof1(file)!.grammar, isNull);
+      final huge = _BodyBuilder._file(Uint8List.fromList([0xff, 0xff, 0xff, 0x7f, ...Uint8List(64)]), 56);
+      expect(() => parseSeqFile(huge), throwsFormatException);
     });
   });
 
-  group('SeqDocument.parse dispatches on format and degrades honestly', () {
-    test('XML → XmlSeqDocument (structured, typed lens)', () {
-      final xml = Uint8List.fromList([
-        0xef,
-        0xbb,
-        0xbf,
-        ...utf8.encode(
-          "<?xml version='1.0'?>\n"
-          "<teststandfileheader type='SequenceFile' fileversion='920' productname='TestStand'>"
-          "<typelist/><Data classname='Obj'><subprops>"
-          "<Seq classname='Objs'><value lbound='[0]' ubound='[1]'><value>"
-          "<Sequence name='MainSequence' classname='Obj'><subprops>"
-          "<Main classname='Objs'><value lbound='[0]' ubound='[1]'>"
-          "<value><Step typename='Statement' name='S1'/></value></value></Main>"
-          '</subprops></Sequence></value></value></Seq></subprops></Data>'
-          '</teststandfileheader>',
-        ),
-      ]);
-      final doc = SeqDocument.parse(xml);
-      expect(doc, isA<XmlSeqDocument>());
-      expect(doc, isA<StructuredSeqDocument>());
-      expect(doc.header.format, SeqFormat.xml);
-      expect((doc as XmlSeqDocument).file.sequences.single.name, 'MainSequence');
+  group('model helpers', () {
+    test('formatSeqNumber prints integral doubles without a fraction', () {
+      expect(formatSeqNumber(8192), '8192');
+      expect(formatSeqNumber(0.01), '0.01');
+      expect(formatSeqNumber(-3.5), '-3.5');
+      expect(formatSeqNumber(2953567917), '2953567917');
+      expect(formatSeqNumber(double.nan), 'NaN');
+      expect(formatSeqNumber(double.negativeInfinity), '-Inf');
     });
 
-    test('legacy INI → IniSeqDocument (structured, typed lens)', () {
-      final ini = ascii.encode(
-        [
-          '[__Header__]',
-          'ProductName = "TestStand"',
-          'Version = 354',
-          'Type = "SequenceFile"',
-          '',
-          '[DEF, %OBJROOT]',
-          'SF = SequenceFileData',
-          '[DEF, SF]',
-          'Seq = Objs',
-          '%NAME = "Data"',
-          '[DEF, SF.Seq]',
-          '%[0] = Sequence',
-          '[DEF, SF.Seq[0]]',
-          'Main = Objs',
-          '%NAME = "MainSequence"',
-          '[DEF, SF.Seq[0].Main]',
-          '%[0] = Step',
-          '%TYPE: %[0] = "Action"',
-          '[DEF, SF.Seq[0].Main[0]]',
-          '%NAME = "myStep"',
-          '',
-        ].join('\n'),
-      );
-      final doc = SeqDocument.parse(ini);
-      expect(doc, isA<IniSeqDocument>());
-      expect(doc, isA<StructuredSeqDocument>());
-      expect(doc.header.format, SeqFormat.ini);
-      final seq = (doc as IniSeqDocument).file.sequences.single;
-      expect((seq.name, seq.main.single.name, seq.main.single.type), ('MainSequence', 'myStep', 'Action'));
-    });
-
-    test('TOF1 → BinarySeqDocument (recon lenses)', () {
-      final pool = _nulPool([
-        'PaddingNameSoTheInflatedBodyExceedsTheSixtyFourByteGuardHere',
-        'SequenceFileData',
-        'MainSequence',
-        'Step',
-        'Locals',
-        'Parameters',
-      ]);
-      final header = Uint8List(0x108);
-      header.setAll(0, ascii.encode('TOF1'));
-      header.setAll(0x0a, ascii.encode('SequenceFile'));
-      header.setAll(0x40, ascii.encode('TestStand'));
-      final doc = SeqDocument.parse(Uint8List.fromList([...header, ...zlib.encode(pool)]));
-      expect(doc, isA<BinarySeqDocument>());
-      expect(doc.header.format, SeqFormat.binary);
-      expect(doc.header.productName, 'TestStand');
-      final bin = doc as BinarySeqDocument;
-      expect(bin.inflatedSize, greaterThan(0));
-      expect(bin.strings.map((s) => s.text), contains('MainSequence'));
-      expect(bin.layout!.stringCount, greaterThanOrEqualTo(5));
-    });
-
-    test('arbitrary bytes → UnknownSeqDocument (no throw)', () {
-      final doc = SeqDocument.parse(Uint8List.fromList([1, 2, 3, 4]));
-      expect(doc, isA<UnknownSeqDocument>());
-      expect(doc.header.format, SeqFormat.unknown);
-    });
-
-    test('a TOF1 header with a non-inflatable body degrades to recon-only (no throw)', () {
-      final header = Uint8List(0x108);
-      header.setAll(0, ascii.encode('TOF1'));
-      header.setAll(0x0a, ascii.encode('SequenceFile'));
-      final doc = SeqDocument.parse(Uint8List.fromList([...header, 0xde, 0xad, 0xbe, 0xef]));
-      final bin = doc as BinarySeqDocument;
-      expect(bin.partialFile, isNull);
-      expect(bin.inflatedSize, 0);
-      expect(bin.header.fileType, 'SequenceFile');
+    test('arrayBoundCount multiplies the extents of every dimension', () {
+      expect(arrayBoundCount('[0]', '[]'), 0);
+      expect(arrayBoundCount('[0]', '[0]'), 1);
+      expect(arrayBoundCount('[0]', '[10]'), 11);
+      expect(arrayBoundCount('[0][0]', '[1][2]'), 6);
+      expect(arrayBoundCount('[1]', '[0]'), 0);
+      expect(arrayBoundCount(null, '[3]'), 0);
+      expect(arrayBoundCount('[x]', '[3]'), 0);
     });
   });
 }

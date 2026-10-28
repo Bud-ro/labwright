@@ -1,6 +1,7 @@
 import 'dart:typed_data';
 
 import 'seq_binary.dart';
+import 'seq_binary_model.dart';
 import 'seq_file.dart';
 import 'seq_format.dart';
 

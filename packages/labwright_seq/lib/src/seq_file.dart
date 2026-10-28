@@ -4,7 +4,8 @@ import 'dart:typed_data';
 import 'package:xml/xml.dart';
 
 import 'scalar_read.dart';
-import 'seq_binary.dart';
+import 'seq_binary_grammar.dart';
+import 'seq_binary_model.dart';
 import 'seq_format.dart';
 import 'seq_ini.dart';
 import 'seq_module.dart';
@@ -20,9 +21,13 @@ class SeqFile {
     this.typelistEntries,
     this.rootAttributes,
     this.newline = '\n',
+    this.binary,
   });
 
   final SeqFileHeader header;
+
+  /// The decoded `TOF1` body this model was lifted from; null for XML and INI files.
+  final Tof1Body? binary;
 
   final String newline;
 
@@ -123,7 +128,7 @@ class Sequence {
 
   String get name => raw.name;
 
-  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT')) ?? nonEmpty(raw.xmlComment);
 
   List<Step> stepsIn(StepGroup group) => [
     for (final stepProp in raw.prop(group.key)?.array ?? const <SeqProperty>[]) Step(stepProp),
@@ -204,7 +209,7 @@ class SeqVariable {
 
   String? get type => raw.typeName ?? raw.className;
 
-  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT')) ?? nonEmpty(raw.xmlComment);
 
   String? get value => nonEmpty(raw.scalar);
 
@@ -291,138 +296,6 @@ String _sniffNewline(Uint8List bytes) {
     if (bytes[i] == 0x0A) return (i > 0 && bytes[i - 1] == 0x0D) ? '\r\n' : '\n';
   }
   return '\n';
-}
-
-SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) {
-  body ??= inflateBinaryBody(bytes);
-  if (body == null) {
-    throw const FormatException('binary .seq body does not inflate (not TOF1?)');
-  }
-  final (:outlines, :typeRecords) = binaryOutlinesAndTypeRecordsFromBody(body);
-  SeqProperty stepProp(BinaryStepRef step) {
-    final hasModule = step.viPath != null || step.pythonModule != null || step.pythonFunction != null;
-    final tsChildren = <SeqProperty>[
-      for (final field in step.tsSubProps) _typeFieldProp(field),
-      if (hasModule)
-        SeqProperty(
-          name: 'SData',
-          subProps: [
-            if (step.viPath != null)
-              SeqProperty(
-                name: 'ViCall',
-                subProps: [
-                  SeqProperty(name: 'VIPath', scalar: step.viPath),
-                ],
-              ),
-            if (step.pythonModule != null || step.pythonFunction != null)
-              SeqProperty(
-                name: 'PythonCall',
-                subProps: [
-                  if (step.pythonModule != null) SeqProperty(name: 'ModulePath', scalar: step.pythonModule),
-                  if (step.pythonFunction != null)
-                    SeqProperty(name: 'FunctionOrAttributeName', scalar: step.pythonFunction),
-                ],
-              ),
-          ],
-        ),
-    ];
-    return SeqProperty(
-      name: step.name,
-      typeName: step.typeName,
-      subProps: [
-        if (tsChildren.isNotEmpty) SeqProperty(name: 'TS', subProps: tsChildren),
-        for (final field in step.dataSubProps) _typeFieldProp(field),
-      ],
-    );
-  }
-
-  return SeqFile(
-    header: detectSeqHeader(bytes),
-    types: [
-      for (final record in typeRecords)
-        SeqProperty(
-          name: record.name,
-          className: record.className,
-          attributes: {
-            ...record.toAttributes(),
-            if (record.undecodedBody) BinAttr.bodyUndecoded: 'true',
-          },
-          subProps: [
-            for (final field in record.fields ?? const <BinaryTypeField>[]) _typeFieldProp(field),
-          ],
-        ),
-    ],
-    data: SeqProperty(
-      name: 'Data',
-      subProps: [
-        SeqProperty(
-          name: 'Seq',
-          array: [
-            for (final outline in outlines)
-              SeqProperty(
-                name: outline.name,
-                className: SeqValueClass.sequence.wire,
-                subProps: [
-                  for (final field in outline.leadingSubProps) _typeFieldProp(field),
-                  for (final field in outline.tailSubProps) _typeFieldProp(field),
-                  SeqProperty(name: StepGroup.setup.key, array: [...outline.setup.map(stepProp)]),
-                  SeqProperty(name: StepGroup.main.key, array: [...outline.main.map(stepProp)]),
-                  SeqProperty(name: StepGroup.cleanup.key, array: [...outline.cleanup.map(stepProp)]),
-                ],
-              ),
-          ],
-        ),
-      ],
-    ),
-  );
-}
-
-/// `%BIN*` attribute keys are synthesized by the binary decoder; they are not file attributes.
-abstract final class BinAttr {
-  static const overrides = '%BINOVERRIDES';
-
-  static const elementSpec = '%BINELEMENTSPEC';
-
-  static const intrinsic = '%BININTRINSIC';
-
-  static const arrayUndecoded = '%BINARRAYUNDECODED';
-
-  static const bodyUndecoded = '%BINBODYUNDECODED';
-
-  static const numericRep = '%BINNUMERICREP';
-}
-
-SeqProperty _typeFieldProp(BinaryTypeField field) {
-  final elementsDecoded = field.isArray && field.children.isNotEmpty;
-  final representation = field.numericRepresentation != null && field.value != null
-      ? BinaryNumericRepresentation.of(field.numericRepresentation!)
-      : null;
-  return SeqProperty(
-    name: field.name,
-    className: field.className,
-    typeName: field.typeName,
-    scalar: field.value,
-    array: field.isArray
-        ? (elementsDecoded ? [for (final child in field.children) _typeFieldProp(child)] : const [])
-        : null,
-    valueAttributes: {
-      if (field.arrayLBound != null) 'lbound': field.arrayLBound!,
-      if (field.arrayUBound != null) 'ubound': field.arrayUBound!,
-      if (representation != null) 'representation': representation.xmlName,
-    },
-    attributes: {
-      if (field.instanceOverrides) BinAttr.overrides: 'true',
-      if (field.elementSpecBytes != null) BinAttr.elementSpec: '${field.elementSpecBytes}',
-      if (field.intrinsicTypeId != null) BinAttr.intrinsic: '${field.intrinsicTypeId}',
-      if (field.isArray && !field.isEmptyArray && !elementsDecoded) BinAttr.arrayUndecoded: field.arrayUBound!,
-      if (field.numericRepresentation != null && representation == null)
-        BinAttr.numericRep: '${field.numericRepresentation}',
-    },
-    subProps: [
-      if (!elementsDecoded)
-        for (final child in field.children) _typeFieldProp(child),
-    ],
-  );
 }
 
 String _stripBom(String text) => text.isNotEmpty && text.codeUnitAt(0) == 0xFEFF ? text.substring(1) : text;
