@@ -120,6 +120,9 @@ abstract class LvEnvironment {
     LvError errorIn,
   );
 
+  /// Unregister For Events on a registration [registerForEvents] returned.
+  LvError unregisterForEvents(LvRefnum registration, LvError errorIn);
+
   /// Get Permissions and Set Permissions.
   ({int permissions, String owner, String group, LvError errorOut}) getPermissions(LvPath path, LvError errorIn);
 
@@ -266,6 +269,9 @@ class LvUnavailableEnvironment extends LvEnvironment {
     LvRefnum existing,
     LvError errorIn,
   ) => _raise('Register For Events ${sources.map((source) => source.event).join(', ')}');
+
+  @override
+  LvError unregisterForEvents(LvRefnum registration, LvError errorIn) => _raise('Unregister For Events');
 
   @override
   ({int permissions, String owner, String group, LvError errorOut}) getPermissions(LvPath path, LvError errorIn) =>

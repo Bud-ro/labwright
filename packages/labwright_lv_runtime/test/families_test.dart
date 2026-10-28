@@ -316,9 +316,16 @@ void main() {
       expect(lvFormatDateTimeString('%z', stamp, utc: true), '+00:00:00');
     });
 
-    test('Wait Until Next ms Multiple lands on a multiple', () {
-      expect(lvWaitUntilNextMsMultiple(5) % 5, 0);
-      expect(lvWaitUntilNextMsMultiple(0), isA<int>());
+    test('Wait Until Next ms Multiple returns no earlier than the next multiple', () {
+      for (var run = 0; run < 5; run++) {
+        final before = lvMillisecondTimer();
+        final target = before % 5 == 0 ? before : before - before % 5 + 5;
+        final after = lvWaitUntilNextMsMultiple(5);
+        expect(after, greaterThanOrEqualTo(target));
+        expect(lvMillisecondTimer(), greaterThanOrEqualTo(after));
+      }
+      final before = lvMillisecondTimer();
+      expect(lvWaitUntilNextMsMultiple(0), greaterThanOrEqualTo(before));
     });
   });
 
