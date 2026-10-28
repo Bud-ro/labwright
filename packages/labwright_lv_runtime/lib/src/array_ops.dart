@@ -194,11 +194,11 @@ List<List<T>> lvDecimate1dArray<T>(List<T> array, int outputs) {
   ];
 }
 
-/// Reshape Array: [data] read row-major into an array of [dims], cut short or padded with
-/// [padding] to fill the new shape; a dimension below zero reads as zero.
 /// Reshape Array's dimension sizes as the result carries them, a size below zero read as zero.
 Uint32List lvReshapeDims(List<int> dims) => Uint32List.fromList([for (final dim in dims) dim < 0 ? 0 : dim]);
 
+/// Reshape Array: [data] read row-major into an array of [dims], cut short or padded with
+/// [padding] to fill the new shape; a dimension below zero reads as zero.
 List<T> lvReshapeArray<T>(List<T> data, List<int> dims, T padding) {
   var count = 1;
   for (final dim in dims) {

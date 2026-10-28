@@ -17,13 +17,18 @@ int lvWaitMs(int milliseconds) {
 /// Tick Count (ms).
 int lvTickCount() => lvMillisecondTimer();
 
-/// Wait Until Next ms Multiple: waits until the millisecond timer is a multiple of [multiple]
-/// and returns it; a multiple of zero or less waits nothing.
+/// Wait Until Next ms Multiple: waits until the millisecond timer reaches the next multiple of
+/// [multiple] and returns the timer then, which a late wake-up leaves past the multiple; a
+/// multiple of zero or less waits nothing.
 int lvWaitUntilNextMsMultiple(int multiple) {
   if (multiple <= 0) return lvMillisecondTimer();
   final now = lvMillisecondTimer();
   final remainder = now % multiple;
-  if (remainder != 0) sleep(Duration(milliseconds: multiple - remainder));
+  if (remainder == 0) return now;
+  final target = now + multiple - remainder;
+  for (var timer = now; timer < target; timer = lvMillisecondTimer()) {
+    sleep(Duration(milliseconds: target - timer));
+  }
   return lvMillisecondTimer();
 }
 
@@ -55,8 +60,12 @@ DateTime lvDateTimeOfTimestamp(LvTimestamp timestamp) {
 
 /// To Time Stamp: seconds since the LabVIEW epoch as a timestamp.
 LvTimestamp lvToTimeStamp(double seconds) {
-  final whole = seconds.floor();
-  final scaled = BigInt.from((seconds - whole) * 9007199254740992.0) << 11;
+  var whole = seconds.floor();
+  var scaled = BigInt.from((seconds - whole) * 9007199254740992.0) << 11;
+  if (scaled >= BigInt.one << 64) {
+    whole += 1;
+    scaled -= BigInt.one << 64;
+  }
   return LvTimestamp(seconds: whole, fraction: scaled.toUnsigned(64).toSigned(64).toInt());
 }
 

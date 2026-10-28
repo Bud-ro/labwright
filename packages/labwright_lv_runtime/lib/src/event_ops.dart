@@ -59,6 +59,9 @@ final class LvEventRegistration {
 
   final Set<LvRefnum> _sources = {};
 
+  /// The environment's registration of the sources that are not runtime user events, when any.
+  LvRefnum? _environmentRegistration;
+
   final List<LvQueuedEvent> _pending = [];
 
   List<LvQueuedEvent> get pending => List.unmodifiable(_pending);
@@ -109,6 +112,9 @@ final class LvEventRegistration {
     registration._sources.clear();
     registration._pending.clear();
     LvReferenceTable.instance.release(reference);
+    if (registration._environmentRegistration case final environment?) {
+      return lvEnvironment.unregisterForEvents(environment, errorIn);
+    }
     return errorIn;
   }
 
@@ -120,23 +126,33 @@ final class LvEventRegistration {
   }
 }
 
-/// Register For Events over [sources], each named by the entry of [events] at its index:
-/// user events register in the runtime; any other source is a panel object, VI or application
-/// the environment registers under its event name.
+/// Register For Events over [sources], each named by the entry of [events] at its index: the
+/// runtime's own user events register in one runtime registration, and any other source (a
+/// panel object, VI or application) the environment registers under its event name; the
+/// runtime registration holds the environment's, so Unregister For Events releases both.
 ({LvRefnum registration, LvError errorOut}) lvRegisterForEvents(
   List<LvRefnum> sources, {
   List<String> events = const [],
   LvRefnum existing = LvRefnum.none,
   LvError errorIn = LvError.none,
 }) {
-  if (sources.every((source) => lvReferenceTarget<LvUserEvent<Object?>>(source) != null)) {
-    return LvEventRegistration.register(sources, existing: existing, errorIn: errorIn);
+  final local = <LvRefnum>[];
+  final elsewhere = <({String event, LvRefnum source})>[];
+  for (var i = 0; i < sources.length; i++) {
+    if (lvReferenceTarget<LvUserEvent<Object?>>(sources[i]) != null) {
+      local.add(sources[i]);
+    } else {
+      elsewhere.add((event: i < events.length ? events[i] : '', source: sources[i]));
+    }
   }
-  return lvEnvironment.registerForEvents(
-    [
-      for (var i = 0; i < sources.length; i++) (event: i < events.length ? events[i] : '', source: sources[i]),
-    ],
-    existing,
+  final registered = LvEventRegistration.register(local, existing: existing, errorIn: errorIn);
+  if (registered.errorOut.status || elsewhere.isEmpty) return registered;
+  final registration = lvReferenceTarget<LvEventRegistration>(registered.registration)!;
+  final outside = lvEnvironment.registerForEvents(
+    elsewhere,
+    registration._environmentRegistration ?? LvRefnum.none,
     errorIn,
   );
+  registration._environmentRegistration = outside.registration;
+  return (registration: registered.registration, errorOut: outside.errorOut);
 }

@@ -16,6 +16,14 @@ final class _RecordingEnvironment extends LvUnavailableEnvironment {
     registered = sources;
     return (registration: const LvRefnum(77), errorOut: LvError.none);
   }
+
+  final List<LvRefnum> unregistered = [];
+
+  @override
+  LvError unregisterForEvents(LvRefnum registration, LvError errorIn) {
+    unregistered.add(registration);
+    return errorIn;
+  }
 }
 
 void main() {
@@ -86,7 +94,7 @@ void main() {
     lvEnvironment = environment;
     addTearDown(() => lvEnvironment = previous);
     final registered = lvRegisterForEvents([const LvRefnum(9)], events: ['Value Change']);
-    expect(registered.registration, const LvRefnum(77));
+    expect(registered.errorOut.status, isFalse);
     expect(environment.registered, [(event: 'Value Change', source: const LvRefnum(9))]);
   });
 
@@ -116,5 +124,25 @@ void main() {
     expect(() => lvDecimate1dArray([1, 2], 0), throwsArgumentError);
     expect(lvReshapeDims([-2, 3]), [0, 3]);
     expect(lvReshapeArray([1, 2, 3], [-1, 2], 0), isEmpty);
+  });
+
+  test('To Time Stamp carries a fraction that rounds to a whole second', () {
+    expect(lvToTimeStamp(-1e-17), const LvTimestamp(seconds: 0, fraction: 0));
+    expect(lvToTimeStamp(-0.5), const LvTimestamp(seconds: -1, fraction: 0x8000000000000000));
+  });
+
+  test('Register For Events keeps the runtime user events of a mixed list and hands the rest on', () {
+    final environment = _RecordingEnvironment();
+    final previous = lvEnvironment;
+    lvEnvironment = environment;
+    addTearDown(() => lvEnvironment = previous);
+    final event = LvUserEvent.create<int>('Mine').userEvent;
+    final registered = lvRegisterForEvents([event, const LvRefnum(9)], events: ['Mine', 'Value Change']);
+    expect(registered.errorOut.status, isFalse);
+    expect(environment.registered, [(event: 'Value Change', source: const LvRefnum(9))]);
+    LvUserEvent.generate(event, 4);
+    expect(LvEventRegistration.next(registered.registration)?.data, 4);
+    expect(LvEventRegistration.unregister(registered.registration).status, isFalse);
+    expect(environment.unregistered, [const LvRefnum(77)]);
   });
 }
