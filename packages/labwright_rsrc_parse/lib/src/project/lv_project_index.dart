@@ -7,7 +7,8 @@ import 'lv_library_file.dart';
 /// high never walks a whole disk.
 const int kLvProjectScanDirectoryBudget = 4000;
 
-/// The files of the directories under [root], in depth-first order, stepping over directories
+/// The files of the directories under [root], in depth-first order with each directory's
+/// entries in path order, so the walk is the same on every filesystem; stepping over directories
 /// that cannot be listed; with [directoryBudget], visiting at most that many directories, and
 /// with [skipHidden], none whose name starts with a dot.
 Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool skipHidden = false}) sync* {
@@ -16,7 +17,7 @@ Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool sk
   while (stack.isNotEmpty && (directoryBudget == null || visited < directoryBudget)) {
     final List<FileSystemEntity> entries;
     try {
-      entries = stack.removeLast().listSync(followLinks: false);
+      entries = stack.removeLast().listSync(followLinks: false)..sort((a, b) => a.path.compareTo(b.path));
     } on FileSystemException {
       continue;
     }
