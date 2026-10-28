@@ -120,10 +120,23 @@ class only when their member types and member names agree.
   file's `NI.LVClass.FlattenedPrivateDataCTL` through `LvProjectIndex`; one
   declaration per qualified name, the root `LabVIEW Object` an empty class, and a
   class the lowering is not supplied is unmapped. Bundle and Unbundle By Name
-  reach its members as a cluster's. Inheritance is not modelled: a child object
-  on a parent-typed wire is a different Dart type and the call refuses. Over the
-  corpus VIs 16,805 class-instance descriptors name a class the index holds,
-  2,497 one it does not, 259 the root.
+  reach its members, its ancestors' first, as a cluster's. Over the corpus VIs
+  16,805 class-instance descriptors name a class the index holds, 2,497 one it
+  does not, 259 the root.
+- **Inheritance.** A class's Dart declaration `extends` its parent's. The parent
+  is the class file's `Parent` item (179 of the 457 corpus class files), else the
+  qualified name its `NI.LVClass.ParentClassLinkInfo` property flattens at byte
+  33 (158; no file carries both); a file naming neither (120) is a child of
+  `LabVIEW Object`. A file whose `NI.LVClass.IsInterface` is true is an
+  interface and holds no private data — exactly the 13 files without a private
+  data control — so it declares no fields. A wire's source may carry a child
+  of the class its sinks declare (`LvClassIndex`, `lvClassDescendsFrom`);
+  of the 436 corpus refnum wires whose endpoints name more than one class,
+  387 are a source's class wired to its own ancestors, 47 are not and refuse,
+  and 2 have no source naming one and refuse.
+- **Class default.** A class object's default is its private data control's:
+  the `defaultData` of the data object typed by the private data cluster,
+  each level of the lineage its own, else each member's type default.
 - **Enum** → a Dart `enum`. The descriptor's interior is `[u16 count]` then
   `count × [u8 len][chars]` — item labels in order and **no value word
   anywhere** — so an item's value is its ordinal, which is exactly a Dart
@@ -181,9 +194,10 @@ Both carrying modes are implemented, because they change function signatures
   becomes control flow, while the diagram's error computation stays. An
   `error in` terminal is not a parameter and its wire starts at `LvError.none`;
   an `error out` terminal is not a result and the function ends with
-  `if (it.status) throw it;`; a subVI call passes nothing for the callee's
-  `error in` and reads `LvError.none` from its `error out`. All three follow
-  from one premise: a caller that failed threw rather than returning.
+  `if (it.status) throw it;`; a subVI call throws the error wired to the
+  callee's `error in` instead of passing it, and reads `LvError.none` from its
+  `error out`. All three follow from one premise: a caller that failed threw
+  rather than returning.
 - `threaded` (**opt-in**) — error terminals stay first-class `LvError` values
   and nothing throws. LabVIEW's per-node **short-circuit** is deliberately not
   emitted: which nodes skip their work on an incoming error is a property of
@@ -283,6 +297,51 @@ disagreement. Reading the *other* half of an endpoint's resolved type instead
 586, but nothing decoded says an endpoint describing an array of clusters
 describes a scalar cluster wire's element, so that route is not taken.
 
+### Routes
+
+A wire the signal word does not fully type takes the most specific type a
+decoded reading gives it, each reading an `LvWireRoute`, and refuses by name
+where none speaks or where the readings of the route taken disagree.
+`lvWireRouteCensus` types every corpus wire on its own, so a refusing wire does
+not hide the rest of its VI, and the sweep pins what decides each:
+
+| family | route | wires |
+| --- | --- | --- |
+| any | signal word alone | 242,645 |
+| cluster | endpoint descriptor (itself or its parent) | 95,147 |
+| cluster | node- or structure-terminal record under an endpoint | 38,374 |
+| cluster | callee's connector-pane control | 0 |
+| cluster | refused (543 reached by no reading; the rest a member with no Dart type, or readings that disagree) | 1,925 |
+| refnum | class object named by an endpoint | 20,243 |
+| refnum | dimensionality from node-terminal parts | 10,468 |
+| refnum | dimensionality from an endpoint's scalar descriptor | 1,863 |
+| refnum | refused | 7,037 |
+| integer (`0x05`/`0x06`/`0x07`) | enum of the word's width the source (else every sink) resolves | 11,198 |
+| integer | refused: not exactly one source endpoint | 82 |
+| tag (`0x37`) | refnum an endpoint resolves | 414 |
+| tag (`0x37`) | refused | 35 |
+| measure data (`0x54`) | timestamp | 249 |
+| untyped (`0xff`) | the one scalar its endpoints resolve | 251 |
+
+The record route comes after the endpoint route and before the pane: where an
+endpoint speaks, a record under it contradicts it on 2.8% of wires (labels),
+so it is read only when no endpoint speaks. The pane route still runs last and
+decides no corpus wire, since a record speaks wherever it would.
+
+An **enum** rides the wire as its unsigned integer: the word carries `0x05`,
+`0x06` or `0x07` for an enum of 8, 16 or 32 bits. The wire takes the enum its
+source resolves; a source that resolves a plain integer keeps the integer, and
+a sink then reads the enum's `index`, as LabVIEW coerces an enum at a numeric
+input. Equal, Not Equal, Increment and Decrement apply to the enum itself,
+Increment and Decrement wrapping at either end; a Case structure selects on
+its ordinal.
+
+A **tag** wire (`0x37`) sits at signal depth 2 on all 449 corpus wires, and
+every descriptor its endpoints resolve is a scalar, so the depth decodes as a
+string's does; its descriptor's own record is not decoded, so a tag wire is
+typed only when an endpoint resolves a refnum (VISA, IVI and user-defined tag
+references), and refuses otherwise.
+
 ### Cluster member types
 
 The 41,932 wires no endpoint of their own resolves are the corpus's largest
@@ -294,7 +353,7 @@ wrong.
 
 | reading | vs. the endpoint route | would newly type | verdict |
 | --- | --- | --- | --- |
-| endpoint's node-terminal **parts** | 68,112 agree, 1,939 contradict (2.8%) | 38,236 | not read |
+| endpoint's node-terminal **parts** | 68,112 agree, 1,939 contradict (2.8%) | 38,236 | read when no endpoint speaks |
 | callee's **connector-pane** control | 12,461 agree, 169 contradict (1.3%) | 13,929 | read when no endpoint speaks |
 
 The part route's 1,939 contradictions are 1,874 wires whose two readings agree
@@ -363,7 +422,8 @@ part route on 4,827 of the 4,838 wires where both speak. Ten of the eleven
 disagreements sit in one signal-word cell — plain refnum at depth 4, where the
 pane dissents on 10 of 101 while every other cell agrees 4,736 of 4,737 — so
 that cell (`kLvRefnumContradictedCells`, 1,494 wires) keeps the word's refusal
-rather than being decided by either reading.
+rather than being decided by either reading alone: there the parts decide
+only when the callee's pane agrees with them.
 
 **LabVIEW's own wire stroke is not a third reading.** The stroke width is a
 function of dimensionality, and the render catalogue is pixel-measured against
@@ -384,13 +444,14 @@ descriptor, as a cluster wire takes its members. Over the corpus the
 timestamp subkind accounts for 958 of the 1,232 measure-data descriptors and
 every one of the 171 VIs that refused first on a measure-data cluster member.
 
-**What the unresolved majority costs.** Cluster wires with no member shape are
-the single largest lowering blocker in the corpus: of the 5,748 VIs whose own
-dataflow build refuses on a wire type, 4,363 stop first on a cluster wire and
-1,901 have no other unmapped wire family at all. Next is the refnum family
-(`0x70`/`0x71`) — 1,154 VIs stop there first and 666 have nothing else — then
-the element codes with no Dart representation (measureData `0x54` 81, uncatalogued
-`0xff` 70, packed string `0x33` 46, tag `0x37` 22).
+**What the remaining refusals cost.** Of the corpus VIs whose own dataflow build
+refuses on a wire type, 996 stop first on a refnum wire (242 have no other
+untyped wire family) — a class the corpus does not hold, a dimensionality no
+reading decides, a child object wired where no ancestor is declared — and 399
+on a cluster wire (172 with nothing else); then the element codes with no Dart
+representation: measure data `0x54` 178, untyped `0xff` 127, picture `0x33` 86,
+`0x74` 27, extended float `0x0b` 26, complex `0x0c`/`0x0d`/`0x0e` 11, void 8,
+`0x73` 1.
 
 ## Lowering
 
@@ -420,8 +481,9 @@ grouped into one `LvRegion` per structure frame.
   (`0x1b`), so each edge lives in exactly one region and a structure terminal
   splits into an outer port and one inner port per frame.
 - **Acyclicity.** A loop's feedback runs through a shift register, whose inner
-  read is a region entry and inner write a region exit — never an edge. A back
-  edge that survives that is refused as a cycle.
+  read is a region entry and inner write a region exit — never an edge, or
+  through a Feedback Node, whose input is read only when its region ends. A
+  back edge that survives that is refused as a cycle.
 
 Each edge becomes one single-assignment local, named from the decoded label
 nearest to it: the connector-pane control's name, the constant's caption, or
@@ -444,7 +506,9 @@ the primitive's own name.
 | conditional terminal (`0x25`) | bit `0x10000` of its record's flags set is *stop if true*, clear is *continue if true* (`LvConditionalPolarity`); a For loop with one wired breaks the same way |
 | In Place Element (`0x14d`), Index/Replace Array Elements pairs (`0x158`) | each element read from its array at its index before the frame; each written array a copy with the frame's results at the same indices; an index passes through; plain border tunnels (`0x14e`) as on a Case |
 | In Place Element (`0x14d`), Unbundle/Bundle Cluster Elements pairs (`0x159`) | each named member read from its cluster before the frame; the written cluster a copy with the frame's results in those members |
-| In Place Element with other pairs (`0x154` data value reference, `0x15b`) | **refused** — see below |
+| In Place Element (`0x14d`), Data Value Reference Read/Write Element pairs (`0x154`) | the reference read into the frame before it through `LvDataValueReference.read`, the frame's result written back through `.write` after it, the read's error open to the frame and the write's error out carried out |
+| Feedback Node (`0x14a` with its `0x170` input object) | inside a loop, a nullable loop-carried local declared before the loop: the node reads it, or its initializer on the first iteration, and the region holding the node assigns it last; outside any loop **refused** |
+| In Place Element with `0x15b` pairs, Event structure (`0xd5`) | **refused** — see below |
 
 An auto-indexing tunnel is identified by flag `0x1000000`. Corpus, over 21,486
 loop tunnels whose two sides both resolve a dimensionality: all 6,584 flagged
@@ -476,9 +540,8 @@ is read refuses.
 
 The **In Place Element Structure** (`0x14d`) holds one marker object per
 border-node pair. Corpus, 915 structures: 620 hold Data Value Reference
-read/write pairs (`0x154`), which need a reference the lowering does not
-model; 210 hold `0x159` pairs and 30 `0x15b`; 75 hold Index/Replace Array
-Elements pairs (`0x158`). That last pair is modelled: its two border nodes
+read/write pairs (`0x154`); 210 hold `0x159` pairs and 30 `0x15b`; 75 hold
+Index/Replace Array Elements pairs (`0x158`). The array pair is modelled: its two border nodes
 (`0x14f`, the left one flagged `0x10000`) carry `0x163` terminals whose high
 flag bits say what each is — `0x800000` the array, `0xe00000` a
 one-dimensional index (fewer bits set index more dimensions, refused), none
@@ -493,61 +556,185 @@ named; on 46 of the 246 nodes a name is not a member label of the cluster
 a copy of the read one with the frame's results in the named members, as the
 border coercion spells it.
 
-Those 27 then split against it. 22 carry a border node from `0x150` / `0x14f` /
-`0x152`, whose element access is not recovered — the parser labels that family
-by tree position alone — so control flow is not what they are missing. The
-remaining 5 carry only `0x153`, the read/write pair that accesses a **data
-value reference**, which is the one border node whose role is decoded and which
-would need a reference model this package does not have.
+The Data Value Reference pair (`0x154`) is drawn with border nodes of kind
+`0x153`, each holding three `0x155` terminals. On the left node the reference
+terminal carries `0x800000` and names the structure's holder, the element
+terminal is an output into the frame, and the error terminal (type label
+`error IO`) is an output into the frame too; on the right node the element is
+an input, and the reference and error terminals carry `0x800001` and name the
+structure's output holders while the error terminal stays open to the frame.
+The right node's error terminal carries the same `0x800001` flags as its
+reference terminal and is told apart by its label. All 609 single- and
+multi-pair structures in the corpus draw that shape, with no error-in holder on
+the structure. The `0x154` markers name no node, so the nth read node pairs
+with the nth write node; on all 609 the write's reference holder is the one
+immediately after the read's among the structure's terminals, and its element
+label is the read's, and the lowering refuses a pair where the holders are not
+adjacent. The lowering reads the reference's value
+through `LvDataValueReference.read` before the frame, offering the frame the
+element and the read's error, and writes the frame's element back through
+`.write` after it, with the frame's error or the read's as the write's error
+in. Two structures stay blocked, on a `0x152` border node whose role is not
+recovered.
 
 ### Primitives
 
-A node is mapped only when its **identity** and its **operand roles** are both
-decoded. `kLvMappedPrimOps` is deliberately narrow: commutative pairs, unary
-operations and the width conversions — everything whose roles follow from the
-terminals themselves. `Subtract`, `Divide` and the ordered comparisons are
-absent because nothing decoded says which terminal is the left operand.
+A node is mapped when its **identity** and its **operand roles** are both
+decoded. The roles come from one fact about the heap: a primitive node stores
+its terminal holders in a **fixed order per primitive**, and a fixed-type
+terminal's own type descriptor is labelled with the terminal's reference name
+and default (`timeout in ms (-1)`, `replace all?`, `error in (no error)`).
+`kLvPrimSignatures` records that order for every catalogued primitive the
+corpus draws — Subtract is `[x-y, y, x]`, Quotient & Remainder
+`[floor(x/y), x-y*floor(x/y), y, x]`, Strip Path `[path, stripped path, name]`,
+Search and Replace String its twelve terminals — with each terminal's direction,
+its label set and the Dart expression an unwired input takes. A lowering
+addresses terminals by name (`LvSignedCall`), and a node whose labelled terminal
+carries another label is drawn from a revision with another order and refuses.
 
-Having one operand is necessary but not sufficient — the *result* must follow
-from the operand too. These unary corpus operations are refused for want of a
-rule rather than a role: `Sort 1D Array` (181 nodes; sort direction and tie
-order unstated), `Boolean To (0,1)` (550; which boolean maps to which member),
-`Number To Boolean Array` / `Boolean Array To Number` (21 / 26; bit order), and
-`Transpose 2D Array` and a rank-2 `Array Size` (the array's own dimension order
-— the same missing tie that refuses a higher-rank Index Array).
+`test/corpus_prim_signature_test.dart` pins the census: 45,950 corpus nodes
+carry a signature; every one of their 127,356 wired terminals has the direction
+the signature says, bar three Generate User Event nodes wired as sources;
+37,589 labelled terminals carry a listed label, bar one File Dialog node from a
+revision with its string inputs in another order and one Search and Replace
+String result labelled by its wire. The 41 eight-terminal TDMS Open nodes,
+whose terminal directions contradict their labels, carry no signature.
+Thirteen catalogued primitives draw no corpus node, so their order is not
+decoded and they are not lowered: Mantissa & Exponent, Date/Time To Seconds,
+Seconds To Date/Time, Rotate Left With Carry, the four UDP functions, VISA
+Clear, TDMS Read, TDMS List Contents, Fixed-Point To Integer Cast and Get File
+Position.
+
+What each primitive *does* comes from the reference's own Inputs/Outputs
+tables and the runtime implements it in `labwright_lv_runtime`, tested
+against the published examples: Quotient & Remainder with a zero divisor,
+Max & Min over NaN, Boolean Array To Number's least-significant-bit-first
+order and sign padding, Number To Decimal String's width padding, Decimal
+String To Number's `13ax` / `-4.8bcde` / `a49b` table and saturation, Strip Path
+on an empty or invalid path, Search/Split String at an empty search string,
+Search and Replace String replacing one or all with an empty search string
+inserting between characters, Spreadsheet String To Array by `%s` / `%d` / `%f`
+with one or several delimiters (a spreadsheet function whose format string is
+unwired refuses: its default is not stated, though every corpus node wires
+one), Array To Spreadsheet String spelling each element as Format Into String
+spells it, Format Date/Time String's codes, Sort 1D Array
+and Array Max & Min by the comparison rules, Delete From Array / Array Subset /
+Insert Into Array / Split 1D Array cut at the array's ends, and the file
+functions over a scratch directory. A conversion or option a node selects
+through its flags is read only where the corpus decides it: Search and Replace
+String's Regular Expression option is bit `0x2000000` (the `multiline?`
+terminal is wired only on the 42 nodes that carry it); Read from Text File's
+Convert EOL is `0x2000000` and Read Lines `0x4000000`.
+
+Three catalogued primitives the corpus draws stay **refused**, each for a
+decoded fact it lacks:
+
+- **In Range and Coerce** (166 nodes): bits `0x100000` and `0x200000` of the
+  node record select whether each limit is included, and which bit names which
+  limit, and which state includes it, is not decoded (the manual states the
+  properties, not their encoding).
+- **Boolean Array To Number** (13): bit `0x800000` selects the sign-extension
+  mode, and which of the three modes it names is not decoded; padding differs
+  between them for a short array.
+- **Search/Split String with bit `0x1000000`** (41 of 88): the function has two
+  options, Regular Expression and Match Single Character, and which the bit
+  selects is not decoded; the 47 plain nodes lower.
+
+A float function (Square Root, Sine, Cosine, Logarithm Base 10, Power Of 10)
+wired to an integer output refuses: the coercion LabVIEW applies there is not
+decoded, and no corpus node draws one. To Variant records a number's
+representation on the variant, which is what Variant To Flattened String
+flattens it at.
+
+Complex To Polar, Re/Im To Complex and Integer To Fixed-Point Cast refuse on
+their wire types, which have no Dart carrier; Flattened String To Variant
+refuses because building a value from a type descriptor at run time is not
+implemented; Flatten To String, Write To Binary File and Variant To Flattened
+String flatten numbers, booleans, strings and 1-D integer arrays and refuse the
+type string output and other data; Unflatten From String, Unflatten From JSON
+and Scan Value are not lowered, since a value built from a type descriptor or
+scanned by a format string is not spelled. That leaves 167 of the 188
+catalogued primitives with a rule.
+
+Operations that cannot run outside LabVIEW lower through one seam,
+`LvEnvironment` (`lvEnvironment` in the runtime, an `LvUnavailableEnvironment`
+that raises `LvEnvironmentUnavailable` naming the operation until a host
+installs its own): Open VI Reference, Close Reference on a reference the
+runtime does not hold, To More Specific / Generic Class, Preserve Run-Time
+Class, New VI Object, Call Chain, Current VI's Path, VI Library, Current VI's
+Menubar, First Call?, the dialogs, Stop and Quit LabVIEW, Get / Set
+Permissions, Register For Events on panel objects, and every instrument and
+network session (TCP, VISA, TDMS, Python) through `session(operation, inputs)`
+with the inputs and outputs in signature order. Queues, notifiers, data value
+references and user events are real: `LvQueue`, `LvNotifier`,
+`LvDataValueReference` and `LvUserEvent` live behind refnums in the runtime's
+reference table, and a wait that no concurrent producer can satisfy in a
+synchronous program times out or raises `LvErrorCode.synchronousWait` rather
+than blocking.
+
+Node classes carry their identity in the class code, with their operand roles
+in the role bits of each terminal's record or in the holder order. Index Array
+(`0x44`) and Replace Array Subset (`0xB9`) read role bits — array `0x20000`,
+output `0x1`, new element `0x40000`, single index `0x600000`; higher-rank
+variants split the index across `0x200000`/`0x400000` and are refused. Delete
+From Array (`0xbd`), Array Subset (`0x48`) and Insert Into Array (`0xbb`) read
+the same bits, with `0x80000` marking an index or length left unwired, and
+lower over one dimension. Bundle (`0x34`) is `[output, input cluster,
+element…]` in member order; Decimate 1D Array (`0x40`) the array then its
+outputs; Reshape Array (`0x116`) the array, the output and one size per
+dimension, between one and two dimensions. Property Nodes (`0x8c`) and Invoke
+Nodes (`0xa9`) open with reference in (`0x10000`), reference out (`0x40001`),
+error in (`0x20000`) and error out (`0x80001`); each property item's record is
+labelled with the property's long name (`FP.State`, `Label.Text`) and read or
+written as it is wired, and an Invoke Node's method record (`0x30000`/`0x30001`)
+names the method with one left and one right terminal per parameter. A local
+variable (`0xb6`) is one terminal named after its panel control. All four
+lower through the environment. Register For Events (`0xeb`) takes user events,
+singly or as a cluster of them, into a real `LvEventRegistration` and any other
+source through the environment. Which VI Server **class** a refnum names is
+not decoded (the refnum descriptor's kind word has 17 values the type model
+does not map to classes), so the seam receives the property and method names
+alone.
+
+A node with an effect beyond its outputs — a wait, a dialog, a file or
+reference operation, queue, notifier or event traffic, a property write
+(`kLvSideEffectPrimOps`, `kLvSideEffectNodeClasses`) — runs even when nothing
+reads it, as do the structures holding one; every other node is computed only
+when a result needs it.
 
 Where an operation's *domain* is decoded but its behaviour outside that domain
 is not, the rule lowers and the **runtime** throws at the boundary rather than
 inventing a value, each with a `TODO` naming the gap: `String Subset` outside
-the string, `To Lower Case` and `Match Pattern`'s `[^…]` class above code unit
-`0x7F`, `Initialize Array` at a negative size, `Type Cast` on a size mismatch,
-a rotation by anything but a count inside one width, and a hexadecimal
-conversion of a value wider than the field it is given.
+the string, `To Lower Case` / `To Upper Case` and `Match Pattern`'s `[^…]`
+class above code unit `0x7F`, `Initialize Array` at a negative size, `Type
+Cast` on a size mismatch, a rotation by anything but a count inside one width,
+a hexadecimal conversion of a value wider than the field it is given, and
+Delete From Array of one element at an index outside the array.
 
 Bundle and Unbundle By Name address a cluster's members through the Dart
 type the wire carries: a declared class's fields, the named fields of the record
 an anonymous cluster is carried as, or the runtime error cluster's `status`,
-`code` and `source`. The 188 VIs that still stop on an Unbundle By Name hold a
+`code` and `source`. A VI that still stops on an Unbundle By Name holds a
 LabVIEW class object on that wire (signal word `0x70`), whose private data
 this package does not model.
-
-Two node classes carry their identity in the class code, with corpus node
-labels as the evidence: `0x44` Index Array (×27 labels, no competing caption)
-and `0xB9` Replace Array Subset (×10). Their operand roles come from role bits
-on each terminal's own record — array `0x20000`, output `0x1`, new element
-`0x40000`, single index `0x600000` — the shape 1,623 Index Array and 310
-Replace Array Subset nodes carry. Higher-rank variants split the index across
-`0x200000`/`0x400000` and growable ones repeat the output/index pair; both are
-refused.
 
 Integer conversions emit a width helper carrying a `TODO(lv-convert-range)`:
 they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
 The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 82 distinct unmapped identities over
-295 nodes across the rcpacini snippets, headed by node classes `0x105` (16)
-and `0xa9` (15).
+`test/corpus_lowering_sweep_test.dart`: 118 distinct unmapped identities over
+5,199 nodes and 2,040 VI-identity pairs across the corpus (from 244, 28,853 and
+13,123). One identity sits in 150 VIs or more: the Event Data Node (`0xd6`,
+2,657 nodes in 415 VIs), which lives inside Event structures and lowers only
+when they do. Below the floor the largest are the two unnamed queue primitives
+9113 and 9112 (181 and 77 nodes; one is Dequeue Element and the other Preview
+Queue Element, and the corpus labels neither), Call By Reference (`0xae`, 151),
+Scan From String (`0x92`, 119), the unnamed occurrence primitives 1700 and 1701,
+Unflatten From String (146), XNodes (`0x105`) and Expression Nodes (`0xc0`).
+Over the rcpacini snippets 25 identities over 99 nodes remain, headed by
+XNodes (16), Call Library Function nodes (12), the unnamed 1171 (11) and
+Scan Value (11).
 
 ### subVI calls
 
@@ -585,35 +772,82 @@ browser application and the legacy help archive holds none of these five), the
 runtime notes what it leaves out: the call chain `Error Cluster From Error
 Code` appends to its source is not modelled.
 
-Corpus, over the 3,598 call nodes in diagrams whose dataflow builds: 136
-reach a `<vilib>` VI the runtime implements, 2,253 callees resolve through their
-link and 678 through the file-name index; 2,803
-have a connector pane of the right width, and of the 8,502 wired terminals at
-those calls, 8,424 resolve a callee terminal. The caller's own wire direction
-agrees with the named control's on **8,424 of 8,424**. The two VIs' wire types
-agree on 2,830 of the 2,851 where both are decided. The rest are refused by
-name: 408 calls whose callee is absent from the corpus, 121 that name no file,
-88 whose callee carries no connector pane, 40 whose pane width disagrees, 2
-whose name several links share.
+Corpus, over the 15,745 call nodes in diagrams whose dataflow builds: 444
+reach a `<vilib>` VI the runtime implements, 8,282 callees resolve through their
+link and 2,651 through the file-name index; 10,141 have a connector pane of the
+right width, and of the 38,617 wired terminals at those calls, 38,251 resolve a
+callee terminal. The caller's own wire direction agrees with the named
+control's on **38,251 of 38,251**. The two VIs' wire types agree on 30,909 of
+the 33,119 where both are decided. The rest are refused by name: 4,232 calls
+whose callee is absent from the corpus, 28 that name no file, 495 whose callee
+carries no connector pane, 297 whose pane width disagrees, 108 whose name
+several links share.
+
+A wire and the callee's terminal meet by the coercions a structure border
+admits — the same Dart type, a member-by-member copy between two clusters of
+one shape, an enum read as its integer, a child class object where an ancestor
+is declared — and any other pair refuses as a subVI call.
+
+**Unwired controls.** A call that leaves a callee's control unwired passes the
+control's default. A front-panel data object carries it in its `defaultData`
+attribute, flattened by its type as a constant's value is. Of the 30,779
+connector-pane controls in the corpus, 2,821 save one; the 2,567 of those that
+decode all have a non-zero byte, so a control that saves none holds its type's
+default. The other 254 are not spelled and refuse: paths 94, N-D arrays 52,
+references that do not flatten as a reference number 39, non-finite floats 11,
+variants 8, and 50 whose type has no Dart mapping.
+
+**Polymorphic VIs.** A polymorphic call node (`0xc5`) links the polymorphic VI
+(`PUPV`), whose own diagram links its instances. The node draws the selected
+instance's connector pane, so the call lowers to the one instance whose pane
+terminals carry the descriptors the node's terminals do, compared structurally
+through typedefs, array elements and cluster members. Over the corpus's 2,620
+polymorphic call nodes: 1,750 call a polymorphic VI the corpus does not hold
+(1,747 under `<vilib>`), 16 link none, 555 select one instance, 247 match
+several instances with identical panes — whose selector's value is not
+decoded, so they refuse — and 52 match none.
+
+**Dynamic dispatch.** A class-method call (`0x104`) links a `DyOM` entry naming
+the wire's class and the method; its qualified name nests the member as a
+counted list of its own, which the link reader unpacks. The call lowers to the
+member of the nearest class in the wire class's lineage that defines it, and
+only when no class descending from the wire's class overrides it; otherwise it
+refuses, naming the overrides. Several same-named methods in one diagram are
+told apart by the class the node's dispatch terminal names.
 
 ### Outcomes
 
-Over the 46 rcpacini VI snippets: 8 lower (`MD5`, `PNG CRC32`,
-`crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, and `VI Tree` /
-`decorations_only`, which have no dataflow) and 38 refuse. Refusals are pinned
-per VI and concentrate in cluster / path / variant wire types (23), undecoded
-primitives (7), subVI calls whose callee is not supplied (3), unresolved wire
-direction (2), and one each on a structure, a foreign call and a tunnel's
-indexing.
+Over the 46 rcpacini VI snippets: 12 lower (`MD5`, `PNG CRC32`,
+`crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, `Resolve Path`,
+`Resolve Library Path`, `FileReadOnly`, `ClassesInMemory`, and `VI Tree` /
+`decorations_only`, which have no dataflow) and 34 refuse, pinned per VI:
+undecoded primitives 11, wire types 7, foreign calls, tunnel indexing and subVI
+calls whose callee is not supplied 3 each, structures and wire direction 2
+each, and one each on a constant's value, a reference node and an unbound
+value.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 795 lower
-and the rest refuse, 4,873 of them on a wire type — overwhelmingly a cluster
-wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 685 on a primitive, 323 on a subVI call, 250 on a structure, 206 on a constant's value, 114 on a foreign call, 102 on an unwired terminal, 26 on a case selector, 8 on an unbound value, 6 on a tunnel's indexing, 5 on a wire's direction, 1 on a tunnel coercion.
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 1,145
+lower and the rest refuse, pinned per kind in `kCorpusLoweringSweep`: 2,048 on
+a wire type, 1,387 on a structure (among them a connector-pane indicator inside
+a loop, case or disable structure, whose returned value depends on which frames
+run), 1,042 on a primitive, 878 on a subVI call, 302 on a foreign call, 252 on
+an unwired terminal, 226 on a constant's value, 40 on a case selector, 36 on an
+unbound value, 22 on a wire's direction, 9 on a tunnel coercion, 7 on a
+tunnel's indexing.
 
-A diagram constant lowers from the flat value saved with it: a scalar, a
-numeric array, or a string array (u32 dimension sizes, then each string as a
-u32 byte count and its bytes). A connector-pane control that drives no wire is
+A loop's conditional terminal wired from an error cluster tests its `status`.
+
+A diagram constant lowers from the flat value saved with it, read by its own
+descriptor in the default data space's grammar (`lvFlatLiteral`): numerics,
+booleans, strings, enums, 1-D arrays, clusters and records, error clusters,
+timestamps, *Not A Refnum*, and a class object at its default (a level count of
+zero, or one level whose four version words are zero and which carries no
+private data). The heap blob may carry one trailing zero byte after the value.
+A constant saved by LabVIEW 8.6 or 9.0 keeps no value in its heap record —
+968 constants across 139 corpus VIs, while every constant saved from 10.0 on
+carries one — and where those saves keep it is not decoded, so it refuses. A
+class object saving its own private data, a path, a variant and an N-D array
+constant are not spelled and refuse. A connector-pane control that drives no wire is
 a parameter the function takes and never uses, typed by the control's own
 descriptor. An indicator that receives no wire returns the value saved with it,
 which the lowering does not read from the data space, and is refused. A Case
@@ -625,21 +859,25 @@ and is refused. A For loop's output tunnel that does not auto-index carries
 the last iteration's value, starting from that same default for a loop that
 runs no iteration.
 
-What the function reads is found backwards from its results: a node reads
-every input once any output is read; a structure reads an output tunnel's inner
-sides once its outer side is read, an input tunnel's outer side once an inner
-side is read, and its count, selector, conditional, shift-register and
-auto-indexing ports once anything of it is. Everything else — a value feeding
-only an indicator off the connector pane, a tunnel whose far side feeds nothing
-live, a node whose outputs go nowhere — is not computed, so no local goes
-unread.
+What the function reads is found backwards from its results and from the
+nodes that run for their effect: a node reads every input once any output is
+read; a structure reads an output tunnel's inner sides once its outer side is
+read, an input tunnel's outer side once an inner side is read, and its count,
+selector, conditional, shift-register and auto-indexing ports once anything of
+it is; a side-effecting node, and every structure holding one, reads its inputs
+whatever reads it. A primitive's data-type terminal (a queue's or notifier's
+element data type, Variant To Data's and Type Cast's type, a user event's data
+type, a datalog type) reads its wire's type alone, so the value wired to it is
+not computed. Everything else — a value feeding only an indicator off the
+connector pane, a tunnel whose far side feeds nothing live, a pure node whose
+outputs go nowhere — is not computed, so no local goes unread.
 
-Those 795 lowerings are **534 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 534 into a
+Those 1,145 lowerings are **876 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 876 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 534 is the independent check that they
+kernel` of one entry point importing all 876 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

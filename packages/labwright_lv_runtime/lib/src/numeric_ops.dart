@@ -128,7 +128,11 @@ double lvPowerOfX(num x, num y) => pow(x, y).toDouble();
 double lvPowerOf10(num x) => pow(10, x).toDouble();
 
 /// Logarithm Base 10.
-double lvLogarithmBase10(num x) => log(x) / ln10;
+double lvLogarithmBase10(num x) {
+  final estimate = log(x) / ln10;
+  final nearest = estimate.roundToDouble();
+  return nearest.isFinite && pow(10, nearest) == x ? nearest : estimate;
+}
 
 /// Sine and Cosine of an angle in radians.
 double lvSine(num x) => sin(x);

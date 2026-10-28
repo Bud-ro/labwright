@@ -39,6 +39,7 @@ class _FpWalk extends HeapWalkListener<FpObject> {
   Set<HeapAttribute> get attributes => const {
     HeapAttribute.borderColor,
     HeapAttribute.conNum,
+    HeapAttribute.defaultData,
     HeapAttribute.plotColor,
     HeapAttribute.stdNumMax,
     HeapAttribute.stdNumMin,
@@ -62,6 +63,11 @@ class _FpWalk extends HeapWalkListener<FpObject> {
         if (attr.asDouble case final value?) cur.numericRange?.max ??= value;
       case HeapAttribute.conNum:
         cur.dataObject?.conNum ??= attr.asInt;
+      case HeapAttribute.defaultData:
+        if (cur.dataObject case final data? when data.defaultData == null) {
+          data.defaultData = attr.flatBytes;
+          data.defaultIsScalar = attr.scalarBytes != null;
+        }
       case HeapAttribute.borderColor:
         cur.borderRgb ??= attr.rgb;
       case HeapAttribute.plotColor:

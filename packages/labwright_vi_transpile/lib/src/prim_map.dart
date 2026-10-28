@@ -3,15 +3,18 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'format_string.dart';
 import 'naming.dart';
 import 'numeric.dart';
+import 'prim_families.dart';
 import 'runtime.dart';
 import 'type_map.dart';
 import 'wire_type.dart';
 
 abstract final class LvArrayTerminalRole {
+  /// An array input; Array Subset's length terminal carries the same bits.
   static const int array = 0x20000;
 
   static const int output = 0x1;
 
+  /// A repeated Index Array output; Delete From Array's deleted portion carries the same bits.
   static const int grownOutput = 0x40001;
 
   static const int newElement = 0x40000;
@@ -21,6 +24,34 @@ abstract final class LvArrayTerminalRole {
   static const int groupFirst = 0x200000;
 
   static const int groupLast = 0x400000;
+
+  /// Set on an index or length terminal that is left unwired and takes its default.
+  static const int unwiredDefault = 0x80000;
+
+  /// Array Subset's array input.
+  static const int subsetArray = 0x10000;
+}
+
+/// The role bits of a Property Node, Invoke Node or Register For Events node's fixed terminals.
+abstract final class LvServerNodeRole {
+  static const int referenceIn = 0x10000;
+
+  static const int referenceOut = 0x40001;
+
+  static const int errorIn = 0x20000;
+
+  static const int errorOut = 0x80001;
+
+  /// An Invoke Node's method name record, on the left and on the right.
+  static const int methodLeft = 0x30000;
+
+  static const int methodRight = 0x30001;
+
+  /// The bit a Register For Events reference-in terminal may add.
+  static const int referenceInVariant = 0x4;
+
+  /// Set on an Invoke Node parameter the method does not require.
+  static const int optionalParameter = 0x40000;
 }
 
 class LvPrimTerminal {
@@ -48,7 +79,7 @@ class LvPrimTerminal {
 }
 
 class LvPrimCall {
-  const LvPrimCall({
+  LvPrimCall({
     required this.op,
     required this.classCode,
     required this.inputs,
@@ -60,6 +91,8 @@ class LvPrimCall {
     required this.nodeFlags,
     this.primResId,
     this.portRoleFlags = const {},
+    this.ports = const [],
+    this.portMemberName = const {},
   });
 
   final PrimOp? op;
@@ -81,9 +114,24 @@ class LvPrimCall {
   /// Every terminal's role flags, wired or not.
   final Map<int, int> portRoleFlags;
 
+  /// Every terminal holder in heap child order, wired or not.
+  final List<int> ports;
+
+  /// The type label of every terminal's own record, wired or not, where it carries one.
+  final Map<int, String> portMemberName;
+
   final void Function(String) requireImport;
 
   final LvNaming names;
+
+  /// Why the lowering that ran last declined this call, when it said.
+  String? refusal;
+
+  /// Declines the call for [reason]; the lowering returns this.
+  Null refuse(String reason) {
+    refusal = reason;
+    return null;
+  }
 
   LvPrimTerminal? inputWithRole(int flags) => _single(inputs.where((terminal) => terminal.roleFlags == flags));
 
@@ -155,7 +203,18 @@ enum LvNodeClass {
   deleteFromArray(0xbd, 'Delete From Array'),
   mergeErrors(0x172, 'Merge Errors'),
   initializeArray(0x114, 'Initialize Array', basis: LvClassNameBasis.terminalGrammar),
-  byName(0x63, 'Bundle/Unbundle By Name', basis: LvClassNameBasis.terminalGrammar);
+  byName(0x63, 'Bundle/Unbundle By Name', basis: LvClassNameBasis.terminalGrammar),
+  arraySubset(0x48, 'Array Subset', basis: LvClassNameBasis.terminalGrammar),
+  insertIntoArray(0xbb, 'Insert Into Array', basis: LvClassNameBasis.terminalGrammar),
+  decimateArray(0x40, 'Decimate 1D Array', basis: LvClassNameBasis.terminalGrammar),
+  reshapeArray(0x116, 'Reshape Array', basis: LvClassNameBasis.terminalGrammar),
+  propertyNode(0x8c, 'Property Node', basis: LvClassNameBasis.terminalGrammar),
+  invokeNode(0xa9, 'Invoke Node', basis: LvClassNameBasis.terminalGrammar),
+  localVariable(0xb6, 'Local Variable', basis: LvClassNameBasis.terminalGrammar),
+  registerForEvents(0xeb, 'Register For Events', basis: LvClassNameBasis.terminalGrammar),
+  eventDataNode(0xd6, 'Event Data Node', basis: LvClassNameBasis.terminalGrammar),
+  feedbackNode(0x14a, 'Feedback Node', basis: LvClassNameBasis.terminalGrammar),
+  feedbackInitializer(0x170, 'Feedback Node initializer', basis: LvClassNameBasis.terminalGrammar);
 
   const LvNodeClass(this.code, this.title, {this.basis = LvClassNameBasis.captions});
 
@@ -172,20 +231,82 @@ enum LvNodeClass {
 
 const int kLvRotatePrimResId = 1082;
 
+/// Primitives whose effect is more than their outputs, so a call runs even when nothing reads
+/// them: waits, dialogs, file and reference operations, queue, notifier and event traffic.
+const Set<PrimOp> kLvSideEffectPrimOps = {
+  PrimOp.waitMs,
+  PrimOp.waitUntilNextMsMultiple,
+  PrimOp.oneButtonDialog,
+  PrimOp.twoButtonDialog,
+  PrimOp.fileDialog,
+  PrimOp.stop,
+  PrimOp.quitLabview,
+  PrimOp.openCreateReplaceFile,
+  PrimOp.closeFile,
+  PrimOp.writeToTextFile,
+  PrimOp.writeToBinaryFile,
+  PrimOp.readFromTextFile,
+  PrimOp.readFromBinaryFile,
+  PrimOp.setFilePosition,
+  PrimOp.setFileSize,
+  PrimOp.createFolder,
+  PrimOp.delete,
+  PrimOp.copy,
+  PrimOp.move,
+  PrimOp.setPermissions,
+  PrimOp.obtainQueue,
+  PrimOp.releaseQueue,
+  PrimOp.enqueueElement,
+  PrimOp.sendNotification,
+  PrimOp.waitOnNotification,
+  PrimOp.newDataValueReference,
+  PrimOp.deleteDataValueReference,
+  PrimOp.createUserEvent,
+  PrimOp.generateUserEvent,
+  PrimOp.destroyUserEvent,
+  PrimOp.unregisterForEvents,
+  PrimOp.openViReference,
+  PrimOp.closeReference,
+  PrimOp.newViObject,
+  PrimOp.tcpOpenConnection,
+  PrimOp.tcpRead,
+  PrimOp.tcpWrite,
+  PrimOp.tcpCloseConnection,
+  PrimOp.visaClose,
+  PrimOp.visaLock,
+  PrimOp.tdmsOpen,
+  PrimOp.tdmsWrite,
+  PrimOp.tdmsClose,
+  PrimOp.tdmsSetProperties,
+  PrimOp.openPythonSession,
+  PrimOp.closePythonSession,
+};
+
+/// Node classes whose effect is more than their outputs.
+const Set<LvNodeClass> kLvSideEffectNodeClasses = {
+  LvNodeClass.propertyNode,
+  LvNodeClass.invokeNode,
+  LvNodeClass.localVariable,
+  LvNodeClass.registerForEvents,
+};
+
+/// Whether a primitive node runs for its effect even when nothing reads its outputs.
+bool lvPrimHasSideEffect({PrimOp? op, required int classCode}) {
+  if (op != null) return kLvSideEffectPrimOps.contains(op);
+  final nodeClass = LvNodeClass.ofCode(classCode);
+  return nodeClass != null && kLvSideEffectNodeClasses.contains(nodeClass);
+}
+
 final Map<PrimOp, LvLowering> kLvPrimOpLowerings = {
+  ...kLvFamilyLowerings,
   PrimOp.exclusiveOr: (call) => _binaryCommutative(call, '^'),
   PrimOp.numberToHexadecimalString: _hexString,
   PrimOp.and: (call) => _binaryCommutative(call, '&'),
   PrimOp.or: (call) => _binaryCommutative(call, '|'),
   PrimOp.add: (call) => _binaryCommutative(call, '+'),
   PrimOp.multiply: (call) => _binaryCommutative(call, '*'),
-  PrimOp.subtract: (call) => _binaryOrdered(call, '-'),
-  PrimOp.divide: _divide,
-  PrimOp.quotientRemainder: _quotientRemainder,
   PrimOp.equal: (call) => _binaryPredicate(call, '=='),
   PrimOp.notEqual: (call) => _binaryPredicate(call, '!='),
-  PrimOp.greater: (call) => _orderedPredicate(call, '>'),
-  PrimOp.less: (call) => _orderedPredicate(call, '<'),
   PrimOp.not: _not,
   PrimOp.increment: (call) => _unaryNumeric(call, '+ 1'),
   PrimOp.decrement: (call) => _unaryNumeric(call, '- 1'),
@@ -241,6 +362,16 @@ final Map<LvNodeClass, LvLowering> kLvNodeClassLowerings = {
   LvNodeClass.byName: _byName,
   LvNodeClass.compoundArithmetic: _compoundArithmetic,
   LvNodeClass.initializeArray: _initializeArray,
+  LvNodeClass.bundle: _bundle,
+  LvNodeClass.deleteFromArray: _deleteFromArray,
+  LvNodeClass.arraySubset: _arraySubset,
+  LvNodeClass.insertIntoArray: _insertIntoArray,
+  LvNodeClass.decimateArray: _decimateArray,
+  LvNodeClass.reshapeArray: _reshapeArray,
+  LvNodeClass.propertyNode: _propertyNode,
+  LvNodeClass.invokeNode: _invokeNode,
+  LvNodeClass.localVariable: _localVariable,
+  LvNodeClass.registerForEvents: _registerForEvents,
 };
 
 final Map<int, LvLowering> kLvPrimResIdLowerings = {kLvRotatePrimResId: _rotate};
@@ -303,6 +434,7 @@ const int kLvCompoundInversionBit = 0x10000;
 const int kLvByNameUnbundlesBit = 0x10000;
 
 String lvPrimUnmappedReason(LvPrimCall call) {
+  if (call.refusal case final reason?) return reason;
   if (call.op case final op?) {
     final depths = {
       for (final terminal in [...call.inputs, ...call.outputs]) terminal.type.dims,
@@ -393,76 +525,11 @@ List<String>? _binaryCommutative(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final out = call.outputs.single;
   if (out.type.dims != 0 || call.inputs.any((operand) => operand.type.dims != 0)) return null;
+  if (call.inputs.any((operand) => operand.type.carrier != out.type.carrier)) return null;
   final name = out.expression;
   if (name == null) return const [];
   final body = '${call.inputs[0].expression} $operator ${call.inputs[1].expression}';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
-}
-
-List<String>? _binaryOrdered(LvPrimCall call, String operator) {
-  if (call.outputs.length != 1) return null;
-  final operands = call.operandsTopDown;
-  if (operands == null) return null;
-  final out = call.outputs.single;
-  if (out.type.dims != 0 || operands.$1.type.dims != 0 || operands.$2.type.dims != 0) return null;
-  if (_hazardous(out.type, operator)) return null;
-  final name = out.expression;
-  if (name == null) return const [];
-  final body = '${operands.$1.expression} $operator ${operands.$2.expression}';
-  return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
-}
-
-List<String>? _divide(LvPrimCall call) {
-  if (call.outputs.length != 1) return null;
-  final operands = call.operandsTopDown;
-  if (operands == null) return null;
-  final out = call.outputs.single;
-  if (out.type.dims != 0 || !(out.type.numeric?.isFloat ?? false)) return null;
-  final name = out.expression;
-  for (final operand in [operands.$1, operands.$2]) {
-    if (operand.type.dims != 0 || operand.type.numeric == null) return null;
-    if (_hazardous(operand.type, 'toDouble')) return null;
-  }
-  if (name == null) return const [];
-  String widened(LvPrimTerminal operand) =>
-      operand.type.numeric!.isFloat ? operand.expression! : '${operand.expression}.toDouble()';
-  final body = '${widened(operands.$1)} / ${widened(operands.$2)}';
-  if (out.type.numeric == LvNumericKind.sgl) call.requireImport('dart:typed_data');
-  return ['final double $name = ${lvWrapped(out.type, body)};'];
-}
-
-List<String>? _orderedPredicate(LvPrimCall call, String operator) {
-  if (call.outputs.length != 1) return null;
-  final operands = call.operandsTopDown;
-  if (operands == null) return null;
-  final out = call.outputs.single;
-  if (out.type.carrier != LvCarrier.boolean) return null;
-  for (final operand in [operands.$1, operands.$2]) {
-    if (operand.type.dims != 0 || operand.type.numeric == null) return null;
-    if (_hazardous(operand.type, operator)) return null;
-  }
-  final name = out.expression;
-  if (name == null) return const [];
-  return ['final bool $name = ${operands.$1.expression} $operator ${operands.$2.expression};'];
-}
-
-List<String>? _quotientRemainder(LvPrimCall call) {
-  final operands = call.operandsTopDown, results = call.resultsTopDown;
-  if (operands == null || results == null) return null;
-  final (dividend, divisor) = operands;
-  final (remainder, quotient) = results;
-  if (quotient == null && remainder == null) return const [];
-  for (final terminal in [dividend, divisor, remainder, quotient]) {
-    if (terminal == null) continue;
-    final kind = terminal.type.numeric;
-    if (terminal.type.dims != 0 || kind == null || kind.isFloat) return null;
-    if (_hazardous(terminal.type, '~/')) return null;
-  }
-  call.requireImport(kLvRuntimeImport);
-  return [
-    'final (${quotient?.expression ?? '_'}, ${remainder?.expression ?? '_'}) = '
-        '${LvRuntimeCall.quotientRemainder}(${dividend.expression}, ${divisor.expression});',
-  ];
 }
 
 List<String>? _swap(LvPrimCall call, String runtimeCall, {required int fieldPairBits}) {
@@ -817,13 +884,8 @@ class _ClusterShape {
     }
     if (type.declarations.length == 1 && type.declarations.single.name == type.dartType) {
       final declaration = type.declarations.single;
-      if (declaration.isEnum || declaration.fields.isEmpty) return null;
-      return _ClusterShape._(
-        declaration.name,
-        declaration.fields,
-        LvNaming.declarationFields([for (final field in declaration.fields) field.label]),
-        isRecord: false,
-      );
+      if (declaration.isEnum || declaration.allFields.isEmpty) return null;
+      return _ClusterShape._(declaration.name, declaration.allFields, declaration.allFieldNames, isRecord: false);
     }
     final fields = type.value.fields;
     if (fields.isEmpty || type.dartType == null || !type.dartType!.startsWith('({')) return null;
@@ -1080,6 +1142,9 @@ List<String>? _elementwise(LvPrimCall call) {
         ),
     ],
     outputPorts: call.outputPorts,
+    ports: call.ports,
+    portMemberName: call.portMemberName,
+    portRoleFlags: call.portRoleFlags,
     portDrawnTop: call.portDrawnTop,
     requireImport: call.requireImport,
     names: call.names,
@@ -1123,8 +1188,10 @@ List<String>? _binaryPredicate(LvPrimCall call, String operator) {
   if (call.inputs.length != 2 || call.outputs.length != 1) return null;
   final left = call.inputs[0], right = call.inputs[1], out = call.outputs.single;
   if (left.type.dims != 0 || right.type.dims != 0) return null;
-  if (!_kValueEqualityCarriers.contains(left.type.carrier)) return null;
-  if (left.type.carrier != right.type.carrier) return null;
+  if (left.type.enumeration == null || left.type.dartType != right.type.dartType) {
+    if (!_kValueEqualityCarriers.contains(left.type.carrier)) return null;
+    if (left.type.carrier != right.type.carrier) return null;
+  }
   if (out.type.carrier != LvCarrier.boolean) return null;
   final name = out.expression;
   if (name == null) return const [];
@@ -1233,12 +1300,19 @@ List<String>? _not(LvPrimCall call) {
   return ['final int $name = ${lvWrapped(out.type, '~${source.expression}')};'];
 }
 
+/// Increment and Decrement: the wrapped sum on a numeric, and on an enum the next or previous
+/// item, wrapping past either end as the reference states.
 List<String>? _unaryNumeric(LvPrimCall call, String suffix) {
   if (call.inputs.length != 1 || call.outputs.length != 1) return null;
   final source = call.inputs.single, out = call.outputs.single;
   if (source.type.dims != 0 || out.type.dims != 0) return null;
-  if (out.type.numeric == null) return null;
   final name = out.expression;
+  if (out.type.enumeration case final enumeration? when source.type.dartType == out.type.dartType) {
+    if (name == null) return const [];
+    final items = '${enumeration.name}.values';
+    return ['final ${enumeration.name} $name = $items[(${source.expression}.index $suffix) % $items.length];'];
+  }
+  if (out.type.numeric == null) return null;
   if (name == null) return const [];
   final body = '${source.expression} $suffix';
   return ['final ${out.type.dartType} $name = ${lvWrapped(out.type, body)};'];
@@ -1249,12 +1323,14 @@ List<String>? _integerConversion(LvPrimCall call) {
   final source = call.inputs.single, out = call.outputs.single;
   final target = out.type.numeric;
   if (target == null || target.isFloat) return null;
-  if (source.type.numeric == null || source.type.numeric!.isFloat) return null;
+  final fromEnum = source.type.enumeration != null;
+  if (!fromEnum && (source.type.numeric == null || source.type.numeric!.isFloat)) return null;
   if (source.type.dims != 0 || out.type.dims != 0) return null;
   final name = out.expression;
   if (name == null) return const [];
   call.requireImport(kLvRuntimeImport);
-  return ['final int $name = ${LvRuntimeCall.integerConversion(target)}(${source.expression});'];
+  final value = fromEnum ? '${source.expression}.index' : source.expression;
+  return ['final int $name = ${LvRuntimeCall.integerConversion(target)}($value);'];
 }
 
 List<String>? _floatConversion(LvPrimCall call) {
@@ -1347,10 +1423,10 @@ List<String>? _replaceArraySubset(LvPrimCall call) {
   if (element.type.dims != 0 || out.type.dims != 1) return null;
   final name = out.expression;
   if (name == null) return const [];
+  if (element.type.dartType != out.type.element.dartType || array.type.dartType != out.type.dartType) return null;
   final storage = out.type.elementListType;
-  return [
-    'final $storage $name = $storage.fromList(${array.expression})..[${index.expression}] = ${element.expression};',
-  ];
+  final copy = out.type.numeric == null ? '$storage.of' : '$storage.fromList';
+  return ['final $storage $name = $copy(${array.expression})..[${index.expression}] = ${element.expression};'];
 }
 
 List<String>? _compoundArithmetic(LvPrimCall call) {
@@ -1541,4 +1617,471 @@ String lvWrapExpression(LvNumericKind kind, String expression) {
   if (!kind.needsWrap) return expression;
   final wrapped = kind.wrap(expression);
   return lvIsAtomic(expression) ? wrapped.replaceFirst('($expression)', expression) : wrapped;
+}
+
+/// Bundle's terminals in heap child order: the output cluster, the input cluster, then one
+/// element per member of the output cluster in member order; an unwired element takes the
+/// member of the input cluster.
+List<String>? _bundle(LvPrimCall call) {
+  if (call.ports.length < 3 || call.outputPorts.isEmpty) return null;
+  final out = call.outputs.where((terminal) => terminal.port == call.ports[0]).firstOrNull;
+  final consumedElsewhere = call.outputs.any((terminal) => terminal.port != call.ports[0]);
+  if (consumedElsewhere) return call.refuse('Bundle (class 0x34) reads a terminal other than its output cluster');
+  if (out == null) return const [];
+  final shape = _ClusterShape.of(out.type);
+  if (shape == null) {
+    return call.refuse('Bundle (class 0x34) assembles ${out.type.dartType ?? '?'}, which resolves no members');
+  }
+  final elements = call.ports.sublist(2);
+  if (elements.length != shape.fields.length) {
+    return call.refuse(
+      'Bundle (class 0x34) draws ${elements.length} element terminals for a cluster of ${shape.fields.length} members',
+    );
+  }
+  final wired = {for (final operand in call.inputs) operand.port: operand};
+  final base = wired[call.ports[1]];
+  if (base != null && base.type.dartType != shape.dartType) {
+    return call.refuse('Bundle (class 0x34) replaces members of ${base.type.dartType}, not of ${shape.dartType}');
+  }
+  final statements = <String>[];
+  var carrier = base?.expression;
+  final readsBase = elements.any((port) => !wired.containsKey(port));
+  if (carrier != null && readsBase && !lvIsAtomic(carrier)) {
+    final local = call.names.wire(base!.type);
+    statements.add('final ${shape.dartType} $local = $carrier;');
+    carrier = local;
+  }
+  final arguments = <String>[];
+  for (var i = 0; i < elements.length; i++) {
+    final operand = wired[elements[i]];
+    if (operand == null) {
+      if (carrier == null) {
+        return call.refuse('Bundle (class 0x34) leaves element $i unwired with no input cluster to take it from');
+      }
+      arguments.add('${shape.names[i]}: $carrier.${shape.names[i]}');
+      continue;
+    }
+    if (!shape.memberMatches(i, operand.type)) {
+      return call.refuse(
+        'Bundle (class 0x34) wires ${operand.type.dartType ?? '?'} into member ${shape.fields[i].label ?? i} '
+        'of ${shape.dartType}, whose type is ${shape.fields[i].type.dartType}',
+      );
+    }
+    arguments.add('${shape.names[i]}: ${operand.expression}');
+  }
+  final value = shape.isRecord ? '(${arguments.join(', ')})' : '${shape.dartType}(${arguments.join(', ')})';
+  return statements..add('final ${shape.dartType} ${out.expression} = $value;');
+}
+
+int _roleOf(LvPrimCall call, int port) => (call.portRoleFlags[port] ?? 0) & ~LvArrayTerminalRole.unwiredDefault;
+
+LvPrimTerminal? _wiredAt(LvPrimCall call, int port) =>
+    [...call.inputs, ...call.outputs].where((terminal) => terminal.port == port).firstOrNull;
+
+/// Delete From Array over a 1-D array: terminals by role, the deleted portion an array when a
+/// length is wired and the one element when it is not.
+List<String>? _deleteFromArray(LvPrimCall call) {
+  final array = call.inputWithRole(LvArrayTerminalRole.array);
+  if (array == null) return call.refuse('Delete From Array (class 0xbd) has its array unwired');
+  if (array.type.dims != 1) {
+    return call.refuse('Delete From Array (class 0xbd) over a ${array.type.dims}-dimensional array is not modelled');
+  }
+  LvPrimTerminal? index, length, remaining, deleted;
+  for (final port in call.ports) {
+    final role = _roleOf(call, port);
+    final terminal = _wiredAt(call, port);
+    if (role == LvArrayTerminalRole.array) continue;
+    if (role == LvArrayTerminalRole.singleIndex) {
+      index = terminal;
+    } else if (role == LvArrayTerminalRole.newElement) {
+      length = terminal;
+    } else if (role == LvArrayTerminalRole.output) {
+      remaining = terminal;
+    } else if (role == LvArrayTerminalRole.grownOutput) {
+      deleted = terminal;
+    } else {
+      return call.refuse('Delete From Array (class 0xbd) carries role bits 0x${role.toRadixString(16)}, not decoded');
+    }
+  }
+  for (final count in [index, length]) {
+    if (count != null && (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat)) {
+      return call.refuse('Delete From Array (class 0xbd) takes an integer index and length');
+    }
+  }
+  if (remaining == null && deleted == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  if (array.type.numeric != null) call.requireImport('dart:typed_data');
+  final element = array.type.element;
+  final result = call.names.role(LvNameRole.value);
+  final indexArgument = index == null ? '' : ', ${index.expression}';
+  if (length == null) {
+    if (deleted != null && deleted.type.dims != 0) {
+      return call.refuse('Delete From Array (class 0xbd) with no length wired deletes one element, not an array');
+    }
+    return [
+      'final $result = ${LvRuntimeCall.deleteFromArrayElement}(${array.expression}$indexArgument);',
+      if (remaining != null)
+        'final ${remaining.type.dartType} ${remaining.expression} = ${lvArrayFreeze(element, '$result.remaining')};',
+      if (deleted != null) 'final ${deleted.type.dartType} ${deleted.expression} = $result.element;',
+    ];
+  }
+  if (deleted != null && deleted.type.dims != 1) {
+    return call.refuse('Delete From Array (class 0xbd) with a length wired deletes an array, not one element');
+  }
+  return [
+    'final $result = ${LvRuntimeCall.deleteFromArray}(${array.expression}, '
+        '${index == null ? '' : 'index: ${index.expression}, '}length: ${length.expression});',
+    if (remaining != null)
+      'final ${remaining.type.dartType} ${remaining.expression} = ${lvArrayFreeze(element, '$result.remaining')};',
+    if (deleted != null)
+      'final ${deleted.type.dartType} ${deleted.expression} = ${lvArrayFreeze(element, '$result.deleted')};',
+  ];
+}
+
+/// Array Subset over a 1-D array: the array (role 0x10000), the output, then one index and
+/// one length terminal; an unwired index reads as zero and an unwired length as the rest.
+List<String>? _arraySubset(LvPrimCall call) {
+  if (call.ports.length != 4) {
+    return call.refuse('Array Subset (class 0x48) with ${call.ports.length} terminals indexes more than one dimension');
+  }
+  LvPrimTerminal? array, index, length, out;
+  for (final port in call.ports) {
+    final role = _roleOf(call, port);
+    final terminal = _wiredAt(call, port);
+    if (role == LvArrayTerminalRole.subsetArray) {
+      array = terminal;
+    } else if (role == LvArrayTerminalRole.output) {
+      out = terminal;
+    } else if (role == LvArrayTerminalRole.array) {
+      length = terminal;
+    } else if (role == 0) {
+      index = terminal;
+    } else {
+      return call.refuse('Array Subset (class 0x48) carries role bits 0x${role.toRadixString(16)}, not decoded');
+    }
+  }
+  if (array == null) return call.refuse('Array Subset (class 0x48) has its array unwired');
+  if (array.type.dims != 1) return call.refuse('Array Subset (class 0x48) over a ${array.type.dims}-dimensional array');
+  for (final count in [index, length]) {
+    if (count != null && (count.type.dims != 0 || count.type.numeric == null || count.type.numeric!.isFloat)) {
+      return call.refuse('Array Subset (class 0x48) takes an integer index and length');
+    }
+  }
+  if (out == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  if (array.type.numeric != null) call.requireImport('dart:typed_data');
+  final arguments = [array.expression, index?.expression ?? '0', if (length != null) length.expression];
+  return [
+    'final ${out.type.dartType} ${out.expression} = '
+        '${lvArrayFreeze(array.type.element, '${LvRuntimeCall.arraySubset}(${arguments.join(', ')})')};',
+  ];
+}
+
+/// Insert Into Array over a 1-D array: the array, the output, one index and the new element or
+/// subarray; an unwired index appends.
+List<String>? _insertIntoArray(LvPrimCall call) {
+  if (call.ports.length != 4) {
+    return call.refuse(
+      'Insert Into Array (class 0xbb) with ${call.ports.length} terminals indexes more than one dimension',
+    );
+  }
+  LvPrimTerminal? array, index, element, out;
+  for (final port in call.ports) {
+    final role = _roleOf(call, port);
+    final terminal = _wiredAt(call, port);
+    if (role == LvArrayTerminalRole.array) {
+      array = terminal;
+    } else if (role == LvArrayTerminalRole.output) {
+      out = terminal;
+    } else if (role == LvArrayTerminalRole.singleIndex) {
+      index = terminal;
+    } else if (role == LvArrayTerminalRole.newElement) {
+      element = terminal;
+    } else {
+      return call.refuse('Insert Into Array (class 0xbb) carries role bits 0x${role.toRadixString(16)}, not decoded');
+    }
+  }
+  if (array == null || element == null) {
+    return call.refuse('Insert Into Array (class 0xbb) has its array or element unwired');
+  }
+  if (array.type.dims != 1) {
+    return call.refuse('Insert Into Array (class 0xbb) over a ${array.type.dims}-dimensional array');
+  }
+  if (index != null && (index.type.dims != 0 || index.type.numeric == null || index.type.numeric!.isFloat)) {
+    return call.refuse('Insert Into Array (class 0xbb) takes an integer index');
+  }
+  if (element.type.element.dartType != array.type.element.dartType || element.type.dims > 1) {
+    return call.refuse('Insert Into Array (class 0xbb) inserts ${element.type.dartType} into ${array.type.dartType}');
+  }
+  if (out == null) return const [];
+  call.requireImport(kLvRuntimeImport);
+  if (array.type.numeric != null) call.requireImport('dart:typed_data');
+  final inserted = element.type.dims == 1 ? element.expression! : '[${element.expression}]';
+  final arguments = [array.expression, inserted, if (index != null) index.expression];
+  return [
+    'final ${out.type.dartType} ${out.expression} = '
+        '${lvArrayFreeze(array.type.element, '${LvRuntimeCall.insertIntoArray}(${arguments.join(', ')})')};',
+  ];
+}
+
+/// Decimate 1D Array: the array first, then the outputs in order.
+List<String>? _decimateArray(LvPrimCall call) {
+  if (call.inputs.length != 1 || call.ports.length < 3) return null;
+  final array = call.inputs.single;
+  if (array.port != call.ports.first || array.type.dims != 1) {
+    return call.refuse('Decimate 1D Array (class 0x40) takes a 1-D array on its first terminal');
+  }
+  final outputs = call.ports.sublist(1);
+  if (call.outputs.isEmpty) return const [];
+  call.requireImport(kLvRuntimeImport);
+  if (array.type.numeric != null) call.requireImport('dart:typed_data');
+  final parts = call.names.role(LvNameRole.value);
+  final lines = ['final $parts = ${LvRuntimeCall.decimate1dArray}(${array.expression}, ${outputs.length});'];
+  for (var i = 0; i < outputs.length; i++) {
+    final out = call.outputs.where((terminal) => terminal.port == outputs[i]).firstOrNull;
+    if (out == null) continue;
+    if (out.type.dartType != array.type.dartType) {
+      return call.refuse('Decimate 1D Array (class 0x40) yields ${out.type.dartType} from ${array.type.dartType}');
+    }
+    lines.add('final ${out.type.dartType} ${out.expression} = ${lvArrayFreeze(array.type.element, '$parts[$i]')};');
+  }
+  return lines;
+}
+
+/// Reshape Array between 1-D and 2-D: the array, the output, then one dimension size per
+/// output dimension.
+List<String>? _reshapeArray(LvPrimCall call) {
+  final array = call.inputWithRole(LvArrayTerminalRole.array);
+  final out = call.outputWithRole(LvArrayTerminalRole.output);
+  if (array == null) return call.refuse('Reshape Array (class 0x116) has its array unwired');
+  if (array.type.dims < 1 || array.type.dims > 2) {
+    return call.refuse('Reshape Array (class 0x116) over a ${array.type.dims}-dimensional array is not modelled');
+  }
+  final sizes = [
+    for (final port in call.ports)
+      if (_roleOf(call, port) == 0) _wiredAt(call, port),
+  ];
+  if (sizes.any((size) => size == null)) return call.refuse('Reshape Array (class 0x116) has a dimension size unwired');
+  for (final size in sizes) {
+    if (size!.type.dims != 0 || size.type.numeric == null || size.type.numeric!.isFloat) {
+      return call.refuse('Reshape Array (class 0x116) takes integer dimension sizes');
+    }
+  }
+  if (out == null) return const [];
+  if (out.type.dims != sizes.length || out.type.dims < 1 || out.type.dims > 2) {
+    return call.refuse(
+      'Reshape Array (class 0x116) draws ${sizes.length} sizes for a ${out.type.dims}-dimensional result',
+    );
+  }
+  if (out.type.element.dartType != array.type.element.dartType) {
+    return call.refuse('Reshape Array (class 0x116) changes the element type');
+  }
+  final element = out.type.element;
+  final padding = switch (element.carrier) {
+    LvCarrier.boolean => 'false',
+    LvCarrier.text => "''",
+    LvCarrier.integer => '0',
+    LvCarrier.float => '0.0',
+    _ => null,
+  };
+  if (padding == null) {
+    return call.refuse('Reshape Array (class 0x116) pads with a default this lowering does not spell');
+  }
+  call.requireImport(kLvRuntimeImport);
+  call.requireImport('dart:typed_data');
+  final data = array.type.dims == 1 ? array.expression! : '${array.expression}.data';
+  final dims = [for (final size in sizes) size!.expression].join(', ');
+  final reshaped = lvArrayFreeze(element, '${LvRuntimeCall.reshapeArray}($data, [$dims], $padding)');
+  if (out.type.dims == 1) return ['final ${out.type.dartType} ${out.expression} = $reshaped;'];
+  return [
+    'final ${out.type.dartType} ${out.expression} = '
+        '${LvRuntimeType.arrayNd}($reshaped, ${LvRuntimeCall.reshapeDims}([$dims]));',
+  ];
+}
+
+/// The reference and error terminals every VI Server node opens with: reference in, reference
+/// out, error in, error out, in that order.
+({LvPrimTerminal? referenceIn, LvPrimTerminal? referenceOut, LvPrimTerminal? errorIn, LvPrimTerminal? errorOut})?
+_serverTerminals(LvPrimCall call, String title) {
+  if (call.ports.length < 4) {
+    call.refuse('$title draws ${call.ports.length} terminals, fewer than its reference and error terminals');
+    return null;
+  }
+  final roles = [for (final port in call.ports.take(4)) call.portRoleFlags[port] ?? 0];
+  if (roles[0] & ~LvServerNodeRole.referenceInVariant != LvServerNodeRole.referenceIn ||
+      roles[1] != LvServerNodeRole.referenceOut ||
+      roles[2] != LvServerNodeRole.errorIn ||
+      roles[3] != LvServerNodeRole.errorOut) {
+    call.refuse(
+      '$title carries role bits ${roles.map((role) => '0x${role.toRadixString(16)}').join('/')} on its first four '
+      'terminals, not the reference and error roles',
+    );
+    return null;
+  }
+  final terminals = [for (final port in call.ports.take(4)) _wiredAt(call, port)];
+  if (terminals[0] != null && !_isRefnumWire(terminals[0]!.type)) {
+    call.refuse('$title takes a refnum on its reference terminal');
+    return null;
+  }
+  for (final error in [terminals[2], terminals[3]]) {
+    if (error != null && !error.type.isErrorCluster) {
+      call.refuse('$title carries ${error.type.dartType} on an error terminal');
+      return null;
+    }
+  }
+  return (referenceIn: terminals[0], referenceOut: terminals[1], errorIn: terminals[2], errorOut: terminals[3]);
+}
+
+bool _isRefnumWire(LvWireType type) => type.dims == 0 && type.carrier == LvCarrier.refnum;
+
+/// Property Node: the reference and error terminals, then one item per property, each labelled
+/// by its record with the property's long name and read or written as it is wired.
+List<String>? _propertyNode(LvPrimCall call) {
+  final fixed = _serverTerminals(call, 'Property Node (class 0x8c)');
+  if (fixed == null) return null;
+  final items = <String>[];
+  final reads = <(int slot, LvPrimTerminal out)>[];
+  for (var i = 4; i < call.ports.length; i++) {
+    final port = call.ports[i];
+    final name = call.portMemberName[port];
+    if (name == null) {
+      return call.refuse('Property Node (class 0x8c) carries an item whose property name is not decoded');
+    }
+    final terminal = _wiredAt(call, port);
+    if (terminal == null) continue;
+    final literal = lvDartStringLiteral(name);
+    if (call.inputs.contains(terminal)) {
+      items.add('${LvRuntimeType.propertyItem}.write($literal, ${terminal.expression})');
+    } else {
+      reads.add((items.length, terminal));
+      items.add('${LvRuntimeType.propertyItem}.read($literal)');
+    }
+  }
+  call.requireImport(kLvRuntimeImport);
+  final reference = fixed.referenceIn?.expression ?? LvRuntimeType.notARefnum;
+  final errorIn = fixed.errorIn?.expression ?? LvRuntimeType.clearedError;
+  final invocation = '${LvRuntimeCall.environment}.propertyNode($reference, $errorIn, [${items.join(', ')}])';
+  if (fixed.referenceOut == null && fixed.errorOut == null && reads.isEmpty) return ['$invocation;'];
+  final node = call.names.role(LvNameRole.value);
+  return [
+    'final $node = $invocation;',
+    if (fixed.referenceOut != null)
+      'final ${LvRuntimeType.refnum} ${fixed.referenceOut!.expression} = $node.reference;',
+    if (fixed.errorOut != null) 'final ${LvRuntimeType.error} ${fixed.errorOut!.expression} = $node.errorOut;',
+    for (final (slot, out) in reads)
+      'final ${out.type.dartType} ${out.expression} = $node.values[$slot] as ${out.type.dartType};',
+  ];
+}
+
+/// Invoke Node: the reference and error terminals, the method name record on each side, then
+/// one left and one right terminal per parameter, each labelled with the parameter's name.
+List<String>? _invokeNode(LvPrimCall call) {
+  final fixed = _serverTerminals(call, 'Invoke Node (class 0xa9)');
+  if (fixed == null) return null;
+  if (call.ports.length < 6 || (call.ports.length - 6).isOdd) {
+    return call.refuse(
+      'Invoke Node (class 0xa9) draws ${call.ports.length} terminals, not a method and parameter pairs',
+    );
+  }
+  final methodRoles = [for (final port in call.ports.sublist(4, 6)) call.portRoleFlags[port] ?? 0];
+  if (methodRoles[0] != LvServerNodeRole.methodLeft || methodRoles[1] != LvServerNodeRole.methodRight) {
+    return call.refuse('Invoke Node (class 0xa9) carries no method name record where one is drawn');
+  }
+  final method = call.portMemberName[call.ports[4]] ?? call.portMemberName[call.ports[5]];
+  if (method == null) return call.refuse('Invoke Node (class 0xa9) names no method');
+  final inputs = <String>[];
+  final outputs = <(int slot, LvPrimTerminal out)>[];
+  for (var i = 6; i < call.ports.length; i += 2) {
+    final left = _wiredAt(call, call.ports[i]), right = _wiredAt(call, call.ports[i + 1]);
+    if (left != null && !call.inputs.contains(left)) {
+      return call.refuse('Invoke Node (class 0xa9) has a parameter wired as a source on its left terminal');
+    }
+    inputs.add(left?.expression ?? 'null');
+    if (right != null) {
+      if (!call.outputs.contains(right)) {
+        return call.refuse('Invoke Node (class 0xa9) has a parameter wired as a sink on its right terminal');
+      }
+      outputs.add((inputs.length - 1, right));
+    }
+  }
+  call.requireImport(kLvRuntimeImport);
+  final reference = fixed.referenceIn?.expression ?? LvRuntimeType.notARefnum;
+  final errorIn = fixed.errorIn?.expression ?? LvRuntimeType.clearedError;
+  final invocation =
+      '${LvRuntimeCall.environment}.invokeNode($reference, $errorIn, ${lvDartStringLiteral(method)}, '
+      '<Object?>[${inputs.join(', ')}])';
+  if (fixed.referenceOut == null && fixed.errorOut == null && outputs.isEmpty) return ['$invocation;'];
+  final node = call.names.role(LvNameRole.value);
+  return [
+    'final $node = $invocation;',
+    if (fixed.referenceOut != null)
+      'final ${LvRuntimeType.refnum} ${fixed.referenceOut!.expression} = $node.reference;',
+    if (fixed.errorOut != null) 'final ${LvRuntimeType.error} ${fixed.errorOut!.expression} = $node.errorOut;',
+    for (final (slot, out) in outputs)
+      'final ${out.type.dartType} ${out.expression} = $node.outputs[$slot] as ${out.type.dartType};',
+  ];
+}
+
+/// A local variable: one terminal named after its panel control, read as a source or written
+/// as a sink.
+List<String>? _localVariable(LvPrimCall call) {
+  if (call.ports.length != 1) return call.refuse('a local variable (class 0xb6) draws ${call.ports.length} terminals');
+  final name = call.portMemberName[call.ports.single];
+  if (name == null) return call.refuse('a local variable (class 0xb6) names no panel control');
+  final literal = lvDartStringLiteral(name);
+  call.requireImport(kLvRuntimeImport);
+  if (call.inputs.singleOrNull case final written?) {
+    return ['${LvRuntimeCall.environment}.writeLocalVariable($literal, ${written.expression});'];
+  }
+  final read = call.outputs.singleOrNull;
+  if (read == null) return const [];
+  return [
+    'final ${read.type.dartType} ${read.expression} = '
+        '${LvRuntimeCall.environment}.readLocalVariable($literal) as ${read.type.dartType};',
+  ];
+}
+
+/// Register For Events: the registration and error terminals, then one event source per
+/// terminal, a user event refnum or a cluster of them.
+List<String>? _registerForEvents(LvPrimCall call) {
+  final fixed = _serverTerminals(call, 'Register For Events (class 0xeb)');
+  if (fixed == null) return null;
+  final sources = <String>[], events = <String>[];
+  for (var i = 4; i < call.ports.length; i++) {
+    final source = _wiredAt(call, call.ports[i]);
+    if (source == null) continue;
+    final event = call.portMemberName[call.ports[i]] ?? '';
+    if (!call.inputs.contains(source)) {
+      return call.refuse('Register For Events (class 0xeb) has an event source wired as a sink');
+    }
+    if (_isRefnumWire(source.type)) {
+      sources.add(source.expression!);
+      events.add(event);
+      continue;
+    }
+    final shape = _ClusterShape.of(source.type);
+    if (shape == null || shape.fields.any((field) => field.type.carrier != LvCarrier.refnum)) {
+      return call.refuse(
+        'Register For Events (class 0xeb) takes ${source.type.dartType ?? '?'} as an event source, which is neither '
+        'a refnum nor a cluster of refnums',
+      );
+    }
+    final carrier = lvIsAtomic(source.expression!) ? source.expression! : '(${source.expression})';
+    sources.addAll([for (final name in shape.names) '$carrier.$name']);
+    events.addAll([for (var k = 0; k < shape.fields.length; k++) shape.fields[k].label ?? shape.names[k]]);
+  }
+  call.requireImport(kLvRuntimeImport);
+  final existing = fixed.referenceIn?.expression ?? LvRuntimeType.notARefnum;
+  final errorIn = fixed.errorIn?.expression ?? LvRuntimeType.clearedError;
+  final invocation =
+      '${LvRuntimeCall.registerForEvents}(<${LvRuntimeType.refnum}>[${sources.join(', ')}], '
+      'events: <String>[${events.map(lvDartStringLiteral).join(', ')}], existing: $existing, errorIn: $errorIn)';
+  if (fixed.referenceOut == null && fixed.errorOut == null) return ['$invocation;'];
+  final registered = call.names.role(LvNameRole.value);
+  return [
+    'final $registered = $invocation;',
+    if (fixed.referenceOut != null)
+      'final ${LvRuntimeType.refnum} ${fixed.referenceOut!.expression} = $registered.registration;',
+    if (fixed.errorOut != null) 'final ${LvRuntimeType.error} ${fixed.errorOut!.expression} = $registered.errorOut;',
+  ];
 }

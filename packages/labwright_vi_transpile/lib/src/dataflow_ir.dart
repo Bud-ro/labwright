@@ -1,5 +1,6 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'class_index.dart';
 import 'declare.dart';
 import 'subvi.dart';
 import 'type_map.dart';
@@ -34,6 +35,15 @@ const int kInPlaceArrayPairKind = 0x158;
 const int kInPlaceClusterPairKind = 0x159;
 
 const int kInPlaceClusterNodeKind = 0x150;
+
+/// The marker object an In Place Element structure holds per Data Value Reference Read/Write
+/// Element pair, and the heap kind of that pair's border nodes.
+const int kInPlaceDataValueRefPairKind = 0x154;
+
+const int kInPlaceDataValueRefNodeKind = 0x153;
+
+/// The type label of a Data Value Reference border node's error terminal.
+const String kInPlaceErrorTerminalLabel = 'error IO';
 
 /// Set on the left border node of a pair, which reads the elements; clear on the right, which
 /// writes them back.
@@ -225,10 +235,12 @@ class LvPrimUnit extends LvUnit {
     required this.label,
     required this.inputPorts,
     required this.outputPorts,
+    required this.ports,
     required this.portRoleFlags,
     required this.portDrawnTop,
     required this.nodeFlags,
     required this.portMemberName,
+    required this.portTypes,
   });
 
   @override
@@ -248,6 +260,9 @@ class LvPrimUnit extends LvUnit {
   @override
   final List<int> outputPorts;
 
+  /// Every terminal holder in heap child order, the order [LvPrimSignature] indexes.
+  final List<int> ports;
+
   final Map<int, int> portRoleFlags;
 
   final Map<int, int> portDrawnTop;
@@ -255,6 +270,9 @@ class LvPrimUnit extends LvUnit {
   final int? nodeFlags;
 
   final Map<int, String> portMemberName;
+
+  /// The descriptor each terminal's record resolves, by port.
+  final Map<int, ViType> portTypes;
 }
 
 String lvForeignCallDetail(BdObject node) {
@@ -264,6 +282,49 @@ String lvForeignCallDetail(BdObject node) {
       '${library == null ? 'a native shared library the node names no path for' : '`$library`'}, '
       'whose behaviour is not in the VI';
 }
+
+/// A Feedback Node inside a loop: its output carries the value its input took on the previous
+/// iteration, and the initializer's value on the first. The node is two heap objects: the
+/// [kFeedbackNodeKind] object draws the output and the initializer terminal, and the
+/// [kFeedbackInputKind] object, whose record names both of the first object's records, draws
+/// the input.
+class LvFeedbackUnit extends LvUnit {
+  const LvFeedbackUnit({
+    required this.oid,
+    required this.outputPort,
+    required this.feedbackPort,
+    required this.initializerPort,
+    required this.label,
+  });
+
+  @override
+  final int oid;
+
+  final int outputPort;
+
+  /// The input whose value the next iteration reads.
+  final int feedbackPort;
+
+  /// The initializer terminal, which may be unwired.
+  final int initializerPort;
+
+  final String? label;
+
+  @override
+  List<int> get inputPorts => [initializerPort];
+
+  @override
+  List<int> get outputPorts => [outputPort];
+}
+
+/// The heap kinds of a Feedback Node's two objects, and the records the first one draws.
+const int kFeedbackNodeKind = 0x14a;
+
+const int kFeedbackInputKind = 0x170;
+
+const int kFeedbackOutputRecordKind = 0x144;
+
+const int kFeedbackInitializerRecordKind = 0x146;
 
 class LvSubViUnit extends LvUnit {
   const LvSubViUnit({
@@ -408,6 +469,35 @@ class LvInPlaceArrayPair {
   final List<({int indexIn, int indexOut, int elementOut, int elementIn})> elements;
 }
 
+/// One Data Value Reference Read/Write Element pair of an In Place Element structure: the
+/// reference holders on each side, the element ports inside the frame, the left node's error
+/// output and the right node's error input inside the frame, and the right node's error output.
+class LvInPlaceDataValueRefPair {
+  const LvInPlaceDataValueRefPair({
+    required this.referenceIn,
+    required this.referenceOut,
+    required this.elementOut,
+    required this.elementIn,
+    required this.readErrorOut,
+    required this.writeErrorIn,
+    required this.errorOut,
+  });
+
+  final int referenceIn;
+
+  final int? referenceOut;
+
+  final int elementOut;
+
+  final int elementIn;
+
+  final int readErrorOut;
+
+  final int writeErrorIn;
+
+  final int? errorOut;
+}
+
 /// One Unbundle/Bundle Cluster Elements pair of an In Place Element structure: the cluster
 /// holders on each side and, per member read, its name and the element ports inside the frame.
 class LvInPlaceClusterPair {
@@ -433,6 +523,7 @@ class LvStructUnit extends LvUnit {
     this.defaultFrame = 0,
     this.inPlacePairs = const <LvInPlaceArrayPair>[],
     this.inPlaceClusterPairs = const <LvInPlaceClusterPair>[],
+    this.inPlaceDataValueRefPairs = const <LvInPlaceDataValueRefPair>[],
   }) : displayedDisable = LvDisableFrame.ofLabel(displayedCase),
        displayedLabel = LvCaseLabel.ofLabel(displayedCase);
 
@@ -462,6 +553,8 @@ class LvStructUnit extends LvUnit {
   final List<LvInPlaceArrayPair> inPlacePairs;
 
   final List<LvInPlaceClusterPair> inPlaceClusterPairs;
+
+  final List<LvInPlaceDataValueRefPair> inPlaceDataValueRefPairs;
 
   @override
   List<int> get inputPorts => [
@@ -493,6 +586,7 @@ class LvDataflow {
     required this.edgeBySource,
     required this.ownerOfPort,
     required this.sinkPorts,
+    required this.wireRoutes,
   });
 
   final LvRegion root;
@@ -505,24 +599,28 @@ class LvDataflow {
 
   final Set<int> sinkPorts;
 
+  /// What decided each wire's type, by signal oid.
+  final Map<int, LvWireRoute> wireRoutes;
+
   LvEdge? into(int port) => edgeBySink[port];
 
   LvEdge? outOf(int port) => edgeBySource[port];
 }
 
 /// Builds the dataflow of [diagram]. With [caller] and [resolve], a cluster wire no endpoint of
-/// its own types takes its member shape from the connector-pane control of the callee it reaches.
+/// its own types takes its member shape from the connector-pane control of the callee it reaches;
+/// [classes] supplies the LabVIEW classes the wires name.
 ({LvDataflow? dataflow, LvRefusal? refusal}) buildLvDataflow(
   BdDiagram diagram, {
   List<ViType> pool = const [],
   LvDeclarations? declarations,
   LvViUnit? caller,
   LvViResolver? resolve,
-  LvClassResolver? resolveClass,
+  LvClassIndex? classes,
 }) {
   try {
     return (
-      dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations(), caller, resolve, resolveClass).build(),
+      dataflow: _Builder(diagram, pool, declarations ?? LvDeclarations(), caller, resolve, classes).build(),
       refusal: null,
     );
   } on LvRefusedException catch (error) {
@@ -530,22 +628,46 @@ class LvDataflow {
   }
 }
 
+/// What decides each wire of [diagram], typed one wire at a time so a refused wire does not hide
+/// the others: the [LvWireRoute] of each wire that types, by signal oid, and the refusal of each
+/// that does not.
+({Map<int, LvWireRoute> routes, Map<int, LvRefusal> refusals}) lvWireRouteCensus(
+  BdDiagram diagram, {
+  List<ViType> pool = const [],
+  LvViUnit? caller,
+  LvViResolver? resolve,
+  LvClassIndex? classes,
+}) {
+  final builder = _Builder(diagram, pool, LvDeclarations(), caller, resolve, classes);
+  final refusals = <int, LvRefusal>{};
+  for (final wire in diagram.wires) {
+    try {
+      final signal = wire.signalType;
+      if (signal == null) {
+        lvRefuse(LvRefusalKind.wireType, 'signal carries no decoded type word', oid: wire.signalOid);
+      }
+      final type = builder._wireType(wire, signal);
+      if (!type.isMapped) {
+        lvRefuse(LvRefusalKind.wireType, type.value.note ?? 'wire type is unmapped', oid: wire.signalOid);
+      }
+    } on LvRefusedException catch (error) {
+      builder.wireRoutes.remove(wire.signalOid);
+      refusals[wire.signalOid] = error.refusal;
+    }
+  }
+  return (routes: builder.wireRoutes, refusals: refusals);
+}
+
 class _Builder {
-  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve, this.resolveClass)
-    : byId = diagram.byId;
+  _Builder(this.diagram, this.pool, this.declarations, this.caller, this.resolve, this.classes) : byId = diagram.byId;
 
   final BdDiagram diagram;
   final List<ViType> pool;
   final LvDeclarations declarations;
   final LvViUnit? caller;
   final LvViResolver? resolve;
-  final LvClassResolver? resolveClass;
+  final LvClassIndex? classes;
   final HeapObjectsByOid<BdObject> byId;
-
-  final Map<String, ViModel?> _classData = {};
-
-  ViModel? _privateDataOf(List<String> qualifiedName) =>
-      _classData.putIfAbsent(qualifiedName.join(':'), () => resolveClass?.call(qualifiedName));
 
   /// Each sub-VI call port by its oid: the call node and the pane index the port draws.
   late final Map<int, (BdObject node, int pane)> _callPorts = {
@@ -565,30 +687,62 @@ class _Builder {
     if (unit == null || resolve == null || name == null) return null;
     final lower = name.toLowerCase();
     if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) return null;
-    final link = unit.linkTo(name);
+    var link = unit.linkOfNode(node);
     if (link == null && unit.links.any((l) => l.qualifiedName.lastOrNull?.toLowerCase() == lower)) return null;
-    return resolve!(LvCallee(caller: unit, fileName: name, link: link));
+    if (link?.kind == kLvDynamicDispatchLinkKind) {
+      link = classes == null ? null : lvDispatchLink(link!, classes!);
+      if (link == null) return null;
+    }
+    final callee = resolve!(LvCallee(caller: unit, fileName: name, link: link));
+    if (callee == null || node.kind != kLvPolymorphicCallNodeCode) return callee;
+    return lvPolymorphicInstance(diagram, node, callee, resolve!, pool: pool).instance;
   });
 
-  /// The cluster type the callee's connector-pane control gives [endpoint], a sub-VI call port.
-  (ViType, List<ViType>)? _paneCluster(int endpoint, {required bool array}) {
+  /// The number of connector-pane terminals each sub-VI call node draws, by node oid.
+  late final Map<int, int> _callPortCounts = _countCallPorts();
+
+  Map<int, int> _countCallPorts() {
+    final counts = <int, int>{};
+    for (final (node, _) in _callPorts.values) {
+      counts[node.oid] = (counts[node.oid] ?? 0) + 1;
+    }
+    return counts;
+  }
+
+  /// The callee behind [endpoint], a sub-VI call port, and its connector-pane terminal there,
+  /// when the node draws as many terminals as the callee's pane has.
+  (LvViUnit, BdObject)? _paneTerminal(int endpoint) {
     final port = _callPorts[endpoint];
     if (port == null) return null;
     final (node, pane) = port;
     final callee = _calleeOf(node);
-    if (callee == null || callee.paneTerminals.length != _callPorts.values.where((p) => p.$1 == node).length) {
-      return null;
-    }
+    if (callee == null || callee.paneTerminals.length != _callPortCounts[node.oid]) return null;
     final terminal = callee.paneTerminal(pane);
-    if (terminal == null) return null;
-    final cluster = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
-    return cluster == null ? null : (cluster, callee.pool);
+    return terminal == null ? null : (callee, terminal);
+  }
+
+  /// The cluster type the callee's connector-pane control gives [endpoint], a sub-VI call port.
+  (ViType, List<ViType>)? _paneCluster(int endpoint, {required bool array}) {
+    if (_paneTerminal(endpoint) case (final callee, final terminal)) {
+      final cluster = lvClusterOfEndpoint(callee.diagram, terminal.oid, array: array);
+      return cluster == null ? null : (cluster, callee.pool);
+    }
+    return null;
+  }
+
+  /// The refnum dimensionality the callee's connector-pane control gives [endpoint].
+  int? _paneRefnumDims(int endpoint) {
+    if (_paneTerminal(endpoint) case (final callee, final terminal)) {
+      return lvRefnumDimsOfTerminal(callee.diagram, terminal.oid);
+    }
+    return null;
   }
 
   final edgeBySink = <int, LvEdge>{};
   final edgeBySource = <int, LvEdge>{};
   final ownerOfPort = <int, int>{};
   final sinkPorts = <int>{};
+  final wireRoutes = <int, LvWireRoute>{};
 
   LvDataflow build() {
     final rootFrame = _rootFrame();
@@ -600,6 +754,7 @@ class _Builder {
       edgeBySource: edgeBySource,
       ownerOfPort: ownerOfPort,
       sinkPorts: sinkPorts,
+      wireRoutes: wireRoutes,
     );
   }
 
@@ -667,67 +822,200 @@ class _Builder {
 
   LvWireType _wireType(ViWire wire, ViSignalType signal) {
     final direct = mapLvWireType(signal);
-    if (direct.isMapped) return direct;
-    if (kLvWireRefnumCodes.contains(signal.typeCode)) {
-      final dims = lvRefnumWireDims(diagram, wire) ?? signal.arrayDims;
-      final classes = <String>{};
-      List<String>? qualifiedName;
-      for (final endpoint in wire.endpointOids) {
-        if (lvClassOfEndpoint(diagram, endpoint, array: (dims ?? 0) > 0) case final named?) {
-          qualifiedName = named;
-          classes.add(named.join(':'));
-        }
+    if (kLvWireRefnumCodes.contains(signal.typeCode)) return _refnumWireType(wire, signal, direct);
+    if (direct.isMapped) {
+      if (direct.numeric case final kind? when !kind.isFloat) {
+        if (_enumWireType(wire, signal, direct) case final enumeration?) return enumeration;
       }
-      if (qualifiedName != null) {
-        if (classes.length != 1) {
-          lvRefuse(
-            LvRefusalKind.wireType,
-            'the wire\'s endpoints name ${classes.length} different classes, so the object it carries is not decided',
-            oid: wire.signalOid,
-          );
-        }
-        final element = lvClassObjectType(qualifiedName, _privateDataOf(qualifiedName), declarations);
-        return lvClassObjectWireType(element, dims ?? 0);
-      }
-      return dims == null ? direct : lvRefnumWireType(signal, dims);
+      wireRoutes[wire.signalOid] = LvWireRoute.signalWord;
+      return direct;
     }
-    if (signal.typeCode == kLvUntypedSignalCode) {
+    final code = signal.typeCode;
+    final array = (signal.arrayDims ?? 0) > 0;
+    if (code == kLvUntypedSignalCode) {
       final reading = lvScalarOfEndpoints(diagram, wire, pool);
       if (reading == null) return direct;
       final mapped = mapLvType(reading, pool, 0, declarations);
-      return mapped.isMapped ? LvWireType.scalarOf(mapped) : direct;
+      if (!mapped.isMapped) return direct;
+      wireRoutes[wire.signalOid] = LvWireRoute.untypedEndpoint;
+      return LvWireType.scalarOf(mapped);
     }
-    if (signal.typeCode == TypeCode.measureData) {
-      final array = (signal.arrayDims ?? 0) > 0;
+    if (code == TypeCode.measureData) {
       if (wire.endpointOids.any((endpoint) => lvEndpointIsTimestamp(diagram, endpoint, array: array))) {
+        wireRoutes[wire.signalOid] = LvWireRoute.timestamp;
         return lvTimestampWireType(signal);
       }
       return direct;
     }
-    if (!kLvWireClusterCodes.contains(signal.typeCode)) return direct;
+    if (code == TypeCode.tag) {
+      if (wire.endpointOids.any((endpoint) => lvTagEndpointIsRefnum(diagram, endpoint, array: array))) {
+        wireRoutes[wire.signalOid] = LvWireRoute.tagRefnum;
+        return lvRefnumHandleWireType(signal);
+      }
+      return direct;
+    }
+    if (!kLvWireClusterCodes.contains(code)) return direct;
+    return _clusterWireType(wire, signal, direct);
+  }
+
+  /// An integer-coded wire carrying an enum of the word's width: the enum its source endpoint
+  /// resolves, else the one every resolving sink agrees on; null when the source resolves a plain
+  /// integer, when no end resolves an enum, or when the sinks disagree and the source is silent.
+  LvWireType? _enumWireType(ViWire wire, ViSignalType signal, LvWireType direct) {
+    final array = direct.dims > 0;
+    List<LvTypeMapping> readingsOf(int endpoint) => [
+      for (final type in lvEnumsOfEndpoint(diagram, endpoint, array: array))
+        if (lvEnumIntegerCode(type) == signal.typeCode) mapLvType(type, pool, 0, declarations),
+    ];
+    final source = _sourceOf(wire);
+    var readings = readingsOf(source);
+    if (readings.isEmpty) {
+      if (lvEndpointResolvesInteger(diagram, source, array: array)) return null;
+      readings = [
+        for (final endpoint in wire.endpointOids)
+          if (endpoint != source) ...readingsOf(endpoint),
+      ];
+    }
+    final types = {for (final reading in readings) reading.dartType};
+    if (types.length != 1 || !readings.first.isMapped) return null;
+    wireRoutes[wire.signalOid] = LvWireRoute.enumeration;
+    return lvElementWireType(readings.first, direct.dims);
+  }
+
+  /// A refnum wire's dimensionality from its endpoints' node-terminal parts, else from the
+  /// callee's connector pane, else zero from an endpoint's own scalar descriptor; the parts and
+  /// the pane must agree where both speak. An endpoint naming a class types the wire as that
+  /// class's object.
+  LvWireType _refnumWireType(ViWire wire, ViSignalType signal, LvWireType direct) {
+    var dims = signal.arrayDims;
+    var route = LvWireRoute.signalWord;
+    if (dims == null) {
+      final parts = lvRefnumPartDims(diagram, wire);
+      int? pane;
+      for (final endpoint in wire.endpointOids) {
+        final reading = _paneRefnumDims(endpoint);
+        if (reading == null) continue;
+        if (pane != null && pane != reading) {
+          lvRefuse(
+            LvRefusalKind.wireType,
+            'the callees at the wire\'s ends declare $pane- and $reading-dimensional refnums, so its '
+            'dimensionality is not decided',
+            oid: wire.signalOid,
+          );
+        }
+        pane = reading;
+      }
+      if (parts != null && pane != null && parts != pane) {
+        lvRefuse(
+          LvRefusalKind.wireType,
+          'the wire\'s node-terminal parts carry a $parts-dimensional refnum where the callee\'s '
+          'connector pane declares $pane dimensions, so its dimensionality is not decided',
+          oid: wire.signalOid,
+        );
+      }
+      if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) {
+        if (parts != null && pane == parts) {
+          dims = parts;
+          route = LvWireRoute.pane;
+        }
+      } else if (parts != null) {
+        dims = parts;
+        route = LvWireRoute.part;
+      } else if (pane != null) {
+        dims = pane;
+        route = LvWireRoute.pane;
+      } else if (lvRefnumEndpointIsScalar(diagram, wire)) {
+        dims = 0;
+        route = LvWireRoute.endpoint;
+      }
+    }
+    if (dims == null) return direct;
+    if (_classOfWire(wire, array: dims > 0) case final qualifiedName?) {
+      final element = lvClassObjectType(qualifiedName, classes, declarations);
+      wireRoutes[wire.signalOid] = LvWireRoute.classObject;
+      return lvElementWireType(element, dims);
+    }
+    wireRoutes[wire.signalOid] = route;
+    return lvRefnumWireType(signal, dims);
+  }
+
+  /// The class a refnum wire carries: the one its source endpoint names, which every sink must
+  /// name or be an ancestor of, as a child object is wired into a parent-typed terminal; when the
+  /// source names none, the one class the sinks agree on. Null when no endpoint names a class.
+  List<String>? _classOfWire(ViWire wire, {required bool array}) {
+    List<String>? source;
+    final sinks = <String, List<String>>{};
+    for (final endpoint in wire.endpointOids) {
+      final named = lvClassOfEndpoint(diagram, endpoint, array: array);
+      if (named == null) continue;
+      if (_isSink(endpoint)) {
+        sinks[lvQualifiedNameKey(named)] = named;
+      } else {
+        source = named;
+      }
+    }
+    if (source == null) {
+      if (sinks.length > 1) {
+        lvRefuse(
+          LvRefusalKind.wireType,
+          'the wire\'s sinks name ${sinks.length} different classes and its source names none, so the '
+          'object it carries is not decided',
+          oid: wire.signalOid,
+        );
+      }
+      return sinks.values.firstOrNull;
+    }
+    for (final sink in sinks.values) {
+      if (!lvClassDescendsFrom(source, sink, classes)) {
+        lvRefuse(
+          LvRefusalKind.wireType,
+          'the wire carries a ${source.join(':')} object into a terminal declared ${sink.join(':')}, which it '
+          'does not descend from',
+          oid: wire.signalOid,
+        );
+      }
+    }
+    return source;
+  }
+
+  /// A cluster wire's member shape from the descriptors its endpoints resolve, else from the
+  /// node-terminal and structure-terminal records under them, else from the callee's connector
+  /// pane; the readings of the route taken must map to one Dart type.
+  LvWireType _clusterWireType(ViWire wire, ViSignalType signal, LvWireType direct) {
     final array = (signal.arrayDims ?? 0) > 0;
-    final readings = <LvWireType>[
+    var route = LvWireRoute.endpoint;
+    var readings = <LvWireType>[
       for (final endpoint in wire.endpointOids)
         if (lvClusterOfEndpoint(diagram, endpoint, array: array) case final cluster?)
           lvClusterWireType(signal, cluster, pool, declarations),
     ];
     if (readings.isEmpty) {
-      for (final endpoint in wire.endpointOids) {
-        if (_paneCluster(endpoint, array: array) case (final cluster, final calleePool)) {
-          readings.add(lvClusterWireType(signal, cluster, calleePool, declarations));
-        }
-      }
+      route = LvWireRoute.part;
+      readings = [
+        for (final endpoint in wire.endpointOids)
+          for (final cluster in lvClustersOfParts(diagram, endpoint, array: array))
+            lvClusterWireType(signal, cluster, pool, declarations),
+      ];
+    }
+    if (readings.isEmpty) {
+      route = LvWireRoute.pane;
+      readings = [
+        for (final endpoint in wire.endpointOids)
+          if (_paneCluster(endpoint, array: array) case (final cluster, final calleePool))
+            lvClusterWireType(signal, cluster, calleePool, declarations),
+      ];
     }
     if (readings.isEmpty) return direct;
     final types = {for (final reading in readings) reading.dartType};
     if (types.length != 1) {
       lvRefuse(
         LvRefusalKind.wireType,
-        'the wire\'s endpoints resolve ${types.length} different Dart types, '
+        'the wire\'s ${route.name} descriptors resolve ${types.length} different Dart types, '
         'so the value it carries is not decided',
         oid: wire.signalOid,
       );
     }
+    wireRoutes[wire.signalOid] = route;
     return readings.first;
   }
 
@@ -749,8 +1037,17 @@ class _Builder {
     for (final child in diagram.children(frameOid)) {
       switch (child.category) {
         case BdObjectKind.node:
-          if (child.kind == kInPlaceBorderNodeKind || child.kind == kInPlaceClusterNodeKind) continue;
-          units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
+          if (child.kind == kInPlaceBorderNodeKind ||
+              child.kind == kInPlaceClusterNodeKind ||
+              child.kind == kInPlaceDataValueRefNodeKind ||
+              child.kind == kFeedbackInputKind) {
+            continue;
+          }
+          if (child.kind == kFeedbackNodeKind) {
+            units.add(_feedbackUnit(child));
+            continue;
+          }
+          units.add(_isSubViCall(child) ? _subViUnit(child) : _primUnit(child));
         case BdObjectKind.structure:
           units.add(_structUnit(child));
         case _:
@@ -765,7 +1062,27 @@ class _Builder {
     return LvRegion(frameOid: frameOid, units: units, edges: edges);
   }
 
-  int _sourceOf(ViWire wire) => wire.endpointOids.firstWhere((oid) => !_isSink(oid));
+  /// The one endpoint of [wire] that produces it; refuses the wire when there is not exactly one.
+  int _sourceOf(ViWire wire) {
+    final sources = [
+      for (final oid in wire.endpointOids)
+        if (!_isSink(oid)) oid,
+    ];
+    if (sources.length != 1) {
+      lvRefuse(
+        LvRefusalKind.wireDirection,
+        'signal has ${sources.length} source endpoints among ${wire.endpointOids.length}; '
+        'exactly one endpoint must read as a producer ([lvEndpointIsSink])',
+        oid: wire.signalOid,
+      );
+    }
+    return sources.single;
+  }
+
+  /// Whether [node] calls a sub-VI; a Property Node shares the call node codes but is lowered
+  /// as a primitive through the environment.
+  static bool _isSubViCall(BdObject node) =>
+      kSubViCallNodeCodes.contains(node.kind) && node.kind != BdObjectClass.propertyNode.code;
 
   LvSubViUnit _subViUnit(BdObject node) {
     final ports = <int>[];
@@ -792,18 +1109,59 @@ class _Builder {
     return lower.endsWith('.vi') || lower.endsWith('.vim');
   }
 
-  LvPrimUnit _primUnit(BdObject node) {
-    final inputs = <int>[], outputs = <int>[];
-    final roleFlags = <int, int>{};
-    final drawnTop = <int, int>{};
-    final memberName = <int, String>{};
+  /// Every feedback input object's terminal holder, keyed by the oid of a record its own record
+  /// names on the node it belongs to.
+  late final Map<int, int> _feedbackInputOfRecord = {
+    for (final node in diagram.objects)
+      if (node.kind == kFeedbackInputKind)
+        for (final holder in diagram.childrenOf(node))
+          if (holder.objectClass == BdObjectClass.terminalHolder)
+            for (final record in diagram.childrenOf(holder))
+              for (final member in record.memberOids) member: holder.oid,
+  };
+
+  LvFeedbackUnit _feedbackUnit(BdObject node) {
+    int? output, initializer, input;
     for (final holder in diagram.childrenOf(node)) {
       if (holder.objectClass != BdObjectClass.terminalHolder) continue;
       ownerOfPort[holder.oid] = node.oid;
+      final record = diagram.childrenOf(holder).firstOrNull;
+      if (record?.kind == kFeedbackOutputRecordKind) output = holder.oid;
+      if (record?.kind == kFeedbackInitializerRecordKind) initializer = holder.oid;
+      if (record != null) input ??= _feedbackInputOfRecord[record.oid];
+    }
+    if (output == null || initializer == null || input == null) {
+      lvRefuse(
+        LvRefusalKind.structure,
+        'a Feedback Node does not draw its output, initializer and input terminals',
+        oid: node.oid,
+      );
+    }
+    ownerOfPort[input] = node.oid;
+    return LvFeedbackUnit(
+      oid: node.oid,
+      outputPort: output,
+      feedbackPort: input,
+      initializerPort: initializer,
+      label: _captionOf(node),
+    );
+  }
+
+  LvPrimUnit _primUnit(BdObject node) {
+    final inputs = <int>[], outputs = <int>[], ports = <int>[];
+    final roleFlags = <int, int>{};
+    final drawnTop = <int, int>{};
+    final memberName = <int, String>{};
+    final types = <int, ViType>{};
+    for (final holder in diagram.childrenOf(node)) {
+      if (holder.objectClass != BdObjectClass.terminalHolder) continue;
+      ownerOfPort[holder.oid] = node.oid;
+      ports.add(holder.oid);
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
       final record = diagram.childrenOf(holder).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
       if (record?.typeName case final name?) memberName[holder.oid] = name;
+      if (record?.resolvedType?.type case final type?) types[holder.oid] = type;
       final attach = diagram.dcoChildTerminalAttach(holder.oid);
       if (attach != null) drawnTop[holder.oid] = attach.candidates.first.y;
     }
@@ -818,10 +1176,12 @@ class _Builder {
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
+      ports: ports,
       portRoleFlags: roleFlags,
       portDrawnTop: drawnTop,
       nodeFlags: node.objFlags,
       portMemberName: memberName,
+      portTypes: types,
     );
   }
 
@@ -940,11 +1300,13 @@ class _Builder {
     _pairConditions(terminals);
     var pairs = const <LvInPlaceArrayPair>[];
     var clusterPairs = const <LvInPlaceClusterPair>[];
+    var referencePairs = const <LvInPlaceDataValueRefPair>[];
     if (kind == LvStructureKind.inPlaceElement) {
       final inPlace = _inPlacePairs(structure, frames.singleOrNull);
       terminals.addAll(inPlace.terminals);
       pairs = inPlace.pairs;
       clusterPairs = inPlace.clusterPairs;
+      referencePairs = inPlace.referencePairs;
     }
     return LvStructUnit(
       oid: structure.oid,
@@ -952,6 +1314,7 @@ class _Builder {
       terminals: terminals,
       inPlacePairs: pairs,
       inPlaceClusterPairs: clusterPairs,
+      inPlaceDataValueRefPairs: referencePairs,
       frames: [for (final frame in frames) _region(frame)],
       displayedFrame: structure.frames?.visibleFrameIndex ?? 0,
       displayedCase: label?.label?.trim(),
@@ -966,7 +1329,12 @@ class _Builder {
   /// cluster and index terminals name the structure's holders through their members and whose
   /// element terminals are the frame's ports; a cluster element terminal's type name is the
   /// member it reads or writes.
-  ({List<LvStructTerminal> terminals, List<LvInPlaceArrayPair> pairs, List<LvInPlaceClusterPair> clusterPairs})
+  ({
+    List<LvStructTerminal> terminals,
+    List<LvInPlaceArrayPair> pairs,
+    List<LvInPlaceClusterPair> clusterPairs,
+    List<LvInPlaceDataValueRefPair> referencePairs,
+  })
   _inPlacePairs(BdObject structure, int? frameOid) {
     final markers = [
       for (final child in diagram.childrenOf(structure))
@@ -977,17 +1345,22 @@ class _Builder {
     ];
     if (frameOid == null ||
         markers.isEmpty ||
-        markers.any((kind) => kind != kInPlaceArrayPairKind && kind != kInPlaceClusterPairKind)) {
+        markers.any(
+          (kind) =>
+              kind != kInPlaceArrayPairKind && kind != kInPlaceClusterPairKind && kind != kInPlaceDataValueRefPairKind,
+        )) {
       lvRefuse(
         LvRefusalKind.structure,
         'an In Place Element structure whose border-node pairs are '
         '${markers.map((kind) => '0x${kind.toRadixString(16)}').join(', ')} has no modelled control '
-        'flow; only Index/Replace Array Elements (0x${kInPlaceArrayPairKind.toRadixString(16)}) and '
-        'Unbundle/Bundle Cluster Elements (0x${kInPlaceClusterPairKind.toRadixString(16)}) do',
+        'flow; only Index/Replace Array Elements (0x${kInPlaceArrayPairKind.toRadixString(16)}), '
+        'Unbundle/Bundle Cluster Elements (0x${kInPlaceClusterPairKind.toRadixString(16)}) and '
+        'Data Value Reference Read/Write Element (0x${kInPlaceDataValueRefPairKind.toRadixString(16)}) do',
         oid: structure.oid,
       );
     }
     final terminals = <LvStructTerminal>[];
+    final referencePairs = _dataValueRefPairs(structure, frameOid, terminals);
     final sides = <int, List<({int anchor, List<int> indices, List<String> names, List<int> elements, bool left})>>{};
     for (final node in diagram.children(frameOid)) {
       if (node.kind != kInPlaceBorderNodeKind && node.kind != kInPlaceClusterNodeKind) continue;
@@ -1124,10 +1497,131 @@ class _Builder {
         }
       }
     }
-    if (pairs.isEmpty && clusterPairs.isEmpty) {
+    if (pairs.isEmpty && clusterPairs.isEmpty && referencePairs.isEmpty) {
       lvRefuse(LvRefusalKind.structure, 'an In Place Element structure draws no border-node pair', oid: structure.oid);
     }
-    return (terminals: terminals, pairs: pairs, clusterPairs: clusterPairs);
+    return (terminals: terminals, pairs: pairs, clusterPairs: clusterPairs, referencePairs: referencePairs);
+  }
+
+  /// An In Place Element structure's Data Value Reference Read/Write Element pairs: the left
+  /// border node carries the reference terminal (flag [kInPlaceArrayTerminalFlag], naming the
+  /// structure's holder), the element it reads into the frame and an error output into the
+  /// frame; the right node carries the element written back, the reference out and the error out,
+  /// each naming the structure's holder, the error terminal (type label
+  /// [kInPlaceErrorTerminalLabel], flagged as the reference is) also open to the frame. The pair
+  /// markers name no node, so the nth read node pairs with the nth write node, whose reference
+  /// holder must follow the read's among the structure's terminals.
+  List<LvInPlaceDataValueRefPair> _dataValueRefPairs(
+    BdObject structure,
+    int frameOid,
+    List<LvStructTerminal> terminals,
+  ) {
+    final lefts = <({int reference, int element, int error})>[];
+    final rights = <({int? reference, int element, int errorIn, int? errorOut})>[];
+    for (final node in diagram.children(frameOid)) {
+      if (node.kind != kInPlaceDataValueRefNodeKind) continue;
+      final isLeft = ((node.objFlags ?? 0) & kInPlaceLeftNodeFlag) != 0;
+      int? reference, element, error, outerError;
+      for (final holder in diagram.childrenOf(node)) {
+        if (holder.objectClass != BdObjectClass.terminalHolder) continue;
+        final record = diagram.childrenOf(holder).firstOrNull;
+        if (record == null) continue;
+        final outer = record.memberOids.where((member) => byId[member]?.parentOid == structure.oid).firstOrNull;
+        final isError = record.typeName == kInPlaceErrorTerminalLabel;
+        final isReference =
+            !isError && ((record.objFlags ?? 0) & kInPlaceIndexTerminalFlag) == kInPlaceArrayTerminalFlag;
+        if (isReference) {
+          if (outer == null) {
+            lvRefuse(
+              LvRefusalKind.structure,
+              'a Data Value Reference border node\'s reference terminal names no structure holder',
+              oid: node.oid,
+            );
+          }
+          ownerOfPort[outer] = structure.oid;
+          reference = outer;
+          terminals.add(
+            LvStructTerminal(
+              oid: record.oid,
+              role: LvTerminalRole.inPlaceArray,
+              outerPort: outer,
+              innerPorts: const {},
+              autoIndexing: false,
+              partnerOid: null,
+              outerIsSink: _isSink(outer),
+            ),
+          );
+          continue;
+        }
+        ownerOfPort[holder.oid] = structure.oid;
+        terminals.add(
+          LvStructTerminal(
+            oid: record.oid,
+            role: LvTerminalRole.inPlaceElement,
+            outerPort: isError ? outer : null,
+            innerPorts: {frameOid: holder.oid},
+            autoIndexing: false,
+            partnerOid: null,
+            outerIsSink: false,
+          ),
+        );
+        if (isError) {
+          error = holder.oid;
+          if (outer != null) {
+            ownerOfPort[outer] = structure.oid;
+            outerError = outer;
+          }
+        } else {
+          element = holder.oid;
+        }
+      }
+      if (element == null || error == null || (isLeft && reference == null)) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a Data Value Reference border node does not draw its reference, element and error terminals',
+          oid: node.oid,
+        );
+      }
+      if (isLeft) {
+        lefts.add((reference: reference!, element: element, error: error));
+      } else {
+        rights.add((reference: reference, element: element, errorIn: error, errorOut: outerError));
+      }
+    }
+    if (lefts.length != rights.length) {
+      lvRefuse(
+        LvRefusalKind.structure,
+        'an In Place Element structure draws ${lefts.length} Data Value Reference read nodes and ${rights.length} write nodes',
+        oid: structure.oid,
+      );
+    }
+    final holders = [
+      for (final holder in diagram.childrenOf(structure))
+        if (holder.objectClass == BdObjectClass.terminalHolder) holder.oid,
+    ];
+    for (var i = 0; i < lefts.length; i++) {
+      final reference = rights[i].reference;
+      if (reference == null || holders.indexOf(reference) != holders.indexOf(lefts[i].reference) + 1) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a Data Value Reference read node and the write node drawn in the same place do not hold adjacent '
+          'structure terminals, so which write belongs to which read is not decided',
+          oid: structure.oid,
+        );
+      }
+    }
+    return [
+      for (var i = 0; i < lefts.length; i++)
+        LvInPlaceDataValueRefPair(
+          referenceIn: lefts[i].reference,
+          referenceOut: rights[i].reference,
+          elementOut: lefts[i].element,
+          elementIn: rights[i].element,
+          readErrorOut: lefts[i].error,
+          writeErrorIn: rights[i].errorIn,
+          errorOut: rights[i].errorOut,
+        ),
+    ];
   }
 
   /// Names, on each condition terminal, the output tunnel it gates: the one whose record is drawn

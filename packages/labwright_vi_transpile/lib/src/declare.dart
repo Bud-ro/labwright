@@ -21,14 +21,16 @@ List<LvTypeDecl> lvDeclarationClosure(Iterable<LvTypeDecl> roots) {
 }
 
 String _classSource(LvTypeDecl decl) {
-  final names = LvNaming.declarationFields([for (final field in decl.fields) field.label]);
+  final names = decl.fieldNames;
+  final inherited = decl.allFieldNames.sublist(0, decl.allFields.length - decl.fields.length);
+  final parameters = [
+    for (final name in inherited) 'required super.$name',
+    for (final name in names) 'required this.$name',
+  ];
   final out = StringBuffer()
-    ..writeln(_heading('cluster', decl))
-    ..writeln('class ${decl.name} {')
-    ..writeln(
-      'const ${decl.name}('
-      '${names.isEmpty ? '' : '{${[for (final name in names) 'required this.$name'].join(', ')}}'});',
-    );
+    ..writeln(_heading(decl.parent == null ? 'cluster' : 'class', decl))
+    ..writeln('class ${decl.name}${decl.parent == null ? '' : ' extends ${decl.parent!.name}'} {')
+    ..writeln('const ${decl.name}(${parameters.isEmpty ? '' : '{${parameters.join(', ')}}'});');
   for (var i = 0; i < decl.fields.length; i++) {
     final label = decl.fields[i].label;
     out.writeln();

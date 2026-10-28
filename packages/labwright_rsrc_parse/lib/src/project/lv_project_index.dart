@@ -7,7 +7,8 @@ import 'lv_library_file.dart';
 /// high never walks a whole disk.
 const int kLvProjectScanDirectoryBudget = 4000;
 
-/// The files of the directories under [root], in depth-first order, stepping over directories
+/// The files of the directories under [root], in depth-first order with each directory's
+/// entries in path order, so the walk is the same on every filesystem; stepping over directories
 /// that cannot be listed; with [directoryBudget], visiting at most that many directories, and
 /// with [skipHidden], none whose name starts with a dot.
 Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool skipHidden = false}) sync* {
@@ -16,7 +17,7 @@ Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool sk
   while (stack.isNotEmpty && (directoryBudget == null || visited < directoryBudget)) {
     final List<FileSystemEntity> entries;
     try {
-      entries = stack.removeLast().listSync(followLinks: false);
+      entries = stack.removeLast().listSync(followLinks: false)..sort((a, b) => a.path.compareTo(b.path));
     } on FileSystemException {
       continue;
     }
@@ -35,7 +36,7 @@ Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool sk
 /// Every library, class and XControl file under a root, and each member's file by its
 /// library-qualified name; resolves a VI's link entries to files.
 class LvProjectIndex {
-  LvProjectIndex._(this.root, this.libraries, this._byQualifiedName);
+  LvProjectIndex._(this.root, this.libraries, this._byQualifiedName, this._qualifiedNameOfLibrary);
 
   final Directory root;
 
@@ -43,6 +44,12 @@ class LvProjectIndex {
   final Map<String, LvLibraryFile> libraries;
 
   final Map<String, String> _byQualifiedName;
+
+  final Map<String, List<String>> _qualifiedNameOfLibrary;
+
+  /// The library-qualified name of the library file at [libraryPath], outermost owner first;
+  /// null for a path the scan did not index.
+  List<String>? qualifiedNameOf(String libraryPath) => _qualifiedNameOfLibrary[libraryPath];
 
   /// Reads every `.lvlib`, `.lvclass` and `.xctl` under [root] that [lvWalkProjectFiles]
   /// reaches, within [directoryBudget] and past hidden directories when asked.
@@ -77,29 +84,50 @@ class LvProjectIndex {
     }
 
     final byQualifiedName = <String, String>{};
+    final qualifiedNames = <String, List<String>>{};
     for (final MapEntry(key: path, value: library) in libraries.entries) {
       final prefix = qualifiedNameOf(path);
+      qualifiedNames[path] = prefix;
       byQualifiedName[prefix.join(':')] = path;
       for (final item in library.items) {
         if (item.url == null || item.isFolder) continue;
         byQualifiedName[[...prefix, item.name].join(':')] = resolveLibraryUrl(path, item.url!);
       }
     }
-    return LvProjectIndex._(root, libraries, byQualifiedName);
+    return LvProjectIndex._(root, libraries, byQualifiedName, qualifiedNames);
   }
 
   /// The file a library-qualified name denotes, such as [`MB Master.lvlib`, `Read Coils.vi`].
   String? fileOf(List<String> qualifiedName) => _byQualifiedName[qualifiedName.join(':')];
 
   /// The file a link entry of the VI at [viPath] denotes: its path record resolved from the
-  /// VI's directory when that file exists, else its qualified name through the libraries.
+  /// VI's directory when that file exists and is not a library file (a class method's link
+  /// records its class), else its qualified name through the libraries.
   String? fileOfLink(ViLinkEntryFramed entry, {required String viPath}) {
     final path = entry.path;
     if (path != null && path.pathType == 1) {
       final candidate = resolveViPath(viPath, path.components);
-      if (File(candidate).existsSync()) return candidate;
+      if (File(candidate).existsSync()) {
+        if (LvLibraryKind.ofPath(candidate) == null) return candidate;
+        if (_memberOf(candidate, entry.qualifiedName) case final member?) return member;
+      }
     }
     if (entry.qualifiedName.isNotEmpty) return fileOf(entry.qualifiedName);
+    return null;
+  }
+}
+
+extension on LvProjectIndex {
+  /// The file of the member [qualifiedName] ends with, in the library file at [libraryPath].
+  String? _memberOf(String libraryPath, List<String> qualifiedName) {
+    final library = libraries[libraryPath];
+    final name = qualifiedName.lastOrNull?.toLowerCase();
+    if (library == null || name == null) return null;
+    for (final item in library.items) {
+      if (!item.isFolder && item.url != null && item.name.toLowerCase() == name) {
+        return resolveLibraryUrl(libraryPath, item.url!);
+      }
+    }
     return null;
   }
 }

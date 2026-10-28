@@ -47,18 +47,19 @@ abstract class LvEnvironment {
     LvError errorIn = LvError.none,
   });
 
-  /// Property Node: reads [reads] and writes [writes] on [reference], in node order reads then
-  /// writes; the values read come back in the order of [reads].
+  /// Property Node: each of [items] read or written on [reference] in node order; `values`
+  /// holds one entry per item, the value read or null for a write. A Not A Refnum reference
+  /// stands for the node's own VI or application, as the reference states.
   ({LvRefnum reference, List<Object?> values, LvError errorOut}) propertyNode(
     LvRefnum reference,
-    LvError errorIn, {
-    List<String> reads = const [],
-    Map<String, Object?> writes = const {},
-  });
+    LvError errorIn,
+    List<LvPropertyItem> items,
+  );
 
-  /// Invoke Node: calls [method] on [reference] with [inputs] in parameter order; the return
-  /// value and the output parameters come back in parameter order.
-  ({LvRefnum reference, Object? returnValue, List<Object?> outputs, LvError errorOut}) invokeNode(
+  /// Invoke Node: [method] called on [reference] with one entry of [inputs] per parameter in
+  /// node order (null where the parameter is unwired); `outputs` holds one entry per parameter,
+  /// the value its right terminal carries.
+  ({LvRefnum reference, List<Object?> outputs, LvError errorOut}) invokeNode(
     LvRefnum reference,
     LvError errorIn,
     String method,
@@ -119,6 +120,9 @@ abstract class LvEnvironment {
     LvError errorIn,
   );
 
+  /// Unregister For Events on a registration [registerForEvents] returned.
+  LvError unregisterForEvents(LvRefnum registration, LvError errorIn);
+
   /// Get Permissions and Set Permissions.
   ({int permissions, String owner, String group, LvError errorOut}) getPermissions(LvPath path, LvError errorIn);
 
@@ -127,6 +131,20 @@ abstract class LvEnvironment {
   /// Any instrument, network or external-session primitive ([operation] is its name) with its
   /// wired inputs in terminal order; the outputs come back in terminal order.
   List<Object?> session(String operation, List<Object?> inputs);
+}
+
+/// One item of a Property Node: the property's long name, and the value written when the item
+/// writes.
+class LvPropertyItem {
+  const LvPropertyItem.read(this.property) : write = false, value = null;
+
+  const LvPropertyItem.write(this.property, this.value) : write = true;
+
+  final String property;
+
+  final bool write;
+
+  final Object? value;
 }
 
 /// Raised by [LvUnavailableEnvironment] for every operation.
@@ -139,8 +157,9 @@ final class LvEnvironmentUnavailable extends Error {
   String toString() => 'LabVIEW operation "$operation" needs an LvEnvironment, and none is installed';
 }
 
-/// The environment a program runs in until a host installs one: every operation raises.
-final class LvUnavailableEnvironment extends LvEnvironment {
+/// The environment a program runs in until a host installs one: every operation raises. A host
+/// that provides only some operations extends it and overrides those.
+class LvUnavailableEnvironment extends LvEnvironment {
   const LvUnavailableEnvironment();
 
   Never _raise(String operation) => throw LvEnvironmentUnavailable(operation);
@@ -187,13 +206,12 @@ final class LvUnavailableEnvironment extends LvEnvironment {
   @override
   ({LvRefnum reference, List<Object?> values, LvError errorOut}) propertyNode(
     LvRefnum reference,
-    LvError errorIn, {
-    List<String> reads = const [],
-    Map<String, Object?> writes = const {},
-  }) => _raise('Property Node ${[...reads, ...writes.keys].join(', ')}');
+    LvError errorIn,
+    List<LvPropertyItem> items,
+  ) => _raise('Property Node ${items.map((item) => item.property).join(', ')}');
 
   @override
-  ({LvRefnum reference, Object? returnValue, List<Object?> outputs, LvError errorOut}) invokeNode(
+  ({LvRefnum reference, List<Object?> outputs, LvError errorOut}) invokeNode(
     LvRefnum reference,
     LvError errorIn,
     String method,
@@ -253,6 +271,9 @@ final class LvUnavailableEnvironment extends LvEnvironment {
   ) => _raise('Register For Events ${sources.map((source) => source.event).join(', ')}');
 
   @override
+  LvError unregisterForEvents(LvRefnum registration, LvError errorIn) => _raise('Unregister For Events');
+
+  @override
   ({int permissions, String owner, String group, LvError errorOut}) getPermissions(LvPath path, LvError errorIn) =>
       _raise('Get Permissions');
 
@@ -271,4 +292,14 @@ LvEnvironment lvEnvironment = const LvUnavailableEnvironment();
 LvError lvCloseAnyReference(LvRefnum reference, [LvError errorIn = LvError.none]) {
   if (lvReferenceIsLive(reference)) return lvCloseReference(reference, errorIn);
   return lvEnvironment.closeReference(reference, errorIn);
+}
+
+/// Close Reference over an array of refnums: each closed in order, the first error kept.
+LvError lvCloseReferences(List<LvRefnum> references, [LvError errorIn = LvError.none]) {
+  var error = errorIn;
+  for (final reference in references) {
+    final closed = lvCloseAnyReference(reference, errorIn);
+    if (!error.status && closed.status) error = closed;
+  }
+  return error;
 }

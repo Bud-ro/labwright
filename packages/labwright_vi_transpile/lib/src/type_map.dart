@@ -1,6 +1,10 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'class_index.dart';
+import 'flat_literal.dart';
+import 'naming.dart';
 import 'numeric.dart';
+import 'wire_type.dart' show lvClusterShape;
 
 abstract final class LvRuntimeType {
   static const String error = 'LvError';
@@ -22,6 +26,18 @@ abstract final class LvRuntimeType {
   static const String arrayNd = 'LvArrayNd';
 
   static const String anonymousEnum = 'LvEnum';
+
+  static const String queue = 'LvQueue';
+
+  static const String notifier = 'LvNotifier';
+
+  static const String dataValueReference = 'LvDataValueReference';
+
+  static const String userEvent = 'LvUserEvent';
+
+  static const String eventRegistration = 'LvEventRegistration';
+
+  static const String propertyItem = 'LvPropertyItem';
 }
 
 enum LvCarrier {
@@ -157,6 +173,8 @@ class LvTypeDecl {
     required this.label,
     required this.fields,
     this.qualifiedName = const [],
+    this.parent,
+    this.classDefault,
   }) : items = const [],
        isEnum = false;
 
@@ -166,9 +184,36 @@ class LvTypeDecl {
     required this.items,
     this.qualifiedName = const [],
   }) : fields = const [],
-       isEnum = true;
+       isEnum = true,
+       parent = null,
+       classDefault = null;
 
   final String name;
+
+  /// The class this one extends: a LabVIEW class object's parent class, whose fields the
+  /// object carries before its own; null for every other declaration.
+  final LvTypeDecl? parent;
+
+  /// For a LabVIEW class object, what its private data control saves as the default of [fields];
+  /// null for every other declaration.
+  final LvClassDefault? classDefault;
+
+  bool get isClassObject => classDefault != null;
+
+  /// This declaration and its ancestors, root first.
+  List<LvTypeDecl> get lineage => [...?parent?.lineage, this];
+
+  /// Whether this declares [ancestor] or a class descending from it.
+  bool descendsFrom(LvTypeDecl ancestor) => lineage.any((declaration) => identical(declaration, ancestor));
+
+  /// Every field an instance carries: the ancestors' first, then [fields].
+  List<LvDeclField> get allFields => [for (final declaration in lineage) ...declaration.fields];
+
+  /// The Dart name of each of [allFields], distinct across the whole lineage.
+  List<String> get allFieldNames => LvNaming.declarationFields([for (final field in allFields) field.label]);
+
+  /// The Dart names of [fields], the last of [allFieldNames].
+  List<String> get fieldNames => allFieldNames.sublist(allFields.length - fields.length);
 
   final String? label;
 
@@ -194,6 +239,7 @@ class LvTypeDecl {
       : null;
 
   Iterable<LvTypeDecl> get dependencies sync* {
+    if (parent case final parent?) yield parent;
     for (final field in fields) {
       yield* field.type.declarations;
     }
@@ -306,6 +352,12 @@ class LvTypeMapping {
   final int? unmappedCode;
 
   bool get isMapped => status == LvMapStatus.mapped;
+
+  /// The Dart enum this mapping names, when it is one.
+  LvTypeDecl? get enumeration => switch (declarations) {
+    [final declaration] when carrier == LvCarrier.nominal && declaration.isEnum => declaration,
+    _ => null,
+  };
 }
 
 LvTypeMapping mapLvType(ViType type, List<ViType> pool, [int depth = 0, LvDeclarations? declarations]) {
@@ -471,14 +523,14 @@ LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarati
   if (type.componentCount > 0) {
     final qualified = [for (var i = 0; i < type.componentCount; i++) type.componentAt(i)];
     final stem = lvClassName(qualified.last.replaceAll(RegExp(r'\.\w+$'), ''));
-    if (stem.isNotEmpty && (base.kind == ViDataType.cluster || _isEnumCode(base.code))) {
+    if (stem.isNotEmpty && (base.kind == ViDataType.cluster || lvIsEnumCode(base.code))) {
       return _mapQualifiedTypeDef(type, base, qualified, stem, pool, depth, declarations);
     }
   }
   final name = type.label;
   if (name != null && lvClassName(name).isNotEmpty) {
     if (base.kind == ViDataType.cluster) return _mapCluster(base, name, pool, depth + 1, declarations);
-    if (_isEnumCode(base.code)) return _mapEnum(base, name, declarations);
+    if (lvIsEnumCode(base.code)) return _mapEnum(base, name, declarations);
   }
   final mapped = mapLvType(base, pool, depth + 1, declarations);
   if (mapped.status == LvMapStatus.internal) return LvTypeMapping.internal('typedef over a non-value: ${mapped.note}');
@@ -547,36 +599,149 @@ LvTypeMapping _mapQualifiedTypeDef(
 /// The root class every LabVIEW class descends from, which carries no data.
 const List<String> kLvRootClassName = ['LabVIEW Object'];
 
-/// A LabVIEW class object as a Dart class named after the class and holding its own private
-/// data cluster's members, one declaration per qualified name; the root class is empty. The
-/// class's private data comes from its class file, the typedef the class qualifies in
-/// [privateData], and a class not supplied is unmapped.
-LvTypeMapping lvClassObjectType(List<String> qualifiedName, ViModel? privateData, LvDeclarations declarations) {
-  final signature = 'K:${qualifiedName.join(':')}';
+/// [type] with its typedefs stripped, to [kLvTypedefDepth] levels.
+ViType? lvThroughTypedefs(ViType? type) {
+  for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
+    if (type is! ViTypedefType) return type;
+    type = type.base;
+  }
+  return null;
+}
+
+const int kLvTypedefDepth = 8;
+
+/// The default of a class's own private data: the literal of each member, read from the default
+/// the private data control saves; [members] null when the control saves none, so each member
+/// holds its type's default; [why] set when the saved default does not decode.
+class LvClassDefault {
+  const LvClassDefault({this.members, this.why});
+
+  /// The root `LabVIEW Object`, which holds no data.
+  static const LvClassDefault empty = LvClassDefault(members: []);
+
+  final List<String>? members;
+
+  final String? why;
+}
+
+/// The default a class's private data control saves for the private data typedef [own]: the
+/// data object typed by it on the control's front panel.
+LvClassDefault _classDefaultOf(
+  ViModel privateData,
+  ViTypedefType own,
+  List<LvDeclField> fields,
+  LvDeclarations declarations,
+) {
+  final pool = privateData.types;
+  final shape = lvClusterShape(own.base, pool);
+  final typed = [
+    for (final panel in privateData.frontPanels)
+      for (final object in panel.objects)
+        if (object.dataObject != null)
+          if (object.resolvedType?.type case final type?
+              when identical(type, own) || (type.kind == ViDataType.cluster && lvClusterShape(type, pool) == shape))
+            object.dataObject!,
+  ];
+  if (typed.length != 1) {
+    return LvClassDefault(
+      why: '${typed.length} data objects on the private data control are typed by its private data cluster',
+    );
+  }
+  final saved = typed.single.defaultData;
+  if (saved == null) return const LvClassDefault();
+  final members = lvFlatClusterMembers(saved, own.base, pool, fields, declarations);
+  return members.literals == null ? LvClassDefault(why: members.why) : LvClassDefault(members: members.literals);
+}
+
+/// The file name of a class's private data control: `X.ctl` for `X.lvclass`.
+String lvPrivateDataControlName(String classFile) => classFile.replaceAll(RegExp(r'\.lvclass$'), '.ctl');
+
+/// A LabVIEW class object as a Dart class named after the class, extending its parent's and
+/// holding its own private data cluster's members, one declaration per qualified name; the root
+/// class is empty. The private data is the typedef of the class file's `X.ctl` in the control
+/// [LvClassData.privateData] carries, and a class [classes] does not hold is unmapped.
+LvTypeMapping lvClassObjectType(
+  List<String> qualifiedName,
+  LvClassIndex? classes,
+  LvDeclarations declarations, [
+  int depth = 0,
+]) {
+  if (depth >= kLvClassDepth) {
+    return LvTypeMapping.unmapped(
+      'the lineage of ${qualifiedName.join(':')} runs past $kLvClassDepth classes, so its parent links form a cycle',
+    );
+  }
+  final signature = 'K:${lvQualifiedNameKey(qualifiedName)}';
   final stem = lvClassName(qualifiedName.last.replaceAll(RegExp(r'\.\w+$'), ''));
-  if (qualifiedName.length == 1 && qualifiedName.single == kLvRootClassName.single) {
+  if (lvQualifiedNameKey(qualifiedName) == lvQualifiedNameKey(kLvRootClassName)) {
     return LvTypeMapping.nominal(
       declarations.allocate(
         'LabViewObject',
         signature,
-        (name) =>
-            LvTypeDecl.cluster(name: name, label: qualifiedName.single, fields: const [], qualifiedName: qualifiedName),
+        (name) => LvTypeDecl.cluster(
+          name: name,
+          label: qualifiedName.single,
+          fields: const [],
+          qualifiedName: qualifiedName,
+          classDefault: LvClassDefault.empty,
+        ),
       ),
     );
   }
-  if (privateData == null) {
+  final data = classes?.classOf(qualifiedName);
+  if (data == null) {
     return LvTypeMapping.unmapped('the class ${qualifiedName.join(':')} was not supplied to the lowering');
   }
+  final parentName = data.parent;
+  if (parentName == null) {
+    return LvTypeMapping.unmapped('the parent class link of ${qualifiedName.join(':')} does not decode');
+  }
+  final parent = lvClassObjectType(
+    parentName.isEmpty ? kLvRootClassName : parentName,
+    classes,
+    declarations,
+    depth + 1,
+  );
+  final parentDecl = parent.declarations.singleOrNull;
+  if (parentDecl == null || !parent.isMapped) {
+    return LvTypeMapping.unmapped(
+      'the parent class of ${qualifiedName.join(':')} is not declared: ${parent.note}',
+      unmappedCode: parent.unmappedCode,
+    );
+  }
   final classFile = qualifiedName.last;
+  if (data.isInterface) {
+    return LvTypeMapping.nominal(
+      declarations.allocate(
+        stem.isEmpty ? 'LvClass' : stem,
+        signature,
+        (name) => LvTypeDecl.cluster(
+          name: name,
+          label: classFile,
+          fields: const [],
+          qualifiedName: qualifiedName,
+          parent: parentDecl,
+          classDefault: LvClassDefault.empty,
+        ),
+      ),
+    );
+  }
+  final controlName = lvPrivateDataControlName(classFile);
+  final privateData = data.privateData;
   ViTypedefType? own;
-  for (final type in privateData.types) {
-    if (type is ViTypedefType && type.componentCount >= 2 && type.componentAt(type.componentCount - 2) == classFile) {
+  for (final type in privateData?.types ?? const <ViType>[]) {
+    if (type is ViTypedefType &&
+        type.componentCount >= 2 &&
+        type.componentAt(type.componentCount - 2) == classFile &&
+        type.componentAt(type.componentCount - 1) == controlName) {
       own = type;
       break;
     }
   }
-  if (own == null || own.base.kind != ViDataType.cluster) {
-    return LvTypeMapping.unmapped('the class file of ${qualifiedName.join(':')} holds no private data cluster');
+  if (privateData == null || own == null || own.base.kind != ViDataType.cluster) {
+    return LvTypeMapping.unmapped(
+      'the class file of ${qualifiedName.join(':')} holds no private data cluster typedef named $controlName',
+    );
   }
   final (:members, :mapped, :refusal) = _clusterMembers(own.base, privateData.types, 1, declarations);
   if (refusal != null) return refusal;
@@ -585,13 +750,29 @@ LvTypeMapping lvClassObjectType(List<String> qualifiedName, ViModel? privateData
     declarations.allocate(
       stem.isEmpty ? 'LvClass' : stem,
       signature,
-      (name) =>
-          LvTypeDecl.cluster(name: name, label: own!.label ?? classFile, fields: fields, qualifiedName: qualifiedName),
+      (name) => LvTypeDecl.cluster(
+        name: name,
+        label: own!.label ?? classFile,
+        fields: fields,
+        qualifiedName: qualifiedName,
+        parent: parentDecl,
+        classDefault: _classDefaultOf(privateData, own, fields, declarations),
+      ),
     ),
   );
 }
 
-bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
+/// The class object a terminal's descriptor names, through typedefs, else [mapLvType] of the
+/// descriptor: the type a connector-pane terminal declares.
+LvTypeMapping lvTerminalType(ViType descriptor, List<ViType> pool, LvClassIndex? classes, LvDeclarations declarations) {
+  final base = lvThroughTypedefs(descriptor);
+  if (base is ViRefnumType && base.refnumKind == ViRefnumKind.classInstance && base.classQualifiedName.isNotEmpty) {
+    return lvClassObjectType(base.classQualifiedName, classes, declarations);
+  }
+  return mapLvType(descriptor, pool, 0, declarations);
+}
+
+bool lvIsEnumCode(int? code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
 
 bool isLvErrorCluster(ViType type, List<ViType> pool) {
   if (type is! ViClusterType || type.memberCount != 3) return false;

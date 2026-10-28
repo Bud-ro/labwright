@@ -4,6 +4,8 @@ import 'dart:typed_data';
 
 import 'path_ops.dart';
 import 'references.dart';
+import 'string_ops.dart';
+import 'timing_ops.dart';
 import 'values.dart';
 
 /// Open/Create/Replace File's `operation` ring.
@@ -143,6 +145,10 @@ LvError _ioError(String source, Object error) {
 
 LvOpenFile? _openFile(LvRefnum refnum) => lvReferenceTarget<LvOpenFile>(refnum);
 
+/// The refnum a file function given an incoming error passes on: its file refnum unchanged, or
+/// Not A Refnum for a path it would have opened itself.
+LvRefnum _passed(Object fileOrPath) => fileOrPath is LvRefnum ? fileOrPath : LvRefnum.none;
+
 /// Close File: closes the handle and returns its path. It runs even when an error came in.
 ({LvPath path, LvError errorOut}) lvCloseFile(LvRefnum refnum, {LvError errorIn = LvError.none}) {
   final open = _openFile(refnum);
@@ -189,15 +195,17 @@ LvOpenFile? _openFile(LvRefnum refnum) => lvReferenceTarget<LvOpenFile>(refnum);
 
 /// Read from Text File: [count] characters from the current position, or the rest of the file
 /// when the count is below zero; with [lines] the count is in lines (each with its line ending
-/// trimmed and returned as one string joined by line feeds). A path opens, reads and closes;
-/// a refnum stays open and is returned.
+/// trimmed and returned as one string joined by line feeds), and with [convertEol] every line
+/// ending becomes a line feed. A path opens, reads and closes; a refnum stays open and is
+/// returned.
 ({LvRefnum refnumOut, String text, bool cancelled, LvError errorOut}) lvReadFromTextFile(
   Object fileOrPath, {
   int count = -1,
   bool lines = false,
+  bool convertEol = false,
   LvError errorIn = LvError.none,
 }) {
-  if (errorIn.status) return (refnumOut: LvRefnum.none, text: '', cancelled: false, errorOut: errorIn);
+  if (errorIn.status) return (refnumOut: _passed(fileOrPath), text: '', cancelled: false, errorOut: errorIn);
   final resolved = _resolveFile(fileOrPath, 'Read from Text File');
   final open = resolved.open;
   if (open == null) return (refnumOut: LvRefnum.none, text: '', cancelled: false, errorOut: resolved.errorOut);
@@ -222,6 +230,7 @@ LvOpenFile? _openFile(LvRefnum refnum) => lvReferenceTarget<LvOpenFile>(refnum);
         error = LvErrorCode.endOfFile.error('Read from Text File');
       }
     }
+    if (convertEol && !lines) text = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     if (resolved.opened) lvCloseFile(resolved.refnum);
     return (
       refnumOut: resolved.opened ? LvRefnum.none : resolved.refnum,
@@ -254,7 +263,7 @@ int _lineBytes(Uint8List bytes, int lines) {
   String text, {
   LvError errorIn = LvError.none,
 }) {
-  if (errorIn.status) return (refnumOut: LvRefnum.none, cancelled: false, errorOut: errorIn);
+  if (errorIn.status) return (refnumOut: _passed(fileOrPath), cancelled: false, errorOut: errorIn);
   final resolved = _resolveFile(fileOrPath, 'Write to Text File', write: true);
   final open = resolved.open;
   if (open == null) return (refnumOut: LvRefnum.none, cancelled: false, errorOut: resolved.errorOut);
@@ -276,7 +285,7 @@ int _lineBytes(Uint8List bytes, int lines) {
   int count = -1,
   LvError errorIn = LvError.none,
 }) {
-  if (errorIn.status) return (refnumOut: LvRefnum.none, data: '', cancelled: false, errorOut: errorIn);
+  if (errorIn.status) return (refnumOut: _passed(fileOrPath), data: '', cancelled: false, errorOut: errorIn);
   final resolved = _resolveFile(fileOrPath, 'Read From Binary File');
   final open = resolved.open;
   if (open == null) return (refnumOut: LvRefnum.none, data: '', cancelled: false, errorOut: resolved.errorOut);
@@ -306,7 +315,7 @@ int _lineBytes(Uint8List bytes, int lines) {
   Uint8List bytes, {
   LvError errorIn = LvError.none,
 }) {
-  if (errorIn.status) return (refnumOut: LvRefnum.none, cancelled: false, errorOut: errorIn);
+  if (errorIn.status) return (refnumOut: _passed(fileOrPath), cancelled: false, errorOut: errorIn);
   final resolved = _resolveFile(fileOrPath, 'Write To Binary File', write: true);
   final open = resolved.open;
   if (open == null) return (refnumOut: LvRefnum.none, cancelled: false, errorOut: resolved.errorOut);
@@ -323,7 +332,7 @@ int _lineBytes(Uint8List bytes, int lines) {
 
 /// Get File Size, of an open file or a path.
 ({LvRefnum refnumOut, int size, LvError errorOut}) lvGetFileSize(Object fileOrPath, {LvError errorIn = LvError.none}) {
-  if (errorIn.status) return (refnumOut: LvRefnum.none, size: 0, errorOut: errorIn);
+  if (errorIn.status) return (refnumOut: _passed(fileOrPath), size: 0, errorOut: errorIn);
   if (fileOrPath is LvPath) {
     try {
       return (refnumOut: LvRefnum.none, size: File(_nativePath(fileOrPath)).lengthSync(), errorOut: LvError.none);
@@ -541,7 +550,7 @@ lvFileDirectoryInfo(LvPath path, {LvError errorIn = LvError.none}) {
       pathOut: path,
       directory: directory,
       size: size,
-      lastMod: _timestampOf(stat.modified),
+      lastMod: lvTimestampOfDateTime(stat.modified),
       resolvedPath: resolved,
       shortcut: shortcut,
       errorOut: LvError.none,
@@ -549,17 +558,6 @@ lvFileDirectoryInfo(LvPath path, {LvError errorIn = LvError.none}) {
   } catch (error) {
     return failed(_ioError('File/Directory Info', error));
   }
-}
-
-LvTimestamp _timestampOf(DateTime time) {
-  final micros = time.toUtc().microsecondsSinceEpoch;
-  final seconds = micros ~/ 1000000;
-  return LvTimestamp(
-    seconds: seconds + 2082844800,
-    fraction: (BigInt.from(micros - seconds * 1000000) * (BigInt.one << 64) ~/ BigInt.from(1000000))
-        .toSigned(64)
-        .toInt(),
-  );
 }
 
 /// List Folder: the file names and folder names directly under [path], each list sorted as
@@ -592,17 +590,8 @@ LvTimestamp _timestampOf(DateTime time) {
         files.add(name);
       }
     }
-    int compare(String a, String b) {
-      final length = a.length < b.length ? a.length : b.length;
-      for (var i = 0; i < length; i++) {
-        final difference = a.codeUnitAt(i) - b.codeUnitAt(i);
-        if (difference != 0) return difference;
-      }
-      return a.length - b.length;
-    }
-
-    files.sort(compare);
-    folders.sort(compare);
+    files.sort(lvCompareStrings);
+    folders.sort(lvCompareStrings);
     return (pathOut: path, fileNames: files, folderNames: folders, errorOut: LvError.none);
   } catch (error) {
     return (
