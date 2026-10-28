@@ -306,10 +306,34 @@ class SequenceCallArgument {
           : ''})';
 }
 
+/// Which way a LabVIEW step parameter flows, the `Direction` word of a `ViCall` `Parms` entry.
+enum SeqViParameterDirection {
+  /// `0`: the step's expression feeds the VI's control.
+  input(0),
+
+  /// `1`: the VI's indicator is stored to the step's expression.
+  output(1);
+
+  const SeqViParameterDirection(this.code);
+
+  final int code;
+
+  static SeqViParameterDirection? ofCode(int? code) {
+    for (final direction in values) {
+      if (direction.code == code) return direction;
+    }
+    return null;
+  }
+}
+
 class CallParameter {
   CallParameter(this.raw);
 
   final SeqProperty raw;
+
+  /// The direction of a LabVIEW `ViCall` parameter; null for a parameter of another adapter or
+  /// an unrecorded code.
+  SeqViParameterDirection? get viDirection => SeqViParameterDirection.ofCode(int.tryParse(directionCode ?? ''));
 
   String get name => nonEmpty(raw.prop('Name')?.scalar) ?? nonEmpty(raw.prop('Label')?.scalar) ?? raw.name;
 

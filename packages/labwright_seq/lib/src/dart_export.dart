@@ -30,6 +30,82 @@ class SeqExportStats {
   int payloadNotes = 0;
 
   int wiredArgs = 0;
+
+  /// LabVIEW steps whose VI resolved to an emitted function.
+  int viCallSites = 0;
+
+  /// Of [viCallSites], those whose function is a throwing stub because the VI's lowering refused.
+  int viCallSitesStubbed = 0;
+
+  /// Of [viCallSites], those emitted as a throw because the step wires no expression to a
+  /// required input.
+  int viCallSitesUnboundInputs = 0;
+
+  int viArgsTranslated = 0;
+
+  int viArgsEvalFallback = 0;
+
+  /// VI outputs stored to a sequence local or parameter.
+  int viOutputsBound = 0;
+
+  /// VI outputs the step stores somewhere the export has no variable for.
+  int viOutputsUnbound = 0;
+
+  /// Step parameters wired to a connector-pane terminal the emitted function neither takes nor
+  /// returns.
+  int viParametersNotTaken = 0;
+}
+
+/// The function emitted for a LabVIEW step's VI and the ports the step wires by connector-pane
+/// index; [refusal] names why the function throws instead of running the diagram.
+class SeqViCall {
+  const SeqViCall({
+    required this.functionName,
+    required this.filePath,
+    required this.parameters,
+    required this.results,
+    required this.elided,
+    required this.undecided,
+    required this.refusal,
+  });
+
+  final String functionName;
+
+  /// The generated file holding the function, relative to the exported package root.
+  final String filePath;
+
+  final Map<int, SeqViPort> parameters;
+
+  final Map<int, SeqViPort> results;
+
+  /// Connector-pane terminals the function leaves out because its error clusters became throws.
+  final Set<int> elided;
+
+  /// Connector-pane terminals the function leaves out because no Dart type is decided for them.
+  final Map<int, String> undecided;
+
+  final String? refusal;
+}
+
+class SeqViPort {
+  const SeqViPort({required this.name, required this.dartType});
+
+  final String name;
+
+  final String dartType;
+}
+
+/// The emitted function behind a LabVIEW step of the sequence file at [sourceKey], or null when
+/// its VI was not located.
+typedef SeqViCallResolver = SeqViCall? Function(String sourceKey, StepModule module);
+
+/// Where an exported project's files go.
+enum SeqProjectLayout {
+  /// Every module at the root as `<stem>_seq.dart`.
+  flat,
+
+  /// Each module beside its source, `<dir>/<stem>.seq.dart`, with snake-cased path segments.
+  mirrored,
 }
 
 class SeqProjectExport {
@@ -38,7 +114,41 @@ class SeqProjectExport {
   final Map<String, String> files;
 }
 
-SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
+/// A path's segments snake-cased for a Dart file name: `TestStand Scripts/CC Tests` becomes
+/// `test_stand_scripts/cc_tests`.
+String seqSnakeCase(String text) {
+  final cleaned = text
+      .replaceAll(RegExp('[^A-Za-z0-9]+'), '_')
+      .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (m) => '${m.group(1)}_${m.group(2)}')
+      .toLowerCase()
+      .replaceAll(RegExp('_+'), '_')
+      .replaceAll(RegExp(r'^_|_$'), '');
+  return cleaned.isEmpty ? 'module' : cleaned;
+}
+
+/// A directory path with every segment snake-cased, `''` for the root.
+String seqSnakeDirectory(String directory) => [
+  for (final segment in directory.replaceAll(r'\', '/').split('/'))
+    if (segment.isNotEmpty) seqSnakeCase(segment),
+].join('/');
+
+/// The import URI of [target] from the file [from], both relative to one root.
+String seqRelativeImport(String from, String target) {
+  final fromParts = from.split('/')..removeLast();
+  final targetParts = target.split('/');
+  var shared = 0;
+  while (shared < fromParts.length && shared < targetParts.length - 1 && fromParts[shared] == targetParts[shared]) {
+    shared++;
+  }
+  return [for (var i = shared; i < fromParts.length; i++) '..', ...targetParts.sublist(shared)].join('/');
+}
+
+SeqProjectExport exportSeqProjectToLabwright(
+  Map<String, SeqFile> byPath, {
+  SeqProjectLayout layout = SeqProjectLayout.flat,
+  SeqViCallResolver? resolveViCall,
+  SeqExportStats? stats,
+}) {
   String norm(String p) => p.replaceAll(r'\', '/');
   String baseOf(String p) => norm(p).split('/').last;
   String stemOf(String p) {
@@ -46,21 +156,34 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     return b.toLowerCase().endsWith('.seq') ? b.substring(0, b.length - 4) : b;
   }
 
-  String snake(String text) {
-    final cleaned = text
-        .replaceAll(RegExp('[^A-Za-z0-9]+'), '_')
-        .replaceAllMapped(RegExp('([a-z0-9])([A-Z])'), (m) => '${m.group(1)}_${m.group(2)}')
-        .toLowerCase()
-        .replaceAll(RegExp('_+'), '_')
-        .replaceAll(RegExp(r'^_|_$'), '');
-    return cleaned.isEmpty ? 'module' : cleaned;
-  }
-
   final ordered = byPath.keys.toList()..sort();
   final takenStems = <String>{};
   final moduleOf = {
-    for (final key in ordered) key: '${_uniqueName(snake(stemOf(key)), takenStems)}_seq',
+    for (final key in ordered) key: '${_uniqueName(seqSnakeCase(stemOf(key)), takenStems)}_seq',
   };
+  final takenFiles = <String>{};
+  final fileOf = {
+    for (final key in ordered)
+      key: switch (layout) {
+        SeqProjectLayout.flat => '${moduleOf[key]!}.dart',
+        SeqProjectLayout.mirrored => _uniqueName(
+          [
+            if (seqSnakeDirectory(norm(key).contains('/') ? norm(key).substring(0, norm(key).lastIndexOf('/')) : '')
+                case final dir when dir.isNotEmpty)
+              dir,
+            seqSnakeCase(stemOf(key)),
+          ].join('/'),
+          takenFiles,
+        ),
+      },
+  };
+  if (layout == SeqProjectLayout.mirrored) {
+    for (final key in ordered) {
+      fileOf[key] = '${fileOf[key]!}.seq.dart';
+    }
+  }
+  const runtimeFile = 'lw_runtime.dart';
+  String importOf(String key, String target) => seqRelativeImport(fileOf[key]!, target);
 
   final fnOf = <String, Map<String, String>>{};
   final scopeByNameOf = <String, Map<String, _SeqScope>>{};
@@ -155,10 +278,10 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
   final sharedStation = referencing.length > 1;
   final stationOwner = referencing.length == 1 ? referencing.first : null;
   final stationHome = sharedStation
-      ? 'lw_runtime.dart'
+      ? runtimeFile
       : stationOwner != null
-      ? '${moduleOf[stationOwner]!}.dart'
-      : 'lw_runtime.dart';
+      ? fileOf[stationOwner]!
+      : runtimeFile;
 
   final files = <String, String>{};
   files['analysis_options.yaml'] = [
@@ -182,7 +305,7 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         lines.add('  ${_unportableFieldLine(name)}');
       }
     }
-    files['lw_runtime.dart'] = [
+    files[runtimeFile] = [
       '// GENERATED by labwright_seq exportSeqProjectToLabwright — shared',
       '// runtime.',
       '',
@@ -199,16 +322,34 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
     ].join('\n');
   }
 
-  final registers = <String>[];
   for (final key in ordered) {
-    final module = moduleOf[key]!;
+    final file = fileOf[key]!;
+    final viFiles = <String>{};
+    if (resolveViCall != null) {
+      for (final seq in byPath[key]!.sequences) {
+        for (final st in seq.steps) {
+          if (st.module.adapter != SeqAdapter.labView) continue;
+          if (resolveViCall(key, st.module) case final call?) viFiles.add(call.filePath);
+        }
+      }
+    }
+    final takenPrefixes = <String>{...moduleOf.values};
+    final viPrefixOf = {
+      for (final viFile in viFiles.toList()..sort())
+        viFile: _uniqueName(
+          'vi_${seqSnakeCase(viFile.split('/').last.replaceFirst(RegExp(r'\.vi\.dart$'), ''))}',
+          takenPrefixes,
+        ),
+    };
     final extra = <String>[
-      if (sharedStation && stationRefsOf[key]!.isNotEmpty) "import 'lw_runtime.dart';",
+      if (sharedStation && stationRefsOf[key]!.isNotEmpty) "import '${importOf(key, runtimeFile)}';",
       for (final dep in (importsOf[key] ?? const <String>{}).toList()..sort())
-        "import '${moduleOf[dep]!}.dart' as ${moduleOf[dep]!};",
+        "import '${importOf(key, fileOf[dep]!)}' as ${moduleOf[dep]!};",
+      for (final MapEntry(key: viFile, value: prefix) in viPrefixOf.entries)
+        "import '${importOf(key, viFile)}' as $prefix;",
     ];
     final resolved = resolvedOf[key] ?? const <(String, String), _ResolvedCall>{};
-    files['$module.dart'] = _DartExporter(
+    files[file] = _DartExporter(
       byPath[key]!,
       sourceName: key,
       asTest: true,
@@ -218,34 +359,43 @@ SeqProjectExport exportSeqProjectToLabwright(Map<String, SeqFile> byPath) {
         final (sf, name) = (m.sequenceFile, m.sequenceName);
         return sf == null || name == null ? null : resolved[(sf, name)];
       },
+      resolveViCall: resolveViCall,
+      viPrefixOf: viPrefixOf,
       externallyCalled: externallyCalledOf[key] ?? const <String>{},
       stationGlobalNames: stationUnion,
       hostStationGlobals: !sharedStation && key == stationOwner,
-      stationGlobalsHome: stationHome,
+      stationGlobalsHome: importOf(key, stationHome),
+      stats: stats,
     ).export();
-    files['$module.dart'] = _withoutUnusedImport(
-      files['$module.dart']!,
-      "import 'lw_runtime.dart';\n",
+    files[file] = _withoutUnusedImport(
+      files[file]!,
+      "import '${importOf(key, runtimeFile)}';\n",
       RegExp(r'stationGlobals'),
     );
     for (final dep in importsOf[key] ?? const <String>{}) {
       final depModule = moduleOf[dep]!;
-      files['$module.dart'] = _withoutUnusedImport(
-        files['$module.dart']!,
-        "import '$depModule.dart' as $depModule;\n",
+      files[file] = _withoutUnusedImport(
+        files[file]!,
+        "import '${importOf(key, fileOf[dep]!)}' as $depModule;\n",
         RegExp('(?<![\\w\\\$.])$depModule\\.'),
       );
     }
-    registers.add(module);
+    for (final MapEntry(key: viFile, value: prefix) in viPrefixOf.entries) {
+      files[file] = _withoutUnusedImport(
+        files[file]!,
+        "import '${importOf(key, viFile)}' as $prefix;\n",
+        RegExp('(?<![\\w\\\$.])$prefix\\.'),
+      );
+    }
   }
 
   files['main.dart'] = [
     '// GENERATED by labwright_seq exportSeqProjectToLabwright — the e2e',
     '// entry point: registers every module; labwright runs the suite.',
-    for (final module in registers) "import '$module.dart' as $module;",
+    for (final key in ordered) "import '${fileOf[key]!}' as ${moduleOf[key]!};",
     '',
     'void main() {',
-    for (final module in registers) '  $module.register();',
+    for (final key in ordered) '  ${moduleOf[key]!}.register();',
     '}',
     '',
   ].join('\n');
@@ -1010,6 +1160,8 @@ class _DartExporter {
     this.registerName,
     this.extraImports = const [],
     this.resolveExternalCall,
+    this.resolveViCall,
+    this.viPrefixOf = const {},
     this.externallyCalled = const {},
     this.stationGlobalNames = const {},
     this.hostStationGlobals = true,
@@ -1026,6 +1178,10 @@ class _DartExporter {
   final String? registerName;
   final List<String> extraImports;
   final _ResolvedCall? Function(StepModule module)? resolveExternalCall;
+  final SeqViCallResolver? resolveViCall;
+
+  /// The import prefix of each VI file a step of this module calls.
+  final Map<String, String> viPrefixOf;
   final Set<String> externallyCalled;
 
   final SeqFile file;
@@ -2144,6 +2300,10 @@ class _DartExporter {
           }
         }
       case SeqAdapter.labView:
+        if (resolveViCall?.call(sourceName ?? '', module) case final call?) {
+          _emitViCall(step, module, call);
+          return;
+        }
         if (asTest) _markUnported(_stubTarget(step, module));
         _emitModuleNotes(module);
         _line(
@@ -2174,6 +2334,121 @@ class _DartExporter {
           );
         }
     }
+  }
+
+  void _emitViCall(Step step, StepModule module, SeqViCall call) {
+    final name = _comment(step.name);
+    final target = _stubTarget(step, module);
+    _stats.viCallSites++;
+    if (call.refusal case final refusal?) {
+      _stats.viCallSitesStubbed++;
+      if (asTest) _markUnported('VI $target not lowered: $refusal');
+    }
+    final arguments = <String>[];
+    final wired = <int>{};
+    final stores = <({String target, String member})>[];
+    for (final parameter in module.viParameters) {
+      final pane = parameter.connectorNumber;
+      final raw = parameter.boundExpression;
+      if (pane == null || raw == null) continue;
+      final direction = parameter.viDirection;
+      final port = switch (direction) {
+        SeqViParameterDirection.input => call.parameters[pane],
+        SeqViParameterDirection.output => call.results[pane],
+        null => null,
+      };
+      if (port == null) {
+        if (direction == null || call.elided.contains(pane)) continue;
+        _stats.viParametersNotTaken++;
+        final why = call.undecided[pane] ?? 'the VI answers no ${direction.name} there';
+        _line('// ${_comment('${parameter.name} (connector $pane) <- $raw')}: not taken, $why');
+        if (asTest) _markUnported('VI parameter ${parameter.name} wired to connector $pane of $target: $why');
+        continue;
+      }
+      switch (direction!) {
+        case SeqViParameterDirection.input:
+          wired.add(pane);
+          arguments.add('${port.name}: ${_viArgument(raw, port.dartType)}');
+        case SeqViParameterDirection.output:
+          final store = _viStoreTarget(raw, port.dartType);
+          if (store == null) {
+            _stats.viOutputsUnbound++;
+            _line('// ${_comment('${port.name} -> $raw')}: no exported variable receives this output');
+            if (asTest) _markUnported('VI output ${parameter.name} stored to $raw (not exported)');
+            continue;
+          }
+          _stats.viOutputsBound++;
+          stores.add((target: store, member: call.results.length == 1 ? '' : '.${port.name}'));
+      }
+    }
+    final unwired = [
+      for (final MapEntry(key: pane, value: port) in call.parameters.entries)
+        if (!wired.contains(pane)) port.name,
+    ];
+    if (unwired.isNotEmpty) {
+      _stats.viCallSitesUnboundInputs++;
+      _throwLine(step, 'VI inputs not wired by the step', '$target: ${unwired.join(', ')}');
+      return;
+    }
+    final prefix = viPrefixOf[call.filePath];
+    final invocation = '${prefix == null ? '' : '$prefix.'}${call.functionName}(${arguments.join(', ')})';
+    if (stores.isEmpty) {
+      _line('$invocation; // $name');
+      return;
+    }
+    final result = _claimId(dartIdentifier('${call.functionName} result'));
+    _line('final $result = $invocation; // $name');
+    for (final store in stores) {
+      _line('${store.target} = $result${store.member};');
+    }
+  }
+
+  static _DartSlot _viSlot(String dartType) => switch (dartType) {
+    'int' => _DartSlot.integer,
+    'double' => _DartSlot.number,
+    'bool' => _DartSlot.flag,
+    'String' => _DartSlot.text,
+    _ => dartType.startsWith('List<') || dartType.endsWith('List') ? _DartSlot.list : _DartSlot.untyped,
+  };
+
+  /// The Dart expression feeding a VI input of [dartType]: the translated step expression when
+  /// its kind visibly fits, else the untranslated expression behind the eval shim.
+  String _viArgument(String raw, String dartType) {
+    final slot = _viSlot(dartType);
+    var value = _expr(raw);
+    if (!value.startsWith('ts.eval(')) {
+      final lead = _idTypes[RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*$').firstMatch(value)?.group(0) ?? ''];
+      final typedIntoNominal = slot == _DartSlot.untyped && lead != null && lead != _DartSlot.untyped;
+      if (typedIntoNominal || _kindMismatch(slot, value) || (slot == _DartSlot.integer && !_staticallyIntExpr(value))) {
+        value = _evalFallback(raw);
+      } else if (slot == _DartSlot.number && _staticallyIntExpr(value) && !RegExp(r'^\d+$').hasMatch(value)) {
+        value = RegExp(r'^[A-Za-z_][A-Za-z0-9_\$]*$').hasMatch(value) ? '$value.toDouble()' : '($value).toDouble()';
+      }
+    }
+    if (value.startsWith('ts.eval(')) {
+      _stats.viArgsEvalFallback++;
+    } else {
+      _stats.viArgsTranslated++;
+    }
+    return value;
+  }
+
+  /// The exported variable a VI output of [dartType] is stored to, or null when the step stores
+  /// it to engine state the export has no variable for, or to a variable of another kind.
+  String? _viStoreTarget(String raw, String dartType) {
+    final translated = _expr(raw);
+    if (translated.startsWith('ts.eval(')) return null;
+    final match = RegExp(r'^([A-Za-z_][A-Za-z0-9_\$]*)((?:\.[A-Za-z_][A-Za-z0-9_\$]*)*)$').firstMatch(translated);
+    if (match == null) return null;
+    final root = match.group(1)!;
+    if (!_localIds.containsValue(root) && !_paramIds.containsValue(root)) return null;
+    final rootSlot = _idTypes[root];
+    if (match.group(2)!.isNotEmpty) return rootSlot == _DartSlot.untyped ? translated : null;
+    final slot = _viSlot(dartType);
+    if (rootSlot == null || rootSlot == _DartSlot.untyped) return translated;
+    if (rootSlot == slot) return translated;
+    if (rootSlot == _DartSlot.number && slot == _DartSlot.integer) return translated;
+    return null;
   }
 
   void _throwLine(Step step, String kind, String target) {

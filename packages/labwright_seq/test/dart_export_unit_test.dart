@@ -76,7 +76,184 @@ SeqProperty _callStep(
   ],
 );
 
+SeqProperty _viParm(String name, int connector, SeqViParameterDirection direction, {String? expr}) => _p(
+  name,
+  sub: [
+    _p('Name', cls: 'Str', value: name),
+    _p('ConnectorNumber', cls: 'Num', value: '$connector'),
+    _p('Direction', cls: 'Num', value: '${direction.code}'),
+    if (expr != null) _p('ArgVal', value: expr),
+  ],
+);
+
+SeqProperty _viStep(String stepName, String viPath, List<SeqProperty> parms) => _stepWith(
+  stepName,
+  sdata: [
+    _p(
+      'ViCall',
+      sub: [
+        _p('VIPath', value: viPath),
+        SeqProperty(name: 'Parms', className: 'Objs', array: parms),
+      ],
+    ),
+  ],
+);
+
+const _userExistsCall = SeqViCall(
+  functionName: 'userExists',
+  filePath: 'lib/user_exists.vi.dart',
+  parameters: {
+    6: SeqViPort(name: 'loginName', dartType: 'String'),
+    7: SeqViPort(name: 'manager', dartType: 'LvRefnum'),
+  },
+  results: {2: SeqViPort(name: 'exists', dartType: 'bool')},
+  elided: {0, 4},
+  undecided: {5: 'the terminal resolves no descriptor'},
+  refusal: null,
+);
+
 void main() {
+  group('VI call binding', () {
+    SeqProjectExport export(List<SeqProperty> parms, {SeqViCall call = _userExistsCall}) => exportSeqProjectToLabwright(
+      {
+        'Example/own.seq': _fileWith([
+          _seqWith(
+            'Main',
+            locals: [_str('Login', 'me'), _bool('Found', 'False')],
+            steps: [_viStep('Check user', 'User Exists.vi', parms)],
+          ),
+        ]),
+      },
+      layout: SeqProjectLayout.mirrored,
+      resolveViCall: (key, module) => module.viPath == 'User Exists.vi' ? call : null,
+    );
+
+    test('inputs bind by connector number, outputs store to locals, elided panes are skipped', () {
+      final project = export([
+        _viParm('error out', 0, SeqViParameterDirection.output, expr: 'Step.Result.Error'),
+        _viParm('User Exists', 2, SeqViParameterDirection.output, expr: 'Locals.Found'),
+        _viParm('error in', 4, SeqViParameterDirection.input),
+        _viParm('LoginName', 6, SeqViParameterDirection.input, expr: 'Locals.Login'),
+        _viParm('EasyUserManager in', 7, SeqViParameterDirection.input, expr: 'Locals.EUM'),
+      ]);
+      final source = project.files['example/own.seq.dart']!;
+      expect(source, contains("import '../lib/user_exists.vi.dart' as vi_user_exists;"));
+      expect(
+        source,
+        contains(
+          "final userExistsResult = vi_user_exists.userExists(loginName: login, manager: ts.eval('Locals.EUM')); // Check user",
+        ),
+      );
+      expect(source, contains('found = userExistsResult;'));
+      expect(source, isNot(contains('Step.Result.Error')));
+      expect(project.files['main.dart'], contains("import 'example/own.seq.dart' as own_seq;"));
+    });
+
+    test('an output stored to engine state is noted and disarms the test', () {
+      final project = export([
+        _viParm('User Exists', 2, SeqViParameterDirection.output, expr: 'Step.Result.PassFail'),
+        _viParm('LoginName', 6, SeqViParameterDirection.input, expr: '"root"'),
+        _viParm('EasyUserManager in', 7, SeqViParameterDirection.input, expr: 'Locals.EUM'),
+      ]);
+      final source = project.files['example/own.seq.dart']!;
+      expect(source, contains('// exists -> Step.Result.PassFail: no exported variable receives this output'));
+      expect(source, contains('VI output User Exists stored to Step.Result.PassFail (not exported)'));
+      expect(
+        source,
+        contains('vi_user_exists.userExists(loginName: "root", manager: ts.eval(\'Locals.EUM\')); // Check user'),
+      );
+    });
+
+    test('a required input the step leaves unwired becomes a throw naming it, and the import goes', () {
+      final project = export([_viParm('LoginName', 6, SeqViParameterDirection.input, expr: 'Locals.Login')]);
+      final source = project.files['example/own.seq.dart']!;
+      expect(source, contains("throw UnimplementedError('VI inputs not wired by the step: User Exists.vi: manager');"));
+      expect(source, isNot(contains('user_exists.vi.dart')));
+    });
+
+    test('a parameter wired to a pane the function neither takes nor returns is reported with its reason', () {
+      final project = export([
+        _viParm('Options', 5, SeqViParameterDirection.input, expr: '1'),
+        _viParm('LoginName', 6, SeqViParameterDirection.input, expr: 'Locals.Login'),
+        _viParm('EasyUserManager in', 7, SeqViParameterDirection.input, expr: 'Locals.EUM'),
+      ]);
+      final source = project.files['example/own.seq.dart']!;
+      expect(source, contains('// Options (connector 5) <- 1: not taken, the terminal resolves no descriptor'));
+    });
+
+    test('a refused VI still binds and the step is marked not lowered', () {
+      final project = export(
+        [
+          _viParm('LoginName', 6, SeqViParameterDirection.input, expr: 'Locals.Login'),
+          _viParm('EasyUserManager in', 7, SeqViParameterDirection.input, expr: 'Locals.EUM'),
+        ],
+        call: const SeqViCall(
+          functionName: 'userExists',
+          filePath: 'lib/user_exists.vi.dart',
+          parameters: {
+            6: SeqViPort(name: 'loginName', dartType: 'String'),
+            7: SeqViPort(name: 'manager', dartType: 'LvRefnum'),
+          },
+          results: {},
+          elided: {},
+          undecided: {},
+          refusal: 'wireType: no descriptor',
+        ),
+      );
+      final source = project.files['example/own.seq.dart']!;
+      expect(
+        source,
+        contains("vi_user_exists.userExists(loginName: login, manager: ts.eval('Locals.EUM')); // Check user"),
+      );
+      expect(source, contains('VI User Exists.vi not lowered: wireType: no descriptor'));
+    });
+
+    test('a typed local feeding a nominal input, and a kind mismatch, fall back to eval', () {
+      final project = export([
+        _viParm('LoginName', 6, SeqViParameterDirection.input, expr: 'Locals.Found'),
+        _viParm('EasyUserManager in', 7, SeqViParameterDirection.input, expr: 'Locals.Login'),
+      ]);
+      final source = project.files['example/own.seq.dart']!;
+      expect(
+        source,
+        contains("vi_user_exists.userExists(loginName: ts.eval('Locals.Found'), manager: ts.eval('Locals.Login'));"),
+      );
+    });
+  });
+
+  test('relative imports climb from the importing file\'s directory', () {
+    expect(seqRelativeImport('a/b/c.seq.dart', 'a/x/y.vi.dart'), '../x/y.vi.dart');
+    expect(seqRelativeImport('a/b/c.seq.dart', 'lv_types.dart'), '../../lv_types.dart');
+    expect(seqRelativeImport('main.dart', 'a/b.seq.dart'), 'a/b.seq.dart');
+    expect(seqRelativeImport('a/b.dart', 'a/c.dart'), 'c.dart');
+    expect(seqSnakeDirectory('TestStand Scripts/CC Tests'), 'test_stand_scripts/cc_tests');
+  });
+
+  test('a step states its VI path one of six ways', () {
+    StepModule module(String? path, {String? project, String? namespace}) => StepModule.fromSData(
+      _p(
+        'SData',
+        sub: [
+          _p(
+            'ViCall',
+            sub: [
+              if (path != null) _p('VIPath', value: path),
+              if (project != null) _p('ProjectPath', value: project),
+              if (namespace != null) _p('Namespace', value: namespace),
+            ],
+          ),
+        ],
+      ),
+    );
+    expect(SeqViPathKind.of(module(null)), SeqViPathKind.none);
+    expect(SeqViPathKind.of(module(r'Code\Test.vi')), SeqViPathKind.relative);
+    expect(SeqViPathKind.of(module('Test.vi', namespace: 'Lib.lvclass')), SeqViPathKind.namespaced);
+    expect(SeqViPathKind.of(module(r'My Computer\Lib.lvlib\Test.vi')), SeqViPathKind.project);
+    expect(SeqViPathKind.of(module(r'Lib.lvlib\Test.vi', project: 'A.lvproj')), SeqViPathKind.project);
+    expect(SeqViPathKind.of(module(r'<vilib>\Utility\Test.vi')), SeqViPathKind.symbolic);
+    expect(SeqViPathKind.of(module(r'C:\Code\Test.vi')), SeqViPathKind.absolute);
+  });
+
   group('stub naming (extension strip)', () {
     test('a VI stub name drops the .vi extension, case-insensitively', () {
       final file = _fileWith([
