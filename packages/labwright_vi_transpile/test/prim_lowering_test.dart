@@ -55,7 +55,7 @@ LvPrimCall _call(
 }
 
 final LvWireType _string = mapLvWireType(const ViSignalType(0x0230));
-final LvWireType _i32 = mapLvWireType(const ViSignalType(0x0107));
+final LvWireType _i32 = mapLvWireType(const ViSignalType(0x0103));
 final LvWireType _u16 = mapLvWireType(const ViSignalType(0x0106));
 final LvWireType _bool = mapLvWireType(const ViSignalType(0x0121));
 final LvWireType _path = mapLvWireType(const ViSignalType(0x0232));
@@ -181,6 +181,94 @@ void main() {
       "final value = lvEnvironment.session('TCP Open Connection', <Object?>[0, LvError.none, 60000, port, host]);",
       'final LvError e = value[0] as LvError;',
       'final LvRefnum id = value[1] as LvRefnum;',
+    ]);
+  });
+
+  test('a float function wired to an integer output refuses instead of spelling a value', () {
+    final call = _call(PrimOp.squareRoot, {'x': 'a', 'sqrt(x)': 'r'}, types: {'x': _i32, 'sqrt(x)': _i32});
+    expect(lvPrimLowering(call), isNull);
+    expect(call.refusal, contains('a floating-point number'));
+    final sgl = mapLvWireType(const ViSignalType(0x0109));
+    final imports = <String>{};
+    expect(
+      lvPrimLowering(
+        _call(PrimOp.sine, {'x': 'a', 'sin(x)': 'r'}, types: {'x': _i32, 'sin(x)': sgl}, imports: imports),
+      ),
+      [
+        'final double r = (Float32List(1)..[0] = lvSine(a))[0];',
+      ],
+    );
+    expect(imports, contains('dart:typed_data'));
+    final square = _call(
+      PrimOp.square,
+      {'x': 'a', 'x^2': 'r'},
+      types: {'x': _i32, 'x^2': mapLvWireType(const ViSignalType(0x010a))},
+    );
+    expect(lvPrimLowering(square), isNull);
+  });
+
+  test('To Variant records the numeric representation of a number', () {
+    expect(
+      lvPrimLowering(
+        _call(PrimOp.toVariant, {'anything': 'n', 'variant': 'v'}, types: {'anything': _i32, 'variant': _variant}),
+      ),
+      [
+        'final LvVariant v = lvToVariant(n, numeric: LvNumericType.i32);',
+      ],
+    );
+    expect(
+      lvPrimLowering(
+        _call(PrimOp.toVariant, {'anything': 's', 'variant': 'v'}, types: {'anything': _string, 'variant': _variant}),
+      ),
+      [
+        'final LvVariant v = lvToVariant(s);',
+      ],
+    );
+  });
+
+  test('a spreadsheet function needs its format wired and spells integers by it', () {
+    final i32Array = mapLvWireType(const ViSignalType(0x0203));
+    final unwired = _call(
+      PrimOp.arrayToSpreadsheetString,
+      {'array': 'a', 'spreadsheet string': 'out'},
+      types: {
+        'array': i32Array,
+        'spreadsheet string': _string,
+      },
+    );
+    expect(lvPrimLowering(unwired), isNull);
+    expect(unwired.refusal, contains('format string unwired'));
+    final hex = _call(
+      PrimOp.arrayToSpreadsheetString,
+      {'array': 'a', 'format string': '\'%04X\'', 'spreadsheet string': 'out'},
+      types: {'array': i32Array, 'format string': _string, 'spreadsheet string': _string},
+      constants: {'format string': '%04X'},
+    );
+    expect(lvPrimLowering(hex), [
+      "final String out = lvArrayToSpreadsheetString([a], (value) => lvFormatRadix(value as int, 16, 32, width: 4, zeroPad: true, upper: true), delimiter: '\\t');",
+    ]);
+  });
+
+  test('Register For Events names each event source by its terminal label', () {
+    final refnum = _refnum, error = _error;
+    final call = LvPrimCall(
+      op: null,
+      classCode: LvNodeClass.registerForEvents.code,
+      inputs: [LvPrimTerminal(port: 5, type: refnum, roleFlags: 0, expression: 'source')],
+      outputs: [LvPrimTerminal(port: 2, type: refnum, roleFlags: 0x40001, expression: 'registration')],
+      outputPorts: const [1, 2, 3, 4],
+      ports: const [1, 2, 3, 4, 5],
+      portRoleFlags: const {1: 0x10000, 2: 0x40001, 3: 0x20000, 4: 0x80001, 5: 0},
+      portMemberName: const {5: 'Stop Event'},
+      portDrawnTop: const {},
+      requireImport: (_) {},
+      names: LvNaming(),
+      nodeFlags: null,
+    );
+    expect(error.isErrorCluster, isTrue);
+    expect(lvPrimLowering(call), [
+      "final value = lvRegisterForEvents(<LvRefnum>[source], events: <String>['Stop Event'], existing: LvRefnum.none, errorIn: LvError.none);",
+      'final LvRefnum registration = value.registration;',
     ]);
   });
 }

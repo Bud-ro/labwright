@@ -424,7 +424,7 @@ class _Library {
 
   void _declareSignature(_Callable callable) {
     final interface = [
-      for (final unit in callable.flow!.root.units)
+      for (final unit in _FunctionEmitter._allUnits(callable.flow!.root))
         if (unit is LvInterfaceUnit) unit,
     ];
     final controls = interface.where((unit) => !unit.isIndicator).toList()..sort(_byDrawnPosition);
@@ -442,7 +442,28 @@ class _Library {
       callable.byTerminal[control.oid] = port;
       noteImportsFor(type);
     }
+    final atRoot = <int>{};
+    void runsOnce(LvRegion region) {
+      for (final unit in region.units) {
+        atRoot.add(unit.oid);
+        if (unit is LvStructUnit &&
+            (unit.kind == LvStructureKind.flatSequence || unit.kind == LvStructureKind.inPlaceElement)) {
+          unit.frames.forEach(runsOnce);
+        }
+      }
+    }
+
+    runsOnce(callable.flow!.root);
     for (final indicator in indicators) {
+      if (!atRoot.contains(indicator.oid)) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'connector-pane indicator "${indicator.name ?? 'unnamed'}" sits inside a loop, case or disable '
+          'structure, so the value the call returns depends on which frames run and how often, which is not '
+          'modelled',
+          oid: indicator.oid,
+        );
+      }
       final edge = callable.flow!.into(indicator.oid);
       if (edge == null) {
         lvRefuse(
@@ -2373,12 +2394,15 @@ class _FunctionEmitter {
           );
         }
         final error = errorIn == null ? write.readError : _bound(errorIn.source, unit.oid);
-        final name = names.role(LvNameRole.value);
-        body.writeln(
-          'final ${LvRuntimeType.error} $name = '
-          '${LvRuntimeType.dataValueReference}.write<${write.type.dartType}>(${write.reference}, $value, errorIn: $error);',
-        );
-        if (pair.errorOut != null) valueOf[pair.errorOut!] = name;
+        final call =
+            '${LvRuntimeType.dataValueReference}.write<${write.type.dartType}>(${write.reference}, $value, errorIn: $error)';
+        if (pair.errorOut case final errorOut? when _read.contains(errorOut)) {
+          final name = names.role(LvNameRole.value);
+          body.writeln('final ${LvRuntimeType.error} $name = $call;');
+          valueOf[errorOut] = name;
+        } else {
+          body.writeln('$call;');
+        }
       } else if (errorIn != null && pair.errorOut != null) {
         valueOf[pair.errorOut!] = _bound(errorIn.source, unit.oid);
       }

@@ -66,10 +66,10 @@ comment states what is not decoded, so the package always analyzes clean.
 `test/export_corpus_test.dart` exports every corpus source tree and pins the
 measures. Over 43 trees (1.9 s): 45 sequence files, 89 LabVIEW steps, 87 of
 which locate their VI (2 name project items whose files are not vendored);
-110 VI functions are emitted, 26 with lowered bodies and 84 refused — 33 on
+110 VI functions are emitted, 27 with lowered bodies and 83 refused — 33 on
 constants (29 of them saved by LabVIEW 9.0 or earlier, which keep no value in
-the heap record), 13 on sub-VI calls, 12 on wire types, 12 on Property and
-Invoke Nodes, 9 on structures, 5 on primitives — and 13 call sites reach a
+the heap record), 15 on sub-VI calls, 12 on wire types, 12 on Property and
+Invoke Nodes, 6 on structures, 5 on primitives — and 13 call sites reach a
 lowered body. 61 call sites (one
 repository's legacy-prototype VIs) leave required inputs unwired and are
 emitted as throws naming them; 36 arguments translate, 9 fall back to `eval`;

@@ -562,8 +562,14 @@ terminal is an output into the frame, and the error terminal (type label
 `error IO`) is an output into the frame too; on the right node the element is
 an input, and the reference and error terminals carry `0x800001` and name the
 structure's output holders while the error terminal stays open to the frame.
-All 609 single- and multi-pair structures in the corpus draw that shape, with
-no error-in holder on the structure. The lowering reads the reference's value
+The right node's error terminal carries the same `0x800001` flags as its
+reference terminal and is told apart by its label. All 609 single- and
+multi-pair structures in the corpus draw that shape, with no error-in holder on
+the structure. The `0x154` markers name no node, so the nth read node pairs
+with the nth write node; on all 609 the write's reference holder is the one
+immediately after the read's among the structure's terminals, and its element
+label is the read's, and the lowering refuses a pair where the holders are not
+adjacent. The lowering reads the reference's value
 through `LvDataValueReference.read` before the frame, offering the frame the
 element and the read's error, and writes the frame's element back through
 `.write` after it, with the frame's error or the read's as the write's error
@@ -607,7 +613,10 @@ String To Number's `13ax` / `-4.8bcde` / `a49b` table and saturation, Strip Path
 on an empty or invalid path, Search/Split String at an empty search string,
 Search and Replace String replacing one or all with an empty search string
 inserting between characters, Spreadsheet String To Array by `%s` / `%d` / `%f`
-with one or several delimiters, Format Date/Time String's codes, Sort 1D Array
+with one or several delimiters (a spreadsheet function whose format string is
+unwired refuses: its default is not stated, though every corpus node wires
+one), Array To Spreadsheet String spelling each element as Format Into String
+spells it, Format Date/Time String's codes, Sort 1D Array
 and Array Max & Min by the comparison rules, Delete From Array / Array Subset /
 Insert Into Array / Split 1D Array cut at the array's ends, and the file
 functions over a scratch directory. A conversion or option a node selects
@@ -629,6 +638,12 @@ decoded fact it lacks:
 - **Search/Split String with bit `0x1000000`** (41 of 88): the function has two
   options, Regular Expression and Match Single Character, and which the bit
   selects is not decoded; the 47 plain nodes lower.
+
+A float function (Square Root, Sine, Cosine, Logarithm Base 10, Power Of 10)
+wired to an integer output refuses: the coercion LabVIEW applies there is not
+decoded, and no corpus node draws one. To Variant records a number's
+representation on the variant, which is what Variant To Flattened String
+flattens it at.
 
 Complex To Polar, Re/Im To Complex and Integer To Fixed-Point Cast refuse on
 their wire types, which have no Dart carrier; Flattened String To Variant
@@ -756,15 +771,15 @@ browser application and the legacy help archive holds none of these five), the
 runtime notes what it leaves out: the call chain `Error Cluster From Error
 Code` appends to its source is not modelled.
 
-Corpus, over the 14,779 call nodes in diagrams whose dataflow builds: 388
-reach a `<vilib>` VI the runtime implements, 7,998 callees resolve through their
-link and 2,095 through the file-name index; 9,335 have a connector pane of the
-right width, and of the 35,107 wired terminals at those calls, 34,779 resolve a
+Corpus, over the 15,745 call nodes in diagrams whose dataflow builds: 444
+reach a `<vilib>` VI the runtime implements, 8,282 callees resolve through their
+link and 2,651 through the file-name index; 10,141 have a connector pane of the
+right width, and of the 38,617 wired terminals at those calls, 38,251 resolve a
 callee terminal. The caller's own wire direction agrees with the named
-control's on **34,779 of 34,779**. The two VIs' wire types agree on 25,387 of
-the 26,926 where both are decided. The rest are refused by name: 4,178 calls
+control's on **38,251 of 38,251**. The two VIs' wire types agree on 30,909 of
+the 33,119 where both are decided. The rest are refused by name: 4,232 calls
 whose callee is absent from the corpus, 28 that name no file, 495 whose callee
-carries no connector pane, 263 whose pane width disagrees, 92 whose name
+carries no connector pane, 297 whose pane width disagrees, 108 whose name
 several links share.
 
 A wire and the callee's terminal meet by the coercions a structure border
@@ -810,13 +825,15 @@ calls whose callee is not supplied 3 each, structures and wire direction 2
 each, and one each on a constant's value, a reference node and an unbound
 value.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 1,125
-lower and the rest refuse, pinned per kind in `kCorpusLoweringSweep`: 2,054 on
-a wire type, 1,132 on a structure, 995 on a subVI call, 963 on a primitive,
-405 on a foreign call, 220 on a constant's value, 190 on an unwired terminal,
-160 on a Property or Invoke Node (`referenceNode`: they act on a reference's
-class, which is not modelled), 71 on an unbound value, 40 on a case selector,
-22 on a wire's direction, 9 on a tunnel's indexing, 8 on a tunnel coercion.
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 1,111
+lower and the rest refuse, pinned per kind in `kCorpusLoweringSweep`: 2,044 on
+a wire type, 1,382 on a structure (among them a connector-pane indicator inside
+a loop, case or disable structure, whose returned value depends on which frames
+run), 944 on a primitive, 862 on a subVI call, 302 on a foreign call, 250 on an
+unwired terminal, 224 on a constant's value, 163 on a Property or Invoke Node
+(`referenceNode`: they act on a reference's class, which is not modelled), 38
+on a case selector, 36 on an unbound value, 22 on a wire's direction, 9 on a
+tunnel coercion, 7 on a tunnel's indexing.
 
 A diagram constant lowers from the flat value saved with it, read by its own
 descriptor in the default data space's grammar (`lvFlatLiteral`): numerics,
@@ -853,12 +870,12 @@ not computed. Everything else — a value feeding only an indicator off the
 connector pane, a tunnel whose far side feeds nothing live, a pure node whose
 outputs go nowhere — is not computed, so no local goes unread.
 
-Those 1,125 lowerings are **836 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 836 into a
+Those 1,111 lowerings are **842 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 842 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 836 is the independent check that they
+kernel` of one entry point importing all 842 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

@@ -56,7 +56,8 @@ DateTime lvDateTimeOfTimestamp(LvTimestamp timestamp) {
 /// To Time Stamp: seconds since the LabVIEW epoch as a timestamp.
 LvTimestamp lvToTimeStamp(double seconds) {
   final whole = seconds.floor();
-  return LvTimestamp(seconds: whole, fraction: ((seconds - whole) * 18446744073709551616.0).toInt());
+  final scaled = BigInt.from((seconds - whole) * 9007199254740992.0) << 11;
+  return LvTimestamp(seconds: whole, fraction: scaled.toUnsigned(64).toSigned(64).toInt());
 }
 
 /// A timestamp as seconds since the LabVIEW epoch, as To Double Precision Float reads one.

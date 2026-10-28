@@ -9,10 +9,12 @@ import 'type_map.dart';
 import 'wire_type.dart';
 
 abstract final class LvArrayTerminalRole {
+  /// An array input; Array Subset's length terminal carries the same bits.
   static const int array = 0x20000;
 
   static const int output = 0x1;
 
+  /// A repeated Index Array output; Delete From Array's deleted portion carries the same bits.
   static const int grownOutput = 0x40001;
 
   static const int newElement = 0x40000;
@@ -28,12 +30,6 @@ abstract final class LvArrayTerminalRole {
 
   /// Array Subset's array input.
   static const int subsetArray = 0x10000;
-
-  /// Array Subset's length and Delete From Array's length.
-  static const int length = 0x20000;
-
-  /// Delete From Array's deleted portion, Index Array's grown output.
-  static const int deletedPortion = 0x40001;
 }
 
 /// The role bits of a Property Node, Invoke Node or Register For Events node's fixed terminals.
@@ -1701,7 +1697,7 @@ List<String>? _deleteFromArray(LvPrimCall call) {
       length = terminal;
     } else if (role == LvArrayTerminalRole.output) {
       remaining = terminal;
-    } else if (role == LvArrayTerminalRole.deletedPortion) {
+    } else if (role == LvArrayTerminalRole.grownOutput) {
       deleted = terminal;
     } else {
       return call.refuse('Delete From Array (class 0xbd) carries role bits 0x${role.toRadixString(16)}, not decoded');
@@ -1756,7 +1752,7 @@ List<String>? _arraySubset(LvPrimCall call) {
       array = terminal;
     } else if (role == LvArrayTerminalRole.output) {
       out = terminal;
-    } else if (role == LvArrayTerminalRole.length) {
+    } else if (role == LvArrayTerminalRole.array) {
       length = terminal;
     } else if (role == 0) {
       index = terminal;
@@ -1899,7 +1895,7 @@ List<String>? _reshapeArray(LvPrimCall call) {
   if (out.type.dims == 1) return ['final ${out.type.dartType} ${out.expression} = $reshaped;'];
   return [
     'final ${out.type.dartType} ${out.expression} = '
-        '${LvRuntimeType.arrayNd}($reshaped, Uint32List.fromList([$dims]));',
+        '${LvRuntimeType.arrayNd}($reshaped, ${LvRuntimeCall.reshapeDims}([$dims]));',
   ];
 }
 
@@ -2050,15 +2046,17 @@ List<String>? _localVariable(LvPrimCall call) {
 List<String>? _registerForEvents(LvPrimCall call) {
   final fixed = _serverTerminals(call, 'Register For Events (class 0xeb)');
   if (fixed == null) return null;
-  final sources = <String>[];
+  final sources = <String>[], events = <String>[];
   for (var i = 4; i < call.ports.length; i++) {
     final source = _wiredAt(call, call.ports[i]);
     if (source == null) continue;
+    final event = call.portMemberName[call.ports[i]] ?? '';
     if (!call.inputs.contains(source)) {
       return call.refuse('Register For Events (class 0xeb) has an event source wired as a sink');
     }
     if (_isRefnumWire(source.type)) {
       sources.add(source.expression!);
+      events.add(event);
       continue;
     }
     final shape = _ClusterShape.of(source.type);
@@ -2070,13 +2068,14 @@ List<String>? _registerForEvents(LvPrimCall call) {
     }
     final carrier = lvIsAtomic(source.expression!) ? source.expression! : '(${source.expression})';
     sources.addAll([for (final name in shape.names) '$carrier.$name']);
+    events.addAll([for (var k = 0; k < shape.fields.length; k++) shape.fields[k].label ?? shape.names[k]]);
   }
   call.requireImport(kLvRuntimeImport);
   final existing = fixed.referenceIn?.expression ?? LvRuntimeType.notARefnum;
   final errorIn = fixed.errorIn?.expression ?? LvRuntimeType.clearedError;
   final invocation =
       '${LvRuntimeCall.registerForEvents}(<${LvRuntimeType.refnum}>[${sources.join(', ')}], '
-      'existing: $existing, errorIn: $errorIn)';
+      'events: <String>[${events.map(lvDartStringLiteral).join(', ')}], existing: $existing, errorIn: $errorIn)';
   if (fixed.referenceOut == null && fixed.errorOut == null) return ['$invocation;'];
   final registered = call.names.role(LvNameRole.value);
   return [

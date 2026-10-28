@@ -17,7 +17,21 @@ final class LvQueue<T> {
 
   final List<T> _elements = [];
 
-  int _references = 0;
+  /// The live refnums that point at this object.
+  final Set<LvRefnum> _refnums = {};
+
+  void _releaseAll() {
+    for (final refnum in _refnums) {
+      LvReferenceTable.instance.release(refnum);
+    }
+    _refnums.clear();
+  }
+
+  LvRefnum _reference() {
+    final refnum = lvRegisterReference(this);
+    _refnums.add(refnum);
+    return refnum;
+  }
 
   /// Named queues alive in this run, by name.
   static final Map<String, LvQueue<Object?>> _byName = {};
@@ -49,8 +63,7 @@ final class LvQueue<T> {
             ),
           );
         }
-        existing._references++;
-        return (queue: lvRegisterReference(existing), createdNew: false, errorOut: LvError.none);
+        return (queue: existing._reference(), createdNew: false, errorOut: LvError.none);
       }
       if (!createIfNotFound) {
         return (
@@ -61,9 +74,8 @@ final class LvQueue<T> {
       }
     }
     final queue = LvQueue<E>._(name, maxSize);
-    queue._references = 1;
     if (name.isNotEmpty) _byName[name] = queue;
-    return (queue: lvRegisterReference(queue), createdNew: true, errorOut: LvError.none);
+    return (queue: queue._reference(), createdNew: true, errorOut: LvError.none);
   }
 
   Type get elementType => T;
@@ -84,10 +96,11 @@ final class LvQueue<T> {
       );
     }
     LvReferenceTable.instance.release(reference);
-    queue._references--;
-    final destroyed = forceDestroy || queue._references <= 0;
+    queue._refnums.remove(reference);
+    final destroyed = forceDestroy || queue._refnums.isEmpty;
     final remaining = destroyed ? List<E>.of(queue._elements) : <E>[];
     if (destroyed) {
+      queue._releaseAll();
       queue._elements.clear();
       if (queue.name.isNotEmpty && identical(_byName[queue.name], queue)) _byName.remove(queue.name);
     }
