@@ -2,6 +2,12 @@ library;
 
 export 'src/dart_export.dart';
 export 'src/seq_binary.dart';
+export 'src/seq_binary_grammar.dart';
+export 'src/seq_binary_header.dart';
+export 'src/seq_binary_metrics.dart';
+export 'src/seq_binary_model.dart';
+export 'src/seq_binary_text.dart';
+export 'src/seq_binary_write.dart';
 export 'src/seq_convert.dart';
 export 'src/seq_coverage.dart';
 export 'src/seq_document.dart';

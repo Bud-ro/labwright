@@ -18,7 +18,7 @@ class Step {
 
   StepType? get stepType => StepType.of(type);
 
-  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT'));
+  String? get comment => nonEmpty(raw.directiveAttribute('%COMMENT')) ?? nonEmpty(raw.xmlComment);
 
   String? get description => _scalarOf('Description');
 

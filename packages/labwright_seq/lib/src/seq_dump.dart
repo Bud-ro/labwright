@@ -1,6 +1,9 @@
 import 'dart:typed_data';
 
 import 'seq_binary.dart';
+import 'seq_binary_grammar.dart';
+import 'seq_binary_header.dart';
+import 'seq_binary_metrics.dart';
 import 'seq_file.dart';
 import 'seq_format.dart';
 import 'seq_module.dart';
@@ -358,13 +361,19 @@ String dumpBinaryRecon(Uint8List seqBytes) {
 
   final analysis = analyzeBinary(seqBytes);
   if (analysis == null) {
-    out.writeln('(binary body did not inflate/frame — recon unavailable)');
+    out.writeln('(binary body did not inflate — recon unavailable)');
+    return out.toString();
+  }
+  final grammar = analysis.decode?.grammar;
+  if (grammar != null) {
+    _dumpGrammar(out, seqBytes, grammar);
     return out.toString();
   }
   out.writeln(
     'inflated body ${analysis.inflatedSize} bytes · ${analysis.strings.length} '
     'strings · ${analysis.nameTable.length} name-table entries',
   );
+  out.writeln('(record grammar does not apply: ${analysis.decode?.error ?? 'unknown reason'})');
 
   out.writeln();
   out.writeln('=== Layout ===');
@@ -372,13 +381,8 @@ String dumpBinaryRecon(Uint8List seqBytes) {
     out.writeln('  record region: ${l.recordRegionLength} bytes');
     out.writeln('  string region @ ${l.stringRegionOffset}');
     out.writeln('  record sentinels: ${l.sentinelCount}');
-    out.writeln(
-      '  strings in region: ${l.stringCount} · tables: '
-      '${l.segmentCount}',
-    );
-    if (l.leadingWords.isNotEmpty) {
-      out.writeln('  leading record words: ${l.leadingWords.join(', ')}');
-    }
+    out.writeln('  strings in region: ${l.stringCount} · tables: ${l.segmentCount}');
+    if (l.leadingWords.isNotEmpty) out.writeln('  leading record words: ${l.leadingWords.join(', ')}');
   } else {
     out.writeln('  (body did not frame into record/string regions)');
   }
@@ -397,14 +401,65 @@ String dumpBinaryRecon(Uint8List seqBytes) {
     for (final scalar in analysis.namedScalars)
       '${scalar.name} = ${scalar.value}  (raw type ${scalar.rawTypeCode}, not modeled)',
   ]);
-
-  out.writeln();
-  out.writeln(
-    '(record links not yet decoded: the above are recovered values; the '
-    'variable-length record grammar tying each to its step tree is not yet '
-    'recovered)',
-  );
   return out.toString();
+}
+
+void _dumpGrammar(StringBuffer out, Uint8List seqBytes, Tof1Body grammar) {
+  final coverage = bodyByteCoverage(grammar);
+  final header = Tof1Header.parse(seqBytes)!;
+  out.writeln(
+    'inflated body ${grammar.bytes.length} bytes · generation ${header.generation.name} · '
+    '${grammar.pool.length} pool strings · record region ${grammar.recordRegionLength} bytes',
+  );
+  out.writeln(
+    'record bytes: ${(coverage.recordSemanticRatio * 100).toStringAsFixed(1)}% semantic · '
+    '${(coverage.recordAccountedRatio * 100).toStringAsFixed(1)}% accounted · '
+    '${coverage.recordUndecodedBytes} not yet decoded',
+  );
+  out.writeln();
+  out.writeln('=== Types (${grammar.types.length}) ===');
+  for (final type in grammar.types) {
+    out.writeln(
+      '  ${type.name} : ${type.root.resolvedClassName} · category ${type.category} · '
+      'order ${type.orderNumber} · ${type.root.children.length} subprops'
+      '${type.isProtected ? ' · protected' : ''}',
+    );
+  }
+  out.writeln();
+  out.writeln('=== Data ===');
+  _dumpRecord(out, grammar.data, 1);
+}
+
+const _dumpChildCap = 40;
+
+void _dumpRecord(StringBuffer out, BinaryRecord record, int depth) {
+  final indent = '  ' * depth;
+  final head = StringBuffer(indent)
+    ..write(record.name ?? '<element>')
+    ..write(' : ')
+    ..write(record.resolvedClassName);
+  if (record.typeName case final typeName?) head.write(' <$typeName>');
+  if (record.isArray) head.write(' ${record.lbound}..${record.ubound}');
+  if (record.value case final value?) head.write(' = $value');
+  if (record.enumValueName case final name?) head.write(' = $name (${record.enumValue})');
+  if (record.comment case final comment?) head.write('  // $comment');
+  out.writeln(head);
+  if (record.elemProto case final proto?) {
+    out.writeln('$indent  [elemproto]');
+    _dumpRecord(out, proto, depth + 2);
+  }
+  final elements = record.elements ?? const <Object?>[];
+  for (final element in elements.take(_dumpChildCap)) {
+    if (element is BinaryRecord) {
+      _dumpRecord(out, element, depth + 1);
+    } else {
+      out.writeln('$indent  - $element');
+    }
+  }
+  if (elements.length > _dumpChildCap) out.writeln('$indent  … ${elements.length - _dumpChildCap} more elements');
+  for (final child in record.children) {
+    _dumpRecord(out, child, depth + 1);
+  }
 }
 
 void _reconSection(

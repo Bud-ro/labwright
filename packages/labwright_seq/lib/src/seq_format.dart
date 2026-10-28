@@ -1,5 +1,6 @@
 import 'dart:typed_data';
 
+import 'seq_binary_header.dart';
 import 'seq_ini.dart';
 
 enum SeqFormat {
@@ -44,23 +45,6 @@ enum Ascii {
 
   const Ascii(this.code);
   final int code;
-}
-
-enum TofHeaderField {
-  fileType(0x0a),
-
-  productName(0x40),
-
-  // TODO: the three version-slot offsets are not verified.
-  productVersion(0x72),
-
-  compatibleVersion(0xa4),
-
-  buildVersion(0xd6);
-
-  const TofHeaderField(this.offset);
-
-  final int offset;
 }
 
 SeqFormat detectSeqFormat(Uint8List bytes) {
@@ -128,11 +112,12 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
     case SeqFormat.ini:
       return parseIniHeader(_asciiPeek(bytes, 0, _headerScanLen));
     case SeqFormat.binary:
-      return SeqFileHeader(
-        format: fmt,
-        fileType: _cString(bytes, TofHeaderField.fileType.offset),
-        productName: _cString(bytes, TofHeaderField.productName.offset),
-      );
+      return Tof1Header.parse(bytes)?.toSeqFileHeader() ??
+          SeqFileHeader(
+            format: fmt,
+            fileType: _cString(bytes, Tof1HeaderField.fileType.offset),
+            productName: _cString(bytes, Tof1HeaderField.productName.offset),
+          );
     case SeqFormat.unknown:
       return const SeqFileHeader(format: SeqFormat.unknown);
   }
