@@ -13,38 +13,38 @@ import 'snippets.dart';
 
 const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassChildren': 'wireType',
-  'ClassesInMemory': 'subViCall',
+  'ClassesInMemory': 'referenceNode',
   'Config_Dump': 'tunnelIndexing',
-  'Config_Dump2': 'wireType',
+  'Config_Dump2': 'constantValue',
   'Config_Escape': 'primitive',
   'Config_Load': 'wireType',
   'Config_Load2': 'foreignCall',
   'Excel_Cell_to_RowCol': 'primitive',
   'Excel_Cell_to_Value': 'wireType',
-  'Excel_Read_XLSX': 'wireType',
-  'Excel_Variant_Elements': 'wireType',
+  'Excel_Read_XLSX': 'constantValue',
+  'Excel_Variant_Elements': 'subViCall',
   'Export Palette Image WMF': 'wireType',
-  'FileReadOnly': 'wireType',
+  'FileReadOnly': 'primitive',
   'GenerateTree': 'wireType',
-  'GetCurrentDirectory': 'wireType',
+  'GetCurrentDirectory': 'foreignCall',
   'IconHeader': 'wireType',
   'MD5': 'lowered',
   'PNG CRC32': 'lowered',
-  'Page1': 'wireType',
+  'Page1': 'structure',
   'Pages': 'wireType',
-  'ProjectItems': 'wireType',
-  'Read Library Version': 'wireType',
-  'Read VI Blocks': 'wireType',
-  'Resolve Library Path': 'wireType',
+  'ProjectItems': 'primitive',
+  'Read Library Version': 'primitive',
+  'Read VI Blocks': 'primitive',
+  'Resolve Library Path': 'referenceNode',
   'Resolve Path': 'primitive',
   'ReverseBitsVim': 'lowered',
-  'Symbols1Bit': 'wireType',
+  'Symbols1Bit': 'constantValue',
   'Tokenize URL': 'primitive',
   'VI Tree': 'lowered',
-  'VISA_InterfaceType': 'wireType',
-  'VISA_Open2': 'wireType',
-  'VISA_Query': 'wireType',
-  'WriteConsole': 'wireType',
+  'VISA_InterfaceType': 'referenceNode',
+  'VISA_Open2': 'referenceNode',
+  'VISA_Query': 'primitive',
+  'WriteConsole': 'foreignCall',
   'basic': 'lowered',
   'broken_wires_only': 'wireDirection',
   'crc16': 'primitive',
@@ -54,7 +54,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'decorations_only': 'lowered',
   'example': 'primitive',
   'fg': 'structure',
-  'large': 'wireType',
+  'large': 'unboundValue',
   'missing_terminal': 'wireDirection',
   'sub_vi_missing': 'subViCall',
   'vi_lib_dependency': 'subViCall',
@@ -67,9 +67,9 @@ const Set<int> kLvInPlaceElementBorderClasses = {kLvDataValueRefBorderClass, 0x1
 const int kLvDataValueRefBorderClass = 0x153;
 
 const Map<String, int> kCorpusInPlaceElement = {
-  'ipe.blocked': 68,
-  'ipe.blocked.identifiedOnly': 63,
-  'ipe.blocked.undecodedAccess': 5,
+  'ipe.blocked': 408,
+  'ipe.blocked.identifiedOnly': 358,
+  'ipe.blocked.undecodedAccess': 50,
   'ipe.border.0x14f': 164,
   'ipe.border.0x150': 428,
   'ipe.border.0x152': 98,
@@ -100,15 +100,16 @@ const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClu
 const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 4875,
-  'call.calleeMissing': 544,
-  'call.noPane': 112,
-  'call.paneMatched': 3845,
-  'call.paneWidthMismatch': 78,
-  'call.unnamed': 139,
-  'call.via.link': 2937,
-  'call.via.name': 1098,
-  'call.via.vilib': 157,
+  'call': 19510,
+  'call.ambiguousLink': 39,
+  'call.calleeMissing': 5377,
+  'call.noPane': 530,
+  'call.paneMatched': 10481,
+  'call.paneWidthMismatch': 377,
+  'call.unnamed': 2311,
+  'call.via.link': 8455,
+  'call.via.name': 2933,
+  'call.via.vilib': 395,
   'clus': 135446,
   'clus.kid.many': 265,
   'clus.kid.none': 19906,
@@ -185,25 +186,26 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.suffixed': 571,
   'decl.unnamedMember': 65,
   'decl.vi': 3240,
-  'exceptions.caseSelector': 26,
-  'exceptions.constantValue': 206,
-  'exceptions.foreignCall': 114,
-  'exceptions.lowered': 790,
-  'exceptions.primitive': 686,
-  'exceptions.structure': 250,
-  'exceptions.subViCall': 306,
-  'exceptions.tunnelCoercion': 1,
-  'exceptions.tunnelIndexing': 6,
-  'exceptions.unboundValue': 8,
-  'exceptions.unwiredTerminal': 102,
-  'exceptions.wireDirection': 5,
-  'exceptions.wireType': 4894,
+  'exceptions.caseSelector': 52,
+  'exceptions.constantValue': 699,
+  'exceptions.foreignCall': 386,
+  'exceptions.lowered': 1056,
+  'exceptions.primitive': 1032,
+  'exceptions.referenceNode': 285,
+  'exceptions.structure': 968,
+  'exceptions.subViCall': 945,
+  'exceptions.tunnelCoercion': 4,
+  'exceptions.tunnelIndexing': 7,
+  'exceptions.unboundValue': 35,
+  'exceptions.unwiredTerminal': 143,
+  'exceptions.wireDirection': 22,
+  'exceptions.wireType': 1760,
   'flag0.array': 24551,
-  'flag0.scalar': 149919,
+  'flag0.scalar': 150331,
   'flag12.array': 931,
   'flag12.scalar': 6632,
   'flag4.array': 4699,
-  'flag4.scalar': 57668,
+  'flag4.scalar': 57705,
   'flag8.array': 9612,
   'flag8.scalar': 109993,
   'foreign.noEntryPoint': 2,
@@ -216,8 +218,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 371,
-  'modes.same': 419,
+  'modes.differ': 469,
+  'modes.same': 587,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -256,66 +258,95 @@ const Map<String, int> kCorpusLoweringSweep = {
   'ref.part.base5': 4351,
   'ref.part.base6': 14,
   'ref.part.base7': 2,
-  'ref.part.contradictedCell': 1763,
   'ref.part.decides': 33657,
   'ref.part.dims0': 27956,
   'ref.part.dims1': 5701,
-  'ref.part.read': 31894,
+  'ref.part.read': 33657,
   'ref.part.silent': 5597,
   'ref.scalar': 28119,
   'ref.undecided': 39254,
   'render.lawSilent.styleMute': 34210,
-  'render.lawSilent.styleSpeaks': 6013,
+  'render.lawSilent.styleSpeaks': 5564,
   'render.refUndecided.styleMute': 33925,
   'render.refUndecided.styleSpeaks': 5329,
-  'term.calleeUntyped': 6608,
-  'term.dirAgree': 12944,
-  'term.resolved': 12944,
-  'term.typeAgree': 5906,
-  'term.typeDisagree': 430,
-  'term.unresolved': 88,
-  'term.wired': 13032,
-  'threaded.caseSelector': 26,
-  'threaded.constantValue': 206,
-  'threaded.foreignCall': 114,
-  'threaded.lowered': 790,
-  'threaded.primitive': 686,
-  'threaded.structure': 250,
-  'threaded.subViCall': 306,
-  'threaded.tunnelCoercion': 1,
-  'threaded.tunnelIndexing': 6,
-  'threaded.unboundValue': 8,
-  'threaded.unwiredTerminal': 102,
-  'threaded.wireDirection': 5,
-  'threaded.wireType': 4894,
+  'route.cluster.endpoint': 95147,
+  'route.cluster.part': 38372,
+  'route.cluster.refused': 1927,
+  'route.code0x0.refused': 13,
+  'route.code0x33.refused': 840,
+  'route.code0x37.refused': 35,
+  'route.code0x37.tagRefnum': 414,
+  'route.code0x5.enumeration': 574,
+  'route.code0x54.refused': 703,
+  'route.code0x54.timestamp': 249,
+  'route.code0x5f.refused': 2,
+  'route.code0x6.enumeration': 7667,
+  'route.code0x7.enumeration': 3039,
+  'route.code0x73.refused': 14,
+  'route.code0x74.refused': 235,
+  'route.code0xb.refused': 284,
+  'route.code0xc.refused': 6,
+  'route.code0xd.refused': 89,
+  'route.code0xe.refused': 3,
+  'route.code0xff.refused': 227,
+  'route.code0xff.untypedEndpoint': 251,
+  'route.noWord.refused': 12,
+  'route.refnum.classObject': 22677,
+  'route.refnum.endpoint': 1863,
+  'route.refnum.part': 10468,
+  'route.refnum.refused': 4246,
+  'route.signalWord': 243002,
+  'term.calleeUntyped': 8765,
+  'term.dirAgree': 38781,
+  'term.resolved': 38781,
+  'term.typeAgree': 28500,
+  'term.typeDisagree': 1516,
+  'term.unresolved': 337,
+  'term.wired': 39118,
+  'threaded.caseSelector': 52,
+  'threaded.constantValue': 691,
+  'threaded.foreignCall': 386,
+  'threaded.lowered': 1056,
+  'threaded.primitive': 1005,
+  'threaded.referenceNode': 283,
+  'threaded.structure': 964,
+  'threaded.subViCall': 988,
+  'threaded.tunnelCoercion': 4,
+  'threaded.tunnelIndexing': 7,
+  'threaded.unboundValue': 35,
+  'threaded.unwiredTerminal': 143,
+  'threaded.wireDirection': 22,
+  'threaded.wireType': 1758,
   'vi': 7394,
-  'wt.cause.member.0x33': 22,
-  'wt.cause.member.0x37': 4,
+  'wt.cause.member.0x33': 23,
+  'wt.cause.member.0x37': 6,
+  'wt.cause.member.0x74': 1,
   'wt.cause.member.0xd': 2,
-  'wt.cause.noneNoCluster': 3372,
+  'wt.cause.noneNoCluster': 305,
+  'wt.cause.noneNoIndex': 11,
   'wt.cause.noneUntyped': 24,
-  'wt.cause.typesDisagree': 22,
-  'wt.cluster': 3455,
-  'wt.code0x0': 7,
-  'wt.code0x33': 55,
-  'wt.code0x37': 29,
-  'wt.code0x54': 109,
+  'wt.cause.typesDisagree': 27,
+  'wt.cluster': 405,
+  'wt.code0x0': 8,
+  'wt.code0x33': 86,
+  'wt.code0x54': 180,
   'wt.code0x73': 1,
-  'wt.code0x74': 15,
-  'wt.code0xb': 25,
-  'wt.code0xc': 2,
-  'wt.code0xd': 6,
-  'wt.code0xff': 103,
-  'wt.refnum': 619,
-  'wt.sole.cluster': 1338,
+  'wt.code0x74': 20,
+  'wt.code0xb': 26,
+  'wt.code0xc': 3,
+  'wt.code0xd': 7,
+  'wt.code0xe': 1,
+  'wt.code0xff': 127,
+  'wt.noSignalWord': 5,
+  'wt.refnum': 754,
+  'wt.sole.cluster': 172,
   'wt.sole.code0x33': 4,
-  'wt.sole.code0x37': 3,
   'wt.sole.code0x54': 24,
   'wt.sole.code0x74': 2,
   'wt.sole.code0xb': 16,
   'wt.sole.code0xd': 4,
   'wt.sole.code0xff': 5,
-  'wt.sole.refnum': 178,
+  'wt.sole.refnum': 184,
 };
 
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
@@ -353,7 +384,7 @@ const int kReviewListFloor = 10;
 
 const ({int identities, int nodes}) kReviewListTotals = (identities: 82, nodes: 295);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 790, sources: 530);
+const ({int vis, int sources}) kEmittedSources = (vis: 1056, sources: 659);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -393,20 +424,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 790, sources: 530);
 
   LvViUnit? resolve(LvCallee callee) => resolveCallee(callee).unit;
 
-  final classData = <String, ViModel?>{};
-  ViModel? resolveClass(List<String> qualifiedName) => classData.putIfAbsent(qualifiedName.join(':'), () {
-    final path = libraries.fileOf(qualifiedName);
-    if (path == null) return null;
-    try {
-      final control = LvLibraryFile.parse(
-        File(path).readAsStringSync(),
-        fileName: qualifiedName.last,
-      ).privateDataControl;
-      return control == null ? null : buildViModel(control);
-    } catch (_) {
-      return null;
-    }
-  });
+  final classes = LvProjectClassIndex(libraries);
 
   final paneWidths = <String, int?>{};
   int? paneWidth(String name) => paneWidths.putIfAbsent(name.toLowerCase(), () {
@@ -427,7 +445,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 790, sources: 530);
       declarations: registry,
       caller: unit,
       resolve: resolve,
-      resolveClass: resolveClass,
+      classes: classes,
     ),
   );
 
@@ -834,11 +852,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 790, sources: 530);
             bump('ref.part.decides');
             bump('ref.part.dims${viaPart.single}');
             bump('ref.part.base${signal.depth - viaPart.single}');
-            if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) {
-              bump('ref.part.contradictedCell');
-            } else {
-              bump('ref.part.read');
-            }
+            bump('ref.part.read');
           } else if (viaPart.isEmpty) {
             bump('ref.part.silent');
           }
@@ -943,6 +957,19 @@ const ({int vis, int sources}) kEmittedSources = (vis: 790, sources: 530);
     censusDeclarations(unit.diagram, unit.pool);
     censusIndexArrays(unit.diagram);
     censusRefnumWires(unit);
+    final census = lvWireRouteCensus(unit.diagram, pool: unit.pool, caller: unit, resolve: resolve, classes: classes);
+    final familyOf = {
+      for (final wire in unit.diagram.wires)
+        wire.signalOid: switch (wire.signalType) {
+          final signal? => _wireFamilyName(signal.typeCode),
+          null => 'noWord',
+        },
+    };
+    census.routes.forEach(
+      (oid, route) =>
+          bump(route == LvWireRoute.signalWord ? 'route.signalWord' : 'route.${familyOf[oid]}.${route.name}'),
+    );
+    census.refusals.forEach((oid, _) => bump('route.${familyOf[oid]}.refused'));
     final built = buildOf(unit);
     censusInPlaceElement(unit.diagram, built.refusal);
     if (built.dataflow case final flow?) walk(flow, unit, flow.root);
@@ -956,7 +983,7 @@ const ({int vis, int sources}) kEmittedSources = (vis: 790, sources: 530);
         functionName: 'lowered',
         errorMode: mode,
         resolveSubVi: resolve,
-        resolveClass: resolveClass,
+        classes: classes,
       );
       bump('${mode.name}.${result.refusal?.kind.name ?? 'lowered'}');
       sources.add(result.source);
@@ -1015,6 +1042,7 @@ void main() {
         expect(result.source, contains(' lowered('), reason: '$name emitted no function');
       }
     }
+    printOnFailure('measured:\n${[for (final key in measured.keys) "  '$key': '${measured[key]}',"].join('\n')}');
     expect(measured, kSnippetLoweringOutcomes);
     expect(
       measured.values.where((outcome) => outcome == 'lowered').length,
@@ -1036,6 +1064,7 @@ void main() {
       final outcome = result.refusal?.kind.name ?? 'lowered';
       if (outcome != kSnippetLoweringOutcomes[name]) measured[name] = outcome;
     }
+    printOnFailure('measured:\n${[for (final key in measured.keys) "  '$key': '${measured[key]}',"].join('\n')}');
     expect(measured, kSnippetThreadedDifferences);
   });
 

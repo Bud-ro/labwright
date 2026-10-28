@@ -331,15 +331,7 @@ SeqTreeExport exportSeqTree(
       final file = linked != null && File(linked).existsSync() ? File(linked) : tree.uniqueViNamed(callee.fileName);
       return file == null ? null : unitOf(file, callee.fileName);
     },
-    resolveClass: (qualifiedName) {
-      final path = tree.libraries.fileOf(qualifiedName);
-      if (path == null) return null;
-      final control = LvLibraryFile.parse(
-        File(path).readAsStringSync(),
-        fileName: qualifiedName.last,
-      ).privateDataControl;
-      return control == null ? null : buildViModel(control);
-    },
+    classes: LvProjectClassIndex(tree.libraries),
   );
 
   final files = <String, String>{};

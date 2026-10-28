@@ -3,6 +3,7 @@ import 'dart:math' show max, min;
 import 'package:dart_style/dart_style.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'class_index.dart';
 import 'dataflow_ir.dart';
 import 'declare.dart';
 import 'error_mode.dart';
@@ -43,14 +44,9 @@ const int kLvEmitPageWidth = 120;
   String? sourceNote,
   LvErrorMode errorMode = LvErrorMode.exceptions,
   LvViResolver? resolveSubVi,
-  LvClassResolver? resolveClass,
+  LvClassIndex? classes,
 }) {
-  final library = _Library(
-    errorMode: errorMode,
-    resolve: resolveSubVi,
-    resolveClass: resolveClass,
-    sourceNote: sourceNote,
-  );
+  final library = _Library(errorMode: errorMode, resolve: resolveSubVi, classes: classes, sourceNote: sourceNote);
   try {
     library.declare(entry, name: functionName);
     library.emitDeclared();
@@ -134,12 +130,12 @@ LvEmittedSet emitLvFunctions(
   Iterable<LvViUnit> entries, {
   LvErrorMode errorMode = LvErrorMode.exceptions,
   LvViResolver? resolveSubVi,
-  LvClassResolver? resolveClass,
+  LvClassIndex? classes,
 }) {
   final library = _Library(
     errorMode: errorMode,
     resolve: resolveSubVi,
-    resolveClass: resolveClass,
+    classes: classes,
     sourceNote: null,
     stubRefusals: true,
   );
@@ -228,7 +224,7 @@ class _Library {
   _Library({
     required this.errorMode,
     required this.resolve,
-    required this.resolveClass,
+    required this.classes,
     required this.sourceNote,
     this.stubRefusals = false,
   });
@@ -239,7 +235,7 @@ class _Library {
   /// refusing the library.
   final bool stubRefusals;
   final LvViResolver? resolve;
-  final LvClassResolver? resolveClass;
+  final LvClassIndex? classes;
   final String? sourceNote;
 
   final Set<String> imports = <String>{};
@@ -302,7 +298,7 @@ class _Library {
       declarations: declarations,
       caller: unit,
       resolve: resolve,
-      resolveClass: resolveClass,
+      classes: classes,
     );
     if (built.refusal case final refusal?) throw LvRefusedException(refusal);
     final callable = _Callable(
@@ -336,7 +332,7 @@ class _Library {
       final descriptor = terminal.resolvedType?.type;
       final mapped = descriptor == null
           ? const LvTypeMapping.unmapped('the terminal resolves no descriptor')
-          : mapLvType(descriptor, unit.pool, 0, declarations);
+          : lvTerminalType(descriptor, unit.pool, classes, declarations);
       if (!mapped.isMapped) {
         callable.undecided[pane] = mapped.note ?? 'its descriptor has no decided Dart type';
         continue;
@@ -473,7 +469,7 @@ class _Library {
     final descriptor = callable.unit.diagram.byId[control.oid]?.resolvedType?.type;
     final mapped = descriptor == null
         ? const LvTypeMapping.unmapped('the terminal resolves no descriptor')
-        : mapLvType(descriptor, callable.unit.pool, 0, declarations);
+        : lvTerminalType(descriptor, callable.unit.pool, classes, declarations);
     if (!mapped.isMapped) {
       lvRefuse(
         LvRefusalKind.unwiredTerminal,
@@ -875,6 +871,11 @@ class _FunctionEmitter {
     if (type.carrier == LvCarrier.boolean) {
       return record.constant?.boolValue?.toString();
     }
+    if (type.enumeration case final enumeration?) {
+      final ordinal = record.constant?.numeric?.toInt();
+      if (ordinal == null || ordinal < 0 || ordinal >= enumeration.items.length) return null;
+      return '${enumeration.name}.${LvNaming.declarationItems(enumeration.items)[ordinal]}';
+    }
     if (type.carrier == LvCarrier.text) {
       final text = record.constant?.text;
       return text == null ? null : _stringLiteral(text);
@@ -896,6 +897,14 @@ class _FunctionEmitter {
   static String _stringLiteral(String text) => lvDartStringLiteral(text);
 
   void _emitPrimitive(LvPrimUnit unit) {
+    if (unit.classCode == BdObjectClass.invokeNode.code) {
+      lvRefuse(
+        LvRefusalKind.referenceNode,
+        'an Invoke Node calls a method of the class of a reference, and the lowering has no model of '
+        'reference classes',
+        oid: unit.oid,
+      );
+    }
     LvPrimTerminal terminal(int port, {required bool isInput}) {
       final edge = isInput ? flow.into(port) : flow.outOf(port);
       if (edge == null) {
@@ -907,11 +916,19 @@ class _FunctionEmitter {
       }
       library.noteImportsFor(edge.type);
       final producer = isInput ? _unitByOid[flow.ownerOfPort[edge.source]] : null;
+      var type = edge.type;
+      var expression = isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label);
+      if (isInput) {
+        if (_enumReadAsInteger(edge.type, unit.portTypes[port]) case final integer?) {
+          type = integer;
+          expression = '$expression.index';
+        }
+      }
       return LvPrimTerminal(
         port: port,
-        type: edge.type,
+        type: type,
         roleFlags: unit.portRoleFlags[port] ?? 0,
-        expression: isInput ? _bound(edge.source, unit.oid) : names.wire(edge.type, decoded: unit.label),
+        expression: expression,
         memberName: unit.portMemberName[port],
         constantText: producer is LvConstUnit ? producer.record.constant?.text : null,
       );
@@ -944,6 +961,17 @@ class _FunctionEmitter {
     for (final output in outputs) {
       valueOf[output.port] = output.expression!;
     }
+  }
+
+  /// The integer type an enum wire is read as by a terminal whose own descriptor is a plain
+  /// integer, as LabVIEW coerces an enum at a numeric input; null when the wire is not an enum or
+  /// the terminal is not an integer.
+  LvWireType? _enumReadAsInteger(LvWireType wire, ViType? terminal) {
+    if (wire.enumeration == null) return null;
+    final base = lvThroughTypedefs(terminal);
+    final kind = base == null ? null : LvNumericKind.ofCode(base.code);
+    if (kind == null || kind.isFloat) return null;
+    return LvWireType.scalarOf(LvTypeMapping.mapped(kind.carrier, numeric: kind));
   }
 
   /// The `<vilib>` VI a call node reaches, when its link points into LabVIEW's own library (or
@@ -1062,6 +1090,14 @@ class _FunctionEmitter {
   }
 
   void _emitSubVi(LvSubViUnit unit) {
+    if (unit.classCode == BdObjectClass.propertyNode.code) {
+      lvRefuse(
+        LvRefusalKind.referenceNode,
+        'a Property Node reads or writes properties of the class of a reference, and the lowering has '
+        'no model of reference classes',
+        oid: unit.oid,
+      );
+    }
     if (_vilibCallee(unit) case final vi?) {
       _emitVilibCall(unit, vi);
       return;
@@ -1102,39 +1138,58 @@ class _FunctionEmitter {
           oid: unit.oid,
         );
       }
-      final edge = isInput ? flow.into(holder)! : flow.outOf(holder)!;
-      if (port.type.dartType != edge.type.dartType) {
-        lvRefuse(
-          LvRefusalKind.subViCall,
-          'the wire at connector-pane terminal $paneIndex carries ${edge.type.dartType}, '
-          'but "${callee.fileName}" declares ${port.type.dartType} there',
-          oid: unit.oid,
-        );
-      }
       return port;
     }
 
+    /// [expression] of the wire's type [from] spelled as the callee's [to], by the coercions a
+    /// connector pane admits.
+    String adapted(String expression, LvWireType from, LvWireType to, int paneIndex) {
+      final coerced = _coerced(expression, from, to);
+      if (coerced == null) {
+        lvRefuse(
+          LvRefusalKind.subViCall,
+          'the wire at connector-pane terminal $paneIndex carries ${from.dartType}, '
+          'but "${callee.fileName}" declares ${to.dartType} there',
+          oid: unit.oid,
+        );
+      }
+      return coerced;
+    }
+
     final arguments = <String>[];
+    final supplied = <int>{};
     for (final holder in unit.inputPorts) {
       final edge = flow.into(holder);
       if (edge == null) continue;
-      final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: true);
+      final pane = unit.paneIndexOf(holder)!;
+      final port = portFor(pane, holder, isInput: true);
       if (port == null) continue;
-      arguments.add('${port.name}: ${_bound(edge.source, unit.oid)}');
+      arguments.add('${port.name}: ${adapted(_bound(edge.source, unit.oid), edge.type, port.type, pane)}');
+      supplied.add(port.terminal);
     }
-    final wanted = <int, _Port>{};
+    for (final parameter in target.parameters) {
+      if (supplied.contains(parameter.terminal)) continue;
+      lvRefuse(
+        LvRefusalKind.subViCall,
+        'the call leaves "${callee.fileName}"\'s control ${parameter.name} unwired, so the callee reads '
+        'the value saved with that control, which the lowering does not read',
+        oid: unit.oid,
+      );
+    }
+    final wanted = <int, (_Port, int)>{};
     for (final holder in unit.outputPorts) {
       if (flow.outOf(holder) case final edge? when _readsEdge(edge)) {
       } else {
         continue;
       }
-      final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: false);
+      final pane = unit.paneIndexOf(holder)!;
+      final port = portFor(pane, holder, isInput: false);
       if (port == null) {
         library.imports.add(kLvRuntimeImport);
         valueOf[holder] = LvRuntimeType.clearedError;
         continue;
       }
-      wanted[holder] = port;
+      wanted[holder] = (port, pane);
     }
     final call = '${target.functionName}(${arguments.join(', ')})';
 
@@ -1147,8 +1202,8 @@ class _FunctionEmitter {
       final name = names.wire(port.type, decoded: port.name);
       library.noteImportsFor(port.type);
       body.writeln('final ${port.type.dartType} $name = $call;');
-      for (final holder in wanted.keys) {
-        valueOf[holder] = name;
+      for (final MapEntry(key: holder, value: (_, pane)) in wanted.entries) {
+        valueOf[holder] = adapted(name, port.type, flow.outOf(holder)!.type, pane);
       }
       return;
     }
@@ -1157,7 +1212,9 @@ class _FunctionEmitter {
       library.noteImportsFor(port.type);
     }
     body.writeln('final ${target.returnType} $record = $call;');
-    wanted.forEach((holder, port) => valueOf[holder] = '$record.${port.name}');
+    for (final MapEntry(key: holder, value: (port, pane)) in wanted.entries) {
+      valueOf[holder] = adapted('$record.${port.name}', port.type, flow.outOf(holder)!.type, pane);
+    }
   }
 
   LvViUnit _resolveCallee(LvSubViUnit unit) {
@@ -1619,6 +1676,7 @@ class _FunctionEmitter {
       if (text.codeUnits.any((code) => code < 0x20 || code > 0x7e)) return null;
       return '$selectorValue == ${_stringLiteral(text)}';
     }
+    if (type.enumeration != null) return _rangeGuard(range, '$selectorValue.index', unit, _kOrdinalType);
     if (type.numeric == null || type.numeric!.isFloat) return null;
     if (range.isSingle) return '$selectorValue == ${range.low}';
     if (range.isClosed) return '$selectorValue >= ${range.low} && $selectorValue <= ${range.high}';
@@ -1630,6 +1688,11 @@ class _FunctionEmitter {
     }
     return null;
   }
+
+  /// The type an enum selector's ordinal is compared as.
+  static final LvWireType _kOrdinalType = LvWireType.scalarOf(
+    const LvTypeMapping.mapped(LvCarrier.integer, numeric: LvNumericKind.i32),
+  );
 
   /// The value an unwired structure output carries: the default of its type, as LabVIEW's
   /// *use default if unwired* substitutes it. Null where this package spells no default for
@@ -1665,10 +1728,11 @@ class _FunctionEmitter {
         final declaration = mapping.declarations.singleOrNull;
         if (declaration == null) return null;
         if (declaration.isEnum) return declaration.items.isEmpty ? null : '${declaration.name}.values.first';
-        final names = LvNaming.declarationFields([for (final field in declaration.fields) field.label]);
+        final fields = declaration.allFields;
+        final names = declaration.allFieldNames;
         final values = <String>[];
-        for (var i = 0; i < declaration.fields.length; i++) {
-          final value = _defaultOfMapping(declaration.fields[i].type);
+        for (var i = 0; i < fields.length; i++) {
+          final value = _defaultOfMapping(fields[i].type);
           if (value == null) return null;
           values.add('${names[i]}: $value');
         }
@@ -1755,6 +1819,15 @@ class _FunctionEmitter {
   String? _coerced(String expression, LvWireType from, LvWireType to) {
     if (from.dartType == to.dartType) return expression;
     if (from.dims != to.dims || from.dims > 1) return null;
+    if (from.dims == 0 && from.enumeration != null && to.numeric != null && !to.numeric!.isFloat) {
+      return '$expression.index';
+    }
+    if ((from.element.declarations.singleOrNull, to.element.declarations.singleOrNull) case (
+      final child?,
+      final ancestor?,
+    ) when !child.isEnum && !ancestor.isEnum && child.descendsFrom(ancestor)) {
+      return expression;
+    }
     final source = _clusterShapeOf(from.element), target = _clusterShapeOf(to.element);
     if (source == null || target == null || source.fields.length != target.fields.length) return null;
     for (var i = 0; i < source.fields.length; i++) {
@@ -1785,7 +1858,7 @@ class _FunctionEmitter {
       case LvCarrier.nominal:
         final declaration = mapping.declarations.singleOrNull;
         if (declaration == null || declaration.isEnum) return null;
-        return (name: declaration.name, fields: declaration.fields);
+        return (name: declaration.name, fields: declaration.allFields);
       case LvCarrier.compound:
         return mapping.fields.isEmpty ? null : (name: null, fields: mapping.fields);
       case _:

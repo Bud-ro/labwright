@@ -18,6 +18,7 @@ export 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart'
         clusterFields,
         decodeSections;
 
+export 'src/class_index.dart';
 export 'src/dataflow_ir.dart';
 export 'src/declare.dart';
 export 'src/emit.dart';

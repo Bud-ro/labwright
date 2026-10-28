@@ -32,6 +32,9 @@ class LvWireType {
   bool get isErrorCluster => dims == 0 && value.carrier == LvCarrier.error;
 
   LvWireType get scalar => dims == 0 ? this : LvWireType._(dims: 0, element: element, value: element);
+
+  /// The Dart enum a scalar wire carries, when it carries one.
+  LvTypeDecl? get enumeration => dims == 0 ? element.enumeration : null;
 }
 
 LvWireType mapLvWireType(ViSignalType signal) {
@@ -57,17 +60,39 @@ LvWireType lvRefnumWireType(ViSignalType signal, int dims) {
   return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
 }
 
-const Set<(int, int)> kLvRefnumContradictedCells = {(TypeCode.refnum, 4)};
+/// What decided a wire's Dart type beyond its signal word.
+enum LvWireRoute {
+  /// The signal word alone: element code and array depth.
+  signalWord,
 
-/// A refnum wire's dimensionality: from the descriptors of its endpoints' node-terminal parts
-/// when they agree, else zero when an endpoint's own descriptor is a scalar refnum, which never
-/// contradicts the parts in the corpus (an endpoint's own array descriptor does, and decides
-/// nothing).
-int? lvRefnumWireDims(BdDiagram diagram, ViWire wire) {
-  final signal = wire.signalType;
-  if (signal == null || !kLvWireRefnumCodes.contains(signal.typeCode)) return null;
-  if (signal.arrayDims != null) return null;
-  if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) return null;
+  /// A descriptor the wire's endpoint, or the endpoint's parent, resolves.
+  endpoint,
+
+  /// A descriptor a node-terminal or structure-terminal record under an endpoint resolves.
+  part,
+
+  /// The connector-pane control of the callee behind a sub-VI call port.
+  pane,
+
+  /// An enum descriptor an endpoint or part resolves for an integer-coded wire.
+  enumeration,
+
+  /// The class-instance descriptor an endpoint of a refnum wire resolves.
+  classObject,
+
+  /// The timestamp descriptor an endpoint of a measure-data wire resolves.
+  timestamp,
+
+  /// The scalar descriptor the endpoints of an untyped (`0xff`) wire resolve.
+  untypedEndpoint,
+
+  /// A refnum descriptor an endpoint or part of a tag-coded wire resolves.
+  tagRefnum,
+}
+
+/// A refnum wire's dimensionality from the descriptors of its endpoints' node-terminal parts;
+/// null when none speaks or when two disagree.
+int? lvRefnumPartDims(BdDiagram diagram, ViWire wire) {
   int? answer;
   for (final endpoint in wire.endpointOids) {
     for (final part in diagram.children(endpoint)) {
@@ -77,12 +102,56 @@ int? lvRefnumWireDims(BdDiagram diagram, ViWire wire) {
       answer = dims;
     }
   }
-  if (answer != null) return answer;
+  return answer;
+}
+
+/// Whether an endpoint's own descriptor is a scalar refnum, which decides the wire scalar; an
+/// endpoint's own array descriptor decides nothing, since it may be the array an element wire
+/// indexes.
+bool lvRefnumEndpointIsScalar(BdDiagram diagram, ViWire wire) {
   for (final endpoint in wire.endpointOids) {
     final object = diagram.byId[endpoint];
-    if (object != null && _refnumDimsOf(object) == 0) return 0;
+    if (object != null && _refnumDimsOf(object) == 0) return true;
+  }
+  return false;
+}
+
+/// The signal-word cells, `(type code, depth)`, where the callee's connector pane contradicts the
+/// node-terminal parts' dimensionality; there the parts decide only with the pane's agreement.
+const Set<(int, int)> kLvRefnumContradictedCells = {(TypeCode.refnum, 4)};
+
+/// A refnum wire's dimensionality: from its endpoints' node-terminal parts when they agree,
+/// else zero when an endpoint's own descriptor is a scalar refnum; null in a
+/// [kLvRefnumContradictedCells] cell, which needs the callee's pane as well.
+int? lvRefnumWireDims(BdDiagram diagram, ViWire wire) {
+  final signal = wire.signalType;
+  if (signal == null || !kLvWireRefnumCodes.contains(signal.typeCode)) return null;
+  if (signal.arrayDims != null) return null;
+  if (kLvRefnumContradictedCells.contains((signal.typeCode, signal.depth))) return null;
+  return lvRefnumPartDims(diagram, wire) ?? (lvRefnumEndpointIsScalar(diagram, wire) ? 0 : null);
+}
+
+/// The dimensionality the terminal [oid] of a diagram resolves for a refnum wire: the terminal's
+/// own descriptor, else its parent's.
+int? lvRefnumDimsOfTerminal(BdDiagram diagram, int oid) {
+  var object = diagram.byId[oid];
+  for (var depth = 0; object != null && depth < 2; depth++) {
+    if (_refnumDimsOf(object) case final dims?) return dims;
+    final parent = object.parentOid;
+    object = parent == null ? null : diagram.byId[parent];
   }
   return null;
+}
+
+/// Whether an endpoint of a tag-coded wire, or a node-terminal part under it, resolves a refnum
+/// descriptor (the element's for an [array] wire), itself or through typedefs.
+bool lvTagEndpointIsRefnum(BdDiagram diagram, int oid, {required bool array}) {
+  for (final object in [if (diagram.byId[oid] case final object?) object, ...diagram.children(oid)]) {
+    final resolved = object.resolvedType;
+    final type = lvThroughTypedefs(array ? resolved?.elementType : resolved?.type);
+    if (type != null && type.kind == ViDataType.refnum) return true;
+  }
+  return false;
 }
 
 /// The class a refnum wire carries, read from the class-instance descriptor of an endpoint or
@@ -91,7 +160,7 @@ List<String>? lvClassOfEndpoint(BdDiagram diagram, int endpoint, {required bool 
   final objects = [if (diagram.byId[endpoint] case final object?) object, ...diagram.children(endpoint)];
   for (final object in objects) {
     final resolved = object.resolvedType;
-    final own = _throughTypedefs(array ? resolved?.elementType ?? resolved?.type : resolved?.type);
+    final own = lvThroughTypedefs(array ? resolved?.elementType ?? resolved?.type : resolved?.type);
     if (own is ViRefnumType && own.refnumKind == ViRefnumKind.classInstance && own.classQualifiedName.isNotEmpty) {
       return own.classQualifiedName;
     }
@@ -104,7 +173,7 @@ List<String>? lvClassOfEndpoint(BdDiagram diagram, int endpoint, {required bool 
 bool lvEndpointIsTimestamp(BdDiagram diagram, int oid, {required bool array}) {
   final object = diagram.byId[oid];
   if (object == null) return false;
-  final type = _throughTypedefs(array ? object.resolvedType?.elementType : object.resolvedType?.type);
+  final type = lvThroughTypedefs(array ? object.resolvedType?.elementType : object.resolvedType?.type);
   return type is ViMeasureDataType && type.flavor == ViMeasureDataFlavor.timeStamp;
 }
 
@@ -117,7 +186,7 @@ const int kLvUntypedSignalCode = 0xff;
 ViType? lvScalarOfEndpoints(BdDiagram diagram, ViWire wire, List<ViType> pool) {
   ViType? reading;
   for (final endpoint in wire.endpointOids) {
-    final own = _throughTypedefs(diagram.byId[endpoint]?.resolvedType?.type);
+    final own = lvThroughTypedefs(diagram.byId[endpoint]?.resolvedType?.type);
     if (own == null || own is ViArrayType) continue;
     if (reading != null && !identical(reading, own) && !_sameDescriptor(reading, own, pool)) return null;
     reading ??= own;
@@ -137,26 +206,18 @@ LvWireType lvTimestampWireType(ViSignalType signal) {
   return LvWireType._(dims: dims, element: element, value: dims == 0 ? element : LvTypeMapping.array(element, dims));
 }
 
-/// A wire of class objects: [element] at [dims] dimensions.
-LvWireType lvClassObjectWireType(LvTypeMapping element, int dims) {
+/// A wire of [element] values at [dims] dimensions.
+LvWireType lvElementWireType(LvTypeMapping element, int dims) {
   if (dims == 0 || !element.isMapped) return LvWireType._(dims: dims, element: element, value: element);
   return LvWireType._(dims: dims, element: element, value: LvTypeMapping.array(element, dims));
 }
 
 int? _refnumDimsOf(BdObject object) {
-  final own = _throughTypedefs(object.resolvedType?.type);
+  final own = lvThroughTypedefs(object.resolvedType?.type);
   if (own == null) return null;
   if (own.kind == ViDataType.refnum) return 0;
   if (own is! ViArrayType || own.kind != ViDataType.array) return null;
-  return _throughTypedefs(object.resolvedType?.elementType)?.kind == ViDataType.refnum ? own.dimCount : null;
-}
-
-ViType? _throughTypedefs(ViType? type) {
-  for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
-    if (type is! ViTypedefType) return type;
-    type = type.base;
-  }
-  return null;
+  return lvThroughTypedefs(object.resolvedType?.elementType)?.kind == ViDataType.refnum ? own.dimCount : null;
 }
 
 const Map<int, LvCarrier> kLvWireRuntimeCarriers = {
@@ -169,8 +230,6 @@ const Map<int, LvCarrier> kLvWireRuntimeCarriers = {
 const Set<int> kLvWireRefnumCodes = {TypeCode.refnum, ViSignalType.typedRefnumCode};
 
 const Set<int> kLvWireClusterCodes = {TypeCode.cluster, ViSignalType.clusterVariantCode};
-
-const int kLvTypedefDepth = 8;
 
 ViType? lvClusterBase(ViType? type) {
   for (var depth = 0; type != null && depth < kLvTypedefDepth; depth++) {
@@ -207,6 +266,53 @@ ViType? lvClusterOfEndpoint(BdDiagram diagram, int oid, {required bool array}) {
   return null;
 }
 
+/// The clusters the node-terminal and structure-terminal records under an endpoint resolve (the
+/// element's for an [array] wire), in record order.
+List<ViType> lvClustersOfParts(BdDiagram diagram, int oid, {required bool array}) => [
+  for (final part in diagram.children(oid))
+    if (_resolvedOf(part, array: array) case final type? when lvClusterBase(type) != null) type,
+];
+
+ViType? _resolvedOf(BdObject object, {required bool array}) =>
+    array ? object.resolvedType?.elementType : object.resolvedType?.type;
+
+/// The enum descriptors, through typedefs, that an endpoint of an integer-coded wire and the
+/// records under it resolve (the element's for an [array] wire), as stored so a typedef keeps
+/// its qualified name.
+List<ViType> lvEnumsOfEndpoint(BdDiagram diagram, int oid, {required bool array}) => [
+  for (final object in [if (diagram.byId[oid] case final object?) object, ...diagram.children(oid)])
+    if (_resolvedOf(object, array: array) case final type? when _isEnumCode(lvThroughTypedefs(type)?.code)) type,
+];
+
+bool _isEnumCode(int? code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
+
+/// The integer type code a signal word spells an enum of [type]'s width with: an enum rides the
+/// wire as its unsigned integer, so the word carries the integer's code.
+int? lvEnumIntegerCode(ViType type) => switch (lvThroughTypedefs(type)?.code) {
+  TypeCode.enumU8 => TypeCode.u8,
+  TypeCode.enumU16 => TypeCode.u16,
+  TypeCode.enumU32 => TypeCode.u32,
+  _ => null,
+};
+
+/// Whether an endpoint of an integer-coded wire, or a record under it, resolves a plain integer
+/// descriptor (the element's for an [array] wire), itself or through typedefs: the wire then
+/// carries the integer, whatever enum another endpoint coerces it to.
+bool lvEndpointResolvesInteger(BdDiagram diagram, int oid, {required bool array}) {
+  for (final object in [if (diagram.byId[oid] case final object?) object, ...diagram.children(oid)]) {
+    final type = lvThroughTypedefs(_resolvedOf(object, array: array));
+    if (type != null && LvNumericKind.ofCode(type.code) != null) return true;
+  }
+  return false;
+}
+
+/// A wire of opaque refnums at the signal's dimensionality.
+LvWireType lvRefnumHandleWireType(ViSignalType signal) {
+  const element = LvTypeMapping.mapped(LvCarrier.refnum, note: kRefnumSubtypeNote);
+  final dims = signal.arrayDims ?? 0;
+  return LvWireType._(dims: dims, element: element, value: dims == 0 ? element : LvTypeMapping.array(element, dims));
+}
+
 LvWireType lvClusterWireType(ViSignalType signal, ViType cluster, List<ViType> pool, [LvDeclarations? declarations]) {
   final element = mapLvType(cluster, pool, 0, declarations);
   final dims = signal.arrayDims ?? 0;
@@ -231,6 +337,13 @@ LvTypeMapping _mapSignalElement(int code) {
     return LvTypeMapping.unmapped(
       'a measure-data wire\'s flavor is not in the signal word, and no endpoint of this wire '
       'resolves a timestamp descriptor; waveforms have no decided Dart representation',
+      unmappedCode: code,
+    );
+  }
+  if (code == TypeCode.tag) {
+    return LvTypeMapping.unmapped(
+      'a tag wire\'s reference class is not in the signal word, and no endpoint of this wire '
+      'resolves a refnum descriptor; a tag descriptor\'s own record is not decoded',
       unmappedCode: code,
     );
   }
