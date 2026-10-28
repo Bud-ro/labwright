@@ -529,15 +529,6 @@ final class Tof1Body {
 
   /// [BinaryByteTier] per body byte.
   final Uint8List tiers;
-
-  int get poolOffset => recordRegionLength + 8;
-
-  BinaryTypeEntry? typeNamed(String name) {
-    for (final type in types) {
-      if (type.name == name) return type;
-    }
-    return null;
-  }
 }
 
 const _u32 = 4;
