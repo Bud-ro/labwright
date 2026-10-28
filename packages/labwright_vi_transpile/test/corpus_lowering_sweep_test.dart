@@ -278,6 +278,7 @@ const Map<String, int> kCorpusLoweringSweep = {
   'route.cluster.endpoint': 95147,
   'route.cluster.part': 38374,
   'route.cluster.refused': 1925,
+  'route.cluster.unresolved': 543,
   'route.code0x0.refused': 13,
   'route.code0x33.refused': 840,
   'route.code0x37.refused': 35,
@@ -955,7 +956,10 @@ const ({int vis, int sources}) kEmittedSources = (vis: 1125, sources: 836);
       (oid, route) =>
           bump(route == LvWireRoute.signalWord ? 'route.signalWord' : 'route.${familyOf[oid]}.${route.name}'),
     );
-    census.refusals.forEach((oid, _) => bump('route.${familyOf[oid]}.refused'));
+    census.refusals.forEach((oid, refusal) {
+      bump('route.${familyOf[oid]}.refused');
+      if (refusal.detail.startsWith('a cluster wire')) bump('route.cluster.unresolved');
+    });
     final built = buildOf(unit);
     censusInPlaceElement(unit.diagram, built.refusal);
     if (built.dataflow case final flow?) walk(flow, unit, flow.root);

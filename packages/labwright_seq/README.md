@@ -64,12 +64,13 @@ pane gives it over a body that throws `UnimplementedError`, and its doc
 comment states what is not decoded, so the package always analyzes clean.
 
 `test/export_corpus_test.dart` exports every corpus source tree and pins the
-measures. Over 43 trees (1.5 s): 45 sequence files, 89 LabVIEW steps, 87 of
+measures. Over 43 trees (1.9 s): 45 sequence files, 89 LabVIEW steps, 87 of
 which locate their VI (2 name project items whose files are not vendored);
-75 VI functions are emitted, 4 with lowered bodies and 71 refused — 54 on
-cluster wires whose member types are not in the signal word, 9 on constants
-with no decoded value, 7 on sub-VI calls, 1 on a primitive — so every call
-site reaches a function but none yet a lowered body. 61 call sites (one
+110 VI functions are emitted, 26 with lowered bodies and 84 refused — 33 on
+constants (29 of them saved by LabVIEW 9.0 or earlier, which keep no value in
+the heap record), 13 on sub-VI calls, 12 on wire types, 12 on Property and
+Invoke Nodes, 9 on structures, 5 on primitives — and 13 call sites reach a
+lowered body. 61 call sites (one
 repository's legacy-prototype VIs) leave required inputs unwired and are
 emitted as throws naming them; 36 arguments translate, 9 fall back to `eval`;
 3 outputs store to locals, 2 target engine state the export has no variable
