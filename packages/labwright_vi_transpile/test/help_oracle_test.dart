@@ -222,9 +222,11 @@ void main() {
     expect(PrimOp.values.length, kHelpOracleTerminals.length + kHelpOracleUncorroborated.length);
   });
 
-  test('every primitive with a lowering rule is one the reference corroborates', () {
+  test('every primitive with a lowering rule is one the reference corroborates, or lowers through its signature', () {
     for (final op in kLvMappedPrimOps) {
-      expect(kHelpOracleTerminals[op.opName], isNotNull, reason: '${op.id} ${op.opName}');
+      if (kHelpOracleTerminals[op.opName] != null) continue;
+      expect(kHelpOracleUncorroborated, contains(op.opName), reason: '${op.id} ${op.opName}');
+      expect(kLvPrimSignatures[op], isNotNull, reason: '${op.id} ${op.opName} lowers with no terminal order');
     }
   });
 }
