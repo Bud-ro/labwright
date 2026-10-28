@@ -35,7 +35,7 @@ Iterable<File> lvWalkProjectFiles(Directory root, {int? directoryBudget, bool sk
 /// Every library, class and XControl file under a root, and each member's file by its
 /// library-qualified name; resolves a VI's link entries to files.
 class LvProjectIndex {
-  LvProjectIndex._(this.root, this.libraries, this._byQualifiedName);
+  LvProjectIndex._(this.root, this.libraries, this._byQualifiedName, this._qualifiedNameOfLibrary);
 
   final Directory root;
 
@@ -43,6 +43,12 @@ class LvProjectIndex {
   final Map<String, LvLibraryFile> libraries;
 
   final Map<String, String> _byQualifiedName;
+
+  final Map<String, List<String>> _qualifiedNameOfLibrary;
+
+  /// The library-qualified name of the library file at [libraryPath], outermost owner first;
+  /// null for a path the scan did not index.
+  List<String>? qualifiedNameOf(String libraryPath) => _qualifiedNameOfLibrary[libraryPath];
 
   /// Reads every `.lvlib`, `.lvclass` and `.xctl` under [root] that [lvWalkProjectFiles]
   /// reaches, within [directoryBudget] and past hidden directories when asked.
@@ -77,15 +83,17 @@ class LvProjectIndex {
     }
 
     final byQualifiedName = <String, String>{};
+    final qualifiedNames = <String, List<String>>{};
     for (final MapEntry(key: path, value: library) in libraries.entries) {
       final prefix = qualifiedNameOf(path);
+      qualifiedNames[path] = prefix;
       byQualifiedName[prefix.join(':')] = path;
       for (final item in library.items) {
         if (item.url == null || item.isFolder) continue;
         byQualifiedName[[...prefix, item.name].join(':')] = resolveLibraryUrl(path, item.url!);
       }
     }
-    return LvProjectIndex._(root, libraries, byQualifiedName);
+    return LvProjectIndex._(root, libraries, byQualifiedName, qualifiedNames);
   }
 
   /// The file a library-qualified name denotes, such as [`MB Master.lvlib`, `Read Coils.vi`].
