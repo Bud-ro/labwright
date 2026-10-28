@@ -1,8 +1,10 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'class_index.dart';
+import 'flat_literal.dart';
 import 'naming.dart';
 import 'numeric.dart';
+import 'wire_type.dart' show lvClusterShape;
 
 abstract final class LvRuntimeType {
   static const String error = 'LvError';
@@ -172,6 +174,7 @@ class LvTypeDecl {
     required this.fields,
     this.qualifiedName = const [],
     this.parent,
+    this.classDefault,
   }) : items = const [],
        isEnum = false;
 
@@ -182,13 +185,20 @@ class LvTypeDecl {
     this.qualifiedName = const [],
   }) : fields = const [],
        isEnum = true,
-       parent = null;
+       parent = null,
+       classDefault = null;
 
   final String name;
 
   /// The class this one extends: a LabVIEW class object's parent class, whose fields the
   /// object carries before its own; null for every other declaration.
   final LvTypeDecl? parent;
+
+  /// For a LabVIEW class object, what its private data control saves as the default of [fields];
+  /// null for every other declaration.
+  final LvClassDefault? classDefault;
+
+  bool get isClassObject => classDefault != null;
 
   /// This declaration and its ancestors, root first.
   List<LvTypeDecl> get lineage => [...?parent?.lineage, this];
@@ -600,6 +610,49 @@ ViType? lvThroughTypedefs(ViType? type) {
 
 const int kLvTypedefDepth = 8;
 
+/// The default of a class's own private data: the literal of each member, read from the default
+/// the private data control saves; [members] null when the control saves none, so each member
+/// holds its type's default; [why] set when the saved default does not decode.
+class LvClassDefault {
+  const LvClassDefault({this.members, this.why});
+
+  /// The root `LabVIEW Object`, which holds no data.
+  static const LvClassDefault empty = LvClassDefault(members: []);
+
+  final List<String>? members;
+
+  final String? why;
+}
+
+/// The default a class's private data control saves for the private data typedef [own]: the
+/// data object typed by it on the control's front panel.
+LvClassDefault _classDefaultOf(
+  ViModel privateData,
+  ViTypedefType own,
+  List<LvDeclField> fields,
+  LvDeclarations declarations,
+) {
+  final pool = privateData.types;
+  final shape = lvClusterShape(own.base, pool);
+  final typed = [
+    for (final panel in privateData.frontPanels)
+      for (final object in panel.objects)
+        if (object.dataObject != null)
+          if (object.resolvedType?.type case final type?
+              when identical(type, own) || (type.kind == ViDataType.cluster && lvClusterShape(type, pool) == shape))
+            object.dataObject!,
+  ];
+  if (typed.length != 1) {
+    return LvClassDefault(
+      why: '${typed.length} data objects on the private data control are typed by its private data cluster',
+    );
+  }
+  final saved = typed.single.defaultData;
+  if (saved == null) return const LvClassDefault();
+  final members = lvFlatClusterMembers(saved, own.base, pool, fields, declarations);
+  return members.literals == null ? LvClassDefault(why: members.why) : LvClassDefault(members: members.literals);
+}
+
 /// The file name of a class's private data control: `X.ctl` for `X.lvclass`.
 String lvPrivateDataControlName(String classFile) => classFile.replaceAll(RegExp(r'\.lvclass$'), '.ctl');
 
@@ -615,8 +668,13 @@ LvTypeMapping lvClassObjectType(List<String> qualifiedName, LvClassIndex? classe
       declarations.allocate(
         'LabViewObject',
         signature,
-        (name) =>
-            LvTypeDecl.cluster(name: name, label: qualifiedName.single, fields: const [], qualifiedName: qualifiedName),
+        (name) => LvTypeDecl.cluster(
+          name: name,
+          label: qualifiedName.single,
+          fields: const [],
+          qualifiedName: qualifiedName,
+          classDefault: LvClassDefault.empty,
+        ),
       ),
     );
   }
@@ -624,7 +682,11 @@ LvTypeMapping lvClassObjectType(List<String> qualifiedName, LvClassIndex? classe
   if (data == null) {
     return LvTypeMapping.unmapped('the class ${qualifiedName.join(':')} was not supplied to the lowering');
   }
-  final parent = lvClassObjectType(data.parent.isEmpty ? kLvRootClassName : data.parent, classes, declarations);
+  final parentName = data.parent;
+  if (parentName == null) {
+    return LvTypeMapping.unmapped('the parent class link of ${qualifiedName.join(':')} does not decode');
+  }
+  final parent = lvClassObjectType(parentName.isEmpty ? kLvRootClassName : parentName, classes, declarations);
   final parentDecl = parent.declarations.singleOrNull;
   if (parentDecl == null || !parent.isMapped) {
     return LvTypeMapping.unmapped(
@@ -633,6 +695,22 @@ LvTypeMapping lvClassObjectType(List<String> qualifiedName, LvClassIndex? classe
     );
   }
   final classFile = qualifiedName.last;
+  if (data.isInterface) {
+    return LvTypeMapping.nominal(
+      declarations.allocate(
+        stem.isEmpty ? 'LvClass' : stem,
+        signature,
+        (name) => LvTypeDecl.cluster(
+          name: name,
+          label: classFile,
+          fields: const [],
+          qualifiedName: qualifiedName,
+          parent: parentDecl,
+          classDefault: LvClassDefault.empty,
+        ),
+      ),
+    );
+  }
   final controlName = lvPrivateDataControlName(classFile);
   final privateData = data.privateData;
   ViTypedefType? own;
@@ -663,6 +741,7 @@ LvTypeMapping lvClassObjectType(List<String> qualifiedName, LvClassIndex? classe
         fields: fields,
         qualifiedName: qualifiedName,
         parent: parentDecl,
+        classDefault: _classDefaultOf(privateData, own, fields, declarations),
       ),
     ),
   );

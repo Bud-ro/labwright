@@ -2,12 +2,22 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 /// One terminal of a primitive in the order its node's terminal holders are stored.
 class LvPrimTerminalSpec {
-  const LvPrimTerminalSpec.input(this.name, {this.defaultText, this.labels = const {}, this.isError = false})
-    : isInput = true;
+  const LvPrimTerminalSpec.input(
+    this.name, {
+    this.defaultText,
+    this.labels = const {},
+    this.isError = false,
+    this.typeOnly = false,
+  }) : isInput = true;
 
   const LvPrimTerminalSpec.output(this.name, {this.labels = const {}, this.isError = false})
     : isInput = false,
-      defaultText = null;
+      defaultText = null,
+      typeOnly = false;
+
+  /// Whether the input is read for its wire's type alone, as a data-type terminal is, so the
+  /// value wired to it is never computed.
+  final bool typeOnly;
 
   /// The reference's name for the terminal.
   final String name;
@@ -81,6 +91,19 @@ const LvPrimTerminalSpec _errorOut = LvPrimTerminalSpec.output(
   labels: {kLvErrorOutLabel},
   isError: true,
 );
+
+/// An input read for its type alone, [LvPrimTerminalSpec.typeOnly].
+LvPrimTerminalSpec _type(String name, {String? defaultText}) =>
+    LvPrimTerminalSpec.input(name, defaultText: defaultText, typeOnly: true);
+
+/// Whether [port], one of a [op] node's terminal holders [ports] in heap child order, is read for
+/// its type alone.
+bool lvPrimPortIsTypeOnly(PrimOp? op, List<int> ports, int port) {
+  if (op == null) return false;
+  final signature = LvPrimSignature.of(op, ports.length);
+  final index = ports.indexOf(port);
+  return signature != null && index >= 0 && signature.terminals[index].typeOnly;
+}
 
 LvPrimTerminalSpec _in(String name, {String? defaultText, String? label, Set<String> labels = const {}}) =>
     LvPrimTerminalSpec.input(name, defaultText: defaultText, labels: label == null ? labels : {label});
@@ -171,7 +194,7 @@ final List<LvPrimSignature> _kSignatures = [
     _errorOut,
     _out('value'),
     _out('rest of the binary string'),
-    _in('type'),
+    _type('type'),
     _errorIn,
     _in('byte order', defaultText: '0'),
     _in(
@@ -181,7 +204,7 @@ final List<LvPrimSignature> _kSignatures = [
     ),
     _in('binary string'),
   ]),
-  LvPrimSignature(PrimOp.typeCast, [_in('x'), _in('type'), _out('*(type *) &x')]),
+  LvPrimSignature(PrimOp.typeCast, [_in('x'), _type('type'), _out('*(type *) &x')]),
   LvPrimSignature(PrimOp.booleanToZeroOne, _unary('0, 1', 'Boolean')),
   LvPrimSignature(PrimOp.arrayToCluster, _unary('cluster', 'array')),
   LvPrimSignature(PrimOp.clusterToArray, _unary('array', 'cluster')),
@@ -464,7 +487,7 @@ final List<LvPrimSignature> _kSignatures = [
     _in('tdms file', label: 'tdms file'),
   ]),
   LvPrimSignature(PrimOp.createUserEvent, [
-    _in('user event data type'),
+    _type('user event data type'),
     _errorIn,
     _out('user event out'),
     _errorOut,
@@ -511,7 +534,7 @@ final List<LvPrimSignature> _kSignatures = [
     _in('fixed-point type', label: 'fixed-point type'),
     _out('fixed-point'),
   ]),
-  LvPrimSignature(PrimOp.variantToData, [_errorIn, _errorOut, _in('variant'), _in('type'), _out('data')]),
+  LvPrimSignature(PrimOp.variantToData, [_errorIn, _errorOut, _in('variant'), _type('type'), _out('data')]),
   LvPrimSignature(PrimOp.openViReference, [
     _errorOut,
     _out('vi reference'),
@@ -716,7 +739,7 @@ final List<LvPrimSignature> _kSignatures = [
     _out('folder names', label: 'folder names'),
     _out('filenames', labels: {'file names', 'filenames'}),
     _out('path out', labels: {'path out', 'dup path'}),
-    _in('datalog type', defaultText: 'null'),
+    _type('datalog type', defaultText: 'null'),
     _in('pattern', defaultText: "''"),
     _errorIn,
     _in('path', label: 'path'),
@@ -784,7 +807,7 @@ final List<LvPrimSignature> _kSignatures = [
   ]),
   LvPrimSignature(PrimOp.obtainQueue, [
     _in('name', defaultText: "''"),
-    _in('element data type'),
+    _type('element data type'),
     _in('create if not found?', defaultText: 'true', label: 'create if not found? (T)'),
     _errorIn,
     _in('max queue size', defaultText: '-1'),

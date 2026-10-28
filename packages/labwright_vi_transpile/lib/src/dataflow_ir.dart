@@ -690,9 +690,15 @@ class _Builder {
     if (unit == null || resolve == null || name == null) return null;
     final lower = name.toLowerCase();
     if (!lower.endsWith('.vi') && !lower.endsWith('.vim')) return null;
-    final link = unit.linkTo(name);
+    var link = unit.linkOfNode(node);
     if (link == null && unit.links.any((l) => l.qualifiedName.lastOrNull?.toLowerCase() == lower)) return null;
-    return resolve!(LvCallee(caller: unit, fileName: name, link: link));
+    if (link?.kind == kLvDynamicDispatchLinkKind) {
+      link = classes == null ? null : lvDispatchLink(link!, classes!);
+      if (link == null) return null;
+    }
+    final callee = resolve!(LvCallee(caller: unit, fileName: name, link: link));
+    if (callee == null || node.kind != kLvPolymorphicCallNodeCode) return callee;
+    return lvPolymorphicInstance(diagram, node, callee, resolve!, pool: pool).instance;
   });
 
   /// The number of connector-pane terminals each sub-VI call node draws, by node oid.
@@ -819,6 +825,7 @@ class _Builder {
 
   LvWireType _wireType(ViWire wire, ViSignalType signal) {
     final direct = mapLvWireType(signal);
+    if (kLvWireRefnumCodes.contains(signal.typeCode)) return _refnumWireType(wire, signal, direct);
     if (direct.isMapped) {
       if (direct.numeric case final kind? when !kind.isFloat) {
         if (_enumWireType(wire, signal, direct) case final enumeration?) return enumeration;
@@ -827,7 +834,6 @@ class _Builder {
       return direct;
     }
     final code = signal.typeCode;
-    if (kLvWireRefnumCodes.contains(code)) return _refnumWireType(wire, signal, direct);
     final array = (signal.arrayDims ?? 0) > 0;
     if (code == kLvUntypedSignalCode) {
       final reading = lvScalarOfEndpoints(diagram, wire, pool);

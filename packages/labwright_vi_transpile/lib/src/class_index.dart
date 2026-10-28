@@ -1,15 +1,26 @@
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
+import 'type_map.dart';
+
 /// What a class file states about a LabVIEW class.
 class LvClassData {
-  const LvClassData({required this.privateData, required this.parent, required this.members});
+  const LvClassData({
+    required this.privateData,
+    required this.parent,
+    required this.members,
+    this.isInterface = false,
+  });
+
+  /// Whether the class is an interface, which holds no private data.
+  final bool isInterface;
 
   /// The private data control, as [buildViModel] reads it; null when the file carries none.
   final ViModel? privateData;
 
-  /// The parent class's library-qualified name; empty for a class that descends from the root
-  /// `LabVIEW Object`.
-  final List<String> parent;
+  /// The parent class's library-qualified name, [LvLibraryFile.parentClass]; empty for a class
+  /// that descends from the root `LabVIEW Object`, null when the file's parent link does not
+  /// decode.
+  final List<String>? parent;
 
   /// The file names of the class's own member VIs, lower-cased.
   final Set<String> members;
@@ -24,9 +35,6 @@ abstract class LvClassIndex {
   Iterable<List<String>> childrenOf(List<String> qualifiedName);
 }
 
-/// The item type a class file gives the item naming its parent class, `Lib.lvlib:Parent.lvclass`.
-const String kLvParentClassItemType = 'Parent';
-
 /// The classes of an [LvProjectIndex], read from their class files on demand.
 class LvProjectClassIndex implements LvClassIndex {
   LvProjectClassIndex(this.index) {
@@ -35,10 +43,8 @@ class LvProjectClassIndex implements LvClassIndex {
       final own = index.qualifiedNameOf(path);
       if (own == null) continue;
       _pathOf[own.join(':')] = path;
-      for (final item in library.items) {
-        if (item.type == kLvParentClassItemType) {
-          (_children[item.name.toLowerCase()] ??= []).add(own);
-        }
+      if (library.parentClass case final parent? when parent.isNotEmpty) {
+        (_children[parent.join(':').toLowerCase()] ??= []).add(own);
       }
     }
   }
@@ -67,10 +73,8 @@ class LvProjectClassIndex implements LvClassIndex {
     }
     return LvClassData(
       privateData: privateData,
-      parent: switch (library.items.where((item) => item.type == kLvParentClassItemType).firstOrNull) {
-        final parent? => parent.name.split(':'),
-        null => const [],
-      },
+      parent: library.parentClass,
+      isInterface: library.isInterface,
       members: {
         for (final item in library.items)
           if (!item.isFolder && item.type == 'VI') item.name.toLowerCase(),
@@ -85,6 +89,7 @@ class LvProjectClassIndex implements LvClassIndex {
 
 /// Whether [qualifiedName] names [ancestor] or a class descending from it, through [classes].
 bool lvClassDescendsFrom(List<String> qualifiedName, List<String> ancestor, LvClassIndex? classes) {
+  if (ancestor.join(':') == kLvRootClassName.join(':')) return true;
   var at = qualifiedName;
   for (var depth = 0; depth < kLvClassDepth; depth++) {
     if (at.join(':') == ancestor.join(':')) return true;
@@ -95,11 +100,38 @@ bool lvClassDescendsFrom(List<String> qualifiedName, List<String> ancestor, LvCl
   return false;
 }
 
+/// The class whose member a dynamic-dispatch call to [member] on an object of [owner] reaches
+/// when no descendant overrides it: [owner] or its nearest ancestor that defines [member]; null
+/// when none [classes] holds does.
+List<String>? lvDispatchDefiner(List<String> owner, String member, LvClassIndex classes) {
+  final lower = member.toLowerCase();
+  List<String>? at = owner;
+  for (var depth = 0; at != null && at.isNotEmpty && depth < kLvClassDepth; depth++) {
+    final data = classes.classOf(at);
+    if (data == null) return null;
+    if (data.members.contains(lower)) return at;
+    at = data.parent;
+  }
+  return null;
+}
+
+/// The link a dynamic-dispatch call through [link] reaches statically: the member of the class
+/// [lvDispatchDefiner] finds, its path record dropped so it resolves by qualified name.
+ViLinkEntryFramed? lvDispatchLink(ViLinkEntryFramed link, LvClassIndex classes) {
+  if (link.qualifiedName.length < 2) return null;
+  final member = link.qualifiedName.last;
+  final owner = link.qualifiedName.sublist(0, link.qualifiedName.length - 1);
+  final definer = lvDispatchDefiner(owner, member, classes);
+  if (definer == null) return null;
+  if (definer.join(':') == owner.join(':')) return link;
+  return ViLinkEntryFramed(link.offset, link.end, link.kind, qualifiedName: [...definer, member]);
+}
+
 /// The deepest class hierarchy walked.
 const int kLvClassDepth = 32;
 
-/// The classes under [root] descending from [qualifiedName] that define a member named
-/// [member], nearest first.
+/// The classes descending from [qualifiedName] that define a member named [member]: the
+/// overrides a dynamic-dispatch call to that member may reach.
 List<List<String>> lvOverridersOf(List<String> qualifiedName, String member, LvClassIndex classes) {
   final lower = member.toLowerCase();
   final found = <List<String>>[];
