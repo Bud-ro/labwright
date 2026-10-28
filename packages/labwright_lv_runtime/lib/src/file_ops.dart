@@ -189,12 +189,14 @@ LvOpenFile? _openFile(LvRefnum refnum) => lvReferenceTarget<LvOpenFile>(refnum);
 
 /// Read from Text File: [count] characters from the current position, or the rest of the file
 /// when the count is below zero; with [lines] the count is in lines (each with its line ending
-/// trimmed and returned as one string joined by line feeds). A path opens, reads and closes;
-/// a refnum stays open and is returned.
+/// trimmed and returned as one string joined by line feeds), and with [convertEol] every line
+/// ending becomes a line feed. A path opens, reads and closes; a refnum stays open and is
+/// returned.
 ({LvRefnum refnumOut, String text, bool cancelled, LvError errorOut}) lvReadFromTextFile(
   Object fileOrPath, {
   int count = -1,
   bool lines = false,
+  bool convertEol = false,
   LvError errorIn = LvError.none,
 }) {
   if (errorIn.status) return (refnumOut: LvRefnum.none, text: '', cancelled: false, errorOut: errorIn);
@@ -222,6 +224,7 @@ LvOpenFile? _openFile(LvRefnum refnum) => lvReferenceTarget<LvOpenFile>(refnum);
         error = LvErrorCode.endOfFile.error('Read from Text File');
       }
     }
+    if (convertEol && !lines) text = text.replaceAll('\r\n', '\n').replaceAll('\r', '\n');
     if (resolved.opened) lvCloseFile(resolved.refnum);
     return (
       refnumOut: resolved.opened ? LvRefnum.none : resolved.refnum,
