@@ -1289,7 +1289,10 @@ class _Builder {
   /// border node carries the reference terminal (flag [kInPlaceArrayTerminalFlag], naming the
   /// structure's holder), the element it reads into the frame and an error output into the
   /// frame; the right node carries the element written back, the reference out and the error out,
-  /// each naming the structure's holder, the error terminal also open to the frame.
+  /// each naming the structure's holder, the error terminal (type label
+  /// [kInPlaceErrorTerminalLabel], flagged as the reference is) also open to the frame. The pair
+  /// markers name no node, so the nth read node pairs with the nth write node, whose reference
+  /// holder must follow the read's among the structure's terminals.
   List<LvInPlaceDataValueRefPair> _dataValueRefPairs(
     BdObject structure,
     int frameOid,
@@ -1306,8 +1309,9 @@ class _Builder {
         final record = diagram.childrenOf(holder).firstOrNull;
         if (record == null) continue;
         final outer = record.memberOids.where((member) => byId[member]?.parentOid == structure.oid).firstOrNull;
-        final isReference = ((record.objFlags ?? 0) & kInPlaceIndexTerminalFlag) == kInPlaceArrayTerminalFlag;
         final isError = record.typeName == kInPlaceErrorTerminalLabel;
+        final isReference =
+            !isError && ((record.objFlags ?? 0) & kInPlaceIndexTerminalFlag) == kInPlaceArrayTerminalFlag;
         if (isReference) {
           if (outer == null) {
             lvRefuse(
@@ -1372,6 +1376,21 @@ class _Builder {
         'an In Place Element structure draws ${lefts.length} Data Value Reference read nodes and ${rights.length} write nodes',
         oid: structure.oid,
       );
+    }
+    final holders = [
+      for (final holder in diagram.childrenOf(structure))
+        if (holder.objectClass == BdObjectClass.terminalHolder) holder.oid,
+    ];
+    for (var i = 0; i < lefts.length; i++) {
+      final reference = rights[i].reference;
+      if (reference == null || holders.indexOf(reference) != holders.indexOf(lefts[i].reference) + 1) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a Data Value Reference read node and the write node drawn in the same place do not hold adjacent '
+          'structure terminals, so which write belongs to which read is not decided',
+          oid: structure.oid,
+        );
+      }
     }
     return [
       for (var i = 0; i < lefts.length; i++)

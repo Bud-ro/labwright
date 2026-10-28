@@ -503,8 +503,14 @@ terminal is an output into the frame, and the error terminal (type label
 `error IO`) is an output into the frame too; on the right node the element is
 an input, and the reference and error terminals carry `0x800001` and name the
 structure's output holders while the error terminal stays open to the frame.
-All 609 single- and multi-pair structures in the corpus draw that shape, with
-no error-in holder on the structure. The lowering reads the reference's value
+The right node's error terminal carries the same `0x800001` flags as its
+reference terminal and is told apart by its label. All 609 single- and
+multi-pair structures in the corpus draw that shape, with no error-in holder on
+the structure. The `0x154` markers name no node, so the nth read node pairs
+with the nth write node; on all 609 the write's reference holder is the one
+immediately after the read's among the structure's terminals, and its element
+label is the read's, and the lowering refuses a pair where the holders are not
+adjacent. The lowering reads the reference's value
 through `LvDataValueReference.read` before the frame, offering the frame the
 element and the read's error, and writes the frame's element back through
 `.write` after it, with the frame's error or the read's as the write's error
@@ -548,7 +554,10 @@ String To Number's `13ax` / `-4.8bcde` / `a49b` table and saturation, Strip Path
 on an empty or invalid path, Search/Split String at an empty search string,
 Search and Replace String replacing one or all with an empty search string
 inserting between characters, Spreadsheet String To Array by `%s` / `%d` / `%f`
-with one or several delimiters, Format Date/Time String's codes, Sort 1D Array
+with one or several delimiters (a spreadsheet function whose format string is
+unwired refuses: its default is not stated, though every corpus node wires
+one), Array To Spreadsheet String spelling each element as Format Into String
+spells it, Format Date/Time String's codes, Sort 1D Array
 and Array Max & Min by the comparison rules, Delete From Array / Array Subset /
 Insert Into Array / Split 1D Array cut at the array's ends, and the file
 functions over a scratch directory. A conversion or option a node selects
@@ -570,6 +579,12 @@ decoded fact it lacks:
 - **Search/Split String with bit `0x1000000`** (41 of 88): the function has two
   options, Regular Expression and Match Single Character, and which the bit
   selects is not decoded; the 47 plain nodes lower.
+
+A float function (Square Root, Sine, Cosine, Logarithm Base 10, Power Of 10)
+wired to an integer output refuses: the coercion LabVIEW applies there is not
+decoded, and no corpus node draws one. To Variant records a number's
+representation on the variant, which is what Variant To Flattened String
+flattens it at.
 
 Complex To Polar, Re/Im To Complex and Integer To Fixed-Point Cast refuse on
 their wire types, which have no Dart carrier; Flattened String To Variant
@@ -719,14 +734,14 @@ not supplied (2), unresolved wire direction (2), and one each on a structure, a
 foreign call and a tunnel's indexing.
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 892 lower
-and the rest refuse, 4,861 of them on a wire type — overwhelmingly a cluster
+and the rest refuse, 4,864 of them on a wire type — overwhelmingly a cluster
 wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 478 on a primitive, 288 on
-a subVI call, 278 on a structure, 234 on a constant's value, 192 on an unwired
-terminal (a call that leaves a callee's control unwired is among them: the
-default saved with the control is not read from the data space), 110 on a
-foreign call, 33 on a case selector, 14 on an unbound value, 7 on a tunnel's
-indexing, 5 on a wire's direction, 2 on a tunnel coercion.
+rest are pinned per kind in `kCorpusLoweringSweep`: 484 on a primitive, 340 on
+a subVI call, 283 on an unwired terminal (a call that leaves a callee's control
+unwired is among them: the default saved with the control is not read from the
+data space), 247 on a constant's value, 113 on a structure, 110 on a foreign
+call, 33 on a case selector, 14 on an unbound value, 7 on a tunnel's indexing,
+5 on a wire's direction, 2 on a tunnel coercion.
 
 A diagram constant lowers from the flat value saved with it: a scalar, a
 numeric array, or a string array (u32 dimension sizes, then each string as a
