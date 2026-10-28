@@ -13,7 +13,7 @@ import 'snippets.dart';
 
 const Map<String, String> kSnippetLoweringOutcomes = {
   'ClassChildren': 'wireType',
-  'ClassesInMemory': 'referenceNode',
+  'ClassesInMemory': 'lowered',
   'Config_Dump': 'tunnelIndexing',
   'Config_Dump2': 'constantValue',
   'Config_Escape': 'primitive',
@@ -24,7 +24,7 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'Excel_Read_XLSX': 'constantValue',
   'Excel_Variant_Elements': 'subViCall',
   'Export Palette Image WMF': 'wireType',
-  'FileReadOnly': 'primitive',
+  'FileReadOnly': 'lowered',
   'GenerateTree': 'wireType',
   'GetCurrentDirectory': 'foreignCall',
   'IconHeader': 'wireType',
@@ -32,17 +32,17 @@ const Map<String, String> kSnippetLoweringOutcomes = {
   'PNG CRC32': 'lowered',
   'Page1': 'structure',
   'Pages': 'wireType',
-  'ProjectItems': 'primitive',
+  'ProjectItems': 'referenceNode',
   'Read Library Version': 'primitive',
   'Read VI Blocks': 'primitive',
-  'Resolve Library Path': 'referenceNode',
-  'Resolve Path': 'primitive',
+  'Resolve Library Path': 'lowered',
+  'Resolve Path': 'lowered',
   'ReverseBitsVim': 'lowered',
   'Symbols1Bit': 'constantValue',
   'Tokenize URL': 'primitive',
   'VI Tree': 'lowered',
-  'VISA_InterfaceType': 'referenceNode',
-  'VISA_Open2': 'referenceNode',
+  'VISA_InterfaceType': 'primitive',
+  'VISA_Open2': 'primitive',
   'VISA_Query': 'primitive',
   'WriteConsole': 'foreignCall',
   'basic': 'lowered',
@@ -66,10 +66,19 @@ const Set<int> kLvInPlaceElementBorderClasses = {kLvDataValueRefBorderClass, 0x1
 
 const int kLvDataValueRefBorderClass = 0x153;
 
+/// Nodes the IR lowers as part of a structure or as a feedback unit, which no primitive rule
+/// names: In Place Element border nodes and the two objects of a Feedback Node.
+const Set<int> kLvStructureOwnedNodeKinds = {
+  kInPlaceBorderNodeKind,
+  kInPlaceClusterNodeKind,
+  kInPlaceDataValueRefNodeKind,
+  kFeedbackNodeKind,
+  kFeedbackInputKind,
+};
+
 const Map<String, int> kCorpusInPlaceElement = {
-  'ipe.blocked': 408,
-  'ipe.blocked.identifiedOnly': 358,
-  'ipe.blocked.undecodedAccess': 50,
+  'ipe.blocked': 10,
+  'ipe.blocked.undecodedAccess': 10,
   'ipe.border.0x14f': 164,
   'ipe.border.0x150': 428,
   'ipe.border.0x152': 98,
@@ -79,13 +88,10 @@ const Map<String, int> kCorpusInPlaceElement = {
 };
 
 const Map<String, int> kSnippetPrimReviewList = {
-  'node class 0x150': 12,
   'primResID 1171 (name not decoded)': 11,
   'node class 0x105': 16,
   'node class 0x6a': 12,
   'Scan Value (primResID 1534)': 11,
-  'node class 0xa9': 15,
-  'Read From Binary File (primResID 8051)': 11,
 };
 
 const Map<String, int> kMd5Blockers = <String, int>{};
@@ -100,13 +106,13 @@ const ({int signals, int resolved, int disagreeing, int unresolved}) kSnippetClu
 const Map<String, String> kSnippetThreadedDifferences = <String, String>{};
 
 const Map<String, int> kCorpusLoweringSweep = {
-  'call': 19510,
+  'call': 17227,
   'call.ambiguousLink': 39,
   'call.calleeMissing': 5377,
   'call.noPane': 530,
   'call.paneMatched': 10481,
   'call.paneWidthMismatch': 377,
-  'call.unnamed': 2311,
+  'call.unnamed': 28,
   'call.via.link': 8455,
   'call.via.name': 2933,
   'call.via.vilib': 395,
@@ -186,20 +192,20 @@ const Map<String, int> kCorpusLoweringSweep = {
   'decl.suffixed': 571,
   'decl.unnamedMember': 65,
   'decl.vi': 3240,
-  'exceptions.caseSelector': 52,
-  'exceptions.constantValue': 699,
+  'exceptions.caseSelector': 63,
+  'exceptions.constantValue': 802,
   'exceptions.foreignCall': 386,
-  'exceptions.lowered': 1056,
-  'exceptions.primitive': 1032,
-  'exceptions.referenceNode': 285,
-  'exceptions.structure': 968,
-  'exceptions.subViCall': 945,
+  'exceptions.lowered': 1026,
+  'exceptions.primitive': 778,
+  'exceptions.referenceNode': 132,
+  'exceptions.structure': 1058,
+  'exceptions.subViCall': 760,
   'exceptions.tunnelCoercion': 4,
-  'exceptions.tunnelIndexing': 7,
-  'exceptions.unboundValue': 35,
-  'exceptions.unwiredTerminal': 143,
+  'exceptions.tunnelIndexing': 8,
+  'exceptions.unboundValue': 61,
+  'exceptions.unwiredTerminal': 512,
   'exceptions.wireDirection': 22,
-  'exceptions.wireType': 1760,
+  'exceptions.wireType': 1782,
   'flag0.array': 24551,
   'flag0.scalar': 150331,
   'flag12.array': 931,
@@ -218,8 +224,8 @@ const Map<String, int> kCorpusLoweringSweep = {
   'idx.irregular': 1,
   'idx.rank1Index': 2264,
   'idx.regular': 3475,
-  'modes.differ': 469,
-  'modes.same': 587,
+  'modes.differ': 504,
+  'modes.same': 521,
   'pane.0x103.differs': 129,
   'pane.0x103.equal': 15,
   'pane.0x104.differs': 297,
@@ -303,20 +309,20 @@ const Map<String, int> kCorpusLoweringSweep = {
   'term.typeDisagree': 1516,
   'term.unresolved': 337,
   'term.wired': 39118,
-  'threaded.caseSelector': 52,
-  'threaded.constantValue': 691,
+  'threaded.caseSelector': 62,
+  'threaded.constantValue': 792,
   'threaded.foreignCall': 386,
-  'threaded.lowered': 1056,
-  'threaded.primitive': 1005,
-  'threaded.referenceNode': 283,
-  'threaded.structure': 964,
-  'threaded.subViCall': 988,
+  'threaded.lowered': 1025,
+  'threaded.primitive': 755,
+  'threaded.referenceNode': 128,
+  'threaded.structure': 1049,
+  'threaded.subViCall': 741,
   'threaded.tunnelCoercion': 4,
-  'threaded.tunnelIndexing': 7,
-  'threaded.unboundValue': 35,
-  'threaded.unwiredTerminal': 143,
+  'threaded.tunnelIndexing': 8,
+  'threaded.unboundValue': 60,
+  'threaded.unwiredTerminal': 582,
   'threaded.wireDirection': 22,
-  'threaded.wireType': 1758,
+  'threaded.wireType': 1780,
   'vi': 7394,
   'wt.cause.member.0x33': 23,
   'wt.cause.member.0x37': 6,
@@ -350,41 +356,20 @@ const Map<String, int> kCorpusLoweringSweep = {
 };
 
 const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
-  'node class 0x34': (vis: 823, nodes: 1746, sole: 98),
-  'Close Reference (primResID 8011)': (vis: 780, nodes: 3083, sole: 49),
-  'node class 0xa9': (vis: 697, nodes: 2673, sole: 70),
-  'node class 0x153': (vis: 534, nodes: 1424, sole: 327),
-  'node class 0xd6': (vis: 415, nodes: 2657, sole: 29),
-  'To More Specific Class (primResID 8016)': (vis: 364, nodes: 859, sole: 68),
-  'Strip Path (primResID 1420)': (vis: 360, nodes: 841, sole: 16),
-  'node class 0xbd': (vis: 318, nodes: 628, sole: 22),
-  'node class 0xb6': (vis: 316, nodes: 760, sole: 19),
-  'Variant To Data (primResID 8003)': (vis: 272, nodes: 530, sole: 26),
-  'Open VI Reference (primResID 8010)': (vis: 253, nodes: 449, sole: 8),
-  'node class 0x14a': (vis: 225, nodes: 385, sole: 0),
-  'node class 0x170': (vis: 225, nodes: 385, sole: 0),
-  'node class 0xeb': (vis: 206, nodes: 234, sole: 8),
-  'Unregister For Events (primResID 2076)': (vis: 188, nodes: 210, sole: 0),
-  'Call Chain (primResID 1999)': (vis: 166, nodes: 167, sole: 77),
-  'node class 0x150': (vis: 164, nodes: 428, sole: 29),
-  'Search and Replace String (primResID 3914)': (vis: 156, nodes: 263, sole: 18),
-  'Enqueue Element (primResID 9111)': (vis: 153, nodes: 319, sole: 6),
-  'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 32),
-  'Greater Or Equal? (primResID 1103)': (vis: 152, nodes: 213, sole: 18),
-  'Boolean To (0,1) (primResID 1167)': (vis: 151, nodes: 555, sole: 33),
+  'node class 0xd6': (vis: 415, nodes: 2657, sole: 292),
 };
 
 const ({int libraries, int entryPoints}) kCorpusForeignCalls = (libraries: 51, entryPoints: 481);
 
 const int kCorpusReviewListFloor = 150;
 
-const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 244, nodes: 28853, vis: 13123);
+const ({int identities, int nodes, int vis}) kCorpusPrimTotals = (identities: 118, nodes: 5199, vis: 2040);
 
 const int kReviewListFloor = 10;
 
-const ({int identities, int nodes}) kReviewListTotals = (identities: 82, nodes: 295);
+const ({int identities, int nodes}) kReviewListTotals = (identities: 25, nodes: 99);
 
-const ({int vis, int sources}) kEmittedSources = (vis: 1056, sources: 659);
+const ({int vis, int sources}) kEmittedSources = (vis: 1026, sources: 743);
 
 ({Map<String, int> tally, Set<String> sources, Map<String, int> prims, Set<String> foreign}) sweepLoweringChunk(
   (List<String>, Map<String, String>) input,
@@ -895,8 +880,9 @@ const ({int vis, int sources}) kEmittedSources = (vis: 1056, sources: 659);
     final here = <String, int>{};
     for (final object in diagram.objects) {
       if (object.category != BdObjectKind.node) continue;
-      if (kSubViCallNodeCodes.contains(object.kind)) continue;
+      if (kSubViCallNodeCodes.contains(object.kind) && object.kind != BdObjectClass.propertyNode.code) continue;
       if (object.kind == BdObjectClass.callLibrary.code) continue;
+      if (kLvStructureOwnedNodeKinds.contains(object.kind)) continue;
       final primResId = object.primitive?.primResId;
       final op = primResId == null ? null : PrimOp.fromId(primResId);
       if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
@@ -1228,7 +1214,8 @@ void main() {
     for (final name in snippets) {
       for (final object in snippetDiagram(name).objects) {
         if (object.category != BdObjectKind.node) continue;
-        if (kSubViCallNodeCodes.contains(object.kind)) continue;
+        if (kSubViCallNodeCodes.contains(object.kind) && object.kind != BdObjectClass.propertyNode.code) continue;
+        if (kLvStructureOwnedNodeKinds.contains(object.kind)) continue;
         final primResId = object.primitive?.primResId;
         final op = primResId == null ? null : PrimOp.fromId(primResId);
         if (lvPrimHasRule(op: op, classCode: object.kind, primResId: primResId)) continue;
@@ -1313,6 +1300,9 @@ List<String>? _loweringOf(LvPrimUnit node, LvDataflow flow) {
       inputs: terminals(node.inputPorts, isInput: true),
       outputs: terminals(node.outputPorts, isInput: false),
       outputPorts: node.outputPorts,
+      ports: node.ports,
+      portMemberName: node.portMemberName,
+      portRoleFlags: node.portRoleFlags,
       portDrawnTop: node.portDrawnTop,
       requireImport: (_) {},
       names: LvNaming(),

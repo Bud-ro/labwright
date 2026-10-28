@@ -1,3 +1,6 @@
+import 'dart:typed_data';
+
+import 'flat_ops.dart';
 import 'references.dart';
 import 'values.dart';
 
@@ -96,4 +99,29 @@ int lvCompareStrings(String a, String b) {
     if (difference != 0) return difference;
   }
   return a.length - b.length;
+}
+
+/// Variant To Flattened String's data string: the variant's value in LabVIEW's flat form, a
+/// number or boolean unframed, a string or a 1-D integer list size-prefixed; a value of another
+/// kind is not flattened here and throws.
+String lvFlattenVariantData(LvVariant variant) {
+  final value = variant.value;
+  final Uint8List flat;
+  switch (value) {
+    case bool():
+      flat = lvFlatOfInt(value ? 1 : 0, 8);
+    case int():
+      flat = lvFlatOfInt(value, 64);
+    case double():
+      flat = lvFlatOfFloat(value, 64);
+    case String():
+      flat = lvFlatOfString(value, prependSize: true);
+    case List<int>():
+      flat = lvFlatOfIntList(value, 64, prependSize: true);
+    case _:
+      throw UnsupportedError(
+        'Variant To Flattened String of a ${value.runtimeType}: its flat form is not produced here',
+      );
+  }
+  return lvStringOfFlat(flat);
 }

@@ -24,6 +24,18 @@ abstract final class LvRuntimeType {
   static const String arrayNd = 'LvArrayNd';
 
   static const String anonymousEnum = 'LvEnum';
+
+  static const String queue = 'LvQueue';
+
+  static const String notifier = 'LvNotifier';
+
+  static const String dataValueReference = 'LvDataValueReference';
+
+  static const String userEvent = 'LvUserEvent';
+
+  static const String eventRegistration = 'LvEventRegistration';
+
+  static const String propertyItem = 'LvPropertyItem';
 }
 
 enum LvCarrier {

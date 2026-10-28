@@ -40,12 +40,12 @@ final LvArrayNd<Int32List> _kIndices = LvArrayNd<Int32List>(Int32List.fromList(c
 
 ({String md5MessageDigestHex, String md5MessageDigestAscii}) md5({required String messageString}) {
   final int value = messageString.length;
-  final (_, value2) = lvQuotientRemainder(value, 64);
+  final (_, value2) = lvQuotientRemainderInt(value, 64);
   final int value3 = (value - value2) << 32 >> 32;
   final String text = lvStringSubset(messageString, value3);
   final Uint8List bytes = latin1.encode(text);
   final int value4 = lvToI64(value);
-  final (_, value5) = lvQuotientRemainder(value4, 64);
+  final (_, value5) = lvQuotientRemainderInt(value4, 64);
   final int branch;
   if (value5 >= 56 && value5 <= 63) {
     final int value6 = 120 - value5;
@@ -71,7 +71,7 @@ final LvArrayNd<Int32List> _kIndices = LvArrayNd<Int32List>(Int32List.fromList(c
     final bool flag = i == 0;
     final String text3 = flag ? messageString : text2;
     final int value12 = text3.length;
-    final (value13, _) = lvQuotientRemainder(value12, 64);
+    final (value13, _) = lvQuotientRemainderInt(value12, 64);
     int carried5 = carried;
     int carried6 = carried2;
     int carried7 = carried3;

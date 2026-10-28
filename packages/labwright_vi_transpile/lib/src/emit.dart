@@ -639,10 +639,77 @@ class _FunctionEmitter {
           _emitConstant(unit);
         case LvPrimUnit():
           _emitPrimitive(unit);
+        case LvFeedbackUnit():
+          _emitFeedbackRead(unit);
         case LvSubViUnit():
           _emitSubVi(unit);
         case LvStructUnit():
           _emitStructure(unit);
+      }
+    }
+    for (final unit in region.units) {
+      if (unit is LvFeedbackUnit && live.contains(unit.oid)) _emitFeedbackWrite(unit);
+    }
+  }
+
+  /// The loop-carried local of each Feedback Node, declared before its enclosing loop.
+  final Map<int, String> _feedbackLocals = {};
+
+  void _emitFeedbackRead(LvFeedbackUnit unit) {
+    final local = _feedbackLocals[unit.oid];
+    if (local == null) {
+      lvRefuse(
+        LvRefusalKind.structure,
+        'a Feedback Node outside any loop keeps its value from the previous call, which the lowering does not model',
+        oid: unit.oid,
+      );
+    }
+    final type = _typeAt(unit.outputPort);
+    if (type == null) return;
+    final edge = flow.into(unit.initializerPort);
+    if (edge == null) {
+      lvRefuse(
+        LvRefusalKind.unwiredTerminal,
+        'a Feedback Node with no initializer wired takes a first value the file does not state',
+        oid: unit.oid,
+      );
+    }
+    final initial = _coerced(_bound(edge.source, unit.oid), edge.type, type);
+    if (initial == null) {
+      lvRefuse(
+        LvRefusalKind.tunnelCoercion,
+        'a Feedback Node is initialised from a ${edge.type.dartType} wire but carries ${type.dartType}',
+        oid: unit.oid,
+      );
+    }
+    final name = names.wire(type, decoded: unit.label);
+    library.noteImportsFor(type);
+    body.writeln('final ${type.dartType} $name = $local ?? $initial;');
+    valueOf[unit.outputPort] = name;
+  }
+
+  void _emitFeedbackWrite(LvFeedbackUnit unit) {
+    final local = _feedbackLocals[unit.oid];
+    final edge = flow.into(unit.feedbackPort);
+    if (local == null || edge == null) {
+      lvRefuse(
+        LvRefusalKind.unwiredTerminal,
+        'a Feedback Node receives no value for the next iteration',
+        oid: unit.oid,
+      );
+    }
+    body.writeln('$local = ${_bound(edge.source, unit.oid)};');
+  }
+
+  /// The Feedback Nodes a loop carries: every one in its frame and the frames nested in it short
+  /// of another loop.
+  static Iterable<LvFeedbackUnit> _feedbackUnitsOf(LvRegion region) sync* {
+    for (final unit in region.units) {
+      if (unit is LvFeedbackUnit) yield unit;
+      if (unit is LvStructUnit && unit.kind != LvStructureKind.forLoop && unit.kind != LvStructureKind.whileLoop) {
+        for (final frame in unit.frames) {
+          yield* _feedbackUnitsOf(frame);
+        }
       }
     }
   }
@@ -650,6 +717,12 @@ class _FunctionEmitter {
   Set<int> _liveUnits(LvRegion region, Set<int> exitPorts, Map<int, LvUnit> byOid) {
     final live = <int>{};
     final pending = <int>[...exitPorts];
+    for (final unit in region.units) {
+      if (!_effectful.contains(unit.oid)) continue;
+      live.add(unit.oid);
+      pending.addAll(unit.inputPorts);
+      if (unit is LvFeedbackUnit) pending.add(unit.feedbackPort);
+    }
     while (pending.isNotEmpty) {
       final port = pending.removeLast();
       final edge = flow.into(port);
@@ -658,8 +731,36 @@ class _FunctionEmitter {
       final unit = owner == null ? null : byOid[owner];
       if (unit == null || !live.add(owner!)) continue;
       pending.addAll(unit.inputPorts.where(_readsPort));
+      if (unit is LvFeedbackUnit) pending.add(unit.feedbackPort);
     }
     return live;
+  }
+
+  /// Units that run for their effect whatever reads them, and every structure holding one.
+  late final Set<int> _effectful = _effectfulUnits();
+
+  Set<int> _effectfulUnits() {
+    final effectful = <int>{};
+    bool visit(LvRegion region) {
+      var any = false;
+      for (final unit in region.units) {
+        var runs = false;
+        if (unit is LvPrimUnit && lvPrimHasSideEffect(op: unit.op, classCode: unit.classCode)) runs = true;
+        if (unit is LvStructUnit) {
+          for (final frame in unit.frames) {
+            if (visit(frame)) runs = true;
+          }
+        }
+        if (runs) {
+          effectful.add(unit.oid);
+          any = true;
+        }
+      }
+      return any;
+    }
+
+    visit(flow.root);
+    return effectful;
   }
 
   late final Map<int, LvUnit> _unitByOid = {
@@ -702,6 +803,21 @@ class _FunctionEmitter {
           case _:
         }
       }
+      for (final pair in unit.inPlaceDataValueRefPairs) {
+        pending.addAll([pair.elementIn, pair.writeErrorIn]);
+      }
+    }
+
+    for (final oid in _effectful) {
+      switch (_unitByOid[oid]) {
+        case final LvStructUnit unit:
+          wake(unit);
+        case final LvFeedbackUnit unit:
+          pending.addAll([...unit.inputPorts, unit.feedbackPort]);
+        case final unit?:
+          pending.addAll(unit.inputPorts);
+        case null:
+      }
     }
 
     while (pending.isNotEmpty) {
@@ -736,6 +852,13 @@ class _FunctionEmitter {
           for (final pair in unit.inPlaceClusterPairs) {
             if (pair.clusterOut == edge.source) pending.addAll([for (final member in pair.members) member.elementIn]);
           }
+          for (final pair in unit.inPlaceDataValueRefPairs) {
+            if (pair.referenceOut == edge.source || pair.errorOut == edge.source) {
+              pending.addAll([pair.elementIn, pair.writeErrorIn]);
+            }
+          }
+        case final LvFeedbackUnit unit:
+          pending.addAll([...unit.inputPorts, unit.feedbackPort]);
         case final unit?:
           pending.addAll(unit.inputPorts);
         case null:
@@ -945,6 +1068,8 @@ class _FunctionEmitter {
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
       outputPorts: unit.outputPorts,
+      ports: unit.ports,
+      portMemberName: unit.portMemberName,
       portDrawnTop: unit.portDrawnTop,
       portRoleFlags: unit.portRoleFlags,
       requireImport: library.imports.add,
@@ -1157,22 +1282,28 @@ class _FunctionEmitter {
     }
 
     final arguments = <String>[];
-    final supplied = <int>{};
+    final passed = <String>{};
     for (final holder in unit.inputPorts) {
       final edge = flow.into(holder);
       if (edge == null) continue;
       final pane = unit.paneIndexOf(holder)!;
       final port = portFor(pane, holder, isInput: true);
-      if (port == null) continue;
+      if (port == null) {
+        if (edge.type.isErrorCluster) {
+          final error = _bound(edge.source, unit.oid);
+          body.writeln('if ($error.status) throw $error;');
+        }
+        continue;
+      }
+      passed.add(port.name);
       arguments.add('${port.name}: ${adapted(_bound(edge.source, unit.oid), edge.type, port.type, pane)}');
-      supplied.add(port.terminal);
     }
     for (final parameter in target.parameters) {
-      if (supplied.contains(parameter.terminal)) continue;
+      if (passed.contains(parameter.name)) continue;
       lvRefuse(
-        LvRefusalKind.subViCall,
-        'the call leaves "${callee.fileName}"\'s control ${parameter.name} unwired, so the callee reads '
-        'the value saved with that control, which the lowering does not read',
+        LvRefusalKind.unwiredTerminal,
+        'the call leaves the control "${parameter.name}" of "${callee.fileName}" unwired, and the default '
+        'saved with that control is not read from the data space',
         oid: unit.oid,
       );
     }
@@ -1394,6 +1525,14 @@ class _FunctionEmitter {
     }
 
     final carried = _emitShiftRegisters(unit, frame.frameOid);
+    for (final feedback in _feedbackUnitsOf(frame)) {
+      final type = _typeAt(feedback.outputPort);
+      if (type == null) continue;
+      final local = names.role(LvNameRole.carried);
+      library.noteImportsFor(type);
+      body.writeln('${type.dartType}? $local;');
+      _feedbackLocals[feedback.oid] = local;
+    }
     String? bound;
     if (bounded) {
       final bounds = <String>[
@@ -1488,7 +1627,14 @@ class _FunctionEmitter {
         LvConditionalPolarity.stopIfTrue => test,
         LvConditionalPolarity.continueIfTrue => lvIsAtomic(test) ? '!$test' : '!($test)',
       };
-      body.writeln('if ($stops) break;');
+      switch (stops) {
+        case 'false' || '!true':
+          break;
+        case 'true' || '!false':
+          body.writeln('break;');
+        default:
+          body.writeln('if ($stops) break;');
+      }
     }
     body.writeln('}');
 
@@ -1908,6 +2054,52 @@ class _FunctionEmitter {
   void _emitInPlaceElement(LvStructUnit unit) {
     final frame = unit.frames.single;
     _bindFrameInputs(unit, frame.frameOid, null);
+    final referenceWrites = <({String reference, String readError, LvInPlaceDataValueRefPair pair, LvWireType type})>[];
+    for (final pair in unit.inPlaceDataValueRefPairs) {
+      final reference = _outerValue(unit.terminals.firstWhere((terminal) => terminal.outerPort == pair.referenceIn));
+      if (reference == null) {
+        lvRefuse(
+          LvRefusalKind.unwiredTerminal,
+          'a Data Value Reference border node receives no reference',
+          oid: unit.oid,
+        );
+      }
+      final type = _typeAt(pair.elementOut) ?? _typeAt(pair.elementIn);
+      if (type == null) {
+        lvRefuse(
+          LvRefusalKind.unwiredTerminal,
+          'a Data Value Reference pair neither reads nor writes its element, so the referenced type is not decided',
+          oid: unit.oid,
+        );
+      }
+      final fallback = _defaultValueOf(type);
+      if (fallback == null) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a Data Value Reference to ${type.dartType} has no spelled default for a failed read',
+          oid: unit.oid,
+        );
+      }
+      final held = lvIsAtomic(reference) ? reference : names.wire(_typeAt(pair.referenceIn)!);
+      if (held != reference) body.writeln('final ${LvRuntimeType.refnum} $held = $reference;');
+      library.imports.add(kLvRuntimeImport);
+      library.noteImportsFor(type);
+      final writesBack = flow.into(pair.elementIn) != null, writeErrorWired = flow.into(pair.writeErrorIn) != null;
+      final errorRead =
+          _read.contains(pair.readErrorOut) ||
+          (!writeErrorWired && (writesBack || (pair.errorOut != null && _read.contains(pair.errorOut!))));
+      final element = names.role(LvNameRole.element);
+      final readError = errorRead ? names.role(LvNameRole.value) : '_';
+      final elementRead = _read.contains(pair.elementOut) ? element : '_';
+      body.writeln(
+        'final (value: ${elementRead == '_' ? '' : '${type.dartType} '}$elementRead, '
+        'errorOut: ${readError == '_' ? '' : '${LvRuntimeType.error} '}$readError) = '
+        '${LvRuntimeType.dataValueReference}.read<${type.dartType}>($held, defaultValue: $fallback);',
+      );
+      valueOf[pair.elementOut] = element;
+      valueOf[pair.readErrorOut] = readError;
+      referenceWrites.add((reference: held, readError: readError, pair: pair, type: type));
+    }
     final writes = <({String array, String index, int elementIn, int arrayOut, LvWireType type})>[];
     for (final pair in unit.inPlacePairs) {
       final arrayType = _typeAt(pair.arrayIn);
@@ -2015,6 +2207,36 @@ class _FunctionEmitter {
       clusterWrites.add((cluster: held, type: type, clusterOut: pair.clusterOut, members: members));
     }
     _emitRegion(frame, _frameExits(unit, frame.frameOid));
+    for (final write in referenceWrites) {
+      final pair = write.pair;
+      final written = flow.into(pair.elementIn);
+      final errorIn = flow.into(pair.writeErrorIn);
+      final writesBack = written != null;
+      if (!writesBack && pair.errorOut != null && _read.contains(pair.errorOut!) && errorIn == null) {
+        valueOf[pair.errorOut!] = write.readError;
+      }
+      if (writesBack) {
+        final value = _coerced(_bound(written.source, unit.oid), written.type, write.type);
+        if (value == null) {
+          lvRefuse(
+            LvRefusalKind.tunnelCoercion,
+            'a Data Value Reference pair writes a ${written.type.dartType} wire back into ${write.type.dartType}, '
+            'and the coercion LabVIEW applies at the border is not decoded',
+            oid: unit.oid,
+          );
+        }
+        final error = errorIn == null ? write.readError : _bound(errorIn.source, unit.oid);
+        final name = names.role(LvNameRole.value);
+        body.writeln(
+          'final ${LvRuntimeType.error} $name = '
+          '${LvRuntimeType.dataValueReference}.write<${write.type.dartType}>(${write.reference}, $value, errorIn: $error);',
+        );
+        if (pair.errorOut != null) valueOf[pair.errorOut!] = name;
+      } else if (errorIn != null && pair.errorOut != null) {
+        valueOf[pair.errorOut!] = _bound(errorIn.source, unit.oid);
+      }
+      if (pair.referenceOut != null) valueOf[pair.referenceOut!] = write.reference;
+    }
     for (final write in clusterWrites) {
       if (!_read.contains(write.clusterOut)) continue;
       final shape = _clusterShapeOf(write.type.element)!;

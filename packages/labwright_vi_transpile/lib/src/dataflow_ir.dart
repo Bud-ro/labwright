@@ -36,6 +36,15 @@ const int kInPlaceClusterPairKind = 0x159;
 
 const int kInPlaceClusterNodeKind = 0x150;
 
+/// The marker object an In Place Element structure holds per Data Value Reference Read/Write
+/// Element pair, and the heap kind of that pair's border nodes.
+const int kInPlaceDataValueRefPairKind = 0x154;
+
+const int kInPlaceDataValueRefNodeKind = 0x153;
+
+/// The type label of a Data Value Reference border node's error terminal.
+const String kInPlaceErrorTerminalLabel = 'error IO';
+
 /// Set on the left border node of a pair, which reads the elements; clear on the right, which
 /// writes them back.
 const int kInPlaceLeftNodeFlag = 0x10000;
@@ -229,6 +238,7 @@ class LvPrimUnit extends LvUnit {
     required this.label,
     required this.inputPorts,
     required this.outputPorts,
+    required this.ports,
     required this.portRoleFlags,
     required this.portDrawnTop,
     required this.nodeFlags,
@@ -253,6 +263,9 @@ class LvPrimUnit extends LvUnit {
   @override
   final List<int> outputPorts;
 
+  /// Every terminal holder in heap child order, the order [LvPrimSignature] indexes.
+  final List<int> ports;
+
   final Map<int, int> portRoleFlags;
 
   final Map<int, int> portDrawnTop;
@@ -272,6 +285,49 @@ String lvForeignCallDetail(BdObject node) {
       '${library == null ? 'a native shared library the node names no path for' : '`$library`'}, '
       'whose behaviour is not in the VI';
 }
+
+/// A Feedback Node inside a loop: its output carries the value its input took on the previous
+/// iteration, and the initializer's value on the first. The node is two heap objects: the
+/// [kFeedbackNodeKind] object draws the output and the initializer terminal, and the
+/// [kFeedbackInputKind] object, whose record names both of the first object's records, draws
+/// the input.
+class LvFeedbackUnit extends LvUnit {
+  const LvFeedbackUnit({
+    required this.oid,
+    required this.outputPort,
+    required this.feedbackPort,
+    required this.initializerPort,
+    required this.label,
+  });
+
+  @override
+  final int oid;
+
+  final int outputPort;
+
+  /// The input whose value the next iteration reads.
+  final int feedbackPort;
+
+  /// The initializer terminal, which may be unwired.
+  final int initializerPort;
+
+  final String? label;
+
+  @override
+  List<int> get inputPorts => [initializerPort];
+
+  @override
+  List<int> get outputPorts => [outputPort];
+}
+
+/// The heap kinds of a Feedback Node's two objects, and the records the first one draws.
+const int kFeedbackNodeKind = 0x14a;
+
+const int kFeedbackInputKind = 0x170;
+
+const int kFeedbackOutputRecordKind = 0x144;
+
+const int kFeedbackInitializerRecordKind = 0x146;
 
 class LvSubViUnit extends LvUnit {
   const LvSubViUnit({
@@ -416,6 +472,35 @@ class LvInPlaceArrayPair {
   final List<({int indexIn, int indexOut, int elementOut, int elementIn})> elements;
 }
 
+/// One Data Value Reference Read/Write Element pair of an In Place Element structure: the
+/// reference holders on each side, the element ports inside the frame, the left node's error
+/// output and the right node's error input inside the frame, and the right node's error output.
+class LvInPlaceDataValueRefPair {
+  const LvInPlaceDataValueRefPair({
+    required this.referenceIn,
+    required this.referenceOut,
+    required this.elementOut,
+    required this.elementIn,
+    required this.readErrorOut,
+    required this.writeErrorIn,
+    required this.errorOut,
+  });
+
+  final int referenceIn;
+
+  final int? referenceOut;
+
+  final int elementOut;
+
+  final int elementIn;
+
+  final int readErrorOut;
+
+  final int writeErrorIn;
+
+  final int? errorOut;
+}
+
 /// One Unbundle/Bundle Cluster Elements pair of an In Place Element structure: the cluster
 /// holders on each side and, per member read, its name and the element ports inside the frame.
 class LvInPlaceClusterPair {
@@ -441,6 +526,7 @@ class LvStructUnit extends LvUnit {
     this.defaultFrame = 0,
     this.inPlacePairs = const <LvInPlaceArrayPair>[],
     this.inPlaceClusterPairs = const <LvInPlaceClusterPair>[],
+    this.inPlaceDataValueRefPairs = const <LvInPlaceDataValueRefPair>[],
   }) : displayedDisable = LvDisableFrame.ofLabel(displayedCase),
        displayedLabel = LvCaseLabel.ofLabel(displayedCase);
 
@@ -470,6 +556,8 @@ class LvStructUnit extends LvUnit {
   final List<LvInPlaceArrayPair> inPlacePairs;
 
   final List<LvInPlaceClusterPair> inPlaceClusterPairs;
+
+  final List<LvInPlaceDataValueRefPair> inPlaceDataValueRefPairs;
 
   @override
   List<int> get inputPorts => [
@@ -946,8 +1034,17 @@ class _Builder {
     for (final child in diagram.children(frameOid)) {
       switch (child.category) {
         case BdObjectKind.node:
-          if (child.kind == kInPlaceBorderNodeKind || child.kind == kInPlaceClusterNodeKind) continue;
-          units.add(kSubViCallNodeCodes.contains(child.kind) ? _subViUnit(child) : _primUnit(child));
+          if (child.kind == kInPlaceBorderNodeKind ||
+              child.kind == kInPlaceClusterNodeKind ||
+              child.kind == kInPlaceDataValueRefNodeKind ||
+              child.kind == kFeedbackInputKind) {
+            continue;
+          }
+          if (child.kind == kFeedbackNodeKind) {
+            units.add(_feedbackUnit(child));
+            continue;
+          }
+          units.add(_isSubViCall(child) ? _subViUnit(child) : _primUnit(child));
         case BdObjectKind.structure:
           units.add(_structUnit(child));
         case _:
@@ -963,6 +1060,11 @@ class _Builder {
   }
 
   int _sourceOf(ViWire wire) => wire.endpointOids.firstWhere((oid) => !_isSink(oid));
+
+  /// Whether [node] calls a sub-VI; a Property Node shares the call node codes but is lowered
+  /// as a primitive through the environment.
+  static bool _isSubViCall(BdObject node) =>
+      kSubViCallNodeCodes.contains(node.kind) && node.kind != BdObjectClass.propertyNode.code;
 
   LvSubViUnit _subViUnit(BdObject node) {
     final ports = <int>[];
@@ -989,8 +1091,46 @@ class _Builder {
     return lower.endsWith('.vi') || lower.endsWith('.vim');
   }
 
+  /// Every feedback input object's terminal holder, keyed by the oid of a record its own record
+  /// names on the node it belongs to.
+  late final Map<int, int> _feedbackInputOfRecord = {
+    for (final node in diagram.objects)
+      if (node.kind == kFeedbackInputKind)
+        for (final holder in diagram.childrenOf(node))
+          if (holder.objectClass == BdObjectClass.terminalHolder)
+            for (final record in diagram.childrenOf(holder))
+              for (final member in record.memberOids) member: holder.oid,
+  };
+
+  LvFeedbackUnit _feedbackUnit(BdObject node) {
+    int? output, initializer, input;
+    for (final holder in diagram.childrenOf(node)) {
+      if (holder.objectClass != BdObjectClass.terminalHolder) continue;
+      ownerOfPort[holder.oid] = node.oid;
+      final record = diagram.childrenOf(holder).firstOrNull;
+      if (record?.kind == kFeedbackOutputRecordKind) output = holder.oid;
+      if (record?.kind == kFeedbackInitializerRecordKind) initializer = holder.oid;
+      if (record != null) input ??= _feedbackInputOfRecord[record.oid];
+    }
+    if (output == null || initializer == null || input == null) {
+      lvRefuse(
+        LvRefusalKind.structure,
+        'a Feedback Node does not draw its output, initializer and input terminals',
+        oid: node.oid,
+      );
+    }
+    ownerOfPort[input] = node.oid;
+    return LvFeedbackUnit(
+      oid: node.oid,
+      outputPort: output,
+      feedbackPort: input,
+      initializerPort: initializer,
+      label: _captionOf(node),
+    );
+  }
+
   LvPrimUnit _primUnit(BdObject node) {
-    final inputs = <int>[], outputs = <int>[];
+    final inputs = <int>[], outputs = <int>[], ports = <int>[];
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
     final memberName = <int, String>{};
@@ -998,6 +1138,7 @@ class _Builder {
     for (final holder in diagram.childrenOf(node)) {
       if (holder.objectClass != BdObjectClass.terminalHolder) continue;
       ownerOfPort[holder.oid] = node.oid;
+      ports.add(holder.oid);
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
       final record = diagram.childrenOf(holder).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
@@ -1017,6 +1158,7 @@ class _Builder {
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
+      ports: ports,
       portRoleFlags: roleFlags,
       portDrawnTop: drawnTop,
       nodeFlags: node.objFlags,
@@ -1140,11 +1282,13 @@ class _Builder {
     _pairConditions(terminals);
     var pairs = const <LvInPlaceArrayPair>[];
     var clusterPairs = const <LvInPlaceClusterPair>[];
+    var referencePairs = const <LvInPlaceDataValueRefPair>[];
     if (kind == LvStructureKind.inPlaceElement) {
       final inPlace = _inPlacePairs(structure, frames.singleOrNull);
       terminals.addAll(inPlace.terminals);
       pairs = inPlace.pairs;
       clusterPairs = inPlace.clusterPairs;
+      referencePairs = inPlace.referencePairs;
     }
     return LvStructUnit(
       oid: structure.oid,
@@ -1152,6 +1296,7 @@ class _Builder {
       terminals: terminals,
       inPlacePairs: pairs,
       inPlaceClusterPairs: clusterPairs,
+      inPlaceDataValueRefPairs: referencePairs,
       frames: [for (final frame in frames) _region(frame)],
       displayedFrame: structure.frames?.visibleFrameIndex ?? 0,
       displayedCase: label?.label?.trim(),
@@ -1166,7 +1311,12 @@ class _Builder {
   /// cluster and index terminals name the structure's holders through their members and whose
   /// element terminals are the frame's ports; a cluster element terminal's type name is the
   /// member it reads or writes.
-  ({List<LvStructTerminal> terminals, List<LvInPlaceArrayPair> pairs, List<LvInPlaceClusterPair> clusterPairs})
+  ({
+    List<LvStructTerminal> terminals,
+    List<LvInPlaceArrayPair> pairs,
+    List<LvInPlaceClusterPair> clusterPairs,
+    List<LvInPlaceDataValueRefPair> referencePairs,
+  })
   _inPlacePairs(BdObject structure, int? frameOid) {
     final markers = [
       for (final child in diagram.childrenOf(structure))
@@ -1177,17 +1327,22 @@ class _Builder {
     ];
     if (frameOid == null ||
         markers.isEmpty ||
-        markers.any((kind) => kind != kInPlaceArrayPairKind && kind != kInPlaceClusterPairKind)) {
+        markers.any(
+          (kind) =>
+              kind != kInPlaceArrayPairKind && kind != kInPlaceClusterPairKind && kind != kInPlaceDataValueRefPairKind,
+        )) {
       lvRefuse(
         LvRefusalKind.structure,
         'an In Place Element structure whose border-node pairs are '
         '${markers.map((kind) => '0x${kind.toRadixString(16)}').join(', ')} has no modelled control '
-        'flow; only Index/Replace Array Elements (0x${kInPlaceArrayPairKind.toRadixString(16)}) and '
-        'Unbundle/Bundle Cluster Elements (0x${kInPlaceClusterPairKind.toRadixString(16)}) do',
+        'flow; only Index/Replace Array Elements (0x${kInPlaceArrayPairKind.toRadixString(16)}), '
+        'Unbundle/Bundle Cluster Elements (0x${kInPlaceClusterPairKind.toRadixString(16)}) and '
+        'Data Value Reference Read/Write Element (0x${kInPlaceDataValueRefPairKind.toRadixString(16)}) do',
         oid: structure.oid,
       );
     }
     final terminals = <LvStructTerminal>[];
+    final referencePairs = _dataValueRefPairs(structure, frameOid, terminals);
     final sides = <int, List<({int anchor, List<int> indices, List<String> names, List<int> elements, bool left})>>{};
     for (final node in diagram.children(frameOid)) {
       if (node.kind != kInPlaceBorderNodeKind && node.kind != kInPlaceClusterNodeKind) continue;
@@ -1324,10 +1479,112 @@ class _Builder {
         }
       }
     }
-    if (pairs.isEmpty && clusterPairs.isEmpty) {
+    if (pairs.isEmpty && clusterPairs.isEmpty && referencePairs.isEmpty) {
       lvRefuse(LvRefusalKind.structure, 'an In Place Element structure draws no border-node pair', oid: structure.oid);
     }
-    return (terminals: terminals, pairs: pairs, clusterPairs: clusterPairs);
+    return (terminals: terminals, pairs: pairs, clusterPairs: clusterPairs, referencePairs: referencePairs);
+  }
+
+  /// An In Place Element structure's Data Value Reference Read/Write Element pairs: the left
+  /// border node carries the reference terminal (flag [kInPlaceArrayTerminalFlag], naming the
+  /// structure's holder), the element it reads into the frame and an error output into the
+  /// frame; the right node carries the element written back, the reference out and the error out,
+  /// each naming the structure's holder, the error terminal also open to the frame.
+  List<LvInPlaceDataValueRefPair> _dataValueRefPairs(
+    BdObject structure,
+    int frameOid,
+    List<LvStructTerminal> terminals,
+  ) {
+    final lefts = <({int reference, int element, int error})>[];
+    final rights = <({int? reference, int element, int errorIn, int? errorOut})>[];
+    for (final node in diagram.children(frameOid)) {
+      if (node.kind != kInPlaceDataValueRefNodeKind) continue;
+      final isLeft = ((node.objFlags ?? 0) & kInPlaceLeftNodeFlag) != 0;
+      int? reference, element, error, outerError;
+      for (final holder in diagram.childrenOf(node)) {
+        if (holder.objectClass != BdObjectClass.terminalHolder) continue;
+        final record = diagram.childrenOf(holder).firstOrNull;
+        if (record == null) continue;
+        final outer = record.memberOids.where((member) => byId[member]?.parentOid == structure.oid).firstOrNull;
+        final isReference = ((record.objFlags ?? 0) & kInPlaceIndexTerminalFlag) == kInPlaceArrayTerminalFlag;
+        final isError = record.typeName == kInPlaceErrorTerminalLabel;
+        if (isReference) {
+          if (outer == null) {
+            lvRefuse(
+              LvRefusalKind.structure,
+              'a Data Value Reference border node\'s reference terminal names no structure holder',
+              oid: node.oid,
+            );
+          }
+          ownerOfPort[outer] = structure.oid;
+          reference = outer;
+          terminals.add(
+            LvStructTerminal(
+              oid: record.oid,
+              role: LvTerminalRole.inPlaceArray,
+              outerPort: outer,
+              innerPorts: const {},
+              autoIndexing: false,
+              partnerOid: null,
+              outerIsSink: _isSink(outer),
+            ),
+          );
+          continue;
+        }
+        ownerOfPort[holder.oid] = structure.oid;
+        terminals.add(
+          LvStructTerminal(
+            oid: record.oid,
+            role: LvTerminalRole.inPlaceElement,
+            outerPort: isError ? outer : null,
+            innerPorts: {frameOid: holder.oid},
+            autoIndexing: false,
+            partnerOid: null,
+            outerIsSink: false,
+          ),
+        );
+        if (isError) {
+          error = holder.oid;
+          if (outer != null) {
+            ownerOfPort[outer] = structure.oid;
+            outerError = outer;
+          }
+        } else {
+          element = holder.oid;
+        }
+      }
+      if (element == null || error == null || (isLeft && reference == null)) {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a Data Value Reference border node does not draw its reference, element and error terminals',
+          oid: node.oid,
+        );
+      }
+      if (isLeft) {
+        lefts.add((reference: reference!, element: element, error: error));
+      } else {
+        rights.add((reference: reference, element: element, errorIn: error, errorOut: outerError));
+      }
+    }
+    if (lefts.length != rights.length) {
+      lvRefuse(
+        LvRefusalKind.structure,
+        'an In Place Element structure draws ${lefts.length} Data Value Reference read nodes and ${rights.length} write nodes',
+        oid: structure.oid,
+      );
+    }
+    return [
+      for (var i = 0; i < lefts.length; i++)
+        LvInPlaceDataValueRefPair(
+          referenceIn: lefts[i].reference,
+          referenceOut: rights[i].reference,
+          elementOut: lefts[i].element,
+          elementIn: rights[i].element,
+          readErrorOut: lefts[i].error,
+          writeErrorIn: rights[i].errorIn,
+          errorOut: rights[i].errorOut,
+        ),
+    ];
   }
 
   /// Names, on each condition terminal, the output tunnel it gates: the one whose record is drawn

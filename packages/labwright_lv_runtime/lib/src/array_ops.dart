@@ -170,3 +170,38 @@ double lvThreshold1dArray(List<num> array, num threshold, [int startIndex = 0]) 
   }
   return (array.length - 1).toDouble();
 }
+
+/// Delete From Array of one element: the array without the element at [index], and that
+/// element. Without an index the last element goes. An index outside the array is not decoded
+/// and throws.
+({List<T> remaining, T element}) lvDeleteFromArrayElement<T>(List<T> array, [int? index]) {
+  final at = index ?? array.length - 1;
+  if (at < 0 || at >= array.length) {
+    throw RangeError.index(
+      at,
+      array,
+      'index',
+      "LabVIEW's Delete From Array result for an index outside the array is not decoded",
+    );
+  }
+  return (remaining: [...array.sublist(0, at), ...array.sublist(at + 1)], element: array[at]);
+}
+
+/// Decimate 1D Array: element `i` of [array] goes to output `i % outputs`, and every output has
+/// as many elements as the shortest, so a remainder is dropped.
+List<List<T>> lvDecimate1dArray<T>(List<T> array, int outputs) {
+  final length = array.length ~/ outputs;
+  return [
+    for (var output = 0; output < outputs; output++) [for (var i = 0; i < length; i++) array[output + i * outputs]],
+  ];
+}
+
+/// Reshape Array: [data] read row-major into an array of [dims], cut short or padded with
+/// [padding] to fill the new shape; a dimension below zero reads as zero.
+List<T> lvReshapeArray<T>(List<T> data, List<int> dims, T padding) {
+  var count = 1;
+  for (final dim in dims) {
+    count *= dim < 0 ? 0 : dim;
+  }
+  return [for (var i = 0; i < count; i++) i < data.length ? data[i] : padding];
+}

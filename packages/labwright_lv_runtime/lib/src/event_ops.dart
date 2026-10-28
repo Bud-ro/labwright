@@ -1,3 +1,4 @@
+import 'environment.dart';
 import 'references.dart';
 import 'values.dart';
 
@@ -118,4 +119,23 @@ final class LvEventRegistration {
     if (registration == null || registration._pending.isEmpty) return null;
     return registration._pending.removeAt(0);
   }
+}
+
+/// Register For Events over [sources]: user events register in the runtime; any other source
+/// is a panel object, VI or application the environment registers.
+({LvRefnum registration, LvError errorOut}) lvRegisterForEvents(
+  List<LvRefnum> sources, {
+  LvRefnum existing = LvRefnum.none,
+  LvError errorIn = LvError.none,
+}) {
+  if (sources.every((source) => lvReferenceTarget<LvUserEvent<Object?>>(source) != null)) {
+    return LvEventRegistration.register(sources, existing: existing, errorIn: errorIn);
+  }
+  return lvEnvironment.registerForEvents(
+    [
+      for (final source in sources) (event: '', source: source),
+    ],
+    existing,
+    errorIn,
+  );
 }
