@@ -3,7 +3,7 @@
 /// ```text
 /// offset  size  field               type      meaning
 /// 0x000   4     magic               'TOF1'
-/// 0x004   6     reservedA           u8[6]     zero in every corpus file
+/// 0x004   6     reservedA           u8[6]     reserved, written as zero
 /// 0x00a   50    fileType            cstr      'SequenceFile', NUL padded
 /// 0x03c   4     fileVersion         u32 LE    the XML `fileversion` number (962 = TestStand 2021 SP1)
 /// 0x040   50    productName         cstr      'TestStand'
@@ -11,8 +11,8 @@
 /// 0x0a4   50    compatibleVersion   cstr      '21.0.0.0'
 /// 0x0d6   50    buildVersion        cstr      '21.0.0.49156'
 /// 0x108   4     recordRegionLength  u32 LE    offset of the string pool count inside the inflated body
-/// 0x10c   4     reservedB           u32       zero in every corpus file
-/// 0x110   1024  savedPath           cstr      the path the file was saved to; empty since TestStand 2014
+/// 0x10c   4     reservedB           u32       reserved, written as zero
+/// 0x110   1024  savedPath           cstr      the path the file was saved to, or empty
 /// 0x510   4     bodyMarker          'PMCZ'
 /// 0x514   4     inflatedLength      u32 LE    byte length of the inflated body
 /// 0x518   …     body                zlib      deflated body, runs to the end of the file
@@ -28,10 +28,10 @@ enum Tof1HeaderField {
   /// The four ASCII bytes `TOF1`.
   magic(0x000, 4),
 
-  /// Six bytes, zero in every corpus file.
+  /// Reserved, written as zero.
   reservedA(0x004, 6),
 
-  /// NUL-padded file type, `SequenceFile` in every corpus file.
+  /// NUL-padded file type, e.g. `SequenceFile`.
   fileType(0x00a, 50),
 
   /// Little-endian file format version; the same number XML files carry as `fileversion`.
@@ -52,10 +52,10 @@ enum Tof1HeaderField {
   /// Offset, inside the inflated body, of the string-pool count word; everything before it is the record region.
   recordRegionLength(0x108, 4),
 
-  /// Four bytes, zero in every corpus file.
+  /// Reserved, written as zero.
   reservedB(0x10c, 4),
 
-  /// NUL-padded path the file was last saved to; files written by TestStand 2014 and later leave it empty.
+  /// NUL-padded path the file was last saved to, or empty.
   savedPath(0x110, 1024),
 
   /// The four ASCII bytes `PMCZ` that introduce the deflated body.
@@ -80,18 +80,21 @@ enum Tof1HeaderField {
 ///
 /// Later generations add fields; everything else in the grammar is shared.
 enum Tof1Generation {
-  /// TestStand 4.x (fileversion 577 in the corpus): 32-bit type timestamps and no protection block in a typedef.
+  /// TestStand 4.x: 32-bit type timestamps and no protection block in a typedef.
   ts4(0),
 
-  /// TestStand 2013 (fileversion 755): a typedef carries the protection block (two optional digests).
+  /// TestStand 2013: a typedef carries the protection block (two optional digests).
   ts2013(755),
 
-  /// TestStand 2014 and later (fileversion 773 and up): type timestamps widen to 64 bits.
+  /// TestStand 2014 and later: type timestamps widen to 64 bits.
   ts2014(773);
 
   const Tof1Generation(this.minFileVersion);
 
-  /// The smallest header `fileVersion` written with this generation's layout.
+  /// The smallest header `fileVersion` decoded with this generation's layout.
+  ///
+  /// TODO: the exact fileversion at which each layout begins is not yet decoded; each threshold is the oldest
+  /// version known to use the layout.
   final int minFileVersion;
 
   bool get hasProtectionBlock => this != ts4;

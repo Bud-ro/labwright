@@ -395,7 +395,7 @@ void main() {
       recordSemanticBytes: 0,
       recordStructuralBytes: 0,
     );
-    var steps = 0, filesWithSteps = 0, unnamedSteps = 0;
+    var steps = 0, filesWithSteps = 0, unnamedSteps = 0, doubles = 0, structureBits = 0;
     final sw = Stopwatch()..start();
     for (final f in files) {
       final bytes = f.readAsBytesSync();
@@ -417,6 +417,33 @@ void main() {
       for (final type in grammar.types) {
         expect(type.entryWord, 1, reason: '$rel: ${type.name}');
       }
+      expect(grammar.lastStringTerminated, isTrue, reason: rel);
+      expect(grammar.poolTail, isEmpty, reason: rel);
+      for (final field in [Tof1HeaderField.reservedA, Tof1HeaderField.reservedB]) {
+        expect(bytes.sublist(field.offset, field.end).every((b) => b == 0), isTrue, reason: '$rel: ${field.name}');
+      }
+      expect(header.fileType, 'SequenceFile', reason: rel);
+      if (header.generation == Tof1Generation.ts2014) expect(header.savedPath, isEmpty, reason: rel);
+      void records(BinaryRecord r) {
+        if (r.enumItems != null) expect(r.enumItemsWord, 1, reason: '$rel: ${r.name}');
+        final word = r.valueFlagsWord;
+        if (word != null && r.has(BinaryPropertyFlag.structureFlags)) structureBits |= word & ~(r.valueFlags ?? 0);
+        for (final child in [
+          ...r.children,
+          ...?r.elements?.whereType<BinaryRecord>(),
+          ?r.elemProto,
+          ?r.enumItems,
+          ?r.attributes,
+          ?r.typeAttributes,
+        ]) {
+          records(child);
+        }
+      }
+
+      for (final type in grammar.types) {
+        records(type.root);
+      }
+      records(grammar.data);
 
       final file = parseSeqFile(bytes);
       final n = file.sequences.fold(0, (a, s) => a + s.steps.length);
@@ -503,6 +530,17 @@ void main() {
 
       final model = parseBinarySeqWriteModel(bytes)!;
       expect(_sameBytes(model.writeBody(), decode.body), isTrue, reason: '$rel: the body must write back byte-exactly');
+      final view = ByteData.sublistView(decode.body);
+      final values = model.f64Values;
+      doubles += values.length;
+      for (final value in values.toSet()) {
+        for (final site in model.f64Sites(value)) {
+          final stored = view.getFloat64(site, Endian.little);
+          if (!(stored == value || (stored.isNaN && value.isNaN))) {
+            offenders.add('$rel: f64 site $site holds $stored, not $value');
+          }
+        }
+      }
     }
     final elapsed = sw.elapsedMilliseconds;
     expect(offenders, isEmpty, reason: offenders.take(12).join('\n'));
@@ -511,7 +549,12 @@ void main() {
     expect(steps, _pinned.values.fold(0, (a, p) => a + p.$4));
     expect(unnamedSteps, 167, reason: 'unnamed Label steps');
     expect(generations.keys.toSet(), Tof1Generation.values.toSet(), reason: 'every generation is exercised');
-    expect(undecodedFields.keys.toSet(), BinaryUndecodedField.values.toSet());
+    expect(
+      undecodedFields.keys.toSet(),
+      BinaryUndecodedField.values.toSet().difference({BinaryUndecodedField.poolTail}),
+    );
+    expect(structureBits, structureFlagMask, reason: 'every decoded structure bit occurs in the corpus');
+    expect(doubles, greaterThan(0));
     expect(coverage.recordAccountedRatio, greaterThan(0.84));
     expect(coverage.recordSemanticRatio, greaterThan(0.53));
     print(
@@ -611,6 +654,13 @@ void main() {
         expect(root.attributes[BinAttr.protected], type.protectionDigest);
         expect(root.subProps.isNotEmpty || root.array != null, isTrue, reason: type.name);
       }
+    });
+
+    test('Sensor Test.seq: pool strings are Windows-1252, curly quotes included', () {
+      final file = load('Sensor Tests/Sensor Test.seq');
+      final notes = file.binary!.pool.where((p) => p.contains('\u201cRTD Type\u201d')).toList();
+      expect(notes, hasLength(1));
+      expect(file.binary!.pool.any((p) => p.contains('\u0093')), isFalse);
     });
 
     test('Accelerometer.seq: enum typedefs decode with their enumerators', () {
