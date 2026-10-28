@@ -102,9 +102,12 @@ class SeqSourceTree {
     return SeqSourceTree._(root, sequenceFiles, unparsed, LvProjectIndex.scan(root, skipHidden: true), visByName);
   }
 
+  /// [path] below [root] with forward slashes, or [path] itself when it is not below it.
   static String _relative(Directory root, String path) {
-    final prefix = root.path.endsWith('/') ? root.path : '${root.path}/';
-    return path.startsWith(prefix) ? path.substring(prefix.length) : path;
+    final rootPath = root.path.replaceAll(r'\', '/');
+    final prefix = rootPath.endsWith('/') ? rootPath : '$rootPath/';
+    final normalized = path.replaceAll(r'\', '/');
+    return normalized.startsWith(prefix) ? normalized.substring(prefix.length) : normalized;
   }
 
   /// The one VI in the tree named [fileName], or null when none or several are.
