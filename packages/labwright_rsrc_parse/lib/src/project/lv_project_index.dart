@@ -100,14 +100,33 @@ class LvProjectIndex {
   String? fileOf(List<String> qualifiedName) => _byQualifiedName[qualifiedName.join(':')];
 
   /// The file a link entry of the VI at [viPath] denotes: its path record resolved from the
-  /// VI's directory when that file exists, else its qualified name through the libraries.
+  /// VI's directory when that file exists and is not a library file (a class method's link
+  /// records its class), else its qualified name through the libraries.
   String? fileOfLink(ViLinkEntryFramed entry, {required String viPath}) {
     final path = entry.path;
     if (path != null && path.pathType == 1) {
       final candidate = resolveViPath(viPath, path.components);
-      if (File(candidate).existsSync()) return candidate;
+      if (File(candidate).existsSync()) {
+        if (LvLibraryKind.ofPath(candidate) == null) return candidate;
+        if (_memberOf(candidate, entry.qualifiedName) case final member?) return member;
+      }
     }
     if (entry.qualifiedName.isNotEmpty) return fileOf(entry.qualifiedName);
+    return null;
+  }
+}
+
+extension on LvProjectIndex {
+  /// The file of the member [qualifiedName] ends with, in the library file at [libraryPath].
+  String? _memberOf(String libraryPath, List<String> qualifiedName) {
+    final library = libraries[libraryPath];
+    final name = qualifiedName.lastOrNull?.toLowerCase();
+    if (library == null || name == null) return null;
+    for (final item in library.items) {
+      if (!item.isFolder && item.url != null && item.name.toLowerCase() == name) {
+        return resolveLibraryUrl(libraryPath, item.url!);
+      }
+    }
     return null;
   }
 }
