@@ -181,9 +181,10 @@ Both carrying modes are implemented, because they change function signatures
   becomes control flow, while the diagram's error computation stays. An
   `error in` terminal is not a parameter and its wire starts at `LvError.none`;
   an `error out` terminal is not a result and the function ends with
-  `if (it.status) throw it;`; a subVI call passes nothing for the callee's
-  `error in` and reads `LvError.none` from its `error out`. All three follow
-  from one premise: a caller that failed threw rather than returning.
+  `if (it.status) throw it;`; a subVI call throws the error wired to the
+  callee's `error in` instead of passing it, and reads `LvError.none` from its
+  `error out`. All three follow from one premise: a caller that failed threw
+  rather than returning.
 - `threaded` (**opt-in**) — error terminals stay first-class `LvError` values
   and nothing throws. LabVIEW's per-node **short-circuit** is deliberately not
   emitted: which nodes skip their work on an incoming error is a property of

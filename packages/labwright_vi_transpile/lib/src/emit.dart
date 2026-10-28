@@ -984,7 +984,13 @@ class _FunctionEmitter {
       final edge = flow.into(holder);
       if (edge == null) continue;
       final port = portFor(unit.paneIndexOf(holder)!, holder, isInput: true);
-      if (port == null) continue;
+      if (port == null) {
+        if (edge.type.isErrorCluster) {
+          final error = _bound(edge.source, unit.oid);
+          body.writeln('if ($error.status) throw $error;');
+        }
+        continue;
+      }
       passed.add(port.name);
       arguments.add('${port.name}: ${_bound(edge.source, unit.oid)}');
     }
