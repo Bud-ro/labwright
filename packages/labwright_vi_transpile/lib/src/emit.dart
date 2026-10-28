@@ -721,7 +721,18 @@ class _FunctionEmitter {
         oid: unit.oid,
       );
     }
-    body.writeln('$local = ${_bound(edge.source, unit.oid)};');
+    final type = _typeAt(unit.outputPort);
+    final value = type == null
+        ? _bound(edge.source, unit.oid)
+        : _coerced(_bound(edge.source, unit.oid), edge.type, type);
+    if (value == null) {
+      lvRefuse(
+        LvRefusalKind.tunnelCoercion,
+        'a Feedback Node is written from a ${edge.type.dartType} wire but carries ${type!.dartType}',
+        oid: unit.oid,
+      );
+    }
+    body.writeln('$local = $value;');
   }
 
   /// The Feedback Nodes a loop carries: every one in its frame and the frames nested in it short
@@ -1090,14 +1101,6 @@ class _FunctionEmitter {
   static String _stringLiteral(String text) => lvDartStringLiteral(text);
 
   void _emitPrimitive(LvPrimUnit unit) {
-    if (unit.classCode == BdObjectClass.invokeNode.code) {
-      lvRefuse(
-        LvRefusalKind.referenceNode,
-        'an Invoke Node calls a method of the class of a reference, and the lowering has no model of '
-        'reference classes',
-        oid: unit.oid,
-      );
-    }
     LvPrimTerminal terminal(int port, {required bool isInput}) {
       final edge = isInput ? flow.into(port) : flow.outOf(port);
       if (edge == null) {
@@ -1290,14 +1293,6 @@ class _FunctionEmitter {
   }
 
   void _emitSubVi(LvSubViUnit unit) {
-    if (unit.classCode == BdObjectClass.propertyNode.code) {
-      lvRefuse(
-        LvRefusalKind.referenceNode,
-        'a Property Node reads or writes properties of the class of a reference, and the lowering has '
-        'no model of reference classes',
-        oid: unit.oid,
-      );
-    }
     if (_vilibCallee(unit) case final vi?) {
       _emitVilibCall(unit, vi);
       return;
@@ -1789,7 +1784,20 @@ class _FunctionEmitter {
       valueOf[output.terminal.outerPort!] = output.name;
     }
     if (exit case (:final terminal, :final port)) {
-      final test = _bound(flow.into(port)!.source, terminal.oid);
+      final condition = flow.into(port)!;
+      final bound = _bound(condition.source, terminal.oid);
+      final String test;
+      if (condition.type.isErrorCluster) {
+        test = '$bound.status';
+      } else if (condition.type.carrier == LvCarrier.boolean && condition.type.dims == 0) {
+        test = bound;
+      } else {
+        lvRefuse(
+          LvRefusalKind.structure,
+          'a loop\'s conditional terminal is wired from ${condition.type.dartType}, neither a boolean nor an error cluster',
+          oid: terminal.oid,
+        );
+      }
       final stops = switch (terminal.polarity!) {
         LvConditionalPolarity.stopIfTrue => test,
         LvConditionalPolarity.continueIfTrue => lvIsAtomic(test) ? '!$test' : '!($test)',

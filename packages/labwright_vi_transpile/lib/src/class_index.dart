@@ -2,6 +2,10 @@ import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 import 'type_map.dart';
 
+/// The key a library-qualified name is compared by: LabVIEW names are case-insensitive, so two
+/// spellings that differ only in case name one library, class or member.
+String lvQualifiedNameKey(List<String> qualifiedName) => qualifiedName.join(':').toLowerCase();
+
 /// What a class file states about a LabVIEW class.
 class LvClassData {
   const LvClassData({
@@ -42,9 +46,9 @@ class LvProjectClassIndex implements LvClassIndex {
       if (library.kind != LvLibraryKind.lvClass) continue;
       final own = index.qualifiedNameOf(path);
       if (own == null) continue;
-      _pathOf[own.join(':')] = path;
+      _pathOf[lvQualifiedNameKey(own)] = path;
       if (library.parentClass case final parent? when parent.isNotEmpty) {
-        (_children[parent.join(':').toLowerCase()] ??= []).add(own);
+        (_children[lvQualifiedNameKey(parent)] ??= []).add(own);
       }
     }
   }
@@ -58,8 +62,8 @@ class LvProjectClassIndex implements LvClassIndex {
   final Map<String, LvClassData?> _data = {};
 
   @override
-  LvClassData? classOf(List<String> qualifiedName) => _data.putIfAbsent(qualifiedName.join(':'), () {
-    final path = _pathOf[qualifiedName.join(':')];
+  LvClassData? classOf(List<String> qualifiedName) => _data.putIfAbsent(lvQualifiedNameKey(qualifiedName), () {
+    final path = _pathOf[lvQualifiedNameKey(qualifiedName)];
     final library = path == null ? null : index.libraries[path];
     if (library == null) return null;
     final control = library.privateDataControl;
@@ -84,15 +88,15 @@ class LvProjectClassIndex implements LvClassIndex {
 
   @override
   Iterable<List<String>> childrenOf(List<String> qualifiedName) =>
-      _children[qualifiedName.join(':').toLowerCase()] ?? const [];
+      _children[lvQualifiedNameKey(qualifiedName)] ?? const [];
 }
 
 /// Whether [qualifiedName] names [ancestor] or a class descending from it, through [classes].
 bool lvClassDescendsFrom(List<String> qualifiedName, List<String> ancestor, LvClassIndex? classes) {
-  if (ancestor.join(':') == kLvRootClassName.join(':')) return true;
+  if (lvQualifiedNameKey(ancestor) == lvQualifiedNameKey(kLvRootClassName)) return true;
   var at = qualifiedName;
   for (var depth = 0; depth < kLvClassDepth; depth++) {
-    if (at.join(':') == ancestor.join(':')) return true;
+    if (lvQualifiedNameKey(at) == lvQualifiedNameKey(ancestor)) return true;
     final parent = classes?.classOf(at)?.parent;
     if (parent == null || parent.isEmpty) return false;
     at = parent;
@@ -123,7 +127,7 @@ ViLinkEntryFramed? lvDispatchLink(ViLinkEntryFramed link, LvClassIndex classes) 
   final owner = link.qualifiedName.sublist(0, link.qualifiedName.length - 1);
   final definer = lvDispatchDefiner(owner, member, classes);
   if (definer == null) return null;
-  if (definer.join(':') == owner.join(':')) return link;
+  if (lvQualifiedNameKey(definer) == lvQualifiedNameKey(owner)) return link;
   return ViLinkEntryFramed(link.offset, link.end, link.kind, qualifiedName: [...definer, member]);
 }
 

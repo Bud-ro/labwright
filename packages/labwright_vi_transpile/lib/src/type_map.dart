@@ -523,14 +523,14 @@ LvTypeMapping _mapTypeDef(ViType type, List<ViType> pool, int depth, LvDeclarati
   if (type.componentCount > 0) {
     final qualified = [for (var i = 0; i < type.componentCount; i++) type.componentAt(i)];
     final stem = lvClassName(qualified.last.replaceAll(RegExp(r'\.\w+$'), ''));
-    if (stem.isNotEmpty && (base.kind == ViDataType.cluster || _isEnumCode(base.code))) {
+    if (stem.isNotEmpty && (base.kind == ViDataType.cluster || lvIsEnumCode(base.code))) {
       return _mapQualifiedTypeDef(type, base, qualified, stem, pool, depth, declarations);
     }
   }
   final name = type.label;
   if (name != null && lvClassName(name).isNotEmpty) {
     if (base.kind == ViDataType.cluster) return _mapCluster(base, name, pool, depth + 1, declarations);
-    if (_isEnumCode(base.code)) return _mapEnum(base, name, declarations);
+    if (lvIsEnumCode(base.code)) return _mapEnum(base, name, declarations);
   }
   final mapped = mapLvType(base, pool, depth + 1, declarations);
   if (mapped.status == LvMapStatus.internal) return LvTypeMapping.internal('typedef over a non-value: ${mapped.note}');
@@ -660,10 +660,20 @@ String lvPrivateDataControlName(String classFile) => classFile.replaceAll(RegExp
 /// holding its own private data cluster's members, one declaration per qualified name; the root
 /// class is empty. The private data is the typedef of the class file's `X.ctl` in the control
 /// [LvClassData.privateData] carries, and a class [classes] does not hold is unmapped.
-LvTypeMapping lvClassObjectType(List<String> qualifiedName, LvClassIndex? classes, LvDeclarations declarations) {
-  final signature = 'K:${qualifiedName.join(':')}';
+LvTypeMapping lvClassObjectType(
+  List<String> qualifiedName,
+  LvClassIndex? classes,
+  LvDeclarations declarations, [
+  int depth = 0,
+]) {
+  if (depth >= kLvClassDepth) {
+    return LvTypeMapping.unmapped(
+      'the lineage of ${qualifiedName.join(':')} runs past $kLvClassDepth classes, so its parent links form a cycle',
+    );
+  }
+  final signature = 'K:${lvQualifiedNameKey(qualifiedName)}';
   final stem = lvClassName(qualifiedName.last.replaceAll(RegExp(r'\.\w+$'), ''));
-  if (qualifiedName.length == 1 && qualifiedName.single == kLvRootClassName.single) {
+  if (lvQualifiedNameKey(qualifiedName) == lvQualifiedNameKey(kLvRootClassName)) {
     return LvTypeMapping.nominal(
       declarations.allocate(
         'LabViewObject',
@@ -686,7 +696,12 @@ LvTypeMapping lvClassObjectType(List<String> qualifiedName, LvClassIndex? classe
   if (parentName == null) {
     return LvTypeMapping.unmapped('the parent class link of ${qualifiedName.join(':')} does not decode');
   }
-  final parent = lvClassObjectType(parentName.isEmpty ? kLvRootClassName : parentName, classes, declarations);
+  final parent = lvClassObjectType(
+    parentName.isEmpty ? kLvRootClassName : parentName,
+    classes,
+    declarations,
+    depth + 1,
+  );
   final parentDecl = parent.declarations.singleOrNull;
   if (parentDecl == null || !parent.isMapped) {
     return LvTypeMapping.unmapped(
@@ -757,7 +772,7 @@ LvTypeMapping lvTerminalType(ViType descriptor, List<ViType> pool, LvClassIndex?
   return mapLvType(descriptor, pool, 0, declarations);
 }
 
-bool _isEnumCode(int code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
+bool lvIsEnumCode(int? code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
 
 bool isLvErrorCluster(ViType type, List<ViType> pool) {
   if (type is! ViClusterType || type.memberCount != 3) return false;

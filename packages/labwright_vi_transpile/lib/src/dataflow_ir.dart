@@ -176,9 +176,6 @@ enum LvRefusalKind {
 
   subViCall,
 
-  /// A Property Node or Invoke Node, which acts on the class of a reference.
-  referenceNode,
-
   noDiagram,
 }
 
@@ -870,7 +867,7 @@ class _Builder {
       for (final type in lvEnumsOfEndpoint(diagram, endpoint, array: array))
         if (lvEnumIntegerCode(type) == signal.typeCode) mapLvType(type, pool, 0, declarations),
     ];
-    final source = wire.endpointOids.firstWhere((oid) => !_isSink(oid));
+    final source = _sourceOf(wire);
     var readings = readingsOf(source);
     if (readings.isEmpty) {
       if (lvEndpointResolvesInteger(diagram, source, array: array)) return null;
@@ -952,7 +949,7 @@ class _Builder {
       final named = lvClassOfEndpoint(diagram, endpoint, array: array);
       if (named == null) continue;
       if (_isSink(endpoint)) {
-        sinks[named.join(':')] = named;
+        sinks[lvQualifiedNameKey(named)] = named;
       } else {
         source = named;
       }
@@ -1065,7 +1062,22 @@ class _Builder {
     return LvRegion(frameOid: frameOid, units: units, edges: edges);
   }
 
-  int _sourceOf(ViWire wire) => wire.endpointOids.firstWhere((oid) => !_isSink(oid));
+  /// The one endpoint of [wire] that produces it; refuses the wire when there is not exactly one.
+  int _sourceOf(ViWire wire) {
+    final sources = [
+      for (final oid in wire.endpointOids)
+        if (!_isSink(oid)) oid,
+    ];
+    if (sources.length != 1) {
+      lvRefuse(
+        LvRefusalKind.wireDirection,
+        'signal has ${sources.length} source endpoints among ${wire.endpointOids.length}; '
+        'exactly one endpoint must read as a producer ([lvEndpointIsSink])',
+        oid: wire.signalOid,
+      );
+    }
+    return sources.single;
+  }
 
   /// Whether [node] calls a sub-VI; a Property Node shares the call node codes but is lowered
   /// as a primitive through the environment.

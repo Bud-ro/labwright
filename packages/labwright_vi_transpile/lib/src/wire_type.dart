@@ -281,10 +281,8 @@ ViType? _resolvedOf(BdObject object, {required bool array}) =>
 /// its qualified name.
 List<ViType> lvEnumsOfEndpoint(BdDiagram diagram, int oid, {required bool array}) => [
   for (final object in [if (diagram.byId[oid] case final object?) object, ...diagram.children(oid)])
-    if (_resolvedOf(object, array: array) case final type? when _isEnumCode(lvThroughTypedefs(type)?.code)) type,
+    if (_resolvedOf(object, array: array) case final type? when lvIsEnumCode(lvThroughTypedefs(type)?.code)) type,
 ];
-
-bool _isEnumCode(int? code) => code == TypeCode.enumU8 || code == TypeCode.enumU16 || code == TypeCode.enumU32;
 
 /// The integer type code a signal word spells an enum of [type]'s width with: an enum rides the
 /// wire as its unsigned integer, so the word carries the integer's code.

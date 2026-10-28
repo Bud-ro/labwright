@@ -316,7 +316,8 @@ not hide the rest of its VI, and the sweep pins what decides each:
 | refnum | dimensionality from node-terminal parts | 10,468 |
 | refnum | dimensionality from an endpoint's scalar descriptor | 1,863 |
 | refnum | refused | 7,037 |
-| integer (`0x05`/`0x06`/`0x07`) | enum of the word's width the source (else every sink) resolves | 11,280 |
+| integer (`0x05`/`0x06`/`0x07`) | enum of the word's width the source (else every sink) resolves | 11,198 |
+| integer | refused: not exactly one source endpoint | 82 |
 | tag (`0x37`) | refnum an endpoint resolves | 414 |
 | tag (`0x37`) | refused | 35 |
 | measure data (`0x54`) | timestamp | 249 |
@@ -825,15 +826,16 @@ calls whose callee is not supplied 3 each, structures and wire direction 2
 each, and one each on a constant's value, a reference node and an unbound
 value.
 
-Over the whole 7,508-VI corpus, with every VI available as a subVI: 1,111
-lower and the rest refuse, pinned per kind in `kCorpusLoweringSweep`: 2,044 on
-a wire type, 1,382 on a structure (among them a connector-pane indicator inside
+Over the whole 7,508-VI corpus, with every VI available as a subVI: 1,145
+lower and the rest refuse, pinned per kind in `kCorpusLoweringSweep`: 2,048 on
+a wire type, 1,387 on a structure (among them a connector-pane indicator inside
 a loop, case or disable structure, whose returned value depends on which frames
-run), 944 on a primitive, 862 on a subVI call, 302 on a foreign call, 250 on an
-unwired terminal, 224 on a constant's value, 163 on a Property or Invoke Node
-(`referenceNode`: they act on a reference's class, which is not modelled), 38
-on a case selector, 36 on an unbound value, 22 on a wire's direction, 9 on a
-tunnel coercion, 7 on a tunnel's indexing.
+run), 1,042 on a primitive, 878 on a subVI call, 302 on a foreign call, 252 on
+an unwired terminal, 226 on a constant's value, 40 on a case selector, 36 on an
+unbound value, 22 on a wire's direction, 9 on a tunnel coercion, 7 on a
+tunnel's indexing.
+
+A loop's conditional terminal wired from an error cluster tests its `status`.
 
 A diagram constant lowers from the flat value saved with it, read by its own
 descriptor in the default data space's grammar (`lvFlatLiteral`): numerics,
@@ -870,12 +872,12 @@ not computed. Everything else — a value feeding only an indicator off the
 connector pane, a tunnel whose far side feeds nothing live, a pure node whose
 outputs go nowhere — is not computed, so no local goes unread.
 
-Those 1,111 lowerings are **842 distinct Dart sources** (a VI copied across
-repositories lowers to the same text). The corpus sweep writes all 842 into a
+Those 1,145 lowerings are **876 distinct Dart sources** (a VI copied across
+repositories lowers to the same text). The corpus sweep writes all 876 into a
 throwaway package resolved against this repo's own package graph, runs one
 `dart analyze` over the batch at `package:lints/recommended.yaml`, and asserts
 **zero diagnostics** — errors, warnings and infos alike; a `dart compile
-kernel` of one entry point importing all 842 is the independent check that they
+kernel` of one entry point importing all 876 is the independent check that they
 link against `labwright_lv_runtime`. So "the emitted code is clean" is measured
 corpus-wide rather than inferred from the one checked-in file.
 

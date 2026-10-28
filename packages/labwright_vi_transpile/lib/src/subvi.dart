@@ -123,7 +123,6 @@ List<String>? lvClassNamedBy(ViType? type) {
   return null;
 }
 
-/// The block diagram's sub-VI link entries, in link order.
 /// The link-entry kinds that name a VI a block-diagram node calls: a sub-VI (`IUVI`), a
 /// polymorphic VI (`PUPV`) and a dynamic-dispatch class method (`DyOM`).
 const Set<String> kLvCallLinkKinds = {'IUVI', 'PUPV', 'DyOM'};
@@ -131,6 +130,7 @@ const Set<String> kLvCallLinkKinds = {'IUVI', 'PUPV', 'DyOM'};
 /// The link kind of a dynamic-dispatch class method, whose path record names the class file.
 const String kLvDynamicDispatchLinkKind = 'DyOM';
 
+/// The block diagram's call link entries ([kLvCallLinkKinds]), in link order.
 List<ViLinkEntryFramed> lvSubViLinks(Iterable<DecodedSection> sections) {
   DecodedSection? libd, vers;
   for (final section in sections) {
@@ -179,6 +179,24 @@ String lvTerminalSignature(ViType? type, List<ViType> pool, [int depth = 0]) {
 /// terminals carry the descriptors the node's terminals do, pane for pane. Null, with why, when
 /// none or several match.
 ({LvViUnit? instance, String? why}) lvPolymorphicInstance(
+  BdDiagram diagram,
+  BdObject node,
+  LvViUnit polymorphic,
+  LvViResolver resolve, {
+  required List<ViType> pool,
+}) {
+  final cached = _polymorphicSelections[node];
+  if (cached != null && identical(cached.polymorphic, polymorphic)) return cached.selection;
+  final selection = _selectPolymorphicInstance(diagram, node, polymorphic, resolve, pool: pool);
+  _polymorphicSelections[node] = (polymorphic: polymorphic, selection: selection);
+  return selection;
+}
+
+/// Each call node's selection, so the dataflow build and the emitter resolve the instances once.
+final Expando<({LvViUnit polymorphic, ({LvViUnit? instance, String? why}) selection})> _polymorphicSelections =
+    Expando();
+
+({LvViUnit? instance, String? why}) _selectPolymorphicInstance(
   BdDiagram diagram,
   BdObject node,
   LvViUnit polymorphic,
