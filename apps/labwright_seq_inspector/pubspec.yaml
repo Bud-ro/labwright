@@ -26,8 +26,14 @@ dev_dependencies:
     sdk: flutter
 
 dependency_overrides:
+  labwright_lv_runtime:
+    path: ../../packages/labwright_lv_runtime
+  labwright_rsrc_parse:
+    path: ../../packages/labwright_rsrc_parse
   labwright_seq:
     path: ../../packages/labwright_seq
+  labwright_vi_transpile:
+    path: ../../packages/labwright_vi_transpile
 
 flutter:
   uses-material-design: true
