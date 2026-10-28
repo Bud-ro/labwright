@@ -60,6 +60,8 @@ class LvPrimCall {
     required this.nodeFlags,
     this.primResId,
     this.portRoleFlags = const {},
+    this.ports = const [],
+    this.portMemberName = const {},
   });
 
   final PrimOp? op;
@@ -80,6 +82,12 @@ class LvPrimCall {
 
   /// Every terminal's role flags, wired or not.
   final Map<int, int> portRoleFlags;
+
+  /// Every terminal holder in heap child order, wired or not.
+  final List<int> ports;
+
+  /// The type label of every terminal's own record, wired or not, where it carries one.
+  final Map<int, String> portMemberName;
 
   final void Function(String) requireImport;
 
@@ -1080,6 +1088,9 @@ List<String>? _elementwise(LvPrimCall call) {
         ),
     ],
     outputPorts: call.outputPorts,
+    ports: call.ports,
+    portMemberName: call.portMemberName,
+    portRoleFlags: call.portRoleFlags,
     portDrawnTop: call.portDrawnTop,
     requireImport: call.requireImport,
     names: call.names,

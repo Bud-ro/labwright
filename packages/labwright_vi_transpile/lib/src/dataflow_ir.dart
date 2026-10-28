@@ -225,6 +225,7 @@ class LvPrimUnit extends LvUnit {
     required this.label,
     required this.inputPorts,
     required this.outputPorts,
+    required this.ports,
     required this.portRoleFlags,
     required this.portDrawnTop,
     required this.nodeFlags,
@@ -247,6 +248,9 @@ class LvPrimUnit extends LvUnit {
 
   @override
   final List<int> outputPorts;
+
+  /// Every terminal holder in heap child order, the order [LvPrimSignature] indexes.
+  final List<int> ports;
 
   final Map<int, int> portRoleFlags;
 
@@ -793,13 +797,14 @@ class _Builder {
   }
 
   LvPrimUnit _primUnit(BdObject node) {
-    final inputs = <int>[], outputs = <int>[];
+    final inputs = <int>[], outputs = <int>[], ports = <int>[];
     final roleFlags = <int, int>{};
     final drawnTop = <int, int>{};
     final memberName = <int, String>{};
     for (final holder in diagram.childrenOf(node)) {
       if (holder.objectClass != BdObjectClass.terminalHolder) continue;
       ownerOfPort[holder.oid] = node.oid;
+      ports.add(holder.oid);
       (_isSink(holder.oid) ? inputs : outputs).add(holder.oid);
       final record = diagram.childrenOf(holder).firstOrNull;
       roleFlags[holder.oid] = record?.objFlags ?? 0;
@@ -818,6 +823,7 @@ class _Builder {
       label: _captionOf(node),
       inputPorts: inputs,
       outputPorts: outputs,
+      ports: ports,
       portRoleFlags: roleFlags,
       portDrawnTop: drawnTop,
       nodeFlags: node.objFlags,

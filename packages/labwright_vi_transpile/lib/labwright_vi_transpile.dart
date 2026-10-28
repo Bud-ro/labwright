@@ -26,6 +26,7 @@ export 'src/format_string.dart';
 export 'src/naming.dart';
 export 'src/numeric.dart';
 export 'src/prim_map.dart';
+export 'src/prim_signatures.dart';
 export 'src/runtime.dart';
 export 'src/subvi.dart';
 export 'src/type_map.dart';

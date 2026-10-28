@@ -671,6 +671,8 @@ class _FunctionEmitter {
       inputs: [for (final port in unit.inputPorts) terminal(port, isInput: true)],
       outputs: outputs,
       outputPorts: unit.outputPorts,
+      ports: unit.ports,
+      portMemberName: unit.portMemberName,
       portDrawnTop: unit.portDrawnTop,
       portRoleFlags: unit.portRoleFlags,
       requireImport: library.imports.add,
