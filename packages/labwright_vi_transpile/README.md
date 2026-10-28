@@ -575,7 +575,10 @@ their wire types, which have no Dart carrier; Flattened String To Variant
 refuses because building a value from a type descriptor at run time is not
 implemented; Flatten To String, Write To Binary File and Variant To Flattened
 String flatten numbers, booleans, strings and 1-D integer arrays and refuse the
-type string output and other data; Unflatten From String is not lowered.
+type string output and other data; Unflatten From String, Unflatten From JSON
+and Scan Value are not lowered, since a value built from a type descriptor or
+scanned by a format string is not spelled. That leaves 167 of the 188
+catalogued primitives with a rule.
 
 Operations that cannot run outside LabVIEW lower through one seam,
 `LvEnvironment` (`lvEnvironment` in the runtime, an `LvUnavailableEnvironment`
