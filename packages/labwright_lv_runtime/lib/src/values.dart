@@ -7,6 +7,12 @@ class LvPath {
   final bool valid;
   bool get isEmpty => valid && !absolute && components.isEmpty;
   static const LvPath notAPath = LvPath(components: [], absolute: false, valid: false);
+
+  @override
+  bool operator ==(Object other) => other is LvPath && lvSameValue(this, other);
+
+  @override
+  int get hashCode => Object.hash(valid, absolute, Object.hashAll(components));
 }
 
 /// LabVIEW's 128-bit absolute time: [seconds] since 1904-01-01 00:00:00 UTC as a signed 64-bit
@@ -28,10 +34,23 @@ class LvRefnum {
   static const LvRefnum none = LvRefnum(0);
 }
 
+/// A variant: any value with the attributes set on it, and the type descriptor of the value
+/// when the program that made it supplied one.
 class LvVariant {
-  const LvVariant({required this.flattened, required this.typeDescriptor});
-  final Uint8List flattened;
-  final Uint8List typeDescriptor;
+  const LvVariant(this.value, {this.attributes = const {}, this.typeDescriptor});
+
+  final Object? value;
+
+  /// The attributes by name, each a variant of its own.
+  final Map<String, LvVariant> attributes;
+
+  final Uint8List? typeDescriptor;
+
+  /// An empty variant, which holds no value.
+  static const LvVariant empty = LvVariant(null);
+
+  LvVariant withAttributes(Map<String, LvVariant> attributes) =>
+      LvVariant(value, attributes: attributes, typeDescriptor: typeDescriptor);
 }
 
 class LvError {
