@@ -157,6 +157,11 @@ void main() {
             raster,
             drawable: scene.drawable,
           ),
+          exactRects: bdPrimIconStampRects(
+            bd,
+            raster,
+            drawable: scene.drawable,
+          ),
         );
         reference.image.dispose();
         final reg = result.registration;
@@ -217,6 +222,7 @@ void main() {
             reference.image,
             lockScale: 1.0 / raster.scale,
             anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+            exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
           );
           reference.image.dispose();
           return (raster, result);
@@ -311,6 +317,11 @@ void main() {
             raster,
             drawable: scene.drawable,
           ),
+          exactRects: bdPrimIconStampRects(
+            bd,
+            raster,
+            drawable: scene.drawable,
+          ),
         );
         reference.image.dispose();
         final reg = result.registration;
@@ -397,6 +408,7 @@ void main() {
             reference.image,
             lockScale: 1.0 / raster.scale,
             anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+            exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
           );
           reference.image.dispose();
           return (raster, result);
@@ -600,6 +612,7 @@ void main() {
             reference.image,
             lockScale: 1.0 / raster.scale,
             anchorRects: bdStructureAnchorRects(diagram, raster),
+            exactRects: bdPrimIconStampRects(diagram, raster),
           );
           PlacementComparison at(BdRegistration registration) =>
               comparePlacement(

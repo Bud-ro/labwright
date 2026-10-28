@@ -148,6 +148,7 @@ void main() {
         reference.image,
         lockScale: 1.0 / raster.scale,
         anchorRects: bdStructureAnchorRects(bd, raster),
+        exactRects: bdPrimIconStampRects(bd, raster),
       );
       final w = reference.image.width, h = reference.image.height;
       final fitted = (await result.fitted.toByteData())!.buffer.asUint8List();

@@ -6,6 +6,7 @@ import 'package:image/image.dart' as img;
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
+import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_vi_inspector/src/prim_icon_border.dart';
 
 import '../test/util.dart';
@@ -176,8 +177,24 @@ const Set<int> kPrimitiveInkPalette = {0x000000, 0xFFFFCC};
 bool isForeignInk(String key, int rgb) =>
     rgb != 0xFFFFFF &&
     (key.startsWith('prim')
-        ? !kPrimitiveInkPalette.contains(BdColorAlias.canonicalRgb(rgb))
+        ? !primitiveInkOf(key).contains(BdColorAlias.canonicalRgb(rgb))
         : isOverlayInk(rgb));
+
+/// The ink of the option markers that join [kPrimitiveInkPalette] on an option variant's art.
+const Map<BdPrimIconOption, Set<int>> kPrimIconOptionMarkerInk = {
+  BdPrimIconOption.legacyData: {0xFF0000},
+};
+
+/// The colours the art of primitive icon [key] is made of: [kPrimitiveInkPalette], plus the
+/// marker ink of the option the key names.
+Set<int> primitiveInkOf(String key) {
+  final id = parsePrimIconName(key);
+  final option = id == null ? null : primIconOptionOf(id)?.$2;
+  final marker = option == null ? null : kPrimIconOptionMarkerInk[option];
+  return marker == null
+      ? kPrimitiveInkPalette
+      : {...kPrimitiveInkPalette, ...marker};
+}
 
 const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   'prim1069': [(snippet: '34109337_OCxvL', oid: 599)],
@@ -192,7 +209,23 @@ const Map<String, List<({String snippet, int oid})>> kTargetedIconSamples = {
   ],
 };
 
-({Uint8List rgba, int w, int h, int dx, int dy})? _cleanNodeBoxCrop(
+/// The asset key of [o]'s icon: its primitive's art key (an option variant when the node sets
+/// one), or the class variant key of a single-op class in [primClasses]; null for other
+/// objects.
+String? iconReviewKeyOf(BdDiagram bd, BdObject o, Set<int> primClasses) {
+  if (o.primitive?.primResId != null) return primIconName(primIconArtKeyOf(o)!);
+  return primClasses.contains(o.kind)
+      ? primIconName(bdClassVariantIconKey(bd, o))
+      : null;
+}
+
+/// The background pixels kept around a node box in an extraction crop.
+const int kPrimIconCropPad = 5;
+
+/// The icon ink of one node-box crop ([pad] pixels around the box) on its own: [foreign]
+/// colours whitened, the cluster holding the box centre kept, the rest transparent, cut to
+/// the ink's bounds and clipped to the box when larger. `dx`, `dy` place the cut in the box.
+({Uint8List rgba, int w, int h, int dx, int dy})? cleanNodeBoxCrop(
   Uint8List crop,
   int w,
   int h,
@@ -344,7 +377,7 @@ bool isHardEdgedCrop(Uint8List rgba, int w, int h, int pad, {String? key}) {
       final rgb = (r << 16) | (g << 8) | b;
       if (isOverlayInk(rgb)) continue;
       if (primitive) {
-        if (!kPrimitiveInkPalette.contains(BdColorAlias.canonicalRgb(rgb))) {
+        if (!primitiveInkOf(key!).contains(BdColorAlias.canonicalRgb(rgb))) {
           stray[y * w + x] = true;
         }
         continue;
@@ -519,24 +552,29 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       if (bd == null) continue;
       if (model.saveRecord?.rendersWatermark ?? false) {
         watermarkedSnippets.add(f.uri.pathSegments.last.replaceAll('.png', ''));
-        for (final o in bd.objects) {
-          final key = o.primitive?.primResId != null
-              ? 'prim${o.primitive?.primResId}'
-              : (primClasses.contains(o.kind)
-                    ? primIconName(bdClassVariantIconKey(bd, o))
-                    : null);
+        for (final o in bdDrawableObjects(bd)) {
+          final key = iconReviewKeyOf(bd, o, primClasses);
           if (key != null) watermarkedKeys.add(key);
         }
         continue;
       }
-      final raster = await rasteriseBlockDiagram(bd, scale: 1.0, margin: 2);
+      final drawable = bdDrawableObjects(bd);
+      final raster = await rasteriseBlockDiagram(
+        bd,
+        primIcons: loadPrimIcons(),
+        scale: 1.0,
+        margin: 2,
+        wires: bdVisibleWires(bd),
+        drawable: drawable,
+      );
       if (raster == null) continue;
       final reference = await decodeReferenceImage(f.readAsBytesSync());
       final result = await compareToReference(
         raster.image,
         reference.image,
         lockScale: 1.0 / raster.scale,
-        anchorRects: bdStructureAnchorRects(bd, raster),
+        anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+        exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
       );
       if (!result.registered) continue;
       final reg = result.registration;
@@ -556,7 +594,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
       final name = f.uri.pathSegments.last.replaceAll('.png', '');
       final major = int.tryParse((model.version ?? '').split('.').first) ?? 0;
       versionOfSnippet[name] = major;
-      const pad = 5;
+      const pad = kPrimIconCropPad;
       ({Uint8List rgba, int w, int h})? cropOf(HeapRect bounds) {
         final left =
             ((bounds.left - raster.content.left) * raster.scale * reg.scale +
@@ -606,13 +644,9 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         return (rgba: crop, w: w, h: h);
       }
 
-      for (final o in bd.objects) {
+      for (final o in drawable) {
         final b = o.absBounds;
-        final key = o.primitive?.primResId != null
-            ? 'prim${o.primitive?.primResId}'
-            : (primClasses.contains(o.kind)
-                  ? primIconName(bdClassVariantIconKey(bd, o))
-                  : null);
+        final key = iconReviewKeyOf(bd, o, primClasses);
         if (key == null || b == null || b.width <= 0 || b.height <= 0) {
           continue;
         }
@@ -887,7 +921,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         ..sort((a, b) => b.quality.compareTo(a.quality));
       final w0 = group.first.w, h0 = group.first.h;
 
-      const boxPad = 5;
+      const boxPad = kPrimIconCropPad;
       final bw = w0 - 2 * boxPad, bh = h0 - 2 * boxPad;
       bool ringInk(Uint8List rgba, int x, int y) =>
           iconInk(rgba, w0, x, y) ||
@@ -1356,7 +1390,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         }
       }
       floodTransparent(icon);
-      final maxW = w0 - 2 * 5 + 6, maxH = h0 - 2 * 5 + 6;
+      final maxW = w0 - 2 * boxPad + 6, maxH = h0 - 2 * boxPad + 6;
       var finalIcon = peelForeign(icon);
       if (finalIcon.width > maxW || finalIcon.height > maxH) {
         final single = centredSingle();
@@ -1390,7 +1424,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
         if (rebuilt == null) {
           failed[key] =
               'extracted ink ${finalIcon.width}x${finalIcon.height} exceeds '
-              'the node box (${w0 - 10}x${h0 - 10}) — displaced model bounds '
+              'the node box (${w0 - 2 * boxPad}x${h0 - 2 * boxPad}) — displaced model bounds '
               'suspected (sources: ${group.map((s) => s.source).toSet().join(', ')})';
           continue;
         }
@@ -1458,7 +1492,7 @@ Future<PrimIconExtraction> extractPrimIcons(WidgetTester tester) async {
     }
     final cleaned = [
       for (final crop in crops)
-        if (_cleanNodeBoxCrop(
+        if (cleanNodeBoxCrop(
               crop.rgba,
               crop.w,
               crop.h,

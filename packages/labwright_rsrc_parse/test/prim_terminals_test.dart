@@ -13,6 +13,8 @@ void main() {
       classVariantIconKey(0x3a, 3, rows: 0x6),
       primIconVersionKey(1050, 16),
       primIconVersionKey(classVariantIconKey(0x3a, 3, rows: 0x6), 21),
+      primIconOptionKey(8070, BdPrimIconOption.lines),
+      primIconOptionKey(1166, BdPrimIconOption.legacyData),
     ];
     for (final key in keys) {
       expect(parsePrimIconName(primIconName(key)), key, reason: primIconName(key));
@@ -21,6 +23,12 @@ void main() {
     expect(primIconName(-0x44), 'class0x44');
     expect(primIconName(classVariantIconKey(0x44, 3)), 'class0x44_t3');
     expect(primIconName(primIconVersionKey(classVariantIconKey(0x3a, 3, rows: 0x6), 21)), 'class0x3a_t3_r6_from21');
+    expect(primIconName(primIconOptionKey(1166, BdPrimIconOption.legacyData)), 'prim1166_4x');
+    expect(primIconOptionOf(primIconOptionKey(8070, BdPrimIconOption.lines)), (8070, BdPrimIconOption.lines));
+    expect(primIconOptionOf(1050), isNull);
+    expect(primIconOptionOf(primIconVersionKey(1050, 16)), isNull);
+    expect(parsePrimIconName('prim8070_lines_from12'), isNull);
+    expect(parsePrimIconName('class0x44_lines'), isNull);
     expect(parsePrimIconName('icon7'), isNull);
     expect(parsePrimIconName('prim'), isNull);
   });

@@ -227,6 +227,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
                           origin: content.topLeft,
                           selected: _selected,
                           members: _members,
+                          diagram: _diagram,
                           canvasScale: _anchorScale,
                         ),
                       ),
@@ -245,6 +246,7 @@ class _ViDiagramViewState extends State<ViDiagramView> {
             child: _DetailsCard(
               object: _selected!,
               members: _members,
+              diagram: _diagram,
               onClose: () => setState(() {
                 _selected = null;
                 _members = const {};
@@ -540,8 +542,9 @@ int _packRect(int top, int left, int bottom, int right) =>
     ((bottom + 0x8000) << 16) |
     (right + 0x8000);
 
-String? _primDetail(BdObject object) {
-  final key = primIconKeyOf(object);
+String? _primDetail(BdObject object, BdDiagram? diagram) {
+  final key =
+      loadedPrimIconIdOf(object, diagram: diagram) ?? primIconArtKeyOf(object);
   if (key == null) return null;
   final name = primIconName(key);
   final status = kPrimIconStatus[name];
@@ -559,8 +562,9 @@ String? _primDetail(BdObject object) {
       'visible difference between two of them is undecoded state) · $iconPart';
 }
 
-String _iconStatusSuffix(BdObject object) {
-  final key = primIconKeyOf(object);
+String _iconStatusSuffix(BdObject object, BdDiagram? diagram) {
+  final key =
+      loadedPrimIconIdOf(object, diagram: diagram) ?? primIconArtKeyOf(object);
   if (key == null) return '';
   final name = primIconName(key);
   final status = kPrimIconStatus[name];
@@ -572,10 +576,10 @@ PrimIconArt? primIconArtFor(
   BdDiagram diagram,
   Map<int, PrimIconArt> icons,
 ) {
-  final base = primIconKeyOf(object);
+  final base = primIconArtKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, diagram.version)!;
-  if (base >= 0) return icons[key];
+  if (isPrimitiveIconKey(base)) return icons[key];
   final variant =
       icons[resolvePrimIconKey(
         bdClassVariantIconKey(diagram, object),
@@ -592,6 +596,10 @@ PrimIconArt? primIconArtFor(
   if (legacy == null || b == null) return legacy;
   return legacy.width == b.width && legacy.height == b.height ? legacy : null;
 }
+
+/// Whether [key] names a primitive's art (a `primResID` or one of its option variants) rather
+/// than a single-op class's, whose art varies with the node's size.
+bool isPrimitiveIconKey(int key) => key >= 0 || primIconOptionOf(key) != null;
 
 const kPrimIconPrescale = 4;
 
@@ -984,7 +992,9 @@ ui.Rect? primIconInkBounds(int key) => primIcons[key]?.inkBounds;
 Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
   final placed = key == null
       ? null
-      : kPrimIconPlacement[primIconName(primIconVersionOf(key)?.$1 ?? key)];
+      : kPrimIconPlacement[primIconName(
+          primIconVersionOf(key)?.$1 ?? primIconOptionOf(key)?.$1 ?? key,
+        )];
   if (placed != null) {
     return Rect.fromLTWH(
       nodeRect.left + placed.dx,
@@ -1003,10 +1013,10 @@ Rect primIconStampRect(Rect nodeRect, int artW, int artH, {int? key}) {
 
 int? loadedPrimIconIdOf(BdObject object, {BdDiagram? diagram}) {
   final version = diagram?.version;
-  final base = primIconKeyOf(object);
+  final base = primIconArtKeyOf(object);
   if (base == null) return null;
   final key = resolvePrimIconKey(base, version)!;
-  if (base >= 0) return key;
+  if (isPrimitiveIconKey(base)) return key;
   final b = object.absBounds;
   if (b == null) return key;
   if (diagram != null) {
@@ -2091,7 +2101,7 @@ class BdDiagramPainter extends CustomPainter {
       return;
     }
     final icon = subViIcons[object.oid];
-    final iconKey = primIconKeyOf(object);
+    final iconKey = primIconArtKeyOf(object);
     final disabled = disabledOids.contains(object.oid);
     final primIcon =
         (disabled
@@ -5275,12 +5285,14 @@ class _OverlayPainter extends CustomPainter {
     required this.origin,
     required this.selected,
     required this.members,
+    this.diagram,
     this.canvasScale = 1,
   });
 
   final Offset origin;
   final BdObject? selected;
   final Set<BdObject> members;
+  final BdDiagram? diagram;
 
   final double canvasScale;
 
@@ -5292,7 +5304,7 @@ class _OverlayPainter extends CustomPainter {
       bounds.right - origin.dx,
       bounds.bottom - origin.dy,
     );
-    final key = primIconKeyOf(o);
+    final key = loadedPrimIconIdOf(o, diagram: diagram);
     final art = key == null ? null : primIcons[key];
     return art == null
         ? rect
@@ -5327,6 +5339,7 @@ class _OverlayPainter extends CustomPainter {
   @override
   bool shouldRepaint(covariant _OverlayPainter old) =>
       old.origin != origin ||
+      !identical(old.diagram, diagram) ||
       !identical(old.selected, selected) ||
       old.members.length != members.length ||
       !old.members.containsAll(members) ||
@@ -5338,9 +5351,11 @@ class _DetailsCard extends StatelessWidget {
     required this.object,
     required this.onClose,
     this.members = const {},
+    this.diagram,
   });
   final BdObject object;
   final VoidCallback onClose;
+  final BdDiagram? diagram;
 
   final Set<BdObject> members;
 
@@ -5375,12 +5390,13 @@ class _DetailsCard extends StatelessWidget {
             final frames? => ' · shows frame ${frames.visibleFrameIndex + 1}',
             null => '',
           }}'
-          '${_iconStatusSuffix(object)}'
+          '${_iconStatusSuffix(object, diagram)}'
           '${object.typeKind != ViTypeKind.unknown ? ' · type ${object.typeKind.name}' : ''}'
           '${bounds != null ? ' · ${bounds.width}×${bounds.height} @(${bounds.left},${bounds.top})' : ''}'
           '${object.parentOid != null ? ' · parent ${object.parentOid}' : ''}',
       details: [
-        if (_primDetail(object) case final prim?) detailLine('primitive', prim),
+        if (_primDetail(object, diagram) case final prim?)
+          detailLine('primitive', prim),
         if (object.items.isNotEmpty)
           detailLine(
             'values',

@@ -23,7 +23,14 @@ enum ViObjFlag {
 
   /// On a Build Array input terminal: the input concatenates (an array input drawn with the
   /// array glyph) instead of adding a dimension.
-  buildArrayConcatenate(0x10000);
+  buildArrayConcatenate(0x10000),
+
+  /// `0x4000000` on a Read from Text File primitive: it reads lines, and its icon shows them.
+  readLines(0x4000000),
+
+  /// `0x400000` on a Type Cast primitive: it converts LabVIEW 4.x data, and its icon carries
+  /// a red "4.x".
+  convertLegacyData(0x400000);
 
   const ViObjFlag(this.mask);
 

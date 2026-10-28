@@ -56,6 +56,7 @@ void main() {
           reference.image,
           lockScale: 1.0 / raster.scale,
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
         );
         final base = name.substring(0, name.length - '.png'.length);
         final ours = await upscaleNearest(result.fitted, 2);

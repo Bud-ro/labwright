@@ -59,6 +59,7 @@ void main() {
           reference.image,
           lockScale: 1.0 / raster.scale,
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
         );
         if (!result.registered || result.comparison.diffFraction > 0.08)
           continue;

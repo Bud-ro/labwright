@@ -22,11 +22,15 @@ class BdRaster {
     required this.image,
     required this.content,
     required this.scale,
+    this.primIcons = const {},
   });
 
   final ui.Image image;
   final Rect content;
   final double scale;
+
+  /// The icon arts the raster was painted with, by key.
+  final Map<int, PrimIconArt> primIcons;
 
   Rect modelRect(HeapRect bounds) => Rect.fromLTRB(
     (bounds.left - content.left) * scale,
@@ -316,6 +320,7 @@ Future<BdRaster?> rasteriseBlockDiagram(
       image: await picture.toImage(width, height),
       content: content,
       scale: pxScale,
+      primIcons: primIcons,
     );
   } finally {
     picture.dispose();
@@ -528,6 +533,7 @@ Future<BdOracleResult> compareToReference(
   ui.Image reference, {
   double? lockScale,
   List<Rect> anchorRects = const [],
+  List<Rect> exactRects = const [],
   BdRegistration? knownRegistration,
   Uint8List? knownReferenceEdges,
 }) async {
@@ -573,6 +579,8 @@ Future<BdOracleResult> compareToReference(
                       width,
                       height,
                       anchorRects: anchorRects,
+                      exactRects: exactRects,
+                      referenceRgba: referenceRgba,
                     )
                   : _inkBoundsRegistration(srcInk, dstInk);
             }
@@ -643,6 +651,33 @@ List<Rect> bdStructureAnchorRects(
       continue;
     }
     out.add(raster.modelRect(bounds));
+  }
+  return out;
+}
+
+/// The render-space rectangles where [raster] stamped a primitive icon's art for each of the
+/// [drawable] objects (every drawn object by default): the pixels the registration trusts
+/// most, since the committed arts are verified against the references pixel for pixel.
+List<Rect> bdPrimIconStampRects(
+  BdDiagram diagram,
+  BdRaster raster, {
+  List<BdObject>? drawable,
+}) {
+  drawable ??= bdDrawableObjects(diagram);
+  final out = <Rect>[];
+  for (final object in drawable) {
+    final bounds = object.absBounds;
+    if (bounds == null || object.category != BdObjectKind.node) continue;
+    final art = primIconArtFor(object, diagram, raster.primIcons);
+    if (art == null) continue;
+    out.add(
+      primIconStampRect(
+        raster.modelRect(bounds),
+        art.width,
+        art.height,
+        key: loadedPrimIconIdOf(object, diagram: diagram),
+      ),
+    );
   }
   return out;
 }
@@ -911,6 +946,8 @@ BdRegistration _translationRegistration(
   int searchRadius = 96,
   int edgeThreshold = kBdEdgeThreshold,
   List<Rect> anchorRects = const [],
+  List<Rect> exactRects = const [],
+  Uint8List? referenceRgba,
 }) {
   final base = BdRegistration(
     scale: scale,
@@ -1056,19 +1093,31 @@ BdRegistration _translationRegistration(
       }
     }
     final (dx, dy, _) = refine(best.$1, best.$2, hitsAt);
-    return BdRegistration(
-      scale: scale,
-      dx: dx,
-      dy: dy,
-    )._exactSnap(points, referenceEdges, width, height);
+    return BdRegistration(scale: scale, dx: dx, dy: dy)
+        ._exactSnap(points, referenceEdges, width, height)
+        ._inkSnap(
+          renderRgba,
+          renderWidth,
+          renderHeight,
+          referenceRgba,
+          width,
+          height,
+          exactRects: exactRects,
+        );
   }
   candidates.sort((a, b) => b.$3.compareTo(a.$3));
   final (dx, dy, _) = refine(candidates.first.$1, candidates.first.$2, hitsAt);
-  return BdRegistration(
-    scale: scale,
-    dx: dx,
-    dy: dy,
-  )._exactSnap(points, referenceEdges, width, height);
+  return BdRegistration(scale: scale, dx: dx, dy: dy)
+      ._exactSnap(points, referenceEdges, width, height)
+      ._inkSnap(
+        renderRgba,
+        renderWidth,
+        renderHeight,
+        referenceRgba,
+        width,
+        height,
+        exactRects: exactRects,
+      );
 }
 
 extension _ExactSnap on BdRegistration {
@@ -1101,6 +1150,139 @@ extension _ExactSnap on BdRegistration {
       }
     }
     return BdRegistration(scale: scale, dx: bx, dy: by);
+  }
+}
+
+/// The trusted pixels a render needs before the ink snap scores them alone.
+const int kBdInkSnapMinimum = 200;
+
+/// Which of the render's ink [_InkSnap._inkSnap] votes with, the first tier holding at least
+/// [kBdInkSnapMinimum] pixels.
+enum _InkSnapTier { exact, black, all }
+
+extension _InkSnap on BdRegistration {
+  /// This registration moved by up to [radius] pixels to where the most of the render's
+  /// trusted ink lands on a reference pixel of the same color, aliases equal: the ink inside
+  /// [exactRects] (the stamped icon arts, verified pixel for pixel), or when that is under
+  /// [kBdInkSnapMinimum] pixels the render's black ink (node frames, icon ink, text and
+  /// structure borders, which LabVIEW draws hard-edged), or when that is too the whole ink.
+  /// The current offset wins ties, and a registration that scales is left alone.
+  BdRegistration _inkSnap(
+    Uint8List renderRgba,
+    int renderWidth,
+    int renderHeight,
+    Uint8List? referenceRgba,
+    int width,
+    int height, {
+    int radius = 2,
+    List<Rect> exactRects = const [],
+  }) {
+    if (referenceRgba == null ||
+        scale != 1.0 ||
+        dx != dx.roundToDouble() ||
+        dy != dy.roundToDouble()) {
+      return this;
+    }
+    final exact = exactRects.isEmpty
+        ? null
+        : Uint8List(renderWidth * renderHeight);
+    for (final rect in exactRects) {
+      for (
+        var y = math.max(0, rect.top.round());
+        y < math.min(renderHeight, rect.bottom.round());
+        y++
+      ) {
+        for (
+          var x = math.max(0, rect.left.round());
+          x < math.min(renderWidth, rect.right.round());
+          x++
+        ) {
+          exact![y * renderWidth + x] = 1;
+        }
+      }
+    }
+    var exactCount = 0, blackCount = 0, allCount = 0;
+    for (var y = 0; y < renderHeight; y++) {
+      for (var x = 0; x < renderWidth; x++) {
+        final i = (y * renderWidth + x) * 4;
+        if (renderRgba[i + 3] == 0) continue;
+        final rgb =
+            (renderRgba[i] << 16) |
+            (renderRgba[i + 1] << 8) |
+            renderRgba[i + 2];
+        if (rgb == 0xffffff) continue;
+        allCount++;
+        if (exact != null && exact[y * renderWidth + x] != 0) exactCount++;
+        if (BdColorAlias.canonicalRgb(rgb) == BdColorAlias.nodeInk.canonical) {
+          blackCount++;
+        }
+      }
+    }
+    final tier = exactCount >= kBdInkSnapMinimum
+        ? _InkSnapTier.exact
+        : blackCount >= kBdInkSnapMinimum
+        ? _InkSnapTier.black
+        : _InkSnapTier.all;
+    final count = switch (tier) {
+      _InkSnapTier.exact => exactCount,
+      _InkSnapTier.black => blackCount,
+      _InkSnapTier.all => allCount,
+    };
+    final ink = Int32List(count * 2);
+    final colors = Int32List(count);
+    var n = 0;
+    for (var y = 0; y < renderHeight; y++) {
+      for (var x = 0; x < renderWidth; x++) {
+        final i = (y * renderWidth + x) * 4;
+        if (renderRgba[i + 3] == 0) continue;
+        final rgb =
+            (renderRgba[i] << 16) |
+            (renderRgba[i + 1] << 8) |
+            renderRgba[i + 2];
+        if (rgb == 0xffffff) continue;
+        final canonical = BdColorAlias.canonicalRgb(rgb);
+        final take = switch (tier) {
+          _InkSnapTier.exact => exact![y * renderWidth + x] != 0,
+          _InkSnapTier.black => canonical == BdColorAlias.nodeInk.canonical,
+          _InkSnapTier.all => true,
+        };
+        if (!take) continue;
+        ink[n * 2] = x;
+        ink[n * 2 + 1] = y;
+        colors[n] = canonical;
+        n++;
+      }
+    }
+    if (ink.isEmpty) return this;
+    final ox0 = dx.round(), oy0 = dy.round();
+    int hitsAt(int ox, int oy) {
+      var hits = 0;
+      for (var i = 0, c = 0; i < ink.length; i += 2, c++) {
+        final x = ink[i] + ox, y = ink[i + 1] + oy;
+        if (x < 0 || y < 0 || x >= width || y >= height) continue;
+        final r = (y * width + x) * 4;
+        final rgb =
+            (referenceRgba[r] << 16) |
+            (referenceRgba[r + 1] << 8) |
+            referenceRgba[r + 2];
+        if (BdColorAlias.canonicalRgb(rgb) == colors[c]) hits++;
+      }
+      return hits;
+    }
+
+    var bx = ox0, by = oy0, best = hitsAt(ox0, oy0);
+    for (var oy = -radius; oy <= radius; oy++) {
+      for (var ox = -radius; ox <= radius; ox++) {
+        if (ox == 0 && oy == 0) continue;
+        final hits = hitsAt(ox0 + ox, oy0 + oy);
+        if (hits > best) {
+          best = hits;
+          bx = ox0 + ox;
+          by = oy0 + oy;
+        }
+      }
+    }
+    return BdRegistration(scale: scale, dx: bx.toDouble(), dy: by.toDouble());
   }
 }
 
@@ -1281,6 +1463,9 @@ class _BdOracleViewState extends State<BdOracleView>
       raster.image,
       reference.image,
       lockScale: snippet ? 1.0 / raster.scale : null,
+      exactRects: snippet
+          ? bdPrimIconStampRects(diagram, raster, drawable: drawable)
+          : const [],
       anchorRects: snippet
           ? bdStructureAnchorRects(diagram, raster, drawable: drawable)
           : const [],

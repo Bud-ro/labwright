@@ -1,14 +1,12 @@
 import 'dart:io';
 
 import 'package:image/image.dart' as img;
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
 
 /// Writes lib/src/generated/prim_icon_art.dart from assets/prim_icons: one line per icon, its
 /// pixel rows as palette characters, keyed by the asset's status key.
 void main() {
   final dir = Directory('assets/prim_icons');
-  final pattern = RegExp(
-    r'^((?:prim\d+|class0x[0-9a-f]+)(?:_t\d+(?:_r[0-9a-f]+)?)?(?:_from\d+)?)(?:_[a-z0-9-]+)?\.png$',
-  );
   const transparent = '.';
   final letters = String.fromCharCodes([
     for (var c = 0x21; c <= 0x7e; c++)
@@ -26,8 +24,8 @@ void main() {
   final files = dir.listSync().whereType<File>().toList()
     ..sort((a, b) => a.path.compareTo(b.path));
   for (final file in files) {
-    final match = pattern.firstMatch(file.uri.pathSegments.last);
-    if (match == null) continue;
+    final key = _iconKeyOfAsset(file.uri.pathSegments.last);
+    if (key == null) continue;
     final image = img
         .decodePng(file.readAsBytesSync())!
         .convert(numChannels: 4);
@@ -51,7 +49,6 @@ void main() {
       }
       rows.write('|');
     }
-    final key = match.group(1)!;
     final previous = art[key];
     if (previous != null && previous != '$rows') {
       throw StateError(
@@ -86,4 +83,16 @@ ${art.entries.map((e) => "  '${e.key}': '${e.value}',").join('\n')}
   stdout.writeln(
     'wrote ${art.length} icons in ${colours.length} colours to ${out.path}',
   );
+}
+
+/// The icon key an asset file name carries, the name less `.png` and the trailing
+/// `_<description>` segment when [parsePrimIconName] accepts the rest, else null.
+String? _iconKeyOfAsset(String fileName) {
+  if (!fileName.endsWith('.png')) return null;
+  final stem = fileName.substring(0, fileName.length - 4);
+  if (parsePrimIconName(stem) != null) return stem;
+  final cut = stem.lastIndexOf('_');
+  if (cut < 0) return null;
+  final key = stem.substring(0, cut);
+  return parsePrimIconName(key) == null ? null : key;
 }
