@@ -466,6 +466,34 @@ void main() {
     });
   });
 
+  group('reference arrays', () {
+    test('Refs elements carry no payload: the next record follows the bounds and writes back byte-exactly', () {
+      final b = _BodyBuilder();
+      b.u32(0);
+      b.u32(0);
+      b.u32(0);
+      b.str('SequenceFileData');
+      b.str('Data');
+      b.u32(2);
+      b.u32(BinaryPropertyFlag.value.bit);
+      b.u32(0);
+      b.str('Refs');
+      b.str('Handles');
+      b.str('[0]');
+      b.str('[3]');
+      b.u32(0);
+      b.leaf('Num', 'After', value: 2.5);
+      final bytes = b.finish();
+      final grammar = decodeTof1(bytes)!.grammar!;
+      final handles = grammar.data.children.first;
+      expect(handles.kind, SeqValueClass.references);
+      expect(handles.elements, [null, null, null, null]);
+      expect(grammar.data.children.last.value, 2.5);
+      expect(parseBinarySeqWriteModel(bytes)!.writeBody(), inflateBinaryBody(bytes));
+      expect(parseSeqFile(bytes).data.prop('Handles')!.array, hasLength(4));
+    });
+  });
+
   group('catalogues', () {
     test('the known flag mask is the union of the flags and nothing else', () {
       expect(BinaryPropertyFlag.knownMask, BinaryPropertyFlag.values.fold(0, (m, f) => m | f.bit));

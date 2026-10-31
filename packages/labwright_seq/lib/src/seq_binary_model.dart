@@ -189,7 +189,6 @@ final class _Expander {
           switch (element) {
             BinaryRecord() => expand(element, elemProto, asElement: true),
             double() => SeqProperty(name: '', scalar: formatSeqNumber(element)),
-            int() => SeqProperty(name: '', scalar: '$element'),
             bool() => SeqProperty(name: '', scalar: element ? 'true' : 'false'),
             String() => SeqProperty(name: '', scalar: element),
             _ => SeqProperty(name: '', scalar: ''),

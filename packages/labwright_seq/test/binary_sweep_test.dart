@@ -262,6 +262,21 @@ const _pinned = <String, (int, int, int, int, int)>{
     4,
     0,
   ),
+  'seq-corpus/sources/TheDomcio__rs-teststand/crates/rs-teststand/tests/fixtures/PopUp.seq': (797, 20, 1, 1, 0),
+  'seq-corpus/sources/TheDomcio__rs-teststand/crates/rs-teststand/tests/fixtures/ResultListParse.seq': (
+    797,
+    20,
+    1,
+    4,
+    0,
+  ),
+  'seq-corpus/sources/TheDomcio__rs-teststand/crates/rs-teststand/tests/fixtures/TypesPlayground.seq': (
+    797,
+    22,
+    1,
+    1,
+    0,
+  ),
   'seq-corpus/sources/astemes__astemes-csv-report-teststand-plugin/sandbox/Test Sequence.seq': (920, 20, 2, 4, 0),
   'seq-corpus/sources/astemes__astemes-csv-report-teststand-plugin/source/Astemes_CSVReportGenerator.seq': (
     920,
@@ -287,12 +302,88 @@ const _pinned = <String, (int, int, int, int, int)>{
   'seq-corpus/sources/joshuaprewitt__battery-tester/Cycle Test/ProcessingStage/ProgramFiles_64/Battery Test/Battery Cycle Test.seq':
       (941, 39, 2, 15, 2),
   'seq-corpus/sources/levylabpitt__TestStand/seq/Sequence File 1.seq': (920, 17, 1, 4, 4),
+  'seq-corpus/sources/negentropicdev__lv-hts/Test/Sequences/DisplaySerialNo.seq': (920, 20, 1, 1, 0),
+  'seq-corpus/sources/ni__FPT/source/Example Measurement/Compression Test/Compression.seq': (1022, 33, 1, 7, 5),
+  'seq-corpus/sources/ni__FPT/source/Example Measurement/Intermodulation Test/Intermodulation.seq': (1022, 33, 1, 7, 5),
+  'seq-corpus/sources/ni__FPT/source/Example Measurement/Noise Figure Test/NF.seq': (1022, 33, 1, 7, 5),
+  'seq-corpus/sources/ni__FPT/source/Example Measurement/Pulse Measurement Test/Pulse.seq': (1022, 33, 1, 7, 5),
+  'seq-corpus/sources/ni__FPT/source/Example Measurement/S Param Test/S-Param.seq': (1022, 33, 1, 7, 5),
+  'seq-corpus/sources/ni__FPT/source/Example Measurement/S Param VST Test/S-Param_VST.seq': (1022, 33, 1, 7, 5),
+  'seq-corpus/sources/ni__arbitrary-session-management/src/custom_instr_session_sharing/examples/teststand_sequence/DeviceCommExample.seq':
+      (1022, 26, 1, 5, 2),
+  'seq-corpus/sources/ni__arbitrary-session-management/src/file_session_sharing/examples/teststand_sequence/FileSessionSharing.seq':
+      (962, 26, 1, 9, 6),
+  'seq-corpus/sources/ni__custom-grpc-drivers/Examples/NI-DAQmx Measurement/NIDAQmxMeasurement_example.seq': (
+    962,
+    28,
+    1,
+    4,
+    2,
+  ),
+  'seq-corpus/sources/ni__custom-grpc-drivers/Examples/NI-Switch Control Relay/NISwitchControlRelay_example.seq': (
+    962,
+    28,
+    1,
+    4,
+    2,
+  ),
+  'seq-corpus/sources/ni__enhancing-validation-efficiency-pxi-intelligent-tools/InstrumentStudio/AppNote_LabSetUp/AppNote_LabSetUp.seq':
+      (1022, 43, 2, 8, 0),
+  'seq-corpus/sources/ni__enhancing-validation-efficiency-pxi-intelligent-tools/TestStand/AutomatedSequence.seq': (
+    1022,
+    36,
+    1,
+    7,
+    0,
+  ),
+  'seq-corpus/sources/ni__instrumentstudio-screenshot-utility-labview/source/Examples/Test Screenshot Utility.seq': (
+    1022,
+    28,
+    1,
+    5,
+    1,
+  ),
+  'seq-corpus/sources/ni__instrumentstudio-screenshot-utility-python/source/Test Screenshot Utility.seq': (
+    1022,
+    26,
+    1,
+    5,
+    1,
+  ),
+  'seq-corpus/sources/ni__measurement-plugin-abstraction-layer-labview/Source/FAL Implementation/SourceMeasureDCVoltageFAL.seq':
+      (1022, 28, 1, 4, 2),
+  'seq-corpus/sources/ni__measurement-plugin-abstraction-layer-labview/Source/HAL Implementation/DmmMeasurementHAL.seq':
+      (1022, 28, 1, 4, 2),
+  'seq-corpus/sources/ni__measurement-plugin-converter-labview/Manual Test Assets/One Session N Instrument/NI Instruments/DAQ + DCPower/Power Sequence.seq':
+      (920, 29, 1, 6, 3),
+  'seq-corpus/sources/ni__measurement-plugin-converter-labview/Manual Test Assets/One Session One Instrument/DAQ/Power Module Assignment1/Power Sequence.seq':
+      (920, 29, 1, 6, 3),
   'seq-corpus/sources/ni__measurement-plugin-labview/Source/Example Measurements/NI-DMM Measurement/NIDmmMeasurement_example.seq':
       (962, 28, 1, 4, 2),
   'seq-corpus/sources/ni__measurement-plugin-labview/Source/Example Measurements/NI-FGEN Standard Function/NIFgenStandardFunction_example.seq':
       (962, 28, 1, 4, 2),
   'seq-corpus/sources/ni__measurement-plugin-labview/Source/Example Measurements/NI-SCOPE Acquire Waveform/NIScopeAcquireWaveform_example.seq':
       (962, 28, 1, 4, 2),
+  'seq-corpus/sources/ni__nipcbatt-dotnet/source/PCBA.Test.Toolkit.Automation/Action Button Test/Action Button Test.seq':
+      (920, 33, 2, 26, 14),
+  'seq-corpus/sources/ni__nipcbatt-dotnet/source/PCBA.Test.Toolkit.Automation/Audio Test/Audio Line Check Test.seq': (
+    920,
+    38,
+    2,
+    23,
+    13,
+  ),
+  'seq-corpus/sources/ni__nipcbatt-dotnet/source/PCBA.Test.Toolkit.Automation/Digital IO Test/Digital State Test.seq': (
+    920,
+    30,
+    2,
+    21,
+    12,
+  ),
+  'seq-corpus/sources/ni__nipcbatt-dotnet/source/PCBA.Test.Toolkit.Automation/Power Supply Test/Power Supply and Measure with trigger.seq':
+      (920, 48, 2, 24, 13),
+  'seq-corpus/sources/ni__nipcbatt-dotnet/source/PCBA.Test.Toolkit.Automation/Power Supply Test/Power Supply and Measure without trigger.seq':
+      (920, 48, 2, 21, 12),
   'seq-corpus/sources/ni__nipcbatt-labview/source/Automation/Action Button Tests/Action Button Test.seq': (
     962,
     33,
@@ -363,6 +454,13 @@ const _pinned = <String, (int, int, int, int, int)>{
       (1022, 40, 4, 10, 7),
   'seq-corpus/sources/ni__semi-test-library-dotnet/Examples/source/Sequence/SMUMergePinGroup/STLExample.SMUMergePinGroup.seq':
       (1022, 43, 4, 19, 9),
+  'seq-corpus/sources/ni__semi-test-library-dotnet/Examples/source/Sequence/TMU/STLExample.TMU.seq': (
+    1022,
+    43,
+    4,
+    13,
+    9,
+  ),
   'seq-corpus/sources/ni__semi-test-library-dotnet/Examples/source/TestPrograms/Accelerometer/Accelerometer.STSSoftware24.5Compatible.seq':
       (1022, 48, 4, 43, 22),
   'seq-corpus/sources/ni__semi-test-library-dotnet/Examples/source/TestPrograms/Accelerometer/Accelerometer.seq': (
@@ -547,7 +645,7 @@ void main() {
     expect(seen, _pinned.keys.toSet(), reason: 'the pinned binary set drifted');
     expect(filesWithSteps, _pinned.length, reason: 'every corpus binary carries steps');
     expect(steps, _pinned.values.fold(0, (a, p) => a + p.$4));
-    expect(unnamedSteps, 167, reason: 'unnamed Label steps');
+    expect(unnamedSteps, 169, reason: 'unnamed Label steps');
     expect(generations.keys.toSet(), Tof1Generation.values.toSet(), reason: 'every generation is exercised');
     expect(
       undecodedFields.keys.toSet(),

@@ -909,13 +909,22 @@ String _withoutLineComments(String source) {
 /// 2^53, above which a double no longer represents every integer exactly.
 const int _maxExactIntDouble = 9007199254740992;
 
-String _numLiteral(num n) => n is int && n.abs() < _maxExactIntDouble ? n.toString() : n.toDouble().toString();
+String _numLiteral(num n) => switch (n) {
+  _ when n.isNaN => 'double.nan',
+  _ when n.isInfinite => n > 0 ? 'double.infinity' : '-double.infinity',
+  int() when n.abs() < _maxExactIntDouble => n.toString(),
+  _ => n.toDouble().toString(),
+};
+
+const _nonFiniteSpellings = {'NaN': double.nan, 'Inf': double.infinity, '-Inf': double.negativeInfinity};
+
+num? _parseNumberScalar(String text) => num.tryParse(text) ?? _nonFiniteSpellings[text.trim()];
 
 final RegExp _i64SuffixLiteral = RegExp(r'(?<![\w.$])(\d+|0[xX][0-9a-fA-F]+)u?i64\b');
 
 num? _parseTsNum(String text) {
   final t = text.trim();
-  final direct = num.tryParse(t);
+  final direct = _parseNumberScalar(t);
   if (direct != null) return direct;
   final m = RegExp(r'^-?(\d+|0[xX][0-9a-fA-F]+)u?i64$').firstMatch(t);
   if (m == null) return null;
@@ -1536,6 +1545,7 @@ class _DartExporter {
       'For Each',
       'Select',
       'Case',
+      'Sweep Loop',
       'End',
       'Break',
       'Continue',
@@ -1719,6 +1729,12 @@ class _DartExporter {
           _indent++;
           _line('${vars.matched} = true;');
           open.add(_openBlock(flow.kind, selectId: select));
+        case FlowKind.sweepLoop:
+          if (asTest) _markUnported('sweep loop "${step.name}": parameter sweep not exported');
+          _line('// TODO: ${_comment(flow.header)} not exported; the body runs once');
+          _line('{$nameNote');
+          _indent++;
+          open.add(_openBlock(flow.kind));
         case FlowKind.end:
           if (open.isEmpty) {
             _line(
@@ -1729,8 +1745,13 @@ class _DartExporter {
           }
           closeBlock(open.removeLast(), note: nameNote);
         case FlowKind.breakStmt:
-          final target = innermost((k) => k == FlowKind.selectBlock || loopKinds.contains(k));
-          if (target == null) {
+          final target = innermost(
+            (k) => k == FlowKind.selectBlock || k == FlowKind.sweepLoop || loopKinds.contains(k),
+          );
+          if (target?.kind == FlowKind.sweepLoop) {
+            if (asTest) _markUnported('break out of sweep loop at step "${step.name}" not exported');
+            _line('// $rawName: Break out of a sweep loop — kept as a comment');
+          } else if (target == null) {
             _line(
               '// $rawName: Break with no enclosing loop/select — kept as a '
               'comment',
@@ -1749,8 +1770,11 @@ class _DartExporter {
             }
           }
         case FlowKind.continueStmt:
-          final loop = innermost(loopKinds.contains);
-          if (loop == null) {
+          final loop = innermost((k) => k == FlowKind.sweepLoop || loopKinds.contains(k));
+          if (loop?.kind == FlowKind.sweepLoop) {
+            if (asTest) _markUnported('continue in sweep loop at step "${step.name}" not exported');
+            _line('// $rawName: Continue in a sweep loop — kept as a comment');
+          } else if (loop == null) {
             _line(
               '// $rawName: Continue with no enclosing loop — kept as a '
               'comment',
@@ -2584,7 +2608,7 @@ class _DartExporter {
     final scalar = c.scalar;
     switch (cls) {
       case SeqValueClass.number:
-        final n = num.tryParse(scalar ?? '');
+        final n = _parseNumberScalar(scalar ?? '');
         return (_DartSlot.number, 'double $name = ${n == null ? '0' : _numLiteral(n)};$note');
       case SeqValueClass.boolean:
         return (_DartSlot.flag, 'bool $name = ${scalar?.toLowerCase() == 'true'};$note');
@@ -2624,7 +2648,10 @@ class _DartExporter {
     final cls = c.valueClass;
     if (scalar != null) {
       return switch (cls) {
-        SeqValueClass.number => num.tryParse(scalar)?.toString() ?? "'${_escape(scalar)}'",
+        SeqValueClass.number => switch (_parseNumberScalar(scalar)) {
+          final n? => n.isFinite ? n.toString() : _numLiteral(n),
+          null => "'${_escape(scalar)}'",
+        },
         SeqValueClass.boolean => scalar.toLowerCase() == 'true' ? 'true' : 'false',
         _ => "'${_escape(scalar)}'",
       };

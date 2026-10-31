@@ -36,7 +36,7 @@ void main() {
         reason: '$rel: the rewritten file must lift to the same model',
       );
     }
-    expect(binaries, 140);
+    expect(binaries, 168);
   });
 
   group('mutation probes', () {

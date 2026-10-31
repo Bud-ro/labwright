@@ -329,6 +329,7 @@ final class _Tof1BodyWriter {
         u8(r.hasElemProto ? 1 : 0);
         if (r.elemProto case final proto?) record(proto);
       }
+      if (r.kind == SeqValueClass.references) return;
       final elements = r.elements ?? const <Object?>[];
       final indices = r.elementIndices;
       for (var i = 0; i < elements.length; i++) {
@@ -339,8 +340,6 @@ final class _Tof1BodyWriter {
             f64(element);
           case final bool element:
             u8(element ? 1 : 0);
-          case final int element:
-            u32(element);
           default:
             u32(indices == null ? binaryNullIndex : indices[i]);
         }

@@ -67,7 +67,8 @@
 ///   Str/ExprValue/Path  u32? value pool index (flags & value)
 ///   Bool                u8? value (flags & value)
 ///   Ref                 nothing; the value bit carries no payload
-///   Nums/Strs/Bools/Refs u32 lbound, u32 ubound (pool indices like '[0]' '[3]'), then one f64/u32/u8/u32 per element
+///   Nums/Strs/Bools     u32 lbound, u32 ubound (pool indices like '[0]' '[3]'), then one f64/u32/u8 per element
+///   Refs                u32 lbound, u32 ubound; the elements carry no payload
 ///   Objs/Containers     u32 lbound, u32 ubound, u8 hasElemProto, Record? elemproto, Record[elements]
 ///   Enum                flags & enumItems: u32 itemsWord (TODO: not yet decoded), Record items (an Objs array)
 ///                       flags & enumValue: u32 enumerator name pool index, f64 enumerator value
@@ -336,7 +337,7 @@ final class BinaryRecord {
 
   BinaryRecord? elemProto;
 
-  /// Array elements: [BinaryRecord]s for object arrays, `double`, `int`, `String?` or `bool` for scalar arrays.
+  /// Array elements: [BinaryRecord]s for object arrays, `double`, `String?` or `bool` for scalar arrays, null for `Refs`.
   List<Object?>? elements;
 
   /// Pool indices of a `Strs` array's elements.
@@ -900,7 +901,7 @@ final class _Tof1BodyParser {
             case SeqValueClass.booleans:
               elements[i] = _u8s(BinaryByteTier.semantic) != 0;
             case SeqValueClass.references:
-              elements[i] = _u32s(BinaryByteTier.semantic);
+              break;
             default:
               elements[i] = _record(depth + 1, elementDefinition);
           }

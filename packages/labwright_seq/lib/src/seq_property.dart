@@ -90,6 +90,7 @@ class SeqProperty {
     this.extData = const [],
     this.numericFormat,
     this.xmlComment,
+    this.attributeBlock,
   });
 
   final String name;
@@ -123,6 +124,8 @@ class SeqProperty {
   final String? numericFormat;
 
   final String? xmlComment;
+
+  final SeqProperty? attributeBlock;
 
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
@@ -185,6 +188,7 @@ class SeqProperty {
     List<Map<String, String>>? extData,
     String? numericFormat,
     String? xmlComment,
+    SeqProperty? attributeBlock,
   }) => SeqProperty(
     name: name ?? this.name,
     xmlTag: xmlTag ?? this.xmlTag,
@@ -199,6 +203,7 @@ class SeqProperty {
     extData: extData ?? this.extData,
     numericFormat: numericFormat ?? this.numericFormat,
     xmlComment: xmlComment ?? this.xmlComment,
+    attributeBlock: attributeBlock ?? this.attributeBlock,
   );
 
   SeqProperty? prop(String name) => subProps.where((p) => p.name == name).firstOrNull;
@@ -272,6 +277,10 @@ SeqProperty buildProperty(XmlElement e) {
     ],
     numericFormat: childElement(e, 'numericfmt')?.innerText,
     xmlComment: childElement(e, 'comment')?.innerText,
+    attributeBlock: switch (childElement(e, 'Attributes')) {
+      final block? => buildProperty(block),
+      null => null,
+    },
   );
 }
 
@@ -298,5 +307,6 @@ SeqProperty _arrayElement(XmlElement wrapper) {
     extData: child.extData,
     numericFormat: child.numericFormat,
     xmlComment: child.xmlComment,
+    attributeBlock: child.attributeBlock,
   );
 }
