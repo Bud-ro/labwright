@@ -118,7 +118,7 @@ Attr = Num
     final shards = _shards([for (final f in byFormat[SeqFormat.binary] ?? const <File>[]) f.path]);
     final failures = await Future.wait([for (final shard in shards) Isolate.run(() => _binaryLoops(shard))]);
     expect(failures.expand((f) => f), isEmpty);
-  });
+  }, timeout: const Timeout(Duration(minutes: 5)));
 }
 
 List<List<String>> _shards(List<String> paths) {
