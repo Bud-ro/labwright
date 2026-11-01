@@ -328,7 +328,6 @@ void main() {
       b.u32([b.s('[0][0]'), b.s('[2097151][2097151]'), 0]);
       final bytes = b.finish();
       expect(() => parseSeqFile(bytes), throwsA(isA<Tof1FormatException>()));
-      expect((SeqDocument.parse(bytes) as BinarySeqDocument).error, contains('exceed'));
     });
 
     test('Refs elements carry no payload: the next record follows the bounds and writes back byte-exactly', () {
@@ -349,45 +348,8 @@ void main() {
     });
   });
 
-  group('SeqDocument', () {
-    test('carries the lifted model and the pool of a grammar-conforming body', () {
-      final doc = SeqDocument.parse(_synthetic()) as BinarySeqDocument;
-      expect(doc.partialFile!.sequences.single.main.single.name, 'Measure it');
-      expect(doc.strings.map((s) => s.text), contains('Measure it'));
-      expect(doc.expressions, ['Locals.Voltage > 1']);
-    });
-
-    test('pool-string classifier predicates', () {
-      final cases = <(String, bool Function(String), bool)>[
-        (r'My Computer\ExcelReadWrite\Excel_Read.vi', isBinaryModulePath, true),
-        (r'SubSequences\2-Gerilim\AC_Gerilim.seq', isBinaryModulePath, true),
-        (r'lib\native\driver.DLL', isBinaryModulePath, true),
-        ('.vi', isBinaryModulePath, false),
-        ('Excel_Read.vi', isBinaryModulePath, false),
-        (r'notes\readme.txt', isBinaryModulePath, false),
-        ('Locals.Voltage == 5', isBinaryExpression, true),
-        ('RunState.LoopIndex += 1', isBinaryExpression, true),
-        ('Abs(Locals.FD1) <= 0.1', isBinaryExpression, true),
-        (r'ResStr("NI_STEPTYPES", "ACTION_DEF_STEP_NAME")', isBinaryExpression, true),
-        ('(x == 0) ? "a" : "b"', isBinaryExpression, true),
-        ('Status', isBinaryExpression, false),
-        ('ID#:abc.Step.x', isBinaryExpression, false),
-        (r'My Computer\Excel\Read.vi', isBinaryExpression, false),
-        ('"6105A"', isBinaryQuotedLiteral, true),
-        ('""', isBinaryQuotedLiteral, true),
-        ('6105A', isBinaryQuotedLiteral, false),
-        ('"open', isBinaryQuotedLiteral, false),
-        ('"a" == "b"', isBinaryQuotedLiteral, false),
-        ('"', isBinaryQuotedLiteral, false),
-      ];
-      for (final (text, predicate, want) in cases) {
-        expect(predicate(text), want, reason: text);
-      }
-    });
-  });
-
   group('fuzz hardening', () {
-    test('hostile input is refused; the document entry point never throws', () {
+    test('hostile input is refused', () {
       final honest = _Body.file(Uint8List(64), 32);
       for (final bytes in [
         Uint8List(0),
@@ -398,7 +360,6 @@ void main() {
       ]) {
         expect(inflateBinaryBody(bytes), isNull, reason: '$bytes');
         expect(() => decodeTof1(bytes), throwsFormatException);
-        expect(SeqDocument.parse(bytes), isA<SeqDocument>());
       }
     });
 

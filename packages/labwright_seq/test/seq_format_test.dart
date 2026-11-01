@@ -95,24 +95,4 @@ void main() {
       expect(detectSeqHeader(_b([1, 2, 3])).format, SeqFormat.unknown);
     });
   });
-
-  test('binaryStrings extracts printable runs with offsets, incl. Latin-1 high bytes', () {
-    final b = _b([
-      0x00,
-      ...ascii.encode('Hello'),
-      0x00,
-      0x01,
-      ...ascii.encode('World'),
-      0x00,
-      ...latin1.encode('Aktif_Güç'),
-      0x00,
-      ...ascii.encode('left'),
-      0x85,
-      ...ascii.encode('right'),
-    ]);
-    final runs = binaryStrings(b);
-    expect(runs.map((r) => r.text), ['Hello', 'World', 'Aktif_Güç', 'left', 'right']);
-    expect(runs.first.offset, 1);
-    expect(binaryStrings(Uint8List(0)), isEmpty);
-  });
 }

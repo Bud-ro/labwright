@@ -7,7 +7,6 @@ export 'src/seq_binary_model.dart';
 export 'src/seq_binary_write.dart';
 export 'src/seq_convert.dart';
 export 'src/seq_coverage.dart';
-export 'src/seq_document.dart';
 export 'src/seq_dump.dart';
 export 'src/seq_equals.dart';
 export 'src/seq_file.dart';
