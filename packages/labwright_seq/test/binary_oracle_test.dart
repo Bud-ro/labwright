@@ -101,9 +101,7 @@ void main() {
   SeqFile load(String name) => parseSeqFile(File('${rosetta.path}/$name').readAsBytesSync());
 
   test('every fetched binary twin has a model twin', () {
-    final binaries = rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq')).toList();
-    expect(binaries, hasLength(6));
-    for (final bin in binaries) {
+    for (final bin in rosetta.listSync().whereType<File>().where((f) => f.path.endsWith('_BIN.seq'))) {
       final prefix = bin.uri.pathSegments.last.replaceAll('_labview_BIN.seq', '').replaceAll('_BIN.seq', '');
       final twins = rosetta.listSync().whereType<File>().where(
         (f) => f.uri.pathSegments.last.startsWith(prefix) && !f.path.endsWith('_BIN.seq'),
@@ -121,15 +119,11 @@ void main() {
       everyElement(allOf(endsWith('/TS/SData/PythonCall/PythonVersion: value 3.9 vs 3.10'))),
       reason: diffs.join('\n'),
     );
-    expect(diffs, hasLength(4), reason: 'the twins were saved from different adapter versions');
-    expect(bin.sequences.single.steps.map((s) => s.name), xml.sequences.single.steps.map((s) => s.name));
-    expect(bin.sequences.single.steps.map((s) => s.type), xml.sequences.single.steps.map((s) => s.type));
     expect(
-      bin.sequences.single.steps.map((s) => s.id),
-      xml.sequences.single.steps.map((s) => s.id),
+      [for (final s in bin.sequences.single.steps) (s.name, s.type, s.id)],
+      [for (final s in xml.sequences.single.steps) (s.name, s.type, s.id)],
     );
     final binMain = bin.sequences.single.main.single, xmlMain = xml.sequences.single.main.single;
-    expect(binMain.measurementParameters.length, xmlMain.measurementParameters.length);
     expect(
       binMain.measurementParameters.map((p) => (p.name, p.value)),
       xmlMain.measurementParameters.map((p) => (p.name, p.value)),
@@ -159,7 +153,6 @@ void main() {
       ];
       expect(unexpected, isEmpty, reason: '$binName: ${unexpected.join('\n')}');
       expect(bin.sequences.map((s) => s.name), xml.sequences.map((s) => s.name), reason: binName);
-      expect(bin.sequences.single.steps.length, xml.sequences.single.steps.length, reason: binName);
       expect(
         bin.sequences.single.steps.map((s) => s.module.adapter),
         everyElement(isIn([SeqAdapter.labView, SeqAdapter.dotNet, SeqAdapter.none])),

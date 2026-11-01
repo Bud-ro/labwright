@@ -9,9 +9,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'seq_binary.dart';
 import 'seq_binary_grammar.dart';
-import 'seq_binary_header.dart';
 import 'seq_file.dart';
 import 'seq_property.dart';
 
@@ -60,45 +58,30 @@ String _formatInteger(int value, BinaryNumericRepresentation representation) =>
     ? BigInt.from(value).toUnsigned(64).toString()
     : value.toString();
 
-/// Decodes a `TOF1` file into the full property model; throws [FormatException] when the body leaves the grammar.
-SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) {
-  final header = Tof1Header.parse(bytes);
-  final inflated = body ?? inflateBinaryBody(bytes);
-  if (inflated == null) throw const FormatException('binary .seq body does not inflate (not TOF1?)');
-  if (header == null || !header.hasBodyMarker) {
-    throw const FormatException('TOF1 header lacks the PMCZ body marker; the record region length is unknown');
-  }
-  final decoded = parseTof1Body(inflated, recordRegionLength: header.recordRegionLength, generation: header.generation);
-  return tof1BodyToSeqFile(decoded, header);
-}
+/// Decodes a `TOF1` file into the full property model; throws [FormatException] as [decodeTof1] does.
+SeqFile parseBinarySeqFile(Uint8List bytes, {Uint8List? body}) => tof1BodyToSeqFile(decodeTof1(bytes, body: body));
 
 /// Builds the [SeqFile] model from a decoded body.
-SeqFile tof1BodyToSeqFile(Tof1Body body, Tof1Header header) {
+SeqFile tof1BodyToSeqFile(Tof1Body body) {
   final expander = _Expander(body);
-  final entries = <SeqTypelistEntry>[];
-  final types = <SeqProperty>[];
-  for (final type in body.types) {
-    final root = expander.typeRoot(type);
-    types.add(root);
-    entries.add(SeqTypelistEntry(attributes: type.toXmlEntryAttributes(), root: root));
-  }
+  final types = [for (final type in body.types) expander.typeRoot(type)];
   return SeqFile(
-    header: header.toSeqFileHeader(),
+    header: body.header.toSeqFileHeader(),
     types: types,
     data: expander.expand(body.data, null, asElement: false),
-    typelistEntries: entries,
-    rootAttributes: header.rootAttributes,
+    typelistEntries: [
+      for (final (i, type) in body.types.indexed)
+        SeqTypelistEntry(attributes: type.toXmlEntryAttributes(), root: types[i]),
+    ],
+    rootAttributes: body.header.rootAttributes,
     binary: body,
   );
 }
 
 final class _Expander {
   _Expander(this.body);
-
   final Tof1Body body;
-
   final Map<BinaryTypeEntry, SeqProperty> _roots = Map.identity();
-
   final Set<BinaryTypeEntry> _inProgress = Set.identity();
 
   SeqProperty typeRoot(BinaryTypeEntry type) {
@@ -203,7 +186,9 @@ final class _Expander {
         attributes[BinAttr.enumValue] = inheritedValue;
       }
     } else if (record.isLeaf) {
-      final representation = BinaryNumericRepresentation.of(record.representation) ?? _inheritedRepresentation(base);
+      final representation =
+          BinaryNumericRepresentation.of(record.representation) ??
+          BinaryNumericRepresentation.named(base?.valueAttributes['representation']);
       final value = record.value;
       scalar = switch (value) {
         double() => formatSeqNumber(value),
@@ -277,15 +262,6 @@ final class _Expander {
       numericFormat: record.numericFormat,
       xmlComment: record.comment,
     );
-  }
-
-  BinaryNumericRepresentation? _inheritedRepresentation(SeqProperty? base) {
-    final name = base?.valueAttributes['representation'];
-    if (name == null) return null;
-    for (final representation in BinaryNumericRepresentation.values) {
-      if (representation.xmlName == name) return representation;
-    }
-    return null;
   }
 
   /// A node materialised from the type: XML keeps its name, class, value, bounds and children and drops the

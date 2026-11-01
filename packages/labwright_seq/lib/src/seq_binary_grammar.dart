@@ -86,8 +86,7 @@ library;
 
 import 'dart:typed_data';
 
-import 'seq_binary_header.dart';
-import 'seq_binary_text.dart';
+import 'seq_binary.dart';
 import 'seq_property.dart';
 
 /// Pool index of the null string, also the class slot of a record that inherits its class from its type.
@@ -141,11 +140,8 @@ enum BinaryPropertyFlag {
   enumItems(0x20000);
 
   const BinaryPropertyFlag(this.bit);
-
   final int bit;
-
   static final int knownMask = values.fold(0, (mask, flag) => mask | flag.bit);
-
   bool isSetIn(int flags) => flags & bit != 0;
 }
 
@@ -157,21 +153,13 @@ const structureFlagMask = 0x20000 | 0x80000 | 0x200000;
 /// Representation word of a `Num` whose value is stored as a 64-bit integer instead of a double.
 enum BinaryNumericRepresentation {
   int64(2, 'Int64'),
-
   uint64(3, 'UInt64');
 
   const BinaryNumericRepresentation(this.code, this.xmlName);
-
   final int code;
-
   final String xmlName;
-
-  static BinaryNumericRepresentation? of(int? code) {
-    for (final representation in values) {
-      if (representation.code == code) return representation;
-    }
-    return null;
-  }
+  static BinaryNumericRepresentation? of(int? code) => values.where((r) => r.code == code).firstOrNull;
+  static BinaryNumericRepresentation? named(String? xmlName) => values.where((r) => r.xmlName == xmlName).firstOrNull;
 }
 
 /// `extdata` controller names and their field layouts.
@@ -189,23 +177,16 @@ enum ExtDataController {
   lvCluster('BLVCLUSTER');
 
   const ExtDataController(this.controllerName);
-
   final String controllerName;
-
-  static ExtDataController? byName(String name) {
-    for (final controller in values) {
-      if (controller.controllerName == name) return controller;
-    }
-    return null;
-  }
+  static ExtDataController? byName(String? name) => values.where((c) => c.controllerName == name).firstOrNull;
 }
 
 final class BinaryExtData {
-  BinaryExtData({
-    required this.controller,
-    required this.controllerIndex,
-    required this.allowPassing,
-    required this.exclude,
+  BinaryExtData(
+    this.controller,
+    this.controllerIndex,
+    this.allowPassing,
+    this.exclude, {
     this.packingOption,
     this.type,
     this.arrayStorage,
@@ -216,76 +197,39 @@ final class BinaryExtData {
   });
 
   final ExtDataController controller;
-
   final int controllerIndex;
-
-  final bool allowPassing;
-
-  final bool exclude;
-
-  final int? packingOption;
-
-  final int? type;
-
-  final int? arrayStorage;
-
-  final int? strBufferSize;
-
-  final int? strStorage;
-
+  final bool allowPassing, exclude;
+  final int? packingOption, type, arrayStorage, strBufferSize, strStorage;
   final int memberIndex;
-
   final String? member;
 
   /// The entry as the attributes of an XML `<extdata>` element.
   Map<String, String> toXmlAttributes() {
-    String flag(bool value) => value ? 'true' : 'false';
-    return switch (controller) {
-      ExtDataController.struct => {
-        'controllername': controller.controllerName,
-        'allowstructpassing': flag(allowPassing),
-        'packingoption': '$packingOption',
-        'exclude': flag(exclude),
-        'type': '$type',
-        'arraystorage': '$arrayStorage',
-        'strbuffersize': '$strBufferSize',
-        'strstorage': '$strStorage',
-      },
-      ExtDataController.cluster || ExtDataController.lvCluster => {
-        'controllername': controller.controllerName,
-        'allowclusterpassing': flag(allowPassing),
-        'exclude': flag(exclude),
-        'memberlabel': member ?? '',
-      },
-      ExtDataController.dotNetStruct => {
-        'controllername': controller.controllerName,
-        'allowstructpassing': flag(allowPassing),
-        'exclude': flag(exclude),
-        'membername': member ?? '',
+    final passing = controller == ExtDataController.struct || controller == ExtDataController.dotNetStruct
+        ? 'allowstructpassing'
+        : 'allowclusterpassing';
+    return {
+      'controllername': controller.controllerName,
+      passing: '$allowPassing',
+      if (controller == ExtDataController.struct) 'packingoption': '$packingOption',
+      'exclude': '$exclude',
+      ...switch (controller) {
+        ExtDataController.struct => {
+          'type': '$type',
+          'arraystorage': '$arrayStorage',
+          'strbuffersize': '$strBufferSize',
+          'strstorage': '$strStorage',
+        },
+        ExtDataController.dotNetStruct => {'membername': member ?? ''},
+        ExtDataController.cluster || ExtDataController.lvCluster => {'memberlabel': member ?? ''},
       },
     };
   }
 }
 
-/// Per-byte classification of the inflated body.
-enum BinaryByteTier {
-  /// Bytes whose purpose is not yet decoded (constant words the grammar skips).
-  undecoded,
-
-  /// Framing: flag words, counts, null markers, indices that only locate other bytes.
-  structural,
-
-  /// Bytes carrying model content: names, classes, values, bounds, flags attributes, versions.
-  semantic,
-
-  /// The string pool.
-  pool,
-}
-
 /// A thrown grammar violation, with the body offset where decoding stopped.
 final class Tof1FormatException extends FormatException {
   Tof1FormatException(super.message, this.bodyOffset);
-
   final int bodyOffset;
 
   @override
@@ -294,48 +238,20 @@ final class Tof1FormatException extends FormatException {
 
 /// One property object of the record grammar: a typedef root, a subproperty, an array element or an elemproto.
 final class BinaryRecord {
-  BinaryRecord({
-    required this.offset,
-    required this.flags,
-    required this.classIndex,
-    required this.className,
-    required this.typeRef,
-    required this.nameIndex,
-    required this.name,
-  });
-
+  BinaryRecord._(this.pool, this.offset, this.flags, this.classIndex, this.typeRef, this.nameIndex);
+  final List<String> pool;
   final int offset;
-
-  int end = 0;
-
   final int flags;
 
   /// Pool index of the explicit class, or [binaryNullIndex] when the class is inherited.
   final int classIndex;
-
-  final String? className;
-
   final int? typeRef;
-
   final int nameIndex;
-
-  final String? name;
-
-  int commentIndex = binaryNullIndex;
-
-  String? comment;
-
-  int lboundIndex = binaryNullIndex;
-
-  int uboundIndex = binaryNullIndex;
-
-  String? lbound;
-
-  String? ubound;
-
+  int end = 0;
+  int commentIndex = binaryNullIndex, formatIndex = binaryNullIndex, valueIndex = binaryNullIndex;
+  int lboundIndex = binaryNullIndex, uboundIndex = binaryNullIndex, enumValueIndex = binaryNullIndex;
   bool hasElemProto = false;
-
-  BinaryRecord? elemProto;
+  BinaryRecord? elemProto, attributes, typeAttributes, enumItems;
 
   /// Array elements: [BinaryRecord]s for object arrays, `double`, `String?` or `bool` for scalar arrays, null for `Refs`.
   List<Object?>? elements;
@@ -348,141 +264,84 @@ final class BinaryRecord {
 
   /// Body offset of an `Enum`'s current enumerator value; -1 when none is stored.
   int enumValueOffset = -1;
+  int? representation, flagsForInstances, instanceOverrideFlags, valueFlagsWord;
 
-  int? representation;
+  /// TODO: the word before an `Enum` typedef's items array; purpose not yet decoded.
+  int? enumItemsWord;
 
   /// A `double`, an `int` (integer representations), a `String?` or a `bool`; null when no value is stored.
   Object? value;
-
-  int valueIndex = binaryNullIndex;
-
-  int formatIndex = binaryNullIndex;
-
-  String? numericFormat;
-
-  int? flagsForInstances;
-
-  int? instanceOverrideFlags;
-
-  int? valueFlagsWord;
-
-  List<BinaryExtData> extData = const [];
-
-  BinaryRecord? attributes;
-
-  BinaryRecord? typeAttributes;
-
-  int? enumItemsWord;
-
-  BinaryRecord? enumItems;
-
-  int enumValueIndex = binaryNullIndex;
-
-  String? enumValueName;
-
   double? enumValue;
-
+  List<BinaryExtData> extData = const [];
   List<BinaryRecord> children = const [];
 
   /// The class after inheritance through the type table.
-  late String resolvedClassName;
-
-  late SeqValueClass kind;
+  late final String resolvedClassName;
+  late final SeqValueClass kind;
 
   /// The record this one instantiates: a typedef root, or the matching child of the parent's definition.
   BinaryRecord? definition;
-
   String? typeName;
-
+  String? _at(int index) => index == binaryNullIndex ? null : pool[index];
+  String? get className => _at(classIndex);
+  String? get name => _at(nameIndex);
+  String? get comment => _at(commentIndex);
+  String? get numericFormat => _at(formatIndex);
+  String? get lbound => _at(lboundIndex);
+  String? get ubound => _at(uboundIndex);
+  String? get enumValueName => _at(enumValueIndex);
   bool has(BinaryPropertyFlag flag) => flag.isSetIn(flags);
-
   bool get isArray => kind.isArray;
-
   bool get isEnum => kind == SeqValueClass.enumeration;
-
   bool get isLeaf => !isArray && !isEnum && kind.isLeaf;
-
-  bool get isContainer => !isArray && !isEnum && !kind.isLeaf;
 
   /// `valueflags` as XML reports it: the word without the [structureFlagMask] bits.
   int? get valueFlags => has(BinaryPropertyFlag.valueFlags) ? valueFlagsWord! & ~structureFlagMask : null;
 
   /// `structureflags` as XML reports it: the [structureFlagMask] bits of the word.
   int? get structureFlags => has(BinaryPropertyFlag.structureFlags) ? valueFlagsWord! & structureFlagMask : null;
+  BinaryRecord? child(String name) => children.where((c) => c.name == name).firstOrNull;
 
-  BinaryRecord? child(String name) {
-    for (final c in children) {
-      if (c.name == name) return c;
-    }
-    return null;
+  Iterable<BinaryRecord> get nested sync* {
+    if (enumItems case final items?) yield items;
+    if (elemProto case final proto?) yield proto;
+    yield* (elements ?? const []).whereType<BinaryRecord>();
+    if (attributes case final block?) yield block;
+    if (typeAttributes case final block?) yield block;
+    yield* children;
   }
 
-  @override
-  String toString() =>
-      'BinaryRecord(${name ?? '<unnamed>'}, $resolvedClassName'
-      '${typeName != null ? ' <$typeName>' : ''}'
-      '${value != null ? ' = $value' : ''}, ${children.length} children)';
+  Iterable<BinaryRecord> get tree sync* {
+    yield this;
+    for (final record in nested) {
+      yield* record.tree;
+    }
+  }
 }
 
 /// One `typedef` of the type table.
 final class BinaryTypeEntry {
-  BinaryTypeEntry({
-    required this.offset,
-    required this.entryFlags,
-    required this.entryWord,
-    required this.root,
-  });
-
+  BinaryTypeEntry._(this.offset, this.entryWord, this.root);
   final int offset;
-
-  final int entryFlags;
 
   /// TODO: purpose not yet decoded.
   final int entryWord;
-
   final BinaryRecord root;
-
-  int category = 0;
-
-  int timestamp = 0;
-
-  int versionIndex = binaryNullIndex;
-
-  int lastModVersionIndex = binaryNullIndex;
-
-  int minProductVersionIndex = binaryNullIndex;
-
-  String version = '';
-
-  String lastModVersion = '';
-
-  String minProductVersion = '';
-
+  int category = 0, timestamp = 0, additionalTypeFlags = 0, orderNumber = 0;
+  int versionIndex = binaryNullIndex, lastModVersionIndex = binaryNullIndex, minProductVersionIndex = binaryNullIndex;
+  int protectionDigestIndex = binaryNullIndex, secondaryDigestIndex = binaryNullIndex;
   int? typeFlags;
-
-  bool isProtected = false;
-
-  int protectionDigestIndex = binaryNullIndex;
+  bool isProtected = false, hasSecondaryDigest = false, alwaysSaveType = false;
+  String get name => root.name ?? '';
+  String get version => root._at(versionIndex) ?? '';
+  String get lastModVersion => root._at(lastModVersionIndex) ?? '';
+  String get minProductVersion => root._at(minProductVersionIndex) ?? '';
 
   /// TODO: an obfuscated digest carried by protected types; its derivation is not yet decoded.
-  String? protectionDigest;
-
-  bool hasSecondaryDigest = false;
-
-  int secondaryDigestIndex = binaryNullIndex;
+  String? get protectionDigest => root._at(protectionDigestIndex);
 
   /// TODO: a second digest some protected types carry; its derivation is not yet decoded.
-  String? secondaryDigest;
-
-  int additionalTypeFlags = 0;
-
-  bool alwaysSaveType = false;
-
-  int orderNumber = 0;
-
-  int end = 0;
-
-  String get name => root.name ?? '';
+  String? get secondaryDigest => root._at(secondaryDigestIndex);
 
   /// The typedef header as XML `typedef` child-element attributes.
   Map<String, String> toXmlAttributes() => {
@@ -497,359 +356,280 @@ final class BinaryTypeEntry {
 
   /// The entry as the attributes of its XML `<typedef>` wrapper.
   Map<String, String> toXmlEntryAttributes() => {
-    'alwayssavetype': alwaysSaveType ? 'true' : 'false',
+    'alwayssavetype': '$alwaysSaveType',
     'additionaltypeflags': '$additionalTypeFlags',
     'typelistordernum': '$orderNumber',
   };
 }
 
-/// The decoded body: the type table, the data root, the pool and every byte's tier.
+/// The body fields the grammar reads but cannot yet name.
+enum BinaryUndecodedField {
+  /// The word after a typedef entry's flags.
+  typeEntryWord,
+
+  /// The word after a record's flags; the parse stops when it is nonzero.
+  recordFlagsHigh,
+
+  /// The word before an `Enum` typedef's items array.
+  enumItemsWord,
+
+  /// The word between the data root and the `0xffffffff` terminator.
+  bodyTailWord,
+
+  /// Bytes after the last pool string.
+  poolTail,
+}
+
+typedef BinaryUndecodedSpan = ({int start, int end, BinaryUndecodedField field});
+
+/// The decoded body: the type table, the data root and the pool.
 final class Tof1Body {
-  Tof1Body({
-    required this.bytes,
-    required this.generation,
-    required this.recordRegionLength,
-    required this.types,
-    required this.data,
-    required this.tailWord,
-    required this.pool,
-    required this.poolOffsets,
-    required this.lastStringTerminated,
-    required this.poolTail,
-    required this.nullIndexCount,
-    required this.tiers,
-  });
-
+  Tof1Body._(
+    this.header,
+    this.bytes,
+    this.types,
+    this.data,
+    this.tailWord,
+    this.pool,
+    this.poolEntries,
+    this.lastStringTerminated,
+    this.poolTail,
+  );
+  final Tof1Header header;
   final Uint8List bytes;
-
-  final Tof1Generation generation;
-
-  /// Offset of the pool count word; also the length of the record region.
-  final int recordRegionLength;
-
   final List<BinaryTypeEntry> types;
-
   final BinaryRecord data;
 
   /// TODO: purpose not yet decoded.
   final int tailWord;
-
   final List<String> pool;
 
-  /// Body offset of each pool string's first byte.
-  final List<int> poolOffsets;
+  /// Each pool string's bytes, without its NUL.
+  final List<Uint8List> poolEntries;
 
   /// Whether the last pool string ends with a NUL; a body may end on the string itself.
   final bool lastStringTerminated;
 
   /// TODO: bytes after the last pool string; purpose not yet decoded.
   final Uint8List poolTail;
+  Tof1Generation get generation => header.generation;
 
-  /// Null pool indices and terminators the parser read: null strings, inherited class slots, the record-region end.
-  final int nullIndexCount;
+  /// Offset of the pool count word; also the length of the record region.
+  int get recordRegionLength => header.recordRegionLength;
 
-  /// [BinaryByteTier] per body byte.
-  final Uint8List tiers;
+  Iterable<BinaryRecord> get records => [for (final type in types) type.root, data].expand((root) => root.tree);
+
+  /// Every undecoded span of the body, in offset order, with the field it belongs to.
+  List<BinaryUndecodedSpan> get undecodedSpans {
+    final roots = {for (final type in types) type.root};
+    BinaryUndecodedSpan word(int start, BinaryUndecodedField field) => (start: start, end: start + 4, field: field);
+    return [
+      for (final type in types) word(type.offset + 4, BinaryUndecodedField.typeEntryWord),
+      for (final record in records) ...[
+        if (!roots.contains(record)) word(record.offset + 4, BinaryUndecodedField.recordFlagsHigh),
+        if (record.enumItems case final items?) word(items.offset - 4, BinaryUndecodedField.enumItemsWord),
+      ],
+      word(data.end, BinaryUndecodedField.bodyTailWord),
+      if (poolTail.isNotEmpty)
+        (start: bytes.length - poolTail.length, end: bytes.length, field: BinaryUndecodedField.poolTail),
+    ]..sort((a, b) => a.start.compareTo(b.start));
+  }
+
+  /// Record-region bytes whose purpose is not yet decoded.
+  int get undecodedRecordBytes => [
+    for (final span in undecodedSpans)
+      if (span.field != BinaryUndecodedField.poolTail) span.end - span.start,
+  ].fold(0, (a, b) => a + b);
+}
+
+/// Decodes a `TOF1` file, inflating its body unless [body] is given; throws [FormatException] when the header or
+/// the inflation fails, and [Tof1FormatException] where the body leaves the grammar.
+Tof1Body decodeTof1(Uint8List bytes, {Uint8List? body}) {
+  final header = Tof1Header.parse(bytes);
+  if (header == null || !header.hasBodyMarker) throw const FormatException('not a TOF1 file with a PMCZ body');
+  final inflated = body ?? inflateBinaryBody(bytes);
+  if (inflated == null) throw const FormatException('the TOF1 body does not inflate to its declared length');
+  return _Tof1BodyParser(header, inflated).parse();
 }
 
 const _u32 = 4;
-
 const _f64 = 8;
-
 const _minRecordBytes = 5 * _u32;
-
 const _maxDepth = 200;
-
 const _maxExtData = 64;
 
-/// Splits `count` Windows-1252 strings off the pool region; `offsets` receives each string's body offset.
-///
-/// Returns the strings, the body offset just past the last one (past its NUL when it has one), and whether
-/// the last string has its NUL.
-(List<String>, int, bool) binaryPoolStrings(Uint8List body, int poolOffset, int count, List<int> offsets) {
-  final pool = <String>[];
-  var at = poolOffset;
-  var terminated = true;
-  while (pool.length < count && at < body.length) {
-    final start = at;
-    while (at < body.length && body[at] != 0) {
-      at++;
-    }
-    offsets.add(start);
-    pool.add(decodeWindows1252(body, start, at));
-    terminated = at < body.length;
-    if (terminated) at++;
-  }
-  return (pool, at, terminated);
-}
-
-/// Decodes an inflated body; throws [Tof1FormatException] where the bytes leave the grammar.
-Tof1Body parseTof1Body(Uint8List body, {required int recordRegionLength, required Tof1Generation generation}) =>
-    _Tof1BodyParser(body, recordRegionLength, generation).parse();
-
 final class _Tof1BodyParser {
-  _Tof1BodyParser(this.body, this.recordRegionLength, this.generation)
+  _Tof1BodyParser(this.header, this.body)
     : view = ByteData.sublistView(body),
-      tiers = Uint8List(body.length);
-
+      regionEnd = header.recordRegionLength,
+      generation = header.generation;
+  final Tof1Header header;
   final Uint8List body;
-
   final ByteData view;
 
-  final int recordRegionLength;
-
+  final int regionEnd;
   final Tof1Generation generation;
-
-  final Uint8List tiers;
-
-  late final List<String> pool;
-
-  late final List<int> poolOffsets;
-
+  final List<String> pool = [];
+  final List<Uint8List> poolEntries = [];
   final List<BinaryTypeEntry> types = [];
-
   int at = 0;
 
-  int nullIndexCount = 0;
-
   Tof1Body parse() {
-    final poolCountAt = recordRegionLength;
-    if (recordRegionLength < 2 * _u32 || poolCountAt + _u32 > body.length) {
-      throw Tof1FormatException('record region length $recordRegionLength does not fit the body', 0);
+    if (regionEnd < 2 * _u32 || regionEnd + _u32 > body.length) {
+      _fail('record region length $regionEnd does not fit the body', 0);
     }
-    final poolCount = view.getUint32(poolCountAt, Endian.little);
-    poolOffsets = <int>[];
-    final (strings, poolEnd, lastStringTerminated) = binaryPoolStrings(
-      body,
-      poolCountAt + _u32,
-      poolCount,
-      poolOffsets,
-    );
-    pool = strings;
-    if (pool.length != poolCount) {
-      throw Tof1FormatException('pool count $poolCount but ${pool.length} strings follow', poolCountAt);
+    final poolCount = view.getUint32(regionEnd, Endian.little);
+    var next = regionEnd + _u32;
+    var terminated = true;
+    while (pool.length < poolCount && next < body.length) {
+      final nul = body.indexOf(0, next);
+      terminated = nul >= 0;
+      final entry = Uint8List.sublistView(body, next, terminated ? nul : body.length);
+      poolEntries.add(entry);
+      pool.add(decodeWindows1252(entry));
+      next += entry.length + (terminated ? 1 : 0);
     }
-    _mark(poolCountAt, _u32, BinaryByteTier.structural);
-    _mark(poolCountAt + _u32, poolEnd - poolCountAt - _u32, BinaryByteTier.pool);
-
-    final typeCount = _u32s(BinaryByteTier.structural);
-    if (typeCount > recordRegionLength ~/ _minRecordBytes) {
-      throw Tof1FormatException('type count $typeCount exceeds the record region', at - _u32);
-    }
+    if (pool.length != poolCount) _fail('pool count $poolCount but ${pool.length} strings follow', regionEnd);
+    final typeCount = _u32s();
+    if (typeCount > regionEnd ~/ _minRecordBytes) _fail('type count $typeCount exceeds the record region', 0);
     for (var i = 0; i < typeCount; i++) {
       _typeEntry();
     }
     final data = _record(0, null);
-    final tailWord = _u32s(BinaryByteTier.undecoded);
-    final sentinel = _u32s(BinaryByteTier.structural);
-    if (sentinel != binaryNullIndex) {
-      throw Tof1FormatException('expected the 0xffffffff sentinel before the pool count', at - _u32);
-    }
-    nullIndexCount++;
-    if (at != recordRegionLength) {
-      throw Tof1FormatException(
-        'record region ends at 0x${at.toRadixString(16)}, pool count at 0x${recordRegionLength.toRadixString(16)}',
-        at,
-      );
-    }
-    return Tof1Body(
-      bytes: body,
-      generation: generation,
-      recordRegionLength: recordRegionLength,
-      types: types,
-      data: data,
-      tailWord: tailWord,
-      pool: pool,
-      poolOffsets: poolOffsets,
-      lastStringTerminated: lastStringTerminated,
-      poolTail: Uint8List.sublistView(body, poolEnd),
-      nullIndexCount: nullIndexCount,
-      tiers: tiers,
+    final tailWord = _u32s();
+    if (_u32s() != binaryNullIndex) _fail('expected the 0xffffffff sentinel before the pool count', at - _u32);
+    if (at != regionEnd) _fail('record region ends before the pool count at 0x${regionEnd.toRadixString(16)}', at);
+    return Tof1Body._(
+      header,
+      body,
+      types,
+      data,
+      tailWord,
+      pool,
+      poolEntries,
+      terminated,
+      Uint8List.sublistView(body, next),
     );
   }
 
-  void _mark(int start, int length, BinaryByteTier tier) {
-    final end = start + length;
-    for (var i = start; i < end; i++) {
-      tiers[i] = tier.index;
-    }
-  }
+  Never _fail(String message, int offset) => throw Tof1FormatException(message, offset);
 
   void _need(int bytes) {
-    if (at + bytes > recordRegionLength) {
-      throw Tof1FormatException('record region ends inside a field', at);
-    }
+    if (at + bytes > regionEnd) _fail('record region ends inside a field', at);
   }
 
-  int _u32s(BinaryByteTier tier) {
+  int _u32s() {
     _need(_u32);
     final value = view.getUint32(at, Endian.little);
-    _mark(at, _u32, tier);
     at += _u32;
     return value;
   }
 
-  int _u8s(BinaryByteTier tier) {
+  bool _bool() {
     _need(1);
-    final value = body[at];
-    tiers[at] = tier.index;
-    at += 1;
-    return value;
+    return view.getUint8(at++) != 0;
   }
 
   double _f64s() {
     _need(_f64);
     final value = view.getFloat64(at, Endian.little);
-    _mark(at, _f64, BinaryByteTier.semantic);
     at += _f64;
     return value;
   }
 
-  int _i64s(bool signed) {
+  int _i64s(BinaryNumericRepresentation representation) {
     _need(_f64);
-    final value = signed ? view.getInt64(at, Endian.little) : view.getUint64(at, Endian.little);
-    _mark(at, _f64, BinaryByteTier.semantic);
+    final value = representation == BinaryNumericRepresentation.int64
+        ? view.getInt64(at, Endian.little)
+        : view.getUint64(at, Endian.little);
     at += _f64;
     return value;
   }
 
-  /// Reads a pool index; null strings decode to null.
-  int _strIndex(BinaryByteTier tier) {
-    final index = _u32s(tier);
-    if (index == binaryNullIndex) nullIndexCount++;
+  /// Reads a pool index, [binaryNullIndex] for the null string.
+  int _str() {
+    final index = _u32s();
     if (index != binaryNullIndex && index >= pool.length) {
-      throw Tof1FormatException('pool index $index beyond the ${pool.length}-string pool', at - _u32);
+      _fail('pool index $index beyond the ${pool.length}-string pool', at - _u32);
     }
     return index;
   }
 
-  String? _str(int index) => index == binaryNullIndex ? null : pool[index];
-
-  void _checkFlags(int flags, int offset) {
-    if (flags & ~BinaryPropertyFlag.knownMask != 0) {
-      throw Tof1FormatException(
-        'flag bits 0x${(flags & ~BinaryPropertyFlag.knownMask).toRadixString(16)} not yet decoded',
-        offset,
-      );
-    }
-  }
-
-  BinaryTypeEntry _typeEntry() {
-    final offset = at;
-    final entryFlags = _u32s(BinaryByteTier.structural);
-    _checkFlags(entryFlags, offset);
-    final entryWord = _u32s(BinaryByteTier.undecoded);
-    final classIndex = _strIndex(BinaryByteTier.semantic);
-    if (classIndex == binaryNullIndex) throw Tof1FormatException('a typedef needs an explicit class', at - _u32);
-    final nameIndex = _strIndex(BinaryByteTier.semantic);
-    final root = BinaryRecord(
-      offset: offset + 2 * _u32,
-      flags: entryFlags,
-      classIndex: classIndex,
-      className: pool[classIndex],
-      typeRef: null,
-      nameIndex: nameIndex,
-      name: _str(nameIndex),
-    );
-    root.resolvedClassName = pool[classIndex];
-    root.kind = SeqValueClass.from(root.resolvedClassName);
-    final entry = BinaryTypeEntry(offset: offset, entryFlags: entryFlags, entryWord: entryWord, root: root);
-    types.add(entry);
-    _valuePart(root, root.isArray ? entryFlags | BinaryPropertyFlag.value.bit : entryFlags, 1, null);
-    if (BinaryPropertyFlag.comment.isSetIn(entryFlags)) {
-      root.commentIndex = _strIndex(BinaryByteTier.semantic);
-      root.comment = _str(root.commentIndex);
-    }
-    entry.category = _u32s(BinaryByteTier.semantic);
-    entry.timestamp = _u32s(BinaryByteTier.semantic);
-    if (generation.hasWideTimestamp) {
-      final high = _u32s(BinaryByteTier.semantic);
-      if (high != 0) throw Tof1FormatException('type timestamp high word $high', at - _u32);
-    }
-    entry.versionIndex = _strIndex(BinaryByteTier.semantic);
-    entry.lastModVersionIndex = _strIndex(BinaryByteTier.semantic);
-    entry.minProductVersionIndex = _strIndex(BinaryByteTier.semantic);
-    entry.version = _str(entry.versionIndex) ?? '';
-    entry.lastModVersion = _str(entry.lastModVersionIndex) ?? '';
-    entry.minProductVersion = _str(entry.minProductVersionIndex) ?? '';
-    if (BinaryPropertyFlag.typeFlags.isSetIn(entryFlags)) entry.typeFlags = _u32s(BinaryByteTier.semantic);
-    _attributeWords(root, entryFlags);
-    if (generation.hasProtectionBlock) {
-      entry.isProtected = _flagWord('protection flag');
-      entry.protectionDigestIndex = _strIndex(BinaryByteTier.semantic);
-      entry.protectionDigest = _str(entry.protectionDigestIndex);
-      entry.hasSecondaryDigest = _flagWord('secondary digest flag');
-      if (entry.hasSecondaryDigest) {
-        entry.secondaryDigestIndex = _strIndex(BinaryByteTier.semantic);
-        entry.secondaryDigest = _str(entry.secondaryDigestIndex);
-      }
-    }
-    if (BinaryPropertyFlag.extData.isSetIn(entryFlags)) root.extData = _extData();
-    if (BinaryPropertyFlag.attributes.isSetIn(entryFlags)) root.attributes = _record(1, null);
-    if (BinaryPropertyFlag.typeAttributes.isSetIn(entryFlags)) root.typeAttributes = _record(1, null);
-    root.children = _children(1, null);
-    root.end = at;
-    entry.additionalTypeFlags = _u32s(BinaryByteTier.semantic);
-    entry.alwaysSaveType = _u8s(BinaryByteTier.semantic) != 0;
-    entry.orderNumber = _u32s(BinaryByteTier.semantic);
-    entry.end = at;
-    return entry;
+  int _flags() {
+    final flags = _u32s();
+    final unknown = flags & ~BinaryPropertyFlag.knownMask;
+    if (unknown != 0) _fail('flag bits 0x${unknown.toRadixString(16)} not yet decoded', at - _u32);
+    return flags;
   }
 
   bool _flagWord(String what) {
-    final word = _u32s(BinaryByteTier.structural);
-    if (word > 1) throw Tof1FormatException('$what is $word, expected 0 or 1', at - _u32);
+    final word = _u32s();
+    if (word > 1) _fail('$what is $word, expected 0 or 1', at - _u32);
     return word == 1;
   }
 
-  BinaryRecord _record(int depth, BinaryRecord? definition) {
-    if (depth > _maxDepth) throw Tof1FormatException('record nesting deeper than $_maxDepth', at);
+  void _typeEntry() {
     final offset = at;
-    final flags = _u32s(BinaryByteTier.structural);
-    _checkFlags(flags, offset);
-    final flagsHigh = _u32s(BinaryByteTier.undecoded);
-    if (flagsHigh != 0) throw Tof1FormatException('flags high word $flagsHigh not yet decoded', offset + _u32);
-    final classIndex = _strIndex(BinaryByteTier.semantic);
-    int? typeRef;
-    if (BinaryPropertyFlag.typed.isSetIn(flags)) {
-      typeRef = _u32s(BinaryByteTier.semantic);
+    final flags = _flags();
+    final entryWord = _u32s();
+    final classIndex = _str();
+    if (classIndex == binaryNullIndex) _fail('a typedef needs an explicit class', at - _u32);
+    final root = BinaryRecord._(pool, offset + 2 * _u32, flags, classIndex, null, _str());
+    root.resolvedClassName = pool[classIndex];
+    root.kind = SeqValueClass.from(root.resolvedClassName);
+    final type = BinaryTypeEntry._(offset, entryWord, root);
+    types.add(type);
+    _valuePart(root, root.isArray ? flags | BinaryPropertyFlag.value.bit : flags, 1, null);
+    if (root.has(BinaryPropertyFlag.comment)) root.commentIndex = _str();
+    type.category = _u32s();
+    type.timestamp = _u32s();
+    if (generation.hasWideTimestamp && _u32s() != 0) _fail('type timestamp high word', at - _u32);
+    type.versionIndex = _str();
+    type.lastModVersionIndex = _str();
+    type.minProductVersionIndex = _str();
+    if (root.has(BinaryPropertyFlag.typeFlags)) type.typeFlags = _u32s();
+    _attributeWords(root);
+    if (generation.hasProtectionBlock) {
+      type.isProtected = _flagWord('protection flag');
+      type.protectionDigestIndex = _str();
+      type.hasSecondaryDigest = _flagWord('secondary digest flag');
+      if (type.hasSecondaryDigest) type.secondaryDigestIndex = _str();
     }
-    final nameIndex = _strIndex(BinaryByteTier.semantic);
-    final record = BinaryRecord(
-      offset: offset,
-      flags: flags,
-      classIndex: classIndex,
-      className: _str(classIndex),
-      typeRef: typeRef,
-      nameIndex: nameIndex,
-      name: _str(nameIndex),
-    );
+    _blocks(root, 1);
+    root.children = _children(1, null);
+    root.end = at;
+    type.additionalTypeFlags = _u32s();
+    type.alwaysSaveType = _bool();
+    type.orderNumber = _u32s();
+  }
+
+  BinaryRecord _record(int depth, BinaryRecord? definition) {
+    if (depth > _maxDepth) _fail('record nesting deeper than $_maxDepth', at);
+    final offset = at;
+    final flags = _flags();
+    if (_u32s() != 0) _fail('flags high word not yet decoded', offset + _u32);
+    final classIndex = _str();
+    final typeRef = BinaryPropertyFlag.typed.isSetIn(flags) ? _u32s() : null;
+    final record = BinaryRecord._(pool, offset, flags, classIndex, typeRef, _str());
     var def = definition;
     if (typeRef != null) {
-      if (typeRef < types.length) {
-        final type = types[typeRef];
-        record.typeName = type.name;
-        def = type.root;
-      } else {
-        throw Tof1FormatException('type reference $typeRef beyond the ${types.length} types read so far', offset);
+      if (typeRef >= types.length) {
+        _fail('type reference $typeRef beyond the ${types.length} types read so far', offset);
       }
+      record.typeName = types[typeRef].name;
+      def = types[typeRef].root;
     }
     record.definition = def;
     final className = record.className ?? def?.resolvedClassName;
     if (className == null) {
-      throw Tof1FormatException('class of ${record.name ?? '<unnamed>'} is inherited from a type not yet read', offset);
+      _fail('class of ${record.name ?? '<unnamed>'} is inherited from a type not yet read', offset);
     }
     record.resolvedClassName = className;
     record.kind = SeqValueClass.from(className);
     _valuePart(record, flags, depth, def);
-    if (BinaryPropertyFlag.comment.isSetIn(flags)) {
-      record.commentIndex = _strIndex(BinaryByteTier.semantic);
-      record.comment = _str(record.commentIndex);
-    }
-    _attributeWords(record, flags);
-    if (BinaryPropertyFlag.extData.isSetIn(flags)) record.extData = _extData();
-    if (BinaryPropertyFlag.attributes.isSetIn(flags)) record.attributes = _record(depth + 1, null);
-    if (BinaryPropertyFlag.typeAttributes.isSetIn(flags)) record.typeAttributes = _record(depth + 1, null);
+    if (record.has(BinaryPropertyFlag.comment)) record.commentIndex = _str();
+    _attributeWords(record);
+    _blocks(record, depth + 1);
     record.children = _children(depth + 1, def);
     record.end = at;
     return record;
@@ -857,213 +637,157 @@ final class _Tof1BodyParser {
 
   void _valuePart(BinaryRecord record, int flags, int depth, BinaryRecord? definition) {
     final hasValue = BinaryPropertyFlag.value.isSetIn(flags);
-    switch (record.kind) {
-      case SeqValueClass.numbers ||
-          SeqValueClass.strings ||
-          SeqValueClass.booleans ||
-          SeqValueClass.references ||
-          SeqValueClass.objects ||
-          SeqValueClass.containers:
-        record.lboundIndex = _strIndex(BinaryByteTier.semantic);
-        record.uboundIndex = _strIndex(BinaryByteTier.semantic);
-        record.lbound = _str(record.lboundIndex);
-        record.ubound = _str(record.uboundIndex);
-        if (!hasValue) throw Tof1FormatException('array without the value bit', record.offset);
-        BinaryRecord? elementDefinition;
-        if (record.kind == SeqValueClass.objects || record.kind == SeqValueClass.containers) {
-          record.hasElemProto = _u8s(BinaryByteTier.structural) != 0;
-          if (record.hasElemProto) {
-            record.elemProto = _record(depth + 1, definition?.elemProto);
-          }
-          elementDefinition = record.elemProto ?? definition?.elemProto;
-        }
-        final count = arrayBoundCount(record.lbound, record.ubound);
-        if (count == null) {
-          throw Tof1FormatException(
-            'array bounds ${record.lbound}..${record.ubound} exceed $maxArrayElements elements',
-            record.offset,
-          );
-        }
-        if (count > recordRegionLength - at) {
-          throw Tof1FormatException('$count array elements exceed the record region', at);
-        }
-        final elements = List<Object?>.filled(count, null);
-        final indices = record.kind == SeqValueClass.strings ? List<int>.filled(count, 0) : null;
-        record.valueOffset = at;
-        for (var i = 0; i < count; i++) {
-          switch (record.kind) {
-            case SeqValueClass.numbers:
-              elements[i] = _f64s();
-            case SeqValueClass.strings:
-              final index = _strIndex(BinaryByteTier.semantic);
-              indices![i] = index;
-              elements[i] = _str(index);
-            case SeqValueClass.booleans:
-              elements[i] = _u8s(BinaryByteTier.semantic) != 0;
-            case SeqValueClass.references:
-              break;
-            default:
-              elements[i] = _record(depth + 1, elementDefinition);
-          }
-        }
-        record.elements = elements;
-        record.elementIndices = indices;
+    final kind = record.kind;
+    if (kind.isArray) {
+      record.lboundIndex = _str();
+      record.uboundIndex = _str();
+      if (!hasValue) _fail('array without the value bit', record.offset);
+      BinaryRecord? elementDefinition;
+      if (kind == SeqValueClass.objects || kind == SeqValueClass.containers) {
+        record.hasElemProto = _bool();
+        if (record.hasElemProto) record.elemProto = _record(depth + 1, definition?.elemProto);
+        elementDefinition = record.elemProto ?? definition?.elemProto;
+      }
+      final count = arrayBoundCount(record.lbound, record.ubound);
+      if (count == null) {
+        _fail(
+          'array bounds ${record.lbound}..${record.ubound} exceed $maxArrayElements elements',
+          record.offset,
+        );
+      }
+      if (count > regionEnd - at) _fail('$count array elements exceed the record region', at);
+      record.valueOffset = at;
+      if (kind == SeqValueClass.strings) record.elementIndices = List.generate(count, (_) => _str());
+      record.elements = switch (kind) {
+        SeqValueClass.numbers => List.generate(count, (_) => _f64s()),
+        SeqValueClass.strings => [for (final index in record.elementIndices!) record._at(index)],
+        SeqValueClass.booleans => List.generate(count, (_) => _bool()),
+        SeqValueClass.references => List.filled(count, null),
+        _ => List.generate(count, (_) => _record(depth + 1, elementDefinition)),
+      };
+      return;
+    }
+    switch (kind) {
       case SeqValueClass.number:
-        if (BinaryPropertyFlag.numericRepresentation.isSetIn(flags)) {
-          record.representation = _u32s(BinaryByteTier.semantic);
-        }
+        if (BinaryPropertyFlag.numericRepresentation.isSetIn(flags)) record.representation = _u32s();
         if (hasValue) {
           record.valueOffset = at;
           final representation = BinaryNumericRepresentation.of(_representationOf(record));
-          record.value = switch (representation) {
-            null => _f64s(),
-            BinaryNumericRepresentation.int64 => _i64s(true),
-            BinaryNumericRepresentation.uint64 => _i64s(false),
-          };
+          record.value = representation == null ? _f64s() : _i64s(representation);
         }
       case SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path:
-        if (hasValue) {
-          record.valueIndex = _strIndex(BinaryByteTier.semantic);
-          record.value = _str(record.valueIndex);
-        }
+        if (hasValue) record.value = record._at(record.valueIndex = _str());
       case SeqValueClass.boolean:
-        if (hasValue) record.value = _u8s(BinaryByteTier.semantic) != 0;
-      case SeqValueClass.reference:
-        break;
+        if (hasValue) record.value = _bool();
       case SeqValueClass.enumeration:
         if (BinaryPropertyFlag.enumItems.isSetIn(flags)) {
-          record.enumItemsWord = _u32s(BinaryByteTier.undecoded);
+          record.enumItemsWord = _u32s();
           record.enumItems = _record(depth + 1, null);
         }
         if (BinaryPropertyFlag.enumValue.isSetIn(flags)) {
-          record.enumValueIndex = _strIndex(BinaryByteTier.semantic);
-          record.enumValueName = _str(record.enumValueIndex);
+          record.enumValueIndex = _str();
           record.enumValueOffset = at;
           record.enumValue = _f64s();
         }
       case SeqValueClass.object || SeqValueClass.step || SeqValueClass.sequence || SeqValueClass.other:
-        if (hasValue) {
-          throw Tof1FormatException('value bit on container class ${record.resolvedClassName}', record.offset);
-        }
+        if (hasValue) _fail('value bit on container class ${record.resolvedClassName}', record.offset);
+      default:
+        break;
     }
   }
 
   int? _representationOf(BinaryRecord record) {
     BinaryRecord? node = record;
-    var guard = 0;
-    while (node != null && guard++ < _maxDepth) {
-      if (node.representation != null) return node.representation;
+    for (var guard = 0; node != null && guard < _maxDepth; guard++) {
+      if (node.representation case final representation?) return representation;
       final typeRef = node.typeRef;
-      if (typeRef != null && typeRef < types.length && types[typeRef].root.representation != null) {
-        return types[typeRef].root.representation;
+      if (typeRef != null && typeRef < types.length) {
+        if (types[typeRef].root.representation case final representation?) return representation;
       }
       node = node.definition;
     }
     return null;
   }
 
-  void _attributeWords(BinaryRecord record, int flags) {
-    if (BinaryPropertyFlag.numericFormat.isSetIn(flags)) {
-      record.formatIndex = _strIndex(BinaryByteTier.semantic);
-      record.numericFormat = _str(record.formatIndex);
-    }
-    if (BinaryPropertyFlag.flagsForInstances.isSetIn(flags)) record.flagsForInstances = _u32s(BinaryByteTier.semantic);
-    if (BinaryPropertyFlag.instanceOverrideFlags.isSetIn(flags)) {
-      record.instanceOverrideFlags = _u32s(BinaryByteTier.semantic);
-    }
-    if (flags & (BinaryPropertyFlag.valueFlags.bit | BinaryPropertyFlag.structureFlags.bit) != 0) {
-      record.valueFlagsWord = _u32s(BinaryByteTier.semantic);
+  void _attributeWords(BinaryRecord record) {
+    if (record.has(BinaryPropertyFlag.numericFormat)) record.formatIndex = _str();
+    if (record.has(BinaryPropertyFlag.flagsForInstances)) record.flagsForInstances = _u32s();
+    if (record.has(BinaryPropertyFlag.instanceOverrideFlags)) record.instanceOverrideFlags = _u32s();
+    if (record.has(BinaryPropertyFlag.valueFlags) || record.has(BinaryPropertyFlag.structureFlags)) {
+      record.valueFlagsWord = _u32s();
     }
   }
 
-  List<BinaryExtData> _extData() {
-    final count = _u32s(BinaryByteTier.structural);
-    if (count > _maxExtData) throw Tof1FormatException('$count extdata entries', at - _u32);
-    final out = <BinaryExtData>[];
-    for (var i = 0; i < count; i++) {
-      final controllerIndex = _strIndex(BinaryByteTier.semantic);
-      final controller = ExtDataController.byName(_str(controllerIndex) ?? '');
-      if (controller == null) {
-        throw Tof1FormatException('extdata controller ${_str(controllerIndex)} not yet decoded', at - _u32);
-      }
-      switch (controller) {
-        case ExtDataController.struct:
-          final allow = _u8s(BinaryByteTier.semantic) != 0;
-          final packing = _u32s(BinaryByteTier.semantic);
-          final exclude = _u8s(BinaryByteTier.semantic) != 0;
-          final type = _u32s(BinaryByteTier.semantic);
-          final arrayStorage = _u32s(BinaryByteTier.semantic);
-          final strBufferSize = _u32s(BinaryByteTier.semantic);
-          final strStorage = _u32s(BinaryByteTier.semantic);
-          out.add(
-            BinaryExtData(
-              controller: controller,
-              controllerIndex: controllerIndex,
-              allowPassing: allow,
-              exclude: exclude,
-              packingOption: packing,
-              type: type,
-              arrayStorage: arrayStorage,
-              strBufferSize: strBufferSize,
-              strStorage: strStorage,
-            ),
-          );
-        case ExtDataController.cluster || ExtDataController.lvCluster || ExtDataController.dotNetStruct:
-          final allow = _u8s(BinaryByteTier.semantic) != 0;
-          final exclude = _u8s(BinaryByteTier.semantic) != 0;
-          final memberIndex = _strIndex(BinaryByteTier.semantic);
-          out.add(
-            BinaryExtData(
-              controller: controller,
-              controllerIndex: controllerIndex,
-              allowPassing: allow,
-              exclude: exclude,
-              memberIndex: memberIndex,
-              member: _str(memberIndex),
-            ),
-          );
-      }
+  void _blocks(BinaryRecord record, int depth) {
+    if (record.has(BinaryPropertyFlag.extData)) {
+      final count = _u32s();
+      if (count > _maxExtData) _fail('$count extdata entries', at - _u32);
+      record.extData = List.generate(count, (_) => _extData());
     }
-    return out;
+    if (record.has(BinaryPropertyFlag.attributes)) record.attributes = _record(depth, null);
+    if (record.has(BinaryPropertyFlag.typeAttributes)) record.typeAttributes = _record(depth, null);
+  }
+
+  BinaryExtData _extData() {
+    final controllerIndex = _str();
+    final name = controllerIndex == binaryNullIndex ? null : pool[controllerIndex];
+    final controller = ExtDataController.byName(name);
+    if (controller == null) _fail('extdata controller $name not yet decoded', at - _u32);
+    final allowPassing = _bool();
+    if (controller != ExtDataController.struct) {
+      final exclude = _bool();
+      final memberIndex = _str();
+      return BinaryExtData(
+        controller,
+        controllerIndex,
+        allowPassing,
+        exclude,
+        memberIndex: memberIndex,
+        member: memberIndex == binaryNullIndex ? null : pool[memberIndex],
+      );
+    }
+    final packingOption = _u32s();
+    return BinaryExtData(
+      controller,
+      controllerIndex,
+      allowPassing,
+      _bool(),
+      packingOption: packingOption,
+      type: _u32s(),
+      arrayStorage: _u32s(),
+      strBufferSize: _u32s(),
+      strStorage: _u32s(),
+    );
   }
 
   List<BinaryRecord> _children(int depth, BinaryRecord? definition) {
-    final count = _u32s(BinaryByteTier.structural);
-    if (count > (recordRegionLength - at) ~/ _minRecordBytes) {
-      throw Tof1FormatException('$count children exceed the record region', at - _u32);
-    }
+    final count = _u32s();
+    if (count > (regionEnd - at) ~/ _minRecordBytes) _fail('$count children exceed the record region', at - _u32);
     if (count == 0) return const [];
-    final children = <BinaryRecord>[];
-    for (var i = 0; i < count; i++) {
-      final childDefinition = definition == null ? null : _definitionChild(definition, _peekName());
-      children.add(_record(depth, childDefinition));
-    }
-    return children;
+    return List.generate(
+      count,
+      (_) => _record(depth, definition == null ? null : _definitionChild(definition, _peekName())),
+    );
   }
 
   /// The name of the record starting at [at], read without consuming it.
   String? _peekName() {
-    var p = at;
-    if (p + 4 * _u32 > recordRegionLength) return null;
-    final flags = view.getUint32(p, Endian.little);
-    p += 3 * _u32;
-    if (BinaryPropertyFlag.typed.isSetIn(flags)) p += _u32;
-    if (p + _u32 > recordRegionLength) return null;
-    final nameIndex = view.getUint32(p, Endian.little);
+    if (at + 4 * _u32 > regionEnd) return null;
+    final flags = view.getUint32(at, Endian.little);
+    final nameAt = at + (BinaryPropertyFlag.typed.isSetIn(flags) ? 4 : 3) * _u32;
+    if (nameAt + _u32 > regionEnd) return null;
+    final nameIndex = view.getUint32(nameAt, Endian.little);
     return nameIndex < pool.length ? pool[nameIndex] : null;
   }
 
   BinaryRecord? _definitionChild(BinaryRecord definition, String? name) {
     if (name == null) return null;
     BinaryRecord? node = definition;
-    var guard = 0;
-    while (node != null && guard++ < _maxDepth) {
-      final direct = node.child(name);
-      if (direct != null) return direct;
+    for (var guard = 0; node != null && guard < _maxDepth; guard++) {
+      if (node.child(name) case final direct?) return direct;
       final typeRef = node.typeRef;
       if (typeRef != null && typeRef < types.length) {
-        final viaType = _definitionChild(types[typeRef].root, name);
-        if (viaType != null) return viaType;
+        if (_definitionChild(types[typeRef].root, name) case final viaType?) return viaType;
       }
       node = node.definition;
     }
@@ -1094,21 +818,14 @@ int? arrayBoundCount(String? lbound, String? ubound) {
 /// Stands for a decimal bound past [maxArrayElements]; it is never a valid index.
 const _oversizedBound = maxArrayElements + 1;
 
-final _decimal = RegExp(r'^[0-9]+$');
+final _bound = RegExp(r'\[([0-9]+)\]');
 
 List<int>? _dims(String? bounds) {
   if (bounds == null || bounds.isEmpty) return null;
-  final out = <int>[];
-  var i = 0;
-  while (i < bounds.length) {
-    if (bounds[i] != '[') return null;
-    final close = bounds.indexOf(']', i);
-    if (close < 0) return null;
-    final digits = bounds.substring(i + 1, close);
-    if (!_decimal.hasMatch(digits)) return null;
-    final value = int.tryParse(digits);
-    out.add(value == null || value > maxArrayElements ? _oversizedBound : value);
-    i = close + 1;
-  }
-  return out.isEmpty ? null : out;
+  final matches = _bound.allMatches(bounds).toList();
+  if (matches.isEmpty || matches.fold(0, (n, m) => n + m.end - m.start) != bounds.length) return null;
+  return [
+    for (final match in matches)
+      if (int.tryParse(match[1]!) case final value? when value <= maxArrayElements) value else _oversizedBound,
+  ];
 }

@@ -32,10 +32,12 @@ terminators. INI writing works at the
 inheritance-expanded, and writing it would fabricate lines the source file
 omits.
 
-`parseBinarySeqWriteModel(bytes)` decodes a binary `TOF1` file into its record
+`BinarySeqWriteModel.parse(bytes)` decodes a binary `TOF1` file into its record
 grammar; `writeBody()` reproduces the inflated body byte-exactly and
 `writeFile()` keeps the header and re-deflates that body, for 168/168 corpus
-binaries (`test/binary_writer_corpus_test.dart`).
+binaries (`test/binary_sweep_test.dart`). `test/corpus_snapshot.json`, written by
+`dart run tool/snapshot.dart`, pins each corpus file's format, version and
+type, sequence, step and module-step counts, one line per file.
 
 ## Notes On Development
 

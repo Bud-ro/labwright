@@ -10,21 +10,16 @@ import 'dart:typed_data';
 
 import 'seq_binary.dart';
 import 'seq_binary_grammar.dart';
-import 'seq_binary_header.dart';
-import 'seq_binary_text.dart';
 import 'seq_property.dart';
 
+/// A stored double of the record tree: its body offset, its value, and how to change it.
+typedef BinaryF64Slot = ({int offset, double value, void Function(double) write});
+
 final class BinarySeqWriteModel {
-  BinarySeqWriteModel._({
-    required this.header,
-    required this.body,
-    required this.pool,
-    required this.poolBytes,
-  });
+  BinarySeqWriteModel(this.body) : pool = List.of(body.pool), poolBytes = List.of(body.poolEntries);
 
-  /// The file bytes before the zlib stream.
-  final Uint8List header;
-
+  /// A write model for a `TOF1` file; throws [FormatException] as [decodeTof1] does.
+  factory BinarySeqWriteModel.parse(Uint8List bytes) => BinarySeqWriteModel(decodeTof1(bytes));
   final Tof1Body body;
 
   /// Mutable copy of the pool; records reference entries by index.
@@ -32,14 +27,11 @@ final class BinarySeqWriteModel {
 
   /// Each pool entry's original bytes; null once the entry has been replaced.
   final List<Uint8List?> poolBytes;
-
-  Tof1Generation get generation => body.generation;
-
   int get recordRegionLength => body.recordRegionLength;
 
   /// Body byte range `(start, end)` of pool entry [index] in the written body, without its NUL.
   (int, int) poolEntryRange(int index) {
-    var at = body.recordRegionLength + 4;
+    var at = recordRegionLength + 4;
     for (var i = 0; i < index; i++) {
       at += _entryBytes(i).length + 1;
     }
@@ -49,226 +41,104 @@ final class BinarySeqWriteModel {
   int replacePoolEntry(String from, String to) {
     var replaced = 0;
     for (var i = 0; i < pool.length; i++) {
-      if (pool[i] == from) {
-        pool[i] = to;
-        poolBytes[i] = null;
-        replaced++;
-      }
-    }
-    return replaced;
-  }
-
-  /// Body offsets of every stored double equal to [value]: `Num` values, `Nums` elements and `Enum` values.
-  List<int> f64Sites(double value) => [
-    for (final slot in _f64Slots())
-      if (slot.value == value) slot.offset,
-  ];
-
-  /// Replaces every stored double equal to [from] with [to]; returns how many were replaced.
-  int replaceF64(double from, double to) {
-    var replaced = 0;
-    for (final slot in _f64Slots()) {
-      if (slot.value == from) {
-        slot.write(to);
-        replaced++;
-      }
+      if (pool[i] != from) continue;
+      pool[i] = to;
+      poolBytes[i] = null;
+      replaced++;
     }
     return replaced;
   }
 
   /// Every stored double in body order: `Num` values, `Nums` elements and `Enum` values.
-  List<double> get f64Values => [for (final slot in _f64Slots()) slot.value];
+  List<BinaryF64Slot> get f64Slots => [
+    for (final record in body.records) ...[
+      if (record.value case final double value)
+        (offset: record.valueOffset, value: value, write: (v) => record.value = v),
+      if (record.kind == SeqValueClass.numbers)
+        for (final (i, element) in record.elements!.indexed)
+          (offset: record.valueOffset + 8 * i, value: element! as double, write: (v) => record.elements![i] = v),
+      if (record.enumValue case final value?)
+        (offset: record.enumValueOffset, value: value, write: (v) => record.enumValue = v),
+    ],
+  ]..sort((a, b) => a.offset.compareTo(b.offset));
 
-  List<_F64Slot> _f64Slots() {
-    final slots = <_F64Slot>[];
-    _walk(body, (record) {
-      final value = record.value;
-      if (value is double) {
-        slots.add(_F64Slot(record.valueOffset, value, (v) => record.value = v));
-      }
-      if (record.kind == SeqValueClass.numbers) {
-        final elements = record.elements!;
-        for (var i = 0; i < elements.length; i++) {
-          slots.add(_F64Slot(record.valueOffset + 8 * i, elements[i]! as double, (v) => elements[i] = v));
-        }
-      }
-      final enumValue = record.enumValue;
-      if (enumValue != null) {
-        slots.add(_F64Slot(record.enumValueOffset, enumValue, (v) => record.enumValue = v));
-      }
-    });
-    slots.sort((a, b) => a.offset.compareTo(b.offset));
-    return slots;
+  /// Body offsets of every stored double equal to [value].
+  List<int> f64Sites(double value) => [
+    for (final slot in f64Slots)
+      if (slot.value == value) slot.offset,
+  ];
+
+  /// Replaces every stored double equal to [from] with [to]; returns how many were replaced.
+  int replaceF64(double from, double to) {
+    final slots = [
+      for (final slot in f64Slots)
+        if (slot.value == from) slot,
+    ];
+    for (final slot in slots) {
+      slot.write(to);
+    }
+    return slots.length;
   }
 
   /// The body: the record region from the record tree, then the pool, keeping an unterminated last string
   /// unterminated and any bytes after the pool.
   Uint8List writeBody() {
-    final out = _ByteSink(body.bytes.length + 64);
-    _Tof1BodyWriter(out, generation).body(body);
+    final writer = _Tof1BodyWriter(body.generation)..body(body);
+    final out = writer.out;
     for (var i = 0; i < pool.length; i++) {
-      out.bytes(_entryBytes(i));
-      if (i < pool.length - 1 || body.lastStringTerminated) out.u8(0);
+      out.add(_entryBytes(i));
+      if (i < pool.length - 1 || body.lastStringTerminated) out.addByte(0);
     }
-    out.bytes(body.poolTail);
-    return out.take();
+    out.add(body.poolTail);
+    return out.takeBytes();
   }
 
   Uint8List writeFile() {
     final written = writeBody();
-    final deflated = ZLibCodec().encode(written);
-    final compressed = deflated is Uint8List ? deflated : Uint8List.fromList(deflated);
-    final out = Uint8List(header.length + compressed.length);
-    out.setRange(0, header.length, header);
-    final view = ByteData.sublistView(out);
-    view.setUint32(Tof1HeaderField.inflatedLength.offset, written.length, Endian.little);
-    view.setUint32(Tof1HeaderField.recordRegionLength.offset, body.recordRegionLength, Endian.little);
-    out.setRange(header.length, out.length, compressed);
+    final deflated = zlib.encode(written);
+    final out = Uint8List(Tof1Header.size + deflated.length)
+      ..setAll(0, body.header.serialize())
+      ..setAll(Tof1Header.size, deflated);
+    Tof1Header.parse(out)!
+      ..inflatedLength = written.length
+      ..recordRegionLength = recordRegionLength;
     return out;
   }
 
   /// The Windows-1252 bytes of pool entry [index]; throws [ArgumentError] for a character the code page lacks.
-  Uint8List _entryBytes(int index) {
-    final original = poolBytes[index];
-    if (original != null) return original;
-    final encoded = encodeWindows1252(pool[index]);
-    if (encoded == null) throw ArgumentError('pool entry $index is not Windows-1252: ${pool[index]}');
-    return encoded;
-  }
-
-  static void _walk(Tof1Body body, void Function(BinaryRecord) visit) {
-    for (final type in body.types) {
-      _walkRecord(type.root, visit);
-    }
-    _walkRecord(body.data, visit);
-  }
-
-  static void _walkRecord(BinaryRecord record, void Function(BinaryRecord) visit) {
-    visit(record);
-    final proto = record.elemProto;
-    if (proto != null) _walkRecord(proto, visit);
-    for (final element in record.elements ?? const <Object?>[]) {
-      if (element is BinaryRecord) _walkRecord(element, visit);
-    }
-    final items = record.enumItems;
-    if (items != null) _walkRecord(items, visit);
-    for (final block in [record.attributes, record.typeAttributes]) {
-      if (block != null) _walkRecord(block, visit);
-    }
-    for (final child in record.children) {
-      _walkRecord(child, visit);
-    }
-  }
-}
-
-/// A write model for a `TOF1` file; null when the body does not inflate or leaves the grammar.
-BinarySeqWriteModel? parseBinarySeqWriteModel(Uint8List seqBytes) {
-  final decode = decodeTof1(seqBytes);
-  final grammar = decode?.grammar;
-  if (decode == null || grammar == null) return null;
-  final poolBytes = <Uint8List?>[];
-  for (var i = 0; i < grammar.pool.length; i++) {
-    final start = grammar.poolOffsets[i];
-    var end = start;
-    while (end < grammar.bytes.length && grammar.bytes[end] != 0) {
-      end++;
-    }
-    poolBytes.add(Uint8List.sublistView(grammar.bytes, start, end));
-  }
-  return BinarySeqWriteModel._(
-    header: Uint8List.sublistView(seqBytes, 0, Tof1HeaderField.body.offset),
-    body: grammar,
-    pool: List.of(grammar.pool),
-    poolBytes: poolBytes,
-  );
-}
-
-/// A stored double of the record tree: where it sits in the body and how to change it.
-final class _F64Slot {
-  _F64Slot(this.offset, this.value, this.write);
-
-  final int offset;
-
-  final double value;
-
-  final void Function(double) write;
-}
-
-/// An append-only little-endian byte buffer.
-final class _ByteSink {
-  _ByteSink(int capacity) : this._(Uint8List(capacity));
-
-  _ByteSink._(Uint8List buffer) : _buffer = buffer, _view = ByteData.sublistView(buffer);
-
-  Uint8List _buffer;
-
-  ByteData _view;
-
-  int length = 0;
-
-  void _reserve(int more) {
-    if (length + more <= _buffer.length) return;
-    var capacity = _buffer.length * 2;
-    while (capacity < length + more) {
-      capacity *= 2;
-    }
-    final grown = Uint8List(capacity)..setRange(0, length, _buffer);
-    _buffer = grown;
-    _view = ByteData.sublistView(grown);
-  }
-
-  void u8(int value) {
-    _reserve(1);
-    _buffer[length++] = value;
-  }
-
-  void u32(int value) {
-    _reserve(4);
-    _view.setUint32(length, value, Endian.little);
-    length += 4;
-  }
-
-  void f64(double value) {
-    _reserve(8);
-    _view.setFloat64(length, value, Endian.little);
-    length += 8;
-  }
-
-  void i64(int value) {
-    _reserve(8);
-    _view.setInt64(length, value, Endian.little);
-    length += 8;
-  }
-
-  void bytes(Uint8List data) {
-    _reserve(data.length);
-    _buffer.setRange(length, length + data.length, data);
-    length += data.length;
-  }
-
-  Uint8List take() => Uint8List.sublistView(_buffer, 0, length);
+  Uint8List _entryBytes(int index) =>
+      poolBytes[index] ??
+      encodeWindows1252(pool[index]) ??
+      (throw ArgumentError('pool entry $index is not Windows-1252: ${pool[index]}'));
 }
 
 final class _Tof1BodyWriter {
-  _Tof1BodyWriter(this.out, this.generation);
-
-  final _ByteSink out;
-
+  _Tof1BodyWriter(this.generation);
   final Tof1Generation generation;
+  final out = BytesBuilder();
+  final _word = Uint8List(8);
+  late final _view = ByteData.sublistView(_word);
+  void u8(int value) => out.addByte(value);
+  void flag(bool value) => out.addByte(value ? 1 : 0);
 
-  void u32(int value) => out.u32(value);
+  void u32(int value) {
+    _view.setUint32(0, value, Endian.little);
+    out.add(Uint8List.sublistView(_word, 0, 4));
+  }
 
-  void u8(int value) => out.u8(value);
+  void f64(double value) {
+    _view.setFloat64(0, value, Endian.little);
+    out.add(_word);
+  }
 
-  void f64(double value) => out.f64(value);
-
-  void i64(int value) => out.i64(value);
+  void i64(int value) {
+    _view.setInt64(0, value, Endian.little);
+    out.add(_word);
+  }
 
   void body(Tof1Body body) {
     u32(body.types.length);
-    for (final type in body.types) {
-      typeEntry(type);
-    }
+    body.types.forEach(typeEntry);
     record(body.data);
     u32(body.tailWord);
     u32(binaryNullIndex);
@@ -277,7 +147,7 @@ final class _Tof1BodyWriter {
 
   void typeEntry(BinaryTypeEntry type) {
     final root = type.root;
-    u32(type.entryFlags);
+    u32(root.flags);
     u32(type.entryWord);
     u32(root.classIndex);
     u32(root.nameIndex);
@@ -297,12 +167,10 @@ final class _Tof1BodyWriter {
       u32(type.hasSecondaryDigest ? 1 : 0);
       if (type.hasSecondaryDigest) u32(type.secondaryDigestIndex);
     }
-    if (root.has(BinaryPropertyFlag.extData)) extData(root.extData);
-    if (root.attributes case final block?) record(block);
-    if (root.typeAttributes case final block?) record(block);
+    blocks(root);
     children(root);
     u32(type.additionalTypeFlags);
-    u8(type.alwaysSaveType ? 1 : 0);
+    flag(type.alwaysSaveType);
     u32(type.orderNumber);
   }
 
@@ -315,9 +183,7 @@ final class _Tof1BodyWriter {
     valuePart(r);
     if (r.has(BinaryPropertyFlag.comment)) u32(r.commentIndex);
     attributeWords(r);
-    if (r.has(BinaryPropertyFlag.extData)) extData(r.extData);
-    if (r.attributes case final block?) record(block);
-    if (r.typeAttributes case final block?) record(block);
+    blocks(r);
     children(r);
   }
 
@@ -326,54 +192,44 @@ final class _Tof1BodyWriter {
       u32(r.lboundIndex);
       u32(r.uboundIndex);
       if (r.kind == SeqValueClass.objects || r.kind == SeqValueClass.containers) {
-        u8(r.hasElemProto ? 1 : 0);
+        flag(r.hasElemProto);
         if (r.elemProto case final proto?) record(proto);
       }
-      if (r.kind == SeqValueClass.references) return;
-      final elements = r.elements ?? const <Object?>[];
-      final indices = r.elementIndices;
-      for (var i = 0; i < elements.length; i++) {
-        switch (elements[i]) {
+      if (r.kind == SeqValueClass.strings) return r.elementIndices!.forEach(u32);
+      for (final element in r.elements!) {
+        switch (element) {
           case final BinaryRecord element:
             record(element);
           case final double element:
             f64(element);
           case final bool element:
-            u8(element ? 1 : 0);
-          default:
-            u32(indices == null ? binaryNullIndex : indices[i]);
+            flag(element);
         }
-      }
-      return;
-    }
-    if (r.isEnum) {
-      if (r.has(BinaryPropertyFlag.enumItems)) {
-        u32(r.enumItemsWord ?? 1);
-        record(r.enumItems!);
-      }
-      if (r.has(BinaryPropertyFlag.enumValue)) {
-        u32(r.enumValueIndex);
-        f64(r.enumValue ?? 0);
       }
       return;
     }
     switch (r.kind) {
+      case SeqValueClass.enumeration:
+        if (r.has(BinaryPropertyFlag.enumItems)) {
+          u32(r.enumItemsWord!);
+          record(r.enumItems!);
+        }
+        if (r.has(BinaryPropertyFlag.enumValue)) {
+          u32(r.enumValueIndex);
+          f64(r.enumValue!);
+        }
       case SeqValueClass.number:
-        if (r.has(BinaryPropertyFlag.numericRepresentation)) u32(r.representation ?? 0);
-        if (r.has(BinaryPropertyFlag.value)) {
-          switch (r.value) {
-            case final double value:
-              f64(value);
-            case final int value:
-              i64(value);
-            default:
-              f64(0);
-          }
+        if (r.representation case final representation?) u32(representation);
+        switch (r.value) {
+          case final double value:
+            f64(value);
+          case final int value:
+            i64(value);
         }
       case SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path:
         if (r.has(BinaryPropertyFlag.value)) u32(r.valueIndex);
       case SeqValueClass.boolean:
-        if (r.has(BinaryPropertyFlag.value)) u8(r.value == true ? 1 : 0);
+        if (r.value case final bool value) flag(value);
       default:
         break;
     }
@@ -386,31 +242,29 @@ final class _Tof1BodyWriter {
     if (r.valueFlagsWord case final word?) u32(word);
   }
 
-  void extData(List<BinaryExtData> entries) {
-    u32(entries.length);
-    for (final entry in entries) {
-      u32(entry.controllerIndex);
-      switch (entry.controller) {
-        case ExtDataController.struct:
-          u8(entry.allowPassing ? 1 : 0);
-          u32(entry.packingOption ?? 0);
-          u8(entry.exclude ? 1 : 0);
-          u32(entry.type ?? 0);
-          u32(entry.arrayStorage ?? 0);
-          u32(entry.strBufferSize ?? 0);
-          u32(entry.strStorage ?? 0);
-        case ExtDataController.cluster || ExtDataController.lvCluster || ExtDataController.dotNetStruct:
-          u8(entry.allowPassing ? 1 : 0);
-          u8(entry.exclude ? 1 : 0);
+  void blocks(BinaryRecord r) {
+    if (r.has(BinaryPropertyFlag.extData)) {
+      u32(r.extData.length);
+      for (final entry in r.extData) {
+        u32(entry.controllerIndex);
+        flag(entry.allowPassing);
+        if (entry.controller == ExtDataController.struct) u32(entry.packingOption!);
+        flag(entry.exclude);
+        if (entry.controller != ExtDataController.struct) {
           u32(entry.memberIndex);
+          continue;
+        }
+        for (final word in [entry.type, entry.arrayStorage, entry.strBufferSize, entry.strStorage]) {
+          u32(word!);
+        }
       }
     }
+    if (r.attributes case final block?) record(block);
+    if (r.typeAttributes case final block?) record(block);
   }
 
   void children(BinaryRecord r) {
     u32(r.children.length);
-    for (final child in r.children) {
-      record(child);
-    }
+    r.children.forEach(record);
   }
 }

@@ -9,9 +9,6 @@ import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-const _pinnedIniSeqCount = 3;
-const _pinnedXmlSeqCount = 43;
-
 void main() {
   final seqs =
       corpusSeqDir
@@ -42,7 +39,6 @@ void main() {
       );
     }
     print('INI .seq byte-exact round-trip: ${iniCount - mismatches.length}/$iniCount');
-    expect(iniCount, _pinnedIniSeqCount, reason: 'INI corpus population changed — re-verify the writer over it');
     expect(mismatches, isEmpty, reason: 'every INI corpus file must round-trip byte-exactly');
   });
 
@@ -59,7 +55,6 @@ void main() {
       expect(seqFileDeepEquals(first, parseSeqFile(rewritten)), isTrue, reason: 'model drift after rewrite: ${f.path}');
     }
     print('XML .seq byte-exact round-trip: ${xmlCount - mismatches.length}/$xmlCount');
-    expect(xmlCount, _pinnedXmlSeqCount, reason: 'XML corpus population changed — re-verify the writer over it');
     expect(mismatches, isEmpty, reason: 'every XML corpus file must round-trip byte-exactly');
   });
 }

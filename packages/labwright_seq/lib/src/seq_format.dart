@@ -1,6 +1,6 @@
 import 'dart:typed_data';
 
-import 'seq_binary_header.dart';
+import 'seq_binary.dart';
 import 'seq_ini.dart';
 
 enum SeqFormat {
@@ -112,12 +112,7 @@ SeqFileHeader detectSeqHeader(Uint8List bytes) {
     case SeqFormat.ini:
       return parseIniHeader(_asciiPeek(bytes, 0, _headerScanLen));
     case SeqFormat.binary:
-      return Tof1Header.parse(bytes)?.toSeqFileHeader() ??
-          SeqFileHeader(
-            format: fmt,
-            fileType: _cString(bytes, Tof1HeaderField.fileType.offset),
-            productName: _cString(bytes, Tof1HeaderField.productName.offset),
-          );
+      return Tof1Header.parse(bytes)?.toSeqFileHeader() ?? const SeqFileHeader(format: SeqFormat.binary);
     case SeqFormat.unknown:
       return const SeqFileHeader(format: SeqFormat.unknown);
   }
@@ -173,15 +168,4 @@ List<BinaryString> binaryStrings(Uint8List bytes, {int minLength = 4}) {
   }
   flush();
   return out;
-}
-
-String? _cString(Uint8List bytes, int start) {
-  final sb = StringBuffer();
-  for (var i = start; i < bytes.length && bytes[i] != 0; i++) {
-    if (bytes[i] < Ascii.space.code || bytes[i] > Ascii.tilde.code) {
-      break;
-    }
-    sb.writeCharCode(bytes[i]);
-  }
-  return sb.isEmpty ? null : sb.toString();
 }

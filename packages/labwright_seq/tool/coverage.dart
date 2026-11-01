@@ -5,7 +5,7 @@ import 'package:labwright_seq/labwright_seq.dart';
 import '../../../tool/corpus.dart';
 
 class _Stat {
-  int files = 0, seqs = 0, steps = 0;
+  int files = 0, seqs = 0, steps = 0, recordBytes = 0, undecodedBytes = 0;
   var cov = const SeqCoverage(total: 0, modeled: 0);
 }
 
@@ -95,11 +95,10 @@ void main() {
   stdout.writeln(
     '  TOF1  ${axis(binary.cov)} · ${binary.files} binary .seq · ${binary.seqs} sequences · ${binary.steps} steps',
   );
-  final bytes = _binaryBytes(iniFiles);
+  final accounted = pct(binary.recordBytes - binary.undecodedBytes, binary.recordBytes);
   stdout.writeln(
-    '  TOF1 bytes: record region ${(bytes.recordAccountedRatio * 100).toStringAsFixed(2)}% accounted · '
-    '${(bytes.recordSemanticRatio * 100).toStringAsFixed(2)}% semantic · '
-    '${bytes.recordUndecodedBytes} B not yet decoded (${bytes.recordRegionBytes} B records, ${bytes.poolBytes} B pool)',
+    '  TOF1 bytes: record region $accounted% accounted · '
+    '${binary.undecodedBytes} B of ${binary.recordBytes} B not yet decoded',
   );
 
   final report = StringBuffer()
@@ -137,24 +136,11 @@ void main() {
     ..writeln(
       '**TOTAL (TOF1 binary)** ${binary.files} binary .seq · ${binary.seqs} sequences · '
       '${binary.steps} steps · model coverage ${modelPct(binary.cov)}% '
-      '(${binary.cov.modeled}/${binary.cov.total} property nodes) · record bytes '
-      '${(bytes.recordAccountedRatio * 100).toStringAsFixed(2)}% accounted, '
-      '${(bytes.recordSemanticRatio * 100).toStringAsFixed(2)}% semantic, '
-      '${bytes.recordUndecodedBytes} bytes not yet decoded.',
+      '(${binary.cov.modeled}/${binary.cov.total} property nodes) · record bytes $accounted% accounted, '
+      '${binary.undecodedBytes} bytes not yet decoded.',
     );
   File('$root/REPORT.md').writeAsStringSync('$report\n');
   stdout.writeln('wrote $root/REPORT.md');
-}
-
-BinaryByteCoverage _binaryBytes(List<File> files) {
-  var total = const BinaryByteCoverage(bodyBytes: 0, poolBytes: 0, recordSemanticBytes: 0, recordStructuralBytes: 0);
-  for (final f in files) {
-    final bytes = f.readAsBytesSync();
-    if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-    final coverage = binaryByteCoverage(bytes);
-    if (coverage != null) total = total + coverage;
-  }
-  return total;
 }
 
 _Stat _measure(List<File> files, SeqFormat fmt) {
@@ -172,6 +158,10 @@ _Stat _measure(List<File> files, SeqFormat fmt) {
     s.seqs += sf.sequences.length;
     s.steps += sf.sequences.fold(0, (a, seq) => a + seq.steps.length);
     s.cov = s.cov + measureCoverage(sf);
+    if (sf.binary case final body?) {
+      s.recordBytes += body.recordRegionLength;
+      s.undecodedBytes += body.undecodedRecordBytes;
+    }
   }
   return s;
 }

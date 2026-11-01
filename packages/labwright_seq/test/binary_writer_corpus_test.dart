@@ -12,37 +12,10 @@ import 'corpus_dirs.dart';
 void main() {
   Uint8List read(String relative) => File('${corpusSeqDir.path}/$relative').readAsBytesSync();
 
-  test('whole corpus: writeFile(parse(f)) re-inflates to the original body and re-parses to the same model', () {
-    var binaries = 0;
-    for (final f in corpusSeqDir.listSync(recursive: true).whereType<File>()) {
-      if (!f.path.toLowerCase().endsWith('.seq')) continue;
-      final bytes = f.readAsBytesSync();
-      if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      binaries++;
-      final rel = corpusSeqRelativePath(f.path);
-      final model = parseBinarySeqWriteModel(bytes)!;
-      final body = inflateBinaryBody(bytes)!;
-      expect(model.writeBody(), body, reason: rel);
-      final file = model.writeFile();
-      expect(
-        Uint8List.sublistView(file, 0, Tof1HeaderField.body.offset),
-        Uint8List.sublistView(bytes, 0, Tof1HeaderField.body.offset),
-        reason: '$rel: header',
-      );
-      expect(inflateBinaryBody(file), body, reason: '$rel: re-inflated body');
-      expect(
-        seqPropertyDeepEquals(parseSeqFile(file).data, parseSeqFile(bytes).data),
-        isTrue,
-        reason: '$rel: the rewritten file must lift to the same model',
-      );
-    }
-    expect(binaries, 168);
-  });
-
   group('mutation probes', () {
     test('a step rename of equal length changes the pool entry alone', () {
       final bytes = read('seq-corpus/rosetta/OutputVoltage_BIN.seq');
-      final model = parseBinarySeqWriteModel(bytes)!;
+      final model = BinarySeqWriteModel.parse(bytes);
       final body = model.writeBody();
       const oldName = 'Output voltage test';
       const newName = 'OUTPUT VOLTAGE test';
@@ -58,7 +31,7 @@ void main() {
 
     test('a step rename of a different length leaves the record region byte-identical', () {
       final bytes = read('seq-corpus/rosetta/NIDmm_labview_BIN.seq');
-      final model = parseBinarySeqWriteModel(bytes)!;
+      final model = BinarySeqWriteModel.parse(bytes);
       const oldName = 'Acquire Measurement';
       const newName = 'Acquire Measurement (probed)';
       expect(model.replacePoolEntry(oldName, newName), 1);
@@ -74,7 +47,7 @@ void main() {
 
     test('a numeric value changes its eight bytes and the one property that holds it', () {
       final bytes = read('seq-corpus/rosetta/OutputVoltage_BIN.seq');
-      final model = parseBinarySeqWriteModel(bytes)!;
+      final model = BinarySeqWriteModel.parse(bytes);
       const oldValue = 2953567917.0;
       const newValue = 2953567918.0;
       final sites = model.f64Sites(oldValue);
@@ -102,7 +75,7 @@ void main() {
 
     test('a parameter rename stays confined to its pool entry', () {
       final bytes = read('seq-corpus/sources/FloresFelipe__csv-doc-gen-tool-teststand/src/docgen_html.seq');
-      final model = parseBinarySeqWriteModel(bytes)!;
+      final model = BinarySeqWriteModel.parse(bytes);
       final body = model.writeBody();
       const oldName = 'TotalNumSteps';
       const newName = 'TOTALnumSTEPS';
@@ -122,7 +95,7 @@ void main() {
 
     test('a sequence comment changes through its pool entry alone', () {
       final bytes = read('seq-corpus/sources/Aldo633__TestStandLock-API/Lock Test.seq');
-      final model = parseBinarySeqWriteModel(bytes)!;
+      final model = BinarySeqWriteModel.parse(bytes);
       const oldComment =
           'Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  '
           'Override this in the client file to perform an action before any code in the model executes.';
