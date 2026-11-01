@@ -5,17 +5,15 @@ import 'document_view.dart';
 import 'ui.dart';
 
 class BinaryView extends StatelessWidget {
-  const BinaryView({super.key, required this.doc, this.coverage});
+  const BinaryView({super.key, required this.doc});
   final BinarySeqDocument doc;
-
-  final BinaryByteCoverage? coverage;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final rows = binaryHeaderRows(doc);
     final sections = binaryRecoverySections(doc);
-    final strings = doc.stringTable.isNotEmpty ? doc.stringTable : doc.strings;
+    final strings = doc.strings;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -28,9 +26,9 @@ class BinaryView extends StatelessWidget {
               Text('Binary TOF1 file', style: theme.textTheme.titleMedium),
               const SizedBox(height: 8),
               _factsTable(theme, rows),
-              if (coverage case final cov?) ...[
+              if (doc.partialFile?.binary case final body?) ...[
                 const SizedBox(height: 12),
-                _CoveragePanel(coverage: cov),
+                _CoveragePanel(body: body),
               ],
               const SizedBox(height: 10),
               Container(
@@ -149,30 +147,19 @@ class _Tier {
 }
 
 class _CoveragePanel extends StatelessWidget {
-  const _CoveragePanel({required this.coverage});
-  final BinaryByteCoverage coverage;
+  const _CoveragePanel({required this.body});
+  final Tof1Body body;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final c = coverage;
+    final records = body.recordRegionLength;
+    final undecoded = body.undecodedRecordBytes;
+    final total = body.bytes.length;
     final tiers = <_Tier>[
-      _Tier('string pool', c.poolBytes, const Color(0xFF4C8C4C)),
-      _Tier(
-        'record · semantic',
-        c.recordSemanticBytes,
-        theme.colorScheme.primary,
-      ),
-      _Tier(
-        'record · structural',
-        c.recordStructuralBytes,
-        const Color(0xFFD9A441),
-      ),
-      _Tier(
-        'record · undecoded',
-        c.recordUndecodedBytes,
-        const Color(0xFF8A8A8A),
-      ),
+      _Tier('string pool', total - records, const Color(0xFF4C8C4C)),
+      _Tier('record · decoded', records - undecoded, theme.colorScheme.primary),
+      _Tier('record · undecoded', undecoded, const Color(0xFF8A8A8A)),
     ];
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -214,7 +201,7 @@ class _CoveragePanel extends StatelessWidget {
                     ),
                   ),
                   Text(
-                    '${tier.label}  ${_fmt(tier.bytes)} · ${_pct(tier.bytes, c.bodyBytes)}',
+                    '${tier.label}  ${_fmt(tier.bytes)} · ${_pct(tier.bytes, total)}',
                     style: theme.textTheme.bodySmall,
                   ),
                 ],
@@ -223,10 +210,8 @@ class _CoveragePanel extends StatelessWidget {
         ),
         const SizedBox(height: 6),
         Text(
-          'Record region ${_fmt(c.recordRegionBytes)}: '
-          '${(c.recordSemanticRatio * 100).toStringAsFixed(1)}% decoded, '
-          '${(c.recordAccountedRatio * 100).toStringAsFixed(1)}% accounted · '
-          'body ${(c.bodySemanticRatio * 100).toStringAsFixed(1)}% decoded.',
+          'Record region ${_fmt(records)}: '
+          '${_pct(records - undecoded, records)} decoded.',
           style: theme.textTheme.bodySmall?.copyWith(color: theme.hintColor),
         ),
       ],

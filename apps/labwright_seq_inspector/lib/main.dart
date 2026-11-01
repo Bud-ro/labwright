@@ -49,8 +49,6 @@ class _InspectorPageState extends State<InspectorPage> {
   String? _error;
   List<String> _recent = const [];
 
-  BinaryByteCoverage? _binaryCoverage;
-
   final _sequencesSearchFocus = FocusNode();
   final _propertiesSearchFocus = FocusNode();
   final _typesSearchFocus = FocusNode();
@@ -103,12 +101,8 @@ class _InspectorPageState extends State<InspectorPage> {
       _error = null;
       try {
         _doc = SeqDocument.parse(bytes);
-        _binaryCoverage = _doc is BinarySeqDocument
-            ? binaryByteCoverage(bytes)
-            : null;
       } catch (e) {
         _doc = null;
-        _binaryCoverage = null;
         _error = '$e';
       }
       if (File(path).existsSync()) {
@@ -124,7 +118,6 @@ class _InspectorPageState extends State<InspectorPage> {
     } catch (e) {
       setState(() {
         _doc = null;
-        _binaryCoverage = null;
         _path = path;
         _error = '$e';
       });
@@ -312,7 +305,7 @@ class _InspectorPageState extends State<InspectorPage> {
           child: TabBarView(
             children: [
               if (doc is BinarySeqDocument)
-                BinaryView(doc: doc, coverage: _binaryCoverage)
+                BinaryView(doc: doc)
               else
                 _dumpTab(doc),
               if (file != null) ...[

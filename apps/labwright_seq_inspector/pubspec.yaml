@@ -26,6 +26,8 @@ dev_dependencies:
     sdk: flutter
 
 dependency_overrides:
+  labwright_rsrc_parse:
+    path: ../../packages/labwright_rsrc_parse
   labwright_seq:
     path: ../../packages/labwright_seq
 

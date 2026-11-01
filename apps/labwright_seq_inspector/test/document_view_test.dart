@@ -1,5 +1,4 @@
 import 'dart:convert';
-import 'dart:io';
 import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
@@ -44,36 +43,6 @@ IniSeqDocument iniDoc(List<String> lines) =>
           ),
         )
         as IniSeqDocument;
-
-Uint8List binarySeq() {
-  final pool = <int>[];
-  for (final n in [
-    'PaddingNameSoTheInflatedBodyExceedsTheSixtyFourByteGuardHere',
-    'SequenceFileData',
-    'MainSequence',
-    'Step',
-    'Locals',
-    'Parameters',
-    r'My Computer\Lib\Read.vi',
-    'Locals.x == 1',
-    'ID#:abc123XYZ',
-    '"6105A"',
-  ]) {
-    pool
-      ..addAll(ascii.encode(n))
-      ..add(0);
-  }
-  final header = Uint8List(0x108);
-  header.setAll(0, ascii.encode('TOF1'));
-  header.setAll(0x0a, ascii.encode('SequenceFile'));
-  header.setAll(0x40, ascii.encode('TestStand'));
-  return Uint8List.fromList(
-    (BytesBuilder()
-          ..add(header)
-          ..add(zlib.encode(pool)))
-        .toBytes(),
-  );
-}
 
 Map<String, String> headerRows(BinarySeqDocument d) => {
   for (final (k, v) in binaryHeaderRows(d)) k: v,
@@ -704,112 +673,78 @@ void main() {
     expect(c.modeled, lessThanOrEqualTo(c.total));
   });
 
-  test('binaryHeaderRows surfaces recon facts + datum counts (TOF1)', () {
-    final doc = SeqDocument.parse(binarySeq());
-    expect(doc, isA<BinarySeqDocument>());
-    final map = headerRows(doc as BinarySeqDocument);
-    expect(map['Encoding'], 'binary');
-    expect(map['File type'], 'SequenceFile');
-    expect(map['Product'], 'TestStand');
-    expect(map['Inflated body'], endsWith('bytes'));
-    expect(int.parse(map['Strings recovered']!), greaterThan(0));
-    expect(map.containsKey('Record region'), isTrue);
-    expect(map.containsKey('Record sentinels'), isTrue);
-    expect(int.parse(map['Strings in region']!), greaterThanOrEqualTo(5));
-    expect(map['Property-name table'], endsWith('entries'));
-    expect(
-      int.parse(map['Property-name table']!.split(' ').first),
-      greaterThan(0),
-    );
-    expect(int.parse(map['Object names']!), greaterThan(0));
-    expect(int.parse(map['Module call-targets']!), greaterThanOrEqualTo(1));
-    expect(int.parse(map['Step references']!), greaterThanOrEqualTo(1));
-    expect(int.parse(map['Expressions']!), greaterThanOrEqualTo(1));
-    expect(int.parse(map['Quoted literals']!), greaterThanOrEqualTo(1));
-  });
-
-  test('documentText surfaces all recovered datums for a TOF1 file', () {
-    final text = documentText(SeqDocument.parse(binarySeq()));
-    for (final part in [
-      'recovered property/object names',
-      'MainSequence',
-      'Step',
-      'Locals',
-      'Parameters',
-      'module call-targets',
-      r'My Computer\Lib\Read.vi',
-      'expressions (test logic)',
-      'Locals.x == 1',
-      'step references',
-      'ID#:abc123XYZ',
-      'quoted literals (values)',
-      '"6105A"',
-      'record tree not yet decoded',
-      'record links not yet decoded',
-    ]) {
-      expect(text, contains(part), reason: 'missing "$part"');
-    }
-  });
-
-  test('binaryRecoverySections groups non-empty recovered datums', () {
-    final doc = SeqDocument.parse(binarySeq()) as BinarySeqDocument;
-    final sections = binaryRecoverySections(doc);
-    expect(
-      [for (final s in sections) s.title],
-      [
-        'Object names',
+  test(
+    'binaryHeaderRows surfaces the header, the decoded body and the recovered strings (TOF1)',
+    () {
+      final map = headerRows(
+        SeqDocument.parse(binarySeq()) as BinarySeqDocument,
+      );
+      expect(
+        (
+          map['Encoding'],
+          map['File type'],
+          map['Product'],
+          map['File version'],
+        ),
+        ('binary', 'SequenceFile', 'TestStand', '962'),
+      );
+      expect(map['Inflated body'], endsWith('bytes'));
+      expect(
+        (map['Generation'], map['Record region'], map['Types']),
+        ('ts2014', '32 bytes', '0'),
+      );
+      for (final key in [
         'Module call-targets',
         'Step references',
         'Expressions (test logic)',
         'Quoted literals (values)',
-      ],
-    );
-    for (final s in sections) {
-      expect(s.items, isNotEmpty, reason: s.title);
-    }
-    final byTitle = {for (final s in sections) s.title: s.items};
-    expect(
-      byTitle['Module call-targets'],
-      contains(r'My Computer\Lib\Read.vi'),
-    );
-    expect(byTitle['Expressions (test logic)'], contains('Locals.x == 1'));
-    expect(byTitle['Quoted literals (values)'], contains('"6105A"'));
-  });
+      ]) {
+        expect(map[key], '1', reason: key);
+      }
+    },
+  );
 
-  test('binaryRecoverySections surfaces named + inline numeric values', () {
-    final doc = BinarySeqDocument(
-      header: detectSeqHeader(binarySeq()),
-      inflatedSize: 0,
-      strings: const [],
-      stringTable: const [],
-      namedScalars: const [
-        BinaryNamedScalar(
-          name: 'Parameters',
-          rawTag: 0,
-          rawTypeCode: 62,
-          value: 8192.0,
-          wordIndex: 2,
+  test(
+    'documentText dumps a decoded TOF1 body and lists the strings of one that is not',
+    () {
+      expect(
+        documentText(SeqDocument.parse(binarySeq())),
+        contains('SequenceFile'),
+      );
+      final text = documentText(
+        const BinarySeqDocument(
+          header: SeqFileHeader(format: SeqFormat.binary),
+          strings: [
+            (offset: 0, text: 'Locals.x == 1'),
+            (offset: 16, text: '"6105A"'),
+          ],
+          error: 'FormatException: not decoded',
         ),
-      ],
-      scalarDoubles: const [8192.0, -2.0],
-      namedRecords: const [
-        BinaryNamedRecord(name: 'ResultList', count: 10, rawTag: 2),
-      ],
-    );
+      );
+      for (final part in [
+        'record grammar not yet decoded',
+        'FormatException: not decoded',
+        'Expressions (test logic) (1):',
+        'Locals.x == 1',
+        'Quoted literals (values) (1):',
+        '"6105A"',
+      ]) {
+        expect(text, contains(part), reason: 'missing "$part"');
+      }
+    },
+  );
+
+  test('binaryRecoverySections groups non-empty recovered strings', () {
+    final doc = SeqDocument.parse(binarySeq()) as BinarySeqDocument;
     final byTitle = {
       for (final s in binaryRecoverySections(doc)) s.title: s.items,
     };
-    expect(byTitle['Named scalar values'], [
-      'Parameters = 8192.0  (raw type 62, not modeled)',
-    ]);
-    expect(byTitle['Inline numeric values'], ['8192.0', '-2.0']);
-    expect(byTitle['Named-record headers'], [
-      'ResultList ×10  (raw tag 2, not modeled)',
-    ]);
-    final rows = headerRows(doc);
-    expect(rows['Inline numbers'], '2');
-    expect(rows['Named scalars'], '1');
-    expect(rows['Named records'], '1');
+    expect(byTitle, {
+      'Module call-targets': [r'My Computer\Lib\Read.vi'],
+      'Step references': ['ID#:abc123XYZ'],
+      'Expressions (test logic)': ['Locals.x == 1'],
+      'Quoted literals (values)': ['"6105A"'],
+    });
   });
 
   test('writeCapped lists up to the cap, then an honest "and N more"', () {

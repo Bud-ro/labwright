@@ -7,6 +7,8 @@ import 'package:labwright_seq_inspector/src/property_outline.dart';
 import 'package:labwright_seq_inspector/src/types_view.dart';
 import 'package:labwright_seq_inspector/src/ui.dart';
 
+import 'util.dart';
+
 Future<void> pump(WidgetTester tester, Widget body) =>
     tester.pumpWidget(MaterialApp(home: Scaffold(body: body)));
 
@@ -14,72 +16,41 @@ void main() {
   testWidgets('BinaryView renders categorized recovered sections', (
     tester,
   ) async {
-    const doc = BinarySeqDocument(
-      header: SeqFileHeader(
-        format: SeqFormat.binary,
-        fileType: 'SequenceFile',
-        productName: 'TestStand',
-      ),
-      inflatedSize: 1234,
-      strings: [],
-      stringTable: [],
-      objectNames: ['MainSequence', 'Step1'],
-      modulePaths: [r'My Computer\Lib\Read.vi'],
-      stepReferences: ['ID#:abc'],
-      expressions: ['Locals.x == 1'],
-      quotedLiterals: ['"6105A"'],
+    final decoded = SeqDocument.parse(binarySeq()) as BinarySeqDocument;
+    final doc = BinarySeqDocument(
+      header: decoded.header,
+      strings: decoded.strings,
     );
-    await pump(tester, const BinaryView(doc: doc));
+    await pump(tester, BinaryView(doc: doc));
     for (final t in [
       'Module call-targets (1)',
       'Expressions (test logic) (1)',
       'Quoted literals (values) (1)',
-      'Object names (2)',
-      'All recovered strings (0)',
+      'All recovered strings (6)',
     ]) {
       expect(find.text(t), findsOneWidget, reason: t);
     }
     await tester.tap(find.text('Expressions (test logic) (1)'));
     await tester.pumpAndSettle();
-    expect(find.text('Locals.x == 1'), findsOneWidget);
+    expect(find.text('Locals.x == 1'), findsWidgets);
   });
 
-  testWidgets('BinaryView surfaces the decode-coverage tiers when given them', (
+  testWidgets('BinaryView surfaces the decoded and undecoded record bytes', (
     tester,
   ) async {
-    const doc = BinarySeqDocument(
-      header: SeqFileHeader(format: SeqFormat.binary),
-      inflatedSize: 1000,
-      strings: [],
-      stringTable: [],
-    );
-    const cov = BinaryByteCoverage(
-      bodyBytes: 1000,
-      poolBytes: 400,
-      recordSemanticBytes: 300,
-      recordStructuralBytes: 100,
-    );
-    await pump(tester, const BinaryView(doc: doc, coverage: cov));
+    final doc = SeqDocument.parse(binarySeq()) as BinarySeqDocument;
+    await pump(tester, BinaryView(doc: doc));
     expect(find.text('Binary body coverage'), findsOneWidget);
-    expect(
-      find.textContaining('record · semantic  300 B · 30.0%'),
-      findsOneWidget,
-    );
-    expect(
-      find.textContaining('record · undecoded  200 B · 20.0%'),
-      findsOneWidget,
-    );
-    expect(find.textContaining('50.0% decoded'), findsOneWidget);
+    expect(find.textContaining('record · decoded  24 B'), findsOneWidget);
+    expect(find.textContaining('record · undecoded  8 B'), findsOneWidget);
+    expect(find.textContaining('75.0% decoded'), findsOneWidget);
   });
 
-  testWidgets('BinaryView omits the coverage panel when coverage is null', (
+  testWidgets('BinaryView omits the coverage panel for an undecoded body', (
     tester,
   ) async {
     const doc = BinarySeqDocument(
       header: SeqFileHeader(format: SeqFormat.binary),
-      inflatedSize: 0,
-      strings: [],
-      stringTable: [],
     );
     await pump(tester, const BinaryView(doc: doc));
     expect(find.text('Binary body coverage'), findsNothing);
