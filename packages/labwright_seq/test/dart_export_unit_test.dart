@@ -533,20 +533,28 @@ void main() {
       expect(source, contains('call parameters of sequence Callee: Label binding is not visibly String-typed'));
     });
 
+    SeqProperty bumpingCallee({required bool byReference}) => _seqWith(
+      'Callee',
+      params: [
+        SeqProperty(
+          name: 'X',
+          className: 'Num',
+          scalar: '0',
+          attributes: {if (byReference) 'valueflags': '${SeqPropertyFlag.passByReference.bit}'},
+        ),
+      ],
+      steps: [
+        _p(
+          'Bump',
+          type: 'Statement',
+          sub: [
+            _p('TS', sub: [_p('PostExpr', value: 'Parameters.X = Parameters.X + 1')]),
+          ],
+        ),
+      ],
+    );
     test('scalar by-ref writeback disarms a variable-path binding; a literal binding is safe', () {
-      final callee = _seqWith(
-        'Callee',
-        params: [_num('X', '0')],
-        steps: [
-          _p(
-            'Bump',
-            type: 'Statement',
-            sub: [
-              _p('TS', sub: [_p('PostExpr', value: 'Parameters.X = Parameters.X + 1')]),
-            ],
-          ),
-        ],
-      );
+      final callee = bumpingCallee(byReference: true);
       final varBound = _fileWith([
         _seqWith(
           'Caller',
@@ -574,6 +582,22 @@ void main() {
       final literalSource = exportSeqFileToLabwright(literalBound, sourceName: 'own.seq');
       expect(literalSource, contains('await callee(x: 5); // Run it'));
       expect(literalSource, contains("lw.test('Caller'"), reason: 'a literal has nothing to write back to — armed');
+    });
+    test('a by-value parameter the callee writes leaves a variable-path binding armed', () {
+      final file = _fileWith([
+        _seqWith(
+          'Caller',
+          locals: [_num('Y', '0')],
+          steps: [
+            _callStep('Run it', 'Callee', args: [_argRow('X', expr: 'Locals.Y')]),
+          ],
+        ),
+        bumpingCallee(byReference: false),
+      ]);
+      final source = exportSeqFileToLabwright(file, sourceName: 'own.seq');
+      expect(source, contains('await callee(x: y); // Run it'));
+      expect(source, contains("lw.test('Caller'"));
+      expect(source, isNot(contains('writeback')));
     });
 
     test('a call binding demotes an int-refined callee parameter (analyze-safe)', () {
