@@ -119,4 +119,37 @@ void main() {
   test('terminate raises the termination a caller unwinds through', () {
     expect(ts.terminate, throwsA(isA<ts.SequenceTermination>()));
   });
+  test('sweep values: steps up to the stop, points with both ends, parallel rows', () {
+    expect(ts.sweepSteps(-10, 5, 5), [-10, -5, 0, 5]);
+    expect(ts.sweepSteps(0, 1, 0.4), [0, 0.4, 0.8]);
+    expect(ts.sweepPoints(1000, 6000, 3), [1000, 3500, 6000]);
+    final log = ts.sweepPoints(200, 50000, 100, logarithmic: true);
+    expect(log.first, 200);
+    expect(log.last, closeTo(50000, 1e-6));
+    expect(log[1] / log[0], closeTo(1.0573569305267, 1e-9));
+    expect(
+      ts.parallel([
+        [1, 2],
+        ['a', 'b'],
+      ]).toList(),
+      [
+        [1, 'a'],
+        [2, 'b'],
+      ],
+    );
+    expect(
+      () => ts.parallel([
+        [1],
+        [1, 2],
+      ]).toList(),
+      throwsArgumentError,
+    );
+  });
+  test('a step loop counts passed and failed iterations', () {
+    final loop = ts.StepLoop()
+      ..count(ts.statusPassed)
+      ..count(ts.statusFailed)
+      ..count('Done');
+    expect((loop.numIterations, loop.numPassed, loop.numFailed), (3, 1, 1));
+  });
 }

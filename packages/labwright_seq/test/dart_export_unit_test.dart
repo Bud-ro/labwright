@@ -253,7 +253,7 @@ void main() {
       expect(source, contains('// status expression: Step.Result.Status'));
       expect(source, contains('lw.skipTest('));
       expect(source, contains("if (voltageOkResult.Status == 'Failed') { // post action\n      break body;"));
-      expect(source, contains('per-step looping not exported'));
+      expect(source, contains('while (loop.index < 10) { // loop while'));
       expect(source, contains('voltageOkResult.Status = voltageOkResult.Status; // status expression'));
     });
 
@@ -1047,6 +1047,109 @@ void main() {
       ]);
       expect(source, contains('if (flag) { // post action\n    ts.terminate();\n  }'));
       expect(source, contains('await main\$(); // post action'));
+    });
+  });
+  group('loops', () {
+    test('a looping step repeats under its own loop state and takes the loop status', () {
+      final source = exportSeqFileToDart(
+        _fileWith([
+          _seqWith(
+            'Main',
+            locals: [_num('Total', '0')],
+            steps: [
+              _stepWith(
+                'Retry',
+                typeName: 'Statement',
+                ts: [
+                  _p('PostExpr', value: 'Locals.Total += RunState.LoopIndex'),
+                  _p('LoopType', value: 'PassFailCount'),
+                  _p('LoopInitialize', value: 'RunState.LoopIndex = 0'),
+                  _p('LoopWhile', value: 'RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1'),
+                  _p('LoopIncrement', value: 'RunState.LoopIndex += 1'),
+                  _p('LoopStatus', value: 'RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"'),
+                ],
+              ),
+            ],
+          ),
+        ]),
+      );
+      expect(
+        source,
+        contains(
+          '  final loop = ts.StepLoop();\n'
+          '  loop.index = 0; // loop initialize\n'
+          '  while (loop.index < 3 && loop.numPassed < 1) { // loop while\n'
+          "    retryResult = ts.PropObj({'Status': ''});\n"
+          '    total += loop.index; // Retry\n'
+          "    retryResult.Status = 'Done';\n"
+          '    loop.count(retryResult.Status);\n'
+          '    loop.index += 1; // loop increment\n'
+          '  }\n'
+          "  retryResult.Status = loop.numPassed >= 1 ? 'Passed' : 'Failed'; // loop status\n"
+          '  run.record(retryResult.Status);',
+        ),
+      );
+    });
+    SeqProperty sweepParameter(String strategy, String target, {int? level, List<SeqProperty> extra = const []}) => _p(
+      '[0]',
+      sub: [
+        _str('ParameterStrategy', strategy),
+        _str('ParameterStepOperation', 'Linear'),
+        _p('ExpressionSettings', sub: [_str('ValueExpr', target)]),
+        if (level != null) _num('Level', '$level'),
+        ...extra,
+      ],
+    );
+    String sweep(List<SeqProperty> parameters) => exportSeqFileToDart(
+      _fileWith([
+        _seqWith(
+          'Main',
+          locals: [_num('Freq', '0'), _num('Amp', '0')],
+          steps: [
+            _stepWith(
+              'Sweep Loop',
+              typeName: 'NI_Flow_SweepLoop',
+              props: [SeqProperty(name: 'Parameters', className: 'Objs', array: parameters)],
+            ),
+            _stepWith(
+              'Body',
+              typeName: 'Statement',
+              ts: [_p('PostExpr', value: 'Locals.Amp += Locals.Freq')],
+            ),
+            _stepWith('End', typeName: 'NI_Flow_End'),
+          ],
+        ),
+      ]),
+    );
+    test('sweep levels nest outermost first; a level sweeps its points', () {
+      final source = sweep([
+        sweepParameter(
+          'StartStopNumPoints',
+          'Locals.Freq',
+          level: 0,
+          extra: [_str('StartExpr', '1000'), _str('StopExpr', '6000'), _str('SweepPointsExpr', '3')],
+        ),
+        sweepParameter('Array', 'Locals.Amp', level: 1, extra: [_str('ArrayExpr', '{-6, -20}')]),
+      ]);
+      expect(
+        source,
+        contains(
+          '  sweep: for (final value in ts.sweepPoints(1000, 6000, 3)) {\n'
+          '    freq = (value as num).toDouble();\n'
+          '    for (final value2 in <dynamic>[-6, -20]) {\n'
+          '      amp = (value2 as num).toDouble();\n'
+          '      amp += freq; // Body\n'
+          '    }\n'
+          '  }',
+        ),
+      );
+    });
+    test('parameters from before sweep levels existed stay unexported when there are several', () {
+      final source = sweep([
+        sweepParameter('Array', 'Locals.Freq', extra: [_str('ArrayExpr', '{1}')]),
+        sweepParameter('Array', 'Locals.Amp', extra: [_str('ArrayExpr', '{2}')]),
+      ]);
+      expect(source, contains('not exported; the body runs once'));
     });
   });
 }

@@ -224,6 +224,59 @@ class SequenceRun {
   }
 }
 
+/// The looping state of a step that repeats: the RunState.LoopIndex and loop counters its expressions read.
+class StepLoop {
+  double index = 0;
+  double numIterations = 0;
+  double numPassed = 0;
+  double numFailed = 0;
+  void count(Object? status) {
+    numIterations++;
+    if (status == statusPassed) numPassed++;
+    if (status == statusFailed) numFailed++;
+  }
+}
+
+/// Start, Start + Step, … while the value has not passed Stop.
+List<double> sweepSteps(Object? start, Object? stop, Object? step) {
+  if (start is! num || stop is! num || step is! num || step == 0) {
+    throw UnimplementedError('sweep from $start to $stop by $step');
+  }
+  final tolerance = step.abs() * 1e-9;
+  final values = <double>[];
+  for (
+    var v = start.toDouble();
+    step > 0 ? v <= stop + tolerance : v >= stop - tolerance;
+    v = (start + values.length * step).toDouble()
+  ) {
+    values.add(v);
+  }
+  return values;
+}
+
+/// [count] points from [start] to [stop], both included, spaced evenly or by a constant ratio.
+List<double> sweepPoints(Object? start, Object? stop, Object? count, {bool logarithmic = false}) {
+  if (start is! num || stop is! num || count is! num || count < 1 || (logarithmic && start * stop <= 0)) {
+    throw UnimplementedError('sweep of $count points from $start to $stop');
+  }
+  final n = count.toInt();
+  if (n == 1) return [start.toDouble()];
+  return [
+    for (var i = 0; i < n; i++)
+      logarithmic ? start * math.pow(stop / start, i / (n - 1)).toDouble() : start + (stop - start) * i / (n - 1),
+  ];
+}
+
+/// Rows of the values that parallel sweep parameters take together; every column must have the same length.
+Iterable<List<Object?>> parallel(List<Iterable<Object?>> columns) sync* {
+  final lists = [for (final c in columns) c.toList()];
+  final length = lists.first.length;
+  if (lists.any((l) => l.length != length)) throw ArgumentError('parallel sweep parameters differ in length');
+  for (var i = 0; i < length; i++) {
+    yield [for (final l in lists) l[i]];
+  }
+}
+
 Iterable<Object?> iterate(Object? v) => switch (v) {
   final Iterable<Object?> i => i,
   final Map<Object?, Object?> m => m.values,
