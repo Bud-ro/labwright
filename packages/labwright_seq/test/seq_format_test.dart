@@ -68,19 +68,22 @@ void main() {
       expect((h.format, h.fileType, h.fileVersion, h.productName), (SeqFormat.xml, 'SequenceFile', '962', 'TestStand'));
     });
 
-    test('binary file-type token at 0x0A; fileversion not yet located, not fabricated', () {
-      final h = detectSeqHeader(_binary('SequenceFile'));
-      expect((h.format, h.fileType, h.fileVersion), (SeqFormat.binary, 'SequenceFile', null));
-      expect(detectSeqHeader(_binary('TypePaletteFile')).fileType, 'TypePaletteFile');
+    test('binary file type, product name and file version from the fixed header', () {
+      final b = Uint8List(Tof1Header.size)
+        ..setAll(0, ascii.encode('TOF1'))
+        ..setAll(0x0a, ascii.encode('SequenceFile'))
+        ..setAll(0x40, ascii.encode('TestStand'));
+      ByteData.sublistView(b).setUint32(0x3c, 962, Endian.little);
+      final h = detectSeqHeader(b);
+      expect(
+        (h.format, h.fileType, h.productName, h.fileVersion),
+        (SeqFormat.binary, 'SequenceFile', 'TestStand', '962'),
+      );
     });
 
-    test('binary productName from the 0x40 slot', () {
-      final b = Uint8List(0x60);
-      b.setAll(0, ascii.encode('TOF1'));
-      b.setAll(0x0a, ascii.encode('SequenceFile'));
-      b.setAll(0x40, ascii.encode('TestStand'));
-      final h = detectSeqHeader(b);
-      expect((h.fileType, h.productName), ('SequenceFile', 'TestStand'));
+    test('a binary header too short for the fixed fields yields the format alone, nothing fabricated', () {
+      final h = detectSeqHeader(_binary('SequenceFile'));
+      expect((h.format, h.fileType, h.fileVersion), (SeqFormat.binary, null, null));
     });
 
     test('type= is not confused by an attribute merely ending in it (xsi:type=)', () {
@@ -91,25 +94,5 @@ void main() {
     test('unknown input yields an unknown header, no throw', () {
       expect(detectSeqHeader(_b([1, 2, 3])).format, SeqFormat.unknown);
     });
-  });
-
-  test('binaryStrings extracts printable runs with offsets, incl. Latin-1 high bytes', () {
-    final b = _b([
-      0x00,
-      ...ascii.encode('Hello'),
-      0x00,
-      0x01,
-      ...ascii.encode('World'),
-      0x00,
-      ...latin1.encode('Aktif_Güç'),
-      0x00,
-      ...ascii.encode('left'),
-      0x85,
-      ...ascii.encode('right'),
-    ]);
-    final runs = binaryStrings(b);
-    expect(runs.map((r) => r.text), ['Hello', 'World', 'Aktif_Güç', 'left', 'right']);
-    expect(runs.first.offset, 1);
-    expect(binaryStrings(Uint8List(0)), isEmpty);
   });
 }

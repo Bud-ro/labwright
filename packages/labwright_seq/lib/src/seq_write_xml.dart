@@ -81,7 +81,12 @@ void _writeProperty(StringBuffer sb, SeqProperty p, int depth) {
     ..write(tag);
   _writeAttributes(sb, p.attributes);
   final hasValue = p.array != null || p.scalar != null;
-  if (!hasValue && p.xmlComment == null && p.numericFormat == null && p.extData.isEmpty && p.subProps.isEmpty) {
+  if (!hasValue &&
+      p.xmlComment == null &&
+      p.numericFormat == null &&
+      p.extData.isEmpty &&
+      p.attributeBlock == null &&
+      p.subProps.isEmpty) {
     sb.write('/>\n');
     return;
   }
@@ -108,6 +113,7 @@ void _writeProperty(StringBuffer sb, SeqProperty p, int depth) {
     _writeAttributes(sb, ext);
     sb.write('/>\n');
   }
+  if (p.attributeBlock case final block?) _writeProperty(sb, block, depth + 1);
   if (p.subProps.isNotEmpty) {
     sb
       ..write(indent)

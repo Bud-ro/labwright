@@ -219,6 +219,7 @@ void main() {
         reference.image,
         lockScale: 1.0 / raster.scale,
         anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+        exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
       );
       const ss = kOracleDisplaySupersample;
       final raster3 = (await rasteriseBlockDiagram(
@@ -880,6 +881,7 @@ void main() {
           reference.image,
           lockScale: 1.0 / raster.scale,
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
         );
         final reg = result.registration;
         final rephased = (await rasteriseBlockDiagram(

@@ -125,8 +125,6 @@ abstract class HeapWalkListener<T extends HeapObject> {
   /// An attribute the shared walk does not read; [attr] is reused across records.
   void onAttribute(T cur, HeapAttrReading attr) {}
 
-  /// Whether a pane under class [kind] stores its members relative to the pane with the
-  /// owner's absolute position subtracted, so that the walk adds it back.
   bool panePlacesMembersFromOwner(int kind) => false;
 }
 

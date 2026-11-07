@@ -36,7 +36,7 @@ Uint8List? inflateHeapPayload(Uint8List payload) {
   final declared = ByteData.sublistView(payload).getUint32(0);
   if (declared > _maxDecompressed) return null;
   try {
-    final out = const ZLibDecoder().decodeBytes(payload.sublist(4));
+    final out = const ZLibDecoder().decodeBytes(payload.sublist(4), verify: true);
     return out.length == declared ? out : null;
   } catch (_) {
     return null;

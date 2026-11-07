@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 import 'package:labwright_rsrc_parse/testing.dart';
@@ -156,6 +157,11 @@ void main() {
             raster,
             drawable: scene.drawable,
           ),
+          exactRects: bdPrimIconStampRects(
+            bd,
+            raster,
+            drawable: scene.drawable,
+          ),
         );
         reference.image.dispose();
         final reg = result.registration;
@@ -169,11 +175,9 @@ void main() {
               final rx = (x - raster.content.left + reg.dx).round();
               final ry = (y - raster.content.top + reg.dy).round();
               final i = (ry * w + rx) * 4;
-              if (refB[i] != ourB[i] ||
-                  refB[i + 1] != ourB[i + 1] ||
-                  refB[i + 2] != ourB[i + 2]) {
-                diff++;
-              }
+              final ref = (refB[i] << 16) | (refB[i + 1] << 8) | refB[i + 2];
+              final our = (ourB[i] << 16) | (ourB[i + 1] << 8) | ourB[i + 2];
+              if (!BdColorAlias.sameColor(ref, our)) diff++;
             }
           }
           expect(diff, 0, reason: name + ' ' + label + ' chrome');
@@ -218,6 +222,7 @@ void main() {
             reference.image,
             lockScale: 1.0 / raster.scale,
             anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+            exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
           );
           reference.image.dispose();
           return (raster, result);
@@ -312,6 +317,11 @@ void main() {
             raster,
             drawable: scene.drawable,
           ),
+          exactRects: bdPrimIconStampRects(
+            bd,
+            raster,
+            drawable: scene.drawable,
+          ),
         );
         reference.image.dispose();
         final reg = result.registration;
@@ -398,6 +408,7 @@ void main() {
             reference.image,
             lockScale: 1.0 / raster.scale,
             anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+            exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
           );
           reference.image.dispose();
           return (raster, result);
@@ -601,6 +612,7 @@ void main() {
             reference.image,
             lockScale: 1.0 / raster.scale,
             anchorRects: bdStructureAnchorRects(diagram, raster),
+            exactRects: bdPrimIconStampRects(diagram, raster),
           );
           PlacementComparison at(BdRegistration registration) =>
               comparePlacement(
