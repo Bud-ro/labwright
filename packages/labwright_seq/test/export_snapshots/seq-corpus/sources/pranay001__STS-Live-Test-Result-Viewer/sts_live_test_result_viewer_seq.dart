@@ -58,13 +58,12 @@ Future<void> modelPluginBegin({
 }) async {
   if (ts.truthy(modelThreadType.IsController)) {
     // File names should contain the batch serial number if and only if the "Batch" process model is used.
-    ts.eval(
-      'Parameters.ModelPlugin.PluginSpecific.RuntimeVariables.ReportBatchSerialNumber = (Parameters.ModelData.ModelType == "Batch")',
-    ); // Set Report Batch Serial Number
+    modelPlugin.PluginSpecific.RuntimeVariables.ReportBatchSerialNumber =
+        modelData.ModelType == 'Batch'; // Set Report Batch Serial Number
     // File names should contain the socket index if either the batch or parallel process models are used.
-    ts.eval(
-      'Parameters.ModelPlugin.PluginSpecific.RuntimeVariables.ReportTestSocketIndex =  (Parameters.ModelData.ModelType == "Batch") ||  (Parameters.ModelData.ModelType == "Parallel")',
-    ); // Set Report Test Socket Index
+    modelPlugin.PluginSpecific.RuntimeVariables.ReportTestSocketIndex =
+        modelData.ModelType == 'Batch' ||
+        modelData.ModelType == 'Parallel'; // Set Report Test Socket Index
   }
   // This plug-in generates one report per UUT, so report initialization should only be run if the "Model Plugin - Begin" callback was invoked for a test socket.  If you want to add a summary report (across all UUTs run, each batch, etc.) then you will need to handle non-socket threads here as well.
   if (ts.truthy(modelThreadType.IsTestSocket)) {

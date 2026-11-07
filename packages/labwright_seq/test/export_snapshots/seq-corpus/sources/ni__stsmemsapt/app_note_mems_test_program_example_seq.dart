@@ -236,7 +236,7 @@ Future<void> mainSequence() async {
 
   // ── main ──
   // Run the following tests when in Production configuration
-  if (!parameters.Capacitance.IS_Calibration) {
+  if (!ts.truthy(parameters.Capacitance.IS_Calibration)) {
     // ---------------------
     // label: Continuity Test - Resistance and Protection Diode
     //
@@ -513,7 +513,7 @@ Future<void> mainSequence() async {
   //   error Out <- Step.Result.Error
   await callSharedRelayConnectDisconnect(); // Disconnect SMU0, FGEN, V1 and V2 from A [NI_SemiconductorModule_Action]
   // Run the following tests when in Production configuration
-  if (!parameters.Capacitance.IS_Calibration) {
+  if (!ts.truthy(parameters.Capacitance.IS_Calibration)) {
     // ---------------------
     // label: Resonance Test
     //

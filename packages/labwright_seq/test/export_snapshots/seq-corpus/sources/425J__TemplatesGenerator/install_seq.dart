@@ -38,21 +38,17 @@ Future<void> install() async {
   ts.eval(
     'Locals.TestStandPublic = RunState.Engine.GetTestStandPath(TestStandPath_Public)',
   ); // Set Target Directories
-  ts.eval(
-    '\nLocals.ToolsDir = Locals.TestStandPublic + @"\\Components\\Tools"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.Tool = Locals.TestStandPublic + @"\\Components\\Tools\\TemplatesGenerator.seq"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.ExportFile = Locals.TestStandPublic + @"\\Setup\\ToolMenusToInstall\\Tools.ini"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.ToolSetupDir = Locals.TestStandPublic + @"\\Setup"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.ToolMenusToInstallDir = Locals.ToolSetupDir + @"\\ToolMenusToInstall"',
-  ); // Set Target Directories (cont.)
+  toolsDir =
+      testStandPublic + '\\Components\\Tools'; // Set Target Directories (cont.)
+  target.Tool =
+      testStandPublic +
+      '\\Components\\Tools\\TemplatesGenerator.seq'; // Set Target Directories (cont.)
+  target.ExportFile =
+      testStandPublic +
+      '\\Setup\\ToolMenusToInstall\\Tools.ini'; // Set Target Directories (cont.)
+  toolSetupDir = testStandPublic + '\\Setup'; // Set Target Directories (cont.)
+  toolMenusToInstallDir =
+      toolSetupDir + '\\ToolMenusToInstall'; // Set Target Directories (cont.)
   // .NET call: System.IO.Directory.CreateDirectory
   //   path <- Locals.ToolsDir
   throw UnimplementedError(

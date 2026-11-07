@@ -59,9 +59,8 @@ Future<void> processSetup() async {
   ts.eval(
     'RunState.Root.Locals.UUT.SerialNumber = Round(Random(100000, 999999, 0.0))',
   ); // Set Process Model Serial Number to File Global
-  ts.eval(
-    'RunState.Root.Locals.UUT.PartNumber = "HR-3UTG-AMZN"',
-  ); // Set Process Model Part Number to File Global
+  runState.Root.Locals.UUT.PartNumber =
+      'HR-3UTG-AMZN'; // Set Process Model Part Number to File Global
   // [skipped in source] Increment Change Count
   // [skipped in source] Action
 }
@@ -101,6 +100,7 @@ void register() {
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
+  //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
     await processSetup();
   });

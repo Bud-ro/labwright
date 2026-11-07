@@ -79,8 +79,8 @@ Future<void> processSetup() async {
   // --- Optional Open Scope Session
   // [skipped in source] Register Sessions
   runState.Engine.TemporaryGlobals.SetValString(
-    "NI.MeasurementLink.PinMapId",
-    0x1,
+    'NI.MeasurementLink.PinMapId',
+    1,
     fileGlobals.MeasurementLink.PinMapId,
   ); // Register active PinMapId
 }
@@ -88,8 +88,8 @@ Future<void> processSetup() async {
 /// Sequence `ProcessCleanup` — Test UUTs and Single Pass call this callback in their cleanup step group. It is empty in the model file.  Override this in the client file to perform an action after all code in the model executes and just before the execution completes..
 Future<void> processCleanup() async {
   runState.Engine.TemporaryGlobals.DeleteSubProperty(
-    "NI.MeasurementLink.PinMapId",
-    0x2,
+    'NI.MeasurementLink.PinMapId',
+    2,
   ); // Unregister active PinMapId
   // -- Optional Unregister Sessions
   // [skipped in source] Destroy and unregister NI-DCPower sessions

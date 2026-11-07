@@ -50,39 +50,35 @@ Future<void> outputToStream() async {
     'Locals.Stream = RunState.Engine.NewCsvFileOutputRecordStream(Locals.StreamFilePath, FileOpenMode_Truncate)',
   ); // Create stream
   runState.Execution.OutputRecordStreams
-      .NewStream("Output")
+      .NewStream('Output')
       .Insert(stream); // Create stream (cont.)
   runState.Execution.OutputRecordStreams
-      .GetStream("Output")
+      .GetStream('Output')
       .DefineFields(fields); // Create stream (cont.)
   runState.Execution.OutputRecordStreams
-          .GetStream("Output")
+          .GetStream('Output')
           .CloseAtNextUUTOrBatch =
       true; // Create stream (cont.)
   runState.Execution.OutputRecordStreams
-          .GetStream("Output")
+          .GetStream('Output')
           .NumRecordsToDisplayInReportView =
       -1; // Create stream (cont.)
-  ts.eval(
-    '\nRunState.Execution.OutputRecordStreams.GetStream("Output").Format = "html"',
-  ); // Create stream (cont.)
+  runState.Execution.OutputRecordStreams.GetStream('Output').Format =
+      'html'; // Create stream (cont.)
   runState.Execution.OutputRecordStreams
-      .GetStream("Output")
+      .GetStream('Output')
       .SetActiveReport(); // Create stream (cont.)
   // Write example message in the loop
   // step loop (FixedNumLoops): init RunState.LoopIndex = 0; while RunState.LoopIndex < 10; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed / RunState.LoopNumIterations < 1 ? "Failed" : "Passed"
-  ts.eval(
-    'Locals.Values.Message = Str(RunState.LoopIndex, "Example message %d")',
+  values.Message = ts.str(
+    runState.LoopIndex,
+    'Example message %d',
   ); // Write output message
   ts.eval(
     '\nLocals.Values.TimeStamp = Date() + " " + Time()',
   ); // Write output message (cont.)
-  ts.eval(
-    '\nLocals.Values.Category = "Uncategorized"',
-  ); // Write output message (cont.)
-  ts.eval(
-    '\nLocals.Values.Severity = "Information"',
-  ); // Write output message (cont.)
+  values.Category = 'Uncategorized'; // Write output message (cont.)
+  values.Severity = 'Information'; // Write output message (cont.)
   values.Step = step.Name; // Write output message (cont.)
   values.Sequence = runState.Sequence.Name; // Write output message (cont.)
   values.SequenceFile = runState
@@ -92,8 +88,9 @@ Future<void> outputToStream() async {
   ts.eval(
     '\nLocals.Values.Execution = Execution.DisplayName',
   ); // Write output message (cont.)
-  ts.eval(
-    '\nLocals.Values.ThreadID = Str(RunState.Thread.Id, "%d")',
+  values.ThreadID = ts.str(
+    runState.Thread.Id,
+    '%d',
   ); // Write output message (cont.)
   ts.eval(
     '\n\nOutputMessage(Locals.Values.Message, Locals.Values.Category, 0)',

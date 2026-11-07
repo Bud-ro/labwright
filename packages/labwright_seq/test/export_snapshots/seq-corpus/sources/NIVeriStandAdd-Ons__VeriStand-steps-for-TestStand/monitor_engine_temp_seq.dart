@@ -55,7 +55,7 @@ Future<void> mainSequence() async {
   ) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await checkEngineRpm(
-      setpoint: ts.eval('Locals.RPMSetpoints[locals.i]'),
+      setpoint: rpmSetpoints[i],
       settleTime: 5,
       tolerance: 50,
     ); // Call Check Engine RPM
@@ -160,8 +160,8 @@ Future<void> enginePower() async {
     ); // Get Channel Value [GetChannelValue]
     currentRpm = runState.PreviousStep.Result.Numeric; // Set Current RPM
     settled =
-        (currentRpm >= idleRpm - 50) &&
-        (currentRpm <= idleRpm + 50); // Evaluate Settled
+        currentRpm >= idleRpm - 50 &&
+        currentRpm <= idleRpm + 50; // Evaluate Settled
   }
   // Add the actual engine RPM to the results
   throw UnimplementedError(

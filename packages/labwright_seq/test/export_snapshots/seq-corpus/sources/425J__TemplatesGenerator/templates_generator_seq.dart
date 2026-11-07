@@ -28,7 +28,7 @@ Future<void> createTemplates({bool createViTemplates = true}) async {
   ts.eval(
     '\n\'Delete old templates.\nLocals.TemplatesFile.AsPropertyObjectFile.Data.Exists(Str(Locals.ToolFolderName, "Root[\\"%s\\"]"), PropOption_NoOptions) ? Locals.TemplatesFile.AsPropertyObjectFile.Data.Root.DeleteElements(Locals.TemplatesFile.AsPropertyObjectFile.Data.Root.GetArrayOffset("", PropOption_NoOptions, Str(Locals.ToolFolderName, "[\\"%s\\"]")), 1) : Nothing,\n\n\'Create templates folder.\nLocals.TemplatesFile.AsPropertyObjectFile.Data.Root.SetPropertyObjectByOffset(GetNumElements(Locals.TemplatesFile.AsPropertyObjectFile.Data.Root), PropOption_InsertElement, Locals.FolderPlaceholder.Clone("", PropOption_NoOptions))',
   ); // Create Templates Folder (cont.)
-  templatesFile.AsPropertyObjectFile.Data.Root["FolderPlaceholder"].Name =
+  templatesFile.AsPropertyObjectFile.Data.Root['FolderPlaceholder'].Name =
       toolFolderName; // Create Templates Folder (cont.)
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await createSfTemplates(

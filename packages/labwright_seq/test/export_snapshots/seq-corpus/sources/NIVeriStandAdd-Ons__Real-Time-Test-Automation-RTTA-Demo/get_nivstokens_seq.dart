@@ -17,7 +17,7 @@ Future<void> mainSequence() async {
 
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetConstructorMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory
   //   Return Value <- Locals.temp
@@ -26,7 +26,7 @@ Future<void> mainSequence() async {
   ); // Constructor [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -36,7 +36,7 @@ Future<void> mainSequence() async {
   ); // IWorkspace [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -46,7 +46,7 @@ Future<void> mainSequence() async {
   ); // IStim [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -56,7 +56,7 @@ Future<void> mainSequence() async {
   ); // IModelManager [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -71,7 +71,7 @@ Future<void> mainSequence() async {
   ); // IProject [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -81,7 +81,7 @@ Future<void> mainSequence() async {
   ); // SetMultiParam [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -91,7 +91,7 @@ Future<void> mainSequence() async {
   ); // RunStim [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -101,7 +101,7 @@ Future<void> mainSequence() async {
   ); // GetStimState [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -111,7 +111,7 @@ Future<void> mainSequence() async {
   ); // OpenWks [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
   //   Existing Object <- Locals.temp
@@ -121,7 +121,7 @@ Future<void> mainSequence() async {
   ); // Deploy [Action]
   // ignores run-time errors
   // failure does NOT fail the sequence
-  token = runState.step.Module.AsDotNetModule
+  token = runState.Step.Module.AsDotNetModule
       .GetMetadataToken(); // pre-expression
   // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
   //   Existing Object <- Locals.temp

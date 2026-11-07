@@ -41,7 +41,7 @@ Future<void> createCompiledObjectCache({
     throw UnimplementedError(
       'step type CallExecutable: action not exported yet',
     ); // Close LabVIEW gracefully [CallExecutable]
-    if (ts.cond('Locals.CliErrorText != ""')) {
+    if (cliErrorText != '') {
       // precondition of Wait
       await Future<void>.delayed(const Duration(seconds: 1));
     }
@@ -50,12 +50,12 @@ Future<void> createCompiledObjectCache({
   ));
 
   // ── cleanup ──
-  if (ts.cond('Locals.CliErrorText != ""')) {
+  if (cliErrorText != '') {
     // precondition of Error
     error.Code = 123; // Error
-    ts.eval(
-      '\nParameters.Error.Msg = "Unable to prepare compiled object cache. Try to extend the Timeout.\\n" + Locals.CliErrorText',
-    ); // Error (cont.)
+    error.Msg =
+        'Unable to prepare compiled object cache. Try to extend the Timeout.\n' +
+        cliErrorText; // Error (cont.)
     error.Occurred = true; // Error (cont.)
   }
 }
@@ -81,9 +81,7 @@ Future<void> enableLabViewTcpServer({
   if (!labviewExists) {
     // precondition of Error
     error.Code = 7; // Error
-    ts.eval(
-      '\nParameters.Error.Msg = Parameters.LabviewDirectory + @"\\LabVIEW.exe not found."',
-    ); // Error (cont.)
+    error.Msg = labviewDirectory + '\\LabVIEW.exe not found.'; // Error (cont.)
     error.Occurred = true; // Error (cont.)
   }
 

@@ -168,9 +168,10 @@ Future<void> powerSupplyAndMeasureWithoutTrigger({
   throw UnimplementedError(
     'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
   ); // Time Domain Measurement - Configure and Measure [Action]
-  ts.eval(
-    'RunState.GotoCleanup = !(!(Step.Result.Error.Occurred) || (Find(Step.Result.Error.Msg, "ErrorCode = 20308") > 0 && Str(Parameters.SkipAnalysis) == "ProceedToAnalysis"))',
-  ); // post-expression
+  runState.GotoCleanup =
+      !(!ts.truthy(step.Result.Error.Occurred) ||
+          ts.find(step.Result.Error.Msg, 'ErrorCode = 20308') > 0 &&
+              ts.str(skipAnalysis) == 'ProceedToAnalysis'); // post-expression
   runState.SequenceFailed = runState.GotoCleanup; // post-expression (cont.)
 
   // ── cleanup ──
@@ -221,6 +222,7 @@ void register() {
   //   dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure
   //   dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
   //   RunState engine access (no engine at run time)
+  //   Step engine access (no engine at run time)
   //   dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close
   //   dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close
   lw.skipTest('MainSequence', () async {

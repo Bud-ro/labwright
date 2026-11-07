@@ -41,9 +41,11 @@ Future<void> stationPostResults({
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    ts.eval(
-      '\nLocals.Icon = (Locals.Status == "Running") ? @"NI_FileDiffer\\Right.ico" : (Locals.Status == "Passed") || (Locals.Status == "Failed")  ? @"NI_FileDiffer\\Left.ico" : "ni_blank.ico"',
-    ); // Output Message (cont.)
+    icon = status == 'Running'
+        ? 'NI_FileDiffer\\Right.ico'
+        : (status == 'Passed' || status == 'Failed'
+              ? 'NI_FileDiffer\\Left.ico'
+              : 'ni_blank.ico'); // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
@@ -64,18 +66,18 @@ Future<void> stationPostResultListEntry({
   // ignores run-time errors
   if (runState.Caller.Sequence.Id == runState.Main.Sequence.Id) {
     // precondition of Output Message
-    ts.eval(
-      'Locals.Name = Parameters.Step.AsPropertyObject.Name',
-    ); // Output Message
+    name = step$.AsPropertyObject.Name; // Output Message
     ts.eval(
       '\nLocals.Status = Parameters.Result.GetValString("Status", PropOption_NoOptions)',
     ); // Output Message (cont.)
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    ts.eval(
-      '\nLocals.Icon = (Locals.Status == "Running") ? @"NI_FileDiffer\\Right.ico" : (Locals.Status == "Passed") || (Locals.Status == "Failed")  ? @"NI_FileDiffer\\Left.ico" : "ni_blank.ico"',
-    ); // Output Message (cont.)
+    icon = status == 'Running'
+        ? 'NI_FileDiffer\\Right.ico'
+        : (status == 'Passed' || status == 'Failed'
+              ? 'NI_FileDiffer\\Left.ico'
+              : 'ni_blank.ico'); // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
@@ -90,25 +92,24 @@ Future<void> stationPreStep({dynamic step$, dynamic result}) async {
   String icon = ''; // Path
 
   // ignores run-time errors
-  if (ts.cond(
-    '(RunState.Caller.Sequence.Id == RunState.Main.Sequence.Id) &&\n(\n   ((Parameters.Step.TS.ResultOption == 1 ) && !(RunState.Caller.Sequence.DisableResults || RunState.Engine.StationOptions.DisableResults)) ||\n   ((Parameters.Step.TS.ResultOption == 2 ) && !RunState.Engine.StationOptions.DisableResults)\n)',
-  )) {
+  if (runState.Caller.Sequence.Id == runState.Main.Sequence.Id &&
+      (step$.TS.ResultOption == 1 &&
+              !(ts.truthy(runState.Caller.Sequence.DisableResults) ||
+                  ts.truthy(runState.Engine.StationOptions.DisableResults)) ||
+          step$.TS.ResultOption == 2 &&
+              !ts.truthy(runState.Engine.StationOptions.DisableResults))) {
     // precondition of Output Message
-    ts.eval(
-      'Locals.Name = Parameters.Step.AsPropertyObject.Name',
-    ); // Output Message
-    ts.eval(
-      '\nLocals.Status = Parameters.Step.Result.Status',
-    ); // Output Message (cont.)
+    name = step$.AsPropertyObject.Name; // Output Message
+    status = step$.Result.Status; // Output Message (cont.)
     ts.eval(
       '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
     ); // Output Message (cont.)
-    ts.eval(
-      '\nLocals.Icon = (Locals.Status == "Running") ? @"NI_FileDiffer\\Right.ico" : (Locals.Status == "Passed") || (Locals.Status == "Failed")  ? @"NI_FileDiffer\\Left.ico" : "ni_blank.ico"',
-    ); // Output Message (cont.)
-    ts.eval(
-      '\n(Locals.Status == "Running") ? (Locals.Status = "Started") : Nothing',
-    ); // Output Message (cont.)
+    icon = status == 'Running'
+        ? 'NI_FileDiffer\\Right.ico'
+        : (status == 'Passed' || status == 'Failed'
+              ? 'NI_FileDiffer\\Left.ico'
+              : 'ni_blank.ico'); // Output Message (cont.)
+    status == 'Running' ? (status = 'Started') : null; // Output Message (cont.)
     ts.eval(
       '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
     ); // Output Message (cont.)
@@ -149,6 +150,7 @@ void register() {
     await stationPostResultListEntry();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
+  //   RunState engine access (no engine at run time)
   //   untranslated expression in body
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)

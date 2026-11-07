@@ -116,8 +116,10 @@ Future<void> sequenceFilePostStepFailure({
   dynamic step$,
   dynamic result,
 }) async {
-  ts.eval(
-    'RunState.Caller.Locals.Write(@"C:\\Temp\\error.log","",0x1)',
+  runState.Caller.Locals.Write(
+    'C:\\Temp\\error.log',
+    '',
+    1,
   ); // Save locals to file in case of
 }
 
@@ -162,7 +164,7 @@ void register() {
     await sequenceFileLoad();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
+  //   RunState engine access (no engine at run time)
   //   root parameter 'Step' is an engine object (nothing binds it when run as a test)
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   lw.skipTest('SequenceFilePostStepFailure', () async {

@@ -39,9 +39,9 @@ Future<void> mainSequence() async {
     'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
   ); // Store Sequence File Path
   // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
-  ts.eval(
-    'FileGlobals.OutputFilePath = FileGlobals.Sequence_Folder_Path  + @"\\Data Files\\Results\\Results.csv" ',
-  ); // Set the Path for the Output File
+  fileGlobals.OutputFilePath =
+      fileGlobals.Sequence_Folder_Path +
+      '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
   // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
   throw UnimplementedError(
     'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
@@ -75,7 +75,7 @@ Future<void> mainSequence() async {
   // Load Waveforms and Create Signals
   // status expression: ""
   // label:
-  ts.eval('Locals.WaveFormConfigsIdx=0'); // Reset Wfm config index
+  waveformConfigsIdx = 0; // Reset Wfm config index
   for (final element in ts.iterate(
     fileGlobals.Static_Station_Configs.Waveform_Configs,
   )) {
@@ -98,7 +98,7 @@ Future<void> mainSequence() async {
         waveformConfigsIdx; // Store Loaded Waveforms
     fileGlobals.LoadedWaveforms[waveformConfigsIdx] =
         currentWaveform; // Store Loaded Waveforms (cont.)
-    ts.eval('\nLocals.WaveFormConfigsIdx++'); // Store Loaded Waveforms (cont.)
+    waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
   }
 
   // ── main ──
@@ -108,9 +108,8 @@ Future<void> mainSequence() async {
     await configure(); // Apply Configurations
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await measure(); // Measure Results
-    ts.eval(
-      '\nFileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial = RunState.Root.Locals.UUT.SerialNumber',
-    ); // Store Serial Number in Output
+    fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial =
+        runState.Root.Locals.UUT.SerialNumber; // Store Serial Number in Output
     // Record the results record to disk
     throw UnimplementedError(
       'step type NI_WriteRecord: action not exported yet',
@@ -300,7 +299,7 @@ Future<void> measure() async {
       .VSWR_and_Phase[1][0]; // Map Results (cont.)
   fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Tuner_Primary_Frequency =
       fileGlobals.Current_Sweep_Step.Results.Tuner_Primary_Frequency_GHz *
-      1e9; // Map Results (cont.)
+      1000000000.0; // Map Results (cont.)
 
   // ── cleanup ──
   //   RFSG handle <- FileGlobals.Device_Handles.RFSG
@@ -627,6 +626,7 @@ void register() {
   //   sweep loop "Sweep Loop": parameter sweep not exported
   //   status expression of step "Apply Configurations" not exported
   //   status expression of step "Measure Results" not exported
+  //   RunState engine access (no engine at run time)
   //   step type NI_WriteRecord: action not exported yet
   //   RFInstr\mx\RFmxInstr.llb\RFmxInstr Close.vi
   //   niRFSG.llb\niRFSG Close.vi

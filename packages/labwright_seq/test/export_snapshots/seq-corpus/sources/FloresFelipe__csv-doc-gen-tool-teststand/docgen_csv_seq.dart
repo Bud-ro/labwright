@@ -91,7 +91,7 @@ Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
   // description: ----------------------------------------------------------------------------------------------
   // label: Extract Parameters
   if (ts.truthy(
-    currentStep.AsPropertyObject.Exists("TS.SData.ViCall.Parms", 0),
+    currentStep.AsPropertyObject.Exists('TS.SData.ViCall.Parms', 0),
   )) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await getLabViewModuleParameters(
@@ -115,9 +115,10 @@ Future<void> parseStep({String seqDocString = '', dynamic currentStep}) async {
   }
   // description: ----------------------------------------------------------------------------------------------
   // label: Build Step String
-  ts.eval(
-    'FileGlobals.LargestParameterCount = (Locals.NumberOfParameters > FileGlobals.LargestParameterCount) ? Locals.NumberOfParameters : FileGlobals.LargestParameterCount',
-  ); // UpdateParameterCount
+  fileGlobals.LargestParameterCount =
+      numberOfParameters > fileGlobals.LargestParameterCount
+      ? numberOfParameters.toDouble()
+      : fileGlobals.LargestParameterCount; // UpdateParameterCount
   ts.eval(
     'Locals.CurrentRow =\n\nRight(FileGlobals.SequenceFileObj.Path, Len(FileGlobals.SequenceFileObj.Path) - FindPattern(FileGlobals.SequenceFileObj.Path, "[^\\\\\\\\]+\\\\.seq\$")) + FileGlobals.SEPARATOR + \n\nParameters.CurrentStep.AsStep.Sequence.Name + FileGlobals.SEPARATOR + \n\nFileGlobals.SEQ_GROUP[Parameters.CurrentStep.AsStep.StepGroup] + FileGlobals.SEPARATOR + \n\nStr(Parameters.CurrentStep.StepIndex,"%02d") + FileGlobals.SEPARATOR +\n\nStr(Parameters.CurrentStep.AsStep.BlockLevel, "%02d") + FileGlobals.SEPARATOR +\n\nLocals.BlockLvlPadding + Parameters.CurrentStep.AsStep.Name + FileGlobals.SEPARATOR +\n\nParameters.CurrentStep.TS.Icon + FileGlobals.SEPARATOR +\n\nParameters.CurrentStep.AsStep.GetDescriptionEx() + FileGlobals.SEPARATOR + \n\nParameters.CurrentStep.AsStep.GetStepSettingsString() + FileGlobals.SEPARATOR + \n\n(Parameters.CurrentStep.Requirements.Links.GetNumElements() == 0 ? "" : Parameters.CurrentStep.Requirements.Links[0]) + FileGlobals.SEPARATOR +\n\nLocals.ParametersList\n\n+ "\\n"',
   ); // Build Step Data Row
@@ -129,19 +130,46 @@ Future<void> buildDocString({String seqDocString = ''}) async {
   String stdHeader = ''; // Str
   String parametersHeader = ''; // Str
 
-  ts.eval(
-    'Locals.STD_HEADER = \n"Sequence File" + FileGlobals.SEPARATOR +\n"Sequence" + FileGlobals.SEPARATOR +\n"Step Group" + FileGlobals.SEPARATOR + \n"Step Index" + FileGlobals.SEPARATOR +\n"Indent Level" + FileGlobals.SEPARATOR +\n"Step" + FileGlobals.SEPARATOR +\n"Icon" + FileGlobals.SEPARATOR +\n"Descirption" + FileGlobals.SEPARATOR +\n"Settings" + FileGlobals.SEPARATOR +\n"Requirement[0]" + FileGlobals.SEPARATOR\n\n',
-  ); // Populate Standard Header
+  stdHeader =
+      'Sequence File' +
+      fileGlobals.SEPARATOR +
+      'Sequence' +
+      fileGlobals.SEPARATOR +
+      'Step Group' +
+      fileGlobals.SEPARATOR +
+      'Step Index' +
+      fileGlobals.SEPARATOR +
+      'Indent Level' +
+      fileGlobals.SEPARATOR +
+      'Step' +
+      fileGlobals.SEPARATOR +
+      'Icon' +
+      fileGlobals.SEPARATOR +
+      'Descirption' +
+      fileGlobals.SEPARATOR +
+      'Settings' +
+      fileGlobals.SEPARATOR +
+      'Requirement[0]' +
+      fileGlobals.SEPARATOR; // Populate Standard Header
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < FileGlobals.LargestParameterCount; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed / RunState.LoopNumIterations < 1 ? "Failed" : "Passed"
-  ts.eval(
-    'Locals.ParametersHeader = Locals.ParametersHeader + "Parameter["+ Str(RunState.LoopIndex) + "] Name" + FileGlobals.SEPARATOR + "Parameter["+ Str(RunState.LoopIndex) + "] Value" + FileGlobals.SEPARATOR',
-  ); // Create Parameter's Header
+  parametersHeader =
+      parametersHeader +
+      'Parameter[' +
+      ts.str(runState.LoopIndex) +
+      '] Name' +
+      fileGlobals.SEPARATOR +
+      'Parameter[' +
+      ts.str(runState.LoopIndex) +
+      '] Value' +
+      fileGlobals.SEPARATOR; // Create Parameter's Header
   ts.eval(
     'Locals.ParametersHeader = Trim(Locals.ParametersHeader, FileGlobals.SEPARATOR)',
   ); // Remove the Last Separator
-  ts.eval(
-    'Parameters.SeqDocString = Locals.STD_HEADER + Locals.ParametersHeader + "\\n" + Parameters.SeqDocString',
-  ); // Add Header To Steps Doc String
+  seqDocString =
+      stdHeader +
+      parametersHeader +
+      '\n' +
+      seqDocString; // Add Header To Steps Doc String
 }
 
 /// Sequence `Get SubSequence Parameters` — Extracts parameters of a SubSequence call and return them as a tab-separated string..
@@ -156,11 +184,11 @@ Future<void> getSubSequenceParameters({
   // ── main ──
   for (
     x = 0;
-    x < currentStep.TS.SData.ActualArgs.GetNumSubProperties("");
+    x < currentStep.TS.SData.ActualArgs.GetNumSubProperties('');
     x += 1
   ) {
     currentParameter = currentStep.TS.SData.ActualArgs.GetNthSubProperty(
-      "",
+      '',
       x,
       0,
     ); // Retrieve Parameter
@@ -238,6 +266,7 @@ void register() {
   //   by-ref writeback of parameter NumberOfParameters of sequence Get SubSequence Parameters not exported
   //   by-ref writeback of parameter ParametersList of sequence Get SubSequence Parameters not exported
   //   step "Create Parameter's Header" loops (Custom) — per-step looping not exported
+  //   RunState engine access (no engine at run time)
   //   root parameter 'SequenceFile' is an engine object (nothing binds it when run as a test)
   //   root parameter 'DocOptions' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Sequence File Doc', () async {

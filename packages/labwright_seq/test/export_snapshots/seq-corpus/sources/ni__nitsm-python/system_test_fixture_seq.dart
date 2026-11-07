@@ -56,7 +56,7 @@ Future<void> mainSequence() async {
     {
       final select1 = commandLineArg;
       var matched1 = false;
-      if (!matched1 && select1 == "/pyrunentrypoint") {
+      if (!matched1 && select1 == '/pyrunentrypoint') {
         matched1 = true;
         //   Return Value -> Locals.CommandLineEntryPoint
         //   itemIndex <- Locals.i + 1
@@ -69,7 +69,7 @@ Future<void> mainSequence() async {
           'cModule call: Get Command Line Sequence File Path',
         ); // Get Command Line Sequence File Path [Action]
       }
-      if (!matched1 && select1 == "/pyversion") {
+      if (!matched1 && select1 == '/pyversion') {
         matched1 = true;
         //   Return Value -> Locals.CommandLinePythonVersion
         //   itemIndex <- Locals.i + 1
@@ -77,7 +77,7 @@ Future<void> mainSequence() async {
           'cModule call: Get Command Line Python Version',
         ); // Get Command Line Python Version [Action]
       }
-      if (!matched1 && select1 == "/pyenvironment") {
+      if (!matched1 && select1 == '/pyenvironment') {
         matched1 = true;
         //   Return Value -> Locals.CommandLinePythonEnvironmentPath
         //   itemIndex <- Locals.i + 1

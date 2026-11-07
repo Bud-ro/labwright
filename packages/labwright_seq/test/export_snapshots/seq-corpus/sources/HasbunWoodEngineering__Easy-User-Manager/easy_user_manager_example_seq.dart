@@ -56,7 +56,7 @@ Future<void> mainSequence() async {
       throw UnimplementedError(
         'step type MessagePopup: action not exported yet',
       ); // Warning user already exists [MessagePopup]
-      ts.eval('Locals.NewUserName = ""'); // post-expression
+      newUserName = ''; // post-expression
     }
   }
   //   Save File <- Locals.SaveUsersFile

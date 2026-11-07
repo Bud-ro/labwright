@@ -44,9 +44,7 @@ Future<void> i2CCommTest() async {
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through I2C protocol communication using NI 845x Device
   // label: Note to run with Hardware: Update Device ID of the connected I2C Interface Device (Ex: NI USB-8452 Device)
-  ts.eval(
-    '\nLocals.DeviceID.DeviceName = "DeviceA"',
-  ); // Update I2C Interface Device ID
+  deviceId.DeviceName = 'DeviceA'; // Update I2C Interface Device ID
   deviceId.SessionNumber = 0; // Update I2C Interface Device ID (cont.)
 
   // ── main ──
@@ -90,9 +88,7 @@ Future<void> spiCommTest() async {
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through SPI protocol communication using NI 845x Device
   // label: Note to run with Hardware: Update Device ID of the connected SPI Interface Device (Ex: NI USB-8452 Device)
-  ts.eval(
-    '\nLocals.DeviceID.DeviceName = "DeviceA"',
-  ); // Update SPI Interface Device ID
+  deviceId.DeviceName = 'DeviceA'; // Update SPI Interface Device ID
   deviceId.SessionNumber = 0; // Update SPI Interface Device ID (cont.)
 
   // ── main ──
@@ -127,7 +123,7 @@ Future<void> serialCommTest() async {
   // ── setup ──
   // label: Example demonstrates simple read and write data operations through Serial COM port
   // label: Note to run with Hardware: Update Serial VISA for the COM port
-  ts.eval('\nLocals.SerialVISA.DeviceName = "DeviceB"'); // Update Serial VISA
+  serialVisa.DeviceName = 'DeviceB'; // Update Serial VISA
   serialVisa.SessionNumber = 0; // Update Serial VISA (cont.)
 
   // ── main ──
@@ -197,7 +193,6 @@ void register() {
   //   status expression of step "I2C Comm Test" not exported
   //   status expression of step "SPI Comm Test" not exported
   //   status expression of step "Serial Comm Test" not exported
-  //   untranslated expression in body
   //   845x\845x_I2C Read.vi
   //   845x\845x_I2C Write.vi
   //   Communication\Serial\VISA_Simple Serial.vi

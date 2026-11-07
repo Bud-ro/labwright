@@ -15,7 +15,7 @@ import 'lw_runtime.dart';
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<void> processSetup() async {
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await loadVariables(variableList: "Init"); // Load var init
+  await loadVariables(variableList: 'Init'); // Load var init
   ts.eval(
     'StationGlobals.isTraceEnable = FileGlobals.isTraceEnable',
   ); // Assign TraceabilityEnabled Var
@@ -44,9 +44,7 @@ Future<void> preUut({
   // ── setup ──
   stationGlobals.IsBackcheckOK = false; // Reset Traceability Variables
   backCheck = 0; // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nLocals.Reply_BackCheck = ""',
-  ); // Reset Traceability Variables (cont.)
+  replyBackCheck = ''; // Reset Traceability Variables (cont.)
   // Call the current model for the default functionality. We don't include the model specific steps in this sequence so the overridden callback works under all models after the user overrides it, copying its steps to their client file.
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await doPreUut(); // Call DoPreUUT: external sequence call
@@ -56,11 +54,11 @@ Future<void> preUut({
   //   error out <- Step.Result.Error
   await callWsp2GetDateTimeStr(); // Get Entry Time [Action]
   fileGlobals.TestResult = 0; // Init TestResult
-  ts.eval('FileGlobals.FailString_DataToSend = ""'); // Init FailString
+  fileGlobals.FailString_DataToSend = ''; // Init FailString
   // status expression: ""
   // label:
   // goto -> step "End Of Traceability Section"
-  if (ts.cond('StationGlobals.isTraceEnable == "False"')) {
+  if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Jump if Traceability is Disabled
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -92,7 +90,7 @@ Future<void> preUut({
   // popup title: NameOf(Step)
   // popup message: "Trazabilidad esta desactivada"
   // popup buttons: "OK"
-  if (ts.cond('StationGlobals.isTraceEnable == "False"')) {
+  if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Msg Trace disable
     throw UnimplementedError(
       'step type MessagePopup: action not exported yet',
@@ -105,9 +103,8 @@ Future<void> mainSequence() async {
   // ── setup ──
   runState.Engine.StationOptions.AlwaysGotoCleanupOnFailure ==
       true; // Go to cleanup on failure
-  if (ts.cond(
-    'StationGlobals.isBackCheckOK == False && StationGlobals.isTraceEnable == "True"',
-  )) {
+  if (stationGlobals.IsBackcheckOK == false &&
+      stationGlobals.isTraceEnable == 'True') {
     // checks: False
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     throw UnimplementedError(
@@ -140,9 +137,8 @@ Future<void> postUut({
   //   error out <- Step.Result.Error
   await callWsp2GetDateTimeStr(); // Get End Time [Action]
   // goto -> step "End Of Traceability Section"
-  if (ts.cond(
-    'StationGlobals.isTraceEnable == "False" || !StationGlobals.IsBackcheckOK',
-  )) {
+  if (stationGlobals.isTraceEnable == 'False' ||
+      !ts.truthy(stationGlobals.IsBackcheckOK)) {
     // precondition of Jump if Traceability is Disabled
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -161,7 +157,7 @@ Future<void> postUut({
     //   error out <- Step.Result.Error
     await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
   } else {
-    if (ts.cond('StationGlobals.isRecordFail == "True"')) {
+    if (stationGlobals.isRecordFail == 'True') {
       // precondition of Send Process
       //   FailString <- FileGlobals.FailString_DataToSend
       //   EntryTime <- FileGlobals.Ent_Time
@@ -203,8 +199,10 @@ Future<void> loadVariables({String variableList = ''}) async {
   for (tempLoop = 0; tempLoop < arrayIndex; tempLoop += 1) {
     tempStr = strLimits[tempLoop]; // Limits
     tempName = testName[tempLoop]; // NamesToVariables
-    ts.eval(
-      'RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)',
+    runState.Main.FileGlobals.SetValString(
+      tempName,
+      1,
+      tempStr,
     ); // CreateLimits
   }
 }
@@ -273,15 +271,16 @@ void register() {
   //   status expression of step "Load var init" not exported
   //   untranslated expression in body
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
+  //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
     await processSetup();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
   //   status expression of step "Call DoPreUUT" not exported
   //   external sequence: DoPreUUT
   //   ..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
+  //   StationGlobals read (station-level state not set here)
   //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi
   //   ..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi
@@ -295,7 +294,7 @@ void register() {
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
-  //   untranslated expression in body
+  //   StationGlobals read (station-level state not set here)
   //   status expression of step "UUT Not For This Process" not exported
   //   step type PassFailTest: action not exported yet
   //   flow action of step "Goto" (Next/Next) not exported
@@ -308,7 +307,7 @@ void register() {
   //   external sequence: DoPreUUT
   //   ..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
-  //   untranslated expression in body
+  //   StationGlobals read (station-level state not set here)
   //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)

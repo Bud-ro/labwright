@@ -35,9 +35,8 @@ Future<void> autoLogin() async {
   throw UnimplementedError(
     'cModule call: Get User To Login',
   ); // Get User To Login [PassFailTest]
-  if (ts.cond(
-    'RunState.Sequence.Main["ID#:9HZQhNVCbE6cpXZ3LXT6AB"].Result.Status == "Passed"',
-  )) {
+  if (runState.Sequence.Main['ID#:9HZQhNVCbE6cpXZ3LXT6AB'].Result.Status ==
+      'Passed') {
     // precondition of Set Current User
     //   newValue <- Locals.userToLogin
     throw UnimplementedError(
@@ -74,6 +73,7 @@ void register() {
   //   untranslated expression in body
   //   status expression of step "Get User To Login" not exported
   //   cModule call: Get User To Login
+  //   RunState engine access (no engine at run time)
   //   cModule call: Set Current User
   lw.skipTest('LoginLogout', () async {
     await loginLogout();

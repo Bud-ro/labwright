@@ -76,15 +76,12 @@ Future<void> reportOptions({
   reportOptions2.SaveTransformedHtmlForXmlReport =
       false; // Update Report Options (cont.)
   reportOptions2.GeneratePath = true; // Update Report Options (cont.)
-  ts.eval(
-    '\nParameters.ReportOptions.DirectoryType = "SpecifyByExpression"',
-  ); // Update Report Options (cont.)
-  ts.eval(
-    '\nParameters.ReportOptions.ReportFileSequentialModelExpression = "\\"C:\\\\\\\\Users\\\\\\\\8880_AN\\\\\\\\Documents\\\\\\\\Customers\\\\\\\\National Instruments\\\\\\\\AppNote_ModernLab\\\\\\\\InstrumentStudio\\\\\\\\AppNote_LabSetUp\\\\\\\\Sequence Results\\\\\\\\AppNote_LabSetUp Report \\" + Str(RunState.Root.Locals.ModelData.StartDate.Year,\\"%02u\\") + \\"-\\" + Str(RunState.Root.Locals.ModelData.StartDate.Month,\\"%02u\\") + \\"-\\" + Str(RunState.Root.Locals.ModelData.StartDate.MonthDay,\\"%02u\\") + \\" \\" + Str(RunState.Root.Locals.ModelData.StartTime.Hours,\\"%02u\\") + \\"-\\" + Str(RunState.Root.Locals.ModelData.StartTime.Minutes,\\"%02u\\") + \\"-\\" + Str(RunState.Root.Locals.ModelData.StartTime.Seconds,\\"%02u\\") + \\".xml\\""',
-  ); // Update Report Options (cont.)
-  ts.eval(
-    '\nParameters.ReportOptions.Colors.ReportTextBg = "#000000"',
-  ); // Update Report Options (cont.)
+  reportOptions2.DirectoryType =
+      'SpecifyByExpression'; // Update Report Options (cont.)
+  reportOptions2.ReportFileSequentialModelExpression =
+      '"C:\\\\Users\\\\8880_AN\\\\Documents\\\\Customers\\\\National Instruments\\\\AppNote_ModernLab\\\\InstrumentStudio\\\\AppNote_LabSetUp\\\\Sequence Results\\\\AppNote_LabSetUp Report " + Str(RunState.Root.Locals.ModelData.StartDate.Year,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartDate.Month,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartDate.MonthDay,"%02u") + " " + Str(RunState.Root.Locals.ModelData.StartTime.Hours,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartTime.Minutes,"%02u") + "-" + Str(RunState.Root.Locals.ModelData.StartTime.Seconds,"%02u") + ".xml"'; // Update Report Options (cont.)
+  reportOptions2.Colors.ReportTextBg =
+      '#000000'; // Update Report Options (cont.)
   reportOptions2.ArrayMeasurementMax = 1000; // Update Report Options (cont.)
 }
 
@@ -116,7 +113,6 @@ void register() {
     await mainSequence();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
   //   root parameter 'ReportOptions' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)

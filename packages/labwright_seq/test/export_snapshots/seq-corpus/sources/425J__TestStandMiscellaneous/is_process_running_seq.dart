@@ -28,7 +28,7 @@ Future<void> isProcessRunning({
   throw UnimplementedError(
     'dotNet call: System.Diagnostics.Process.GetProcessesByName',
   ); // Get process [Action]
-  if (ts.cond('Parameters.DescriptionToSearch != ""')) {
+  if (descriptionToSearch != '') {
     // .NET call: System.Diagnostics.Process.Use Existing Object
     //   Existing Object <- Locals.Processes[0]
     // .NET call: System.Diagnostics.Process.MainModule
@@ -69,8 +69,8 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   flow action of step "Get process" (Next/Next) not exported
   //   dotNet call: System.Diagnostics.Process.GetProcessesByName
-  //   untranslated expression in body
   //   dotNet call: System.Diagnostics.Process.FileDescription
+  //   untranslated expression in body
   //   step "Release Process" loops (Custom) — per-step looping not exported
   //   RunState engine access (no engine at run time)
   lw.skipTest('Is Process Running', () async {

@@ -58,9 +58,8 @@ Future<void> mainSequence() async {
   //   Current <- Locals.Current
   //   error out <- Step.Result.Error
   await callPowMeasConfigureAndMeasure(); // Action [Action]
-  if (ts.cond(
-    'Locals.Analyze && (Locals.Operation == "Measure Only" ||  Locals.Operation == "Configure and Measure")',
-  )) {
+  if (analyze &&
+      (operation == 'Measure Only' || operation == 'Configure and Measure')) {
     // popup title: NameOf(Step)
     // popup message: "MAX Voltage  " + Str(Locals.Analyzeddata.MaxVoltage) + " Max Current  " + Str(Locals.Analyzeddata.MaxCurrent) + "  Max Power  " + Str(Locals.Analyzeddata.MaxPower) + "  Avg power  " + Str(Locals.Analyzeddata.AvgPower)
     // popup buttons: "OK"
@@ -112,7 +111,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Pow Meas Initialize.vi
   //   Pow Meas Configure and Measure.vi
-  //   untranslated expression in body
   //   step type MessagePopup: action not exported yet
   //   Pow Meas Close.vi
   lw.skipTest('MainSequence', () async {

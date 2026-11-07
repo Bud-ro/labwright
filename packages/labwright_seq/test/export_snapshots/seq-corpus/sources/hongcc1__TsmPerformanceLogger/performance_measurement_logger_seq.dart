@@ -28,7 +28,7 @@ Future<void> modelPluginConfigureStandardOptions({
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Set Log File Directory [MessagePopup]
-  if (ts.cond('RunState.PreviousStep.Result.ButtonHit == "1"')) {
+  if (runState.PreviousStep.Result.ButtonHit == '1') {
     // precondition of Apply changes if user click OK
     changed = true; // Apply changes if user click OK
     modelPlugin.PluginSpecific.Options.LogFileFolder = runState
@@ -43,7 +43,7 @@ Future<void> modelPluginConfigureStandardOptions({
   throw UnimplementedError(
     'step type MessagePopup: action not exported yet',
   ); // Set Batch Sample Rate [MessagePopup]
-  if (ts.cond('RunState.PreviousStep.Result.ButtonHit == "1"')) {
+  if (runState.PreviousStep.Result.ButtonHit == '1') {
     // precondition of Apply changes if user click OK
     ts.eval(
       'Parameters.ModelPlugin.PluginSpecific.Options.BatchSampleRate = Val(RunState.PreviousStep.Result.Response)',
@@ -83,7 +83,8 @@ Future<void> modelPluginBegin({
   // Refer to the Process Model Plug-Ins topics in the NI TestStand Help for information about purpose of this plug-in entry point.
   // status expression: ""
   // label:
-  if (modelPlugin.Base.Enabled && modelPlugin.Base.ProcessOnTheFly) {
+  if (ts.truthy(modelPlugin.Base.Enabled) &&
+      ts.truthy(modelPlugin.Base.ProcessOnTheFly)) {
     // precondition of Set OTF Callback Requirements
     ts.eval(
       'RunState.Execution.PostResultsCallbackMask |= PostResultsCallbackMaskOption_SequenceCall | PostResultsCallbackMaskOption_PostAction',
@@ -111,12 +112,14 @@ Future<void> modelPluginBegin({
     throw UnimplementedError(
       'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.PerformanceMeasurementLogger',
     ); // Create Performance Measurement Logger [Action]
-    ts.eval(
-      'Locals.DateString = Str(Parameters.StartDate.Year, "%04d") + Str(Parameters.StartDate.Month, "%02d") + Str(Parameters.StartDate.MonthDay, "%02d") \n',
-    ); // Build Date String
-    ts.eval(
-      'Locals.TimeString = Str(Parameters.StartTime.Hours, "%02d") + Str(Parameters.StartTime.Minutes, "%02d") + Str(Parameters.StartTime.Seconds, "%02d")',
-    ); // Build Time String
+    dateString =
+        ts.str(startDate.Year, '%04d') +
+        ts.str(startDate.Month, '%02d') +
+        ts.str(startDate.MonthDay, '%02d'); // Build Date String
+    timeString =
+        ts.str(startTime.Hours, '%02d') +
+        ts.str(startTime.Minutes, '%02d') +
+        ts.str(startTime.Seconds, '%02d'); // Build Time String
     // .NET assembly: NationalInstruments.TestStand.SemiconductorModule.dll
     // .NET call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementUtility.Use Existing Object
     //   Existing Object <- Locals.PerformanceMeasurementUtility
@@ -187,9 +190,7 @@ Future<void> modelPluginPostUut({
     throw UnimplementedError(
       'dotNet call: NationalInstruments.TestStand.SemiconductorModule.PerformanceMeasurement.PerformanceMeasurementLogger.ProcessMainSequenceResult',
     ); // Process MainSequence Result [Action]
-    if (ts.cond(
-      '#NoValidation(Parameters.ModelData.ModelType) == "Sequential"',
-    )) {
+    if (modelData.ModelType == 'Sequential') {
       // We log the data here for the sequential model since Post Batch is only called for the batch model.
       // status expression: ""
       // label:
@@ -428,14 +429,19 @@ Future<void> reservedModelPluginUutDone({
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
   // ── setup ──
-  ts.eval(
-    'Locals.InNewThread = Parameters.CallingThread.AsThread.Id != Runstate.Thread.Id ',
-  ); // Determine if this is a new post processing thread
+  inNewThread =
+      callingThread.AsThread.Id !=
+      runState.Thread.Id; // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  ts.eval(
-    '\n\nLocals.InNewThread ? \n(\n	\n	Locals.ControllerAndSocketSynchronizationManager = Parameters.ModelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager\n)\n: \n(\n	Locals.ControllerAndSocketSynchronizationManager = Parameters.ModelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager\n)\n\n',
-  ); // Setup ControllerAndSocketSynchronizationManager
+  inNewThread
+      ? (controllerAndSocketSynchronizationManager = modelPlugin
+            .Base
+            .RuntimeVariables
+            .AsyncControllerAndSocketSynchronizationManager)
+      : (controllerAndSocketSynchronizationManager = modelPluginConfiguration
+            .RuntimeVariables
+            .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next UUT might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next UUT has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
@@ -471,14 +477,19 @@ Future<void> reservedModelPluginBatchDone({
   dynamic controllerAndSocketSynchronizationManager = null; // Ref
 
   // ── setup ──
-  ts.eval(
-    'Locals.InNewThread = Parameters.CallingThread.AsThread.Id != Runstate.Thread.Id ',
-  ); // Determine if this is a new post processing thread
+  inNewThread =
+      callingThread.AsThread.Id !=
+      runState.Thread.Id; // Determine if this is a new post processing thread
   // This is only needed if the model plugin is executed from the Batch model AND the model plugin needs to perform controller and socket synchronization between the Batch Done and UUT Done entry points
   //
-  ts.eval(
-    '\nLocals.InNewThread ? \n(\n	\n	Locals.ControllerAndSocketSynchronizationManager = Parameters.ModelPlugin.Base.RuntimeVariables.AsyncControllerAndSocketSynchronizationManager\n)\n: \n(\n	Locals.ControllerAndSocketSynchronizationManager = Parameters.ModelPluginConfiguration.RuntimeVariables.ControllerAndSocketSynchronizationManager\n)\n\n',
-  ); // Setup ControllerAndSocketSynchronizationManager
+  inNewThread
+      ? (controllerAndSocketSynchronizationManager = modelPlugin
+            .Base
+            .RuntimeVariables
+            .AsyncControllerAndSocketSynchronizationManager)
+      : (controllerAndSocketSynchronizationManager = modelPluginConfiguration
+            .RuntimeVariables
+            .ControllerAndSocketSynchronizationManager); // Setup ControllerAndSocketSynchronizationManager
   // If this entry point is called in a new thread, then another entry point for the next Batch might be called before this sequence completes. Both sequences will operate on the same ModelPlugin and ModelPluginConfiguration data structures, but from different threads. Thus, if there is any value or sub-field that you need to save before the next Batch has a chance to operate on it, make a local copy of that value prior to this step.
   // sync object: Parameters.CallingThreadBlocker, operation code 1, lifetime code 3
   if (callingThreadBlocker != null) {
@@ -587,8 +598,8 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup: action not exported yet
-  //   untranslated expression in body
   //   RunState engine access (no engine at run time)
+  //   untranslated expression in body
   //   root parameter 'ProcessModel' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Model Plugin - Configure Standard Options', () async {
@@ -729,7 +740,7 @@ void register() {
     await reservedModelPluginOnTheFlyStepResults();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
+  //   RunState engine access (no engine at run time)
   //   Step engine access (no engine at run time)
   //   step type NI_Notification: action not exported yet
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
@@ -747,7 +758,7 @@ void register() {
     await reservedModelPluginUutDone();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
+  //   RunState engine access (no engine at run time)
   //   Step engine access (no engine at run time)
   //   step type NI_Notification: action not exported yet
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)

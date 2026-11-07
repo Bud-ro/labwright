@@ -44,18 +44,17 @@ Future<void> install() async {
   ts.eval(
     'Locals.TestStandPublic = RunState.Engine.GetTestStandPath(TestStandPath_Public)',
   ); // Set Target Directories
-  ts.eval(
-    '\nLocals.IconsDir = Locals.TestStandPublic + @"\\Components\\Icons"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.IconsDir = Locals.TestStandPublic + @"\\Components\\Icons\\seqedit.ico"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.ToolsDir = Locals.TestStandPublic + @"\\Components\\Tools\\QuickDrop"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.FrontEndCallbackDir = Locals.TestStandPublic + @"\\Components\\Callbacks\\FrontEnd"',
-  ); // Set Target Directories (cont.)
+  iconsDir =
+      testStandPublic + '\\Components\\Icons'; // Set Target Directories (cont.)
+  target.IconsDir =
+      testStandPublic +
+      '\\Components\\Icons\\seqedit.ico'; // Set Target Directories (cont.)
+  target.ToolsDir =
+      testStandPublic +
+      '\\Components\\Tools\\QuickDrop'; // Set Target Directories (cont.)
+  target.FrontEndCallbackDir =
+      testStandPublic +
+      '\\Components\\Callbacks\\FrontEnd'; // Set Target Directories (cont.)
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await copy(
     sourceDirectoryPath: source.Tool,

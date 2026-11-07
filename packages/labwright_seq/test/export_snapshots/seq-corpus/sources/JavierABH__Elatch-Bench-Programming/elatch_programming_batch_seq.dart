@@ -15,7 +15,7 @@ import 'lw_runtime.dart';
 /// Sequence `ProcessSetup` — Test UUTs and Single Pass call this callback in their setup step group. It is empty in the model file.  Override this in the client file to perform an action before any code in the model executes..
 Future<void> processSetup() async {
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await loadVariables(variableList: "FirstRun"); // Load var init
+  await loadVariables(variableList: 'FirstRun'); // Load var init
   ts.eval(
     'StationGlobals.isTraceEnable = FileGlobals.isTraceEnable',
   ); // Assign TraceabilityEnabled Var
@@ -28,12 +28,10 @@ Future<void> processSetup() async {
   ts.eval(
     '\nStationGlobals.ProcessName = FileGlobals.ProcessName',
   ); // Assign TraceabilityEnabled Var (cont.)
-  ts.eval(
-    '\nStationGlobals.Init_PN_withsequence == ""',
-  ); // Assign TraceabilityEnabled Var (cont.)
-  ts.eval(
-    '\nStationGlobals.Init_PN_withsequence == ""',
-  ); // Assign TraceabilityEnabled Var (cont.)
+  stationGlobals.Init_PN_withsequence ==
+      ''; // Assign TraceabilityEnabled Var (cont.)
+  stationGlobals.Init_PN_withsequence ==
+      ''; // Assign TraceabilityEnabled Var (cont.)
 }
 
 /// Sequence `PreBatch` — Displays a dialog box in which the operator enters the Batch and UUTserial numbers.  Override this in client file to change or replace this action..
@@ -47,30 +45,21 @@ Future<void> preBatch({
 
   // ── setup ──
   backCheck = 0; // Reset Traceability Variables
-  ts.eval(
-    '\nLocals.Reply_BackCheck = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nParameters.ModelData.BatchUUT.BatchSerialNumber = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.IndividualSerials[0] = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.IndividualSerials[1] = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.IndividualSerials[2] = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.IndividualSerials[3] = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.IndividualSerials[4] = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.IndividualSerials[5] = ""',
-  ); // Reset Traceability Variables (cont.)
+  replyBackCheck = ''; // Reset Traceability Variables (cont.)
+  modelData.BatchUUT.BatchSerialNumber =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.IndividualSerials[0] =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.IndividualSerials[1] =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.IndividualSerials[2] =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.IndividualSerials[3] =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.IndividualSerials[4] =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.IndividualSerials[5] =
+      ''; // Reset Traceability Variables (cont.)
   stationGlobals.IsBackcheckOK[0] =
       false; // Reset Traceability Variables (cont.)
   stationGlobals.IsBackcheckOK[1] =
@@ -83,18 +72,13 @@ Future<void> preBatch({
       false; // Reset Traceability Variables (cont.)
   stationGlobals.IsBackcheckOK[5] =
       false; // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\n\nStationGlobals.ModelID = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.Path_reset_flex_provision = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.Path_flex_provision = ""',
-  ); // Reset Traceability Variables (cont.)
-  ts.eval(
-    '\nStationGlobals.Path_program_combined = ""',
-  ); // Reset Traceability Variables (cont.)
+  stationGlobals.ModelID = ''; // Reset Traceability Variables (cont.)
+  stationGlobals.Path_reset_flex_provision =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.Path_flex_provision =
+      ''; // Reset Traceability Variables (cont.)
+  stationGlobals.Path_program_combined =
+      ''; // Reset Traceability Variables (cont.)
   stationGlobals.Rele_programmer[0] = false; // Reset Reles
   stationGlobals.Rele_programmer[1] = false; // Reset Reles (cont.)
   stationGlobals.Rele_programmer[2] = false; // Reset Reles (cont.)
@@ -104,12 +88,12 @@ Future<void> preBatch({
   stationGlobals.TestResult[3] = 0; // Reset TestResults (cont.)
   stationGlobals.TestResult[4] = 0; // Reset TestResults (cont.)
   stationGlobals.TestResult[5] = 0; // Reset TestResults (cont.)
-  ts.eval('StationGlobals.FailString[0] = ""'); // Reset FailStrings
-  ts.eval('\nStationGlobals.FailString[1] = ""'); // Reset FailStrings (cont.)
-  ts.eval('\nStationGlobals.FailString[2] = ""'); // Reset FailStrings (cont.)
-  ts.eval('\nStationGlobals.FailString[3] = ""'); // Reset FailStrings (cont.)
-  ts.eval('\nStationGlobals.FailString[4] = ""'); // Reset FailStrings (cont.)
-  ts.eval('\nStationGlobals.FailString[5] = ""'); // Reset FailStrings (cont.)
+  stationGlobals.FailString[0] = ''; // Reset FailStrings
+  stationGlobals.FailString[1] = ''; // Reset FailStrings (cont.)
+  stationGlobals.FailString[2] = ''; // Reset FailStrings (cont.)
+  stationGlobals.FailString[3] = ''; // Reset FailStrings (cont.)
+  stationGlobals.FailString[4] = ''; // Reset FailStrings (cont.)
+  stationGlobals.FailString[5] = ''; // Reset FailStrings (cont.)
   stationGlobals.isSequenceComplete[0] =
       false; // Set Sequence complete to False
   stationGlobals.isSequenceComplete[1] =
@@ -123,25 +107,33 @@ Future<void> preBatch({
   stationGlobals.isSequenceComplete[5] =
       false; // Set Sequence complete to False (cont.)
   stationGlobals.isUUT_Panel_Failed = false; // UUT_Panel_Failed
-  if (ts.cond(
-    '(Parameters.ModelData.EntryPoint == "Test UUTs") && Parameters.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs',
-  )) {
+  if (modelData.EntryPoint == 'Test UUTs' &&
+      ts.truthy(
+        modelPluginConfiguration
+            .RuntimeVariables
+            .ModelDialogsEnabled
+            .BatchModelGetNextUUTs,
+      )) {
     // precondition of Tell Dialog To Get Next UUTs
     throw UnimplementedError(
       'cModule call: Tell Dialog To Get Next UUTs',
     ); // Tell Dialog To Get Next UUTs [Action]
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (ts.cond(
-    '(Parameters.ModelData.EntryPoint == "Test UUTs") && Parameters.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelGetNextUUTs',
-  )) {
+  if (modelData.EntryPoint == 'Test UUTs' &&
+      ts.truthy(
+        modelPluginConfiguration
+            .RuntimeVariables
+            .ModelDialogsEnabled
+            .BatchModelGetNextUUTs,
+      )) {
     // precondition of Wait For Dialog
     await processDialogRequests(); // Wait For Dialog: external sequence call
   }
 
   // ── main ──
   // custom flow: if (True) Terminate else Next
-  if (ts.cond('Parameters.ModelData.BatchUUT.BatchSerialNumber == ""')) {
+  if (modelData.BatchUUT.BatchSerialNumber == '') {
     // precondition of Close the sequence if the operator press cancel button
     throw UnimplementedError(
       'step type Action: action not exported yet',
@@ -209,7 +201,7 @@ Future<void> preBatch({
   // description: This part is for future update
   // label:
   // goto -> step "End Of Traceability Section"
-  if (ts.cond('StationGlobals.isTraceEnable == "False"')) {
+  if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Jump if Traceability is Disabled
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -336,7 +328,7 @@ Future<void> preBatch({
   // popup title: NameOf(Step)
   // popup message: "Trazabilidad esta desactivada"
   // popup buttons: "OK"
-  if (ts.cond('StationGlobals.isTraceEnable == "False"')) {
+  if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Msg Trace disable
     throw UnimplementedError(
       'step type MessagePopup: action not exported yet',
@@ -350,22 +342,22 @@ Future<void> preBatch({
 Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
   if (runState.TestSockets.MyIndex == 0) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: "UUT_1"); // Load_Var_UUT 1
+    await loadVariables(variableList: 'UUT_1'); // Load_Var_UUT 1
   } else if (runState.TestSockets.MyIndex == 1) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: "UUT_2"); // Load_Var_UUT 2
+    await loadVariables(variableList: 'UUT_2'); // Load_Var_UUT 2
   } else if (runState.TestSockets.MyIndex == 2) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: "UUT_3"); // Load_Var_UUT 3
+    await loadVariables(variableList: 'UUT_3'); // Load_Var_UUT 3
   } else if (runState.TestSockets.MyIndex == 3) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: "UUT_4"); // Load_Var_UUT 4
+    await loadVariables(variableList: 'UUT_4'); // Load_Var_UUT 4
   } else if (runState.TestSockets.MyIndex == 4) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: "UUT_5"); // Load_Var_UUT 5
+    await loadVariables(variableList: 'UUT_5'); // Load_Var_UUT 5
   } else if (runState.TestSockets.MyIndex == 5) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    await loadVariables(variableList: "UUT_6"); // Load_Var_UUT 6
+    await loadVariables(variableList: 'UUT_6'); // Load_Var_UUT 6
   }
   // [skipped in source] Save PN for check for PN at other panel
 }
@@ -374,9 +366,8 @@ Future<void> preUutLoop({dynamic modelPluginConfiguration}) async {
 Future<void> mainSequence() async {
   // ── setup ──
   // [skipped in source] Go to cleanup on failure
-  if (ts.cond(
-    'StationGlobals.isBackCheckOK[RunState.TestSockets.MyIndex] == False && StationGlobals.isTraceEnable == "True"',
-  )) {
+  if (stationGlobals.IsBackcheckOK[runState.TestSockets.MyIndex] == false &&
+      stationGlobals.isTraceEnable == 'True') {
     // checks: False
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     throw UnimplementedError(
@@ -391,7 +382,7 @@ Future<void> mainSequence() async {
   // label:
   // label: Wait for UUT of Rele NO
   if (runState.TestSockets.MyIndex == 1) {
-    if (!stationGlobals.Rele_programmer[0]) {
+    if (!ts.truthy(stationGlobals.Rele_programmer[0])) {
       // waits for sequence call step "UUT Pass"
       await Future<void>.delayed(const Duration(seconds: 3));
       // goto -> step "Wait for UUT of Rele NO"
@@ -400,7 +391,7 @@ Future<void> mainSequence() async {
       ); // Goto [Goto]
     }
   } else if (runState.TestSockets.MyIndex == 3) {
-    if (!stationGlobals.Rele_programmer[1]) {
+    if (!ts.truthy(stationGlobals.Rele_programmer[1])) {
       // waits for sequence call step "UUT Pass"
       await Future<void>.delayed(const Duration(seconds: 3));
       // goto -> step "Wait for UUT of Rele NO"
@@ -409,7 +400,7 @@ Future<void> mainSequence() async {
       ); // Goto [Goto]
     }
   } else if (runState.TestSockets.MyIndex == 5) {
-    if (!stationGlobals.Rele_programmer[2]) {
+    if (!ts.truthy(stationGlobals.Rele_programmer[2])) {
       // waits for sequence call step "UUT Pass"
       await Future<void>.delayed(const Duration(seconds: 3));
       // goto -> step "Wait for UUT of Rele NO"
@@ -511,7 +502,7 @@ Future<void> postBatch({
   dynamic modelPluginConfiguration,
 }) async {
   // goto -> step "End Of Traceability Section"
-  if (ts.cond('StationGlobals.isTraceEnable == "False" ')) {
+  if (stationGlobals.isTraceEnable == 'False') {
     // precondition of Jump if Traceability is Disabled
     throw UnimplementedError(
       'step type Goto: action not exported yet',
@@ -536,9 +527,8 @@ Future<void> postBatch({
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
   } else {
-    if (ts.cond(
-      'StationGlobals.isRecordFail == "True" && StationGlobals.isBackcheckOK[0]',
-    )) {
+    if (stationGlobals.isRecordFail == 'True' &&
+        ts.truthy(stationGlobals.IsBackcheckOK[0])) {
       // precondition of Send Process
       //   FailString <- StationGlobals.FailString[0]
       //   EntryTime <- StationGlobals.Ent_Time
@@ -551,7 +541,7 @@ Future<void> postBatch({
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
-    if (!stationGlobals.IsBackcheckOK[0]) {
+    if (!ts.truthy(stationGlobals.IsBackcheckOK[0])) {
       // precondition of Send data in batch result
       ts.eval(
         'Parameters.ModelData.TestSockets[0].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
@@ -561,7 +551,8 @@ Future<void> postBatch({
   // status expression: ""
   // description: UUT 1
   // label:
-  if (stationGlobals.TestResult[1] == 1 && stationGlobals.IsBackcheckOK[1]) {
+  if (stationGlobals.TestResult[1] == 1 &&
+      ts.truthy(stationGlobals.IsBackcheckOK[1])) {
     //   FailString <- ""
     //   EntryTime <- StationGlobals.Ent_Time
     //   SerialNumber <- StationGlobals.IndividualSerials[1]
@@ -573,9 +564,8 @@ Future<void> postBatch({
     //   error out <- Step.Result.Error
     await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
   } else {
-    if (ts.cond(
-      'StationGlobals.isRecordFail == "True" && StationGlobals.isBackcheckOK[1]',
-    )) {
+    if (stationGlobals.isRecordFail == 'True' &&
+        ts.truthy(stationGlobals.IsBackcheckOK[1])) {
       // precondition of Send Process
       //   FailString <- StationGlobals.FailString[1]
       //   EntryTime <- StationGlobals.Ent_Time
@@ -588,7 +578,7 @@ Future<void> postBatch({
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
-    if (!stationGlobals.IsBackcheckOK[1]) {
+    if (!ts.truthy(stationGlobals.IsBackcheckOK[1])) {
       // precondition of Send data in batch result
       ts.eval(
         'Parameters.ModelData.TestSockets[1].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
@@ -598,7 +588,8 @@ Future<void> postBatch({
   // status expression: ""
   // description: UUT 2
   // label:
-  if (stationGlobals.TestResult[2] == 1 && stationGlobals.IsBackcheckOK[2]) {
+  if (stationGlobals.TestResult[2] == 1 &&
+      ts.truthy(stationGlobals.IsBackcheckOK[2])) {
     //   FailString <- ""
     //   EntryTime <- StationGlobals.Ent_Time
     //   SerialNumber <- StationGlobals.IndividualSerials[2]
@@ -610,9 +601,8 @@ Future<void> postBatch({
     //   error out <- Step.Result.Error
     await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
   } else {
-    if (ts.cond(
-      'StationGlobals.isRecordFail == "True"  && StationGlobals.isBackcheckOK[2]',
-    )) {
+    if (stationGlobals.isRecordFail == 'True' &&
+        ts.truthy(stationGlobals.IsBackcheckOK[2])) {
       // precondition of Send Process
       //   FailString <- StationGlobals.FailString[2]
       //   EntryTime <- StationGlobals.Ent_Time
@@ -625,7 +615,7 @@ Future<void> postBatch({
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
-    if (!stationGlobals.IsBackcheckOK[2]) {
+    if (!ts.truthy(stationGlobals.IsBackcheckOK[2])) {
       // precondition of Send data in batch result
       ts.eval(
         'Parameters.ModelData.TestSockets[2].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
@@ -647,9 +637,8 @@ Future<void> postBatch({
     //   error out <- Step.Result.Error
     await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
   } else {
-    if (ts.cond(
-      'StationGlobals.isRecordFail == "True" && StationGlobals.isBackcheckOK[3]',
-    )) {
+    if (stationGlobals.isRecordFail == 'True' &&
+        ts.truthy(stationGlobals.IsBackcheckOK[3])) {
       // precondition of Send Process
       //   FailString <- StationGlobals.FailString[3]
       //   EntryTime <- StationGlobals.Ent_Time
@@ -662,7 +651,7 @@ Future<void> postBatch({
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
-    if (!stationGlobals.IsBackcheckOK[3]) {
+    if (!ts.truthy(stationGlobals.IsBackcheckOK[3])) {
       // precondition of Send data in batch result
       ts.eval(
         'Parameters.ModelData.TestSockets[3].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
@@ -684,9 +673,8 @@ Future<void> postBatch({
     //   error out <- Step.Result.Error
     await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
   } else {
-    if (ts.cond(
-      'StationGlobals.isRecordFail == "True" && StationGlobals.isBackcheckOK[4]',
-    )) {
+    if (stationGlobals.isRecordFail == 'True' &&
+        ts.truthy(stationGlobals.IsBackcheckOK[4])) {
       // precondition of Send Process
       //   FailString <- StationGlobals.FailString[4]
       //   EntryTime <- StationGlobals.Ent_Time
@@ -699,7 +687,7 @@ Future<void> postBatch({
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
-    if (!stationGlobals.IsBackcheckOK[4]) {
+    if (!ts.truthy(stationGlobals.IsBackcheckOK[4])) {
       // precondition of Send data in batch result
       ts.eval(
         'Parameters.ModelData.TestSockets[4].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
@@ -721,9 +709,8 @@ Future<void> postBatch({
     //   error out <- Step.Result.Error
     await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
   } else {
-    if (ts.cond(
-      'StationGlobals.isRecordFail == "True" && StationGlobals.isBackcheckOK[5]',
-    )) {
+    if (stationGlobals.isRecordFail == 'True' &&
+        ts.truthy(stationGlobals.IsBackcheckOK[5])) {
       // precondition of Send Process
       //   FailString <- StationGlobals.FailString[5]
       //   EntryTime <- StationGlobals.Ent_Time
@@ -736,7 +723,7 @@ Future<void> postBatch({
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
     }
-    if (!stationGlobals.IsBackcheckOK[5]) {
+    if (!ts.truthy(stationGlobals.IsBackcheckOK[5])) {
       // precondition of Send data in batch result
       ts.eval(
         'Parameters.ModelData.TestSockets[5].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
@@ -746,9 +733,13 @@ Future<void> postBatch({
   // label: End Of Traceability Section
   // status expression: ""
   // label:
-  if (ts.cond(
-    '(Parameters.ModelData.EntryPoint == "Test UUTs") && Parameters.ModelPluginConfiguration.RuntimeVariables.ModelDialogsEnabled.BatchModelShowStatus',
-  )) {
+  if (modelData.EntryPoint == 'Test UUTs' &&
+      ts.truthy(
+        modelPluginConfiguration
+            .RuntimeVariables
+            .ModelDialogsEnabled
+            .BatchModelShowStatus,
+      )) {
     // precondition of Tell Dialog To Show Status
     throw UnimplementedError(
       'cModule call: Tell Dialog To Show Status',
@@ -781,8 +772,10 @@ Future<void> loadVariables({String variableList = ''}) async {
   for (tempLoop = 0; tempLoop < arrayIndex; tempLoop += 1) {
     tempStr = strLimits[tempLoop]; // Limits
     tempName = testName[tempLoop]; // NamesToVariables
-    ts.eval(
-      'RunState.Main.FileGlobals.SetValString(Locals.Temp_Name,0x1,Locals.Temp_Str)',
+    runState.Main.FileGlobals.SetValString(
+      tempName,
+      1,
+      tempStr,
     ); // CreateLimits
   }
   // [skipped in source] Message Popup
@@ -951,12 +944,13 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   status expression of step "Load var init" not exported
   //   untranslated expression in body
+  //   StationGlobals read (station-level state not set here)
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
+  //   RunState engine access (no engine at run time)
   lw.skipTest('ProcessSetup', () async {
     await processSetup();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
   //   StationGlobals read (station-level state not set here)
   //   cModule call: Tell Dialog To Get Next UUTs
   //   status expression of step "Wait For Dialog" not exported
@@ -966,6 +960,7 @@ void register() {
   //   status expression of step "Get_PartNumber" not exported
   //   ..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi
   //   status expression of step "Get FW paths for PN" not exported
+  //   untranslated expression in body
   //   flow step "If" is Skip in source (skipped flow semantics not pinned)
   //   flow step "End" is Skip in source (skipped flow semantics not pinned)
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
@@ -974,6 +969,7 @@ void register() {
   //   step type MessagePopup: action not exported yet
   //   ..\LabVIEW_VIs\USB-ERB24\All_Off_Relays.vi
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
+  //   RunState engine access (no engine at run time)
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreBatch', () async {
@@ -988,19 +984,17 @@ void register() {
   //   status expression of step "Load_Var_UUT 5" not exported
   //   status expression of step "Load_Var_UUT 6" not exported
   //   ..\LabVIEW_VIs\Generic_Vi's\Get_Limits_V3.vi
-  //   untranslated expression in body
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)
   lw.skipTest('PreUUTLoop', () async {
     await preUutLoop();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
+  //   RunState engine access (no engine at run time)
+  //   StationGlobals read (station-level state not set here)
   //   status expression of step "UUT Not For This Process" not exported
   //   step type PassFailTest: action not exported yet
   //   flow action of step "Goto" (Next/Next) not exported
   //   step type Goto: action not exported yet
-  //   RunState engine access (no engine at run time)
-  //   StationGlobals read (station-level state not set here)
   //   python call: ..\Python\ecu_programmer.py
   //   step "JLink Connection Test" loops (PassFailCount) — per-step looping not exported
   //   flow action of step "JLink Connection Test" (Next/Next) not exported
@@ -1029,10 +1023,10 @@ void register() {
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
-  //   untranslated expression in body
-  //   step type Goto: action not exported yet
   //   StationGlobals read (station-level state not set here)
+  //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi
+  //   untranslated expression in body
   //   cModule call: Tell Dialog To Show Status
   //   root parameter 'ModelData' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)

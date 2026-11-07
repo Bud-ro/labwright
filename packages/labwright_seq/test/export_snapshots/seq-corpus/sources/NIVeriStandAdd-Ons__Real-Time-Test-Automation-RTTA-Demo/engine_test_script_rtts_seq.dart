@@ -152,7 +152,7 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'step type PassFailTest: action not exported yet',
   ); // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]
-  ts.eval('Locals.testresult = Step.Result.PassFail'); // post-expression
+  testResult = step.Result.PassFail; // post-expression
   // failure does NOT fail the sequence
   throw UnimplementedError(
     'step type DIAdem_Close_Reference: action not exported yet',
@@ -212,7 +212,7 @@ void register() {
   //   step type DIAdem_ImportChannels: action not exported yet
   //   status expression of step "Pass Fail Test:MaskA_Analysis.VBS" not exported
   //   step type PassFailTest: action not exported yet
-  //   untranslated expression in body
+  //   Step engine access (no engine at run time)
   //   step type DIAdem_Close_Reference: action not exported yet
   //   dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
   lw.skipTest(

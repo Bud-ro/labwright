@@ -24,7 +24,7 @@ Future<void> loginLogout({
   if (!logout) {
     // precondition of Auto Login
     runState.Engine.CurrentUser = runState.Engine.GetUser(
-      "administrator",
+      'administrator',
     ); // Auto Login
   }
 }

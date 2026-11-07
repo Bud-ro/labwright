@@ -51,15 +51,13 @@ Future<void> install() async {
   ts.eval(
     '\nLocals.TestStandGlobalCfg = RunState.Engine.GetTestStandPath(TestStandPath_GlobalConfig)',
   ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.UsersDir = Locals.TestStandGlobalCfg + @"\\Users.ini"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.SeqEditDir = Locals.TestStandCfg + @"\\SeqEdit"',
-  ); // Set Target Directories (cont.)
-  ts.eval(
-    '\nLocals.Target.FrontEndCallbackDir = Locals.TestStandPublic + @"\\Components\\Callbacks\\FrontEnd"',
-  ); // Set Target Directories (cont.)
+  target.UsersDir =
+      testStandGlobalCfg + '\\Users.ini'; // Set Target Directories (cont.)
+  target.SeqEditDir =
+      testStandCfg + '\\SeqEdit'; // Set Target Directories (cont.)
+  target.FrontEndCallbackDir =
+      testStandPublic +
+      '\\Components\\Callbacks\\FrontEnd'; // Set Target Directories (cont.)
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   await copy(
     sourceDirectoryPath: source.SeqEdit,

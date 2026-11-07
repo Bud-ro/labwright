@@ -67,9 +67,12 @@ Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
   ); // Strs
 
   // ── setup ──
-  ts.eval(
-    'Locals.Teststand_Groups = {"Operator","Technician","Developer","Administrator"}',
-  ); // Setup Supported Groups
+  teststandGroups = <dynamic>[
+    'Operator',
+    'Technician',
+    'Developer',
+    'Administrator',
+  ]; // Setup Supported Groups
 
   // ── main ──
   // Reformat Windows Group Names to match Teststand Group Names
@@ -83,17 +86,14 @@ Future<void> groupMembership({List<dynamic>? groups, dynamic user}) async {
     {
       final select1 = currentGroup;
       var matched1 = false;
-      if (!matched1 && select1 == "TeststandAdministrator") {
+      if (!matched1 && select1 == 'TeststandAdministrator') {
         matched1 = true;
-        ts.eval(
-          'Parameters.groups[Locals.LoopingIndex] = "Administrator"',
-        ); // Rename Entry to Teststand Group
+        groups[loopingIndex] =
+            'Administrator'; // Rename Entry to Teststand Group
       }
-      if (!matched1 && select1 == "Users") {
+      if (!matched1 && select1 == 'Users') {
         matched1 = true;
-        ts.eval(
-          'Parameters.groups[Locals.LoopingIndex] = "Operator"',
-        ); // Rename Entry to Teststand Group
+        groups[loopingIndex] = 'Operator'; // Rename Entry to Teststand Group
       }
     }
   }
@@ -147,7 +147,7 @@ Future<void> updateGroupMembership({
       if (alreadyInGroup == false) {
         runState.Engine.GetUserGroup(groupName).Members.SetValStringByOffset(
           0,
-          0x1,
+          1,
           user.AsUser.LoginName,
         ); // Add User to Group
         runState.Engine.UsersFile.AsPropertyObjectFile
@@ -182,10 +182,10 @@ Future<void> updateGroupMembership({
 Future<void> createUser({dynamic user, String username = ''}) async {
   user = runState.Engine.NewUser(null); // Create New User
   user.AsUser.LoginName = username; // Set Login Name
-  ts.eval('Parameters.User.AsUser.Password = ""'); // Set Password
+  user.AsUser.Password = ''; // Set Password
   runState.Engine.UsersFile.UserList.SetPropertyObjectByOffset(
     0,
-    0x1,
+    1,
     user,
   ); // Insert New User
   runState.Engine.UsersFile.AsPropertyObjectFile

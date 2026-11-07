@@ -68,12 +68,10 @@ Future<void> reportOptions({
   reportOptions2.GeneratePDFReport = true; // Update Report Options
   reportOptions2.SaveTransformedHtmlForXmlReport =
       false; // Update Report Options (cont.)
-  ts.eval(
-    '\nParameters.ReportOptions.DirectoryType = "SpecificDirectory"',
-  ); // Update Report Options (cont.)
-  ts.eval(
-    '\nParameters.ReportOptions.Directory = @"C:\\dev\\class-d-amplifier\\demo\\InstrStudio\\Sequence Results"',
-  ); // Update Report Options (cont.)
+  reportOptions2.DirectoryType =
+      'SpecificDirectory'; // Update Report Options (cont.)
+  reportOptions2.Directory =
+      'C:\\dev\\class-d-amplifier\\demo\\InstrStudio\\Sequence Results'; // Update Report Options (cont.)
 }
 
 // ── engine state ────────────────────────────────────────────────────────────
@@ -102,7 +100,6 @@ void register() {
     await mainSequence();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
   //   root parameter 'ReportOptions' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPluginConfiguration' is an engine object (nothing binds it when run as a test)

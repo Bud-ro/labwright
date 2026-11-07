@@ -16,7 +16,7 @@ Future<void> mainSequence() async {
 
   // Finished Step: Statement with no expression
   result = step.AsPropertyObject.Exists(
-    "TS.Requirements.Links",
+    'TS.Requirements.Links',
     0,
   ); // In Progress Step
   // Malformed Step: Statement with no expression

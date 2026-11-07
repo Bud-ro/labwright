@@ -43,9 +43,9 @@ Future<void> mainSequence() async {
     ' FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)) ',
   ); // Store Sequence File Path
   // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
-  ts.eval(
-    'FileGlobals.OutputFilePath = FileGlobals.Sequence_Folder_Path  + @"\\Data Files\\Results\\Results.csv" ',
-  ); // Set the Path for the Output File
+  fileGlobals.OutputFilePath =
+      fileGlobals.Sequence_Folder_Path +
+      '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
   // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
   throw UnimplementedError(
     'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
@@ -114,13 +114,11 @@ Future<void> mainSequence() async {
     throw UnimplementedError(
       'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
     ); // Create SpecAn Signal Configuration [Action]
-    ts.eval(
-      '\nFileGlobals.LoadedWaveformIndexes[Locals.WaveformConfigsIdx]= Locals.WaveformConfigsIdx',
-    ); // Store Loaded Waveforms
-    ts.eval(
-      '\nFileGlobals.LoadedWaveforms[Locals.WaveformConfigsIdx]=Locals.Current_Waveform',
-    ); // Store Loaded Waveforms (cont.)
-    ts.eval('\nLocals.WaveFormConfigsIdx++'); // Store Loaded Waveforms (cont.)
+    fileGlobals.LoadedWaveformIndexes[waveFormConfigsIdx] =
+        waveFormConfigsIdx; // Store Loaded Waveforms
+    fileGlobals.LoadedWaveforms[waveFormConfigsIdx] =
+        currentWaveform; // Store Loaded Waveforms (cont.)
+    waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
   }
 
   // ── main ──
@@ -130,9 +128,8 @@ Future<void> mainSequence() async {
     await configure(); // Apply Configurations
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await measure(); // Measure Results
-    ts.eval(
-      '\nFileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial = RunState.Root.Locals.UUT.SerialNumber',
-    ); // Store Serial Number in Output
+    fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial =
+        runState.Root.Locals.UUT.SerialNumber; // Store Serial Number in Output
     // Record the results record to disk
     throw UnimplementedError(
       'step type NI_WriteRecord: action not exported yet',
@@ -437,7 +434,7 @@ Future<void> measure() async {
       final select1 = currentMeasurement;
       var matched1 = false;
       // AMPM Method
-      if (!matched1 && select1 == "AMPM") {
+      if (!matched1 && select1 == 'AMPM') {
         matched1 = true;
         // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
         // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements
@@ -476,7 +473,7 @@ Future<void> measure() async {
                 .MeanRmsEvm_percent; // Map Results (cont.)
       }
       // Spectral Emission Mask Measurement
-      if (!matched1 && select1 == "SEM") {
+      if (!matched1 && select1 == 'SEM') {
         matched1 = true;
         // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
         // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements
@@ -516,7 +513,7 @@ Future<void> measure() async {
             .AbsolutePower_dBm; // Map Results (cont.)
       }
       // EVM Measurement
-      if (!matched1 && select1 == "EVM") {
+      if (!matched1 && select1 == 'EVM') {
         matched1 = true;
         // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxWLAN.dll
         // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxWLAN.SelectAndInitiateMeasurements
@@ -859,6 +856,7 @@ void register() {
   //   sweep loop "Sweep Loop": parameter sweep not exported
   //   status expression of step "Apply Configurations" not exported
   //   status expression of step "Measure Results" not exported
+  //   RunState engine access (no engine at run time)
   //   step type NI_WriteRecord: action not exported yet
   //   dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close
   //   dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument

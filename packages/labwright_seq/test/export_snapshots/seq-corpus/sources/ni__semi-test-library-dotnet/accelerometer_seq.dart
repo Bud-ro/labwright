@@ -9,7 +9,6 @@
 // ignore_for_file: unused_local_variable, dead_code, unused_element, unused_label, non_constant_identifier_names
 
 import 'package:labwright/labwright.dart' as lw;
-import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `ProcessSetup` — Runs once at lot start.
 Future<void> processSetup() async {
@@ -60,7 +59,7 @@ Future<void> processSetup() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\SetupNIScopeForVref.cs',
   ); // Setup NI-SCOPE for Vref [NI_SemiconductorModule_Action]
-  if (ts.cond('FileGlobals.TestTemperature == "Hot"')) {
+  if (fileGlobals.TestTemperature == 'Hot') {
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConfigureTemperatureController
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -77,7 +76,7 @@ Future<void> mainSequence() async {
   // ── setup ──
   // description: Place any test flow agnostic setup steps here, to run before the test flow, for each unit under test.
   // label: Test Flow Agnostic Setup Steps
-  if (ts.cond('FileGlobals.TestTemperature == "Hot"')) {
+  if (fileGlobals.TestTemperature == 'Hot') {
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -149,7 +148,7 @@ Future<void> mainSequence() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
   ); // Test DUT part number register [NI_SemiconductorModule_MultiTest]
-  if (ts.cond('FileGlobals.TestFlowID=="Quality"')) {
+  if (fileGlobals.TestFlowId == 'Quality') {
     // description: Place any test specific steps here to run for each unit under test.
     // label: Test Flow Specific Steps
     // .NET assembly: Code Modules\bin\Accelerometer.dll
@@ -214,7 +213,7 @@ Future<void> processCleanup() async {
   throw UnimplementedError(
     'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
   ); // Power Toggle (off) [NI_SemiconductorModule_Action]
-  if (ts.cond('FileGlobals.TestTemperature == "Hot"')) {
+  if (fileGlobals.TestTemperature == 'Hot') {
     // .NET assembly: Code Modules\bin\Accelerometer.dll
     // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
@@ -277,13 +276,11 @@ void register() {
   //   dotNet call: Code Modules\TestSteps\PowerToggle.cs
   //   dotNet call: Code Modules\TestSteps\SetupVcc.cs
   //   dotNet call: Code Modules\TestSteps\SetupNIScopeForVref.cs
-  //   untranslated expression in body
   //   dotNet call: Code Modules\TestSteps\ConfigureTemperatureController.cs
   lw.skipTest('ProcessSetup', () async {
     await processSetup();
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
   //   dotNet call: Code Modules\TestSteps\WaitForTemperature.cs
   //   dotNet call: Code Modules\TestSteps\ConnectVRefPin.cs
   //   dotNet call: Code Modules\TestSteps\TestContinuity.cs
@@ -302,7 +299,6 @@ void register() {
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   dotNet call: Code Modules\TestSteps\PowerToggle.cs
-  //   untranslated expression in body
   //   dotNet call: Code Modules\TestSteps\ResetAndCloseTemperatureController.cs
   //   step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet
   lw.skipTest('ProcessCleanup', () async {

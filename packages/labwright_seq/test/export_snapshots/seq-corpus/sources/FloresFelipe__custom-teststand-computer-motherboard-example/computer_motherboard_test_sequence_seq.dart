@@ -35,7 +35,7 @@ Future<void> mainSequence() async {
   //   error out <- Step.Result.Error
   await callPowerupTest(); // Powerup Test [PassFailTest]
   // If the Powerup Test fails, do not test any additional components.
-  if (ts.truthy(runState.Sequence.Main["Powerup Test"].Result.PassFail)) {
+  if (ts.truthy(runState.Sequence.Main['Powerup Test'].Result.PassFail)) {
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     await cpuTest(cpuFail: cpuFail); // CPU Test
     // checks: Step.Result.PassFail
@@ -65,17 +65,15 @@ Future<void> mainSequence() async {
     // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
     if (ts.cond('ThisContext.SequenceFailed')) {
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (ts.cond(
-        'RunState.Sequence.Main["ID#:gcZLdWPO6BG1UABQVsAACA"].Result.Status == "Failed"',
-      )) {
+      if (runState.Sequence.Main['ID#:gcZLdWPO6BG1UABQVsAACA'].Result.Status ==
+          'Failed') {
         // precondition of CPU Diagnostics
         await cpuDiagnostics(cpuFail: cpuFail); // CPU Diagnostics
       }
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (ts.cond(
-        'RunState.Sequence.Main["ID#:gsZLdWPO6BG1UABQVsAACA"].Result.Status == "Failed"',
-      )) {
+      if (runState.Sequence.Main['ID#:gsZLdWPO6BG1UABQVsAACA'].Result.Status ==
+          'Failed') {
         // precondition of ROM Diagnostics
         //   Result <- Step.Result.PassFail
         //   error out <- Step.Result.Error
@@ -83,9 +81,8 @@ Future<void> mainSequence() async {
       }
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (ts.cond(
-        'RunState.Sequence.Main["ID#:g8ZLdWPO6BG1UABQVsAACA"].Result.Status == "Failed"',
-      )) {
+      if (runState.Sequence.Main['ID#:g8ZLdWPO6BG1UABQVsAACA'].Result.Status ==
+          'Failed') {
         // precondition of RAM Diagnostics
         //   Result <- Step.Result.PassFail
         //   error out <- Step.Result.Error
@@ -93,9 +90,8 @@ Future<void> mainSequence() async {
       }
       // checks: Step.Result.Numeric LT [low 0, high 10, nominal 100] (PERCENTAGE) Volts
       // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-      if (ts.cond(
-        'RunState.Sequence.Main["ID#:hMZLdWPO6BG1UABQVsAACA"].Result.Status == "Failed"',
-      )) {
+      if (runState.Sequence.Main['ID#:hMZLdWPO6BG1UABQVsAACA'].Result.Status ==
+          'Failed') {
         // precondition of Video Diagnostics
         //   Voltage <- Step.Result.Numeric
         //   error out <- Step.Result.Error
@@ -103,9 +99,8 @@ Future<void> mainSequence() async {
       }
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (ts.cond(
-        'RunState.Sequence.Main["ID#:hcZLdWPO6BG1UABQVsAACA"].Result.Status == "Failed"',
-      )) {
+      if (runState.Sequence.Main['ID#:hcZLdWPO6BG1UABQVsAACA'].Result.Status ==
+          'Failed') {
         // precondition of Keyboard Diagnostics
         //   Result <- Step.Result.PassFail
         //   error out <- Step.Result.Error

@@ -22,20 +22,15 @@ Future<void> mainSequence() async {
   int loopingVariable = 0; // Num — default: 0
 
   // ── setup ──
-  ts.eval(
-    'Locals.Model_Path = @"C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel.seq"',
-  ); // Setup Paths
-  ts.eval(
-    '\nLocals.Model_Patches_Path = @"C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel Patches.seq"',
-  ); // Setup Paths (cont.)
-  ts.eval(
-    '\nLocals.Output_Path = @"C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\Outputs\\CustomATESequentialModel.seq"',
-  ); // Setup Paths (cont.)
-  ts.eval(
-    'Locals.originalModel = RunState.Engine.GetSequenceFileEx(locals.Model_Path)\n',
-  ); // Open Model
-  ts.eval(
-    'Locals.patchesFile = RunState.Engine.GetSequenceFileEx(locals.Model_Patches_Path)\n',
+  modelPath =
+      'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel.seq'; // Setup Paths
+  modelPatchesPath =
+      'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel Patches.seq'; // Setup Paths (cont.)
+  outputPath =
+      'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\Outputs\\CustomATESequentialModel.seq'; // Setup Paths (cont.)
+  originalModel = runState.Engine.GetSequenceFileEx(modelPath); // Open Model
+  patchesFile = runState.Engine.GetSequenceFileEx(
+    modelPatchesPath,
   ); // Open Patches
   patchedSequenceFile =
       runState.Engine.NewSequenceFile(); // Create New Sequence File
@@ -51,8 +46,11 @@ Future<void> mainSequence() async {
     loopingVariable < patchesFile.AsSequenceFile.NumSequences;
     loopingVariable += 1
   ) {
-    ts.eval(
-      'locals.patchedSequenceFile.AsSequenceFile.InsertSequenceEx(Locals.patchedSequenceFile.AsSequenceFile.NumSequences,Locals.patchesFile.AsSequenceFile.GetSequence(locals.LoopingVariable).AsPropertyObject.Clone("",0))',
+    patchedSequenceFile.AsSequenceFile.InsertSequenceEx(
+      patchedSequenceFile.AsSequenceFile.NumSequences,
+      patchesFile.AsSequenceFile.GetSequence(
+        loopingVariable,
+      ).AsPropertyObject.Clone('', 0),
     ); // Copy Sequence
   }
   // Copy Rest of Process Model
@@ -62,11 +60,15 @@ Future<void> mainSequence() async {
     loopingVariable < originalModel.AsSequenceFile.NumSequences;
     loopingVariable += 1
   ) {
-    if (ts.cond(
-      'Locals.patchedSequenceFile.AsSequenceFile.SequenceNameExists(Locals.originalModel.AsSequenceFile.GetSequence(locals.LoopingVariable).Name) != True',
-    )) {
-      ts.eval(
-        'locals.patchedSequenceFile.AsSequenceFile.InsertSequenceEx(Locals.patchedSequenceFile.AsSequenceFile.NumSequences,Locals.originalModel.AsSequenceFile.GetSequence(locals.LoopingVariable).AsPropertyObject.Clone("",0))',
+    if (patchedSequenceFile.AsSequenceFile.SequenceNameExists(
+          originalModel.AsSequenceFile.GetSequence(loopingVariable).Name,
+        ) !=
+        true) {
+      patchedSequenceFile.AsSequenceFile.InsertSequenceEx(
+        patchedSequenceFile.AsSequenceFile.NumSequences,
+        originalModel.AsSequenceFile.GetSequence(
+          loopingVariable,
+        ).AsPropertyObject.Clone('', 0),
       ); // Copy Sequence
     }
   }
@@ -108,8 +110,8 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   untranslated expression in body
   //   RunState engine access (no engine at run time)
+  //   untranslated expression in body
   lw.skipTest('MainSequence', () async {
     await mainSequence();
   });
