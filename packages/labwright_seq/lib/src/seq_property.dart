@@ -43,6 +43,10 @@ enum SeqValueClass {
 
   containers('Containers'),
 
+  references('Refs'),
+
+  enumeration('Enum'),
+
   other('');
 
   const SeqValueClass(this.wire, {this.alias});
@@ -51,9 +55,12 @@ enum SeqValueClass {
 
   final String? alias;
 
-  bool get isArray => const {numbers, strings, booleans, objects, containers}.contains(this);
+  bool get isArray => const {numbers, strings, booleans, objects, containers, references}.contains(this);
 
   bool get isText => const {string, expression, path}.contains(this);
+
+  /// A scalar property: it carries a value and no subproperties.
+  bool get isLeaf => const {number, boolean, string, expression, path, reference}.contains(this);
 
   static final Map<String, SeqValueClass> _byWire = {
     for (final cls in values)
@@ -83,6 +90,7 @@ class SeqProperty {
     this.extData = const [],
     this.numericFormat,
     this.xmlComment,
+    this.attributeBlock,
   });
 
   final String name;
@@ -116,6 +124,8 @@ class SeqProperty {
   final String? numericFormat;
 
   final String? xmlComment;
+
+  final SeqProperty? attributeBlock;
 
   bool get isArray => array != null;
   bool get isLeaf => array == null && subProps.isEmpty;
@@ -178,6 +188,7 @@ class SeqProperty {
     List<Map<String, String>>? extData,
     String? numericFormat,
     String? xmlComment,
+    SeqProperty? attributeBlock,
   }) => SeqProperty(
     name: name ?? this.name,
     xmlTag: xmlTag ?? this.xmlTag,
@@ -192,6 +203,7 @@ class SeqProperty {
     extData: extData ?? this.extData,
     numericFormat: numericFormat ?? this.numericFormat,
     xmlComment: xmlComment ?? this.xmlComment,
+    attributeBlock: attributeBlock ?? this.attributeBlock,
   );
 
   SeqProperty? prop(String name) => subProps.where((p) => p.name == name).firstOrNull;
@@ -265,6 +277,10 @@ SeqProperty buildProperty(XmlElement e) {
     ],
     numericFormat: childElement(e, 'numericfmt')?.innerText,
     xmlComment: childElement(e, 'comment')?.innerText,
+    attributeBlock: switch (childElement(e, 'Attributes')) {
+      final block? => buildProperty(block),
+      null => null,
+    },
   );
 }
 
@@ -291,5 +307,6 @@ SeqProperty _arrayElement(XmlElement wrapper) {
     extData: child.extData,
     numericFormat: child.numericFormat,
     xmlComment: child.xmlComment,
+    attributeBlock: child.attributeBlock,
   );
 }
