@@ -81,9 +81,9 @@ Future<String> sequenceFileDoc({
       ts.eval(
         '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_OPERATOR"), "%-35s") +\n	(PropertyExists("StationGlobals.TS.CurrentUser.LoginName") ? \n		StationGlobals.TS.CurrentUser.LoginName :\n		GetResourceString("SEQ_FILE_DOC", "DOC_USER_NONE")) +\n	"\\n"\n',
       ); // By Operator
-      ts.eval(
-        'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
-      ); // Sequence File Header
+      docResult +=
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+          '\n'; // Sequence File Header
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
         // precondition of WordWrapComment
         throw UnimplementedError(
@@ -92,45 +92,109 @@ Future<String> sequenceFileDoc({
       }
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
         // precondition of Comment
-        ts.eval(
-          'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT") +\n	"\\n" + Locals.tmpString + "\\n"\n',
-        ); // Comment
+        docResult +=
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT') +
+            '\n' +
+            tmpString +
+            '\n'; // Comment
       }
-      ts.eval(
-        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_PATH"), "%-35s") +\n	"\\"" + Parameters.SequenceFile.Path + "\\"\\n"\n',
-      ); // Path
-      ts.eval(
-        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_VERSION"), "%-35s") +\n	Parameters.SequenceFile.Data.Version + "\\n"\n',
-      ); // Version
-      ts.eval(
-        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_TYPE"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceFileTypes[Parameters.SequenceFile.Data.Type]) + "\\n"\n',
-      ); // Type
-      ts.eval(
-        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-35s") +\n	GetResourceString("LOAD OPTION STRINGS", Parameters.SequenceFile.Data.LoadOpt) + "\\n"\n',
-      ); // Load Option
-      ts.eval(
-        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-35s") +\n	GetResourceString("UNLOAD OPTION STRINGS", Parameters.SequenceFile.Data.UnloadOpt) + "\\n"\n',
-      ); // Unload Option
-      ts.eval(
-        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELOPT"), "%-35s") +\n	GetResourceString("SF_MODEL_OPTIONS", Str(Parameters.SequenceFile.Data.ModelOption)) + "\\n"\n',
-      ); // Model Option
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_PATH'),
+            '%-35s',
+          ) +
+          '"' +
+          sequenceFile.Path +
+          '"\n'; // Path
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_VERSION'),
+            '%-35s',
+          ) +
+          sequenceFile.Data.Version +
+          '\n'; // Version
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_TYPE'),
+            '%-35s',
+          ) +
+          ts.stepHost.resourceString(
+            'SEQ_FILE_DOC',
+            fileGlobals.SequenceFileTypes[sequenceFile.Data.Type],
+          ) +
+          '\n'; // Type
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'),
+            '%-35s',
+          ) +
+          ts.stepHost.resourceString(
+            'LOAD OPTION STRINGS',
+            sequenceFile.Data.LoadOpt,
+          ) +
+          '\n'; // Load Option
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'),
+            '%-35s',
+          ) +
+          ts.stepHost.resourceString(
+            'UNLOAD OPTION STRINGS',
+            sequenceFile.Data.UnloadOpt,
+          ) +
+          '\n'; // Unload Option
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_MODELOPT'),
+            '%-35s',
+          ) +
+          ts.stepHost.resourceString(
+            'SF_MODEL_OPTIONS',
+            ts.str(sequenceFile.Data.ModelOption),
+          ) +
+          '\n'; // Model Option
       if (sequenceFile.Data.ModelOption == 2) {
         // precondition of Model File
-        ts.eval(
-          'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELFILE"), "%-35s") +\n	"\\"" + Parameters.SequenceFile.Data.ModelFile + "\\"\\n"\n',
-        ); // Model File
+        docResult +=
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQFILE_MODELFILE',
+              ),
+              '%-35s',
+            ) +
+            '"' +
+            sequenceFile.Data.ModelFile +
+            '"\n'; // Model File
       }
       if (ts.cond(
         'Parameters.SequenceFile.Data.BatchSync != 1 \' Use Model Setting (Default) - Only show if different from default',
       )) {
         // precondition of Default Batch Sync
-        ts.eval(
-          '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_DEFAULT_BATCH_SYNC"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC_BATCH_SYNC_NAMES", Str(Parameters.SequenceFile.Data.BatchSync)) + "\\n"\n',
-        ); // Default Batch Sync
+        docResult +=
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQFILE_DEFAULT_BATCH_SYNC',
+              ),
+              '%-35s',
+            ) +
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC_BATCH_SYNC_NAMES',
+              ts.str(sequenceFile.Data.BatchSync),
+            ) +
+            '\n'; // Default Batch Sync
       }
-      ts.eval(
-        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_SEQUENCES"), "%-35s") +\n	Str(GetNumElements(Parameters.SequenceFile.Data.Seq)) + "\\n"\n',
-      ); // Num Sequences
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_SEQFILE_NUM_SEQUENCES',
+            ),
+            '%-35s',
+          ) +
+          ts.str(ts.getNumElements(sequenceFile.Data.Seq)) +
+          '\n'; // Num Sequences
       // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
       final loop = ts.StepLoop();
       loop.index = 0; // loop initialize
@@ -154,9 +218,24 @@ Future<String> sequenceFileDoc({
       }
       updateTotalNumStepsResult.Status = 'Passed'; // loop status
       run.record(updateTotalNumStepsResult.Status);
-      ts.eval(
-        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_STEPS"), "%-35s") +\n	((FileGlobals.Locked && FileGlobals.Protection==2) ?\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_UNKNOWN") + \n	    " <" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_LOCKED") + \n	    ">"\n	:\n	    Str(Locals.TotalNumSteps)) \n	+"\\n"\n',
-      ); // Num Steps
+      docResult +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_NUM_STEPS'),
+            '%-35s',
+          ) +
+          (fileGlobals.Locked && fileGlobals.Protection == 2
+              ? ts.stepHost.resourceString(
+                      'SEQ_FILE_DOC',
+                      'DOC_SEQFILE_UNKNOWN',
+                    ) +
+                    ' <' +
+                    ts.stepHost.resourceString(
+                      'SEQ_FILE_DOC',
+                      'DOC_SEQFILE_LOCKED',
+                    ) +
+                    '>'
+              : ts.str(totalNumSteps)) +
+          '\n'; // Num Steps
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       final docResultRef = ts.Ref<String>(docResult);
       addRequirementsResult.Status = await writeRequirementsElements(
@@ -193,9 +272,13 @@ Future<String> sequenceFileDoc({
       }
       if (tmpNum > 0) {
         // precondition of Header
-        ts.eval(
-          'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQFILE_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-        ); // Header
+        docResult +=
+            '     ' +
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_GLOBALS') +
+            '\n' +
+            '     ' +
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+            '\n'; // Header
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (tmpNum > 0) {
@@ -235,9 +318,13 @@ Future<String> sequenceFileDoc({
     }
     if (tmpNum > 0) {
       // precondition of Header
-      ts.eval(
-        'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_STATION_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-      ); // Header
+      docResult +=
+          '     ' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STATION_GLOBALS') +
+          '\n' +
+          '     ' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+          '\n'; // Header
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     if (tmpNum > 0) {
@@ -359,29 +446,83 @@ Future<String> sequenceDoc({
       }
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
         // precondition of Comment
-        ts.eval(
-          'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT") +\n	"\\n" + Locals.tmpString + "\\n"\n',
-        ); // Comment
+        docResultRef.value +=
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT') +
+            '\n' +
+            tmpString +
+            '\n'; // Comment
       }
-      ts.eval(
-        '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_TYPE"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceTypes[Parameters.Sequence.RTS.Type]) + "\\n"\n',
-      ); // Type
-      ts.eval(
-        '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_DISABLE_RESULTS"), "%-35s") +\n	Str(!Parameters.Sequence.RecordResults) + "\\n"\n',
-      ); // Record Results
-      ts.eval(
-        'Parameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_GOTO_CLEANUP_ON_FAIL"), "%-35s") +\n	(Parameters.Sequence.FailureAction==0?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_NONE"):(Parameters.Sequence.FailureAction==1?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_GOTO_CLEANUP"):GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_USE_STATION_OPTION"))) + "\\n"\n',
-      ); // Cleanup On Fail
+      docResultRef.value +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_TYPE'),
+            '%-35s',
+          ) +
+          ts.stepHost.resourceString(
+            'SEQ_FILE_DOC',
+            fileGlobals.SequenceTypes[sequence.RTS.Type],
+          ) +
+          '\n'; // Type
+      docResultRef.value +=
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_DISABLE_RESULTS'),
+            '%-35s',
+          ) +
+          ts.str(!ts.truthy(sequence.RecordResults)) +
+          '\n'; // Record Results
+      docResultRef.value +=
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_SEQ_GOTO_CLEANUP_ON_FAIL',
+            ),
+            '%-35s',
+          ) +
+          (sequence.FailureAction == 0
+              ? ts.stepHost.resourceString(
+                  'SEQUENCE_PROP_DLG',
+                  'STEP_FAILURE_ACTION_NONE',
+                )
+              : (sequence.FailureAction == 1
+                    ? ts.stepHost.resourceString(
+                        'SEQUENCE_PROP_DLG',
+                        'STEP_FAILURE_ACTION_GOTO_CLEANUP',
+                      )
+                    : ts.stepHost.resourceString(
+                        'SEQUENCE_PROP_DLG',
+                        'STEP_FAILURE_ACTION_USE_STATION_OPTION',
+                      ))) +
+          '\n'; // Cleanup On Fail
       if (!fileGlobals.Locked || fileGlobals.Protection != 2) {
-        ts.eval(
-          '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_SETUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Setup)) + "\\n"\n',
-        ); // Num Setup Steps
-        ts.eval(
-          '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_MAIN_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Main)) + "\\n"\n',
-        ); // Num Main Steps
-        ts.eval(
-          '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
-        ); // Num Cleanup Steps
+        docResultRef.value +=
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQ_NUM_SETUP_STEPS',
+              ),
+              '%-35s',
+            ) +
+            ts.str(ts.getNumElements(sequence.Setup)) +
+            '\n'; // Num Setup Steps
+        docResultRef.value +=
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQ_NUM_MAIN_STEPS',
+              ),
+              '%-35s',
+            ) +
+            ts.str(ts.getNumElements(sequence.Main)) +
+            '\n'; // Num Main Steps
+        docResultRef.value +=
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQ_NUM_CLEANUP_STEPS',
+              ),
+              '%-35s',
+            ) +
+            ts.str(ts.getNumElements(sequence.Cleanup)) +
+            '\n'; // Num Cleanup Steps
         // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
         final docResultRef2 = ts.Ref<String>(docResultRef.value);
         addRequirementsResult.Status = await writeRequirementsElements(
@@ -419,9 +560,13 @@ Future<String> sequenceDoc({
       }
       if (tmpNum > 0) {
         // precondition of Header
-        ts.eval(
-          'Parameters.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQ_PARAMS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-        ); // Header
+        docResultRef.value +=
+            '     ' +
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_PARAMS') +
+            '\n' +
+            '     ' +
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+            '\n'; // Header
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (tmpNum > 0) {
@@ -458,9 +603,13 @@ Future<String> sequenceDoc({
     }
     if (tmpNum > 0) {
       // precondition of Header
-      ts.eval(
-        'Parameters.DocResult += "     " +ResStr("SEQ_FILE_DOC", "DOC_SEQ_LOCALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-      ); // Header
+      docResultRef.value +=
+          '     ' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_LOCALS') +
+          '\n' +
+          '     ' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+          '\n'; // Header
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     if (tmpNum > 0) {
@@ -487,9 +636,13 @@ Future<String> sequenceDoc({
       ts.getNumElements(sequence.Cleanup); // CalcNumSteps
   if (ts.getNumElements(sequence.Setup) > 0) {
     // precondition of Setup Steps Header
-    ts.eval(
-      'Parameters.DocResult += "     " + GetResourceString("EXECUTION PHASE", "Setup") + "\\n" +\n	"     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Setup Steps Header
+    docResultRef.value +=
+        '     ' +
+        ts.stepHost.resourceString('EXECUTION PHASE', 'Setup') +
+        '\n' +
+        '     ' +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+        '\n'; // Setup Steps Header
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Setup); increment RunState.LoopIndex += 1; status "Passed"
@@ -514,9 +667,13 @@ Future<String> sequenceDoc({
   run.record(forEachSetupStepResult.Status);
   if (ts.getNumElements(sequence.Main) > 0) {
     // precondition of Main Steps Header
-    ts.eval(
-      'Parameters.DocResult += "     " + GetResourceString("EXECUTION PHASE", "MainSteps") + "\\n" +\n	"     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Main Steps Header
+    docResultRef.value +=
+        '     ' +
+        ts.stepHost.resourceString('EXECUTION PHASE', 'MainSteps') +
+        '\n' +
+        '     ' +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+        '\n'; // Main Steps Header
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Main); increment RunState.LoopIndex += 1; status "Passed"
@@ -541,9 +698,13 @@ Future<String> sequenceDoc({
   run.record(forEachMainStepResult.Status);
   if (ts.getNumElements(sequence.Cleanup) > 0) {
     // precondition of Cleanup Steps Header
-    ts.eval(
-      'Parameters.DocResult += "     " + GetResourceString("EXECUTION PHASE", "Cleanup") + "\\n" +\n	"     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Cleanup Steps Header
+    docResultRef.value +=
+        '     ' +
+        ts.stepHost.resourceString('EXECUTION PHASE', 'Cleanup') +
+        '\n' +
+        '     ' +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+        '\n'; // Cleanup Steps Header
   }
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Cleanup); increment RunState.LoopIndex += 1; status "Passed"
@@ -648,8 +809,9 @@ Future<String> stepDoc({
     throw UnimplementedError(
       'cModule call: GetStepKeyName',
     ); // GetStepKeyName [Action]
-    ts.eval(
-      'Locals.tmpString = GetResourceString("Adapter Names", Locals.StepKeyName)',
+    tmpString = ts.stepHost.resourceString(
+      'Adapter Names',
+      stepKeyName,
     ); // Process Adapter Name
     ts.eval(
       'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-35s") +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
@@ -662,9 +824,12 @@ Future<String> stepDoc({
     throw UnimplementedError(
       'cModule call: WordWrapDesc',
     ); // WordWrapDesc [Action]
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DESC") + "\\n" + Locals.tmpString + "\\n"\n',
-    ); // Step Description
+    stepDocs +=
+        doubleIndent +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC') +
+        '\n' +
+        tmpString +
+        '\n'; // Step Description
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
       // precondition of WordWrapComment
       throw UnimplementedError(
@@ -673,9 +838,12 @@ Future<String> stepDoc({
     }
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
       // precondition of Comment
-      ts.eval(
-        'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMMENT") + "\\n" + Locals.tmpString + "\\n"\n',
-      ); // Comment
+      stepDocs +=
+          doubleIndent +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMMENT') +
+          '\n' +
+          tmpString +
+          '\n'; // Comment
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     final docResultRef2 = ts.Ref<String>(stepDocs);
@@ -704,33 +872,83 @@ Future<String> stepDoc({
       'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
     )) {
       // precondition of InBuf
-      ts.eval(
-        'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_INBUF") + "\\n" + Locals.tmpString + "\\n"\n',
-      ); // InBuf
+      stepDocs +=
+          doubleIndent +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_INBUF') +
+          '\n' +
+          tmpString +
+          '\n'; // InBuf
     }
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-35s") + GetResourceString("LOAD OPTION STRINGS", Parameters.Step.TS.LoadOpt) + "\\n"\n',
-    ); // Load Option
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-35s") +	GetResourceString("UNLOAD OPTION STRINGS", Parameters.Step.TS.UnloadOpt) + "\\n"\n',
-    ); // Unload Option
+    stepDocs +=
+        doubleIndent +
+        ts.str(
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'),
+          '%-35s',
+        ) +
+        ts.stepHost.resourceString('LOAD OPTION STRINGS', step$.TS.LoadOpt) +
+        '\n'; // Load Option
+    stepDocs +=
+        doubleIndent +
+        ts.str(
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'),
+          '%-35s',
+        ) +
+        ts.stepHost.resourceString(
+          'UNLOAD OPTION STRINGS',
+          step$.TS.UnloadOpt,
+        ) +
+        '\n'; // Unload Option
     if (step$.TS.ResultOption != 1) {
       // precondition of Record Results
-      ts.eval(
-        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_RECORD_RESULTS"), "%-35s") + \n(Parameters.Step.TS.ResultOption== 0?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_DISABLED")):(Parameters.Step.TS.ResultOption == 1?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED")):(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING"))))  + "\\n"\n',
-      ); // Record Results
+      stepDocs +=
+          doubleIndent +
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_STEP_RECORD_RESULTS',
+            ),
+            '%-35s',
+          ) +
+          (step$.TS.ResultOption == 0
+              ? ts.stepHost.resourceString(
+                  'STEP_PROP_DLG',
+                  'RESULT_RECORDING_OPTION_DISABLED',
+                )
+              : (step$.TS.ResultOption == 1
+                    ? ts.stepHost.resourceString(
+                        'STEP_PROP_DLG',
+                        'RESULT_RECORDING_OPTION_ENABLED',
+                      )
+                    : ts.stepHost.resourceString(
+                        'STEP_PROP_DLG',
+                        'RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING',
+                      ))) +
+          '\n'; // Record Results
     }
     if (!ts.truthy(step$.TS.StepFCSeqF)) {
       // precondition of Step Fail Causes Seq Fail
-      ts.eval(
-        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_STEP_FAIL_SEQ_FAIL"), "%-35s") + Str(Parameters.Step.TS.StepFCSeqF) + "\\n"\n',
-      ); // Step Fail Causes Seq Fail
+      stepDocs +=
+          doubleIndent +
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_STEP_STEP_FAIL_SEQ_FAIL',
+            ),
+            '%-35s',
+          ) +
+          ts.str(step$.TS.StepFCSeqF) +
+          '\n'; // Step Fail Causes Seq Fail
     }
     if (ts.truthy(step$.TS.IgnoreRTE)) {
       // precondition of Ignore Run-Time Error
-      ts.eval(
-        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_IGNORE_RTE"), "%-35s") + Str(Parameters.Step.TS.IgnoreRTE) + "\\n"\n',
-      ); // Ignore Run-Time Error
+      stepDocs +=
+          doubleIndent +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_IGNORE_RTE'),
+            '%-35s',
+          ) +
+          ts.str(step$.TS.IgnoreRTE) +
+          '\n'; // Ignore Run-Time Error
     }
     // goto -> --- Begin of Multiple Limits ---
     if (ts.cond('PropertyExists("Parameters.Step.Result.Measurement")')) {
@@ -746,9 +964,12 @@ Future<String> stepDoc({
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       // precondition of String Limit
-      ts.eval(
-        'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_STRING") + "\\n" + Locals.tmpString + "\\n"\n',
-      ); // String Limit
+      stepDocs +=
+          doubleIndent +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_STRING') +
+          '\n' +
+          tmpString +
+          '\n'; // String Limit
     }
     if (ts.cond('PropertyExists("Parameters.Step.DataSource")')) {
       // precondition of Data Source
@@ -792,9 +1013,15 @@ Future<String> stepDoc({
   }
   if (execFlow != '') {
     // precondition of Execution Flow
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_EXEC_FLOW"), "%-35s") + "\\n" + Locals.tmpString + "\\n"\n',
-    ); // Execution Flow
+    stepDocs +=
+        doubleIndent +
+        ts.str(
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_EXEC_FLOW'),
+          '%-35s',
+        ) +
+        '\n' +
+        tmpString +
+        '\n'; // Execution Flow
   }
   stepDocs += '\n'; // Step Footer
   docResultRef.value += stepDocs; // Append Step Docs
@@ -993,9 +1220,15 @@ Future<String> writeArrayElements({
       }
     }
     // label: --- Max Num Array Elements Msg ---
-    ts.eval(
-      'Parameters.DocResult += "     " +\n	Parameters.ArrayPropLookupStr + "[...] --- " +\nResStr("SEQ_FILE_DOC", "DOC_MAX_ARRAY_DISPLAY_EXCEEDED")  + "\\n"\n',
-    ); // Add Max Exceeded Msg
+    docResultRef.value +=
+        '     ' +
+        arrayPropLookupStr +
+        '[...] --- ' +
+        ts.stepHost.resourceString(
+          'SEQ_FILE_DOC',
+          'DOC_MAX_ARRAY_DISPLAY_EXCEEDED',
+        ) +
+        '\n'; // Add Max Exceeded Msg
   }
 
   return run.status;
@@ -1108,9 +1341,14 @@ Future<String> writePropertyDetails({
   //   lookupString <- Parameters.PropertyToDisplayName
   //   options <- 0
   throw UnimplementedError('cModule call: GetFlags'); // GetFlags [Action]
-  ts.eval(
-    '(Locals.SubpropFlags & 0x4) ? ( Locals.ByRefStr = " - " + ResStr("SEQUENCING ADAPTER", "PASS_BYREFERENCE") ) : ( Locals.ByRefStr = "" )',
-  ); // IsByRef
+  subpropFlags & 4 != 0
+      ? (byRefStr =
+            ' - ' +
+            ts.stepHost.resourceString(
+              'SEQUENCING ADAPTER',
+              'PASS_BYREFERENCE',
+            ))
+      : (byRefStr = ''); // IsByRef
   docResultRef.value +=
       '     ' +
       ts.str(
@@ -1181,9 +1419,14 @@ Future<String> writeMultipleNumericLimitLimits({
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp")',
       )) {
         // precondition of Comparison Type
-        ts.eval(
-          'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMP_TYPE"), "%-35s") + Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp + "\\n"',
-        ); // Comparison Type
+        docResultRef.value +=
+            doubleIndent +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMP_TYPE'),
+              '%-35s',
+            ) +
+            step$.Result.Measurement[currentOffset].Comp +
+            '\n'; // Comparison Type
       }
       if (ts.cond(
         '#NoValidation(\nAllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp"), PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), AnyOf(Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "EQ", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "NE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LE"))\n)',
@@ -1213,25 +1456,51 @@ Future<String> writeMultipleNumericLimitLimits({
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',
       )) {
         // precondition of Low Limit
-        ts.eval(
-          '\nParameters.DocResult += Parameters.DoubleIndent + Str( (Locals.OneLimitOnly ? ResStr("SEQ_FILE_DOC", "DOC_STEP_LIMIT") : ResStr("SEQ_FILE_DOC", "DOC_STEP_LIMIT_LOW")), "%-35s") + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.Low, Locals.LowLimitFmt ) + "\\n"\n',
-        ); // Low Limit
+        docResultRef.value +=
+            doubleIndent +
+            ts.str(
+              oneLimitOnly
+                  ? ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT')
+                  : ts.stepHost.resourceString(
+                      'SEQ_FILE_DOC',
+                      'DOC_STEP_LIMIT_LOW',
+                    ),
+              '%-35s',
+            ) +
+            ts.str(
+              step$.Result.Measurement[currentOffset].Limits.Low,
+              lowLimitFmt,
+            ) +
+            '\n'; // Low Limit
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG", !Locals.OneLimitOnly))',
       )) {
         // precondition of High Limit
-        ts.eval(
-          '\nParameters.DocResult +=Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_HIGH"), "%-35s") + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.High, Locals.HighLimitFmt ) + "\\n"\n',
-        ); // High Limit
+        docResultRef.value +=
+            doubleIndent +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_HIGH'),
+              '%-35s',
+            ) +
+            ts.str(
+              step$.Result.Measurement[currentOffset].Limits.High,
+              highLimitFmt,
+            ) +
+            '\n'; // High Limit
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Units"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units != ""))',
       )) {
         // precondition of Units
-        ts.eval(
-          'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_UNITS"), "%-35s") + Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units + "\\n"',
-        ); // Units
+        docResultRef.value +=
+            doubleIndent +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_UNITS'),
+              '%-35s',
+            ) +
+            step$.Result.Measurement[currentOffset].Units +
+            '\n'; // Units
       }
       if (ts.cond(
         'AllOf(PropertyExists("Parameters.Step.DataSourceArray[" + Str(Locals.CurrentOffset) + "]"), Parameters.Step.UseIndividualDataSources)',
@@ -1251,9 +1520,16 @@ Future<String> writeMultipleNumericLimitLimits({
   // label: --- After Loop ---
   if (numElements > 0) {
     // precondition of Footer
-    ts.eval(
-      'Parameters.DocResult +=Parameters.DoubleIndent + ResStr("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" + Parameters.DoubleIndent + ResStr("SEQ_FILE_DOC", "END_OF_MEAS_LBL") + "\\n" + Parameters.DoubleIndent + ResStr("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Footer
+    docResultRef.value +=
+        doubleIndent +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+        '\n' +
+        doubleIndent +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'END_OF_MEAS_LBL') +
+        '\n' +
+        doubleIndent +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER_SEPARATOR') +
+        '\n'; // Footer
   }
   if (ts.cond(
     '#NoValidation(AllOf(PropertyExists("Parameters.Step.DataSource"), !Parameters.Step.UseIndividualDataSources, Locals.NumElements > 0))',
@@ -1292,9 +1568,15 @@ Future<String> writeRequirementsElements({
     throw UnimplementedError(
       'cModule call: WordWrapInBuf',
     ); // WordWrapInBuf [Action]
-    ts.eval(
-      'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_REQUIREMENTS"),"%-30s") + "\\n" +Locals.tmpString + "\\n"',
-    ); // Requirements
+    docResultRef.value +=
+        doubleIndent +
+        ts.str(
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'),
+          '%-30s',
+        ) +
+        '\n' +
+        tmpString +
+        '\n'; // Requirements
   }
 
   return run.status;
@@ -1339,6 +1621,7 @@ void register() {
   //   cModule call: GetLocked?
   //   cModule call: GetProtection?
   //   untranslated expression in body
+  //   resource strings through ts.stepHost (needs a host)
   //   cModule call: WordWrapComment
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg

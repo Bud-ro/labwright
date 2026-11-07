@@ -427,11 +427,13 @@ Future<String> reservedModelPluginConfigureAdditionalOptions({
   // popup buttons: "OK"
   // Replace this step with a call to your additional options dialog [MessagePopup]: acts through ts.stepHost
   final popup = await ts.stepHost.messagePopup(
-    title: ts.eval(
-      'ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_TITLE")',
+    title: ts.stepHost.resourceString(
+      'PLUGIN_TEMPLATE',
+      'ADDITIONAL_OPTIONS_DIALOG_TITLE',
     ),
-    message: ts.eval(
-      'ResStr("PLUGIN_TEMPLATE", "ADDITIONAL_OPTIONS_DIALOG_MESSAGE")',
+    message: ts.stepHost.resourceString(
+      'PLUGIN_TEMPLATE',
+      'ADDITIONAL_OPTIONS_DIALOG_MESSAGE',
     ),
     buttons: ['OK', '', '', '', '', ''],
   );
@@ -907,7 +909,7 @@ void register() {
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type MessagePopup acts through ts.stepHost
-  //   untranslated expression in body
+  //   resource strings through ts.stepHost (needs a host)
   //   root parameter 'ProcessModel' is an engine object (nothing binds it when run as a test)
   //   root parameter 'ModelPlugin' is an engine object (nothing binds it when run as a test)
   lw.skipTest(

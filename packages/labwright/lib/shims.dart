@@ -36,8 +36,10 @@ Object? setNumElements(Object? v, Object? n, [Object? a]) {
 }
 
 String str(Object? v, [Object? f1, Object? f2, Object? f3]) {
-  if (f1 != null || f2 != null || f3 != null) {
-    throw UnimplementedError('Str with format options');
+  if (f2 != null || f3 != null) throw UnimplementedError('Str with localization or escaping options');
+  if (f1 != null) {
+    if (f1 is! String) throw UnimplementedError('Str with a ${f1.runtimeType} format');
+    return printf(f1, v);
   }
   if (v is! num) return v.toString();
   if ((v is int || v == v.roundToDouble()) && v.abs() < 9007199254740992) {
@@ -49,6 +51,64 @@ String str(Object? v, [Object? f1, Object? f2, Object? f3]) {
     if (text.endsWith('.')) text = text.substring(0, text.length - 1);
   }
   return text;
+}
+
+final _conversion = RegExp(r'%([-+ 0#]*)(\d+)?(?:\.(\d+))?([diufeExXos%])');
+
+/// [format] with each C printf conversion replaced by [value]; a conversion outside d, i, u, f, e, E, x, X, o, s
+/// and %% raises.
+String printf(String format, Object? value) {
+  if (format.replaceAll(_conversion, '').contains('%')) throw UnimplementedError('printf format $format');
+  return format.replaceAllMapped(_conversion, (m) {
+    final flags = m[1]!;
+    final width = int.tryParse(m[2] ?? '') ?? 0;
+    final precision = int.tryParse(m[3] ?? '');
+    final conversion = m[4]!;
+    if (conversion == '%') return '%';
+    String body;
+    var sign = '';
+    num number() => value is num ? value : throw UnimplementedError('printf %$conversion of ${value.runtimeType}');
+    switch (conversion) {
+      case 'd' || 'i' || 'u':
+        final n = number().truncate();
+        if (conversion == 'u' && n < 0) throw UnimplementedError('printf %u of a negative number');
+        body = n.abs().toString().padLeft(precision ?? 1, '0');
+        if (n < 0) sign = '-';
+      case 'x' || 'X' || 'o':
+        final n = number().truncate();
+        if (n < 0) throw UnimplementedError('printf %$conversion of a negative number');
+        body = n.toRadixString(conversion == 'o' ? 8 : 16).padLeft(precision ?? 1, '0');
+        if (conversion == 'X') body = body.toUpperCase();
+        if (flags.contains('#') && n != 0) body = conversion == 'o' ? '0$body' : '0$conversion$body';
+      case 'f':
+        final n = number();
+        body = n.abs().toStringAsFixed(precision ?? 6);
+        if (n < 0) sign = '-';
+      case 'e' || 'E':
+        final n = number();
+        final text = n.abs().toStringAsExponential(precision ?? 6);
+        final cut = text.indexOf('e');
+        final exponent = text.substring(cut + 2).padLeft(2, '0');
+        body = '${text.substring(0, cut)}e${text[cut + 1]}$exponent';
+        if (conversion == 'E') body = body.toUpperCase();
+        if (n < 0) sign = '-';
+      default:
+        body = value is String ? value : str(value);
+        if (precision != null && body.length > precision) body = body.substring(0, precision);
+    }
+    if (sign.isEmpty && 'difeE'.contains(conversion)) {
+      if (flags.contains('+')) {
+        sign = '+';
+      } else if (flags.contains(' ')) {
+        sign = ' ';
+      }
+    }
+    final padding = width - sign.length - body.length;
+    if (padding <= 0) return '$sign$body';
+    if (flags.contains('-')) return '$sign$body${' ' * padding}';
+    final zeroPad = flags.contains('0') && conversion != 's' && !(precision != null && 'diuxXo'.contains(conversion));
+    return zeroPad ? '$sign${'0' * padding}$body' : '${' ' * padding}$sign$body';
+  });
 }
 
 String left(Object? s, Object? n) => _clip(s, n, fromLeft: true);
@@ -250,8 +310,8 @@ Never terminate() => throw const SequenceTermination();
 /// What the host answers for a message popup step: the 1-based button pressed and the text entered.
 typedef PopupResponse = ({double buttonHit, String response});
 
-/// The operations an exported sequence can only perform through its host: dialogs and the step types whose
-/// substeps the engine or a vendor implements. The default, [UnavailableStepHost], raises [StepHostUnavailable] naming the
+/// The operations an exported sequence can only perform through its host: dialogs, localized resource strings,
+/// and the step types whose substeps the engine or a vendor implements. The default, [UnavailableStepHost], raises [StepHostUnavailable] naming the
 /// operation; a host installs its own by assigning [stepHost].
 abstract class StepHost {
   const StepHost();
@@ -263,6 +323,7 @@ abstract class StepHost {
     Object? defaultResponse,
   });
   Future<void> runStepType(String stepType, StepPhase phase, Object? step, Object? result);
+  String resourceString(Object? category, Object? tag);
 }
 
 /// When a step type acts: its Pre substeps run before the step's code module, its Post substeps after it.
@@ -287,6 +348,8 @@ final class UnavailableStepHost extends StepHost {
     bool showResponse = false,
     Object? defaultResponse,
   }) => throw StepHostUnavailable('MessagePopup');
+  @override
+  String resourceString(Object? category, Object? tag) => throw StepHostUnavailable('resource string $category/$tag');
   @override
   Future<void> runStepType(String stepType, StepPhase phase, Object? step, Object? result) =>
       throw StepHostUnavailable('$stepType ${phase.name}');

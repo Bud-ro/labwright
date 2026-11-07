@@ -1049,7 +1049,13 @@ enum _SeqFunction {
   evaluate('Evaluate', '', 1, 1, _DartSlot.untyped),
 
   /// The name of a property; lowered for the executing step.
-  nameOf('NameOf', '', 1, 1, _DartSlot.text);
+  nameOf('NameOf', '', 1, 1, _DartSlot.text),
+
+  /// A localized string from the engine's resource files, by category and tag; asked of the host.
+  resStr('ResStr', 'resourceString', 2, 2, _DartSlot.text),
+
+  /// A localized string from the engine's resource files, by category and tag; asked of the host.
+  getResourceString('GetResourceString', 'resourceString', 2, 2, _DartSlot.text);
 
   const _SeqFunction(this.name, this.dart, this.minArgs, this.maxArgs, this.result);
   final String name;
@@ -1248,6 +1254,7 @@ class _DartExporter {
     RegExp(r'ts\.(?:eval|cond)\('): 'untranslated expression in body',
     RegExp(r'(?<![\w\$.])runState(?![\w\$])'): 'RunState engine access (no engine at run time)',
     RegExp(r'(?<![\w\$.])step\.'): 'Step engine access (no engine at run time)',
+    RegExp(r'ts\.stepHost\.resourceString\('): 'resource strings through ts.stepHost (needs a host)',
   };
 
   static final _stationWrite = RegExp(r'(?<![\w\$.])stationGlobals\.\w+\s*=(?![=])');
@@ -1546,6 +1553,19 @@ class _DartExporter {
     }
   }
 
+  _Code? _runStateName(SeqMember e) {
+    final owner = e.target;
+    if (e.name.toLowerCase() != 'name' || owner is! SeqMember) return null;
+    final root = owner.target;
+    if (root is! SeqName || root.name.toLowerCase() != 'runstate') return null;
+    final name = switch (owner.name.toLowerCase()) {
+      'sequence' => _sequence?.name,
+      'step' => _foldStep?.name,
+      _ => null,
+    };
+    return name == null ? null : (code: "'${_escape(name)}'", type: _DartSlot.text, prec: _Prec.primary);
+  }
+
   _Code? _stepResultRef(SeqIndex e) {
     final sequence = _sequence;
     final group = e.target;
@@ -1589,7 +1609,7 @@ class _DartExporter {
       case SeqName() || SeqSequence():
         return null;
       case SeqMember(:final target, :final name):
-        final folded = _foldedStepProperty(e);
+        final folded = _foldedStepProperty(e) ?? _runStateName(e);
         if (folded != null) return folded;
         if (target is SeqIndex && name.toLowerCase() == 'result') {
           final ref = _stepResultRef(target);
@@ -1819,7 +1839,11 @@ class _DartExporter {
     if (function == _SeqFunction.random && codes.any((c) => !_isNumeric(c.type) && c.type != _DartSlot.untyped)) {
       return null;
     }
-    final name = function == _SeqFunction.random && asTest ? 'lw.rand' : 'ts.${function.dart}';
+    final name = switch (function) {
+      _SeqFunction.random when asTest => 'lw.rand',
+      _SeqFunction.resStr || _SeqFunction.getResourceString => 'ts.stepHost.${function.dart}',
+      _ => 'ts.${function.dart}',
+    };
     return (code: '$name(${codes.map((c) => c.code).join(', ')})', type: function.result, prec: _Prec.primary);
   }
 

@@ -82,12 +82,17 @@ Future<String> sequenceFileDoc({
       throw UnimplementedError(
         'cModule call: GetCharsetMetaTag',
       ); // GetCharsetMetaTag [Action]
-      ts.eval(
-        'Locals.DocResult += "<!DOCTYPE HTML PUBLIC \\"-//W3C//DTD HTML 3.2//EN\\"><HTML><HEAD> " + Locals.CharsetMetaTag + " <TITLE>" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_TITLE") + "</TITLE></HEAD><BODY><FONT FACE = \\"VERDANA\\">"',
-      ); // Begin HTML
-      ts.eval(
-        'Locals.DocResult += "<H2>" + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER") + "</H2>\\n" +\n	"<H4><TABLE BORDERCOLOR=#000000 FRAME=VOID><TBODY>"',
-      ); // Begin Main Header
+      docResult +=
+          '<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 3.2//EN"><HTML><HEAD> ' +
+          charsetMetaTag +
+          ' <TITLE>' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_TITLE') +
+          '</TITLE></HEAD><BODY><FONT FACE = "VERDANA">'; // Begin HTML
+      docResult +=
+          '<H2>' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_HEADER') +
+          '</H2>\n' +
+          '<H4><TABLE BORDERCOLOR=#000000 FRAME=VOID><TBODY>'; // Begin Main Header
       ts.eval(
         'Locals.DocResult += "<TR><TD NOWRAP><B><LI>" + GetResourceString("SEQ_FILE_DOC", "DOC_DATE") + "</B></TD><TD><B>" +\n	Date(true) + "</B></TD>\\n" +\n	"<TR><TD NOWRAP><B><LI>" + GetResourceString("SEQ_FILE_DOC", "DOC_TIME") + "</B></TD><TD><B>" +\n	Time() + "</B></TD></TR>\\n"',
       ); // Date and Time
@@ -110,45 +115,136 @@ Future<String> sequenceFileDoc({
       ); // ProcessComment (cont.)
       if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
         // precondition of Comment
-        ts.eval(
-          'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT"), "%-30s") +\n	Locals.ValColHTML + Locals.tmpString + "\\n"\n',
-        ); // Comment
+        docResult +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT'),
+              '%-30s',
+            ) +
+            valColHtml +
+            tmpString +
+            '\n'; // Comment
       }
-      ts.eval(
-        'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_PATH"), "%-30s") +\n	Locals.ValColHTML +\n	Parameters.SequenceFile.Path + "\\n"\n',
-      ); // Path
-      ts.eval(
-        'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_VERSION"), "%-30s") +\n	Locals.ValColHTML +\n	Parameters.SequenceFile.Data.Version + "\\n"\n',
-      ); // Version
-      ts.eval(
-        '\nLocals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_TYPE"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceFileTypes[Parameters.SequenceFile.Data.Type]) + "\\n"\n',
-      ); // Type
-      ts.eval(
-        'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("LOAD OPTION STRINGS", Parameters.SequenceFile.Data.LoadOpt) + "\\n"\n',
-      ); // Load Option
-      ts.eval(
-        'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("UNLOAD OPTION STRINGS", Parameters.SequenceFile.Data.UnloadOpt) + "\\n"\n',
-      ); // Unload Option
-      ts.eval(
-        '\nLocals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELOPT") +\n	Locals.ValColHTML +\n	GetResourceString("SF_MODEL_OPTIONS", Str(Parameters.SequenceFile.Data.ModelOption)) + "\\n"\n',
-      ); // Model Option
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_PATH'),
+            '%-30s',
+          ) +
+          valColHtml +
+          sequenceFile.Path +
+          '\n'; // Path
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_VERSION'),
+            '%-30s',
+          ) +
+          valColHtml +
+          sequenceFile.Data.Version +
+          '\n'; // Version
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_TYPE'),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.stepHost.resourceString(
+            'SEQ_FILE_DOC',
+            fileGlobals.SequenceFileTypes[sequenceFile.Data.Type],
+          ) +
+          '\n'; // Type
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_LOAD_OPTION'),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.stepHost.resourceString(
+            'LOAD OPTION STRINGS',
+            sequenceFile.Data.LoadOpt,
+          ) +
+          '\n'; // Load Option
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_UNLOAD_OPTION'),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.stepHost.resourceString(
+            'UNLOAD OPTION STRINGS',
+            sequenceFile.Data.UnloadOpt,
+          ) +
+          '\n'; // Unload Option
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_MODELOPT') +
+          valColHtml +
+          ts.stepHost.resourceString(
+            'SF_MODEL_OPTIONS',
+            ts.str(sequenceFile.Data.ModelOption),
+          ) +
+          '\n'; // Model Option
       if (sequenceFile.Data.ModelOption == 2) {
         // precondition of Model File
-        ts.eval(
-          'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELFILE"), "%-30s") +\n	Locals.ValColHTML +\n	Parameters.SequenceFile.Data.ModelFile + "\\n"\n',
-        ); // Model File
+        docResult +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQFILE_MODELFILE',
+              ),
+              '%-30s',
+            ) +
+            valColHtml +
+            sequenceFile.Data.ModelFile +
+            '\n'; // Model File
       }
       if (ts.cond(
         'Parameters.SequenceFile.Data.BatchSync != 1 \' Use Model Setting (Default) - Only show if different from default',
       )) {
         // precondition of Default Batch Sync
-        ts.eval(
-          '\nLocals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_DEFAULT_BATCH_SYNC"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("SEQ_FILE_DOC_BATCH_SYNC_NAMES", Str(Parameters.SequenceFile.Data.BatchSync)) + "\\n"\n',
-        ); // Default Batch Sync
+        docResult +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQFILE_DEFAULT_BATCH_SYNC',
+              ),
+              '%-30s',
+            ) +
+            valColHtml +
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC_BATCH_SYNC_NAMES',
+              ts.str(sequenceFile.Data.BatchSync),
+            ) +
+            '\n'; // Default Batch Sync
       }
-      ts.eval(
-        '\nLocals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_SEQUENCES"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.SequenceFile.Data.Seq)) + "\\n"\n',
-      ); // Num Sequences
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_SEQFILE_NUM_SEQUENCES',
+            ),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.str(ts.getNumElements(sequenceFile.Data.Seq)) +
+          '\n'; // Num Sequences
       // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
       final loop = ts.StepLoop();
       loop.index = 0; // loop initialize
@@ -172,9 +268,28 @@ Future<String> sequenceFileDoc({
       }
       updateTotalNumStepsResult.Status = 'Passed'; // loop status
       run.record(updateTotalNumStepsResult.Status);
-      ts.eval(
-        'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	((FileGlobals.Locked && FileGlobals.Protection==2) ?\n	    "<b><i>" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_UNKNOWN") + \n	    " &lt;" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_LOCKED") + \n	    "&gt;</i></b>"\n	:\n	    Str(Locals.TotalNumSteps)) \n	+"\\n"\n',
-      ); // Num Steps
+      docResult +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_NUM_STEPS'),
+            '%-30s',
+          ) +
+          valColHtml +
+          (fileGlobals.Locked && fileGlobals.Protection == 2
+              ? '<b><i>' +
+                    ts.stepHost.resourceString(
+                      'SEQ_FILE_DOC',
+                      'DOC_SEQFILE_UNKNOWN',
+                    ) +
+                    ' &lt;' +
+                    ts.stepHost.resourceString(
+                      'SEQ_FILE_DOC',
+                      'DOC_SEQFILE_LOCKED',
+                    ) +
+                    '&gt;</i></b>'
+              : ts.str(totalNumSteps)) +
+          '\n'; // Num Steps
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (!(fileGlobals.Locked && fileGlobals.Protection == 2)) {
         // precondition of Process Requirements
@@ -213,9 +328,13 @@ Future<String> sequenceFileDoc({
       }
       if (tmpNum > 0) {
         // precondition of Header
-        ts.eval(
-          'Locals.DocResult += Locals.TableHTML + Locals.RowHTML+\n"<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>" +\n	"<FONT COLOR=WHITE>" +\n	ResStr("SEQ_FILE_DOC", "DOC_SEQFILE_GLOBALS")  + "</FONT>\\n"',
-        ); // Header
+        docResult +=
+            tableHtml +
+            rowHtml +
+            '<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>' +
+            '<FONT COLOR=WHITE>' +
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQFILE_GLOBALS') +
+            '</FONT>\n'; // Header
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (tmpNum > 0) {
@@ -255,9 +374,14 @@ Future<String> sequenceFileDoc({
     }
     if (tmpNum > 0) {
       // precondition of Header
-      ts.eval(
-        'Locals.DocResult += "<p>" + Locals.TableHTML + Locals.RowHTML+\n"<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>" +\n	"<FONT COLOR=WHITE>" +\n	ResStr("SEQ_FILE_DOC", "DOC_STATION_GLOBALS")  + "</FONT>\\n"',
-      ); // Header
+      docResult +=
+          '<p>' +
+          tableHtml +
+          rowHtml +
+          '<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>' +
+          '<FONT COLOR=WHITE>' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STATION_GLOBALS') +
+          '</FONT>\n'; // Header
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     if (tmpNum > 0) {
@@ -393,29 +517,106 @@ Future<String> sequenceDoc({
       ); // ProcessComment (cont.)
       if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
         // precondition of Comment
-        ts.eval(
-          'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT"), "%-30s") +\n	Locals.ValColHTML + Locals.tmpString + "\\n"\n',
-        ); // Comment
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_COMMENT'),
+              '%-30s',
+            ) +
+            valColHtml +
+            tmpString +
+            '\n'; // Comment
       }
-      ts.eval(
-        '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_TYPE"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceTypes[Parameters.Sequence.RTS.Type]) + "\\n"\n',
-      ); // Type
-      ts.eval(
-        '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_DISABLE_RESULTS"), "%-30s") +\n	Locals.ValColHTML +\n	Str(!Parameters.Sequence.RecordResults) + "\\n"\n',
-      ); // Record Results
-      ts.eval(
-        'Parameters.DocResult +=  Locals.RowHTML+ Locals.PropColHTML + Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_GOTO_CLEANUP_ON_FAIL"), "%-35s") + Locals.ValColHTML +\n	(Parameters.Sequence.FailureAction==0?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_NONE"):(Parameters.Sequence.FailureAction==1?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_GOTO_CLEANUP"):GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_USE_STATION_OPTION"))) + "\\n"',
-      ); // Cleanup On Fail
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_TYPE'),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.stepHost.resourceString(
+            'SEQ_FILE_DOC',
+            fileGlobals.SequenceTypes[sequence.RTS.Type],
+          ) +
+          '\n'; // Type
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_DISABLE_RESULTS'),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.str(!ts.truthy(sequence.RecordResults)) +
+          '\n'; // Record Results
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_SEQ_GOTO_CLEANUP_ON_FAIL',
+            ),
+            '%-35s',
+          ) +
+          valColHtml +
+          (sequence.FailureAction == 0
+              ? ts.stepHost.resourceString(
+                  'SEQUENCE_PROP_DLG',
+                  'STEP_FAILURE_ACTION_NONE',
+                )
+              : (sequence.FailureAction == 1
+                    ? ts.stepHost.resourceString(
+                        'SEQUENCE_PROP_DLG',
+                        'STEP_FAILURE_ACTION_GOTO_CLEANUP',
+                      )
+                    : ts.stepHost.resourceString(
+                        'SEQUENCE_PROP_DLG',
+                        'STEP_FAILURE_ACTION_USE_STATION_OPTION',
+                      ))) +
+          '\n'; // Cleanup On Fail
       if (!fileGlobals.Locked || fileGlobals.Protection != 2) {
-        ts.eval(
-          '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_SETUP_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.Sequence.Setup)) + "\\n"\n',
-        ); // Num Setup Steps
-        ts.eval(
-          '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_MAIN_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.Sequence.Main)) + "\\n"\n',
-        ); // Num Main Steps
-        ts.eval(
-          '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
-        ); // Num Cleanup Steps
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQ_NUM_SETUP_STEPS',
+              ),
+              '%-30s',
+            ) +
+            valColHtml +
+            ts.str(ts.getNumElements(sequence.Setup)) +
+            '\n'; // Num Setup Steps
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQ_NUM_MAIN_STEPS',
+              ),
+              '%-30s',
+            ) +
+            valColHtml +
+            ts.str(ts.getNumElements(sequence.Main)) +
+            '\n'; // Num Main Steps
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString(
+                'SEQ_FILE_DOC',
+                'DOC_SEQ_NUM_CLEANUP_STEPS',
+              ),
+              '%-30s',
+            ) +
+            valColHtml +
+            ts.str(ts.getNumElements(sequence.Cleanup)) +
+            '\n'; // Num Cleanup Steps
         // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
         final docResultRef2 = ts.Ref<String>(docResultRef.value);
         processRequirementsResult.Status = await writeRequirementsElements(
@@ -450,9 +651,13 @@ Future<String> sequenceDoc({
       }
       if (tmpNum > 0) {
         // precondition of Header
-        ts.eval(
-          'Parameters.DocResult += Locals.TableHTML + Locals.RowHTML+\n"<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>" +\n	"<FONT COLOR=WHITE>" +\n	ResStr("SEQ_FILE_DOC", "DOC_SEQ_PARAMS")  + "</FONT>\\n"',
-        ); // Header
+        docResultRef.value +=
+            tableHtml +
+            rowHtml +
+            '<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>' +
+            '<FONT COLOR=WHITE>' +
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_PARAMS') +
+            '</FONT>\n'; // Header
       }
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
       if (tmpNum > 0) {
@@ -492,9 +697,13 @@ Future<String> sequenceDoc({
     }
     if (tmpNum > 0) {
       // precondition of Header
-      ts.eval(
-        'Parameters.DocResult += Locals.TableHTML + Locals.RowHTML+\n"<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>" +\n	"<FONT COLOR=WHITE>" +\n	ResStr("SEQ_FILE_DOC", "DOC_SEQ_LOCALS")  + "</FONT>\\n"',
-      ); // Header
+      docResultRef.value +=
+          tableHtml +
+          rowHtml +
+          '<TD COLSPAN=3 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>' +
+          '<FONT COLOR=WHITE>' +
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_SEQ_LOCALS') +
+          '</FONT>\n'; // Header
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     if (tmpNum > 0) {
@@ -524,9 +733,10 @@ Future<String> sequenceDoc({
       ts.getNumElements(sequence.Cleanup); // CalcNumSteps
   if (ts.getNumElements(sequence.Setup) > 0) {
     // precondition of Setup Steps Header
-    ts.eval(
-      'Parameters.DocResult += "<H3>" + GetResourceString("EXECUTION PHASE", "Setup") + "</H3>\\n"\n',
-    ); // Setup Steps Header
+    docResultRef.value +=
+        '<H3>' +
+        ts.stepHost.resourceString('EXECUTION PHASE', 'Setup') +
+        '</H3>\n'; // Setup Steps Header
   }
   previousBlockLevel = 0; // Reset Previous Block Level
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
@@ -564,9 +774,10 @@ Future<String> sequenceDoc({
   run.record(forEachSetupStepResult.Status);
   if (ts.getNumElements(sequence.Main) > 0) {
     // precondition of Main Steps Header
-    ts.eval(
-      'Parameters.DocResult += "<H3>" + GetResourceString("EXECUTION PHASE", "MainSteps") + "</H3>\\n"\n',
-    ); // Main Steps Header
+    docResultRef.value +=
+        '<H3>' +
+        ts.stepHost.resourceString('EXECUTION PHASE', 'MainSteps') +
+        '</H3>\n'; // Main Steps Header
   }
   previousBlockLevel = 0; // Reset Previous Block Level_Copy
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
@@ -604,9 +815,10 @@ Future<String> sequenceDoc({
   run.record(forEachMainStepResult.Status);
   if (ts.getNumElements(sequence.Cleanup) > 0) {
     // precondition of Cleanup Steps Header
-    ts.eval(
-      'Parameters.DocResult += "<H3>" + GetResourceString("EXECUTION PHASE", "Cleanup") + "</H3>\\n"\n',
-    ); // Cleanup Steps Header
+    docResultRef.value +=
+        '<H3>' +
+        ts.stepHost.resourceString('EXECUTION PHASE', 'Cleanup') +
+        '</H3>\n'; // Cleanup Steps Header
   }
   previousBlockLevel = 0; // Reset Previous Block Level_Copy2
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
@@ -728,8 +940,9 @@ Future<String> stepDoc({
     throw UnimplementedError(
       'cModule call: GetStepKeyName',
     ); // GetStepKeyName [Action]
-    ts.eval(
-      'Locals.tmpString = GetResourceString("Adapter Names", Locals.StepKeyName)',
+    tmpString = ts.stepHost.resourceString(
+      'Adapter Names',
+      stepKeyName,
     ); // Process Adapter Name
     ts.eval(
       '\nFindAndReplace(Locals.tmpString, "<", "&lt;")',
@@ -755,9 +968,13 @@ Future<String> stepDoc({
     ts.eval(
       '\nFindAndReplace(Locals.tmpString, "\\n", "<BR>")',
     ); // Process Desc (cont.)
-    ts.eval(
-      'Parameters.DocResult +=  Locals.RowHTML+ Locals.PropColHTML +\n	GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DESC") + Locals.ValColHTML + Locals.tmpString + "\\n"\n',
-    ); // Step Description
+    docResultRef.value +=
+        rowHtml +
+        propColHtml +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_DESC') +
+        valColHtml +
+        tmpString +
+        '\n'; // Step Description
     ts.eval('Locals.tmpString = CommentOf(Parameters.Step)'); // Process Comment
     ts.eval(
       '\nFindAndReplace(Locals.tmpString, "<", "&lt;")',
@@ -770,9 +987,16 @@ Future<String> stepDoc({
     ); // Process Comment (cont.)
     if (ts.cond('CommentOf(Parameters.Step) != ""')) {
       // precondition of Comment
-      ts.eval(
-        'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMMENT"), "%-30s") +\n	Locals.ValColHTML + Locals.tmpString + "\\n"\n',
-      ); // Comment
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMMENT'),
+            '%-30s',
+          ) +
+          valColHtml +
+          tmpString +
+          '\n'; // Comment
     }
     if (ts.cond(
       'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
@@ -793,9 +1017,16 @@ Future<String> stepDoc({
       'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
     )) {
       // precondition of InBuf
-      ts.eval(
-        'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_INBUF"), "%-30s") +\n	Locals.ValColHTML + Locals.tmpString + "\\n"\n',
-      ); // InBuf
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_INBUF'),
+            '%-30s',
+          ) +
+          valColHtml +
+          tmpString +
+          '\n'; // InBuf
     }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     final docResultRef2 = ts.Ref<String>(docResultRef.value);
@@ -808,26 +1039,81 @@ Future<String> stepDoc({
         ? 'Passed'
         : addRequirementsResult.Status; // status expression
     run.record(addRequirementsResult.Status);
-    ts.eval(
-      'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_AND_UNLOAD_OPTION"), "%-30s") +\n	Locals.ValColHTML +\n	GetResourceString("LOAD OPTION STRINGS", Parameters.Step.TS.LoadOpt) + ", " + GetResourceString("UNLOAD OPTION STRINGS", Parameters.Step.TS.UnloadOpt) + "\\n"\n',
-    ); // Load and Unload Option
+    docResultRef.value +=
+        rowHtml +
+        propColHtml +
+        ts.str(
+          ts.stepHost.resourceString(
+            'SEQ_FILE_DOC',
+            'DOC_LOAD_AND_UNLOAD_OPTION',
+          ),
+          '%-30s',
+        ) +
+        valColHtml +
+        ts.stepHost.resourceString('LOAD OPTION STRINGS', step$.TS.LoadOpt) +
+        ', ' +
+        ts.stepHost.resourceString(
+          'UNLOAD OPTION STRINGS',
+          step$.TS.UnloadOpt,
+        ) +
+        '\n'; // Load and Unload Option
     if (step$.TS.ResultOption != 1) {
       // precondition of Record Results
-      ts.eval(
-        'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_RECORD_RESULTS"), "%-30s") +\n	Locals.ValColHTML +\n	(Parameters.Step.TS.ResultOption== 0?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_DISABLED")):(Parameters.Step.TS.ResultOption == 1?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED")):(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING")))) + "\\n"\n',
-      ); // Record Results
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_STEP_RECORD_RESULTS',
+            ),
+            '%-30s',
+          ) +
+          valColHtml +
+          (step$.TS.ResultOption == 0
+              ? ts.stepHost.resourceString(
+                  'STEP_PROP_DLG',
+                  'RESULT_RECORDING_OPTION_DISABLED',
+                )
+              : (step$.TS.ResultOption == 1
+                    ? ts.stepHost.resourceString(
+                        'STEP_PROP_DLG',
+                        'RESULT_RECORDING_OPTION_ENABLED',
+                      )
+                    : ts.stepHost.resourceString(
+                        'STEP_PROP_DLG',
+                        'RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING',
+                      ))) +
+          '\n'; // Record Results
     }
     if (!ts.truthy(step$.TS.StepFCSeqF)) {
       // precondition of Step Fail Causes Seq Fail
-      ts.eval(
-        'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_STEP_FAIL_SEQ_FAIL"), "%-40s") +\n	Locals.ValColHTML +\n	Str(Parameters.Step.TS.StepFCSeqF) + "\\n"\n',
-      ); // Step Fail Causes Seq Fail
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString(
+              'SEQ_FILE_DOC',
+              'DOC_STEP_STEP_FAIL_SEQ_FAIL',
+            ),
+            '%-40s',
+          ) +
+          valColHtml +
+          ts.str(step$.TS.StepFCSeqF) +
+          '\n'; // Step Fail Causes Seq Fail
     }
     if (ts.truthy(step$.TS.IgnoreRTE)) {
       // precondition of Ignore Run-Time Error
-      ts.eval(
-        'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_IGNORE_RTE"), "%-30s") +\n	Locals.ValColHTML +\n	Str(Parameters.Step.TS.IgnoreRTE) + "\\n"\n',
-      ); // Ignore Run-Time Error
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_IGNORE_RTE'),
+            '%-30s',
+          ) +
+          valColHtml +
+          ts.str(step$.TS.IgnoreRTE) +
+          '\n'; // Ignore Run-Time Error
     }
     // goto -> --- Begin of Multiple Limits ---
     if (ts.cond('PropertyExists("Parameters.Step.Result.Measurement")')) {
@@ -850,9 +1136,16 @@ Future<String> stepDoc({
     }
     if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
       // precondition of String Limit
-      ts.eval(
-        'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_STRING"), "%-30s") +\n	Locals.ValColHTML + Locals.tmpString + "\\n"\n',
-      ); // String Limit
+      docResultRef.value +=
+          rowHtml +
+          propColHtml +
+          ts.str(
+            ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_STRING'),
+            '%-30s',
+          ) +
+          valColHtml +
+          tmpString +
+          '\n'; // String Limit
     }
     if (ts.cond('PropertyExists("Parameters.Step.DataSource")')) {
       // precondition of Data Source
@@ -884,9 +1177,18 @@ Future<String> stepDoc({
   ); // Get Execution Flow [Action]
   if (execFlow != '') {
     // precondition of Execution Flow
-    ts.eval(
-      'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_EXEC_FLOW"), "%-30s") +\n	Locals.ValColHTML +\n	"<XMP>" + Locals.ExecFlow + "</XMP>" + "\\n"\n',
-    ); // Execution Flow
+    docResultRef.value +=
+        rowHtml +
+        propColHtml +
+        ts.str(
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_EXEC_FLOW'),
+          '%-30s',
+        ) +
+        valColHtml +
+        '<XMP>' +
+        execFlow +
+        '</XMP>' +
+        '\n'; // Execution Flow
   }
   docResultRef.value += '</TABLE></BLOCKQUOTE>\n'; // Step Footer
 
@@ -1087,9 +1389,15 @@ Future<String> writeArrayElements({
       }
     }
     // label: --- Max Num Array Elements Msg ---
-    ts.eval(
-      'Parameters.DocResult += Locals.RowHTML+ Locals.ColHTML +\n	Parameters.ArrayPropLookupStr + "[...] --- " +\nResStr("SEQ_FILE_DOC", "DOC_MAX_ARRAY_DISPLAY_EXCEEDED") \n',
-    ); // Add Max Exceeded Msg
+    docResultRef.value +=
+        rowHtml +
+        colHtml +
+        arrayPropLookupStr +
+        '[...] --- ' +
+        ts.stepHost.resourceString(
+          'SEQ_FILE_DOC',
+          'DOC_MAX_ARRAY_DISPLAY_EXCEEDED',
+        ); // Add Max Exceeded Msg
   }
 
   return run.status;
@@ -1200,9 +1508,15 @@ Future<String> writePropertyDetails({
   //   lookupString <- Parameters.PropertyToDisplayName
   //   options <- 0
   throw UnimplementedError('cModule call: GetFlags'); // GetFlags [Action]
-  ts.eval(
-    '(Locals.SubpropFlags & 0x4) ? ( Locals.ByRefStr = " (" + ResStr("SEQUENCING ADAPTER", "PASS_BYREFERENCE") + ")" ) : ( Locals.ByRefStr = "" )',
-  ); // IsByRef
+  subpropFlags & 4 != 0
+      ? (byRefStr =
+            ' (' +
+            ts.stepHost.resourceString(
+              'SEQUENCING ADAPTER',
+              'PASS_BYREFERENCE',
+            ) +
+            ')')
+      : (byRefStr = ''); // IsByRef
   docResultRef.value +=
       rowHtml +
       propColHtml +
@@ -1276,9 +1590,16 @@ Future<String> writeMultipleNumericLimitLimits({
         'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp")',
       )) {
         // precondition of Comparison Type
-        ts.eval(
-          'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMP_TYPE"), "%-30s") +\n	Locals.ValColHTML +\n	Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp + "\\n"\n',
-        ); // Comparison Type
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_COMP_TYPE'),
+              '%-30s',
+            ) +
+            valColHtml +
+            step$.Result.Measurement[currentOffset].Comp +
+            '\n'; // Comparison Type
       }
       if (ts.cond(
         '#NoValidation(\nAllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp"), PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), AnyOf(Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "EQ", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "NE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LE"))\n)',
@@ -1308,25 +1629,54 @@ Future<String> writeMultipleNumericLimitLimits({
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',
       )) {
         // precondition of Low Limit
-        ts.eval(
-          '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML + ( Locals.OneLimitOnly ? GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT") : GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_LOW")) + Locals.ValColHTML + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.Low, Locals.LowLimitFmt ) + "\\n"\n',
-        ); // Low Limit
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            (oneLimitOnly
+                ? ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT')
+                : ts.stepHost.resourceString(
+                    'SEQ_FILE_DOC',
+                    'DOC_STEP_LIMIT_LOW',
+                  )) +
+            valColHtml +
+            ts.str(
+              step$.Result.Measurement[currentOffset].Limits.Low,
+              lowLimitFmt,
+            ) +
+            '\n'; // Low Limit
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG", !Locals.OneLimitOnly))',
       )) {
         // precondition of High Limit
-        ts.eval(
-          '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_HIGH"), "%-30s") +\n	Locals.ValColHTML +\n	Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.High, Locals.HighLimitFmt ) + "\\n"\n',
-        ); // High Limit
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_LIMIT_HIGH'),
+              '%-30s',
+            ) +
+            valColHtml +
+            ts.str(
+              step$.Result.Measurement[currentOffset].Limits.High,
+              highLimitFmt,
+            ) +
+            '\n'; // High Limit
       }
       if (ts.cond(
         '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Units"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units != ""))',
       )) {
         // precondition of Units
-        ts.eval(
-          'Parameters.DocResult += Locals.RowHTML+ Locals.PropColHTML + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_UNITS"), "%-30s") + Locals.ValColHTML + Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units + "\\n"',
-        ); // Units
+        docResultRef.value +=
+            rowHtml +
+            propColHtml +
+            ts.str(
+              ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_UNITS'),
+              '%-30s',
+            ) +
+            valColHtml +
+            step$.Result.Measurement[currentOffset].Units +
+            '\n'; // Units
       }
       if (ts.cond(
         'AllOf(PropertyExists("Parameters.Step.DataSourceArray[" + Str(Locals.CurrentOffset) + "]"), Parameters.Step.UseIndividualDataSources)',
@@ -1346,9 +1696,12 @@ Future<String> writeMultipleNumericLimitLimits({
   // label: --- After Loop ---
   if (numElements > 0) {
     // precondition of Footer
-    ts.eval(
-      'Parameters.DocResult += Locals.RowHTML+\n"<TD COLSPAN=2 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>" +\n	"<FONT COLOR=WHITE>" +\n	ResStr("SEQ_FILE_DOC", "END_OF_MEAS_LBL")  + "</FONT>\\n"',
-    ); // Footer
+    docResultRef.value +=
+        rowHtml +
+        '<TD COLSPAN=2 ALIGN=LEFT WIDTH=100% BGCOLOR=TEAL>' +
+        '<FONT COLOR=WHITE>' +
+        ts.stepHost.resourceString('SEQ_FILE_DOC', 'END_OF_MEAS_LBL') +
+        '</FONT>\n'; // Footer
   }
   if (ts.cond(
     '#NoValidation(AllOf(PropertyExists("Parameters.Step.DataSource"), !Parameters.Step.UseIndividualDataSources, Locals.NumElements > 0))',
@@ -1391,9 +1744,16 @@ Future<String> writeRequirementsElements({
     ts.eval(
       '\nFindAndReplace(Locals.tmpString, "\\n", "<br>")',
     ); // Requirements (cont.)
-    ts.eval(
-      '\nParameters.DocResult += Locals.RowHTML+ Locals.PropColHTML + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_REQUIREMENTS"),"%-30s") + Locals.ValColHTML + Locals.tmpString + "\\n"',
-    ); // Requirements (cont.)
+    docResultRef.value +=
+        rowHtml +
+        propColHtml +
+        ts.str(
+          ts.stepHost.resourceString('SEQ_FILE_DOC', 'DOC_STEP_REQUIREMENTS'),
+          '%-30s',
+        ) +
+        valColHtml +
+        tmpString +
+        '\n'; // Requirements (cont.)
   }
 
   return run.status;
@@ -1438,6 +1798,7 @@ void register() {
   //   cModule call: GetLocked?
   //   cModule call: GetProtection?
   //   cModule call: GetCharsetMetaTag
+  //   resource strings through ts.stepHost (needs a host)
   //   untranslated expression in body
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg

@@ -313,7 +313,7 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
     ); // pre-expression (cont.)
     await initializeExecutionEntryPoint(
       modelData: ts.eval('&Locals.ModelData'),
-      entryPoint: runState.Sequence.Name,
+      entryPoint: 'Test UUTs',
       modelThreadType: modelThreadType,
       testSocketIndex: 0,
       sequence: sequence,
@@ -585,11 +585,17 @@ Future<String> testUuTs({String sequence = 'MainSequence'}) async {
           });
           // Handle Termination [MessagePopup]: acts through ts.stepHost
           final popup = await ts.stepHost.messagePopup(
-            title: ts.eval('ResStr("MODEL", "HANDLE_TERMINATION_TITLE")'),
-            message: ts.eval('ResStr("MODEL", "HANDLE_TERMINATION_MESSAGE")'),
+            title: ts.stepHost.resourceString(
+              'MODEL',
+              'HANDLE_TERMINATION_TITLE',
+            ),
+            message: ts.stepHost.resourceString(
+              'MODEL',
+              'HANDLE_TERMINATION_MESSAGE',
+            ),
             buttons: [
-              ts.eval('ResStr("MODEL", "NEXT_UUT_BUTTON")'),
-              ts.eval('ResStr("MODEL", "TERMINATE_BUTTON")'),
+              ts.stepHost.resourceString('MODEL', 'NEXT_UUT_BUTTON'),
+              ts.stepHost.resourceString('MODEL', 'TERMINATE_BUTTON'),
               '',
               '',
               '',
@@ -868,7 +874,7 @@ Future<String> singlePass({String sequence = 'MainSequence'}) async {
       ); // pre-expression (cont.)
       await initializeExecutionEntryPoint(
         modelData: ts.eval('&Locals.ModelData'),
-        entryPoint: runState.Sequence.Name,
+        entryPoint: 'Single Pass',
         modelThreadType: modelThreadType,
         testSocketIndex: 0,
         sequence: sequence,
@@ -1849,6 +1855,7 @@ void register() {
   //   external sequence: Model Plugins - UUT Done
   //   external sequence: Model Plugins - Post UUT
   //   step type MessagePopup acts through ts.stepHost
+  //   resource strings through ts.stepHost (needs a host)
   //   external sequence: Model Plugins - End
   //   external sequence: DoPreUUT
   lw.skipTest('Test UUTs', () async {

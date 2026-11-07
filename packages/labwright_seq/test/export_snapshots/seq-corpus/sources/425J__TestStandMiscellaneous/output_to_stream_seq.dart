@@ -98,7 +98,7 @@ Future<String> outputToStream() async {
     values.Category = 'Uncategorized'; // Write output message (cont.)
     values.Severity = 'Information'; // Write output message (cont.)
     values.Step = step.Name; // Write output message (cont.)
-    values.Sequence = runState.Sequence.Name; // Write output message (cont.)
+    values.Sequence = 'Output to Stream'; // Write output message (cont.)
     values.SequenceFile = runState
         .SequenceFile
         .AsPropertyObjectFile
