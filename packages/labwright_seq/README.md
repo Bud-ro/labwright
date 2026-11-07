@@ -22,16 +22,22 @@ for (final seq in f.sequences) {
 
 `writeSeqFileXml(SeqFile)` and `writeIniSeq(IniSeqFile)` write the two text
 flavors back out **byte-exactly** — `write(parse(f)) == f` for the whole
-corpus (36/36 XML, 58/58 INI), asserted by the round-trip gates in
-`test/seq_write_xml_test.dart` and `test/seq_write_ini_test.dart`. The model
+corpus (43/43 XML, 3/3 INI), asserted by the round-trip gates in
+`test/seq_write_corpus_test.dart`. The model
 retains everything the encodings carry: elemproto trees, verbatim array
-bounds, extdata, numeric formats, protected typelist blobs, interleaved INI
+bounds, extdata, numeric formats, `<Attributes>` objects, protected typelist blobs, interleaved INI
 line order, quoting, 120-char continuation splits, and per-file line
 terminators. INI writing works at the
 `IniSeqFile` section level deliberately: the derived property tree is
 inheritance-expanded, and writing it would fabricate lines the source file
-omits. Binary `TOF1` writing is out of scope until the binary model is
-complete.
+omits.
+
+`BinarySeqWriteModel.parse(bytes)` decodes a binary `TOF1` file into its record
+grammar; `writeBody()` reproduces the inflated body byte-exactly and
+`writeFile()` keeps the header and re-deflates that body, for 168/168 corpus
+binaries (`test/binary_sweep_test.dart`). `test/corpus_snapshot.json`, written by
+`dart run tool/snapshot.dart`, pins each corpus file's format, version and
+type, sequence, step and module-step counts, one line per file.
 
 ## Notes On Development
 
