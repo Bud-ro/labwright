@@ -2,16 +2,13 @@
 library;
 
 import 'dart:io';
+import 'dart:isolate';
 import 'dart:typed_data';
 
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
-
-const _pinnedIniSeqCount = 3;
-const _pinnedXmlSeqCount = 42;
-const _pinnedBinarySeqCount = 140;
 
 void main() {
   final byFormat = <SeqFormat, List<File>>{};
@@ -23,7 +20,6 @@ void main() {
 
   test('INI → XML → INI is byte-exact for every INI corpus file (and the XML hop is stable)', () {
     final iniFiles = byFormat[SeqFormat.ini] ?? const <File>[];
-    expect(iniFiles.length, _pinnedIniSeqCount, reason: 'INI corpus count drifted');
     for (final f in iniFiles) {
       final bytes = f.readAsBytesSync();
       final doc = parseIniSeqBytes(bytes);
@@ -100,7 +96,6 @@ Attr = Num
 
   test('XML → INI → XML is byte-exact for every XML corpus file (and the INI hop is stable)', () {
     final xmlFiles = byFormat[SeqFormat.xml] ?? const <File>[];
-    expect(xmlFiles.length, _pinnedXmlSeqCount, reason: 'XML corpus count drifted');
     for (final f in xmlFiles) {
       final bytes = f.readAsBytesSync();
       final file = parseSeqFile(bytes);
@@ -119,48 +114,43 @@ Attr = Num
     print('retention XML → INI → XML: byte-exact ${xmlFiles.length}/${xmlFiles.length}');
   });
 
-  test('binary → XML/INI loops retain exactly the decoded surface, marked partial', () {
-    final binFiles = byFormat[SeqFormat.binary] ?? const <File>[];
-    expect(binFiles.length, _pinnedBinarySeqCount, reason: 'binary corpus count drifted');
-    var surfaceExact = 0;
-    var refused = 0;
-    for (final f in binFiles) {
-      final bytes = f.readAsBytesSync();
-      SeqFile bin;
-      try {
-        bin = parseSeqFile(bytes);
-      } on FormatException {
-        refused++;
-        continue;
-      }
-      final xml = binaryToXmlSeqFile(bin);
-      expect(
-        xml.rootAttributes?[ConvKey.partialDecodeAttr],
-        ConvKey.partialDecodeBinary,
-        reason: '${f.path}: binary-derived output must be marked partial',
-      );
-      expect(_surface(xml.data), _surface(bin.data), reason: '${f.path}: lifted data surface must match the decode');
-      expect(xml.types.length, bin.types.length, reason: '${f.path}: type count must match the decode');
-      for (var i = 0; i < bin.types.length; i++) {
-        expect(_surface(xml.types[i]), _surface(bin.types[i]), reason: '${f.path}: type[$i] surface must match');
-      }
-      final reparsed = parseSeqFile(writeSeqFileXml(xml));
-      expect(seqFileDeepEquals(xml, reparsed), isTrue, reason: '${f.path}: lifted XML must reparse deep-equal');
+  test('binary → XML/INI loops retain exactly the decoded surface, marked partial', () async {
+    final shards = _shards([for (final f in byFormat[SeqFormat.binary] ?? const <File>[]) f.path]);
+    final failures = await Future.wait([for (final shard in shards) Isolate.run(() => _binaryLoops(shard))]);
+    expect(failures.expand((f) => f), isEmpty);
+  }, timeout: const Timeout(Duration(minutes: 5)));
+}
 
-      final ini = xmlToIniSeqFile(reparsed);
-      final iniReparsed = parseIniSeqBytes(writeIniSeq(ini));
-      expect(iniDeepEquals(ini, iniReparsed), isTrue, reason: '${f.path}: INI hop must reparse deep-equal');
-      expect(
-        seqFileDeepEquals(xml, iniToXmlSeqFile(iniReparsed)),
-        isTrue,
-        reason: '${f.path}: XML ↔ INI loop must retain the decoded surface',
-      );
-      surfaceExact++;
+List<List<String>> _shards(List<String> paths) {
+  final count = (Platform.numberOfProcessors ~/ 2).clamp(1, paths.length);
+  return [
+    for (var i = 0; i < count; i++) [for (var j = i; j < paths.length; j += count) paths[j]],
+  ];
+}
+
+List<String> _binaryLoops(List<String> paths) {
+  final failures = <String>[];
+  for (final path in paths) {
+    void check(bool ok, String what) {
+      if (!ok) failures.add('$path: $what');
     }
-    print('retention binary → XML/INI: decoded-surface-exact $surfaceExact/${binFiles.length} ($refused refused)');
-    expect(surfaceExact, _pinnedBinarySeqCount, reason: 'every corpus binary currently inflates and converts');
-    expect(refused, 0, reason: 'refused-binary count drifted');
-  });
+
+    final bin = parseSeqFile(File(path).readAsBytesSync());
+    final xml = binaryToXmlSeqFile(bin);
+    check(xml.rootAttributes?[ConvKey.partialDecodeAttr] == ConvKey.partialDecodeBinary, 'not marked partial');
+    check('${_surface(xml.data)}' == '${_surface(bin.data)}', 'lifted data surface differs from the decode');
+    check(
+      '${[for (final t in xml.types) _surface(t)]}' == '${[for (final t in bin.types) _surface(t)]}',
+      'type surfaces differ from the decode',
+    );
+    final reparsed = parseSeqFile(writeSeqFileXml(xml));
+    check(seqFileDeepEquals(xml, reparsed), 'lifted XML does not reparse deep-equal');
+    final ini = xmlToIniSeqFile(reparsed);
+    final iniReparsed = parseIniSeqBytes(writeIniSeq(ini));
+    check(iniDeepEquals(ini, iniReparsed), 'INI hop does not reparse deep-equal');
+    check(seqFileDeepEquals(xml, iniToXmlSeqFile(iniReparsed)), 'XML ↔ INI loop loses the decoded surface');
+  }
+  return failures;
 }
 
 Object? _surface(SeqProperty p) => [

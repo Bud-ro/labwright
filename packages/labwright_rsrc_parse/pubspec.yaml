@@ -11,7 +11,7 @@ executables:
   vi-inspect: inspect
 
 dependencies:
-  archive: ^4.0.9
+  archive: ^4.6.0
   xml: ^6.2.2
 
 dev_dependencies:

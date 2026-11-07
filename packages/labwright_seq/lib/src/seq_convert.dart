@@ -77,6 +77,10 @@ abstract final class ConvKey {
 
   static const elemProtoSegment = '%EP';
 
+  static const nodeAttributeBlock = '%XAB';
+
+  static const attributeBlockSegment = '%AB';
+
   static const nodeScalar = '%XSCA';
 
   static const numericFmt = '%NUMFMT';
@@ -288,6 +292,7 @@ SeqProperty _xmlReady(SeqProperty p, Map<SeqProperty, SeqProperty> memo) {
     extData: p.extData,
     numericFormat: numericFormat,
     xmlComment: p.xmlComment,
+    attributeBlock: p.attributeBlock == null ? null : _xmlReady(p.attributeBlock!, memo),
   );
   memo[p] = out;
   return out;
@@ -426,6 +431,7 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
     }
   }
   if (p.elemProto != null) valueEntries.add(const IniEntry(ConvKey.nodeElemProto, '1'));
+  if (p.attributeBlock != null) valueEntries.add(const IniEntry(ConvKey.nodeAttributeBlock, '1'));
   for (var j = 0; j < p.extData.length; j++) {
     valueEntries.add(IniEntry('${ConvKey.nodeExtData}: $j', _quotedRaw(_armorMap(p.extData[j]))));
   }
@@ -462,6 +468,9 @@ void _emitNode(SeqProperty p, String path, List<IniSection> out, {required bool 
   }
   if (p.elemProto != null) {
     _emitNode(p.elemProto!, '$path.${ConvKey.elemProtoSegment}', out, scalarOnParent: false);
+  }
+  if (p.attributeBlock case final block?) {
+    _emitNode(block, '$path.${ConvKey.attributeBlockSegment}', out, scalarOnParent: false);
   }
 }
 
@@ -687,5 +696,8 @@ SeqProperty _rebuildNode(String path, String? scalarRaw, Map<String, IniSection>
     extData: extData,
     numericFormat: numericFormat,
     xmlComment: armored(ConvKey.nodeComment),
+    attributeBlock: dir.containsKey(ConvKey.nodeAttributeBlock)
+        ? _rebuildNode('$path.${ConvKey.attributeBlockSegment}', null, defs, vals)
+        : null,
   );
 }

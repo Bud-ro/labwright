@@ -6,10 +6,10 @@ import 'dart:typed_data';
 
 import 'package:flutter_test/flutter_test.dart';
 import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart';
+import 'package:labwright_vi_inspector/src/bd_color_aliases.dart';
 import 'package:labwright_vi_inspector/src/bd_oracle.dart';
 import 'package:labwright_vi_inspector/src/diagram_view.dart';
 
-import 'bd_wire_mask_test.dart' show kWireInkPalette;
 import 'util.dart';
 
 /// Export is opt-in (it writes files outside the build tree):
@@ -28,7 +28,7 @@ void main() {
       return;
     }
     await loadRealTextFont();
-    final rows = <String, List<(String, int, int, int, String)>>{};
+    final rows = <String, List<(String, int, int, int, String, int)>>{};
     final byVersion = <String, Map<String, (int, int)>>{};
     final dumps = <String, (int, String)>{};
     await tester.runAsync(() async {
@@ -59,6 +59,7 @@ void main() {
           reference.image,
           lockScale: 1.0 / raster.scale,
           anchorRects: bdStructureAnchorRects(bd, raster, drawable: drawable),
+          exactRects: bdPrimIconStampRects(bd, raster, drawable: drawable),
         );
         if (!result.registered || result.comparison.diffFraction > 0.08)
           continue;
@@ -81,9 +82,14 @@ void main() {
           final r = art == null
               ? box
               : primIconStampRect(box, art.width, art.height, key: id);
-          var mismatch = 0, total = 0;
+          var mismatch = 0, total = 0, interior = 0;
           for (var y = r.top.round(); y < r.bottom.round(); y++) {
             for (var x = r.left.round(); x < r.right.round(); x++) {
+              final onBorder =
+                  art != null &&
+                  art.border[(y - r.top.round()) * art.width +
+                          (x - r.left.round())] !=
+                      0;
               final rx = (x * reg.scale + reg.dx).round(),
                   ry = (y * reg.scale + reg.dy).round();
               if (rx < 0 ||
@@ -97,12 +103,13 @@ void main() {
                 continue;
               final i = (ry * refW + rx) * 4, j = (y * oursW + x) * 4;
               final refRgb = (rgba[i] << 16) | (rgba[i + 1] << 8) | rgba[i + 2];
-              if (kWireInkPalette.contains(refRgb)) continue;
+              if (isWireInk(refRgb)) continue;
               total++;
-              if (rgba[i] != ours[j] ||
-                  rgba[i + 1] != ours[j + 1] ||
-                  rgba[i + 2] != ours[j + 2])
+              final ourRgb = (ours[j] << 16) | (ours[j + 1] << 8) | ours[j + 2];
+              if (!BdColorAlias.sameColor(refRgb, ourRgb)) {
                 mismatch++;
+                if (!onBorder) interior++;
+              }
             }
           }
           if (total == 0) continue;
@@ -118,6 +125,7 @@ void main() {
             total,
             o.oid,
             '${b.width}x${b.height}${art == null ? ' NOART' : ''}',
+            interior,
           ));
           final wanted = keyName == keyDump;
           if (wanted ||
@@ -163,15 +171,17 @@ void main() {
     });
     final out = StringBuffer();
     final keys = rows.keys.toList()..sort();
-    var perfectKeys = 0;
+    var perfectKeys = 0, interiorKeys = 0;
     for (final k in keys) {
       final rs = rows[k]!;
       final perfect = rs.where((r) => r.$2 == 0).length;
+      final inside = rs.where((r) => r.$6 == 0).length;
       if (perfect == rs.length) perfectKeys++;
+      if (inside == rs.length) interiorKeys++;
       rs.sort((a, b) => b.$2.compareTo(a.$2));
       final worst = rs.first, best = rs.last;
       out.writeln(
-        '${k.padRight(14)} n=${rs.length.toString().padLeft(3)} perfect=${perfect.toString().padLeft(3)} sizes=${rs.map((r) => r.$5).toSet().join(',')} best=${best.$2}/${best.$3} in ${best.$1} #${best.$4} worst=${worst.$2}/${worst.$3} in ${worst.$1} #${worst.$4} versions=${(byVersion[k]!.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}:${e.value.$1}/${e.value.$2}').join(' ')}',
+        '${k.padRight(14)} n=${rs.length.toString().padLeft(3)} perfect=${perfect.toString().padLeft(3)} interior=${inside.toString().padLeft(3)} sizes=${rs.map((r) => r.$5).toSet().join(',')} best=${best.$2}/${best.$3} in ${best.$1} #${best.$4} worst=${worst.$2}/${worst.$3} in ${worst.$1} #${worst.$4} versions=${(byVersion[k]!.entries.toList()..sort((a, b) => a.key.compareTo(b.key))).map((e) => '${e.key}:${e.value.$1}/${e.value.$2}').join(' ')}',
       );
     }
     final dumpOut = StringBuffer();
@@ -179,7 +189,9 @@ void main() {
       dumpOut.writeln(d.$2);
     }
     File('$scoreDir/icon_dumps.txt').writeAsStringSync(dumpOut.toString());
-    out.writeln('keys ${keys.length} perfect-keys $perfectKeys');
+    out.writeln(
+      'keys ${keys.length} perfect-keys $perfectKeys interior-perfect-keys $interiorKeys',
+    );
     File('$scoreDir/icon_score.txt').writeAsStringSync(out.toString());
   }, tags: 'corpus');
 }

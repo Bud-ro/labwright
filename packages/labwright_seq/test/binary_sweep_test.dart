@@ -2,374 +2,183 @@
 library;
 
 import 'dart:io';
+import 'dart:typed_data';
 
+import 'package:labwright_rsrc_parse/labwright_rsrc_parse.dart' show Unknown;
 import 'package:labwright_seq/labwright_seq.dart';
 import 'package:test/test.dart';
 
 import 'corpus_dirs.dart';
 
-const _typeNameTokens = {
-  'SequenceFileData',
-  'Data',
-  'Seq',
-  'Objs',
-  'Obj',
-  'Setup',
-  'Main',
-  'Cleanup',
-  'Step',
-  'Sequence',
-  'Locals',
-  'Parameters',
-  'ResultList',
-  'Calls',
-};
-
-const _tsTokens = {
-  'SequenceFileData',
-  'Data',
-  'Seq',
-  'Objs',
-  'Obj',
-  'Step',
-  'Sequence',
-  'Setup',
-  'Main',
-  'Cleanup',
-  'TS',
-};
-
-const _elementTokens = {'Objs', 'Obj', 'Seq', 'Data', 'Step', 'Sequence', 'SequenceFileData', '[0]', '[]'};
-
-BinaryTypeField? _child(BinaryTypeField f, String name) => f.children.where((c) => c.name == name).firstOrNull;
-
-const _knownOffenders = <String>{};
+/// Scalars the lift synthesizes without a pool string behind them.
+const _synthesizedScalars = {'', '0', 'true', 'false'};
 
 void main() {
-  final files =
-      corpusSeqDir
-          .listSync(recursive: true)
-          .whereType<File>()
-          .where((f) => f.path.toLowerCase().endsWith('.seq'))
-          .toList()
-        ..sort((a, b) => a.path.compareTo(b.path));
-  File? pin(String suffix) => files.where((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).firstOrNull;
+  final files = corpusSeqDir.listSync(recursive: true).whereType<File>().where((f) => f.path.endsWith('.seq')).toList()
+    ..sort((a, b) => a.path.compareTo(b.path));
 
-  int? boundCount(String? lb, String? ub) {
-    if (lb == null || ub == null || ub == '[]') return null;
-    List<int>? dims(String t) {
-      final out = <int>[];
-      for (final m in RegExp(r'\[(\d*)\]').allMatches(t)) {
-        final v = int.tryParse(m.group(1)!);
-        if (v == null) return null;
-        out.add(v);
-      }
-      return out.isEmpty ? null : out;
-    }
-
-    final l = dims(lb), u = dims(ub);
-    if (l == null || u == null || l.length != u.length) return null;
-    var count = 1;
-    for (var i = 0; i < l.length; i++) {
-      count *= u[i] - l[i] + 1;
-    }
-    return count;
-  }
-
-  test('whole corpus: nothing fabricates, all invariants hold', () {
-    final tally = Tally();
+  test('every binary decodes end to end, writes back byte-exactly and lifts nothing the pool lacks', () {
     final offenders = <String>[];
-
+    final generations = <Tof1Generation>{};
+    var structureBits = 0;
     for (final f in files) {
       final bytes = f.readAsBytesSync();
       if (detectSeqFormat(bytes) != SeqFormat.binary) continue;
-      tally.bump('binaries');
-      final base = f.uri.pathSegments.last;
-
-      final cov = binaryByteCoverage(bytes);
-      if (cov != null) {
-        expect(cov.recordUndecodedBytes, greaterThanOrEqualTo(0), reason: f.path);
-        expect(cov.recordRegionBytes, greaterThan(0), reason: f.path);
-        tally.bump('covFiles');
+      final rel = corpusSeqRelativePath(f.path);
+      final body = decodeTof1(bytes);
+      final header = body.header;
+      generations.add(header.generation);
+      expect((header.fileType, header.productName), ('SequenceFile', 'TestStand'), reason: rel);
+      for (final field in Tof1Header.layout.fields.whereType<Unknown>()) {
+        expect(field.read(header.view), everyElement(0), reason: '$rel: reserved header bytes at ${field.offset}');
+      }
+      if (header.generation == Tof1Generation.ts2014) expect(header.savedPath, isEmpty, reason: rel);
+      expect(body.data.end + 8, body.recordRegionLength, reason: '$rel: the data root ends at the pool');
+      expect((body.tailWord, body.lastStringTerminated, body.poolTail.length), (0, true, 0), reason: rel);
+      expect(body.types.map((t) => t.entryWord), everyElement(1), reason: rel);
+      for (final record in body.records) {
+        if (record.enumItems != null) expect(record.enumItemsWord, 1, reason: '$rel: ${record.name}');
+        if (record.structureFlags case final bits?) structureBits |= bits;
       }
 
-      final names = binaryTypeNames(bytes);
-      if (names.isNotEmpty) tally.bump('withNames');
-      tally.bump('totalNames', names.length);
-      for (final name in names) {
-        if (_typeNameTokens.contains(name)) offenders.add('$base: type name $name');
-      }
-      final tableNames = names.toSet();
-
-      if (binaryTypeIndexBase(bytes) != 0) tally.bump('nonzeroBaseFiles');
-      void anchorWalk(List<BinaryTypeField> fs) {
-        for (final field in fs) {
-          if ((field.name == 'DescriptionFormat' || field.name == 'DefaultNameFormat') && field.typeName != null) {
-            tally.bump('anchors');
-            if (field.typeName != 'Expression') offenders.add('$base: ${field.name} -> ${field.typeName}');
-          }
-          anchorWalk(field.children);
+      final model = BinarySeqWriteModel(body);
+      expect(model.writeBody(), body.bytes, reason: '$rel: the body writes back byte-exactly');
+      final view = ByteData.sublistView(body.bytes);
+      for (final slot in model.f64Slots) {
+        final stored = view.getFloat64(slot.offset, Endian.little);
+        if (!(stored == slot.value || (stored.isNaN && slot.value.isNaN))) {
+          offenders.add('$rel: f64 slot ${slot.offset} holds $stored, not ${slot.value}');
         }
       }
+      final rewritten = model.writeFile();
+      expect(Uint8List.sublistView(rewritten, 0, Tof1Header.size), header.serialize(), reason: '$rel: header');
+      final again = decodeTof1(rewritten);
+      expect(again.bytes, body.bytes, reason: '$rel: the rewritten file re-inflates to the body');
+      final file = tof1BodyToSeqFile(body);
+      expect(seqPropertyDeepEquals(tof1BodyToSeqFile(again).data, file.data), isTrue, reason: '$rel: rewritten model');
 
-      void elementWalk(BinaryTypeField field, bool isElement) {
-        if (isElement) {
-          tally.bump('elements');
-          for (final child in field.children) {
-            if (_elementTokens.contains(child.name)) {
-              offenders.add('$base: element child "${child.name}" is a structural token');
-            }
-          }
+      final pool = body.pool.toSet();
+      void checkNames(SeqProperty p, String path) {
+        if (p.name.isNotEmpty && !p.name.startsWith('%BIN') && !pool.contains(p.name)) {
+          offenders.add('$rel: name "${p.name}" at $path is not in the pool');
         }
-        final elementContext = field.isArray && field.children.isNotEmpty;
-        if (elementContext) tally.bump('elementArrays');
-        for (final child in field.children) {
-          elementWalk(child, elementContext);
+        if (p.typeName case final type? when !pool.contains(type)) offenders.add('$rel: type $type at $path');
+        if (p.className case final cls? when !pool.contains(cls)) offenders.add('$rel: class $cls at $path');
+        final scalar = p.scalar;
+        if ((p.valueClass?.isText ?? false) && scalar != null && scalar.isNotEmpty && !pool.contains(scalar)) {
+          offenders.add('$rel: text value "$scalar" at $path');
         }
+        if (p.valueClass == SeqValueClass.boolean && scalar != null && !_synthesizedScalars.contains(scalar)) {
+          offenders.add('$rel: boolean "$scalar" at $path');
+        }
+        for (final child in p.subProps) {
+          checkNames(child, '$path/${child.name}');
+        }
+        for (final (i, element) in (p.array ?? const <SeqProperty>[]).indexed) {
+          checkNames(element, '$path[$i]');
+        }
+        if (p.elemProto case final proto?) checkNames(proto, '$path/<proto>');
       }
 
-      for (final r in binaryTypeRecords(bytes)) {
-        anchorWalk(r.fields ?? const []);
-        for (final field in r.fields ?? const <BinaryTypeField>[]) {
-          elementWalk(field, false);
-        }
+      for (final type in file.types) {
+        checkNames(type, 'type/${type.name}');
       }
-
-      for (final outline in binarySequenceOutlines(bytes)) {
-        if (outline.comment != null) tally.bump('comments');
-        if (outline.leadingSubProps.isNotEmpty) tally.bump('withLeading');
-        for (final sp in outline.leadingSubProps) {
-          tally.bump('leadingTotal');
-          if (sp.name != 'Parameters' && sp.name != 'Locals') offenders.add('$base: leading subprop ${sp.name}');
-        }
-        for (final g in outline.groupArrays) {
-          tally.bump('groupArrays');
-          if (!const {'Main', 'Setup', 'Cleanup'}.contains(g.name)) offenders.add('$base: group ${g.name}');
-          if (g.className != 'Objs') offenders.add('$base: group class ${g.className}');
-          final count = boundCount(g.arrayLBound, g.arrayUBound);
-          if (g.children.isNotEmpty) {
-            if (g.partialArray) {
-              tally.bump('partialGroups');
-              expect(
-                g.children,
-                isNotEmpty,
-                reason: '$base ${outline.name}.${g.name}: partial prefix must be nonempty',
-              );
-              expect(
-                count != null && g.children.length < count,
-                isTrue,
-                reason: '$base ${outline.name}.${g.name}: partial prefix must be shorter than bounds',
-              );
-            } else {
-              expect(g.children, hasLength(count), reason: '$base ${outline.name}.${g.name}: bounds vs elements');
-            }
-          }
-          for (final s in g.children) {
-            tally.bump('steps');
-            expect(s.className, 'Step', reason: '$base ${outline.name}.${g.name}');
-            expect(s.name, isNotEmpty, reason: '$base ${outline.name}.${g.name}');
-            if (s.typeName != null) {
-              expect(
-                tableNames,
-                contains(s.typeName),
-                reason: '$base step ${s.name}: type outside the recovered table',
-              );
-            }
-            final id = _child(_child(s, 'TS') ?? s, 'Id');
-            if (id != null && id.value != null) {
-              tally.bump('ids');
-              expect(id.value, startsWith('ID#:'), reason: '$base step ${s.name}');
-            }
-          }
-        }
-        for (final step in [...outline.setup, ...outline.main, ...outline.cleanup, ...outline.ungrouped]) {
-          if (step.tsSubProps.isNotEmpty) tally.bump('withTs');
-          for (final sp in step.tsSubProps) {
-            tally.bump('tsTotal');
-            if (_tsTokens.contains(sp.name)) offenders.add('$base: TS subprop ${sp.name}');
-          }
-          tally.bump('dataSubProps', step.dataSubProps.length);
-          for (final field in step.dataSubProps) {
-            if (!const {'Measurement', 'PinMapPath'}.contains(field.name)) {
-              offenders.add('$base: data subprop ${field.name}');
-            }
-          }
-          for (final field in [...step.tsSubProps, ...step.dataSubProps]) {
-            elementWalk(field, false);
-          }
-        }
-      }
-
-      for (final s in parseSeqFile(bytes).sequences) {
-        final rr = s.raw.prop('RecordResults');
-        if (rr != null) {
-          tally.bump('withRr');
-          if (rr.className != 'Bool' || (rr.scalar != 'true' && rr.scalar != 'false')) {
-            offenders.add('$base: RecordResults=${rr.className}/${rr.scalar}');
-          }
-        }
-        final fa = s.raw.prop('FailureAction');
-        if (fa != null) {
-          tally.bump('withFa');
-          if (fa.className != 'Num' || int.tryParse(fa.scalar ?? '') == null) {
-            offenders.add('$base: FailureAction=${fa.className}/${fa.scalar}');
-          }
-        }
-        final req = s.raw.prop('Requirements');
-        if (req != null && !req.subProps.any((c) => c.name == 'Links')) {
-          offenders.add('$base: Requirements w/o Links');
-        }
-        for (final c in s.raw.prop('RTS')?.subProps ?? const <SeqProperty>[]) {
-          if (const {'Objs', 'Obj', 'Seq', 'Data', 'Step'}.contains(c.name)) {
-            offenders.add('$base: RTS.${c.name}');
-          }
+      checkNames(file.data, 'Data');
+      final typeNames = {for (final t in file.types) t.name};
+      for (final sequence in file.sequences) {
+        expect(sequence.name, isNotEmpty, reason: rel);
+        for (final step in sequence.steps) {
+          final where = '$rel: ${sequence.name}/${step.name}';
+          if (step.name.isEmpty) expect(step.type, 'Label', reason: '$where: only Label steps go unnamed');
+          expect(typeNames, contains(step.type), reason: where);
+          if (step.id case final id?) expect(id, startsWith('ID#:'), reason: where);
+          if (step.module.viPath case final vi?) expect(vi, contains('.vi'), reason: where);
+          if (step.module.pythonModulePath case final py?) expect(py, endsWith('.py'), reason: where);
         }
       }
     }
-
-    print(
-      'binary sweep: ${tally['binaries']} binaries · ${tally['withNames']} with type names (${tally['totalNames']}) · '
-      '${tally['nonzeroBaseFiles']} misaligned · ${tally['anchors']} anchors · ${tally['leadingTotal']} leading subprops in ${tally['withLeading']} sequences · '
-      '${tally['tsTotal']} TS subprops in ${tally['withTs']} steps · ${tally['withRr']} RecordResults · ${tally['withFa']} FailureAction · '
-      '${tally['groupArrays']} group arrays (${tally['partialGroups']} partial) · ${tally['steps']} step elements · ${tally['ids']} Id anchors · '
-      '${tally['comments']} comments · ${tally['elementArrays']} element arrays · ${tally['elements']} elements · ${tally['dataSubProps']} data subprops',
-    );
-    expect(
-      offenders.toSet(),
-      _knownOffenders,
-      reason:
-          'fabrication/honesty offenders beyond (or missing from) the pinned '
-          'known counterexamples:\n${offenders.take(10).join('\n')}',
-    );
+    expect(offenders, isEmpty, reason: offenders.take(12).join('\n'));
+    expect(generations, Tof1Generation.values.toSet(), reason: 'every generation is exercised');
+    expect(structureBits, structureFlagMask, reason: 'every decoded structure bit occurs in the corpus');
   });
 
-  test('misaligned cohort recovers its exact per-file base, and the rebase is semantic', () {
-    const expected = {
-      'rfic-reference-design-libraries-csharp/Automation/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL.seq':
-          24,
-      'rfic-reference-design-libraries-labview/Automation/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL/TestStand_5GNR_DPD_AMPM_EVM_ACP_DL.seq':
-          23,
-      'rfic-reference-design-libraries-labview/Automation/TestStand_SPECAN_TXP_LOADPULL/TestStand_SPECAN_TXP_LOADPULL.seq':
-          27,
-      'ECU-HIL-Demo/TestStand Scripts/CC Tests.seq': -1,
-      'Patching Process Models/SequentialModel.seq': -1,
-      'src/docgen_csv.seq': -1,
-    };
-    var checked = 0;
-    expected.forEach((suffix, base) {
-      final f = pin(suffix);
-      if (f == null) return;
-      checked++;
-      expect(binaryTypeIndexBase(f.readAsBytesSync()), base, reason: '$suffix type-index base');
-    });
-    expect(checked, greaterThanOrEqualTo(4), reason: 'too few cohort files present to guard the recovery');
+  group('pinned files', () {
+    SeqFile load(String suffix) =>
+        parseSeqFile(files.firstWhere((f) => f.path.replaceAll(r'\', '/').endsWith(suffix)).readAsBytesSync());
 
-    final f = pin('ECU-HIL-Demo/TestStand Scripts/CC Tests.seq');
-    if (f == null) return;
-    final bytes = f.readAsBytesSync();
-    var anchors = 0;
-    void walk(List<BinaryTypeField> fs) {
-      for (final field in fs) {
-        if (field.name == 'DescriptionFormat' || field.name == 'DefaultNameFormat') {
-          anchors++;
-          expect(field.typeName, 'Expression', reason: '${field.name} must be Expression-typed');
-        }
-        walk(field.children);
+    test('PCBA FT Demo.seq: expression arrays, and a pool that starts with Obj still roots the data', () {
+      final file = load('PCBA FT Demo/PCBA FT Demo.seq');
+      final power = file.sequence('Power Diagnostics')!;
+      final source = power.main.map((s) => s.raw.prop('DataSourceArray')).nonNulls.first.array!.single;
+      expect((source.scalar, source.className), ('Locals.PS_Meas_Data.Max_Current', 'ExprValue'));
+      expect((file.binary!.pool.first, file.data.className), ('Obj', 'SequenceFileData'));
+    });
+
+    test('SequentialModel.seq: the process model with its callbacks and entry points', () {
+      final file = load('Patching Process Models/SequentialModel.seq');
+      expect(file.sequence('Test UUTs')!.runtimeSettings?.entryPointNameExpression, isNotNull);
+      expect(file.sequences.where((s) => s.steps.any((t) => t.module.adapter == SeqAdapter.sequenceCall)), isNotEmpty);
+    });
+
+    test('Test Sequence.seq: a sequence named `Sequence` with a typed sub-step', () {
+      final step = load('sandbox/Test Sequence.seq').sequence('Sequence')!.main.single;
+      expect((step.name, step.type), ('Subseq', 'DanfossStringValueTest'));
+      expect(step.raw.prop('Limits')!.prop('String')!.scalar, 'String Limit');
+    });
+
+    test('LabVIEW Compiled Object Cache Preparation.seq: a substep typedef decodes through its substeps', () {
+      final wait = load('LabVIEW Compiled Object Cache Preparation.seq').types.firstWhere((t) => t.name == 'NI_Wait');
+      final substeps = wait.prop('Substeps')!.array!;
+      expect([for (final s in substeps) s.name], ['OnNewStep', 'Post', 'Edit']);
+      final edit = substeps[2];
+      expect(edit.prop('MenuName')!.scalar, 'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")');
+      expect(edit.prop('HasEditPanel')!.scalar, 'true');
+      expect([for (final c in edit.prop('Result')!.subProps) c.name], ['Error', 'Status', 'ReportText', 'Common']);
+      expect(edit.prop('Result')!.prop('Status')!.attributes[BinAttr.inherited], 'true');
+    });
+
+    test('PerformanceMeasurementLogger.seq: Ref parameters and locals with their value flags', () {
+      final log = load('ModelPlugins/PerformanceMeasurementLogger.seq').sequence('Log Data to File')!;
+      final params = log.raw.prop('Parameters')!, locals = log.raw.prop('Locals')!;
+      expect(params.attributes['valueflags'], '4456448');
+      final ref = params.subProps.single;
+      expect((ref.name, ref.className, ref.scalar), ('PerformanceMeasurementLogger', 'Ref', null));
+      expect(locals.attributes['valueflags'], '4194304');
+      expect([for (final c in locals.subProps) c.name], ['SocketTime', 'ResultList']);
+    });
+
+    test('GetNIVSTokens.seq and CC Tests.seq: the TestStand 4.5 and 2013 generations', () {
+      expect(load('Executable/GetNIVSTokens.seq').binary!.generation, Tof1Generation.ts4);
+      final cc = load('TestStand Scripts/CC Tests.seq').binary!;
+      expect(cc.generation, Tof1Generation.ts2013);
+      expect(cc.types.where((t) => t.isProtected), isEmpty);
+    });
+
+    test('specifications.seq: protected types carry their digests and lift with their content', () {
+      final file = load('systemtests/specifications.seq');
+      final protectedTypes = file.binary!.types.where((t) => t.isProtected).toList();
+      expect(protectedTypes.where((t) => t.hasSecondaryDigest), isNotEmpty);
+      for (final type in protectedTypes) {
+        expect(type.protectionDigest, isNotEmpty);
+        final root = file.types.firstWhere((t) => t.name == type.name);
+        expect(root.attributes[BinAttr.protected], type.protectionDigest);
+        expect(root.subProps.isNotEmpty || root.array != null, isTrue, reason: type.name);
       }
-    }
-
-    for (final r in binaryTypeRecords(bytes)) {
-      walk(r.fields ?? const []);
-    }
-    expect(anchors, greaterThanOrEqualTo(2), reason: 'the cohort file must decode its anchor fields');
-  });
-
-  group('pinned corpus files (record-walk correctness)', () {
-    const pinnedSuffixes = [
-      'sandbox/Test Sequence.seq',
-      'Digital IO Tests/Digital IO Tests.seq',
-      'PCBA FT Demo/PCBA FT Demo.seq',
-      'TsmPerformanceLogger/Code/ModelPlugins/PerformanceMeasurementLogger.seq',
-    ];
-
-    List<BinarySequenceOutline> outlinesOf(String suffix) => binarySequenceOutlines(pin(suffix)!.readAsBytesSync());
-
-    test('pinned files are present (guards silent skips after a corpus rename)', () {
-      expect(pinnedSuffixes.where((s) => pin(s) != null).length, pinnedSuffixes.length);
     });
 
-    test('Test Sequence.seq: a genuine sequence NAMED `Sequence` (walk-corroborated)', () {
-      if (pin(pinnedSuffixes[0]) == null) return;
-      final seq = outlinesOf(pinnedSuffixes[0]).where((o) => o.name == 'Sequence').single;
-      final step = seq.groupArrays.firstWhere((g) => g.name == 'Main').children.single;
-      expect((step.name, step.typeName), ('Subseq', 'DanfossStringValueTest'));
-      expect(step.children.where((c) => c.name == 'Limits').single.children.single.value, 'String Limit');
+    test('Sensor Test.seq: pool strings are Windows-1252, curly quotes included', () {
+      final pool = load('Sensor Tests/Sensor Test.seq').binary!.pool;
+      expect(pool.where((p) => p.contains('“RTD Type”')), hasLength(1));
+      expect(pool.any((p) => p.contains('\u0093')), isFalse);
     });
 
-    test(
-      'LabVIEW Compiled Object Cache Preparation.seq: pool[0]-`Obj` generation — NI_Wait typedef body decodes through its substeps',
-      () {
-        if (pin(pinnedSuffixes[1]) == null) return;
-        final records = binaryTypeRecords(pin(pinnedSuffixes[1])!.readAsBytesSync());
-        final wait = records.firstWhere((r) => r.name == 'NI_Wait');
-        expect(wait.undecodedBody, isFalse);
-        final substeps = wait.fields!.firstWhere((f) => f.name == 'Substeps');
-        expect([for (final s in substeps.children) s.name], ['OnNewStep', 'Post', 'Edit']);
-        final edit = substeps.children[2];
-        final result = edit.children.firstWhere((f) => f.name == 'Result');
-        expect(result.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
-        expect([for (final c in result.children) c.name], ['Error', 'ReportText', 'Common']);
-        expect(result.children[0].className, isNull);
-        expect(
-          edit.children.firstWhere((f) => f.name == 'MenuName').value,
-          'ResStr("NI_WAIT_STEP_TYPE", "EDIT_STEP_MENU_NAME")',
-        );
-        expect(edit.children.firstWhere((f) => f.name == 'HasEditPanel').value, 'true');
-        expect(records.where((r) => r.undecodedBody).length, 2);
-      },
-    );
-
-    test('PCBA FT Demo.seq: expression-array elements (DataSourceArray) decode', () {
-      if (pin(pinnedSuffixes[2]) == null) return;
-      final main = outlinesOf(
-        pinnedSuffixes[2],
-      ).firstWhere((o) => o.name == 'Power Diagnostics').groupArrays.firstWhere((g) => g.name == 'Main');
-      expect(main.children, hasLength(4));
-      BinaryTypeField? findDataSources(BinaryTypeField f) {
-        if (f.name == 'DataSourceArray' && f.children.isNotEmpty) return f;
-        for (final c in f.children) {
-          final hit = findDataSources(c);
-          if (hit != null) return hit;
-        }
-        return null;
-      }
-
-      final dataSources = main.children.map(findDataSources).whereType<BinaryTypeField>().toList();
-      expect(dataSources, hasLength(3));
-      expect(dataSources.first.children, hasLength(1));
-      expect(dataSources.first.children.every((e) => e.className == 'ExprValue' && e.name.isEmpty), isTrue);
-      expect(dataSources.first.children.first.value, 'Locals.PS_Meas_Data.Max_Current');
+    test('Accelerometer.seq: enum typedefs decode with their enumerators', () {
+      final types = load('TestPrograms/Accelerometer/Accelerometer.seq').binary!.types;
+      final root = types.firstWhere((t) => t.root.kind == SeqValueClass.enumeration).root;
+      final first = root.enumItems!.elements!.first as BinaryRecord;
+      expect(first.child('EnumeratorName')!.value, isA<String>());
+      expect(first.child('EnumeratorValue')!.value, isA<double>());
+      expect(root.enumValueName, isNotNull);
     });
-
-    test(
-      'PerformanceMeasurementLogger.seq: pool[0]-`Obj` generation — class-slot-0 subprops and scalar `Ref` parameters decode',
-      () {
-        if (pin(pinnedSuffixes[3]) == null) return;
-        final outlines = outlinesOf(pinnedSuffixes[3]);
-        expect(outlines.map((o) => o.name), contains('Log Data to File'));
-        final log = outlines.firstWhere((o) => o.name == 'Log Data to File');
-        final params = log.leadingSubProps.firstWhere((p) => p.name == 'Parameters');
-        expect(params.className, 'Obj', reason: 'class slot 0 resolves to pool[0]');
-        expect(params.attrWords, [0x440000], reason: 'the twin-known Parameters valueflags word');
-        expect([for (final c in params.children) c.name], ['PerformanceMeasurementLogger']);
-        final ref = params.children.single;
-        expect(ref.className, 'Ref');
-        expect(ref.value, isNull, reason: 'a Ref never persists a value');
-        expect(ref.children, isEmpty);
-        final locals = log.leadingSubProps.firstWhere((p) => p.name == 'Locals');
-        expect(locals.attrWords, [0x400000], reason: 'the twin-known Locals valueflags word');
-        expect([for (final c in locals.children) c.name], ['SocketTime', 'ResultList']);
-      },
-    );
   });
 }

@@ -1,8 +1,4 @@
-import 'dart:typed_data';
-
-import 'seq_binary.dart';
 import 'seq_file.dart';
-import 'seq_format.dart';
 import 'seq_module.dart';
 import 'seq_step.dart';
 
@@ -343,81 +339,4 @@ String _dumpStep(Step step, SeqFile file) {
   if (step.comment != null) parts.write('  // ${step.comment}');
 
   return parts.toString();
-}
-
-String dumpBinaryRecon(Uint8List seqBytes) {
-  if (detectSeqFormat(seqBytes) != SeqFormat.binary) {
-    return '(not a binary TOF1 file)';
-  }
-  final header = detectSeqHeader(seqBytes);
-  final out = StringBuffer();
-  out.writeln(
-    '${header.fileType ?? 'TestStand file'} '
-    '(${header.productName ?? '?'} v${header.fileVersion ?? '?'}, ${header.format.name})',
-  );
-
-  final analysis = analyzeBinary(seqBytes);
-  if (analysis == null) {
-    out.writeln('(binary body did not inflate/frame — recon unavailable)');
-    return out.toString();
-  }
-  out.writeln(
-    'inflated body ${analysis.inflatedSize} bytes · ${analysis.strings.length} '
-    'strings · ${analysis.nameTable.length} name-table entries',
-  );
-
-  out.writeln();
-  out.writeln('=== Layout ===');
-  if (analysis.layout case final l?) {
-    out.writeln('  record region: ${l.recordRegionLength} bytes');
-    out.writeln('  string region @ ${l.stringRegionOffset}');
-    out.writeln('  record sentinels: ${l.sentinelCount}');
-    out.writeln(
-      '  strings in region: ${l.stringCount} · tables: '
-      '${l.segmentCount}',
-    );
-    if (l.leadingWords.isNotEmpty) {
-      out.writeln('  leading record words: ${l.leadingWords.join(', ')}');
-    }
-  } else {
-    out.writeln('  (body did not frame into record/string regions)');
-  }
-
-  _reconSection(out, 'Named-record headers', [
-    for (final record in analysis.namedRecords)
-      '${record.name} ×${record.count}  (raw tag ${record.rawTag}, not modeled)',
-  ]);
-  _reconSection(out, 'Object names', analysis.objectNames);
-  _reconSection(out, 'Module call-targets', analysis.modulePaths);
-  _reconSection(out, 'Step references', analysis.stepReferences);
-  _reconSection(out, 'Expressions (test logic)', analysis.expressions);
-  _reconSection(out, 'Quoted literals (values)', analysis.quotedLiterals);
-  _reconSection(out, 'Inline numeric values', [for (final value in analysis.scalarDoubles) '$value']);
-  _reconSection(out, 'Named scalar values', [
-    for (final scalar in analysis.namedScalars)
-      '${scalar.name} = ${scalar.value}  (raw type ${scalar.rawTypeCode}, not modeled)',
-  ]);
-
-  out.writeln();
-  out.writeln(
-    '(record links not yet decoded: the above are recovered values; the '
-    'variable-length record grammar tying each to its step tree is not yet '
-    'recovered)',
-  );
-  return out.toString();
-}
-
-void _reconSection(
-  StringBuffer b,
-  String title,
-  List<String> items, {
-  int cap = 40,
-}) {
-  if (items.isEmpty) return;
-  b.writeln();
-  b.writeln('=== $title (${items.length}) ===');
-  for (final it in items.take(cap)) {
-    b.writeln('  $it');
-  }
-  if (items.length > cap) b.writeln('  … and ${items.length - cap} more');
 }

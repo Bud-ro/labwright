@@ -83,9 +83,9 @@ const Map<String, int> kSnippetPrimReviewList = {
   'primResID 1171 (name not decoded)': 11,
   'node class 0x105': 16,
   'node class 0x6a': 12,
-  'primResID 1534 (name not decoded)': 11,
+  'Scan Value (primResID 1534)': 11,
   'node class 0xa9': 15,
-  'primResID 8051 (name not decoded)': 11,
+  'Read From Binary File (primResID 8051)': 11,
 };
 
 const Map<String, int> kMd5Blockers = <String, int>{};
@@ -339,7 +339,7 @@ const Map<String, ({int vis, int nodes, int sole})> kCorpusPrimReviewList = {
   'Search and Replace String (primResID 3914)': (vis: 156, nodes: 263, sole: 18),
   'Enqueue Element (primResID 9111)': (vis: 153, nodes: 319, sole: 6),
   'Get Variant Attribute (primResID 8205)': (vis: 153, nodes: 307, sole: 32),
-  'primResID 1103 (name not decoded)': (vis: 152, nodes: 213, sole: 18),
+  'Greater Or Equal? (primResID 1103)': (vis: 152, nodes: 213, sole: 18),
   'Boolean To (0,1) (primResID 1167)': (vis: 151, nodes: 555, sole: 33),
 };
 
