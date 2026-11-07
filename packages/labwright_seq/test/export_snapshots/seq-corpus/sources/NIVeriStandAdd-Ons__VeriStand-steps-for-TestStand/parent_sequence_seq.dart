@@ -17,6 +17,7 @@ Future<String> mainSequence() async {
   dynamic veristand = ts.PropObj({'VSDialogs': null}); // Obj
 
   final run = ts.SequenceRun();
+  final threads = ts.AsyncCalls();
   dynamic initializeVeriStandResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -102,11 +103,14 @@ Future<String> mainSequence() async {
         : callChildSequenceInSameFileResult.Status; // status expression
     run.record(callChildSequenceInSameFileResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    // sequence call spawns a new thread in the engine — exported as a plain awaited call
-    callChildSequenceInDifferentFileResult.Status = await child_sequence_seq
-        .mainSequence(
-          gatewayIp: fileGlobals.Veristand.GatewayIP,
-        ); // Call Child Sequence in Different File: external sequence
+    threads.start(
+      'ID#:toyzAMhaP0KUec0ek9zdHA',
+      child_sequence_seq.mainSequence(
+        gatewayIp: fileGlobals.Veristand.GatewayIP,
+      ),
+      waitAtEnd: true,
+    ); // Call Child Sequence in Different File: external sequence
+    callChildSequenceInDifferentFileResult.Status = 'Done';
     callChildSequenceInDifferentFileResult.Status =
         callChildSequenceInDifferentFileResult.Status == 'Done' && false
         ? 'Passed'
@@ -115,8 +119,8 @@ Future<String> mainSequence() async {
   } finally {
     // ── cleanup ──
     // waits for sequence call step "ID#:toyzAMhaP0KUec0ek9zdHA"
-    await Future<void>.delayed(
-      const Duration(seconds: 20),
+    await threads.wait(
+      'ID#:toyzAMhaP0KUec0ek9zdHA',
     ); // Wait for Child Sequence Thread to Complete
     // Stop VeriStand [StopVeriStand]: acts through ts.stepHost
     await ts.stepHost.runStepType(
@@ -135,6 +139,7 @@ Future<String> mainSequence() async {
     run.record(stopVeriStandResult.Status);
   }
 
+  await threads.waitAtEnd();
   return run.status;
 }
 
@@ -208,7 +213,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand acts through ts.stepHost
   //   step type RunRTSequenceAction acts through ts.stepHost
-  //   step "Call Child Sequence in Different File" runs its sequence call in a new thread (not exported)
   //   cross-file sequence MainSequence (see its module TODOs)
   //   step type StopVeriStand acts through ts.stepHost
   lw.skipTest('MainSequence', () async {

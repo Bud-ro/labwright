@@ -705,7 +705,6 @@ Future<String> mainSequence() async {
       // label: Wait for UUT of Rele NO
       if (runState.TestSockets.MyIndex == 1) {
         if (!ts.truthy(stationGlobals.Rele_programmer[0])) {
-          // waits for sequence call step "UUT Pass"
           await Future<void>.delayed(const Duration(seconds: 3));
           // goto -> step "Wait for UUT of Rele NO"
           // Goto [Goto]: no code module
@@ -713,7 +712,6 @@ Future<String> mainSequence() async {
         }
       } else if (runState.TestSockets.MyIndex == 3) {
         if (!ts.truthy(stationGlobals.Rele_programmer[1])) {
-          // waits for sequence call step "UUT Pass"
           await Future<void>.delayed(const Duration(seconds: 3));
           // goto -> step "Wait for UUT of Rele NO"
           // Goto [Goto]: no code module
@@ -721,7 +719,6 @@ Future<String> mainSequence() async {
         }
       } else if (runState.TestSockets.MyIndex == 5) {
         if (!ts.truthy(stationGlobals.Rele_programmer[2])) {
-          // waits for sequence call step "UUT Pass"
           await Future<void>.delayed(const Duration(seconds: 3));
           // goto -> step "Wait for UUT of Rele NO"
           // Goto [Goto]: no code module
@@ -902,21 +899,18 @@ Future<String> mainSequence() async {
       //   Nest <- 1
       //   error out <- Step.Result.Error
       await callChooseNest(); // Change NO staterele 1 to 6 [Action]
-      // waits for sequence call step "UUT Pass"
       await Future<void>.delayed(const Duration(seconds: 2));
       stationGlobals.Rele_programmer[0] = true; // Change boolean group 1
     } else if (runState.TestSockets.MyIndex == 2) {
       //   Nest <- 3
       //   error out <- Step.Result.Error
       await callChooseNest(); // Change NO staterele 7 to 12 [Action]
-      // waits for sequence call step "UUT Pass"
       await Future<void>.delayed(const Duration(seconds: 2));
       stationGlobals.Rele_programmer[1] = true; // Change boolean group 2
     } else if (runState.TestSockets.MyIndex == 4) {
       //   Nest <- 5
       //   error out <- Step.Result.Error
       await callChooseNest(); // Change NO staterele 13 to 18 [Action]
-      // waits for sequence call step "UUT Pass"
       await Future<void>.delayed(const Duration(seconds: 2));
       stationGlobals.Rele_programmer[2] = true; // Change boolean group 3
     }

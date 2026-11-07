@@ -25,6 +25,7 @@ Future<String> mainSequence() async {
   ]; // Nums
 
   final run = ts.SequenceRun();
+  final threads = ts.AsyncCalls();
   dynamic initializeVeriStandResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -150,10 +151,12 @@ Future<String> mainSequence() async {
     run.record(notificationResult2.Status);
     // Asynchronously launch temperature monitor
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    // sequence call spawns a new thread in the engine — exported as a plain awaited call
-    launchTemperatureMonitorResult.Status = await monitorTemperature(
-      readWait: 0.1,
+    threads.start(
+      'ID#:B+Ta6a1P6BGcPqRMyNgrgD',
+      monitorTemperature(readWait: 0.1),
+      waitAtEnd: true,
     ); // Launch Temperature Monitor
+    launchTemperatureMonitorResult.Status = 'Done';
     launchTemperatureMonitorResult.Status =
         launchTemperatureMonitorResult.Status == 'Done' && false
         ? 'Passed'
@@ -245,10 +248,11 @@ Future<String> mainSequence() async {
     // waits for sequence call step "ID#:B+Ta6a1P6BGcPqRMyNgrgD"
     if (thermalMonitorThread != null) {
       // precondition of Wait
-      await Future<void>.delayed(const Duration(seconds: 5));
+      await threads.wait('ID#:B+Ta6a1P6BGcPqRMyNgrgD'); // Wait
     }
   }
 
+  await threads.waitAtEnd();
   return run.status;
 }
 
@@ -324,9 +328,7 @@ Future<String> monitorTemperature({double readWait = 0}) async {
       'Locals.TemperatureValues[Locals.TemperatureValues.GetNumElements()-1] = RunState.PreviousStep.Result.Numeric',
     ); // Insert Temperature Reading
     // waits for sequence call step "Insert Temperature Reading"
-    await Future<void>.delayed(
-      Duration(microseconds: ((readWait) * 1e6).round()),
-    );
+    // Wait: wait for timeMultiple not exported
     // Check to see if MainSequence has sent a notification to stop
     // sync object: FileGlobals.ThermalNotification, operation code 5, lifetime code 3
     notificationResult = ts.PropObj({'Status': ''});
@@ -569,7 +571,7 @@ Future<String> enginePower() async {
   run.record(setChannelValueResult.Status);
   // Wait until the actual RPM of the engine has reached the idle RPM
   while (settled == 0) {
-    await Future<void>.delayed(const Duration(milliseconds: 500));
+    // Wait: wait for timeMultiple not exported
     getChannelValueResult = ts.PropObj({
       'Units': '',
       'Numeric': 0,
@@ -654,10 +656,10 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type InitializeVeriStand acts through ts.stepHost
   //   step type NI_Notification acts through ts.stepHost
-  //   step "Launch Temperature Monitor" runs its sequence call in a new thread (not exported)
   //   untranslated expression in body
   //   step type SetMultipleChannelValues acts through ts.stepHost
   //   step type GetChannelValue acts through ts.stepHost
+  //   wait step "Wait" for timeMultiple not exported
   //   step type AdditionalResults acts through ts.stepHost
   //   step type GetModelParameterValue acts through ts.stepHost
   //   RunState engine access (no engine at run time)

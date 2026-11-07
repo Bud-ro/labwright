@@ -174,4 +174,13 @@ void main() {
     final ref = ts.Ref<int>(1)..value = 2;
     expect(ref.value, 2);
   });
+  test('async calls are awaited by step and at the end; an error surfaces when awaited', () async {
+    final calls = ts.AsyncCalls()
+      ..start('a', Future<Object?>.value('Passed'), waitAtEnd: true)
+      ..start('b', Future<Object?>.error(StateError('boom')), waitAtEnd: false);
+    expect(await calls.wait('a'), 'Passed');
+    await calls.waitAtEnd();
+    await expectLater(calls.wait('b'), throwsStateError);
+    expect(() => calls.wait('c'), throwsStateError);
+  });
 }

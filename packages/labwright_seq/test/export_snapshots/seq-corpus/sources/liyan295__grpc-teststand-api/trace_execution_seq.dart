@@ -16,6 +16,7 @@ Future<String> mainSequence() async {
   double oldTracingSpeed = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  final threads = ts.AsyncCalls();
   dynamic numericLimitTestResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -198,21 +199,22 @@ Future<String> mainSequence() async {
         : callSequence2InANewExecutionResult.Status; // status expression
     run.record(callSequence2InANewExecutionResult.Status);
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    // sequence call spawns a new thread in the engine — exported as a plain awaited call
-    callSequence3InANewThreadResult.Status =
-        await sequence3(); // Call Sequence 3 In A New Thread
+    threads.start(
+      'ID#:tfAOLU4q7RGUKgANOl8gKA',
+      sequence3(),
+      waitAtEnd: true,
+    ); // Call Sequence 3 In A New Thread
+    callSequence3InANewThreadResult.Status = 'Done';
     callSequence3InANewThreadResult.Status =
         callSequence3InANewThreadResult.Status == 'Done' && false
         ? 'Passed'
         : callSequence3InANewThreadResult.Status; // status expression
     run.record(callSequence3InANewThreadResult.Status);
     // waits for sequence call step "ID#:jsLVsE4q7RGUKgANOl8gKA"
-    await Future<void>.delayed(
-      const Duration(seconds: 3),
-    ); // Wait For Sequence2 Execution To Finish
+    // Wait For Sequence2 Execution To Finish: wait for execution not exported
     // waits for sequence call step "ID#:tfAOLU4q7RGUKgANOl8gKA"
-    await Future<void>.delayed(
-      const Duration(seconds: 3),
+    await threads.wait(
+      'ID#:tfAOLU4q7RGUKgANOl8gKA',
     ); // Wait For Sequence3 Thread To Finish
     // status expression: ""
     // label:
@@ -225,6 +227,7 @@ Future<String> mainSequence() async {
         oldTracingSpeed; // Restore Tracing Speed
   }
 
+  await threads.waitAtEnd();
   return run.status;
 }
 
@@ -317,7 +320,7 @@ void register() {
   //   step type NI_MultipleNumericLimitTest acts through ts.stepHost
   //   cModule call: Generate Run-Time Error
   //   step "Call Sequence 2 In A New Execution" runs its sequence call in a new execution (not exported)
-  //   step "Call Sequence 3 In A New Thread" runs its sequence call in a new thread (not exported)
+  //   wait step "Wait For Sequence2 Execution To Finish" for execution not exported
   //   cModule call: Sequence4-GeneratesError
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
