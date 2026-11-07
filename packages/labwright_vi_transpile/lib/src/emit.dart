@@ -401,7 +401,6 @@ class _FunctionEmitter {
 
   /// The loop-carried local of each Feedback Node, declared before its enclosing loop.
   final Map<int, String> _feedbackLocals = {};
-
   void _emitFeedbackRead(LvFeedbackUnit unit) {
     final local = _feedbackLocals[unit.oid];
     if (local == null) {
@@ -485,7 +484,6 @@ class _FunctionEmitter {
 
   /// Units that run for their effect whatever reads them, and every structure holding one.
   late final Set<int> _effectful = _effectfulUnits();
-
   Set<int> _effectfulUnits() {
     final effectful = <int>{};
     bool visit(LvRegion region) {

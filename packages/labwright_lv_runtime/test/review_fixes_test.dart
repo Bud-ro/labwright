@@ -6,7 +6,6 @@ import 'package:test/test.dart';
 
 final class _RecordingEnvironment extends LvUnavailableEnvironment {
   List<({String event, LvRefnum source})>? registered;
-
   @override
   ({LvRefnum registration, LvError errorOut}) registerForEvents(
     List<({String event, LvRefnum source})> sources,
@@ -18,7 +17,6 @@ final class _RecordingEnvironment extends LvUnavailableEnvironment {
   }
 
   final List<LvRefnum> unregistered = [];
-
   @override
   LvError unregisterForEvents(LvRefnum registration, LvError errorIn) {
     unregistered.add(registration);
@@ -28,20 +26,17 @@ final class _RecordingEnvironment extends LvUnavailableEnvironment {
 
 void main() {
   setUp(LvReferenceTable.instance.clear);
-
   test('To Time Stamp keeps a fraction of half a second or more', () {
     expect(lvToTimeStamp(10.75), const LvTimestamp(seconds: 10, fraction: -0x4000000000000000));
     expect(lvToTimeStamp(10.5).fraction, 0x8000000000000000);
     expect(lvTimestampToDouble(lvToTimeStamp(10.75)), 10.75);
   });
-
   test('timestamps order by an unsigned fraction', () {
     const early = LvTimestamp(seconds: 1, fraction: 0x4000000000000000);
     const late = LvTimestamp(seconds: 1, fraction: -0x4000000000000000);
     expect(lvCompareValues(early, late), lessThan(0));
     expect(lvSort1dArray([late, early]), [early, late]);
   });
-
   test('a file function given an error passes its refnum through for Close File', () {
     final scratch = Directory.systemTemp.createTempSync('lv_review_');
     addTearDown(() => scratch.deleteSync(recursive: true));
@@ -55,14 +50,12 @@ void main() {
     expect(lvGetFileSize(refnum, errorIn: failing).refnumOut, refnum);
     expect(lvCloseFile(refnum).errorOut.status, isFalse);
   });
-
   test('Get Variant Attribute of variant type returns the attribute variant itself', () {
     final variant = lvSetVariantAttribute(LvVariant.empty, 'a', 5).variant;
     final read = lvGetVariantAttribute<LvVariant>(variant, 'a', defaultValue: LvVariant.empty);
     expect(read.found, isTrue);
     expect(read.value.value, 5);
   });
-
   test('File/Directory Info reads its modification time as To Time Stamp of the instant would', () {
     final scratch = Directory.systemTemp.createTempSync('lv_review_');
     addTearDown(() => scratch.deleteSync(recursive: true));
@@ -74,20 +67,17 @@ void main() {
     expect(before1970.seconds, kLvEpochOffsetSeconds - 1);
     expect(before1970.fraction.toUnsigned(64), 0x8000000000000000.toUnsigned(64));
   });
-
   test('a variant flattens a number at the width its numeric type names', () {
     expect(lvFlattenVariantData(lvToVariant(1, numeric: LvNumericType.i32)), '\x00\x00\x00\x01');
     expect(lvFlattenVariantData(lvToVariant(1, numeric: LvNumericType.u8)), '\x01');
     expect(lvFlattenVariantData(lvToVariant(1.0, numeric: LvNumericType.sgl)).length, 4);
     expect(() => lvFlattenVariantData(lvToVariant(1)), throwsUnsupportedError);
   });
-
   test('Logarithm Base 10 of a power of ten is exact', () {
     expect(lvLogarithmBase10(1000), 3.0);
     expect(lvLogarithmBase10(1e-3), -3.0);
     expect(lvLogarithmBase10(2), closeTo(0.30103, 1e-5));
   });
-
   test('Register For Events hands the environment each source with its event name', () {
     final environment = _RecordingEnvironment();
     final previous = lvEnvironment;
@@ -97,7 +87,6 @@ void main() {
     expect(registered.errorOut.status, isFalse);
     expect(environment.registered, [(event: 'Value Change', source: const LvRefnum(9))]);
   });
-
   test('a forced Release Queue or Release Notifier invalidates every reference to the object', () {
     final first = LvQueue.obtain<int>(name: 'q').queue;
     final second = LvQueue.obtain<int>(name: 'q').queue;
@@ -109,7 +98,6 @@ void main() {
     LvNotifier.release<int>(one, forceDestroy: true);
     expect(LvNotifier.send(two, 1).code, LvErrorCode.invalidReference.code);
   });
-
   test('a registration over an invalid source attaches to none of them', () {
     final event = LvUserEvent.create<int>('e').userEvent;
     final first = LvEventRegistration.register([event, const LvRefnum(999)]);
@@ -119,18 +107,15 @@ void main() {
     expect(LvEventRegistration.next(second)?.data, 1);
     expect(LvEventRegistration.next(second), isNull);
   });
-
   test('Decimate 1D Array needs an output and Reshape Array clamps negative sizes', () {
     expect(() => lvDecimate1dArray([1, 2], 0), throwsArgumentError);
     expect(lvReshapeDims([-2, 3]), [0, 3]);
     expect(lvReshapeArray([1, 2, 3], [-1, 2], 0), isEmpty);
   });
-
   test('To Time Stamp carries a fraction that rounds to a whole second', () {
     expect(lvToTimeStamp(-1e-17), const LvTimestamp(seconds: 0, fraction: 0));
     expect(lvToTimeStamp(-0.5), const LvTimestamp(seconds: -1, fraction: 0x8000000000000000));
   });
-
   test('Register For Events keeps the runtime user events of a mixed list and hands the rest on', () {
     final environment = _RecordingEnvironment();
     final previous = lvEnvironment;

@@ -9,17 +9,14 @@ enum LvQueueEnd { back, front }
 /// that name until the last one is released.
 final class LvQueue<T> {
   LvQueue._(this.name, this.maxSize);
-
   final String name;
 
   /// The capacity; -1 is unlimited.
   final int maxSize;
-
   final List<T> _elements = [];
 
   /// The live refnums that point at this object.
   final Set<LvRefnum> _refnums = {};
-
   void _releaseAll() {
     for (final refnum in _refnums) {
       LvReferenceTable.instance.release(refnum);
@@ -35,11 +32,8 @@ final class LvQueue<T> {
 
   /// Named queues alive in this run, by name.
   static final Map<String, LvQueue<Object?>> _byName = {};
-
   List<T> get elements => List<T>.unmodifiable(_elements);
-
   int get length => _elements.length;
-
   bool get isFull => maxSize >= 0 && _elements.length >= maxSize;
 
   /// Obtain Queue: a reference to the queue named [name], created when none exists and

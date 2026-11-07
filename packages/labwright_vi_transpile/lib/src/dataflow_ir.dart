@@ -260,7 +260,6 @@ class LvPrimUnit extends LvUnit {
 
   /// Every terminal holder in heap child order, the order [LvPrimSignature] indexes.
   final List<int> ports;
-
   final Map<int, int> portRoleFlags;
 
   final Map<int, int> portDrawnTop;
@@ -291,10 +290,8 @@ class LvFeedbackUnit extends LvUnit {
     required this.initializerPort,
     required this.label,
   });
-
   @override
   final int oid;
-
   final int outputPort;
 
   /// The input whose value the next iteration reads.
@@ -302,12 +299,9 @@ class LvFeedbackUnit extends LvUnit {
 
   /// The initializer terminal, which may be unwired.
   final int initializerPort;
-
   final String? label;
-
   @override
   List<int> get inputPorts => [initializerPort];
-
   @override
   List<int> get outputPorts => [outputPort];
 }
@@ -477,19 +471,12 @@ class LvInPlaceDataValueRefPair {
     required this.writeErrorIn,
     required this.errorOut,
   });
-
   final int referenceIn;
-
   final int? referenceOut;
-
   final int elementOut;
-
   final int elementIn;
-
   final int readErrorOut;
-
   final int writeErrorIn;
-
   final int? errorOut;
 }
 
@@ -550,7 +537,6 @@ class LvStructUnit extends LvUnit {
   final List<LvInPlaceClusterPair> inPlaceClusterPairs;
 
   final List<LvInPlaceDataValueRefPair> inPlaceDataValueRefPairs;
-
   @override
   List<int> get inputPorts => [
     for (final terminal in terminals)
@@ -904,7 +890,6 @@ class _Builder {
             for (final record in diagram.childrenOf(holder))
               for (final member in record.memberOids) member: holder.oid,
   };
-
   LvFeedbackUnit _feedbackUnit(BdObject node) {
     int? output, initializer, input;
     for (final holder in diagram.childrenOf(node)) {

@@ -532,7 +532,7 @@ its label set and the Dart expression an unwired input takes. A lowering
 addresses terminals by name (`LvSignedCall`), and a node whose labelled terminal
 carries another label is drawn from a revision with another order and refuses.
 
-`test/corpus_prim_signature_test.dart` pins the census: 45,950 corpus nodes
+`test/corpus_prim_signature_test.dart` checks them against the corpus: 45,950 corpus nodes
 carry a signature; every one of their 127,356 wired terminals has the direction
 the signature says, bar three Generate User Event nodes wired as sources;
 37,589 labelled terminals carry a listed label, bar one File Dialog node from a
@@ -662,8 +662,8 @@ Integer conversions emit a width helper carrying a `TODO(lv-convert-range)`:
 they are exact for every value the target width holds, and LabVIEW's rule for
 one outside it (truncate or saturate) is not established from the file format.
 
-The **review list** is everything else, pinned by count in
-`test/corpus_lowering_sweep_test.dart`: 118 distinct unmapped identities over
+The **review list** is everything else, listed per VI under `unruled` in
+`test/corpus_snapshot.json`: 118 distinct unmapped identities over
 5,199 nodes and 2,040 VI-identity pairs across the corpus (from 244, 28,853 and
 13,123). One identity sits in 150 VIs or more: the Event Data Node (`0xd6`,
 2,657 nodes in 415 VIs), which lives inside Event structures and lowers only
@@ -728,15 +728,15 @@ whose name several links share.
 Over the 46 rcpacini VI snippets: 10 lower (`MD5`, `PNG CRC32`,
 `crc32_lookup_table`, `crc8`, `ReverseBitsVim`, `basic`, `Resolve Path`,
 `ClassesInMemory`, and `VI Tree` / `decorations_only`, which have no dataflow)
-and 36 refuse. Refusals are pinned per VI and concentrate in cluster / path /
+and 36 refuse. Refusals are snapshotted per VI and concentrate in cluster / path /
 variant wire types (23), undecoded primitives (6), subVI calls whose callee is
 not supplied (2), unresolved wire direction (2), and one each on a structure, a
 foreign call and a tunnel's indexing.
 
 Over the whole 7,508-VI corpus, with every VI available as a subVI: 892 lower
 and the rest refuse, 4,864 of them on a wire type — overwhelmingly a cluster
-wire neither an endpoint nor a callee's pane resolves a member shape for. The
-rest are pinned per kind in `kCorpusLoweringSweep`: 484 on a primitive, 340 on
+wire neither an endpoint nor a callee's pane resolves a member shape for. Per
+kind: 484 on a primitive, 340 on
 a subVI call, 283 on an unwired terminal (a call that leaves a callee's control
 unwired is among them: the default saved with the control is not read from the
 data space), 247 on a constant's value, 113 on a structure, 110 on a foreign
