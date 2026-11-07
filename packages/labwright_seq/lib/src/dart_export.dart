@@ -758,7 +758,11 @@ Set<String> _writtenParameterNames(Sequence sequence) {
       scan(flow.arrayElement);
     }
   }
-  return names;
+  final byValue = {
+    for (final p in sequence.parameters)
+      if (!p.passesByReference) p.name.toLowerCase(),
+  };
+  return names.difference(byValue);
 }
 
 void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {

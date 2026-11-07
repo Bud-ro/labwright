@@ -200,6 +200,22 @@ class SequenceRuntimeSettings {
   int? get typeCode => int.tryParse(raw.prop('Type')?.scalar ?? '');
 }
 
+/// Bits of a property's flags word (XML `valueflags`) named by TestStand's `PropertyFlags` enumeration.
+enum SeqPropertyFlag {
+  /// A sequence parameter the callee receives by reference; without it the callee receives a copy.
+  passByReference(0x4),
+
+  /// A step subproperty TestStand does not copy to the result list.
+  dontCopyToResults(0x800),
+
+  /// A property a report generator displays when it is in, or is copied to, the result list.
+  includeInReport(0x2000);
+
+  const SeqPropertyFlag(this.bit);
+  final int bit;
+  bool isSetIn(int flags) => flags & bit != 0;
+}
+
 class SeqVariable {
   SeqVariable(this.raw);
 
@@ -216,6 +232,10 @@ class SeqVariable {
   bool get isContainer => raw.isArray || raw.subProps.isNotEmpty;
 
   bool get isArray => raw.isArray;
+
+  int get valueFlags => int.tryParse(raw.attributes['valueflags'] ?? '') ?? 0;
+
+  bool get passesByReference => SeqPropertyFlag.passByReference.isSetIn(valueFlags);
 
   int? get containerCount {
     if (raw.isArray) return raw.array?.length ?? 0;
