@@ -29,28 +29,52 @@ Future<String> stationPostResults({
   String icon = ''; // Path
 
   final run = ts.SequenceRun();
+  dynamic outputMessageResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Output Message
 
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Results); increment RunState.LoopIndex += 1; status "Done"
   // ignores run-time errors
   if (runState.Caller.Sequence.Id == runState.Main.Sequence.Id) {
     // precondition of Output Message
-    ts.eval(
-      'Locals.Name = Parameters.Steps[RunState.LoopIndex]->Name',
-    ); // Output Message
-    ts.eval(
-      '\nLocals.Status = Parameters.Results[RunState.LoopIndex]->Status',
-    ); // Output Message (cont.)
-    ts.eval(
-      '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
-    ); // Output Message (cont.)
-    icon = status == 'Running'
-        ? 'NI_FileDiffer\\Right.ico'
-        : (status == 'Passed' || status == 'Failed'
-              ? 'NI_FileDiffer\\Left.ico'
-              : 'ni_blank.ico'); // Output Message (cont.)
-    ts.eval(
-      '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
-    ); // Output Message (cont.)
+    final loop = ts.StepLoop();
+    loop.index = 0; // loop initialize
+    while (loop.index < ts.getNumElements(results)) {
+      // loop while
+      outputMessageResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      ts.eval(
+        'Locals.Name = Parameters.Steps[RunState.LoopIndex]->Name',
+      ); // Output Message
+      ts.eval(
+        '\nLocals.Status = Parameters.Results[RunState.LoopIndex]->Status',
+      ); // Output Message (cont.)
+      ts.eval(
+        '\nLocals.Color = (Locals.Status == "Running") ? tsBlack: (Locals.Status == "Passed") ? tsDarkGreen : (Locals.Status == "Failed") ? tsRed : tsBlue',
+      ); // Output Message (cont.)
+      icon = status == 'Running'
+          ? 'NI_FileDiffer\\Right.ico'
+          : (status == 'Passed' || status == 'Failed'
+                ? 'NI_FileDiffer\\Left.ico'
+                : 'ni_blank.ico'); // Output Message (cont.)
+      ts.eval(
+        '\n\nOutputMessage(Locals.Name + " " + ToUpper(Locals.Status), FileGlobals.Category, OutputMessageSeverity_Information, Locals.Color, Locals.Icon)',
+      ); // Output Message (cont.)
+      outputMessageResult.Status = 'Done';
+      loop.count(outputMessageResult.Status);
+      loop.index += 1; // loop increment
+    }
+    outputMessageResult.Status = 'Done'; // loop status
+    run.record(outputMessageResult.Status);
+  } else {
+    outputMessageResult.Status = 'Skipped';
   }
 
   return run.status;
@@ -147,7 +171,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   step "Output Message" loops (Custom) — per-step looping not exported
   //   RunState engine access (no engine at run time)
   //   untranslated expression in body
   lw.skipTest('StationPostResults', () async {

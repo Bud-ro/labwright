@@ -209,6 +209,18 @@ Future<String> copyAll({
     'ReportText': '',
     'Common': ts.PropObj(),
   }); // result of CopyAll
+  dynamic releaseFiSourceFilesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Release fiSourceFiles
+  dynamic releaseDiSourceSubdirectoriesResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Release diSourceSubdirectories
 
   body:
   try {
@@ -294,10 +306,42 @@ Future<String> copyAll({
     // ── cleanup ──
     diTargetSubdirectory = null; // Release diTargetSubdirectory
     // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.fiSourceFiles); increment RunState.LoopIndex += 1; status "Done"
-    fiSourceFiles[runState.LoopIndex] = null; // Release fiSourceFiles
+    final loop = ts.StepLoop();
+    loop.index = 0; // loop initialize
+    while (loop.index < ts.getNumElements(fiSourceFiles)) {
+      // loop while
+      releaseFiSourceFilesResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      fiSourceFiles[loop.index.toInt()] = null; // Release fiSourceFiles
+      releaseFiSourceFilesResult.Status = 'Done';
+      loop.count(releaseFiSourceFilesResult.Status);
+      loop.index += 1; // loop increment
+    }
+    releaseFiSourceFilesResult.Status = 'Done'; // loop status
+    run.record(releaseFiSourceFilesResult.Status);
     // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.diSourceSubdirectories); increment RunState.LoopIndex += 1; status "Done"
-    diSourceSubdirectories[runState.LoopIndex] =
-        null; // Release diSourceSubdirectories
+    final loop2 = ts.StepLoop();
+    loop2.index = 0; // loop initialize
+    while (loop2.index < ts.getNumElements(diSourceSubdirectories)) {
+      // loop while
+      releaseDiSourceSubdirectoriesResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      diSourceSubdirectories[loop2.index.toInt()] =
+          null; // Release diSourceSubdirectories
+      releaseDiSourceSubdirectoriesResult.Status = 'Done';
+      loop2.count(releaseDiSourceSubdirectoriesResult.Status);
+      loop2.index += 1; // loop increment
+    }
+    releaseDiSourceSubdirectoriesResult.Status = 'Done'; // loop status
+    run.record(releaseDiSourceSubdirectoriesResult.Status);
   }
 
   return run.status;
@@ -341,9 +385,6 @@ void register() {
   //   dotNet call: System.IO.DirectoryInfo.GetDirectories
   //   dotNet call: System.IO.DirectoryInfo.Name
   //   dotNet call: System.IO.DirectoryInfo.CreateSubdirectory
-  //   step "Release fiSourceFiles" loops (Custom) — per-step looping not exported
-  //   RunState engine access (no engine at run time)
-  //   step "Release diSourceSubdirectories" loops (Custom) — per-step looping not exported
   lw.skipTest('Install', () async {
     lw.expect(await install(), 'Passed');
   });

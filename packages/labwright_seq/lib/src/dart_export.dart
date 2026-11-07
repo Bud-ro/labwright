@@ -829,8 +829,10 @@ void _refineIntTypes(SeqFile file, List<_SeqScope> scopes, String? sourceName) {
       if (flow != null) {
         scan(flow.initialization);
         scan(flow.increment);
-        final element = flow.arrayElement;
-        if (element != null) {
+        for (final element in [
+          flow.arrayElement,
+          for (final parameter in step.sweepLoop?.parameters ?? const <SweepParameter>[]) parameter.valueExpression,
+        ].nonNulls) {
           final m = refRe.firstMatch(element);
           final id = m != null ? idOf(scope, m.group(1)!, m.group(2)!) : null;
           if (id != null) candidates.remove((scope, id));
@@ -1049,6 +1051,35 @@ enum _SeqFunction {
   static final Map<String, _SeqFunction> byName = {for (final f in values) f.name: f};
 }
 
+/// A RunState property that reads the looping state of the executing step.
+enum _LoopProperty {
+  loopIndex('loopindex', 'index'),
+  numIterations('loopnumiterations', 'numIterations'),
+  numPassed('loopnumpassed', 'numPassed'),
+  numFailed('loopnumfailed', 'numFailed');
+
+  const _LoopProperty(this.name, this.field);
+  final String name;
+  final String field;
+  static final Map<String, _LoopProperty> byName = {for (final p in values) p.name: p};
+}
+
+/// How a sweep parameter produces its values.
+enum _SweepStrategy {
+  /// From Start towards Stop in increments of Step.
+  startStopStep('StartStopStep'),
+
+  /// A count of points from Start to Stop, both included.
+  startStopNumPoints('StartStopNumPoints'),
+
+  /// The elements of an array expression.
+  array('Array');
+
+  const _SweepStrategy(this.name);
+  final String name;
+  static final Map<String, _SweepStrategy> byName = {for (final s in values) s.name: s};
+}
+
 /// A built-in step type whose whole behaviour, without a code module, is its expressions and post action.
 enum _ModuleFreeStepType {
   /// Runs its module, so with none only its expressions.
@@ -1064,10 +1095,16 @@ enum _ModuleFreeStepType {
 
 typedef _JumpBlock = ({int open, int close, String header, String? footer});
 
-typedef _OpenBlock = ({FlowKind kind, String? increment, String? condition, int selectId});
+typedef _OpenBlock = ({FlowKind kind, String? increment, String? condition, int selectId, String? label, int closers});
 
-_OpenBlock _openBlock(FlowKind kind, {String? increment, String? condition, int selectId = 0}) =>
-    (kind: kind, increment: increment, condition: condition, selectId: selectId);
+_OpenBlock _openBlock(
+  FlowKind kind, {
+  String? increment,
+  String? condition,
+  int selectId = 0,
+  String? label,
+  int closers = 1,
+}) => (kind: kind, increment: increment, condition: condition, selectId: selectId, label: label, closers: closers);
 
 class _DartExporter {
   _DartExporter(
@@ -1130,6 +1167,8 @@ class _DartExporter {
   String? _bodyLabel;
 
   String? _cleanupFrom;
+
+  String? _stepLoop;
 
   Set<int> _cleanupEntriesOf = const {};
 
@@ -1354,6 +1393,8 @@ class _DartExporter {
         return declared == null ? null : typed('stationGlobals.$declared', null);
       case 'Step' when name.toLowerCase() == 'result' && _foldResult != null:
         return typed(_foldResult!, null);
+      case 'RunState' when _stepLoop != null && _LoopProperty.byName.containsKey(name.toLowerCase()):
+        return typed('$_stepLoop.${_LoopProperty.byName[name.toLowerCase()]!.field}', _DartSlot.number);
       case 'RunState' when name.toLowerCase() == 'sequencefailed':
         return typed('$_runId.failed', _DartSlot.flag);
       default:
@@ -1362,15 +1403,17 @@ class _DartExporter {
   }
 
   static final _stepSelfWrite = RegExp(
-    r'(?<![\w.])Step\.(?!Result\b)[A-Za-z_][\w.]*(?:\[[^\]]*\])*\s*[-+*/%&|^]?=(?!=)',
+    r'(?<![\w.])Step\.(?!Result\b)([A-Za-z_][\w.]*)((?:\[[^\]]*\])*)\s*[-+*/%&|^]?=(?!=)',
     caseSensitive: false,
   );
-  static final _stepReference = RegExp(r'(?<![\w.])Step\.(?!Result\b)', caseSensitive: false);
+  static final _stepReference = RegExp(r'(?<![\w.])Step\.(?!Result\b)([A-Za-z_][\w.]*)(\[)?', caseSensitive: false);
 
-  final Map<SeqProperty, bool> _foldableSteps = Map.identity();
+  final Map<SeqProperty, Set<String>> _writtenStepPaths = Map.identity();
 
-  bool _foldable(Step step) => _foldableSteps.putIfAbsent(step.raw, () {
+  /// The lower-cased property paths a step may write on itself: assigned in its expressions or bound to its module.
+  Set<String> _stepWrites(Step step) => _writtenStepPaths.putIfAbsent(step.raw, () {
     final settings = step.settings;
+    final written = <String>{};
     final expressions = [
       settings.precondition,
       settings.preExpression,
@@ -1378,7 +1421,9 @@ class _DartExporter {
       _statusExpression(step),
       settings.customExpression,
     ].nonNulls;
-    if (expressions.any(_stepSelfWrite.hasMatch)) return false;
+    for (final m in expressions.expand(_stepSelfWrite.allMatches)) {
+      written.add(m.group(1)!.toLowerCase());
+    }
     final module = step.module;
     final bindings = [
       for (final p in [...module.viParameters, ...module.callParameters]) p.boundExpression,
@@ -1386,8 +1431,14 @@ class _DartExporter {
         for (final p in call.parameters) p.boundExpression,
       for (final a in module.sequenceArguments) a.expression,
     ].nonNulls;
-    return !bindings.any(_stepReference.hasMatch);
+    for (final m in bindings.expand(_stepReference.allMatches)) {
+      written.add(m.group(1)!.toLowerCase());
+    }
+    return written;
   });
+
+  bool _writesStepPath(Step step, String path) =>
+      _stepWrites(step).any((w) => w == path || w.startsWith('$path.') || path.startsWith('$w.'));
 
   SeqProperty? _stepLeaf(SeqExpr e) {
     final step = _foldStep;
@@ -1405,11 +1456,17 @@ class _DartExporter {
       if (path.last == 'low' && limits?.usesLowExpression == true) return null;
       if (path.last == 'high' && limits?.usesHighExpression == true) return null;
     }
-    if (!_foldable(step)) return null;
-    SeqProperty? node = step.raw;
-    for (final name in path) {
-      node = node?.subProps.where((c) => c.name.toLowerCase() == name).firstOrNull;
+    if (_writesStepPath(step, path.join('.'))) return null;
+    SeqProperty? walk(SeqProperty? root) {
+      var node = root;
+      for (final name in path) {
+        node = node?.subProps.where((c) => c.name.toLowerCase() == name).firstOrNull;
+      }
+      return node;
     }
+
+    var node = walk(step.raw);
+    if (node?.scalar == null) node = walk(step.type == null ? null : _typeByName[step.type]?.raw) ?? node;
     final cls = node?.valueClass;
     return node != null &&
             node.isLeaf &&
@@ -1503,10 +1560,11 @@ class _DartExporter {
         final at = _emit(index);
         if (base == null || at == null) return null;
         final indexable =
-            (base.type == _DartSlot.list && (at.type == _DartSlot.integer || at.type == _DartSlot.untyped)) ||
+            (base.type == _DartSlot.list && (_isNumeric(at.type) || at.type == _DartSlot.untyped)) ||
             (base.type == _DartSlot.untyped && at.type != _DartSlot.opaque && at.type != _DartSlot.absent);
         if (!indexable) return null;
-        return (code: '${_wrap(base, _Prec.primary).code}[${at.code}]', type: _DartSlot.untyped, prec: _Prec.primary);
+        final key = at.type == _DartSlot.number ? '${_wrap(at, _Prec.primary).code}.toInt()' : at.code;
+        return (code: '${_wrap(base, _Prec.primary).code}[$key]', type: _DartSlot.untyped, prec: _Prec.primary);
       case SeqCall(:final callee, :final arguments):
         return _emitCall(callee, arguments);
       case SeqUnary(:final op, :final operand):
@@ -1935,6 +1993,10 @@ class _DartExporter {
       if (opened.kind == FlowKind.forLoop && opened.increment != null) {
         _line('${_exprStatement(opened.increment!)}; // for increment');
       }
+      for (var i = 1; i < opened.closers; i++) {
+        _indent--;
+        _line('}');
+      }
       _indent--;
       if (opened.kind == FlowKind.doWhile) {
         _line('} while (${_cond(opened.condition ?? 'true')});$note');
@@ -2137,11 +2199,28 @@ class _DartExporter {
           _line('${vars.matched} = true;');
           open.add(_openBlock(flow.kind, selectId: select));
         case FlowKind.sweepLoop:
-          if (asTest) _markUnported('sweep loop "${step.name}": parameter sweep not exported');
-          _line('// TODO: ${_comment(flow.header)} not exported; the body runs once');
-          _line('{$nameNote');
-          _indent++;
-          open.add(_openBlock(flow.kind));
+          final levels = step.sweepLoop == null ? null : _sweepLevels(step.sweepLoop!);
+          if (levels == null) {
+            if (asTest) _markUnported('sweep loop "${step.name}": parameter sweep not exported');
+            _line('// TODO: ${_comment(flow.header)} not exported; the body runs once');
+            _line('{$nameNote');
+            _indent++;
+            open.add(_openBlock(flow.kind));
+          } else {
+            final label = _claimId('sweep');
+            for (final (depth, level) in levels.indexed) {
+              final value = _claimId('value');
+              final source = level.length == 1
+                  ? level.single.values
+                  : 'ts.parallel([${level.map((p) => p.values).join(', ')}])';
+              _line('${depth == 0 ? '$label: ' : ''}for (final $value in $source) {${depth == 0 ? nameNote : ''}');
+              _indent++;
+              for (final (column, parameter) in level.indexed) {
+                _line(parameter.bind(level.length == 1 ? value : '$value[$column]'));
+              }
+            }
+            open.add(_openBlock(flow.kind, label: label, closers: levels.length));
+          }
         case FlowKind.end:
           if (open.isEmpty) {
             _line(
@@ -2155,7 +2234,7 @@ class _DartExporter {
           final target = innermost(
             (k) => k == FlowKind.selectBlock || k == FlowKind.sweepLoop || loopKinds.contains(k),
           );
-          if (target?.kind == FlowKind.sweepLoop) {
+          if (target?.kind == FlowKind.sweepLoop && target?.label == null) {
             if (asTest) _markUnported('break out of sweep loop at step "${step.name}" not exported');
             _line('// $rawName: Break out of a sweep loop — kept as a comment');
           } else if (target == null) {
@@ -2164,7 +2243,11 @@ class _DartExporter {
               'comment',
             );
           } else {
-            final breakStmt = target.kind == FlowKind.selectBlock ? 'break sel${target.selectId};' : 'break;';
+            final breakStmt = switch (target.kind) {
+              FlowKind.selectBlock => 'break sel${target.selectId};',
+              FlowKind.sweepLoop => 'break ${target.label};',
+              _ => 'break;',
+            };
             final pre = step.settings.precondition ?? _typePreconditions[step.type];
             if (pre != null) {
               _line('if (${_cond(pre)}) {$nameNote');
@@ -2178,7 +2261,7 @@ class _DartExporter {
           }
         case FlowKind.continueStmt:
           final loop = innermost((k) => k == FlowKind.sweepLoop || loopKinds.contains(k));
-          if (loop?.kind == FlowKind.sweepLoop) {
+          if (loop?.kind == FlowKind.sweepLoop && loop?.label == null) {
             if (asTest) _markUnported('continue in sweep loop at step "${step.name}" not exported');
             _line('// $rawName: Continue in a sweep loop — kept as a comment');
           } else if (loop == null) {
@@ -2425,6 +2508,57 @@ class _DartExporter {
     _line('}');
   }
 
+  List<List<({String values, String Function(String value) bind})>>? _sweepLevels(SweepLoop sweep) {
+    final unsupported =
+        sweep.input?.enabled == true ||
+        sweep.output?.enabled == true ||
+        (sweep.ioSessionCount ?? 0) > 0 ||
+        sweep.iterationExpression != null ||
+        sweep.offsetExpression != null ||
+        sweep.enabledTestVectors != null;
+    if (unsupported) return null;
+    final active = [
+      for (final p in sweep.parameters)
+        if (p.strategy != 'UseExistingValue' && p.enabled != false) p,
+    ];
+    if (active.isEmpty || (active.length > 1 && active.any((p) => p.level == null))) return null;
+    final byLevel = <int, List<({String values, String Function(String value) bind})>>{};
+    for (final parameter in active) {
+      final target = parameter.valueExpression;
+      final parsed = target == null ? null : parseSeqExpression(target);
+      final slot = parsed == null ? null : _emitTarget(parsed);
+      if (slot == null || slot.type == _DartSlot.absent || slot.type == _DartSlot.opaque) return null;
+      String? values;
+      final operation = parameter.stepOperation;
+      String bound(String? raw) => _numeric(raw ?? '0');
+      switch (_SweepStrategy.byName[parameter.strategy]) {
+        case _SweepStrategy.startStopStep when operation == 'Linear':
+          values =
+              'ts.sweepSteps(${bound(parameter.startExpression)}, ${bound(parameter.stopExpression)}, '
+              '${bound(parameter.stepExpression)})';
+        case _SweepStrategy.startStopNumPoints when operation == 'Linear' || operation == 'Logarithmic':
+          values =
+              'ts.sweepPoints(${bound(parameter.startExpression)}, ${bound(parameter.stopExpression)}, '
+              '${bound(parameter.sweepPointsExpression)}${operation == 'Logarithmic' ? ', logarithmic: true' : ''})';
+        case _SweepStrategy.array:
+          final array = parameter.arrayExpression == null ? null : _translate(parameter.arrayExpression!);
+          if (array != null && (array.type == _DartSlot.list || array.type == _DartSlot.untyped)) values = array.code;
+        default:
+      }
+      if (values == null) return null;
+      final cast = switch (slot.type) {
+        _DartSlot.number => (String v) => '($v as num).toDouble()',
+        _DartSlot.integer => (String v) => '($v as num).toInt()',
+        _DartSlot.flag => (String v) => '$v as bool',
+        _DartSlot.text => (String v) => '$v as String',
+        _DartSlot.list => (String v) => '$v as List<dynamic>',
+        _ => (String v) => v,
+      };
+      (byLevel[parameter.level ?? 0] ??= []).add((values: values, bind: (v) => '${slot.code} = ${cast(v)};'));
+    }
+    return [for (final level in byLevel.keys.toList()..sort()) byLevel[level]!];
+  }
+
   String _exprStatement(String raw) {
     if (_stripComments(raw).trim().isEmpty) return "''";
     final parsed = parseSeqExpression(raw);
@@ -2608,11 +2742,6 @@ class _DartExporter {
       _stats.payloadNotes++;
       _line('// ${_comment(note)}');
     }
-    if (!asTest) return;
-    final settings = step.settings;
-    if (settings.isLooping) {
-      _markUnported('step "${step.name}" loops (${settings.loopType}) — per-step looping not exported');
-    }
   }
 
   void _emitPlainStep(Step step) {
@@ -2629,7 +2758,16 @@ class _DartExporter {
       );
       _indent++;
     }
-    if (result != null && _loopDepth > 0) _line('$result = ${_resultInit(step)};');
+    final loop = settings.isLooping && result != null ? _claimId('loop') : null;
+    if (loop != null) {
+      _line('final $loop = ts.StepLoop();');
+      _stepLoop = loop;
+      final initialize = settings.loopInitialize;
+      if (initialize != null) _emitStmt(initialize, 'loop initialize');
+      _line('while (${_cond(settings.loopWhile ?? 'true')}) { // loop while');
+      _indent++;
+    }
+    if (result != null && (_loopDepth > 0 || loop != null)) _line('$result = ${_resultInit(step)};');
 
     final pre = settings.preExpression;
     if (pre != null) _emitStmt(pre, 'pre-expression');
@@ -2651,8 +2789,18 @@ class _DartExporter {
       } else if (!_callsExportedSequence(step)) {
         _line("$result.Status = 'Done';");
       }
-      if (settings.failureCausesSequenceFailure != false) _line('$_runId.record($result.Status);');
     }
+    if (loop != null) {
+      _line('$loop.count($result.Status);');
+      final increment = settings.loopIncrement;
+      if (increment != null) _emitStmt(increment, 'loop increment');
+      _indent--;
+      _line('}');
+      final loopStatus = settings.loopStatus;
+      if (loopStatus != null) _line('$result.Status = ${_expr(loopStatus)}; // loop status');
+      _stepLoop = null;
+    }
+    if (result != null && settings.failureCausesSequenceFailure != false) _line('$_runId.record($result.Status);');
     _emitPostAction(step, result);
 
     if (precondition != null) {
@@ -2704,9 +2852,17 @@ class _DartExporter {
         settings.postExpression,
         _statusExpression(step),
         settings.customExpression,
+        if (settings.isLooping) ...[
+          settings.loopInitialize,
+          settings.loopWhile,
+          settings.loopIncrement,
+          settings.loopStatus,
+        ],
       ].nonNulls;
       final status = _statusExpression(step);
-      if ((status != null && status.trim() != '""') || expressions.any(ownResult.hasMatch)) tracked.add(step.raw);
+      if ((status != null && status.trim() != '""') || settings.isLooping || expressions.any(ownResult.hasMatch)) {
+        tracked.add(step.raw);
+      }
       for (final m in expressions.expand(referenced.allMatches)) {
         final group = StepGroup.values.firstWhere((g) => g.key.toLowerCase() == m.group(1)!.toLowerCase());
         final matches = [

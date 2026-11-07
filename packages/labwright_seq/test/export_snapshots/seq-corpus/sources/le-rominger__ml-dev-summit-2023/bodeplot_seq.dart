@@ -13,7 +13,7 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
-  int frequency = 0; // Num — default: 0
+  double frequency = 0; // Num — default: 0
   bool simulate = false; // Bool — default: false
   dynamic results = ts.PropObj({
     'gain': 0,
@@ -33,8 +33,9 @@ Future<String> mainSequence() async {
     // label: See Process Setup
 
     // ── main ──
-    // TODO: sweep loop (Locals.Frequency) not exported; the body runs once
-    {
+    sweep:
+    for (final value in ts.sweepPoints(200, 50000, 100, logarithmic: true)) {
+      frequency = (value as num).toDouble();
       // -- Call LabVIEW Service
       // measurement: LabVIEW Bodeplot Summit_LabVIEW
       // measurement param: Start Frequency (In TypeDouble) = Locals.Frequency
@@ -141,7 +142,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   sweep loop "Sweep Loop": parameter sweep not exported
   //   step type NI_Measurement: action not exported yet
   //   untranslated expression in body
   lw.skipTest('MainSequence', () async {

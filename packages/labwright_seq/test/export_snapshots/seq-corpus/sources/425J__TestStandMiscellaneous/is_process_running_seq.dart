@@ -21,6 +21,12 @@ Future<String> isProcessRunning({
   String description = ''; // Str
 
   final run = ts.SequenceRun();
+  dynamic releaseProcessResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Release Process
 
   body:
   try {
@@ -55,7 +61,23 @@ Future<String> isProcessRunning({
   } finally {
     // ── cleanup ──
     // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.Processes); increment RunState.LoopIndex += 1; status "Done"
-    processes[runState.LoopIndex] = null; // Release Process
+    final loop = ts.StepLoop();
+    loop.index = 0; // loop initialize
+    while (loop.index < ts.getNumElements(processes)) {
+      // loop while
+      releaseProcessResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      processes[loop.index.toInt()] = null; // Release Process
+      releaseProcessResult.Status = 'Done';
+      loop.count(releaseProcessResult.Status);
+      loop.index += 1; // loop increment
+    }
+    releaseProcessResult.Status = 'Done'; // loop status
+    run.record(releaseProcessResult.Status);
   }
 
   return run.status;
@@ -83,8 +105,6 @@ void register() {
   //   dotNet call: System.Diagnostics.Process.GetProcessesByName
   //   untranslated expression in body
   //   dotNet call: System.Diagnostics.Process.FileDescription
-  //   step "Release Process" loops (Custom) — per-step looping not exported
-  //   RunState engine access (no engine at run time)
   lw.skipTest('Is Process Running', () async {
     lw.expect(await isProcessRunning(), 'Passed');
   });

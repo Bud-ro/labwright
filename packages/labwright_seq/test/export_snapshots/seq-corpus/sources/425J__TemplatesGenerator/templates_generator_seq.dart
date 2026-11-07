@@ -79,6 +79,12 @@ Future<String> createSfTemplates({
   int index = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic setDefaultParametersResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Set Default Parameters
 
   body:
   try {
@@ -113,10 +119,28 @@ Future<String> createSfTemplates({
         '\n\n\'Set parameters/prototype\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = False,\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.LoadPrototypeFromSequence(Locals.SF.AsSequenceFile.GetSequence(Locals.Index) ,LoadPrototypeOption_NoOptions),\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = True',
       ); // Set Temporary Step Properties (cont.)
       // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < #NoValidation(Locals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNumSubProperties("")); increment RunState.LoopIndex += 1; status "Done"
-      ts.eval('#NoValidation'); // Set Default Parameters
-      ts.eval(
-        '\n\'Set default flag for parameters\nLocals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNthSubProperty("", RunState.LoopIndex, PropOption_NoOptions).UseDef = True',
-      ); // Set Default Parameters (cont.)
+      final loop = ts.StepLoop();
+      loop.index = 0; // loop initialize
+      while (loop.index <
+          tmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject
+              .GetNumSubProperties('')) {
+        // loop while
+        setDefaultParametersResult = ts.PropObj({
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        });
+        ts.eval('#NoValidation'); // Set Default Parameters
+        ts.eval(
+          '\n\'Set default flag for parameters\nLocals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNthSubProperty("", RunState.LoopIndex, PropOption_NoOptions).UseDef = True',
+        ); // Set Default Parameters (cont.)
+        setDefaultParametersResult.Status = 'Done';
+        loop.count(setDefaultParametersResult.Status);
+        loop.index += 1; // loop increment
+      }
+      setDefaultParametersResult.Status = 'Done'; // loop status
+      run.record(setDefaultParametersResult.Status);
       ts.eval('#NoValidation'); // Add a Sequence to the Templates
       ts.eval(
         '\nParameters.TemplatesFolder.AsPropertyObject.SetPropertyObjectByOffset(GetNumElements(*Parameters.TemplatesFolder), PropOption_InsertElement, Locals.TmpStep.AsPropertyObject.Clone("", PropOption_NoOptions))',
@@ -156,7 +180,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   RunState engine access (no engine at run time)
-  //   step "Set Default Parameters" loops (Custom) — per-step looping not exported
   lw.skipTest('CreateTemplates', () async {
     lw.expect(await createTemplates(), 'Passed');
   });

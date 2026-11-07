@@ -13,8 +13,8 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
-  int thd = 0; // Num — default: 0
-  int micSensitivity = 0; // Num — default: 0
+  double thd = 0; // Num — default: 0
+  double micSensitivity = 0; // Num — default: 0
   int outputVoltageRatio = 0; // Num — default: 0
   dynamic pxi1Slot3 = ts.PropObj({
     'SessionNumber': 0,
@@ -933,8 +933,8 @@ Future<String> mainSequence() async {
       }),
     }),
   }); // NI_IOSession
-  int frequency = 0; // Num — default: 0
-  int soundLevel = 0; // Num — default: 0
+  double frequency = 0; // Num — default: 0
+  double soundLevel = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
 
@@ -961,48 +961,52 @@ Future<String> mainSequence() async {
     ); // Calibrate Acoustic Output Level [NI_Measurement]
 
     // ── main ──
-    // TODO: sweep loop (Locals.frequency, Locals.sound_level, Locals.THD, Locals.mic_sensitivity) not exported; the body runs once
-    {
-      // measurement: Single Tone - Digital Mic_LabVIEW
-      // measurement param: digital channel list (In TypeString) = "PXI1Slot5\\PDMi 0"
-      // measurement param: input cfg file (In TypeString) = "C:\\dev\\digital-microphone\\test\\test-PDM.inputcfg"
-      // measurement param: digital mic sensitivity (dBFS) (In TypeDouble) = -26
-      // measurement param: ref mic channel (In TypeString) = "PXI1Slot2/ai0"
-      // measurement param: ref mic sensitivity (mV/Pa) (In TypeDouble) = 50
-      // measurement param: output channel (In TypeString) = "PXI1Slot2/ao0"
-      // measurement param: signal frequency (In TypeDouble) = Locals.frequency
-      // measurement param: output level (dBSPL) (In TypeDouble) = Locals.sound_level
-      // measurement param: output voltage ratio (In TypeDouble) = Locals.output_voltage_ratio
-      // measurement param: lowpass filter (In TypeEnum Enum) = 0i64
-      // measurement param: weighting filter (In TypeEnum Enum) = 0i64
-      // measurement param: highpass filter (In TypeEnum Enum) = 1i64
-      // measurement param: band start (In TypeDouble) = 20
-      // measurement param: band stop (In TypeDouble) = 20000
-      // measurement param: min measurement cycles (In TypeUint32) = 20ui64
-      // measurement param: min measurement time (s) (In TypeDouble) = 0.1
-      // measurement param: min settling cycles (In TypeUint32) = 0ui64
-      // measurement param: min settling time (s) (In TypeDouble) = 0
-      // measurement param: SNR units (In TypeEnum Enum) = 0i64
-      // measurement param: THD+N units (In TypeEnum Enum) = 1i64
-      // measurement param: THD units (In TypeEnum Enum) = 1i64
-      // measurement param: channel name (Out TypeString)
-      // measurement param: frequency (Hz) (Out TypeDouble)
-      // measurement param: amplitude (Pa RMS) (Out TypeDouble)
-      // measurement param: amplitude (dBSPL) (Out TypeDouble)
-      // measurement param: microphone sensitivity (dBFS) (Out TypeDouble) = Locals.mic_sensitivity
-      // measurement param: SNR (Out TypeDouble)
-      // measurement param: THD+N (Out TypeDouble)
-      // measurement param: THD (Out TypeDouble) = Locals.THD
-      // measurement param: wfm - dt (Out TypeDouble)
-      // measurement param: wfm - data (Out TypeDouble)
-      // measurement param: fft - f0 (Out TypeDouble)
-      // measurement param: fft - df (Out TypeDouble)
-      // measurement param: fft - data (Out TypeDouble)
-      // measurement param: ref mic wfm - dt (Out TypeDouble)
-      // measurement param: ref mic wfm - data (Out TypeDouble)
-      throw UnimplementedError(
-        'step type NI_Measurement: action not exported yet',
-      ); // Single Tone Measurement [NI_Measurement]
+    sweep:
+    for (final value in ts.sweepPoints(1000, 5000, 3)) {
+      frequency = (value as num).toDouble();
+      for (final value2 in ts.sweepPoints(85, 95, 3)) {
+        soundLevel = (value2 as num).toDouble();
+        // measurement: Single Tone - Digital Mic_LabVIEW
+        // measurement param: digital channel list (In TypeString) = "PXI1Slot5\\PDMi 0"
+        // measurement param: input cfg file (In TypeString) = "C:\\dev\\digital-microphone\\test\\test-PDM.inputcfg"
+        // measurement param: digital mic sensitivity (dBFS) (In TypeDouble) = -26
+        // measurement param: ref mic channel (In TypeString) = "PXI1Slot2/ai0"
+        // measurement param: ref mic sensitivity (mV/Pa) (In TypeDouble) = 50
+        // measurement param: output channel (In TypeString) = "PXI1Slot2/ao0"
+        // measurement param: signal frequency (In TypeDouble) = Locals.frequency
+        // measurement param: output level (dBSPL) (In TypeDouble) = Locals.sound_level
+        // measurement param: output voltage ratio (In TypeDouble) = Locals.output_voltage_ratio
+        // measurement param: lowpass filter (In TypeEnum Enum) = 0i64
+        // measurement param: weighting filter (In TypeEnum Enum) = 0i64
+        // measurement param: highpass filter (In TypeEnum Enum) = 1i64
+        // measurement param: band start (In TypeDouble) = 20
+        // measurement param: band stop (In TypeDouble) = 20000
+        // measurement param: min measurement cycles (In TypeUint32) = 20ui64
+        // measurement param: min measurement time (s) (In TypeDouble) = 0.1
+        // measurement param: min settling cycles (In TypeUint32) = 0ui64
+        // measurement param: min settling time (s) (In TypeDouble) = 0
+        // measurement param: SNR units (In TypeEnum Enum) = 0i64
+        // measurement param: THD+N units (In TypeEnum Enum) = 1i64
+        // measurement param: THD units (In TypeEnum Enum) = 1i64
+        // measurement param: channel name (Out TypeString)
+        // measurement param: frequency (Hz) (Out TypeDouble)
+        // measurement param: amplitude (Pa RMS) (Out TypeDouble)
+        // measurement param: amplitude (dBSPL) (Out TypeDouble)
+        // measurement param: microphone sensitivity (dBFS) (Out TypeDouble) = Locals.mic_sensitivity
+        // measurement param: SNR (Out TypeDouble)
+        // measurement param: THD+N (Out TypeDouble)
+        // measurement param: THD (Out TypeDouble) = Locals.THD
+        // measurement param: wfm - dt (Out TypeDouble)
+        // measurement param: wfm - data (Out TypeDouble)
+        // measurement param: fft - f0 (Out TypeDouble)
+        // measurement param: fft - df (Out TypeDouble)
+        // measurement param: fft - data (Out TypeDouble)
+        // measurement param: ref mic wfm - dt (Out TypeDouble)
+        // measurement param: ref mic wfm - data (Out TypeDouble)
+        throw UnimplementedError(
+          'step type NI_Measurement: action not exported yet',
+        ); // Single Tone Measurement [NI_Measurement]
+      }
     }
   } finally {
     // ── cleanup ──
@@ -1035,7 +1039,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet
   //   step type NI_Measurement: action not exported yet
-  //   sweep loop "Sweep Loop": parameter sweep not exported
   //   step type NI_CloseIOSession: action not exported yet
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');

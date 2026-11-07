@@ -28,6 +28,12 @@ Future<String> sequenceFileDoc({
   double totalNumSteps = 0; // Num — default: 0
 
   final run = ts.SequenceRun();
+  dynamic updateTotalNumStepsResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Update TotalNumSteps
   dynamic processRequirementsResult = ts.PropObj({
     'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
     'Status': '',
@@ -144,12 +150,28 @@ Future<String> sequenceFileDoc({
         '\nLocals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_SEQUENCES"), "%-30s") +\n	Locals.ValColHTML +\n	Str(GetNumElements(Parameters.SequenceFile.Data.Seq)) + "\\n"\n',
       ); // Num Sequences
       // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
-      totalNumSteps +=
-          ts.getNumElements(sequenceFile.Data.Seq[runState.LoopIndex].Main) +
-          ts.getNumElements(sequenceFile.Data.Seq[runState.LoopIndex].Setup) +
-          ts.getNumElements(
-            sequenceFile.Data.Seq[runState.LoopIndex].Cleanup,
-          ); // Update TotalNumSteps
+      final loop = ts.StepLoop();
+      loop.index = 0; // loop initialize
+      while (loop.index < ts.getNumElements(sequenceFile.Data.Seq)) {
+        // loop while
+        updateTotalNumStepsResult = ts.PropObj({
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        });
+        totalNumSteps +=
+            ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Main) +
+            ts.getNumElements(sequenceFile.Data.Seq[loop.index.toInt()].Setup) +
+            ts.getNumElements(
+              sequenceFile.Data.Seq[loop.index.toInt()].Cleanup,
+            ); // Update TotalNumSteps
+        updateTotalNumStepsResult.Status = 'Done';
+        loop.count(updateTotalNumStepsResult.Status);
+        loop.index += 1; // loop increment
+      }
+      updateTotalNumStepsResult.Status = 'Passed'; // loop status
+      run.record(updateTotalNumStepsResult.Status);
       ts.eval(
         'Locals.DocResult += Locals.RowHTML+ Locals.PropColHTML +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_STEPS"), "%-30s") +\n	Locals.ValColHTML +\n	((FileGlobals.Locked && FileGlobals.Protection==2) ?\n	    "<b><i>" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_UNKNOWN") + \n	    " &lt;" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_LOCKED") + \n	    "&gt;</i></b>"\n	:\n	    Str(Locals.TotalNumSteps)) \n	+"\\n"\n',
       ); // Num Steps
@@ -256,10 +278,24 @@ Future<String> sequenceFileDoc({
   docResult += '<BLOCKQUOTE>\n'; // Begin block quote
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
-  forEachSequenceResult.Status = await sequenceDoc(); // For Each Sequence
-  forEachSequenceResult.Status = forEachSequenceResult.Status == 'Done'
-      ? 'Passed'
-      : forEachSequenceResult.Status; // status expression
+  final loop2 = ts.StepLoop();
+  loop2.index = 0; // loop initialize
+  while (loop2.index < ts.getNumElements(sequenceFile.Data.Seq)) {
+    // loop while
+    forEachSequenceResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    forEachSequenceResult.Status = await sequenceDoc(); // For Each Sequence
+    forEachSequenceResult.Status = forEachSequenceResult.Status == 'Done'
+        ? 'Passed'
+        : forEachSequenceResult.Status; // status expression
+    loop2.count(forEachSequenceResult.Status);
+    loop2.index += 1; // loop increment
+  }
+  forEachSequenceResult.Status = 'Passed'; // loop status
   run.record(forEachSequenceResult.Status);
   docResult += '</BLOCKQUOTE></FONT></BODY></HTML>\n'; // End HTML
   // checks: Step.Result.PassFail
@@ -489,16 +525,30 @@ Future<String> sequenceDoc({
   previousBlockLevel = 0; // Reset Previous Block Level
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Setup); increment RunState.LoopIndex += 1; status "Passed"
-  forEachSetupStepResult.Status = await stepDoc(
-    step$: sequence.Setup[runState.LoopIndex],
-    docResult: docResult,
-    totalNumSteps: totalNumSteps,
-    stepsSoFar: stepsSoFar,
-    previousBlockLevel: previousBlockLevel,
-  ); // For Each Setup Step
-  forEachSetupStepResult.Status = forEachSetupStepResult.Status == 'Done'
-      ? 'Passed'
-      : forEachSetupStepResult.Status; // status expression
+  final loop = ts.StepLoop();
+  loop.index = 0; // loop initialize
+  while (loop.index < ts.getNumElements(sequence.Setup)) {
+    // loop while
+    forEachSetupStepResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    forEachSetupStepResult.Status = await stepDoc(
+      step$: sequence.Setup[loop.index.toInt()],
+      docResult: docResult,
+      totalNumSteps: totalNumSteps,
+      stepsSoFar: stepsSoFar,
+      previousBlockLevel: previousBlockLevel,
+    ); // For Each Setup Step
+    forEachSetupStepResult.Status = forEachSetupStepResult.Status == 'Done'
+        ? 'Passed'
+        : forEachSetupStepResult.Status; // status expression
+    loop.count(forEachSetupStepResult.Status);
+    loop.index += 1; // loop increment
+  }
+  forEachSetupStepResult.Status = 'Passed'; // loop status
   run.record(forEachSetupStepResult.Status);
   if (ts.getNumElements(sequence.Main) > 0) {
     // precondition of Main Steps Header
@@ -509,16 +559,30 @@ Future<String> sequenceDoc({
   previousBlockLevel = 0; // Reset Previous Block Level_Copy
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Main); increment RunState.LoopIndex += 1; status "Passed"
-  forEachMainStepResult.Status = await stepDoc(
-    step$: sequence.Main[runState.LoopIndex],
-    docResult: docResult,
-    totalNumSteps: totalNumSteps,
-    stepsSoFar: stepsSoFar,
-    previousBlockLevel: previousBlockLevel,
-  ); // For Each Main Step
-  forEachMainStepResult.Status = forEachMainStepResult.Status == 'Done'
-      ? 'Passed'
-      : forEachMainStepResult.Status; // status expression
+  final loop2 = ts.StepLoop();
+  loop2.index = 0; // loop initialize
+  while (loop2.index < ts.getNumElements(sequence.Main)) {
+    // loop while
+    forEachMainStepResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    forEachMainStepResult.Status = await stepDoc(
+      step$: sequence.Main[loop2.index.toInt()],
+      docResult: docResult,
+      totalNumSteps: totalNumSteps,
+      stepsSoFar: stepsSoFar,
+      previousBlockLevel: previousBlockLevel,
+    ); // For Each Main Step
+    forEachMainStepResult.Status = forEachMainStepResult.Status == 'Done'
+        ? 'Passed'
+        : forEachMainStepResult.Status; // status expression
+    loop2.count(forEachMainStepResult.Status);
+    loop2.index += 1; // loop increment
+  }
+  forEachMainStepResult.Status = 'Passed'; // loop status
   run.record(forEachMainStepResult.Status);
   if (ts.getNumElements(sequence.Cleanup) > 0) {
     // precondition of Cleanup Steps Header
@@ -529,16 +593,30 @@ Future<String> sequenceDoc({
   previousBlockLevel = 0; // Reset Previous Block Level_Copy2
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.Sequence.Cleanup); increment RunState.LoopIndex += 1; status "Passed"
-  forEachCleanupStepResult.Status = await stepDoc(
-    step$: sequence.Cleanup[runState.LoopIndex],
-    docResult: docResult,
-    totalNumSteps: totalNumSteps,
-    stepsSoFar: stepsSoFar,
-    previousBlockLevel: previousBlockLevel,
-  ); // For Each Cleanup Step
-  forEachCleanupStepResult.Status = forEachCleanupStepResult.Status == 'Done'
-      ? 'Passed'
-      : forEachCleanupStepResult.Status; // status expression
+  final loop3 = ts.StepLoop();
+  loop3.index = 0; // loop initialize
+  while (loop3.index < ts.getNumElements(sequence.Cleanup)) {
+    // loop while
+    forEachCleanupStepResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    forEachCleanupStepResult.Status = await stepDoc(
+      step$: sequence.Cleanup[loop3.index.toInt()],
+      docResult: docResult,
+      totalNumSteps: totalNumSteps,
+      stepsSoFar: stepsSoFar,
+      previousBlockLevel: previousBlockLevel,
+    ); // For Each Cleanup Step
+    forEachCleanupStepResult.Status = forEachCleanupStepResult.Status == 'Done'
+        ? 'Passed'
+        : forEachCleanupStepResult.Status; // status expression
+    loop3.count(forEachCleanupStepResult.Status);
+    loop3.index += 1; // loop increment
+  }
+  forEachCleanupStepResult.Status = 'Passed'; // loop status
   run.record(forEachCleanupStepResult.Status);
 
   return run.status;
@@ -1323,8 +1401,6 @@ void register() {
   //   cModule call: GetProtection?
   //   cModule call: GetCharsetMetaTag
   //   untranslated expression in body
-  //   step "Update TotalNumSteps" loops (Custom) — per-step looping not exported
-  //   RunState engine access (no engine at run time)
   //   by-ref writeback of parameter DocResult of sequence Write Requirements Elements not exported
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg
@@ -1333,7 +1409,6 @@ void register() {
   //   call parameters of sequence Write Subproperties: no parameter named arg2 (stale binding)
   //   call parameters of sequence Write Subproperties: no parameter named arg3 (stale binding)
   //   call parameters of sequence Write Subproperties: no parameter named arg4 (stale binding)
-  //   step "For Each Sequence" loops (Custom) — per-step looping not exported
   //   call parameters of sequence Sequence Doc: no parameter named arg0 (stale binding)
   //   call parameters of sequence Sequence Doc: no parameter named arg1 (stale binding)
   //   call parameters of sequence Sequence Doc: no parameter named arg2 (stale binding)
@@ -1352,12 +1427,9 @@ void register() {
   //   call parameters of sequence Write Array Elements: no parameter named arg3 (stale binding)
   //   cModule call: GetNumElements
   //   cModule call: GetArrayIndexFromOffset
-  //   step "For Each Setup Step" loops (Custom) — per-step looping not exported
   //   by-ref writeback of parameter DocResult of sequence Step Doc not exported
   //   by-ref writeback of parameter StepsSoFar of sequence Step Doc not exported
   //   by-ref writeback of parameter PreviousBlockLevel of sequence Step Doc not exported
-  //   step "For Each Main Step" loops (Custom) — per-step looping not exported
-  //   step "For Each Cleanup Step" loops (Custom) — per-step looping not exported
   //   cModule call: Get Block Level
   //   cModule call: Get StepType Name
   //   cModule call: GetStepKeyName

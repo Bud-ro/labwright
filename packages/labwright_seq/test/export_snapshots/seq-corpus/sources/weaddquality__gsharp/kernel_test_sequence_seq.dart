@@ -473,9 +473,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-1 Object creation base class 10 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010011ObjectCreationBaseClass10ObjResult.Status =
       ts.truthy(tcA010011ObjectCreationBaseClass10ObjResult.PassFail)
       ? 'Passed'
@@ -485,9 +482,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-2 Object creation base class 50 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010012ObjectCreationBaseClass50ObjResult.Status =
       ts.truthy(tcA010012ObjectCreationBaseClass50ObjResult.PassFail)
       ? 'Passed'
@@ -497,9 +491,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-3 Object creation base class 300 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010013ObjectCreationBaseClass300ObjResult.Status =
       ts.truthy(tcA010013ObjectCreationBaseClass300ObjResult.PassFail)
       ? 'Passed'
@@ -509,9 +500,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA01001ObjectCreationAndDestructionOfBaseclass(); // TcA01-001-4 Object creation base class 10 obj Ext Create [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010014ObjectCreationBaseClass10ObjExtCreateResult.Status =
       ts.truthy(tcA010014ObjectCreationBaseClass10ObjExtCreateResult.PassFail)
       ? 'Passed'
@@ -521,9 +509,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-1 Object creation sub class 10 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010021ObjectCreationSubClass10ObjResult.Status =
       ts.truthy(tcA010021ObjectCreationSubClass10ObjResult.PassFail)
       ? 'Passed'
@@ -533,9 +518,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-2 Object creation sub class 50 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010022ObjectCreationSubClass50ObjResult.Status =
       ts.truthy(tcA010022ObjectCreationSubClass50ObjResult.PassFail)
       ? 'Passed'
@@ -545,9 +527,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-3 Object creation sub class 300 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010023ObjectCreationSubClass300ObjResult.Status =
       ts.truthy(tcA010023ObjectCreationSubClass300ObjResult.PassFail)
       ? 'Passed'
@@ -557,9 +536,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA01002ObjectCreationAndDestructionOfSubclass(); // TcA01-002-4 Object creation sub class 10 obj Ext Create [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010024ObjectCreationSubClass10ObjExtCreateResult.Status =
       ts.truthy(tcA010024ObjectCreationSubClass10ObjExtCreateResult.PassFail)
       ? 'Passed'
@@ -569,9 +545,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01003ObjectCreationAndDestructionOfMultipleClasses(); // TcA01-003-1 Object creation multiple classes 1 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010031ObjectCreationMultipleClasses1ObjResult.Status =
       ts.truthy(tcA010031ObjectCreationMultipleClasses1ObjResult.PassFail)
       ? 'Passed'
@@ -581,9 +554,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01003ObjectCreationAndDestructionOfMultipleClasses(); // TcA01-003-2 Object creation multiple classes 50 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010032ObjectCreationMultipleClasses50ObjResult.Status =
       ts.truthy(tcA010032ObjectCreationMultipleClasses50ObjResult.PassFail)
       ? 'Passed'
@@ -593,9 +563,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01003ObjectCreationAndDestructionOfMultipleClasses(); // TcA01-003-3 Object creation multiple classes 100 ovj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010033ObjectCreationMultipleClasses100OvjResult.Status =
       ts.truthy(tcA010033ObjectCreationMultipleClasses100OvjResult.PassFail)
       ? 'Passed'
@@ -605,9 +572,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01004ObjectCreationAndDestructionWithDefaultConstructor(); // TcA01-004-1 Object creation default constructor [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010041ObjectCreationDefaultConstructorResult.Status =
       ts.truthy(tcA010041ObjectCreationDefaultConstructorResult.PassFail)
       ? 'Passed'
@@ -617,9 +581,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01004ObjectCreationAndDestructionWithDefaultConstructor(); // TcA01-004-2 Object creation default constructor Ext Create [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010042ObjectCreationDefaultConstructorExtCreateResult.Status =
       ts.truthy(
         tcA010042ObjectCreationDefaultConstructorExtCreateResult.PassFail,
@@ -631,9 +592,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01005ObjectCreationAndDestructionWithGenericConstructor(); // TcA01-005-1 Object creation generic create [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010051ObjectCreationGenericCreateResult.Status =
       ts.truthy(tcA010051ObjectCreationGenericCreateResult.PassFail)
       ? 'Passed'
@@ -643,9 +601,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01005ObjectCreationAndDestructionWithGenericConstructor(); // TcA01-005-2 Object creation generic create Ext Create [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010052ObjectCreationGenericCreateExtCreateResult.Status =
       ts.truthy(tcA010052ObjectCreationGenericCreateExtCreateResult.PassFail)
       ? 'Passed'
@@ -655,9 +610,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-1 Objects can be named when created [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010061ObjectsCanBeNamedWhenCreatedResult.Status =
       ts.truthy(tcA010061ObjectsCanBeNamedWhenCreatedResult.PassFail)
       ? 'Passed'
@@ -667,9 +619,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-2 Objects can be named when created [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010062ObjectsCanBeNamedWhenCreatedResult.Status =
       ts.truthy(tcA010062ObjectsCanBeNamedWhenCreatedResult.PassFail)
       ? 'Passed'
@@ -679,9 +628,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-3 Objects can be named when created [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010063ObjectsCanBeNamedWhenCreatedResult.Status =
       ts.truthy(tcA010063ObjectsCanBeNamedWhenCreatedResult.PassFail)
       ? 'Passed'
@@ -691,9 +637,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-4 Objects can be named when created [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010064ObjectsCanBeNamedWhenCreatedResult.Status =
       ts.truthy(tcA010064ObjectsCanBeNamedWhenCreatedResult.PassFail)
       ? 'Passed'
@@ -703,9 +646,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 5; // pre-expression
   await callTcA01006ObjectsCanBeNamedWhenCreated(); // TcA01-006-5 Objects can be named when created [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010065ObjectsCanBeNamedWhenCreatedResult.Status =
       ts.truthy(tcA010065ObjectsCanBeNamedWhenCreatedResult.PassFail)
       ? 'Passed'
@@ -715,9 +655,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01007ObjectsCanBeLookedUpByName(); // TcA01-007-1 Objects can be looked up by name [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010071ObjectsCanBeLookedUpByNameResult.Status =
       ts.truthy(tcA010071ObjectsCanBeLookedUpByNameResult.PassFail)
       ? 'Passed'
@@ -727,9 +664,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA01007ObjectsCanBeLookedUpByName(); // TcA01-007-2 Objects can be looked up by name Ext Create [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.Status =
       ts.truthy(tcA010072ObjectsCanBeLookedUpByNameExtCreateResult.PassFail)
       ? 'Passed'
@@ -739,9 +673,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01008NameObjectsWithUserCounter(); // TcA01-008-1 Name Objects with User Counter [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010081NameObjectsWithUserCounterResult.Status =
       ts.truthy(tcA010081NameObjectsWithUserCounterResult.PassFail)
       ? 'Passed'
@@ -751,9 +682,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01009ObjectCreationWithNoRegistration(); // TcA01-009-1 Object creation with no registration 10 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010091ObjectCreationWithNoRegistration10ObjResult.Status =
       ts.truthy(tcA010091ObjectCreationWithNoRegistration10ObjResult.PassFail)
       ? 'Passed'
@@ -763,9 +691,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01010GarbageCollectorWithSameOwner(); // TcA01-010-1 Garbage Collector with same owner [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010101GarbageCollectorWithSameOwnerResult.Status =
       ts.truthy(tcA010101GarbageCollectorWithSameOwnerResult.PassFail)
       ? 'Passed'
@@ -775,9 +700,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02001ReadingLockingAndSettingAnObjectsAttributes(); // TcA02-001-1 Reading Locking Setting Attributes [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020011ReadingLockingSettingAttributesResult.Status =
       ts.truthy(tcA020011ReadingLockingSettingAttributesResult.PassFail)
       ? 'Passed'
@@ -787,9 +709,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02002ModifyingObjectsAttributesFromInheritedMethods(); // TcA02-002-1 Modifying attributes from inherited methods [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020021ModifyingAttributesFromInheritedMethodsResult.Status =
       ts.truthy(tcA020021ModifyingAttributesFromInheritedMethodsResult.PassFail)
       ? 'Passed'
@@ -799,9 +718,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02003ModifyingObjectAttributesMultipleTimes(); // TcA02-003-1 Modifying object attributes multiple times 1 obj 100 times [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult.Status =
       ts.truthy(
         tcA020031ModifyingObjectAttributesMultipleTimes1Obj100TimesResult
@@ -816,9 +732,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA02003ModifyingObjectAttributesMultipleTimes(); // TcA02-003-2 Modifying object attributes multiple times 10 obj 10 times [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult.Status =
       ts.truthy(
         tcA020032ModifyingObjectAttributesMultipleTimes10Obj10TimesResult
@@ -833,9 +746,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA02004AttributesCanBeModifiedFasterThanGoop1(); // TcA02-004-3 Attributes could be modified faster that GOOP1 100 obj 100 times [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult.Status =
       ts.truthy(
         tcA020043AttributesCouldBeModifiedFasterThatGoop1100Obj100TimesResult
@@ -851,9 +761,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA02005ResizingAttributesCanBeModifiedFasterThanGoop1(); // TcA02-005-2 Attributes could be resized faster that GOOP1 10 obj 1000 times [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult.Status =
       ts.truthy(
         tcA020052AttributesCouldBeResizedFasterThatGoop110Obj1000TimesResult
@@ -868,9 +775,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02007AttributesCanBeUnlockedWithoutBeingModified(); // TcA02-007-1 Attributes can be unlocked without being modified [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.Status =
       ts.truthy(
         tcA020071AttributesCanBeUnlockedWithoutBeingModifiedResult.PassFail,
@@ -882,9 +786,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02008MutualExclusionWhenModifyingAttributes(); // TcA02-008-1 Mutual exclusion when modifying attributes [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020081MutualExclusionWhenModifyingAttributesResult.Status =
       ts.truthy(tcA020081MutualExclusionWhenModifyingAttributesResult.PassFail)
       ? 'Passed'
@@ -894,9 +795,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA02009TimeoutWhenWaitingForModifyingAttributes(); // TcA02-009-1 Timeout when waiting for modifying attributes [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA020091TimeoutWhenWaitingForModifyingAttributesResult.Status =
       ts.truthy(
         tcA020091TimeoutWhenWaitingForModifyingAttributesResult.PassFail,
@@ -908,9 +806,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03002ReadingLockingAndSettingClassAttributes(); // TcA03-002-1 Reading, locking and setting class attributes [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030021ReadingLockingAndSettingClassAttributesResult.Status =
       ts.truthy(tcA030021ReadingLockingAndSettingClassAttributesResult.PassFail)
       ? 'Passed'
@@ -920,9 +815,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA03002ReadingLockingAndSettingClassAttributes(); // TcA03-002-2 Reading, locking and setting class attributes Ext Creator [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult.Status =
       ts.truthy(
         tcA030022ReadingLockingAndSettingClassAttributesExtCreatorResult
@@ -937,9 +829,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03003MutualExclusionWhenModifyingClassAttributes(); // TcA03-003-1 Mutual exclustion when modifying class attributes [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030031MutualExclustionWhenModifyingClassAttributesResult.Status =
       ts.truthy(
         tcA030031MutualExclustionWhenModifyingClassAttributesResult.PassFail,
@@ -953,9 +842,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA03003MutualExclusionWhenModifyingClassAttributes(); // TcA03-003-2 Mutual exclustion when modifying class attributes Ext Creator [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult.Status =
       ts.truthy(
         tcA030032MutualExclustionWhenModifyingClassAttributesExtCreatorResult
@@ -971,9 +857,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03006ClassAttributesCanBeUnlockedWithoutBeingModified(); // TcA03-006-1 Class attributes can be unlocked without being modified [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult.Status =
       ts.truthy(
         tcA030061ClassAttributesCanBeUnlockedWithoutBeingModifiedResult
@@ -988,9 +871,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA03006ClassAttributesCanBeUnlockedWithoutBeingModified(); // TcA03-006-2 Class attributes can be unlocked without being modified Ext Creator [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030062ClassAttributesCanBeUnlockedWithoutBeingModifiedExtCreatorResult
           .Status =
       ts.truthy(
@@ -1007,9 +887,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA03007TimeoutWhenWaitingForModifyingClassAttributes(); // TcA03-007-1 Timeout when waiting for modifying class attributes [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.Status =
       ts.truthy(
         tcA030071TimeoutWhenWaitingForModifyingClassAttributesResult.PassFail,
@@ -1023,9 +900,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA04001DynamicallyCallSubClassMethods(); // TcA04-001-2 Dynamically call sub class methods 10 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA040012DynamicallyCallSubClassMethods10ObjResult.Status =
       ts.truthy(tcA040012DynamicallyCallSubClassMethods10ObjResult.PassFail)
       ? 'Passed'
@@ -1035,9 +909,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA04004NestedObjectsCallsDynamicMethods(); // TcA04-004-1 Nested objects calls dynamic methods [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA040041NestedObjectsCallsDynamicMethodsResult.Status =
       ts.truthy(tcA040041NestedObjectsCallsDynamicMethodsResult.PassFail)
       ? 'Passed'
@@ -1047,9 +918,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA05001ImplementingInterfaces(); // TcA05-001-1 Implementing Interfaces [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA050011ImplementingInterfacesResult.Status =
       ts.truthy(tcA050011ImplementingInterfacesResult.PassFail)
       ? 'Passed'
@@ -1059,9 +927,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06002DestroyedReferenceErrorHandling(); // TcA06-002-1 Destroyed reference error handling [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA060021DestroyedReferenceErrorHandlingResult.Status =
       ts.truthy(tcA060021DestroyedReferenceErrorHandlingResult.PassFail)
       ? 'Passed'
@@ -1071,9 +936,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06003ConstructorErrorHandling(); // TcA06-003-1 Constructor error handling [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA060031ConstructorErrorHandlingResult.Status =
       ts.truthy(tcA060031ConstructorErrorHandlingResult.PassFail)
       ? 'Passed'
@@ -1083,9 +945,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06004ObjectsAreDestroyedEvenIfErrorIn(); // TcA06-004-1 Objects are destroyed even if error in 1 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.Status =
       ts.truthy(tcA060041ObjectsAreDestroyedEvenIfErrorIn1ObjResult.PassFail)
       ? 'Passed'
@@ -1095,9 +954,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA06004ObjectsAreDestroyedEvenIfErrorIn(); // TcA06-004-2 Objects are destroyed even if error in 10 obj [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.Status =
       ts.truthy(tcA060042ObjectsAreDestroyedEvenIfErrorIn10ObjResult.PassFail)
       ? 'Passed'
@@ -1107,9 +963,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA06005MissingAbstractMethod(); // TcA06-005-1 Missing abstract method [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA060051MissingAbstractMethodResult.Status =
       ts.truthy(tcA060051MissingAbstractMethodResult.PassFail)
       ? 'Passed'
@@ -1119,9 +972,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07001ObjectStatusInformation(); // TcA07-001-1 Object status information [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070011ObjectStatusInformationResult.Status =
       ts.truthy(tcA070011ObjectStatusInformationResult.PassFail)
       ? 'Passed'
@@ -1131,9 +981,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07002SupportMethods(); // TcA07-002-1 Support methods [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070021SupportMethodsResult.Status =
       ts.truthy(tcA070021SupportMethodsResult.PassFail)
       ? 'Passed'
@@ -1143,9 +990,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-1 Serialization [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070031SerializationResult.Status =
       ts.truthy(tcA070031SerializationResult.PassFail)
       ? 'Passed'
@@ -1155,9 +999,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-2 Serialization with file [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070032SerializationWithFileResult.Status =
       ts.truthy(tcA070032SerializationWithFileResult.PassFail)
       ? 'Passed'
@@ -1167,9 +1008,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 3; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-3 Serialization XML [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070033SerializationXmlResult.Status =
       ts.truthy(tcA070033SerializationXmlResult.PassFail)
       ? 'Passed'
@@ -1179,9 +1017,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 4; // pre-expression
   await callTcA07003Serialization(); // TcA07-003-4 Serialization with file XML [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070034SerializationWithFileXmlResult.Status =
       ts.truthy(tcA070034SerializationWithFileXmlResult.PassFail)
       ? 'Passed'
@@ -1191,9 +1026,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07004GenericOpen(); // TcA07-004-1 Generic Open [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070041GenericOpenResult.Status =
       ts.truthy(tcA070041GenericOpenResult.PassFail)
       ? 'Passed'
@@ -1203,9 +1035,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 2; // pre-expression
   await callTcA07004GenericOpen(); // TcA07-004-2 Generic Open Ext Creator [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070042GenericOpenExtCreatorResult.Status =
       ts.truthy(tcA070042GenericOpenExtCreatorResult.PassFail)
       ? 'Passed'
@@ -1215,9 +1044,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07005InterfaceSupportMethods(); // TcA07-005-1 Interface Support Methods [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070051InterfaceSupportMethodsResult.Status =
       ts.truthy(tcA070051InterfaceSupportMethodsResult.PassFail)
       ? 'Passed'
@@ -1227,9 +1053,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA07006CastFromLabViewObject(); // TcA07-006-1 Cast from LabVIEW Object [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA070061CastFromLabViewObjectResult.Status =
       ts.truthy(tcA070061CastFromLabViewObjectResult.PassFail)
       ? 'Passed'
@@ -1239,9 +1062,6 @@ Future<String> mainSequence() async {
   // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
   step.InBuf = 1; // pre-expression
   await callTcA01011CloneObject(); // TcA01-011-1 Clone Object [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
   tcA010111CloneObjectResult.Status =
       ts.truthy(tcA010111CloneObjectResult.PassFail)
       ? 'Passed'
@@ -1536,7 +1356,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   Step engine access (no engine at run time)
   //   TcA01-001_ObjectCreationAndDestructionOfBaseclass.vi
-  //   untranslated expression in body
   //   TcA01-002_ObjectCreationAndDestructionOfSubclass.vi
   //   TcA01-003_ObjectCreationAndDestructionOfMultipleClasses.vi
   //   TcA01-004_ObjectCreationAndDestructionWithDefaultConstructor.vi

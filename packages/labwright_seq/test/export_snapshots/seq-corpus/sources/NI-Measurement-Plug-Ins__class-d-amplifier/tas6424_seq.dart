@@ -13,8 +13,8 @@ import 'package:labwright/shims.dart' as ts;
 
 /// Sequence `MainSequence`.
 Future<String> mainSequence() async {
-  int signalAmplitude = 0; // Num — default: 0
-  int inputFrequency = 0; // Num — default: 0
+  double signalAmplitude = 0; // Num — default: 0
+  double inputFrequency = 0; // Num — default: 0
   List<dynamic> thdn = List<dynamic>.filled(10, '0', growable: true); // Nums
   List<dynamic> crosstalk = List<dynamic>.filled(
     10,
@@ -948,88 +948,92 @@ Future<String> mainSequence() async {
     ); // Create Sessions and Apply Configuration [NI_CreateIOSessionAndApplyIOConfig]
 
     // ── main ──
-    // TODO: sweep loop (Locals.Input_frequency, Locals.Signal_amplitude, Locals.THDN[0], Locals.Crosstalk[0]) not exported; the body runs once
-    {
-      // measurement: Single Tone Measurements_Clss D Amplifier_LabVIEW
-      // measurement param: digital serial cfg file (In TypeString) = "C:\\dev\\class-d-amplifier\\demo\\TAS6424.dsgcfg"
-      // measurement param: digital channel list (In TypeString) = "PXI-782x\\PCMo 0"
-      // measurement param: master clock channel list (In TypeString) = "PXI-782x\\PCMo 8"
-      // measurement param: signal frequency (In TypeDouble) = Locals.Input_frequency
-      // measurement param: output level (In TypeDouble) = Locals.Signal_amplitude
-      // measurement param: output level units (In TypeEnum Enum) = 1i64
-      // measurement param: output range (pk-pk) (In TypeDouble) = 15
-      // measurement param: load impedance (In TypeDouble) = 4
-      // measurement param: signal phase (In TypeDouble) = 0
-      // measurement param: acq sampling rate (In TypeDouble) = 51200
-      // measurement param: min measurement cycles (In TypeUint32) = 20ui64
-      // measurement param: min measurement time (s) (In TypeDouble) = 0.1
-      // measurement param: min settling cycles (In TypeUint32) = 0ui64
-      // measurement param: min settling time (s) (In TypeDouble) = 0.005
-      // measurement param: acq channel (In TypeString) = "PXI1Slot3/ai0:1"
-      // measurement param: band start (In TypeDouble) = 20
-      // measurement param: band stop (In TypeDouble) = 20000
-      // measurement param: weighting filter (In TypeEnum Enum) = 0i64
-      // measurement param: lowpass filter (In TypeEnum Enum) = 0i64
-      // measurement param: highpass filter (In TypeEnum Enum) = 1i64
-      // measurement param: SNR units (In TypeEnum Enum) = 0i64
-      // measurement param: THD+N units (In TypeEnum Enum) = 1i64
-      // measurement param: THD units (In TypeEnum Enum) = 0i64
-      // measurement param: gain units (In TypeEnum Enum) = 0i64
-      // measurement param: channel names (Out TypeString)
-      // measurement param: frequency (Hz) (Out TypeDouble)
-      // measurement param: amplitude (Vrms) (Out TypeDouble)
-      // measurement param: amplitude (dBFS) (Out TypeDouble)
-      // measurement param: phase (deg) (Out TypeDouble)
-      // measurement param: SNR (Out TypeDouble)
-      // measurement param: THD+N (Out TypeDouble) = Locals.THDN
-      // measurement param: THD (Out TypeDouble)
-      // measurement param: dynamic range (dB) (Out TypeDouble)
-      // measurement param: gain (Out TypeDouble)
-      // measurement param: SFDR (dBc) (Out TypeDouble)
-      // measurement param: output power (W) (Out TypeDouble)
-      // measurement param: wfm - t0 (Out TypeDouble)
-      // measurement param: wfm - dt (Out TypeDouble)
-      // measurement param: wfm - data (Out TypeDouble)
-      // measurement param: fft - f0 (Out TypeDouble)
-      // measurement param: fft - df (Out TypeDouble)
-      // measurement param: fft - data (Out TypeDouble)
-      throw UnimplementedError(
-        'step type NI_Measurement: action not exported yet',
-      ); // Single Tone [NI_Measurement]
-      // measurement: Audio-Crosstalk Meas with Digital Output_LabVIEW
-      // measurement param: digital serial cfg file (In TypeString) = "C:\\dev\\class-d-amplifier\\demo\\TAS6424.dsgcfg"
-      // measurement param: digital channel list (In TypeString) = "PXI-782x\\PCMo 0"
-      // measurement param: master clock channel list (In TypeString) = "PXI-782x\\PCMo 8"
-      // measurement param: digital audio interferer channel (In TypeInt32) = 0i64
-      // measurement param: signal frequency (In TypeDouble) = Locals.Input_frequency
-      // measurement param: output level (In TypeDouble) = Locals.Signal_amplitude
-      // measurement param: output level units (In TypeEnum Enum) = 1i64
-      // measurement param: output range (pk-pk) (In TypeDouble) = 15
-      // measurement param: load impedance (In TypeDouble) = 4
-      // measurement param: signal phase (In TypeDouble) = 0
-      // measurement param: acq sampling rate (In TypeDouble) = 51200
-      // measurement param: min measurement cycles (In TypeUint32) = 20ui64
-      // measurement param: min measurement time (s) (In TypeDouble) = 0.1
-      // measurement param: min settling cycles (In TypeUint32) = 0ui64
-      // measurement param: min settling time (s) (In TypeDouble) = 0.005
-      // measurement param: acq channel - victim (In TypeString) = "PXI1Slot3/ai1"
-      // measurement param: acq channel - interferer (In TypeString) = "PXI1Slot3/ai0"
-      // measurement param: lowpass filter (In TypeEnum Enum) = 0i64
-      // measurement param: highpass filter (In TypeEnum Enum) = 0i64
-      // measurement param: channel names (Out TypeString)
-      // measurement param: frequency (Hz) (Out TypeDouble)
-      // measurement param: crosstalk (dB) (Out TypeDouble) = Locals.Crosstalk
-      // measurement param: output power (W) (Out TypeDouble)
-      // measurement param: wfm - dt (Out TypeDouble)
-      // measurement param: wfm_victim - data (Out TypeDouble)
-      // measurement param: wfm_interferrer - data (Out TypeDouble)
-      // measurement param: fft - f0 (Out TypeDouble)
-      // measurement param: fft - df (Out TypeDouble)
-      // measurement param: fft_victim - data (Out TypeDouble)
-      // measurement param: fft_interferrer - data (Out TypeDouble)
-      throw UnimplementedError(
-        'step type NI_Measurement: action not exported yet',
-      ); // Crosstalk [NI_Measurement]
+    sweep:
+    for (final value in ts.sweepPoints(1000, 6000, 3)) {
+      inputFrequency = (value as num).toDouble();
+      for (final value2 in <dynamic>[-6, -20]) {
+        signalAmplitude = (value2 as num).toDouble();
+        // measurement: Single Tone Measurements_Clss D Amplifier_LabVIEW
+        // measurement param: digital serial cfg file (In TypeString) = "C:\\dev\\class-d-amplifier\\demo\\TAS6424.dsgcfg"
+        // measurement param: digital channel list (In TypeString) = "PXI-782x\\PCMo 0"
+        // measurement param: master clock channel list (In TypeString) = "PXI-782x\\PCMo 8"
+        // measurement param: signal frequency (In TypeDouble) = Locals.Input_frequency
+        // measurement param: output level (In TypeDouble) = Locals.Signal_amplitude
+        // measurement param: output level units (In TypeEnum Enum) = 1i64
+        // measurement param: output range (pk-pk) (In TypeDouble) = 15
+        // measurement param: load impedance (In TypeDouble) = 4
+        // measurement param: signal phase (In TypeDouble) = 0
+        // measurement param: acq sampling rate (In TypeDouble) = 51200
+        // measurement param: min measurement cycles (In TypeUint32) = 20ui64
+        // measurement param: min measurement time (s) (In TypeDouble) = 0.1
+        // measurement param: min settling cycles (In TypeUint32) = 0ui64
+        // measurement param: min settling time (s) (In TypeDouble) = 0.005
+        // measurement param: acq channel (In TypeString) = "PXI1Slot3/ai0:1"
+        // measurement param: band start (In TypeDouble) = 20
+        // measurement param: band stop (In TypeDouble) = 20000
+        // measurement param: weighting filter (In TypeEnum Enum) = 0i64
+        // measurement param: lowpass filter (In TypeEnum Enum) = 0i64
+        // measurement param: highpass filter (In TypeEnum Enum) = 1i64
+        // measurement param: SNR units (In TypeEnum Enum) = 0i64
+        // measurement param: THD+N units (In TypeEnum Enum) = 1i64
+        // measurement param: THD units (In TypeEnum Enum) = 0i64
+        // measurement param: gain units (In TypeEnum Enum) = 0i64
+        // measurement param: channel names (Out TypeString)
+        // measurement param: frequency (Hz) (Out TypeDouble)
+        // measurement param: amplitude (Vrms) (Out TypeDouble)
+        // measurement param: amplitude (dBFS) (Out TypeDouble)
+        // measurement param: phase (deg) (Out TypeDouble)
+        // measurement param: SNR (Out TypeDouble)
+        // measurement param: THD+N (Out TypeDouble) = Locals.THDN
+        // measurement param: THD (Out TypeDouble)
+        // measurement param: dynamic range (dB) (Out TypeDouble)
+        // measurement param: gain (Out TypeDouble)
+        // measurement param: SFDR (dBc) (Out TypeDouble)
+        // measurement param: output power (W) (Out TypeDouble)
+        // measurement param: wfm - t0 (Out TypeDouble)
+        // measurement param: wfm - dt (Out TypeDouble)
+        // measurement param: wfm - data (Out TypeDouble)
+        // measurement param: fft - f0 (Out TypeDouble)
+        // measurement param: fft - df (Out TypeDouble)
+        // measurement param: fft - data (Out TypeDouble)
+        throw UnimplementedError(
+          'step type NI_Measurement: action not exported yet',
+        ); // Single Tone [NI_Measurement]
+        // measurement: Audio-Crosstalk Meas with Digital Output_LabVIEW
+        // measurement param: digital serial cfg file (In TypeString) = "C:\\dev\\class-d-amplifier\\demo\\TAS6424.dsgcfg"
+        // measurement param: digital channel list (In TypeString) = "PXI-782x\\PCMo 0"
+        // measurement param: master clock channel list (In TypeString) = "PXI-782x\\PCMo 8"
+        // measurement param: digital audio interferer channel (In TypeInt32) = 0i64
+        // measurement param: signal frequency (In TypeDouble) = Locals.Input_frequency
+        // measurement param: output level (In TypeDouble) = Locals.Signal_amplitude
+        // measurement param: output level units (In TypeEnum Enum) = 1i64
+        // measurement param: output range (pk-pk) (In TypeDouble) = 15
+        // measurement param: load impedance (In TypeDouble) = 4
+        // measurement param: signal phase (In TypeDouble) = 0
+        // measurement param: acq sampling rate (In TypeDouble) = 51200
+        // measurement param: min measurement cycles (In TypeUint32) = 20ui64
+        // measurement param: min measurement time (s) (In TypeDouble) = 0.1
+        // measurement param: min settling cycles (In TypeUint32) = 0ui64
+        // measurement param: min settling time (s) (In TypeDouble) = 0.005
+        // measurement param: acq channel - victim (In TypeString) = "PXI1Slot3/ai1"
+        // measurement param: acq channel - interferer (In TypeString) = "PXI1Slot3/ai0"
+        // measurement param: lowpass filter (In TypeEnum Enum) = 0i64
+        // measurement param: highpass filter (In TypeEnum Enum) = 0i64
+        // measurement param: channel names (Out TypeString)
+        // measurement param: frequency (Hz) (Out TypeDouble)
+        // measurement param: crosstalk (dB) (Out TypeDouble) = Locals.Crosstalk
+        // measurement param: output power (W) (Out TypeDouble)
+        // measurement param: wfm - dt (Out TypeDouble)
+        // measurement param: wfm_victim - data (Out TypeDouble)
+        // measurement param: wfm_interferrer - data (Out TypeDouble)
+        // measurement param: fft - f0 (Out TypeDouble)
+        // measurement param: fft - df (Out TypeDouble)
+        // measurement param: fft_victim - data (Out TypeDouble)
+        // measurement param: fft_interferrer - data (Out TypeDouble)
+        throw UnimplementedError(
+          'step type NI_Measurement: action not exported yet',
+        ); // Crosstalk [NI_Measurement]
+      }
     }
   } finally {
     // ── cleanup ──
@@ -1061,7 +1065,6 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet
-  //   sweep loop "Sweep Loop": parameter sweep not exported
   //   step type NI_Measurement: action not exported yet
   //   step type NI_CloseIOSession: action not exported yet
   lw.skipTest('MainSequence', () async {

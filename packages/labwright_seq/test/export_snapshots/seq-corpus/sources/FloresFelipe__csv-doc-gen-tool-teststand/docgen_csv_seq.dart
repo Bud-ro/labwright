@@ -235,6 +235,12 @@ Future<String> buildDocString({String seqDocString = ''}) async {
   String parametersHeader = ''; // Str
 
   final run = ts.SequenceRun();
+  dynamic createParameterSHeaderResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Create Parameter's Header
 
   stdHeader =
       'Sequence File' +
@@ -258,16 +264,34 @@ Future<String> buildDocString({String seqDocString = ''}) async {
       'Requirement[0]' +
       fileGlobals.SEPARATOR; // Populate Standard Header
   // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < FileGlobals.LargestParameterCount; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed / RunState.LoopNumIterations < 1 ? "Failed" : "Passed"
-  parametersHeader =
-      parametersHeader +
-      'Parameter[' +
-      ts.str(runState.LoopIndex) +
-      '] Name' +
-      fileGlobals.SEPARATOR +
-      'Parameter[' +
-      ts.str(runState.LoopIndex) +
-      '] Value' +
-      fileGlobals.SEPARATOR; // Create Parameter's Header
+  final loop = ts.StepLoop();
+  loop.index = 0; // loop initialize
+  while (loop.index < fileGlobals.LargestParameterCount) {
+    // loop while
+    createParameterSHeaderResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    parametersHeader =
+        parametersHeader +
+        'Parameter[' +
+        ts.str(loop.index) +
+        '] Name' +
+        fileGlobals.SEPARATOR +
+        'Parameter[' +
+        ts.str(loop.index) +
+        '] Value' +
+        fileGlobals.SEPARATOR; // Create Parameter's Header
+    createParameterSHeaderResult.Status = 'Done';
+    loop.count(createParameterSHeaderResult.Status);
+    loop.index += 1; // loop increment
+  }
+  createParameterSHeaderResult.Status = loop.numPassed / loop.numIterations < 1
+      ? 'Failed'
+      : 'Passed'; // loop status
+  run.record(createParameterSHeaderResult.Status);
   ts.eval(
     'Locals.ParametersHeader = Trim(Locals.ParametersHeader, FileGlobals.SEPARATOR)',
   ); // Remove the Last Separator
@@ -381,8 +405,6 @@ void register() {
   //   by-ref writeback of parameter ParametersList of sequence Get LabVIEW Module Parameters not exported
   //   by-ref writeback of parameter NumberOfParameters of sequence Get SubSequence Parameters not exported
   //   by-ref writeback of parameter ParametersList of sequence Get SubSequence Parameters not exported
-  //   step "Create Parameter's Header" loops (Custom) — per-step looping not exported
-  //   RunState engine access (no engine at run time)
   //   root parameter 'SequenceFile' is an engine object (nothing binds it when run as a test)
   //   root parameter 'DocOptions' is an engine object (nothing binds it when run as a test)
   lw.skipTest('Sequence File Doc', () async {

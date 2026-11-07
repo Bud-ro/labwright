@@ -611,14 +611,31 @@ Future<String> mainSequence() async {
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
     // custom flow: if (RunState.SequenceFailed) Goto -> step "BackCheck Point" else Next
-    //   Return Value <- Step.Result.PassFail
-    throw UnimplementedError(
-      'python call: ..\\Python\\ecu_programmer.py',
-    ); // JLink Connection Test [PassFailTest]
-    jLinkConnectionTestResult.Status =
-        ts.truthy(jLinkConnectionTestResult.PassFail)
+    final loop = ts.StepLoop();
+    loop.index = 0; // loop initialize
+    while (loop.index < 3 && loop.numPassed < 1) {
+      // loop while
+      jLinkConnectionTestResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'PassFail': false,
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      //   Return Value <- Step.Result.PassFail
+      throw UnimplementedError(
+        'python call: ..\\Python\\ecu_programmer.py',
+      ); // JLink Connection Test [PassFailTest]
+      jLinkConnectionTestResult.Status =
+          ts.truthy(jLinkConnectionTestResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      loop.count(jLinkConnectionTestResult.Status);
+      loop.index += 1; // loop increment
+    }
+    jLinkConnectionTestResult.Status = loop.numPassed >= 1
         ? 'Passed'
-        : 'Failed'; // status expression
+        : 'Failed'; // loop status
     run.record(jLinkConnectionTestResult.Status);
     if (run.failed) {
       // post action
@@ -629,15 +646,32 @@ Future<String> mainSequence() async {
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
     // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
     // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-    //   Return Value <- Step.Result.PassFail
-    //   chip_name <- #NoValidation(FileGlobals.Chip_name)
-    throw UnimplementedError(
-      'python call: ..\\Python\\ecu_programmer.py',
-    ); // Target Connection Test [PassFailTest]
-    targetConnectionTestResult.Status =
-        ts.truthy(targetConnectionTestResult.PassFail)
+    final loop2 = ts.StepLoop();
+    loop2.index = 0; // loop initialize
+    while (loop2.index < 3 && loop2.numPassed < 1) {
+      // loop while
+      targetConnectionTestResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'PassFail': false,
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      //   Return Value <- Step.Result.PassFail
+      //   chip_name <- #NoValidation(FileGlobals.Chip_name)
+      throw UnimplementedError(
+        'python call: ..\\Python\\ecu_programmer.py',
+      ); // Target Connection Test [PassFailTest]
+      targetConnectionTestResult.Status =
+          ts.truthy(targetConnectionTestResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      loop2.count(targetConnectionTestResult.Status);
+      loop2.index += 1; // loop increment
+    }
+    targetConnectionTestResult.Status = loop2.numPassed >= 1
         ? 'Passed'
-        : 'Failed'; // status expression
+        : 'Failed'; // loop status
     run.record(targetConnectionTestResult.Status);
     if (run.failed) {
       // post action
@@ -1401,8 +1435,6 @@ void register() {
   //   RunState engine access (no engine at run time)
   //   StationGlobals read (station-level state not set here)
   //   python call: ..\Python\ecu_programmer.py
-  //   step "JLink Connection Test" loops (PassFailCount) — per-step looping not exported
-  //   step "Target Connection Test" loops (PassFailCount) — per-step looping not exported
   //   step type MessagePopup: action not exported yet
   //   ..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi
   lw.skipTest('MainSequence', () async {

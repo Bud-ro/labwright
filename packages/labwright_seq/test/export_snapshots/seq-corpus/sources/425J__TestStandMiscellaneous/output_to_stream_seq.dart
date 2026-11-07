@@ -39,6 +39,12 @@ Future<String> outputToStream() async {
   }); // Obj
 
   final run = ts.SequenceRun();
+  dynamic writeOutputMessageResult = ts.PropObj({
+    'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+    'Status': '',
+    'ReportText': '',
+    'Common': ts.PropObj(),
+  }); // result of Write output message
 
   // ── setup ──
   // description: Sequence Editor Report view uses Resource Strings stored in: | C:\Program Files (x86)\National Instruments\TestStand 2020\Components\Language\English\EngineStrings.ini | These entries can be used to change the text displayed by default: | [EXECUTION_OUTPUT_RECORD_STREAM] | HEADER_STREAM_NAME = "Stream Name: " | FOOTER_RECORDS_TO_DISPLAY = "Records to Display: " | FOOTER_RECORDS_WRITTEN = "Total Records Written: " | FOOTER_ALL_RECORDS = "All" | [CSV_FILE_OUTPUT_RECORD_STREAM] | DESCRIPTION = "CSV File Output Record Stream"
@@ -72,37 +78,55 @@ Future<String> outputToStream() async {
       .SetActiveReport(); // Create stream (cont.)
   // Write example message in the loop
   // step loop (FixedNumLoops): init RunState.LoopIndex = 0; while RunState.LoopIndex < 10; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed / RunState.LoopNumIterations < 1 ? "Failed" : "Passed"
-  values.Message = ts.str(
-    runState.LoopIndex,
-    'Example message %d',
-  ); // Write output message
-  ts.eval(
-    '\nLocals.Values.TimeStamp = Date() + " " + Time()',
-  ); // Write output message (cont.)
-  values.Category = 'Uncategorized'; // Write output message (cont.)
-  values.Severity = 'Information'; // Write output message (cont.)
-  values.Step = step.Name; // Write output message (cont.)
-  values.Sequence = runState.Sequence.Name; // Write output message (cont.)
-  values.SequenceFile = runState
-      .SequenceFile
-      .AsPropertyObjectFile
-      .DisplayName; // Write output message (cont.)
-  ts.eval(
-    '\nLocals.Values.Execution = Execution.DisplayName',
-  ); // Write output message (cont.)
-  values.ThreadID = ts.str(
-    runState.Thread.Id,
-    '%d',
-  ); // Write output message (cont.)
-  ts.eval(
-    '\n\nOutputMessage(Locals.Values.Message, Locals.Values.Category, 0)',
-  ); // Write output message (cont.)
-  ts.eval(
-    '\nRunState.Execution.OutputRecordStreams.GetStream("Output").WriteRecordFrom(ThisContext, {"Locals.Values"})',
-  ); // Write output message (cont.)
-  ts.eval(
-    '\n\n\'Severity:\n\'0 = Information\n\'1 = Warning\n\'2 = Error',
-  ); // Write output message (cont.)
+  final loop = ts.StepLoop();
+  loop.index = 0; // loop initialize
+  while (loop.index < 10) {
+    // loop while
+    writeOutputMessageResult = ts.PropObj({
+      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+      'Status': '',
+      'ReportText': '',
+      'Common': ts.PropObj(),
+    });
+    values.Message = ts.str(
+      loop.index,
+      'Example message %d',
+    ); // Write output message
+    ts.eval(
+      '\nLocals.Values.TimeStamp = Date() + " " + Time()',
+    ); // Write output message (cont.)
+    values.Category = 'Uncategorized'; // Write output message (cont.)
+    values.Severity = 'Information'; // Write output message (cont.)
+    values.Step = step.Name; // Write output message (cont.)
+    values.Sequence = runState.Sequence.Name; // Write output message (cont.)
+    values.SequenceFile = runState
+        .SequenceFile
+        .AsPropertyObjectFile
+        .DisplayName; // Write output message (cont.)
+    ts.eval(
+      '\nLocals.Values.Execution = Execution.DisplayName',
+    ); // Write output message (cont.)
+    values.ThreadID = ts.str(
+      runState.Thread.Id,
+      '%d',
+    ); // Write output message (cont.)
+    ts.eval(
+      '\n\nOutputMessage(Locals.Values.Message, Locals.Values.Category, 0)',
+    ); // Write output message (cont.)
+    ts.eval(
+      '\nRunState.Execution.OutputRecordStreams.GetStream("Output").WriteRecordFrom(ThisContext, {"Locals.Values"})',
+    ); // Write output message (cont.)
+    ts.eval(
+      '\n\n\'Severity:\n\'0 = Information\n\'1 = Warning\n\'2 = Error',
+    ); // Write output message (cont.)
+    writeOutputMessageResult.Status = 'Done';
+    loop.count(writeOutputMessageResult.Status);
+    loop.index += 1; // loop increment
+  }
+  writeOutputMessageResult.Status = loop.numPassed / loop.numIterations < 1
+      ? 'Failed'
+      : 'Passed'; // loop status
+  run.record(writeOutputMessageResult.Status);
 
   return run.status;
 }
@@ -142,7 +166,6 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   untranslated expression in body
   //   RunState engine access (no engine at run time)
-  //   step "Write output message" loops (FixedNumLoops) — per-step looping not exported
   //   Step engine access (no engine at run time)
   lw.skipTest('Output to Stream', () async {
     lw.expect(await outputToStream(), 'Passed');
