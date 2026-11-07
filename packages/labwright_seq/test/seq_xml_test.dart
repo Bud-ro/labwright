@@ -574,6 +574,55 @@ void main() {
     });
   });
 
+  group('sweep loop', () {
+    final sweepXml = _file(
+      _main([
+        _step(
+          'NI_Flow_SweepLoop',
+          'Sweep Loop',
+          "${_el('IterationExpr', 'ExprValue')}${_el('NumberOfIOSessions', 'Num', '0')}"
+              "<Input classname='Obj'><subprops>${_el('Enabled', 'Bool', 'false')}${_el('CsvSeparator', 'ExprValue', '","')}</subprops></Input>"
+              "<Output classname='Obj'><subprops>${_el('StreamExpr', 'ExprValue', 'FileGlobals.OutputStream')}</subprops></Output>"
+              "<Parameters classname='Objs'><value lbound='[0]' ubound='[0]'><value>"
+              "${_anon("${_el('ParameterStrategy', 'Str', 'StartStopStep')}${_el('StartExpr', 'Str', '1000')}"
+              "${_el('StopExpr', 'Str', '6000')}${_el('StepExpr', 'Str', '2500')}"
+              "<ExpressionSettings classname='Obj'><subprops>${_el('ValueExpr', 'Str', 'Locals.Frequency')}</subprops></ExpressionSettings>"
+              "<SessionSettings classname='Obj'><subprops>${_el('AttributeIndex', 'Num', '-1')}</subprops></SessionSettings>")}"
+              '</value></value></Parameters>',
+        ),
+        _step('Action', 'Measure'),
+        _step('NI_Flow_End', 'End'),
+      ]),
+    );
+    final steps = _parse(sweepXml).sequences.single.main;
+
+    test('opens a block that NI_Flow_End closes', () {
+      expect(steps.map((s) => s.flowControl?.kind), [FlowKind.sweepLoop, null, FlowKind.end]);
+      expect(steps.first.flowControl!.header, 'sweep loop (Locals.Frequency)');
+      expect(steps[1].sweepLoop, isNull);
+    });
+
+    test('carries its parameters and CSV input/output settings', () {
+      final sweep = steps.first.sweepLoop!;
+      expect(sweep.ioSessionCount, 0);
+      expect(sweep.iterationExpression, isNull);
+      expect(sweep.input!.enabled, isFalse);
+      expect(sweep.input!.csvSeparatorExpression, '","');
+      expect(sweep.output!.streamExpression, 'FileGlobals.OutputStream');
+      final parameter = sweep.parameters.single;
+      expect(
+        (parameter.strategy, parameter.startExpression, parameter.stopExpression, parameter.stepExpression),
+        ('StartStopStep', '1000', '6000', '2500'),
+      );
+      expect(parameter.valueExpression, 'Locals.Frequency');
+      expect(parameter.sessionSettings!.attributeIndex, -1);
+    });
+
+    test('every node of the step is accounted for by the coverage lens', () {
+      expect(measureCoverage(_parse(sweepXml)).unaccounted, 0);
+    });
+  });
+
   group('logic export annotations', () {
     test('a looping step gets its type + while condition; a plain one does not', () {
       final loopXml = _file(

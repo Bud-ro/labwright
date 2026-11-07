@@ -6,14 +6,24 @@ import 'values.dart';
 /// obtained under that name until the last one is released.
 final class LvNotifier<T> {
   LvNotifier._(this.name);
-
   final String name;
-
   bool _hasMessage = false;
-
   T? _message;
 
-  int _references = 0;
+  /// The live refnums that point at this object.
+  final Set<LvRefnum> _refnums = {};
+  void _releaseAll() {
+    for (final refnum in _refnums) {
+      LvReferenceTable.instance.release(refnum);
+    }
+    _refnums.clear();
+  }
+
+  LvRefnum _reference() {
+    final refnum = lvRegisterReference(this);
+    _refnums.add(refnum);
+    return refnum;
+  }
 
   static final Map<String, LvNotifier<Object?>> _byName = {};
 
@@ -34,8 +44,7 @@ final class LvNotifier<T> {
             errorOut: LvErrorCode.invalidArgument.error('Obtain Notifier: the notifier "$name" carries another type'),
           );
         }
-        existing._references++;
-        return (notifier: lvRegisterReference(existing), createdNew: false, errorOut: LvError.none);
+        return (notifier: existing._reference(), createdNew: false, errorOut: LvError.none);
       }
       if (!createIfNotFound) {
         return (
@@ -46,9 +55,8 @@ final class LvNotifier<T> {
       }
     }
     final notifier = LvNotifier<E>._(name);
-    notifier._references = 1;
     if (name.isNotEmpty) _byName[name] = notifier;
-    return (notifier: lvRegisterReference(notifier), createdNew: true, errorOut: LvError.none);
+    return (notifier: notifier._reference(), createdNew: true, errorOut: LvError.none);
   }
 
   /// Release Notifier, as a queue is released.
@@ -56,8 +64,9 @@ final class LvNotifier<T> {
     final notifier = lvReferenceTarget<LvNotifier<E>>(reference);
     if (notifier == null) return errorIn.status ? errorIn : LvErrorCode.invalidReference.error('Release Notifier');
     LvReferenceTable.instance.release(reference);
-    notifier._references--;
-    if (forceDestroy || notifier._references <= 0) {
+    notifier._refnums.remove(reference);
+    if (forceDestroy || notifier._refnums.isEmpty) {
+      notifier._releaseAll();
       notifier._hasMessage = false;
       notifier._message = null;
       if (notifier.name.isNotEmpty && identical(_byName[notifier.name], notifier)) _byName.remove(notifier.name);

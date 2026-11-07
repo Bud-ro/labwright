@@ -1,8 +1,13 @@
+import 'dart:typed_data';
+
+import 'flat_ops.dart';
 import 'references.dart';
+import 'string_ops.dart';
 import 'values.dart';
 
-/// To Variant.
-LvVariant lvToVariant(Object? anything) => anything is LvVariant ? anything : LvVariant(anything);
+/// To Variant: [anything] with the representation of a number it is.
+LvVariant lvToVariant(Object? anything, {LvNumericType? numeric}) =>
+    anything is LvVariant ? anything : LvVariant(anything, numeric: numeric);
 
 /// Variant To Data: the value as a [T], or [defaultValue] with
 /// [LvErrorCode.variantTypeMismatch] when the variant holds something else.
@@ -53,6 +58,9 @@ LvVariant lvToVariant(Object? anything) => anything is LvVariant ? anything : Lv
   if (errorIn.status) return (variant: variant, found: false, value: defaultValue, errorOut: errorIn);
   final attribute = variant.attributes[name];
   if (attribute == null) return (variant: variant, found: false, value: defaultValue, errorOut: LvError.none);
+  if (attribute is T && T == LvVariant) {
+    return (variant: variant, found: true, value: attribute as T, errorOut: LvError.none);
+  }
   final value = attribute.value;
   return (variant: variant, found: true, value: value is T ? value : defaultValue, errorOut: LvError.none);
 }
@@ -88,12 +96,30 @@ LvVariant lvToVariant(Object? anything) => anything is LvVariant ? anything : Lv
   return (variant: variant.withAttributes(remaining), found: found, errorOut: LvError.none);
 }
 
-/// LabVIEW's string ordering, which compares code units from the first character.
-int lvCompareStrings(String a, String b) {
-  final length = a.length < b.length ? a.length : b.length;
-  for (var i = 0; i < length; i++) {
-    final difference = a.codeUnitAt(i) - b.codeUnitAt(i);
-    if (difference != 0) return difference;
+/// Variant To Flattened String's data string: the variant's value in LabVIEW's flat form, a
+/// number at the width of its recorded representation or a boolean unframed, a string or a 1-D
+/// integer list size-prefixed; a number with no recorded representation, or a value of another
+/// kind, is not flattened here and throws.
+String lvFlattenVariantData(LvVariant variant) {
+  final value = variant.value;
+  final numeric = variant.numeric;
+  final Uint8List flat;
+  switch (value) {
+    case bool():
+      flat = lvFlatOfInt(value ? 1 : 0, 8);
+    case num() when numeric != null && numeric.isFloat:
+      flat = lvFlatOfFloat(value.toDouble(), numeric.bits);
+    case int() when numeric != null:
+      flat = lvFlatOfInt(value, numeric.bits);
+    case String():
+      flat = lvFlatOfString(value, prependSize: true);
+    case List<int>() when numeric != null && !numeric.isFloat:
+      flat = lvFlatOfIntList(value, numeric.bits, prependSize: true);
+    case _:
+      throw UnsupportedError(
+        'Variant To Flattened String of a ${value.runtimeType}'
+        '${numeric == null && value is num ? ' with no recorded numeric representation' : ''}: its flat form is not produced here',
+      );
   }
-  return a.length - b.length;
+  return lvStringOfFlat(flat);
 }

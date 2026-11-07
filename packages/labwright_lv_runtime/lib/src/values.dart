@@ -7,10 +7,8 @@ class LvPath {
   final bool valid;
   bool get isEmpty => valid && !absolute && components.isEmpty;
   static const LvPath notAPath = LvPath(components: [], absolute: false, valid: false);
-
   @override
   bool operator ==(Object other) => other is LvPath && lvSameValue(this, other);
-
   @override
   int get hashCode => Object.hash(valid, absolute, Object.hashAll(components));
 }
@@ -34,23 +32,39 @@ class LvRefnum {
   static const LvRefnum none = LvRefnum(0);
 }
 
-/// A variant: any value with the attributes set on it, and the type descriptor of the value
-/// when the program that made it supplied one.
-class LvVariant {
-  const LvVariant(this.value, {this.attributes = const {}, this.typeDescriptor});
+/// A numeric representation, as a variant records the type of the number it holds.
+enum LvNumericType {
+  i8(8, isFloat: false),
+  i16(16, isFloat: false),
+  i32(32, isFloat: false),
+  i64(64, isFloat: false),
+  u8(8, isFloat: false),
+  u16(16, isFloat: false),
+  u32(32, isFloat: false),
+  u64(64, isFloat: false),
+  sgl(32, isFloat: true),
+  dbl(64, isFloat: true);
 
+  const LvNumericType(this.bits, {required this.isFloat});
+  final int bits;
+  final bool isFloat;
+}
+
+/// A variant: any value with the attributes set on it, the numeric representation of a number
+/// it holds, and the type descriptor of the value when the program that made it supplied one.
+class LvVariant {
+  const LvVariant(this.value, {this.attributes = const {}, this.typeDescriptor, this.numeric});
   final Object? value;
+  final LvNumericType? numeric;
 
   /// The attributes by name, each a variant of its own.
   final Map<String, LvVariant> attributes;
-
   final Uint8List? typeDescriptor;
 
   /// An empty variant, which holds no value.
   static const LvVariant empty = LvVariant(null);
-
   LvVariant withAttributes(Map<String, LvVariant> attributes) =>
-      LvVariant(value, attributes: attributes, typeDescriptor: typeDescriptor);
+      LvVariant(value, attributes: attributes, typeDescriptor: typeDescriptor, numeric: numeric);
 }
 
 class LvError {

@@ -541,6 +541,7 @@ final double volts;
           LvPrimTerminal(port: 9, type: mapLvWireType(ViSignalType(output)), roleFlags: 0, expression: 'e0'),
         ],
         outputPorts: const [9],
+        ports: [9, for (var at = inputs.length - 1; at >= 0; at--) at],
         portDrawnTop: {for (var at = 0; at < inputs.length; at++) at: at},
         requireImport: (_) {},
         names: LvNaming(),
@@ -713,14 +714,13 @@ final double volts;
     expect(lvPrimLowering(call), isNull);
   });
 
-  test('an ordered operation reads its operands off the drawn order, not the heap order', () {
-    const rows = <(String, Map<int, int>, String?)>[
-      ('port 0 drawn upper', {0: 10, 1: 40}, 'final int e0 = (a0 - a1) & 0xFFFFFFFF;'),
-      ('port 1 drawn upper', {0: 40, 1: 10}, 'final int e0 = (a1 - a0) & 0xFFFFFFFF;'),
-      ('drawn on one row', {0: 10, 1: 10}, null),
-      ('geometry missing', {0: 10}, null),
+  test('an ordered operation reads its operands off the heap order its signature pins', () {
+    const rows = <(String, List<int>, String?)>[
+      ('output, y, x', [9, 1, 0], 'final int e0 = (a0 - a1) & 0xFFFFFFFF;'),
+      ('output, x, y', [9, 0, 1], 'final int e0 = (a1 - a0) & 0xFFFFFFFF;'),
+      ('two terminals', [9, 0], null),
     ];
-    for (final (name, drawnTop, expected) in rows) {
+    for (final (name, ports, expected) in rows) {
       final type = mapLvWireType(const ViSignalType(0x0107));
       final call = LvPrimCall(
         op: PrimOp.subtract,
@@ -730,7 +730,8 @@ final double volts;
         ],
         outputs: [LvPrimTerminal(port: 9, type: type, roleFlags: 0, expression: 'e0')],
         outputPorts: const [9],
-        portDrawnTop: drawnTop,
+        ports: ports,
+        portDrawnTop: const {},
         requireImport: (_) {},
         names: LvNaming(),
         nodeFlags: null,
@@ -739,14 +740,14 @@ final double volts;
     }
   });
 
-  test('Quotient & Remainder binds each result to the output it is drawn beside', () {
-    const rows = <(String, List<int>, List<String?>, List<String>)>[
-      ('both results used', [8, 9], ['rem', 'quo'], ['final (quo, rem) = lvQuotientRemainder(a1, a0);']),
-      ('quotient only', [8, 9], [null, 'quo'], ['final (quo, _) = lvQuotientRemainder(a1, a0);']),
-      ('remainder only', [8, 9], ['rem', null], ['final (_, rem) = lvQuotientRemainder(a1, a0);']),
-      ('neither used', [8, 9], [null, null], <String>[]),
+  test('Quotient & Remainder binds each result to the terminal its signature names', () {
+    const rows = <(String, List<String?>, List<String>)>[
+      ('both results used', ['rem', 'quo'], ['final (quo, rem) = lvQuotientRemainderInt(a0, a1);']),
+      ('quotient only', [null, 'quo'], ['final (quo, _) = lvQuotientRemainderInt(a0, a1);']),
+      ('remainder only', ['rem', null], ['final (_, rem) = lvQuotientRemainderInt(a0, a1);']),
+      ('neither used', [null, null], <String>[]),
     ];
-    for (final (name, ports, bindings, expected) in rows) {
+    for (final (name, bindings, expected) in rows) {
       final type = mapLvWireType(const ViSignalType(0x0107));
       final call = LvPrimCall(
         op: PrimOp.quotientRemainder,
@@ -755,12 +756,13 @@ final double volts;
           for (var at = 0; at < 2; at++) LvPrimTerminal(port: at, type: type, roleFlags: 0, expression: 'a$at'),
         ],
         outputs: [
-          for (var at = 0; at < 2; at++)
-            if (bindings[at] case final name?)
-              LvPrimTerminal(port: ports[at], type: type, roleFlags: 0, expression: name),
+          if (bindings[0] case final remainder?)
+            LvPrimTerminal(port: 8, type: type, roleFlags: 0, expression: remainder),
+          if (bindings[1] case final quotient?) LvPrimTerminal(port: 9, type: type, roleFlags: 0, expression: quotient),
         ],
-        outputPorts: ports,
-        portDrawnTop: {0: 40, 1: 10, ports[0]: 10, ports[1]: 40},
+        outputPorts: const [8, 9],
+        ports: const [9, 8, 1, 0],
+        portDrawnTop: const {},
         requireImport: (_) {},
         names: LvNaming(),
         nodeFlags: null,

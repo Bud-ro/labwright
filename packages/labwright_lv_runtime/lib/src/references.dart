@@ -41,9 +41,7 @@ enum LvErrorCode {
   environmentUnavailable(-2);
 
   const LvErrorCode(this.code);
-
   final int code;
-
   LvError error(String source) => LvError(status: true, code: code, source: source);
 }
 
@@ -51,13 +49,9 @@ enum LvErrorCode {
 /// than zero (Not A Refnum); ids are handed out in order and never reused within a run.
 final class LvReferenceTable {
   LvReferenceTable._();
-
   static final LvReferenceTable instance = LvReferenceTable._();
-
   final Map<int, Object> _targets = {};
-
   int _next = 1;
-
   LvRefnum register(Object target) {
     final refnum = LvRefnum(_next++);
     _targets[refnum.id] = target;
@@ -72,9 +66,7 @@ final class LvReferenceTable {
   }
 
   bool isLive(LvRefnum refnum) => _targets.containsKey(refnum.id);
-
   Object? release(LvRefnum refnum) => _targets.remove(refnum.id);
-
   void clear() {
     _targets.clear();
     _next = 1;

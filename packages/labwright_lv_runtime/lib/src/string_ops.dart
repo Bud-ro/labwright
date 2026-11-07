@@ -390,3 +390,13 @@ String lvArrayToSpreadsheetString(
   }
   return out.toString();
 }
+
+/// LabVIEW's string ordering, which compares code units from the first character.
+int lvCompareStrings(String a, String b) {
+  final length = a.length < b.length ? a.length : b.length;
+  for (var i = 0; i < length; i++) {
+    final difference = a.codeUnitAt(i) - b.codeUnitAt(i);
+    if (difference != 0) return difference;
+  }
+  return a.length - b.length;
+}

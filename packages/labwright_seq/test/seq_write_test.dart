@@ -292,6 +292,32 @@ void main() {
       expect(param.extData[1]['memberlabel'], 'x');
     });
 
+    test('an <Attributes> object beside <value> is retained and survives the INI hop', () {
+      final file = roundTrips(
+        doc(
+          data: dataProp(
+            "\t\t\t<Frequency classname='Num'>\n"
+            '\t\t\t\t<value>0</value>\n'
+            "\t\t\t\t<Attributes classname='Attributes'>\n"
+            '\t\t\t\t\t<subprops>\n'
+            "\t\t\t\t\t\t<AutoCreated classname='Bool'>\n"
+            '\t\t\t\t\t\t\t<value>true</value>\n'
+            '\t\t\t\t\t\t</AutoCreated>\n'
+            '\t\t\t\t\t</subprops>\n'
+            '\t\t\t\t</Attributes>\n'
+            '\t\t\t</Frequency>\n',
+          ),
+        ),
+      );
+      final frequency = file.data.prop('Frequency')!;
+      expect(frequency.scalar, '0');
+      expect(frequency.subProps, isEmpty);
+      expect(frequency.attributeBlock!.className, 'Attributes');
+      expect(frequency.attributeBlock!.prop('AutoCreated')!.scalar, 'true');
+      final back = iniToXmlSeqFile(parseIniSeqBytes(writeIniSeq(xmlToIniSeqFile(file))));
+      expect(seqFileDeepEquals(file, back), isTrue);
+    });
+
     test('numericfmt and scalar <value representation> attributes are retained verbatim', () {
       final file = roundTrips(
         doc(

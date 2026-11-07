@@ -1059,13 +1059,22 @@ String _withoutLineComments(String source) {
 /// 2^53, above which a double no longer represents every integer exactly.
 const int _maxExactIntDouble = 9007199254740992;
 
-String _numLiteral(num n) => n is int && n.abs() < _maxExactIntDouble ? n.toString() : n.toDouble().toString();
+String _numLiteral(num n) => switch (n) {
+  _ when n.isNaN => 'double.nan',
+  _ when n.isInfinite => n > 0 ? 'double.infinity' : '-double.infinity',
+  int() when n.abs() < _maxExactIntDouble => n.toString(),
+  _ => n.toDouble().toString(),
+};
+
+const _nonFiniteSpellings = {'NaN': double.nan, 'Inf': double.infinity, '-Inf': double.negativeInfinity};
+
+num? _parseNumberScalar(String text) => num.tryParse(text) ?? _nonFiniteSpellings[text.trim()];
 
 final RegExp _i64SuffixLiteral = RegExp(r'(?<![\w.$])(\d+|0[xX][0-9a-fA-F]+)u?i64\b');
 
 num? _parseTsNum(String text) {
   final t = text.trim();
-  final direct = num.tryParse(t);
+  final direct = _parseNumberScalar(t);
   if (direct != null) return direct;
   final m = RegExp(r'^-?(\d+|0[xX][0-9a-fA-F]+)u?i64$').firstMatch(t);
   if (m == null) return null;
@@ -1339,6 +1348,7 @@ class _DartExporter {
     if (trimmed.isEmpty) return "''";
 
     if (_splitTopLevelCommas(trimmed).length > 1) return _evalFallback(raw);
+    if (_hasUnterminatedQuote(trimmed)) return _evalFallback(raw);
 
     final rebuilt = StringBuffer();
     for (final (segment, isString) in _segments(trimmed)) {
@@ -1435,6 +1445,9 @@ class _DartExporter {
           return _evalFallback(raw);
         }
       }
+      for (final m in RegExp(r'(?<![.A-Za-z0-9_])([A-Za-z_][A-Za-z0-9_]*)\.[A-Za-z_]').allMatches(code)) {
+        if (_scalarSlots.contains(_idTypes[m.group(1)])) return _evalFallback(raw);
+      }
       for (final m in RegExp(r'\[([^\[\]]*)\]').allMatches(code)) {
         for (final idm in RegExp(r'[A-Za-z_][A-Za-z0-9_]*').allMatches(m.group(1)!)) {
           if (_idTypes[idm.group(0)] == _DartSlot.number) return _evalFallback(raw);
@@ -1470,6 +1483,26 @@ class _DartExporter {
   }
 
   String _evalFallback(String raw) => "ts.eval('${_escape(raw)}')";
+
+  static bool _hasUnterminatedQuote(String text) {
+    String? open;
+    var i = 0;
+    while (i < text.length) {
+      final c = text[i];
+      if (open == null) {
+        if (c == '"' || c == "'") open = c;
+      } else if (c == r'\') {
+        i++;
+      } else if (c == open) {
+        open = null;
+      }
+      i++;
+    }
+    return open != null;
+  }
+
+  /// Slots whose Dart type has no TestStand subproperties: a member access on one is a PropertyObject API use.
+  static const _scalarSlots = {_DartSlot.integer, _DartSlot.number, _DartSlot.flag, _DartSlot.text};
 
   String _cond(String raw) {
     final e = _expr(raw);
@@ -1620,7 +1653,7 @@ class _DartExporter {
     }
     final cls = local.raw.valueClass;
     if (cls == SeqValueClass.reference || (cls == null && local.raw.subProps.isEmpty)) {
-      return 'dynamic $id;${_typeComment(local)}';
+      return 'dynamic $id = null;${_typeComment(local)}';
     }
     return 'dynamic $id = ${_propObjInit(local.raw, {})};'
         '${_typeComment(local)}';
@@ -1668,6 +1701,7 @@ class _DartExporter {
       'For Each',
       'Select',
       'Case',
+      'Sweep Loop',
       'End',
       'Break',
       'Continue',
@@ -1851,6 +1885,12 @@ class _DartExporter {
           _indent++;
           _line('${vars.matched} = true;');
           open.add(_openBlock(flow.kind, selectId: select));
+        case FlowKind.sweepLoop:
+          if (asTest) _markUnported('sweep loop "${step.name}": parameter sweep not exported');
+          _line('// TODO: ${_comment(flow.header)} not exported; the body runs once');
+          _line('{$nameNote');
+          _indent++;
+          open.add(_openBlock(flow.kind));
         case FlowKind.end:
           if (open.isEmpty) {
             _line(
@@ -1861,8 +1901,13 @@ class _DartExporter {
           }
           closeBlock(open.removeLast(), note: nameNote);
         case FlowKind.breakStmt:
-          final target = innermost((k) => k == FlowKind.selectBlock || loopKinds.contains(k));
-          if (target == null) {
+          final target = innermost(
+            (k) => k == FlowKind.selectBlock || k == FlowKind.sweepLoop || loopKinds.contains(k),
+          );
+          if (target?.kind == FlowKind.sweepLoop) {
+            if (asTest) _markUnported('break out of sweep loop at step "${step.name}" not exported');
+            _line('// $rawName: Break out of a sweep loop — kept as a comment');
+          } else if (target == null) {
             _line(
               '// $rawName: Break with no enclosing loop/select — kept as a '
               'comment',
@@ -1881,8 +1926,11 @@ class _DartExporter {
             }
           }
         case FlowKind.continueStmt:
-          final loop = innermost(loopKinds.contains);
-          if (loop == null) {
+          final loop = innermost((k) => k == FlowKind.sweepLoop || loopKinds.contains(k));
+          if (loop?.kind == FlowKind.sweepLoop) {
+            if (asTest) _markUnported('continue in sweep loop at step "${step.name}" not exported');
+            _line('// $rawName: Continue in a sweep loop — kept as a comment');
+          } else if (loop == null) {
             _line(
               '// $rawName: Continue with no enclosing loop — kept as a '
               'comment',
@@ -2835,14 +2883,14 @@ class _DartExporter {
     final scalar = c.scalar;
     switch (cls) {
       case SeqValueClass.number:
-        final n = num.tryParse(scalar ?? '');
+        final n = _parseNumberScalar(scalar ?? '');
         return (_DartSlot.number, 'double $name = ${n == null ? '0' : _numLiteral(n)};$note');
       case SeqValueClass.boolean:
         return (_DartSlot.flag, 'bool $name = ${scalar?.toLowerCase() == 'true'};$note');
       case SeqValueClass.string || SeqValueClass.expression || SeqValueClass.path:
         return (_DartSlot.text, "String $name = '${_escape(scalar ?? '')}';$note");
       case SeqValueClass.reference:
-        return (_DartSlot.untyped, 'dynamic $name;$note');
+        return (_DartSlot.untyped, 'dynamic $name = null;$note');
       default:
         return (_DartSlot.untyped, 'dynamic $name = ${_propObjInit(c, {})};$note');
     }
@@ -2875,7 +2923,10 @@ class _DartExporter {
     final cls = c.valueClass;
     if (scalar != null) {
       return switch (cls) {
-        SeqValueClass.number => num.tryParse(scalar)?.toString() ?? "'${_escape(scalar)}'",
+        SeqValueClass.number => switch (_parseNumberScalar(scalar)) {
+          final n? => n.isFinite ? n.toString() : _numLiteral(n),
+          null => "'${_escape(scalar)}'",
+        },
         SeqValueClass.boolean => scalar.toLowerCase() == 'true' ? 'true' : 'false',
         _ => "'${_escape(scalar)}'",
       };
