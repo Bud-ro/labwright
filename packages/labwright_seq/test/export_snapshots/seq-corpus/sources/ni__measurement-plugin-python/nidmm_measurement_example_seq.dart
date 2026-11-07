@@ -15,33 +15,36 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIDmmMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidmm.py',
-  ); // Create and register NI-DMM Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIDmmMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidmm.py',
+    ); // Create and register NI-DMM Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDmmMeasurement_Python
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: measurement_type (In TypeEnum Enum) = 1i64
-  // measurement param: range (In TypeDouble) = 10
-  // measurement param: resolution_digits (In TypeDouble) = 5.5
-  // measurement param: measured_value (Out TypeDouble)
-  // measurement param: signal_out_of_range (Out TypeBool)
-  // measurement param: absolute_resolution (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Perform a measurement using an NI DMM [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidmm.py',
-  ); // Destroy and unregister NI-DMM sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDmmMeasurement_Python
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: measurement_type (In TypeEnum Enum) = 1i64
+    // measurement param: range (In TypeDouble) = 10
+    // measurement param: resolution_digits (In TypeDouble) = 5.5
+    // measurement param: measured_value (Out TypeDouble)
+    // measurement param: signal_out_of_range (Out TypeBool)
+    // measurement param: absolute_resolution (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Perform a measurement using an NI DMM [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidmm.py',
+    ); // Destroy and unregister NI-DMM sessions [Action]
+  }
 
   return run.status;
 }

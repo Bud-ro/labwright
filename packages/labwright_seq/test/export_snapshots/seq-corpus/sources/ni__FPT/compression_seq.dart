@@ -30,98 +30,101 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   Enable Validity Check? <- True
-  //   error out <- Step.Result.Error
-  await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-  //   measure call context in <- Nothing
-  //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOnDut(); // RX_Power ON [Action]
-  //   measure call context in <- Nothing
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callSetSwitching(); // RX_Switching Connect [Action]
+  body:
+  try {
+    // ── setup ──
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   Enable Validity Check? <- True
+    //   error out <- Step.Result.Error
+    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
+    //   measure call context in <- Nothing
+    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOnDut(); // RX_Power ON [Action]
+    //   measure call context in <- Nothing
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callSetSwitching(); // RX_Switching Connect [Action]
 
-  // ── main ──
-  // measurement: FPT_Compression_LabVIEW
-  // measurement param: Automation Test (In TypeBool) = True
-  // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  // measurement param: SMU name (In TypeString) = "PXI1Slot16"
-  // measurement param: SMU channel (In TypeString) = "1"
-  // measurement param: RFSG name (In TypeString) = "5842"
-  // measurement param: RFSG port (In TypeString) = "port2"
-  // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFSG s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFSG s2p file path (In TypeString) = ""
-  // measurement param: RFmx name (In TypeString) = "5842"
-  // measurement param: RFmx port (In TypeString) = "port1"
-  // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFmx attenuation path name (In TypeString) = ""
-  // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFmx attenuation s2p path name (In TypeString) = ""
-  // measurement param: RFmx s2p file path (In TypeString) = ""
-  // measurement param: Compression_Expected DUT Gain (dB) (In TypeDouble) = 17.5
-  // measurement param: Compression_Max Linear Range (dBm) (In TypeDouble) = -10
-  // measurement param: Compression_Compression Point (dB) (In TypeDouble) = 1
-  // measurement param: Compression_Target Pin (dBm) (In TypeDouble) = 1
-  // measurement param: Compression_RFSG Frequency Start (Hz) (In TypeDouble) = 6000000000
-  // measurement param: Compression_RFSG Frequency Stop (Hz) (In TypeDouble) = 18000000000
-  // measurement param: Compression_RFSG Number of Frequency Step (In TypeInt32) = 4i64
-  // measurement param: Compression_RFSG Power Start (dBm) (In TypeDouble) = -20
-  // measurement param: Compression_RFSG Power Stop(dBm) (In TypeDouble) = 4
-  // measurement param: Compression_RFSG Power Step Size (dB) (In TypeDouble) = 1
-  // measurement param: Compression_RBW (Hz) (In TypeDouble) = 5000000
-  // measurement param: Compression_RF Measurement Interval (s) (In TypeDouble) = 0.001
-  // measurement param: Compression_DC Measurement Interval (s) (In TypeDouble) = 5E-05
-  // measurement param: Compression_Stimulus Mode (In TypeEnum Enum) = 0i64
-  // measurement param: CP_CW_DC Source Delay (s) (In TypeDouble) = 0
-  // measurement param: CP_PRF_DC Source Delay (s) (In TypeDouble) = 0
-  // measurement param: CP_PRF_RFmx Trigger Delay (s) (In TypeDouble) = 0
-  // measurement param: CP_PRF_RF Pulse Width (s) (In TypeDouble) = 0.0001
-  // measurement param: CP_PRF_PRI (s) (In TypeDouble) = 0.001
-  // measurement param: PP_PRF_DC Source Delay (s) (In TypeDouble) = 0
-  // measurement param: PP_PRF_RFmx Trigger Delay (s) (In TypeDouble) = 0
-  // measurement param: PP_PRF_RF Pulse Width (s) (In TypeDouble) = 0.0001
-  // measurement param: PP_PRF_PRI (s) (In TypeDouble) = 0.001
-  // measurement param: PP_PRF_DC Pulse Width (s) (In TypeDouble) = 0.0008
-  // measurement param: PP_PRF_ON Current Limit (A) (In TypeDouble) = 2
-  // measurement param: PP_PRF_Bias Voltage Level (V) (In TypeDouble) = 0
-  // measurement param: PP_PRF_Bias Current Limit (A) (In TypeDouble) = 0.2
-  // measurement param: Power sequecing file validity check (In TypeBool) = False
-  // measurement param: Status (Out TypeString)
-  // measurement param: per Freq Plot Names (Out TypeString) = Locals.RX_Comp_PerFreqPlotNames
-  // measurement param: Linear Gain vs Freq (Out TypeMessage) = Locals.RX_Comp_LinearGainVsFreq_Full
-  // measurement param: OPxdB vs Freq (Out TypeMessage) = Locals.RX_Comp_OPxdBVsFreq_Full
-  // measurement param: Pout@Pin vs Freq (Out TypeMessage) = Locals.RX_Comp_PoutAtPinVsFreq_Full
-  // measurement param: Gain@Pin vs Freq (Out TypeMessage) = Locals.RX_Comp_GainAtPinVsFreq_Full
-  // measurement param: PAE@Pin vs Freq (Out TypeMessage) = Locals.RX_Comp_PaeAtPinVsFreq_Full
-  // measurement param: Pout vs Pin per Freq (Out TypeMessage) = Locals.RX_Comp_PoutVsPin_Full
-  // measurement param: Gain vs Pin per Freq (Out TypeMessage) = Locals.RX_Comp_GainVsPin_Full
-  // measurement param: PAE vs Pin per Freq (Out TypeMessage) = Locals.RX_Comp_PaeVsPin_Full
-  // measurement param: Pout@Pin (Mean) (Out TypeDouble) = Locals.RX_Comp_PoutAtPinMean
-  // measurement param: Gain@Pin (Mean) (Out TypeDouble) = Locals.RX_Comp_GainAtPinMean
-  // measurement param: PAE@Pin (Mean) (Out TypeDouble) = Locals.RX_Comp_PaeAtPinMean
-  // measurement param: Linear Gain (Mean) (Out TypeDouble) = Locals.RX_Comp_LinearGainMean
-  // measurement param: OPxdB (Mean) (Out TypeDouble) = Locals.RX_Comp_OPxdBMean
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // RX_Compression [NI_Measurement]
-  // checks: Step.NumericArray
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // RX_Compression Limit Test [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOffDut(); // RX_Power OFF [Action]
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    // ── main ──
+    // measurement: FPT_Compression_LabVIEW
+    // measurement param: Automation Test (In TypeBool) = True
+    // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    // measurement param: SMU name (In TypeString) = "PXI1Slot16"
+    // measurement param: SMU channel (In TypeString) = "1"
+    // measurement param: RFSG name (In TypeString) = "5842"
+    // measurement param: RFSG port (In TypeString) = "port2"
+    // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFSG s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFSG s2p file path (In TypeString) = ""
+    // measurement param: RFmx name (In TypeString) = "5842"
+    // measurement param: RFmx port (In TypeString) = "port1"
+    // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFmx attenuation path name (In TypeString) = ""
+    // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFmx attenuation s2p path name (In TypeString) = ""
+    // measurement param: RFmx s2p file path (In TypeString) = ""
+    // measurement param: Compression_Expected DUT Gain (dB) (In TypeDouble) = 17.5
+    // measurement param: Compression_Max Linear Range (dBm) (In TypeDouble) = -10
+    // measurement param: Compression_Compression Point (dB) (In TypeDouble) = 1
+    // measurement param: Compression_Target Pin (dBm) (In TypeDouble) = 1
+    // measurement param: Compression_RFSG Frequency Start (Hz) (In TypeDouble) = 6000000000
+    // measurement param: Compression_RFSG Frequency Stop (Hz) (In TypeDouble) = 18000000000
+    // measurement param: Compression_RFSG Number of Frequency Step (In TypeInt32) = 4i64
+    // measurement param: Compression_RFSG Power Start (dBm) (In TypeDouble) = -20
+    // measurement param: Compression_RFSG Power Stop(dBm) (In TypeDouble) = 4
+    // measurement param: Compression_RFSG Power Step Size (dB) (In TypeDouble) = 1
+    // measurement param: Compression_RBW (Hz) (In TypeDouble) = 5000000
+    // measurement param: Compression_RF Measurement Interval (s) (In TypeDouble) = 0.001
+    // measurement param: Compression_DC Measurement Interval (s) (In TypeDouble) = 5E-05
+    // measurement param: Compression_Stimulus Mode (In TypeEnum Enum) = 0i64
+    // measurement param: CP_CW_DC Source Delay (s) (In TypeDouble) = 0
+    // measurement param: CP_PRF_DC Source Delay (s) (In TypeDouble) = 0
+    // measurement param: CP_PRF_RFmx Trigger Delay (s) (In TypeDouble) = 0
+    // measurement param: CP_PRF_RF Pulse Width (s) (In TypeDouble) = 0.0001
+    // measurement param: CP_PRF_PRI (s) (In TypeDouble) = 0.001
+    // measurement param: PP_PRF_DC Source Delay (s) (In TypeDouble) = 0
+    // measurement param: PP_PRF_RFmx Trigger Delay (s) (In TypeDouble) = 0
+    // measurement param: PP_PRF_RF Pulse Width (s) (In TypeDouble) = 0.0001
+    // measurement param: PP_PRF_PRI (s) (In TypeDouble) = 0.001
+    // measurement param: PP_PRF_DC Pulse Width (s) (In TypeDouble) = 0.0008
+    // measurement param: PP_PRF_ON Current Limit (A) (In TypeDouble) = 2
+    // measurement param: PP_PRF_Bias Voltage Level (V) (In TypeDouble) = 0
+    // measurement param: PP_PRF_Bias Current Limit (A) (In TypeDouble) = 0.2
+    // measurement param: Power sequecing file validity check (In TypeBool) = False
+    // measurement param: Status (Out TypeString)
+    // measurement param: per Freq Plot Names (Out TypeString) = Locals.RX_Comp_PerFreqPlotNames
+    // measurement param: Linear Gain vs Freq (Out TypeMessage) = Locals.RX_Comp_LinearGainVsFreq_Full
+    // measurement param: OPxdB vs Freq (Out TypeMessage) = Locals.RX_Comp_OPxdBVsFreq_Full
+    // measurement param: Pout@Pin vs Freq (Out TypeMessage) = Locals.RX_Comp_PoutAtPinVsFreq_Full
+    // measurement param: Gain@Pin vs Freq (Out TypeMessage) = Locals.RX_Comp_GainAtPinVsFreq_Full
+    // measurement param: PAE@Pin vs Freq (Out TypeMessage) = Locals.RX_Comp_PaeAtPinVsFreq_Full
+    // measurement param: Pout vs Pin per Freq (Out TypeMessage) = Locals.RX_Comp_PoutVsPin_Full
+    // measurement param: Gain vs Pin per Freq (Out TypeMessage) = Locals.RX_Comp_GainVsPin_Full
+    // measurement param: PAE vs Pin per Freq (Out TypeMessage) = Locals.RX_Comp_PaeVsPin_Full
+    // measurement param: Pout@Pin (Mean) (Out TypeDouble) = Locals.RX_Comp_PoutAtPinMean
+    // measurement param: Gain@Pin (Mean) (Out TypeDouble) = Locals.RX_Comp_GainAtPinMean
+    // measurement param: PAE@Pin (Mean) (Out TypeDouble) = Locals.RX_Comp_PaeAtPinMean
+    // measurement param: Linear Gain (Mean) (Out TypeDouble) = Locals.RX_Comp_LinearGainMean
+    // measurement param: OPxdB (Mean) (Out TypeDouble) = Locals.RX_Comp_OPxdBMean
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // RX_Compression [NI_Measurement]
+    // checks: Step.NumericArray
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // RX_Compression Limit Test [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOffDut(); // RX_Power OFF [Action]
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+  }
 
   return run.status;
 }

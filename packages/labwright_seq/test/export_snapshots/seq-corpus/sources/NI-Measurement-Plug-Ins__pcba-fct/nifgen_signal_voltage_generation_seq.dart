@@ -15,32 +15,35 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"..\..\..\src\NIFgenSignalVoltageGeneration\NIFgenSignalVoltageGeneration.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-FGEN sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"..\..\..\src\NIFgenSignalVoltageGeneration\NIFgenSignalVoltageGeneration.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-FGEN sessions [Action]
 
-  // ── main ──
-  // measurement: NIFgenSignalVoltageGeneration_LabVIEW
-  // measurement param: Pin Name (In TypeString Pin) = "Pin1"
-  // measurement param: Generation Time (s) (In TypeDouble) = 3
-  // measurement param: Voltage Offset (V) (In TypeDouble) = 0
-  // measurement param: Sample Rate (Hz) (In TypeDouble) = 1000000
-  // measurement param: Frequency (Hz) (In TypeDouble) = 200000
-  // measurement param: Amplitude (Vpk-pk) (In TypeDouble) = 1
-  // measurement param: Waveform (In TypeInt32) = 0i64
-  // measurement param: Generated Voltage Waveform (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Signal Voltage Generation [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-FGEN sessions [Action]
+    // ── main ──
+    // measurement: NIFgenSignalVoltageGeneration_LabVIEW
+    // measurement param: Pin Name (In TypeString Pin) = "Pin1"
+    // measurement param: Generation Time (s) (In TypeDouble) = 3
+    // measurement param: Voltage Offset (V) (In TypeDouble) = 0
+    // measurement param: Sample Rate (Hz) (In TypeDouble) = 1000000
+    // measurement param: Frequency (Hz) (In TypeDouble) = 200000
+    // measurement param: Amplitude (Vpk-pk) (In TypeDouble) = 1
+    // measurement param: Waveform (In TypeInt32) = 0i64
+    // measurement param: Generated Voltage Waveform (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Signal Voltage Generation [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-FGEN sessions [Action]
+  }
 
   return run.status;
 }

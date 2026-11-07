@@ -26,9 +26,7 @@ Future<String> mainSequence() async {
   //   error out <- Step.Result.Error
   await callLockTestVi(); // DMM Test [Action]
   // acquires mutex "*DAQ"
-  throw UnimplementedError(
-    'step type Action: action not exported yet',
-  ); // Lock Test -DAQ [Action]
+  // Lock Test -DAQ [Action]: no code module
   //   Sequence Context <- ThisContext
   //   milliseconds to wait <- 100
   //   Instrument Names <- FileGlobals.InstrumentListDAQ
@@ -83,7 +81,6 @@ final dynamic step = null;
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   SubStep\Lock Test VI.vi
-  //   step type Action: action not exported yet
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });

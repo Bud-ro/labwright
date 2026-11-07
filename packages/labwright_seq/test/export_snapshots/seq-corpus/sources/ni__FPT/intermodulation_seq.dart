@@ -20,75 +20,78 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   Enable Validity Check? <- True
-  //   error out <- Step.Result.Error
-  await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-  //   measure call context in <- Nothing
-  //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOnDut(); // RX_Power ON [Action]
-  //   measure call context in <- Nothing
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callSetSwitching(); // RX_Switching Connect [Action]
+  body:
+  try {
+    // ── setup ──
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   Enable Validity Check? <- True
+    //   error out <- Step.Result.Error
+    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
+    //   measure call context in <- Nothing
+    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOnDut(); // RX_Power ON [Action]
+    //   measure call context in <- Nothing
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callSetSwitching(); // RX_Switching Connect [Action]
 
-  // ── main ──
-  // measurement: FPT Intermodulation_LabVIEW
-  // measurement param: Automation Test (In TypeBool) = True
-  // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  // measurement param: RFSG name (In TypeString) = "5842"
-  // measurement param: RFSG port (In TypeString) = "port2"
-  // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFSG s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFSG s2p file path (In TypeString) = ""
-  // measurement param: RFmx name (In TypeString) = "5842"
-  // measurement param: RFmx port (In TypeString) = "port1"
-  // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFmx s2p file path (In TypeString) = ""
-  // measurement param: RFmx Reference Level (dBm) (In TypeDouble) = 20
-  // measurement param: RFSG Generation IQ Rate (S/s) (In TypeDouble) = 30000000
-  // measurement param: Target Pout Per Tone (dBm) (In TypeDouble) = 0
-  // measurement param: Start Pin Per Tone (dBm) (In TypeDouble) = -20
-  // measurement param: Start Center Frequency (Hz) (In TypeDouble) = 8000000000
-  // measurement param: Start Tone Spacing (Hz) (In TypeDouble) = 1000000
-  // measurement param: IM_Sweep Mode (In TypeEnum Enum) = 0i64
-  // measurement param: Sweep Delay (ms) (In TypeUint32) = 0ui64
-  // measurement param: Power Sweep End (In TypeDouble) = 0
-  // measurement param: Power Sweep Step (In TypeDouble) = 1
-  // measurement param: Frequency Sweep End (In TypeDouble) = 12000000000
-  // measurement param: Frequency Sweep Step (In TypeDouble) = 100000000
-  // measurement param: Tone Spacing Sweep End (In TypeDouble) = 10000000
-  // measurement param: Tone Spacing Sweep Step (In TypeDouble) = 1000000
-  // measurement param: Power sequecing file validity check (In TypeBool) = True
-  // measurement param: Status (Out TypeString)
-  // measurement param: Typical OIP3 (dBm) (Out TypeDouble) = Locals.RX_IM_FreqSwp_OIP3_Mean
-  // measurement param: TS_Fundamental (dBm) (Out TypeMessage)
-  // measurement param: TS_IMD (dBm) (Out TypeMessage)
-  // measurement param: TS_TOI (dBm) (Out TypeMessage) = Locals.RX_IM_FreqSwp_TOI
-  // measurement param: TS_DUT Gain (dBm) (Out TypeMessage)
-  // measurement param: TS_Fundamental Slope (dBm) (Out TypeMessage)
-  // measurement param: TS_Intermodulation Slope (dBm) (Out TypeMessage)
-  // measurement param: Final Target Pout (dBm) (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // RX_Intermodulation [NI_Measurement]
-  // checks: Step.NumericArray
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // RX_Intermodulation Limit Test [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOffDut(); // RX_Power OFF [Action]
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    // ── main ──
+    // measurement: FPT Intermodulation_LabVIEW
+    // measurement param: Automation Test (In TypeBool) = True
+    // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    // measurement param: RFSG name (In TypeString) = "5842"
+    // measurement param: RFSG port (In TypeString) = "port2"
+    // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFSG s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFSG s2p file path (In TypeString) = ""
+    // measurement param: RFmx name (In TypeString) = "5842"
+    // measurement param: RFmx port (In TypeString) = "port1"
+    // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFmx s2p file path (In TypeString) = ""
+    // measurement param: RFmx Reference Level (dBm) (In TypeDouble) = 20
+    // measurement param: RFSG Generation IQ Rate (S/s) (In TypeDouble) = 30000000
+    // measurement param: Target Pout Per Tone (dBm) (In TypeDouble) = 0
+    // measurement param: Start Pin Per Tone (dBm) (In TypeDouble) = -20
+    // measurement param: Start Center Frequency (Hz) (In TypeDouble) = 8000000000
+    // measurement param: Start Tone Spacing (Hz) (In TypeDouble) = 1000000
+    // measurement param: IM_Sweep Mode (In TypeEnum Enum) = 0i64
+    // measurement param: Sweep Delay (ms) (In TypeUint32) = 0ui64
+    // measurement param: Power Sweep End (In TypeDouble) = 0
+    // measurement param: Power Sweep Step (In TypeDouble) = 1
+    // measurement param: Frequency Sweep End (In TypeDouble) = 12000000000
+    // measurement param: Frequency Sweep Step (In TypeDouble) = 100000000
+    // measurement param: Tone Spacing Sweep End (In TypeDouble) = 10000000
+    // measurement param: Tone Spacing Sweep Step (In TypeDouble) = 1000000
+    // measurement param: Power sequecing file validity check (In TypeBool) = True
+    // measurement param: Status (Out TypeString)
+    // measurement param: Typical OIP3 (dBm) (Out TypeDouble) = Locals.RX_IM_FreqSwp_OIP3_Mean
+    // measurement param: TS_Fundamental (dBm) (Out TypeMessage)
+    // measurement param: TS_IMD (dBm) (Out TypeMessage)
+    // measurement param: TS_TOI (dBm) (Out TypeMessage) = Locals.RX_IM_FreqSwp_TOI
+    // measurement param: TS_DUT Gain (dBm) (Out TypeMessage)
+    // measurement param: TS_Fundamental Slope (dBm) (Out TypeMessage)
+    // measurement param: TS_Intermodulation Slope (dBm) (Out TypeMessage)
+    // measurement param: Final Target Pout (dBm) (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // RX_Intermodulation [NI_Measurement]
+    // checks: Step.NumericArray
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // RX_Intermodulation Limit Test [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOffDut(); // RX_Power OFF [Action]
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+  }
 
   return run.status;
 }

@@ -43,143 +43,146 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Pass Fail Test:MaskA_Analysis.VBS
 
-  // ── setup ──
-  // runs executable: C:\Program Files (x86)\National Instruments\VeriStand 2011\NI VeriStand.exe "" (WAIT_NONE)
-  throw UnimplementedError(
-    'step type CallExecutable: action not exported yet',
-  ); // Call VeriStand.exe [CallExecutable]
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory
-  //   Return Value <- Locals.NI_VS_Factory
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
-  ); // Open VS Interface [Action]
-  do {
-    // ignores run-time errors
-    // failure does NOT fail the sequence
+  body:
+  try {
+    // ── setup ──
+    // runs executable: C:\Program Files (x86)\National Instruments\VeriStand 2011\NI VeriStand.exe "" (WAIT_NONE)
+    throw UnimplementedError(
+      'step type CallExecutable: action not exported yet',
+    ); // Call VeriStand.exe [CallExecutable]
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory
+    //   Return Value <- Locals.NI_VS_Factory
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.Factory',
+    ); // Open VS Interface [Action]
+    do {
+      // ignores run-time errors
+      // failure does NOT fail the sequence
+      // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+      //   Existing Object <- Locals.NI_VS_Factory
+      // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
+      //   Return Value <- Locals.NI_VS_Workspace
+      throw UnimplementedError(
+        'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
+      ); // Open VS Workspace Mngr Ref [Action]
+      notReady = runState.PreviousStep.Result.Error.Occurred; // post-expression
+      await Future<void>.delayed(const Duration(seconds: 2));
+    } while (notReady == true);
     // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
     //   Existing Object <- Locals.NI_VS_Factory
-    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace
-    //   Return Value <- Locals.NI_VS_Workspace
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus
+    //   Return Value <- Locals.NI_VS_Stimulus
     throw UnimplementedError(
-      'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIWorkspace',
-    ); // Open VS Workspace Mngr Ref [Action]
-    notReady = runState.PreviousStep.Result.Error.Occurred; // post-expression
-    await Future<void>.delayed(const Duration(seconds: 2));
-  } while (notReady == true);
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Factory
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus
-  //   Return Value <- Locals.NI_VS_Stimulus
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus',
-  ); // Open Stimulus Profile Mgr Ref [Action]
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Factory
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager
-  //   Return Value <- Locals.NI_VS_ModelManager
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
-  ); // Open Model Mng Ref [Action]
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIStimulus',
+    ); // Open Stimulus Profile Mgr Ref [Action]
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+    //   Existing Object <- Locals.NI_VS_Factory
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager
+    //   Return Value <- Locals.NI_VS_ModelManager
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIModelManager',
+    ); // Open Model Mng Ref [Action]
 
-  // ── main ──
-  // label: Engine Test Script.rtts
-  // label: MIL Test
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Factory
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject
-  //   Return Value <- Locals.NI_VS_Project
-  //   gateway_ip_address <- "localhost"
-  //   project_path <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\MIL_EngineController.nivsproj"
-  //   username <- ""
-  //   password <- ""
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject',
-  ); // Open Project Reference [Action]
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Project
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy',
-  ); // Deploy and Connect [Action]
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Project
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace',
-  ); // Open Workspace [Action]
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_ModelManager
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues',
-  ); // Set calibration values [Action]
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Stimulus
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile
-  //   file_path <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Stimulus Profiles\\FTP1000.nivstest"
-  //   base_log_path <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory\\VSLogs"
-  //   timeout <- 60000
-  //   auto_start <- True
-  //   stop_on_disconnect <- True
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile',
-  ); // Run Stimulus Profile [Action]
-  await Future<void>.delayed(const Duration(milliseconds: 500));
-  do {
+    // ── main ──
+    // label: Engine Test Script.rtts
+    // label: MIL Test
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.Use Existing Object
+    //   Existing Object <- Locals.NI_VS_Factory
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject
+    //   Return Value <- Locals.NI_VS_Project
+    //   gateway_ip_address <- "localhost"
+    //   project_path <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\MIL_EngineController.nivsproj"
+    //   username <- ""
+    //   password <- ""
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.Factory.GetIProject',
+    ); // Open Project Reference [Action]
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
+    //   Existing Object <- Locals.NI_VS_Project
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Deploy',
+    ); // Deploy and Connect [Action]
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
+    //   Existing Object <- Locals.NI_VS_Project
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.OpenWorkspace',
+    ); // Open Workspace [Action]
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.Use Existing Object
+    //   Existing Object <- Locals.NI_VS_ModelManager
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IModelManager.SetMultipleParameterValues',
+    ); // Set calibration values [Action]
     // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
     //   Existing Object <- Locals.NI_VS_Stimulus
-    // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState
-    //   state <- Locals.StimState
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile
+    //   file_path <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Stimulus Profiles\\FTP1000.nivstest"
+    //   base_log_path <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory\\VSLogs"
+    //   timeout <- 60000
+    //   auto_start <- True
+    //   stop_on_disconnect <- True
     throw UnimplementedError(
-      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState',
-    ); // Check if Stimulus is done [Action]
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.RunStimulusProfile',
+    ); // Run Stimulus Profile [Action]
     await Future<void>.delayed(const Duration(milliseconds: 500));
-  } while (stimState == 2);
-  //   Logs Folder <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory\\VSLogs"
-  //   Latest File Saved <- Locals.Logs[0]
-  //   error out <- Step.Result.Error
-  await callLastTdmSfile(); // Get log file path [Action]
-  // failure does NOT fail the sequence
-  throw UnimplementedError(
-    'step type DIAdem_OpenReference: action not exported yet',
-  ); // Open DD Ref [DIAdem_OpenReference]
-  throw UnimplementedError(
-    'step type DIAdem_ExportChannels: action not exported yet',
-  ); // Export Log Path [DIAdem_ExportChannels]
-  throw UnimplementedError(
-    'step type DIAdem_ExportChannels: action not exported yet',
-  ); // Export Working Dir [DIAdem_ExportChannels]
-  // failure does NOT fail the sequence
-  throw UnimplementedError(
-    'step type DIAdem_RunScript: action not exported yet',
-  ); // Run MaskA_Analysis.VBS [DIAdem_RunScript]
-  throw UnimplementedError(
-    'step type DIAdem_ImportChannels: action not exported yet',
-  ); // Get test results [DIAdem_ImportChannels]
-  // checks: Step.Result.PassFail = Locals.AnalysisResult[0] == 1
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]: judged by its status expression
-  testResult = passFailTestMaskAAnalysisVbsResult.PassFail; // post-expression
-  passFailTestMaskAAnalysisVbsResult.PassFail =
-      passFailTestMaskAAnalysisVbsResult.PassFail =
-          analysisResult[0] == 1; // status expression
-  passFailTestMaskAAnalysisVbsResult.Status =
-      ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(passFailTestMaskAAnalysisVbsResult.Status);
-  // failure does NOT fail the sequence
-  throw UnimplementedError(
-    'step type DIAdem_Close_Reference: action not exported yet',
-  ); // Close DD Ref [DIAdem_Close_Reference]
-
-  // ── cleanup ──
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
-  //   Existing Object <- Locals.NI_VS_Project
-  // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit',
-  ); // Quit VS [Action]
+    do {
+      // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.Use Existing Object
+      //   Existing Object <- Locals.NI_VS_Stimulus
+      // .NET call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState
+      //   state <- Locals.StimState
+      throw UnimplementedError(
+        'dotNet call: NationalInstruments.VeriStand.ClientAPI.IStimulus.GetStimulusProfileManagerState',
+      ); // Check if Stimulus is done [Action]
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+    } while (stimState == 2);
+    //   Logs Folder <- "C:\\SE\\Demos and POCs\\RTTA\\Source\\Demos\\EngineController\\Working Directory\\VSLogs"
+    //   Latest File Saved <- Locals.Logs[0]
+    //   error out <- Step.Result.Error
+    await callLastTdmSfile(); // Get log file path [Action]
+    // failure does NOT fail the sequence
+    throw UnimplementedError(
+      'step type DIAdem_OpenReference: action not exported yet',
+    ); // Open DD Ref [DIAdem_OpenReference]
+    throw UnimplementedError(
+      'step type DIAdem_ExportChannels: action not exported yet',
+    ); // Export Log Path [DIAdem_ExportChannels]
+    throw UnimplementedError(
+      'step type DIAdem_ExportChannels: action not exported yet',
+    ); // Export Working Dir [DIAdem_ExportChannels]
+    // failure does NOT fail the sequence
+    throw UnimplementedError(
+      'step type DIAdem_RunScript: action not exported yet',
+    ); // Run MaskA_Analysis.VBS [DIAdem_RunScript]
+    throw UnimplementedError(
+      'step type DIAdem_ImportChannels: action not exported yet',
+    ); // Get test results [DIAdem_ImportChannels]
+    // checks: Step.Result.PassFail = Locals.AnalysisResult[0] == 1
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    // Pass Fail Test:MaskA_Analysis.VBS [PassFailTest]: judged by its status expression
+    testResult = passFailTestMaskAAnalysisVbsResult.PassFail; // post-expression
+    passFailTestMaskAAnalysisVbsResult.PassFail =
+        passFailTestMaskAAnalysisVbsResult.PassFail =
+            analysisResult[0] == 1; // status expression
+    passFailTestMaskAAnalysisVbsResult.Status =
+        ts.truthy(passFailTestMaskAAnalysisVbsResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(passFailTestMaskAAnalysisVbsResult.Status);
+    // failure does NOT fail the sequence
+    throw UnimplementedError(
+      'step type DIAdem_Close_Reference: action not exported yet',
+    ); // Close DD Ref [DIAdem_Close_Reference]
+  } finally {
+    // ── cleanup ──
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Use Existing Object
+    //   Existing Object <- Locals.NI_VS_Project
+    // .NET call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.VeriStand.ClientAPI.IProject.Quit',
+    ); // Quit VS [Action]
+  }
 
   return run.status;
 }

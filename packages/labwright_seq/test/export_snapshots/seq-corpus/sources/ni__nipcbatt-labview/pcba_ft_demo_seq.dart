@@ -59,68 +59,72 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Power Down Supply
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= Locals.Hardware_Config_Path + @"\\Hardware Config Demo.ini" , // Returns the Hardware config INI File path kept parallel to this sequence',
-  ); // Frame Hardware Config INI file path
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Configuration [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= Locals.Hardware_Config_Path + @"\\Hardware Config Demo.ini" , // Returns the Hardware config INI File path kept parallel to this sequence',
+    ); // Frame Hardware Config INI file path
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Configuration [Action]
 
-  // ── main ──
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDiagnosticsResult.Status = await powerDiagnostics(); // Power Diagnostics
-  powerDiagnosticsResult.Status = powerDiagnosticsResult.Status == 'Done'
-      ? 'Passed'
-      : powerDiagnosticsResult.Status; // status expression
-  run.record(powerDiagnosticsResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  batteryChargerVoltageAndCurrentSleepModeResult.Status =
-      await batteryChargerVoltageAndCurrentSleepMode(); // Battery/Charger Voltage and Current Sleep Mode
-  batteryChargerVoltageAndCurrentSleepModeResult.Status =
-      batteryChargerVoltageAndCurrentSleepModeResult.Status == 'Done'
-      ? 'Passed'
-      : batteryChargerVoltageAndCurrentSleepModeResult
-            .Status; // status expression
-  run.record(batteryChargerVoltageAndCurrentSleepModeResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  resetAndSelfTestResult.Status =
-      await resetAndSelfTest(); // Reset and Self-Test
-  resetAndSelfTestResult.Status = resetAndSelfTestResult.Status == 'Done'
-      ? 'Passed'
-      : resetAndSelfTestResult.Status; // status expression
-  run.record(resetAndSelfTestResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  animationAndSoundUserInputTestResult.Status =
-      await animationAndSoundUserInputTest(); // Animation and Sound User Input Test
-  animationAndSoundUserInputTestResult.Status =
-      animationAndSoundUserInputTestResult.Status == 'Done'
-      ? 'Passed'
-      : animationAndSoundUserInputTestResult.Status; // status expression
-  run.record(animationAndSoundUserInputTestResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  audioFilterTestResult.Status = await audioFilterTest(); // Audio Filter Test
-  audioFilterTestResult.Status = audioFilterTestResult.Status == 'Done'
-      ? 'Passed'
-      : audioFilterTestResult.Status; // status expression
-  run.record(audioFilterTestResult.Status);
-
-  // ── cleanup ──
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  turnOffAllAoChannelsResult.Status =
-      await turnOffAllAoChannels(); // Turn Off all AO Channels
-  turnOffAllAoChannelsResult.Status =
-      turnOffAllAoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : turnOffAllAoChannelsResult.Status; // status expression
-  run.record(turnOffAllAoChannelsResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  await powerDownSupply2(); // Power Down Supply: external sequence call
-  powerDownSupplyResult.Status = powerDownSupplyResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownSupplyResult.Status; // status expression
-  run.record(powerDownSupplyResult.Status);
+    // ── main ──
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDiagnosticsResult.Status =
+        await powerDiagnostics(); // Power Diagnostics
+    powerDiagnosticsResult.Status = powerDiagnosticsResult.Status == 'Done'
+        ? 'Passed'
+        : powerDiagnosticsResult.Status; // status expression
+    run.record(powerDiagnosticsResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    batteryChargerVoltageAndCurrentSleepModeResult.Status =
+        await batteryChargerVoltageAndCurrentSleepMode(); // Battery/Charger Voltage and Current Sleep Mode
+    batteryChargerVoltageAndCurrentSleepModeResult.Status =
+        batteryChargerVoltageAndCurrentSleepModeResult.Status == 'Done'
+        ? 'Passed'
+        : batteryChargerVoltageAndCurrentSleepModeResult
+              .Status; // status expression
+    run.record(batteryChargerVoltageAndCurrentSleepModeResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    resetAndSelfTestResult.Status =
+        await resetAndSelfTest(); // Reset and Self-Test
+    resetAndSelfTestResult.Status = resetAndSelfTestResult.Status == 'Done'
+        ? 'Passed'
+        : resetAndSelfTestResult.Status; // status expression
+    run.record(resetAndSelfTestResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    animationAndSoundUserInputTestResult.Status =
+        await animationAndSoundUserInputTest(); // Animation and Sound User Input Test
+    animationAndSoundUserInputTestResult.Status =
+        animationAndSoundUserInputTestResult.Status == 'Done'
+        ? 'Passed'
+        : animationAndSoundUserInputTestResult.Status; // status expression
+    run.record(animationAndSoundUserInputTestResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    audioFilterTestResult.Status = await audioFilterTest(); // Audio Filter Test
+    audioFilterTestResult.Status = audioFilterTestResult.Status == 'Done'
+        ? 'Passed'
+        : audioFilterTestResult.Status; // status expression
+    run.record(audioFilterTestResult.Status);
+  } finally {
+    // ── cleanup ──
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    turnOffAllAoChannelsResult.Status =
+        await turnOffAllAoChannels(); // Turn Off all AO Channels
+    turnOffAllAoChannelsResult.Status =
+        turnOffAllAoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : turnOffAllAoChannelsResult.Status; // status expression
+    run.record(turnOffAllAoChannelsResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    await powerDownSupply2(); // Power Down Supply: external sequence call
+    powerDownSupplyResult.Status = powerDownSupplyResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownSupplyResult.Status; // status expression
+    run.record(powerDownSupplyResult.Status);
+  }
 
   return run.status;
 }
@@ -169,47 +173,50 @@ Future<String> powerDiagnostics() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Power Supply test demonstrates Powering up and Validation of Start-up Transition Max pic Current, Idle Power Consumption and DC Regulators
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize Power Supply [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize DC Regulator TPs [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Power Supply test demonstrates Powering up and Validation of Start-up Transition Max pic Current, Idle Power Consumption and DC Regulators
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize Power Supply [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize DC Regulator TPs [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  // checks: Step.NumericArray
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   Voltage Waveforms <- Locals.PS_Meas_Data.Voltage_Waveform
-  //   Current Waveforms <- Locals.PS_Meas_Data.Current_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Power On & Measure startup max pic current [NI_MultipleNumericLimitTest]
-  // checks: Step.NumericArray
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Measure Idle power consumption [NI_MultipleNumericLimitTest]
-  // checks: Locals.DC_Meas_Data.Avg_Voltage
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Regulator Voltages [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // checks: Step.NumericArray
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   Voltage Waveforms <- Locals.PS_Meas_Data.Voltage_Waveform
+    //   Current Waveforms <- Locals.PS_Meas_Data.Current_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Power On & Measure startup max pic current [NI_MultipleNumericLimitTest]
+    // checks: Step.NumericArray
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Measure Idle power consumption [NI_MultipleNumericLimitTest]
+    // checks: Locals.DC_Meas_Data.Avg_Voltage
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Regulator Voltages [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -249,34 +256,37 @@ Future<String> batteryChargerVoltageAndCurrentSleepMode() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   Powerline Frequency <- 1
-  //   Close all Shunts? <- True
-  //   Scan Resource Handles Out <- Locals.Resource_Handles
-  //   error out <- Step.Result.Error
-  await callDmmScanPmps16V15CInitialize(); // DMM Scan - Initialize Scan TPs [Action]
+  body:
+  try {
+    // ── setup ──
+    //   Powerline Frequency <- 1
+    //   Close all Shunts? <- True
+    //   Scan Resource Handles Out <- Locals.Resource_Handles
+    //   error out <- Step.Result.Error
+    await callDmmScanPmps16V15CInitialize(); // DMM Scan - Initialize Scan TPs [Action]
 
-  // ── main ──
-  // label: Close all current shunts to power DUT, then scan ch0, ch1, ch16, ch17
-  // checks: Step.NumericArray
-  //   Scan Resources Handles In <- Locals.Resource_Handles
-  //   Scan Resources Handles Out <- Locals.Resource_Handles
-  //   Raw Measurements <- Locals.Raw_Measurements_Active
-  //   error out <- Step.Result.Error
-  await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Active Mode Voltage & Current [NI_MultipleNumericLimitTest]
-  await Future<void>.delayed(
-    const Duration(seconds: 2),
-  ); // Wait for 2 seconds of inactivity, then scan ch1, ch17
-  // checks: Step.NumericArray
-  //   Scan Resources Handles In <- Locals.Resource_Handles
-  //   Raw Measurements <- Locals.Raw_Measurements_Sleep
-  //   error out <- Step.Result.Error
-  await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Sleep Mode Voltage & Current [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Scan Resources Handles In <- Locals.Resource_Handles
-  //   error out <- Step.Result.Error
-  await callDmmScanPmps16V15CClose(); // DMM Scan - Close TPs [Action]
+    // ── main ──
+    // label: Close all current shunts to power DUT, then scan ch0, ch1, ch16, ch17
+    // checks: Step.NumericArray
+    //   Scan Resources Handles In <- Locals.Resource_Handles
+    //   Scan Resources Handles Out <- Locals.Resource_Handles
+    //   Raw Measurements <- Locals.Raw_Measurements_Active
+    //   error out <- Step.Result.Error
+    await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Active Mode Voltage & Current [NI_MultipleNumericLimitTest]
+    await Future<void>.delayed(
+      const Duration(seconds: 2),
+    ); // Wait for 2 seconds of inactivity, then scan ch1, ch17
+    // checks: Step.NumericArray
+    //   Scan Resources Handles In <- Locals.Resource_Handles
+    //   Raw Measurements <- Locals.Raw_Measurements_Sleep
+    //   error out <- Step.Result.Error
+    await callDmmScanPmps16V15CConfigureAndMeasure(); // DMM Scan - Sleep Mode Voltage & Current [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Scan Resources Handles In <- Locals.Resource_Handles
+    //   error out <- Step.Result.Error
+    await callDmmScanPmps16V15CClose(); // DMM Scan - Close TPs [Action]
+  }
 
   return run.status;
 }
@@ -302,52 +312,55 @@ Future<String> resetAndSelfTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Power On Self Test demonstrates Switching of Push Reset Button and Verifies the LEDs state
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenInitialize(); // Static Digital State Generation - Initialize [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize LED TPs [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Power On Self Test demonstrates Switching of Push Reset Button and Verifies the LEDs state
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenInitialize(); // Static Digital State Generation - Initialize [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize LED TPs [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  //   DAQmx Task In <- Locals.Digital_State_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
-  //   Channel Identifiers <- Locals.DOChannel_IDs
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Turn ON Push Reset Button [Action]
-  await Future<void>.delayed(
-    const Duration(milliseconds: 100),
-  ); // Wait for 0.1 seconds in Reset enabled state
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  //   DAQmx Task In <- Locals.Digital_State_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
-  //   Channel Identifiers <- Locals.DOChannel_IDs
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Turn OFF Push Reset Button [Action]
-  await Future<void>.delayed(
-    const Duration(seconds: 5),
-  ); // Wait for 5 seconds in Reset disabled state
-  // checks: Locals.DC_Meas_Data.Avg_Voltage
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure LED states [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   DAQmx Task In <- Locals.Digital_State_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenClose(); // Static Digital State Generation - Close [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    //   DAQmx Task In <- Locals.Digital_State_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
+    //   Channel Identifiers <- Locals.DOChannel_IDs
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Turn ON Push Reset Button [Action]
+    await Future<void>.delayed(
+      const Duration(milliseconds: 100),
+    ); // Wait for 0.1 seconds in Reset enabled state
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    //   DAQmx Task In <- Locals.Digital_State_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
+    //   Channel Identifiers <- Locals.DOChannel_IDs
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Turn OFF Push Reset Button [Action]
+    await Future<void>.delayed(
+      const Duration(seconds: 5),
+    ); // Wait for 5 seconds in Reset disabled state
+    // checks: Locals.DC_Meas_Data.Avg_Voltage
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   Voltage Waveforms <- Locals.DC_Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure LED states [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   DAQmx Task In <- Locals.Digital_State_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenClose(); // Static Digital State Generation - Close [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -373,58 +386,61 @@ Future<String> animationAndSoundUserInputTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Action Button Test demonstrates Button Switch and validates Dutycycle of PWM signal on Volume LED and Frequency on Tweeter
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize Push Action Button [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Action Button Test demonstrates Button Switch and validates Dutycycle of PWM signal on Volume LED and Frequency on Tweeter
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize Push Action Button [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
-  // Configure Time Domain Measurement settings to wait for Hardware Trigger from Button action
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- True
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure TP [Action]
-  // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button ON State [Action]
-  // label: Note to run with Hardware: Review the step settings configurations to handle Run-Time Errors
-  // Fetches the measured DC Voltage (measured when Button action sends Trigger after source) and returns Time Domain Analysis.
-  // NOTE: This Step errors outs for non-periodic waveform captures.
-  // checks: Step.NumericArray
-  // ignores run-time errors
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- True
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency [NI_MultipleNumericLimitTest]
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button OFF State [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close Action Button [Action]
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
+    // Configure Time Domain Measurement settings to wait for Hardware Trigger from Button action
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- True
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure TP [Action]
+    // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button ON State [Action]
+    // label: Note to run with Hardware: Review the step settings configurations to handle Run-Time Errors
+    // Fetches the measured DC Voltage (measured when Button action sends Trigger after source) and returns Time Domain Analysis.
+    // NOTE: This Step errors outs for non-periodic waveform captures.
+    // checks: Step.NumericArray
+    // ignores run-time errors
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- True
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch Volume LED Dutycycle and Tweeter Frequency [NI_MultipleNumericLimitTest]
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    // Note: To simulate the push on a volume button to generate a sound and a light animation to the LED
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button OFF State [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close Action Button [Action]
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -448,49 +464,52 @@ Future<String> audioFilterTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Audio Test demonstrates Audio Filter Check, sends multi-tone Audio signal and validates the frequency and Amplitude of measured Tones
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize Multi Tone Audio Signal Gen [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Audio Test demonstrates Audio Filter Check, sends multi-tone Audio signal and validates the frequency and Amplitude of measured Tones
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize Multi Tone Audio Signal Gen [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
-  // Configure Freq Domain Measurement settings to wait for Hardware Trigger from Audio Signal Generation
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasConfigureAndMeasure(); // Frequency Domain Measurement - Configure TP [Action]
-  //
-  //
-  //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation -Send Multi Tone Audio Sine Signal [Action]
-  //
-  // Fetches the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger) and returns Freq Domain Analysis
-  // checks: Step.NumericArray
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Measure Tone [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenClose(); // Signal Voltage Generation - Close Audio Signal Gen [Action]
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasClose(); // Freq Domain Measurement - Close TP [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
+    // Configure Freq Domain Measurement settings to wait for Hardware Trigger from Audio Signal Generation
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasConfigureAndMeasure(); // Frequency Domain Measurement - Configure TP [Action]
+    //
+    //
+    //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation -Send Multi Tone Audio Sine Signal [Action]
+    //
+    // Fetches the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger) and returns Freq Domain Analysis
+    // checks: Step.NumericArray
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   Voltage Waveforms <- Locals.Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Measure Tone [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenClose(); // Signal Voltage Generation - Close Audio Signal Gen [Action]
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasClose(); // Freq Domain Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -515,35 +534,38 @@ Future<String> turnOffAllAoChannels() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Analog output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Analog Output module
-  //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-  outputVoltagesV = <dynamic>[
-    0,
-    0,
-    0,
-    0,
-  ]; // Assign the Output Voltage for all configured AO Channels
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Analog output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Analog Output module
+    //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
+    outputVoltagesV = <dynamic>[
+      0,
+      0,
+      0,
+      0,
+    ]; // Assign the Output Voltage for all configured AO Channels
 
-  // ── main ──
-  // Sources DC Voltage at 0V to Analog Ouput channels
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   Output Voltages (V) <- Locals.Output_Voltages__V_
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
-
-  // ── cleanup ──
-  // Closes the DC Voltage Generation Task for Analog output module
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+    // ── main ──
+    // Sources DC Voltage at 0V to Analog Ouput channels
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   Output Voltages (V) <- Locals.Output_Voltages__V_
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
+  } finally {
+    // ── cleanup ──
+    // Closes the DC Voltage Generation Task for Analog output module
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+  }
 
   return run.status;
 }
@@ -557,26 +579,29 @@ Future<String> powerDownSupply() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Powers down the output of power supply module
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical channels <- "Simulated_Power/power" //Physical channel of Power Supply  (Power Module)
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Powers down the output of power supply module
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical channels <- "Simulated_Power/power" //Physical channel of Power Supply  (Power Module)
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
 
-  // ── main ──
-  // Configures the power supply source to disable output after close to make it to "Idle" state
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply - Set to 0V [Action]
-
-  // ── cleanup ──
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+    // ── main ──
+    // Configures the power supply source to disable output after close to make it to "Idle" state
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply - Set to 0V [Action]
+  } finally {
+    // ── cleanup ──
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+  }
 
   return run.status;
 }

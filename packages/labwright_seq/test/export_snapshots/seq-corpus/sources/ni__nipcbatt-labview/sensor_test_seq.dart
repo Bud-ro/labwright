@@ -53,67 +53,71 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Power down Power Channel
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder\n',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder\n',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example demonstrates Thermistor Temperature measurements captured on C Series Voltage Input Module
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  thermistorTestCDaqResult.Status =
-      await thermistorTestCDaq(); // Thermistor Test - cDAQ
-  thermistorTestCDaqResult.Status = thermistorTestCDaqResult.Status == 'Done'
-      ? 'Passed'
-      : thermistorTestCDaqResult.Status; // status expression
-  run.record(thermistorTestCDaqResult.Status);
-  // label: Example demonstrates Thermistor Temperature measurements captured on DAQ Analog Input Module, and Power Supply using TestScale
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  thermistorTestDaqResult.Status =
-      await thermistorTestDaq(); // Thermistor Test - DAQ
-  thermistorTestDaqResult.Status = thermistorTestDaqResult.Status == 'Done'
-      ? 'Passed'
-      : thermistorTestDaqResult.Status; // status expression
-  run.record(thermistorTestDaqResult.Status);
-  // label: Example demonstrates RTD Temperature measurements captured on C Series Temperature Input Module
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  rtdTestResult.Status = await rtdTest(); // RTD Test
-  rtdTestResult.Status = rtdTestResult.Status == 'Done'
-      ? 'Passed'
-      : rtdTestResult.Status; // status expression
-  run.record(rtdTestResult.Status);
-  // label: Example demonstrates Thermocouple Temperature measurements captured on C Series Temperature Input Module
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  thermocoupleTestResult.Status = await thermocoupleTest(); // Thermocouple Test
-  thermocoupleTestResult.Status = thermocoupleTestResult.Status == 'Done'
-      ? 'Passed'
-      : thermocoupleTestResult.Status; // status expression
-  run.record(thermocoupleTestResult.Status);
-
-  // ── cleanup ──
-  // label: Turn off all configured AO channels by configuring to 0V
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownAllAoChannelsResult.Status =
-      await turnOffAllAoChannels(); // Power down all AO Channels
-  powerDownAllAoChannelsResult.Status =
-      powerDownAllAoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownAllAoChannelsResult.Status; // status expression
-  run.record(powerDownAllAoChannelsResult.Status);
-  // label: Turn off configured Power channel by configuring to 0V
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownPowerChannelResult.Status =
-      await turnOffPowerChannel(); // Power down Power Channel
-  powerDownPowerChannelResult.Status =
-      powerDownPowerChannelResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownPowerChannelResult.Status; // status expression
-  run.record(powerDownPowerChannelResult.Status);
+    // ── main ──
+    // label: Example demonstrates Thermistor Temperature measurements captured on C Series Voltage Input Module
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    thermistorTestCDaqResult.Status =
+        await thermistorTestCDaq(); // Thermistor Test - cDAQ
+    thermistorTestCDaqResult.Status = thermistorTestCDaqResult.Status == 'Done'
+        ? 'Passed'
+        : thermistorTestCDaqResult.Status; // status expression
+    run.record(thermistorTestCDaqResult.Status);
+    // label: Example demonstrates Thermistor Temperature measurements captured on DAQ Analog Input Module, and Power Supply using TestScale
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    thermistorTestDaqResult.Status =
+        await thermistorTestDaq(); // Thermistor Test - DAQ
+    thermistorTestDaqResult.Status = thermistorTestDaqResult.Status == 'Done'
+        ? 'Passed'
+        : thermistorTestDaqResult.Status; // status expression
+    run.record(thermistorTestDaqResult.Status);
+    // label: Example demonstrates RTD Temperature measurements captured on C Series Temperature Input Module
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    rtdTestResult.Status = await rtdTest(); // RTD Test
+    rtdTestResult.Status = rtdTestResult.Status == 'Done'
+        ? 'Passed'
+        : rtdTestResult.Status; // status expression
+    run.record(rtdTestResult.Status);
+    // label: Example demonstrates Thermocouple Temperature measurements captured on C Series Temperature Input Module
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    thermocoupleTestResult.Status =
+        await thermocoupleTest(); // Thermocouple Test
+    thermocoupleTestResult.Status = thermocoupleTestResult.Status == 'Done'
+        ? 'Passed'
+        : thermocoupleTestResult.Status; // status expression
+    run.record(thermocoupleTestResult.Status);
+  } finally {
+    // ── cleanup ──
+    // label: Turn off all configured AO channels by configuring to 0V
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownAllAoChannelsResult.Status =
+        await turnOffAllAoChannels(); // Power down all AO Channels
+    powerDownAllAoChannelsResult.Status =
+        powerDownAllAoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownAllAoChannelsResult.Status; // status expression
+    run.record(powerDownAllAoChannelsResult.Status);
+    // label: Turn off configured Power channel by configuring to 0V
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownPowerChannelResult.Status =
+        await turnOffPowerChannel(); // Power down Power Channel
+    powerDownPowerChannelResult.Status =
+        powerDownPowerChannelResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownPowerChannelResult.Status; // status expression
+    run.record(powerDownPowerChannelResult.Status);
+  }
 
   return run.status;
 }
@@ -339,46 +343,49 @@ Future<String> thermistorTestCDaq() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initialize DC Voltage Generation to generate DC Voltage to excite Thermistor
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize [Action]
-  // Initializes the configured Physical/Virtual Channels of cDAQ Analog input module to perform Thermimstor Temperature Measurement
-  //
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
-  //   error out <- Step.Result.Error
-  await callDaqTtrMeasInitialize(); // Temperature Thermistor Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initialize DC Voltage Generation to generate DC Voltage to excite Thermistor
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize [Action]
+    // Initializes the configured Physical/Virtual Channels of cDAQ Analog input module to perform Thermimstor Temperature Measurement
+    //
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
+    //   error out <- Step.Result.Error
+    await callDaqTtrMeasInitialize(); // Temperature Thermistor Measurement - Initialize [Action]
 
-  // ── main ──
-  // Generate DC Voltage of 5V to excite the Thermistor.
-  //   DAQmx Task In <- Locals.DC_Task
-  //   DAQmx Task Out <- Locals.DC_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure and Generate [Action]
-  // Note: For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
-  // label: Note to run with Hardware: Update "Thermistor Parameter" and "Terminal Configuration" based on the thermistor settings for accurate temperature measurements.
-  //   Execution Option <- 0
-  //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
-  //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
-  //   Temperature Waveforms <- Locals.ThermistorTempMeas.MeasuredWaveform
-  //   Acquisition Time (s) <- Locals.ThermistorTempMeas.AcqTime
-  //   error out <- Step.Result.Error
-  await callDaqTtrMeasConfigureAndMeasure(); // Temperature Thermistor Measurement - Configure & Measure [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // Close DC Voltage Generation
-  //   DAQmx Task In <- Locals.DC_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close [Action]
-  // Aborts and clears the Thermistor Temperature Measurement task
-  //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
-  //   error out <- Step.Result.Error
-  await callDaqTtrMeasClose(); // Temperature Thermistor Measurement - Close [Action]
+    // ── main ──
+    // Generate DC Voltage of 5V to excite the Thermistor.
+    //   DAQmx Task In <- Locals.DC_Task
+    //   DAQmx Task Out <- Locals.DC_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure and Generate [Action]
+    // Note: For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
+    // label: Note to run with Hardware: Update "Thermistor Parameter" and "Terminal Configuration" based on the thermistor settings for accurate temperature measurements.
+    //   Execution Option <- 0
+    //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
+    //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
+    //   Temperature Waveforms <- Locals.ThermistorTempMeas.MeasuredWaveform
+    //   Acquisition Time (s) <- Locals.ThermistorTempMeas.AcqTime
+    //   error out <- Step.Result.Error
+    await callDaqTtrMeasConfigureAndMeasure(); // Temperature Thermistor Measurement - Configure & Measure [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // Close DC Voltage Generation
+    //   DAQmx Task In <- Locals.DC_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close [Action]
+    // Aborts and clears the Thermistor Temperature Measurement task
+    //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
+    //   error out <- Step.Result.Error
+    await callDaqTtrMeasClose(); // Temperature Thermistor Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -617,49 +624,52 @@ Future<String> thermistorTestDaq() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initialize Power Supply Source and Measure to generate DC Voltage to excite Thermistor
-  //   Physical channels <- "Simulated_Power/power"
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
-  // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermistor Temperature Measurement
-  //
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
-  //   error out <- Step.Result.Error
-  await callDaqTtrMeasInitialize(); // Temperature Thermistor Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initialize Power Supply Source and Measure to generate DC Voltage to excite Thermistor
+    //   Physical channels <- "Simulated_Power/power"
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
+    // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermistor Temperature Measurement
+    //
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
+    //   error out <- Step.Result.Error
+    await callDaqTtrMeasInitialize(); // Temperature Thermistor Measurement - Initialize [Action]
 
-  // ── main ──
-  // Generate DC Voltage of 5V to excite Thermistor.
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   Voltage Waveforms <- Locals.PS_Meas_Data.Voltage_Waveform
-  //   Current Waveforms <- Locals.PS_Meas_Data.Current_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Generate [Action]
-  // Note: For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
-  // label: Note to run with Hardware: Update "Thermistor Parameter" and "Terminal Configuration" based on the thermistor settings for accurate temperature measurements. For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
-  // Capture Thermistor Temperature measurements
-  //   Execution Option <- 0
-  //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
-  //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
-  //   Temperature Waveforms <- Locals.ThermistorTempMeas.MeasuredWaveform
-  //   Acquisition Time (s) <- Locals.ThermistorTempMeas.AcqTime
-  //   error out <- Step.Result.Error
-  await callDaqTtrMeasConfigureAndMeasure(); // Temperature Thermistor Measurement- Configure & Measure [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // Close Power Supply and Measure
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
-  // Aborts and clears the Thermistor Temperature Measurement task
-  //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
-  //   error out <- Step.Result.Error
-  await callDaqTtrMeasClose(); // Temperature Thermistor Measurement - Close [Action]
+    // ── main ──
+    // Generate DC Voltage of 5V to excite Thermistor.
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   Voltage Waveforms <- Locals.PS_Meas_Data.Voltage_Waveform
+    //   Current Waveforms <- Locals.PS_Meas_Data.Current_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Generate [Action]
+    // Note: For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
+    // label: Note to run with Hardware: Update "Thermistor Parameter" and "Terminal Configuration" based on the thermistor settings for accurate temperature measurements. For more details on Thermistor Parameter, refer the Temperature Thermistor Library documentation
+    // Capture Thermistor Temperature measurements
+    //   Execution Option <- 0
+    //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
+    //   DAQmx Task Out <- Locals.ThermistorTempMeas.Task
+    //   Temperature Waveforms <- Locals.ThermistorTempMeas.MeasuredWaveform
+    //   Acquisition Time (s) <- Locals.ThermistorTempMeas.AcqTime
+    //   error out <- Step.Result.Error
+    await callDaqTtrMeasConfigureAndMeasure(); // Temperature Thermistor Measurement- Configure & Measure [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // Close Power Supply and Measure
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+    // Aborts and clears the Thermistor Temperature Measurement task
+    //   DAQmx Task In <- Locals.ThermistorTempMeas.Task
+    //   error out <- Step.Result.Error
+    await callDaqTtrMeasClose(); // Temperature Thermistor Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -673,30 +683,33 @@ Future<String> rtdTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual Channels of Anlaog input module to measure RTD Temperature
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.RTD_Temp_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTrtdMeasInitialize(); // Temperature RTD Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual Channels of Anlaog input module to measure RTD Temperature
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.RTD_Temp_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTrtdMeasInitialize(); // Temperature RTD Measurement - Initialize [Action]
 
-  // ── main ──
-  // Note: For more details on RTD parameters, refer the Temperature RTD Library documentation.
-  // label: Note to run with Hardware: Update the RTD specific parameters namely “RTD Type”, “Sensor Resistance at 0 deg C (ohm)”, “Resistance Configuration”, “Current Excitation Source”, Current Excitation (A)”, “ADC Timing Mode” based on the RTD settings for accurate temperature measurements.
-  // Applies RTD Temperature Measurement configurations and starts measurement
-  //   Execution Option <- 0
-  //   DAQmx Task In <- Locals.RTD_Temp_Meas_Task
-  //   DAQmx Task Out <- Locals.RTD_Temp_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTrtdMeasConfigureAndMeasure(); // Temperature RTD Measurement - Configure & Measure [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // Aborts and clears the RTD Temperature Measurement task
-  //   DAQmx Task In <- Locals.RTD_Temp_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTrtdMeasClose(); // Temperature RTD Measurement - Close [Action]
+    // ── main ──
+    // Note: For more details on RTD parameters, refer the Temperature RTD Library documentation.
+    // label: Note to run with Hardware: Update the RTD specific parameters namely “RTD Type”, “Sensor Resistance at 0 deg C (ohm)”, “Resistance Configuration”, “Current Excitation Source”, Current Excitation (A)”, “ADC Timing Mode” based on the RTD settings for accurate temperature measurements.
+    // Applies RTD Temperature Measurement configurations and starts measurement
+    //   Execution Option <- 0
+    //   DAQmx Task In <- Locals.RTD_Temp_Meas_Task
+    //   DAQmx Task Out <- Locals.RTD_Temp_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTrtdMeasConfigureAndMeasure(); // Temperature RTD Measurement - Configure & Measure [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // Aborts and clears the RTD Temperature Measurement task
+    //   DAQmx Task In <- Locals.RTD_Temp_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTrtdMeasClose(); // Temperature RTD Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -909,34 +922,37 @@ Future<String> thermocoupleTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermocouple Temperature Measurement
-  //
-  //   Physical Channels <- ""
-  //   CJC Source <- 10200
-  //   DAQmx Task Out <- Locals.ThermocoupleTempMeas.Task
-  //   error out <- Step.Result.Error
-  await callDaqTtcMeasInitialize(); // Temperature Thermocouple Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform Thermocouple Temperature Measurement
+    //
+    //   Physical Channels <- ""
+    //   CJC Source <- 10200
+    //   DAQmx Task Out <- Locals.ThermocoupleTempMeas.Task
+    //   error out <- Step.Result.Error
+    await callDaqTtcMeasInitialize(); // Temperature Thermocouple Measurement - Initialize [Action]
 
-  // ── main ──
-  // For more details on Thermocouple Parameter, refer the Temperature Thermocouple Library documentation.
-  // label: Note to run with Hardware: Update the Thermocouple specific parameters namely “Thermocouple Type”, “CJC Temp (deg C)”, “Enable Autozero” and “Auto Zero Mode” based on the thermocouple settings for accurate temperature measurements.
-  // Capture Temperature Thermocouple measurements
-  //   Execution Option <- 0
-  //   DAQmx Task In <- Locals.ThermocoupleTempMeas.Task
-  //   DAQmx Task Out <- Locals.ThermocoupleTempMeas.Task
-  //   Temperature Waveforms <- Locals.ThermocoupleTempMeas.MeasuredWaveform
-  //   Acquisition Time (s) <- Locals.ThermocoupleTempMeas.AcqTime
-  //   error out <- Step.Result.Error
-  await callDaqTtcMeasConfigureAndMeasure(); // Temperature Thermocouple Measurement - Configure & Measure [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // Aborts and clears the ThermocoupleTemperature Measurement task
-  //   DAQmx Task In <- Locals.ThermocoupleTempMeas.Task
-  //   error out <- Step.Result.Error
-  await callDaqTtcMeasClose(); // Temperature Thermocouple Measurement - Close [Action]
+    // ── main ──
+    // For more details on Thermocouple Parameter, refer the Temperature Thermocouple Library documentation.
+    // label: Note to run with Hardware: Update the Thermocouple specific parameters namely “Thermocouple Type”, “CJC Temp (deg C)”, “Enable Autozero” and “Auto Zero Mode” based on the thermocouple settings for accurate temperature measurements.
+    // Capture Temperature Thermocouple measurements
+    //   Execution Option <- 0
+    //   DAQmx Task In <- Locals.ThermocoupleTempMeas.Task
+    //   DAQmx Task Out <- Locals.ThermocoupleTempMeas.Task
+    //   Temperature Waveforms <- Locals.ThermocoupleTempMeas.MeasuredWaveform
+    //   Acquisition Time (s) <- Locals.ThermocoupleTempMeas.AcqTime
+    //   error out <- Step.Result.Error
+    await callDaqTtcMeasConfigureAndMeasure(); // Temperature Thermocouple Measurement - Configure & Measure [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // Aborts and clears the ThermocoupleTemperature Measurement task
+    //   DAQmx Task In <- Locals.ThermocoupleTempMeas.Task
+    //   error out <- Step.Result.Error
+    await callDaqTtcMeasClose(); // Temperature Thermocouple Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -961,36 +977,39 @@ Future<String> turnOffAllAoChannels() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Analog output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  outputVoltagesV = <dynamic>[
-    0,
-    0,
-    0,
-    0,
-  ]; // Assign the Output Voltage for all configured AO Channels
-  // Initializes the configured Physical/Virtual channels of Analog Output module
-  //   Physical Channels <- "Simulated_cDAQ_9263/ao0:3" //Turn OFF all AO Channels
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Analog output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    outputVoltagesV = <dynamic>[
+      0,
+      0,
+      0,
+      0,
+    ]; // Assign the Output Voltage for all configured AO Channels
+    // Initializes the configured Physical/Virtual channels of Analog Output module
+    //   Physical Channels <- "Simulated_cDAQ_9263/ao0:3" //Turn OFF all AO Channels
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
 
-  // ── main ──
-  // Sources DC Voltage at 0V to Analog Ouput channels
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   Output Voltages (V) <- Locals.Output_Voltages__V_
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure & Generate, Initiate and Sources DC voltage [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // Closes the DC Voltage Generation Task for Analog output module
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+    // ── main ──
+    // Sources DC Voltage at 0V to Analog Ouput channels
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   Output Voltages (V) <- Locals.Output_Voltages__V_
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure & Generate, Initiate and Sources DC voltage [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // Closes the DC Voltage Generation Task for Analog output module
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+  }
 
   return run.status;
 }
@@ -1004,29 +1023,32 @@ Future<String> turnOffPowerChannel() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets configured Power channel voltage to 0.1 Volt
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Power module
-  //   Physical channels <- "Simulated_Power/power"
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets configured Power channel voltage to 0.1 Volt
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Power module
+    //   Physical channels <- "Simulated_Power/power"
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
 
-  // ── main ──
-  // Sources DC Voltage at 0.1V and 0.1A on Power channel.
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Disable Output [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // Closes the Power Supply Source and Measure Task for Power module and disables the output.
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+    // ── main ──
+    // Sources DC Voltage at 0.1V and 0.1A on Power channel.
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Disable Output [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // Closes the Power Supply Source and Measure Task for Power module and disables the output.
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+  }
 
   return run.status;
 }

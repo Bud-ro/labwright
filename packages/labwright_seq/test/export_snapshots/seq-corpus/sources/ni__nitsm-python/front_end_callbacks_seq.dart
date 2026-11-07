@@ -27,32 +27,38 @@ Future<String> loginLogout() async {
     'Common': ts.PropObj(),
   }); // result of SequenceCall
 
-  // description: This sequence will automatically login the user specified in FileGlobals.userToLogin and will bypass the login dialog.  Only the initial login is automatic and only if the user specified is a valid user.
-  // label: Explain
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // on pass: Goto -> <End>
-  // custom flow: if (True) Goto -> <End> else Next
-  if (ts.cond('Parameters.isInitialLogin')) {
-    // precondition of Auto Login If Initial Login
-    autoLoginIfInitialLoginResult.Status =
-        await autoLogin(); // Auto Login If Initial Login
-    autoLoginIfInitialLoginResult.Status =
-        autoLoginIfInitialLoginResult.Status == 'Done' &&
+  endMain:
+  {
+    // description: This sequence will automatically login the user specified in FileGlobals.userToLogin and will bypass the login dialog.  Only the initial login is automatic and only if the user specified is a valid user.
+    // label: Explain
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // on pass: Goto -> <End>
+    if (ts.cond('Parameters.isInitialLogin')) {
+      // precondition of Auto Login If Initial Login
+      autoLoginIfInitialLoginResult.Status =
+          await autoLogin(); // Auto Login If Initial Login
+      autoLoginIfInitialLoginResult.Status =
+          autoLoginIfInitialLoginResult.Status == 'Done' &&
+              (step.TS.SData.ThreadOpt == 0 || step.TS.SData.ThreadOpt == 3)
+          ? 'Passed'
+          : autoLoginIfInitialLoginResult.Status; // status expression
+      run.record(autoLoginIfInitialLoginResult.Status);
+      if (autoLoginIfInitialLoginResult.Status == 'Passed') {
+        // post action
+        break endMain;
+      }
+    } else {
+      autoLoginIfInitialLoginResult.Status = 'Skipped';
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    sequenceCallResult.Status = await logout(); // SequenceCall
+    sequenceCallResult.Status =
+        sequenceCallResult.Status == 'Done' &&
             (step.TS.SData.ThreadOpt == 0 || step.TS.SData.ThreadOpt == 3)
         ? 'Passed'
-        : autoLoginIfInitialLoginResult.Status; // status expression
-    run.record(autoLoginIfInitialLoginResult.Status);
-  } else {
-    autoLoginIfInitialLoginResult.Status = 'Skipped';
+        : sequenceCallResult.Status; // status expression
+    run.record(sequenceCallResult.Status);
   }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  sequenceCallResult.Status = await logout(); // SequenceCall
-  sequenceCallResult.Status =
-      sequenceCallResult.Status == 'Done' &&
-          (step.TS.SData.ThreadOpt == 0 || step.TS.SData.ThreadOpt == 3)
-      ? 'Passed'
-      : sequenceCallResult.Status; // status expression
-  run.record(sequenceCallResult.Status);
 
   return run.status;
 }
@@ -119,7 +125,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Auto Login If Initial Login" (Goto→<End>/Next) not exported
   //   untranslated expression in body
   //   Step engine access (no engine at run time)
   //   cModule call: Get User To Login

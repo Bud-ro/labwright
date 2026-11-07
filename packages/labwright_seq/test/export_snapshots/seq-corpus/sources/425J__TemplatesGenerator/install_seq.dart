@@ -23,15 +23,24 @@ Future<String> sequenceFileLoad() async {
     'Common': ts.PropObj(),
   }); // result of Prompt
 
-  // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
-  // popup title: "Installer"
-  // popup message: "Do you want to install Templates Generator?"
-  // popup buttons: "Yes" | "No"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Prompt [MessagePopup]
-  promptResult.Status = 'Done';
-  run.record(promptResult.Status);
+  endMain:
+  {
+    // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
+    // popup title: "Installer"
+    // popup message: "Do you want to install Templates Generator?"
+    // popup buttons: "Yes" | "No"
+    throw UnimplementedError(
+      'step type MessagePopup: action not exported yet',
+    ); // Prompt [MessagePopup]
+    promptResult.Status = 'Done';
+    run.record(promptResult.Status);
+    if (promptResult.ButtonHit == 1) {
+      // post action
+      await install();
+    } else {
+      break endMain;
+    }
+  }
 
   return run.status;
 }
@@ -129,7 +138,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Prompt" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');

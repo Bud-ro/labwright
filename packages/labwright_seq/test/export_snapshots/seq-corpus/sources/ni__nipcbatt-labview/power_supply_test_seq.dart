@@ -41,56 +41,59 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Power down all Power Supplies
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example 1 - Demonstrates Time domain measurements using Hardware Trigger  from Power supply to Analog Input module
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerSupplyAndMeasureWithTriggerResult.Status =
-      await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure (with Trigger)
-  powerSupplyAndMeasureWithTriggerResult.Status =
-      powerSupplyAndMeasureWithTriggerResult.Status == 'Done'
-      ? 'Passed'
-      : powerSupplyAndMeasureWithTriggerResult.Status; // status expression
-  run.record(powerSupplyAndMeasureWithTriggerResult.Status);
-  // label:
-  // label: Example 2 - Demonstrates Power supply source and DC-RMS Voltage Measurement without triggers
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerSupplyAndMeasureWithoutTriggerResult.Status =
-      await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure (without Trigger)
-  powerSupplyAndMeasureWithoutTriggerResult.Status =
-      powerSupplyAndMeasureWithoutTriggerResult.Status == 'Done'
-      ? 'Passed'
-      : powerSupplyAndMeasureWithoutTriggerResult.Status; // status expression
-  run.record(powerSupplyAndMeasureWithoutTriggerResult.Status);
-  // label:
-  // label: Example 3 - Use DMM to measure DC-RMS Voltage from DUT
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  dmmDcRmsVoltageMeasurementResult.Status =
-      await dmmDcRmsVoltageMeasurement(); // DMM DC-RMS Voltage Measurement
-  dmmDcRmsVoltageMeasurementResult.Status =
-      dmmDcRmsVoltageMeasurementResult.Status == 'Done'
-      ? 'Passed'
-      : dmmDcRmsVoltageMeasurementResult.Status; // status expression
-  run.record(dmmDcRmsVoltageMeasurementResult.Status);
-
-  // ── cleanup ──
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownAllPowerSuppliesResult.Status =
-      await powerDownAllPowerSupplies(); // Power down all Power Supplies
-  powerDownAllPowerSuppliesResult.Status =
-      powerDownAllPowerSuppliesResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownAllPowerSuppliesResult.Status; // status expression
-  run.record(powerDownAllPowerSuppliesResult.Status);
+    // ── main ──
+    // label: Example 1 - Demonstrates Time domain measurements using Hardware Trigger  from Power supply to Analog Input module
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerSupplyAndMeasureWithTriggerResult.Status =
+        await powerSupplyAndMeasureWithTrigger(); // Power Supply and Measure (with Trigger)
+    powerSupplyAndMeasureWithTriggerResult.Status =
+        powerSupplyAndMeasureWithTriggerResult.Status == 'Done'
+        ? 'Passed'
+        : powerSupplyAndMeasureWithTriggerResult.Status; // status expression
+    run.record(powerSupplyAndMeasureWithTriggerResult.Status);
+    // label:
+    // label: Example 2 - Demonstrates Power supply source and DC-RMS Voltage Measurement without triggers
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerSupplyAndMeasureWithoutTriggerResult.Status =
+        await powerSupplyAndMeasureWithoutTrigger(); // Power Supply and Measure (without Trigger)
+    powerSupplyAndMeasureWithoutTriggerResult.Status =
+        powerSupplyAndMeasureWithoutTriggerResult.Status == 'Done'
+        ? 'Passed'
+        : powerSupplyAndMeasureWithoutTriggerResult.Status; // status expression
+    run.record(powerSupplyAndMeasureWithoutTriggerResult.Status);
+    // label:
+    // label: Example 3 - Use DMM to measure DC-RMS Voltage from DUT
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    dmmDcRmsVoltageMeasurementResult.Status =
+        await dmmDcRmsVoltageMeasurement(); // DMM DC-RMS Voltage Measurement
+    dmmDcRmsVoltageMeasurementResult.Status =
+        dmmDcRmsVoltageMeasurementResult.Status == 'Done'
+        ? 'Passed'
+        : dmmDcRmsVoltageMeasurementResult.Status; // status expression
+    run.record(dmmDcRmsVoltageMeasurementResult.Status);
+  } finally {
+    // ── cleanup ──
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownAllPowerSuppliesResult.Status =
+        await powerDownAllPowerSupplies(); // Power down all Power Supplies
+    powerDownAllPowerSuppliesResult.Status =
+        powerDownAllPowerSuppliesResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownAllPowerSuppliesResult.Status; // status expression
+    run.record(powerDownAllPowerSuppliesResult.Status);
+  }
 
   return run.status;
 }
@@ -143,54 +146,57 @@ Future<String> powerSupplyAndMeasureWithTrigger() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demostrates Power Supply Source(VDD) and Time Domain Analysis of Measured Analog input voltage in TestPoints. Data capture in Analog Input(TP) starts when the Trigger is sent from Power Supply after starting the source.
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize VDD [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demostrates Power Supply Source(VDD) and Time Domain Analysis of Measured Analog input voltage in TestPoints. Data capture in Analog Input(TP) starts when the Trigger is sent from Power Supply after starting the source.
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize VDD [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
-  // Configure Time Domain Measurement settings to wait for Hardware Trigger from Power
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- True
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure TP [Action]
-  //
-  // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   Voltage Waveforms <- Locals.PS_Measurement_Data.Voltage_Waveform
-  //   Current Waveforms <- Locals.PS_Measurement_Data.Current_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Measure VDD [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
-  // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- False
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   Voltage Waveforms <- Locals.Time_Domain_Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch TP [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close VDD [Action]
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
+    // Configure Time Domain Measurement settings to wait for Hardware Trigger from Power
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- True
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure TP [Action]
+    //
+    // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   Voltage Waveforms <- Locals.PS_Measurement_Data.Voltage_Waveform
+    //   Current Waveforms <- Locals.PS_Measurement_Data.Current_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Measure VDD [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
+    // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- False
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   Voltage Waveforms <- Locals.Time_Domain_Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch TP [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close VDD [Action]
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasClose(); // Time Domain Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -229,40 +235,43 @@ Future<String> powerSupplyAndMeasureWithoutTrigger() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates Power Supply source and Voltage Measurement without trigger
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize VDD [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates Power Supply source and Voltage Measurement without trigger
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical channels <- "Simulated_Power/power" //Physical channel for Power Supply Source and Measure (Power)
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize VDD [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   Voltage Waveforms <- Locals.PS_Measurement_Data.Voltage_Waveform
-  //   Current Waveforms <- Locals.PS_Measurement_Data.Current_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Measure VDD [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   Voltage Waveforms <- Locals.Measurement_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Voltage in TP [Action]
-
-  // ── cleanup ──
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close VDD [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   Voltage Waveforms <- Locals.PS_Measurement_Data.Voltage_Waveform
+    //   Current Waveforms <- Locals.PS_Measurement_Data.Current_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply Source and Measure - Configure and Measure VDD [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   Voltage Waveforms <- Locals.Measurement_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure DC Voltage in TP [Action]
+  } finally {
+    // ── cleanup ──
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close VDD [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -276,28 +285,31 @@ Future<String> dmmDcRmsVoltageMeasurement() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates how to configure and use a DMM to make a DC-RMS Voltage measurement
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Powerline Frequency <- 1
-  //   DMM Handle Out <- Locals.DMM_Resource
-  //   error out <- Step.Result.Error
-  await callDmmDcRmsVoltageMeasInitialize(); // Initialize DMM for DC-RMS Voltage Measurement [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates how to configure and use a DMM to make a DC-RMS Voltage measurement
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Powerline Frequency <- 1
+    //   DMM Handle Out <- Locals.DMM_Resource
+    //   error out <- Step.Result.Error
+    await callDmmDcRmsVoltageMeasInitialize(); // Initialize DMM for DC-RMS Voltage Measurement [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  //   Execution Option <- 0
-  //   DMM Handle In <- Locals.DMM_Resource
-  //   DMM Handle Out <- Locals.DMM_Resource
-  //   error out <- Step.Result.Error
-  await callDmmDcRmsVoltageMeasConfigureAndMeasure(); // Measure DC-RMS Voltage with DMM - Using range DC 100 mV at 6 1/2 digits of resolution [Action]
-
-  // ── cleanup ──
-  // label: Release DMM hardware resource
-  //   DMM Handle In <- Locals.DMM_Resource
-  //   error out <- Step.Result.Error
-  await callDmmDcRmsVoltageMeasClose(); // Close DMM reference [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    //   Execution Option <- 0
+    //   DMM Handle In <- Locals.DMM_Resource
+    //   DMM Handle Out <- Locals.DMM_Resource
+    //   error out <- Step.Result.Error
+    await callDmmDcRmsVoltageMeasConfigureAndMeasure(); // Measure DC-RMS Voltage with DMM - Using range DC 100 mV at 6 1/2 digits of resolution [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Release DMM hardware resource
+    //   DMM Handle In <- Locals.DMM_Resource
+    //   error out <- Step.Result.Error
+    await callDmmDcRmsVoltageMeasClose(); // Close DMM reference [Action]
+  }
 
   return run.status;
 }
@@ -320,24 +332,27 @@ Future<String> powerDownAllPowerSupplies() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Note to run with Hardware: Update Physical Channels Info based on NI MAX in the below Initialize Step
-  //   Physical channels <- "Simulated_Power/power" //Physical channel of Power Supply  (Power Module)
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Note to run with Hardware: Update Physical Channels Info based on NI MAX in the below Initialize Step
+    //   Physical channels <- "Simulated_Power/power" //Physical channel of Power Supply  (Power Module)
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsInitialize(); // Power Supply Source and Measure - Initialize [Action]
 
-  // ── main ──
-  // Configures the power supply source to disable output after close to make it to "Idle" state
-  //   DAQmx Task In <- Locals.PS_Task
-  //   DAQmx Task Out <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsConfigureAndMeasure(); // Power Supply - Set to 0V [Action]
-
-  // ── cleanup ──
-  //   DAQmx Task In <- Locals.PS_Task
-  //   error out <- Step.Result.Error
-  await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+    // ── main ──
+    // Configures the power supply source to disable output after close to make it to "Idle" state
+    //   DAQmx Task In <- Locals.PS_Task
+    //   DAQmx Task Out <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsConfigureAndMeasure(); // Power Supply - Set to 0V [Action]
+  } finally {
+    // ── cleanup ──
+    //   DAQmx Task In <- Locals.PS_Task
+    //   error out <- Step.Result.Error
+    await callDaqPsClose(); // Power Supply Source and Measure - Close [Action]
+  }
 
   return run.status;
 }

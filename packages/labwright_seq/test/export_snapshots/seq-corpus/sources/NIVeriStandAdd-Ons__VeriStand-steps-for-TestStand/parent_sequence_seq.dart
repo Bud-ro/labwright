@@ -30,43 +30,46 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Call Child Sequence in Different File
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type InitializeVeriStand: action not exported yet',
+    ); // Initialize VeriStand [InitializeVeriStand]
 
-  // ── main ──
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction]
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callChildSequenceInSameFileResult.Status =
-      await childSequenceSameFile(); // Call Child Sequence in Same File
-  callChildSequenceInSameFileResult.Status =
-      callChildSequenceInSameFileResult.Status == 'Done'
-      ? 'Passed'
-      : callChildSequenceInSameFileResult.Status; // status expression
-  run.record(callChildSequenceInSameFileResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // sequence call spawns a new thread in the engine — exported as a plain awaited call
-  callChildSequenceInDifferentFileResult.Status = await child_sequence_seq
-      .mainSequence(
-        gatewayIp: fileGlobals.Veristand.GatewayIP,
-      ); // Call Child Sequence in Different File: external sequence
-  callChildSequenceInDifferentFileResult.Status =
-      callChildSequenceInDifferentFileResult.Status == 'Done' && false
-      ? 'Passed'
-      : callChildSequenceInDifferentFileResult.Status; // status expression
-  run.record(callChildSequenceInDifferentFileResult.Status);
-
-  // ── cleanup ──
-  // waits for sequence call step "ID#:toyzAMhaP0KUec0ek9zdHA"
-  await Future<void>.delayed(
-    const Duration(seconds: 20),
-  ); // Wait for Child Sequence Thread to Complete
-  throw UnimplementedError(
-    'step type StopVeriStand: action not exported yet',
-  ); // Stop VeriStand [StopVeriStand]
+    // ── main ──
+    throw UnimplementedError(
+      'step type RunRTSequenceAction: action not exported yet',
+    ); // RT Sequence Action [RunRTSequenceAction]
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callChildSequenceInSameFileResult.Status =
+        await childSequenceSameFile(); // Call Child Sequence in Same File
+    callChildSequenceInSameFileResult.Status =
+        callChildSequenceInSameFileResult.Status == 'Done'
+        ? 'Passed'
+        : callChildSequenceInSameFileResult.Status; // status expression
+    run.record(callChildSequenceInSameFileResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // sequence call spawns a new thread in the engine — exported as a plain awaited call
+    callChildSequenceInDifferentFileResult.Status = await child_sequence_seq
+        .mainSequence(
+          gatewayIp: fileGlobals.Veristand.GatewayIP,
+        ); // Call Child Sequence in Different File: external sequence
+    callChildSequenceInDifferentFileResult.Status =
+        callChildSequenceInDifferentFileResult.Status == 'Done' && false
+        ? 'Passed'
+        : callChildSequenceInDifferentFileResult.Status; // status expression
+    run.record(callChildSequenceInDifferentFileResult.Status);
+  } finally {
+    // ── cleanup ──
+    // waits for sequence call step "ID#:toyzAMhaP0KUec0ek9zdHA"
+    await Future<void>.delayed(
+      const Duration(seconds: 20),
+    ); // Wait for Child Sequence Thread to Complete
+    throw UnimplementedError(
+      'step type StopVeriStand: action not exported yet',
+    ); // Stop VeriStand [StopVeriStand]
+  }
 
   return run.status;
 }

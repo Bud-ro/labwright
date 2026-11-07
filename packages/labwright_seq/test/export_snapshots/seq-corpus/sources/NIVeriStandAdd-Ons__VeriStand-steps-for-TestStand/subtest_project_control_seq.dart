@@ -17,45 +17,48 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  ts.eval(
-    'RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)',
-  ); // pre-expression
-  throw UnimplementedError(
-    'step type StartVeristand: action not exported yet',
-  ); // Start Veristand [StartVeristand]
-  await Future<void>.delayed(const Duration(seconds: 5));
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'RunState.Main.Locals.NewSubProperty("VSDialogs",PropValType_Container,False,"",0)',
+    ); // pre-expression
+    throw UnimplementedError(
+      'step type StartVeristand: action not exported yet',
+    ); // Start Veristand [StartVeristand]
+    await Future<void>.delayed(const Duration(seconds: 5));
 
-  // ── main ──
-  throw UnimplementedError(
-    'step type OpenProject: action not exported yet',
-  ); // Open Project [OpenProject]
-  await Future<void>.delayed(const Duration(seconds: 5));
-  throw UnimplementedError(
-    'step type OpenReferences: action not exported yet',
-  ); // Open References [OpenReferences]
-  await Future<void>.delayed(const Duration(seconds: 5));
-  throw UnimplementedError(
-    'step type DeployProject: action not exported yet',
-  ); // Deploy Project [DeployProject]
-  await Future<void>.delayed(const Duration(seconds: 5));
-  throw UnimplementedError(
-    'step type UndeployProject: action not exported yet',
-  ); // Undeploy Project [UndeployProject]
-  await Future<void>.delayed(const Duration(seconds: 5));
-  throw UnimplementedError(
-    'step type RunProject: action not exported yet',
-  ); // Run Project [RunProject]
-  await Future<void>.delayed(const Duration(seconds: 5));
-  throw UnimplementedError(
-    'step type UndeployProject: action not exported yet',
-  ); // Undeploy Project [UndeployProject]
-
-  // ── cleanup ──
-  await Future<void>.delayed(const Duration(seconds: 5));
-  throw UnimplementedError(
-    'step type DeployProject: action not exported yet',
-  ); // Deploy Project [DeployProject]
+    // ── main ──
+    throw UnimplementedError(
+      'step type OpenProject: action not exported yet',
+    ); // Open Project [OpenProject]
+    await Future<void>.delayed(const Duration(seconds: 5));
+    throw UnimplementedError(
+      'step type OpenReferences: action not exported yet',
+    ); // Open References [OpenReferences]
+    await Future<void>.delayed(const Duration(seconds: 5));
+    throw UnimplementedError(
+      'step type DeployProject: action not exported yet',
+    ); // Deploy Project [DeployProject]
+    await Future<void>.delayed(const Duration(seconds: 5));
+    throw UnimplementedError(
+      'step type UndeployProject: action not exported yet',
+    ); // Undeploy Project [UndeployProject]
+    await Future<void>.delayed(const Duration(seconds: 5));
+    throw UnimplementedError(
+      'step type RunProject: action not exported yet',
+    ); // Run Project [RunProject]
+    await Future<void>.delayed(const Duration(seconds: 5));
+    throw UnimplementedError(
+      'step type UndeployProject: action not exported yet',
+    ); // Undeploy Project [UndeployProject]
+  } finally {
+    // ── cleanup ──
+    await Future<void>.delayed(const Duration(seconds: 5));
+    throw UnimplementedError(
+      'step type DeployProject: action not exported yet',
+    ); // Deploy Project [DeployProject]
+  }
 
   return run.status;
 }

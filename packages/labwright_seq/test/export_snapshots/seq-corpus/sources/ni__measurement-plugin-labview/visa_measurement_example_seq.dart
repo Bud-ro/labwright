@@ -15,35 +15,38 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "VISA Measurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "VISA Measurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.VISA_Measurement_LabVIEW
-  // measurement param: pin name (In TypeString IOResource) = "Pin1"
-  // measurement param: command (In TypeString) = "*IDN?"
-  // measurement param: baud rate (In TypeUint32) = 9600ui64
-  // measurement param: data bits (In TypeUint32) = 8ui64
-  // measurement param: parity (In TypeEnum Enum) = 0i64
-  // measurement param: stop bits (In TypeUint32) = 10ui64
-  // measurement param: flow control (In TypeUint32) = 0ui64
-  // measurement param: read byte count (In TypeUint32) = 1000ui64
-  // measurement param: end read on term char (In TypeBool) = True
-  // measurement param: end write on term char (In TypeBool) = True
-  // measurement param: response (Out TypeString)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // VISA Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.VISA_Measurement_LabVIEW
+    // measurement param: pin name (In TypeString IOResource) = "Pin1"
+    // measurement param: command (In TypeString) = "*IDN?"
+    // measurement param: baud rate (In TypeUint32) = 9600ui64
+    // measurement param: data bits (In TypeUint32) = 8ui64
+    // measurement param: parity (In TypeEnum Enum) = 0i64
+    // measurement param: stop bits (In TypeUint32) = 10ui64
+    // measurement param: flow control (In TypeUint32) = 0ui64
+    // measurement param: read byte count (In TypeUint32) = 1000ui64
+    // measurement param: end read on term char (In TypeBool) = True
+    // measurement param: end write on term char (In TypeBool) = True
+    // measurement param: response (Out TypeString)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // VISA Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close sessions [Action]
+  }
 
   return run.status;
 }

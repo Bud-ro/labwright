@@ -15,31 +15,34 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIVisaDmmMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nivisa_dmm.py',
-  ); // Create and register NI-DMM Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIVisaDmmMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nivisa_dmm.py',
+    ); // Create and register NI-DMM Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIVisaDmmMeasurement_Python
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: measurement_type (In TypeEnum Enum) = 0i64
-  // measurement param: range (In TypeDouble) = 1
-  // measurement param: resolution_digits (In TypeDouble) = 3.5
-  // measurement param: measured_value (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Perform a measurement using a DMM simulator [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nivisa_dmm.py',
-  ); // Destroy and unregister NI-DMM sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIVisaDmmMeasurement_Python
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: measurement_type (In TypeEnum Enum) = 0i64
+    // measurement param: range (In TypeDouble) = 1
+    // measurement param: resolution_digits (In TypeDouble) = 3.5
+    // measurement param: measured_value (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Perform a measurement using a DMM simulator [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nivisa_dmm.py',
+    ); // Destroy and unregister NI-DMM sessions [Action]
+  }
 
   return run.status;
 }

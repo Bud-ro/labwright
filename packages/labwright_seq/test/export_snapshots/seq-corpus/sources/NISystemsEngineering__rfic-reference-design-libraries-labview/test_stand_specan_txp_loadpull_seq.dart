@@ -47,128 +47,134 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Measure Results
 
-  // ── setup ──
-  // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
-  ts.eval(
-    'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
-  ); // Store Sequence File Path
-  // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
-  fileGlobals.OutputFilePath =
-      fileGlobals.Sequence_Folder_Path +
-      '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
-  // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
-  throw UnimplementedError(
-    'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
-  ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
-  ts.setNumElements(
-    fileGlobals.LoadedWaveformIndexes,
-    ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
-  ); // Initialize Waveform Arrays
-  ts.setNumElements(
-    fileGlobals.LoadedWaveforms,
-    ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
-  ); // Initialize Waveform Arrays (cont.)
-  // Initialize Instruments
-  // status expression: ""
-  // label:
-  //   IP Address <- FileGlobals.Static_Station_Configs.Device_Names.Tuner_IP
-  //   Verify Communication (True) <- True
-  //   Reset (True) <- False
-  //   iTuner reference out <- FileGlobals.Device_Handles.iTunerReference
-  //   error out <- Step.Result.Error
-  await callInitialize(); // Init Tuner [Action]
-  //   id query <- True
-  //   reset device <- False
-  //   instrument handle <- FileGlobals.Device_Handles.RFSG
-  //   error out <- Step.Result.Error
-  await callNiRfsgInitialize(); // Init RFSG [Action]
-  //   Option String <- ""
-  //   Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
-  //   error out <- Step.Result.Error
-  await callRFmxInstrInitializeNirfsa(); // RFmx Initialize [Action]
-  // Load Waveforms and Create Signals
-  // status expression: ""
-  // label:
-  waveformConfigsIdx = 0; // Reset Wfm config index
-  for (final element in ts.iterate(
-    fileGlobals.Static_Station_Configs.Waveform_Configs,
-  )) {
-    currentWaveformConfig = element;
-    //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
-    //   Waveform Name (File Name) <- ""
-    //   Waveform <- Locals.Current_Waveform
-    //   error out <- Step.Result.Error
-    await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
-    //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-    //   Waveform In <- Locals.Current_Waveform
-    //   error out <- Step.Result.Error
-    await callDownloadWaveform(); // Download Waveform to Generator [Action]
-    //   Signal Name <- Locals.Current_Waveform.Name+"SpecAn"
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
-    //   error out <- Step.Result.Error
-    await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
-    fileGlobals.LoadedWaveformIndexes[waveformConfigsIdx] =
-        waveformConfigsIdx; // Store Loaded Waveforms
-    fileGlobals.LoadedWaveforms[waveformConfigsIdx] =
-        currentWaveform; // Store Loaded Waveforms (cont.)
-    waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
-  }
-
-  // ── main ──
-  // TODO: sweep loop (FileGlobals.Configurations.Tuner.VSWR_And_Phase.VSWR, FileGlobals.Configurations.Tuner.VSWR_And_Phase.Phase, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
-  {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    applyConfigurationsResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    applyConfigurationsResult.Status =
-        await configure(); // Apply Configurations
-    applyConfigurationsResult.Status =
-        applyConfigurationsResult.Status == 'Done'
-        ? 'Passed'
-        : applyConfigurationsResult.Status; // status expression
-    run.record(applyConfigurationsResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    measureResultsResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    measureResultsResult.Status = await measure(); // Measure Results
-    measureResultsResult.Status = measureResultsResult.Status == 'Done'
-        ? 'Passed'
-        : measureResultsResult.Status; // status expression
-    run.record(measureResultsResult.Status);
-    fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial =
-        runState.Root.Locals.UUT.SerialNumber; // Store Serial Number in Output
-    // Record the results record to disk
+  body:
+  try {
+    // ── setup ──
+    // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
+    ts.eval(
+      'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
+    ); // Store Sequence File Path
+    // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
+    fileGlobals.OutputFilePath =
+        fileGlobals.Sequence_Folder_Path +
+        '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
+    // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
     throw UnimplementedError(
-      'step type NI_WriteRecord: action not exported yet',
-    ); // Write Record [NI_WriteRecord]
-  }
+      'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
+    ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
+    ts.setNumElements(
+      fileGlobals.LoadedWaveformIndexes,
+      ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
+    ); // Initialize Waveform Arrays
+    ts.setNumElements(
+      fileGlobals.LoadedWaveforms,
+      ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
+    ); // Initialize Waveform Arrays (cont.)
+    // Initialize Instruments
+    // status expression: ""
+    // label:
+    //   IP Address <- FileGlobals.Static_Station_Configs.Device_Names.Tuner_IP
+    //   Verify Communication (True) <- True
+    //   Reset (True) <- False
+    //   iTuner reference out <- FileGlobals.Device_Handles.iTunerReference
+    //   error out <- Step.Result.Error
+    await callInitialize(); // Init Tuner [Action]
+    //   id query <- True
+    //   reset device <- False
+    //   instrument handle <- FileGlobals.Device_Handles.RFSG
+    //   error out <- Step.Result.Error
+    await callNiRfsgInitialize(); // Init RFSG [Action]
+    //   Option String <- ""
+    //   Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
+    //   error out <- Step.Result.Error
+    await callRFmxInstrInitializeNirfsa(); // RFmx Initialize [Action]
+    // Load Waveforms and Create Signals
+    // status expression: ""
+    // label:
+    waveformConfigsIdx = 0; // Reset Wfm config index
+    for (final element in ts.iterate(
+      fileGlobals.Static_Station_Configs.Waveform_Configs,
+    )) {
+      currentWaveformConfig = element;
+      //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
+      //   Waveform Name (File Name) <- ""
+      //   Waveform <- Locals.Current_Waveform
+      //   error out <- Step.Result.Error
+      await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
+      //   RFSG handle <- FileGlobals.Device_Handles.RFSG
+      //   Waveform In <- Locals.Current_Waveform
+      //   error out <- Step.Result.Error
+      await callDownloadWaveform(); // Download Waveform to Generator [Action]
+      //   Signal Name <- Locals.Current_Waveform.Name+"SpecAn"
+      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+      //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
+      //   error out <- Step.Result.Error
+      await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
+      fileGlobals.LoadedWaveformIndexes[waveformConfigsIdx] =
+          waveformConfigsIdx; // Store Loaded Waveforms
+      fileGlobals.LoadedWaveforms[waveformConfigsIdx] =
+          currentWaveform; // Store Loaded Waveforms (cont.)
+      waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
+    }
 
-  // ── cleanup ──
-  // Instrument Cleanup
-  // status expression: ""
-  // label:
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Force Destroy? (F) <- False
-  //   error out <- Step.Result.Error
-  await callRFmxInstrClose(); // RFmx Close [Action]
-  //   instrument handle <- FileGlobals.Device_Handles.RFSG
-  //   error out <- Step.Result.Error
-  await callNiRfsgClose(); // Close RFSG [Action]
-  //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
-  //   error out <- Step.Result.Error
-  await callCloseTuner(); // Close Tuner [Action]
-  // With theData Streams API, the reference to the output stream file is closed.
-  fileGlobals.OutputFile.AsOutputRecordStream
-      .Close(); // Close Output Stream Reference
+    // ── main ──
+    // TODO: sweep loop (FileGlobals.Configurations.Tuner.VSWR_And_Phase.VSWR, FileGlobals.Configurations.Tuner.VSWR_And_Phase.Phase, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
+    {
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      applyConfigurationsResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      applyConfigurationsResult.Status =
+          await configure(); // Apply Configurations
+      applyConfigurationsResult.Status =
+          applyConfigurationsResult.Status == 'Done'
+          ? 'Passed'
+          : applyConfigurationsResult.Status; // status expression
+      run.record(applyConfigurationsResult.Status);
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      measureResultsResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      measureResultsResult.Status = await measure(); // Measure Results
+      measureResultsResult.Status = measureResultsResult.Status == 'Done'
+          ? 'Passed'
+          : measureResultsResult.Status; // status expression
+      run.record(measureResultsResult.Status);
+      fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial = runState
+          .Root
+          .Locals
+          .UUT
+          .SerialNumber; // Store Serial Number in Output
+      // Record the results record to disk
+      throw UnimplementedError(
+        'step type NI_WriteRecord: action not exported yet',
+      ); // Write Record [NI_WriteRecord]
+    }
+  } finally {
+    // ── cleanup ──
+    // Instrument Cleanup
+    // status expression: ""
+    // label:
+    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+    //   Force Destroy? (F) <- False
+    //   error out <- Step.Result.Error
+    await callRFmxInstrClose(); // RFmx Close [Action]
+    //   instrument handle <- FileGlobals.Device_Handles.RFSG
+    //   error out <- Step.Result.Error
+    await callNiRfsgClose(); // Close RFSG [Action]
+    //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
+    //   error out <- Step.Result.Error
+    await callCloseTuner(); // Close Tuner [Action]
+    // With theData Streams API, the reference to the output stream file is closed.
+    fileGlobals.OutputFile.AsOutputRecordStream
+        .Close(); // Close Output Stream Reference
+  }
 
   return run.status;
 }
@@ -307,49 +313,56 @@ Future<String> configure() async {
 Future<String> measure() async {
   final run = ts.SequenceRun();
 
-  // ── main ──
-  //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
-  //   Timeout (s) <- 60
-  //   Current VSWR and Phase <- FileGlobals.Current_Sweep_Step.Results.VSWR_and_Phase
-  //   error out <- Step.Result.Error
-  await callMoveTunerPerVswr(); // Move Tuner [Action]
-  //   Result Name <- ""
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-  //   Auto Level Bandwidth (Hz) <- 400000000
-  //   Enable All Traces (F) <- False
-  //   error out <- Step.Result.Error
-  await callSpecAnSelectAndInitiateMeasurements(); // Select and Initiate SpecAn TxP Measurement [Action]
-  //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   TxP Results <- FileGlobals.Current_Sweep_Step.Results.TxP_Results
-  //   error out <- Step.Result.Error
-  await callSpecAnFetchTxP(); // SpecAn Fetch TxP [Action]
-  // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
-      fileGlobals
-          .Current_Sweep_Step
-          .Results
-          .TxP_Results
-          .Average_Mean_Power__dBm_; // Map Results
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.VSWR = fileGlobals
-      .Current_Sweep_Step
-      .Results
-      .VSWR_and_Phase[0][0]; // Map Results (cont.)
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Phase = fileGlobals
-      .Current_Sweep_Step
-      .Results
-      .VSWR_and_Phase[1][0]; // Map Results (cont.)
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Tuner_Primary_Frequency =
-      fileGlobals.Current_Sweep_Step.Results.Tuner_Primary_Frequency_GHz *
-      1000000000.0; // Map Results (cont.)
-
-  // ── cleanup ──
-  //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-  //   Timeout (ms) <- 1000
-  //   error out <- Step.Result.Error
-  await callAbortGeneration(); // Abort Dynamic Generation [Action]
+  body:
+  try {
+    // ── main ──
+    //   iTuner reference in <- FileGlobals.Device_Handles.iTunerReference
+    //   Timeout (s) <- 60
+    //   Current VSWR and Phase <- FileGlobals.Current_Sweep_Step.Results.VSWR_and_Phase
+    //   error out <- Step.Result.Error
+    await callMoveTunerPerVswr(); // Move Tuner [Action]
+    //   Result Name <- ""
+    //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+    //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
+    //   Auto Level Bandwidth (Hz) <- 400000000
+    //   Enable All Traces (F) <- False
+    //   error out <- Step.Result.Error
+    await callSpecAnSelectAndInitiateMeasurements(); // Select and Initiate SpecAn TxP Measurement [Action]
+    //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+    //   TxP Results <- FileGlobals.Current_Sweep_Step.Results.TxP_Results
+    //   error out <- Step.Result.Error
+    await callSpecAnFetchTxP(); // SpecAn Fetch TxP [Action]
+    // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
+    fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
+        fileGlobals
+            .Current_Sweep_Step
+            .Results
+            .TxP_Results
+            .Average_Mean_Power__dBm_; // Map Results
+    fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.VSWR = fileGlobals
+        .Current_Sweep_Step
+        .Results
+        .VSWR_and_Phase[0][0]; // Map Results (cont.)
+    fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Phase = fileGlobals
+        .Current_Sweep_Step
+        .Results
+        .VSWR_and_Phase[1][0]; // Map Results (cont.)
+    fileGlobals
+            .Current_Sweep_Step
+            .Input_and_Output
+            .MEAS
+            .Tuner_Primary_Frequency =
+        fileGlobals.Current_Sweep_Step.Results.Tuner_Primary_Frequency_GHz *
+        1000000000.0; // Map Results (cont.)
+  } finally {
+    // ── cleanup ──
+    //   RFSG handle <- FileGlobals.Device_Handles.RFSG
+    //   Timeout (ms) <- 1000
+    //   error out <- Step.Result.Error
+    await callAbortGeneration(); // Abort Dynamic Generation [Action]
+  }
 
   return run.status;
 }

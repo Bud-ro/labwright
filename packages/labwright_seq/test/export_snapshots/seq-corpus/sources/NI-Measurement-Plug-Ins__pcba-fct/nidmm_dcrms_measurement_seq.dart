@@ -15,33 +15,36 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"..\..\..\src\NIDmmDCRmsMeasurement\NIDmmDCRmsMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-DMM sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"..\..\..\src\NIDmmDCRmsMeasurement\NIDmmDCRmsMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-DMM sessions [Action]
 
-  // ── main ──
-  // measurement: NIDmmDCRmsMeasurement_LabVIEW
-  // measurement param: Range (In TypeDouble) = 10
-  // measurement param: Function (In TypeInt32) = 1003i64
-  // measurement param: Number of Samples (In TypeInt32) = 1000i64
-  // measurement param: Pin Name (In TypeString Pin) = "Pin1"
-  // measurement param: Sample Rate (Hz) (In TypeDouble) = 1800000
-  // measurement param: DC Value (Out TypeDouble)
-  // measurement param: RMS Value (Out TypeDouble)
-  // measurement param: Signal Out of Range (Out TypeBool)
-  // measurement param: Waveform Data (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Acquire Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-DMM sessions [Action]
+    // ── main ──
+    // measurement: NIDmmDCRmsMeasurement_LabVIEW
+    // measurement param: Range (In TypeDouble) = 10
+    // measurement param: Function (In TypeInt32) = 1003i64
+    // measurement param: Number of Samples (In TypeInt32) = 1000i64
+    // measurement param: Pin Name (In TypeString Pin) = "Pin1"
+    // measurement param: Sample Rate (Hz) (In TypeDouble) = 1800000
+    // measurement param: DC Value (Out TypeDouble)
+    // measurement param: RMS Value (Out TypeDouble)
+    // measurement param: Signal Out of Range (Out TypeBool)
+    // measurement param: Waveform Data (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Acquire Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-DMM sessions [Action]
+  }
 
   return run.status;
 }

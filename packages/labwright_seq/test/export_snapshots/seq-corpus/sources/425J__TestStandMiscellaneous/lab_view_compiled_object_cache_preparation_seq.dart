@@ -32,44 +32,51 @@ Future<String> createCompiledObjectCache({
     'Common': ts.PropObj(),
   }); // result of Enable LabVIEW TCP server
 
-  // ── setup ──
-  ts.eval('Locals.StartTime = Seconds()'); // Save StartTime
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // custom flow: if (!Parameters.Error.Occurred) Next else Goto -> <Cleanup>
-  enableLabViewTcpServerResult.Status = await enableLabViewTcpServer(
-    error: error,
-    labviewDirectory: labviewDirectory,
-  ); // Enable LabVIEW TCP server
-  enableLabViewTcpServerResult.Status =
-      enableLabViewTcpServerResult.Status == 'Done'
-      ? 'Passed'
-      : enableLabViewTcpServerResult.Status; // status expression
-  run.record(enableLabViewTcpServerResult.Status);
+  body:
+  try {
+    // ── setup ──
+    ts.eval('Locals.StartTime = Seconds()'); // Save StartTime
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // custom flow: if (!Parameters.Error.Occurred) Next else Goto -> <Cleanup>
+    enableLabViewTcpServerResult.Status = await enableLabViewTcpServer(
+      error: error,
+      labviewDirectory: labviewDirectory,
+    ); // Enable LabVIEW TCP server
+    enableLabViewTcpServerResult.Status =
+        enableLabViewTcpServerResult.Status == 'Done'
+        ? 'Passed'
+        : enableLabViewTcpServerResult.Status; // status expression
+    run.record(enableLabViewTcpServerResult.Status);
+    if (!(!ts.truthy(error.Occurred))) {
+      // post action
+      break body;
+    }
 
-  // ── main ──
-  throw UnimplementedError(
-    'step type CallExecutable: action not exported yet',
-  ); // Open LabVIEW project [CallExecutable]
-  do {
+    // ── main ──
     throw UnimplementedError(
       'step type CallExecutable: action not exported yet',
-    ); // Close LabVIEW gracefully [CallExecutable]
+    ); // Open LabVIEW project [CallExecutable]
+    do {
+      throw UnimplementedError(
+        'step type CallExecutable: action not exported yet',
+      ); // Close LabVIEW gracefully [CallExecutable]
+      if (cliErrorText != '') {
+        // precondition of Wait
+        await Future<void>.delayed(const Duration(seconds: 1));
+      }
+    } while (ts.cond(
+      'Locals.CliErrorText != "" && (Parameters.Timeout > Seconds() - Locals.StartTime)',
+    ));
+  } finally {
+    // ── cleanup ──
     if (cliErrorText != '') {
-      // precondition of Wait
-      await Future<void>.delayed(const Duration(seconds: 1));
+      // precondition of Error
+      error.Code = 123; // Error
+      error.Msg =
+          'Unable to prepare compiled object cache. Try to extend the Timeout.\n' +
+          cliErrorText; // Error (cont.)
+      error.Occurred = true; // Error (cont.)
     }
-  } while (ts.cond(
-    'Locals.CliErrorText != "" && (Parameters.Timeout > Seconds() - Locals.StartTime)',
-  ));
-
-  // ── cleanup ──
-  if (cliErrorText != '') {
-    // precondition of Error
-    error.Code = 123; // Error
-    error.Msg =
-        'Unable to prepare compiled object cache. Try to extend the Timeout.\n' +
-        cliErrorText; // Error (cont.)
-    error.Occurred = true; // Error (cont.)
   }
 
   return run.status;
@@ -87,61 +94,65 @@ Future<String> enableLabViewTcpServer({
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // .NET call: System.IO.File.Exists
-  //   Return Value <- Locals.LabviewExists
-  //   path <- Parameters.LabviewDirectory + @"\LabVIEW.exe"
-  throw UnimplementedError(
-    'dotNet call: System.IO.File.Exists',
-  ); // Check if LabVIEW.exe exists [Action]
-  // custom flow: if (True) Goto -> <Cleanup> else Next
-  if (!labviewExists) {
-    // precondition of Error
-    error.Code = 7; // Error
-    error.Msg = labviewDirectory + '\\LabVIEW.exe not found.'; // Error (cont.)
-    error.Occurred = true; // Error (cont.)
-  }
+  body:
+  {
+    // ── setup ──
+    // .NET call: System.IO.File.Exists
+    //   Return Value <- Locals.LabviewExists
+    //   path <- Parameters.LabviewDirectory + @"\LabVIEW.exe"
+    throw UnimplementedError(
+      'dotNet call: System.IO.File.Exists',
+    ); // Check if LabVIEW.exe exists [Action]
+    // custom flow: if (True) Goto -> <Cleanup> else Next
+    if (!labviewExists) {
+      // precondition of Error
+      error.Code = 7; // Error
+      error.Msg =
+          labviewDirectory + '\\LabVIEW.exe not found.'; // Error (cont.)
+      error.Occurred = true; // Error (cont.)
+      break body; // post action
+    }
 
-  // ── main ──
-  // .NET call: System.IO.File.Exists
-  //   Return Value <- Locals.LabviewIniExists
-  //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-  throw UnimplementedError(
-    'dotNet call: System.IO.File.Exists',
-  ); // Check if LabVIEW.ini exists [Action]
-  if (labviewIniExists) {
-    // .NET call: System.IO.File.ReadAllText
-    //   Return Value <- Locals.LabviewIniText
+    // ── main ──
+    // .NET call: System.IO.File.Exists
+    //   Return Value <- Locals.LabviewIniExists
     //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
     throw UnimplementedError(
-      'dotNet call: System.IO.File.ReadAllText',
-    ); // Read LabVIEW.ini [Action]
-    ts.eval(
-      'SearchPatternAndReplace(Locals.LabviewIniText, "server.tcp.enabled=False", "server.tcp.enabled=True", 0, True)',
-    ); // Prepare LabVIEW.ini keys
-    ts.eval(
-      '\n\n(Find(Locals.LabviewIniText, "server.tcp.enabled=True", 0, True) == -1) ?\n   Locals.LabviewIniText += "\\nserver.tcp.enabled=True"\n:\n   Nothing',
-    ); // Prepare LabVIEW.ini keys (cont.)
-    // .NET call: System.IO.File.WriteAllText
-    //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-    //   contents <- Locals.LabviewIniText
-    throw UnimplementedError(
-      'dotNet call: System.IO.File.WriteAllText',
-    ); // Write LabVIEW.ini [Action]
-  } else {
-    // .NET call: System.IO.File.Create
-    //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-    throw UnimplementedError(
-      'dotNet call: System.IO.File.Create',
-    ); // Create LabVIEW.ini [Action]
-    // .NET call: System.IO.File.WriteAllText
-    //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
-    //   contents <- "[LabVIEW]\nserver.tcp.enabled=True"
-    throw UnimplementedError(
-      'dotNet call: System.IO.File.WriteAllText',
-    ); // Write LabVIEW.ini [Action]
+      'dotNet call: System.IO.File.Exists',
+    ); // Check if LabVIEW.ini exists [Action]
+    if (labviewIniExists) {
+      // .NET call: System.IO.File.ReadAllText
+      //   Return Value <- Locals.LabviewIniText
+      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
+      throw UnimplementedError(
+        'dotNet call: System.IO.File.ReadAllText',
+      ); // Read LabVIEW.ini [Action]
+      ts.eval(
+        'SearchPatternAndReplace(Locals.LabviewIniText, "server.tcp.enabled=False", "server.tcp.enabled=True", 0, True)',
+      ); // Prepare LabVIEW.ini keys
+      ts.eval(
+        '\n\n(Find(Locals.LabviewIniText, "server.tcp.enabled=True", 0, True) == -1) ?\n   Locals.LabviewIniText += "\\nserver.tcp.enabled=True"\n:\n   Nothing',
+      ); // Prepare LabVIEW.ini keys (cont.)
+      // .NET call: System.IO.File.WriteAllText
+      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
+      //   contents <- Locals.LabviewIniText
+      throw UnimplementedError(
+        'dotNet call: System.IO.File.WriteAllText',
+      ); // Write LabVIEW.ini [Action]
+    } else {
+      // .NET call: System.IO.File.Create
+      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
+      throw UnimplementedError(
+        'dotNet call: System.IO.File.Create',
+      ); // Create LabVIEW.ini [Action]
+      // .NET call: System.IO.File.WriteAllText
+      //   path <- Parameters.LabviewDirectory + @"\LabVIEW.ini"
+      //   contents <- "[LabVIEW]\nserver.tcp.enabled=True"
+      throw UnimplementedError(
+        'dotNet call: System.IO.File.WriteAllText',
+      ); // Write LabVIEW.ini [Action]
+    }
   }
-
   return run.status;
 }
 
@@ -172,35 +183,45 @@ Future<String> sequenceFileLoad() async {
     'Common': ts.PropObj(),
   }); // result of Open LabVIEW project
 
-  // ── setup ──
-  // custom flow: if (Step.Result.ButtonHit == 1) Next else Goto -> <Cleanup>
-  // popup title: NameOf(Step)
-  // popup message: "Do you want to open LabVIEW project to generate compiled object cache?\n\nNOTE 1: LabVIEW IDE is required to generate compiled object cache.\n               This example uses: " + | Locals.LabviewDirectory + "\\LabVIEW.exe (see local variables).\nNOTE 2: LabVIEW CLI is required to communicate with LabVIEW.\n               This example uses: " + | Locals.LabviewCliPath + " (see local variables).\nNOTE 3: Communication with LabVIEW TCP server might be blocked by VPN."
-  // popup buttons: "Yes" | "No"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Prepare LabVIEW project compiled object cache? [MessagePopup]
-  prepareLabViewProjectCompiledObjectCacheResult.Status = 'Done';
-  run.record(prepareLabViewProjectCompiledObjectCacheResult.Status);
-  // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
-  ts.eval(
-    'Locals.Success = RunState.Engine.DisplayFileDialog(\n   "Select LabVIEW project file...", \' dlgTitle\n   "", \' okButtonText\n   "", \' initialPath\n   {""}, \' selectedPaths\n   Locals.TmpPaths, \' absolutePaths\n   OpenFile_UseAbsolutePath, \' openFileDialogFlags\n   "", \' defaultExtension\n   WinFileDlg_FILEMUSTEXIST OR WinFileDlg_HIDEREADONLY, \' win32Flags\n   "LabVIEW Project (*.lvproj)|*.lvproj||" \' fileFilter\n),\n\nLocals.Success ? (\n   Locals.LabviewProjectPath = Locals.TmpPaths[0]\n) : Nothing',
-  ); // Select LabVIEW project file
+  body:
+  {
+    // ── setup ──
+    // custom flow: if (Step.Result.ButtonHit == 1) Next else Goto -> <Cleanup>
+    // popup title: NameOf(Step)
+    // popup message: "Do you want to open LabVIEW project to generate compiled object cache?\n\nNOTE 1: LabVIEW IDE is required to generate compiled object cache.\n               This example uses: " + | Locals.LabviewDirectory + "\\LabVIEW.exe (see local variables).\nNOTE 2: LabVIEW CLI is required to communicate with LabVIEW.\n               This example uses: " + | Locals.LabviewCliPath + " (see local variables).\nNOTE 3: Communication with LabVIEW TCP server might be blocked by VPN."
+    // popup buttons: "Yes" | "No"
+    throw UnimplementedError(
+      'step type MessagePopup: action not exported yet',
+    ); // Prepare LabVIEW project compiled object cache? [MessagePopup]
+    prepareLabViewProjectCompiledObjectCacheResult.Status = 'Done';
+    run.record(prepareLabViewProjectCompiledObjectCacheResult.Status);
+    if (!(prepareLabViewProjectCompiledObjectCacheResult.ButtonHit == 1)) {
+      // post action
+      break body;
+    }
+    // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
+    ts.eval(
+      'Locals.Success = RunState.Engine.DisplayFileDialog(\n   "Select LabVIEW project file...", \' dlgTitle\n   "", \' okButtonText\n   "", \' initialPath\n   {""}, \' selectedPaths\n   Locals.TmpPaths, \' absolutePaths\n   OpenFile_UseAbsolutePath, \' openFileDialogFlags\n   "", \' defaultExtension\n   WinFileDlg_FILEMUSTEXIST OR WinFileDlg_HIDEREADONLY, \' win32Flags\n   "LabVIEW Project (*.lvproj)|*.lvproj||" \' fileFilter\n),\n\nLocals.Success ? (\n   Locals.LabviewProjectPath = Locals.TmpPaths[0]\n) : Nothing',
+    ); // Select LabVIEW project file
+    if (!(success)) {
+      // post action
+      break body;
+    }
 
-  // ── main ──
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  openLabViewProjectResult.Status = await createCompiledObjectCache(
-    error: openLabViewProjectResult.Error,
-    labviewProjectPath: labviewProjectPath,
-    labviewDirectory: labviewDirectory,
-    labviewCliPath: labviewCliPath,
-    timeout: timeout,
-  ); // Open LabVIEW project
-  openLabViewProjectResult.Status = openLabViewProjectResult.Status == 'Done'
-      ? 'Passed'
-      : openLabViewProjectResult.Status; // status expression
-  run.record(openLabViewProjectResult.Status);
-
+    // ── main ──
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    openLabViewProjectResult.Status = await createCompiledObjectCache(
+      error: openLabViewProjectResult.Error,
+      labviewProjectPath: labviewProjectPath,
+      labviewDirectory: labviewDirectory,
+      labviewCliPath: labviewCliPath,
+      timeout: timeout,
+    ); // Open LabVIEW project
+    openLabViewProjectResult.Status = openLabViewProjectResult.Status == 'Done'
+        ? 'Passed'
+        : openLabViewProjectResult.Status; // status expression
+    run.record(openLabViewProjectResult.Status);
+  }
   return run.status;
 }
 
@@ -223,14 +244,10 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Prepare LabVIEW project compiled object cache?" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
-  //   flow action of step "Select LabVIEW project file" (Next/Next) not exported
   //   untranslated expression in body
-  //   flow action of step "Enable LabVIEW TCP server" (Next/Next) not exported
   //   step type CallExecutable: action not exported yet
   //   dotNet call: System.IO.File.Exists
-  //   flow action of step "Error" (Next/Next) not exported
   //   dotNet call: System.IO.File.ReadAllText
   //   dotNet call: System.IO.File.WriteAllText
   //   dotNet call: System.IO.File.Create

@@ -15,41 +15,44 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"..\..\..\src\NIScopeDigitalMeasurement\NIScopeDigitalMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-Scope sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"..\..\..\src\NIScopeDigitalMeasurement\NIScopeDigitalMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-Scope sessions [Action]
 
-  // ── main ──
-  // measurement: NIScopeDigitalMeasurement_LabVIEW
-  // measurement param: Pin Name (In TypeString Pin) = "Pin1"
-  // measurement param: Vertical Range (V) (In TypeDouble) = 10
-  // measurement param: Vertical Offset (V) (In TypeDouble) = 0
-  // measurement param: Vertical Coupling (In TypeInt32) = 1i64
-  // measurement param: Minimum Sample Rate (S/s) (In TypeDouble) = 1000000
-  // measurement param: Minimum Record Length (S) (In TypeInt32) = 2000i64
-  // measurement param: Trigger Level (V) (In TypeDouble) = 0
-  // measurement param: Trigger Coupling (In TypeUint32) = 0ui64
-  // measurement param: Trigger Slope (In TypeInt32) = 1i64
-  // measurement param: Waveform Data (Out TypeDouble)
-  // measurement param: High Time (s) (Out TypeDouble)
-  // measurement param: Low Time (s) (Out TypeDouble)
-  // measurement param: Frequency (Hz) (Out TypeDouble)
-  // measurement param: Duty Cycle (%) (Out TypeDouble)
-  // measurement param: High State Level (V) (Out TypeDouble)
-  // measurement param: Low State Level (V) (Out TypeDouble)
-  // measurement param: Actual Sample Rate (S/s) (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Acquire Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-Scope sessions [Action]
+    // ── main ──
+    // measurement: NIScopeDigitalMeasurement_LabVIEW
+    // measurement param: Pin Name (In TypeString Pin) = "Pin1"
+    // measurement param: Vertical Range (V) (In TypeDouble) = 10
+    // measurement param: Vertical Offset (V) (In TypeDouble) = 0
+    // measurement param: Vertical Coupling (In TypeInt32) = 1i64
+    // measurement param: Minimum Sample Rate (S/s) (In TypeDouble) = 1000000
+    // measurement param: Minimum Record Length (S) (In TypeInt32) = 2000i64
+    // measurement param: Trigger Level (V) (In TypeDouble) = 0
+    // measurement param: Trigger Coupling (In TypeUint32) = 0ui64
+    // measurement param: Trigger Slope (In TypeInt32) = 1i64
+    // measurement param: Waveform Data (Out TypeDouble)
+    // measurement param: High Time (s) (Out TypeDouble)
+    // measurement param: Low Time (s) (Out TypeDouble)
+    // measurement param: Frequency (Hz) (Out TypeDouble)
+    // measurement param: Duty Cycle (%) (Out TypeDouble)
+    // measurement param: High State Level (V) (Out TypeDouble)
+    // measurement param: Low State Level (V) (Out TypeDouble)
+    // measurement param: Actual Sample Rate (S/s) (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Acquire Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-Scope sessions [Action]
+  }
 
   return run.status;
 }

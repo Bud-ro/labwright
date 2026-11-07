@@ -15,45 +15,48 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "PinMap.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-Digital sessions [Action]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callLoadPinMapToSessions(); // Load NI-Digital pin map [Action]
-  //   sequence context <- ThisContext
-  //   specification file paths <- FileGlobals.MeasurementLink.SpecificationsFilePaths
-  //   levels file paths <- FileGlobals.MeasurementLink.LevelsFilePaths
-  //   timing file paths <- FileGlobals.MeasurementLink.TimingFilePaths
-  //   error out <- Step.Result.Error
-  await callLoadSpecsTimingLevelsToSessions(); // Load NI-Digital specifications, levels, and timing [Action]
-  //   sequence context <- ThisContext
-  //   pattern file paths <- FileGlobals.MeasurementLink.PatternFilePaths
-  //   error out <- Step.Result.Error
-  await callLoadPatternsToSessions(); // Load NI-Digital patterns [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "PinMap.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-Digital sessions [Action]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callLoadPinMapToSessions(); // Load NI-Digital pin map [Action]
+    //   sequence context <- ThisContext
+    //   specification file paths <- FileGlobals.MeasurementLink.SpecificationsFilePaths
+    //   levels file paths <- FileGlobals.MeasurementLink.LevelsFilePaths
+    //   timing file paths <- FileGlobals.MeasurementLink.TimingFilePaths
+    //   error out <- Step.Result.Error
+    await callLoadSpecsTimingLevelsToSessions(); // Load NI-Digital specifications, levels, and timing [Action]
+    //   sequence context <- ThisContext
+    //   pattern file paths <- FileGlobals.MeasurementLink.PatternFilePaths
+    //   error out <- Step.Result.Error
+    await callLoadPatternsToSessions(); // Load NI-Digital patterns [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDigitalSPI_LabVIEW
-  // measurement param: Pin names (In TypeString IOResource) = {"SPI_PINS"}
-  // measurement param: Specifications file (In TypeString Path) = "Specifications.specs"
-  // measurement param: Levels file (In TypeString Path) = "PinLevels.digilevels"
-  // measurement param: Timing file (In TypeString Path) = "Timing.digitiming"
-  // measurement param: Pattern file (In TypeString Path) = "Pattern.digipat"
-  // measurement param: Load files (In TypeBool) = False
-  // measurement param: Passing sites (Out TypeInt32)
-  // measurement param: Failing sites (Out TypeInt32)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Test SPI device [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-Digital sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDigitalSPI_LabVIEW
+    // measurement param: Pin names (In TypeString IOResource) = {"SPI_PINS"}
+    // measurement param: Specifications file (In TypeString Path) = "Specifications.specs"
+    // measurement param: Levels file (In TypeString Path) = "PinLevels.digilevels"
+    // measurement param: Timing file (In TypeString Path) = "Timing.digitiming"
+    // measurement param: Pattern file (In TypeString Path) = "Pattern.digipat"
+    // measurement param: Load files (In TypeBool) = False
+    // measurement param: Passing sites (Out TypeInt32)
+    // measurement param: Failing sites (Out TypeInt32)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Test SPI device [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-Digital sessions [Action]
+  }
 
   return run.status;
 }

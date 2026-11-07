@@ -65,168 +65,172 @@ Future<String> sequenceFileDoc({
   ); // GetProtection? [Action]
 
   // ── main ──
-  ts.eval(
-    'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_HEADER") + "\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_DATE"), "%-35s") + Date(true) + "\\n" +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_TIME"), "%-35s")  + Time() + "\\n"',
-  ); // Header, Date, and Time
-  ts.eval(
-    '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_OPERATOR"), "%-35s") +\n	(PropertyExists("StationGlobals.TS.CurrentUser.LoginName") ? \n		StationGlobals.TS.CurrentUser.LoginName :\n		GetResourceString("SEQ_FILE_DOC", "DOC_USER_NONE")) +\n	"\\n"\n',
-  ); // By Operator
-  ts.eval(
-    'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
-  ); // Sequence File Header
-  if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
-    // precondition of WordWrapComment
+  skipToEndStationGlobals:
+  {
+    skipToEndSeqFileGlobals:
+    {
+      ts.eval(
+        'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_HEADER") + "\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_DATE"), "%-35s") + Date(true) + "\\n" +\n	Str(GetResourceString("SEQ_FILE_DOC", "DOC_TIME"), "%-35s")  + Time() + "\\n"',
+      ); // Header, Date, and Time
+      ts.eval(
+        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_OPERATOR"), "%-35s") +\n	(PropertyExists("StationGlobals.TS.CurrentUser.LoginName") ? \n		StationGlobals.TS.CurrentUser.LoginName :\n		GetResourceString("SEQ_FILE_DOC", "DOC_USER_NONE")) +\n	"\\n"\n',
+      ); // By Operator
+      ts.eval(
+        'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
+      ); // Sequence File Header
+      if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
+        // precondition of WordWrapComment
+        throw UnimplementedError(
+          'cModule call: WordWrapComment',
+        ); // WordWrapComment [Action]
+      }
+      if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
+        // precondition of Comment
+        ts.eval(
+          'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT") +\n	"\\n" + Locals.tmpString + "\\n"\n',
+        ); // Comment
+      }
+      ts.eval(
+        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_PATH"), "%-35s") +\n	"\\"" + Parameters.SequenceFile.Path + "\\"\\n"\n',
+      ); // Path
+      ts.eval(
+        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_VERSION"), "%-35s") +\n	Parameters.SequenceFile.Data.Version + "\\n"\n',
+      ); // Version
+      ts.eval(
+        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_TYPE"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceFileTypes[Parameters.SequenceFile.Data.Type]) + "\\n"\n',
+      ); // Type
+      ts.eval(
+        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-35s") +\n	GetResourceString("LOAD OPTION STRINGS", Parameters.SequenceFile.Data.LoadOpt) + "\\n"\n',
+      ); // Load Option
+      ts.eval(
+        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-35s") +\n	GetResourceString("UNLOAD OPTION STRINGS", Parameters.SequenceFile.Data.UnloadOpt) + "\\n"\n',
+      ); // Unload Option
+      ts.eval(
+        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELOPT"), "%-35s") +\n	GetResourceString("SF_MODEL_OPTIONS", Str(Parameters.SequenceFile.Data.ModelOption)) + "\\n"\n',
+      ); // Model Option
+      if (sequenceFile.Data.ModelOption == 2) {
+        // precondition of Model File
+        ts.eval(
+          'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELFILE"), "%-35s") +\n	"\\"" + Parameters.SequenceFile.Data.ModelFile + "\\"\\n"\n',
+        ); // Model File
+      }
+      if (ts.cond(
+        'Parameters.SequenceFile.Data.BatchSync != 1 \' Use Model Setting (Default) - Only show if different from default',
+      )) {
+        // precondition of Default Batch Sync
+        ts.eval(
+          '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_DEFAULT_BATCH_SYNC"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC_BATCH_SYNC_NAMES", Str(Parameters.SequenceFile.Data.BatchSync)) + "\\n"\n',
+        ); // Default Batch Sync
+      }
+      ts.eval(
+        '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_SEQUENCES"), "%-35s") +\n	Str(GetNumElements(Parameters.SequenceFile.Data.Seq)) + "\\n"\n',
+      ); // Num Sequences
+      // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
+      totalNumSteps +=
+          ts.getNumElements(sequenceFile.Data.Seq[runState.LoopIndex].Main) +
+          ts.getNumElements(sequenceFile.Data.Seq[runState.LoopIndex].Setup) +
+          ts.getNumElements(
+            sequenceFile.Data.Seq[runState.LoopIndex].Cleanup,
+          ); // Update TotalNumSteps
+      ts.eval(
+        'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_STEPS"), "%-35s") +\n	((FileGlobals.Locked && FileGlobals.Protection==2) ?\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_UNKNOWN") + \n	    " <" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_LOCKED") + \n	    ">"\n	:\n	    Str(Locals.TotalNumSteps)) \n	+"\\n"\n',
+      ); // Num Steps
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      addRequirementsResult.Status = await writeRequirementsElements(
+        requirements: sequenceFile.Data.Requirements,
+        docResult: docResult,
+        doubleIndent: '',
+        maxWwLineLength: maxWwLineLength,
+        wwIndentNum: wwIndentNum,
+        tmpNum: tmpNum,
+      ); // Add Requirements
+      addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
+          ? 'Passed'
+          : addRequirementsResult.Status; // status expression
+      run.record(addRequirementsResult.Status);
+      docResult += '\n'; // Sequence File Footer
+      // label: --- SeqFile Globals ---
+      // goto -> --- End SeqFile Globals ---
+      if (docOptions.ShowFileGlobals == false) {
+        // precondition of skip if not displayed
+        // skip if not displayed [Goto]: no code module
+        break skipToEndSeqFileGlobals; // post action
+      }
+      //   Return Value -> Locals.tmpNum
+      //   lookupString <- ""
+      throw UnimplementedError(
+        'cModule call: GetNumSubProperties',
+      ); // GetNumSubProperties [Action]
+      if (tmpNum > 0) {
+        // precondition of SetProgressMsg
+        throw UnimplementedError(
+          'cModule call: SetProgressMsg',
+        ); // SetProgressMsg [Action]
+      }
+      if (tmpNum > 0) {
+        // precondition of Header
+        ts.eval(
+          'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQFILE_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
+        ); // Header
+      }
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      if (tmpNum > 0) {
+        // precondition of Process SubProps
+        processSubPropsResult.Status =
+            await writeSubproperties(); // Process SubProps
+        processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
+            ? 'Passed'
+            : processSubPropsResult.Status; // status expression
+        run.record(processSubPropsResult.Status);
+      } else {
+        processSubPropsResult.Status = 'Skipped';
+      }
+      if (tmpNum > 0) {
+        // precondition of Footer
+        docResult += '\n'; // Footer
+      }
+    }
+    // label: --- End SeqFile Globals ---
+    // label: --- Station Globals ---
+    // goto -> --- End Station Globals ---
+    if (docOptions.ShowStationGlobals == false) {
+      // precondition of skip if not displayed
+      // skip if not displayed [Goto]: no code module
+      break skipToEndStationGlobals; // post action
+    }
+    //   Return Value -> Locals.tmpNum
+    //   lookupString <- ""
     throw UnimplementedError(
-      'cModule call: WordWrapComment',
-    ); // WordWrapComment [Action]
-  }
-  if (ts.cond('CommentOf(Parameters.SequenceFile.Data) != ""')) {
-    // precondition of Comment
-    ts.eval(
-      'Locals.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT") +\n	"\\n" + Locals.tmpString + "\\n"\n',
-    ); // Comment
-  }
-  ts.eval(
-    'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_PATH"), "%-35s") +\n	"\\"" + Parameters.SequenceFile.Path + "\\"\\n"\n',
-  ); // Path
-  ts.eval(
-    'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_VERSION"), "%-35s") +\n	Parameters.SequenceFile.Data.Version + "\\n"\n',
-  ); // Version
-  ts.eval(
-    '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_TYPE"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceFileTypes[Parameters.SequenceFile.Data.Type]) + "\\n"\n',
-  ); // Type
-  ts.eval(
-    'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-35s") +\n	GetResourceString("LOAD OPTION STRINGS", Parameters.SequenceFile.Data.LoadOpt) + "\\n"\n',
-  ); // Load Option
-  ts.eval(
-    'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-35s") +\n	GetResourceString("UNLOAD OPTION STRINGS", Parameters.SequenceFile.Data.UnloadOpt) + "\\n"\n',
-  ); // Unload Option
-  ts.eval(
-    '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELOPT"), "%-35s") +\n	GetResourceString("SF_MODEL_OPTIONS", Str(Parameters.SequenceFile.Data.ModelOption)) + "\\n"\n',
-  ); // Model Option
-  if (sequenceFile.Data.ModelOption == 2) {
-    // precondition of Model File
-    ts.eval(
-      'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_MODELFILE"), "%-35s") +\n	"\\"" + Parameters.SequenceFile.Data.ModelFile + "\\"\\n"\n',
-    ); // Model File
-  }
-  if (ts.cond(
-    'Parameters.SequenceFile.Data.BatchSync != 1 \' Use Model Setting (Default) - Only show if different from default',
-  )) {
-    // precondition of Default Batch Sync
-    ts.eval(
-      '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_DEFAULT_BATCH_SYNC"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC_BATCH_SYNC_NAMES", Str(Parameters.SequenceFile.Data.BatchSync)) + "\\n"\n',
-    ); // Default Batch Sync
-  }
-  ts.eval(
-    '\nLocals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_SEQUENCES"), "%-35s") +\n	Str(GetNumElements(Parameters.SequenceFile.Data.Seq)) + "\\n"\n',
-  ); // Num Sequences
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Parameters.SequenceFile.Data.Seq); increment RunState.LoopIndex += 1; status "Passed"
-  totalNumSteps +=
-      ts.getNumElements(sequenceFile.Data.Seq[runState.LoopIndex].Main) +
-      ts.getNumElements(sequenceFile.Data.Seq[runState.LoopIndex].Setup) +
-      ts.getNumElements(
-        sequenceFile.Data.Seq[runState.LoopIndex].Cleanup,
-      ); // Update TotalNumSteps
-  ts.eval(
-    'Locals.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_NUM_STEPS"), "%-35s") +\n	((FileGlobals.Locked && FileGlobals.Protection==2) ?\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_UNKNOWN") + \n	    " <" +\n	    GetResourceString("SEQ_FILE_DOC", "DOC_SEQFILE_LOCKED") + \n	    ">"\n	:\n	    Str(Locals.TotalNumSteps)) \n	+"\\n"\n',
-  ); // Num Steps
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  addRequirementsResult.Status = await writeRequirementsElements(
-    requirements: sequenceFile.Data.Requirements,
-    docResult: docResult,
-    doubleIndent: '',
-    maxWwLineLength: maxWwLineLength,
-    wwIndentNum: wwIndentNum,
-    tmpNum: tmpNum,
-  ); // Add Requirements
-  addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
-      ? 'Passed'
-      : addRequirementsResult.Status; // status expression
-  run.record(addRequirementsResult.Status);
-  docResult += '\n'; // Sequence File Footer
-  // label: --- SeqFile Globals ---
-  // goto -> --- End SeqFile Globals ---
-  if (docOptions.ShowFileGlobals == false) {
-    // precondition of skip if not displayed
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // skip if not displayed [Goto]
-  }
-  //   Return Value -> Locals.tmpNum
-  //   lookupString <- ""
-  throw UnimplementedError(
-    'cModule call: GetNumSubProperties',
-  ); // GetNumSubProperties [Action]
-  if (tmpNum > 0) {
-    // precondition of SetProgressMsg
-    throw UnimplementedError(
-      'cModule call: SetProgressMsg',
-    ); // SetProgressMsg [Action]
-  }
-  if (tmpNum > 0) {
-    // precondition of Header
-    ts.eval(
-      'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQFILE_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Header
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (tmpNum > 0) {
-    // precondition of Process SubProps
-    processSubPropsResult.Status =
-        await writeSubproperties(); // Process SubProps
-    processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
-        ? 'Passed'
-        : processSubPropsResult.Status; // status expression
-    run.record(processSubPropsResult.Status);
-  } else {
-    processSubPropsResult.Status = 'Skipped';
-  }
-  if (tmpNum > 0) {
-    // precondition of Footer
-    docResult += '\n'; // Footer
-  }
-  // label: --- End SeqFile Globals ---
-  // label: --- Station Globals ---
-  // goto -> --- End Station Globals ---
-  if (docOptions.ShowStationGlobals == false) {
-    // precondition of skip if not displayed
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // skip if not displayed [Goto]
-  }
-  //   Return Value -> Locals.tmpNum
-  //   lookupString <- ""
-  throw UnimplementedError(
-    'cModule call: GetNumSubProperties',
-  ); // GetNumSubProperties [Action]
-  if (tmpNum > 0) {
-    // precondition of SetProgressMsg
-    throw UnimplementedError(
-      'cModule call: SetProgressMsg',
-    ); // SetProgressMsg [Action]
-  }
-  if (tmpNum > 0) {
-    // precondition of Header
-    ts.eval(
-      'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_STATION_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Header
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (tmpNum > 0) {
-    // precondition of Process SubProps
-    processSubPropsResult2.Status =
-        await writeSubproperties(); // Process SubProps
-    processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
-        ? 'Passed'
-        : processSubPropsResult2.Status; // status expression
-    run.record(processSubPropsResult2.Status);
-  } else {
-    processSubPropsResult2.Status = 'Skipped';
-  }
-  if (tmpNum > 0) {
-    // precondition of Footer
-    docResult += '\n'; // Footer
+      'cModule call: GetNumSubProperties',
+    ); // GetNumSubProperties [Action]
+    if (tmpNum > 0) {
+      // precondition of SetProgressMsg
+      throw UnimplementedError(
+        'cModule call: SetProgressMsg',
+      ); // SetProgressMsg [Action]
+    }
+    if (tmpNum > 0) {
+      // precondition of Header
+      ts.eval(
+        'Locals.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_STATION_GLOBALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
+      ); // Header
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    if (tmpNum > 0) {
+      // precondition of Process SubProps
+      processSubPropsResult2.Status =
+          await writeSubproperties(); // Process SubProps
+      processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
+          ? 'Passed'
+          : processSubPropsResult2.Status; // status expression
+      run.record(processSubPropsResult2.Status);
+    } else {
+      processSubPropsResult2.Status = 'Skipped';
+    }
+    if (tmpNum > 0) {
+      // precondition of Footer
+      docResult += '\n'; // Footer
+    }
   }
   // label: --- End Station Globals ---
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
@@ -300,132 +304,136 @@ Future<String> sequenceDoc({
     'Common': ts.PropObj(),
   }); // result of For Each Cleanup Step
 
-  ts.eval(
-    'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	"\\"" + NameOf( Parameters.Sequence) + "\\"\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
-  ); // Sequence Header
-  if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
-    // precondition of WordWrapComment
+  skipToEndLocals:
+  {
+    skipToEndParameters:
+    {
+      ts.eval(
+        'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NAME") +\n	"\\"" + NameOf( Parameters.Sequence) + "\\"\\n" +\n	GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"\n',
+      ); // Sequence Header
+      if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
+        // precondition of WordWrapComment
+        throw UnimplementedError(
+          'cModule call: WordWrapComment',
+        ); // WordWrapComment [Action]
+      }
+      if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
+        // precondition of Comment
+        ts.eval(
+          'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT") +\n	"\\n" + Locals.tmpString + "\\n"\n',
+        ); // Comment
+      }
+      ts.eval(
+        '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_TYPE"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceTypes[Parameters.Sequence.RTS.Type]) + "\\n"\n',
+      ); // Type
+      ts.eval(
+        '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_DISABLE_RESULTS"), "%-35s") +\n	Str(!Parameters.Sequence.RecordResults) + "\\n"\n',
+      ); // Record Results
+      ts.eval(
+        'Parameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_GOTO_CLEANUP_ON_FAIL"), "%-35s") +\n	(Parameters.Sequence.FailureAction==0?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_NONE"):(Parameters.Sequence.FailureAction==1?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_GOTO_CLEANUP"):GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_USE_STATION_OPTION"))) + "\\n"\n',
+      ); // Cleanup On Fail
+      if (!fileGlobals.Locked || fileGlobals.Protection != 2) {
+        ts.eval(
+          '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_SETUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Setup)) + "\\n"\n',
+        ); // Num Setup Steps
+        ts.eval(
+          '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_MAIN_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Main)) + "\\n"\n',
+        ); // Num Main Steps
+        ts.eval(
+          '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
+        ); // Num Cleanup Steps
+        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        addRequirementsResult.Status = await writeRequirementsElements(
+          requirements: sequence.Requirements,
+          docResult: docResult,
+          doubleIndent: '',
+          maxWwLineLength: maxWwLineLength,
+          wwIndentNum: wwIndentNum,
+          tmpNum: tmpNum,
+        ); // Add Requirements
+        addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
+            ? 'Passed'
+            : addRequirementsResult.Status; // status expression
+        run.record(addRequirementsResult.Status);
+      }
+      docResult += '\n'; // Sequence Footer
+      // label: --- Parameters ---
+      // goto -> --- End Parameters ---
+      if (docOptions.ShowParameters == false) {
+        // precondition of skip if not displayed
+        // skip if not displayed [Goto]: no code module
+        break skipToEndParameters; // post action
+      }
+      //   Return Value -> Locals.tmpNum
+      //   lookupString <- ""
+      throw UnimplementedError(
+        'cModule call: GetNumSubProperties',
+      ); // GetNumSubProperties [Action]
+      if (tmpNum > 0) {
+        // precondition of SetProgressMsg
+        throw UnimplementedError(
+          'cModule call: SetProgressMsg',
+        ); // SetProgressMsg [Action]
+      }
+      if (tmpNum > 0) {
+        // precondition of Header
+        ts.eval(
+          'Parameters.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQ_PARAMS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
+        ); // Header
+      }
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      if (tmpNum > 0) {
+        // precondition of Process SubProps
+        processSubPropsResult.Status =
+            await writeSubproperties(); // Process SubProps
+        processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
+            ? 'Passed'
+            : processSubPropsResult.Status; // status expression
+        run.record(processSubPropsResult.Status);
+      } else {
+        processSubPropsResult.Status = 'Skipped';
+      }
+      docResult += '\n'; // Footer
+    }
+    // label: --- End Parameters ---
+    // label: --- Locals ---
+    // goto -> --- End Locals ---
+    if (docOptions.ShowLocals == false) {
+      // precondition of skip if not displayed
+      // skip if not displayed [Goto]: no code module
+      break skipToEndLocals; // post action
+    }
+    //   Return Value -> Locals.tmpNum
+    //   lookupString <- ""
     throw UnimplementedError(
-      'cModule call: WordWrapComment',
-    ); // WordWrapComment [Action]
-  }
-  if (ts.cond('CommentOf(Parameters.Sequence) != ""')) {
-    // precondition of Comment
-    ts.eval(
-      'Parameters.DocResult += GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_COMMENT") +\n	"\\n" + Locals.tmpString + "\\n"\n',
-    ); // Comment
-  }
-  ts.eval(
-    '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_TYPE"), "%-35s") +\n	GetResourceString("SEQ_FILE_DOC", FileGlobals.SequenceTypes[Parameters.Sequence.RTS.Type]) + "\\n"\n',
-  ); // Type
-  ts.eval(
-    '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_DISABLE_RESULTS"), "%-35s") +\n	Str(!Parameters.Sequence.RecordResults) + "\\n"\n',
-  ); // Record Results
-  ts.eval(
-    'Parameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_GOTO_CLEANUP_ON_FAIL"), "%-35s") +\n	(Parameters.Sequence.FailureAction==0?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_NONE"):(Parameters.Sequence.FailureAction==1?GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_GOTO_CLEANUP"):GetResourceString("SEQUENCE_PROP_DLG", "STEP_FAILURE_ACTION_USE_STATION_OPTION"))) + "\\n"\n',
-  ); // Cleanup On Fail
-  if (!fileGlobals.Locked || fileGlobals.Protection != 2) {
-    ts.eval(
-      '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_SETUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Setup)) + "\\n"\n',
-    ); // Num Setup Steps
-    ts.eval(
-      '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_MAIN_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Main)) + "\\n"\n',
-    ); // Num Main Steps
-    ts.eval(
-      '\nParameters.DocResult += Str(GetResourceString("SEQ_FILE_DOC", "DOC_SEQ_NUM_CLEANUP_STEPS"), "%-35s") +\n	Str(GetNumElements(Parameters.Sequence.Cleanup)) + "\\n"\n',
-    ); // Num Cleanup Steps
+      'cModule call: GetNumSubProperties',
+    ); // GetNumSubProperties [Action]
+    if (tmpNum > 0) {
+      // precondition of SetProgressMsg
+      throw UnimplementedError(
+        'cModule call: SetProgressMsg',
+      ); // SetProgressMsg [Action]
+    }
+    if (tmpNum > 0) {
+      // precondition of Header
+      ts.eval(
+        'Parameters.DocResult += "     " +ResStr("SEQ_FILE_DOC", "DOC_SEQ_LOCALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
+      ); // Header
+    }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    addRequirementsResult.Status = await writeRequirementsElements(
-      requirements: sequence.Requirements,
-      docResult: docResult,
-      doubleIndent: '',
-      maxWwLineLength: maxWwLineLength,
-      wwIndentNum: wwIndentNum,
-      tmpNum: tmpNum,
-    ); // Add Requirements
-    addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
-        ? 'Passed'
-        : addRequirementsResult.Status; // status expression
-    run.record(addRequirementsResult.Status);
+    if (tmpNum > 0) {
+      // precondition of Process SubProps
+      processSubPropsResult2.Status =
+          await writeSubproperties(); // Process SubProps
+      processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
+          ? 'Passed'
+          : processSubPropsResult2.Status; // status expression
+      run.record(processSubPropsResult2.Status);
+    } else {
+      processSubPropsResult2.Status = 'Skipped';
+    }
+    docResult += '\n'; // Footer
   }
-  docResult += '\n'; // Sequence Footer
-  // label: --- Parameters ---
-  // goto -> --- End Parameters ---
-  if (docOptions.ShowParameters == false) {
-    // precondition of skip if not displayed
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // skip if not displayed [Goto]
-  }
-  //   Return Value -> Locals.tmpNum
-  //   lookupString <- ""
-  throw UnimplementedError(
-    'cModule call: GetNumSubProperties',
-  ); // GetNumSubProperties [Action]
-  if (tmpNum > 0) {
-    // precondition of SetProgressMsg
-    throw UnimplementedError(
-      'cModule call: SetProgressMsg',
-    ); // SetProgressMsg [Action]
-  }
-  if (tmpNum > 0) {
-    // precondition of Header
-    ts.eval(
-      'Parameters.DocResult += "     " + ResStr("SEQ_FILE_DOC", "DOC_SEQ_PARAMS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Header
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (tmpNum > 0) {
-    // precondition of Process SubProps
-    processSubPropsResult.Status =
-        await writeSubproperties(); // Process SubProps
-    processSubPropsResult.Status = processSubPropsResult.Status == 'Done'
-        ? 'Passed'
-        : processSubPropsResult.Status; // status expression
-    run.record(processSubPropsResult.Status);
-  } else {
-    processSubPropsResult.Status = 'Skipped';
-  }
-  docResult += '\n'; // Footer
-  // label: --- End Parameters ---
-  // label: --- Locals ---
-  // goto -> --- End Locals ---
-  if (docOptions.ShowLocals == false) {
-    // precondition of skip if not displayed
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // skip if not displayed [Goto]
-  }
-  //   Return Value -> Locals.tmpNum
-  //   lookupString <- ""
-  throw UnimplementedError(
-    'cModule call: GetNumSubProperties',
-  ); // GetNumSubProperties [Action]
-  if (tmpNum > 0) {
-    // precondition of SetProgressMsg
-    throw UnimplementedError(
-      'cModule call: SetProgressMsg',
-    ); // SetProgressMsg [Action]
-  }
-  if (tmpNum > 0) {
-    // precondition of Header
-    ts.eval(
-      'Parameters.DocResult += "     " +ResStr("SEQ_FILE_DOC", "DOC_SEQ_LOCALS")  + "\\n" + "     " + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n"',
-    ); // Header
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (tmpNum > 0) {
-    // precondition of Process SubProps
-    processSubPropsResult2.Status =
-        await writeSubproperties(); // Process SubProps
-    processSubPropsResult2.Status = processSubPropsResult2.Status == 'Done'
-        ? 'Passed'
-        : processSubPropsResult2.Status; // status expression
-    run.record(processSubPropsResult2.Status);
-  } else {
-    processSubPropsResult2.Status = 'Skipped';
-  }
-  docResult += '\n'; // Footer
   // label: --- End Locals ---
   // label: --- Step Doc ---
   throw UnimplementedError(
@@ -519,143 +527,146 @@ Future<String> stepDoc({
     'Common': ts.PropObj(),
   }); // result of Add Multiple Numeric Limits
 
-  //   Return Value -> Locals.BlockLevel
-  throw UnimplementedError(
-    'cModule call: Get Block Level',
-  ); // Get Block Level [Action]
-  indent =
-      ts.str('', '%' + ts.str(blockLevel * 5) + 's') +
-      '     '; // Indent According To Block Level
-  doubleIndent = indent + '     '; // Indent According To Block Level (cont.)
-  wwIndentNum =
-      ts.len(doubleIndent) + 5; // Indent According To Block Level (cont.)
-  maxWwLineLength = 65 + wwIndentNum; // Indent According To Block Level (cont.)
-  stepsSoFar += 1; // Update StepsSoFar
-  throw UnimplementedError(
-    'cModule call: Update Percent Done',
-  ); // Update Percent Done [Action]
-  ts.eval(
-    'Locals.StepDocs += Locals.Indent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") + "\\"" + NameOf(Parameters.Step) + "\\"\\n"\n',
-  ); // Step Header
-  // checks: Step.Result.PassFail
-  // status expression: Step.Result.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'cModule call: Get StepType Name',
-  ); // Get StepType Name [PassFailTest]
-  getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(getStepTypeNameResult.Status);
-  //   Return Value -> Locals.StepKeyName
-  throw UnimplementedError(
-    'cModule call: GetStepKeyName',
-  ); // GetStepKeyName [Action]
-  ts.eval(
-    'Locals.tmpString = GetResourceString("Adapter Names", Locals.StepKeyName)',
-  ); // Process Adapter Name
-  ts.eval(
-    'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-35s") +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
-  ); // Step Type, Adapter Name
-  //   Return Value -> Locals.tmpString
-  //   options <- 1 ' long description
-  throw UnimplementedError(
-    'cModule call: Get Step Desc',
-  ); // Get Step Desc [Action]
-  throw UnimplementedError(
-    'cModule call: WordWrapDesc',
-  ); // WordWrapDesc [Action]
-  ts.eval(
-    'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DESC") + "\\n" + Locals.tmpString + "\\n"\n',
-  ); // Step Description
-  if (ts.cond('CommentOf(Parameters.Step) != ""')) {
-    // precondition of WordWrapComment
+  skipToBeginOfMultipleLimits:
+  {
+    //   Return Value -> Locals.BlockLevel
     throw UnimplementedError(
-      'cModule call: WordWrapComment',
-    ); // WordWrapComment [Action]
-  }
-  if (ts.cond('CommentOf(Parameters.Step) != ""')) {
-    // precondition of Comment
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMMENT") + "\\n" + Locals.tmpString + "\\n"\n',
-    ); // Comment
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  addRequirementsResult.Status = await writeRequirementsElements(
-    requirements: step$.TS.Requirements,
-    docResult: stepDocs,
-    doubleIndent: doubleIndent,
-    maxWwLineLength: maxWwLineLength,
-    wwIndentNum: wwIndentNum,
-    tmpNum: tmpNum,
-  ); // Add Requirements
-  addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
-      ? 'Passed'
-      : addRequirementsResult.Status; // status expression
-  run.record(addRequirementsResult.Status);
-  if (ts.cond(
-    'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
-  )) {
-    // precondition of WordWrapInBuf
+      'cModule call: Get Block Level',
+    ); // Get Block Level [Action]
+    indent =
+        ts.str('', '%' + ts.str(blockLevel * 5) + 's') +
+        '     '; // Indent According To Block Level
+    doubleIndent = indent + '     '; // Indent According To Block Level (cont.)
+    wwIndentNum =
+        ts.len(doubleIndent) + 5; // Indent According To Block Level (cont.)
+    maxWwLineLength =
+        65 + wwIndentNum; // Indent According To Block Level (cont.)
+    stepsSoFar += 1; // Update StepsSoFar
     throw UnimplementedError(
-      'cModule call: WordWrapInBuf',
-    ); // WordWrapInBuf [Action]
-  }
-  if (ts.cond(
-    'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
-  )) {
-    // precondition of InBuf
+      'cModule call: Update Percent Done',
+    ); // Update Percent Done [Action]
     ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_INBUF") + "\\n" + Locals.tmpString + "\\n"\n',
-    ); // InBuf
-  }
-  ts.eval(
-    'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-35s") + GetResourceString("LOAD OPTION STRINGS", Parameters.Step.TS.LoadOpt) + "\\n"\n',
-  ); // Load Option
-  ts.eval(
-    'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-35s") +	GetResourceString("UNLOAD OPTION STRINGS", Parameters.Step.TS.UnloadOpt) + "\\n"\n',
-  ); // Unload Option
-  if (step$.TS.ResultOption != 1) {
-    // precondition of Record Results
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_RECORD_RESULTS"), "%-35s") + \n(Parameters.Step.TS.ResultOption== 0?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_DISABLED")):(Parameters.Step.TS.ResultOption == 1?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED")):(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING"))))  + "\\n"\n',
-    ); // Record Results
-  }
-  if (!ts.truthy(step$.TS.StepFCSeqF)) {
-    // precondition of Step Fail Causes Seq Fail
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_STEP_FAIL_SEQ_FAIL"), "%-35s") + Str(Parameters.Step.TS.StepFCSeqF) + "\\n"\n',
-    ); // Step Fail Causes Seq Fail
-  }
-  if (ts.truthy(step$.TS.IgnoreRTE)) {
-    // precondition of Ignore Run-Time Error
-    ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_IGNORE_RTE"), "%-35s") + Str(Parameters.Step.TS.IgnoreRTE) + "\\n"\n',
-    ); // Ignore Run-Time Error
-  }
-  // goto -> --- Begin of Multiple Limits ---
-  if (ts.cond('PropertyExists("Parameters.Step.Result.Measurement")')) {
-    // precondition of Skip to Multiple Limits Section
+      'Locals.StepDocs += Locals.Indent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_NAME") + "\\"" + NameOf(Parameters.Step) + "\\"\\n"\n',
+    ); // Step Header
+    // checks: Step.Result.PassFail
+    // status expression: Step.Result.PassFail ? "Passed" : "Failed"
     throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Skip to Multiple Limits Section [Goto]
-  }
-  if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
-    // precondition of WordWrapStringLimit
+      'cModule call: Get StepType Name',
+    ); // Get StepType Name [PassFailTest]
+    getStepTypeNameResult.Status = ts.truthy(getStepTypeNameResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(getStepTypeNameResult.Status);
+    //   Return Value -> Locals.StepKeyName
     throw UnimplementedError(
-      'cModule call: WordWrapStringLimit',
-    ); // WordWrapStringLimit [Action]
-  }
-  if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
-    // precondition of String Limit
+      'cModule call: GetStepKeyName',
+    ); // GetStepKeyName [Action]
     ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_STRING") + "\\n" + Locals.tmpString + "\\n"\n',
-    ); // String Limit
-  }
-  if (ts.cond('PropertyExists("Parameters.Step.DataSource")')) {
-    // precondition of Data Source
+      'Locals.tmpString = GetResourceString("Adapter Names", Locals.StepKeyName)',
+    ); // Process Adapter Name
     ts.eval(
-      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") +\n		LocalizeExpression(Parameters.Step.DataSource) + "\\n"\n',
-    ); // Data Source
+      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_TYPE_AND_ADAPTER"), "%-35s") +\nResStr("STEPTYPE_NAMES", Locals.StepTypeName, Locals.StepTypeName) + \n", " + Locals.tmpString + "\\n"\n',
+    ); // Step Type, Adapter Name
+    //   Return Value -> Locals.tmpString
+    //   options <- 1 ' long description
+    throw UnimplementedError(
+      'cModule call: Get Step Desc',
+    ); // Get Step Desc [Action]
+    throw UnimplementedError(
+      'cModule call: WordWrapDesc',
+    ); // WordWrapDesc [Action]
+    ts.eval(
+      'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DESC") + "\\n" + Locals.tmpString + "\\n"\n',
+    ); // Step Description
+    if (ts.cond('CommentOf(Parameters.Step) != ""')) {
+      // precondition of WordWrapComment
+      throw UnimplementedError(
+        'cModule call: WordWrapComment',
+      ); // WordWrapComment [Action]
+    }
+    if (ts.cond('CommentOf(Parameters.Step) != ""')) {
+      // precondition of Comment
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMMENT") + "\\n" + Locals.tmpString + "\\n"\n',
+      ); // Comment
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    addRequirementsResult.Status = await writeRequirementsElements(
+      requirements: step$.TS.Requirements,
+      docResult: stepDocs,
+      doubleIndent: doubleIndent,
+      maxWwLineLength: maxWwLineLength,
+      wwIndentNum: wwIndentNum,
+      tmpNum: tmpNum,
+    ); // Add Requirements
+    addRequirementsResult.Status = addRequirementsResult.Status == 'Done'
+        ? 'Passed'
+        : addRequirementsResult.Status; // status expression
+    run.record(addRequirementsResult.Status);
+    if (ts.cond(
+      'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
+    )) {
+      // precondition of WordWrapInBuf
+      throw UnimplementedError(
+        'cModule call: WordWrapInBuf',
+      ); // WordWrapInBuf [Action]
+    }
+    if (ts.cond(
+      'PropertyExists("Parameters.Step.InBuf") ? Parameters.Step.InBuf != "" : False',
+    )) {
+      // precondition of InBuf
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_INBUF") + "\\n" + Locals.tmpString + "\\n"\n',
+      ); // InBuf
+    }
+    ts.eval(
+      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_LOAD_OPTION"), "%-35s") + GetResourceString("LOAD OPTION STRINGS", Parameters.Step.TS.LoadOpt) + "\\n"\n',
+    ); // Load Option
+    ts.eval(
+      'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_UNLOAD_OPTION"), "%-35s") +	GetResourceString("UNLOAD OPTION STRINGS", Parameters.Step.TS.UnloadOpt) + "\\n"\n',
+    ); // Unload Option
+    if (step$.TS.ResultOption != 1) {
+      // precondition of Record Results
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_RECORD_RESULTS"), "%-35s") + \n(Parameters.Step.TS.ResultOption== 0?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_DISABLED")):(Parameters.Step.TS.ResultOption == 1?(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED")):(GetResourceString("STEP_PROP_DLG", "RESULT_RECORDING_OPTION_ENABLED_OVERRIDE_SEQUENCE_SETTING"))))  + "\\n"\n',
+      ); // Record Results
+    }
+    if (!ts.truthy(step$.TS.StepFCSeqF)) {
+      // precondition of Step Fail Causes Seq Fail
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_STEP_FAIL_SEQ_FAIL"), "%-35s") + Str(Parameters.Step.TS.StepFCSeqF) + "\\n"\n',
+      ); // Step Fail Causes Seq Fail
+    }
+    if (ts.truthy(step$.TS.IgnoreRTE)) {
+      // precondition of Ignore Run-Time Error
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_IGNORE_RTE"), "%-35s") + Str(Parameters.Step.TS.IgnoreRTE) + "\\n"\n',
+      ); // Ignore Run-Time Error
+    }
+    // goto -> --- Begin of Multiple Limits ---
+    if (ts.cond('PropertyExists("Parameters.Step.Result.Measurement")')) {
+      // precondition of Skip to Multiple Limits Section
+      // Skip to Multiple Limits Section [Goto]: no code module
+      break skipToBeginOfMultipleLimits; // post action
+    }
+    if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
+      // precondition of WordWrapStringLimit
+      throw UnimplementedError(
+        'cModule call: WordWrapStringLimit',
+      ); // WordWrapStringLimit [Action]
+    }
+    if (ts.cond('PropertyExists("Parameters.Step.Limits.String") ')) {
+      // precondition of String Limit
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_STRING") + "\\n" + Locals.tmpString + "\\n"\n',
+      ); // String Limit
+    }
+    if (ts.cond('PropertyExists("Parameters.Step.DataSource")')) {
+      // precondition of Data Source
+      ts.eval(
+        'Locals.StepDocs += Locals.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") +\n		LocalizeExpression(Parameters.Step.DataSource) + "\\n"\n',
+      ); // Data Source
+    }
   }
   // label: --- Begin of Multiple Limits ---
   // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
@@ -729,70 +740,78 @@ Future<String> writeSubproperties({
     'Common': ts.PropObj(),
   }); // result of DisplaySubpropertiesOfSubproperty
 
-  //   Return Value -> Locals.NumSubproperties
-  //   lookupString <- Parameters.ParentPropLookupStr
-  throw UnimplementedError(
-    'cModule call: GetNumSubProperties',
-  ); // GetNumSubProperties [Action]
-  // goto -> <End>
-  if (i == numSubproperties) {
-    // precondition of Goto End When Done
+  endMain:
+  {
+    //   Return Value -> Locals.NumSubproperties
+    //   lookupString <- Parameters.ParentPropLookupStr
     throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Goto End When Done [Goto]
+      'cModule call: GetNumSubProperties',
+    ); // GetNumSubProperties [Action]
+    backToGotoEndWhenDone:
+    while (true) {
+      // goto -> <End>
+      if (i == numSubproperties) {
+        // precondition of Goto End When Done
+        // Goto End When Done [Goto]: no code module
+        break endMain; // post action
+      }
+      //   Return Value -> Locals.SubpropName
+      //   lookupString <- Parameters.ParentPropLookupStr
+      //   index <- Locals.i
+      //   options <- 0
+      throw UnimplementedError(
+        'cModule call: GetSubPropName',
+      ); // GetSubPropName [Action]
+      parentPropLookupStr != ''
+          ? (subpropLookupStr = parentPropLookupStr + '.' + subpropName)
+          : (subpropLookupStr = subpropName); // BuildNewLookupStr
+      //   Return Value -> Locals.SubpropFlags
+      //   lookupString <- Locals.SubpropLookupStr
+      //   options <- 0
+      throw UnimplementedError('cModule call: GetFlags'); // GetFlags [Action]
+      subpropFlags & 8 != 0
+          ? (isHidden = true)
+          : (isHidden = false); // IsHidden
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      if (isHidden == false || ts.truthy(docOptions.ShowHidden)) {
+        // precondition of DisplayProperty
+        displayPropertyResult.Status =
+            await writePropertyDetails(); // DisplayProperty
+        displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
+            ? 'Passed'
+            : displayPropertyResult.Status; // status expression
+        run.record(displayPropertyResult.Status);
+      } else {
+        displayPropertyResult.Status = 'Skipped';
+      }
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      if ((isHidden == false || ts.truthy(docOptions.ShowHidden)) &&
+          ts.truthy(docOptions.ShowSubproperties)) {
+        // precondition of DisplaySubpropertiesOfSubproperty
+        displaySubpropertiesOfSubpropertyResult.Status =
+            await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
+        displaySubpropertiesOfSubpropertyResult.Status =
+            displaySubpropertiesOfSubpropertyResult.Status == 'Done'
+            ? 'Passed'
+            : displaySubpropertiesOfSubpropertyResult
+                  .Status; // status expression
+        run.record(displaySubpropertiesOfSubpropertyResult.Status);
+      } else {
+        displaySubpropertiesOfSubpropertyResult.Status = 'Skipped';
+      }
+      i += 1; // Increment index
+      if (isRecursiveCall == false) {
+        // precondition of Update Percent Done
+        throw UnimplementedError(
+          'cModule call: Update Percent Done',
+        ); // Update Percent Done [Action]
+      }
+      // goto -> Goto End When Done
+      // Loop back around [Goto]: no code module
+      continue backToGotoEndWhenDone; // post action
+      break backToGotoEndWhenDone;
+    }
   }
-  //   Return Value -> Locals.SubpropName
-  //   lookupString <- Parameters.ParentPropLookupStr
-  //   index <- Locals.i
-  //   options <- 0
-  throw UnimplementedError(
-    'cModule call: GetSubPropName',
-  ); // GetSubPropName [Action]
-  parentPropLookupStr != ''
-      ? (subpropLookupStr = parentPropLookupStr + '.' + subpropName)
-      : (subpropLookupStr = subpropName); // BuildNewLookupStr
-  //   Return Value -> Locals.SubpropFlags
-  //   lookupString <- Locals.SubpropLookupStr
-  //   options <- 0
-  throw UnimplementedError('cModule call: GetFlags'); // GetFlags [Action]
-  subpropFlags & 8 != 0 ? (isHidden = true) : (isHidden = false); // IsHidden
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (isHidden == false || ts.truthy(docOptions.ShowHidden)) {
-    // precondition of DisplayProperty
-    displayPropertyResult.Status =
-        await writePropertyDetails(); // DisplayProperty
-    displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
-        ? 'Passed'
-        : displayPropertyResult.Status; // status expression
-    run.record(displayPropertyResult.Status);
-  } else {
-    displayPropertyResult.Status = 'Skipped';
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if ((isHidden == false || ts.truthy(docOptions.ShowHidden)) &&
-      ts.truthy(docOptions.ShowSubproperties)) {
-    // precondition of DisplaySubpropertiesOfSubproperty
-    displaySubpropertiesOfSubpropertyResult.Status =
-        await writeSubproperties(); // DisplaySubpropertiesOfSubproperty
-    displaySubpropertiesOfSubpropertyResult.Status =
-        displaySubpropertiesOfSubpropertyResult.Status == 'Done'
-        ? 'Passed'
-        : displaySubpropertiesOfSubpropertyResult.Status; // status expression
-    run.record(displaySubpropertiesOfSubpropertyResult.Status);
-  } else {
-    displaySubpropertiesOfSubpropertyResult.Status = 'Skipped';
-  }
-  i += 1; // Increment index
-  if (isRecursiveCall == false) {
-    // precondition of Update Percent Done
-    throw UnimplementedError(
-      'cModule call: Update Percent Done',
-    ); // Update Percent Done [Action]
-  }
-  // goto -> Goto End When Done
-  throw UnimplementedError(
-    'step type Goto: action not exported yet',
-  ); // Loop back around [Goto]
 
   return run.status;
 }
@@ -822,62 +841,69 @@ Future<String> writeArrayElements({
     'Common': ts.PropObj(),
   }); // result of DisplaySubproperties
 
-  //   lookupString <- Parameters.ArrayPropLookupStr
-  //   options <- 0
-  //   lowerBounds [out]
-  //   upperBounds [out]
-  //   numElements -> Locals.NumElements
-  //   elementType [out]
-  throw UnimplementedError(
-    'cModule call: GetNumElements',
-  ); // GetNumElements [Action]
-  // label: --- Start of Loop ---
-  // goto -> --- Max Num Array Elements Msg ---
-  if (currentOffset == docOptions.MaxNumArrayElementsToShow &&
-      currentOffset != numElements) {
-    // precondition of Check for Max Num Array Elements
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Check for Max Num Array Elements [Goto]
+  endMain:
+  {
+    skipToMaxNumArrayElementsMsg:
+    {
+      //   lookupString <- Parameters.ArrayPropLookupStr
+      //   options <- 0
+      //   lowerBounds [out]
+      //   upperBounds [out]
+      //   numElements -> Locals.NumElements
+      //   elementType [out]
+      throw UnimplementedError(
+        'cModule call: GetNumElements',
+      ); // GetNumElements [Action]
+      backToStartOfLoop:
+      while (true) {
+        // label: --- Start of Loop ---
+        // goto -> --- Max Num Array Elements Msg ---
+        if (currentOffset == docOptions.MaxNumArrayElementsToShow &&
+            currentOffset != numElements) {
+          // precondition of Check for Max Num Array Elements
+          // Check for Max Num Array Elements [Goto]: no code module
+          break skipToMaxNumArrayElementsMsg; // post action
+        }
+        // goto -> <End>
+        if (currentOffset == numElements) {
+          // precondition of Goto End When Done
+          // Goto End When Done [Goto]: no code module
+          break endMain; // post action
+        }
+        //   Return Value -> Locals.CurrentArrayIndex
+        //   lookupString <- Parameters.ArrayPropLookupStr
+        //   options <- 0
+        //   offset <- Locals.CurrentOffset
+        throw UnimplementedError(
+          'cModule call: GetArrayIndexFromOffset',
+        ); // GetArrayIndexFromOffset [Action]
+        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        displayPropertyResult.Status =
+            await writePropertyDetails(); // DisplayProperty
+        displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
+            ? 'Passed'
+            : displayPropertyResult.Status; // status expression
+        run.record(displayPropertyResult.Status);
+        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        displaySubpropertiesResult.Status =
+            await writeSubproperties(); // DisplaySubproperties
+        displaySubpropertiesResult.Status =
+            displaySubpropertiesResult.Status == 'Done'
+            ? 'Passed'
+            : displaySubpropertiesResult.Status; // status expression
+        run.record(displaySubpropertiesResult.Status);
+        currentOffset += 1; // Inc Loop Var
+        // goto -> --- Start of Loop ---
+        // Loop back around [Goto]: no code module
+        continue backToStartOfLoop; // post action
+        break backToStartOfLoop;
+      }
+    }
+    // label: --- Max Num Array Elements Msg ---
+    ts.eval(
+      'Parameters.DocResult += "     " +\n	Parameters.ArrayPropLookupStr + "[...] --- " +\nResStr("SEQ_FILE_DOC", "DOC_MAX_ARRAY_DISPLAY_EXCEEDED")  + "\\n"\n',
+    ); // Add Max Exceeded Msg
   }
-  // goto -> <End>
-  if (currentOffset == numElements) {
-    // precondition of Goto End When Done
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Goto End When Done [Goto]
-  }
-  //   Return Value -> Locals.CurrentArrayIndex
-  //   lookupString <- Parameters.ArrayPropLookupStr
-  //   options <- 0
-  //   offset <- Locals.CurrentOffset
-  throw UnimplementedError(
-    'cModule call: GetArrayIndexFromOffset',
-  ); // GetArrayIndexFromOffset [Action]
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  displayPropertyResult.Status =
-      await writePropertyDetails(); // DisplayProperty
-  displayPropertyResult.Status = displayPropertyResult.Status == 'Done'
-      ? 'Passed'
-      : displayPropertyResult.Status; // status expression
-  run.record(displayPropertyResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  displaySubpropertiesResult.Status =
-      await writeSubproperties(); // DisplaySubproperties
-  displaySubpropertiesResult.Status =
-      displaySubpropertiesResult.Status == 'Done'
-      ? 'Passed'
-      : displaySubpropertiesResult.Status; // status expression
-  run.record(displaySubpropertiesResult.Status);
-  currentOffset += 1; // Inc Loop Var
-  // goto -> --- Start of Loop ---
-  throw UnimplementedError(
-    'step type Goto: action not exported yet',
-  ); // Loop back around [Goto]
-  // label: --- Max Num Array Elements Msg ---
-  ts.eval(
-    'Parameters.DocResult += "     " +\n	Parameters.ArrayPropLookupStr + "[...] --- " +\nResStr("SEQ_FILE_DOC", "DOC_MAX_ARRAY_DISPLAY_EXCEEDED")  + "\\n"\n',
-  ); // Add Max Exceeded Msg
 
   return run.status;
 }
@@ -915,69 +941,72 @@ Future<String> writePropertyDetails({
     'Common': ts.PropObj(),
   }); // result of DisplayArrayElements
 
-  //   Return Value -> Locals.valueType
-  //   lookupString <- Parameters.PropertyToDisplayName
-  //   options <- 0
-  //   isObject -> Locals.isObject
-  //   isArray -> Locals.isArray
-  //   typeName -> Locals.typeName
-  throw UnimplementedError('cModule call: GetTypeInfo'); // GetTypeInfo [Action]
-  // Normally Evaluate() should only fail if the property name has invalid characters in it.
-  // label: --- Test Evaluate Error ---
-  // custom flow: if (True) Goto -> <End> else Next
-  // ignores run-time errors
-  // failure does NOT fail the sequence
-  ts.eval(
-    'Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)',
-  ); // TryToEvaluate
-  tryToEvaluateResult.Status = 'Done';
-  if (tryToEvaluateResult.Status == 'Error') {
-    // precondition of Document Error
-    subpropValue = '\n' + tryToEvaluateResult.Error.Msg; // Document Error
-  }
-  if (tryToEvaluateResult.Status == 'Error') {
-    // precondition of WordWrapStringValue_Copy
+  skipToSkipEvaluate:
+  {
+    //   Return Value -> Locals.valueType
+    //   lookupString <- Parameters.PropertyToDisplayName
+    //   options <- 0
+    //   isObject -> Locals.isObject
+    //   isArray -> Locals.isArray
+    //   typeName -> Locals.typeName
     throw UnimplementedError(
-      'cModule call: WordWrapStringValue_Copy',
-    ); // WordWrapStringValue_Copy [Action]
-  }
-  // goto -> --- Skip Evaluate ---
-  if (tryToEvaluateResult.Status == 'Error') {
-    // precondition of Skip Evaluate
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Skip Evaluate [Goto]
-  }
-  typeName = root.GetPropertyObject(
-    propertyToDisplayName,
-    0,
-  ).Type.DisplayString; // GetTypeNameForDisplay
-  // Get the value of a number, boolean or activex property
-  if (valueType == 2 || valueType == 3 || valueType == 5) {
-    // precondition of GetSubPropValue1
+      'cModule call: GetTypeInfo',
+    ); // GetTypeInfo [Action]
+    // Normally Evaluate() should only fail if the property name has invalid characters in it.
+    // label: --- Test Evaluate Error ---
+    // ignores run-time errors
+    // failure does NOT fail the sequence
     ts.eval(
-      'Locals.SubpropValue = Str(Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName))',
-    ); // GetSubPropValue1
-  }
-  // Get the value of a string property
-  if (valueType == 1) {
-    // precondition of GetSubPropValue2
-    ts.eval(
-      'Locals.SubpropValue = "\\n\\"" + Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName) + "\\""',
-    ); // GetSubPropValue2
-  }
-  // Get the value of an enum property
-  if (ts.cond('Locals.valueType == PropValType_Enum')) {
-    // precondition of GetSubPropValue7
-    ts.eval(
-      ' Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName).GetDisplayNames("", PropOption_NoOptions, Locals.Unused, Locals.SubpropValue)',
-    ); // GetSubPropValue7
-  }
-  if (valueType == 1) {
-    // precondition of WordWrapStringValue
-    throw UnimplementedError(
-      'cModule call: WordWrapStringValue',
-    ); // WordWrapStringValue [Action]
+      'Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName)',
+    ); // TryToEvaluate
+    tryToEvaluateResult.Status = 'Done';
+    if (tryToEvaluateResult.Status == 'Error') {
+      // precondition of Document Error
+      subpropValue = '\n' + tryToEvaluateResult.Error.Msg; // Document Error
+    }
+    if (tryToEvaluateResult.Status == 'Error') {
+      // precondition of WordWrapStringValue_Copy
+      throw UnimplementedError(
+        'cModule call: WordWrapStringValue_Copy',
+      ); // WordWrapStringValue_Copy [Action]
+    }
+    // goto -> --- Skip Evaluate ---
+    if (tryToEvaluateResult.Status == 'Error') {
+      // precondition of Skip Evaluate
+      // Skip Evaluate [Goto]: no code module
+      break skipToSkipEvaluate; // post action
+    }
+    typeName = root.GetPropertyObject(
+      propertyToDisplayName,
+      0,
+    ).Type.DisplayString; // GetTypeNameForDisplay
+    // Get the value of a number, boolean or activex property
+    if (valueType == 2 || valueType == 3 || valueType == 5) {
+      // precondition of GetSubPropValue1
+      ts.eval(
+        'Locals.SubpropValue = Str(Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName))',
+      ); // GetSubPropValue1
+    }
+    // Get the value of a string property
+    if (valueType == 1) {
+      // precondition of GetSubPropValue2
+      ts.eval(
+        'Locals.SubpropValue = "\\n\\"" + Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName) + "\\""',
+      ); // GetSubPropValue2
+    }
+    // Get the value of an enum property
+    if (ts.cond('Locals.valueType == PropValType_Enum')) {
+      // precondition of GetSubPropValue7
+      ts.eval(
+        ' Evaluate("Parameters.Root." + Parameters.PropertyToDisplayName).GetDisplayNames("", PropOption_NoOptions, Locals.Unused, Locals.SubpropValue)',
+      ); // GetSubPropValue7
+    }
+    if (valueType == 1) {
+      // precondition of WordWrapStringValue
+      throw UnimplementedError(
+        'cModule call: WordWrapStringValue',
+      ); // WordWrapStringValue [Action]
+    }
   }
   // label: --- Skip Evaluate ---
   //   Return Value -> Locals.SubpropFlags
@@ -1027,96 +1056,101 @@ Future<String> writeMultipleNumericLimitLimits({
 
   final run = ts.SequenceRun();
 
-  //   lookupString <- ""
-  //   options <- 0
-  //   lowerBounds [out]
-  //   upperBounds [out]
-  //   numElements -> Locals.NumElements
-  //   elementType [out]
-  throw UnimplementedError(
-    'cModule call: GetNumElements',
-  ); // GetNumElements [Action]
-  // label: --- Start of Loop ---
-  // goto -> --- After Loop ---
-  if (currentOffset == numElements) {
-    // precondition of Goto After Loop Section When Done
+  skipToAfterLoop:
+  {
+    //   lookupString <- ""
+    //   options <- 0
+    //   lowerBounds [out]
+    //   upperBounds [out]
+    //   numElements -> Locals.NumElements
+    //   elementType [out]
     throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Goto After Loop Section When Done [Goto]
+      'cModule call: GetNumElements',
+    ); // GetNumElements [Action]
+    backToStartOfLoop:
+    while (true) {
+      // label: --- Start of Loop ---
+      // goto -> --- After Loop ---
+      if (currentOffset == numElements) {
+        // precondition of Goto After Loop Section When Done
+        // Goto After Loop Section When Done [Goto]: no code module
+        break skipToAfterLoop; // post action
+      }
+      oneLimitOnly = false; // Initialize Local Variables
+      ts.eval(
+        '\nParameters.DocResult += Parameters.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" +  Parameters.DoubleIndent + Str(ResStr("SEQ_FILE_DOC", "MEAS_NAME_LBL"), "%-35s") + NameOf(Parameters.Step.Result.Measurement[Locals.CurrentOffset]) + "\\n"\n',
+      ); // Header
+      if (ts.cond(
+        'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp")',
+      )) {
+        // precondition of Comparison Type
+        ts.eval(
+          'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMP_TYPE"), "%-35s") + Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp + "\\n"',
+        ); // Comparison Type
+      }
+      if (ts.cond(
+        '#NoValidation(\nAllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp"), PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), AnyOf(Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "EQ", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "NE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LE"))\n)',
+      )) {
+        // precondition of One Limit Only?
+        oneLimitOnly = true; // One Limit Only?
+      }
+      if (ts.cond(
+        'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low")',
+      )) {
+        // precondition of Get Low Limit Format
+        //   Return Value -> Locals.LowLimitFmt
+        throw UnimplementedError(
+          'cModule call: Get Low Limit Format',
+        ); // Get Low Limit Format [Action]
+      }
+      if (ts.cond(
+        'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High")',
+      )) {
+        // precondition of Get High Limit Format
+        //   Return Value -> Locals.HighLimitFmt
+        throw UnimplementedError(
+          'cModule call: Get High Limit Format',
+        ); // Get High Limit Format [Action]
+      }
+      if (ts.cond(
+        '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',
+      )) {
+        // precondition of Low Limit
+        ts.eval(
+          '\nParameters.DocResult += Parameters.DoubleIndent + Str( (Locals.OneLimitOnly ? ResStr("SEQ_FILE_DOC", "DOC_STEP_LIMIT") : ResStr("SEQ_FILE_DOC", "DOC_STEP_LIMIT_LOW")), "%-35s") + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.Low, Locals.LowLimitFmt ) + "\\n"\n',
+        ); // Low Limit
+      }
+      if (ts.cond(
+        '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG", !Locals.OneLimitOnly))',
+      )) {
+        // precondition of High Limit
+        ts.eval(
+          '\nParameters.DocResult +=Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_HIGH"), "%-35s") + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.High, Locals.HighLimitFmt ) + "\\n"\n',
+        ); // High Limit
+      }
+      if (ts.cond(
+        '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Units"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units != ""))',
+      )) {
+        // precondition of Units
+        ts.eval(
+          'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_UNITS"), "%-35s") + Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units + "\\n"',
+        ); // Units
+      }
+      if (ts.cond(
+        'AllOf(PropertyExists("Parameters.Step.DataSourceArray[" + Str(Locals.CurrentOffset) + "]"), Parameters.Step.UseIndividualDataSources)',
+      )) {
+        // precondition of Individual Data Source
+        ts.eval(
+          '\nParameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") + LocalizeExpression(Parameters.Step.DataSourceArray[Locals.CurrentOffset]) + "\\n"\n',
+        ); // Individual Data Source
+      }
+      currentOffset += 1; // Inc Loop Var
+      // goto -> --- Start of Loop ---
+      // Loop back around [Goto]: no code module
+      continue backToStartOfLoop; // post action
+      break backToStartOfLoop;
+    }
   }
-  oneLimitOnly = false; // Initialize Local Variables
-  ts.eval(
-    '\nParameters.DocResult += Parameters.DoubleIndent + GetResourceString("SEQ_FILE_DOC", "DOC_HEADER_SEPARATOR") + "\\n" +  Parameters.DoubleIndent + Str(ResStr("SEQ_FILE_DOC", "MEAS_NAME_LBL"), "%-35s") + NameOf(Parameters.Step.Result.Measurement[Locals.CurrentOffset]) + "\\n"\n',
-  ); // Header
-  if (ts.cond(
-    'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp")',
-  )) {
-    // precondition of Comparison Type
-    ts.eval(
-      'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_COMP_TYPE"), "%-35s") + Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp + "\\n"',
-    ); // Comparison Type
-  }
-  if (ts.cond(
-    '#NoValidation(\nAllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Comp"), PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), AnyOf(Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "EQ", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "NE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LT", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "GE", Parameters.Step.Result.Measurement[ Locals.CurrentOffset ].Comp == "LE"))\n)',
-  )) {
-    // precondition of One Limit Only?
-    oneLimitOnly = true; // One Limit Only?
-  }
-  if (ts.cond(
-    'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low")',
-  )) {
-    // precondition of Get Low Limit Format
-    //   Return Value -> Locals.LowLimitFmt
-    throw UnimplementedError(
-      'cModule call: Get Low Limit Format',
-    ); // Get Low Limit Format [Action]
-  }
-  if (ts.cond(
-    'PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High")',
-  )) {
-    // precondition of Get High Limit Format
-    //   Return Value -> Locals.HighLimitFmt
-    throw UnimplementedError(
-      'cModule call: Get High Limit Format',
-    ); // Get High Limit Format [Action]
-  }
-  if (ts.cond(
-    '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.Low"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG"))',
-  )) {
-    // precondition of Low Limit
-    ts.eval(
-      '\nParameters.DocResult += Parameters.DoubleIndent + Str( (Locals.OneLimitOnly ? ResStr("SEQ_FILE_DOC", "DOC_STEP_LIMIT") : ResStr("SEQ_FILE_DOC", "DOC_STEP_LIMIT_LOW")), "%-35s") + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.Low, Locals.LowLimitFmt ) + "\\n"\n',
-    ); // Low Limit
-  }
-  if (ts.cond(
-    '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Limits.High"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Comp != "LOG", !Locals.OneLimitOnly))',
-  )) {
-    // precondition of High Limit
-    ts.eval(
-      '\nParameters.DocResult +=Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_LIMIT_HIGH"), "%-35s") + Str(Parameters.Step.Result.Measurement[Locals.CurrentOffset].Limits.High, Locals.HighLimitFmt ) + "\\n"\n',
-    ); // High Limit
-  }
-  if (ts.cond(
-    '#NoValidation(AllOf(PropertyExists("Parameters.Step.Result.Measurement[" + Str(Locals.CurrentOffset) + "].Units"), Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units != ""))',
-  )) {
-    // precondition of Units
-    ts.eval(
-      'Parameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_UNITS"), "%-35s") + Parameters.Step.Result.Measurement[Locals.CurrentOffset].Units + "\\n"',
-    ); // Units
-  }
-  if (ts.cond(
-    'AllOf(PropertyExists("Parameters.Step.DataSourceArray[" + Str(Locals.CurrentOffset) + "]"), Parameters.Step.UseIndividualDataSources)',
-  )) {
-    // precondition of Individual Data Source
-    ts.eval(
-      '\nParameters.DocResult += Parameters.DoubleIndent + Str(GetResourceString("SEQ_FILE_DOC", "DOC_STEP_DATASOURCE"), "%-35s") + LocalizeExpression(Parameters.Step.DataSourceArray[Locals.CurrentOffset]) + "\\n"\n',
-    ); // Individual Data Source
-  }
-  currentOffset += 1; // Inc Loop Var
-  // goto -> --- Start of Loop ---
-  throw UnimplementedError(
-    'step type Goto: action not exported yet',
-  ); // Loop back around [Goto]
   // label: --- After Loop ---
   if (numElements > 0) {
     // precondition of Footer
@@ -1210,8 +1244,6 @@ void register() {
   //   step "Update TotalNumSteps" loops (Custom) — per-step looping not exported
   //   RunState engine access (no engine at run time)
   //   by-ref writeback of parameter DocResult of sequence Write Requirements Elements not exported
-  //   flow action of step "skip if not displayed" (Next/Next) not exported
-  //   step type Goto: action not exported yet
   //   cModule call: GetNumSubProperties
   //   cModule call: SetProgressMsg
   //   call parameters of sequence Write Subproperties: no parameter named arg0 (stale binding)
@@ -1225,7 +1257,6 @@ void register() {
   //   call parameters of sequence Sequence Doc: no parameter named arg2 (stale binding)
   //   cModule call: Save Doc To File
   //   cModule call: WordWrapInBuf
-  //   flow action of step "Goto End When Done" (Next/Next) not exported
   //   cModule call: GetSubPropName
   //   cModule call: GetFlags
   //   call parameters of sequence Write Property Details: no parameter named arg0 (stale binding)
@@ -1233,18 +1264,14 @@ void register() {
   //   call parameters of sequence Write Property Details: no parameter named arg2 (stale binding)
   //   call parameters of sequence Write Property Details: no parameter named arg3 (stale binding)
   //   cModule call: Update Percent Done
-  //   flow action of step "Loop back around" (Next/Next) not exported
   //   cModule call: GetTypeInfo
-  //   flow action of step "TryToEvaluate" (Next/Next) not exported
   //   cModule call: WordWrapStringValue_Copy
-  //   flow action of step "Skip Evaluate" (Next/Next) not exported
   //   cModule call: WordWrapStringValue
   //   call parameters of sequence Write Array Elements: no parameter named arg0 (stale binding)
   //   call parameters of sequence Write Array Elements: no parameter named arg1 (stale binding)
   //   call parameters of sequence Write Array Elements: no parameter named arg2 (stale binding)
   //   call parameters of sequence Write Array Elements: no parameter named arg3 (stale binding)
   //   cModule call: GetNumElements
-  //   flow action of step "Check for Max Num Array Elements" (Next/Next) not exported
   //   cModule call: GetArrayIndexFromOffset
   //   step "For Each Setup Step" loops (Custom) — per-step looping not exported
   //   call parameters of sequence Step Doc: no parameter named arg0 (stale binding)
@@ -1258,12 +1285,10 @@ void register() {
   //   cModule call: GetStepKeyName
   //   cModule call: Get Step Desc
   //   cModule call: WordWrapDesc
-  //   flow action of step "Skip to Multiple Limits Section" (Next/Next) not exported
   //   cModule call: WordWrapStringLimit
   //   by-ref writeback of parameter DocResult of sequence Write Multiple Numeric Limit Limits not exported
   //   cModule call: Get Execution Flow
   //   cModule call: WordWrapExecFlow
-  //   flow action of step "Goto After Loop Section When Done" (Next/Next) not exported
   //   cModule call: Get Low Limit Format
   //   cModule call: Get High Limit Format
   //   root parameter 'SequenceFile' is an engine object (nothing binds it when run as a test)

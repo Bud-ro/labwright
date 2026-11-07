@@ -88,180 +88,184 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Silent disconnect test
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type InitializeVeriStand: action not exported yet',
+    ); // Initialize VeriStand [InitializeVeriStand]
 
-  // ── main ──
-  // label:
-  throw UnimplementedError(
-    'step type OpenWorkspace: action not exported yet',
-  ); // OpenWorkspace [OpenWorkspace]
-  throw UnimplementedError(
-    'step type SetChannelValue: action not exported yet',
-  ); // Set Channel Value [SetChannelValue]
-  throw UnimplementedError(
-    'step type GetChannelValue: action not exported yet',
-  ); // Get Channel Value [GetChannelValue]
-  // checks: Step.Result.Numeric EQ [low 1, high 11, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type LimitTestChannelValue: action not exported yet',
-  ); // Channel Value Limit Test [LimitTestChannelValue]
-  channelValueLimitTestResult.Status = ts.checkLimits(
-    channelValueLimitTestResult.Numeric,
-    11,
-    1,
-    'EQ',
-  ); // status expression
-  run.record(channelValueLimitTestResult.Status);
-  throw UnimplementedError(
-    'step type SetMultipleChannelValues: action not exported yet',
-  ); // Set Multiple Channel Values [SetMultipleChannelValues]
-  throw UnimplementedError(
-    'step type GetMultipleChannelValues: action not exported yet',
-  ); // Get Multiple Channel Values [GetMultipleChannelValues]
-  // label:
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  setChannelTimeoutSubtestResult.Status = await subtest_set_channel_timeout_seq
-      .mainSequence(); // Set Channel Timeout Subtest: external sequence
-  setChannelTimeoutSubtestResult.Status =
-      setChannelTimeoutSubtestResult.Status == 'Done'
-      ? 'Passed'
-      : setChannelTimeoutSubtestResult.Status; // status expression
-  run.record(setChannelTimeoutSubtestResult.Status);
-  // [skipped in source] Extended RT Sequence Test
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  testSequenceParametersReturnValuesResult
-      .Status = await subtest_rt_sequence_parameter_return_test_seq
-      .mainSequence(); // Test sequence parameters & return values: external sequence
-  testSequenceParametersReturnValuesResult.Status =
-      testSequenceParametersReturnValuesResult.Status == 'Done'
-      ? 'Passed'
-      : testSequenceParametersReturnValuesResult.Status; // status expression
-  run.record(testSequenceParametersReturnValuesResult.Status);
-  // label:
-  throw UnimplementedError(
-    'step type CloseWorkspace: action not exported yet',
-  ); // Close Workspace [CloseWorkspace]
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction]
-  // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  // failure does NOT fail the sequence
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
-  rtSequencePassFailTestResult.Status =
-      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  // checks: Step.Result.Numeric EQ [low 10, high 1, nominal 100] (PERCENTAGE)
-  // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
-  throw UnimplementedError(
-    'step type RunRTSequenceNumericLimit: action not exported yet',
-  ); // RT Sequence Numeric Limit [RunRTSequenceNumericLimit]
-  rtSequenceNumericLimitResult.Status = ts.checkLimits(
-    rtSequenceNumericLimitResult.Numeric,
-    1,
-    10,
-    'EQ',
-  ); // status expression
-  run.record(rtSequenceNumericLimitResult.Status);
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // Test RT Sequence Timeout [RunRTSequenceAction]
-  // label:
-  throw UnimplementedError(
-    'step type SetAlarmState: action not exported yet',
-  ); // Set Alarm State [SetAlarmState]
-  throw UnimplementedError(
-    'step type GetAlarmState: action not exported yet',
-  ); // Get Alarm State [GetAlarmState]
-  // label:
-  throw UnimplementedError(
-    'step type StartLogging: action not exported yet',
-  ); // Start VS Logging [StartLogging]
-  throw UnimplementedError(
-    'step type SetChannelFaultValue: action not exported yet',
-  ); // Set Channel Fault Value [SetChannelFaultValue]
-  throw UnimplementedError(
-    'step type GetChannelFaultValue: action not exported yet',
-  ); // Get Channel Fault Value [GetChannelFaultValue]
-  throw UnimplementedError(
-    'step type ClearFault: action not exported yet',
-  ); // Clear Fault [ClearFault]
-  throw UnimplementedError(
-    'step type GetChannelFaultValue: action not exported yet',
-  ); // Get Channel Fault Value [GetChannelFaultValue]
-  throw UnimplementedError(
-    'step type SetChannelFaultValue: action not exported yet',
-  ); // Set Channel Fault Value [SetChannelFaultValue]
-  throw UnimplementedError(
-    'step type GetChannelFaultValue: action not exported yet',
-  ); // Get Channel Fault Value [GetChannelFaultValue]
-  throw UnimplementedError(
-    'step type ClearAllFaults: action not exported yet',
-  ); // Clear All Faults [ClearAllFaults]
-  throw UnimplementedError(
-    'step type GetChannelFaultValue: action not exported yet',
-  ); // Get Channel Fault Value [GetChannelFaultValue]
-  // label:
-  throw UnimplementedError(
-    'step type UpdateModelParametersFromFile: action not exported yet',
-  ); // Update Model Parameters From File [UpdateModelParametersFromFile]
-  throw UnimplementedError(
-    'step type UpdateModelParametersFromFile: action not exported yet',
-  ); // Update Model Parameters From File [UpdateModelParametersFromFile]
-  throw UnimplementedError(
-    'step type SetModelParameterValue: action not exported yet',
-  ); // Set Model Parameter Value [SetModelParameterValue]
-  await Future<void>.delayed(const Duration(seconds: 3));
-  throw UnimplementedError(
-    'step type GetModelParameterValue: action not exported yet',
-  ); // Get Model Parameter Value [GetModelParameterValue]
-  throw UnimplementedError(
-    'step type GetModelParameterValue: action not exported yet',
-  ); // Get Model Parameter Value [GetModelParameterValue]
-  throw UnimplementedError(
-    'step type StopLogging: action not exported yet',
-  ); // Stop VS Logging [StopLogging]
-  // label:
-  throw UnimplementedError(
-    'step type RunStimulusProfileBlocking: action not exported yet',
-  ); // Run Stimulus Profile [RunStimulusProfileBlocking]
-  throw UnimplementedError(
-    'step type RunStimulusProfileBlocking: action not exported yet',
-  ); // Test Stimulus Profile Timeout [RunStimulusProfileBlocking]
-  // label:
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callSubsequenceSeperateFileResult.Status = await main_sub_seq
-      .mainSequence(); // Call Subsequence (seperate file): external sequence
-  callSubsequenceSeperateFileResult.Status =
-      callSubsequenceSeperateFileResult.Status == 'Done'
-      ? 'Passed'
-      : callSubsequenceSeperateFileResult.Status; // status expression
-  run.record(callSubsequenceSeperateFileResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callSubsequenceSameFileResult.Status =
-      await subsequence(); // Call Subsequence (same file)
-  callSubsequenceSameFileResult.Status =
-      callSubsequenceSameFileResult.Status == 'Done'
-      ? 'Passed'
-      : callSubsequenceSameFileResult.Status; // status expression
-  run.record(callSubsequenceSameFileResult.Status);
-  // label:
-  // [skipped in source] Silent disconnect test
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type StopVeriStand: action not exported yet',
-  ); // Stop VeriStand [StopVeriStand]
-  // runs executable: taskkill "/IM NationalInstruments.VeriStand.UIManager.Application.exe /F" (WAIT_FOR_EXIT)
-  throw UnimplementedError(
-    'step type CallExecutable: action not exported yet',
-  ); // Call Executable [CallExecutable]
+    // ── main ──
+    // label:
+    throw UnimplementedError(
+      'step type OpenWorkspace: action not exported yet',
+    ); // OpenWorkspace [OpenWorkspace]
+    throw UnimplementedError(
+      'step type SetChannelValue: action not exported yet',
+    ); // Set Channel Value [SetChannelValue]
+    throw UnimplementedError(
+      'step type GetChannelValue: action not exported yet',
+    ); // Get Channel Value [GetChannelValue]
+    // checks: Step.Result.Numeric EQ [low 1, high 11, nominal 100] (PERCENTAGE)
+    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
+    throw UnimplementedError(
+      'step type LimitTestChannelValue: action not exported yet',
+    ); // Channel Value Limit Test [LimitTestChannelValue]
+    channelValueLimitTestResult.Status = ts.checkLimits(
+      channelValueLimitTestResult.Numeric,
+      11,
+      1,
+      'EQ',
+    ); // status expression
+    run.record(channelValueLimitTestResult.Status);
+    throw UnimplementedError(
+      'step type SetMultipleChannelValues: action not exported yet',
+    ); // Set Multiple Channel Values [SetMultipleChannelValues]
+    throw UnimplementedError(
+      'step type GetMultipleChannelValues: action not exported yet',
+    ); // Get Multiple Channel Values [GetMultipleChannelValues]
+    // label:
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    setChannelTimeoutSubtestResult.Status =
+        await subtest_set_channel_timeout_seq
+            .mainSequence(); // Set Channel Timeout Subtest: external sequence
+    setChannelTimeoutSubtestResult.Status =
+        setChannelTimeoutSubtestResult.Status == 'Done'
+        ? 'Passed'
+        : setChannelTimeoutSubtestResult.Status; // status expression
+    run.record(setChannelTimeoutSubtestResult.Status);
+    // [skipped in source] Extended RT Sequence Test
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    testSequenceParametersReturnValuesResult
+        .Status = await subtest_rt_sequence_parameter_return_test_seq
+        .mainSequence(); // Test sequence parameters & return values: external sequence
+    testSequenceParametersReturnValuesResult.Status =
+        testSequenceParametersReturnValuesResult.Status == 'Done'
+        ? 'Passed'
+        : testSequenceParametersReturnValuesResult.Status; // status expression
+    run.record(testSequenceParametersReturnValuesResult.Status);
+    // label:
+    throw UnimplementedError(
+      'step type CloseWorkspace: action not exported yet',
+    ); // Close Workspace [CloseWorkspace]
+    throw UnimplementedError(
+      'step type RunRTSequenceAction: action not exported yet',
+    ); // RT Sequence Action [RunRTSequenceAction]
+    // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
+    // failure does NOT fail the sequence
+    throw UnimplementedError(
+      'step type RunRTSequencePassFail: action not exported yet',
+    ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+    rtSequencePassFailTestResult.Status =
+        ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    // checks: Step.Result.Numeric EQ [low 10, high 1, nominal 100] (PERCENTAGE)
+    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low,Step.Comp)
+    throw UnimplementedError(
+      'step type RunRTSequenceNumericLimit: action not exported yet',
+    ); // RT Sequence Numeric Limit [RunRTSequenceNumericLimit]
+    rtSequenceNumericLimitResult.Status = ts.checkLimits(
+      rtSequenceNumericLimitResult.Numeric,
+      1,
+      10,
+      'EQ',
+    ); // status expression
+    run.record(rtSequenceNumericLimitResult.Status);
+    throw UnimplementedError(
+      'step type RunRTSequenceAction: action not exported yet',
+    ); // Test RT Sequence Timeout [RunRTSequenceAction]
+    // label:
+    throw UnimplementedError(
+      'step type SetAlarmState: action not exported yet',
+    ); // Set Alarm State [SetAlarmState]
+    throw UnimplementedError(
+      'step type GetAlarmState: action not exported yet',
+    ); // Get Alarm State [GetAlarmState]
+    // label:
+    throw UnimplementedError(
+      'step type StartLogging: action not exported yet',
+    ); // Start VS Logging [StartLogging]
+    throw UnimplementedError(
+      'step type SetChannelFaultValue: action not exported yet',
+    ); // Set Channel Fault Value [SetChannelFaultValue]
+    throw UnimplementedError(
+      'step type GetChannelFaultValue: action not exported yet',
+    ); // Get Channel Fault Value [GetChannelFaultValue]
+    throw UnimplementedError(
+      'step type ClearFault: action not exported yet',
+    ); // Clear Fault [ClearFault]
+    throw UnimplementedError(
+      'step type GetChannelFaultValue: action not exported yet',
+    ); // Get Channel Fault Value [GetChannelFaultValue]
+    throw UnimplementedError(
+      'step type SetChannelFaultValue: action not exported yet',
+    ); // Set Channel Fault Value [SetChannelFaultValue]
+    throw UnimplementedError(
+      'step type GetChannelFaultValue: action not exported yet',
+    ); // Get Channel Fault Value [GetChannelFaultValue]
+    throw UnimplementedError(
+      'step type ClearAllFaults: action not exported yet',
+    ); // Clear All Faults [ClearAllFaults]
+    throw UnimplementedError(
+      'step type GetChannelFaultValue: action not exported yet',
+    ); // Get Channel Fault Value [GetChannelFaultValue]
+    // label:
+    throw UnimplementedError(
+      'step type UpdateModelParametersFromFile: action not exported yet',
+    ); // Update Model Parameters From File [UpdateModelParametersFromFile]
+    throw UnimplementedError(
+      'step type UpdateModelParametersFromFile: action not exported yet',
+    ); // Update Model Parameters From File [UpdateModelParametersFromFile]
+    throw UnimplementedError(
+      'step type SetModelParameterValue: action not exported yet',
+    ); // Set Model Parameter Value [SetModelParameterValue]
+    await Future<void>.delayed(const Duration(seconds: 3));
+    throw UnimplementedError(
+      'step type GetModelParameterValue: action not exported yet',
+    ); // Get Model Parameter Value [GetModelParameterValue]
+    throw UnimplementedError(
+      'step type GetModelParameterValue: action not exported yet',
+    ); // Get Model Parameter Value [GetModelParameterValue]
+    throw UnimplementedError(
+      'step type StopLogging: action not exported yet',
+    ); // Stop VS Logging [StopLogging]
+    // label:
+    throw UnimplementedError(
+      'step type RunStimulusProfileBlocking: action not exported yet',
+    ); // Run Stimulus Profile [RunStimulusProfileBlocking]
+    throw UnimplementedError(
+      'step type RunStimulusProfileBlocking: action not exported yet',
+    ); // Test Stimulus Profile Timeout [RunStimulusProfileBlocking]
+    // label:
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callSubsequenceSeperateFileResult.Status = await main_sub_seq
+        .mainSequence(); // Call Subsequence (seperate file): external sequence
+    callSubsequenceSeperateFileResult.Status =
+        callSubsequenceSeperateFileResult.Status == 'Done'
+        ? 'Passed'
+        : callSubsequenceSeperateFileResult.Status; // status expression
+    run.record(callSubsequenceSeperateFileResult.Status);
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callSubsequenceSameFileResult.Status =
+        await subsequence(); // Call Subsequence (same file)
+    callSubsequenceSameFileResult.Status =
+        callSubsequenceSameFileResult.Status == 'Done'
+        ? 'Passed'
+        : callSubsequenceSameFileResult.Status; // status expression
+    run.record(callSubsequenceSameFileResult.Status);
+    // label:
+    // [skipped in source] Silent disconnect test
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type StopVeriStand: action not exported yet',
+    ); // Stop VeriStand [StopVeriStand]
+    // runs executable: taskkill "/IM NationalInstruments.VeriStand.UIManager.Application.exe /F" (WAIT_FOR_EXIT)
+    throw UnimplementedError(
+      'step type CallExecutable: action not exported yet',
+    ); // Call Executable [CallExecutable]
+  }
 
   return run.status;
 }

@@ -124,23 +124,26 @@ Future<String> processSetup() async {
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
 
-  // ── main ──
-  // Unmerging at step level
-  // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup
-  //   tsmContext <- Step.SemiconductorModuleContext
-  //   pinGroup <- FileGlobals.Vref
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup',
-  ); // SMUPowerDownAndUnmergePinGroup [NI_SemiconductorModule_Action]
-
-  // ── cleanup ──
-  // label: StaticUnmerge
-  // Unmerges the 4 channels that were statically merged
-  // at the start of testing within ProcessSetup
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
-  ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+  body:
+  try {
+    // ── main ──
+    // Unmerging at step level
+    // .NET assembly: Code Modules\bin\STLExample.SMUMergePinGroup.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup
+    //   tsmContext <- Step.SemiconductorModuleContext
+    //   pinGroup <- FileGlobals.Vref
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.Examples.SemiconductorTestLibrary.SMUMergePinGroup.TestSteps.SMUPowerDownAndUnmergePinGroup',
+    ); // SMUPowerDownAndUnmergePinGroup [NI_SemiconductorModule_Action]
+  } finally {
+    // ── cleanup ──
+    // label: StaticUnmerge
+    // Unmerges the 4 channels that were statically merged
+    // at the start of testing within ProcessSetup
+    throw UnimplementedError(
+      'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
+    ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
+  }
 
   return run.status;
 }

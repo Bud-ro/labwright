@@ -15,30 +15,33 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIFgenStandardFunction.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-FGEN sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIFgenStandardFunction.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-FGEN sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIFgenStandardFunction_LabVIEW
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: waveform (In TypeEnum Enum) = 0i64
-  // measurement param: frequency (In TypeDouble) = 1000000
-  // measurement param: amplitude (In TypeDouble) = 1
-  // measurement param: duration (In TypeDouble) = 1
-  // measurement param: actual_duration (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Generate standard function waveform [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-FGEN sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIFgenStandardFunction_LabVIEW
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: waveform (In TypeEnum Enum) = 0i64
+    // measurement param: frequency (In TypeDouble) = 1000000
+    // measurement param: amplitude (In TypeDouble) = 1
+    // measurement param: duration (In TypeDouble) = 1
+    // measurement param: actual_duration (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Generate standard function waveform [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-FGEN sessions [Action]
+  }
 
   return run.status;
 }

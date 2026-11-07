@@ -51,142 +51,148 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Measure Results
 
-  // ── setup ──
-  // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
-  ts.eval(
-    'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
-  ); // Store Sequence File Path
-  // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
-  fileGlobals.OutputFilePath =
-      fileGlobals.Sequence_Folder_Path +
-      '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
-  // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
-  throw UnimplementedError(
-    'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
-  ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
-  ts.setNumElements(
-    fileGlobals.LoadedWaveformIndexes,
-    ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
-  ); // Initialize Waveform Arrays
-  ts.setNumElements(
-    fileGlobals.LoadedWaveforms,
-    ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
-  ); // Initialize Waveform Arrays (cont.)
-  // Initialize Instruments
-  // status expression: ""
-  // label:
-  //   id query <- True
-  //   reset device <- False
-  //   instrument handle <- FileGlobals.Device_Handles.RFSG
-  //   error out <- Step.Result.Error
-  await callNiRfsgInitialize(); // Init RFSG [Action]
-  //   Option String <- ""
-  //   Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
-  //   error out <- Step.Result.Error
-  await callRFmxInstrInitializeNirfsa(); // RFmx Initialize [Action]
-  // Load Waveforms and Create Signals
-  // status expression: ""
-  // label:
-  waveformConfigsIdx = 0; // Reset Wfm config index
-  for (final element in ts.iterate(
-    fileGlobals.Static_Station_Configs.Waveform_Configs,
-  )) {
-    currentWaveformConfig = element;
-    //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
-    //   Waveform Name (File Name) <- ""
-    //   Waveform <- Locals.Current_Waveform
-    //   error out <- Step.Result.Error
-    await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
-    fileGlobals.Configurations.Analyzer.WLAN_Signal_Config.Standard =
-        currentWaveformConfig.WLAN_Standard; // Map Loaded Parameters
-    fileGlobals
-        .Configurations
-        .Analyzer
-        .WLAN_Signal_Config
-        .Channel_Bandwidth__Hz = currentWaveformConfig
-        .Waveform_Bandwidth; // Map Loaded Parameters (cont.)
-    fileGlobals
-            .Configurations
-            .Analyzer
-            .Auto_Level_Configuration
-            .Measurement_Interval__s_ =
-        currentWaveform.Burst_Length__s_; // Map Loaded Parameters (cont.)
-    //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-    //   Waveform In <- Locals.Current_Waveform
-    //   error out <- Step.Result.Error
-    await callDownloadWaveform(); // Download Waveform to Generator [Action]
-    //   Signal Name <- Locals.Current_Waveform.Name
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Selector String Out <- Locals.Current_RFmx_WLAN_Signal
-    //   error out <- Step.Result.Error
-    await callRFmxWlanCreateSignalConfiguration(); // Create WLAN Signal Configuration [Action]
-    //   Signal Name <- Locals.Current_Waveform.Name+"SpecAn"
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
-    //   error out <- Step.Result.Error
-    await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
-    //   Selector String <- Locals.Current_RFmx_WLAN_Signal
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   error out <- Step.Result.Error
-    await callWlanConfigureStandard(); // WLAN Signal Config [Action]
-    fileGlobals.LoadedWaveformIndexes[waveformConfigsIdx] =
-        waveformConfigsIdx; // Store Loaded Waveforms
-    fileGlobals.LoadedWaveforms[waveformConfigsIdx] =
-        currentWaveform; // Store Loaded Waveforms (cont.)
-    waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
-  }
-
-  // ── main ──
-  // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
-  {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    applyConfigurationsResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    applyConfigurationsResult.Status =
-        await configure(); // Apply Configurations
-    applyConfigurationsResult.Status =
-        applyConfigurationsResult.Status == 'Done'
-        ? 'Passed'
-        : applyConfigurationsResult.Status; // status expression
-    run.record(applyConfigurationsResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    measureResultsResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    measureResultsResult.Status = await measure(); // Measure Results
-    measureResultsResult.Status = measureResultsResult.Status == 'Done'
-        ? 'Passed'
-        : measureResultsResult.Status; // status expression
-    run.record(measureResultsResult.Status);
-    fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial =
-        runState.Root.Locals.UUT.SerialNumber; // Store Serial Number in Output
-    // Record the results record to disk
+  body:
+  try {
+    // ── setup ──
+    // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
+    ts.eval(
+      'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
+    ); // Store Sequence File Path
+    // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
+    fileGlobals.OutputFilePath =
+        fileGlobals.Sequence_Folder_Path +
+        '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
+    // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
     throw UnimplementedError(
-      'step type NI_WriteRecord: action not exported yet',
-    ); // Write Record [NI_WriteRecord]
-  }
+      'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
+    ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
+    ts.setNumElements(
+      fileGlobals.LoadedWaveformIndexes,
+      ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
+    ); // Initialize Waveform Arrays
+    ts.setNumElements(
+      fileGlobals.LoadedWaveforms,
+      ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
+    ); // Initialize Waveform Arrays (cont.)
+    // Initialize Instruments
+    // status expression: ""
+    // label:
+    //   id query <- True
+    //   reset device <- False
+    //   instrument handle <- FileGlobals.Device_Handles.RFSG
+    //   error out <- Step.Result.Error
+    await callNiRfsgInitialize(); // Init RFSG [Action]
+    //   Option String <- ""
+    //   Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
+    //   error out <- Step.Result.Error
+    await callRFmxInstrInitializeNirfsa(); // RFmx Initialize [Action]
+    // Load Waveforms and Create Signals
+    // status expression: ""
+    // label:
+    waveformConfigsIdx = 0; // Reset Wfm config index
+    for (final element in ts.iterate(
+      fileGlobals.Static_Station_Configs.Waveform_Configs,
+    )) {
+      currentWaveformConfig = element;
+      //   TDMS File Path <- Locals.Current_Waveform_Config.Absolute_Disk_Path
+      //   Waveform Name (File Name) <- ""
+      //   Waveform <- Locals.Current_Waveform
+      //   error out <- Step.Result.Error
+      await callLoadWaveformFromTdms(); // Load Waveform from TDMS [Action]
+      fileGlobals.Configurations.Analyzer.WLAN_Signal_Config.Standard =
+          currentWaveformConfig.WLAN_Standard; // Map Loaded Parameters
+      fileGlobals
+          .Configurations
+          .Analyzer
+          .WLAN_Signal_Config
+          .Channel_Bandwidth__Hz = currentWaveformConfig
+          .Waveform_Bandwidth; // Map Loaded Parameters (cont.)
+      fileGlobals
+              .Configurations
+              .Analyzer
+              .Auto_Level_Configuration
+              .Measurement_Interval__s_ =
+          currentWaveform.Burst_Length__s_; // Map Loaded Parameters (cont.)
+      //   RFSG handle <- FileGlobals.Device_Handles.RFSG
+      //   Waveform In <- Locals.Current_Waveform
+      //   error out <- Step.Result.Error
+      await callDownloadWaveform(); // Download Waveform to Generator [Action]
+      //   Signal Name <- Locals.Current_Waveform.Name
+      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+      //   Selector String Out <- Locals.Current_RFmx_WLAN_Signal
+      //   error out <- Step.Result.Error
+      await callRFmxWlanCreateSignalConfiguration(); // Create WLAN Signal Configuration [Action]
+      //   Signal Name <- Locals.Current_Waveform.Name+"SpecAn"
+      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+      //   Selector String Out <- Locals.Current_RFmx_SpecAn_Signal
+      //   error out <- Step.Result.Error
+      await callRFmxSpecAnCreateSignalConfiguration(); // Create SpecAn Signal Configuration [Action]
+      //   Selector String <- Locals.Current_RFmx_WLAN_Signal
+      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+      //   error out <- Step.Result.Error
+      await callWlanConfigureStandard(); // WLAN Signal Config [Action]
+      fileGlobals.LoadedWaveformIndexes[waveformConfigsIdx] =
+          waveformConfigsIdx; // Store Loaded Waveforms
+      fileGlobals.LoadedWaveforms[waveformConfigsIdx] =
+          currentWaveform; // Store Loaded Waveforms (cont.)
+      waveformConfigsIdx++; // Store Loaded Waveforms (cont.)
+    }
 
-  // ── cleanup ──
-  // Instrument Cleanup
-  // status expression: ""
-  // label:
-  //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-  //   Force Destroy? (F) <- False
-  //   error out <- Step.Result.Error
-  await callRFmxInstrClose(); // RFmx Close [Action]
-  //   instrument handle <- FileGlobals.Device_Handles.RFSG
-  //   error out <- Step.Result.Error
-  await callNiRfsgClose(); // Close RFSG [Action]
-  // With theData Streams API, the reference to the output stream file is closed.
-  fileGlobals.OutputFile.AsOutputRecordStream
-      .Close(); // Close Output Stream Reference
+    // ── main ──
+    // TODO: sweep loop (FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
+    {
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      applyConfigurationsResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      applyConfigurationsResult.Status =
+          await configure(); // Apply Configurations
+      applyConfigurationsResult.Status =
+          applyConfigurationsResult.Status == 'Done'
+          ? 'Passed'
+          : applyConfigurationsResult.Status; // status expression
+      run.record(applyConfigurationsResult.Status);
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      measureResultsResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      measureResultsResult.Status = await measure(); // Measure Results
+      measureResultsResult.Status = measureResultsResult.Status == 'Done'
+          ? 'Passed'
+          : measureResultsResult.Status; // status expression
+      run.record(measureResultsResult.Status);
+      fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial = runState
+          .Root
+          .Locals
+          .UUT
+          .SerialNumber; // Store Serial Number in Output
+      // Record the results record to disk
+      throw UnimplementedError(
+        'step type NI_WriteRecord: action not exported yet',
+      ); // Write Record [NI_WriteRecord]
+    }
+  } finally {
+    // ── cleanup ──
+    // Instrument Cleanup
+    // status expression: ""
+    // label:
+    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+    //   Force Destroy? (F) <- False
+    //   error out <- Step.Result.Error
+    await callRFmxInstrClose(); // RFmx Close [Action]
+    //   instrument handle <- FileGlobals.Device_Handles.RFSG
+    //   error out <- Step.Result.Error
+    await callNiRfsgClose(); // Close RFSG [Action]
+    // With theData Streams API, the reference to the output stream file is closed.
+    fileGlobals.OutputFile.AsOutputRecordStream
+        .Close(); // Close Output Stream Reference
+  }
 
   return run.status;
 }
@@ -409,146 +415,152 @@ Future<String> measure() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Measurement_Names=Split(FileGlobals.Current_Sweep_Step.Input_and_Output.PARAMS.Test_Config,",")',
-  ); // Split Test Names into Array
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Measurement_Names=Split(FileGlobals.Current_Sweep_Step.Input_and_Output.PARAMS.Test_Config,",")',
+    ); // Split Test Names into Array
 
-  // ── main ──
-  // If DPD enabled
-  if (fileGlobals.Current_Sweep_Step.Input_and_Output.PARAMS.DPD_Enabled ==
-      true) {
-    //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   Measurement <- 11
-    //   Enable All Traces <- False
-    //   error out <- Step.Result.Error
-    await callRFmxSpecAnSelectMeasurementSingle(); // Select Single DPD Measurement [Action]
-    //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-    //   RFmx Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-    //   RFSG Instrument Handle In <- FileGlobals.Device_Handles.RFSG
-    //   Reference Waveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
-    //   Memory Polynomial Configuration <- FileGlobals.Configurations.Analyzer.SpecAn_DPD.DPD_Memory_Polynomial_Configuration
-    //   RFmx Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
-    //   RFSG Instrument Handle Out <- FileGlobals.Device_Handles.RFSG
-    //   error out <- Step.Result.Error
-    await callPerformMemoryPolynomial(); // DPD Perform Memory Polynomial [Action]
-  }
-  for (final element in ts.iterate(measurementNames)) {
-    currentMeasurement = element as String;
-    // Select the appropriate action based on which measurement is selected
-    sel1:
-    {
-      final select1 = currentMeasurement;
-      var matched1 = false;
-      // AMPM Method
-      if (!matched1 && select1 == 'AMPM') {
-        matched1 = true;
-        //   Result Name <- ""
-        //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-        //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-        //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
-        //   Auto Level Bandwidth (Hz) <- 160000000
-        //   Enable All Traces (F) <- False
-        //   error out <- Step.Result.Error
-        await callSpecAnSelectAndInitiateMeasurements(); // Select and Initiate SpecAn AMPM Measurement [Action]
-        //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-        //   RFmx Handle In <- FileGlobals.Device_Handles.RFmx
-        //   AMPM Results <- FileGlobals.Current_Sweep_Step.Results.SpecAn_AMPM_Results
-        //   error out <- Step.Result.Error
-        await callSpecAnFetchAmpm(); // SpecAn Fetch AMPM [Action]
-        // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
-        fileGlobals
-            .Current_Sweep_Step
-            .Input_and_Output
-            .MEAS
-            .AMPM_Mean_LinerGain_dB = fileGlobals
-            .Current_Sweep_Step
-            .Results
-            .SpecAn_AMPM_Results
-            .Mean_Linear_Gain__dB_; // Map Results
-        fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.AMPM_Mean_RMS_EVM =
-            fileGlobals
-                .Current_Sweep_Step
-                .Results
-                .SpecAn_AMPM_Results
-                .Mean_RMS_EVM____; // Map Results (cont.)
-      }
-      // Spectral Emission Mask Measurement
-      if (!matched1 && select1 == 'SEM') {
-        matched1 = true;
-        //   Result Name <- ""
-        //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-        //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-        //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
-        //   Enable All Traces (F) <- False
-        //   error out <- Step.Result.Error
-        await callWlanSelectAndInitiateMeasurements(); // Select and Initiate WLAN SEM Measurement [Action]
-        //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-        //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-        //   WLAN SEM Results <- FileGlobals.Current_Sweep_Step.Results.WLAN_SEM_Results
-        //   error out <- Step.Result.Error
-        await callWlanFetchSem(); // WLAN Fetch SEM [Action]
-        // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
-        fileGlobals
-            .Current_Sweep_Step
-            .Input_and_Output
-            .MEAS
-            .SEMMeasurementStatus = fileGlobals
-            .Current_Sweep_Step
-            .Results
-            .WLAN_SEM_Results
-            .Measurement_Status; // Map Results
-        fileGlobals
-            .Current_Sweep_Step
-            .Input_and_Output
-            .MEAS
-            .SEM_Absolute_Power_dBm = fileGlobals
-            .Current_Sweep_Step
-            .Results
-            .WLAN_SEM_Results
-            .Absolute_Power__dBm; // Map Results (cont.)
-      }
-      // EVM Measurement
-      if (!matched1 && select1 == 'EVM') {
-        matched1 = true;
-        //   Result Name <- ""
-        //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-        //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-        //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
-        //   Enable All Traces (F) <- False
-        //   error out <- Step.Result.Error
-        await callWlanSelectAndInitiateMeasurements(); // Select and Initiate WLAN OFDM ModAcc Measurement [Action]
-        //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
-        //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
-        //   OFDM ModAcc Results <- FileGlobals.Current_Sweep_Step.Results.WLAN_OFDM_ModAcc_Results
-        //   error out <- Step.Result.Error
-        await callWlanFetchOfdmModAcc(); // WLAN Fetch OFDM ModAcc [Action]
-        // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
-        fileGlobals
-            .Current_Sweep_Step
-            .Input_and_Output
-            .MEAS
-            .RMS_EVM_Average_dB = fileGlobals
-            .Current_Sweep_Step
-            .Results
-            .WLAN_OFDM_ModAcc_Results
-            .Composite_RMS_EVM_Mean__dB; // Map Results
-        fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Data_RMS_EVM_dB =
-            fileGlobals
-                .Current_Sweep_Step
-                .Results
-                .WLAN_OFDM_ModAcc_Results
-                .Composite_Data_RMS_EVM_Mean__dB; // Map Results (cont.)
+    // ── main ──
+    // If DPD enabled
+    if (fileGlobals.Current_Sweep_Step.Input_and_Output.PARAMS.DPD_Enabled ==
+        true) {
+      //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+      //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+      //   Measurement <- 11
+      //   Enable All Traces <- False
+      //   error out <- Step.Result.Error
+      await callRFmxSpecAnSelectMeasurementSingle(); // Select Single DPD Measurement [Action]
+      //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+      //   RFmx Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+      //   RFSG Instrument Handle In <- FileGlobals.Device_Handles.RFSG
+      //   Reference Waveform <- FileGlobals.Current_Sweep_Step.Loaded_Waveform
+      //   Memory Polynomial Configuration <- FileGlobals.Configurations.Analyzer.SpecAn_DPD.DPD_Memory_Polynomial_Configuration
+      //   RFmx Instrument Handle Out <- FileGlobals.Device_Handles.RFmx
+      //   RFSG Instrument Handle Out <- FileGlobals.Device_Handles.RFSG
+      //   error out <- Step.Result.Error
+      await callPerformMemoryPolynomial(); // DPD Perform Memory Polynomial [Action]
+    }
+    for (final element in ts.iterate(measurementNames)) {
+      currentMeasurement = element as String;
+      // Select the appropriate action based on which measurement is selected
+      sel1:
+      {
+        final select1 = currentMeasurement;
+        var matched1 = false;
+        // AMPM Method
+        if (!matched1 && select1 == 'AMPM') {
+          matched1 = true;
+          //   Result Name <- ""
+          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+          //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
+          //   Auto Level Bandwidth (Hz) <- 160000000
+          //   Enable All Traces (F) <- False
+          //   error out <- Step.Result.Error
+          await callSpecAnSelectAndInitiateMeasurements(); // Select and Initiate SpecAn AMPM Measurement [Action]
+          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+          //   RFmx Handle In <- FileGlobals.Device_Handles.RFmx
+          //   AMPM Results <- FileGlobals.Current_Sweep_Step.Results.SpecAn_AMPM_Results
+          //   error out <- Step.Result.Error
+          await callSpecAnFetchAmpm(); // SpecAn Fetch AMPM [Action]
+          // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
+          fileGlobals
+              .Current_Sweep_Step
+              .Input_and_Output
+              .MEAS
+              .AMPM_Mean_LinerGain_dB = fileGlobals
+              .Current_Sweep_Step
+              .Results
+              .SpecAn_AMPM_Results
+              .Mean_Linear_Gain__dB_; // Map Results
+          fileGlobals
+              .Current_Sweep_Step
+              .Input_and_Output
+              .MEAS
+              .AMPM_Mean_RMS_EVM = fileGlobals
+              .Current_Sweep_Step
+              .Results
+              .SpecAn_AMPM_Results
+              .Mean_RMS_EVM____; // Map Results (cont.)
+        }
+        // Spectral Emission Mask Measurement
+        if (!matched1 && select1 == 'SEM') {
+          matched1 = true;
+          //   Result Name <- ""
+          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
+          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+          //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
+          //   Enable All Traces (F) <- False
+          //   error out <- Step.Result.Error
+          await callWlanSelectAndInitiateMeasurements(); // Select and Initiate WLAN SEM Measurement [Action]
+          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
+          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+          //   WLAN SEM Results <- FileGlobals.Current_Sweep_Step.Results.WLAN_SEM_Results
+          //   error out <- Step.Result.Error
+          await callWlanFetchSem(); // WLAN Fetch SEM [Action]
+          // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
+          fileGlobals
+              .Current_Sweep_Step
+              .Input_and_Output
+              .MEAS
+              .SEMMeasurementStatus = fileGlobals
+              .Current_Sweep_Step
+              .Results
+              .WLAN_SEM_Results
+              .Measurement_Status; // Map Results
+          fileGlobals
+              .Current_Sweep_Step
+              .Input_and_Output
+              .MEAS
+              .SEM_Absolute_Power_dBm = fileGlobals
+              .Current_Sweep_Step
+              .Results
+              .WLAN_SEM_Results
+              .Absolute_Power__dBm; // Map Results (cont.)
+        }
+        // EVM Measurement
+        if (!matched1 && select1 == 'EVM') {
+          matched1 = true;
+          //   Result Name <- ""
+          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
+          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+          //   Auto Level Configuration <- FileGlobals.Configurations.Analyzer.Auto_Level_Configuration
+          //   Enable All Traces (F) <- False
+          //   error out <- Step.Result.Error
+          await callWlanSelectAndInitiateMeasurements(); // Select and Initiate WLAN OFDM ModAcc Measurement [Action]
+          //   Selector String <- FileGlobals.Configurations.Analyzer.RFmx_Selector_String
+          //   Instrument Handle In <- FileGlobals.Device_Handles.RFmx
+          //   OFDM ModAcc Results <- FileGlobals.Current_Sweep_Step.Results.WLAN_OFDM_ModAcc_Results
+          //   error out <- Step.Result.Error
+          await callWlanFetchOfdmModAcc(); // WLAN Fetch OFDM ModAcc [Action]
+          // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
+          fileGlobals
+              .Current_Sweep_Step
+              .Input_and_Output
+              .MEAS
+              .RMS_EVM_Average_dB = fileGlobals
+              .Current_Sweep_Step
+              .Results
+              .WLAN_OFDM_ModAcc_Results
+              .Composite_RMS_EVM_Mean__dB; // Map Results
+          fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Data_RMS_EVM_dB =
+              fileGlobals
+                  .Current_Sweep_Step
+                  .Results
+                  .WLAN_OFDM_ModAcc_Results
+                  .Composite_Data_RMS_EVM_Mean__dB; // Map Results (cont.)
+        }
       }
     }
+  } finally {
+    // ── cleanup ──
+    //   RFSG handle <- FileGlobals.Device_Handles.RFSG
+    //   Timeout (ms) <- 1000
+    //   error out <- Step.Result.Error
+    await callAbortGeneration(); // Abort Dynamic Generation [Action]
   }
-
-  // ── cleanup ──
-  //   RFSG handle <- FileGlobals.Device_Handles.RFSG
-  //   Timeout (ms) <- 1000
-  //   error out <- Step.Result.Error
-  await callAbortGeneration(); // Abort Dynamic Generation [Action]
 
   return run.status;
 }

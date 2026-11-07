@@ -23,15 +23,24 @@ Future<String> sequenceFileLoad() async {
     'Common': ts.PropObj(),
   }); // result of Prompt
 
-  // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
-  // popup title: "Installer"
-  // popup message: "Do you want to install Quick Drop?"
-  // popup buttons: "Yes" | "No"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Prompt [MessagePopup]
-  promptResult.Status = 'Done';
-  run.record(promptResult.Status);
+  endMain:
+  {
+    // custom flow: if (Step.Result.ButtonHit == 1) Cback -> Install else Goto -> <End>
+    // popup title: "Installer"
+    // popup message: "Do you want to install Quick Drop?"
+    // popup buttons: "Yes" | "No"
+    throw UnimplementedError(
+      'step type MessagePopup: action not exported yet',
+    ); // Prompt [MessagePopup]
+    promptResult.Status = 'Done';
+    run.record(promptResult.Status);
+    if (promptResult.ButtonHit == 1) {
+      // post action
+      await install();
+    } else {
+      break endMain;
+    }
+  }
 
   return run.status;
 }
@@ -149,29 +158,32 @@ Future<String> copy({
     'Common': ts.PropObj(),
   }); // result of CopyAll
 
-  // ── main ──
-  // .NET call: System.IO.DirectoryInfo.DirectoryInfo
-  //   Return Value <- Locals.diSourceDirectory
-  //   path <- Parameters.SourceDirectoryPath
-  throw UnimplementedError(
-    'dotNet call: System.IO.DirectoryInfo.DirectoryInfo',
-  ); // Get Source DirectoryInfo [Action]
-  // .NET call: System.IO.DirectoryInfo.DirectoryInfo
-  //   Return Value <- Locals.diTargetDirectory
-  //   path <- Parameters.TargetDirectoryPath
-  throw UnimplementedError(
-    'dotNet call: System.IO.DirectoryInfo.DirectoryInfo',
-  ); // Get Target DirectoryInfo [Action]
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  copyAllResult.Status = await copyAll(); // CopyAll
-  copyAllResult.Status = copyAllResult.Status == 'Done'
-      ? 'Passed'
-      : copyAllResult.Status; // status expression
-  run.record(copyAllResult.Status);
-
-  // ── cleanup ──
-  diSourceDirectory = null; // Release
-  diTargetDirectory = null; // Release (cont.)
+  body:
+  try {
+    // ── main ──
+    // .NET call: System.IO.DirectoryInfo.DirectoryInfo
+    //   Return Value <- Locals.diSourceDirectory
+    //   path <- Parameters.SourceDirectoryPath
+    throw UnimplementedError(
+      'dotNet call: System.IO.DirectoryInfo.DirectoryInfo',
+    ); // Get Source DirectoryInfo [Action]
+    // .NET call: System.IO.DirectoryInfo.DirectoryInfo
+    //   Return Value <- Locals.diTargetDirectory
+    //   path <- Parameters.TargetDirectoryPath
+    throw UnimplementedError(
+      'dotNet call: System.IO.DirectoryInfo.DirectoryInfo',
+    ); // Get Target DirectoryInfo [Action]
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    copyAllResult.Status = await copyAll(); // CopyAll
+    copyAllResult.Status = copyAllResult.Status == 'Done'
+        ? 'Passed'
+        : copyAllResult.Status; // status expression
+    run.record(copyAllResult.Status);
+  } finally {
+    // ── cleanup ──
+    diSourceDirectory = null; // Release
+    diTargetDirectory = null; // Release (cont.)
+  }
 
   return run.status;
 }
@@ -198,92 +210,95 @@ Future<String> copyAll({
     'Common': ts.PropObj(),
   }); // result of CopyAll
 
-  // ── main ──
-  // .NET call: System.IO.DirectoryInfo.Use Existing Object
-  //   Existing Object <- Parameters.diTargetDirectory
-  // .NET call: System.IO.DirectoryInfo.FullName
-  //   Return Value <- Locals.TargetFullName
-  throw UnimplementedError(
-    'dotNet call: System.IO.DirectoryInfo.FullName',
-  ); // Get Target FullName [Action]
-  // .NET call: System.IO.Directory.CreateDirectory
-  //   path <- Locals.TargetFullName
-  throw UnimplementedError(
-    'dotNet call: System.IO.Directory.CreateDirectory',
-  ); // Create Target Directory [Action]
-  // .NET call: System.IO.DirectoryInfo.Use Existing Object
-  //   Existing Object <- Parameters.diSourceDirectory
-  // .NET call: System.IO.DirectoryInfo.GetFiles
-  //   Return Value <- Locals.fiSourceFiles
-  throw UnimplementedError(
-    'dotNet call: System.IO.DirectoryInfo.GetFiles',
-  ); // Get Source Files [Action]
-  for (final element in ts.iterate(fiSourceFiles)) {
-    fiSourceFile = element;
-    // .NET call: System.IO.FileInfo.Use Existing Object
-    //   Existing Object <- Locals.fiSourceFile
-    // .NET call: System.IO.FileInfo.Name
-    //   Return Value <- Locals.FileName
-    throw UnimplementedError(
-      'dotNet call: System.IO.FileInfo.Name',
-    ); // Get File Name [Action]
-    // .NET call: System.IO.FileInfo.Use Existing Object
-    //   Existing Object <- Locals.fiSourceFile
-    // .NET call: System.IO.FileInfo.CopyTo
-    //   destFileName <- Locals.TargetFullName + "\\" + Locals.FileName
-    //   overwrite <- True
-    throw UnimplementedError(
-      'dotNet call: System.IO.FileInfo.CopyTo',
-    ); // Copy File [Action]
-  }
-  // .NET call: System.IO.DirectoryInfo.Use Existing Object
-  //   Existing Object <- Parameters.diSourceDirectory
-  // .NET call: System.IO.DirectoryInfo.GetDirectories
-  //   Return Value <- Locals.diSourceSubdirectories
-  throw UnimplementedError(
-    'dotNet call: System.IO.DirectoryInfo.GetDirectories',
-  ); // Get Source Subdirectories [Action]
-  for (final element2 in ts.iterate(diSourceSubdirectories)) {
-    diSourceSubdirectory = element2;
-    // .NET call: System.IO.DirectoryInfo.Use Existing Object
-    //   Existing Object <- Locals.diSourceSubdirectory
-    // .NET call: System.IO.DirectoryInfo.Name
-    //   Return Value <- Locals.SubdirectoryName
-    throw UnimplementedError(
-      'dotNet call: System.IO.DirectoryInfo.Name',
-    ); // Get Subdirectory Name [Action]
+  body:
+  try {
+    // ── main ──
     // .NET call: System.IO.DirectoryInfo.Use Existing Object
     //   Existing Object <- Parameters.diTargetDirectory
-    // .NET call: System.IO.DirectoryInfo.CreateSubdirectory
-    //   Return Value <- Locals.diTargetSubdirectory
-    //   path <- Locals.SubdirectoryName
+    // .NET call: System.IO.DirectoryInfo.FullName
+    //   Return Value <- Locals.TargetFullName
     throw UnimplementedError(
-      'dotNet call: System.IO.DirectoryInfo.CreateSubdirectory',
-    ); // Create Subdirectory [Action]
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    copyAllResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    copyAllResult.Status = await copyAll(
-      diSourceDirectory: diSourceSubdirectory,
-      diTargetDirectory: diTargetSubdirectory,
-    ); // CopyAll
-    copyAllResult.Status = copyAllResult.Status == 'Done'
-        ? 'Passed'
-        : copyAllResult.Status; // status expression
-    run.record(copyAllResult.Status);
+      'dotNet call: System.IO.DirectoryInfo.FullName',
+    ); // Get Target FullName [Action]
+    // .NET call: System.IO.Directory.CreateDirectory
+    //   path <- Locals.TargetFullName
+    throw UnimplementedError(
+      'dotNet call: System.IO.Directory.CreateDirectory',
+    ); // Create Target Directory [Action]
+    // .NET call: System.IO.DirectoryInfo.Use Existing Object
+    //   Existing Object <- Parameters.diSourceDirectory
+    // .NET call: System.IO.DirectoryInfo.GetFiles
+    //   Return Value <- Locals.fiSourceFiles
+    throw UnimplementedError(
+      'dotNet call: System.IO.DirectoryInfo.GetFiles',
+    ); // Get Source Files [Action]
+    for (final element in ts.iterate(fiSourceFiles)) {
+      fiSourceFile = element;
+      // .NET call: System.IO.FileInfo.Use Existing Object
+      //   Existing Object <- Locals.fiSourceFile
+      // .NET call: System.IO.FileInfo.Name
+      //   Return Value <- Locals.FileName
+      throw UnimplementedError(
+        'dotNet call: System.IO.FileInfo.Name',
+      ); // Get File Name [Action]
+      // .NET call: System.IO.FileInfo.Use Existing Object
+      //   Existing Object <- Locals.fiSourceFile
+      // .NET call: System.IO.FileInfo.CopyTo
+      //   destFileName <- Locals.TargetFullName + "\\" + Locals.FileName
+      //   overwrite <- True
+      throw UnimplementedError(
+        'dotNet call: System.IO.FileInfo.CopyTo',
+      ); // Copy File [Action]
+    }
+    // .NET call: System.IO.DirectoryInfo.Use Existing Object
+    //   Existing Object <- Parameters.diSourceDirectory
+    // .NET call: System.IO.DirectoryInfo.GetDirectories
+    //   Return Value <- Locals.diSourceSubdirectories
+    throw UnimplementedError(
+      'dotNet call: System.IO.DirectoryInfo.GetDirectories',
+    ); // Get Source Subdirectories [Action]
+    for (final element2 in ts.iterate(diSourceSubdirectories)) {
+      diSourceSubdirectory = element2;
+      // .NET call: System.IO.DirectoryInfo.Use Existing Object
+      //   Existing Object <- Locals.diSourceSubdirectory
+      // .NET call: System.IO.DirectoryInfo.Name
+      //   Return Value <- Locals.SubdirectoryName
+      throw UnimplementedError(
+        'dotNet call: System.IO.DirectoryInfo.Name',
+      ); // Get Subdirectory Name [Action]
+      // .NET call: System.IO.DirectoryInfo.Use Existing Object
+      //   Existing Object <- Parameters.diTargetDirectory
+      // .NET call: System.IO.DirectoryInfo.CreateSubdirectory
+      //   Return Value <- Locals.diTargetSubdirectory
+      //   path <- Locals.SubdirectoryName
+      throw UnimplementedError(
+        'dotNet call: System.IO.DirectoryInfo.CreateSubdirectory',
+      ); // Create Subdirectory [Action]
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      copyAllResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      copyAllResult.Status = await copyAll(
+        diSourceDirectory: diSourceSubdirectory,
+        diTargetDirectory: diTargetSubdirectory,
+      ); // CopyAll
+      copyAllResult.Status = copyAllResult.Status == 'Done'
+          ? 'Passed'
+          : copyAllResult.Status; // status expression
+      run.record(copyAllResult.Status);
+    }
+  } finally {
+    // ── cleanup ──
+    diTargetSubdirectory = null; // Release diTargetSubdirectory
+    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.fiSourceFiles); increment RunState.LoopIndex += 1; status "Done"
+    fiSourceFiles[runState.LoopIndex] = null; // Release fiSourceFiles
+    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.diSourceSubdirectories); increment RunState.LoopIndex += 1; status "Done"
+    diSourceSubdirectories[runState.LoopIndex] =
+        null; // Release diSourceSubdirectories
   }
-
-  // ── cleanup ──
-  diTargetSubdirectory = null; // Release diTargetSubdirectory
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.fiSourceFiles); increment RunState.LoopIndex += 1; status "Done"
-  fiSourceFiles[runState.LoopIndex] = null; // Release fiSourceFiles
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.diSourceSubdirectories); increment RunState.LoopIndex += 1; status "Done"
-  diSourceSubdirectories[runState.LoopIndex] =
-      null; // Release diSourceSubdirectories
 
   return run.status;
 }
@@ -307,7 +322,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Prompt" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
   lw.skipTest('SequenceFileLoad', () async {
     lw.expect(await sequenceFileLoad(), 'Passed');

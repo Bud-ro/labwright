@@ -15,35 +15,38 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NISwitchControlRelays.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_niswitch.py',
-  ); // Create and register NI-Switch Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NISwitchControlRelays.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_niswitch.py',
+    ); // Create and register NI-Switch Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NISwitchControlRelays_Python
-  // measurement param: relay_names (In TypeString) = "SiteRelay1"
-  // measurement param: close_relay (In TypeBool) = True
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Close relays using an NI relay driver [NI_Measurement]
-  await Future<void>.delayed(const Duration(seconds: 5)); // Wait 5 seconds
-  // measurement: ni.examples.NISwitchControlRelays_Python
-  // measurement param: relay_names (In TypeString) = "SiteRelay1"
-  // measurement param: close_relay (In TypeBool) = False
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Open relays using an NI relay driver [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_niswitch.py',
-  ); // Destroy and unregister NI-Switch sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NISwitchControlRelays_Python
+    // measurement param: relay_names (In TypeString) = "SiteRelay1"
+    // measurement param: close_relay (In TypeBool) = True
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Close relays using an NI relay driver [NI_Measurement]
+    await Future<void>.delayed(const Duration(seconds: 5)); // Wait 5 seconds
+    // measurement: ni.examples.NISwitchControlRelays_Python
+    // measurement param: relay_names (In TypeString) = "SiteRelay1"
+    // measurement param: close_relay (In TypeBool) = False
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Open relays using an NI relay driver [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_niswitch.py',
+    ); // Destroy and unregister NI-Switch sessions [Action]
+  }
 
   return run.status;
 }

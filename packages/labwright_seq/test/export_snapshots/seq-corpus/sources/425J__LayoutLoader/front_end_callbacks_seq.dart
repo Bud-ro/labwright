@@ -24,28 +24,36 @@ Future<String> loginLogout({
     'Common': ts.PropObj(),
   }); // result of Restart
 
-  // custom flow: if (True) Goto -> <End> else Next
-  if (logout) {
-    // precondition of Logout
-    throw UnimplementedError('cModule call: Logout'); // Logout [Action]
-  }
-  // custom flow: if (RunState.Engine.CurrentUser == Nothing) Goto -> <End> else Next
-  if (!logout) {
-    // precondition of Login
-    throw UnimplementedError('cModule call: Login'); // Login [Action]
-  }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  if (ts.cond(
-    'RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig", PropOption_NoOptions)',
-  )) {
-    // precondition of Restart
-    restartResult.Status = await restart(); // Restart
-    restartResult.Status = restartResult.Status == 'Done'
-        ? 'Passed'
-        : restartResult.Status; // status expression
-    run.record(restartResult.Status);
-  } else {
-    restartResult.Status = 'Skipped';
+  endMain:
+  {
+    // custom flow: if (True) Goto -> <End> else Next
+    if (logout) {
+      // precondition of Logout
+      throw UnimplementedError('cModule call: Logout'); // Logout [Action]
+      break endMain; // post action
+    }
+    // custom flow: if (RunState.Engine.CurrentUser == Nothing) Goto -> <End> else Next
+    if (!logout) {
+      // precondition of Login
+      throw UnimplementedError('cModule call: Login'); // Login [Action]
+      if (runState.Engine.CurrentUser == null) {
+        // post action
+        break endMain;
+      }
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    if (ts.cond(
+      'RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig", PropOption_NoOptions)',
+    )) {
+      // precondition of Restart
+      restartResult.Status = await restart(); // Restart
+      restartResult.Status = restartResult.Status == 'Done'
+          ? 'Passed'
+          : restartResult.Status; // status expression
+      run.record(restartResult.Status);
+    } else {
+      restartResult.Status = 'Skipped';
+    }
   }
 
   return run.status;
@@ -67,49 +75,60 @@ Future<String> restart() async {
     'Common': ts.PropObj(),
   }); // result of Message
 
-  if (ts.cond(
-    '#NoValidation(FindFile(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log"))',
-  )) {
-    // precondition of Get Current UI Config Path
-    // .NET call: System.IO.File.ReadAllText
-    //   Return Value <- Locals.CurrentUIConfigFilePath
-    //   path <- #NoValidation(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\CurrentUIConfigFilePath.log")
-    throw UnimplementedError(
-      'dotNet call: System.IO.File.ReadAllText',
-    ); // Get Current UI Config Path [Action]
-  }
-  if (ts.cond(
-    'RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig" , PropOption_NoOptions)',
-  )) {
-    // .NET call: System.Environment.ExpandEnvironmentVariables
-    //   Return Value <- Locals.NewUIConfigPath
-    //   name <- Str(RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig)
-    throw UnimplementedError(
-      'dotNet call: System.Environment.ExpandEnvironmentVariables',
-    ); // Get New UI Config Path [Action]
-    // custom flow: if (Locals.NewUIConfigExists) Next else Goto -> <End>
-    // .NET call: System.IO.File.Exists
-    //   Return Value <- Locals.NewUIConfigExists
-    //   path <- Locals.NewUIConfigPath
-    throw UnimplementedError(
-      'dotNet call: System.IO.File.Exists',
-    ); // UI Config File Exists? [Action]
+  endMain:
+  {
     if (ts.cond(
-      'Locals.NewUIConfigPath != Trim(Locals.CurrentUIConfigFilePath)',
+      '#NoValidation(FindFile(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\\\CurrentUIConfigFilePath.log"))',
     )) {
-      // custom flow: if (Step.Result.ButtonHit == 1) Next else Goto -> <End>
-      // popup title: "UI Configuration"
-      // popup message: "Do you want to restart Sequence Editor and load UI settings assigned to this user?"
-      // popup buttons: "Yes" | "No"
+      // precondition of Get Current UI Config Path
+      // .NET call: System.IO.File.ReadAllText
+      //   Return Value <- Locals.CurrentUIConfigFilePath
+      //   path <- #NoValidation(RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\\CurrentUIConfigFilePath.log")
       throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Message [MessagePopup]
-      messageResult.Status = 'Done';
-      run.record(messageResult.Status);
-      // runs executable: Restart.bat "\"" + RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\" \"" + RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig + "\" \"" + RunState.Engine.GetEnvironmentPath() + "\"" (WAIT_NONE)
+        'dotNet call: System.IO.File.ReadAllText',
+      ); // Get Current UI Config Path [Action]
+    }
+    if (ts.cond(
+      'RunState.Engine.CurrentUser.AsPropertyObject.Attributes.Exists("UIConfig" , PropOption_NoOptions)',
+    )) {
+      // .NET call: System.Environment.ExpandEnvironmentVariables
+      //   Return Value <- Locals.NewUIConfigPath
+      //   name <- Str(RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig)
       throw UnimplementedError(
-        'step type CallExecutable: action not exported yet',
-      ); // Restart [CallExecutable]
+        'dotNet call: System.Environment.ExpandEnvironmentVariables',
+      ); // Get New UI Config Path [Action]
+      // custom flow: if (Locals.NewUIConfigExists) Next else Goto -> <End>
+      // .NET call: System.IO.File.Exists
+      //   Return Value <- Locals.NewUIConfigExists
+      //   path <- Locals.NewUIConfigPath
+      throw UnimplementedError(
+        'dotNet call: System.IO.File.Exists',
+      ); // UI Config File Exists? [Action]
+      if (!(newUiConfigExists)) {
+        // post action
+        break endMain;
+      }
+      if (ts.cond(
+        'Locals.NewUIConfigPath != Trim(Locals.CurrentUIConfigFilePath)',
+      )) {
+        // custom flow: if (Step.Result.ButtonHit == 1) Next else Goto -> <End>
+        // popup title: "UI Configuration"
+        // popup message: "Do you want to restart Sequence Editor and load UI settings assigned to this user?"
+        // popup buttons: "Yes" | "No"
+        throw UnimplementedError(
+          'step type MessagePopup: action not exported yet',
+        ); // Message [MessagePopup]
+        messageResult.Status = 'Done';
+        run.record(messageResult.Status);
+        if (!(messageResult.ButtonHit == 1)) {
+          // post action
+          break endMain;
+        }
+        // runs executable: Restart.bat "\"" + RunState.Engine.GetTestStandPath(TestStandPath_LocalAppData) + "\" \"" + RunState.Engine.CurrentUser.AsPropertyObject.Attributes.UIConfig + "\" \"" + RunState.Engine.GetEnvironmentPath() + "\"" (WAIT_NONE)
+        throw UnimplementedError(
+          'step type CallExecutable: action not exported yet',
+        ); // Restart [CallExecutable]
+      }
     }
   }
 
@@ -135,16 +154,13 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Logout" (Next/Next) not exported
   //   cModule call: Logout
-  //   flow action of step "Login" (Next/Next) not exported
   //   cModule call: Login
+  //   RunState engine access (no engine at run time)
   //   untranslated expression in body
   //   dotNet call: System.IO.File.ReadAllText
   //   dotNet call: System.Environment.ExpandEnvironmentVariables
-  //   flow action of step "UI Config File Exists?" (Next/Next) not exported
   //   dotNet call: System.IO.File.Exists
-  //   flow action of step "Message" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
   //   step type CallExecutable: action not exported yet
   lw.skipTest('LoginLogout', () async {

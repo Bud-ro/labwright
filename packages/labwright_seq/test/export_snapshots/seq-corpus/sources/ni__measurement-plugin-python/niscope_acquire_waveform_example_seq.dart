@@ -15,42 +15,45 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIScopeAcquireWaveform.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_niscope.py',
-  ); // Create and register NI-Scope Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIScopeAcquireWaveform.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_niscope.py',
+    ); // Create and register NI-Scope Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIScopeAcquireWaveform_Python
-  // measurement param: measurement_pins (In TypeString IOResource) = {"PinGroup1"}
-  // measurement param: vertical_range (In TypeDouble) = 5
-  // measurement param: vertical_coupling (In TypeEnum Enum) = 1i64
-  // measurement param: input_impedance (In TypeDouble) = 1000000
-  // measurement param: min_sample_rate (In TypeDouble) = 10000000
-  // measurement param: min_record_length (In TypeInt32) = 40000i64
-  // measurement param: trigger_pin (In TypeString IOResource) = "Pin1"
-  // measurement param: trigger_level (In TypeDouble) = 0.5
-  // measurement param: trigger_slope (In TypeEnum Enum) = 1i64
-  // measurement param: auto_trigger (In TypeBool) = False
-  // measurement param: trigger_coupling (In TypeEnum Enum) = 1i64
-  // measurement param: timeout (In TypeDouble) = 5
-  // measurement param: waveform0 (Out TypeDouble)
-  // measurement param: waveform1 (Out TypeDouble)
-  // measurement param: waveform2 (Out TypeDouble)
-  // measurement param: waveform3 (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Acquire a waveform using an NI oscilloscope [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_niscope.py',
-  ); // Destroy and unregister NI-Scope Sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIScopeAcquireWaveform_Python
+    // measurement param: measurement_pins (In TypeString IOResource) = {"PinGroup1"}
+    // measurement param: vertical_range (In TypeDouble) = 5
+    // measurement param: vertical_coupling (In TypeEnum Enum) = 1i64
+    // measurement param: input_impedance (In TypeDouble) = 1000000
+    // measurement param: min_sample_rate (In TypeDouble) = 10000000
+    // measurement param: min_record_length (In TypeInt32) = 40000i64
+    // measurement param: trigger_pin (In TypeString IOResource) = "Pin1"
+    // measurement param: trigger_level (In TypeDouble) = 0.5
+    // measurement param: trigger_slope (In TypeEnum Enum) = 1i64
+    // measurement param: auto_trigger (In TypeBool) = False
+    // measurement param: trigger_coupling (In TypeEnum Enum) = 1i64
+    // measurement param: timeout (In TypeDouble) = 5
+    // measurement param: waveform0 (Out TypeDouble)
+    // measurement param: waveform1 (Out TypeDouble)
+    // measurement param: waveform2 (Out TypeDouble)
+    // measurement param: waveform3 (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Acquire a waveform using an NI oscilloscope [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_niscope.py',
+    ); // Destroy and unregister NI-Scope Sessions [Action]
+  }
 
   return run.status;
 }

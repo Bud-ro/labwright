@@ -23,73 +23,76 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  modelPath =
-      'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel.seq'; // Setup Paths
-  modelPatchesPath =
-      'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel Patches.seq'; // Setup Paths (cont.)
-  outputPath =
-      'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\Outputs\\CustomATESequentialModel.seq'; // Setup Paths (cont.)
-  originalModel = runState.Engine.GetSequenceFileEx(modelPath); // Open Model
-  patchesFile = runState.Engine.GetSequenceFileEx(
-    modelPatchesPath,
-  ); // Open Patches
-  patchedSequenceFile =
-      runState.Engine.NewSequenceFile(); // Create New Sequence File
-  patchedSequenceFile.AsSequenceFile.RemoveSequence(0); // Remove MainSequence
-  ts.eval(
-    'Locals.patchedSequenceFile.AsSequenceFile.SequenceFileType = SeqFileType_Model',
-  ); // Change SequenceFile Type to Model
+  body:
+  try {
+    // ── setup ──
+    modelPath =
+        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel.seq'; // Setup Paths
+    modelPatchesPath =
+        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\SequentialModel Patches.seq'; // Setup Paths (cont.)
+    outputPath =
+        'C:\\Users\\User\\Documents\\Subversion\\Patching Process Models\\Outputs\\CustomATESequentialModel.seq'; // Setup Paths (cont.)
+    originalModel = runState.Engine.GetSequenceFileEx(modelPath); // Open Model
+    patchesFile = runState.Engine.GetSequenceFileEx(
+      modelPatchesPath,
+    ); // Open Patches
+    patchedSequenceFile =
+        runState.Engine.NewSequenceFile(); // Create New Sequence File
+    patchedSequenceFile.AsSequenceFile.RemoveSequence(0); // Remove MainSequence
+    ts.eval(
+      'Locals.patchedSequenceFile.AsSequenceFile.SequenceFileType = SeqFileType_Model',
+    ); // Change SequenceFile Type to Model
 
-  // ── main ──
-  // Copy Sequence Patches
-  for (
-    loopingVariable = 0;
-    loopingVariable < patchesFile.AsSequenceFile.NumSequences;
-    loopingVariable += 1
-  ) {
-    patchedSequenceFile.AsSequenceFile.InsertSequenceEx(
-      patchedSequenceFile.AsSequenceFile.NumSequences,
-      patchesFile.AsSequenceFile.GetSequence(
-        loopingVariable,
-      ).AsPropertyObject.Clone('', 0),
-    ); // Copy Sequence
-  }
-  // Copy Rest of Process Model
-  //
-  for (
-    loopingVariable = 0;
-    loopingVariable < originalModel.AsSequenceFile.NumSequences;
-    loopingVariable += 1
-  ) {
-    if (patchedSequenceFile.AsSequenceFile.SequenceNameExists(
-          originalModel.AsSequenceFile.GetSequence(loopingVariable).Name,
-        ) !=
-        true) {
+    // ── main ──
+    // Copy Sequence Patches
+    for (
+      loopingVariable = 0;
+      loopingVariable < patchesFile.AsSequenceFile.NumSequences;
+      loopingVariable += 1
+    ) {
       patchedSequenceFile.AsSequenceFile.InsertSequenceEx(
         patchedSequenceFile.AsSequenceFile.NumSequences,
-        originalModel.AsSequenceFile.GetSequence(
+        patchesFile.AsSequenceFile.GetSequence(
           loopingVariable,
         ).AsPropertyObject.Clone('', 0),
       ); // Copy Sequence
     }
-  }
-  patchedSequenceFile.AsSequenceFile.Save(outputPath); // Save File
-
-  // ── cleanup ──
-  if (originalModel != null) {
-    // precondition of Close Model
-    runState.Engine.ReleaseSequenceFileEx(originalModel); // Close Model
-  }
-  if (patchesFile != null) {
-    // precondition of Close Patches
-    runState.Engine.ReleaseSequenceFileEx(patchesFile); // Close Patches
-  }
-  if (patchedSequenceFile != null) {
-    // precondition of Close OutputFile
-    runState.Engine.ReleaseSequenceFileEx(
-      patchedSequenceFile,
-    ); // Close OutputFile
+    // Copy Rest of Process Model
+    //
+    for (
+      loopingVariable = 0;
+      loopingVariable < originalModel.AsSequenceFile.NumSequences;
+      loopingVariable += 1
+    ) {
+      if (patchedSequenceFile.AsSequenceFile.SequenceNameExists(
+            originalModel.AsSequenceFile.GetSequence(loopingVariable).Name,
+          ) !=
+          true) {
+        patchedSequenceFile.AsSequenceFile.InsertSequenceEx(
+          patchedSequenceFile.AsSequenceFile.NumSequences,
+          originalModel.AsSequenceFile.GetSequence(
+            loopingVariable,
+          ).AsPropertyObject.Clone('', 0),
+        ); // Copy Sequence
+      }
+    }
+    patchedSequenceFile.AsSequenceFile.Save(outputPath); // Save File
+  } finally {
+    // ── cleanup ──
+    if (originalModel != null) {
+      // precondition of Close Model
+      runState.Engine.ReleaseSequenceFileEx(originalModel); // Close Model
+    }
+    if (patchesFile != null) {
+      // precondition of Close Patches
+      runState.Engine.ReleaseSequenceFileEx(patchesFile); // Close Patches
+    }
+    if (patchedSequenceFile != null) {
+      // precondition of Close OutputFile
+      runState.Engine.ReleaseSequenceFileEx(
+        patchedSequenceFile,
+      ); // Close OutputFile
+    }
   }
 
   return run.status;

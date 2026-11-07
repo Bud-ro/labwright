@@ -35,45 +35,48 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Turn Off all AO Channels
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example 1 - Demonstrates the LED test to measure the differential voltage across Anode and Cathode
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  validateDcLevelResult.Status = await validateDcLevel(); // Validate DC Level
-  validateDcLevelResult.Status = validateDcLevelResult.Status == 'Done'
-      ? 'Passed'
-      : validateDcLevelResult.Status; // status expression
-  run.record(validateDcLevelResult.Status);
-  //
-  //
-  // label: Example 2 - Demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  sendAndValidatePwmAnalogBufferResult.Status =
-      await sendAndValidatePwmAnalogBuffer(); // Send and Validate PWM(Analog Buffer)
-  sendAndValidatePwmAnalogBufferResult.Status =
-      sendAndValidatePwmAnalogBufferResult.Status == 'Done'
-      ? 'Passed'
-      : sendAndValidatePwmAnalogBufferResult.Status; // status expression
-  run.record(sendAndValidatePwmAnalogBufferResult.Status);
-
-  // ── cleanup ──
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  turnOffAllAoChannelsResult.Status =
-      await turnOffAllAoChannels(); // Turn Off all AO Channels
-  turnOffAllAoChannelsResult.Status =
-      turnOffAllAoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : turnOffAllAoChannelsResult.Status; // status expression
-  run.record(turnOffAllAoChannelsResult.Status);
+    // ── main ──
+    // label: Example 1 - Demonstrates the LED test to measure the differential voltage across Anode and Cathode
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    validateDcLevelResult.Status = await validateDcLevel(); // Validate DC Level
+    validateDcLevelResult.Status = validateDcLevelResult.Status == 'Done'
+        ? 'Passed'
+        : validateDcLevelResult.Status; // status expression
+    run.record(validateDcLevelResult.Status);
+    //
+    //
+    // label: Example 2 - Demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    sendAndValidatePwmAnalogBufferResult.Status =
+        await sendAndValidatePwmAnalogBuffer(); // Send and Validate PWM(Analog Buffer)
+    sendAndValidatePwmAnalogBufferResult.Status =
+        sendAndValidatePwmAnalogBufferResult.Status == 'Done'
+        ? 'Passed'
+        : sendAndValidatePwmAnalogBufferResult.Status; // status expression
+    run.record(sendAndValidatePwmAnalogBufferResult.Status);
+  } finally {
+    // ── cleanup ──
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    turnOffAllAoChannelsResult.Status =
+        await turnOffAllAoChannels(); // Turn Off all AO Channels
+    turnOffAllAoChannelsResult.Status =
+        turnOffAllAoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : turnOffAllAoChannelsResult.Status; // status expression
+    run.record(turnOffAllAoChannelsResult.Status);
+  }
 
   return run.status;
 }
@@ -101,47 +104,50 @@ Future<String> sendAndValidatePwmAnalogBuffer() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
-  // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize PWM Source [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize LED Measure [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates the LED test where PWM commands are sent to LEDs and PWM response is captured at TestPoint via analog buffer to validate Dutycycle
+    // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize PWM Source [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize LED Measure [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
-  // Configure Time Domain Measurement settings to wait for Hardware Trigger from PWM generation
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- True
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure capture settings for LED Measure [Action]
-  //
-  // Send PWM commands to LEDs (Dutycycle-60%)
-  //   DAQmx Task In <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Generate PWM Signal to LED [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
-  // Fetch and Validate PWM value via analog buffer
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- False
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch captured LED Measurements [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenClose(); // Signal Voltage Gen - Close PWM Source [Action]
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasClose(); // Time Domain Measurement - Close LED Measure [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations & update the Digital Start Trigger Settings based on NI MAX
+    // Configure Time Domain Measurement settings to wait for Hardware Trigger from PWM generation
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- True
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure capture settings for LED Measure [Action]
+    //
+    // Send PWM commands to LEDs (Dutycycle-60%)
+    //   DAQmx Task In <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Generate PWM Signal to LED [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
+    // Fetch and Validate PWM value via analog buffer
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- False
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Fetch captured LED Measurements [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenClose(); // Signal Voltage Gen - Close PWM Source [Action]
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasClose(); // Time Domain Measurement - Close LED Measure [Action]
+  }
 
   return run.status;
 }
@@ -160,27 +166,30 @@ Future<String> validateDcLevel() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates the LED test to measure the differential voltage across Anode and Cathode
-  // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below Initialize Step
-  //
-  // Initialize DC-RMS Voltage Meas to validate DC levels at Anode(TP_LED0+) and Cathode(TP_LED0-) of LED
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize LED DC Measurements [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates the LED test to measure the differential voltage across Anode and Cathode
+    // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below Initialize Step
+    //
+    // Initialize DC-RMS Voltage Meas to validate DC levels at Anode(TP_LED0+) and Cathode(TP_LED0-) of LED
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize LED DC Measurements [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations for the intended use case
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   Voltage Waveforms <- Locals.Measurement_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure Anode and Cathode of LED [Action]
-
-  // ── cleanup ──
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations for the intended use case
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   Voltage Waveforms <- Locals.Measurement_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure Anode and Cathode of LED [Action]
+  } finally {
+    // ── cleanup ──
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -203,28 +212,31 @@ Future<String> turnOffAllAoChannels() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Analog output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Analog Output module
-  //   Physical Channels <- "Simulated_DAQ/ao0:3" //AO channels to Turn OFF
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Analog output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Analog Output module
+    //   Physical Channels <- "Simulated_DAQ/ao0:3" //AO channels to Turn OFF
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
 
-  // ── main ──
-  // Sources DC Voltage at 0V to Analog Ouput channels
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Set 0V [Action]
-
-  // ── cleanup ──
-  // Closes the DC Voltage Generation Task for Analog output module
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+    // ── main ──
+    // Sources DC Voltage at 0V to Analog Ouput channels
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Set 0V [Action]
+  } finally {
+    // ── cleanup ──
+    // Closes the DC Voltage Generation Task for Analog output module
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+  }
 
   return run.status;
 }

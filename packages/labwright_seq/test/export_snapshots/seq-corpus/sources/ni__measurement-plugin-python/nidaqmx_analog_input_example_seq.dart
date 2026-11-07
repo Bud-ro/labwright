@@ -17,30 +17,33 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIDAQmxAnalogInput.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidaqmx.py',
-  ); // Create and register NI-DAQmx Tasks [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIDAQmxAnalogInput.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidaqmx.py',
+    ); // Create and register NI-DAQmx Tasks [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDAQmxAnalogInput_Python
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: sample_rate (In TypeDouble) = 1000
-  // measurement param: number_of_samples (In TypeUint64) = 100ui64
-  // measurement param: acquired_samples (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Create analog input channel and read samples [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidaqmx.py',
-  ); // Destroy and unregister NI-DAQmx tasks [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDAQmxAnalogInput_Python
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: sample_rate (In TypeDouble) = 1000
+    // measurement param: number_of_samples (In TypeUint64) = 100ui64
+    // measurement param: acquired_samples (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Create analog input channel and read samples [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidaqmx.py',
+    ); // Destroy and unregister NI-DAQmx tasks [Action]
+  }
 
   return run.status;
 }

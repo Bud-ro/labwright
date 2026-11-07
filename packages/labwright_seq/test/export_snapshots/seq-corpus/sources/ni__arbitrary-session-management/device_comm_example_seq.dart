@@ -15,36 +15,39 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "..\pinmap\CustomInstrumentInfo.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_device_comm.py',
-  ); // Create and register device comm sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "..\pinmap\CustomInstrumentInfo.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_device_comm.py',
+    ); // Create and register device comm sessions [Action]
 
-  // ── main ──
-  // measurement: SimpleMeasurement_Python
-  // measurement param: Register Value In (Binary) (In TypeString) = "11111111"
-  // measurement param: Resource name (In TypeString IOResource) = "CustomInstrumentPin"
-  // measurement param: Register Value Out (Binary) (Out TypeString)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Simple Measurement with device communication operations [NI_Measurement]
-  // measurement: SimpleMeasurement_Python
-  // measurement param: Register Value In (Binary) (In TypeString) = "00111111"
-  // measurement param: Resource name (In TypeString IOResource) = "CustomInstrumentPin"
-  // measurement param: Register Value Out (Binary) (Out TypeString)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Simple Measurement with device communication operations [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_device_comm.py',
-  ); // Destroy and unregister device comm sessions [Action]
+    // ── main ──
+    // measurement: SimpleMeasurement_Python
+    // measurement param: Register Value In (Binary) (In TypeString) = "11111111"
+    // measurement param: Resource name (In TypeString IOResource) = "CustomInstrumentPin"
+    // measurement param: Register Value Out (Binary) (Out TypeString)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Simple Measurement with device communication operations [NI_Measurement]
+    // measurement: SimpleMeasurement_Python
+    // measurement param: Register Value In (Binary) (In TypeString) = "00111111"
+    // measurement param: Resource name (In TypeString IOResource) = "CustomInstrumentPin"
+    // measurement param: Register Value Out (Binary) (Out TypeString)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Simple Measurement with device communication operations [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_device_comm.py',
+    ); // Destroy and unregister device comm sessions [Action]
+  }
 
   return run.status;
 }

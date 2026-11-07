@@ -21,31 +21,34 @@ Future<String> loginLogout({
 
   final run = ts.SequenceRun();
 
-  // ── main ──
-  if (logout) {
-    throw UnimplementedError('cModule call: Logout'); // Logout [Action]
-  } else {
-    throw UnimplementedError('cModule call: Login'); // Login [Action]
-    run.record(
-      await quick_drop_seq.isRunning(running: quickDropRunning),
-    ); // Is Quick Drop Running?: external sequence
-    // Start if not already running
-    if (!quickDropRunning) {
-      // precondition of Start Quick Drop
-      // sequence call spawns a new execution in the engine — exported as a plain awaited call
+  body:
+  try {
+    // ── main ──
+    if (logout) {
+      throw UnimplementedError('cModule call: Logout'); // Logout [Action]
+    } else {
+      throw UnimplementedError('cModule call: Login'); // Login [Action]
       run.record(
-        await quick_drop_seq.start(),
-      ); // Start Quick Drop: external sequence
+        await quick_drop_seq.isRunning(running: quickDropRunning),
+      ); // Is Quick Drop Running?: external sequence
+      // Start if not already running
+      if (!quickDropRunning) {
+        // precondition of Start Quick Drop
+        // sequence call spawns a new execution in the engine — exported as a plain awaited call
+        run.record(
+          await quick_drop_seq.start(),
+        ); // Start Quick Drop: external sequence
+      }
     }
-  }
-
-  // ── cleanup ──
-  // If CurrentUser is NULL...
-  if (runState.Engine.CurrentUser == null) {
-    // precondition of Stop Quick Drop
-    run.record(
-      await quick_drop_seq.stop(),
-    ); // Stop Quick Drop: external sequence
+  } finally {
+    // ── cleanup ──
+    // If CurrentUser is NULL...
+    if (runState.Engine.CurrentUser == null) {
+      // precondition of Stop Quick Drop
+      run.record(
+        await quick_drop_seq.stop(),
+      ); // Stop Quick Drop: external sequence
+    }
   }
 
   return run.status;

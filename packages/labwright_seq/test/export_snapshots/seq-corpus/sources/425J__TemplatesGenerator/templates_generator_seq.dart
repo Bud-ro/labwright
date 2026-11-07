@@ -25,40 +25,43 @@ Future<String> createTemplates({bool createViTemplates = true}) async {
     'Common': ts.PropObj(),
   }); // result of Create Sequence File Templates
 
-  // ── main ──
-  ts.eval(
-    'Locals.ToolFolderName = SearchPatternAndReplace(Right(RunState.InitialSelection.SelectedFile.Path, Len(RunState.InitialSelection.SelectedFile.Path) - Find(RunState.InitialSelection.SelectedFile.Path, "\\\\", 0, True, True) - 1), ".seq", "")',
-  ); // Get Sequence File Name
-  ts.eval(
-    'Locals.TemplatesFile = RunState.Engine.GetTemplatesFile(GetTemplatesFileOption_NoOptions)',
-  ); // Get Templates File
-  ts.eval('#NoValidation'); // Create Templates Folder
-  ts.eval(
-    '\n\'Delete old templates.\nLocals.TemplatesFile.AsPropertyObjectFile.Data.Exists(Str(Locals.ToolFolderName, "Root[\\"%s\\"]"), PropOption_NoOptions) ? Locals.TemplatesFile.AsPropertyObjectFile.Data.Root.DeleteElements(Locals.TemplatesFile.AsPropertyObjectFile.Data.Root.GetArrayOffset("", PropOption_NoOptions, Str(Locals.ToolFolderName, "[\\"%s\\"]")), 1) : Nothing,\n\n\'Create templates folder.\nLocals.TemplatesFile.AsPropertyObjectFile.Data.Root.SetPropertyObjectByOffset(GetNumElements(Locals.TemplatesFile.AsPropertyObjectFile.Data.Root), PropOption_InsertElement, Locals.FolderPlaceholder.Clone("", PropOption_NoOptions))',
-  ); // Create Templates Folder (cont.)
-  templatesFile.AsPropertyObjectFile.Data.Root['FolderPlaceholder'].Name =
-      toolFolderName; // Create Templates Folder (cont.)
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  createSequenceFileTemplatesResult.Status = await createSfTemplates(
-    sequenceFilePath: runState.InitialSelection.SelectedFile.Path,
-    templatesFile: templatesFile,
-    templatesFolder: ts.eval(
-      '#NoValidation,\n&Locals.TemplatesFile.AsPropertyObjectFile.Data.Root[Locals.ToolFolderName]',
-    ),
-  ); // Create Sequence File Templates
-  createSequenceFileTemplatesResult.Status =
-      createSequenceFileTemplatesResult.Status == 'Done'
-      ? 'Passed'
-      : createSequenceFileTemplatesResult.Status; // status expression
-  run.record(createSequenceFileTemplatesResult.Status);
-  templatesFile
-      .AsPropertyObjectFile.IncChangeCount(); // Increment the Change Count of the Templates File
-  ts.eval(
-    'RunState.Thread.PostUIMessageEx(UIMsg_RefreshWindows, 0, "", Nothing, True)',
-  ); // Refresh Window
-
-  // ── cleanup ──
-  templatesFile = null; // Release Templates File
+  body:
+  try {
+    // ── main ──
+    ts.eval(
+      'Locals.ToolFolderName = SearchPatternAndReplace(Right(RunState.InitialSelection.SelectedFile.Path, Len(RunState.InitialSelection.SelectedFile.Path) - Find(RunState.InitialSelection.SelectedFile.Path, "\\\\", 0, True, True) - 1), ".seq", "")',
+    ); // Get Sequence File Name
+    ts.eval(
+      'Locals.TemplatesFile = RunState.Engine.GetTemplatesFile(GetTemplatesFileOption_NoOptions)',
+    ); // Get Templates File
+    ts.eval('#NoValidation'); // Create Templates Folder
+    ts.eval(
+      '\n\'Delete old templates.\nLocals.TemplatesFile.AsPropertyObjectFile.Data.Exists(Str(Locals.ToolFolderName, "Root[\\"%s\\"]"), PropOption_NoOptions) ? Locals.TemplatesFile.AsPropertyObjectFile.Data.Root.DeleteElements(Locals.TemplatesFile.AsPropertyObjectFile.Data.Root.GetArrayOffset("", PropOption_NoOptions, Str(Locals.ToolFolderName, "[\\"%s\\"]")), 1) : Nothing,\n\n\'Create templates folder.\nLocals.TemplatesFile.AsPropertyObjectFile.Data.Root.SetPropertyObjectByOffset(GetNumElements(Locals.TemplatesFile.AsPropertyObjectFile.Data.Root), PropOption_InsertElement, Locals.FolderPlaceholder.Clone("", PropOption_NoOptions))',
+    ); // Create Templates Folder (cont.)
+    templatesFile.AsPropertyObjectFile.Data.Root['FolderPlaceholder'].Name =
+        toolFolderName; // Create Templates Folder (cont.)
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    createSequenceFileTemplatesResult.Status = await createSfTemplates(
+      sequenceFilePath: runState.InitialSelection.SelectedFile.Path,
+      templatesFile: templatesFile,
+      templatesFolder: ts.eval(
+        '#NoValidation,\n&Locals.TemplatesFile.AsPropertyObjectFile.Data.Root[Locals.ToolFolderName]',
+      ),
+    ); // Create Sequence File Templates
+    createSequenceFileTemplatesResult.Status =
+        createSequenceFileTemplatesResult.Status == 'Done'
+        ? 'Passed'
+        : createSequenceFileTemplatesResult.Status; // status expression
+    run.record(createSequenceFileTemplatesResult.Status);
+    templatesFile
+        .AsPropertyObjectFile.IncChangeCount(); // Increment the Change Count of the Templates File
+    ts.eval(
+      'RunState.Thread.PostUIMessageEx(UIMsg_RefreshWindows, 0, "", Nothing, True)',
+    ); // Refresh Window
+  } finally {
+    // ── cleanup ──
+    templatesFile = null; // Release Templates File
+  }
 
   return run.status;
 }
@@ -77,53 +80,57 @@ Future<String> createSfTemplates({
 
   final run = ts.SequenceRun();
 
-  // ── main ──
-  ts.eval(
-    'RunState.Engine.GetRelativePathFromAbsolutePath(Parameters.SequenceFilePath, *ThisContext.SequenceFile, Locals.SFRelativePath, "")',
-  ); // Get Sequence File Relative Path
-  ts.eval(
-    'Locals.SF = RunState.Engine.GetSequenceFileEx(Parameters.SequenceFilePath, GetSeqFile_OperatorInterfaceFlags OR GetSeqFile_DoNotRunLoadCallback, ConflictHandler_Prompt)',
-  ); // Get Sequence File
-  numberOfSequences = sf.AsSequenceFile.NumSequences; // Get Number of Sequences
-  // Iterate over sequences...
-  for (index = 0; index < numberOfSequences; index += 1) {
-    // Skip if not normal sequence
-    if (ts.cond(
-      'Locals.SF.AsSequenceFile.GetSequence(Locals.Index).GetEffectiveType() != SeqType_Normal',
-    )) {
-      continue;
+  body:
+  try {
+    // ── main ──
+    ts.eval(
+      'RunState.Engine.GetRelativePathFromAbsolutePath(Parameters.SequenceFilePath, *ThisContext.SequenceFile, Locals.SFRelativePath, "")',
+    ); // Get Sequence File Relative Path
+    ts.eval(
+      'Locals.SF = RunState.Engine.GetSequenceFileEx(Parameters.SequenceFilePath, GetSeqFile_OperatorInterfaceFlags OR GetSeqFile_DoNotRunLoadCallback, ConflictHandler_Prompt)',
+    ); // Get Sequence File
+    numberOfSequences =
+        sf.AsSequenceFile.NumSequences; // Get Number of Sequences
+    // Iterate over sequences...
+    for (index = 0; index < numberOfSequences; index += 1) {
+      // Skip if not normal sequence
+      if (ts.cond(
+        'Locals.SF.AsSequenceFile.GetSequence(Locals.Index).GetEffectiveType() != SeqType_Normal',
+      )) {
+        continue;
+      }
+      ts.eval(
+        'Locals.TmpStep = RunState.Engine.NewStep(SequenceAdapterKeyName, StepType_SequenceCall)',
+      ); // Create Temporary Step
+      ts.eval('#NoValidation'); // Set Temporary Step Properties
+      ts.eval(
+        '\n\'Set name.\nLocals.TmpStep.AsStep.Name = Locals.SF.AsSequenceFile.GetSequence(Locals.Index).Name,\n\n\'Set path.\nLocals.TmpStep.AsStep.Module.SFPath = Locals.SFRelativePath',
+      ); // Set Temporary Step Properties (cont.)
+      tmpStep.AsStep.Module.SeqName = sf.AsSequenceFile.GetSequence(
+        index,
+      ).Name; // Set Temporary Step Properties (cont.)
+      ts.eval(
+        '\n\n\'Set parameters/prototype\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = False,\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.LoadPrototypeFromSequence(Locals.SF.AsSequenceFile.GetSequence(Locals.Index) ,LoadPrototypeOption_NoOptions),\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = True',
+      ); // Set Temporary Step Properties (cont.)
+      // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < #NoValidation(Locals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNumSubProperties("")); increment RunState.LoopIndex += 1; status "Done"
+      ts.eval('#NoValidation'); // Set Default Parameters
+      ts.eval(
+        '\n\'Set default flag for parameters\nLocals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNthSubProperty("", RunState.LoopIndex, PropOption_NoOptions).UseDef = True',
+      ); // Set Default Parameters (cont.)
+      ts.eval('#NoValidation'); // Add a Sequence to the Templates
+      ts.eval(
+        '\nParameters.TemplatesFolder.AsPropertyObject.SetPropertyObjectByOffset(GetNumElements(*Parameters.TemplatesFolder), PropOption_InsertElement, Locals.TmpStep.AsPropertyObject.Clone("", PropOption_NoOptions))',
+      ); // Add a Sequence to the Templates (cont.)
+      tmpStep = null; // Release Temporary Step
     }
+  } finally {
+    // ── cleanup ──
     ts.eval(
-      'Locals.TmpStep = RunState.Engine.NewStep(SequenceAdapterKeyName, StepType_SequenceCall)',
-    ); // Create Temporary Step
-    ts.eval('#NoValidation'); // Set Temporary Step Properties
-    ts.eval(
-      '\n\'Set name.\nLocals.TmpStep.AsStep.Name = Locals.SF.AsSequenceFile.GetSequence(Locals.Index).Name,\n\n\'Set path.\nLocals.TmpStep.AsStep.Module.SFPath = Locals.SFRelativePath',
-    ); // Set Temporary Step Properties (cont.)
-    tmpStep.AsStep.Module.SeqName = sf.AsSequenceFile.GetSequence(
-      index,
-    ).Name; // Set Temporary Step Properties (cont.)
-    ts.eval(
-      '\n\n\'Set parameters/prototype\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = False,\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.LoadPrototypeFromSequence(Locals.SF.AsSequenceFile.GetSequence(Locals.Index) ,LoadPrototypeOption_NoOptions),\nLocals.TmpStep.AsStep.Module.AsSequenceCallModule.UseSequenceParameterPrototype = True',
-    ); // Set Temporary Step Properties (cont.)
-    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < #NoValidation(Locals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNumSubProperties("")); increment RunState.LoopIndex += 1; status "Done"
-    ts.eval('#NoValidation'); // Set Default Parameters
-    ts.eval(
-      '\n\'Set default flag for parameters\nLocals.TmpStep.Module.AsSequenceCallModule.ActualArgs.AsPropertyObject.GetNthSubProperty("", RunState.LoopIndex, PropOption_NoOptions).UseDef = True',
-    ); // Set Default Parameters (cont.)
-    ts.eval('#NoValidation'); // Add a Sequence to the Templates
-    ts.eval(
-      '\nParameters.TemplatesFolder.AsPropertyObject.SetPropertyObjectByOffset(GetNumElements(*Parameters.TemplatesFolder), PropOption_InsertElement, Locals.TmpStep.AsPropertyObject.Clone("", PropOption_NoOptions))',
-    ); // Add a Sequence to the Templates (cont.)
-    tmpStep = null; // Release Temporary Step
+      'RunState.Engine.ReleaseSequenceFileEx(Locals.SF, ReleaseSeqFile_DoNotRunUnloadCallback)',
+    ); // Release
+    sf = null; // Release (cont.)
+    tmpStep = null; // Release (cont.)
   }
-
-  // ── cleanup ──
-  ts.eval(
-    'RunState.Engine.ReleaseSequenceFileEx(Locals.SF, ReleaseSeqFile_DoNotRunUnloadCallback)',
-  ); // Release
-  sf = null; // Release (cont.)
-  tmpStep = null; // Release (cont.)
 
   return run.status;
 }

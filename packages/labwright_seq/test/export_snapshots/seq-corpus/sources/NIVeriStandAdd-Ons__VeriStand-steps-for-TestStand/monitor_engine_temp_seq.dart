@@ -44,78 +44,82 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Call Check Engine RPM
 
-  // ── setup ──
-  // Open and launch Engine Demo VeriStand project.
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
-  // Create and initialize notification to stop temperature monitor
-  // sync object: FileGlobals.ThermalNotification, operation code 0, lifetime code 3
-  throw UnimplementedError(
-    'step type NI_Notification: action not exported yet',
-  ); // Notification [NI_Notification]
-  // sync object: FileGlobals.ThermalNotification, operation code 2, lifetime code 3
-  throw UnimplementedError(
-    'step type NI_Notification: action not exported yet',
-  ); // Notification [NI_Notification]
-  // Asynchronously launch temperature monitor
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // sequence call spawns a new thread in the engine — exported as a plain awaited call
-  launchTemperatureMonitorResult.Status = await monitorTemperature(
-    readWait: 0.1,
-  ); // Launch Temperature Monitor
-  launchTemperatureMonitorResult.Status =
-      launchTemperatureMonitorResult.Status == 'Done' && false
-      ? 'Passed'
-      : launchTemperatureMonitorResult.Status; // status expression
-  run.record(launchTemperatureMonitorResult.Status);
-  // Turn engine on and wait until engine RPM reaches idle
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callEnginePowerResult.Status = await enginePower(); // Call Engine Power
-  callEnginePowerResult.Status = callEnginePowerResult.Status == 'Done'
-      ? 'Passed'
-      : callEnginePowerResult.Status; // status expression
-  run.record(callEnginePowerResult.Status);
-
-  // ── main ──
-  // Check that engine can settle at RPM setpoints +/- 50 RPM within 5 seconds
-  for (
-    i = 0;
-    ts.cond('Locals.i < Locals.RPMSetpoints.GetNumElements()');
-    i += 1
-  ) {
+  body:
+  try {
+    // ── setup ──
+    // Open and launch Engine Demo VeriStand project.
+    throw UnimplementedError(
+      'step type InitializeVeriStand: action not exported yet',
+    ); // Initialize VeriStand [InitializeVeriStand]
+    // Create and initialize notification to stop temperature monitor
+    // sync object: FileGlobals.ThermalNotification, operation code 0, lifetime code 3
+    throw UnimplementedError(
+      'step type NI_Notification: action not exported yet',
+    ); // Notification [NI_Notification]
+    // sync object: FileGlobals.ThermalNotification, operation code 2, lifetime code 3
+    throw UnimplementedError(
+      'step type NI_Notification: action not exported yet',
+    ); // Notification [NI_Notification]
+    // Asynchronously launch temperature monitor
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    callCheckEngineRpmResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    callCheckEngineRpmResult.Status = await checkEngineRpm(
-      setpoint: rpmSetpoints[i],
-      settleTime: 5,
-      tolerance: 50,
-    ); // Call Check Engine RPM
-    callCheckEngineRpmResult.Status = callCheckEngineRpmResult.Status == 'Done'
+    // sequence call spawns a new thread in the engine — exported as a plain awaited call
+    launchTemperatureMonitorResult.Status = await monitorTemperature(
+      readWait: 0.1,
+    ); // Launch Temperature Monitor
+    launchTemperatureMonitorResult.Status =
+        launchTemperatureMonitorResult.Status == 'Done' && false
         ? 'Passed'
-        : callCheckEngineRpmResult.Status; // status expression
-    run.record(callCheckEngineRpmResult.Status);
-  }
+        : launchTemperatureMonitorResult.Status; // status expression
+    run.record(launchTemperatureMonitorResult.Status);
+    // Turn engine on and wait until engine RPM reaches idle
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callEnginePowerResult.Status = await enginePower(); // Call Engine Power
+    callEnginePowerResult.Status = callEnginePowerResult.Status == 'Done'
+        ? 'Passed'
+        : callEnginePowerResult.Status; // status expression
+    run.record(callEnginePowerResult.Status);
 
-  // ── cleanup ──
-  // Turn engine off and set RPM setpoint to 0
-  throw UnimplementedError(
-    'step type SetMultipleChannelValues: action not exported yet',
-  ); // Shut Engine Down [SetMultipleChannelValues]
-  // Send notifcation to temperature monitor and wait until thread stops
-  // sync object: FileGlobals.ThermalNotification, operation code 1, lifetime code 3
-  throw UnimplementedError(
-    'step type NI_Notification: action not exported yet',
-  ); // Notification [NI_Notification]
-  // waits for sequence call step "ID#:B+Ta6a1P6BGcPqRMyNgrgD"
-  if (thermalMonitorThread != null) {
-    // precondition of Wait
-    await Future<void>.delayed(const Duration(seconds: 5));
+    // ── main ──
+    // Check that engine can settle at RPM setpoints +/- 50 RPM within 5 seconds
+    for (
+      i = 0;
+      ts.cond('Locals.i < Locals.RPMSetpoints.GetNumElements()');
+      i += 1
+    ) {
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      callCheckEngineRpmResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      callCheckEngineRpmResult.Status = await checkEngineRpm(
+        setpoint: rpmSetpoints[i],
+        settleTime: 5,
+        tolerance: 50,
+      ); // Call Check Engine RPM
+      callCheckEngineRpmResult.Status =
+          callCheckEngineRpmResult.Status == 'Done'
+          ? 'Passed'
+          : callCheckEngineRpmResult.Status; // status expression
+      run.record(callCheckEngineRpmResult.Status);
+    }
+  } finally {
+    // ── cleanup ──
+    // Turn engine off and set RPM setpoint to 0
+    throw UnimplementedError(
+      'step type SetMultipleChannelValues: action not exported yet',
+    ); // Shut Engine Down [SetMultipleChannelValues]
+    // Send notifcation to temperature monitor and wait until thread stops
+    // sync object: FileGlobals.ThermalNotification, operation code 1, lifetime code 3
+    throw UnimplementedError(
+      'step type NI_Notification: action not exported yet',
+    ); // Notification [NI_Notification]
+    // waits for sequence call step "ID#:B+Ta6a1P6BGcPqRMyNgrgD"
+    if (thermalMonitorThread != null) {
+      // precondition of Wait
+      await Future<void>.delayed(const Duration(seconds: 5));
+    }
   }
 
   return run.status;

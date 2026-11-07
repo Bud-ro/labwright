@@ -17,37 +17,40 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIDCPowerSourceDCVoltage.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Create and register NI-DCPower Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIDCPowerSourceDCVoltage.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Create and register NI-DCPower Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDCPowerSourceDCVoltage_Python
-  // measurement param: pin_names (In TypeString IOResource) = {"Pin1"}
-  // measurement param: voltage_level (In TypeDouble) = 6
-  // measurement param: voltage_level_range (In TypeDouble) = 6
-  // measurement param: current_limit (In TypeDouble) = 0.01
-  // measurement param: current_limit_range (In TypeDouble) = 0.01
-  // measurement param: source_delay (In TypeDouble) = 0
-  // measurement param: measurement_sites (Out TypeInt32)
-  // measurement param: measurement_pin_names (Out TypeString)
-  // measurement param: voltage_measurements (Out TypeDouble)
-  // measurement param: current_measurements (Out TypeDouble)
-  // measurement param: in_compliance (Out TypeBool)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Source DC voltage and measure voltage/current [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Destroy and unregister NI-DCPower sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDCPowerSourceDCVoltage_Python
+    // measurement param: pin_names (In TypeString IOResource) = {"Pin1"}
+    // measurement param: voltage_level (In TypeDouble) = 6
+    // measurement param: voltage_level_range (In TypeDouble) = 6
+    // measurement param: current_limit (In TypeDouble) = 0.01
+    // measurement param: current_limit_range (In TypeDouble) = 0.01
+    // measurement param: source_delay (In TypeDouble) = 0
+    // measurement param: measurement_sites (Out TypeInt32)
+    // measurement param: measurement_pin_names (Out TypeString)
+    // measurement param: voltage_measurements (Out TypeDouble)
+    // measurement param: current_measurements (Out TypeDouble)
+    // measurement param: in_compliance (Out TypeBool)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Source DC voltage and measure voltage/current [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Destroy and unregister NI-DCPower sessions [Action]
+  }
 
   return run.status;
 }

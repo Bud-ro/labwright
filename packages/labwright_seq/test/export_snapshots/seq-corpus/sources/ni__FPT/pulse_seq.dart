@@ -20,83 +20,86 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   Enable Validity Check? <- True
-  //   error out <- Step.Result.Error
-  await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-  //   measure call context in <- Nothing
-  //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOnDut(); // RX_Power ON [Action]
-  //   measure call context in <- Nothing
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callSetSwitching(); // RX_Switching Connect [Action]
+  body:
+  try {
+    // ── setup ──
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   Enable Validity Check? <- True
+    //   error out <- Step.Result.Error
+    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
+    //   measure call context in <- Nothing
+    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOnDut(); // RX_Power ON [Action]
+    //   measure call context in <- Nothing
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callSetSwitching(); // RX_Switching Connect [Action]
 
-  // ── main ──
-  // measurement: FPT Pulse Measurement_LabVIEW
-  // measurement param: Automation Test (In TypeBool) = True
-  // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  // measurement param: RFSG name (In TypeString) = "5842"
-  // measurement param: RFSG port (In TypeString) = "port2"
-  // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFSG s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFSG s2p file path (In TypeString) = ""
-  // measurement param: RFmx name (In TypeString) = "5842"
-  // measurement param: RFmx port (In TypeString) = "port1"
-  // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFmx s2p file path (In TypeString) = ""
-  // measurement param: RFmx Center Frequency (Hz) (In TypeDouble) = 10000000000
-  // measurement param: RFmx Measurement Bandwidth (Hz) (In TypeDouble) = 80000000
-  // measurement param: RFmx Reference Level (dBm) (In TypeDouble) = 10
-  // measurement param: RFSG Generation IQ Rate (S/s) (In TypeDouble) = 1250000000
-  // measurement param: Pulse Acquisition Length (s) (In TypeDouble) = 0.002
-  // measurement param: Pulse Power Level (dBm) (In TypeDouble) = -20
-  // measurement param: Pulse Repetition Interval [PRI] (s) (In TypeDouble) = 0.0001
-  // measurement param: Pulse Width (s) (In TypeDouble) = 2E-05
-  // measurement param: Number of Pulses per Burst (In TypeUint32) = 20ui64
-  // measurement param: Measurement Offset (In TypeInt32) = 0i64
-  // measurement param: Window Start (%) (In TypeDouble) = 10
-  // measurement param: Window Stop (%) (In TypeDouble) = 90
-  // measurement param: Window Step Size (%) (In TypeDouble) = 10
-  // measurement param: High Reference Level (%) (In TypeDouble) = 90
-  // measurement param: Width Reference Level (%) (In TypeDouble) = 50
-  // measurement param: Low Reference Level (%) (In TypeDouble) = 10
-  // measurement param: Selected Pulse Trace (In TypeInt32) = 0i64
-  // measurement param: Power sequecing file validity check (In TypeBool) = True
-  // measurement param: Status (Out TypeString)
-  // measurement param: TS Intrapulse Stability (Out TypeMessage) = Locals.RX_Pulse_Intrapulse_Stability
-  // measurement param: TS P2P Stability (Out TypeMessage) = Locals.RX_Pulse_P2P_Stability
-  // measurement param: TS Acquired Amplitude (Out TypeMessage)
-  // measurement param: Per Pulse Result (Out TypeMessage)
-  // measurement param: Per Pulse Result (Name) (Out TypeString)
-  // measurement param: Duty Cycle (%) (Out TypeDouble)
-  // measurement param: Rising Time (us) (Out TypeDouble) = Locals.RX_Pulse_Rising_Time
-  // measurement param: Fall Time (us) (Out TypeDouble) = Locals.RX_Pulse_Fall_Time
-  // measurement param: Droop (%) (Out TypeDouble)
-  // measurement param: Ripple (%) (Out TypeDouble)
-  // measurement param: Overshoot (%) (Out TypeDouble)
-  // measurement param: Amplitude Stability (dB) (Out TypeDouble)
-  // measurement param: Phase Stability (dB) (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // RX_Pulse [NI_Measurement]
-  // checks: Step.NumericArray
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // RX_Pulse Limit Test [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOffDut(); // RX_Power OFF [Action]
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    // ── main ──
+    // measurement: FPT Pulse Measurement_LabVIEW
+    // measurement param: Automation Test (In TypeBool) = True
+    // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    // measurement param: RFSG name (In TypeString) = "5842"
+    // measurement param: RFSG port (In TypeString) = "port2"
+    // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFSG s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFSG s2p file path (In TypeString) = ""
+    // measurement param: RFmx name (In TypeString) = "5842"
+    // measurement param: RFmx port (In TypeString) = "port1"
+    // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFmx s2p file path (In TypeString) = ""
+    // measurement param: RFmx Center Frequency (Hz) (In TypeDouble) = 10000000000
+    // measurement param: RFmx Measurement Bandwidth (Hz) (In TypeDouble) = 80000000
+    // measurement param: RFmx Reference Level (dBm) (In TypeDouble) = 10
+    // measurement param: RFSG Generation IQ Rate (S/s) (In TypeDouble) = 1250000000
+    // measurement param: Pulse Acquisition Length (s) (In TypeDouble) = 0.002
+    // measurement param: Pulse Power Level (dBm) (In TypeDouble) = -20
+    // measurement param: Pulse Repetition Interval [PRI] (s) (In TypeDouble) = 0.0001
+    // measurement param: Pulse Width (s) (In TypeDouble) = 2E-05
+    // measurement param: Number of Pulses per Burst (In TypeUint32) = 20ui64
+    // measurement param: Measurement Offset (In TypeInt32) = 0i64
+    // measurement param: Window Start (%) (In TypeDouble) = 10
+    // measurement param: Window Stop (%) (In TypeDouble) = 90
+    // measurement param: Window Step Size (%) (In TypeDouble) = 10
+    // measurement param: High Reference Level (%) (In TypeDouble) = 90
+    // measurement param: Width Reference Level (%) (In TypeDouble) = 50
+    // measurement param: Low Reference Level (%) (In TypeDouble) = 10
+    // measurement param: Selected Pulse Trace (In TypeInt32) = 0i64
+    // measurement param: Power sequecing file validity check (In TypeBool) = True
+    // measurement param: Status (Out TypeString)
+    // measurement param: TS Intrapulse Stability (Out TypeMessage) = Locals.RX_Pulse_Intrapulse_Stability
+    // measurement param: TS P2P Stability (Out TypeMessage) = Locals.RX_Pulse_P2P_Stability
+    // measurement param: TS Acquired Amplitude (Out TypeMessage)
+    // measurement param: Per Pulse Result (Out TypeMessage)
+    // measurement param: Per Pulse Result (Name) (Out TypeString)
+    // measurement param: Duty Cycle (%) (Out TypeDouble)
+    // measurement param: Rising Time (us) (Out TypeDouble) = Locals.RX_Pulse_Rising_Time
+    // measurement param: Fall Time (us) (Out TypeDouble) = Locals.RX_Pulse_Fall_Time
+    // measurement param: Droop (%) (Out TypeDouble)
+    // measurement param: Ripple (%) (Out TypeDouble)
+    // measurement param: Overshoot (%) (Out TypeDouble)
+    // measurement param: Amplitude Stability (dB) (Out TypeDouble)
+    // measurement param: Phase Stability (dB) (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // RX_Pulse [NI_Measurement]
+    // checks: Step.NumericArray
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // RX_Pulse Limit Test [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOffDut(); // RX_Power OFF [Action]
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+  }
 
   return run.status;
 }

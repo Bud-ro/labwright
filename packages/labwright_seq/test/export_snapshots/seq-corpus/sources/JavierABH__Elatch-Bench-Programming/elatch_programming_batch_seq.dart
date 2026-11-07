@@ -174,201 +174,202 @@ Future<String> preBatch({
   }
 
   // ── main ──
-  // custom flow: if (True) Terminate else Next
-  if (modelData.BatchUUT.BatchSerialNumber == '') {
-    // precondition of Close the sequence if the operator press cancel button
+  skipToEndOfTraceabilitySection:
+  {
+    // custom flow: if (True) Terminate else Next
+    if (modelData.BatchUUT.BatchSerialNumber == '') {
+      // precondition of Close the sequence if the operator press cancel button
+      // Close the sequence if the operator press cancel button [Action]: no code module
+      ts.terminate(); // post action
+    }
+    stationGlobals.PanelSerial = ts.mid(
+      modelData.BatchUUT.BatchSerialNumber,
+      1,
+    ); // pre-expression
+    // .NET assembly: ..\WSConnector\WSConnector.dll
+    // .NET call: WSConnector.Connector.Connector
+    // .NET call: WSConnector.Connector.CIMP_PanelBoardRef
+    //   PanelNumber <- StationGlobals.PanelSerial
+    //   SerialNumberArray <- StationGlobals.IndividualSerials
     throw UnimplementedError(
-      'step type Action: action not exported yet',
-    ); // Close the sequence if the operator press cancel button [Action]
-  }
-  stationGlobals.PanelSerial = ts.mid(
-    modelData.BatchUUT.BatchSerialNumber,
-    1,
-  ); // pre-expression
-  // .NET assembly: ..\WSConnector\WSConnector.dll
-  // .NET call: WSConnector.Connector.Connector
-  // .NET call: WSConnector.Connector.CIMP_PanelBoardRef
-  //   PanelNumber <- StationGlobals.PanelSerial
-  //   SerialNumberArray <- StationGlobals.IndividualSerials
-  throw UnimplementedError(
-    'dotNet call: WSConnector.Connector.CIMP_PanelBoardRef',
-  ); // Get UUT Serial Based on Panel [Action]
-  modelData.TestSockets[0].UUT.SerialNumber =
-      stationGlobals.IndividualSerials[0]; // Set Serial to UUT 1
-  modelData.TestSockets[1].UUT.SerialNumber =
-      stationGlobals.IndividualSerials[1]; // Set Serial to UUT 2
-  modelData.TestSockets[2].UUT.SerialNumber =
-      stationGlobals.IndividualSerials[2]; // Set Serial to UUT 3
-  modelData.TestSockets[3].UUT.SerialNumber =
-      stationGlobals.IndividualSerials[3]; // Set Serial to UUT 4
-  modelData.TestSockets[4].UUT.SerialNumber =
-      stationGlobals.IndividualSerials[4]; // Set Serial to UUT 5
-  modelData.TestSockets[5].UUT.SerialNumber =
-      stationGlobals.IndividualSerials[5]; // Set Serial to UUT 6
-  // status expression: StationGlobals.PartNumber
-  //   SerialNumber <- StationGlobals.IndividualSerials[0]
-  //   AssemblyPartNumber <- Parameters.ModelData.BatchUUT.PartNumber
-  //   error out <- Step.Result.Error
-  await callWsp2PartNumberRef(); // Get_PartNumber [Action]
-  getPartNumberResult.Status = stationGlobals.PartNumber; // status expression
-  run.record(getPartNumberResult.Status);
-  // [skipped in source] Activar para mostrar PN
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  getFwPathsForPnResult.Status = await loadVariables(
-    variableList: modelData.BatchUUT.PartNumber,
-  ); // Get FW paths for PN
-  getFwPathsForPnResult.Status = getFwPathsForPnResult.Status == 'Done'
-      ? 'Passed'
-      : getFwPathsForPnResult.Status; // status expression
-  run.record(getFwPathsForPnResult.Status);
-  ts.eval('StationGlobals.ModelID = FileGlobals.Model_ID'); // Set FW Paths
-  ts.eval(
-    '\nStationGlobals.Path_flex_provision = FileGlobals.Path_flex_provision',
-  ); // Set FW Paths (cont.)
-  ts.eval(
-    '\nStationGlobals.Path_reset_flex_provision = FileGlobals.Path_reset_flex_provision',
-  ); // Set FW Paths (cont.)
-  ts.eval(
-    '\nStationGlobals.Path_program_combined = FileGlobals.Path_program_combined',
-  ); // Set FW Paths (cont.)
-  // status expression: ""
-  // description: This part is for future update
-  // label:
-  // [skipped in source] Save PN for check for PN at other panel
-  if (ts.cond(
-    'StationGlobals.PartNumber <> StationGlobals.Init_PN_withsequence && StationGlobals.Init_PN_withsequence <> ""',
-  )) {
-    // [Skip in source]
-    // [skipped in source] Msg for pn diferent
-    // [skipped in source] Close the sequence ifdetect other pn
+      'dotNet call: WSConnector.Connector.CIMP_PanelBoardRef',
+    ); // Get UUT Serial Based on Panel [Action]
+    modelData.TestSockets[0].UUT.SerialNumber =
+        stationGlobals.IndividualSerials[0]; // Set Serial to UUT 1
+    modelData.TestSockets[1].UUT.SerialNumber =
+        stationGlobals.IndividualSerials[1]; // Set Serial to UUT 2
+    modelData.TestSockets[2].UUT.SerialNumber =
+        stationGlobals.IndividualSerials[2]; // Set Serial to UUT 3
+    modelData.TestSockets[3].UUT.SerialNumber =
+        stationGlobals.IndividualSerials[3]; // Set Serial to UUT 4
+    modelData.TestSockets[4].UUT.SerialNumber =
+        stationGlobals.IndividualSerials[4]; // Set Serial to UUT 5
+    modelData.TestSockets[5].UUT.SerialNumber =
+        stationGlobals.IndividualSerials[5]; // Set Serial to UUT 6
+    // status expression: StationGlobals.PartNumber
+    //   SerialNumber <- StationGlobals.IndividualSerials[0]
+    //   AssemblyPartNumber <- Parameters.ModelData.BatchUUT.PartNumber
+    //   error out <- Step.Result.Error
+    await callWsp2PartNumberRef(); // Get_PartNumber [Action]
+    getPartNumberResult.Status = stationGlobals.PartNumber; // status expression
+    run.record(getPartNumberResult.Status);
+    // [skipped in source] Activar para mostrar PN
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    getFwPathsForPnResult.Status = await loadVariables(
+      variableList: modelData.BatchUUT.PartNumber,
+    ); // Get FW paths for PN
+    getFwPathsForPnResult.Status = getFwPathsForPnResult.Status == 'Done'
+        ? 'Passed'
+        : getFwPathsForPnResult.Status; // status expression
+    run.record(getFwPathsForPnResult.Status);
+    ts.eval('StationGlobals.ModelID = FileGlobals.Model_ID'); // Set FW Paths
+    ts.eval(
+      '\nStationGlobals.Path_flex_provision = FileGlobals.Path_flex_provision',
+    ); // Set FW Paths (cont.)
+    ts.eval(
+      '\nStationGlobals.Path_reset_flex_provision = FileGlobals.Path_reset_flex_provision',
+    ); // Set FW Paths (cont.)
+    ts.eval(
+      '\nStationGlobals.Path_program_combined = FileGlobals.Path_program_combined',
+    ); // Set FW Paths (cont.)
     // status expression: ""
     // description: This part is for future update
     // label:
-  } // [Skip in source]
-  // status expression: ""
-  // description: This part is for future update
-  // label:
-  // goto -> step "End Of Traceability Section"
-  if (stationGlobals.isTraceEnable == 'False') {
-    // precondition of Jump if Traceability is Disabled
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Jump if Traceability is Disabled [Goto]
-  }
-  // label: Start Traceability Section
-  // status expression: ""
-  // label:
-  //   serialNumber <- Parameters.ModelData.TestSockets[0].UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // BackCheck UUT 0 [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK[0] = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK[0] = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "UUT  0  reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
-  }
-  // status expression: ""
-  // label:
-  //   serialNumber <- Parameters.ModelData.TestSockets[1].UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // BackCheck UUT 1 [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK[1] = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK[1] = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "UUT 1  reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
-  }
-  // status expression: ""
-  // label:
-  //   serialNumber <- Parameters.ModelData.TestSockets[2].UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // BackCheck UUT 2 [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK[2] = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK[2] = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "UUT  2  reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
-  }
-  // status expression: ""
-  // label:
-  //   serialNumber <- Parameters.ModelData.TestSockets[3].UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // BackCheck UUT 3 [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK[3] = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK[3] = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "UUT 3  reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
-  }
-  // status expression: ""
-  // label:
-  //   serialNumber <- Parameters.ModelData.TestSockets[4].UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // BackCheck UUT 4 [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK[4] = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK[4] = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "UUT 4  reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
-  }
-  // status expression: ""
-  // label:
-  //   serialNumber <- Parameters.ModelData.TestSockets[5].UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // BackCheck UUT 5 [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK[5] = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK[5] = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "UUT  5  reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
+    // [skipped in source] Save PN for check for PN at other panel
+    if (ts.cond(
+      'StationGlobals.PartNumber <> StationGlobals.Init_PN_withsequence && StationGlobals.Init_PN_withsequence <> ""',
+    )) {
+      // [Skip in source]
+      // [skipped in source] Msg for pn diferent
+      // [skipped in source] Close the sequence ifdetect other pn
+      // status expression: ""
+      // description: This part is for future update
+      // label:
+    } // [Skip in source]
+    // status expression: ""
+    // description: This part is for future update
+    // label:
+    // goto -> step "End Of Traceability Section"
+    if (stationGlobals.isTraceEnable == 'False') {
+      // precondition of Jump if Traceability is Disabled
+      // Jump if Traceability is Disabled [Goto]: no code module
+      break skipToEndOfTraceabilitySection; // post action
+    }
+    // label: Start Traceability Section
+    // status expression: ""
+    // label:
+    //   serialNumber <- Parameters.ModelData.TestSockets[0].UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // BackCheck UUT 0 [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK[0] = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK[0] = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "UUT  0  reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
+    // status expression: ""
+    // label:
+    //   serialNumber <- Parameters.ModelData.TestSockets[1].UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // BackCheck UUT 1 [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK[1] = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK[1] = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "UUT 1  reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
+    // status expression: ""
+    // label:
+    //   serialNumber <- Parameters.ModelData.TestSockets[2].UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // BackCheck UUT 2 [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK[2] = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK[2] = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "UUT  2  reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
+    // status expression: ""
+    // label:
+    //   serialNumber <- Parameters.ModelData.TestSockets[3].UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // BackCheck UUT 3 [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK[3] = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK[3] = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "UUT 3  reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
+    // status expression: ""
+    // label:
+    //   serialNumber <- Parameters.ModelData.TestSockets[4].UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // BackCheck UUT 4 [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK[4] = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK[4] = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "UUT 4  reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
+    // status expression: ""
+    // label:
+    //   serialNumber <- Parameters.ModelData.TestSockets[5].UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // BackCheck UUT 5 [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK[5] = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK[5] = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "UUT  5  reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
   }
   // label: End Of Traceability Section
   // status expression: ""
@@ -545,174 +546,206 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of JLink_close Test
 
-  // ── setup ──
-  // [skipped in source] Go to cleanup on failure
-  if (stationGlobals.IsBackcheckOK[runState.TestSockets.MyIndex] == false &&
-      stationGlobals.isTraceEnable == 'True') {
-    // checks: False
+  var cleanupFrom = 0;
+  body:
+  try {
+    // ── setup ──
+    // [skipped in source] Go to cleanup on failure
+    if (stationGlobals.IsBackcheckOK[runState.TestSockets.MyIndex] == false &&
+        stationGlobals.isTraceEnable == 'True') {
+      // checks: False
+      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+      // UUT Not For This Process [PassFailTest]: judged by its status expression
+      uutNotForThisProcessResult.PassFail = false; // status expression
+      uutNotForThisProcessResult.Status =
+          ts.truthy(uutNotForThisProcessResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      run.record(uutNotForThisProcessResult.Status);
+      // goto -> step "BackCheck Point"
+      // Goto [Goto]: no code module
+      cleanupFrom = 3;
+      break body; // post action
+    }
+    // status expression: ""
+    // label:
+    backToWaitForUutOfReleNo:
+    while (true) {
+      // label: Wait for UUT of Rele NO
+      if (runState.TestSockets.MyIndex == 1) {
+        if (!ts.truthy(stationGlobals.Rele_programmer[0])) {
+          // waits for sequence call step "UUT Pass"
+          await Future<void>.delayed(const Duration(seconds: 3));
+          // goto -> step "Wait for UUT of Rele NO"
+          // Goto [Goto]: no code module
+          continue backToWaitForUutOfReleNo; // post action
+        }
+      } else if (runState.TestSockets.MyIndex == 3) {
+        if (!ts.truthy(stationGlobals.Rele_programmer[1])) {
+          // waits for sequence call step "UUT Pass"
+          await Future<void>.delayed(const Duration(seconds: 3));
+          // goto -> step "Wait for UUT of Rele NO"
+          // Goto [Goto]: no code module
+          continue backToWaitForUutOfReleNo; // post action
+        }
+      } else if (runState.TestSockets.MyIndex == 5) {
+        if (!ts.truthy(stationGlobals.Rele_programmer[2])) {
+          // waits for sequence call step "UUT Pass"
+          await Future<void>.delayed(const Duration(seconds: 3));
+          // goto -> step "Wait for UUT of Rele NO"
+          // Goto [Goto]: no code module
+          continue backToWaitForUutOfReleNo; // post action
+        }
+      }
+      break backToWaitForUutOfReleNo;
+    }
+
+    // ── main ──
+    // label: Start programming
+    //   Return Value <- FileGlobals.Programmer
+    //   serial_number <- #NoValidation(FileGlobals.Serial_segger)
+    throw UnimplementedError(
+      'python call: ..\\Python\\ecu_programmer.py',
+    ); // Create JLink instance [Action]
+    // checks: Step.Result.PassFail
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    // UUT Not For This Process [PassFailTest]: judged by its status expression
-    uutNotForThisProcessResult.PassFail = false; // status expression
-    uutNotForThisProcessResult.Status =
-        ts.truthy(uutNotForThisProcessResult.PassFail)
+    // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
+    // custom flow: if (RunState.SequenceFailed) Goto -> step "BackCheck Point" else Next
+    //   Return Value <- Step.Result.PassFail
+    throw UnimplementedError(
+      'python call: ..\\Python\\ecu_programmer.py',
+    ); // JLink Connection Test [PassFailTest]
+    jLinkConnectionTestResult.Status =
+        ts.truthy(jLinkConnectionTestResult.PassFail)
         ? 'Passed'
         : 'Failed'; // status expression
-    run.record(uutNotForThisProcessResult.Status);
-    // goto -> step "BackCheck Point"
+    run.record(jLinkConnectionTestResult.Status);
+    if (run.failed) {
+      // post action
+      cleanupFrom = 3;
+      break body;
+    }
+    // checks: Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
+    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
+    //   Return Value <- Step.Result.PassFail
+    //   chip_name <- #NoValidation(FileGlobals.Chip_name)
     throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Goto [Goto]
-  }
-  // status expression: ""
-  // label:
-  // label: Wait for UUT of Rele NO
-  if (runState.TestSockets.MyIndex == 1) {
-    if (!ts.truthy(stationGlobals.Rele_programmer[0])) {
-      // waits for sequence call step "UUT Pass"
-      await Future<void>.delayed(const Duration(seconds: 3));
-      // goto -> step "Wait for UUT of Rele NO"
-      throw UnimplementedError(
-        'step type Goto: action not exported yet',
-      ); // Goto [Goto]
+      'python call: ..\\Python\\ecu_programmer.py',
+    ); // Target Connection Test [PassFailTest]
+    targetConnectionTestResult.Status =
+        ts.truthy(targetConnectionTestResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(targetConnectionTestResult.Status);
+    if (run.failed) {
+      // post action
+      break body;
     }
-  } else if (runState.TestSockets.MyIndex == 3) {
-    if (!ts.truthy(stationGlobals.Rele_programmer[1])) {
-      // waits for sequence call step "UUT Pass"
-      await Future<void>.delayed(const Duration(seconds: 3));
-      // goto -> step "Wait for UUT of Rele NO"
-      throw UnimplementedError(
-        'step type Goto: action not exported yet',
-      ); // Goto [Goto]
-    }
-  } else if (runState.TestSockets.MyIndex == 5) {
-    if (!ts.truthy(stationGlobals.Rele_programmer[2])) {
-      // waits for sequence call step "UUT Pass"
-      await Future<void>.delayed(const Duration(seconds: 3));
-      // goto -> step "Wait for UUT of Rele NO"
-      throw UnimplementedError(
-        'step type Goto: action not exported yet',
-      ); // Goto [Goto]
-    }
-  }
-
-  // ── main ──
-  // label: Start programming
-  //   Return Value <- FileGlobals.Programmer
-  //   serial_number <- #NoValidation(FileGlobals.Serial_segger)
-  throw UnimplementedError(
-    'python call: ..\\Python\\ecu_programmer.py',
-  ); // Create JLink instance [Action]
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
-  // custom flow: if (RunState.SequenceFailed) Goto -> step "BackCheck Point" else Next
-  //   Return Value <- Step.Result.PassFail
-  throw UnimplementedError(
-    'python call: ..\\Python\\ecu_programmer.py',
-  ); // JLink Connection Test [PassFailTest]
-  jLinkConnectionTestResult.Status =
-      ts.truthy(jLinkConnectionTestResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(jLinkConnectionTestResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  // step loop (PassFailCount): init RunState.LoopIndex = 0; while RunState.LoopIndex < 3 && RunState.LoopNumPassed < 1; increment RunState.LoopIndex += 1; status RunState.LoopNumPassed >= 1 ? "Passed" : "Failed"
-  // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  //   Return Value <- Step.Result.PassFail
-  //   chip_name <- #NoValidation(FileGlobals.Chip_name)
-  throw UnimplementedError(
-    'python call: ..\\Python\\ecu_programmer.py',
-  ); // Target Connection Test [PassFailTest]
-  targetConnectionTestResult.Status =
-      ts.truthy(targetConnectionTestResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(targetConnectionTestResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  //   Return Value <- Step.Result.PassFail
-  throw UnimplementedError(
-    'python call: ..\\Python\\ecu_programmer.py',
-  ); // JLink_reset [PassFailTest]
-  jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(jLinkResetResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  flashFlexProvisionResetResult.Status =
-      await writeResetFlexProvision(); // Flash Flex Provision Reset
-  flashFlexProvisionResetResult.Status =
-      flashFlexProvisionResetResult.Status == 'Done'
-      ? 'Passed'
-      : flashFlexProvisionResetResult.Status; // status expression
-  run.record(flashFlexProvisionResetResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  flashFlexProvisionResult.Status =
-      await writeFlexProvision(); // Flash Flex Provision
-  flashFlexProvisionResult.Status = flashFlexProvisionResult.Status == 'Done'
-      ? 'Passed'
-      : flashFlexProvisionResult.Status; // status expression
-  run.record(flashFlexProvisionResult.Status);
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
-  flashProgramCombinedResult.Status =
-      await writeProgramCombined(); // Flash program combined
-  flashProgramCombinedResult.Status =
-      flashProgramCombinedResult.Status == 'Done'
-      ? 'Passed'
-      : flashProgramCombinedResult.Status; // status expression
-  run.record(flashProgramCombinedResult.Status);
-  stationGlobals.isSequenceComplete[runState.TestSockets.MyIndex] =
-      true; // Set Sequence complete to True
-  stationGlobals.TestResult[runState.TestSockets.MyIndex] = 1; // UUT Pass
-
-  // ── cleanup ──
-  // label: Failed Point
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  //   Return Value <- Step.Result.PassFail
-  throw UnimplementedError(
-    'python call: ..\\Python\\ecu_programmer.py',
-  ); // JLink_close Test [PassFailTest]
-  jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(jLinkCloseTestResult.Status);
-  // popup title: NameOf(Step)
-  // popup message: "UUT " + Str(RunState.TestSockets.MyIndex) + " Fallo"
-  // popup buttons: "OK"
-  if (run.failed) {
-    // precondition of Msg Failed
+    // checks: Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
+    //   Return Value <- Step.Result.PassFail
     throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Failed [MessagePopup]
-  }
-  // label: BackCheck Point
-  if (runState.TestSockets.MyIndex == 0) {
-    //   Nest <- 1
-    //   error out <- Step.Result.Error
-    await callChooseNest(); // Change NO staterele 1 to 6 [Action]
-    // waits for sequence call step "UUT Pass"
-    await Future<void>.delayed(const Duration(seconds: 2));
-    stationGlobals.Rele_programmer[0] = true; // Change boolean group 1
-  } else if (runState.TestSockets.MyIndex == 2) {
-    //   Nest <- 3
-    //   error out <- Step.Result.Error
-    await callChooseNest(); // Change NO staterele 7 to 12 [Action]
-    // waits for sequence call step "UUT Pass"
-    await Future<void>.delayed(const Duration(seconds: 2));
-    stationGlobals.Rele_programmer[1] = true; // Change boolean group 2
-  } else if (runState.TestSockets.MyIndex == 4) {
-    //   Nest <- 5
-    //   error out <- Step.Result.Error
-    await callChooseNest(); // Change NO staterele 13 to 18 [Action]
-    // waits for sequence call step "UUT Pass"
-    await Future<void>.delayed(const Duration(seconds: 2));
-    stationGlobals.Rele_programmer[2] = true; // Change boolean group 3
+      'python call: ..\\Python\\ecu_programmer.py',
+    ); // JLink_reset [PassFailTest]
+    jLinkResetResult.Status = ts.truthy(jLinkResetResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(jLinkResetResult.Status);
+    if (run.failed) {
+      // post action
+      break body;
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
+    flashFlexProvisionResetResult.Status =
+        await writeResetFlexProvision(); // Flash Flex Provision Reset
+    flashFlexProvisionResetResult.Status =
+        flashFlexProvisionResetResult.Status == 'Done'
+        ? 'Passed'
+        : flashFlexProvisionResetResult.Status; // status expression
+    run.record(flashFlexProvisionResetResult.Status);
+    if (run.failed) {
+      // post action
+      break body;
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
+    flashFlexProvisionResult.Status =
+        await writeFlexProvision(); // Flash Flex Provision
+    flashFlexProvisionResult.Status = flashFlexProvisionResult.Status == 'Done'
+        ? 'Passed'
+        : flashFlexProvisionResult.Status; // status expression
+    run.record(flashFlexProvisionResult.Status);
+    if (run.failed) {
+      // post action
+      break body;
+    }
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // custom flow: if (RunState.SequenceFailed) Goto -> step "Failed Point" else Next
+    flashProgramCombinedResult.Status =
+        await writeProgramCombined(); // Flash program combined
+    flashProgramCombinedResult.Status =
+        flashProgramCombinedResult.Status == 'Done'
+        ? 'Passed'
+        : flashProgramCombinedResult.Status; // status expression
+    run.record(flashProgramCombinedResult.Status);
+    if (run.failed) {
+      // post action
+      break body;
+    }
+    stationGlobals.isSequenceComplete[runState.TestSockets.MyIndex] =
+        true; // Set Sequence complete to True
+    stationGlobals.TestResult[runState.TestSockets.MyIndex] = 1; // UUT Pass
+  } finally {
+    // ── cleanup ──
+    if (cleanupFrom < 3) {
+      // label: Failed Point
+      // checks: Step.Result.PassFail
+      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+      //   Return Value <- Step.Result.PassFail
+      throw UnimplementedError(
+        'python call: ..\\Python\\ecu_programmer.py',
+      ); // JLink_close Test [PassFailTest]
+      jLinkCloseTestResult.Status = ts.truthy(jLinkCloseTestResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      run.record(jLinkCloseTestResult.Status);
+      // popup title: NameOf(Step)
+      // popup message: "UUT " + Str(RunState.TestSockets.MyIndex) + " Fallo"
+      // popup buttons: "OK"
+      if (run.failed) {
+        // precondition of Msg Failed
+        throw UnimplementedError(
+          'step type MessagePopup: action not exported yet',
+        ); // Msg Failed [MessagePopup]
+      }
+    }
+    // label: BackCheck Point
+    if (runState.TestSockets.MyIndex == 0) {
+      //   Nest <- 1
+      //   error out <- Step.Result.Error
+      await callChooseNest(); // Change NO staterele 1 to 6 [Action]
+      // waits for sequence call step "UUT Pass"
+      await Future<void>.delayed(const Duration(seconds: 2));
+      stationGlobals.Rele_programmer[0] = true; // Change boolean group 1
+    } else if (runState.TestSockets.MyIndex == 2) {
+      //   Nest <- 3
+      //   error out <- Step.Result.Error
+      await callChooseNest(); // Change NO staterele 7 to 12 [Action]
+      // waits for sequence call step "UUT Pass"
+      await Future<void>.delayed(const Duration(seconds: 2));
+      stationGlobals.Rele_programmer[1] = true; // Change boolean group 2
+    } else if (runState.TestSockets.MyIndex == 4) {
+      //   Nest <- 5
+      //   error out <- Step.Result.Error
+      await callChooseNest(); // Change NO staterele 13 to 18 [Action]
+      // waits for sequence call step "UUT Pass"
+      await Future<void>.delayed(const Duration(seconds: 2));
+      stationGlobals.Rele_programmer[2] = true; // Change boolean group 3
+    }
   }
 
   return run.status;
@@ -725,73 +758,60 @@ Future<String> postBatch({
 }) async {
   final run = ts.SequenceRun();
 
-  // goto -> step "End Of Traceability Section"
-  if (stationGlobals.isTraceEnable == 'False') {
-    // precondition of Jump if Traceability is Disabled
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Jump if Traceability is Disabled [Goto]
-  }
-  // label: Start Traceability Section
-  // status expression: ""
-  // description: UUT 0
-  // label:
-  if (stationGlobals.TestResult[0] == 1) {
-    if (ts.truthy(stationGlobals.IsBackcheckOK[0])) {
-      // precondition of Send Process
-      //   FailString <- ""
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[0]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[0]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+  skipToEndOfTraceabilitySection:
+  {
+    // goto -> step "End Of Traceability Section"
+    if (stationGlobals.isTraceEnable == 'False') {
+      // precondition of Jump if Traceability is Disabled
+      // Jump if Traceability is Disabled [Goto]: no code module
+      break skipToEndOfTraceabilitySection; // post action
     }
-  } else {
-    if (stationGlobals.isRecordFail == 'True' &&
-        ts.truthy(stationGlobals.IsBackcheckOK[0])) {
-      // precondition of Send Process
-      //   FailString <- StationGlobals.FailString[0]
-      //   EntryTime <- StationGlobals.Ent_Time
-      //   SerialNumber <- StationGlobals.IndividualSerials[0]
-      //   StationName <- StationGlobals.StationName
-      //   ProcessName <- StationGlobals.ProcessName
-      //   PassFail <- StationGlobals.TestResult[0]
-      //   EndTime <- StationGlobals.End_Time
-      //   Employee <- ""
-      //   error out <- Step.Result.Error
-      await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+    // label: Start Traceability Section
+    // status expression: ""
+    // description: UUT 0
+    // label:
+    if (stationGlobals.TestResult[0] == 1) {
+      if (ts.truthy(stationGlobals.IsBackcheckOK[0])) {
+        // precondition of Send Process
+        //   FailString <- ""
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[0]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[0]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+    } else {
+      if (stationGlobals.isRecordFail == 'True' &&
+          ts.truthy(stationGlobals.IsBackcheckOK[0])) {
+        // precondition of Send Process
+        //   FailString <- StationGlobals.FailString[0]
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[0]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[0]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+      if (!ts.truthy(stationGlobals.IsBackcheckOK[0])) {
+        // precondition of Send data in batch result
+        ts.eval(
+          'Parameters.ModelData.TestSockets[0].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
+        ); // Send data in batch result
+      }
     }
-    if (!ts.truthy(stationGlobals.IsBackcheckOK[0])) {
-      // precondition of Send data in batch result
-      ts.eval(
-        'Parameters.ModelData.TestSockets[0].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
-      ); // Send data in batch result
-    }
-  }
-  // status expression: ""
-  // description: UUT 1
-  // label:
-  if (stationGlobals.TestResult[1] == 1 &&
-      ts.truthy(stationGlobals.IsBackcheckOK[1])) {
-    //   FailString <- ""
-    //   EntryTime <- StationGlobals.Ent_Time
-    //   SerialNumber <- StationGlobals.IndividualSerials[1]
-    //   StationName <- StationGlobals.StationName
-    //   ProcessName <- StationGlobals.ProcessName
-    //   PassFail <- StationGlobals.TestResult[1]
-    //   EndTime <- StationGlobals.End_Time
-    //   Employee <- ""
-    //   error out <- Step.Result.Error
-    await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-  } else {
-    if (stationGlobals.isRecordFail == 'True' &&
+    // status expression: ""
+    // description: UUT 1
+    // label:
+    if (stationGlobals.TestResult[1] == 1 &&
         ts.truthy(stationGlobals.IsBackcheckOK[1])) {
-      // precondition of Send Process
-      //   FailString <- StationGlobals.FailString[1]
+      //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
       //   SerialNumber <- StationGlobals.IndividualSerials[1]
       //   StationName <- StationGlobals.StationName
@@ -801,34 +821,34 @@ Future<String> postBatch({
       //   Employee <- ""
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+    } else {
+      if (stationGlobals.isRecordFail == 'True' &&
+          ts.truthy(stationGlobals.IsBackcheckOK[1])) {
+        // precondition of Send Process
+        //   FailString <- StationGlobals.FailString[1]
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[1]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[1]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+      if (!ts.truthy(stationGlobals.IsBackcheckOK[1])) {
+        // precondition of Send data in batch result
+        ts.eval(
+          'Parameters.ModelData.TestSockets[1].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
+        ); // Send data in batch result
+      }
     }
-    if (!ts.truthy(stationGlobals.IsBackcheckOK[1])) {
-      // precondition of Send data in batch result
-      ts.eval(
-        'Parameters.ModelData.TestSockets[1].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
-      ); // Send data in batch result
-    }
-  }
-  // status expression: ""
-  // description: UUT 2
-  // label:
-  if (stationGlobals.TestResult[2] == 1 &&
-      ts.truthy(stationGlobals.IsBackcheckOK[2])) {
-    //   FailString <- ""
-    //   EntryTime <- StationGlobals.Ent_Time
-    //   SerialNumber <- StationGlobals.IndividualSerials[2]
-    //   StationName <- StationGlobals.StationName
-    //   ProcessName <- StationGlobals.ProcessName
-    //   PassFail <- StationGlobals.TestResult[2]
-    //   EndTime <- StationGlobals.End_Time
-    //   Employee <- ""
-    //   error out <- Step.Result.Error
-    await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-  } else {
-    if (stationGlobals.isRecordFail == 'True' &&
+    // status expression: ""
+    // description: UUT 2
+    // label:
+    if (stationGlobals.TestResult[2] == 1 &&
         ts.truthy(stationGlobals.IsBackcheckOK[2])) {
-      // precondition of Send Process
-      //   FailString <- StationGlobals.FailString[2]
+      //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
       //   SerialNumber <- StationGlobals.IndividualSerials[2]
       //   StationName <- StationGlobals.StationName
@@ -838,33 +858,33 @@ Future<String> postBatch({
       //   Employee <- ""
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+    } else {
+      if (stationGlobals.isRecordFail == 'True' &&
+          ts.truthy(stationGlobals.IsBackcheckOK[2])) {
+        // precondition of Send Process
+        //   FailString <- StationGlobals.FailString[2]
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[2]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[2]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+      if (!ts.truthy(stationGlobals.IsBackcheckOK[2])) {
+        // precondition of Send data in batch result
+        ts.eval(
+          'Parameters.ModelData.TestSockets[2].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
+        ); // Send data in batch result
+      }
     }
-    if (!ts.truthy(stationGlobals.IsBackcheckOK[2])) {
-      // precondition of Send data in batch result
-      ts.eval(
-        'Parameters.ModelData.TestSockets[2].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
-      ); // Send data in batch result
-    }
-  }
-  // status expression: ""
-  // description: UUT 3
-  // label:
-  if (stationGlobals.TestResult[3] == 1) {
-    //   FailString <- ""
-    //   EntryTime <- StationGlobals.Ent_Time
-    //   SerialNumber <- StationGlobals.IndividualSerials[3]
-    //   StationName <- StationGlobals.StationName
-    //   ProcessName <- StationGlobals.ProcessName
-    //   PassFail <- StationGlobals.TestResult[3]
-    //   EndTime <- StationGlobals.End_Time
-    //   Employee <- ""
-    //   error out <- Step.Result.Error
-    await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-  } else {
-    if (stationGlobals.isRecordFail == 'True' &&
-        ts.truthy(stationGlobals.IsBackcheckOK[3])) {
-      // precondition of Send Process
-      //   FailString <- StationGlobals.FailString[3]
+    // status expression: ""
+    // description: UUT 3
+    // label:
+    if (stationGlobals.TestResult[3] == 1) {
+      //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
       //   SerialNumber <- StationGlobals.IndividualSerials[3]
       //   StationName <- StationGlobals.StationName
@@ -874,33 +894,33 @@ Future<String> postBatch({
       //   Employee <- ""
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+    } else {
+      if (stationGlobals.isRecordFail == 'True' &&
+          ts.truthy(stationGlobals.IsBackcheckOK[3])) {
+        // precondition of Send Process
+        //   FailString <- StationGlobals.FailString[3]
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[3]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[3]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+      if (!ts.truthy(stationGlobals.IsBackcheckOK[3])) {
+        // precondition of Send data in batch result
+        ts.eval(
+          'Parameters.ModelData.TestSockets[3].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
+        ); // Send data in batch result
+      }
     }
-    if (!ts.truthy(stationGlobals.IsBackcheckOK[3])) {
-      // precondition of Send data in batch result
-      ts.eval(
-        'Parameters.ModelData.TestSockets[3].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
-      ); // Send data in batch result
-    }
-  }
-  // status expression: ""
-  // description: UUT 4
-  // label:
-  if (stationGlobals.TestResult[4] == 1) {
-    //   FailString <- ""
-    //   EntryTime <- StationGlobals.Ent_Time
-    //   SerialNumber <- StationGlobals.IndividualSerials[4]
-    //   StationName <- StationGlobals.StationName
-    //   ProcessName <- StationGlobals.ProcessName
-    //   PassFail <- StationGlobals.TestResult[4]
-    //   EndTime <- StationGlobals.End_Time
-    //   Employee <- ""
-    //   error out <- Step.Result.Error
-    await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-  } else {
-    if (stationGlobals.isRecordFail == 'True' &&
-        ts.truthy(stationGlobals.IsBackcheckOK[4])) {
-      // precondition of Send Process
-      //   FailString <- StationGlobals.FailString[4]
+    // status expression: ""
+    // description: UUT 4
+    // label:
+    if (stationGlobals.TestResult[4] == 1) {
+      //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
       //   SerialNumber <- StationGlobals.IndividualSerials[4]
       //   StationName <- StationGlobals.StationName
@@ -910,33 +930,33 @@ Future<String> postBatch({
       //   Employee <- ""
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+    } else {
+      if (stationGlobals.isRecordFail == 'True' &&
+          ts.truthy(stationGlobals.IsBackcheckOK[4])) {
+        // precondition of Send Process
+        //   FailString <- StationGlobals.FailString[4]
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[4]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[4]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+      if (!ts.truthy(stationGlobals.IsBackcheckOK[4])) {
+        // precondition of Send data in batch result
+        ts.eval(
+          'Parameters.ModelData.TestSockets[4].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
+        ); // Send data in batch result
+      }
     }
-    if (!ts.truthy(stationGlobals.IsBackcheckOK[4])) {
-      // precondition of Send data in batch result
-      ts.eval(
-        'Parameters.ModelData.TestSockets[4].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
-      ); // Send data in batch result
-    }
-  }
-  // status expression: ""
-  // description: UUT 5
-  // label:
-  if (stationGlobals.TestResult[5] == 1) {
-    //   FailString <- ""
-    //   EntryTime <- StationGlobals.Ent_Time
-    //   SerialNumber <- StationGlobals.IndividualSerials[5]
-    //   StationName <- StationGlobals.StationName
-    //   ProcessName <- StationGlobals.ProcessName
-    //   PassFail <- StationGlobals.TestResult[5]
-    //   EndTime <- StationGlobals.End_Time
-    //   Employee <- ""
-    //   error out <- Step.Result.Error
-    await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-  } else {
-    if (stationGlobals.isRecordFail == 'True' &&
-        ts.truthy(stationGlobals.IsBackcheckOK[5])) {
-      // precondition of Send Process
-      //   FailString <- StationGlobals.FailString[5]
+    // status expression: ""
+    // description: UUT 5
+    // label:
+    if (stationGlobals.TestResult[5] == 1) {
+      //   FailString <- ""
       //   EntryTime <- StationGlobals.Ent_Time
       //   SerialNumber <- StationGlobals.IndividualSerials[5]
       //   StationName <- StationGlobals.StationName
@@ -946,12 +966,27 @@ Future<String> postBatch({
       //   Employee <- ""
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-    }
-    if (!ts.truthy(stationGlobals.IsBackcheckOK[5])) {
-      // precondition of Send data in batch result
-      ts.eval(
-        'Parameters.ModelData.TestSockets[5].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
-      ); // Send data in batch result
+    } else {
+      if (stationGlobals.isRecordFail == 'True' &&
+          ts.truthy(stationGlobals.IsBackcheckOK[5])) {
+        // precondition of Send Process
+        //   FailString <- StationGlobals.FailString[5]
+        //   EntryTime <- StationGlobals.Ent_Time
+        //   SerialNumber <- StationGlobals.IndividualSerials[5]
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- StationGlobals.TestResult[5]
+        //   EndTime <- StationGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
+      if (!ts.truthy(stationGlobals.IsBackcheckOK[5])) {
+        // precondition of Send data in batch result
+        ts.eval(
+          'Parameters.ModelData.TestSockets[5].MainSequenceResults->Status = "BackCheck, unidad no reprograma" ',
+        ); // Send data in batch result
+      }
     }
   }
   // label: End Of Traceability Section
@@ -1340,14 +1375,11 @@ void register() {
   //   StationGlobals read (station-level state not set here)
   //   cModule call: Tell Dialog To Get Next UUTs
   //   external sequence: ProcessDialogRequests
-  //   step type Action: action not exported yet
   //   dotNet call: WSConnector.Connector.CIMP_PanelBoardRef
   //   ..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi
   //   untranslated expression in body
   //   flow step "If" is Skip in source (skipped flow semantics not pinned)
   //   flow step "End" is Skip in source (skipped flow semantics not pinned)
-  //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
-  //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi
   //   step type MessagePopup: action not exported yet
   //   ..\LabVIEW_VIs\USB-ERB24\All_Off_Relays.vi
@@ -1368,26 +1400,16 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   StationGlobals read (station-level state not set here)
-  //   flow action of step "Goto" (Next/Next) not exported
-  //   step type Goto: action not exported yet
   //   python call: ..\Python\ecu_programmer.py
   //   step "JLink Connection Test" loops (PassFailCount) — per-step looping not exported
-  //   flow action of step "JLink Connection Test" (Next/Next) not exported
   //   step "Target Connection Test" loops (PassFailCount) — per-step looping not exported
-  //   flow action of step "Target Connection Test" (Next/Next) not exported
-  //   flow action of step "JLink_reset" (Next/Next) not exported
-  //   flow action of step "Flash Flex Provision Reset" (Next/Next) not exported
-  //   flow action of step "Flash Flex Provision" (Next/Next) not exported
-  //   flow action of step "Flash program combined" (Next/Next) not exported
   //   step type MessagePopup: action not exported yet
   //   ..\LabVIEW_VIs\USB-ERB24\Choose_nest.vi
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
   //   StationGlobals read (station-level state not set here)
-  //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi
   //   untranslated expression in body
   //   cModule call: Tell Dialog To Show Status

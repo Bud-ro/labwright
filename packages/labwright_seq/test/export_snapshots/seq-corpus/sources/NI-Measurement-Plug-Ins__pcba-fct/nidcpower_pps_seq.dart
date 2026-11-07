@@ -15,34 +15,37 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"..\..\..\src\NIDCPowerPPS\NIDCPowerPPS.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-DCPower Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"..\..\..\src\NIDCPowerPPS\NIDCPowerPPS.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-DCPower Sessions [Action]
 
-  // ── main ──
-  // measurement: NIDCPowerPPS_LabVIEW
-  // measurement param: Pin Name (In TypeString Pin) = "Pin1"
-  // measurement param: Voltage Level (V) (In TypeDouble) = 2
-  // measurement param: Voltage Level Range (V) (In TypeDouble) = 6
-  // measurement param: Current Limit (A) (In TypeDouble) = 0.1
-  // measurement param: Current Limit Range (A) (In TypeDouble) = 1
-  // measurement param: Source Delay (s) (In TypeDouble) = 0.1
-  // measurement param: Voltage Measurement (V) (Out TypeDouble)
-  // measurement param: Current Measurement (A) (Out TypeDouble)
-  // measurement param: In Compliance (Out TypeBool)
-  // measurement param: Measured Power (W) (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Source DC voltage and measure voltage/current [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-DCPower sessions [Action]
+    // ── main ──
+    // measurement: NIDCPowerPPS_LabVIEW
+    // measurement param: Pin Name (In TypeString Pin) = "Pin1"
+    // measurement param: Voltage Level (V) (In TypeDouble) = 2
+    // measurement param: Voltage Level Range (V) (In TypeDouble) = 6
+    // measurement param: Current Limit (A) (In TypeDouble) = 0.1
+    // measurement param: Current Limit Range (A) (In TypeDouble) = 1
+    // measurement param: Source Delay (s) (In TypeDouble) = 0.1
+    // measurement param: Voltage Measurement (V) (Out TypeDouble)
+    // measurement param: Current Measurement (A) (Out TypeDouble)
+    // measurement param: In Compliance (Out TypeBool)
+    // measurement param: Measured Power (W) (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Source DC voltage and measure voltage/current [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-DCPower sessions [Action]
+  }
 
   return run.status;
 }

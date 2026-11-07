@@ -15,31 +15,34 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIDmmMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-DMM sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIDmmMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-DMM sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDmmMeasurement_LabVIEW
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: Range (In TypeDouble) = 10
-  // measurement param: Measurement Type (In TypeEnum Enum) = 0i64
-  // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
-  // measurement param: Measurement (Out TypeDouble)
-  // measurement param: Signal Out of Range (Out TypeBool)
-  // measurement param: Absolute Resolution (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Acquire Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-DMM sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDmmMeasurement_LabVIEW
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: Range (In TypeDouble) = 10
+    // measurement param: Measurement Type (In TypeEnum Enum) = 0i64
+    // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
+    // measurement param: Measurement (Out TypeDouble)
+    // measurement param: Signal Out of Range (Out TypeBool)
+    // measurement param: Absolute Resolution (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Acquire Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-DMM sessions [Action]
+  }
 
   return run.status;
 }

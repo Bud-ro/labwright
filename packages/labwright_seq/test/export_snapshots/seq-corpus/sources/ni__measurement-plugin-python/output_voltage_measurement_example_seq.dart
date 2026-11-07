@@ -15,44 +15,47 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "OutputVoltageMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Create and register NI-DCPower Sessions [Action]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nivisa_dmm.py',
-  ); // Create and register NI-DMM Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "OutputVoltageMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Create and register NI-DCPower Sessions [Action]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nivisa_dmm.py',
+    ); // Create and register NI-DMM Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.OutputVoltageMeasurement_Python
-  // measurement param: voltage_level (In TypeDouble) = 6
-  // measurement param: voltage_level_range (In TypeDouble) = 6
-  // measurement param: current_limit (In TypeDouble) = 0.01
-  // measurement param: current_limit_range (In TypeDouble) = 0.01
-  // measurement param: source_delay (In TypeDouble) = 0
-  // measurement param: input_pin (In TypeString IOResource) = "InPin"
-  // measurement param: measurement_type (In TypeEnum Enum) = 0i64
-  // measurement param: range (In TypeDouble) = 1
-  // measurement param: resolution_digits (In TypeDouble) = 3.5
-  // measurement param: output_pin (In TypeString IOResource) = "OutPin"
-  // measurement param: measured_value (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Output voltage test [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Destroy and unregister NI-DCPower sessions [Action]
-  throw UnimplementedError(
-    'python call: teststand_nivisa_dmm.py',
-  ); // Destroy and unregister NI-DMM sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.OutputVoltageMeasurement_Python
+    // measurement param: voltage_level (In TypeDouble) = 6
+    // measurement param: voltage_level_range (In TypeDouble) = 6
+    // measurement param: current_limit (In TypeDouble) = 0.01
+    // measurement param: current_limit_range (In TypeDouble) = 0.01
+    // measurement param: source_delay (In TypeDouble) = 0
+    // measurement param: input_pin (In TypeString IOResource) = "InPin"
+    // measurement param: measurement_type (In TypeEnum Enum) = 0i64
+    // measurement param: range (In TypeDouble) = 1
+    // measurement param: resolution_digits (In TypeDouble) = 3.5
+    // measurement param: output_pin (In TypeString IOResource) = "OutPin"
+    // measurement param: measured_value (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Output voltage test [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Destroy and unregister NI-DCPower sessions [Action]
+    throw UnimplementedError(
+      'python call: teststand_nivisa_dmm.py',
+    ); // Destroy and unregister NI-DMM sessions [Action]
+  }
 
   return run.status;
 }

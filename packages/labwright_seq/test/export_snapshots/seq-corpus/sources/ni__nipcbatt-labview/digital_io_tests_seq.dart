@@ -59,84 +59,87 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Power down all DO Channels
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example 1 - Demonstrates static digital state generation and measurement using DIO modules
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  digitalStateTestResult.Status =
-      await digitalStateTest(); // Digital State Test
-  digitalStateTestResult.Status = digitalStateTestResult.Status == 'Done'
-      ? 'Passed'
-      : digitalStateTestResult.Status; // status expression
-  run.record(digitalStateTestResult.Status);
-  //
-  //
-  // label: Example 2 - Demonstrates digital pattern generation and measurement using DIO modules, Hardware Trigger is used for synchronization between generate and capture.
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  digitalPatternTestWithTriggerResult.Status =
-      await digitalPatternTestWithTrigger(); // Digital Pattern Test (With Trigger)
-  digitalPatternTestWithTriggerResult.Status =
-      digitalPatternTestWithTriggerResult.Status == 'Done'
-      ? 'Passed'
-      : digitalPatternTestWithTriggerResult.Status; // status expression
-  run.record(digitalPatternTestWithTriggerResult.Status);
-  //
-  //
-  // label: Example 3 - Demonstrates digital clock generation and frequency measurement through counter-based measurements using Core Digital IO Modules.
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  digitalClockTestResult.Status =
-      await digitalClockTest(); // Digital Clock Test
-  digitalClockTestResult.Status = digitalClockTestResult.Status == 'Done'
-      ? 'Passed'
-      : digitalClockTestResult.Status; // status expression
-  run.record(digitalClockTestResult.Status);
-  //
-  //
-  // label: Example 4 - Demonstrates digital pulse generation and PWM measurement through counter-based measurements using Core Digital IO Modules.
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  digitalPwmTestResult.Status = await digitalPwmTest(); // Digital PWM Test
-  digitalPwmTestResult.Status = digitalPwmTestResult.Status == 'Done'
-      ? 'Passed'
-      : digitalPwmTestResult.Status; // status expression
-  run.record(digitalPwmTestResult.Status);
-  //
-  //
-  // label: Example 5 - Demonstrates digital pulse generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Software timed using an external wait.
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  digitalCountEventTestsSwTimedExternalWaitResult.Status =
-      await digitalCountEventTestsSwTimedExternalWait(); // Digital Count Event Tests - SW Timed (External Wait)
-  digitalCountEventTestsSwTimedExternalWaitResult.Status =
-      digitalCountEventTestsSwTimedExternalWaitResult.Status == 'Done'
-      ? 'Passed'
-      : digitalCountEventTestsSwTimedExternalWaitResult
-            .Status; // status expression
-  run.record(digitalCountEventTestsSwTimedExternalWaitResult.Status);
-  //
-  //
-  // label: Note to run with Hardware: Enable the below example for HW Run
-  // label: Example 6 - Demonstrates digital pattern generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Hardware timed using with Trigger to create a measurement window for fixed duration.
-  // The below Tests is disabled. Since HW timed count digital events will throw error during simulated Run
-  // [skipped in source] Digital Count Event Tests - HW Timed (With Trigger)
-
-  // ── cleanup ──
-  // label: Turn off all configured DO channels by setting Digital LOW state
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownAllDoChannelsResult.Status =
-      await turnOffAllDoChannels(); // Power down all DO Channels
-  powerDownAllDoChannelsResult.Status =
-      powerDownAllDoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownAllDoChannelsResult.Status; // status expression
-  run.record(powerDownAllDoChannelsResult.Status);
+    // ── main ──
+    // label: Example 1 - Demonstrates static digital state generation and measurement using DIO modules
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    digitalStateTestResult.Status =
+        await digitalStateTest(); // Digital State Test
+    digitalStateTestResult.Status = digitalStateTestResult.Status == 'Done'
+        ? 'Passed'
+        : digitalStateTestResult.Status; // status expression
+    run.record(digitalStateTestResult.Status);
+    //
+    //
+    // label: Example 2 - Demonstrates digital pattern generation and measurement using DIO modules, Hardware Trigger is used for synchronization between generate and capture.
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    digitalPatternTestWithTriggerResult.Status =
+        await digitalPatternTestWithTrigger(); // Digital Pattern Test (With Trigger)
+    digitalPatternTestWithTriggerResult.Status =
+        digitalPatternTestWithTriggerResult.Status == 'Done'
+        ? 'Passed'
+        : digitalPatternTestWithTriggerResult.Status; // status expression
+    run.record(digitalPatternTestWithTriggerResult.Status);
+    //
+    //
+    // label: Example 3 - Demonstrates digital clock generation and frequency measurement through counter-based measurements using Core Digital IO Modules.
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    digitalClockTestResult.Status =
+        await digitalClockTest(); // Digital Clock Test
+    digitalClockTestResult.Status = digitalClockTestResult.Status == 'Done'
+        ? 'Passed'
+        : digitalClockTestResult.Status; // status expression
+    run.record(digitalClockTestResult.Status);
+    //
+    //
+    // label: Example 4 - Demonstrates digital pulse generation and PWM measurement through counter-based measurements using Core Digital IO Modules.
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    digitalPwmTestResult.Status = await digitalPwmTest(); // Digital PWM Test
+    digitalPwmTestResult.Status = digitalPwmTestResult.Status == 'Done'
+        ? 'Passed'
+        : digitalPwmTestResult.Status; // status expression
+    run.record(digitalPwmTestResult.Status);
+    //
+    //
+    // label: Example 5 - Demonstrates digital pulse generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Software timed using an external wait.
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    digitalCountEventTestsSwTimedExternalWaitResult.Status =
+        await digitalCountEventTestsSwTimedExternalWait(); // Digital Count Event Tests - SW Timed (External Wait)
+    digitalCountEventTestsSwTimedExternalWaitResult.Status =
+        digitalCountEventTestsSwTimedExternalWaitResult.Status == 'Done'
+        ? 'Passed'
+        : digitalCountEventTestsSwTimedExternalWaitResult
+              .Status; // status expression
+    run.record(digitalCountEventTestsSwTimedExternalWaitResult.Status);
+    //
+    //
+    // label: Note to run with Hardware: Enable the below example for HW Run
+    // label: Example 6 - Demonstrates digital pattern generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Hardware timed using with Trigger to create a measurement window for fixed duration.
+    // The below Tests is disabled. Since HW timed count digital events will throw error during simulated Run
+    // [skipped in source] Digital Count Event Tests - HW Timed (With Trigger)
+  } finally {
+    // ── cleanup ──
+    // label: Turn off all configured DO channels by setting Digital LOW state
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownAllDoChannelsResult.Status =
+        await turnOffAllDoChannels(); // Power down all DO Channels
+    powerDownAllDoChannelsResult.Status =
+        powerDownAllDoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownAllDoChannelsResult.Status; // status expression
+    run.record(powerDownAllDoChannelsResult.Status);
+  }
 
   return run.status;
 }
@@ -174,56 +177,59 @@ Future<String> digitalStateTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates how to set Digital High & Low states using DIO modules and Measure the digital states of test points using DIO modules
-  // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenInitialize(); // Static Digital State Generation - Initialize [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_State_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigMeasInitialize(); // Static Digital State Measurement- Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates how to set Digital High & Low states using DIO modules and Measure the digital states of test points using DIO modules
+    // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenInitialize(); // Static Digital State Generation - Initialize [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_State_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigMeasInitialize(); // Static Digital State Measurement- Initialize [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations for intended use case
-  // label: Set Static State HIGH and measure the test points
-  //   DAQmx Task In <- Locals.Digital_State_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
-  //   Channel Identifiers <- Locals.Measurement_Data.DOChannel_IDs
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Configure Digital High [Action]
-  //   DAQmx Task In <- Locals.Digital_State_Meas_Task
-  //   DAQmx Task Out <- Locals.Digital_State_Meas_Task
-  //   Channel Line Identifiers <- Locals.Measurement_Data.DIChannel_IDs
-  //   Line States <- Locals.Measurement_Data.DigitalStatesRead
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigMeasConfigureAndMeasure(); // Static Digital State Measurement- Read Digital State [Action]
-  //
-  //
-  // description:  |
-  // label: Set Static State LOW and measure the test points
-  //   DAQmx Task In <- Locals.Digital_State_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
-  //   Channel Identifiers <- Locals.Measurement_Data.DOChannel_IDs
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Configure Digital Low [Action]
-  //   DAQmx Task In <- Locals.Digital_State_Meas_Task
-  //   DAQmx Task Out <- Locals.Digital_State_Meas_Task
-  //   Channel Line Identifiers <- Locals.Measurement_Data.DIChannel_IDs
-  //   Line States <- Locals.Measurement_Data.DigitalStatesRead
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigMeasConfigureAndMeasure(); // Static Digital State Measurement- Read Digital State [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_State_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenClose(); // Static Digital State Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Digital_State_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigMeasClose(); // Static Digital State Measurement- Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations for intended use case
+    // label: Set Static State HIGH and measure the test points
+    //   DAQmx Task In <- Locals.Digital_State_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
+    //   Channel Identifiers <- Locals.Measurement_Data.DOChannel_IDs
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Configure Digital High [Action]
+    //   DAQmx Task In <- Locals.Digital_State_Meas_Task
+    //   DAQmx Task Out <- Locals.Digital_State_Meas_Task
+    //   Channel Line Identifiers <- Locals.Measurement_Data.DIChannel_IDs
+    //   Line States <- Locals.Measurement_Data.DigitalStatesRead
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigMeasConfigureAndMeasure(); // Static Digital State Measurement- Read Digital State [Action]
+    //
+    //
+    // description:  |
+    // label: Set Static State LOW and measure the test points
+    //   DAQmx Task In <- Locals.Digital_State_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_State_Gen_Task
+    //   Channel Identifiers <- Locals.Measurement_Data.DOChannel_IDs
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Configure Digital Low [Action]
+    //   DAQmx Task In <- Locals.Digital_State_Meas_Task
+    //   DAQmx Task Out <- Locals.Digital_State_Meas_Task
+    //   Channel Line Identifiers <- Locals.Measurement_Data.DIChannel_IDs
+    //   Line States <- Locals.Measurement_Data.DigitalStatesRead
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigMeasConfigureAndMeasure(); // Static Digital State Measurement- Read Digital State [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_State_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenClose(); // Static Digital State Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Digital_State_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigMeasClose(); // Static Digital State Measurement- Close [Action]
+  }
 
   return run.status;
 }
@@ -254,65 +260,68 @@ Future<String> digitalPatternTestWithTrigger() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates the digital pattern generation and capture using DIO modules with Trigger for synchronization
-  //
-  //
-  // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenInitialize(); // Dynamic Digital Pattern Generation - Initialize [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasInitialize(); // Dynamic Digital Pattern Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates the digital pattern generation and capture using DIO modules with Trigger for synchronization
+    //
+    //
+    // label: Note to run with Hardware: Update the Global Channel based on NI Max in the below initialize step
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenInitialize(); // Dynamic Digital Pattern Generation - Initialize [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasInitialize(); // Dynamic Digital Pattern Measurement - Initialize [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations and update the Trigger configurations
-  // label: Note to run with Hardware: Sampling rate at measurement end should be same as the sampling rate at generation end (Onboard Clock for same Backplane or external PFI signals)
-  // Configures and Arms Digital Pattern Measurement to wait for Start trigger
-  //   Execution Option <- 1
-  //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Configure TP [Action]
-  //
-  //
-  // label: Note to run with Hardware: Review & update the "Number of Digital Lines" and "Number of Samples" required to be generated
-  // Generates Digital ramp pattern for the configured digital lines in Port Digital Data Format
-  //   Number of Digital Lines <- 2 //Update based on Number of configured Digital Lines
-  //   Number of Samples <- 1000 //Update based on required Samples to be generated
-  //   Port Digital Data <- Locals.Port_Digital_Data
-  //   error out <- Step.Result.Error
-  await callDigitalRampPatternGenerator(); // Generate Port Digital Data [Action]
-  //
-  //
-  // label: Note to run with Hardware: Sampling rate at generation and measurement should be same (Onboard Clock for same Backplane or external PFI signals)
-  // Generate the configured Digital Pattern from digital module
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   Port Digital Data <- Locals.Port_Digital_Data
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenConfigureAndGenerate(); // Dynamic Digital Pattern Generation - Generate Digital Pattern [Action]
-  //
-  // Read Digital Pattern Stored in buffer (Capture starts as soon as start trigger received from the DIO module)
-  //   Execution Option <- 2
-  //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
-  //   Measured Digital Patterns <- Locals.Measurement_Data.Digital_Pattern
-  //   Port Digital Data <- Locals.Measurement_Data.Port_Digital_Data
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Read Captured Waveform [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenClose(); // Dynamic Digital Pattern Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasClose(); // Dynamic Digital Pattern Measurement- Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations and update the Trigger configurations
+    // label: Note to run with Hardware: Sampling rate at measurement end should be same as the sampling rate at generation end (Onboard Clock for same Backplane or external PFI signals)
+    // Configures and Arms Digital Pattern Measurement to wait for Start trigger
+    //   Execution Option <- 1
+    //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Configure TP [Action]
+    //
+    //
+    // label: Note to run with Hardware: Review & update the "Number of Digital Lines" and "Number of Samples" required to be generated
+    // Generates Digital ramp pattern for the configured digital lines in Port Digital Data Format
+    //   Number of Digital Lines <- 2 //Update based on Number of configured Digital Lines
+    //   Number of Samples <- 1000 //Update based on required Samples to be generated
+    //   Port Digital Data <- Locals.Port_Digital_Data
+    //   error out <- Step.Result.Error
+    await callDigitalRampPatternGenerator(); // Generate Port Digital Data [Action]
+    //
+    //
+    // label: Note to run with Hardware: Sampling rate at generation and measurement should be same (Onboard Clock for same Backplane or external PFI signals)
+    // Generate the configured Digital Pattern from digital module
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   Port Digital Data <- Locals.Port_Digital_Data
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenConfigureAndGenerate(); // Dynamic Digital Pattern Generation - Generate Digital Pattern [Action]
+    //
+    // Read Digital Pattern Stored in buffer (Capture starts as soon as start trigger received from the DIO module)
+    //   Execution Option <- 2
+    //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
+    //   Measured Digital Patterns <- Locals.Measurement_Data.Digital_Pattern
+    //   Port Digital Data <- Locals.Measurement_Data.Port_Digital_Data
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Read Captured Waveform [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenClose(); // Dynamic Digital Pattern Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasClose(); // Dynamic Digital Pattern Measurement- Close [Action]
+  }
 
   return run.status;
 }
@@ -331,47 +340,50 @@ Future<String> digitalClockTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates digital clock generation and frequency measurement through counter-based measurements using Core Digital IO Modules.
-  //
-  // Please note that usage of DAQ module PFI7 and PFI3 for Digital Clock is arbitrary,
-  //
-  // Refer to the provided link on DAQ module (PXIe-6363) for more information - https://www.ni.com/docs/en-US/bundle/pxie-6363-specs/page/specs.html
-  // label: Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
-  //   Output Terminal <- "/Simulated_DAQ/PFI7" //Output terminal to generated Digital clock
-  //   Physical Channel (Counter) <- "Simulated_DAQ/ctr3" //Counter used to generated Digital clock
-  //   DAQmx Task Out <- Locals.Digital_Clk_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalClkGenInitialize(); // Digital Clock Generation - Initialize [Action]
-  //   Input Terminal <- "/Simulated_DAQ/PFI3" //Input Terminal to measure the Digital clock
-  //   Physical Channel (counter) <- "Simulated_DAQ/ctr1" //Counter used for Digital clock measurements
-  //   DAQmx Task Out <- Locals.Digital_Freq_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigFreqMeasInitialize(); // Digital Frequency Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates digital clock generation and frequency measurement through counter-based measurements using Core Digital IO Modules.
+    //
+    // Please note that usage of DAQ module PFI7 and PFI3 for Digital Clock is arbitrary,
+    //
+    // Refer to the provided link on DAQ module (PXIe-6363) for more information - https://www.ni.com/docs/en-US/bundle/pxie-6363-specs/page/specs.html
+    // label: Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
+    //   Output Terminal <- "/Simulated_DAQ/PFI7" //Output terminal to generated Digital clock
+    //   Physical Channel (Counter) <- "Simulated_DAQ/ctr3" //Counter used to generated Digital clock
+    //   DAQmx Task Out <- Locals.Digital_Clk_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalClkGenInitialize(); // Digital Clock Generation - Initialize [Action]
+    //   Input Terminal <- "/Simulated_DAQ/PFI3" //Input Terminal to measure the Digital clock
+    //   Physical Channel (counter) <- "Simulated_DAQ/ctr1" //Counter used for Digital clock measurements
+    //   DAQmx Task Out <- Locals.Digital_Freq_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigFreqMeasInitialize(); // Digital Frequency Measurement - Initialize [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Update the Digital clock settings based on the required pulse train to be generated in the below step
-  // Generate specified digital clock on configured digital line
-  //   DAQmx Task In <- Locals.Digital_Clk_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_Clk_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalClkGenConfigureAndGenerate(); // Digital Clock Generation - Configure and generate Digital clock [Action]
-  // Measures the digital clock generated on the configured digital line
-  //   DAQmx Task In <- Locals.Digital_Freq_Meas_Task
-  //   Input Frequency Divisor <- 4
-  //   DAQmx Task Out <- Locals.Digital_Freq_Meas_Task
-  //   Detected Frequency (Hz) <- Locals.Measurement_Data.DetectedFrequency_Hz
-  //   error out <- Step.Result.Error
-  await callDaqDigFreqMeasConfigureAndMeasure(); // Digital Frequency Measurement - Capture and measure Frequency [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_Clk_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalClkGenClose(); // Digital Clock Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Digital_Freq_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigFreqMeasClose(); // Digital Frequency Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Update the Digital clock settings based on the required pulse train to be generated in the below step
+    // Generate specified digital clock on configured digital line
+    //   DAQmx Task In <- Locals.Digital_Clk_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_Clk_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalClkGenConfigureAndGenerate(); // Digital Clock Generation - Configure and generate Digital clock [Action]
+    // Measures the digital clock generated on the configured digital line
+    //   DAQmx Task In <- Locals.Digital_Freq_Meas_Task
+    //   Input Frequency Divisor <- 4
+    //   DAQmx Task Out <- Locals.Digital_Freq_Meas_Task
+    //   Detected Frequency (Hz) <- Locals.Measurement_Data.DetectedFrequency_Hz
+    //   error out <- Step.Result.Error
+    await callDaqDigFreqMeasConfigureAndMeasure(); // Digital Frequency Measurement - Capture and measure Frequency [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_Clk_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalClkGenClose(); // Digital Clock Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Digital_Freq_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigFreqMeasClose(); // Digital Frequency Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -396,56 +408,59 @@ Future<String> digitalPwmTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates digital pulse generation and PWM measurement through counter-based measurements using Core Digital IO Modules
-  //
-  //
-  // label: Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
-  //   Output Terminal <- "/Simulated_DAQ/PFI7" //Output terminal to generated Digital Pulse Signals
-  //   Physical Channel (Counter) <- "Simulated_DAQ/ctr3"  //Counter used to generated Digital Pulse Signals
-  //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalPulseGenInitialize(); // Digital Pulse Generation - Initialize [Action]
-  //   Input Terminal  <- "/Simulated_DAQ/PFI3" //Input Terminal to measure the Digital PWM Measurements
-  //   Physical Channel (counter) <- "Simulated_DAQ/ctr1" //Counter used for Digital PWM Measurements
-  //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasInitialize(); // Digital PWM Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates digital pulse generation and PWM measurement through counter-based measurements using Core Digital IO Modules
+    //
+    //
+    // label: Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
+    //   Output Terminal <- "/Simulated_DAQ/PFI7" //Output terminal to generated Digital Pulse Signals
+    //   Physical Channel (Counter) <- "Simulated_DAQ/ctr3"  //Counter used to generated Digital Pulse Signals
+    //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalPulseGenInitialize(); // Digital Pulse Generation - Initialize [Action]
+    //   Input Terminal  <- "/Simulated_DAQ/PFI3" //Input Terminal to measure the Digital PWM Measurements
+    //   Physical Channel (counter) <- "Simulated_DAQ/ctr1" //Counter used for Digital PWM Measurements
+    //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasInitialize(); // Digital PWM Measurement - Initialize [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Update the Cycles to capture value in the below step based on the digital signals to be measured
-  // Configures to capture digital PWM signals
-  //   Execution Option <- 1
-  //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
-  //   Cycles to capture <- 100
-  //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Configure only [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update the Digital pulse settings in the below step based on the required digital signal to be generated
-  // Generate specified digital pulses on configured digital line
-  //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalPulseGenConfigureAndGenerate(); // Digital Pulse Generation - Generate Digital pulse signals [Action]
-  // Measures the digital PWM signal on the configured digital line
-  //   Execution Option <- 2
-  //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
-  //   Cycles to capture <- 2
-  //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
-  //   Actual Cycles Captured <- Locals.Measurement_Data.Actual_Cycles_Captured
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Measure PWM Signals [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalPulseGenClose(); // Digital Pulse Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasClose(); // Digital PWM Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Update the Cycles to capture value in the below step based on the digital signals to be measured
+    // Configures to capture digital PWM signals
+    //   Execution Option <- 1
+    //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
+    //   Cycles to capture <- 100
+    //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Configure only [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update the Digital pulse settings in the below step based on the required digital signal to be generated
+    // Generate specified digital pulses on configured digital line
+    //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalPulseGenConfigureAndGenerate(); // Digital Pulse Generation - Generate Digital pulse signals [Action]
+    // Measures the digital PWM signal on the configured digital line
+    //   Execution Option <- 2
+    //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
+    //   Cycles to capture <- 2
+    //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
+    //   Actual Cycles Captured <- Locals.Measurement_Data.Actual_Cycles_Captured
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Measure PWM Signals [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalPulseGenClose(); // Digital Pulse Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasClose(); // Digital PWM Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -464,61 +479,64 @@ Future<String> digitalCountEventTestsSwTimedExternalWait() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates digital pulse generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Software timed using an external wait
-  //
-  //
-  // label: Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
-  //   Output Terminal <- "/Simulated_DAQ/PFI7" //Output terminal to generated Digital Pulse Signals
-  //   Physical Channel (Counter) <- "Simulated_DAQ/ctr3"  //Counter used to generated Digital Pulse Signals
-  //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalPulseGenInitialize(); // Digital Pulse Generation - Initialize [Action]
-  //   Input Terminal <- "/Simulated_DAQ/PFI3" //Input Terminal to measure the Digital Edge Count Measurements
-  //   Counter - Edge Counting <- "Simulated_DAQ/ctr1" //Counter used for Digital Edge Count Measurements
-  //   Counter - Timer <- "" //No Timer operation is performed in SW Timed mode
-  //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDecmInitialize(); // Digital Edge Count Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates digital pulse generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Software timed using an external wait
+    //
+    //
+    // label: Note to run with Hardware: Update the Terminal and Physical Counter Channels based on NI MAX in the below initialize step
+    //   Output Terminal <- "/Simulated_DAQ/PFI7" //Output terminal to generated Digital Pulse Signals
+    //   Physical Channel (Counter) <- "Simulated_DAQ/ctr3"  //Counter used to generated Digital Pulse Signals
+    //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalPulseGenInitialize(); // Digital Pulse Generation - Initialize [Action]
+    //   Input Terminal <- "/Simulated_DAQ/PFI3" //Input Terminal to measure the Digital Edge Count Measurements
+    //   Counter - Edge Counting <- "Simulated_DAQ/ctr1" //Counter used for Digital Edge Count Measurements
+    //   Counter - Timer <- "" //No Timer operation is performed in SW Timed mode
+    //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDecmInitialize(); // Digital Edge Count Measurement - Initialize [Action]
 
-  // ── main ──
-  // Configures to measure digital edges
-  //   Execution Option <- 1
-  //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
-  //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Configure TP [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update the Digital pulse settings in the below step based on the required digital signal to be generated
-  // Generates Digital pulse signals
-  //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalPulseGenConfigureAndGenerate(); // Digital Pulse Generation - Configure & Generate Digital pulse signals [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update the external software wait time in the below step based on the measurement window to be captured
-  await Future<void>.delayed(
-    Duration(microseconds: ((2) * 1e6).round()),
-  ); // External Software Wait
-  //
-  // Reads the Digital edge counts
-  //   Execution Option <- 2
-  //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
-  //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
-  //   Edge Counts <- Locals.Measurement_Data.Edge_Counts
-  //   error out <- Step.Result.Error
-  await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Read digital edges [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalPulseGenClose(); // Digital Pulse Generation - Close [Action]
-  //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDecmClose(); // Digital Edge Count Measurement - Close [Action]
+    // ── main ──
+    // Configures to measure digital edges
+    //   Execution Option <- 1
+    //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
+    //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Configure TP [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update the Digital pulse settings in the below step based on the required digital signal to be generated
+    // Generates Digital pulse signals
+    //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_Pulse_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalPulseGenConfigureAndGenerate(); // Digital Pulse Generation - Configure & Generate Digital pulse signals [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update the external software wait time in the below step based on the measurement window to be captured
+    await Future<void>.delayed(
+      Duration(microseconds: ((2) * 1e6).round()),
+    ); // External Software Wait
+    //
+    // Reads the Digital edge counts
+    //   Execution Option <- 2
+    //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
+    //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
+    //   Edge Counts <- Locals.Measurement_Data.Edge_Counts
+    //   error out <- Step.Result.Error
+    await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Read digital edges [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_Pulse_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalPulseGenClose(); // Digital Pulse Generation - Close [Action]
+    //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDecmClose(); // Digital Edge Count Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -538,62 +556,65 @@ Future<String> digitalCountEventTestsHwTimedWithTrigger() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates digital pattern generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Hardware timed using with Trigger to create a measurement window for fixed duration
-  //
-  //
-  // label: Note to run with Hardware: Update the Terminals and Global/Physical Channels based on NI MAX in the below initialize step
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenInitialize(); // Dynamic Digital Pattern Generation - Initialize [Action]
-  //   Input Terminal <- "/Simulated_DAQ/PFI0" //Input Terminal to measure the Digital Edge Count Measurements
-  //   Counter - Edge Counting <- "Simulated_DAQ/ctr0" //Counter used for Digital Edge Count Measurements
-  //   Counter - Timer <- "Simulated_DAQ/ctr1" //Counter used to generate Hardware timed measurement window
-  //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDecmInitialize(); // Digital Edge Count Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates digital pattern generation and digital edge count measurement through counter-based measurements using Core Digital IO Modules. Digital edge counting is performed at Hardware timed using with Trigger to create a measurement window for fixed duration
+    //
+    //
+    // label: Note to run with Hardware: Update the Terminals and Global/Physical Channels based on NI MAX in the below initialize step
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenInitialize(); // Dynamic Digital Pattern Generation - Initialize [Action]
+    //   Input Terminal <- "/Simulated_DAQ/PFI0" //Input Terminal to measure the Digital Edge Count Measurements
+    //   Counter - Edge Counting <- "Simulated_DAQ/ctr0" //Counter used for Digital Edge Count Measurements
+    //   Counter - Timer <- "Simulated_DAQ/ctr1" //Counter used to generate Hardware timed measurement window
+    //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDecmInitialize(); // Digital Edge Count Measurement - Initialize [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations and update the Trigger & Counter configurations
-  // Configures and arms to measure digital edges based on Start trigger
-  //   Execution Option <- 1
-  //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
-  //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Configure TP [Action]
-  //
-  //
-  // label: Note to run with Hardware: Review & update the "Number of Digital Lines" and "Number of Samples" required to be generated
-  // Generates Digital ramp pattern for the configured digital lines in Port Digital Data Format
-  //   Number of Digital Lines <- 1 //Update based on Number of configured Digital Lines
-  //   Number of Samples <- 1000 //Update based on required Samples to be generated
-  //   Port Digital Data <- Locals.Port_Digital_Data
-  //   error out <- Step.Result.Error
-  await callDigitalRampPatternGenerator(); // Generate Port Digital Data [Action]
-  // Generates digital pattern signals
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   Port Digital Data <- Locals.Port_Digital_Data
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenConfigureAndGenerate(); // Dynamic Digital Pattern Generation - Configure & Generate Digital patterns [Action]
-  //
-  // Reads the Digital edge counts
-  //   Execution Option <- 2
-  //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
-  //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
-  //   Edge Counts <- Locals.Measurement_Data.Edge_Counts
-  //   error out <- Step.Result.Error
-  await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Read digital edges [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenClose(); // Dynamic Digital Pattern Generation - Close [Action]
-  //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDecmClose(); // Digital Edge Count Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations and update the Trigger & Counter configurations
+    // Configures and arms to measure digital edges based on Start trigger
+    //   Execution Option <- 1
+    //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
+    //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Configure TP [Action]
+    //
+    //
+    // label: Note to run with Hardware: Review & update the "Number of Digital Lines" and "Number of Samples" required to be generated
+    // Generates Digital ramp pattern for the configured digital lines in Port Digital Data Format
+    //   Number of Digital Lines <- 1 //Update based on Number of configured Digital Lines
+    //   Number of Samples <- 1000 //Update based on required Samples to be generated
+    //   Port Digital Data <- Locals.Port_Digital_Data
+    //   error out <- Step.Result.Error
+    await callDigitalRampPatternGenerator(); // Generate Port Digital Data [Action]
+    // Generates digital pattern signals
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   Port Digital Data <- Locals.Port_Digital_Data
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenConfigureAndGenerate(); // Dynamic Digital Pattern Generation - Configure & Generate Digital patterns [Action]
+    //
+    // Reads the Digital edge counts
+    //   Execution Option <- 2
+    //   DAQmx Tasks In <- Locals.Digital_Edge_Count_Meas_Task
+    //   DAQmx Tasks Out <- Locals.Digital_Edge_Count_Meas_Task
+    //   Edge Counts <- Locals.Measurement_Data.Edge_Counts
+    //   error out <- Step.Result.Error
+    await callDaqDecmConfigureAndMeasure(); // Digital Edge Count Measurement - Read digital edges [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenClose(); // Dynamic Digital Pattern Generation - Close [Action]
+    //   DAQmx Tasks <- Locals.Digital_Edge_Count_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDecmClose(); // Digital Edge Count Measurement - Close [Action]
+  }
 
   return run.status;
 }

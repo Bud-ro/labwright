@@ -78,41 +78,43 @@ Future<String> preUut({
   run.record(callDoPreUutResult.Status);
 
   // ── main ──
-  //   Time <- FileGlobals.Ent_Time
-  //   error out <- Step.Result.Error
-  await callWsp2GetDateTimeStr(); // Get Entry Time [Action]
-  fileGlobals.TestResult = 0; // Init TestResult
-  fileGlobals.FailString_DataToSend = ''; // Init FailString
-  // status expression: ""
-  // label:
-  // goto -> step "End Of Traceability Section"
-  if (stationGlobals.isTraceEnable == 'False') {
-    // precondition of Jump if Traceability is Disabled
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Jump if Traceability is Disabled [Goto]
-  }
-  // label: Start Traceability Section
-  //   SerialNumber <- Parameters.UUT.SerialNumber
-  //   AssemblyPartNumber <- Parameters.UUT.PartNumber
-  //   error out <- Step.Result.Error
-  await callWsp2PartNumberRef(); // Get_PartNumber [Action]
-  //   serialNumber <- Parameters.UUT.SerialNumber
-  //   stationName <- StationGlobals.StationName
-  //   Status <- Locals.BackCheck
-  //   ReplyTracMex <- Locals.Reply_BackCheck
-  //   error out <- Step.Result.Error
-  await callWsp2BackCheckSerial(); // Get_BackCheck [Action]
-  if (backCheck == 1) {
-    stationGlobals.IsBackcheckOK = true; // Set Backcheck OK
-  } else {
-    stationGlobals.IsBackcheckOK = false; // Set Backcheck NOG
-    // popup title: NameOf(Step)
-    // popup message: "Unidad reporta: " + Locals.Reply_BackCheck
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Msg Bachcheck fail [MessagePopup]
+  skipToEndOfTraceabilitySection:
+  {
+    //   Time <- FileGlobals.Ent_Time
+    //   error out <- Step.Result.Error
+    await callWsp2GetDateTimeStr(); // Get Entry Time [Action]
+    fileGlobals.TestResult = 0; // Init TestResult
+    fileGlobals.FailString_DataToSend = ''; // Init FailString
+    // status expression: ""
+    // label:
+    // goto -> step "End Of Traceability Section"
+    if (stationGlobals.isTraceEnable == 'False') {
+      // precondition of Jump if Traceability is Disabled
+      // Jump if Traceability is Disabled [Goto]: no code module
+      break skipToEndOfTraceabilitySection; // post action
+    }
+    // label: Start Traceability Section
+    //   SerialNumber <- Parameters.UUT.SerialNumber
+    //   AssemblyPartNumber <- Parameters.UUT.PartNumber
+    //   error out <- Step.Result.Error
+    await callWsp2PartNumberRef(); // Get_PartNumber [Action]
+    //   serialNumber <- Parameters.UUT.SerialNumber
+    //   stationName <- StationGlobals.StationName
+    //   Status <- Locals.BackCheck
+    //   ReplyTracMex <- Locals.Reply_BackCheck
+    //   error out <- Step.Result.Error
+    await callWsp2BackCheckSerial(); // Get_BackCheck [Action]
+    if (backCheck == 1) {
+      stationGlobals.IsBackcheckOK = true; // Set Backcheck OK
+    } else {
+      stationGlobals.IsBackcheckOK = false; // Set Backcheck NOG
+      // popup title: NameOf(Step)
+      // popup message: "Unidad reporta: " + Locals.Reply_BackCheck
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Msg Bachcheck fail [MessagePopup]
+    }
   }
   // label: End Of Traceability Section
   // popup title: NameOf(Step)
@@ -139,28 +141,30 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of UUT Not For This Process
 
-  // ── setup ──
-  runState.Engine.StationOptions.AlwaysGotoCleanupOnFailure ==
-      true; // Go to cleanup on failure
-  if (stationGlobals.IsBackcheckOK == false &&
-      stationGlobals.isTraceEnable == 'True') {
-    // checks: False
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    // UUT Not For This Process [PassFailTest]: judged by its status expression
-    uutNotForThisProcessResult.PassFail = false; // status expression
-    uutNotForThisProcessResult.Status =
-        ts.truthy(uutNotForThisProcessResult.PassFail)
-        ? 'Passed'
-        : 'Failed'; // status expression
-    run.record(uutNotForThisProcessResult.Status);
-    // goto -> step "Failed Point"
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Goto [Goto]
+  body:
+  try {
+    // ── setup ──
+    runState.Engine.StationOptions.AlwaysGotoCleanupOnFailure ==
+        true; // Go to cleanup on failure
+    if (stationGlobals.IsBackcheckOK == false &&
+        stationGlobals.isTraceEnable == 'True') {
+      // checks: False
+      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+      // UUT Not For This Process [PassFailTest]: judged by its status expression
+      uutNotForThisProcessResult.PassFail = false; // status expression
+      uutNotForThisProcessResult.Status =
+          ts.truthy(uutNotForThisProcessResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      run.record(uutNotForThisProcessResult.Status);
+      // goto -> step "Failed Point"
+      // Goto [Goto]: no code module
+      break body; // post action
+    }
+  } finally {
+    // ── cleanup ──
+    // label: Failed Point
   }
-
-  // ── cleanup ──
-  // label: Failed Point
 
   return run.status;
 }
@@ -191,32 +195,20 @@ Future<String> postUut({
   run.record(callDoPostUutResult.Status);
 
   // ── main ──
-  //   error out <- Step.Result.Error
-  await callWsp2GetDateTimeStr(); // Get End Time [Action]
-  // goto -> step "End Of Traceability Section"
-  if (stationGlobals.isTraceEnable == 'False' ||
-      !ts.truthy(stationGlobals.IsBackcheckOK)) {
-    // precondition of Jump if Traceability is Disabled
-    throw UnimplementedError(
-      'step type Goto: action not exported yet',
-    ); // Jump if Traceability is Disabled [Goto]
-  }
-  // label: Start Traceability Section
-  if (fileGlobals.TestResult == 1) {
-    //   FailString <- ""
-    //   EntryTime <- FileGlobals.Ent_Time
-    //   SerialNumber <- Parameters.UUT.SerialNumber
-    //   StationName <- StationGlobals.StationName
-    //   ProcessName <- StationGlobals.ProcessName
-    //   PassFail <- FileGlobals.TestResult
-    //   EndTime <- FileGlobals.End_Time
-    //   Employee <- ""
+  skipToEndOfTraceabilitySection:
+  {
     //   error out <- Step.Result.Error
-    await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
-  } else {
-    if (stationGlobals.isRecordFail == 'True') {
-      // precondition of Send Process
-      //   FailString <- FileGlobals.FailString_DataToSend
+    await callWsp2GetDateTimeStr(); // Get End Time [Action]
+    // goto -> step "End Of Traceability Section"
+    if (stationGlobals.isTraceEnable == 'False' ||
+        !ts.truthy(stationGlobals.IsBackcheckOK)) {
+      // precondition of Jump if Traceability is Disabled
+      // Jump if Traceability is Disabled [Goto]: no code module
+      break skipToEndOfTraceabilitySection; // post action
+    }
+    // label: Start Traceability Section
+    if (fileGlobals.TestResult == 1) {
+      //   FailString <- ""
       //   EntryTime <- FileGlobals.Ent_Time
       //   SerialNumber <- Parameters.UUT.SerialNumber
       //   StationName <- StationGlobals.StationName
@@ -226,6 +218,20 @@ Future<String> postUut({
       //   Employee <- ""
       //   error out <- Step.Result.Error
       await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+    } else {
+      if (stationGlobals.isRecordFail == 'True') {
+        // precondition of Send Process
+        //   FailString <- FileGlobals.FailString_DataToSend
+        //   EntryTime <- FileGlobals.Ent_Time
+        //   SerialNumber <- Parameters.UUT.SerialNumber
+        //   StationName <- StationGlobals.StationName
+        //   ProcessName <- StationGlobals.ProcessName
+        //   PassFail <- FileGlobals.TestResult
+        //   EndTime <- FileGlobals.End_Time
+        //   Employee <- ""
+        //   error out <- Step.Result.Error
+        await callWsp2InsertProcessDataWithFails(); // Send Process [Action]
+      }
     }
   }
   // label: End Of Traceability Section
@@ -340,9 +346,7 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   external sequence: DoPreUUT
   //   ..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi
-  //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
   //   StationGlobals read (station-level state not set here)
-  //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_PartNumberRef.vi
   //   ..\LabVIEW_VIs\Traceability\WSP2_BackCheck_Serial.vi
   //   step type MessagePopup: action not exported yet
@@ -356,17 +360,13 @@ void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   RunState engine access (no engine at run time)
   //   StationGlobals read (station-level state not set here)
-  //   flow action of step "Goto" (Next/Next) not exported
-  //   step type Goto: action not exported yet
   lw.skipTest('MainSequence', () async {
     lw.expect(await mainSequence(), 'Passed');
   });
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
   //   external sequence: DoPreUUT
   //   ..\LabVIEW_VIs\Traceability\WSP2_GetDateTimeStr.vi
-  //   flow action of step "Jump if Traceability is Disabled" (Next/Next) not exported
   //   StationGlobals read (station-level state not set here)
-  //   step type Goto: action not exported yet
   //   ..\LabVIEW_VIs\Traceability\WSP2_InsertProcessDataWithFails.vi
   //   root parameter 'Result' is an engine object (nothing binds it when run as a test)
   //   root parameter 'UUT' is an engine object (nothing binds it when run as a test)

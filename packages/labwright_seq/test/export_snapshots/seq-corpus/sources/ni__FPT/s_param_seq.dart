@@ -25,81 +25,84 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   Enable Validity Check? <- True
-  //   error out <- Step.Result.Error
-  await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-  //   measure call context in <- Nothing
-  //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOnDut(); // RX_Power ON [Action]
-  //   measure call context in <- Nothing
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callSetSwitching(); // RX_Switching Connect [Action]
+  body:
+  try {
+    // ── setup ──
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   Enable Validity Check? <- True
+    //   error out <- Step.Result.Error
+    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
+    //   measure call context in <- Nothing
+    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOnDut(); // RX_Power ON [Action]
+    //   measure call context in <- Nothing
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callSetSwitching(); // RX_Switching Connect [Action]
 
-  // ── main ──
-  // measurement: FPT_SParam_LabVIEW
-  // measurement param: Automation Test (In TypeBool) = True
-  // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  // measurement param: RFmxVNA name (In TypeString) = "VNA-5633"
-  // measurement param: vCal Name (In TypeString) = "ni-cal1"
-  // measurement param: RFmxVNA Calset Enable (In TypeBool) = False
-  // measurement param: RFmxVNA Calset Interpolation (In TypeBool) = False
-  // measurement param: Calset File Path (String) (In TypeString) = ""
-  // measurement param: RFmxVNA attenuation mode (In TypeEnum Enum) = 0i64
-  // measurement param: RFmxVNA Port1 s2p file path (String) (In TypeString) = ""
-  // measurement param: RFmxVNA Port1 s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFmxVNA Port1 Power Compensation (In TypeBool) = True
-  // measurement param: RFmxVNA Port2 s2p file path (String) (In TypeString) = ""
-  // measurement param: RFmxVNA Port2 s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFmxVNA Port2 Power Compensation (In TypeBool) = True
-  // measurement param: Port1 Power Level (dBm) (In TypeDouble) = -10
-  // measurement param: Port1 Test Receiver Attenuation (dB) (In TypeDouble) = 0
-  // measurement param: Port2 Power Level (dBm) (In TypeDouble) = -10
-  // measurement param: Port2 Test Receiver Attenuation (dB) (In TypeDouble) = 0
-  // measurement param: IF Bandwidth (Hz) (In TypeDouble) = 100000
-  // measurement param: Action (In TypeEnum Enum) = 1i64
-  // measurement param: Pulse Mode Enabled (In TypeBool) = False
-  // measurement param: Pulse Period (In TypeDouble) = 0.001
-  // measurement param: Pulse Modulator Delay (In TypeDouble) = 0
-  // measurement param: Pulse Modulator Width (In TypeDouble) = 0.0001
-  // measurement param: Pulse Acquisition Auto (In TypeBool) = False
-  // measurement param: Pulse Acquisition Delay (In TypeDouble) = 2E-05
-  // measurement param: Pulse Acquisition Width (In TypeDouble) = 4.665E-05
-  // measurement param: Start Frequency (Hz) (In TypeDouble) = 4000000000
-  // measurement param: Stop Frequency (Hz) (In TypeDouble) = 26000000000
-  // measurement param: Number of Points (In TypeInt32) = 201i64
-  // measurement param: Measurement S-Parameters (In TypeString) = {"S11","S21","S12","S22"}
-  // measurement param: Phase Trace Type (In TypeInt32) = 0i64
-  // measurement param: Magnitude Units (In TypeInt32) = 0i64
-  // measurement param: SnP File Path (String) (In TypeString) = ""
-  // measurement param: Averaging Enabled (In TypeBool) = True
-  // measurement param: Averaging Count (In TypeUint32) = 10ui64
-  // measurement param: Power sequecing file validity check (In TypeBool) = True
-  // measurement param: Status (Out TypeString)
-  // measurement param: S-Param Name (Out TypeString) = Locals.RX_SParam_PerFreqPlotNames
-  // measurement param: S-Param Magnitude (Out TypeMessage) = Locals.RX_SParam_Mag_Full
-  // measurement param: S-Param Phase (Out TypeMessage) = Locals.RX_SParam_Phase_Full
-  // measurement param: S21 (Mean) (Out TypeDouble) = Locals.RX_SParam_S21_Mean
-  // measurement param: S12 (Mean) (Out TypeDouble) = Locals.RX_SParam_S12_Mean
-  // measurement param: VNA Status (Out TypeString)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // RX_S-Parameter [NI_Measurement]
-  // checks: Step.NumericArray
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // RX_S-Parameter Limit Test [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOffDut(); // RX_Power OFF [Action]
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    // ── main ──
+    // measurement: FPT_SParam_LabVIEW
+    // measurement param: Automation Test (In TypeBool) = True
+    // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    // measurement param: RFmxVNA name (In TypeString) = "VNA-5633"
+    // measurement param: vCal Name (In TypeString) = "ni-cal1"
+    // measurement param: RFmxVNA Calset Enable (In TypeBool) = False
+    // measurement param: RFmxVNA Calset Interpolation (In TypeBool) = False
+    // measurement param: Calset File Path (String) (In TypeString) = ""
+    // measurement param: RFmxVNA attenuation mode (In TypeEnum Enum) = 0i64
+    // measurement param: RFmxVNA Port1 s2p file path (String) (In TypeString) = ""
+    // measurement param: RFmxVNA Port1 s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFmxVNA Port1 Power Compensation (In TypeBool) = True
+    // measurement param: RFmxVNA Port2 s2p file path (String) (In TypeString) = ""
+    // measurement param: RFmxVNA Port2 s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFmxVNA Port2 Power Compensation (In TypeBool) = True
+    // measurement param: Port1 Power Level (dBm) (In TypeDouble) = -10
+    // measurement param: Port1 Test Receiver Attenuation (dB) (In TypeDouble) = 0
+    // measurement param: Port2 Power Level (dBm) (In TypeDouble) = -10
+    // measurement param: Port2 Test Receiver Attenuation (dB) (In TypeDouble) = 0
+    // measurement param: IF Bandwidth (Hz) (In TypeDouble) = 100000
+    // measurement param: Action (In TypeEnum Enum) = 1i64
+    // measurement param: Pulse Mode Enabled (In TypeBool) = False
+    // measurement param: Pulse Period (In TypeDouble) = 0.001
+    // measurement param: Pulse Modulator Delay (In TypeDouble) = 0
+    // measurement param: Pulse Modulator Width (In TypeDouble) = 0.0001
+    // measurement param: Pulse Acquisition Auto (In TypeBool) = False
+    // measurement param: Pulse Acquisition Delay (In TypeDouble) = 2E-05
+    // measurement param: Pulse Acquisition Width (In TypeDouble) = 4.665E-05
+    // measurement param: Start Frequency (Hz) (In TypeDouble) = 4000000000
+    // measurement param: Stop Frequency (Hz) (In TypeDouble) = 26000000000
+    // measurement param: Number of Points (In TypeInt32) = 201i64
+    // measurement param: Measurement S-Parameters (In TypeString) = {"S11","S21","S12","S22"}
+    // measurement param: Phase Trace Type (In TypeInt32) = 0i64
+    // measurement param: Magnitude Units (In TypeInt32) = 0i64
+    // measurement param: SnP File Path (String) (In TypeString) = ""
+    // measurement param: Averaging Enabled (In TypeBool) = True
+    // measurement param: Averaging Count (In TypeUint32) = 10ui64
+    // measurement param: Power sequecing file validity check (In TypeBool) = True
+    // measurement param: Status (Out TypeString)
+    // measurement param: S-Param Name (Out TypeString) = Locals.RX_SParam_PerFreqPlotNames
+    // measurement param: S-Param Magnitude (Out TypeMessage) = Locals.RX_SParam_Mag_Full
+    // measurement param: S-Param Phase (Out TypeMessage) = Locals.RX_SParam_Phase_Full
+    // measurement param: S21 (Mean) (Out TypeDouble) = Locals.RX_SParam_S21_Mean
+    // measurement param: S12 (Mean) (Out TypeDouble) = Locals.RX_SParam_S12_Mean
+    // measurement param: VNA Status (Out TypeString)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // RX_S-Parameter [NI_Measurement]
+    // checks: Step.NumericArray
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // RX_S-Parameter Limit Test [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOffDut(); // RX_Power OFF [Action]
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+  }
 
   return run.status;
 }

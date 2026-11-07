@@ -116,4 +116,7 @@ void main() {
     run.record(ts.statusFailed);
     expect((run.status, run.failed), (ts.statusFailed, true));
   });
+  test('terminate raises the termination a caller unwinds through', () {
+    expect(ts.terminate, throwsA(isA<ts.SequenceTermination>()));
+  });
 }

@@ -55,169 +55,172 @@ Future<String> audioLineCheckTest({
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Example  - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
-  //
-  //
-  ts.eval(
-    'Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)',
-  ); // Get current date
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
-  ); // Get current date (cont.)
-  ts.eval(
-    ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
-  ); // Get current date (cont.)
-  // .NET call: System.Environment.GetFolderPath
-  //   Return Value <- Locals.DocumentPath
-  //   folder <- "MyDocuments"
-  throw UnimplementedError(
-    'dotNet call: System.Environment.GetFolderPath',
-  ); // Get document path [Action]
-  //
-  //
-  // label: Initialize Result Folder
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-  // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-  //   Return Value <- Locals.ArtifactsManagerSVG
-  //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBA\\SVG - "+ Locals.DateTime.Now)
-  throw UnimplementedError(
-    'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-  ); // Signal Voltage Generation -  Initialize Result Folder [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-  // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-  //   Return Value <- Locals.ArtifactsManagerFDM
-  //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBA\\FDM  - "+ Locals.DateTime.Now)
-  throw UnimplementedError(
-    'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-  ); // Frequency Domain Measurement -  Initialize Result Folder [Action]
-  //
-  //
-  // label: Initialize Hardware
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //
-  // Generates Sine wave and Trigger to Initiate measurement
-  //
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance
-  //   Return Value <- Locals.SVGRessource
-  //   analogOutputChannelExpression <- "TS_AudioLineIn0"
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance',
-  ); // Signal Voltage Generation - Initialize TS Analog Out [Action]
-  //
-  // Configure Freq Domain Measurement settings to wait for Hardware Trigger
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance
-  //   Return Value <- Locals.FDMRessource
-  //   analogInputChannelExpression <- "TP_AudioLineOut0"
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance',
-  ); // Frequency Domain Measurement - Initialize TP [Action]
-  //
-  //
-  // label: Assign Measure Folder
-  // label: Note: Build name, Directory and Save csv files.
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.SVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ExternalComponents
-  // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-  // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-  //   measurementArtifactsManager <- Locals.ArtifactsManagerSVG
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.AttachArtifactsManager',
-  ); // Signal Voltage Generation - Assign Generation [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.FDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ExternalComponents
-  // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-  // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-  //   measurementArtifactsManager <- Locals.ArtifactsManagerFDM
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.AttachArtifactsManager',
-  ); // Frequency Domain Measurement - Asign Assign Measure TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Example  - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
+    //
+    //
+    ts.eval(
+      'Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)',
+    ); // Get current date
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
+    ); // Get current date (cont.)
+    ts.eval(
+      ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
+    ); // Get current date (cont.)
+    // .NET call: System.Environment.GetFolderPath
+    //   Return Value <- Locals.DocumentPath
+    //   folder <- "MyDocuments"
+    throw UnimplementedError(
+      'dotNet call: System.Environment.GetFolderPath',
+    ); // Get document path [Action]
+    //
+    //
+    // label: Initialize Result Folder
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
+    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
+    //   Return Value <- Locals.ArtifactsManagerSVG
+    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBA\\SVG - "+ Locals.DateTime.Now)
+    throw UnimplementedError(
+      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+    ); // Signal Voltage Generation -  Initialize Result Folder [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
+    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
+    //   Return Value <- Locals.ArtifactsManagerFDM
+    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBA\\FDM  - "+ Locals.DateTime.Now)
+    throw UnimplementedError(
+      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+    ); // Frequency Domain Measurement -  Initialize Result Folder [Action]
+    //
+    //
+    // label: Initialize Hardware
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //
+    // Generates Sine wave and Trigger to Initiate measurement
+    //
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance
+    //   Return Value <- Locals.SVGRessource
+    //   analogOutputChannelExpression <- "TS_AudioLineIn0"
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.CreateInstance',
+    ); // Signal Voltage Generation - Initialize TS Analog Out [Action]
+    //
+    // Configure Freq Domain Measurement settings to wait for Hardware Trigger
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance
+    //   Return Value <- Locals.FDMRessource
+    //   analogInputChannelExpression <- "TP_AudioLineOut0"
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.CreateInstance',
+    ); // Frequency Domain Measurement - Initialize TP [Action]
+    //
+    //
+    // label: Assign Measure Folder
+    // label: Note: Build name, Directory and Save csv files.
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.SVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ExternalComponents
+    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
+    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
+    //   measurementArtifactsManager <- Locals.ArtifactsManagerSVG
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.AttachArtifactsManager',
+    ); // Signal Voltage Generation - Assign Generation [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.FDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ExternalComponents
+    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
+    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
+    //   measurementArtifactsManager <- Locals.ArtifactsManagerFDM
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.AttachArtifactsManager',
+    ); // Frequency Domain Measurement - Asign Assign Measure TP [Action]
 
-  // ── main ──
-  // label: Audio Line Check
-  // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
-  //
-  // Configure Freq Domain Measurement settings to wait for Hardware Trigger (ConfigureOnly)
-  //
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.FDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure
-  //   Return Value <- Parameters.FDMResultData
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
-  ); // Generates Sine wave and Trigger to Initiate measurement [Action]
-  //
-  // Generates Sine wave and Trigger to Initiate measurement
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.SVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate',
-  ); // Signal Voltage Generation - Configure and Generate Sine tones in TS Analog Out [Action]
-  //
-  //
-  // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis (MeasureOnly)
-  //
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.FDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure
-  //   Return Value <- Parameters.FDMResultData
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
-  ); // Generates Sine wave and Trigger to Initiate measurement [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.FDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close',
-  ); // Frequency Domain Measurement - Close TS Analog Out [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.SVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close',
-  ); // Signal Voltage Generation -  Close TP [Action]
+    // ── main ──
+    // label: Audio Line Check
+    // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
+    //
+    // Configure Freq Domain Measurement settings to wait for Hardware Trigger (ConfigureOnly)
+    //
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.FDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure
+    //   Return Value <- Parameters.FDMResultData
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
+    ); // Generates Sine wave and Trigger to Initiate measurement [Action]
+    //
+    // Generates Sine wave and Trigger to Initiate measurement
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.SVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.ConfigureAndGenerate',
+    ); // Signal Voltage Generation - Configure and Generate Sine tones in TS Analog Out [Action]
+    //
+    //
+    // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis (MeasureOnly)
+    //
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.FDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure
+    //   Return Value <- Parameters.FDMResultData
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.ConfigureAndMeasure',
+    ); // Generates Sine wave and Trigger to Initiate measurement [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.FDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.FrequencyDomainMeasurements.FrequencyDomainMeasurement.Close',
+    ); // Frequency Domain Measurement - Close TS Analog Out [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.SVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.SignalVoltageGenerations.SignalVoltageGeneration.Close',
+    ); // Signal Voltage Generation -  Close TP [Action]
+  }
 
   return run.status;
 }

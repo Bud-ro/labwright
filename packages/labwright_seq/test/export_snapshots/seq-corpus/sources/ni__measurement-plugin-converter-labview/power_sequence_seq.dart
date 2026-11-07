@@ -47,33 +47,36 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   Physical Channel <- Locals.Channel
-  //   error out <- Step.Result.Error
-  await callPowMeasInitialize(); // Action [Action]
+  body:
+  try {
+    // ── setup ──
+    //   Physical Channel <- Locals.Channel
+    //   error out <- Step.Result.Error
+    await callPowMeasInitialize(); // Action [Action]
 
-  // ── main ──
-  //   error in (no error) <- Step.Result.Error
-  //   Operation <- Locals.Operation
-  //   Calculate Analysis? <- Locals.Analyze
-  //   voltage <- Locals.Voltage
-  //   Current <- Locals.Current
-  //   error out <- Step.Result.Error
-  await callPowMeasConfigureAndMeasure(); // Action [Action]
-  if (analyze &&
-      (operation == 'Measure Only' || operation == 'Configure and Measure')) {
-    // popup title: NameOf(Step)
-    // popup message: "MAX Voltage  " + Str(Locals.Analyzeddata.MaxVoltage) + " Max Current  " + Str(Locals.Analyzeddata.MaxCurrent) + "  Max Power  " + Str(Locals.Analyzeddata.MaxPower) + "  Avg power  " + Str(Locals.Analyzeddata.AvgPower)
-    // popup buttons: "OK"
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Message Popup [MessagePopup]
+    // ── main ──
+    //   error in (no error) <- Step.Result.Error
+    //   Operation <- Locals.Operation
+    //   Calculate Analysis? <- Locals.Analyze
+    //   voltage <- Locals.Voltage
+    //   Current <- Locals.Current
+    //   error out <- Step.Result.Error
+    await callPowMeasConfigureAndMeasure(); // Action [Action]
+    if (analyze &&
+        (operation == 'Measure Only' || operation == 'Configure and Measure')) {
+      // popup title: NameOf(Step)
+      // popup message: "MAX Voltage  " + Str(Locals.Analyzeddata.MaxVoltage) + " Max Current  " + Str(Locals.Analyzeddata.MaxCurrent) + "  Max Power  " + Str(Locals.Analyzeddata.MaxPower) + "  Avg power  " + Str(Locals.Analyzeddata.AvgPower)
+      // popup buttons: "OK"
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Message Popup [MessagePopup]
+    }
+  } finally {
+    // ── cleanup ──
+    //   error in (no error) <- Step.Result.Error
+    //   error out <- Step.Result.Error
+    await callPowMeasClose(); // Action [Action]
   }
-
-  // ── cleanup ──
-  //   error in (no error) <- Step.Result.Error
-  //   error out <- Step.Result.Error
-  await callPowMeasClose(); // Action [Action]
 
   return run.status;
 }

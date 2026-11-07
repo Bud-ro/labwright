@@ -35,47 +35,50 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Power down all AO Channels
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example 1 - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
-  // Audio Test with Single Tone Signals
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  audioLineCheckResult.Status = await audioLineCheck(); // Audio Line Check
-  audioLineCheckResult.Status = audioLineCheckResult.Status == 'Done'
-      ? 'Passed'
-      : audioLineCheckResult.Status; // status expression
-  run.record(audioLineCheckResult.Status);
-  //
-  //
-  // label: Example 2 - Demonstrates extraction of tones (Frequency domain measurement) from the captured Multi tone Audio Signal
-  // Audio Test with Multi Tone Signals
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  audioFilterCheckResult.Status =
-      await audioFilterCheck(); // Audio Filter Check
-  audioFilterCheckResult.Status = audioFilterCheckResult.Status == 'Done'
-      ? 'Passed'
-      : audioFilterCheckResult.Status; // status expression
-  run.record(audioFilterCheckResult.Status);
-
-  // ── cleanup ──
-  // label: Turn off all configured AO channels by configuring to 0V
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownAllAoChannelsResult.Status =
-      await turnOffAllAoChannels(); // Power down all AO Channels
-  powerDownAllAoChannelsResult.Status =
-      powerDownAllAoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownAllAoChannelsResult.Status; // status expression
-  run.record(powerDownAllAoChannelsResult.Status);
+    // ── main ──
+    // label: Example 1 - Demonstrates extraction of tones (Frequency domain measurement) from the captured Audio Signal (Single tone sine wave)
+    // Audio Test with Single Tone Signals
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    audioLineCheckResult.Status = await audioLineCheck(); // Audio Line Check
+    audioLineCheckResult.Status = audioLineCheckResult.Status == 'Done'
+        ? 'Passed'
+        : audioLineCheckResult.Status; // status expression
+    run.record(audioLineCheckResult.Status);
+    //
+    //
+    // label: Example 2 - Demonstrates extraction of tones (Frequency domain measurement) from the captured Multi tone Audio Signal
+    // Audio Test with Multi Tone Signals
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    audioFilterCheckResult.Status =
+        await audioFilterCheck(); // Audio Filter Check
+    audioFilterCheckResult.Status = audioFilterCheckResult.Status == 'Done'
+        ? 'Passed'
+        : audioFilterCheckResult.Status; // status expression
+    run.record(audioFilterCheckResult.Status);
+  } finally {
+    // ── cleanup ──
+    // label: Turn off all configured AO channels by configuring to 0V
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownAllAoChannelsResult.Status =
+        await turnOffAllAoChannels(); // Power down all AO Channels
+    powerDownAllAoChannelsResult.Status =
+        powerDownAllAoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownAllAoChannelsResult.Status; // status expression
+    run.record(powerDownAllAoChannelsResult.Status);
+  }
 
   return run.status;
 }
@@ -106,48 +109,51 @@ Future<String> audioLineCheck() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Example demonstrates Frequency domain measurements(extraction of tones) of captured Analog(Audio) signal generated by Analog Output(generates sine wave tones) module with Hardware Trigger
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize TS Analog Out [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Example demonstrates Frequency domain measurements(extraction of tones) of captured Analog(Audio) signal generated by Analog Output(generates sine wave tones) module with Hardware Trigger
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize TS Analog Out [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
-  // Configure Freq Domain Measurement settings to wait for Hardware Trigger
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasConfigureAndMeasure(); // Frequency Domain Measurement - Configure TP [Action]
-  //
-  // Generates Sine wave and Trigger to Initiate measurement
-  //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Configure and generate Sine tones in TS Analog Out [Action]
-  //
-  // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   Voltage Waveforms <- Locals.Freq_Domain_Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Fetch TP Measurements [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenClose(); // Signal Voltage Generation - Close TS Analog Out [Action]
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasClose(); // Freq Domain Measurement - Close TP [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
+    // Configure Freq Domain Measurement settings to wait for Hardware Trigger
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasConfigureAndMeasure(); // Frequency Domain Measurement - Configure TP [Action]
+    //
+    // Generates Sine wave and Trigger to Initiate measurement
+    //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Configure and generate Sine tones in TS Analog Out [Action]
+    //
+    // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   Voltage Waveforms <- Locals.Freq_Domain_Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Fetch TP Measurements [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenClose(); // Signal Voltage Generation - Close TS Analog Out [Action]
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasClose(); // Freq Domain Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -169,48 +175,51 @@ Future<String> audioFilterCheck() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Example demonstrates Frequency domain measurements(extraction of tones) of captured Analog(Audio) signal generated by Analog Output(generates multi tones) module with Hardware Trigger
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize TS Analog Out [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Example demonstrates Frequency domain measurements(extraction of tones) of captured Analog(Audio) signal generated by Analog Output(generates multi tones) module with Hardware Trigger
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize TS Analog Out [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasInitialize(); // Frequency Domain Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
-  // Configure Freq Domain Measurement settings to wait for Hardware Trigger
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasConfigureAndMeasure(); // Frequency Domain Measurement - Configure TP [Action]
-  //
-  // Generates Sine wave and Trigger to Initiate measurement
-  //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Configure and generate Sine tones in TS Analog Out [Action]
-  //
-  // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
-  //   Voltage Waveforms <- Locals.Freq_Domain_Meas_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Fetch TP Measurements [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenClose(); // Signal Voltage Generation - Close TS Analog Out [Action]
-  //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqFdvMeasClose2(); // Freq Domain Measurement - Close TP [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the configuration & update Trigger Source settings based on NI MAX
+    // Configure Freq Domain Measurement settings to wait for Hardware Trigger
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasConfigureAndMeasure(); // Frequency Domain Measurement - Configure TP [Action]
+    //
+    // Generates Sine wave and Trigger to Initiate measurement
+    //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Configure and generate Sine tones in TS Analog Out [Action]
+    //
+    // Measures the Analog Input voltage waveforms (Started measure when Signal Voltage generation sends Trigger after source) and returns Freq Domain Analysis
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   DAQmx Task Out <- Locals.Freq_Domain_Meas_Task
+    //   Voltage Waveforms <- Locals.Freq_Domain_Meas_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasConfigureAndMeasure(); // Freq Domain Measurement - Fetch TP Measurements [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Signal_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenClose(); // Signal Voltage Generation - Close TS Analog Out [Action]
+    //   DAQmx Task In <- Locals.Freq_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqFdvMeasClose2(); // Freq Domain Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -235,35 +244,38 @@ Future<String> turnOffAllAoChannels() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Analog output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Analog Output module
-  //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-  outputVoltagesV = <dynamic>[
-    0,
-    0,
-    0,
-    0,
-  ]; // Assign the Output Voltage for all configured AO Channels
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Analog output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Analog Output module
+    //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
+    outputVoltagesV = <dynamic>[
+      0,
+      0,
+      0,
+      0,
+    ]; // Assign the Output Voltage for all configured AO Channels
 
-  // ── main ──
-  // Sources DC Voltage at 0V to Analog Ouput channels
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   Output Voltages (V) <- Locals.Output_Voltages__V_
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
-
-  // ── cleanup ──
-  // Closes the DC Voltage Generation Task for Analog output module
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+    // ── main ──
+    // Sources DC Voltage at 0V to Analog Ouput channels
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   Output Voltages (V) <- Locals.Output_Voltages__V_
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
+  } finally {
+    // ── cleanup ──
+    // Closes the DC Voltage Generation Task for Analog output module
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+  }
 
   return run.status;
 }

@@ -41,51 +41,54 @@ Future<String> sequenceFileDoc({
     'Common': ts.PropObj(),
   }); // result of Save Doc To File
 
-  // ── setup ──
-  fileGlobals.SequenceFileObj = sequenceFile; // Set Sequence File Ref
-  // Enable this step to test this sequence in isolation. Make sure the path to the example sequence is valid and the "Release Sequence File" is Enabled.
-  // [skipped in source] Get Sequence File Ref
+  body:
+  try {
+    // ── setup ──
+    fileGlobals.SequenceFileObj = sequenceFile; // Set Sequence File Ref
+    // Enable this step to test this sequence in isolation. Make sure the path to the example sequence is valid and the "Release Sequence File" is Enabled.
+    // [skipped in source] Get Sequence File Ref
 
-  // ── main ──
-  for (final element in ts.iterate(fileGlobals.SequenceFileObj.Data.Seq)) {
-    currentSequence = element;
+    // ── main ──
+    for (final element in ts.iterate(fileGlobals.SequenceFileObj.Data.Seq)) {
+      currentSequence = element;
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      parseSequenceResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      parseSequenceResult.Status = await parseSequence(
+        sequence: currentSequence,
+        seqDocString: docResult,
+      ); // Parse Sequence
+      parseSequenceResult.Status = parseSequenceResult.Status == 'Done'
+          ? 'Passed'
+          : parseSequenceResult.Status; // status expression
+      run.record(parseSequenceResult.Status);
+    }
     // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    parseSequenceResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    parseSequenceResult.Status = await parseSequence(
-      sequence: currentSequence,
+    buildDocStringResult.Status = await buildDocString(
       seqDocString: docResult,
-    ); // Parse Sequence
-    parseSequenceResult.Status = parseSequenceResult.Status == 'Done'
+    ); // Build Doc String
+    buildDocStringResult.Status = buildDocStringResult.Status == 'Done'
         ? 'Passed'
-        : parseSequenceResult.Status; // status expression
-    run.record(parseSequenceResult.Status);
+        : buildDocStringResult.Status; // status expression
+    run.record(buildDocStringResult.Status);
+    // checks: Step.Result.PassFail
+    // status expression: Step.Result.PassFail ? "Passed" : "Failed"
+    throw UnimplementedError(
+      'cModule call: Save Doc To File',
+    ); // Save Doc To File [PassFailTest]
+    saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(saveDocToFileResult.Status);
+  } finally {
+    // ── cleanup ──
+    // Enable this step to test this sequence in isolation.
+    // [skipped in source] Release Sequence File
   }
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  buildDocStringResult.Status = await buildDocString(
-    seqDocString: docResult,
-  ); // Build Doc String
-  buildDocStringResult.Status = buildDocStringResult.Status == 'Done'
-      ? 'Passed'
-      : buildDocStringResult.Status; // status expression
-  run.record(buildDocStringResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.Result.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'cModule call: Save Doc To File',
-  ); // Save Doc To File [PassFailTest]
-  saveDocToFileResult.Status = ts.truthy(saveDocToFileResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(saveDocToFileResult.Status);
-
-  // ── cleanup ──
-  // Enable this step to test this sequence in isolation.
-  // [skipped in source] Release Sequence File
 
   return run.status;
 }
@@ -107,45 +110,48 @@ Future<String> parseSequence({
     'Common': ts.PropObj(),
   }); // result of Extract Step Data
 
-  // ── setup ──
-  throw UnimplementedError(
-    'cModule call: SetProgressMsg',
-  ); // SetProgressMsg [Action]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'cModule call: SetProgressMsg',
+    ); // SetProgressMsg [Action]
 
-  // ── main ──
-  // In each step group
-  for (final element in ts.iterate(fileGlobals.SEQ_GROUP)) {
-    currentGroup = element as String;
-    // Take every step
-    for (final element2 in ts.iterate(
-      ts.eval('Evaluate("Parameters.Sequence." + Locals.CurrentGroup)'),
-    )) {
-      currentStep = element2;
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      extractStepDataResult = ts.PropObj({
-        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-        'Status': '',
-        'ReportText': '',
-        'Common': ts.PropObj(),
-      });
-      extractStepDataResult.Status = await parseStep(
-        seqDocString: seqDocString,
-        currentStep: currentStep,
-      ); // Extract Step Data
-      extractStepDataResult.Status = extractStepDataResult.Status == 'Done'
-          ? 'Passed'
-          : extractStepDataResult.Status; // status expression
-      run.record(extractStepDataResult.Status);
-      throw UnimplementedError(
-        'cModule call: SetProgressMsg',
-      ); // SetProgressMsg [Action]
+    // ── main ──
+    // In each step group
+    for (final element in ts.iterate(fileGlobals.SEQ_GROUP)) {
+      currentGroup = element as String;
+      // Take every step
+      for (final element2 in ts.iterate(
+        ts.eval('Evaluate("Parameters.Sequence." + Locals.CurrentGroup)'),
+      )) {
+        currentStep = element2;
+        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        extractStepDataResult = ts.PropObj({
+          'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+          'Status': '',
+          'ReportText': '',
+          'Common': ts.PropObj(),
+        });
+        extractStepDataResult.Status = await parseStep(
+          seqDocString: seqDocString,
+          currentStep: currentStep,
+        ); // Extract Step Data
+        extractStepDataResult.Status = extractStepDataResult.Status == 'Done'
+            ? 'Passed'
+            : extractStepDataResult.Status; // status expression
+        run.record(extractStepDataResult.Status);
+        throw UnimplementedError(
+          'cModule call: SetProgressMsg',
+        ); // SetProgressMsg [Action]
+      }
     }
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'cModule call: SetProgressMsg',
+    ); // SetProgressMsg [Action]
   }
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'cModule call: SetProgressMsg',
-  ); // SetProgressMsg [Action]
 
   return run.status;
 }
@@ -285,27 +291,30 @@ Future<String> getSubSequenceParameters({
 
   final run = ts.SequenceRun();
 
-  // ── main ──
-  for (
-    x = 0;
-    x < currentStep.TS.SData.ActualArgs.GetNumSubProperties('');
-    x += 1
-  ) {
-    currentParameter = currentStep.TS.SData.ActualArgs.GetNthSubProperty(
-      '',
-      x,
-      0,
-    ); // Retrieve Parameter
-    parametersList =
-        parametersList +
-        currentParameter.Name +
-        fileGlobals.SEPARATOR +
-        currentParameter.Expr +
-        fileGlobals.SEPARATOR; // Parse SubSequence Parameters
+  body:
+  try {
+    // ── main ──
+    for (
+      x = 0;
+      x < currentStep.TS.SData.ActualArgs.GetNumSubProperties('');
+      x += 1
+    ) {
+      currentParameter = currentStep.TS.SData.ActualArgs.GetNthSubProperty(
+        '',
+        x,
+        0,
+      ); // Retrieve Parameter
+      parametersList =
+          parametersList +
+          currentParameter.Name +
+          fileGlobals.SEPARATOR +
+          currentParameter.Expr +
+          fileGlobals.SEPARATOR; // Parse SubSequence Parameters
+    }
+  } finally {
+    // ── cleanup ──
+    numberOfParameters = ++x; // Set the Number of Parameters in the Module
   }
-
-  // ── cleanup ──
-  numberOfParameters = ++x; // Set the Number of Parameters in the Module
 
   return run.status;
 }
@@ -321,19 +330,22 @@ Future<String> getLabViewModuleParameters({
 
   final run = ts.SequenceRun();
 
-  // ── main ──
-  for (final element in ts.iterate(currentStep.TS.SData.ViCall.Parms)) {
-    currentParameter = element;
-    parametersList =
-        parametersList +
-        currentParameter.Label +
-        fileGlobals.SEPARATOR +
-        currentParameter.ArgVal +
-        fileGlobals.SEPARATOR; // Parse Module Parameters
+  body:
+  try {
+    // ── main ──
+    for (final element in ts.iterate(currentStep.TS.SData.ViCall.Parms)) {
+      currentParameter = element;
+      parametersList =
+          parametersList +
+          currentParameter.Label +
+          fileGlobals.SEPARATOR +
+          currentParameter.ArgVal +
+          fileGlobals.SEPARATOR; // Parse Module Parameters
+    }
+  } finally {
+    // ── cleanup ──
+    numberOfParameters = ++x; // Set the Number of Parameters in the Module
   }
-
-  // ── cleanup ──
-  numberOfParameters = ++x; // Set the Number of Parameters in the Module
 
   return run.status;
 }

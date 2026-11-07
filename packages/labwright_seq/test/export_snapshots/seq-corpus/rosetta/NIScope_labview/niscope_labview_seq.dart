@@ -15,39 +15,42 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIScopeAcquireWaveform.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-SCOPE Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIScopeAcquireWaveform.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-SCOPE Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NISCOPEAcquireWaveform_LabVIEW
-  // measurement param: Measurement Pins (In TypeString IOResource) = {"PinGroup1"}
-  // measurement param: Vertical Range (In TypeDouble) = 5
-  // measurement param: Vertical Coupling (In TypeInt32) = 1i64
-  // measurement param: Input Impedance (In TypeUint32) = 0ui64
-  // measurement param: Minimum Sample Rate (In TypeDouble) = 10000000
-  // measurement param: Minimum Record Length (In TypeInt32) = 40000i64
-  // measurement param: Trigger Pin (In TypeString IOResource) = "Pin1"
-  // measurement param: Trigger Level (In TypeDouble) = 0.5
-  // measurement param: Trigger Slope (In TypeInt32) = 0i64
-  // measurement param: Timeout (In TypeDouble) = 5
-  // measurement param: Trigger Coupling (In TypeUint32) = 1ui64
-  // measurement param: Waveform0 (Out TypeDouble)
-  // measurement param: Waveform1 (Out TypeDouble)
-  // measurement param: Waveform2 (Out TypeDouble)
-  // measurement param: Waveform3 (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Acquire Waveform [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-SCOPE sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NISCOPEAcquireWaveform_LabVIEW
+    // measurement param: Measurement Pins (In TypeString IOResource) = {"PinGroup1"}
+    // measurement param: Vertical Range (In TypeDouble) = 5
+    // measurement param: Vertical Coupling (In TypeInt32) = 1i64
+    // measurement param: Input Impedance (In TypeUint32) = 0ui64
+    // measurement param: Minimum Sample Rate (In TypeDouble) = 10000000
+    // measurement param: Minimum Record Length (In TypeInt32) = 40000i64
+    // measurement param: Trigger Pin (In TypeString IOResource) = "Pin1"
+    // measurement param: Trigger Level (In TypeDouble) = 0.5
+    // measurement param: Trigger Slope (In TypeInt32) = 0i64
+    // measurement param: Timeout (In TypeDouble) = 5
+    // measurement param: Trigger Coupling (In TypeUint32) = 1ui64
+    // measurement param: Waveform0 (Out TypeDouble)
+    // measurement param: Waveform1 (Out TypeDouble)
+    // measurement param: Waveform2 (Out TypeDouble)
+    // measurement param: Waveform3 (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Acquire Waveform [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-SCOPE sessions [Action]
+  }
 
   return run.status;
 }

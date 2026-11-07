@@ -15,39 +15,42 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"..\..\..\src\NIScopeFrequencyDomain\NIScopeFrequencyDomain.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-SCOPE Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"..\..\..\src\NIScopeFrequencyDomain\NIScopeFrequencyDomain.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-SCOPE Sessions [Action]
 
-  // ── main ──
-  // measurement: NIScopeFrequencyDomain_LabVIEW
-  // measurement param: Pin Name (In TypeString Pin) = "Pin1"
-  // measurement param: Vertical Range (V) (In TypeDouble) = 10
-  // measurement param: Vertical Offset (V) (In TypeDouble) = 0
-  // measurement param: Vertical Coupling (In TypeInt32) = 1i64
-  // measurement param: Minimum Sample Rate (S/s) (In TypeDouble) = 10000
-  // measurement param: Minimum Record Length (S) (In TypeInt32) = 20000i64
-  // measurement param: Trigger Level (V) (In TypeDouble) = 0
-  // measurement param: Trigger Coupling (In TypeUint32) = 1ui64
-  // measurement param: Trigger Slope (In TypeInt32) = 0i64
-  // measurement param: Waveform Data (Out TypeDouble)
-  // measurement param: Magnitude RMS (Out TypeMessage)
-  // measurement param: Magnitude Peak (Out TypeMessage)
-  // measurement param: Amplitudes (V) (Out TypeDouble)
-  // measurement param: Frequencies (Hz) (Out TypeDouble)
-  // measurement param: Actual Sample Rate (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Acquire Waveform [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-SCOPE sessions [Action]
+    // ── main ──
+    // measurement: NIScopeFrequencyDomain_LabVIEW
+    // measurement param: Pin Name (In TypeString Pin) = "Pin1"
+    // measurement param: Vertical Range (V) (In TypeDouble) = 10
+    // measurement param: Vertical Offset (V) (In TypeDouble) = 0
+    // measurement param: Vertical Coupling (In TypeInt32) = 1i64
+    // measurement param: Minimum Sample Rate (S/s) (In TypeDouble) = 10000
+    // measurement param: Minimum Record Length (S) (In TypeInt32) = 20000i64
+    // measurement param: Trigger Level (V) (In TypeDouble) = 0
+    // measurement param: Trigger Coupling (In TypeUint32) = 1ui64
+    // measurement param: Trigger Slope (In TypeInt32) = 0i64
+    // measurement param: Waveform Data (Out TypeDouble)
+    // measurement param: Magnitude RMS (Out TypeMessage)
+    // measurement param: Magnitude Peak (Out TypeMessage)
+    // measurement param: Amplitudes (V) (Out TypeDouble)
+    // measurement param: Frequencies (Hz) (Out TypeDouble)
+    // measurement param: Actual Sample Rate (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Acquire Waveform [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-SCOPE sessions [Action]
+  }
 
   return run.status;
 }

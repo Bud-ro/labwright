@@ -18,17 +18,21 @@ Future<String> loginLogout({
 }) async {
   final run = ts.SequenceRun();
 
-  // custom flow: if (True) Goto -> <End> else Goto -> <End>
-  if (logout) {
-    // precondition of Logout
-    throw UnimplementedError('cModule call: Logout'); // Logout [Action]
-  }
-  // [skipped in source] Login
-  if (!logout) {
-    // precondition of Auto Login
-    runState.Engine.CurrentUser = runState.Engine.GetUser(
-      'administrator',
-    ); // Auto Login
+  endMain:
+  {
+    // custom flow: if (True) Goto -> <End> else Goto -> <End>
+    if (logout) {
+      // precondition of Logout
+      throw UnimplementedError('cModule call: Logout'); // Logout [Action]
+      break endMain; // post action
+    }
+    // [skipped in source] Login
+    if (!logout) {
+      // precondition of Auto Login
+      runState.Engine.CurrentUser = runState.Engine.GetUser(
+        'administrator',
+      ); // Auto Login
+    }
   }
 
   return run.status;
@@ -53,7 +57,6 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Logout" (Next/Next) not exported
   //   cModule call: Logout
   //   RunState engine access (no engine at run time)
   lw.skipTest('LoginLogout', () async {

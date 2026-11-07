@@ -47,153 +47,159 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Measure Results
 
-  // ── setup ──
-  // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
-  ts.eval(
-    'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
-  ); // Store Sequence File Path
-  // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
-  fileGlobals.OutputFilePath =
-      fileGlobals.Sequence_Folder_Path +
-      '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
-  // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
-  throw UnimplementedError(
-    'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
-  ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
-  ts.setNumElements(
-    fileGlobals.LoadedWaveformIndexes,
-    ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
-  ); // Initialize Waveform Arrays
-  ts.setNumElements(
-    fileGlobals.LoadedWaveforms,
-    ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
-  ); // Initialize Waveform Arrays (cont.)
-  // Initialize Instruments
-  // status expression: ""
-  // label:
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.FocusITunerBroker
-  //   Return Value <- FileGlobals.Device_Handles.iTunerReference
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.Initialize
-  //   ipAddress <- FileGlobals.Static_Station_Configs.Device_Names.Tuner_IP
-  //   reset <- False
-  //   verifyCommunication <- True
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.Initialize',
-  ); // Init Tuner [Action]
-  // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg
-  //   Return Value <- FileGlobals.Device_Handles.RFSG_Session
-  //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SG_Name
-  //   idQuery <- True
-  //   reset <- False
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
-  ); // Init RFSG [Action]
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX
-  //   Return Value <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SA_Name
-  //   optionString <- ""
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
-  ); // RFmx Initialize [Action]
-  // Load Waveforms and Create Signals
-  // status expression: ""
-  // label:
-  waveFormConfigsIdx = 0; // Reset Wfm config index
-  for (final element in ts.iterate(
-    fileGlobals.Static_Station_Configs.Waveform_Configs,
-  )) {
-    currentWaveformConfig = element;
-    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
-    //   Return Value <- Locals.Current_Waveform
-    //   filePath <- Locals.Current_Waveform_Config.Absolute_Disk_Path
+  body:
+  try {
+    // ── setup ──
+    // Files must use an absolute path. This statement expression programmatically stores an absolute path relative to the directory of the example.
+    ts.eval(
+      'FileGlobals.Sequence_Folder_Path = Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)),\nFileGlobals.OutputStream = Mid(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)+1),',
+    ); // Store Sequence File Path
+    // The output file must use an absolute path. This statement expression programmatically creates an absolute path relative to the directory of the example.
+    fileGlobals.OutputFilePath =
+        fileGlobals.Sequence_Folder_Path +
+        '\\Data Files\\Results\\Results.csv'; // Set the Path for the Output File
+    // This step creates the .csv file where the example will write output, and stores a reference to it in Loals.OutputFile.
     throw UnimplementedError(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
-    ); // Load Waveform from TDMS [Action]
+      'step type NI_NewCsvFileOutputRecordStream: action not exported yet',
+    ); // New CSV Output Stream For Test Results [NI_NewCsvFileOutputRecordStream]
+    ts.setNumElements(
+      fileGlobals.LoadedWaveformIndexes,
+      ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
+    ); // Initialize Waveform Arrays
+    ts.setNumElements(
+      fileGlobals.LoadedWaveforms,
+      ts.getNumElements(fileGlobals.Static_Station_Configs.Waveform_Configs),
+    ); // Initialize Waveform Arrays (cont.)
+    // Initialize Instruments
+    // status expression: ""
+    // label:
+    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.FocusITunerBroker
+    //   Return Value <- FileGlobals.Device_Handles.iTunerReference
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.Initialize
+    //   ipAddress <- FileGlobals.Static_Station_Configs.Device_Names.Tuner_IP
+    //   reset <- False
+    //   verifyCommunication <- True
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.FocusITuner.FocusITunerBroker.Initialize',
+    ); // Init Tuner [Action]
+    // .NET call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg
+    //   Return Value <- FileGlobals.Device_Handles.RFSG_Session
+    //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SG_Name
+    //   idQuery <- True
+    //   reset <- False
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.ModularInstruments.NIRfsg.NIRfsg.NIRfsg',
+    ); // Init RFSG [Action]
+    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX
+    //   Return Value <- FileGlobals.Device_Handles.RFmx_Instr_Session
+    //   resourceName <- FileGlobals.Static_Station_Configs.Device_Names.SA_Name
+    //   optionString <- ""
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.RFmxInstrMX',
+    ); // RFmx Initialize [Action]
+    // Load Waveforms and Create Signals
+    // status expression: ""
+    // label:
+    waveFormConfigsIdx = 0; // Reset Wfm config index
+    for (final element in ts.iterate(
+      fileGlobals.Static_Station_Configs.Waveform_Configs,
+    )) {
+      currentWaveformConfig = element;
+      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
+      // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS
+      //   Return Value <- Locals.Current_Waveform
+      //   filePath <- Locals.Current_Waveform_Config.Absolute_Disk_Path
+      throw UnimplementedError(
+        'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.LoadWaveformFromTDMS',
+      ); // Load Waveform from TDMS [Action]
+      // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
+      // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform
+      //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
+      //   waveform <- Locals.Current_Waveform
+      throw UnimplementedError(
+        'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
+      ); // Download Waveform to Generator [Action]
+      // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
+      //   Return Value <- Locals.Current_RFmx_SpecAn_Signal
+      //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
+      //   signalName <- Locals.Current_Waveform.Name+"SpecAn"
+      throw UnimplementedError(
+        'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
+      ); // Create SpecAn Signal Configuration [Action]
+      fileGlobals.LoadedWaveformIndexes[waveFormConfigsIdx] =
+          waveFormConfigsIdx; // Store Loaded Waveforms
+      fileGlobals.LoadedWaveforms[waveFormConfigsIdx] =
+          currentWaveform; // Store Loaded Waveforms (cont.)
+      waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
+    }
+
+    // ── main ──
+    // TODO: sweep loop (FileGlobals.Configurations.Tuner.VSWR._VSWR_k__BackingField, FileGlobals.Configurations.Tuner.VSWR._DegreePhase_k__BackingField, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
+    {
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      applyConfigurationsResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      applyConfigurationsResult.Status =
+          await configure(); // Apply Configurations
+      applyConfigurationsResult.Status =
+          applyConfigurationsResult.Status == 'Done'
+          ? 'Passed'
+          : applyConfigurationsResult.Status; // status expression
+      run.record(applyConfigurationsResult.Status);
+      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+      measureResultsResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      measureResultsResult.Status = await measure(); // Measure Results
+      measureResultsResult.Status = measureResultsResult.Status == 'Done'
+          ? 'Passed'
+          : measureResultsResult.Status; // status expression
+      run.record(measureResultsResult.Status);
+      fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial = runState
+          .Root
+          .Locals
+          .UUT
+          .SerialNumber; // Store Serial Number in Output
+      // Record the results record to disk
+      throw UnimplementedError(
+        'step type NI_WriteRecord: action not exported yet',
+      ); // Write Record [NI_WriteRecord]
+    }
+  } finally {
+    // ── cleanup ──
+    // Instrument Cleanup
+    // status expression: ""
+    // label:
+    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object
+    //   Existing Object <- FileGlobals.Device_Handles.RFmx_Instr_Session
+    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close',
+    ); // RFmx Close [Action]
     // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument
     //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-    //   waveform <- Locals.Current_Waveform
     throw UnimplementedError(
-      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.DownloadWaveform',
-    ); // Download Waveform to Generator [Action]
-    // .NET call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration
-    //   Return Value <- Locals.Current_RFmx_SpecAn_Signal
-    //   instrSession <- FileGlobals.Device_Handles.RFmx_Instr_Session
-    //   signalName <- Locals.Current_Waveform.Name+"SpecAn"
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument',
+    ); // Close RFSG [Action]
+    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.CloseTuner
+    //   iTuner <- FileGlobals.Device_Handles.iTunerReference
     throw UnimplementedError(
-      'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxSpecAnMXExtension.GetSpecAnSignalConfiguration',
-    ); // Create SpecAn Signal Configuration [Action]
-    fileGlobals.LoadedWaveformIndexes[waveFormConfigsIdx] =
-        waveFormConfigsIdx; // Store Loaded Waveforms
-    fileGlobals.LoadedWaveforms[waveFormConfigsIdx] =
-        currentWaveform; // Store Loaded Waveforms (cont.)
-    waveFormConfigsIdx++; // Store Loaded Waveforms (cont.)
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.CloseTuner',
+    ); // Close Tuner [Action]
+    // With theData Streams API, the reference to the output stream file is closed.
+    fileGlobals.OutputFile.AsOutputRecordStream
+        .Close(); // Close Output Stream Reference
   }
-
-  // ── main ──
-  // TODO: sweep loop (FileGlobals.Configurations.Tuner.VSWR._VSWR_k__BackingField, FileGlobals.Configurations.Tuner.VSWR._DegreePhase_k__BackingField, FileGlobals.Configurations.Generator.RFSGConfig.Carrier_Frequency__Hz_, FileGlobals.Configurations.Generator.RFSGConfig.DUT_Average_Input_Power__dBm_, FileGlobals.Current_Sweep_Step.Calculated_Parameters.Waveform_Index) not exported; the body runs once
-  {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    applyConfigurationsResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    applyConfigurationsResult.Status =
-        await configure(); // Apply Configurations
-    applyConfigurationsResult.Status =
-        applyConfigurationsResult.Status == 'Done'
-        ? 'Passed'
-        : applyConfigurationsResult.Status; // status expression
-    run.record(applyConfigurationsResult.Status);
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    measureResultsResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    measureResultsResult.Status = await measure(); // Measure Results
-    measureResultsResult.Status = measureResultsResult.Status == 'Done'
-        ? 'Passed'
-        : measureResultsResult.Status; // status expression
-    run.record(measureResultsResult.Status);
-    fileGlobals.Current_Sweep_Step.Input_and_Output.DUT_Serial =
-        runState.Root.Locals.UUT.SerialNumber; // Store Serial Number in Output
-    // Record the results record to disk
-    throw UnimplementedError(
-      'step type NI_WriteRecord: action not exported yet',
-    ); // Write Record [NI_WriteRecord]
-  }
-
-  // ── cleanup ──
-  // Instrument Cleanup
-  // status expression: ""
-  // label:
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Use Existing Object
-  //   Existing Object <- FileGlobals.Device_Handles.RFmx_Instr_Session
-  // .NET call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.RFmx.InstrMX.RFmxInstrMX.Close',
-  ); // RFmx Close [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument
-  //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.CloseInstrument',
-  ); // Close RFSG [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.CloseTuner
-  //   iTuner <- FileGlobals.Device_Handles.iTunerReference
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.CloseTuner',
-  ); // Close Tuner [Action]
-  // With theData Streams API, the reference to the output stream file is closed.
-  fileGlobals.OutputFile.AsOutputRecordStream
-      .Close(); // Close Output Stream Reference
 
   return run.status;
 }
@@ -349,64 +355,71 @@ Future<String> configure() async {
 Future<String> measure() async {
   final run = ts.SequenceRun();
 
-  // ── main ──
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.MoveTunerPerVSWR
-  //   Return Value <- FileGlobals.Current_Sweep_Step.Results.VSWR_and_Phase
-  //   iTuner <- FileGlobals.Device_Handles.iTunerReference
-  //   vswr <- FileGlobals.Configurations.Tuner.VSWR
-  //   timeout <- 60
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.MoveTunerPerVSWR',
-  ); // Move Tuner [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements
-  //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
-  //   autoLevelBandwidth_Hz <- 400000000
-  //   enableTraces <- False
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  //   resultName <- ""
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
-  ); // Select and Initiate SpecAn TxP Measurement [Action]
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchTxp
-  //   Return Value <- FileGlobals.Current_Sweep_Step.Results.TxP_Results
-  //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
-  //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchTxp',
-  ); // SpecAn Fetch TxP [Action]
-  // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
-      fileGlobals
-          .Current_Sweep_Step
-          .Results
-          .TxP_Results
-          .AverageMeanPower_dBm; // Map Results
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.VSWR = fileGlobals
-      .Current_Sweep_Step
-      .Results
-      .VSWR_and_Phase[0]
-      ._VSWR_k__BackingField; // Map Results (cont.)
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Phase = fileGlobals
-      .Current_Sweep_Step
-      .Results
-      .VSWR_and_Phase[0]
-      ._DegreePhase_k__BackingField; // Map Results (cont.)
-  fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Tuner_Primary_Frequency =
-      fileGlobals.Current_Sweep_Step.Results.Tuner_Primary_Frequency_GHz *
-      1000000000.0; // Map Results (cont.)
-
-  // ── cleanup ──
-  // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
-  // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration
-  //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
-  //   timeOut_ms <- 1000
-  throw UnimplementedError(
-    'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
-  ); // RFSG Abort Generation [Action]
+  body:
+  try {
+    // ── main ──
+    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.FocusTuner.dll
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.MoveTunerPerVSWR
+    //   Return Value <- FileGlobals.Current_Sweep_Step.Results.VSWR_and_Phase
+    //   iTuner <- FileGlobals.Device_Handles.iTunerReference
+    //   vswr <- FileGlobals.Configurations.Tuner.VSWR
+    //   timeout <- 60
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.FocusTuner.MoveTunerPerVSWR',
+    ); // Move Tuner [Action]
+    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements
+    //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
+    //   autoLevelConfig <- FileGlobals.Configurations.Analyzer.Auto_Level_Config
+    //   autoLevelBandwidth_Hz <- 400000000
+    //   enableTraces <- False
+    //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+    //   resultName <- ""
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.SelectAndInitiateMeasurements',
+    ); // Select and Initiate SpecAn TxP Measurement [Action]
+    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.RFmxSpecAn.dll
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchTxp
+    //   Return Value <- FileGlobals.Current_Sweep_Step.Results.TxP_Results
+    //   specAn <- FileGlobals.Device_Handles.RFmx_SpecAn_Signal_Session
+    //   selectorString <- FileGlobals.Configurations.Analyzer.RFmxSpecAn_Selector_String
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SA.RFmxSpecAn.FetchTxp',
+    ); // SpecAn Fetch TxP [Action]
+    // Take the results that are dumped in full to the Results container and map them to specific spreadsheet output variables
+    fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Avg_Mean_Power_dBm =
+        fileGlobals
+            .Current_Sweep_Step
+            .Results
+            .TxP_Results
+            .AverageMeanPower_dBm; // Map Results
+    fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.VSWR = fileGlobals
+        .Current_Sweep_Step
+        .Results
+        .VSWR_and_Phase[0]
+        ._VSWR_k__BackingField; // Map Results (cont.)
+    fileGlobals.Current_Sweep_Step.Input_and_Output.MEAS.Phase = fileGlobals
+        .Current_Sweep_Step
+        .Results
+        .VSWR_and_Phase[0]
+        ._DegreePhase_k__BackingField; // Map Results (cont.)
+    fileGlobals
+            .Current_Sweep_Step
+            .Input_and_Output
+            .MEAS
+            .Tuner_Primary_Frequency =
+        fileGlobals.Current_Sweep_Step.Results.Tuner_Primary_Frequency_GHz *
+        1000000000.0; // Map Results (cont.)
+  } finally {
+    // ── cleanup ──
+    // .NET assembly: ..\..\Builds\NationalInstruments.ReferenceDesignLibraries.SG.dll
+    // .NET call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration
+    //   rfsgHandle <- FileGlobals.Device_Handles.RFSG_Session
+    //   timeOut_ms <- 1000
+    throw UnimplementedError(
+      'dotNet call: NationalInstruments.ReferenceDesignLibraries.SG.AbortGeneration',
+    ); // RFSG Abort Generation [Action]
+  }
 
   return run.status;
 }

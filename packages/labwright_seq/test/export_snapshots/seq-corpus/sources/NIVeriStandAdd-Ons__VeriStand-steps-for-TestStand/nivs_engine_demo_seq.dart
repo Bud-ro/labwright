@@ -24,44 +24,47 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of RT Sequence Pass/Fail Test
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type InitializeVeriStand: action not exported yet',
+    ); // Initialize VeriStand [InitializeVeriStand]
 
-  // ── main ──
-  // description: The step is used to read the Absolute Time system channel.
-  // label: Get Absolute Time
-  throw UnimplementedError(
-    'step type GetChannelValue: action not exported yet',
-  ); // Get Channel Value - Absolute Time [GetChannelValue]
-  // description: The step is used to run the Engine Demo Advanced & Return Value RT sequence.
-  // label: Run Engine Demo Advanced RT Sequence
-  // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
-  throw UnimplementedError(
-    'step type RunRTSequencePassFail: action not exported yet',
-  ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
-  rtSequencePassFailTestResult.Status =
-      ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(rtSequencePassFailTestResult.Status);
-  // description: The step is used to run the Get Rise Time RT sequence.
-  // label: Run Get Rise Time RT Sequence
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction]
-  // popup title: NameOf(Step)
-  // popup message: "The Rise Time is " &  Str(RunState.PreviousStep.Result.Veristand.Returnval.Numeric) & " seconds."
-  // popup buttons: "OK"
-  throw UnimplementedError(
-    'step type MessagePopup: action not exported yet',
-  ); // Return Rise Time [MessagePopup]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type StopVeriStand: action not exported yet',
-  ); // Stop VeriStand [StopVeriStand]
+    // ── main ──
+    // description: The step is used to read the Absolute Time system channel.
+    // label: Get Absolute Time
+    throw UnimplementedError(
+      'step type GetChannelValue: action not exported yet',
+    ); // Get Channel Value - Absolute Time [GetChannelValue]
+    // description: The step is used to run the Engine Demo Advanced & Return Value RT sequence.
+    // label: Run Engine Demo Advanced RT Sequence
+    // status expression: Step.Result.VeriStand.PassFail ? "Passed" : "Failed"
+    throw UnimplementedError(
+      'step type RunRTSequencePassFail: action not exported yet',
+    ); // RT Sequence Pass/Fail Test [RunRTSequencePassFail]
+    rtSequencePassFailTestResult.Status =
+        ts.truthy(rtSequencePassFailTestResult.VeriStand.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(rtSequencePassFailTestResult.Status);
+    // description: The step is used to run the Get Rise Time RT sequence.
+    // label: Run Get Rise Time RT Sequence
+    throw UnimplementedError(
+      'step type RunRTSequenceAction: action not exported yet',
+    ); // RT Sequence Action [RunRTSequenceAction]
+    // popup title: NameOf(Step)
+    // popup message: "The Rise Time is " &  Str(RunState.PreviousStep.Result.Veristand.Returnval.Numeric) & " seconds."
+    // popup buttons: "OK"
+    throw UnimplementedError(
+      'step type MessagePopup: action not exported yet',
+    ); // Return Rise Time [MessagePopup]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type StopVeriStand: action not exported yet',
+    ); // Stop VeriStand [StopVeriStand]
+  }
 
   return run.status;
 }

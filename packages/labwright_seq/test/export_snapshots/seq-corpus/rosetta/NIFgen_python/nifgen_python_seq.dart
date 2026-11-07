@@ -15,31 +15,34 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIFgenStandardFunction.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nifgen.py',
-  ); // Create and register NI-FGEN Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIFgenStandardFunction.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nifgen.py',
+    ); // Create and register NI-FGEN Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIFgenStandardFunction_Python
-  // measurement param: pin_names (In TypeString IOResource) = {"Pin1"}
-  // measurement param: waveform_type (In TypeEnum Enum) = 1i64
-  // measurement param: frequency (In TypeDouble) = 1000000
-  // measurement param: amplitude (In TypeDouble) = 2
-  // measurement param: duration (In TypeDouble) = 10
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Generate a standard function waveform using an NI waveform generator [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nifgen.py',
-  ); // Destroy and unregister NI-FGEN sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIFgenStandardFunction_Python
+    // measurement param: pin_names (In TypeString IOResource) = {"Pin1"}
+    // measurement param: waveform_type (In TypeEnum Enum) = 1i64
+    // measurement param: frequency (In TypeDouble) = 1000000
+    // measurement param: amplitude (In TypeDouble) = 2
+    // measurement param: duration (In TypeDouble) = 10
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Generate a standard function waveform using an NI waveform generator [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nifgen.py',
+    ); // Destroy and unregister NI-FGEN sessions [Action]
+  }
 
   return run.status;
 }

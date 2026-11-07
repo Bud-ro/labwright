@@ -15,64 +15,67 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "..\pinmap\FileSessionSharing.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Create and register NI DCPower sessions [Action]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidmm.py',
-  ); // Create and register NI DMM sessions [Action]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_json_logger.py',
-  ); // Create and register File sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "..\pinmap\FileSessionSharing.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Create and register NI DCPower sessions [Action]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidmm.py',
+    ); // Create and register NI DMM sessions [Action]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_json_logger.py',
+    ); // Create and register File sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDCPowerSourceDCVoltageWithLogger
-  // measurement param: nidcpower_pins (In TypeString IOResource) = {"DCPowerPin"}
-  // measurement param: json_logger_pin (In TypeString IOResource) = "LoggerPin"
-  // measurement param: voltage_level (In TypeDouble) = 6
-  // measurement param: voltage_level_range (In TypeDouble) = 6
-  // measurement param: current_limit (In TypeDouble) = 0.01
-  // measurement param: current_limit_range (In TypeDouble) = 0.01
-  // measurement param: source_delay (In TypeDouble) = 0
-  // measurement param: measurement_sites (Out TypeInt32)
-  // measurement param: measurement_pin_names (Out TypeString)
-  // measurement param: voltage_measurements (Out TypeDouble)
-  // measurement param: current_measurements (Out TypeDouble)
-  // measurement param: in_compliance (Out TypeBool)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Source and measure using NI-SMU, and log measurement data using JSON Logger Service [NI_Measurement]
-  // measurement: ni.examples.NIDmmMeasurementWithLogger
-  // measurement param: nidmm_pin (In TypeString IOResource) = "DMMPin"
-  // measurement param: json_logger_pin (In TypeString IOResource) = "LoggerPin"
-  // measurement param: measurement_type (In TypeEnum Enum) = 1i64
-  // measurement param: range (In TypeDouble) = 10
-  // measurement param: resolution_digits (In TypeDouble) = 5.5
-  // measurement param: measured_value (Out TypeDouble)
-  // measurement param: signal_out_of_range (Out TypeBool)
-  // measurement param: absolute_resolution (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Configure and read measurement using NI DMM, and log measurement data using JSON Logger Service [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Destroy and unregister NI DCPower sessions [Action]
-  throw UnimplementedError(
-    'python call: teststand_nidmm.py',
-  ); // Destroy and unregister NI DMM sessions [Action]
-  throw UnimplementedError(
-    'python call: teststand_json_logger.py',
-  ); // Destroy and unregister File sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDCPowerSourceDCVoltageWithLogger
+    // measurement param: nidcpower_pins (In TypeString IOResource) = {"DCPowerPin"}
+    // measurement param: json_logger_pin (In TypeString IOResource) = "LoggerPin"
+    // measurement param: voltage_level (In TypeDouble) = 6
+    // measurement param: voltage_level_range (In TypeDouble) = 6
+    // measurement param: current_limit (In TypeDouble) = 0.01
+    // measurement param: current_limit_range (In TypeDouble) = 0.01
+    // measurement param: source_delay (In TypeDouble) = 0
+    // measurement param: measurement_sites (Out TypeInt32)
+    // measurement param: measurement_pin_names (Out TypeString)
+    // measurement param: voltage_measurements (Out TypeDouble)
+    // measurement param: current_measurements (Out TypeDouble)
+    // measurement param: in_compliance (Out TypeBool)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Source and measure using NI-SMU, and log measurement data using JSON Logger Service [NI_Measurement]
+    // measurement: ni.examples.NIDmmMeasurementWithLogger
+    // measurement param: nidmm_pin (In TypeString IOResource) = "DMMPin"
+    // measurement param: json_logger_pin (In TypeString IOResource) = "LoggerPin"
+    // measurement param: measurement_type (In TypeEnum Enum) = 1i64
+    // measurement param: range (In TypeDouble) = 10
+    // measurement param: resolution_digits (In TypeDouble) = 5.5
+    // measurement param: measured_value (Out TypeDouble)
+    // measurement param: signal_out_of_range (Out TypeBool)
+    // measurement param: absolute_resolution (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Configure and read measurement using NI DMM, and log measurement data using JSON Logger Service [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Destroy and unregister NI DCPower sessions [Action]
+    throw UnimplementedError(
+      'python call: teststand_nidmm.py',
+    ); // Destroy and unregister NI DMM sessions [Action]
+    throw UnimplementedError(
+      'python call: teststand_json_logger.py',
+    ); // Destroy and unregister File sessions [Action]
+  }
 
   return run.status;
 }

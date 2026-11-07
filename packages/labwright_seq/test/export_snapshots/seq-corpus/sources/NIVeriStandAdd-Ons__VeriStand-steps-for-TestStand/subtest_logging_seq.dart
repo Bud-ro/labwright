@@ -17,29 +17,32 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type InitializeVeriStand: action not exported yet',
-  ); // Initialize VeriStand [InitializeVeriStand]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type InitializeVeriStand: action not exported yet',
+    ); // Initialize VeriStand [InitializeVeriStand]
 
-  // ── main ──
-  throw UnimplementedError(
-    'step type StartLogging: action not exported yet',
-  ); // Start VS Logging [StartLogging]
-  throw UnimplementedError(
-    'step type SetMultipleChannelValues: action not exported yet',
-  ); // Set Multiple Channel Values [SetMultipleChannelValues]
-  throw UnimplementedError(
-    'step type RunRTSequenceAction: action not exported yet',
-  ); // RT Sequence Action [RunRTSequenceAction]
-  throw UnimplementedError(
-    'step type StopLogging: action not exported yet',
-  ); // Stop VS Logging [StopLogging]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type StopVeriStand: action not exported yet',
-  ); // Stop VeriStand [StopVeriStand]
+    // ── main ──
+    throw UnimplementedError(
+      'step type StartLogging: action not exported yet',
+    ); // Start VS Logging [StartLogging]
+    throw UnimplementedError(
+      'step type SetMultipleChannelValues: action not exported yet',
+    ); // Set Multiple Channel Values [SetMultipleChannelValues]
+    throw UnimplementedError(
+      'step type RunRTSequenceAction: action not exported yet',
+    ); // RT Sequence Action [RunRTSequenceAction]
+    throw UnimplementedError(
+      'step type StopLogging: action not exported yet',
+    ); // Stop VS Logging [StopLogging]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type StopVeriStand: action not exported yet',
+    ); // Stop VeriStand [StopVeriStand]
+  }
 
   return run.status;
 }

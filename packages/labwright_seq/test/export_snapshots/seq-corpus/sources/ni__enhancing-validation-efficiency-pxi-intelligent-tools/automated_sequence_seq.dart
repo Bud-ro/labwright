@@ -2438,66 +2438,69 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Test - Temperature Stabilized
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
-  ); // Power On  DUT - V+ and V- pins [NI_CreateIOSessionAndApplyIOConfig]
-  throw UnimplementedError(
-    'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
-  ); // Initialize 4139 and set it to 2.5V - NONINVERTING pin [NI_CreateIOSessionAndApplyIOConfig]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
+    ); // Power On  DUT - V+ and V- pins [NI_CreateIOSessionAndApplyIOConfig]
+    throw UnimplementedError(
+      'step type NI_CreateIOSessionAndApplyIOConfig: action not exported yet',
+    ); // Initialize 4139 and set it to 2.5V - NONINVERTING pin [NI_CreateIOSessionAndApplyIOConfig]
 
-  // ── main ──
-  // measurement: TemptronicATS_Python
-  // measurement param: target_temperature (In TypeDouble) = 25
-  // measurement param: tolerance (In TypeDouble) = 0.5
-  // measurement param: settling_time (In TypeDouble) = 1
-  // measurement param: timeout (In TypeDouble) = 5
-  // measurement param: stop (In TypeBool) = False
-  // measurement param: current_temp (Out TypeDouble)
-  // measurement param: elapsed_time (Out TypeDouble)
-  // measurement param: deviation (Out TypeDouble)
-  // measurement param: message (Out TypeString)
-  // measurement param: stabilized (Out TypeBool) = Locals.ATS_Settings.stabilized
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Temptronic ATS 545- Set Temperature [NI_Measurement]
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  testTemperatureStabilizedResult.PassFail =
-      atsSettings.stabilized; // pre-expression
-  // Test - Temperature Stabilized [PassFailTest]: judged by its status expression
-  testTemperatureStabilizedResult.Status =
-      ts.truthy(testTemperatureStabilizedResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(testTemperatureStabilizedResult.Status);
-  // measurement: DAQ_FiniteAI_LabVIEW
-  // measurement param: Physical_Channel (In TypeString) = "DAQ_4309_C1_S04/ai0"
-  // measurement param: Min_Voltage (In TypeDouble) = -5
-  // measurement param: Max_Voltage (In TypeDouble) = 5
-  // measurement param: Sample_Rate (In TypeDouble) = 1000000
-  // measurement param: Number_of_Samples (In TypeInt32) = 10000i64
-  // measurement param: Source (In TypeEnum Enum) = 0i64
-  // measurement param: Edge (In TypeInt32) = 10280i64
-  // measurement param: Actual_Sample_Rate (Out TypeDouble)
-  // measurement param: dt (Out TypeDouble)
-  // measurement param: Y (Out TypeDouble) = Locals.Y
-  // measurement param: detected_amplitude (Out TypeDouble)
-  // measurement param: detected_frequency (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Meaure OUTPUT pin [NI_Measurement]
-  // checks: Step.NumericArray
-  ts.eval('Step.NumericArray[0]=Max(Locals.Y)'); // pre-expression
-  ts.eval('\nStep.NumericArray[1]=Min(Locals.Y)'); // pre-expression (cont.)
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // Test - OUTPUT pin [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type NI_CloseIOSession: action not exported yet',
-  ); // Close Sessions [NI_CloseIOSession]
+    // ── main ──
+    // measurement: TemptronicATS_Python
+    // measurement param: target_temperature (In TypeDouble) = 25
+    // measurement param: tolerance (In TypeDouble) = 0.5
+    // measurement param: settling_time (In TypeDouble) = 1
+    // measurement param: timeout (In TypeDouble) = 5
+    // measurement param: stop (In TypeBool) = False
+    // measurement param: current_temp (Out TypeDouble)
+    // measurement param: elapsed_time (Out TypeDouble)
+    // measurement param: deviation (Out TypeDouble)
+    // measurement param: message (Out TypeString)
+    // measurement param: stabilized (Out TypeBool) = Locals.ATS_Settings.stabilized
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Temptronic ATS 545- Set Temperature [NI_Measurement]
+    // checks: Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    testTemperatureStabilizedResult.PassFail =
+        atsSettings.stabilized; // pre-expression
+    // Test - Temperature Stabilized [PassFailTest]: judged by its status expression
+    testTemperatureStabilizedResult.Status =
+        ts.truthy(testTemperatureStabilizedResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(testTemperatureStabilizedResult.Status);
+    // measurement: DAQ_FiniteAI_LabVIEW
+    // measurement param: Physical_Channel (In TypeString) = "DAQ_4309_C1_S04/ai0"
+    // measurement param: Min_Voltage (In TypeDouble) = -5
+    // measurement param: Max_Voltage (In TypeDouble) = 5
+    // measurement param: Sample_Rate (In TypeDouble) = 1000000
+    // measurement param: Number_of_Samples (In TypeInt32) = 10000i64
+    // measurement param: Source (In TypeEnum Enum) = 0i64
+    // measurement param: Edge (In TypeInt32) = 10280i64
+    // measurement param: Actual_Sample_Rate (Out TypeDouble)
+    // measurement param: dt (Out TypeDouble)
+    // measurement param: Y (Out TypeDouble) = Locals.Y
+    // measurement param: detected_amplitude (Out TypeDouble)
+    // measurement param: detected_frequency (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Meaure OUTPUT pin [NI_Measurement]
+    // checks: Step.NumericArray
+    ts.eval('Step.NumericArray[0]=Max(Locals.Y)'); // pre-expression
+    ts.eval('\nStep.NumericArray[1]=Min(Locals.Y)'); // pre-expression (cont.)
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // Test - OUTPUT pin [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type NI_CloseIOSession: action not exported yet',
+    ); // Close Sessions [NI_CloseIOSession]
+  }
 
   return run.status;
 }

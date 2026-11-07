@@ -15,35 +15,38 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "SourceMeasureDCVoltageFAL.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: ..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
-  ); // Create and register instrument Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "SourceMeasureDCVoltageFAL.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: ..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
+    ); // Create and register instrument Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.SourceMeasureDCVoltageFAL_Python
-  // measurement param: voltage_level (In TypeDouble) = 6
-  // measurement param: voltage_level_range (In TypeDouble) = 6
-  // measurement param: current_limit (In TypeDouble) = 0.1
-  // measurement param: current_limit_range (In TypeDouble) = 0.1
-  // measurement param: source_delay (In TypeDouble) = 0
-  // measurement param: source_pin (In TypeString IOResource) = "NI_DCPower_Pin"
-  // measurement param: resolution_digits (In TypeDouble) = 5.5
-  // measurement param: measure_pin (In TypeString IOResource) = "NI_DMM_Pin"
-  // measurement param: measured_value (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Perform a DC Voltage measurement using FAL [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: ..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
-  ); // Destroy and unregister instrument sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.SourceMeasureDCVoltageFAL_Python
+    // measurement param: voltage_level (In TypeDouble) = 6
+    // measurement param: voltage_level_range (In TypeDouble) = 6
+    // measurement param: current_limit (In TypeDouble) = 0.1
+    // measurement param: current_limit_range (In TypeDouble) = 0.1
+    // measurement param: source_delay (In TypeDouble) = 0
+    // measurement param: source_pin (In TypeString IOResource) = "NI_DCPower_Pin"
+    // measurement param: resolution_digits (In TypeDouble) = 5.5
+    // measurement param: measure_pin (In TypeString IOResource) = "NI_DMM_Pin"
+    // measurement param: measured_value (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Perform a DC Voltage measurement using FAL [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: ..\\measurements\\source_measure_dc_voltage_fal\\teststand_helper.py',
+    ); // Destroy and unregister instrument sessions [Action]
+  }
 
   return run.status;
 }

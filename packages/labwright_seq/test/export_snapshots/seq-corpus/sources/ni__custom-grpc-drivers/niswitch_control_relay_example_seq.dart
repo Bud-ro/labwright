@@ -15,29 +15,32 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NISwitchControlRelay.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-Switch sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NISwitchControlRelay.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-Switch sessions [Action]
 
-  // ── main ──
-  // measurement: NISwitchControlRelay_LabVIEW
-  // measurement param: relay name (In TypeString) = "SiteRelay1"
-  // measurement param: channel (In TypeString) = "K0"
-  // measurement param: relay action (In TypeInt32) = 21i64
-  // measurement param: initial relay position (Out TypeInt32)
-  // measurement param: final relay position (Out TypeInt32)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Open/Close relay [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-Switch sessions [Action]
+    // ── main ──
+    // measurement: NISwitchControlRelay_LabVIEW
+    // measurement param: relay name (In TypeString) = "SiteRelay1"
+    // measurement param: channel (In TypeString) = "K0"
+    // measurement param: relay action (In TypeInt32) = 21i64
+    // measurement param: initial relay position (Out TypeInt32)
+    // measurement param: final relay position (Out TypeInt32)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Open/Close relay [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-Switch sessions [Action]
+  }
 
   return run.status;
 }

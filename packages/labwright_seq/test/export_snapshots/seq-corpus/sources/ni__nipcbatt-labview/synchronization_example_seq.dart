@@ -52,79 +52,85 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Call Turn Off all DO Channels
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example demonstrates synchronization with two DAQ module using Analog and Digital Libraries
-  // label:
-  // label: Synchronization using Analog Libraries
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status =
-      await signalVoltageGenerationAndTimeDomainMeasurement(); // Call SignalVoltageGeneration and TimeDomainMeasurement
-  callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status =
-      callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status == 'Done'
-      ? 'Passed'
-      : callSignalVoltageGenerationAndTimeDomainMeasurementResult
-            .Status; // status expression
-  run.record(callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status);
-  // label:
-  // label: Synchronization using Digital Libraries
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
-          .Status =
-      await dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement(); // Call DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement
-  callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
-          .Status =
-      callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
-              .Status ==
-          'Done'
-      ? 'Passed'
-      : callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
-            .Status; // status expression
-  run.record(
+    // ── main ──
+    // label: Example demonstrates synchronization with two DAQ module using Analog and Digital Libraries
+    // label:
+    // label: Synchronization using Analog Libraries
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status =
+        await signalVoltageGenerationAndTimeDomainMeasurement(); // Call SignalVoltageGeneration and TimeDomainMeasurement
+    callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status =
+        callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status ==
+            'Done'
+        ? 'Passed'
+        : callSignalVoltageGenerationAndTimeDomainMeasurementResult
+              .Status; // status expression
+    run.record(
+      callSignalVoltageGenerationAndTimeDomainMeasurementResult.Status,
+    );
+    // label:
+    // label: Synchronization using Digital Libraries
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
     callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
-        .Status,
-  );
-  // label:
-  // label: Synchronization using Digital Counter Libraries
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status =
-      await digitalClockGenerationAndDigitalPwmMeasurement(); // Call DigitalPWMGeneration and DigitalPWMMeasurement
-  callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status =
-      callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status == 'Done'
-      ? 'Passed'
-      : callDigitalPwmGenerationAndDigitalPwmMeasurementResult
-            .Status; // status expression
-  run.record(callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status);
-  // label:
-
-  // ── cleanup ──
-  // Turn off all configured AO channels by configuring to 0V
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownAllAoChannelsResult.Status =
-      await turnOffAllAoChannels(); // Power down all AO Channels
-  powerDownAllAoChannelsResult.Status =
-      powerDownAllAoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownAllAoChannelsResult.Status; // status expression
-  run.record(powerDownAllAoChannelsResult.Status);
-  // Turn off all configured DO channels by setting Digital LOW state
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  callTurnOffAllDoChannelsResult.Status =
-      await turnOffAllDoChannels(); // Call Turn Off all DO Channels
-  callTurnOffAllDoChannelsResult.Status =
-      callTurnOffAllDoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : callTurnOffAllDoChannelsResult.Status; // status expression
-  run.record(callTurnOffAllDoChannelsResult.Status);
+            .Status =
+        await dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement(); // Call DynamicDigitalPatternGeneration and DynamicDigitalPatternMeasurement
+    callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+            .Status =
+        callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+                .Status ==
+            'Done'
+        ? 'Passed'
+        : callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+              .Status; // status expression
+    run.record(
+      callDynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurementResult
+          .Status,
+    );
+    // label:
+    // label: Synchronization using Digital Counter Libraries
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status =
+        await digitalClockGenerationAndDigitalPwmMeasurement(); // Call DigitalPWMGeneration and DigitalPWMMeasurement
+    callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status =
+        callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status == 'Done'
+        ? 'Passed'
+        : callDigitalPwmGenerationAndDigitalPwmMeasurementResult
+              .Status; // status expression
+    run.record(callDigitalPwmGenerationAndDigitalPwmMeasurementResult.Status);
+    // label:
+  } finally {
+    // ── cleanup ──
+    // Turn off all configured AO channels by configuring to 0V
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownAllAoChannelsResult.Status =
+        await turnOffAllAoChannels(); // Power down all AO Channels
+    powerDownAllAoChannelsResult.Status =
+        powerDownAllAoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownAllAoChannelsResult.Status; // status expression
+    run.record(powerDownAllAoChannelsResult.Status);
+    // Turn off all configured DO channels by setting Digital LOW state
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    callTurnOffAllDoChannelsResult.Status =
+        await turnOffAllDoChannels(); // Call Turn Off all DO Channels
+    callTurnOffAllDoChannelsResult.Status =
+        callTurnOffAllDoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : callTurnOffAllDoChannelsResult.Status; // status expression
+    run.record(callTurnOffAllDoChannelsResult.Status);
+  }
 
   return run.status;
 }
@@ -160,60 +166,63 @@ Future<String> signalVoltageGenerationAndTimeDomainMeasurement() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates synchronization using Signal Voltage Generation Library to generate a Analog Sine waveform from one DAQ module and capture it using Time Domain Measuerment library in another DAQ module
-  //
-  //
-  // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update the routing paths based on NI MAX and Setup Connections in the below step
-  // Exports Signals to PFI Lines
-  //   DAQmx Task In <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqRouteSynchronizationSignals(); // Route Synchronization Signals [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates synchronization using Signal Voltage Generation Library to generate a Analog Sine waveform from one DAQ module and capture it using Time Domain Measuerment library in another DAQ module
+    //
+    //
+    // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenInitialize(); // Signal Voltage Generation - Initialize [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasInitialize(); // Time Domain Measurement - Initialize [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update the routing paths based on NI MAX and Setup Connections in the below step
+    // Exports Signals to PFI Lines
+    //   DAQmx Task In <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqRouteSynchronizationSignals(); // Route Synchronization Signals [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations & update the Sample Clock Source and Digital Start Trigger Settings based on NI MAX and Setup Connections
-  // Configure Time Domain Measurement settings to wait for Hardware Trigger and Sample Clock from Signal generation
-  // Configure exact sample clock rate set in generation for the shared clock. Note: external clock signals cannot be diveded down to lesser rates
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- True
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure TP [Action]
-  //
-  // Generate Sine waveform from analog module
-  //   DAQmx Task In <- Locals.Signal_Gen_Task
-  //   DAQmx Task Out <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Generate Sine Signal [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update "Periodic Waveform" input to "True" to calculate all Time Domain Measurements
-  // Fetch and Validate Sine waveform via analog buffer
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   Periodic Waveform  | Measurements? <- False
-  //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
-  //   Voltage Waveforms <- Locals.Measurement_Data.Voltage_Waveform
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Read Captured Waveform [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Signal_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqSvGenClose(); // Signal Voltage Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqTdvMeasClose(); // Time Domain Measurement - Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations & update the Sample Clock Source and Digital Start Trigger Settings based on NI MAX and Setup Connections
+    // Configure Time Domain Measurement settings to wait for Hardware Trigger and Sample Clock from Signal generation
+    // Configure exact sample clock rate set in generation for the shared clock. Note: external clock signals cannot be diveded down to lesser rates
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- True
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Configure TP [Action]
+    //
+    // Generate Sine waveform from analog module
+    //   DAQmx Task In <- Locals.Signal_Gen_Task
+    //   DAQmx Task Out <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenConfigureAndGenerate(); // Signal Voltage Generation - Generate Sine Signal [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update "Periodic Waveform" input to "True" to calculate all Time Domain Measurements
+    // Fetch and Validate Sine waveform via analog buffer
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   Periodic Waveform  | Measurements? <- False
+    //   DAQmx Task Out <- Locals.Time_Domain_Meas_Task
+    //   Voltage Waveforms <- Locals.Measurement_Data.Voltage_Waveform
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasConfigureAndMeasure(); // Time Domain Measurement - Read Captured Waveform [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Signal_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqSvGenClose(); // Signal Voltage Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Time_Domain_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqTdvMeasClose(); // Time Domain Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -245,69 +254,72 @@ dynamicDigitalPatternGenerationAndDynamicDigitalPatternMeasurement() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates synchronization using Dynamic Digital Pattern Generation Library to generate Digital Pattern from one DAQ module and capture it using Dynamic Digital Pattern Measuerment library in another DAQ module
-  //
-  //
-  // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below initialize step
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenInitialize(); // Dynamic Digital Pattern Generation - Initialize [Action]
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasInitialize(); // Dynamic Digital Pattern Measurement - Initialize [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update the routing paths based on NI MAX and Setup Connections in the below step
-  // Exports Signals to PFI Lines
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqRouteSynchronizationSignals(); // Route Synchronization Signals [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates synchronization using Dynamic Digital Pattern Generation Library to generate Digital Pattern from one DAQ module and capture it using Dynamic Digital Pattern Measuerment library in another DAQ module
+    //
+    //
+    // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below initialize step
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenInitialize(); // Dynamic Digital Pattern Generation - Initialize [Action]
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasInitialize(); // Dynamic Digital Pattern Measurement - Initialize [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update the routing paths based on NI MAX and Setup Connections in the below step
+    // Exports Signals to PFI Lines
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqRouteSynchronizationSignals(); // Route Synchronization Signals [Action]
 
-  // ── main ──
-  // label: Note to run with Hardware: Review the Configurations & update the Sample Clock Source and Digital Start Trigger Settings based on NI MAX and Setup Connections
-  // Consider below items when measuring Digital patterns
-  // 1. Sampling rate at measurement end should be same as the sampling rate at generation end
-  // 2. Configure Trigger to start capture as soon as pattern generated using Dynamic digital pattern measurement
-  //   Execution Option <- 1
-  //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Configure TP [Action]
-  //
-  //
-  // label: Note to run with Hardware: Review & update "Number of Digital Line" initialized in Generation Task in the below step
-  // Updates Digital Ramp Pattern on the configured Digital Lines
-  //   Number of Digital Lines <- 2 //Update based on Number of configured Digital Lines
-  //   Number of Samples <- 1000 //Update based on required Samples to be generated
-  //   Port Digital Data <- Locals.Port_Digital_Data
-  //   error out <- Step.Result.Error
-  await callDigitalRampPatternGenerator(); // Generate Port Digital Data [Action]
-  //
-  // Generate Digital Pattern from digital module
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   Port Digital Data <- Locals.Port_Digital_Data
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenConfigureAndGenerate(); // Dynamic Digital Pattern Generation - Generate Pulse Train [Action]
-  //
-  // Read Digital Pattern stored in buffer on start trigger from the Digital output module
-  //   Execution Option <- 2
-  //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
-  //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Read Captured Waveform [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigGenClose(); // Dynamic Digital Pattern Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDynDigMeasClose(); // Dynamic Digital Pattern Measurement- Close [Action]
+    // ── main ──
+    // label: Note to run with Hardware: Review the Configurations & update the Sample Clock Source and Digital Start Trigger Settings based on NI MAX and Setup Connections
+    // Consider below items when measuring Digital patterns
+    // 1. Sampling rate at measurement end should be same as the sampling rate at generation end
+    // 2. Configure Trigger to start capture as soon as pattern generated using Dynamic digital pattern measurement
+    //   Execution Option <- 1
+    //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Configure TP [Action]
+    //
+    //
+    // label: Note to run with Hardware: Review & update "Number of Digital Line" initialized in Generation Task in the below step
+    // Updates Digital Ramp Pattern on the configured Digital Lines
+    //   Number of Digital Lines <- 2 //Update based on Number of configured Digital Lines
+    //   Number of Samples <- 1000 //Update based on required Samples to be generated
+    //   Port Digital Data <- Locals.Port_Digital_Data
+    //   error out <- Step.Result.Error
+    await callDigitalRampPatternGenerator(); // Generate Port Digital Data [Action]
+    //
+    // Generate Digital Pattern from digital module
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   Port Digital Data <- Locals.Port_Digital_Data
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenConfigureAndGenerate(); // Dynamic Digital Pattern Generation - Generate Pulse Train [Action]
+    //
+    // Read Digital Pattern stored in buffer on start trigger from the Digital output module
+    //   Execution Option <- 2
+    //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
+    //   DAQmx Task Out <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasConfigureAndMeasure(); // Dynamic Digital Pattern Measurement - Read Captured Waveform [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_Pattern_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigGenClose(); // Dynamic Digital Pattern Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Digital_Pattern_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDynDigMeasClose(); // Dynamic Digital Pattern Measurement- Close [Action]
+  }
 
   return run.status;
 }
@@ -332,54 +344,57 @@ Future<String> digitalClockGenerationAndDigitalPwmMeasurement() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example demonstrates generation of Digital Clock signal using Digital Clock Generation Library and measurement of the same signal using Digital PWM Measurement Library
-  //
-  //
-  // label: Note to run with Hardware: Update the Physical Channel (Counter) and its Terminals  based on NI MAX in the below initialize step
-  //   Output Terminal <- "/Simulated_DAQ/PFI0"
-  //   Physical Channel (Counter) <- "/Simulated_DAQ/ctr0"
-  //   DAQmx Task Out <- Locals.Digital_PWM_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalClkGenInitialize(); // Digital Clock Generation - Initialize [Action]
-  //   Input Terminal  <- "/Simulated_DAQ1/PFI0"
-  //   Physical Channel (counter) <- "/Simulated_DAQ1/ctr0"
-  //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasInitialize(); // Digital PWM Measurement - Initialize [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: This example demonstrates generation of Digital Clock signal using Digital Clock Generation Library and measurement of the same signal using Digital PWM Measurement Library
+    //
+    //
+    // label: Note to run with Hardware: Update the Physical Channel (Counter) and its Terminals  based on NI MAX in the below initialize step
+    //   Output Terminal <- "/Simulated_DAQ/PFI0"
+    //   Physical Channel (Counter) <- "/Simulated_DAQ/ctr0"
+    //   DAQmx Task Out <- Locals.Digital_PWM_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalClkGenInitialize(); // Digital Clock Generation - Initialize [Action]
+    //   Input Terminal  <- "/Simulated_DAQ1/PFI0"
+    //   Physical Channel (counter) <- "/Simulated_DAQ1/ctr0"
+    //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasInitialize(); // Digital PWM Measurement - Initialize [Action]
 
-  // ── main ──
-  //
-  // Configure PWM Measurement settings to wait for Digital PWM Signal from Digital Clock Generation
-  //   Execution Option <- 1
-  //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
-  //   Cycles to capture <- 100
-  //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Configure [Action]
-  //
-  // Generate PWM waveform from digital IO module
-  //   DAQmx Task In <- Locals.Digital_PWM_Gen_Task
-  //   DAQmx Task Out <- Locals.Digital_PWM_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalClkGenConfigureAndGenerate(); // Digital Clock Generation - Configure, Initiate & Generate [Action]
-  //
-  // Fetch and Validate Digital PWM Signal
-  //   Execution Option <- 2
-  //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
-  //   Cycles to capture <- 2
-  //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Measure [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.Digital_PWM_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigitalClkGenClose(); // Digital Clock Generation - Close [Action]
-  //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDigPwmMeasClose(); // Digital PWM Measurement - Close [Action]
+    // ── main ──
+    //
+    // Configure PWM Measurement settings to wait for Digital PWM Signal from Digital Clock Generation
+    //   Execution Option <- 1
+    //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
+    //   Cycles to capture <- 100
+    //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Configure [Action]
+    //
+    // Generate PWM waveform from digital IO module
+    //   DAQmx Task In <- Locals.Digital_PWM_Gen_Task
+    //   DAQmx Task Out <- Locals.Digital_PWM_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalClkGenConfigureAndGenerate(); // Digital Clock Generation - Configure, Initiate & Generate [Action]
+    //
+    // Fetch and Validate Digital PWM Signal
+    //   Execution Option <- 2
+    //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
+    //   Cycles to capture <- 2
+    //   DAQmx Task Out <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasConfigureAndMeasure(); // Digital PWM Measurement - Measure [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.Digital_PWM_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigitalClkGenClose(); // Digital Clock Generation - Close [Action]
+    //   DAQmx Task In <- Locals.Digital_PWM_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDigPwmMeasClose(); // Digital PWM Measurement - Close [Action]
+  }
 
   return run.status;
 }
@@ -404,33 +419,36 @@ Future<String> turnOffAllAoChannels() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Analog output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Analog Output module
-  //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update "Number of AO channels" to be configured to 0 volts
-  ts.setNumElements(outputVoltagesV, 4); // Assign AO Voltages
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Analog output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Analog Output module
+    //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update "Number of AO channels" to be configured to 0 volts
+    ts.setNumElements(outputVoltagesV, 4); // Assign AO Voltages
 
-  // ── main ──
-  // Sources DC Voltage at 0V to Analog Ouput channels
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   Output Voltages (V) <- Locals.Output_Voltages__V_
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
-
-  // ── cleanup ──
-  // Closes the DC Voltage Generation Task for Analog output module
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+    // ── main ──
+    // Sources DC Voltage at 0V to Analog Ouput channels
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   Output Voltages (V) <- Locals.Output_Voltages__V_
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
+  } finally {
+    // ── cleanup ──
+    // Closes the DC Voltage Generation Task for Analog output module
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+  }
 
   return run.status;
 }
@@ -491,33 +509,36 @@ Future<String> turnOffSingleDoChannel({
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Digital output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Digital Output module
-  //   Physical Channels <- Parameters.Channel_Name
-  //   DAQmx Task Out <- Locals.Digital_IO_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenInitialize(); // Static Digital State Generation - Initialize DO Channels [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update "Number of Digital Lines" to be configured to Digital LOW state
-  ts.setNumElements(offStateToWrite, numDigLines); // Assign Digital States
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Digital output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Digital Output module
+    //   Physical Channels <- Parameters.Channel_Name
+    //   DAQmx Task Out <- Locals.Digital_IO_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenInitialize(); // Static Digital State Generation - Initialize DO Channels [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update "Number of Digital Lines" to be configured to Digital LOW state
+    ts.setNumElements(offStateToWrite, numDigLines); // Assign Digital States
 
-  // ── main ──
-  // Set Digital state LOW to all Digital Ouput channels
-  //   DAQmx Task In <- Locals.Digital_IO_Gen_Task
-  //   Data to Write <- Locals.OffStateToWrite
-  //   DAQmx Task Out <- Locals.Digital_IO_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Configure State LOW [Action]
-
-  // ── cleanup ──
-  // Closes the Static Digital State Generation Task for Digital output module
-  //   DAQmx Task In <- Locals.Digital_IO_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqStaticDigGenClose(); // Static Digital State Generation - Close DO Channels [Action]
+    // ── main ──
+    // Set Digital state LOW to all Digital Ouput channels
+    //   DAQmx Task In <- Locals.Digital_IO_Gen_Task
+    //   Data to Write <- Locals.OffStateToWrite
+    //   DAQmx Task Out <- Locals.Digital_IO_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenConfigureAndGenerate(); // Static Digital State Generation - Configure State LOW [Action]
+  } finally {
+    // ── cleanup ──
+    // Closes the Static Digital State Generation Task for Digital output module
+    //   DAQmx Task In <- Locals.Digital_IO_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqStaticDigGenClose(); // Static Digital State Generation - Close DO Channels [Action]
+  }
 
   return run.status;
 }

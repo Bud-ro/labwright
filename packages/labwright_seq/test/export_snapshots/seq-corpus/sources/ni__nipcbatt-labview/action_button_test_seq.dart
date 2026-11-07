@@ -29,36 +29,39 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Power down all AO Channels
 
-  // ── setup ──
-  ts.eval(
-    'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
-  ); // Frame Hardware Config ini file path
-  // Imports the simulated hardware to NI Max for running the example
-  //   Configuration file <- Locals.Hardware_Config_Path
-  //   Import Mode <- 2097152
-  //   error out <- Step.Result.Error
-  await callImportHardwareConfig(); // Import Hardware Config [Action]
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.Hardware_Config_Path= Left(RunState.SequenceFile.Path, Find(RunState.SequenceFile.Path, "\\\\", 0, False, True)), // returns current test sequence containing directory\nLocals.Hardware_Config_Path= #NoValidation(Left(Locals.Hardware_Config_Path, Find(Locals.Hardware_Config_Path, "\\\\", 0, False, True))) + @"\\Hardware Config.ini" , // Returns the File path kept parallel to this sequence folder',
+    ); // Frame Hardware Config ini file path
+    // Imports the simulated hardware to NI Max for running the example
+    //   Configuration file <- Locals.Hardware_Config_Path
+    //   Import Mode <- 2097152
+    //   error out <- Step.Result.Error
+    await callImportHardwareConfig(); // Import Hardware Config [Action]
 
-  // ── main ──
-  // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  actionButtonTestResult.Status =
-      await actionButtonTest(); // Action Button Test
-  actionButtonTestResult.Status = actionButtonTestResult.Status == 'Done'
-      ? 'Passed'
-      : actionButtonTestResult.Status; // status expression
-  run.record(actionButtonTestResult.Status);
-
-  // ── cleanup ──
-  // label: Turn off all configured AO channels by configuring to 0V
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  powerDownAllAoChannelsResult.Status =
-      await turnOffAllAoChannels(); // Power down all AO Channels
-  powerDownAllAoChannelsResult.Status =
-      powerDownAllAoChannelsResult.Status == 'Done'
-      ? 'Passed'
-      : powerDownAllAoChannelsResult.Status; // status expression
-  run.record(powerDownAllAoChannelsResult.Status);
+    // ── main ──
+    // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    actionButtonTestResult.Status =
+        await actionButtonTest(); // Action Button Test
+    actionButtonTestResult.Status = actionButtonTestResult.Status == 'Done'
+        ? 'Passed'
+        : actionButtonTestResult.Status; // status expression
+    run.record(actionButtonTestResult.Status);
+  } finally {
+    // ── cleanup ──
+    // label: Turn off all configured AO channels by configuring to 0V
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    powerDownAllAoChannelsResult.Status =
+        await turnOffAllAoChannels(); // Power down all AO Channels
+    powerDownAllAoChannelsResult.Status =
+        powerDownAllAoChannelsResult.Status == 'Done'
+        ? 'Passed'
+        : powerDownAllAoChannelsResult.Status; // status expression
+    run.record(powerDownAllAoChannelsResult.Status);
+  }
 
   return run.status;
 }
@@ -90,55 +93,58 @@ Future<String> actionButtonTest() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize Action Button [Action]
-  // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform DC-RMS Voltage Measurement
-  //
-  //   Physical Channels <- ""
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize Action Button [Action]
+    // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform DC-RMS Voltage Measurement
+    //
+    //   Physical Channels <- ""
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasInitialize(); // DC-RMS Voltage Measurement - Initialize TP [Action]
 
-  // ── main ──
-  // label: Button ON Action
-  // label: Note to run with Hardware: Update DC Voltage for Action Button ON condition
-  // Note: This Step can be replaced with actual button action
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button ON State [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure TP [Action]
-  // label:
-  // label: Button OFF Action
-  // label: Note to run with Hardware: Update DC Voltage for Action Button OFF condition
-  // Note: This Step can be replaced with actual button action
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button OFF State [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure TP [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close Action Button [Action]
-  //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
+    // ── main ──
+    // label: Button ON Action
+    // label: Note to run with Hardware: Update DC Voltage for Action Button ON condition
+    // Note: This Step can be replaced with actual button action
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button ON State [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure TP [Action]
+    // label:
+    // label: Button OFF Action
+    // label: Note to run with Hardware: Update DC Voltage for Action Button OFF condition
+    // Note: This Step can be replaced with actual button action
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Action Button OFF State [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   DAQmx Task Out <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasConfigureAndMeasure(); // DC-RMS Voltage Measurement - Measure TP [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close Action Button [Action]
+    //   DAQmx Task In <- Locals.DC_Voltage_Meas_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcRmsVoltageMeasClose(); // DC-RMS Voltage Measurement - Close TP [Action]
+  }
 
   return run.status;
 }
@@ -163,35 +169,38 @@ Future<String> turnOffAllAoChannels() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: This example resets all configured Analog output channels voltage to 0 Volts
-  // label:
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  // Initializes the configured Physical/Virtual channels of Analog Output module
-  //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
-  outputVoltagesV = <dynamic>[
-    0,
-    0,
-    0,
-    0,
-  ]; // Assign the Output Voltage for all configured AO Channels
+  body:
+  try {
+    // ── setup ──
+    // label: This example resets all configured Analog output channels voltage to 0 Volts
+    // label:
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    // Initializes the configured Physical/Virtual channels of Analog Output module
+    //   Physical Channels <- "Simulated_DAQ/ao0:3" //Turn OFF all AO Channels
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenInitialize(); // DC Voltage Generation - Initialize AO Channels [Action]
+    outputVoltagesV = <dynamic>[
+      0,
+      0,
+      0,
+      0,
+    ]; // Assign the Output Voltage for all configured AO Channels
 
-  // ── main ──
-  // Sources DC Voltage at 0V to Analog Ouput channels
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   Output Voltages (V) <- Locals.Output_Voltages__V_
-  //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
-
-  // ── cleanup ──
-  // Closes the DC Voltage Generation Task for Analog output module
-  //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
-  //   error out <- Step.Result.Error
-  await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+    // ── main ──
+    // Sources DC Voltage at 0V to Analog Ouput channels
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   Output Voltages (V) <- Locals.Output_Voltages__V_
+    //   DAQmx Task Out <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenConfigureAndGenerate(); // DC Voltage Generation - Configure, Initiate and Sources DC voltage [Action]
+  } finally {
+    // ── cleanup ──
+    // Closes the DC Voltage Generation Task for Analog output module
+    //   DAQmx Task In <- Locals.DC_Voltage_Gen_Task
+    //   error out <- Step.Result.Error
+    await callDaqDcVoltageGenClose(); // DC Voltage Generation - Close AO Channels [Action]
+  }
 
   return run.status;
 }

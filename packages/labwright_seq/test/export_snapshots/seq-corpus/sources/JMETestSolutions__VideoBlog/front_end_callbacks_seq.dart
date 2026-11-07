@@ -35,49 +35,52 @@ Future<String> loginLogout({
     'Common': ts.PropObj(),
   }); // result of Update Group Membership
 
-  // ── main ──
-  if (logout == false) {
-    //   Company Name <- "JME Test Solutions"
-    //   contextType <- 0
-    //   Logged In? <- Locals.Logged_In
-    //   Operator Name <- Locals.operatorName
-    //   Groups <- Locals.groups
-    //   error out <- Step.Result.Error
-    await callOperatorLoginDialog(); // Show Login Dialog [Action]
-    if (loggedIn) {
-      if (runState.Engine.UserNameExists(operatorName) == false) {
+  body:
+  try {
+    // ── main ──
+    if (logout == false) {
+      //   Company Name <- "JME Test Solutions"
+      //   contextType <- 0
+      //   Logged In? <- Locals.Logged_In
+      //   Operator Name <- Locals.operatorName
+      //   Groups <- Locals.groups
+      //   error out <- Step.Result.Error
+      await callOperatorLoginDialog(); // Show Login Dialog [Action]
+      if (loggedIn) {
+        if (runState.Engine.UserNameExists(operatorName) == false) {
+          // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+          createUserResult.Status = await createUser(
+            user: user,
+            username: operatorName,
+          ); // Create User
+          createUserResult.Status = createUserResult.Status == 'Done'
+              ? 'Passed'
+              : createUserResult.Status; // status expression
+          run.record(createUserResult.Status);
+        } else {
+          user = runState.Engine.GetUser(operatorName);
+        }
         // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-        createUserResult.Status = await createUser(
+        updateGroupMembershipResult.Status = await groupMembership(
+          groups: groups,
           user: user,
-          username: operatorName,
-        ); // Create User
-        createUserResult.Status = createUserResult.Status == 'Done'
+        ); // Update Group Membership
+        updateGroupMembershipResult.Status =
+            updateGroupMembershipResult.Status == 'Done'
             ? 'Passed'
-            : createUserResult.Status; // status expression
-        run.record(createUserResult.Status);
-      } else {
-        user = runState.Engine.GetUser(operatorName);
-      }
-      // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      updateGroupMembershipResult.Status = await groupMembership(
-        groups: groups,
-        user: user,
-      ); // Update Group Membership
-      updateGroupMembershipResult.Status =
-          updateGroupMembershipResult.Status == 'Done'
-          ? 'Passed'
-          : updateGroupMembershipResult.Status; // status expression
-      run.record(updateGroupMembershipResult.Status);
-      runState.Engine.CurrentUser = user; // Login User
-    } else {}
-  } else {
-    runState.Engine.CurrentUser = null; // Logout User
+            : updateGroupMembershipResult.Status; // status expression
+        run.record(updateGroupMembershipResult.Status);
+        runState.Engine.CurrentUser = user; // Login User
+      } else {}
+    } else {
+      runState.Engine.CurrentUser = null; // Logout User
+    }
+  } finally {
+    // ── cleanup ──
+    runState.Engine.UsersFile.AsPropertyObjectFile.SaveFileIfModified(
+      false,
+    ); // Save Users File
   }
-
-  // ── cleanup ──
-  runState.Engine.UsersFile.AsPropertyObjectFile.SaveFileIfModified(
-    false,
-  ); // Save Users File
 
   return run.status;
 }
@@ -172,60 +175,71 @@ Future<String> updateGroupMembership({
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  fileChanged = false;
+  body:
+  try {
+    // ── setup ──
+    fileChanged = false;
 
-  // ── main ──
-  if (runState.Engine.GetUserGroup(groupName) == null) {
-    // description: Do Nothing. The Windows group does not exist in Teststand
-    // label: Note
-  } else {
-    members = runState.Engine.GetUserGroup(groupName).Members;
-    // Verify User is in the group. Add if necessary
-    if (ts.cond(
-      'FindIndex(Parameters.userGroups,Parameters.GroupName)  != "" //If the user is part of this group then add or verify, else delete',
-    )) {
-      alreadyInGroup = false;
-      for (idx = 0; idx < members.AsPropertyObject.GetNumElements(); idx += 1) {
-        if (members.AsPropertyObject.GetValStringByOffset(idx, 0) ==
-            user.AsUser.LoginName) {
-          alreadyInGroup = true; // Remove User From Group
+    // ── main ──
+    if (runState.Engine.GetUserGroup(groupName) == null) {
+      // description: Do Nothing. The Windows group does not exist in Teststand
+      // label: Note
+    } else {
+      members = runState.Engine.GetUserGroup(groupName).Members;
+      // Verify User is in the group. Add if necessary
+      if (ts.cond(
+        'FindIndex(Parameters.userGroups,Parameters.GroupName)  != "" //If the user is part of this group then add or verify, else delete',
+      )) {
+        alreadyInGroup = false;
+        for (
+          idx = 0;
+          idx < members.AsPropertyObject.GetNumElements();
+          idx += 1
+        ) {
+          if (members.AsPropertyObject.GetValStringByOffset(idx, 0) ==
+              user.AsUser.LoginName) {
+            alreadyInGroup = true; // Remove User From Group
+            runState.Engine.UsersFile.AsPropertyObjectFile
+                .IncChangeCount(); // Increment Changecount of User File
+            fileChanged = true;
+          }
+        }
+        if (alreadyInGroup == false) {
+          runState.Engine.GetUserGroup(groupName).Members.SetValStringByOffset(
+            0,
+            1,
+            user.AsUser.LoginName,
+          ); // Add User to Group
           runState.Engine.UsersFile.AsPropertyObjectFile
               .IncChangeCount(); // Increment Changecount of User File
           fileChanged = true;
         }
-      }
-      if (alreadyInGroup == false) {
-        runState.Engine.GetUserGroup(groupName).Members.SetValStringByOffset(
-          0,
-          1,
-          user.AsUser.LoginName,
-        ); // Add User to Group
-        runState.Engine.UsersFile.AsPropertyObjectFile
-            .IncChangeCount(); // Increment Changecount of User File
-        fileChanged = true;
-      }
-      // Delete User if its in the Group
-    } else {
-      for (idx = 0; idx < members.AsPropertyObject.GetNumElements(); idx += 1) {
-        if (members.AsPropertyObject.GetValStringByOffset(idx, 0) ==
-            user.AsUser.LoginName) {
-          members.AsPropertyObject.DeleteElements(
-            idx,
-            1,
-            0,
-          ); // Remove User From Group
-          runState.Engine.UsersFile.AsPropertyObjectFile
-              .IncChangeCount(); // Increment Changecount of User File
-          fileChanged = true;
+        // Delete User if its in the Group
+      } else {
+        for (
+          idx = 0;
+          idx < members.AsPropertyObject.GetNumElements();
+          idx += 1
+        ) {
+          if (members.AsPropertyObject.GetValStringByOffset(idx, 0) ==
+              user.AsUser.LoginName) {
+            members.AsPropertyObject.DeleteElements(
+              idx,
+              1,
+              0,
+            ); // Remove User From Group
+            runState.Engine.UsersFile.AsPropertyObjectFile
+                .IncChangeCount(); // Increment Changecount of User File
+            fileChanged = true;
+          }
         }
       }
     }
-  }
-
-  // ── cleanup ──
-  if (fileChanged) {
-    // Save Users File: Statement with no expression
+  } finally {
+    // ── cleanup ──
+    if (fileChanged) {
+      // Save Users File: Statement with no expression
+    }
   }
 
   return run.status;

@@ -29,70 +29,89 @@ Future<String> convert() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
-  ts.eval(
-    'Locals.Success = RunState.Engine.DisplayFileDialog(\n   "Select XML report file...", \' dlgTitle\n   "", \' okButtonText\n   "", \' initialPath\n   {""}, \' selectedPaths\n   Locals.TmpPaths, \' absolutePaths\n   OpenFile_UseAbsolutePath, \' openFileDialogFlags\n   "", \' defaultExtension\n   WinFileDlg_FILEMUSTEXIST OR WinFileDlg_HIDEREADONLY, \' win32Flags\n   "Report (*.xml)|*.xml||" \' fileFilter\n),\n\nLocals.Success ? (\n   Locals.XmlFilePath = Locals.TmpPaths[0],\n   Locals.HtmlFilePath = SearchAndReplace(Str(Locals.XmlFilePath), ".xml", ".html", 0, True, 1, True)\n) : Nothing',
-  ); // Select report file
-  // It is assumed that xml report stylesheet path is present in the first line of the report.
-  // custom flow: if (Locals.XslFilePath != "") Next else Goto -> <Cleanup>
-  // .NET call: System.IO.File.ReadAllLines
-  //   Return Value <- Locals.XmlFileContent
-  //   path <- Locals.XmlFilePath
-  throw UnimplementedError(
-    'dotNet call: System.IO.File.ReadAllLines',
-  ); // Get XSL file path from XML [Action]
-  ts.eval(
-    '#NoValidation,\nGetNumElements(Locals.XmlFileContent) != 0 ? (\n   Locals.XslFilePath =\n   \' Mid(inputString, startIndex, numberOfCharacters)\n   Mid(\n      \' <inputString>\n      Locals.XmlFileContent[0],\n\n      \' <startIndex>\n      \' Find the beginning of the path by searching for the "xml-stylesheet"\n      \' tag and offset the found index by the tag length\n      Find(\n         Locals.XmlFileContent[0],\n         Locals.Tags.Front\n      ) \' Beginning of the path index\n      + Len(Locals.Tags.Front), \' Tag lenght\n\n      \' <numberOfCharacters>\n      \' From the whole string lenght ...\n      Len(Locals.XmlFileContent[0]) \n      - \' ... subtract the length of the string before the path and ...\n      (\n         Find(\n            Locals.XmlFileContent[0],\n            Locals.Tags.Front\n         ) \' Beginning of the path index\n         + Len(Locals.Tags.Front) \' Tag lenght\n      )\n      - \' ... subtract the length of the string after the path.\n      (\n         Len(Locals.XmlFileContent[0])\n         \' Find the end of the path by searching for the closing tag\n         - Find(\n              Locals.XmlFileContent[0],\n              Locals.Tags.Back,\n              \' Begin searching for the closing tag from the first index of the found path\n              Find(\n                 Locals.XmlFileContent[0],\n                 Locals.Tags.Front\n              ) \' Beginning of the path index\n              + Len(Locals.Tags.Front) \' Tag lenght\n           )\n      )\n   )\n) : Nothing',
-  ); // post-expression
+  body:
+  try {
+    // ── setup ──
+    // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
+    ts.eval(
+      'Locals.Success = RunState.Engine.DisplayFileDialog(\n   "Select XML report file...", \' dlgTitle\n   "", \' okButtonText\n   "", \' initialPath\n   {""}, \' selectedPaths\n   Locals.TmpPaths, \' absolutePaths\n   OpenFile_UseAbsolutePath, \' openFileDialogFlags\n   "", \' defaultExtension\n   WinFileDlg_FILEMUSTEXIST OR WinFileDlg_HIDEREADONLY, \' win32Flags\n   "Report (*.xml)|*.xml||" \' fileFilter\n),\n\nLocals.Success ? (\n   Locals.XmlFilePath = Locals.TmpPaths[0],\n   Locals.HtmlFilePath = SearchAndReplace(Str(Locals.XmlFilePath), ".xml", ".html", 0, True, 1, True)\n) : Nothing',
+    ); // Select report file
+    if (!(success)) {
+      // post action
+      break body;
+    }
+    // It is assumed that xml report stylesheet path is present in the first line of the report.
+    // custom flow: if (Locals.XslFilePath != "") Next else Goto -> <Cleanup>
+    // .NET call: System.IO.File.ReadAllLines
+    //   Return Value <- Locals.XmlFileContent
+    //   path <- Locals.XmlFilePath
+    throw UnimplementedError(
+      'dotNet call: System.IO.File.ReadAllLines',
+    ); // Get XSL file path from XML [Action]
+    ts.eval(
+      '#NoValidation,\nGetNumElements(Locals.XmlFileContent) != 0 ? (\n   Locals.XslFilePath =\n   \' Mid(inputString, startIndex, numberOfCharacters)\n   Mid(\n      \' <inputString>\n      Locals.XmlFileContent[0],\n\n      \' <startIndex>\n      \' Find the beginning of the path by searching for the "xml-stylesheet"\n      \' tag and offset the found index by the tag length\n      Find(\n         Locals.XmlFileContent[0],\n         Locals.Tags.Front\n      ) \' Beginning of the path index\n      + Len(Locals.Tags.Front), \' Tag lenght\n\n      \' <numberOfCharacters>\n      \' From the whole string lenght ...\n      Len(Locals.XmlFileContent[0]) \n      - \' ... subtract the length of the string before the path and ...\n      (\n         Find(\n            Locals.XmlFileContent[0],\n            Locals.Tags.Front\n         ) \' Beginning of the path index\n         + Len(Locals.Tags.Front) \' Tag lenght\n      )\n      - \' ... subtract the length of the string after the path.\n      (\n         Len(Locals.XmlFileContent[0])\n         \' Find the end of the path by searching for the closing tag\n         - Find(\n              Locals.XmlFileContent[0],\n              Locals.Tags.Back,\n              \' Begin searching for the closing tag from the first index of the found path\n              Find(\n                 Locals.XmlFileContent[0],\n                 Locals.Tags.Front\n              ) \' Beginning of the path index\n              + Len(Locals.Tags.Front) \' Tag lenght\n           )\n      )\n   )\n) : Nothing',
+    ); // post-expression
+    if (!(xslFilePath != '')) {
+      // post action
+      break body;
+    }
 
-  // ── main ──
-  throw UnimplementedError(
-    'cModule call: Create XML object',
-  ); // Create XML object [Action]
-  //   newValue <- False
-  throw UnimplementedError(
-    'cModule call: Disable asynchronous XML file loading',
-  ); // Disable asynchronous XML file loading [Action]
-  // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
-  //   Return Value -> Locals.Success
-  //   xmlSource <- Locals.XmlFilePath
-  throw UnimplementedError(
-    'cModule call: Load XML file',
-  ); // Load XML file [Action]
-  throw UnimplementedError(
-    'cModule call: Create XSL object',
-  ); // Create XSL object [Action]
-  //   newValue <- False
-  throw UnimplementedError(
-    'cModule call: Disable asynchronous XSL file loading',
-  ); // Disable asynchronous XSL file loading [Action]
-  //   name <- "AllowXsltScript"
-  //   value <- True
-  throw UnimplementedError(
-    'cModule call: Allow XSLT scripts',
-  ); // Allow XSLT scripts [Action]
-  //   newValue <- True
-  throw UnimplementedError(
-    'cModule call: Enable external files loading',
-  ); // Enable external files loading [Action]
-  // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
-  //   Return Value -> Locals.Success
-  //   xmlSource <- Locals.XslFilePath
-  throw UnimplementedError('cModule call: Load XSL'); // Load XSL [Action]
-  //   Return Value -> Locals.HtmlFileContent
-  //   stylesheet <- Locals.Xsl
-  throw UnimplementedError('cModule call: Transform'); // Transform [Action]
-  // .NET call: System.IO.File.WriteAllText
-  //   path <- Locals.HtmlFilePath
-  //   contents <- Locals.HtmlFileContent
-  throw UnimplementedError(
-    'dotNet call: System.IO.File.WriteAllText',
-  ); // Save HTML file [Action]
-
-  // ── cleanup ──
-  xml = null; // Release
-  xsl = null; // Release (cont.)
+    // ── main ──
+    throw UnimplementedError(
+      'cModule call: Create XML object',
+    ); // Create XML object [Action]
+    //   newValue <- False
+    throw UnimplementedError(
+      'cModule call: Disable asynchronous XML file loading',
+    ); // Disable asynchronous XML file loading [Action]
+    // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
+    //   Return Value -> Locals.Success
+    //   xmlSource <- Locals.XmlFilePath
+    throw UnimplementedError(
+      'cModule call: Load XML file',
+    ); // Load XML file [Action]
+    if (!(success)) {
+      // post action
+      break body;
+    }
+    throw UnimplementedError(
+      'cModule call: Create XSL object',
+    ); // Create XSL object [Action]
+    //   newValue <- False
+    throw UnimplementedError(
+      'cModule call: Disable asynchronous XSL file loading',
+    ); // Disable asynchronous XSL file loading [Action]
+    //   name <- "AllowXsltScript"
+    //   value <- True
+    throw UnimplementedError(
+      'cModule call: Allow XSLT scripts',
+    ); // Allow XSLT scripts [Action]
+    //   newValue <- True
+    throw UnimplementedError(
+      'cModule call: Enable external files loading',
+    ); // Enable external files loading [Action]
+    // custom flow: if (Locals.Success) Next else Goto -> <Cleanup>
+    //   Return Value -> Locals.Success
+    //   xmlSource <- Locals.XslFilePath
+    throw UnimplementedError('cModule call: Load XSL'); // Load XSL [Action]
+    if (!(success)) {
+      // post action
+      break body;
+    }
+    //   Return Value -> Locals.HtmlFileContent
+    //   stylesheet <- Locals.Xsl
+    throw UnimplementedError('cModule call: Transform'); // Transform [Action]
+    // .NET call: System.IO.File.WriteAllText
+    //   path <- Locals.HtmlFilePath
+    //   contents <- Locals.HtmlFileContent
+    throw UnimplementedError(
+      'dotNet call: System.IO.File.WriteAllText',
+    ); // Save HTML file [Action]
+  } finally {
+    // ── cleanup ──
+    xml = null; // Release
+    xsl = null; // Release (cont.)
+  }
 
   return run.status;
 }
@@ -116,19 +135,15 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Select report file" (Next/Next) not exported
   //   untranslated expression in body
-  //   flow action of step "Get XSL file path from XML" (Next/Next) not exported
   //   dotNet call: System.IO.File.ReadAllLines
   //   cModule call: Create XML object
   //   cModule call: Disable asynchronous XML file loading
-  //   flow action of step "Load XML file" (Next/Next) not exported
   //   cModule call: Load XML file
   //   cModule call: Create XSL object
   //   cModule call: Disable asynchronous XSL file loading
   //   cModule call: Allow XSLT scripts
   //   cModule call: Enable external files loading
-  //   flow action of step "Load XSL" (Next/Next) not exported
   //   cModule call: Load XSL
   //   cModule call: Transform
   //   dotNet call: System.IO.File.WriteAllText

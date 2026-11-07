@@ -15,50 +15,53 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type NI_CreateAndRegisterSessions: action not exported yet',
-  ); // Create and Register Sessions [NI_CreateAndRegisterSessions]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type NI_CreateAndRegisterSessions: action not exported yet',
+    ); // Create and Register Sessions [NI_CreateAndRegisterSessions]
 
-  // ── main ──
-  // measurement: temp_LabVIEW
-  // measurement param: double array in (In TypeDouble) = {3.4,5.6}
-  // measurement param: double in (In TypeDouble) = 1.2
-  // measurement param: U32 array in (In TypeUint32) = {32ui64,33ui64}
-  // measurement param: U32 in (In TypeUint32) = 32ui64
-  // measurement param: U64 array in (In TypeUint64) = {64ui64,65ui64}
-  // measurement param: U64 in (In TypeUint64) = 64ui64
-  // measurement param: I32 array in (In TypeInt32) = {-32i64,-33i64}
-  // measurement param: I32 in (In TypeInt32) = -32i64
-  // measurement param: I64 array in (In TypeInt64) = {-64i64,-65i64}
-  // measurement param: I64 in (In TypeInt64) = -64i64
-  // measurement param: bool in (In TypeBool) = True
-  // measurement param: string in (In TypeString) = "Lorem ipsum dolor sit"
-  // measurement param: u32 color ring in (In TypeUint32) = 1ui64
-  // measurement param: u32 animal enum in (In TypeEnum Enum) = 1i64
-  // measurement param: xy data out (Out TypeMessage)
-  // measurement param: double array out (Out TypeDouble)
-  // measurement param: double out (Out TypeDouble)
-  // measurement param: U32 array out (Out TypeUint32)
-  // measurement param: U32 out (Out TypeUint32)
-  // measurement param: U64 array out (Out TypeUint64)
-  // measurement param: U64 out (Out TypeUint64)
-  // measurement param: I32 array out (Out TypeInt32)
-  // measurement param: I32 out (Out TypeInt32)
-  // measurement param: I64 array out (Out TypeInt64)
-  // measurement param: I64 out (Out TypeInt64)
-  // measurement param: bool out (Out TypeBool)
-  // measurement param: string out (Out TypeString)
-  // measurement param: u32 color ring out (Out TypeUint32)
-  // measurement param: u32 animal enum out (Out TypeEnum Enum)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // temp [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type NI_DestroyAndUnregisterSessions: action not exported yet',
-  ); // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]
+    // ── main ──
+    // measurement: temp_LabVIEW
+    // measurement param: double array in (In TypeDouble) = {3.4,5.6}
+    // measurement param: double in (In TypeDouble) = 1.2
+    // measurement param: U32 array in (In TypeUint32) = {32ui64,33ui64}
+    // measurement param: U32 in (In TypeUint32) = 32ui64
+    // measurement param: U64 array in (In TypeUint64) = {64ui64,65ui64}
+    // measurement param: U64 in (In TypeUint64) = 64ui64
+    // measurement param: I32 array in (In TypeInt32) = {-32i64,-33i64}
+    // measurement param: I32 in (In TypeInt32) = -32i64
+    // measurement param: I64 array in (In TypeInt64) = {-64i64,-65i64}
+    // measurement param: I64 in (In TypeInt64) = -64i64
+    // measurement param: bool in (In TypeBool) = True
+    // measurement param: string in (In TypeString) = "Lorem ipsum dolor sit"
+    // measurement param: u32 color ring in (In TypeUint32) = 1ui64
+    // measurement param: u32 animal enum in (In TypeEnum Enum) = 1i64
+    // measurement param: xy data out (Out TypeMessage)
+    // measurement param: double array out (Out TypeDouble)
+    // measurement param: double out (Out TypeDouble)
+    // measurement param: U32 array out (Out TypeUint32)
+    // measurement param: U32 out (Out TypeUint32)
+    // measurement param: U64 array out (Out TypeUint64)
+    // measurement param: U64 out (Out TypeUint64)
+    // measurement param: I32 array out (Out TypeInt32)
+    // measurement param: I32 out (Out TypeInt32)
+    // measurement param: I64 array out (Out TypeInt64)
+    // measurement param: I64 out (Out TypeInt64)
+    // measurement param: bool out (Out TypeBool)
+    // measurement param: string out (Out TypeString)
+    // measurement param: u32 color ring out (Out TypeUint32)
+    // measurement param: u32 animal enum out (Out TypeEnum Enum)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // temp [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type NI_DestroyAndUnregisterSessions: action not exported yet',
+    ); // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]
+  }
 
   return run.status;
 }

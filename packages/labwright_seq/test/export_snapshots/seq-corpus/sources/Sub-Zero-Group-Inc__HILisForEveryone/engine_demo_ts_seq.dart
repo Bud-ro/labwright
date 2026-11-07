@@ -15,21 +15,24 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type NI_VeriStand_OpenProject: action not exported yet',
-  ); // Open VeriStand Project [NI_VeriStand_OpenProject]
-  throw UnimplementedError(
-    'step type NI_VeriStand_Connect: action not exported yet',
-  ); // Connect [NI_VeriStand_Connect]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type NI_VeriStand_Disconnect: action not exported yet',
-  ); // Disconnect [NI_VeriStand_Disconnect]
-  throw UnimplementedError(
-    'step type NI_VeriStand_Close: action not exported yet',
-  ); // Close VeriStand [NI_VeriStand_Close]
+  body:
+  try {
+    // ── setup ──
+    throw UnimplementedError(
+      'step type NI_VeriStand_OpenProject: action not exported yet',
+    ); // Open VeriStand Project [NI_VeriStand_OpenProject]
+    throw UnimplementedError(
+      'step type NI_VeriStand_Connect: action not exported yet',
+    ); // Connect [NI_VeriStand_Connect]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type NI_VeriStand_Disconnect: action not exported yet',
+    ); // Disconnect [NI_VeriStand_Disconnect]
+    throw UnimplementedError(
+      'step type NI_VeriStand_Close: action not exported yet',
+    ); // Close VeriStand [NI_VeriStand_Close]
+  }
 
   return run.status;
 }

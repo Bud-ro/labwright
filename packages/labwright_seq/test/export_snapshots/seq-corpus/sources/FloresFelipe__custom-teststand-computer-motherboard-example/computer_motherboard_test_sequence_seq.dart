@@ -108,184 +108,187 @@ Future<String> mainSequence() async {
     'Units': 'ampere',
   }); // result of Powerup Diagnostics
 
-  // ── setup ──
-  //   Sequence Context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callComputerSequenceSimulationDialog(); // Simulation Dialog [Action]
-  //   error out <- Step.Result.Error
-  await callVacuumOn(); // Turn Vacuum Table On [Action]
+  body:
+  try {
+    // ── setup ──
+    //   Sequence Context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callComputerSequenceSimulationDialog(); // Simulation Dialog [Action]
+    //   error out <- Step.Result.Error
+    await callVacuumOn(); // Turn Vacuum Table On [Action]
 
-  // ── main ──
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  //   PowerFail <- Locals.PowerFail
-  //   Result <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callPowerupTest(); // Powerup Test [PassFailTest]
-  powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(powerupTestResult.Status);
-  // If the Powerup Test fails, do not test any additional components.
-  if (ts.truthy(powerupTestResult.PassFail)) {
-    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-    cpuTestResult.Status = await cpuTest(cpuFail: cpuFail); // CPU Test
-    cpuTestResult.Status = cpuTestResult.Status == 'Done'
-        ? 'Passed'
-        : cpuTestResult.Status; // status expression
-    run.record(cpuTestResult.Status);
+    // ── main ──
     // checks: Step.Result.PassFail
     // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    //   ROMFail <- Locals.ROMFail
+    //   PowerFail <- Locals.PowerFail
     //   Result <- Step.Result.PassFail
     //   error out <- Step.Result.Error
-    await callRomTest(); // ROM Test [PassFailTest]
-    romTestResult.Status = ts.truthy(romTestResult.PassFail)
+    await callPowerupTest(); // Powerup Test [PassFailTest]
+    powerupTestResult.Status = ts.truthy(powerupTestResult.PassFail)
         ? 'Passed'
         : 'Failed'; // status expression
-    run.record(romTestResult.Status);
-    // checks: Step.Result.PassFail
-    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-    //   RAMFail <- Locals.RAMFail
-    //   Result <- Step.Result.PassFail
-    //   error out <- Step.Result.Error
-    await callRamTest(); // RAM Test [PassFailTest]
-    ramTestResult.Status = ts.truthy(ramTestResult.PassFail)
-        ? 'Passed'
-        : 'Failed'; // status expression
-    run.record(ramTestResult.Status);
-    // checks: Step.Result.Numeric GTLT [low 0, high 10, nominal 100] (PERCENTAGE) microseconds
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-    //   VideoValue <- Locals.VideoValue
-    //   Latency (µs) <- Step.Result.Numeric
-    //   error out <- Step.Result.Error
-    await callVideoTest(); // Video Test [NumericLimitTest]
-    videoTestResult.Status = ts.checkLimits(
-      videoTestResult.Numeric,
-      10,
-      0,
-      'GTLT',
-      true,
-      100,
-      'PERCENTAGE',
-    ); // status expression
-    run.record(videoTestResult.Status);
-    // checks: Step.Result.Numeric GT [low 5, high 0, nominal 100] (PERCENTAGE)
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-    //   Number of Keystrokes <- Locals.KeyboardValue
-    //   Result <- Step.Result.Numeric
-    //   error out <- Step.Result.Error
-    await callKeyboardTest(); // Keyboard Test [NumericLimitTest]
-    keyboardTestResult.Status = ts.checkLimits(
-      keyboardTestResult.Numeric,
-      0,
-      5,
-      'GT',
-      true,
-      100,
-      'PERCENTAGE',
-    ); // status expression
-    run.record(keyboardTestResult.Status);
-    // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
-    if (ts.cond('ThisContext.SequenceFailed')) {
+    run.record(powerupTestResult.Status);
+    // If the Powerup Test fails, do not test any additional components.
+    if (ts.truthy(powerupTestResult.PassFail)) {
       // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-      if (cpuTestResult.Status == 'Failed') {
-        // precondition of CPU Diagnostics
-        cpuDiagnosticsResult.Status = await cpuDiagnostics(
-          cpuFail: cpuFail,
-        ); // CPU Diagnostics
-        cpuDiagnosticsResult.Status = cpuDiagnosticsResult.Status == 'Done'
-            ? 'Passed'
-            : cpuDiagnosticsResult.Status; // status expression
-        run.record(cpuDiagnosticsResult.Status);
-      } else {
-        cpuDiagnosticsResult.Status = 'Skipped';
-      }
+      cpuTestResult.Status = await cpuTest(cpuFail: cpuFail); // CPU Test
+      cpuTestResult.Status = cpuTestResult.Status == 'Done'
+          ? 'Passed'
+          : cpuTestResult.Status; // status expression
+      run.record(cpuTestResult.Status);
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (romTestResult.Status == 'Failed') {
-        // precondition of ROM Diagnostics
-        //   Result <- Step.Result.PassFail
-        //   error out <- Step.Result.Error
-        await callRomDiagnostics(); // ROM Diagnostics [PassFailTest]
-        romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail)
-            ? 'Passed'
-            : 'Failed'; // status expression
-        run.record(romDiagnosticsResult.Status);
-      } else {
-        romDiagnosticsResult.Status = 'Skipped';
-      }
+      //   ROMFail <- Locals.ROMFail
+      //   Result <- Step.Result.PassFail
+      //   error out <- Step.Result.Error
+      await callRomTest(); // ROM Test [PassFailTest]
+      romTestResult.Status = ts.truthy(romTestResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      run.record(romTestResult.Status);
       // checks: Step.Result.PassFail
       // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (ramTestResult.Status == 'Failed') {
-        // precondition of RAM Diagnostics
-        //   Result <- Step.Result.PassFail
-        //   error out <- Step.Result.Error
-        await callRamDiagnostics(); // RAM Diagnostics [PassFailTest]
-        ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail)
-            ? 'Passed'
-            : 'Failed'; // status expression
-        run.record(ramDiagnosticsResult.Status);
-      } else {
-        ramDiagnosticsResult.Status = 'Skipped';
-      }
-      // checks: Step.Result.Numeric LT [low 0, high 10, nominal 100] (PERCENTAGE) Volts
+      //   RAMFail <- Locals.RAMFail
+      //   Result <- Step.Result.PassFail
+      //   error out <- Step.Result.Error
+      await callRamTest(); // RAM Test [PassFailTest]
+      ramTestResult.Status = ts.truthy(ramTestResult.PassFail)
+          ? 'Passed'
+          : 'Failed'; // status expression
+      run.record(ramTestResult.Status);
+      // checks: Step.Result.Numeric GTLT [low 0, high 10, nominal 100] (PERCENTAGE) microseconds
       // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-      if (videoTestResult.Status == 'Failed') {
-        // precondition of Video Diagnostics
-        //   Voltage <- Step.Result.Numeric
-        //   error out <- Step.Result.Error
-        await callVideoDiagnostics(); // Video Diagnostics [NumericLimitTest]
-        videoDiagnosticsResult.Status = ts.checkLimits(
-          videoDiagnosticsResult.Numeric,
-          10,
-          0,
-          'LT',
-          true,
-          100,
-          'PERCENTAGE',
-        ); // status expression
-        run.record(videoDiagnosticsResult.Status);
-      } else {
-        videoDiagnosticsResult.Status = 'Skipped';
+      //   VideoValue <- Locals.VideoValue
+      //   Latency (µs) <- Step.Result.Numeric
+      //   error out <- Step.Result.Error
+      await callVideoTest(); // Video Test [NumericLimitTest]
+      videoTestResult.Status = ts.checkLimits(
+        videoTestResult.Numeric,
+        10,
+        0,
+        'GTLT',
+        true,
+        100,
+        'PERCENTAGE',
+      ); // status expression
+      run.record(videoTestResult.Status);
+      // checks: Step.Result.Numeric GT [low 5, high 0, nominal 100] (PERCENTAGE)
+      // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+      //   Number of Keystrokes <- Locals.KeyboardValue
+      //   Result <- Step.Result.Numeric
+      //   error out <- Step.Result.Error
+      await callKeyboardTest(); // Keyboard Test [NumericLimitTest]
+      keyboardTestResult.Status = ts.checkLimits(
+        keyboardTestResult.Numeric,
+        0,
+        5,
+        'GT',
+        true,
+        100,
+        'PERCENTAGE',
+      ); // status expression
+      run.record(keyboardTestResult.Status);
+      // If any of the preceding tests failed, perform diagnositcs on the failed component(s) to get more information on the mode of failure
+      if (ts.cond('ThisContext.SequenceFailed')) {
+        // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+        if (cpuTestResult.Status == 'Failed') {
+          // precondition of CPU Diagnostics
+          cpuDiagnosticsResult.Status = await cpuDiagnostics(
+            cpuFail: cpuFail,
+          ); // CPU Diagnostics
+          cpuDiagnosticsResult.Status = cpuDiagnosticsResult.Status == 'Done'
+              ? 'Passed'
+              : cpuDiagnosticsResult.Status; // status expression
+          run.record(cpuDiagnosticsResult.Status);
+        } else {
+          cpuDiagnosticsResult.Status = 'Skipped';
+        }
+        // checks: Step.Result.PassFail
+        // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+        if (romTestResult.Status == 'Failed') {
+          // precondition of ROM Diagnostics
+          //   Result <- Step.Result.PassFail
+          //   error out <- Step.Result.Error
+          await callRomDiagnostics(); // ROM Diagnostics [PassFailTest]
+          romDiagnosticsResult.Status = ts.truthy(romDiagnosticsResult.PassFail)
+              ? 'Passed'
+              : 'Failed'; // status expression
+          run.record(romDiagnosticsResult.Status);
+        } else {
+          romDiagnosticsResult.Status = 'Skipped';
+        }
+        // checks: Step.Result.PassFail
+        // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+        if (ramTestResult.Status == 'Failed') {
+          // precondition of RAM Diagnostics
+          //   Result <- Step.Result.PassFail
+          //   error out <- Step.Result.Error
+          await callRamDiagnostics(); // RAM Diagnostics [PassFailTest]
+          ramDiagnosticsResult.Status = ts.truthy(ramDiagnosticsResult.PassFail)
+              ? 'Passed'
+              : 'Failed'; // status expression
+          run.record(ramDiagnosticsResult.Status);
+        } else {
+          ramDiagnosticsResult.Status = 'Skipped';
+        }
+        // checks: Step.Result.Numeric LT [low 0, high 10, nominal 100] (PERCENTAGE) Volts
+        // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+        if (videoTestResult.Status == 'Failed') {
+          // precondition of Video Diagnostics
+          //   Voltage <- Step.Result.Numeric
+          //   error out <- Step.Result.Error
+          await callVideoDiagnostics(); // Video Diagnostics [NumericLimitTest]
+          videoDiagnosticsResult.Status = ts.checkLimits(
+            videoDiagnosticsResult.Numeric,
+            10,
+            0,
+            'LT',
+            true,
+            100,
+            'PERCENTAGE',
+          ); // status expression
+          run.record(videoDiagnosticsResult.Status);
+        } else {
+          videoDiagnosticsResult.Status = 'Skipped';
+        }
+        // checks: Step.Result.PassFail
+        // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+        if (keyboardTestResult.Status == 'Failed') {
+          // precondition of Keyboard Diagnostics
+          //   Result <- Step.Result.PassFail
+          //   error out <- Step.Result.Error
+          await callKeyboardDiagnostics(); // Keyboard Diagnostics [PassFailTest]
+          keyboardDiagnosticsResult.Status =
+              ts.truthy(keyboardDiagnosticsResult.PassFail)
+              ? 'Passed'
+              : 'Failed'; // status expression
+          run.record(keyboardDiagnosticsResult.Status);
+        } else {
+          keyboardDiagnosticsResult.Status = 'Skipped';
+        }
       }
-      // checks: Step.Result.PassFail
-      // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-      if (keyboardTestResult.Status == 'Failed') {
-        // precondition of Keyboard Diagnostics
-        //   Result <- Step.Result.PassFail
-        //   error out <- Step.Result.Error
-        await callKeyboardDiagnostics(); // Keyboard Diagnostics [PassFailTest]
-        keyboardDiagnosticsResult.Status =
-            ts.truthy(keyboardDiagnosticsResult.PassFail)
-            ? 'Passed'
-            : 'Failed'; // status expression
-        run.record(keyboardDiagnosticsResult.Status);
-      } else {
-        keyboardDiagnosticsResult.Status = 'Skipped';
-      }
+    } else {
+      // checks: Step.Result.Numeric LOG [low 0, high 10, nominal 100] (PERCENTAGE) ampere
+      // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
+      //   Current <- Step.Result.Numeric
+      //   error out <- Step.Result.Error
+      await callPowerupDiagnostics(); // Powerup Diagnostics [NumericLimitTest]
+      powerupDiagnosticsResult.Status = ts.checkLimits(
+        powerupDiagnosticsResult.Numeric,
+        10,
+        0,
+        'LOG',
+        true,
+        100,
+        'PERCENTAGE',
+      ); // status expression
+      run.record(powerupDiagnosticsResult.Status);
     }
-  } else {
-    // checks: Step.Result.Numeric LOG [low 0, high 10, nominal 100] (PERCENTAGE) ampere
-    // status expression: CheckLimits(Step.DataSource == "Step.Result.Numeric" ? Step.Result.Numeric : (Step.Result.Numeric = Evaluate(Step.DataSource)), Step.Limits.High, Step.Limits.Low, Step.Comp, True, Step.Limits.Nominal, Step.Limits.ThresholdType)
-    //   Current <- Step.Result.Numeric
+  } finally {
+    // ── cleanup ──
     //   error out <- Step.Result.Error
-    await callPowerupDiagnostics(); // Powerup Diagnostics [NumericLimitTest]
-    powerupDiagnosticsResult.Status = ts.checkLimits(
-      powerupDiagnosticsResult.Numeric,
-      10,
-      0,
-      'LOG',
-      true,
-      100,
-      'PERCENTAGE',
-    ); // status expression
-    run.record(powerupDiagnosticsResult.Status);
+    await callVacuumOff(); // Turn Vacuum Table Off [Action]
   }
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callVacuumOff(); // Turn Vacuum Table Off [Action]
 
   return run.status;
 }

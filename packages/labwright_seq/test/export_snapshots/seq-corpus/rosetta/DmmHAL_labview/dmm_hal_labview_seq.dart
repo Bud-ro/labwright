@@ -15,29 +15,32 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"D:\RA Tools Git\abstraction-layer-labview\Source\HAL Implementation\DmmMeasurementHAL.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence context in <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and Register DMM sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"D:\RA Tools Git\abstraction-layer-labview\Source\HAL Implementation\DmmMeasurementHAL.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence context in <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and Register DMM sessions [Action]
 
-  // ── main ──
-  // measurement: DmmMeasurementHAL_LabVIEW
-  // measurement param: pin_name (In TypeString Pin) = "NI_DMM_PIN"
-  // measurement param: Range (In TypeDouble) = 10
-  // measurement param: Measurement Type (In TypeEnum Enum) = 0i64
-  // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
-  // measurement param: Measurement (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and Close DMM Sessions [Action]
+    // ── main ──
+    // measurement: DmmMeasurementHAL_LabVIEW
+    // measurement param: pin_name (In TypeString Pin) = "NI_DMM_PIN"
+    // measurement param: Range (In TypeDouble) = 10
+    // measurement param: Measurement Type (In TypeEnum Enum) = 0i64
+    // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
+    // measurement param: Measurement (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and Close DMM Sessions [Action]
+  }
 
   return run.status;
 }

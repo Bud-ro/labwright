@@ -15,31 +15,34 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"NIDAQmxMeasurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence context in <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterTasks(); // Initialize and Register NI-DAQmx Tasks [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"NIDAQmxMeasurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence context in <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterTasks(); // Initialize and Register NI-DAQmx Tasks [Action]
 
-  // ── main ──
-  // measurement: NIDAQmxMeasurement_LabVIEW
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: maximum_value (In TypeDouble) = 100
-  // measurement param: minimum_value (In TypeDouble) = 2
-  // measurement param: CI_Freq_Meas_Time_in (In TypeDouble) = 5
-  // measurement param: timeout (In TypeDouble) = 10
-  // measurement param: data (Out TypeDouble)
-  // measurement param: CI_Freq_Meas_Time_out (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseTasks(); // Unregister and Close NI-DAQmx Tasks [Action]
+    // ── main ──
+    // measurement: NIDAQmxMeasurement_LabVIEW
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: maximum_value (In TypeDouble) = 100
+    // measurement param: minimum_value (In TypeDouble) = 2
+    // measurement param: CI_Freq_Meas_Time_in (In TypeDouble) = 5
+    // measurement param: timeout (In TypeDouble) = 10
+    // measurement param: data (Out TypeDouble)
+    // measurement param: CI_Freq_Meas_Time_out (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseTasks(); // Unregister and Close NI-DAQmx Tasks [Action]
+  }
 
   return run.status;
 }

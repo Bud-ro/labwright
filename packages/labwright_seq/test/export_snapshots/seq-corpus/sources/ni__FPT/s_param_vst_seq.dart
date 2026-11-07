@@ -20,79 +20,82 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
-  //   Enable Validity Check? <- True
-  //   error out <- Step.Result.Error
-  await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-  //   measure call context in <- Nothing
-  //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOnDut(); // RX_Power ON [Action]
-  //   measure call context in <- Nothing
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
-  //   error out <- Step.Result.Error
-  await callSetSwitching(); // RX_Switching Connect [Action]
+  body:
+  try {
+    // ── setup ──
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
+    //   Enable Validity Check? <- True
+    //   error out <- Step.Result.Error
+    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
+    //   measure call context in <- Nothing
+    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOnDut(); // RX_Power ON [Action]
+    //   measure call context in <- Nothing
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
+    //   error out <- Step.Result.Error
+    await callSetSwitching(); // RX_Switching Connect [Action]
 
-  // ── main ──
-  // measurement: FPT_SParam_VST_LabVIEW
-  // measurement param: Automation Test (In TypeBool) = True
-  // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
-  // measurement param: VST Resource Name (In TypeString) = "5842"
-  // measurement param: RFSG port (In TypeString) = "port1"
-  // measurement param: RFmx port (In TypeString) = "port2"
-  // measurement param: RF Out Switch (In TypeString) = "2599_s07"
-  // measurement param: Common RFout (In TypeString) = "COM0"
-  // measurement param: Port1 Incident (In TypeString) = "NC0"
-  // measurement param: Port2 Incident (In TypeString) = "NO0"
-  // measurement param: RF In Switch (In TypeString) = "2597_s12"
-  // measurement param: Common RFin (In TypeString) = "COM"
-  // measurement param: Port1 Reference (In TypeString) = "CH1"
-  // measurement param: Port1 Test (In TypeString) = "CH2"
-  // measurement param: Port2 Reference (In TypeString) = "CH4"
-  // measurement param: Port2 Test (In TypeString) = "CH3"
-  // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 0i64
-  // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: Save Calibration File at (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\260607_VST_Sparam_Cal_RX.tdms"
-  // measurement param: Short S1P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Male_Short_SN-R126.s1p"
-  // measurement param: Open S1P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Male_Open_SN-R613.s1p"
-  // measurement param: Load S1P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Male_Load_SN-DT60.s1p"
-  // measurement param: Through Adapter S2P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Simulate_through.s2p"
-  // measurement param: Action (In TypeEnum Enum) = 1i64
-  // measurement param: Power Level (dBm) (In TypeDouble) = -20
-  // measurement param: External Gain (dB) (In TypeDouble) = 0
-  // measurement param: Start Frequency (Hz) (In TypeDouble) = 2000000000
-  // measurement param: Stop Frequency (Hz) (In TypeDouble) = 26000000000
-  // measurement param: Step Size (Hz) (In TypeDouble) = 50000000
-  // measurement param: Type of Stimulus (In TypeEnum Enum) = 0i64
-  // measurement param: Pulse Width (s) (In TypeDouble) = 0
-  // measurement param: PRI (s) (In TypeDouble) = 0
-  // measurement param: IF Bandwidth (Hz) (In TypeDouble) = 1000
-  // measurement param: Average Mode (In TypeEnum Enum) = 0i64
-  // measurement param: Number of Averages (In TypeInt32) = 1i64
-  // measurement param: SnP File Path (In TypeString) = ""
-  // measurement param: Calibration File Path (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\VST SPML Cal files\\260607_VST_Sparam_Cal_RX.tdms"
-  // measurement param: Power sequecing file validity check (In TypeBool) = True
-  // measurement param: Status (Out TypeString)
-  // measurement param: S-Param Magnitude (Out TypeMessage) = Locals.RX_SParam_VST_Mag_Full
-  // measurement param: S-Param Phase (Out TypeMessage) = Locals.RX_SParam_VST_Phase_Full
-  // measurement param: S21 (Mean) (Out TypeDouble) = Locals.RX_SParam_VST_S21_Mean
-  // measurement param: S12 (Mean) (Out TypeDouble) = Locals.RX_SParam_VST_S12_Mean
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // RX_VST S-Parameter [NI_Measurement]
-  // checks: Step.NumericArray
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // RX_VST S-Parameter Limit Test [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOffDut(); // RX_Power OFF [Action]
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
-  //   error out <- Step.Result.Error
-  await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    // ── main ──
+    // measurement: FPT_SParam_VST_LabVIEW
+    // measurement param: Automation Test (In TypeBool) = True
+    // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
+    // measurement param: VST Resource Name (In TypeString) = "5842"
+    // measurement param: RFSG port (In TypeString) = "port1"
+    // measurement param: RFmx port (In TypeString) = "port2"
+    // measurement param: RF Out Switch (In TypeString) = "2599_s07"
+    // measurement param: Common RFout (In TypeString) = "COM0"
+    // measurement param: Port1 Incident (In TypeString) = "NC0"
+    // measurement param: Port2 Incident (In TypeString) = "NO0"
+    // measurement param: RF In Switch (In TypeString) = "2597_s12"
+    // measurement param: Common RFin (In TypeString) = "COM"
+    // measurement param: Port1 Reference (In TypeString) = "CH1"
+    // measurement param: Port1 Test (In TypeString) = "CH2"
+    // measurement param: Port2 Reference (In TypeString) = "CH4"
+    // measurement param: Port2 Test (In TypeString) = "CH3"
+    // measurement param: RFSG attenuation mode (In TypeEnum Enum) = 0i64
+    // measurement param: RFSG external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: Save Calibration File at (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\260607_VST_Sparam_Cal_RX.tdms"
+    // measurement param: Short S1P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Male_Short_SN-R126.s1p"
+    // measurement param: Open S1P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Male_Open_SN-R613.s1p"
+    // measurement param: Load S1P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Male_Load_SN-DT60.s1p"
+    // measurement param: Through Adapter S2P (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\Maury SOLT\\Simulate_through.s2p"
+    // measurement param: Action (In TypeEnum Enum) = 1i64
+    // measurement param: Power Level (dBm) (In TypeDouble) = -20
+    // measurement param: External Gain (dB) (In TypeDouble) = 0
+    // measurement param: Start Frequency (Hz) (In TypeDouble) = 2000000000
+    // measurement param: Stop Frequency (Hz) (In TypeDouble) = 26000000000
+    // measurement param: Step Size (Hz) (In TypeDouble) = 50000000
+    // measurement param: Type of Stimulus (In TypeEnum Enum) = 0i64
+    // measurement param: Pulse Width (s) (In TypeDouble) = 0
+    // measurement param: PRI (s) (In TypeDouble) = 0
+    // measurement param: IF Bandwidth (Hz) (In TypeDouble) = 1000
+    // measurement param: Average Mode (In TypeEnum Enum) = 0i64
+    // measurement param: Number of Averages (In TypeInt32) = 1i64
+    // measurement param: SnP File Path (In TypeString) = ""
+    // measurement param: Calibration File Path (In TypeString) = "C:\\Users\\rfuser\\Desktop\\FPT Demo Folder\\Calibration Files\\VST SPML Cal files\\260607_VST_Sparam_Cal_RX.tdms"
+    // measurement param: Power sequecing file validity check (In TypeBool) = True
+    // measurement param: Status (Out TypeString)
+    // measurement param: S-Param Magnitude (Out TypeMessage) = Locals.RX_SParam_VST_Mag_Full
+    // measurement param: S-Param Phase (Out TypeMessage) = Locals.RX_SParam_VST_Phase_Full
+    // measurement param: S21 (Mean) (Out TypeDouble) = Locals.RX_SParam_VST_S21_Mean
+    // measurement param: S12 (Mean) (Out TypeDouble) = Locals.RX_SParam_VST_S12_Mean
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // RX_VST S-Parameter [NI_Measurement]
+    // checks: Step.NumericArray
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // RX_VST S-Parameter Limit Test [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOffDut(); // RX_Power OFF [Action]
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\TRM_RX_config_VSTSParam.csv"
+    //   error out <- Step.Result.Error
+    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+  }
 
   return run.status;
 }

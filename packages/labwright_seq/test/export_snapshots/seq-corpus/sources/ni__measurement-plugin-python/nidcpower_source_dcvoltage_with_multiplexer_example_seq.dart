@@ -17,41 +17,44 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "NIDCPowerSourceDCVoltageWithMultiplexer.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Create and register NI-DCPower sessions [Action]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_niswitch.py',
-  ); // Create and register NI-SWITCH multiplexer sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "NIDCPowerSourceDCVoltageWithMultiplexer.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Create and register NI-DCPower sessions [Action]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_niswitch.py',
+    ); // Create and register NI-SWITCH multiplexer sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDCPowerSourceDCVoltageWithMultiplexer_Python
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: voltage_level (In TypeDouble) = 6
-  // measurement param: voltage_level_range (In TypeDouble) = 6
-  // measurement param: current_limit (In TypeDouble) = 0.01
-  // measurement param: current_limit_range (In TypeDouble) = 0.01
-  // measurement param: source_delay (In TypeDouble) = 0
-  // measurement param: voltage_measurement (Out TypeDouble)
-  // measurement param: current_measurement (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Source DC voltage and measure voltage/current via multiplexer [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidcpower.py',
-  ); // Destroy and unregister NI-DCPower sessions [Action]
-  throw UnimplementedError(
-    'python call: teststand_niswitch.py',
-  ); // Destroy and unregister NI-SWITCH multiplexer sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDCPowerSourceDCVoltageWithMultiplexer_Python
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: voltage_level (In TypeDouble) = 6
+    // measurement param: voltage_level_range (In TypeDouble) = 6
+    // measurement param: current_limit (In TypeDouble) = 0.01
+    // measurement param: current_limit_range (In TypeDouble) = 0.01
+    // measurement param: source_delay (In TypeDouble) = 0
+    // measurement param: voltage_measurement (Out TypeDouble)
+    // measurement param: current_measurement (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Source DC voltage and measure voltage/current via multiplexer [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidcpower.py',
+    ); // Destroy and unregister NI-DCPower sessions [Action]
+    throw UnimplementedError(
+      'python call: teststand_niswitch.py',
+    ); // Destroy and unregister NI-SWITCH multiplexer sessions [Action]
+  }
 
   return run.status;
 }

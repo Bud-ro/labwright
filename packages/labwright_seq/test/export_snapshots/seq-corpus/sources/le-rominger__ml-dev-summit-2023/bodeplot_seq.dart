@@ -27,42 +27,45 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: See Process Setup
+  body:
+  try {
+    // ── setup ──
+    // label: See Process Setup
 
-  // ── main ──
-  // TODO: sweep loop (Locals.Frequency) not exported; the body runs once
-  {
-    // -- Call LabVIEW Service
-    // measurement: LabVIEW Bodeplot Summit_LabVIEW
-    // measurement param: Start Frequency (In TypeDouble) = Locals.Frequency
-    // measurement param: Frequency Steps (In TypeDouble) = 1
-    // measurement param: Stop Frequency (In TypeDouble) = Locals.Frequency+100
-    // measurement param: Amplitude (In TypeDouble) = 1
-    // measurement param: Timing (ms) (In TypeUint32) = 0ui64
-    // measurement param: Vin_signal (In TypeString Pin) = "Vin_signal"
-    // measurement param: filter_pins (In TypeString Pin) = "Vin_measure"
-    // measurement param: Simulate (In TypeBool) = Locals.Simulate
-    // measurement param: R1 (In TypeDouble) = 0
-    // measurement param: C1 (In TypeDouble) = 0
-    // measurement param: actual_gain (Out TypeDouble) = Locals.Results.gain
-    // measurement param: actual_phase (Out TypeDouble) = Locals.Results.phase
-    // measurement param: Gain (Out TypeDouble)
-    // measurement param: Phase (Out TypeDouble)
-    throw UnimplementedError(
-      'step type NI_Measurement: action not exported yet',
-    ); // Acquire a waveform using an NI oscilloscope [NI_Measurement]
-    // -- Call Python Service
-    // [skipped in source] Acquire a waveform using an NI oscilloscope
-    // -- Call Python Service: Simulation
-    // [skipped in source] Acquire a waveform using an NI oscilloscope
-    ts.eval(
-      'OutputMessage("f = "+ Str(Locals.Frequency,"%g Hz; ") + "Gain = "+Str(Locals.Results.gain,"%.2f dB; ") + "Phase = " + Str(Locals.Results.phase," %.2f °"),"Result",0,tsBlue)',
-    );
+    // ── main ──
+    // TODO: sweep loop (Locals.Frequency) not exported; the body runs once
+    {
+      // -- Call LabVIEW Service
+      // measurement: LabVIEW Bodeplot Summit_LabVIEW
+      // measurement param: Start Frequency (In TypeDouble) = Locals.Frequency
+      // measurement param: Frequency Steps (In TypeDouble) = 1
+      // measurement param: Stop Frequency (In TypeDouble) = Locals.Frequency+100
+      // measurement param: Amplitude (In TypeDouble) = 1
+      // measurement param: Timing (ms) (In TypeUint32) = 0ui64
+      // measurement param: Vin_signal (In TypeString Pin) = "Vin_signal"
+      // measurement param: filter_pins (In TypeString Pin) = "Vin_measure"
+      // measurement param: Simulate (In TypeBool) = Locals.Simulate
+      // measurement param: R1 (In TypeDouble) = 0
+      // measurement param: C1 (In TypeDouble) = 0
+      // measurement param: actual_gain (Out TypeDouble) = Locals.Results.gain
+      // measurement param: actual_phase (Out TypeDouble) = Locals.Results.phase
+      // measurement param: Gain (Out TypeDouble)
+      // measurement param: Phase (Out TypeDouble)
+      throw UnimplementedError(
+        'step type NI_Measurement: action not exported yet',
+      ); // Acquire a waveform using an NI oscilloscope [NI_Measurement]
+      // -- Call Python Service
+      // [skipped in source] Acquire a waveform using an NI oscilloscope
+      // -- Call Python Service: Simulation
+      // [skipped in source] Acquire a waveform using an NI oscilloscope
+      ts.eval(
+        'OutputMessage("f = "+ Str(Locals.Frequency,"%g Hz; ") + "Gain = "+Str(Locals.Results.gain,"%.2f dB; ") + "Phase = " + Str(Locals.Results.phase," %.2f °"),"Result",0,tsBlue)',
+      );
+    }
+  } finally {
+    // ── cleanup ──
+    // label: See Process Cleanup
   }
-
-  // ── cleanup ──
-  // label: See Process Cleanup
 
   return run.status;
 }

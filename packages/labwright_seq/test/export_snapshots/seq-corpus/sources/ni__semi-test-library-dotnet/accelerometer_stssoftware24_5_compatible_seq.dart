@@ -80,132 +80,135 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // description: Place any test flow agnostic setup steps here, to run before the test flow, for each unit under test.
-  // label: Test Flow Agnostic Setup Steps
-  if (fileGlobals.TestTemperature == 'Hot') {
-    // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature
-    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    throw UnimplementedError(
-      'dotNet call: Code Modules\\TestSteps\\WaitForTemperature.cs',
-    ); // Wait for temperature controller to reach desired temp [NI_SemiconductorModule_Action]
-  }
+  body:
+  try {
+    // ── setup ──
+    // description: Place any test flow agnostic setup steps here, to run before the test flow, for each unit under test.
+    // label: Test Flow Agnostic Setup Steps
+    if (fileGlobals.TestTemperature == 'Hot') {
+      // .NET assembly: Code Modules\bin\Accelerometer.dll
+      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.WaitForTemperature
+      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+      throw UnimplementedError(
+        'dotNet call: Code Modules\\TestSteps\\WaitForTemperature.cs',
+      ); // Wait for temperature controller to reach desired temp [NI_SemiconductorModule_Action]
+    }
 
-  // ── main ──
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   relayConfiguration <- "Connect VRef to DIO"
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
-  ); // Connect Vref pin to digital [NI_SemiconductorModule_Action]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestContinuity
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   pinsAndPinGroups <- {"Digital", "Vcc", "Gnd"}
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\TestContinuity.cs',
-  ); // Test continuity on all pins [NI_SemiconductorModule_MultiTest]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TurnOnPowerToDUT
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   powerSupplyPins <- {"Vcc"}
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\TurnOnPowerToDUT.cs',
-  ); // Turn on power to DUT [NI_SemiconductorModule_Action]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestLeakage
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   pinsAndPinGroups <- {"Digital"}
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\TestLeakage.cs',
-  ); // Test leakage on all digital pins [NI_SemiconductorModule_MultiTest]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestIdlePowerConsumption
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   vccPin <- "Vcc"
-  //   gndPin <- "Gnd"
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\TestIdlePowerConsumption.cs',
-  ); // Test idle power consumption [NI_SemiconductorModule_MultiTest]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetDUTAndSetMode
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   rstPin <- "RST"
-  //   modePin <- "MODE"
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\ResetDUTAndSetMode.cs',
-  ); // Reset DUT and set MODE pin [NI_SemiconductorModule_Action]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   spiPortPins <- {"SPI_Port"}
-  //   patternName <- "SetTestMode"
-  //   publishDataId <- "TestModeVerified"
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
-  ); // Put DUT into test mode and verify [NI_SemiconductorModule_MultiTest]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   spiPortPins <- {"SPI_Port"}
-  //   patternName <- "ReadPartNumber"
-  //   publishDataId <- "Part Number Match"
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
-  ); // Test DUT part number register [NI_SemiconductorModule_MultiTest]
-  if (fileGlobals.TestFlowId == 'Quality') {
-    // description: Place any test specific steps here to run for each unit under test.
-    // label: Test Flow Specific Steps
+    // ── main ──
     // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.CheckPartNumberRegisterWithMultipleVccValues
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-    //   spiPortPins <- {"SPI_Port"}
-    //   vccPin <- "Vcc"
-    //   vccVoltageSymbolsToTest <- {"DC.Vcc_Max", "DC.Vcc_Min"}
+    //   relayConfiguration <- "Connect VRef to DIO"
     throw UnimplementedError(
-      'dotNet call: Code Modules\\TestSteps\\CheckPartNumberRegisterWithMultipleVccValues.cs',
-    ); // Test DUT part number register at different Vcc values [NI_SemiconductorModule_MultiTest]
+      'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
+    ); // Connect Vref pin to digital [NI_SemiconductorModule_Action]
     // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetPowerSupplyToVccTypical
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestContinuity
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   pinsAndPinGroups <- {"Digital", "Vcc", "Gnd"}
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\TestContinuity.cs',
+    ); // Test continuity on all pins [NI_SemiconductorModule_MultiTest]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TurnOnPowerToDUT
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
     //   powerSupplyPins <- {"Vcc"}
     throw UnimplementedError(
-      'dotNet call: Code Modules\\TestSteps\\ResetPowerSupplyToVccTypical.cs',
-    ); // Reset Vcc to Vcc_Typical [NI_SemiconductorModule_Action]
+      'dotNet call: Code Modules\\TestSteps\\TurnOnPowerToDUT.cs',
+    ); // Turn on power to DUT [NI_SemiconductorModule_Action]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestLeakage
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   pinsAndPinGroups <- {"Digital"}
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\TestLeakage.cs',
+    ); // Test leakage on all digital pins [NI_SemiconductorModule_MultiTest]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TestIdlePowerConsumption
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   vccPin <- "Vcc"
+    //   gndPin <- "Gnd"
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\TestIdlePowerConsumption.cs',
+    ); // Test idle power consumption [NI_SemiconductorModule_MultiTest]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetDUTAndSetMode
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   rstPin <- "RST"
+    //   modePin <- "MODE"
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\ResetDUTAndSetMode.cs',
+    ); // Reset DUT and set MODE pin [NI_SemiconductorModule_Action]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   spiPortPins <- {"SPI_Port"}
+    //   patternName <- "SetTestMode"
+    //   publishDataId <- "TestModeVerified"
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
+    ); // Put DUT into test mode and verify [NI_SemiconductorModule_MultiTest]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.BurstPattern
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   spiPortPins <- {"SPI_Port"}
+    //   patternName <- "ReadPartNumber"
+    //   publishDataId <- "Part Number Match"
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\BurstPattern.cs',
+    ); // Test DUT part number register [NI_SemiconductorModule_MultiTest]
+    if (fileGlobals.TestFlowId == 'Quality') {
+      // description: Place any test specific steps here to run for each unit under test.
+      // label: Test Flow Specific Steps
+      // .NET assembly: Code Modules\bin\Accelerometer.dll
+      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.CheckPartNumberRegisterWithMultipleVccValues
+      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+      //   spiPortPins <- {"SPI_Port"}
+      //   vccPin <- "Vcc"
+      //   vccVoltageSymbolsToTest <- {"DC.Vcc_Max", "DC.Vcc_Min"}
+      throw UnimplementedError(
+        'dotNet call: Code Modules\\TestSteps\\CheckPartNumberRegisterWithMultipleVccValues.cs',
+      ); // Test DUT part number register at different Vcc values [NI_SemiconductorModule_MultiTest]
+      // .NET assembly: Code Modules\bin\Accelerometer.dll
+      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetPowerSupplyToVccTypical
+      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+      //   powerSupplyPins <- {"Vcc"}
+      throw UnimplementedError(
+        'dotNet call: Code Modules\\TestSteps\\ResetPowerSupplyToVccTypical.cs',
+      ); // Reset Vcc to Vcc_Typical [NI_SemiconductorModule_Action]
+    }
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   relayConfiguration <- "Connect VRef to Scope"
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
+    ); // Connect Vref pin to scope [NI_SemiconductorModule_Action]
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.MeasureVref
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\MeasureVref.cs',
+    ); // Measure and verify Vref voltage level [NI_SemiconductorModule_MultiTest]
+    // Trim each DUT using Vref from previous measurement
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TrimVrefValue
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   spiPortPins <- {"SPI_Port"}
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\TrimVrefValue.cs',
+    ); // Set Vref calibration register [NI_SemiconductorModule_MultiTest]
+  } finally {
+    // ── cleanup ──
+    // description: Place any test flow agnostic setup steps here, to run after each unit, regardless of pass/failure results. |
+    // label: Test Flow Agnostic Cleanup Steps
+    // .NET assembly: Code Modules\bin\Accelerometer.dll
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.DisableInstrumentOutputs
+    //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    throw UnimplementedError(
+      'dotNet call: Code Modules\\TestSteps\\DisableInstrumentOutputs.cs',
+    ); // Disable instrument outputs [NI_SemiconductorModule_Action]
   }
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ConnectVRefPin
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   relayConfiguration <- "Connect VRef to Scope"
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\ConnectVRefPin.cs',
-  ); // Connect Vref pin to scope [NI_SemiconductorModule_Action]
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.MeasureVref
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\MeasureVref.cs',
-  ); // Measure and verify Vref voltage level [NI_SemiconductorModule_MultiTest]
-  // Trim each DUT using Vref from previous measurement
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.TrimVrefValue
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   spiPortPins <- {"SPI_Port"}
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\TrimVrefValue.cs',
-  ); // Set Vref calibration register [NI_SemiconductorModule_MultiTest]
-
-  // ── cleanup ──
-  // description: Place any test flow agnostic setup steps here, to run after each unit, regardless of pass/failure results. |
-  // label: Test Flow Agnostic Cleanup Steps
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.DisableInstrumentOutputs
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\DisableInstrumentOutputs.cs',
-  ); // Disable instrument outputs [NI_SemiconductorModule_Action]
 
   return run.status;
 }
@@ -214,30 +217,33 @@ Future<String> mainSequence() async {
 Future<String> processCleanup() async {
   final run = ts.SequenceRun();
 
-  // ── main ──
-  // description: Place any steps here to run once at the end of a lot.
-  // label: Lot End Steps
-  // .NET assembly: Code Modules\bin\Accelerometer.dll
-  // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle
-  //   semiconductorModuleContext <- Step.SemiconductorModuleContext
-  //   powerOn <- False
-  throw UnimplementedError(
-    'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
-  ); // Power Toggle (off) [NI_SemiconductorModule_Action]
-  if (fileGlobals.TestTemperature == 'Hot') {
+  body:
+  try {
+    // ── main ──
+    // description: Place any steps here to run once at the end of a lot.
+    // label: Lot End Steps
     // .NET assembly: Code Modules\bin\Accelerometer.dll
-    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController
+    // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.PowerToggle
     //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+    //   powerOn <- False
     throw UnimplementedError(
-      'dotNet call: Code Modules\\TestSteps\\ResetAndCloseTemperatureController.cs',
-    ); // Reset and close temperature controller [NI_SemiconductorModule_Action]
+      'dotNet call: Code Modules\\TestSteps\\PowerToggle.cs',
+    ); // Power Toggle (off) [NI_SemiconductorModule_Action]
+    if (fileGlobals.TestTemperature == 'Hot') {
+      // .NET assembly: Code Modules\bin\Accelerometer.dll
+      // .NET call: NationalInstruments.Examples.SemiconductorTestLibrary.Accelerometer.TestSteps.ResetAndCloseTemperatureController
+      //   semiconductorModuleContext <- Step.SemiconductorModuleContext
+      throw UnimplementedError(
+        'dotNet call: Code Modules\\TestSteps\\ResetAndCloseTemperatureController.cs',
+      ); // Reset and close temperature controller [NI_SemiconductorModule_Action]
+    }
+  } finally {
+    // ── cleanup ──
+    // Do not delete or move.
+    throw UnimplementedError(
+      'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
+    ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
   }
-
-  // ── cleanup ──
-  // Do not delete or move.
-  throw UnimplementedError(
-    'step type NI_SemiconductorTest_CleanupInstrumentation: action not exported yet',
-  ); // Cleanup Instrumentation [NI_SemiconductorTest_CleanupInstrumentation]
 
   return run.status;
 }

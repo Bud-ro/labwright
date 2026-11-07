@@ -15,31 +15,34 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: "Keysight 34401A DMM Measurement.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence context <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and register NI-DCPower Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: "Keysight 34401A DMM Measurement.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence context <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and register NI-DCPower Sessions [Action]
 
-  // ── main ──
-  // measurement: ni.examples.Keysight34401A_DMMMeasurement_LabVIEW
-  // measurement param: pin_name (In TypeString IOResource) = "Pin1"
-  // measurement param: measurement_type (In TypeEnum Enum) = 0i64
-  // measurement param: auto_range (In TypeBool) = True
-  // measurement param: manual_range (In TypeDouble) = 1
-  // measurement param: resolution_digits (In TypeDouble) = 5.5
-  // measurement param: measured_value (Out TypeDouble)
-  // measurement param: signal_out_of_range (Out TypeBool)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Perform a DMM measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and close NI-DCPower sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.Keysight34401A_DMMMeasurement_LabVIEW
+    // measurement param: pin_name (In TypeString IOResource) = "Pin1"
+    // measurement param: measurement_type (In TypeEnum Enum) = 0i64
+    // measurement param: auto_range (In TypeBool) = True
+    // measurement param: manual_range (In TypeDouble) = 1
+    // measurement param: resolution_digits (In TypeDouble) = 5.5
+    // measurement param: measured_value (Out TypeDouble)
+    // measurement param: signal_out_of_range (Out TypeBool)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Perform a DMM measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and close NI-DCPower sessions [Action]
+  }
 
   return run.status;
 }

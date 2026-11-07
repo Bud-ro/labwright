@@ -18,105 +18,108 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   Enable Validity Check? <- True
-  //   error out <- Step.Result.Error
-  await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
-  //   measure call context in <- Nothing
-  //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOnDut(); // RX_Power ON [Action]
-  //   measure call context in <- Nothing
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callSetSwitching(); // RX_Switching Connect [Action]
+  body:
+  try {
+    // ── setup ──
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   Enable Validity Check? <- True
+    //   error out <- Step.Result.Error
+    await callPowerSequenceCsvValidityCheck(); // RX_Power Sequence CSV Validity Check [Action]
+    //   measure call context in <- Nothing
+    //   Power sequencing file path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOnDut(); // RX_Power ON [Action]
+    //   measure call context in <- Nothing
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callSetSwitching(); // RX_Switching Connect [Action]
 
-  // ── main ──
-  // measurement: FPT NoiseFigure_LabVIEW
-  // measurement param: Automation Test (In TypeBool) = True
-  // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  // measurement param: RFmx name (In TypeString) = "5842"
-  // measurement param: RFmx port (In TypeString) = "port1"
-  // measurement param: DUT Max Gain (dB) (In TypeDouble) = 17.5
-  // measurement param: DUT Max Noise Figure (dB) (In TypeDouble) = 3
-  // measurement param: Reference Level Mode (In TypeEnum Enum) = 1i64
-  // measurement param: Reference Level (dBm) (In TypeDouble) = 0
-  // measurement param: Preamp Enabled (In TypeInt32) = 3i64
-  // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
-  // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
-  // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
-  // measurement param: RFmx s2p file path (In TypeString) = ""
-  // measurement param: Switch Name (In TypeString) = "2599_S8"
-  // measurement param: Switch Connection (In TypeString) = "no0->com0"
-  // measurement param: ENS SMU Name (In TypeString) = ""
-  // measurement param: ENS SMU Channel (In TypeString) = ""
-  // measurement param: Action (In TypeUint32) = 0ui64
-  // measurement param: Measurement Bandwidth (Hz) (In TypeDouble) = 4000000
-  // measurement param: Measurement Interval (s) (In TypeDouble) = 0.1
-  // measurement param: NF Cal Setup ID (In TypeString) = "SNS_LV_-35_PS1m_6dB_4G_26.5G_100M"
-  // measurement param: DUT Type (In TypeInt32) = 0i64
-  // measurement param: Frequency List Mode (In TypeEnum Enum) = 0i64
-  // measurement param: Step - Start Frequency  (In TypeDouble) = 4000000000
-  // measurement param: Step - Stop Frequency (In TypeDouble) = 18000000000
-  // measurement param: Step - Step Size (In TypeDouble) = 1000000000
-  // measurement param: Points - Start Frequency (In TypeDouble) = 4000000000
-  // measurement param: Points - Stop Frequency (In TypeDouble) = 20000000000
-  // measurement param: Points - Number of Points (In TypeInt32) = 27i64
-  // measurement param: FreqList - Frequency List (In TypeDouble) = {}
-  // measurement param: Averaging Enabled (In TypeBool) = False
-  // measurement param: Averaging Count (In TypeInt32) = 10i64
-  // measurement param: Noise Source Type (In TypeInt32) = 1i64
-  // measurement param: Noise Source RFSG Port (In TypeString) = "port2"
-  // measurement param: Noise Source Cold Temperature (K) (In TypeDouble) = 302.8
-  // measurement param: Noise Source Off Temperature (K) (In TypeDouble) = 297
-  // measurement param: ENR Freq (Hz) (In TypeDouble) = {6500000000}
-  // measurement param: ENR (dB) (In TypeDouble) = {15}
-  // measurement param: DUT Input_Compensation Enabled (In TypeBool) = True
-  // measurement param: DUT Input_Temperation (K) (In TypeDouble) = 297
-  // measurement param: DUT Input_Loss Freq (Hz) (In TypeDouble) = {}
-  // measurement param: DUT Input_Loss (dB) (In TypeDouble) = {}
-  // measurement param: DUT Output_Compensation Enabled (In TypeBool) = True
-  // measurement param: DUT Output_Temperation (K) (In TypeDouble) = 297
-  // measurement param: DUT Output_Loss Freq (Hz) (In TypeDouble) = {}
-  // measurement param: DUT Output_Loss (dB) (In TypeDouble) = {}
-  // measurement param: Calibration_Compensation Enabled (In TypeBool) = True
-  // measurement param: Calibration_Temperation (K) (In TypeDouble) = 297
-  // measurement param: Calibration_Loss Freq (Hz) (In TypeDouble) = {}
-  // measurement param: Calibration_Loss (dB) (In TypeDouble) = {}
-  // measurement param: Noise Source_Compensation Enabled (In TypeBool) = False
-  // measurement param: Noise Source_Temperation (K) (In TypeDouble) = 297
-  // measurement param: Noise Source_Loss Freq (Hz) (In TypeDouble) = {}
-  // measurement param: Noise Source_Loss (dB) (In TypeDouble) = {}
-  // measurement param: DUT Input Loss S2P File Path (In TypeString) = ""
-  // measurement param: DUT Input Loss S-Parameter Orientation (In TypeInt32) = 0i64
-  // measurement param: DUT Output Loss S2P File Path (In TypeString) = ""
-  // measurement param: DUT Output Loss S-Parameter Orientation (In TypeInt32) = 0i64
-  // measurement param: Calibration Loss S2P File Path (In TypeString) = ""
-  // measurement param: Calibration Loss S-Parameter Orientation (In TypeInt32) = 0i64
-  // measurement param: Noise Source Loss S2P File Path (In TypeString) = ""
-  // measurement param: Noise Source Loss S-Parameter Orientation (In TypeInt32) = 0i64
-  // measurement param: Power sequecing file validity check (In TypeBool) = True
-  // measurement param: Status (Out TypeString)
-  // measurement param: DUT NF vs Freq (Out TypeMessage) = Locals.RX_NF_DUTNFvsFreq_Full
-  // measurement param: Analyzer NF vs Freq (Out TypeMessage)
-  // measurement param: DUT NF (mean) (Out TypeDouble) = Locals.RX_NF_DUTNF_Mean
-  // measurement param: Analyzer NF (mean) (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // RX_Noise Figure SNS [NI_Measurement]
-  // checks: Step.NumericArray
-  throw UnimplementedError(
-    'step type NI_MultipleNumericLimitTest: action not exported yet',
-  ); // RX_Noise Figure SNS Limit Test [NI_MultipleNumericLimitTest]
-
-  // ── cleanup ──
-  //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callPowerOffDut(); // RX_Power OFF [Action]
-  //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
-  //   error out <- Step.Result.Error
-  await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+    // ── main ──
+    // measurement: FPT NoiseFigure_LabVIEW
+    // measurement param: Automation Test (In TypeBool) = True
+    // measurement param: Power sequencing file path (In TypeString) = "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    // measurement param: RFmx name (In TypeString) = "5842"
+    // measurement param: RFmx port (In TypeString) = "port1"
+    // measurement param: DUT Max Gain (dB) (In TypeDouble) = 17.5
+    // measurement param: DUT Max Noise Figure (dB) (In TypeDouble) = 3
+    // measurement param: Reference Level Mode (In TypeEnum Enum) = 1i64
+    // measurement param: Reference Level (dBm) (In TypeDouble) = 0
+    // measurement param: Preamp Enabled (In TypeInt32) = 3i64
+    // measurement param: RFmx attenuation mode (In TypeEnum Enum) = 1i64
+    // measurement param: RFmx external attenuation (dB) (In TypeDouble) = 0
+    // measurement param: RFmx s-parameters orientation (In TypeEnum Enum) = 0i64
+    // measurement param: RFmx s2p file path (In TypeString) = ""
+    // measurement param: Switch Name (In TypeString) = "2599_S8"
+    // measurement param: Switch Connection (In TypeString) = "no0->com0"
+    // measurement param: ENS SMU Name (In TypeString) = ""
+    // measurement param: ENS SMU Channel (In TypeString) = ""
+    // measurement param: Action (In TypeUint32) = 0ui64
+    // measurement param: Measurement Bandwidth (Hz) (In TypeDouble) = 4000000
+    // measurement param: Measurement Interval (s) (In TypeDouble) = 0.1
+    // measurement param: NF Cal Setup ID (In TypeString) = "SNS_LV_-35_PS1m_6dB_4G_26.5G_100M"
+    // measurement param: DUT Type (In TypeInt32) = 0i64
+    // measurement param: Frequency List Mode (In TypeEnum Enum) = 0i64
+    // measurement param: Step - Start Frequency  (In TypeDouble) = 4000000000
+    // measurement param: Step - Stop Frequency (In TypeDouble) = 18000000000
+    // measurement param: Step - Step Size (In TypeDouble) = 1000000000
+    // measurement param: Points - Start Frequency (In TypeDouble) = 4000000000
+    // measurement param: Points - Stop Frequency (In TypeDouble) = 20000000000
+    // measurement param: Points - Number of Points (In TypeInt32) = 27i64
+    // measurement param: FreqList - Frequency List (In TypeDouble) = {}
+    // measurement param: Averaging Enabled (In TypeBool) = False
+    // measurement param: Averaging Count (In TypeInt32) = 10i64
+    // measurement param: Noise Source Type (In TypeInt32) = 1i64
+    // measurement param: Noise Source RFSG Port (In TypeString) = "port2"
+    // measurement param: Noise Source Cold Temperature (K) (In TypeDouble) = 302.8
+    // measurement param: Noise Source Off Temperature (K) (In TypeDouble) = 297
+    // measurement param: ENR Freq (Hz) (In TypeDouble) = {6500000000}
+    // measurement param: ENR (dB) (In TypeDouble) = {15}
+    // measurement param: DUT Input_Compensation Enabled (In TypeBool) = True
+    // measurement param: DUT Input_Temperation (K) (In TypeDouble) = 297
+    // measurement param: DUT Input_Loss Freq (Hz) (In TypeDouble) = {}
+    // measurement param: DUT Input_Loss (dB) (In TypeDouble) = {}
+    // measurement param: DUT Output_Compensation Enabled (In TypeBool) = True
+    // measurement param: DUT Output_Temperation (K) (In TypeDouble) = 297
+    // measurement param: DUT Output_Loss Freq (Hz) (In TypeDouble) = {}
+    // measurement param: DUT Output_Loss (dB) (In TypeDouble) = {}
+    // measurement param: Calibration_Compensation Enabled (In TypeBool) = True
+    // measurement param: Calibration_Temperation (K) (In TypeDouble) = 297
+    // measurement param: Calibration_Loss Freq (Hz) (In TypeDouble) = {}
+    // measurement param: Calibration_Loss (dB) (In TypeDouble) = {}
+    // measurement param: Noise Source_Compensation Enabled (In TypeBool) = False
+    // measurement param: Noise Source_Temperation (K) (In TypeDouble) = 297
+    // measurement param: Noise Source_Loss Freq (Hz) (In TypeDouble) = {}
+    // measurement param: Noise Source_Loss (dB) (In TypeDouble) = {}
+    // measurement param: DUT Input Loss S2P File Path (In TypeString) = ""
+    // measurement param: DUT Input Loss S-Parameter Orientation (In TypeInt32) = 0i64
+    // measurement param: DUT Output Loss S2P File Path (In TypeString) = ""
+    // measurement param: DUT Output Loss S-Parameter Orientation (In TypeInt32) = 0i64
+    // measurement param: Calibration Loss S2P File Path (In TypeString) = ""
+    // measurement param: Calibration Loss S-Parameter Orientation (In TypeInt32) = 0i64
+    // measurement param: Noise Source Loss S2P File Path (In TypeString) = ""
+    // measurement param: Noise Source Loss S-Parameter Orientation (In TypeInt32) = 0i64
+    // measurement param: Power sequecing file validity check (In TypeBool) = True
+    // measurement param: Status (Out TypeString)
+    // measurement param: DUT NF vs Freq (Out TypeMessage) = Locals.RX_NF_DUTNFvsFreq_Full
+    // measurement param: Analyzer NF vs Freq (Out TypeMessage)
+    // measurement param: DUT NF (mean) (Out TypeDouble) = Locals.RX_NF_DUTNF_Mean
+    // measurement param: Analyzer NF (mean) (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // RX_Noise Figure SNS [NI_Measurement]
+    // checks: Step.NumericArray
+    throw UnimplementedError(
+      'step type NI_MultipleNumericLimitTest: action not exported yet',
+    ); // RX_Noise Figure SNS Limit Test [NI_MultipleNumericLimitTest]
+  } finally {
+    // ── cleanup ──
+    //   Power Sequencing File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callPowerOffDut(); // RX_Power OFF [Action]
+    //   File Path <- "C:\\Program Files\\National Instruments\\NI FPT\\Application\\Supporting Materials\\Power Sequence Example\\ADTR1107_RX_config.csv"
+    //   error out <- Step.Result.Error
+    await callDisconnectAllSwitches(); // RX_Switching Disconnect [Action]
+  }
 
   return run.status;
 }

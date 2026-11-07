@@ -15,57 +15,60 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"C:\Users\8880_AN\Documents\Customers\National Instruments\AppNote_ModernLab\InstrumentStudio\AppNote_LabSetUp\PinMap.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  throw UnimplementedError(
-    'step type NI_CreateAndRegisterSessions: action not exported yet',
-  ); // Create and Register Sessions [NI_CreateAndRegisterSessions]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"C:\Users\8880_AN\Documents\Customers\National Instruments\AppNote_ModernLab\InstrumentStudio\AppNote_LabSetUp\PinMap.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    throw UnimplementedError(
+      'step type NI_CreateAndRegisterSessions: action not exported yet',
+    ); // Create and Register Sessions [NI_CreateAndRegisterSessions]
 
-  // ── main ──
-  // measurement: TemptronicATS_Python
-  // measurement param: target_temperature (In TypeDouble) = 30
-  // measurement param: tolerance (In TypeDouble) = 0.3
-  // measurement param: settling_time (In TypeDouble) = 1
-  // measurement param: timeout (In TypeDouble) = 20
-  // measurement param: stop (In TypeBool) = False
-  // measurement param: current_temp (Out TypeDouble)
-  // measurement param: elapsed_time (Out TypeDouble)
-  // measurement param: deviation (Out TypeDouble)
-  // measurement param: message (Out TypeString)
-  // measurement param: stabilized (Out TypeBool)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // TemptronicATS [NI_Measurement]
-  throw UnimplementedError(
-    'step type NI_Instrument: action not exported yet',
-  ); // Start - SMU/Power Supply [NI_Instrument]
-  throw UnimplementedError(
-    'step type NI_Instrument: action not exported yet',
-  ); // Start - SMU/Power Supply [NI_Instrument]
-  // measurement: DAQ_FiniteAI_LabVIEW
-  // measurement param: Physical_Channel (In TypeString) = "DAQ_4309_C1_S04/ai0"
-  // measurement param: Min_Voltage (In TypeDouble) = -5
-  // measurement param: Max_Voltage (In TypeDouble) = 5
-  // measurement param: Sample_Rate (In TypeDouble) = 1000000
-  // measurement param: Number_of_Samples (In TypeInt32) = 10000i64
-  // measurement param: Source (In TypeEnum Enum) = 0i64
-  // measurement param: Edge (In TypeInt32) = 10280i64
-  // measurement param: Actual_Sample_Rate (Out TypeDouble)
-  // measurement param: dt (Out TypeDouble)
-  // measurement param: Y (Out TypeDouble)
-  // measurement param: detected_amplitude (Out TypeDouble)
-  // measurement param: detected_frequency (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // DAQ_FiniteAI [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type NI_DestroyAndUnregisterSessions: action not exported yet',
-  ); // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]
+    // ── main ──
+    // measurement: TemptronicATS_Python
+    // measurement param: target_temperature (In TypeDouble) = 30
+    // measurement param: tolerance (In TypeDouble) = 0.3
+    // measurement param: settling_time (In TypeDouble) = 1
+    // measurement param: timeout (In TypeDouble) = 20
+    // measurement param: stop (In TypeBool) = False
+    // measurement param: current_temp (Out TypeDouble)
+    // measurement param: elapsed_time (Out TypeDouble)
+    // measurement param: deviation (Out TypeDouble)
+    // measurement param: message (Out TypeString)
+    // measurement param: stabilized (Out TypeBool)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // TemptronicATS [NI_Measurement]
+    throw UnimplementedError(
+      'step type NI_Instrument: action not exported yet',
+    ); // Start - SMU/Power Supply [NI_Instrument]
+    throw UnimplementedError(
+      'step type NI_Instrument: action not exported yet',
+    ); // Start - SMU/Power Supply [NI_Instrument]
+    // measurement: DAQ_FiniteAI_LabVIEW
+    // measurement param: Physical_Channel (In TypeString) = "DAQ_4309_C1_S04/ai0"
+    // measurement param: Min_Voltage (In TypeDouble) = -5
+    // measurement param: Max_Voltage (In TypeDouble) = 5
+    // measurement param: Sample_Rate (In TypeDouble) = 1000000
+    // measurement param: Number_of_Samples (In TypeInt32) = 10000i64
+    // measurement param: Source (In TypeEnum Enum) = 0i64
+    // measurement param: Edge (In TypeInt32) = 10280i64
+    // measurement param: Actual_Sample_Rate (Out TypeDouble)
+    // measurement param: dt (Out TypeDouble)
+    // measurement param: Y (Out TypeDouble)
+    // measurement param: detected_amplitude (Out TypeDouble)
+    // measurement param: detected_frequency (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // DAQ_FiniteAI [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type NI_DestroyAndUnregisterSessions: action not exported yet',
+    ); // Destroy and Unregister Sessions [NI_DestroyAndUnregisterSessions]
+  }
 
   return run.status;
 }

@@ -62,174 +62,177 @@ Future<String> powerSupplyAndMeasureWithTrigger({
     'Common': ts.PropObj(),
   }); // result of Time Domain Measurement - MeasureOnly
 
-  // ── setup ──
-  //
-  //
-  // label: Power Supply Source and Measure To Time Domain Measurement With Trigger
-  ts.eval(
-    'Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)',
-  ); // Get current date
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
-  ); // Get current date (cont.)
-  ts.eval(
-    ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
-  ); // Get current date (cont.)
-  // .NET call: System.Environment.GetFolderPath
-  //   Return Value <- Locals.DocumentPath
-  //   folder <- "MyDocuments"
-  throw UnimplementedError(
-    'dotNet call: System.Environment.GetFolderPath',
-  ); // Get document path [Action]
-  // label: Initialize Result Folder
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-  // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-  //   Return Value <- Locals.ArtifactsManagerTDM
-  //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\TDM - "+ Locals.DateTime.Now)
-  throw UnimplementedError(
-    'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-  ); // Time Domain Measurement - Initialize [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-  // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-  //   Return Value <- Locals.ArtifactsManagerPSSM
-  //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\PSSM  - "+ Locals.DateTime.Now)
-  throw UnimplementedError(
-    'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-  ); // Power Supply Source and Measure - Init Artifacts Manager [Action]
-  //
-  //
-  // label: Initialize Hardware
-  // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance
-  //   Return Value <- Locals.PSSMRessource
-  //   powerChannelName <- "Simulated_Power/Power"
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance',
-  ); // Power Supply Source and Measure - Create Instance [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance
-  //   Return Value <- Locals.TDMRessource
-  //   analogInputChannelExpression <- "TP_Power0:2"
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance',
-  ); // Time Domain Measurement - Create Instance [Action]
-  //
-  //
-  // label: Assign Measure folder
-  // label: Note: Build name, Directory and Save csv files.
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
-  //   Existing Object <- Locals.PSSMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ExternalComponents
-  // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-  // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-  //   measurementArtifactsManager <- Locals.ArtifactsManagerPSSM
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.AttachArtifactsManager',
-  ); // Power Supply Source and Measure - Asign Artifacts [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.TDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ExternalComponents
-  // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-  // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-  //   measurementArtifactsManager <- Locals.ArtifactsManagerTDM
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.AttachArtifactsManager',
-  ); // Time Domain Measurement - Asign Artifacts [Action]
+  body:
+  try {
+    // ── setup ──
+    //
+    //
+    // label: Power Supply Source and Measure To Time Domain Measurement With Trigger
+    ts.eval(
+      'Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)',
+    ); // Get current date
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
+    ); // Get current date (cont.)
+    ts.eval(
+      ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
+    ); // Get current date (cont.)
+    // .NET call: System.Environment.GetFolderPath
+    //   Return Value <- Locals.DocumentPath
+    //   folder <- "MyDocuments"
+    throw UnimplementedError(
+      'dotNet call: System.Environment.GetFolderPath',
+    ); // Get document path [Action]
+    // label: Initialize Result Folder
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
+    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
+    //   Return Value <- Locals.ArtifactsManagerTDM
+    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\TDM - "+ Locals.DateTime.Now)
+    throw UnimplementedError(
+      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+    ); // Time Domain Measurement - Initialize [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
+    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
+    //   Return Value <- Locals.ArtifactsManagerPSSM
+    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\MeasurementIPTraces\\PSSM  - "+ Locals.DateTime.Now)
+    throw UnimplementedError(
+      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+    ); // Power Supply Source and Measure - Init Artifacts Manager [Action]
+    //
+    //
+    // label: Initialize Hardware
+    // label: Note to run with Hardware: Update the Global Channel based on NI MAX in the below Initialize Steps
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance
+    //   Return Value <- Locals.PSSMRessource
+    //   powerChannelName <- "Simulated_Power/Power"
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.CreateInstance',
+    ); // Power Supply Source and Measure - Create Instance [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance
+    //   Return Value <- Locals.TDMRessource
+    //   analogInputChannelExpression <- "TP_Power0:2"
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.CreateInstance',
+    ); // Time Domain Measurement - Create Instance [Action]
+    //
+    //
+    // label: Assign Measure folder
+    // label: Note: Build name, Directory and Save csv files.
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
+    //   Existing Object <- Locals.PSSMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ExternalComponents
+    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
+    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
+    //   measurementArtifactsManager <- Locals.ArtifactsManagerPSSM
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.AttachArtifactsManager',
+    ); // Power Supply Source and Measure - Asign Artifacts [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.TDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ExternalComponents
+    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
+    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
+    //   measurementArtifactsManager <- Locals.ArtifactsManagerTDM
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.AttachArtifactsManager',
+    ); // Time Domain Measurement - Asign Artifacts [Action]
 
-  // ── main ──
-  // label: Configure
-  // label: Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
-  // Configure Time Domain Measurement settings to wait for Hardware Trigger from Power
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.TDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
-  ); // Time Domain Measurement - ConfigureOnly [Action]
-  //
-  // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
-  //   Existing Object <- Locals.PSSMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure
-  //   Return Value <- Parameters.PSSMResultData
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure',
-  ); // Power Supply Source and Measure - Configure and Measure [Action]
-  //
-  //
-  // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
-  //
-  // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
-  //
-  // ignores run-time errors
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.TDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
-  //   Return Value <- Parameters.TDMResultData
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
-  ); // Time Domain Measurement - MeasureOnly [Action]
-  runState.GotoCleanup =
-      !(!ts.truthy(timeDomainMeasurementMeasureOnlyResult.Error.Occurred) ||
-          ts.find(
-                    timeDomainMeasurementMeasureOnlyResult.Error.Msg,
-                    'ErrorCode = 20308',
-                  ) >
-                  0 &&
-              ts.str(skipAnalysis) == 'ProceedToAnalysis'); // post-expression
-  run.failed = runState.GotoCleanup; // post-expression (cont.)
-  timeDomainMeasurementMeasureOnlyResult.Status = 'Done';
-  run.record(timeDomainMeasurementMeasureOnlyResult.Status);
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
-  //   Existing Object <- Locals.PSSMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close',
-  ); // Power Supply Source and Measure - Close [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
-  //   Existing Object <- Locals.TDMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close',
-  ); // Time Domain Measurement - Close [Action]
+    // ── main ──
+    // label: Configure
+    // label: Note to run with Hardware: Review the configurations & update the Digital Start Trigger Settings based on NI MAX
+    // Configure Time Domain Measurement settings to wait for Hardware Trigger from Power
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.TDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
+    ); // Time Domain Measurement - ConfigureOnly [Action]
+    //
+    // Timing engine should match with configured Hardware trigger line for Time Domain Measurement
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
+    //   Existing Object <- Locals.PSSMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure
+    //   Return Value <- Parameters.PSSMResultData
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.ConfigureAndMeasure',
+    ); // Power Supply Source and Measure - Configure and Measure [Action]
+    //
+    //
+    // label: Note to run with Hardware: Update "Periodic Waveform" input to True to calculate Frequency
+    //
+    // Fetches the measured DC Voltage (measured when Power Supply sends Trigger after source) and returns Time Domain Analysis
+    //
+    // ignores run-time errors
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.TDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure
+    //   Return Value <- Parameters.TDMResultData
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.ConfigureAndMeasure',
+    ); // Time Domain Measurement - MeasureOnly [Action]
+    runState.GotoCleanup =
+        !(!ts.truthy(timeDomainMeasurementMeasureOnlyResult.Error.Occurred) ||
+            ts.find(
+                      timeDomainMeasurementMeasureOnlyResult.Error.Msg,
+                      'ErrorCode = 20308',
+                    ) >
+                    0 &&
+                ts.str(skipAnalysis) == 'ProceedToAnalysis'); // post-expression
+    run.failed = runState.GotoCleanup; // post-expression (cont.)
+    timeDomainMeasurementMeasureOnlyResult.Status = 'Done';
+    run.record(timeDomainMeasurementMeasureOnlyResult.Status);
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Use Existing Object
+    //   Existing Object <- Locals.PSSMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.PowerSupplySourceAndMeasurements.PowerSupplySourceAndMeasure.Close',
+    ); // Power Supply Source and Measure - Close [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Use Existing Object
+    //   Existing Object <- Locals.TDMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.TimeDomainMeasurements.TimeDomainMeasurement.Close',
+    ); // Time Domain Measurement - Close [Action]
+  }
 
   return run.status;
 }

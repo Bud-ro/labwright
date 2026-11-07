@@ -17,32 +17,37 @@ Future<String> mainSequence() async {
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  throw UnimplementedError(
-    'step type OutputMessage: action not exported yet',
-  ); // Setup [OutputMessage]
-  ts.eval(
-    'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
-  ); // post-expression
-
-  // ── main ──
-  for (i = 0; i < 10; i += 1) {
+  body:
+  try {
+    // ── setup ──
     throw UnimplementedError(
       'step type OutputMessage: action not exported yet',
-    ); // Current Iteration [OutputMessage]
+    ); // Setup [OutputMessage]
     ts.eval(
       'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
     ); // post-expression
-    await Future<void>.delayed(const Duration(milliseconds: 100)); // Wait 100ms
-  }
 
-  // ── cleanup ──
-  throw UnimplementedError(
-    'step type OutputMessage: action not exported yet',
-  ); // Cleanup [OutputMessage]
-  ts.eval(
-    'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
-  ); // post-expression
+    // ── main ──
+    for (i = 0; i < 10; i += 1) {
+      throw UnimplementedError(
+        'step type OutputMessage: action not exported yet',
+      ); // Current Iteration [OutputMessage]
+      ts.eval(
+        'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
+      ); // post-expression
+      await Future<void>.delayed(
+        const Duration(milliseconds: 100),
+      ); // Wait 100ms
+    }
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'step type OutputMessage: action not exported yet',
+    ); // Cleanup [OutputMessage]
+    ts.eval(
+      'OutputMessage( Str(Evaluate(Step.Message)), Str(Evaluate(Step.Category)), (Step.Use_Severity_Exp ? Evaluate(Step.Severiy_Exp) : Val(Step.Severity)) )',
+    ); // post-expression
+  }
 
   return run.status;
 }

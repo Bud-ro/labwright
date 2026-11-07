@@ -15,33 +15,36 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: @"D:\RA Tools Git\abstraction-layer-labview\Source\FAL Implementation\SourceMeasureDCVoltageFAL.pinmap"
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update Pin Map [NI_UpdatePinMap]
-  //   sequence context in <- ThisContext
-  //   error out <- Step.Result.Error
-  await callInitializeAndRegisterSessions(); // Initialize and Reserve Sessions [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: @"D:\RA Tools Git\abstraction-layer-labview\Source\FAL Implementation\SourceMeasureDCVoltageFAL.pinmap"
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update Pin Map [NI_UpdatePinMap]
+    //   sequence context in <- ThisContext
+    //   error out <- Step.Result.Error
+    await callInitializeAndRegisterSessions(); // Initialize and Reserve Sessions [Action]
 
-  // ── main ──
-  // measurement: SourceMeasureDCVoltage_LabVIEW
-  // measurement param: source_pin (In TypeString Pin) = "NI_DCPower_Pin"
-  // measurement param: Voltage Level (In TypeDouble) = 2
-  // measurement param: Voltage Level Range (In TypeDouble) = 6
-  // measurement param: Current Limit (In TypeDouble) = 0.01
-  // measurement param: Current Limit Range (In TypeDouble) = 0.01
-  // measurement param: Source Delay (Sec) (In TypeDouble) = 0.001
-  // measurement param: measure_pin (In TypeString Pin) = "NI_DMM_Pin"
-  // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
-  // measurement param: Measurement (Out TypeDouble)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Measurement [NI_Measurement]
-
-  // ── cleanup ──
-  //   error out <- Step.Result.Error
-  await callUnregisterAndCloseSessions(); // Unregister and Close Sessions [Action]
+    // ── main ──
+    // measurement: SourceMeasureDCVoltage_LabVIEW
+    // measurement param: source_pin (In TypeString Pin) = "NI_DCPower_Pin"
+    // measurement param: Voltage Level (In TypeDouble) = 2
+    // measurement param: Voltage Level Range (In TypeDouble) = 6
+    // measurement param: Current Limit (In TypeDouble) = 0.01
+    // measurement param: Current Limit Range (In TypeDouble) = 0.01
+    // measurement param: Source Delay (Sec) (In TypeDouble) = 0.001
+    // measurement param: measure_pin (In TypeString Pin) = "NI_DMM_Pin"
+    // measurement param: Resolution in Digits (In TypeEnum Enum) = 2i64
+    // measurement param: Measurement (Out TypeDouble)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Measurement [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    //   error out <- Step.Result.Error
+    await callUnregisterAndCloseSessions(); // Unregister and Close Sessions [Action]
+  }
 
   return run.status;
 }

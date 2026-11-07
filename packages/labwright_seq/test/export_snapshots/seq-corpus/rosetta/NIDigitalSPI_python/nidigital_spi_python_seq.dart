@@ -15,51 +15,54 @@ import 'package:labwright/shims.dart' as ts;
 Future<String> mainSequence() async {
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // pin map: FileGlobals.MeasurementPlugIns.PinMapPath
-  throw UnimplementedError(
-    'step type NI_UpdatePinMap: action not exported yet',
-  ); // Update pin map [NI_UpdatePinMap]
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidigital.py',
-  ); // Create and register NI-Digital sessions [Action]
-  //   pin_map_path <- FileGlobals.MeasurementPlugIns.PinMapPath
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidigital.py',
-  ); // Load NI-Digital pin map [Action]
-  //   specifications_file_paths <- FileGlobals.MeasurementPlugIns.SpecificationsFilePaths
-  //   levels_file_paths <- FileGlobals.MeasurementPlugIns.LevelsFilePaths
-  //   timing_file_paths <- FileGlobals.MeasurementPlugIns.TimingFilePaths
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidigital.py',
-  ); // Load NI-Digital specifications, levels, and timing [Action]
-  //   pattern_file_paths <- FileGlobals.MeasurementPlugIns.PatternFilePaths
-  //   sequence_context <- ThisContext
-  throw UnimplementedError(
-    'python call: teststand_nidigital.py',
-  ); // Load NI-Digital patterns [Action]
+  body:
+  try {
+    // ── setup ──
+    // pin map: FileGlobals.MeasurementPlugIns.PinMapPath
+    throw UnimplementedError(
+      'step type NI_UpdatePinMap: action not exported yet',
+    ); // Update pin map [NI_UpdatePinMap]
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidigital.py',
+    ); // Create and register NI-Digital sessions [Action]
+    //   pin_map_path <- FileGlobals.MeasurementPlugIns.PinMapPath
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidigital.py',
+    ); // Load NI-Digital pin map [Action]
+    //   specifications_file_paths <- FileGlobals.MeasurementPlugIns.SpecificationsFilePaths
+    //   levels_file_paths <- FileGlobals.MeasurementPlugIns.LevelsFilePaths
+    //   timing_file_paths <- FileGlobals.MeasurementPlugIns.TimingFilePaths
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidigital.py',
+    ); // Load NI-Digital specifications, levels, and timing [Action]
+    //   pattern_file_paths <- FileGlobals.MeasurementPlugIns.PatternFilePaths
+    //   sequence_context <- ThisContext
+    throw UnimplementedError(
+      'python call: teststand_nidigital.py',
+    ); // Load NI-Digital patterns [Action]
 
-  // ── main ──
-  // measurement: ni.examples.NIDigitalSPI_Python
-  // measurement param: pin_names (In TypeString IOResource) = {"SPI_PINS"}
-  // measurement param: specification_file_path (In TypeString Path) = "Specifications.specs"
-  // measurement param: levels_file_path (In TypeString Path) = "PinLevels.digilevels"
-  // measurement param: timing_file_path (In TypeString Path) = "Timing.digitiming"
-  // measurement param: pattern_file_path (In TypeString Path) = "Pattern.digipat"
-  // measurement param: load_files (In TypeBool) = False
-  // measurement param: passing_sites (Out TypeInt32)
-  // measurement param: failing_sites (Out TypeInt32)
-  throw UnimplementedError(
-    'step type NI_Measurement: action not exported yet',
-  ); // Test SPI device [NI_Measurement]
-
-  // ── cleanup ──
-  throw UnimplementedError(
-    'python call: teststand_nidigital.py',
-  ); // Destroy and unregister NI-Digital sessions [Action]
+    // ── main ──
+    // measurement: ni.examples.NIDigitalSPI_Python
+    // measurement param: pin_names (In TypeString IOResource) = {"SPI_PINS"}
+    // measurement param: specification_file_path (In TypeString Path) = "Specifications.specs"
+    // measurement param: levels_file_path (In TypeString Path) = "PinLevels.digilevels"
+    // measurement param: timing_file_path (In TypeString Path) = "Timing.digitiming"
+    // measurement param: pattern_file_path (In TypeString Path) = "Pattern.digipat"
+    // measurement param: load_files (In TypeBool) = False
+    // measurement param: passing_sites (Out TypeInt32)
+    // measurement param: failing_sites (Out TypeInt32)
+    throw UnimplementedError(
+      'step type NI_Measurement: action not exported yet',
+    ); // Test SPI device [NI_Measurement]
+  } finally {
+    // ── cleanup ──
+    throw UnimplementedError(
+      'python call: teststand_nidigital.py',
+    ); // Destroy and unregister NI-Digital sessions [Action]
+  }
 
   return run.status;
 }

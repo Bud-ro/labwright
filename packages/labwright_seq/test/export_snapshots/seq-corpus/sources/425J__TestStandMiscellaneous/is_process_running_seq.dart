@@ -22,32 +22,41 @@ Future<String> isProcessRunning({
 
   final run = ts.SequenceRun();
 
-  // ── main ──
-  // custom flow: if (Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing), | Parameters.ProcessFound | ) Next else Goto -> <Cleanup>
-  // .NET call: System.Diagnostics.Process.GetProcessesByName
-  //   Return Value <- Locals.Processes
-  //   processName <- Parameters.ProcessName
-  throw UnimplementedError(
-    'dotNet call: System.Diagnostics.Process.GetProcessesByName',
-  ); // Get process [Action]
-  if (descriptionToSearch != '') {
-    // .NET call: System.Diagnostics.Process.Use Existing Object
-    //   Existing Object <- Locals.Processes[0]
-    // .NET call: System.Diagnostics.Process.MainModule
-    // .NET call: System.Diagnostics.ProcessModule.FileVersionInfo
-    // .NET call: System.Diagnostics.FileVersionInfo.FileDescription
-    //   Return Value <- Locals.Description
+  body:
+  try {
+    // ── main ──
+    // custom flow: if (Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing), | Parameters.ProcessFound | ) Next else Goto -> <Cleanup>
+    // .NET call: System.Diagnostics.Process.GetProcessesByName
+    //   Return Value <- Locals.Processes
+    //   processName <- Parameters.ProcessName
     throw UnimplementedError(
-      'dotNet call: System.Diagnostics.Process.FileDescription',
-    ); // Get description [Action]
-    ts.eval(
-      'Parameters.ProcessFound = MatchPattern(Locals.Description, Parameters.DescriptionToSearch, True)',
-    ); // Check description
+      'dotNet call: System.Diagnostics.Process.GetProcessesByName',
+    ); // Get process [Action]
+    if (!(ts.cond(
+      'Parameters.ProcessFound = (GetNumElements(Locals.Processes) != 0 && Locals.Processes[0] != Nothing),\nParameters.ProcessFound\n',
+    ))) {
+      // post action
+      break body;
+    }
+    if (descriptionToSearch != '') {
+      // .NET call: System.Diagnostics.Process.Use Existing Object
+      //   Existing Object <- Locals.Processes[0]
+      // .NET call: System.Diagnostics.Process.MainModule
+      // .NET call: System.Diagnostics.ProcessModule.FileVersionInfo
+      // .NET call: System.Diagnostics.FileVersionInfo.FileDescription
+      //   Return Value <- Locals.Description
+      throw UnimplementedError(
+        'dotNet call: System.Diagnostics.Process.FileDescription',
+      ); // Get description [Action]
+      ts.eval(
+        'Parameters.ProcessFound = MatchPattern(Locals.Description, Parameters.DescriptionToSearch, True)',
+      ); // Check description
+    }
+  } finally {
+    // ── cleanup ──
+    // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.Processes); increment RunState.LoopIndex += 1; status "Done"
+    processes[runState.LoopIndex] = null; // Release Process
   }
-
-  // ── cleanup ──
-  // step loop (Custom): init RunState.LoopIndex = 0; while RunState.LoopIndex < GetNumElements(Locals.Processes); increment RunState.LoopIndex += 1; status "Done"
-  processes[runState.LoopIndex] = null; // Release Process
 
   return run.status;
 }
@@ -71,10 +80,9 @@ final dynamic step = null;
 
 void register() {
   // TODO: unported — implement, then rename lw.skipTest -> lw.test to arm:
-  //   flow action of step "Get process" (Next/Next) not exported
   //   dotNet call: System.Diagnostics.Process.GetProcessesByName
-  //   dotNet call: System.Diagnostics.Process.FileDescription
   //   untranslated expression in body
+  //   dotNet call: System.Diagnostics.Process.FileDescription
   //   step "Release Process" loops (Custom) — per-step looping not exported
   //   RunState engine access (no engine at run time)
   lw.skipTest('Is Process Running', () async {

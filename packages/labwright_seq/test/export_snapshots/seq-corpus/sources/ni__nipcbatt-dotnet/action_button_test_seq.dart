@@ -50,174 +50,177 @@ Future<String> actionButtonTest({
 
   final run = ts.SequenceRun();
 
-  // ── setup ──
-  // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points.
-  //
-  //
-  ts.eval(
-    'Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)',
-  ); // Get current date
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
-  ); // Get current date (cont.)
-  ts.eval(
-    ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
-  ); // Get current date (cont.)
-  ts.eval(
-    '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
-  ); // Get current date (cont.)
-  // .NET call: System.Environment.GetFolderPath
-  //   Return Value <- Locals.DocumentPath
-  //   folder <- "MyDocuments"
-  throw UnimplementedError(
-    'dotNet call: System.Environment.GetFolderPath',
-  ); // Get document path [Action]
-  //
-  //
-  // label: Initialize Result Folder
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-  // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-  //   Return Value <- Locals.ArtifactsManagerDCVG
-  //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBATT\\DCVG - "+ Locals.DateTime.Now)
-  throw UnimplementedError(
-    'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-  ); // DC Voltage Generation - Initialize Result Folder [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
-  // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
-  //   Return Value <- Locals.ArtifactsManagerDCVM
-  //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBATT\\DCVM - "+ Locals.DateTime.Now)
-  throw UnimplementedError(
-    'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
-  ); // DC-RMS Voltage Measurement - Initialize Result Folder [Action]
-  //
-  //
-  // label: Initialize Hardware
-  // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
-  //
-  // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance
-  //   Return Value <- Locals.DCVGRessource
-  //   analogOutputChannelExpression <- "TS_ButtonEnable0"
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance',
-  ); // DC Voltage Generation - Initialize Action Button [Action]
-  //
-  // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform DC-RMS Voltage Measurement
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance
-  //   Return Value <- Locals.DCVMRessource
-  //   analogInputChannelExpression <- "TP_LineOut0:1"
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance',
-  ); // DC-RMS Voltage Measurement - Initialize TP [Action]
-  //
-  //
-  // label: Assign Measure folder
-  // label: Note: Build name, Directory and Save csv files.
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.DCVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ExternalComponents
-  // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-  // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-  //   measurementArtifactsManager <- Locals.ArtifactsManagerDCVG
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.AttachArtifactsManager',
-  ); // DC Voltage Generation - Assign Generation [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-  //   Existing Object <- Locals.DCVMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ExternalComponents
-  // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
-  // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
-  //   measurementArtifactsManager <- Locals.ArtifactsManagerDCVM
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.AttachArtifactsManager',
-  ); // DC-RMS Voltage Measurement - Assign Measure TP [Action]
+  body:
+  try {
+    // ── setup ──
+    // label: Example demonstrates DC-RMS Voltage Measurements by performing button actions (generating DC Voltages) on specific test points.
+    //
+    //
+    ts.eval(
+      'Locals.NewSubProperty("DateTime",PropValType_Container,False,"",0)',
+    ); // Get current date
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Now",PropValType_String,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Year",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Month",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Day",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Hours",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Minutes",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Seconds",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\nLocals.DateTime.NewSubProperty("Milliseconds",PropValType_Number,False,"",0)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\n\nDate(False, Locals.DateTime.Year, Locals.DateTime.Month, Locals.DateTime.Day)',
+    ); // Get current date (cont.)
+    ts.eval(
+      ' \nTime(True, Locals.DateTime.Hours, Locals.DateTime.Minutes, Locals.DateTime.Seconds, Locals.DateTime.MilliSeconds)',
+    ); // Get current date (cont.)
+    ts.eval(
+      '\n\nLocals.DateTime.Now = Str(Locals.DateTime.Month, "%.2u") + "-" + Str(Locals.DateTime.Day, "%.2u") + "-" + Right(Str(Locals.DateTime.Year, "%u"),2) + "-" + Str(Locals.DateTime.Hours, "%.2u") + "h" + Str(Locals.DateTime.Minutes, "%.2u") + "m" + Str(Locals.DateTime.Seconds, "%.2u") + "s"',
+    ); // Get current date (cont.)
+    // .NET call: System.Environment.GetFolderPath
+    //   Return Value <- Locals.DocumentPath
+    //   folder <- "MyDocuments"
+    throw UnimplementedError(
+      'dotNet call: System.Environment.GetFolderPath',
+    ); // Get document path [Action]
+    //
+    //
+    // label: Initialize Result Folder
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
+    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
+    //   Return Value <- Locals.ArtifactsManagerDCVG
+    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBATT\\DCVG - "+ Locals.DateTime.Now)
+    throw UnimplementedError(
+      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+    ); // DC Voltage Generation - Initialize Result Folder [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\NI.Measurement.Foundation.dll
+    // .NET call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager
+    //   Return Value <- Locals.ArtifactsManagerDCVM
+    //   measurementArtifactsOutputFolderAbsolutePath <- #NoValidation(Locals.DocumentPath + "\\PCBATT\\DCVM - "+ Locals.DateTime.Now)
+    throw UnimplementedError(
+      'dotNet call: NI.MeasurementFoundation.DataManagement.FileSystemMeasurementArtifactsManager.FileSystemMeasurementArtifactsManager',
+    ); // DC-RMS Voltage Measurement - Initialize Result Folder [Action]
+    //
+    //
+    // label: Initialize Hardware
+    // label: Note to run with Hardware: Update Virtual/Physical Channels Info based on NI MAX in the below Initialize Steps
+    //
+    // Initializes the configured Physical/Virtual channels of Analog Output module to perform Action Button functionality
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance
+    //   Return Value <- Locals.DCVGRessource
+    //   analogOutputChannelExpression <- "TS_ButtonEnable0"
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.CreateInstance',
+    ); // DC Voltage Generation - Initialize Action Button [Action]
+    //
+    // Initializes the configured Physical/Virtual Channels of Anlaog input module to perform DC-RMS Voltage Measurement
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance
+    //   Return Value <- Locals.DCVMRessource
+    //   analogInputChannelExpression <- "TP_LineOut0:1"
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.CreateInstance',
+    ); // DC-RMS Voltage Measurement - Initialize TP [Action]
+    //
+    //
+    // label: Assign Measure folder
+    // label: Note: Build name, Directory and Save csv files.
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.DCVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ExternalComponents
+    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
+    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
+    //   measurementArtifactsManager <- Locals.ArtifactsManagerDCVG
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.AttachArtifactsManager',
+    ); // DC Voltage Generation - Assign Generation [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
+    //   Existing Object <- Locals.DCVMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ExternalComponents
+    // .NET call: NI.MeasurementFoundation.ExternalComponents.MeasurementExternalComponents.ArtifactsManagers
+    // .NET call: NI.MeasurementFoundation.DataManagement.Interfaces.IMeasurementArtifactsManagersCollection.AttachArtifactsManager
+    //   measurementArtifactsManager <- Locals.ArtifactsManagerDCVM
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.AttachArtifactsManager',
+    ); // DC-RMS Voltage Measurement - Assign Measure TP [Action]
 
-  // ── main ──
-  // label: Button ON Action
-  //
-  // Note: This Step can be replaced with actual button action
-  // label: Note to run with Hardware: Update DC Voltage for Action Button ON condition
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.DCVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
-  ); // DC Voltage Generation - Action Button On State [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-  //   Existing Object <- Locals.DCVMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure
-  //   Return Value <- Parameters.DCVMResultData
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
-  ); // DC-RMS Voltage Measurement - Measure TP [Action]
-  //
-  //
-  // label: Button OFF Action
-  // label: Note to run with Hardware: Update DC Voltage for Action Button OFF condition
-  //
-  // Note: This Step can be replaced with actual button action
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.DCVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
-  ); // DC Voltage Generation -  Action Button OFF State [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-  //   Existing Object <- Locals.DCVMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure
-  //   Return Value <- Parameters.DCVMResultData
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
-  ); // DC-RMS Voltage Measurement - Measure TP [Action]
-
-  // ── cleanup ──
-  // label: Close all Tasks
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
-  //   Existing Object <- Locals.DCVGRessource
-  // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close',
-  ); // DC Voltage Generation -  Close Action Button [Action]
-  // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
-  //   Existing Object <- Locals.DCVMRessource
-  // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close
-  throw UnimplementedError(
-    'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close',
-  ); // DC-RMS Voltage Measurement -  Close Action TP [Action]
+    // ── main ──
+    // label: Button ON Action
+    //
+    // Note: This Step can be replaced with actual button action
+    // label: Note to run with Hardware: Update DC Voltage for Action Button ON condition
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.DCVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
+    ); // DC Voltage Generation - Action Button On State [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
+    //   Existing Object <- Locals.DCVMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure
+    //   Return Value <- Parameters.DCVMResultData
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
+    ); // DC-RMS Voltage Measurement - Measure TP [Action]
+    //
+    //
+    // label: Button OFF Action
+    // label: Note to run with Hardware: Update DC Voltage for Action Button OFF condition
+    //
+    // Note: This Step can be replaced with actual button action
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.DCVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.ConfigureAndGenerate',
+    ); // DC Voltage Generation -  Action Button OFF State [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
+    //   Existing Object <- Locals.DCVMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure
+    //   Return Value <- Parameters.DCVMResultData
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.ConfigureAndMeasure',
+    ); // DC-RMS Voltage Measurement - Measure TP [Action]
+  } finally {
+    // ── cleanup ──
+    // label: Close all Tasks
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Use Existing Object
+    //   Existing Object <- Locals.DCVGRessource
+    // .NET call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Generations.DcVoltageGenerations.DcVoltageGeneration.Close',
+    ); // DC Voltage Generation -  Close Action Button [Action]
+    // .NET assembly: ..\..\PCBA.Test.Toolkit\bin\Debug\net462\PCBA.Test.Toolkit.dll
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Use Existing Object
+    //   Existing Object <- Locals.DCVMRessource
+    // .NET call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close
+    throw UnimplementedError(
+      'dotNet call: PCBATestToolkitApi.Measurements.DcRmsVoltageMeasurements.DcRmsVoltageMeasurement.Close',
+    ); // DC-RMS Voltage Measurement -  Close Action TP [Action]
+  }
 
   return run.status;
 }

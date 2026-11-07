@@ -31,53 +31,57 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Interact with Device
 
-  // ── setup ──
-  //   Timeout <- 100
-  //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
-  //   error out <- Step.Result.Error
-  await callInitialize(); // Initialize Connection [Action]
-  // Provide a script with a set of (test) functions, so these can be invoked as needed using SendCommand.vi
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  //   Comport <- FileGlobals.UUT.Serial.SessionReference
-  //   Script File <- "sample.script.py"
-  //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
-  //   Reply <- Step.Result.ReportText
-  //   DownloadSuccessful <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callUploadScript(); // Download Test Functions / Script [PassFailTest]
-  downloadTestFunctionsScriptResult.Status =
-      ts.truthy(downloadTestFunctionsScriptResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(downloadTestFunctionsScriptResult.Status);
+  body:
+  try {
+    // ── setup ──
+    //   Timeout <- 100
+    //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
+    //   error out <- Step.Result.Error
+    await callInitialize(); // Initialize Connection [Action]
+    // Provide a script with a set of (test) functions, so these can be invoked as needed using SendCommand.vi
+    // checks: Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    //   Comport <- FileGlobals.UUT.Serial.SessionReference
+    //   Script File <- "sample.script.py"
+    //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
+    //   Reply <- Step.Result.ReportText
+    //   DownloadSuccessful <- Step.Result.PassFail
+    //   error out <- Step.Result.Error
+    await callUploadScript(); // Download Test Functions / Script [PassFailTest]
+    downloadTestFunctionsScriptResult.Status =
+        ts.truthy(downloadTestFunctionsScriptResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(downloadTestFunctionsScriptResult.Status);
 
-  // ── main ──
-  // Invoke one of these previously test functions and assess the response.
-  // This might be the state of some Pin, the content of the EEPROM, ...
-  // checks: Step.Result.PassFail = Find(Step.Result.ReportText, ">>>") > -1, | Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  //   Comport <- FileGlobals.UUT.Serial.SessionReference
-  //   Command <- "help()"
-  //   Timeout (Sec) <- 500
-  //   Wait Before Read (Ms) <- 50
-  //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
-  //   Reply <- Step.Result.ReportText
-  //   Last Reply Entry <- Locals.Reply
-  //   error out <- Step.Result.Error
-  await callSendCommand(); // Interact with Device [PassFailTest]
-  ts.eval(
-    'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
-  ); // status expression
-  interactWithDeviceResult.Status = ts.truthy(interactWithDeviceResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(interactWithDeviceResult.Status);
-
-  // ── cleanup ──
-  //   Comport <- FileGlobals.UUT.Serial.SessionReference
-  //   error out <- Step.Result.Error
-  await callClose(); // Close Connection [Action]
+    // ── main ──
+    // Invoke one of these previously test functions and assess the response.
+    // This might be the state of some Pin, the content of the EEPROM, ...
+    // checks: Step.Result.PassFail = Find(Step.Result.ReportText, ">>>") > -1, | Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    //   Comport <- FileGlobals.UUT.Serial.SessionReference
+    //   Command <- "help()"
+    //   Timeout (Sec) <- 500
+    //   Wait Before Read (Ms) <- 50
+    //   Comport Out <- FileGlobals.UUT.Serial.SessionReference
+    //   Reply <- Step.Result.ReportText
+    //   Last Reply Entry <- Locals.Reply
+    //   error out <- Step.Result.Error
+    await callSendCommand(); // Interact with Device [PassFailTest]
+    ts.eval(
+      'Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False',
+    ); // status expression
+    interactWithDeviceResult.Status =
+        ts.truthy(interactWithDeviceResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(interactWithDeviceResult.Status);
+  } finally {
+    // ── cleanup ──
+    //   Comport <- FileGlobals.UUT.Serial.SessionReference
+    //   error out <- Step.Result.Error
+    await callClose(); // Close Connection [Action]
+  }
 
   return run.status;
 }

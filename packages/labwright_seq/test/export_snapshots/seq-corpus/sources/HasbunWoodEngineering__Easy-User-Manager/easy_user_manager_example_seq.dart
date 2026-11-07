@@ -52,157 +52,160 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of User has privilege?
 
-  // ── setup ──
-  // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
-  //
-  // Save the EasyUserManager object to a local variable (object reference) for further use.
-  //   Engine Reference <- RunState.Engine
-  //   EasyUserManager out <- Locals.EUM
-  //   error out <- Step.Result.Error
-  await callInitializeFromTeststand(); // Initialize EasyUserManager [Action]
-  while (ts.checkStrLimit(newUserName, '', 'CaseSensitive') == 'Passed') {
-    // popup title: NameOf(Step)
-    // popup message: "Enter a user name. The user password will be set to 12345"
-    // popup buttons: "Done" | "Cancel"
-    // popup collects a response (default "ExampleUser2025")
-    enterANewUserNameResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ButtonHit': 0,
-      'Response': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Enter a new user name [MessagePopup]
-    newUserName = enterANewUserNameResult.Response; // post-expression
-    enterANewUserNameResult.Status = 'Done';
-    run.record(enterANewUserNameResult.Status);
-    if (runState.PreviousStep.Result.ButtonHit == 2) {
-      // precondition of Terminate execution if user cancels
-      runState.Execution.Terminate(); // Terminate execution if user cancels
+  body:
+  try {
+    // ── setup ──
+    // Initialize EasyUserManager object using the VI "Initialize from Teststand.vi". This VI duplicates the engine reference to avoid automatic closing when the VI finishes execution.
+    //
+    // Save the EasyUserManager object to a local variable (object reference) for further use.
+    //   Engine Reference <- RunState.Engine
+    //   EasyUserManager out <- Locals.EUM
+    //   error out <- Step.Result.Error
+    await callInitializeFromTeststand(); // Initialize EasyUserManager [Action]
+    while (ts.checkStrLimit(newUserName, '', 'CaseSensitive') == 'Passed') {
+      // popup title: NameOf(Step)
+      // popup message: "Enter a user name. The user password will be set to 12345"
+      // popup buttons: "Done" | "Cancel"
+      // popup collects a response (default "ExampleUser2025")
+      enterANewUserNameResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ButtonHit': 0,
+        'Response': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
+      throw UnimplementedError(
+        'step type MessagePopup: action not exported yet',
+      ); // Enter a new user name [MessagePopup]
+      newUserName = enterANewUserNameResult.Response; // post-expression
+      enterANewUserNameResult.Status = 'Done';
+      run.record(enterANewUserNameResult.Status);
+      if (runState.PreviousStep.Result.ButtonHit == 2) {
+        // precondition of Terminate execution if user cancels
+        runState.Execution.Terminate(); // Terminate execution if user cancels
+      }
+      //   EasyUserManager in <- Locals.EUM
+      //   LoginName <- Locals.NewUserName
+      //   User Exists <- Locals.UserExists
+      //   error out <- Step.Result.Error
+      await callUserExists(); // Check if user already exists [Action]
+      // popup title: NameOf(Step)
+      // popup message: "There is already a user with the LoginName " + Locals.NewUserName + ". Enter a different user name."
+      // popup buttons: "OK"
+      if (userExists) {
+        // precondition of Warning user already exists
+        throw UnimplementedError(
+          'step type MessagePopup: action not exported yet',
+        ); // Warning user already exists [MessagePopup]
+        newUserName = ''; // post-expression
+      }
     }
+    //   Save File <- Locals.SaveUsersFile
     //   EasyUserManager in <- Locals.EUM
     //   LoginName <- Locals.NewUserName
-    //   User Exists <- Locals.UserExists
+    //   Password <- "12345"
     //   error out <- Step.Result.Error
-    await callUserExists(); // Check if user already exists [Action]
-    // popup title: NameOf(Step)
-    // popup message: "There is already a user with the LoginName " + Locals.NewUserName + ". Enter a different user name."
-    // popup buttons: "OK"
-    if (userExists) {
-      // precondition of Warning user already exists
+    await callCreateUser(); // Create user [Action]
+    while (!groupExists) {
+      // popup title: NameOf(Step)
+      // popup message: "Enter a group to which the new user shall be added.  | Pick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician)."
+      // popup buttons: "Done" | "Cancel"
+      // popup collects a response (default "Technician")
+      enterAGroupNameResult = ts.PropObj({
+        'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
+        'Status': '',
+        'ButtonHit': 0,
+        'Response': '',
+        'ReportText': '',
+        'Common': ts.PropObj(),
+      });
       throw UnimplementedError(
         'step type MessagePopup: action not exported yet',
-      ); // Warning user already exists [MessagePopup]
-      newUserName = ''; // post-expression
-    }
-  }
-  //   Save File <- Locals.SaveUsersFile
-  //   EasyUserManager in <- Locals.EUM
-  //   LoginName <- Locals.NewUserName
-  //   Password <- "12345"
-  //   error out <- Step.Result.Error
-  await callCreateUser(); // Create user [Action]
-  while (!groupExists) {
-    // popup title: NameOf(Step)
-    // popup message: "Enter a group to which the new user shall be added.  | Pick a group that does not already have the privilege Configure.ConfigAdapter (e.g. Technician)."
-    // popup buttons: "Done" | "Cancel"
-    // popup collects a response (default "Technician")
-    enterAGroupNameResult = ts.PropObj({
-      'Error': ts.PropObj({'Code': 0, 'Msg': '', 'Occurred': false}),
-      'Status': '',
-      'ButtonHit': 0,
-      'Response': '',
-      'ReportText': '',
-      'Common': ts.PropObj(),
-    });
-    throw UnimplementedError(
-      'step type MessagePopup: action not exported yet',
-    ); // Enter a group name [MessagePopup]
-    groupName = enterAGroupNameResult.Response; // post-expression
-    enterAGroupNameResult.Status = 'Done';
-    run.record(enterAGroupNameResult.Status);
-    if (runState.PreviousStep.Result.ButtonHit == 2) {
-      // precondition of Terminate execution if user cancels
-      runState.Execution.Terminate(); // Terminate execution if user cancels
-    }
-    //   EasyUserManager in <- Locals.EUM
-    //   Group Name <- Locals.GroupName
-    //   Group Exists <- Locals.GroupExists
-    //   error out <- Step.Result.Error
-    await callGroupExists(); // Check if group exists [Action]
-    // popup title: NameOf(Step)
-    // popup message: "The group " + Locals.GroupName + " does not exist and will be created."
-    // popup buttons: "OK"
-    if (!groupExists) {
-      // precondition of Warning group will be created
-      throw UnimplementedError(
-        'step type MessagePopup: action not exported yet',
-      ); // Warning group will be created [MessagePopup]
-    }
-    if (!groupExists) {
-      // precondition of Create group
-      //   Save File <- Locals.SaveUsersFile
+      ); // Enter a group name [MessagePopup]
+      groupName = enterAGroupNameResult.Response; // post-expression
+      enterAGroupNameResult.Status = 'Done';
+      run.record(enterAGroupNameResult.Status);
+      if (runState.PreviousStep.Result.ButtonHit == 2) {
+        // precondition of Terminate execution if user cancels
+        runState.Execution.Terminate(); // Terminate execution if user cancels
+      }
       //   EasyUserManager in <- Locals.EUM
       //   Group Name <- Locals.GroupName
+      //   Group Exists <- Locals.GroupExists
       //   error out <- Step.Result.Error
-      await callCreateGroup(); // Create group [Action]
-      groupExists = true; // post-expression
+      await callGroupExists(); // Check if group exists [Action]
+      // popup title: NameOf(Step)
+      // popup message: "The group " + Locals.GroupName + " does not exist and will be created."
+      // popup buttons: "OK"
+      if (!groupExists) {
+        // precondition of Warning group will be created
+        throw UnimplementedError(
+          'step type MessagePopup: action not exported yet',
+        ); // Warning group will be created [MessagePopup]
+      }
+      if (!groupExists) {
+        // precondition of Create group
+        //   Save File <- Locals.SaveUsersFile
+        //   EasyUserManager in <- Locals.EUM
+        //   Group Name <- Locals.GroupName
+        //   error out <- Step.Result.Error
+        await callCreateGroup(); // Create group [Action]
+        groupExists = true; // post-expression
+      }
     }
+    //   Save File <- Locals.SaveUsersFile
+    //   EasyUserManager in <- Locals.EUM
+    //   LoginName <- Locals.NewUserName
+    //   Group Name <- Locals.GroupName
+    //   error out <- Step.Result.Error
+    await callAddUserToGroup(); // Add user to group [Action]
+    //   Save File <- Locals.SaveUsersFile
+    //   EasyUserManager in <- Locals.EUM
+    //   LoginName <- Locals.NewUserName
+    //   FullName <- "Super Cool Name"
+    //   error out <- Step.Result.Error
+    await callSetUserFullName(); // Set User FullName [Action]
+    //   New Value <- True
+    //   Save File <- Locals.SaveUsersFile
+    //   EasyUserManager in <- Locals.EUM
+    //   LoginName <- Locals.NewUserName
+    //   Privilege <- "Configure.ConfigAdapter"
+    //   error out <- Step.Result.Error
+    await callSetUserPrivilege(); // Set user privilege Configure.ConfigAdapter to True [Action]
+
+    // ── main ──
+    // checks: Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    //   EasyUserManager in <- Locals.EUM
+    //   LoginName <- Locals.NewUserName
+    //   Group Name <- Locals.GroupName
+    //   User in Group <- Step.Result.PassFail
+    //   error out <- Step.Result.Error
+    await callUserInGroup(); // User in group? [PassFailTest]
+    userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(userInGroupResult.Status);
+    // checks: Step.Result.PassFail
+    // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
+    //   EasyUserManager in <- Locals.EUM
+    //   LoginName <- Locals.NewUserName
+    //   Privilege <- "Configure.ConfigAdapter"
+    //   User Has Privilege <- Step.Result.PassFail
+    //   error out <- Step.Result.Error
+    await callCheckUserHasPrivilege(); // User has privilege? [PassFailTest]
+    userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail)
+        ? 'Passed'
+        : 'Failed'; // status expression
+    run.record(userHasPrivilegeResult.Status);
+  } finally {
+    // ── cleanup ──
+    // As the engine reference was duplicated you need to close it in the clean up process.
+    //   EasyUserManager in <- Locals.EUM
+    //   error out <- Step.Result.Error
+    await callCloseEngineReference(); // Close duplicated reference [Action]
   }
-  //   Save File <- Locals.SaveUsersFile
-  //   EasyUserManager in <- Locals.EUM
-  //   LoginName <- Locals.NewUserName
-  //   Group Name <- Locals.GroupName
-  //   error out <- Step.Result.Error
-  await callAddUserToGroup(); // Add user to group [Action]
-  //   Save File <- Locals.SaveUsersFile
-  //   EasyUserManager in <- Locals.EUM
-  //   LoginName <- Locals.NewUserName
-  //   FullName <- "Super Cool Name"
-  //   error out <- Step.Result.Error
-  await callSetUserFullName(); // Set User FullName [Action]
-  //   New Value <- True
-  //   Save File <- Locals.SaveUsersFile
-  //   EasyUserManager in <- Locals.EUM
-  //   LoginName <- Locals.NewUserName
-  //   Privilege <- "Configure.ConfigAdapter"
-  //   error out <- Step.Result.Error
-  await callSetUserPrivilege(); // Set user privilege Configure.ConfigAdapter to True [Action]
-
-  // ── main ──
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  //   EasyUserManager in <- Locals.EUM
-  //   LoginName <- Locals.NewUserName
-  //   Group Name <- Locals.GroupName
-  //   User in Group <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callUserInGroup(); // User in group? [PassFailTest]
-  userInGroupResult.Status = ts.truthy(userInGroupResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(userInGroupResult.Status);
-  // checks: Step.Result.PassFail
-  // status expression: Step.DataSource != "Step.Result.PassFail" ? Step.Result.PassFail = Evaluate(Step.DataSource) : False, Step.Result.PassFail ? "Passed" : "Failed"
-  //   EasyUserManager in <- Locals.EUM
-  //   LoginName <- Locals.NewUserName
-  //   Privilege <- "Configure.ConfigAdapter"
-  //   User Has Privilege <- Step.Result.PassFail
-  //   error out <- Step.Result.Error
-  await callCheckUserHasPrivilege(); // User has privilege? [PassFailTest]
-  userHasPrivilegeResult.Status = ts.truthy(userHasPrivilegeResult.PassFail)
-      ? 'Passed'
-      : 'Failed'; // status expression
-  run.record(userHasPrivilegeResult.Status);
-
-  // ── cleanup ──
-  // As the engine reference was duplicated you need to close it in the clean up process.
-  //   EasyUserManager in <- Locals.EUM
-  //   error out <- Step.Result.Error
-  await callCloseEngineReference(); // Close duplicated reference [Action]
 
   return run.status;
 }

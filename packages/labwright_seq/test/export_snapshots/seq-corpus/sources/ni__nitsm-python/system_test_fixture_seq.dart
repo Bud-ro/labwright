@@ -34,87 +34,90 @@ Future<String> mainSequence() async {
     'Common': ts.PropObj(),
   }); // result of Call Sequence File
 
-  // ── setup ──
-  ts.eval(
-    'Locals.PythonAdapterRef = RunState.Engine.GetAdapterByKeyName(PythonAdapterKeyName)',
-  ); // Get Python Adapter Reference
-  cachedPythonVersion =
-      pythonAdapterRef.AsPythonAdapter.PythonVersion; // Cache Python Version
-  cachedPythonEnvironmentPath = pythonAdapterRef
-      .AsPythonAdapter
-      .PythonVirtualEnvironmentPath; // Cache Python Environment Path
-  ts.eval(
-    'Locals.AppManagerRef = RunState.Engine.GetInternalOption(InternalOption_ApplicationManager)',
-  ); // Get Application Manager Reference
-  //   Return Value -> Locals.CommandLineArgsRef
-  throw UnimplementedError(
-    'cModule call: Get Command Line Args Reference',
-  ); // Get Command Line Args Reference [Action]
-  //   Return Value -> Locals.CommandLineArgsCount
-  throw UnimplementedError(
-    'cModule call: Get Command Line Args Count',
-  ); // Get Command Line Args Count [Action]
-  for (i = 0; i < commandLineArgsCount; i += 1) {
-    //   Return Value -> Locals.CommandLineArg
-    //   itemIndex <- Locals.i
+  body:
+  try {
+    // ── setup ──
+    ts.eval(
+      'Locals.PythonAdapterRef = RunState.Engine.GetAdapterByKeyName(PythonAdapterKeyName)',
+    ); // Get Python Adapter Reference
+    cachedPythonVersion =
+        pythonAdapterRef.AsPythonAdapter.PythonVersion; // Cache Python Version
+    cachedPythonEnvironmentPath = pythonAdapterRef
+        .AsPythonAdapter
+        .PythonVirtualEnvironmentPath; // Cache Python Environment Path
+    ts.eval(
+      'Locals.AppManagerRef = RunState.Engine.GetInternalOption(InternalOption_ApplicationManager)',
+    ); // Get Application Manager Reference
+    //   Return Value -> Locals.CommandLineArgsRef
     throw UnimplementedError(
-      'cModule call: Get Command Line Arg',
-    ); // Get Command Line Arg [Action]
-    sel1:
-    {
-      final select1 = commandLineArg;
-      var matched1 = false;
-      if (!matched1 && select1 == '/pyrunentrypoint') {
-        matched1 = true;
-        //   Return Value -> Locals.CommandLineEntryPoint
-        //   itemIndex <- Locals.i + 1
-        throw UnimplementedError(
-          'cModule call: Get Command Entry Point Name',
-        ); // Get Command Entry Point Name [Action]
-        //   Return Value -> Locals.CommandLineSequenceFilePath
-        //   itemIndex <- Locals.i + 2
-        throw UnimplementedError(
-          'cModule call: Get Command Line Sequence File Path',
-        ); // Get Command Line Sequence File Path [Action]
-      }
-      if (!matched1 && select1 == '/pyversion') {
-        matched1 = true;
-        //   Return Value -> Locals.CommandLinePythonVersion
-        //   itemIndex <- Locals.i + 1
-        throw UnimplementedError(
-          'cModule call: Get Command Line Python Version',
-        ); // Get Command Line Python Version [Action]
-      }
-      if (!matched1 && select1 == '/pyenvironment') {
-        matched1 = true;
-        //   Return Value -> Locals.CommandLinePythonEnvironmentPath
-        //   itemIndex <- Locals.i + 1
-        throw UnimplementedError(
-          'cModule call: Get Command Line Python Environment Path',
-        ); // Get Command Line Python Environment Path [Action]
+      'cModule call: Get Command Line Args Reference',
+    ); // Get Command Line Args Reference [Action]
+    //   Return Value -> Locals.CommandLineArgsCount
+    throw UnimplementedError(
+      'cModule call: Get Command Line Args Count',
+    ); // Get Command Line Args Count [Action]
+    for (i = 0; i < commandLineArgsCount; i += 1) {
+      //   Return Value -> Locals.CommandLineArg
+      //   itemIndex <- Locals.i
+      throw UnimplementedError(
+        'cModule call: Get Command Line Arg',
+      ); // Get Command Line Arg [Action]
+      sel1:
+      {
+        final select1 = commandLineArg;
+        var matched1 = false;
+        if (!matched1 && select1 == '/pyrunentrypoint') {
+          matched1 = true;
+          //   Return Value -> Locals.CommandLineEntryPoint
+          //   itemIndex <- Locals.i + 1
+          throw UnimplementedError(
+            'cModule call: Get Command Entry Point Name',
+          ); // Get Command Entry Point Name [Action]
+          //   Return Value -> Locals.CommandLineSequenceFilePath
+          //   itemIndex <- Locals.i + 2
+          throw UnimplementedError(
+            'cModule call: Get Command Line Sequence File Path',
+          ); // Get Command Line Sequence File Path [Action]
+        }
+        if (!matched1 && select1 == '/pyversion') {
+          matched1 = true;
+          //   Return Value -> Locals.CommandLinePythonVersion
+          //   itemIndex <- Locals.i + 1
+          throw UnimplementedError(
+            'cModule call: Get Command Line Python Version',
+          ); // Get Command Line Python Version [Action]
+        }
+        if (!matched1 && select1 == '/pyenvironment') {
+          matched1 = true;
+          //   Return Value -> Locals.CommandLinePythonEnvironmentPath
+          //   itemIndex <- Locals.i + 1
+          throw UnimplementedError(
+            'cModule call: Get Command Line Python Environment Path',
+          ); // Get Command Line Python Environment Path [Action]
+        }
       }
     }
+    pythonAdapterRef.AsPythonAdapter.PythonVersion =
+        commandLinePythonVersion; // Set Python Version
+    pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
+        commandLinePythonEnvironmentPath; // Set Python Environment Path
+
+    // ── main ──
+    // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
+    // sequence call spawns a new execution in the engine — exported as a plain awaited call
+    await localsCommandLineEntryPoint(); // Call Sequence File: external sequence call
+    callSequenceFileResult.Status =
+        callSequenceFileResult.Status == 'Done' && false
+        ? 'Passed'
+        : callSequenceFileResult.Status; // status expression
+    run.record(callSequenceFileResult.Status);
+  } finally {
+    // ── cleanup ──
+    pythonAdapterRef.AsPythonAdapter.PythonVersion =
+        cachedPythonVersion; // Restore Python Version
+    pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
+        cachedPythonEnvironmentPath; // Restore Python Environment Path
   }
-  pythonAdapterRef.AsPythonAdapter.PythonVersion =
-      commandLinePythonVersion; // Set Python Version
-  pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
-      commandLinePythonEnvironmentPath; // Set Python Environment Path
-
-  // ── main ──
-  // status expression: (Step.Result.Status == "Done" && (Step.TS.SData.ThreadOpt == 0 || Step.TS.SData.ThreadOpt == 3)) ? "Passed" : Step.Result.Status
-  // sequence call spawns a new execution in the engine — exported as a plain awaited call
-  await localsCommandLineEntryPoint(); // Call Sequence File: external sequence call
-  callSequenceFileResult.Status =
-      callSequenceFileResult.Status == 'Done' && false
-      ? 'Passed'
-      : callSequenceFileResult.Status; // status expression
-  run.record(callSequenceFileResult.Status);
-
-  // ── cleanup ──
-  pythonAdapterRef.AsPythonAdapter.PythonVersion =
-      cachedPythonVersion; // Restore Python Version
-  pythonAdapterRef.AsPythonAdapter.PythonVirtualEnvironmentPath =
-      cachedPythonEnvironmentPath; // Restore Python Environment Path
 
   return run.status;
 }
